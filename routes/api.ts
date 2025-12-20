@@ -24,7 +24,7 @@ export function registerRoutes(router: Router): void {
       const db = useDatabase();
 
       // Try a simple query to verify database is working
-      const _result = await db.query('SELECT 1');
+      await db.query('SELECT 1');
 
       res.json({
         status: 'healthy',
@@ -46,7 +46,7 @@ export function registerRoutes(router: Router): void {
   });
 
   // API routes with versioning
-  router.group({ prefix: '/api/v1', middleware: ['cors', 'json'] }, (r) => {
+  router.group({ prefix: '/api/v1', middleware: ['cors', 'json'] }, () => {
     // Auth routes
     router.post('/auth/login', async (req, res) => {
       res.json({ message: 'Login endpoint' });
@@ -57,7 +57,7 @@ export function registerRoutes(router: Router): void {
     });
 
     // Protected routes
-    router.group({ middleware: ['auth'] }, (r) => {
+    router.group({ middleware: ['auth'] }, () => {
       // User resource (CRUD)
       r.resource('users', {
         index: userController.index.bind(userController),

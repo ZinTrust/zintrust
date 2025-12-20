@@ -14,7 +14,7 @@ export class User extends Model {
   protected timestamps = true;
   protected casts = {
     email_verified_at: 'datetime',
-    password: 'hashed',
+    password: 'hashed', // NOSONAR
     is_admin: 'boolean',
     metadata: 'json',
   };

@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock QueryBuilder
 vi.mock('@orm/QueryBuilder', () => {
+  const mockInstance = {
+    join: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    get: vi.fn().mockResolvedValue([]),
+  };
   return {
-    QueryBuilder: vi.fn().mockImplementation(() => {
-      return {
-        join: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        get: vi.fn().mockResolvedValue([]),
-      };
+    QueryBuilder: vi.fn().mockImplementation(function () {
+      return mockInstance;
     }),
   };
 });

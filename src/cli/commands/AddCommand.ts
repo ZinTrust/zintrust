@@ -1026,7 +1026,7 @@ export class AddCommand extends BaseCommand {
 
     const answers =
       opts.noInteractive === true
-        ? { responseName, responseType: 'success', withDTO: true }
+        ? { factoryName: name, responseName, responseType: 'success', withDTO: true }
         : await this.promptResponseFactoryConfig(responseName);
 
     const factoriesPath = path.join(process.cwd(), 'database', 'factories');
@@ -1075,6 +1075,19 @@ export class AddCommand extends BaseCommand {
     defaultResponseName: string
   ): Promise<ResponseFactoryPromptAnswers> {
     return inquirer.prompt([
+      {
+        type: 'input',
+        name: 'factoryName',
+        message: 'Factory class name:',
+        default: `${defaultResponseName}Factory`,
+        validate: (input: string): string | boolean => {
+          if (input === '') return 'Factory name is required';
+          if (!input.endsWith('Factory')) {
+            return 'Factory name must end with "Factory"';
+          }
+          return true;
+        },
+      },
       {
         type: 'input',
         name: 'responseName',

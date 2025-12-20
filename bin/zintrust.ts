@@ -9,18 +9,21 @@
 
 import { CLI } from '@cli/CLI.js';
 import { ErrorHandler } from '@cli/ErrorHandler.js';
+import { Logger } from '@config/logger.js';
 
 async function main(): Promise<void> {
   try {
     const cli = new CLI();
     await cli.run(process.argv.slice(2));
   } catch (error) {
+    Logger.error('CLI execution failed', error);
     ErrorHandler.handle(error as Error);
     process.exit(1);
   }
 }
 
 await main().catch((error) => {
+  Logger.error('CLI fatal error', error);
   ErrorHandler.handle(error as Error);
   process.exit(1);
 });

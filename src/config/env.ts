@@ -83,7 +83,14 @@ export const REQUEST_TIMEOUT = getInt('REQUEST_TIMEOUT', 30000);
 export const MAX_BODY_SIZE = getInt('MAX_BODY_SIZE', 10485760); // 10MB
 
 // Logging
-export const LOG_LEVEL = get('LOG_LEVEL', 'debug') as 'debug' | 'info' | 'warn' | 'error';
+function getDefaultLogLevel(): 'debug' | 'info' | 'warn' | 'error' {
+  if (NODE_ENV === 'production') return 'info';
+  if (NODE_ENV === 'testing') return 'error';
+  return 'debug';
+}
+
+const defaultLogLevel = getDefaultLogLevel();
+export const LOG_LEVEL = get('LOG_LEVEL', defaultLogLevel) as 'debug' | 'info' | 'warn' | 'error';
 export const DISABLE_LOGGING = getBool('DISABLE_LOGGING', false);
 
 /**

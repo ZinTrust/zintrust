@@ -118,55 +118,59 @@ export class NodeServerAdapter implements RuntimeAdapter {
   }
 
   private requestListener(): (req: IncomingMessage, res: ServerResponse) => void {
-    return async (req: IncomingMessage, res: ServerResponse) => {
-      const chunks: Buffer[] = [];
-      let body: Buffer | null = null;
-
-      // Collect request body
-      req.on('data', (chunk: Buffer) => {
-        const maxSize = this.config.maxBodySize || 10 * 1024 * 1024;
-        if (chunks.length * chunk.length > maxSize) {
-          res.writeHead(413, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Payload Too Large' }));
-          req.socket.destroy();
-          return;
-        }
-        chunks.push(chunk);
-      });
-
-      req.on('end', async () => {
-        try {
-          body = chunks.length > 0 ? Buffer.concat(chunks) : null;
-
-          // Set request timeout
-          const timeout = this.config.timeout || 30000;
-          const timeoutHandle = setTimeout(() => {
-            res.writeHead(504, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Gateway Timeout' }));
-          }, timeout);
-
-          try {
-            // Call Zintrust handler
-            await this.config.handler(req, res, body);
-          } finally {
-            clearTimeout(timeoutHandle);
-          }
-
-          this.logger?.debug('Request processed', {
-            method: req.method,
-            url: req.url,
-            statusCode: res.statusCode,
-            remoteAddr: req.socket.remoteAddress,
-          });
-        } catch (error) {
-          this.handleError(res, error as Error);
-        }
-      });
-
-      req.on('error', (error: Error) => {
-        this.handleRequestError(res, error);
-      });
+    return (req: IncomingMessage, res: ServerResponse): void => {
+      void this.handleRequest(req, res);
     };
+  }
+
+  private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const chunks: Buffer[] = [];
+    let body: Buffer | null = null;
+
+    // Collect request body
+    req.on('data', (chunk: Buffer) => {
+      const maxSize = this.config.maxBodySize || 10 * 1024 * 1024;
+      if (chunks.length * chunk.length > maxSize) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payload Too Large' }));
+        req.socket.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', async () => {
+      try {
+        body = chunks.length > 0 ? Buffer.concat(chunks) : null;
+
+        // Set request timeout
+        const timeout = this.config.timeout || 30000;
+        const timeoutHandle = setTimeout(() => {
+          res.writeHead(504, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Gateway Timeout' }));
+        }, timeout);
+
+        try {
+          // Call Zintrust handler
+          await this.config.handler(req, res, body);
+        } finally {
+          clearTimeout(timeoutHandle);
+        }
+
+        this.logger?.debug('Request processed', {
+          method: req.method,
+          url: req.url,
+          statusCode: res.statusCode,
+          remoteAddr: req.socket.remoteAddress,
+        });
+      } catch (error) {
+        this.handleError(res, error as Error);
+      }
+    });
+
+    req.on('error', (error: Error) => {
+      this.handleRequestError(res, error);
+    });
   }
 
   /**

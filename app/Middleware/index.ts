@@ -116,7 +116,7 @@ export const rateLimitMiddleware = async (
     requestCounts.set(ip, []);
   }
 
-  const requests = requestCounts.get(ip)!;
+  const requests = requestCounts.get(ip) ?? [];
   const recentRequests = requests.filter((time) => now - time < windowMs);
 
   if (recentRequests.length >= maxRequests) {

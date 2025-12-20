@@ -4,7 +4,6 @@
  * Fetch and analyze issues from SonarCloud Web API
  */
 
-import { Logger } from '@config/logger';
 import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as path from 'node:path';
@@ -72,7 +71,6 @@ class SonarCloudClient {
   private readonly projectKey: string;
   private readonly token?: string;
   private readonly baseUrl = 'sonarcloud.io';
-  private readonly logger = Logger.scope('sonarcloud');
 
   constructor(organization: string, projectKey: string, token?: string) {
     this.organization = organization;
@@ -144,12 +142,11 @@ class SonarCloudClient {
     while (hasMore) {
       const response = await this.fetchIssues({ ...params, p: page });
       allIssues.push(...response.issues);
-
       const totalPages = Math.ceil(response.paging.total / response.paging.pageSize);
       hasMore = page < totalPages;
       page++;
 
-      this.logger.info(
+      console.log(
         `Fetched page ${page - 1}/${totalPages} (${allIssues.length}/${response.paging.total} issues)`
       );
     }
@@ -228,12 +225,12 @@ function loadEnv(): void {
           const value = valueParts
             .join('=')
             .trim()
-            .replace(/^["']|["']$/g, '');
+            .replaceAll(/(^["']|["']$)/g, '');
           process.env[key.trim()] = value;
         }
       }
     }
-  } catch (error) {
+  } catch {
     // Ignore errors loading .env
   }
 }
@@ -262,7 +259,7 @@ function getCodeSnippet(filePath: string, line?: number): string {
       }
       return snippet;
     }
-  } catch (error) {
+  } catch {
     // Ignore errors reading file
   }
   return '';
@@ -271,41 +268,48 @@ function getCodeSnippet(filePath: string, line?: number): string {
 /**
  * Generate issue report
  */
-function generateReport(issues: SonarCloudIssue[]): string {
-  const groupedByType = new Map<string, SonarCloudIssue[]>();
-  const groupedBySeverity = new Map<string, SonarCloudIssue[]>();
-  const groupedByFile = new Map<string, SonarCloudIssue[]>();
+/**
+ * Group issues by type, severity, and file
+ */
+function groupIssues(issues: SonarCloudIssue[]): {
+  byType: Map<string, SonarCloudIssue[]>;
+  bySeverity: Map<string, SonarCloudIssue[]>;
+  byFile: Map<string, SonarCloudIssue[]>;
+} {
+  const byType = new Map<string, SonarCloudIssue[]>();
+  const bySeverity = new Map<string, SonarCloudIssue[]>();
+  const byFile = new Map<string, SonarCloudIssue[]>();
 
   for (const issue of issues) {
     // Group by type
-    if (!groupedByType.has(issue.type)) {
-      groupedByType.set(issue.type, []);
+    if (!byType.has(issue.type)) {
+      byType.set(issue.type, []);
     }
-    groupedByType.get(issue.type)?.push(issue);
+    byType.get(issue.type)?.push(issue);
 
     // Group by severity
     const severity = issue.impacts?.[0]?.severity || issue.severity;
-    if (!groupedBySeverity.has(severity)) {
-      groupedBySeverity.set(severity, []);
+    if (!bySeverity.has(severity)) {
+      bySeverity.set(severity, []);
     }
-    groupedBySeverity.get(severity)?.push(issue);
+    bySeverity.get(severity)?.push(issue);
 
     // Group by file
     const file = issue.component.split(':').pop() || 'unknown';
-    if (!groupedByFile.has(file)) {
-      groupedByFile.set(file, []);
+    if (!byFile.has(file)) {
+      byFile.set(file, []);
     }
-    groupedByFile.get(file)?.push(issue);
+    byFile.get(file)?.push(issue);
   }
 
-  let report = '╔════════════════════════════════════════════════════════════════╗\n';
-  report += '║                SONARCLOUD ISSUES REPORT                        ║\n';
-  report += `║                ${new Date().toISOString()}                ║\n`;
-  report += '╚════════════════════════════════════════════════════════════════╝\n\n';
+  return { byType, bySeverity, byFile };
+}
 
-  report += `Total Issues: ${issues.length}\n\n`;
-
-  report += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+/**
+ * Build type summary section
+ */
+function buildTypeSummary(groupedByType: Map<string, SonarCloudIssue[]>): string {
+  let report = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
   report += 'ISSUES BY TYPE\n';
   report += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
@@ -315,7 +319,14 @@ function generateReport(issues: SonarCloudIssue[]): string {
     report += `${type}: ${typeIssues.length}\n`;
   }
 
-  report += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  return report + '\n';
+}
+
+/**
+ * Build severity summary section
+ */
+function buildSeveritySummary(groupedBySeverity: Map<string, SonarCloudIssue[]>): string {
+  let report = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
   report += 'ISSUES BY SEVERITY\n';
   report += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
@@ -327,7 +338,14 @@ function generateReport(issues: SonarCloudIssue[]): string {
     }
   }
 
-  report += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  return report + '\n';
+}
+
+/**
+ * Build top files section
+ */
+function buildTopFilesSummary(groupedByFile: Map<string, SonarCloudIssue[]>): string {
+  let report = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
   report += 'TOP 10 FILES WITH MOST ISSUES\n';
   report += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
@@ -339,38 +357,105 @@ function generateReport(issues: SonarCloudIssue[]): string {
     report += `${file}: ${fileIssues.length} issues\n`;
   }
 
-  report += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  return report + '\n';
+}
+
+/**
+ * Format single issue details
+ */
+function formatIssueDetails(issue: SonarCloudIssue): string {
+  const file = issue.component.split(':').pop() || 'unknown';
+  const line = issue.line || 0;
+  const severity = issue.impacts?.[0]?.severity || issue.severity;
+
+  let details = `[${severity}] ${file}:${line || '?'}\n`;
+  details += `  Rule: ${issue.rule}\n`;
+  details += `  Message: ${issue.message}\n`;
+  details += `  Status: ${issue.status}\n`;
+
+  if (issue.cleanCodeAttribute) {
+    details += `  Attribute: ${issue.cleanCodeAttribute} (${issue.cleanCodeAttributeCategory})\n`;
+  }
+
+  if (issue.impacts && issue.impacts.length > 0) {
+    const impacts = issue.impacts.map((i) => `${i.softwareQuality}: ${i.severity}`).join(', ');
+    details += `  Impacts: ${impacts}\n`;
+  }
+
+  if (line > 0) {
+    const snippet = getCodeSnippet(issue.component, line);
+    if (snippet) {
+      details += snippet;
+    }
+  }
+
+  return details + '\n';
+}
+
+/**
+ * Build detailed issues section
+ */
+function buildDetailedIssues(issues: SonarCloudIssue[]): string {
+  let report = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
   report += 'DETAILED ISSUES\n';
   report += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
   for (const issue of issues) {
-    const file = issue.component.split(':').pop() || 'unknown';
-    const line = issue.line || 0;
-    const severity = issue.impacts?.[0]?.severity || issue.severity;
-    report += `[${severity}] ${file}:${line || '?'}\n`;
-    report += `  Rule: ${issue.rule}\n`;
-    report += `  Message: ${issue.message}\n`;
-    report += `  Status: ${issue.status}\n`;
-
-    if (issue.cleanCodeAttribute) {
-      report += `  Attribute: ${issue.cleanCodeAttribute} (${issue.cleanCodeAttributeCategory})\n`;
-    }
-
-    if (issue.impacts && issue.impacts.length > 0) {
-      const impacts = issue.impacts.map((i) => `${i.softwareQuality}: ${i.severity}`).join(', ');
-      report += `  Impacts: ${impacts}\n`;
-    }
-
-    if (line > 0) {
-      const snippet = getCodeSnippet(issue.component, line);
-      if (snippet) {
-        report += snippet;
-      }
-    }
-    report += '\n';
+    report += formatIssueDetails(issue);
   }
 
   return report;
+}
+
+function generateReport(issues: SonarCloudIssue[]): string {
+  const { byType, bySeverity, byFile } = groupIssues(issues);
+
+  let report = '╔════════════════════════════════════════════════════════════════╗\n';
+  report += '║                SONARCLOUD ISSUES REPORT                        ║\n';
+  report += `║                ${new Date().toISOString()}                ║\n`;
+  report += '╚════════════════════════════════════════════════════════════════╝\n\n';
+
+  report += `Total Issues: ${issues.length}\n\n`;
+
+  report += buildTypeSummary(byType);
+  report += buildSeveritySummary(bySeverity);
+  report += buildTopFilesSummary(byFile);
+  report += buildDetailedIssues(issues);
+
+  return report;
+}
+
+/**
+ * Parse command line arguments to query parameters
+ */
+function parseArguments(args: string[]): QueryParams {
+  const params: QueryParams = {};
+
+  // Map common arguments to parameters
+  const argMap: Record<string, [string, string]> = {
+    '--low': ['impactSeverities', 'LOW'],
+    '--medium': ['impactSeverities', 'MEDIUM'],
+    '--high': ['impactSeverities', 'HIGH'],
+    '--open': ['issueStatuses', 'OPEN,CONFIRMED'],
+    '--resolved': ['resolved', 'true'],
+    '--all-statuses': ['issueStatuses', 'OPEN,CONFIRMED,FALSE_POSITIVE,ACCEPTED,FIXED'],
+  };
+
+  for (const [arg, [key, value]] of Object.entries(argMap)) {
+    if (args.includes(arg)) {
+      (params as any)[key] = value;
+    }
+  }
+
+  // Allow passing any parameter via --key=value
+  for (const arg of args) {
+    if (arg.startsWith('--') && arg.includes('=')) {
+      const [key, value] = arg.slice(2).split('=');
+      (params as any)[key] = value;
+    }
+  }
+
+  return params;
 }
 
 /**
@@ -383,116 +468,105 @@ async function main(): Promise<void> {
   const projectKey = process.env['SONAR_PROJECT_KEY'] || 'ZinTrust_ZinTrust';
   const token = process.env['SONAR_TOKEN'];
 
-  const logger = Logger.scope('sonarcloud');
-
-  logger.info('🔍 SonarCloud Issues Downloader');
-  logger.info(`Organization: ${organization}`);
-  logger.info(`Project: ${projectKey}`);
-  logger.info(`Token: ${token ? '✓ Provided' : '✗ Not provided'}\n`);
+  console.log('🔍 SonarCloud Issues Downloader');
+  console.log(`Organization: ${organization}`);
+  console.log(`Project: ${projectKey}`);
+  console.log(`Token: ${token ? '✓ Provided' : '✗ Not provided'}\n`);
 
   const client = new SonarCloudClient(organization, projectKey, token);
 
   try {
-    // Parse query parameters from URL or command line
-    const params: QueryParams = {};
+    const params = parseArguments(args);
 
-    if (args.includes('--low')) {
-      params.impactSeverities = 'LOW';
-    }
-    if (args.includes('--medium')) {
-      params.impactSeverities = 'MEDIUM';
-    }
-    if (args.includes('--high')) {
-      params.impactSeverities = 'HIGH';
-    }
-    if (args.includes('--open')) {
-      params.issueStatuses = 'OPEN,CONFIRMED';
-    }
-    if (args.includes('--resolved')) {
-      params.resolved = 'true';
-    }
-    if (args.includes('--all-statuses')) {
-      params.issueStatuses = 'OPEN,CONFIRMED,FALSE_POSITIVE,ACCEPTED,FIXED';
-    }
-
-    // Allow passing any parameter via --key=value
-    for (const arg of args) {
-      if (arg.startsWith('--') && arg.includes('=')) {
-        const [key, value] = arg.slice(2).split('=');
-        (params as any)[key] = value;
-      }
-    }
-
-    logger.info('Fetching issues from SonarCloud...\n');
+    console.log('Fetching issues from SonarCloud...\n');
 
     let issues = await client.fetchAllIssues(params);
 
     // Filter out ignored paths (docs-website is excluded from scanning)
-    const ignoredPaths = ['docs-website/'];
+    issues = filterIgnoredPaths(issues);
+
     const originalCount = issues.length;
-    issues = issues.filter((issue) => {
-      const file = issue.component.split(':').pop() || '';
-      return !ignoredPaths.some((path) => file.startsWith(path));
-    });
-
-    if (originalCount !== issues.length) {
-      logger.info(
-        `\n✓ Fetched ${originalCount} issues (${originalCount - issues.length} filtered out)\n`
-      );
+    if (originalCount > 0) {
+      console.log(`\n✓ Fetched ${originalCount} issues\n`);
     } else {
-      logger.info(`\n✓ Fetched ${issues.length} issues\n`);
+      console.log('\n✓ No issues fetched\n');
     }
 
-    // Generate report
-    const report = generateReport(issues);
-
-    // Save to file
-    const outputDir = path.join(process.cwd(), 'reports');
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    const reportFile = path.join(outputDir, 'sonarcloud-issues.txt');
-    const jsonFile = path.join(outputDir, 'sonarcloud-issues.json');
-
-    fs.writeFileSync(reportFile, report);
-    fs.writeFileSync(jsonFile, JSON.stringify(issues, null, 2));
-
-    logger.info(report);
-    logger.info(`\n✓ Report saved to: ${reportFile}`);
-    logger.info(`✓ JSON data saved to: ${jsonFile}`);
+    // Generate and save reports
+    await saveReports(issues);
 
     // Optionally fetch quality measures
     if (args.includes('--measures')) {
-      logger.info('\nFetching quality measures...');
-      const measures = await client.fetchMeasures([
-        'bugs',
-        'vulnerabilities',
-        'code_smells',
-        'coverage',
-        'duplicated_lines_density',
-        'ncloc',
-        'sqale_index',
-        'reliability_rating',
-        'security_rating',
-        'sqale_rating',
-      ]);
-      logger.info('Measures fetched successfully', { measures });
-
-      const measuresFile = path.join(outputDir, 'sonarcloud-measures.json');
-      fs.writeFileSync(measuresFile, JSON.stringify(measures, null, 2));
-      logger.info(`✓ Measures saved to: ${measuresFile}`);
+      await fetchAndSaveMeasures(client);
     }
   } catch (error) {
-    logger.error('❌ Error:', error);
+    console.error('❌ Error:', error);
     process.exit(1);
   }
 }
 
+/**
+ * Filter out ignored paths from issues
+ */
+function filterIgnoredPaths(issues: SonarCloudIssue[]): SonarCloudIssue[] {
+  const ignoredPaths = ['docs-website/'];
+  return issues.filter((issue) => {
+    const file = issue.component.split(':').pop() || '';
+    return !ignoredPaths.some((path) => file.startsWith(path));
+  });
+}
+
+/**
+ * Save report and JSON files
+ */
+async function saveReports(issues: SonarCloudIssue[]): Promise<void> {
+  const report = generateReport(issues);
+  const outputDir = path.join(process.cwd(), 'reports');
+
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  const reportFile = path.join(outputDir, 'sonarcloud-issues.txt');
+  const jsonFile = path.join(outputDir, 'sonarcloud-issues.json');
+
+  fs.writeFileSync(reportFile, report);
+  fs.writeFileSync(jsonFile, JSON.stringify(issues, null, 2));
+
+  console.log(report);
+  console.log(`\n✓ Report saved to: ${reportFile}`);
+  console.log(`✓ JSON data saved to: ${jsonFile}`);
+}
+
+/**
+ * Fetch and save quality measures
+ */
+async function fetchAndSaveMeasures(client: SonarCloudClient): Promise<void> {
+  console.log('\nFetching quality measures...');
+  const measures = await client.fetchMeasures([
+    'bugs',
+    'vulnerabilities',
+    'code_smells',
+    'coverage',
+    'duplicated_lines_density',
+    'ncloc',
+    'sqale_index',
+    'reliability_rating',
+    'security_rating',
+    'sqale_rating',
+  ]);
+  console.log('Measures fetched successfully', { measures });
+
+  const outputDir = path.join(process.cwd(), 'reports');
+  const measuresFile = path.join(outputDir, 'sonarcloud-measures.json');
+  fs.writeFileSync(measuresFile, JSON.stringify(measures, null, 2));
+  console.log(`✓ Measures saved to: ${measuresFile}`);
+}
+
 // Run if executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((error) => {
-    Logger.error('Fatal error in main:', error);
+  await main().catch((error) => {
+    console.error('Fatal error in main:', error);
     process.exit(1);
   });
 }

@@ -101,6 +101,62 @@ export class CLI {
   }
 
   /**
+   * Check if error is a version request
+   */
+  private isVersionRequest(args: string[]): boolean {
+    return args.includes('-v') || args.includes('--version');
+  }
+
+  /**
+   * Check if error is a commander error that can be safely ignored
+   */
+  private isIgnorableCommanderError(error: unknown): boolean {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      typeof error.code === 'string' &&
+      error.code.startsWith('commander.')
+    ) {
+      const commanderError = error as unknown as Error & { exitCode: number };
+      return typeof commanderError.exitCode === 'number' && commanderError.exitCode === 0;
+    }
+    return false;
+  }
+
+  /**
+   * Get exit code from error
+   */
+  private getExitCode(error: unknown): number {
+    if (
+      error instanceof Error &&
+      'exitCode' in error &&
+      typeof (error as unknown as { exitCode: unknown }).exitCode === 'number'
+    ) {
+      return (error as unknown as { exitCode: number }).exitCode;
+    }
+    return 1;
+  }
+
+  /**
+   * Handle CLI execution error
+   */
+  private handleExecutionError(error: unknown): void {
+    if (this.isIgnorableCommanderError(error)) {
+      return;
+    }
+
+    if (error === this.version) {
+      return;
+    }
+
+    Logger.error('CLI execution failed', error);
+    if (error instanceof Error) {
+      ErrorHandler.handle(error);
+    }
+    throw error;
+  }
+
+  /**
    * Run CLI with arguments
    */
   public async run(args: string[]): Promise<void> {
@@ -109,7 +165,7 @@ export class CLI {
       ErrorHandler.banner(this.version);
 
       // If version is requested, we've already shown the banner which includes the version.
-      if (args.includes('-v') || args.includes('--version')) {
+      if (this.isVersionRequest(args)) {
         return;
       }
 
@@ -121,30 +177,24 @@ export class CLI {
 
       await this.program.parseAsync(['node', 'zintrust', ...args]);
     } catch (error) {
-      // Handle Commander-specific "errors" that are actually normal exits or handled errors
+      Logger.error('CLI execution failed', error);
+
+      // Check for commander-specific errors that need special handling
       if (
         error instanceof Error &&
         'code' in error &&
         typeof error.code === 'string' &&
         error.code.startsWith('commander.')
       ) {
-        const commanderError = error as unknown as Error & { exitCode: number };
-        if (typeof commanderError.exitCode === 'number' && commanderError.exitCode === 0) {
-          return;
+        const exitCode = this.getExitCode(error);
+        if (exitCode !== 0) {
+          process.exit(exitCode);
         }
-        // For non-zero exit codes, Commander has already printed the error message
-        process.exit(typeof commanderError.exitCode === 'number' ? commanderError.exitCode : 1);
-      }
-
-      if (error === this.version) {
         return;
       }
 
-      Logger.error('CLI execution failed', error);
-      if (error instanceof Error) {
-        ErrorHandler.handle(error);
-      }
-      throw error;
+      // Handle all other errors with proper logging
+      this.handleExecutionError(error);
     }
   }
 

@@ -3,7 +3,7 @@
  * Provides reusable prompt utilities using inquirer
  */
 
-import inquirer, { QuestionCollection } from 'inquirer';
+import inquirer from 'inquirer';
 
 export interface PromptOptions {
   interactive?: boolean;
@@ -14,7 +14,8 @@ export class PromptHelper {
   /**
    * Generic prompt method for custom questions
    */
-  public async prompt(questions: QuestionCollection): Promise<Record<string, unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public async prompt(questions: any): Promise<Record<string, unknown>> {
     return inquirer.prompt(questions);
   }
 

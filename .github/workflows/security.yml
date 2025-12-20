@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,7 +34,7 @@ jobs:
           HUSKY: 0
 
       - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/node@master
+        uses: snyk/actions/node@master #master
         continue-on-error: true # To allow the report to be generated even if vulnerabilities are found
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -42,7 +42,7 @@ jobs:
           args: --severity-threshold=high
 
       - name: Run Trivy vulnerability scanner (Repo)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@master #master
         with:
           scan-type: 'fs'
           ignore-unfixed: true
@@ -68,12 +68,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
         with:
           fetch-depth: 0
 
       - name: Run TruffleHog Secret Scanner
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@main # Sensitive-data-detection
         with:
           path: ./
           extra_args: --debug --only-verified
@@ -95,7 +95,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
         with:
           fetch-depth: 0
 
@@ -130,7 +130,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -164,7 +164,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -196,7 +196,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -235,7 +235,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6.0.1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

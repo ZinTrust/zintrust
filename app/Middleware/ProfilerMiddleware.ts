@@ -4,9 +4,9 @@
  * Enables request profiling when ENABLE_PROFILER environment variable is set
  */
 
+import { Logger } from '@config/logger';
 import { Middleware } from '@middleware/MiddlewareStack';
 import { RequestProfiler } from '@profiling/RequestProfiler';
-import { Logger } from '@config/logger';
 
 /**
  * ProfilerMiddleware wraps request execution with performance profiling
@@ -26,7 +26,7 @@ export const ProfilerMiddleware: Middleware = async (req, res, next) => {
   const queryLogger = profiler.getQueryLogger();
 
   // Set up query logging if database is available
-  const db = (req as any).db;
+  const db = req.context.db as any;
   if (db?.onAfterQuery) {
     db.onAfterQuery((sql: string, params: unknown[], duration: number) => {
       queryLogger.logQuery(sql, params, duration, 'middleware-profiling');
@@ -37,8 +37,7 @@ export const ProfilerMiddleware: Middleware = async (req, res, next) => {
   const profile = await profiler.captureRequest(() => next());
 
   // Attach profile to response
-  (res as any).locals = (res as any).locals || {};
-  (res as any).locals.profile = profile;
+  res.locals.profile = profile;
 
   // Add profiling report to response header
   try {
