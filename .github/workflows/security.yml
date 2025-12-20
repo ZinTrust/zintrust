@@ -29,7 +29,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Run npm audit
         id: npm_audit
@@ -57,17 +59,15 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
           extra_args: --debug --only-verified
 
       - name: Detect secrets with detect-secrets
         run: |
           pip install detect-secrets
           detect-secrets scan --all-files --force-use-all-plugins > .secrets.baseline 2>&1 || true
-          if detect-secrets scan --all-files --force-use-all-plugins | grep -q '"is_secret": true'; then
+          if grep -q '"is_secret": true' .secrets.baseline; then
             echo "❌ Potential secrets detected!"
-            detect-secrets scan --all-files --force-use-all-plugins
+            cat .secrets.baseline
             exit 1
           fi
           echo "✅ No secrets detected"
@@ -95,7 +95,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Build project
         run: npm run build
@@ -120,7 +122,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Run SAST analysis
         run: |
@@ -152,14 +156,15 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Check licenses with license-checker
         run: |
-          npm install -g license-checker
-          license-checker --json > licenses.json
+          npx license-checker --json > licenses.json
           echo "📋 Dependency licenses:"
-          license-checker --summary
+          npx license-checker --summary
 
       - name: Upload license report
         uses: actions/upload-artifact@v4
@@ -183,7 +188,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Validate security config
         run: |
@@ -220,12 +227,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Generate SBOM and update dependency graph
         run: |
-          npm install -g @cyclonedx/npm
-          cyclonedx-npm --output-file sbom.json
+          npx @cyclonedx/npm --output-file sbom.json
           echo "✅ SBOM generated: sbom.json"
 
       - name: Upload SBOM artifacts

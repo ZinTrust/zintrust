@@ -63,6 +63,15 @@ zin config set user.email user@example.com
 zin config reset               # Reset to defaults
 ```
 
+### Quality Assurance
+
+```bash
+zin fix                        # Run automated code fixes
+zin qa                         # Run full QA suite
+zin qa --no-sonar              # Skip Sonar analysis
+zin qa --report                # Generate HTML report
+```
+
 ## Help System
 
 ```bash

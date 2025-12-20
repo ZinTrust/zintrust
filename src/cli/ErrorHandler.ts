@@ -3,6 +3,7 @@
  * Provides consistent error formatting and proper Unix exit codes
  */
 
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import chalk from 'chalk';
 
@@ -50,6 +51,42 @@ export function displayInfo(message: string): void {
 }
 
 /**
+ * Display framework banner
+ */
+export function displayBanner(version: string): void {
+  /* eslint-disable no-console */
+  const framework = 'Zintrust Framework';
+  const bannerWidth = 46;
+  const env = Env.NODE_ENV || 'development';
+  const db = Env.DB_CONNECTION || 'sqlite';
+
+  console.log(chalk.cyan('┌' + '─'.repeat(bannerWidth) + '┐'));
+  console.log(
+    `${chalk.cyan('│')} ${chalk.bold.white('Framework: ')}${chalk.bold.cyan(
+      framework.padEnd(bannerWidth - 12)
+    )} ${chalk.cyan('│')}`
+  );
+  console.log(
+    `${chalk.cyan('│')} ${chalk.bold.white('Version:   ')}${chalk.bold.green(
+      version.padEnd(bannerWidth - 12)
+    )} ${chalk.cyan('│')}`
+  );
+  console.log(
+    `${chalk.cyan('│')} ${chalk.bold.white('Env:       ')}${chalk.bold.yellow(
+      env.padEnd(bannerWidth - 12)
+    )} ${chalk.cyan('│')}`
+  );
+  console.log(
+    `${chalk.cyan('│')} ${chalk.bold.white('Database:  ')}${chalk.bold.magenta(
+      db.padEnd(bannerWidth - 12)
+    )} ${chalk.cyan('│')}`
+  );
+  console.log(chalk.cyan('└' + '─'.repeat(bannerWidth) + '┘'));
+  console.log();
+  /* eslint-enable no-console */
+}
+
+/**
  * Display success message
  */
 export function displaySuccess(message: string): void {
@@ -85,4 +122,5 @@ export const ErrorHandler = {
   success: displaySuccess,
   warn: displayWarning,
   debug: displayDebug,
+  banner: displayBanner,
 };

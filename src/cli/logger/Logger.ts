@@ -230,7 +230,7 @@ class LoggerImpl implements LoggerInstance {
       const content = fs.readFileSync(filePath, 'utf-8');
       const lines = content.split('\n').filter((line) => line.trim());
 
-      for (const line of lines.toReversed()) {
+      for (const line of [...lines].reverse()) {
         if (logs.length >= limit) {
           break;
         }

@@ -107,7 +107,7 @@ All Imports:             ✅ RESOLVED
    $ npm run test:sonar
 
 2. Review SonarQube results:
-   https://sonarcloud.io/dashboard?id=zintrust
+   https://sonarcloud.io/dashboard?id=ZinTrust_ZinTrust
 
 3. Monitor logs in production:
    Logger will output to console with proper levels

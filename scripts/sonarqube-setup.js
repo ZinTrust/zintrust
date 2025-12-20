@@ -153,7 +153,7 @@ async function setupSonarCloud() {
   console.log('1. Add to .github/workflows/sonarqube.yml:');
   console.log('   secrets: SONAR_TOKEN and SONAR_ORGANIZATION');
   console.log('2. Run: npm run test:sonar');
-  console.log('3. View results at: https://sonarcloud.io/project/overview?id=zintrust');
+  console.log('3. View results at: https://sonarcloud.io/project/overview?id=ZinTrust_ZinTrust');
 }
 
 async function setupExistingServer() {

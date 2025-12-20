@@ -39,6 +39,7 @@ export abstract class BaseCommand {
       options.args = commandArgs;
 
       this.verbose = options.verbose === true;
+
       try {
         await this.execute(options);
       } catch (error) {

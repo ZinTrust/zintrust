@@ -110,7 +110,7 @@ function displayLogs(
 
   Logger.info(chalk.default.blue(`📋 Last ${filtered.length} log entries (${category}):\n`));
 
-  for (const log of filtered.toReversed()) {
+  for (const log of [...filtered].reverse()) {
     printLogEntry(log);
   }
 }

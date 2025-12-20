@@ -87,7 +87,13 @@ export class CLI {
       .description('Display help for a command')
       .action((commandName: string) => {
         if (commandName) {
-          this.program.command(commandName).help();
+          const cmd = this.program.commands.find((c) => c.name() === commandName);
+          if (cmd) {
+            cmd.help();
+          } else {
+            Logger.error(`Unknown command: ${commandName}`);
+            this.program.help();
+          }
         } else {
           this.program.help();
         }
@@ -99,6 +105,14 @@ export class CLI {
    */
   public async run(args: string[]): Promise<void> {
     try {
+      // Always show banner
+      ErrorHandler.banner(this.version);
+
+      // If version is requested, we've already shown the banner which includes the version.
+      if (args.includes('-v') || args.includes('--version')) {
+        return;
+      }
+
       // Show help if no arguments provided
       if (args.length === 0) {
         this.program.help();
@@ -107,16 +121,27 @@ export class CLI {
 
       await this.program.parseAsync(['node', 'zintrust', ...args]);
     } catch (error) {
-      if (typeof error === 'string' && error === this.version) {
-        // Commander version output, ignore
-        return;
-      }
-      Logger.error('CLI execution failed', error);
-      if (error instanceof Error) {
-        if ((error as Error & { code?: string }).code === 'commander.help') {
-          // Help was shown, exit gracefully
+      // Handle Commander-specific "errors" that are actually normal exits or handled errors
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        typeof error.code === 'string' &&
+        error.code.startsWith('commander.')
+      ) {
+        const commanderError = error as unknown as Error & { exitCode: number };
+        if (typeof commanderError.exitCode === 'number' && commanderError.exitCode === 0) {
           return;
         }
+        // For non-zero exit codes, Commander has already printed the error message
+        process.exit(typeof commanderError.exitCode === 'number' ? commanderError.exitCode : 1);
+      }
+
+      if (error === this.version) {
+        return;
+      }
+
+      Logger.error('CLI execution failed', error);
+      if (error instanceof Error) {
         ErrorHandler.handle(error);
       }
       throw error;

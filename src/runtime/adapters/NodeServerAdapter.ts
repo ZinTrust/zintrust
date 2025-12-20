@@ -79,7 +79,12 @@ export class NodeServerAdapter implements RuntimeAdapter {
     throw new Error('Node.js adapter uses native Node.js HTTP');
   }
 
-  getLogger() {
+  getLogger(): {
+    debug(msg: string, data?: unknown): void;
+    info(msg: string, data?: unknown): void;
+    warn(msg: string, data?: unknown): void;
+    error(msg: string, err?: Error): void;
+  } {
     return (
       this.logger || {
         debug: (msg: string) => Logger.debug(`[Node.js] ${msg}`),
@@ -95,7 +100,14 @@ export class NodeServerAdapter implements RuntimeAdapter {
     return true;
   }
 
-  getEnvironment() {
+  getEnvironment(): {
+    nodeEnv: string;
+    runtime: string;
+    dbConnection: string;
+    dbHost?: string;
+    dbPort?: number;
+    [key: string]: unknown;
+  } {
     return {
       nodeEnv: Env.NODE_ENV,
       runtime: 'nodejs',
@@ -105,7 +117,7 @@ export class NodeServerAdapter implements RuntimeAdapter {
     };
   }
 
-  private requestListener() {
+  private requestListener(): (req: IncomingMessage, res: ServerResponse) => void {
     return async (req: IncomingMessage, res: ServerResponse) => {
       const chunks: Buffer[] = [];
       let body: Buffer | null = null;

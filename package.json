@@ -69,7 +69,7 @@
     "ecommerce:up": "cd services/ecommerce && docker-compose up -d",
     "ecommerce:down": "cd services/ecommerce && docker-compose down",
     "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
-    "prepare": "husky && (npm link || true)"
+    "prepare": "husky"
   },
   "lint-staged": {
     "src/**/*.ts": [

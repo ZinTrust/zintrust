@@ -164,7 +164,7 @@ export class QueryBuilder {
    * Note: In production, use database adapter for SQL generation
    */
   public toSQL(): string {
-    const escapeIdentifier = (id: string) => `"${id.replace(/"/g, '""')}"`;
+    const escapeIdentifier = (id: string): string => `"${id.replace(/"/g, '""')}"`;
     const columns = this.selectColumns.map((c) => (c === '*' ? c : escapeIdentifier(c))).join(', ');
     const table = escapeIdentifier(this.tableName);
 

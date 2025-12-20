@@ -5,8 +5,12 @@
 - `zin new <name>`: Create a new project
 - `zin add <type> [name]`: Add a component to existing project
 - `zin migrate`: Run database migrations
+- `zin d1:migrate`: Run Cloudflare D1 migrations
+- `zin config`: Manage project configuration
 - `zin debug`: Start debug dashboard
 - `zin logs`: View application logs
+- `zin fix`: Run automated code fixes
+- `zin qa`: Run full Quality Assurance suite
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
 
@@ -30,7 +34,6 @@ zin add <type> [name] [options]
 | `controller`      | Create an HTTP controller                  |
 | `migration`       | Create a database migration                |
 | `routes`          | Create a new route file                    |
-| `middleware`      | Create a middleware class                  |
 | `factory`         | Create a model factory for tests           |
 | `seeder`          | Create a database seeder                   |
 | `requestfactory`  | Create a service request factory           |
@@ -53,3 +56,26 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 - `zin migrate:rollback`: Rollback the last migration batch
 - `zin migrate:fresh`: Drop all tables and re-run all migrations
 - `zin seed`: Run database seeders
+
+## Configuration Commands
+
+- `zin config list`: List all configuration values
+- `zin config get <key>`: Get a specific configuration value
+- `zin config set <key> <value>`: Set a configuration value
+- `zin config reset`: Reset configuration to defaults
+- `zin config edit`: Open configuration in default editor
+- `zin config export <file>`: Export configuration to a file
+
+## Quality & Maintenance
+
+- `zin fix`: Run automated code fixes (ESLint, Prettier)
+- `zin fix --dry-run`: Show what would be fixed without applying changes
+- `zin qa`: Run full QA suite (Lint, Type-check, Test, Sonar)
+- `zin qa --no-sonar`: Skip SonarQube analysis during QA
+- `zin qa --report`: Generate and open HTML QA report
+
+## Cloudflare D1 Commands
+
+- `zin d1:migrate`: Run Cloudflare D1 migrations
+- `zin d1:migrate --local`: Run migrations against local D1 database
+- `zin d1:migrate --remote`: Run migrations against remote D1 database

@@ -4,6 +4,7 @@
 
 import { User } from '@app/Models/User';
 import { Model } from '@orm/Model';
+import { BelongsTo } from '@orm/Relationships';
 
 export class Post extends Model {
   protected table = 'posts';
@@ -18,7 +19,7 @@ export class Post extends Model {
   /**
    * Get post's author
    */
-  public async author() {
+  public author(): BelongsTo {
     return this.belongsTo(User);
   }
 }

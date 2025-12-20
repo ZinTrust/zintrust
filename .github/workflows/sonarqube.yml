@@ -1,10 +1,13 @@
-# SonarQube Analysis - Scheduled Deep Scan
-# This workflow runs comprehensive SonarQube analysis on a schedule
-# For regular CI checks, see ci.yml which runs quality-checks + sonarqube
+# SonarQube Analysis
+# Deep code analysis: Tracks technical debt, code smells, and coverage trends
 
-name: SonarQube Scheduled Analysis
+name: SonarQube Analysis
 
 on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
   schedule:
     # Run every Sunday at 2 AM UTC
     - cron: '0 2 * * 0'
@@ -28,7 +31,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+        env:
+          HUSKY: 0
 
       - name: Build project
         run: npm run build
@@ -63,6 +68,18 @@ jobs:
             -Dsonar.tests=tests
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.verbose=true
+
+      - name: Comment PR with SonarQube results
+        if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ SonarQube analysis completed! Check the [dashboard](https://sonarcloud.io/project/overview?id=ZinTrust_ZinTrust) for detailed results.'
+            })
 
       - name: Check quality gates
         uses: SonarSource/sonarqube-quality-gate-action@master

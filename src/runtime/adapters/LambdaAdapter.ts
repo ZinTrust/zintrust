@@ -124,7 +124,14 @@ export class LambdaAdapter implements RuntimeAdapter {
   /**
    * Parse API Gateway v2 request
    */
-  private parseV2Request(event: LambdaEventV2) {
+  private parseV2Request(event: LambdaEventV2): {
+    method: string;
+    path: string;
+    headers: Record<string, string | string[]>;
+    query: Record<string, string | string[]>;
+    body: string | null;
+    remoteAddr: string;
+  } {
     const headers = event.headers || {};
     return {
       method: event.requestContext.http.method,
@@ -139,7 +146,14 @@ export class LambdaAdapter implements RuntimeAdapter {
   /**
    * Parse ALB request
    */
-  private parseAlbRequest(event: LambdaEventAlb) {
+  private parseAlbRequest(event: LambdaEventAlb): {
+    method: string;
+    path: string;
+    headers: Record<string, string | string[]>;
+    query: Record<string, string | string[]>;
+    body: string | null;
+    remoteAddr: string;
+  } {
     const headers = event.headers || {};
     return {
       method: event.httpMethod,
@@ -154,7 +168,14 @@ export class LambdaAdapter implements RuntimeAdapter {
   /**
    * Parse API Gateway v1 request
    */
-  private parseV1Request(event: LambdaEventV1) {
+  private parseV1Request(event: LambdaEventV1): {
+    method: string;
+    path: string;
+    headers: Record<string, string | string[]>;
+    query: Record<string, string | string[]>;
+    body: string | null;
+    remoteAddr: string;
+  } {
     const headers = event.headers || {};
     return {
       method: event.httpMethod,
@@ -226,7 +247,12 @@ export class LambdaAdapter implements RuntimeAdapter {
     };
   }
 
-  getLogger() {
+  getLogger(): {
+    debug(msg: string, data?: unknown): void;
+    info(msg: string, data?: unknown): void;
+    warn(msg: string, data?: unknown): void;
+    error(msg: string, err?: Error): void;
+  } {
     return (
       this.logger || {
         debug: (msg: string) => Logger.debug(`[Lambda] ${msg}`),
@@ -242,7 +268,14 @@ export class LambdaAdapter implements RuntimeAdapter {
     return true;
   }
 
-  getEnvironment() {
+  getEnvironment(): {
+    nodeEnv: string;
+    runtime: string;
+    dbConnection: string;
+    dbHost?: string;
+    dbPort?: number;
+    [key: string]: unknown;
+  } {
     return {
       nodeEnv: Env.NODE_ENV,
       runtime: 'lambda',

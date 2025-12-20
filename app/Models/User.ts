@@ -5,6 +5,7 @@
 
 import { Post } from '@app/Models/Post';
 import { Model } from '@orm/Model';
+import { HasMany, HasOne } from '@orm/Relationships';
 
 export class User extends Model {
   protected table = 'users';
@@ -21,15 +22,16 @@ export class User extends Model {
   /**
    * Get user's posts
    */
-  public async posts() {
+  public posts(): HasMany {
     return this.hasMany(Post);
   }
 
   /**
    * Get user's profile
    */
-  public async profile() {
+  public profile(): HasOne | undefined {
     // Placeholder for Profile relationship
+    return undefined;
   }
 
   /**
