@@ -1,0 +1,154 @@
+version: '3.9'
+
+services:
+  # PostgreSQL database (shared for all services or per-service based on config)
+  postgres:
+    image: postgres:16-alpine
+    container_name: zintrust-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-zintrust}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  # Users Microservice
+  users:
+    build:
+      context: ../..
+      dockerfile: services/ecommerce/users/Dockerfile
+    container_name: zintrust-users-service
+    environment:
+      SERVICE_NAME: users
+      SERVICE_PORT: 3001
+      MICROSERVICES: 'true'
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-zintrust}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATABASE_ISOLATION: shared
+      AUTH_STRATEGY: api-key
+      MICROSERVICES_TRACING: 'true'
+      MICROSERVICES_TRACING_RATE: '1.0'
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Orders Microservice
+  orders:
+    build:
+      context: ../..
+      dockerfile: services/ecommerce/orders/Dockerfile
+    container_name: zintrust-orders-service
+    environment:
+      SERVICE_NAME: orders
+      SERVICE_PORT: 3002
+      MICROSERVICES: 'true'
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-zintrust}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATABASE_ISOLATION: shared
+      AUTH_STRATEGY: jwt
+      MICROSERVICES_TRACING: 'true'
+      MICROSERVICES_TRACING_RATE: '0.5'
+      SERVICE_DEPENDENCIES: users,payments
+    ports:
+      - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      users:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3002/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # Payments Microservice
+  payments:
+    build:
+      context: ../..
+      dockerfile: services/ecommerce/payments/Dockerfile
+    container_name: zintrust-payments-service
+    environment:
+      SERVICE_NAME: payments
+      SERVICE_PORT: 3003
+      MICROSERVICES: 'true'
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-zintrust_payments}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DATABASE_ISOLATION: isolated
+      AUTH_STRATEGY: none
+      MICROSERVICES_TRACING: 'false'
+      SERVICE_DEPENDENCIES: orders
+    ports:
+      - '3003:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3003/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  # API Gateway (optional - routes requests to appropriate services)
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: services/ecommerce/gateway/Dockerfile
+    container_name: zintrust-api-gateway
+    environment:
+      GATEWAY_PORT: 8000
+      MICROSERVICES: 'true'
+      SERVICES: users,orders,payments
+    ports:
+      - '8000:8000'
+    depends_on:
+      users:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  ecommerce-network:
+    driver: bridge

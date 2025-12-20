@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOST: 0.0.0.0
+      DB_CONNECTION: ${DB_CONNECTION:-postgresql}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-zintrust}
+      DB_USERNAME: ${DB_USERNAME:-zintrust}
+      DB_PASSWORD: ${DB_PASSWORD:-zintrust}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    command: yarn dev
+    healthcheck:
+      test: ['GET', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - zintrust-network
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-zintrust}
+      POSTGRES_USER: ${DB_USERNAME:-zintrust}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zintrust}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-zintrust}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zintrust-network
+
+  # Optional: Redis for caching/sessions
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zintrust-network
+    profiles:
+      - optional
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  zintrust-network:
+    driver: bridge

@@ -1,0 +1,20 @@
+{
+  "name": "users",
+  "version": "1.0.0",
+  "port": 3001,
+  "domain": "ecommerce",
+  "description": "User management microservice",
+  "dependencies": [],
+  "healthCheck": "/health",
+  "database": {
+    "isolation": "shared",
+    "migrations": true
+  },
+  "auth": {
+    "strategy": "api-key"
+  },
+  "tracing": {
+    "enabled": true,
+    "samplingRate": 1.0
+  }
+}

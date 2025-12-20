@@ -1,0 +1,60 @@
+{
+  "ignorePatterns": [
+    "/node_modules",
+    "/dist",
+    "/build",
+    "/coverage",
+    "/.next",
+    "/.git",
+    "/.vscode",
+    "/.github",
+    "/.idea",
+    "*.log",
+    ".DS_Store",
+    "/wrangler.jsonc",
+    "/src/runtime/adapters",
+    "/src/functions",
+    "/src/orm/adapters"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/strict"
+  ],
+  "plugins": ["@typescript-eslint"],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "project": "./tsconfig.json"
+  },
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "rules": {
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/explicit-function-return-type": "warn",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/strict-boolean-expressions": "warn",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.ts", "tests/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["./*", "../*"],
+                "message": "Please use path aliases (e.g., @orm/Model) instead of relative imports."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

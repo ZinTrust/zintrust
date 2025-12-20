@@ -1,0 +1,51 @@
+# Middleware
+
+Middleware provide a convenient mechanism for inspecting and filtering HTTP requests entering your application.
+
+## Defining Middleware
+
+Middleware are stored in `app/Middleware`. You can generate one using:
+
+```bash
+zin add middleware AuthMiddleware
+```
+
+A middleware must implement the `Middleware` interface:
+
+```typescript
+import { Request, Response, NextFunction } from '@http/types';
+
+export class AuthMiddleware {
+  async handle(req: Request, res: Response, next: NextFunction) {
+    if (!req.headers['authorization']) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await next();
+  }
+}
+```
+
+## Registering Middleware
+
+Middleware are registered in the `src/bootstrap.ts` or directly in route groups.
+
+### Global Middleware
+
+Global middleware run on every request to your application.
+
+### Route Middleware
+
+You can assign middleware to specific routes or groups:
+
+```typescript
+router.get('/admin', 'AdminController@index', { middleware: ['auth', 'admin'] });
+```
+
+## Built-in Middleware
+
+Zintrust comes with several built-in middleware:
+
+- `CsrfMiddleware`: Protects against cross-site request forgery.
+- `JsonBodyParser`: Parses JSON request bodies.
+- `CorsMiddleware`: Handles Cross-Origin Resource Sharing.

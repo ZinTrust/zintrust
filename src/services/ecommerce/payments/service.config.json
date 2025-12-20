@@ -1,0 +1,19 @@
+{
+  "name": "payments",
+  "version": "1.0.0",
+  "port": 3003,
+  "domain": "ecommerce",
+  "description": "Payment processing microservice",
+  "dependencies": ["orders"],
+  "healthCheck": "/health",
+  "database": {
+    "isolation": "isolated",
+    "migrations": true
+  },
+  "auth": {
+    "strategy": "none"
+  },
+  "tracing": {
+    "enabled": false
+  }
+}

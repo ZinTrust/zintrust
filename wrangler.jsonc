@@ -1,0 +1,33 @@
+{
+  "name": "zintrust",
+  "compatibility_date": "2025-04-21",
+  "assets": {
+    "directory": "./docs-website/public/",
+    "not_found_handling": "single-page-application",
+  },
+  "workers_dev": false,
+  "minify": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1,
+  },
+  "routes": [
+    {
+      "pattern": "zintrust.com",
+      "custom_domain": true,
+    },
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zintrust_db",
+      "database_id": "your-d1-id-here",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "your-kv-id-here",
+    },
+  ],
+}
