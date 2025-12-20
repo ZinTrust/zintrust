@@ -20,6 +20,8 @@ import inquirer from 'inquirer';
 import fs from 'node:fs';
 import path from 'node:path';
 
+type PlatformDeploy = 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all';
+
 interface AddOptions extends CommandOptions {
   type?: string;
   database?: 'shared' | 'isolated';
@@ -240,8 +242,8 @@ export class AddCommand extends BaseCommand {
       name,
       domain: opts.domain ?? 'default',
       port: opts.port === undefined ? 3001 : Number.parseInt(opts.port, 10),
-      database: opts.database || 'shared',
-      auth: opts.auth || 'api-key',
+      database: opts.database ?? 'shared',
+      auth: opts.auth ?? 'api-key',
     });
 
     if (!result.success) {
@@ -1125,10 +1127,21 @@ export class AddCommand extends BaseCommand {
   private async addWorkflow(workflowName: string | undefined, opts: AddOptions): Promise<void> {
     const projectRoot = process.cwd();
     let name: string = workflowName ?? 'deploy-cloud';
-    let platform: 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all' =
-      (opts.platform as any) || 'all';
 
-    if (opts.noInteractive !== true && (!workflowName || !opts.platform)) {
+    // Define valid platforms for type safety
+    const validPlatforms = ['lambda', 'fargate', 'cloudflare', 'deno', 'all'];
+    let platform: PlatformDeploy = 'all';
+
+    if (opts.platform !== undefined && validPlatforms.includes(opts.platform)) {
+      platform = opts.platform as PlatformDeploy;
+    }
+
+    // Explicitly check for nullish/empty values to satisfy linter
+    const isInteractive = opts.noInteractive !== true;
+    const hasNoName = workflowName === undefined || workflowName === '';
+    const hasNoPlatform = opts.platform === undefined || opts.platform === '';
+
+    if (isInteractive && (hasNoName || hasNoPlatform)) {
       const answers = await this.promptWorkflowConfig(name);
       name = answers.name;
       platform = answers.platform;
@@ -1140,8 +1153,8 @@ export class AddCommand extends BaseCommand {
       name,
       platform,
       projectRoot,
-      branch: opts.branch || 'master',
-      nodeVersion: opts.nodeVersion || '20.x',
+      branch: opts.branch ?? 'master',
+      nodeVersion: opts.nodeVersion ?? '20.x',
     });
 
     if (!result.success) {
