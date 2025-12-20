@@ -95,7 +95,7 @@
   "dependencies": {
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
-    "inquirer": "^9.3.8"
+    "inquirer": "^13.1.0"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
