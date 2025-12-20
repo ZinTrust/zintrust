@@ -8,7 +8,7 @@ import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
 
 /**
  * PostgreSQL adapter implementation
- * Requires: yarn add pg
+ * Requires: npm install pg
  */
 export class PostgreSQLAdapter extends BaseAdapter {
   constructor(config: DatabaseConfig) {

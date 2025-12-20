@@ -5,7 +5,6 @@
 
 # Node modules (will be installed fresh)
 node_modules
-yarn-error.log
 npm-debug.log
 
 # Testing

@@ -26,16 +26,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm install
 
       - name: Build project
-        run: yarn build
+        run: npm run build
 
       - name: Run tests with coverage
-        run: yarn test:coverage
+        run: npm run test:coverage
 
       - name: Validate SonarQube secrets
         id: check_secrets
@@ -98,16 +98,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm install
 
       - name: Type check
-        run: yarn type-check
+        run: npm run type-check
 
       - name: Lint code
-        run: yarn lint --max-warnings=0
+        run: npm run lint --max-warnings=0
 
       - name: Format check
-        run: yarn format --check 2>/dev/null || true
+        run: npm run format --check 2>/dev/null || true

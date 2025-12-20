@@ -4,17 +4,17 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json yarn.lock ./
+COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN yarn install --frozen-lockfile
+RUN npm ci
 
 # Copy source code
 COPY tsconfig.json ./
 COPY src ./src
 
 # Build TypeScript to JavaScript
-RUN yarn build
+RUN npm run build
 
 # Runtime Stage - Production image
 FROM node:20-alpine
@@ -30,10 +30,10 @@ ENV HOST=0.0.0.0
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
 # Copy package files for production dependencies
-COPY package.json yarn.lock ./
+COPY package.json package-lock.json ./
 
 # Install only production dependencies
-RUN yarn install --frozen-lockfile --production && yarn cache clean
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist

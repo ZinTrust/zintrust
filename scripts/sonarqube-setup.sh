@@ -79,7 +79,7 @@ case $choice in
         echo "3. Create a new project (Key: 'zintrust')"
         echo "4. Generate a token"
         echo "5. Run: export SONAR_TOKEN=your_token_here"
-        echo "6. Run: yarn test:sonar"
+        echo "6. Run: npm run test:sonar"
         ;;
 
     2)
@@ -104,7 +104,7 @@ case $choice in
 
         echo ""
         echo "✅ SonarQube Cloud configured"
-        echo "Run: yarn test:sonar"
+        echo "Run: npm run test:sonar"
         ;;
 
     3)
@@ -122,7 +122,7 @@ case $choice in
 
         echo ""
         echo "✅ SonarQube configured"
-        echo "Run: yarn test:sonar"
+        echo "Run: npm run test:sonar"
         ;;
 
     *)
@@ -136,7 +136,7 @@ echo "================================"
 echo "Setup Complete! ✨"
 echo ""
 echo "To run analysis:"
-echo "  yarn test:sonar"
+echo "  npm run test:sonar"
 echo ""
 echo "To view results:"
 echo "  http://localhost:9000/dashboard?id=zintrust (Local)"

@@ -2,6 +2,14 @@
   "name": "zintrust",
   "version": "0.1.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
+  "homepage": "https://zintrust.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/ZinTrust.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ZinTrust/ZinTrust/issues"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,7 +21,7 @@
   },
   "engines": {
     "node": ">=18.0.0",
-    "yarn": ">=3.0.0"
+    "npm": ">=9.0.0"
   },
   "scripts": {
     "build": "tsc",
@@ -38,7 +46,7 @@
     "docker:stop": "docker-compose stop",
     "docker:logs": "docker-compose logs -f app",
     "docker:shell": "docker-compose run --rm app sh",
-    "docker:test": "docker-compose exec app yarn test",
+    "docker:test": "docker-compose exec app npm test",
     "docker:migrate": "docker-compose exec app node dist/bootstrap.js migrate",
     "docker:seed": "docker-compose exec app node dist/bootstrap.js seed",
     "microservices:generate": "tsx bin/zintrust-microservices.ts generate",

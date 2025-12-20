@@ -12,10 +12,10 @@ const readline = require('node:readline');
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
-const question = (query) => new Promise(resolve => rl.question(query, resolve));
+const question = (query) => new Promise((resolve) => rl.question(query, resolve));
 
 async function main() {
   console.log('\n🔍 Zintrust SonarQube Setup');
@@ -59,7 +59,7 @@ async function main() {
   console.log('\n================================');
   console.log('Setup Complete! ✨\n');
   console.log('To run analysis:');
-  console.log('  yarn test:sonar\n');
+  console.log('  npm run test:sonar\n');
 }
 
 async function setupLocalServer() {
@@ -80,10 +80,13 @@ async function setupLocalServer() {
       execSync('docker start sonarqube');
     } catch {
       console.log('Creating SonarQube container...');
-      execSync(String.raw`docker run -d --name sonarqube \
+      execSync(
+        String.raw`docker run -d --name sonarqube \
         -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLED=true \
         -p 9000:9000 \
-        sonarqube:latest`, { stdio: 'inherit' });
+        sonarqube:latest`,
+        { stdio: 'inherit' }
+      );
     }
 
     console.log('\n⏳ Waiting for SonarQube to start (30-60 seconds)...');
@@ -92,8 +95,10 @@ async function setupLocalServer() {
     let ready = false;
     for (let i = 0; i < 12; i++) {
       try {
-        const response = execSync('curl -s http://localhost:9000/api/system/status 2>/dev/null || true',
-          { encoding: 'utf-8' });
+        const response = execSync(
+          'curl -s http://localhost:9000/api/system/status 2>/dev/null || true',
+          { encoding: 'utf-8' }
+        );
         if (response.includes('"status":"UP"')) {
           ready = true;
           break;
@@ -102,7 +107,7 @@ async function setupLocalServer() {
         // Ignore errors, server might not be ready yet
       }
       console.log(`  Attempt ${i + 1}/12...`);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
     if (ready) {
@@ -117,8 +122,7 @@ async function setupLocalServer() {
     console.log('3. Create a new project (Key: "zintrust")');
     console.log('4. Generate a token in Administration → Security');
     console.log('5. Run: export SONAR_TOKEN=your_token_here');
-    console.log('6. Run: yarn test:sonar');
-
+    console.log('6. Run: npm run test:sonar');
   } catch (error) {
     console.error('Error setting up Docker:', error.message);
     process.exit(1);
@@ -149,7 +153,7 @@ async function setupSonarCloud() {
   console.log('\n📝 Next steps:');
   console.log('1. Add to .github/workflows/sonarqube.yml:');
   console.log('   secrets: SONAR_TOKEN and SONAR_ORGANIZATION');
-  console.log('2. Run: yarn test:sonar');
+  console.log('2. Run: npm run test:sonar');
   console.log('3. View results at: https://sonarcloud.io/project/overview?id=zintrust');
 }
 
@@ -171,11 +175,11 @@ async function setupExistingServer() {
   console.log('\n✅ SonarQube configured');
   console.log('Token saved to .env.sonarqube');
   console.log('\n📝 Next steps:');
-  console.log('1. Run: yarn test:sonar');
+  console.log('1. Run: npm run test:sonar');
   console.log('2. View results at: ' + url);
 }
 
-await main().catch(error => {
+await main().catch((error) => {
   console.error('Error:', error.message);
   process.exit(1);
 });

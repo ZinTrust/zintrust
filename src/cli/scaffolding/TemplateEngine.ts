@@ -172,8 +172,6 @@ DB_DATABASE=./database.sqlite`,
         content: `# Node
 node_modules/
 npm-debug.log
-yarn-error.log
-.yarn
 
 # Build
 dist/

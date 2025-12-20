@@ -1,11 +1,12 @@
 # Zintrust Framework
 
+[![Website](https://img.shields.io/badge/website-zintrust.com-blue)](https://zintrust.com)
 [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)
 [![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/zintrust.svg)](https://www.npmjs.com/package/zintrust)
 
-Production-grade TypeScript backend framework with zero external dependencies for core logic.
+Production-grade TypeScript backend framework with zero external dependencies for core logic. Visit [zintrust.com](https://zintrust.com) for more information.
 
 ## Status
 
@@ -156,6 +157,19 @@ npm run sonarqube
 ## Contributing
 
 Contributions are welcome! Please read our contributing guidelines and submit pull requests for any improvements.
+
+## Community & Support
+
+Join our community and stay updated:
+
+- **Website**: [zintrust.com](https://zintrust.com)
+- **X (Twitter)**: [@zintrustjs](https://x.com/zintrustjs)
+- **Discord**: [Join our server](https://discord.com/channels/zintrustjs)
+- **Slack**: [Join our workspace](https://join.slack.com/t/zintrustjs)
+- **Reddit**: [r/zintrustjs](https://www.reddit.com/user/zintrustjs/)
+- **Dev.to**: [zintrustjs](https://dev.to/zintrustjs)
+- **Medium**: [@zintrustjs](https://medium.com/@zintrustjs)
+- **Stack Overflow**: [zintrustjs](https://stackoverflow.com/users/32073668/zintrustjs)
 
 ## License
 

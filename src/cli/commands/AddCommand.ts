@@ -14,6 +14,7 @@ import { ResponseFactoryGenerator, ResponseField } from '@cli/scaffolding/Respon
 import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
+import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import fs from 'node:fs';
@@ -115,11 +116,11 @@ export class AddCommand extends BaseCommand {
     command
       .argument(
         '<type>',
-        'What to add: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, or responsefactory'
+        'What to add: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow'
       )
       .argument(
         '[name]',
-        'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory'
+        'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory/workflow'
       )
       .option('--database <type>', 'Database (shared|isolated) - for services')
       .option('--auth <strategy>', 'Auth strategy (api-key|jwt|none|custom) - for services')
@@ -201,9 +202,12 @@ export class AddCommand extends BaseCommand {
       case 'response-factory':
         await this.addResponseFactory(name, addOptions);
         break;
+      case 'workflow':
+        await this.addWorkflow(name, addOptions);
+        break;
       default:
         throw new Error(
-          `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, or responsefactory`
+          `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow`
         );
     }
   }
@@ -1107,5 +1111,59 @@ export class AddCommand extends BaseCommand {
       fields.push({ name: 'id', type: 'uuid' }, { name: 'name', type: 'string' });
     }
     return fields;
+  }
+
+  /**
+   * Add a new workflow
+   */
+  private async addWorkflow(workflowName: string | undefined, opts: AddOptions): Promise<void> {
+    const projectRoot = process.cwd();
+    let name: string = workflowName ?? 'deploy-cloud';
+    let platform: 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all' = 'all';
+
+    if (opts.noInteractive !== true) {
+      const answers = await this.promptWorkflowConfig(name);
+      name = answers.name;
+      platform = answers.platform;
+    }
+
+    this.info(`Generating workflow: ${name}...`);
+
+    const result = await WorkflowGenerator.generate({
+      name,
+      platform,
+      projectRoot,
+      branch: 'master',
+      nodeVersion: '20.x',
+    });
+
+    if (!result.success) {
+      throw new Error(result.message);
+    }
+
+    this.success(result.message);
+  }
+
+  /**
+   * Prompt for workflow configuration
+   */
+  private async promptWorkflowConfig(
+    defaultName: string
+  ): Promise<{ name: string; platform: 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all' }> {
+    return inquirer.prompt([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'Workflow name:',
+        default: defaultName,
+      },
+      {
+        type: 'list',
+        name: 'platform',
+        message: 'Target platform:',
+        choices: ['lambda', 'fargate', 'cloudflare', 'deno', 'all'],
+        default: 'all',
+      },
+    ]);
   }
 }

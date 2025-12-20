@@ -61,7 +61,7 @@ Zintrust is a **zero-dependency** backend framework built on:
 ### Prerequisites
 
 - Node.js >= 18.0.0
-- npm or yarn
+- npm (recommended)
 
 ### From npm (Recommended)
 

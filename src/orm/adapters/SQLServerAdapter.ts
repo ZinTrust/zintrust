@@ -8,7 +8,7 @@ import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
 
 /**
  * SQL Server adapter implementation
- * Requires: yarn add mssql
+ * Requires: npm install mssql
  */
 export class SQLServerAdapter extends BaseAdapter {
   constructor(config: DatabaseConfig) {

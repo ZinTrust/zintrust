@@ -104,7 +104,7 @@ All Imports:             ✅ RESOLVED
 🚀 NEXT STEPS
 
 1. Run SonarQube analysis:
-   $ yarn test:sonar
+   $ npm run test:sonar
 
 2. Review SonarQube results:
    https://sonarcloud.io/dashboard?id=zintrust

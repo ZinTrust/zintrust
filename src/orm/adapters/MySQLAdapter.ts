@@ -8,7 +8,7 @@ import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
 
 /**
  * MySQL adapter implementation
- * Requires: yarn add mysql2
+ * Requires: npm install mysql2
  */
 export class MySQLAdapter extends BaseAdapter {
   private readonly pool: unknown = null;
