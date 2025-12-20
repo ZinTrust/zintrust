@@ -101,8 +101,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=zintrust
-            -Dsonar.organization=zintrust
+            -Dsonar.projectKey=ZinTrust_ZinTrust
+            -Dsonar.organization=ZinTrust_ZinTrust
             -Dsonar.sources=src,app,routes
             -Dsonar.tests=tests
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info

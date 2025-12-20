@@ -49,8 +49,17 @@ export class Server {
    * Handle incoming HTTP requests
    */
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    // We intentionally hide the version number for security
+    // Security Headers
     res.setHeader('X-Powered-By', 'ZinTrust');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
+    );
+
     try {
       const request = new Request(req);
       const response = new Response(res);

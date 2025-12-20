@@ -20,23 +20,28 @@ function parseArgs(argv) {
     overwrite: true,
   };
 
-  let i = 2;
-  while (i < argv.length) {
+  for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
 
-    if (arg === '--input' || arg === '-i') {
-      args.inputDir = path.resolve(process.cwd(), getArgValue(argv, i, arg));
-      i += 2;
-    } else if (arg === '--max' || arg === '-m') {
-      const value = Number(getArgValue(argv, i, arg));
-      if (!Number.isFinite(value) || value <= 0) throw new Error('Invalid --max value');
-      args.maxPx = Math.floor(value);
-      i += 2;
-    } else if (arg === '--no-overwrite') {
-      args.overwrite = false;
-      i += 1;
-    } else {
-      throw new Error(`Unknown arg: ${arg}`);
+    switch (arg) {
+      case '--input':
+      case '-i':
+        args.inputDir = path.resolve(process.cwd(), getArgValue(argv, i, arg));
+        i++;
+        break;
+      case '--max':
+      case '-m': {
+        const value = Number(getArgValue(argv, i, arg));
+        if (!Number.isFinite(value) || value <= 0) throw new Error('Invalid --max value');
+        args.maxPx = Math.floor(value);
+        i++;
+        break;
+      }
+      case '--no-overwrite':
+        args.overwrite = false;
+        break;
+      default:
+        throw new Error(`Unknown arg: ${arg}`);
     }
   }
 
@@ -120,7 +125,9 @@ async function main() {
   );
 }
 
-await main().catch((err) => {
+try {
+  await main();
+} catch (err) {
   process.stderr.write(`${err?.stack ?? String(err)}\n`);
   process.exitCode = 1;
-});
+}

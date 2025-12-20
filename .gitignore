@@ -14,6 +14,8 @@ npm-debug.log*
 coverage/
 .nyc_output/
 .cache/
+reports/
+logs/
 build/
 .turbo/
 .next/

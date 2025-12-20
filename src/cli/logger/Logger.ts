@@ -19,10 +19,10 @@ export interface LogEntry {
 let instance: LoggerInstance | undefined;
 
 export interface LoggerInstance {
-  debug(message: string, data?: Record<string, unknown>): void;
-  info(message: string, data?: Record<string, unknown>): void;
-  warn(message: string, data?: Record<string, unknown>): void;
-  error(message: string, data?: Record<string, unknown>): void;
+  debug(message: string, data?: Record<string, unknown>, category?: string): void;
+  info(message: string, data?: Record<string, unknown>, category?: string): void;
+  warn(message: string, data?: Record<string, unknown>, category?: string): void;
+  error(message: string, data?: Record<string, unknown>, category?: string): void;
   getLogs(category?: string, limit?: number): LogEntry[];
   filterByLevel(logs: LogEntry[], level: LogLevel): LogEntry[];
   filterByDateRange(logs: LogEntry[], startDate: Date, endDate: Date): LogEntry[];
@@ -74,23 +74,28 @@ class LoggerImpl implements LoggerInstance {
     }
   }
 
-  public debug(message: string, data?: Record<string, unknown>): void {
-    this.log('debug', message, data);
+  public debug(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.log('debug', message, data, category);
   }
 
-  public info(message: string, data?: Record<string, unknown>): void {
-    this.log('info', message, data);
+  public info(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.log('info', message, data, category);
   }
 
-  public warn(message: string, data?: Record<string, unknown>): void {
-    this.log('warn', message, data);
+  public warn(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.log('warn', message, data, category);
   }
 
-  public error(message: string, data?: Record<string, unknown>): void {
-    this.log('error', message, data);
+  public error(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.log('error', message, data, category);
   }
 
-  private log(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+  private log(
+    level: LogLevel,
+    message: string,
+    data?: Record<string, unknown>,
+    category: string = 'app'
+  ): void {
     if (this.levelPriority[level] < this.levelPriority[this.currentLevel]) {
       return;
     }
@@ -102,7 +107,7 @@ class LoggerImpl implements LoggerInstance {
       data,
     };
 
-    this.writeLog('app', entry);
+    this.writeLog(category, entry);
 
     if (level === 'error') {
       this.writeLog('errors', entry);
@@ -112,7 +117,14 @@ class LoggerImpl implements LoggerInstance {
   }
 
   private writeLog(category: string, entry: LogEntry): void {
-    const logFile = path.join(this.logsDir, category, `${this.getDateString()}.log`);
+    const filename =
+      category === 'sonarcloud'
+        ? `${this.getDateString()}-sonarqube.log`
+        : `${this.getDateString()}.log`;
+    const logFile =
+      category === 'sonarcloud'
+        ? path.join(this.logsDir, filename)
+        : path.join(this.logsDir, category, filename);
 
     try {
       const formattedEntry = this.formatLogEntry(entry);
@@ -334,20 +346,20 @@ export const Logger = {
     return instance;
   },
 
-  debug(message: string, data?: Record<string, unknown>): void {
-    this.getInstance().debug(message, data);
+  debug(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.getInstance().debug(message, data, category);
   },
 
-  info(message: string, data?: Record<string, unknown>): void {
-    this.getInstance().info(message, data);
+  info(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.getInstance().info(message, data, category);
   },
 
-  warn(message: string, data?: Record<string, unknown>): void {
-    this.getInstance().warn(message, data);
+  warn(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.getInstance().warn(message, data, category);
   },
 
-  error(message: string, data?: Record<string, unknown>): void {
-    this.getInstance().error(message, data);
+  error(message: string, data?: Record<string, unknown>, category?: string): void {
+    this.getInstance().error(message, data, category);
   },
 
   getLogs(category: string = 'app', limit: number = 100): LogEntry[] {

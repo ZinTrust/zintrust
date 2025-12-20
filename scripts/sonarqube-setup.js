@@ -1,14 +1,13 @@
 #!/usr/bin/env node
-
 /**
  * SonarQube Setup Script
  * Interactive setup wizard for configuring SonarQube with Zintrust
  */
 
-const fs = require('node:fs');
-const path = require('node:path');
-const { execSync } = require('node:child_process');
-const readline = require('node:readline');
+import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -119,7 +118,7 @@ async function setupLocalServer() {
     console.log('\n📝 Next steps:');
     console.log('1. Open http://localhost:9000');
     console.log('2. Login with admin/admin');
-    console.log('3. Create a new project (Key: "zintrust")');
+    console.log('3. Create a new project (Key: "ZinTrust_ZinTrust")');
     console.log('4. Generate a token in Administration → Security');
     console.log('5. Run: export SONAR_TOKEN=your_token_here');
     console.log('6. Run: npm run test:sonar');

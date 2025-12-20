@@ -42,6 +42,6 @@ export class User extends Model {
    * Get full name accessor
    */
   public getFullName(): string {
-    return String(this.getAttribute('name') || '');
+    return String(this.getAttribute('name') ?? '');
   }
 }

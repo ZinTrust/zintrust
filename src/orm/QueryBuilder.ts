@@ -164,12 +164,16 @@ export class QueryBuilder {
    * Note: In production, use database adapter for SQL generation
    */
   public toSQL(): string {
-    let sql = `SELECT ${this.selectColumns.join(', ')} FROM ${this.tableName}`;
+    const escapeIdentifier = (id: string) => `"${id.replace(/"/g, '""')}"`;
+    const columns = this.selectColumns.map((c) => (c === '*' ? c : escapeIdentifier(c))).join(', ');
+    const table = escapeIdentifier(this.tableName);
+
+    let sql = `SELECT ${columns} FROM ${table}`;
 
     if (this.whereConditions.length > 0) {
       sql += ' WHERE ';
       sql += this.whereConditions
-        .map((clause) => `${clause.column} ${clause.operator} ?`)
+        .map((clause) => `${escapeIdentifier(clause.column)} ${clause.operator} ?`)
         .join(' AND ');
     }
 

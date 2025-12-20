@@ -61,7 +61,7 @@ function timingSafeEquals(a: string, b: string): boolean {
  * Hash with PBKDF2 (default)
  */
 function hashPbkdf2(password: string): string {
-  const iterations = 100000;
+  const iterations = 600000; // OWASP recommended for SHA-256
   const salt = randomBytes(32).toString('hex');
   const keyLength = 64;
   const digest = 'sha256';
