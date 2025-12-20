@@ -163,13 +163,15 @@ Contributions are welcome! Please read our contributing guidelines and submit pu
 Join our community and stay updated:
 
 - **Website**: [zintrust.com](https://zintrust.com)
-- **X (Twitter)**: [@zintrustjs](https://x.com/zintrustjs)
-- **Discord**: [Join our server](https://discord.com/channels/zintrustjs)
-- **Slack**: [Join our workspace](https://join.slack.com/t/zintrustjs)
-- **Reddit**: [r/zintrustjs](https://www.reddit.com/user/zintrustjs/)
-- **Dev.to**: [zintrustjs](https://dev.to/zintrustjs)
-- **Medium**: [@zintrustjs](https://medium.com/@zintrustjs)
-- **Stack Overflow**: [zintrustjs](https://stackoverflow.com/users/32073668/zintrustjs)
+- **X (Twitter)**: [@zintrust](https://x.com/zintrust)
+- **Discord**: [Join our server](https://discord.gg/zintrust)
+- **Slack**: [Join our workspace](https://slack.zintrust.com)
+- **Reddit**: [r/zintrust](https://reddit.com/r/zintrust)
+- **Dev.to**: [zintrust](https://dev.to/zintrust)
+- **Medium**: [@zintrust](https://medium.com/@zintrust)
+- **Stack Overflow**: [zintrust](https://stackoverflow.com/users/32073668/zintrust)
+- **LinkedIn**: [ZinTrust](https://linkedin.com/company/zintrust)
+- **YouTube**: [@zintrust](https://youtube.com/@zintrust)
 
 ## License
 

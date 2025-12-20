@@ -73,8 +73,8 @@ zin new my-app
 ### From source
 
 ```bash
-git clone https://github.com/zintrust/zintrust.git
-cd zintrust
+git clone https://github.com/ZinTrust/ZinTrust.git
+cd ZinTrust
 npm install
 npm run build
 ```
@@ -185,9 +185,10 @@ Zintrust uses a proven layered architecture:
 
 ## Community & Support
 
-- 📚 [Documentation](https://docs.zintrust.com)
+- 📚 [Documentation](https://zintrust.com)
 - 💬 [Discord Community](https://discord.gg/zintrust)
-- 🐛 [Issue Tracker](https://github.com/zintrust/zintrust/issues)
+- 🐦 [Follow on X](https://x.com/zintrust)
+- 🐛 [Issue Tracker](https://github.com/ZinTrust/ZinTrust/issues)
 - 🤝 [Contributing Guide](./contributing.md)
 
 ## License

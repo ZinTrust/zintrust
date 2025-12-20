@@ -15,55 +15,52 @@ export interface WorkflowOptions {
   projectRoot: string;
 }
 
-export class WorkflowGenerator {
-  /**
-   * Generate a deployment workflow
-   */
-  static async generate(
-    options: WorkflowOptions
-  ): Promise<{ success: boolean; filePath: string; message: string }> {
-    const workflowDir = path.join(options.projectRoot, '.github', 'workflows');
-    const filePath = path.join(workflowDir, 'deploy-cloud.yml');
-    const branch = options.branch ?? 'master';
-    const nodeVersion = options.nodeVersion ?? '20.x';
+/**
+ * Generate a deployment workflow
+ */
+export async function generateWorkflow(
+  options: WorkflowOptions
+): Promise<{ success: boolean; filePath: string; message: string }> {
+  const workflowDir = path.join(options.projectRoot, '.github', 'workflows');
+  const filePath = path.join(workflowDir, 'deploy-cloud.yml');
+  const branch = options.branch ?? 'master';
+  const nodeVersion = options.nodeVersion ?? '20.x';
 
-    try {
-      // Ensure directory exists
-      await fs.mkdir(workflowDir, { recursive: true });
+  try {
+    // Ensure directory exists
+    await fs.mkdir(workflowDir, { recursive: true });
 
-      const content = this.getTemplate(options.platform, branch, nodeVersion);
+    const content = getWorkflowTemplate(options.platform, branch, nodeVersion);
 
-      await FileGenerator.generate({
-        path: filePath,
-        content,
-        overwrite: true,
-      });
+    FileGenerator.writeFile(filePath, content, {
+      overwrite: true,
+    });
 
-      return {
-        success: true,
-        filePath,
-        message: `Workflow generated successfully at ${filePath}`,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        filePath,
-        message: `Failed to generate workflow: ${(error as Error).message}`,
-      };
-    }
+    return {
+      success: true,
+      filePath,
+      message: `Workflow generated successfully at ${filePath}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      filePath,
+      message: `Failed to generate workflow: ${(error as Error).message}`,
+    };
   }
+}
 
-  /**
-   * Get workflow template based on platform
-   */
-  private static getTemplate(platform: string, branch: string, nodeVersion: string): string {
-    const isAll = platform === 'all';
-    const isLambda = isAll || platform === 'lambda';
-    const isFargate = isAll || platform === 'fargate';
-    const isCloudflare = isAll || platform === 'cloudflare';
-    const isDeno = isAll || platform === 'deno';
+/**
+ * Get workflow template based on platform
+ */
+export function getWorkflowTemplate(platform: string, branch: string, nodeVersion: string): string {
+  const isAll = platform === 'all';
+  const isLambda = isAll || platform === 'lambda';
+  const isFargate = isAll || platform === 'fargate';
+  const isCloudflare = isAll || platform === 'cloudflare';
+  const isDeno = isAll || platform === 'deno';
 
-    let content = `name: Deploy Cloud
+  let content = `name: Deploy Cloud
 
 on:
   push:
@@ -116,8 +113,8 @@ jobs:
           path: dist/
 `;
 
-    if (isLambda) {
-      content += `
+  if (isLambda) {
+    content += `
   deploy-lambda:
     needs: build
     runs-on: ubuntu-latest
@@ -132,10 +129,10 @@ jobs:
       - name: Deploy to AWS Lambda
         run: echo "Deploying to Lambda..."
 `;
-    }
+  }
 
-    if (isFargate) {
-      content += `
+  if (isFargate) {
+    content += `
   deploy-fargate:
     needs: build
     runs-on: ubuntu-latest
@@ -145,10 +142,10 @@ jobs:
       - name: Build and Push Docker Image
         run: echo "Pushing to GHCR..."
 `;
-    }
+  }
 
-    if (isCloudflare) {
-      content += `
+  if (isCloudflare) {
+    content += `
   deploy-cloudflare:
     needs: build
     runs-on: ubuntu-latest
@@ -160,10 +157,10 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
 `;
-    }
+  }
 
-    if (isDeno) {
-      content += `
+  if (isDeno) {
+    content += `
   deploy-deno:
     needs: build
     runs-on: ubuntu-latest
@@ -173,8 +170,15 @@ jobs:
       - name: Deploy to Deno Deploy
         run: echo "Deploying to Deno..."
 `;
-    }
-
-    return content;
   }
+
+  return content;
 }
+
+/**
+ * WorkflowGenerator object for backward compatibility
+ */
+export const WorkflowGenerator = {
+  generate: generateWorkflow,
+  getTemplate: getWorkflowTemplate,
+};

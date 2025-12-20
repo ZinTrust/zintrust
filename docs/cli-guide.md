@@ -31,15 +31,19 @@ zin migrate --rollback         # Undo last batch
 zin migrate --reset            # Undo all
 ```
 
-### Add Features
+### Add Components
+
+The `add` command scaffolds various components for your application:
 
 ```bash
-zin add auth
-zin add payments
-zin add notifications
-zin add webhooks
-zin add analytics
+zin add model User             # Create a model
+zin add controller User        # Create a controller
+zin add migration create_users # Create a migration
+zin add service auth           # Create a microservice
+zin add workflow               # Create deployment workflows
 ```
+
+For a full list of types, see the [CLI Reference](./cli-reference.md).
 
 ### Debug Mode
 

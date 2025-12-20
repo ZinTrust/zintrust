@@ -14,10 +14,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "zintrust": "./bin/zintrust.ts",
-    "zin": "./bin/zin.ts",
-    "z": "./bin/z.ts",
-    "zt": "./bin/zt.ts"
+    "zintrust": "./dist/bin/zintrust.js",
+    "zin": "./dist/bin/zin.js",
+    "z": "./dist/bin/z.js",
+    "zt": "./dist/bin/zt.js"
   },
   "engines": {
     "node": ">=18.0.0",

@@ -38,6 +38,9 @@ interface AddOptions extends CommandOptions {
   states?: boolean;
   truncate?: boolean;
   noInteractive?: boolean;
+  platform?: string;
+  branch?: string;
+  nodeVersion?: string;
 }
 
 interface ServicePromptAnswers {
@@ -138,6 +141,9 @@ export class AddCommand extends BaseCommand {
       .option('--count <number>', 'Record count for seeder (1-100,000)')
       .option('--states', 'Seed with state distribution (active/inactive/deleted)')
       .option('--truncate', 'Truncate table before seeding')
+      .option('--platform <type>', 'Deployment platform: lambda, fargate, cloudflare, deno, all')
+      .option('--branch <name>', 'Deployment branch (default: master)')
+      .option('--node-version <version>', 'Node.js version (default: 20.x)')
       .option('--no-interactive', 'Skip interactive prompts');
   }
 
@@ -1119,9 +1125,10 @@ export class AddCommand extends BaseCommand {
   private async addWorkflow(workflowName: string | undefined, opts: AddOptions): Promise<void> {
     const projectRoot = process.cwd();
     let name: string = workflowName ?? 'deploy-cloud';
-    let platform: 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all' = 'all';
+    let platform: 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all' =
+      (opts.platform as any) || 'all';
 
-    if (opts.noInteractive !== true) {
+    if (opts.noInteractive !== true && (!workflowName || !opts.platform)) {
       const answers = await this.promptWorkflowConfig(name);
       name = answers.name;
       platform = answers.platform;
@@ -1133,8 +1140,8 @@ export class AddCommand extends BaseCommand {
       name,
       platform,
       projectRoot,
-      branch: 'master',
-      nodeVersion: '20.x',
+      branch: opts.branch || 'master',
+      nodeVersion: opts.nodeVersion || '20.x',
     });
 
     if (!result.success) {

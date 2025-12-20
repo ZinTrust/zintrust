@@ -11,15 +11,18 @@ The `zin add` command uses these generators under the hood:
 - `migration`: Generates a new database migration.
 - `middleware`: Generates a new middleware class.
 - `service`: Generates a new microservice structure.
+- `routes`: Generates a new route file.
+- `feature`: Generates a new feature module.
 
 ## Advanced Generators
 
-Zintrust also provides generators for testing and data seeding:
+Zintrust also provides generators for testing, data seeding, and deployment:
 
 - `factory`: Generates a model factory for testing.
 - `seeder`: Generates a database seeder.
-- `request-factory`: Generates a service-to-service request factory.
-- `response-factory`: Generates a mock response factory for testing.
+- `requestfactory`: Generates a service-to-service request factory.
+- `responsefactory`: Generates a mock response factory for testing.
+- `workflow`: Generates GitHub Actions deployment workflows (Lambda, Fargate, Cloudflare, Deno).
 
 ## Custom Templates
 
