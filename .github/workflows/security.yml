@@ -33,6 +33,14 @@ jobs:
         env:
           HUSKY: 0
 
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: true # To allow the report to be generated even if vulnerabilities are found
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
       - name: Run npm audit
         id: npm_audit
         run: npm audit --audit-level=moderate
@@ -255,7 +263,7 @@ jobs:
           echo "# 🔒 Security Scan Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Checks Completed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Dependency Vulnerability Scan: ${{ needs.dependency-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Snyk Vulnerability Scan: ${{ needs.dependency-check.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Secret Detection: ${{ needs.secret-scanning.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ CodeQL Analysis: ${{ needs.code-scanning.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SAST Scanning: ${{ needs.sast-scanning.result }}" >> $GITHUB_STEP_SUMMARY
