@@ -1,20 +1,19 @@
-name: SonarQube Analysis
+# SonarQube Analysis - Scheduled Deep Scan
+# This workflow runs comprehensive SonarQube analysis on a schedule
+# For regular CI checks, see ci.yml which runs quality-checks + sonarqube
+
+name: SonarQube Scheduled Analysis
 
 on:
-  push:
-    branches: [master, develop]
-  pull_request:
-    branches: [master, develop]
+  schedule:
+    # Run every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
   workflow_dispatch:
 
 jobs:
-  sonarqube:
-    name: SonarQube Code Analysis
+  sonarqube-deep-scan:
+    name: SonarQube Deep Analysis
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x]
 
     steps:
       - name: Checkout code
@@ -25,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '20.x'
           cache: 'npm'
 
       - name: Install dependencies
@@ -45,13 +44,13 @@ jobs:
           if [ -z "$SONAR_TOKEN" ]; then
             echo "has_token=false" >> $GITHUB_OUTPUT
             echo "⚠️  SONAR_TOKEN secret is not configured. Skipping SonarQube upload."
+            exit 1
           else
             echo "has_token=true" >> $GITHUB_OUTPUT
             echo "✅ SonarQube credentials available"
           fi
 
       - name: Upload coverage to SonarQube
-        if: steps.check_secrets.outputs.has_token == 'true'
         uses: SonarSource/sonarcloud-github-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -63,53 +62,10 @@ jobs:
             -Dsonar.sources=src,app,routes
             -Dsonar.tests=tests
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-
-      - name: Comment PR with SonarQube results
-        if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '✅ SonarQube analysis completed! Check the [dashboard](https://sonarcloud.io/project/overview?id=zintrust) for detailed results.'
-            })
+            -Dsonar.verbose=true
 
       - name: Check quality gates
-        if: steps.check_secrets.outputs.has_token == 'true'
         uses: SonarSource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        continue-on-error: true
-
-  code-quality:
-    name: Code Quality Checks
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Type check
-        run: npm run type-check
-
-      - name: Lint code
-        run: npm run lint --max-warnings=0
-
-      - name: Format check
-        run: npm run format --check 2>/dev/null || true

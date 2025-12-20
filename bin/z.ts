@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
 
 /**
  * Zintrust CLI Shortcut - 'z'
  * Mirrors bin/zintrust.ts for convenience
  */
 
-import './zintrust.js';
+import './zintrust.ts';

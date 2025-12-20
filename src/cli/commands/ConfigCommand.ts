@@ -9,6 +9,7 @@ import type { ProjectConfig } from '@cli/config/ConfigSchema';
 import { ConfigValidator } from '@cli/config/ConfigValidator';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { PromptHelper } from '@cli/PromptHelper';
+import { Logger } from '@config/logger';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
@@ -42,6 +43,7 @@ export class ConfigCommand extends BaseCommand {
       const manager = await this.getConfigManager(opts['global'] === true);
       await this.handleAction(action, manager, key, value, opts);
     } catch (err) {
+      Logger.error('Config command failed', err);
       ErrorHandler.handle(err as Error);
     }
   }
@@ -154,7 +156,8 @@ export class ConfigCommand extends BaseCommand {
     if (value.startsWith('{') || value.startsWith('[') || value.startsWith('"')) {
       try {
         return JSON.parse(value);
-      } catch {
+      } catch (error) {
+        Logger.error('JSON parse failed in config value', error);
         return value; // Keep as string if JSON parsing fails
       }
     }

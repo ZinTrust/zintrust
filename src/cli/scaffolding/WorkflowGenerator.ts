@@ -4,6 +4,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { Logger } from '@config/logger';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -42,6 +43,7 @@ export async function generateWorkflow(
       message: `Workflow generated successfully at ${filePath}`,
     };
   } catch (error) {
+    Logger.error('Workflow generation failed', error);
     return {
       success: false,
       filePath,

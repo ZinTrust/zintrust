@@ -135,7 +135,8 @@ export class HealthCheckHandler {
         signal: AbortSignal.timeout(2000),
       });
       return depResponse.ok;
-    } catch {
+    } catch (error) {
+      Logger.error('Dependency health check failed', error);
       return false;
     }
   }

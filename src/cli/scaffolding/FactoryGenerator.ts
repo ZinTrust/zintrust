@@ -68,7 +68,8 @@ export async function validateOptions(options: FactoryOptions): Promise<void> {
   // Validate path exists
   try {
     await fs.stat(options.factoriesPath);
-  } catch {
+  } catch (error) {
+    Logger.error('Factories path check failed', error);
     throw new Error(`Factories path does not exist: ${options.factoriesPath}`);
   }
 }

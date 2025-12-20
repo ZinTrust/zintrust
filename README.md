@@ -156,7 +156,21 @@ npm run sonarqube
 
 ## Contributing
 
-Contributions are welcome! Please read our contributing guidelines and submit pull requests for any improvements.
+We welcome contributions! Please see our **[Contributor & QA Guide](docs/contributing.md)** for details on our code of conduct, and the process for submitting pull requests.
+
+### Quality Assurance
+
+Zintrust enforces strict quality standards. Before submitting a PR, ensure you run:
+
+```bash
+zin qa
+```
+
+This will run linting, type-checking, and tests to ensure your changes meet our standards.
+
+## Security
+
+If you discover a security vulnerability within Zintrust, please see our [Security Policy](SECURITY.md).
 
 ## Community & Support
 
@@ -176,3 +190,7 @@ Join our community and stay updated:
 ## License
 
 MIT
+
+---
+
+**Copyright © 2025 Zintrust Framework. All rights reserved.**

@@ -1,0 +1,1 @@
+if [ "$(grep SONAR_AUTO_SCAN .env | cut -d '=' -f2)" = "true" ]; then ./scripts/setup-sonarqube.sh & fi

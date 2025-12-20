@@ -160,6 +160,7 @@ export class PostgresAdapter {
       await client.query('COMMIT');
       return result;
     } catch (err) {
+      Logger.error('Transaction failed, rolling back', err);
       await client.query('ROLLBACK');
       throw err;
     } finally {
@@ -230,7 +231,7 @@ export class PostgresAdapter {
       await this.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
       Logger.info(`✅ Schema created: ${schemaName}`);
     } catch (err) {
-      Logger.error(`Schema creation failed: ${err}`);
+      Logger.error(`Schema creation failed: ${schemaName}`, err);
     }
   }
 
@@ -260,7 +261,8 @@ export class PostgresAdapter {
       const pool = this.getPool();
       const result = await pool.query('SELECT 1');
       return result.rows.length > 0;
-    } catch {
+    } catch (error) {
+      Logger.error('PostgreSQL health check failed', error);
       return false;
     }
   }

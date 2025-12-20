@@ -15,6 +15,7 @@ import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
+import { Logger } from '@config/logger';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import fs from 'node:fs';
@@ -164,6 +165,7 @@ export class AddCommand extends BaseCommand {
 
       await this.handleType(type.toLowerCase(), name, addOptions);
     } catch (error) {
+      Logger.error('Add command failed', error);
       this.warn(`Failed: ${(error as Error).message}`);
       throw error;
     }

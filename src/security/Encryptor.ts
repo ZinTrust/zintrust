@@ -3,6 +3,7 @@
  * Password hashing with dual support: PBKDF2 (default) and optional bcrypt
  */
 
+import { Logger } from '@config/logger';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 /**
@@ -25,7 +26,8 @@ async function loadBcrypt(): Promise<void> {
     const module = (await import('bcrypt')) as { default?: BcryptModule } & BcryptModule;
     bcrypt = module.default ?? (module as BcryptModule);
     algorithm = 'bcrypt';
-  } catch {
+  } catch (error) {
+    Logger.error('bcrypt not installed, falling back to PBKDF2', error);
     // bcrypt not installed, will use PBKDF2
     algorithm = 'pbkdf2';
   }
@@ -90,7 +92,8 @@ function verifyPbkdf2(password: string, hash: string): boolean {
 
     const computed = pbkdf2Sync(password, salt, iterations, keyLength, digest).toString('hex');
     return timingSafeEquals(computed, storedHash);
-  } catch {
+  } catch (error) {
+    Logger.error('PBKDF2 verification failed', error);
     return false;
   }
 }

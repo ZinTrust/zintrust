@@ -14,17 +14,17 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "zintrust": "./dist/bin/zintrust.js",
-    "zin": "./dist/bin/zin.js",
-    "z": "./dist/bin/z.js",
-    "zt": "./dist/bin/zt.js"
+    "zintrust": "./bin/zintrust.ts",
+    "zin": "./bin/zin.ts",
+    "z": "./bin/z.ts",
+    "zt": "./bin/zt.ts"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -64,7 +64,13 @@
     "dbl": "npm run docs:build:all",
     "ecommerce:up": "cd services/ecommerce && docker-compose up -d",
     "ecommerce:down": "cd services/ecommerce && docker-compose down",
-    "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f"
+    "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
+    "prepare": "husky && (npm link || true)"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix"
+    ]
   },
   "keywords": [
     "framework",
@@ -95,8 +101,11 @@
     "@typescript-eslint/parser": "^6.13.0",
     "@vitest/coverage-v8": "^1.1.0",
     "eslint": "^8.54.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "prettier": "^3.1.0",
     "sonarqube-scanner": "^3.3.0",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.1.0"

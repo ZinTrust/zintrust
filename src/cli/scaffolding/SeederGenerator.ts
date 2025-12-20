@@ -97,6 +97,7 @@ export async function generateSeeder(options: SeederOptions): Promise<SeederGene
       message: `Seeder '${options.seederName}' created successfully`,
     };
   } catch (error) {
+    Logger.error('Seeder generation failed', error);
     return {
       success: false,
       filePath: '',

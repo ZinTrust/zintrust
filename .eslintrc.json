@@ -37,9 +37,28 @@
     "@typescript-eslint/explicit-function-return-type": "warn",
     "@typescript-eslint/no-explicit-any": "error",
     "@typescript-eslint/strict-boolean-expressions": "warn",
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
+    "no-console": "error",
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "CatchClause:not(:has(CallExpression[callee.object.name='Logger'][callee.property.name='error']))",
+        "message": "Every catch block must include a Logger.error() call to ensure proper error tracking."
+      }
+    ]
   },
   "overrides": [
+    {
+      "files": ["bin/**/*.ts", "scripts/**/*.ts", "scripts/**/*.mjs"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["src/cli/logger/Logger.ts"],
+      "rules": {
+        "no-restricted-syntax": "off"
+      }
+    },
     {
       "files": ["src/**/*.ts", "tests/**/*.ts"],
       "rules": {

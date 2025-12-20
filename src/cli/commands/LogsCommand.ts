@@ -62,7 +62,8 @@ function processLogLine(line: string, loggerInstance: LoggerInstance): void {
       loggerInstance as unknown as { parseLogEntry: (line: string) => LogEntry }
     ).parseLogEntry(line);
     printLogEntry(entry);
-  } catch {
+  } catch (error) {
+    Logger.error('Failed to process log line', error);
     // Malformed line, skip
   }
 }

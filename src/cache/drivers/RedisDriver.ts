@@ -53,7 +53,8 @@ export class RedisDriver implements CacheDriver {
       const lines = response.split('\r\n');
       const value = lines[1];
       return JSON.parse(value) as T;
-    } catch {
+    } catch (error) {
+      Logger.error('Redis GET failed', error);
       return null;
     }
   }

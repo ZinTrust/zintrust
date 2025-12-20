@@ -5,6 +5,7 @@
 
 import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
 import { Dashboard } from '@cli/debug/Dashboard';
+import { Logger } from '@config/logger';
 import { Command } from 'commander';
 
 export class DebugCommand extends BaseCommand {
@@ -41,6 +42,7 @@ export class DebugCommand extends BaseCommand {
         // Infinite wait
       });
     } catch (error) {
+      Logger.error('Debug command failed', error);
       this.dashboard?.stop();
       throw new Error(`Debug failed: ${(error as Error).message}`);
     }

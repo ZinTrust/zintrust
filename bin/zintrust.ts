@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S npx tsx
 
 /**
  * Zintrust CLI - Main Entry Point
@@ -7,8 +7,8 @@
  * Shortcuts: zin, z
  */
 
-import { CLI } from '@cli/CLI';
-import { ErrorHandler } from '@cli/ErrorHandler';
+import { CLI } from '@cli/CLI.js';
+import { ErrorHandler } from '@cli/ErrorHandler.js';
 
 async function main(): Promise<void> {
   try {

@@ -127,10 +127,10 @@ export class Request {
       if (existing === undefined) {
         this.query[key] = value;
       } else if (Array.isArray(existing)) {
-          existing.push(value);
-        } else {
-          this.query[key] = [existing, value];
-        }
+        existing.push(value);
+      } else {
+        this.query[key] = [existing, value];
+      }
     });
   }
 }

@@ -59,6 +59,7 @@ export class ServiceIntegrationTestGenerator {
         message: `Service integration test '${options.name}' created successfully`,
       };
     } catch (error) {
+      Logger.error('Service integration test generation failed', error);
       return {
         success: false,
         testFile: '',

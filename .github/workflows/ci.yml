@@ -1,5 +1,5 @@
 # GitHub Actions CI/CD Workflow
-# Runs tests, linting, type checking, and SonarQube analysis on every push
+# Unified workflow: Runs tests, linting, type checking, and SonarQube analysis on every push
 
 name: CI/CD Pipeline
 
@@ -8,9 +8,11 @@ on:
     branches: [master, develop]
   pull_request:
     branches: [master, develop]
+  workflow_dispatch:
 
 jobs:
-  test:
+  quality-checks:
+    name: Quality Assurance
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,6 +21,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,16 +33,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build project
+        run: npm run build
+
       - name: Type checking
         run: npm run type-check
 
       - name: Lint code
-        run: npm run lint
+        run: npm run lint --max-warnings=0
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: npm run test:coverage
 
       - name: Upload coverage to Codecov
+        if: matrix.node-version == '20.x'
         uses: codecov/codecov-action@v3
         with:
           files: ./coverage/coverage-final.json
@@ -46,7 +54,11 @@ jobs:
           name: codecov-umbrella
 
   sonarqube:
+    name: SonarQube Analysis
     runs-on: ubuntu-latest
+    needs: quality-checks
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -62,11 +74,55 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build project
+        run: npm run build
+
       - name: Run tests with coverage
         run: npm run test:coverage
 
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@master
+      - name: Validate SonarQube secrets
+        id: check_secrets
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "⚠️  SONAR_TOKEN secret is not configured. Skipping SonarQube upload."
+          else
+            echo "has_token=true" >> $GITHUB_OUTPUT
+            echo "✅ SonarQube credentials available"
+          fi
+
+      - name: Upload coverage to SonarQube
+        if: steps.check_secrets.outputs.has_token == 'true'
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=zintrust
+            -Dsonar.organization=zintrust
+            -Dsonar.sources=src,app,routes
+            -Dsonar.tests=tests
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Comment PR with SonarQube results
+        if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ SonarQube analysis completed! Check the [dashboard](https://sonarcloud.io/project/overview?id=zintrust) for detailed results.'
+            })
+
+      - name: Check quality gates
+        if: steps.check_secrets.outputs.has_token == 'true'
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true

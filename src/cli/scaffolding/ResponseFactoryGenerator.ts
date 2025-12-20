@@ -60,7 +60,8 @@ export async function validateOptions(options: ResponseFactoryOptions): Promise<
   // Verify factory path exists
   try {
     await fs.access(options.factoriesPath);
-  } catch {
+  } catch (error) {
+    Logger.error('Factories directory check failed', error);
     throw new Error(`Factories directory not found: ${options.factoriesPath}`);
   }
 }

@@ -110,7 +110,8 @@ export class JwtAuth {
       }
 
       return JSON.parse(Buffer.from(body, 'base64').toString()) as Record<string, unknown>;
-    } catch {
+    } catch (error) {
+      Logger.error('JWT verification failed', error);
       return null;
     }
   }

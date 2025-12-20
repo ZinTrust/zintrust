@@ -110,6 +110,7 @@ export async function generateRequestFactory(
 
     return result;
   } catch (error) {
+    Logger.error('Request factory generation failed', error);
     return {
       success: false,
       factoryPath: '',

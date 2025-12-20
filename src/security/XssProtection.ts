@@ -3,6 +3,8 @@
  * HTML escaping and sanitization (pure TypeScript, zero dependencies)
  */
 
+import { Logger } from '@config/logger';
+
 const HTML_ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -65,7 +67,8 @@ export function encodeUri(uri: string): string {
   }
   try {
     return encodeURIComponent(uri);
-  } catch {
+  } catch (error) {
+    Logger.error('URI encoding failed', error);
     return '';
   }
 }

@@ -4,6 +4,7 @@
  */
 
 import { ErrorHandler } from '@cli/ErrorHandler';
+import { Logger } from '@config/logger';
 import { Command } from 'commander';
 
 export interface CommandOptions {
@@ -41,6 +42,7 @@ export abstract class BaseCommand {
       try {
         await this.execute(options);
       } catch (error) {
+        Logger.error('Command execution failed', error);
         ErrorHandler.handle(error as Error);
       }
     });

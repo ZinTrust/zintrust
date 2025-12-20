@@ -6,6 +6,7 @@
 import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
+import { Logger } from '@config/logger';
 import { Command } from 'commander';
 
 interface ProjectConfig {
@@ -65,6 +66,7 @@ export class NewCommand extends BaseCommand {
 
       this.info(`\nNext steps:\n  cd ${projectName}\n  npm install\n  npm run dev`);
     } catch (error) {
+      Logger.error('New command failed', error);
       throw new Error(`Project creation failed: ${(error as Error).message}`);
     }
   }
@@ -190,6 +192,7 @@ export class NewCommand extends BaseCommand {
       });
       this.success('Git initialized');
     } catch (error: unknown) {
+      Logger.error('Git initialization failed', error);
       // Log error and continue - git is optional
       if (error instanceof Error && error.message) {
         this.warn(`Git initialization failed: ${error.message}`);

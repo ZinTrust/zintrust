@@ -98,7 +98,8 @@ export class ConfigManager {
     try {
       await fs.access(this.configPath);
       return true;
-    } catch {
+    } catch (error) {
+      Logger.error('Config file access check failed', error);
       return false;
     }
   }
@@ -191,6 +192,7 @@ export class ConfigManager {
     try {
       await fs.mkdir(ConfigPaths.GLOBAL_DIR, { recursive: true });
     } catch (err) {
+      Logger.error('Could not create global config dir', err);
       Logger.debug(`Could not create global config dir: ${(err as Error).message}`);
     }
   }

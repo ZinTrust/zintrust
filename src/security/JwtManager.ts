@@ -4,6 +4,7 @@
  * Uses native Node.js crypto module (zero external dependencies)
  */
 
+import { Logger } from '@config/logger';
 import { createHmac, createSign, createVerify, randomBytes } from 'node:crypto';
 
 export interface JwtPayload {
@@ -147,6 +148,7 @@ export class JwtManager {
 
       return payload;
     } catch (error) {
+      Logger.error('JWT verification failed', error);
       throw new Error(`Token verification failed: ${(error as Error).message}`);
     }
   }
@@ -165,6 +167,7 @@ export class JwtManager {
       const payload = JSON.parse(this.base64Decode(parts[1])) as JwtPayload;
       return payload;
     } catch (error) {
+      Logger.error('JWT decode failed', error);
       throw new Error(`Invalid token payload: ${(error as Error).message}`);
     }
   }

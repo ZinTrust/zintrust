@@ -87,6 +87,7 @@ export class MicroserviceBootstrap {
       Logger.info(`✅ Discovered ${services.length} microservices`);
       return services;
     } catch (err) {
+      Logger.error('Failed to discover microservices', err);
       this.handleDiscoveryError(err);
       return [];
     }

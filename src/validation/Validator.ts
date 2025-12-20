@@ -3,6 +3,7 @@
  * Schema-based input validation with fluent API matching QueryBuilder style
  */
 
+import { Logger } from '@config/logger';
 import { FieldError, ValidationError } from '@validation/ValidationError';
 
 export type Rule =
@@ -192,7 +193,8 @@ export function isValid(data: Record<string, unknown>, schema: Schema): boolean 
   try {
     validate(data, schema);
     return true;
-  } catch {
+  } catch (error) {
+    Logger.error('Validation failed', error);
     return false;
   }
 }

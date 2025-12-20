@@ -4,6 +4,7 @@
  */
 
 import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
+import { Logger } from '@config/logger';
 import { Command } from 'commander';
 
 export class MigrateCommand extends BaseCommand {
@@ -42,6 +43,7 @@ export class MigrateCommand extends BaseCommand {
         this.success('Migrations completed successfully');
       }
     } catch (error) {
+      Logger.error('Migration command failed', error);
       throw new Error(`Migration failed: ${(error as Error).message}`);
     }
   }

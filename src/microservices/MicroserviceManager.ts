@@ -345,8 +345,8 @@ async function loadServiceKernel(serviceName: string): Promise<Kernel> {
   try {
     const module = (await import(kernelPath)) as { default?: Kernel; Kernel?: Kernel };
     return module.default ?? (module.Kernel as Kernel);
-  } catch {
-    Logger.warn(`No kernel found at ${kernelPath}, using default`);
+  } catch (error) {
+    Logger.error(`No kernel found at ${kernelPath}, using default`, error);
     // Return default kernel if not found
     const { Kernel } = await import('../http/Kernel');
     const { Router } = await import('../routing/EnhancedRouter');
@@ -433,8 +433,7 @@ export async function discoverServices(): Promise<MicroserviceConfig[]> {
         });
       } catch (err) {
         // No config file, skip
-        Logger.warn('No config file, skip', err);
-        Logger.warn(`⚠️ No service.config.json found for '${serviceName}' at ${configPath}`);
+        Logger.error(`No service.config.json found for '${serviceName}' at ${configPath}`, err);
       }
     }
   }
