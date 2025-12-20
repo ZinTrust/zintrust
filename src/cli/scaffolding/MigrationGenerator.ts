@@ -98,8 +98,8 @@ export async function generateMigration(
       message: `Migration '${options.name}' created successfully`,
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
     Logger.error('Migration generation error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
     return {
       success: false,
       migrationName: options.name,

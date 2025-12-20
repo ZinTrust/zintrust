@@ -66,10 +66,12 @@ export async function validateOptions(options: FactoryOptions): Promise<void> {
   }
 
   // Validate path exists
-  try {
-    await fs.stat(options.factoriesPath);
-  } catch (error) {
-    Logger.error('Factories path check failed', error);
+  const pathExists = await fs
+    .stat(options.factoriesPath)
+    .then(() => true)
+    .catch(() => false);
+
+  if (!pathExists) {
     throw new Error(`Factories path does not exist: ${options.factoriesPath}`);
   }
 }
@@ -95,8 +97,8 @@ export async function generateFactory(options: FactoryOptions): Promise<FactoryG
       factoryName: options.factoryName,
     };
   } catch (error) {
+    Logger.error('Factory generation failed', error);
     const message = `Failed to generate factory: ${(error as Error).message}`;
-    Logger.error(message);
     return {
       success: false,
       message,

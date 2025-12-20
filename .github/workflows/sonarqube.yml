@@ -56,14 +56,14 @@ jobs:
           fi
 
       - name: Upload coverage to SonarQube
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=ZinTrust_ZinTrust
-            -Dsonar.organization=ZinTrust_ZinTrust
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_ID || 'ZinTrust_ZinTrust' }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION || 'zintrust' }}
             -Dsonar.sources=src,app,routes
             -Dsonar.tests=tests
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
@@ -72,17 +72,20 @@ jobs:
       - name: Comment PR with SonarQube results
         if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true'
         uses: actions/github-script@v7
+        env:
+          SONAR_PROJECT_ID: ${{ secrets.SONAR_PROJECT_ID || 'ZinTrust_ZinTrust' }}
         with:
           script: |
+            const projectId = process.env.SONAR_PROJECT_ID;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '✅ SonarQube analysis completed! Check the [dashboard](https://sonarcloud.io/project/overview?id=ZinTrust_ZinTrust) for detailed results.'
+              body: `✅ SonarQube analysis completed! Check the [dashboard](https://sonarcloud.io/project/overview?id=${projectId}) for detailed results.`
             })
 
       - name: Check quality gates
-        uses: SonarSource/sonarqube-quality-gate-action@master
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

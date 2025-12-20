@@ -98,7 +98,7 @@ export async function generateRoutes(options: RouteOptions): Promise<RouteGenera
       message: `Routes created successfully`,
     };
   } catch (error) {
-    Logger.error(`Failed to generate routes: ${(error as Error).message}`);
+    Logger.error('Route generation failed', error);
     return {
       success: false,
       routeFile: '',

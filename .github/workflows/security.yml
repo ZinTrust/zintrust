@@ -41,6 +41,15 @@ jobs:
         with:
           args: --severity-threshold=high
 
+      - name: Run Trivy vulnerability scanner (Repo)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
       - name: Run npm audit
         id: npm_audit
         run: npm audit --audit-level=moderate
@@ -263,7 +272,7 @@ jobs:
           echo "# 🔒 Security Scan Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Checks Completed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Snyk Vulnerability Scan: ${{ needs.dependency-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Snyk & Trivy Vulnerability Scans: ${{ needs.dependency-check.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Secret Detection: ${{ needs.secret-scanning.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ CodeQL Analysis: ${{ needs.code-scanning.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SAST Scanning: ${{ needs.sast-scanning.result }}" >> $GITHUB_STEP_SUMMARY

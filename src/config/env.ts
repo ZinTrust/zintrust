@@ -82,6 +82,10 @@ export const ENVIRONMENT = get('ENVIRONMENT', 'development');
 export const REQUEST_TIMEOUT = getInt('REQUEST_TIMEOUT', 30000);
 export const MAX_BODY_SIZE = getInt('MAX_BODY_SIZE', 10485760); // 10MB
 
+// Logging
+export const LOG_LEVEL = get('LOG_LEVEL', 'debug') as 'debug' | 'info' | 'warn' | 'error';
+export const DISABLE_LOGGING = getBool('DISABLE_LOGGING', false);
+
 /**
  * Env object for backward compatibility
  */
@@ -125,4 +129,6 @@ export const Env = {
   ENVIRONMENT,
   REQUEST_TIMEOUT,
   MAX_BODY_SIZE,
+  LOG_LEVEL,
+  DISABLE_LOGGING,
 };

@@ -3,6 +3,8 @@
 [![Website](https://img.shields.io/badge/website-zintrust.com-blue)](https://zintrust.com)
 [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)
 [![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml)
+[![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml)
+[![Known Vulnerabilities](https://snyk.io/test/github/ZinTrust/ZinTrust/badge.svg)](https://snyk.io/test/github/ZinTrust/ZinTrust)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/zintrust.svg)](https://www.npmjs.com/package/zintrust)
 
@@ -14,6 +16,7 @@ Production-grade TypeScript backend framework with zero external dependencies fo
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Build**    | [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)                                                                                                                                                                                                         |
 | **Quality**  | [![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml) [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ZinTrust_ZinTrust&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ZinTrust_ZinTrust) |
+| **Security** | [![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml) [![Known Vulnerabilities](https://snyk.io/test/github/ZinTrust/ZinTrust/badge.svg)](https://snyk.io/test/github/ZinTrust/ZinTrust)                                                           |
 | **Tests**    | ![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen)                                                                                                                                                                                                                                                                                            |
 | **Coverage** | ![Coverage](https://img.shields.io/badge/coverage-90%2B%25-brightgreen)                                                                                                                                                                                                                                                                                             |
 

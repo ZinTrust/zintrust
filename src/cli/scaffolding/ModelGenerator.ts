@@ -122,7 +122,7 @@ export async function generateModel(options: ModelOptions): Promise<ModelGenerat
       message: `Model ${options.name} created successfully`,
     };
   } catch (error) {
-    Logger.error(`Failed to generate model: ${(error as Error).message}`);
+    Logger.error('Model generation failed', error);
     return {
       success: false,
       modelName: options.name,

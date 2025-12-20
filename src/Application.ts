@@ -3,7 +3,9 @@
  * Manages framework lifecycle, service registration, and bootstrapping
  */
 
+import { Logger } from '@cli/logger/Logger';
 import { appConfig } from '@config/app';
+import { Env } from '@config/env';
 import { ServiceContainer } from '@container/ServiceContainer';
 import { MiddlewareStack } from '@middleware/MiddlewareStack';
 import { Router } from '@routing/EnhancedRouter';
@@ -19,6 +21,11 @@ export class Application {
     this.router = new Router();
     this.middlewareStack = new MiddlewareStack();
     this.environment = appConfig.environment;
+
+    // Initialize logger with environment settings
+    if (!Env.DISABLE_LOGGING) {
+      Logger.initialize(undefined, undefined, undefined, Env.LOG_LEVEL);
+    }
 
     this.registerCoreServices(baseDirectory);
   }

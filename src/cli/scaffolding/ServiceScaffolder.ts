@@ -177,8 +177,8 @@ export async function scaffold(
       message: `Service '${options.name}' created successfully at ${servicePath}`,
     };
   } catch (error) {
+    Logger.error('Service scaffolding error', error);
     const errorMsg = error instanceof Error ? error.message : String(error);
-    Logger.error('Service scaffolding error:', error);
     return {
       success: false,
       serviceName: options.name,

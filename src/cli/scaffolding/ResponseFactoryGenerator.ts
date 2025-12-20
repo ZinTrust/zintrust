@@ -58,10 +58,12 @@ export async function validateOptions(options: ResponseFactoryOptions): Promise<
   }
 
   // Verify factory path exists
-  try {
-    await fs.access(options.factoriesPath);
-  } catch (error) {
-    Logger.error('Factories directory check failed', error);
+  const pathExists = await fs
+    .access(options.factoriesPath)
+    .then(() => true)
+    .catch(() => false);
+
+  if (!pathExists) {
     throw new Error(`Factories directory not found: ${options.factoriesPath}`);
   }
 }
@@ -97,9 +99,13 @@ export async function generate(
       message: `Response factory '${options.factoryName}' generated successfully`,
     };
   } catch (err) {
+    Logger.error('Response factory generation failed', err);
     const message = err instanceof Error ? err.message : String(err);
-    Logger.error(`Failed to generate response factory: ${message}`);
-    throw err;
+    return {
+      success: false,
+      factoryPath: '',
+      message: `Failed to generate response factory: ${message}`,
+    };
   }
 }
 

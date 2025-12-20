@@ -150,8 +150,8 @@ export async function addFeature(options: FeatureOptions): Promise<FeatureScaffo
       message: `Feature '${options.name}' added successfully`,
     };
   } catch (error) {
+    Logger.error('Feature scaffolding error', error);
     const errorMsg = error instanceof Error ? error.message : String(error);
-    Logger.error('Feature scaffolding error:', error);
     return {
       success: false,
       featureName: options.name,
