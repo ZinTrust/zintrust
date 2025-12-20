@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import { QueryBuilder } from '@orm/QueryBuilder';
+import { describe, expect, it } from 'vitest';
 
 describe('QueryBuilder', () => {
   it('should build a simple SELECT query', () => {
@@ -7,7 +7,7 @@ describe('QueryBuilder', () => {
     builder.select('id', 'name', 'email');
 
     const sql = builder.toSQL();
-    expect(sql).toBe('SELECT id, name, email FROM users');
+    expect(sql).toBe('SELECT "id", "name", "email" FROM "users"');
   });
 
   it('should build query with WHERE clause', () => {
@@ -15,7 +15,7 @@ describe('QueryBuilder', () => {
     builder.select('*').where('active', '=', true);
 
     const sql = builder.toSQL();
-    expect(sql).toContain('WHERE active = ?');
+    expect(sql).toContain('WHERE "active" = ?');
     expect(builder.getParameters()).toEqual([true]);
   });
 
@@ -24,7 +24,7 @@ describe('QueryBuilder', () => {
     builder.where('active', '=', true).where('role', '=', 'admin');
 
     const sql = builder.toSQL();
-    expect(sql).toContain('WHERE active = ? AND role = ?');
+    expect(sql).toContain('WHERE "active" = ? AND "role" = ?');
     expect(builder.getParameters()).toEqual([true, 'admin']);
   });
 

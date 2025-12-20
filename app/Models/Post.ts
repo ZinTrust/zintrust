@@ -2,6 +2,7 @@
  * Example Post Model
  */
 
+import { User } from '@app/Models/User';
 import { Model } from '@orm/Model';
 
 export class Post extends Model {
@@ -18,6 +19,6 @@ export class Post extends Model {
    * Get post's author
    */
   public async author() {
-    // return this.belongsTo(User);
+    return this.belongsTo(User);
   }
 }

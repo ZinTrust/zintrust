@@ -84,9 +84,7 @@ export function initialize(
  * Get singleton instance
  */
 export function getInstance(): typeof MicroserviceManager {
-  if (managerInstance === undefined) {
-    initialize([]);
-  }
+  managerInstance ??= initialize([]);
   if (managerInstance === undefined) {
     throw new Error('MicroserviceManager failed to initialize');
   }

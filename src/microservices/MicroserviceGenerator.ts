@@ -75,7 +75,7 @@ async function generateService(config: {
   ];
 
   for (const dir of dirs) {
-    if (fs.existsSync(dir) === false) {
+    if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
   }
@@ -387,13 +387,13 @@ const response = await manager.callService('other-service', {
 async function generateSharedUtils(domain: string): Promise<void> {
   const sharedDir = `services/${domain}/shared`;
 
-  if (fs.existsSync(sharedDir) === false) {
+  if (!fs.existsSync(sharedDir)) {
     fs.mkdirSync(sharedDir, { recursive: true });
   }
 
   // Generate shared types
   const typesFile = `${sharedDir}/types.ts`;
-  if (fs.existsSync(typesFile) === false) {
+  if (!fs.existsSync(typesFile)) {
     const code = `/**
  * Shared types for ${domain} domain
  */
@@ -405,7 +405,7 @@ async function generateSharedUtils(domain: string): Promise<void> {
 
   // Generate shared utils
   const utilsFile = `${sharedDir}/utils.ts`;
-  if (fs.existsSync(utilsFile) === false) {
+  if (!fs.existsSync(utilsFile)) {
     const code = `/**
  * Shared utilities for ${domain} domain
  */

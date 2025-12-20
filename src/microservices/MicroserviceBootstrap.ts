@@ -71,7 +71,7 @@ export class MicroserviceBootstrap {
    * Discover services from filesystem
    */
   public async discoverServices(): Promise<ServiceConfig[]> {
-    if (isMicroservicesEnabled() === false) {
+    if (!isMicroservicesEnabled()) {
       return [];
     }
 

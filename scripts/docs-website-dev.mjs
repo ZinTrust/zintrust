@@ -5,48 +5,45 @@ import { fileURLToPath } from 'node:url';
 
 function parseArgs(argv) {
   const args = new Map();
-  argv.forEach((token, index) => {
-    if (!token.startsWith('--')) return;
-    const key = token.slice(2);
-    const value = argv[index + 1];
-    if (value && !value.startsWith('--')) {
-      args.set(key, value);
+  let i = 0;
+  while (i < argv.length) {
+    const token = argv[i];
+    if (token.startsWith('--')) {
+      const key = token.slice(2);
+      const nextToken = argv[i + 1];
+
+      if (nextToken && !nextToken.startsWith('--')) {
+        args.set(key, nextToken);
+        i += 2;
+      } else {
+        args.set(key, 'true');
+        i += 1;
+      }
     } else {
-      args.set(key, 'true');
+      i += 1;
     }
-  });
+  }
   return args;
 }
 
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+};
+
 function getMimeType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
-  switch (ext) {
-    case '.html':
-      return 'text/html; charset=utf-8';
-    case '.css':
-      return 'text/css; charset=utf-8';
-    case '.js':
-      return 'application/javascript; charset=utf-8';
-    case '.mjs':
-      return 'application/javascript; charset=utf-8';
-    case '.json':
-      return 'application/json; charset=utf-8';
-    case '.svg':
-      return 'image/svg+xml';
-    case '.png':
-      return 'image/png';
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.ico':
-      return 'image/x-icon';
-    case '.txt':
-      return 'text/plain; charset=utf-8';
-    case '.map':
-      return 'application/json; charset=utf-8';
-    default:
-      return 'application/octet-stream';
-  }
+  return MIME_TYPES[ext] ?? 'application/octet-stream';
 }
 
 function safeDecodePathname(url) {
@@ -60,20 +57,16 @@ function safeDecodePathname(url) {
 async function resolveFilePath(normalized, pathnameNoLeadingSlash, rootDir) {
   try {
     const stat = await fs.stat(normalized);
-    if (stat.isDirectory()) {
-      return path.join(normalized, 'index.html');
-    }
-    return normalized;
+    return stat.isDirectory() ? path.join(normalized, 'index.html') : normalized;
   } catch {
+    // Try adding .html extension
     try {
       const htmlPath = `${normalized}.html`;
       await fs.stat(htmlPath);
       return htmlPath;
     } catch {
-      if (pathnameNoLeadingSlash === '') {
-        return path.join(rootDir, 'index.html');
-      }
-      return null;
+      // Fallback to index.html for root
+      return pathnameNoLeadingSlash === '' ? path.join(rootDir, 'index.html') : null;
     }
   }
 }
@@ -123,7 +116,7 @@ const host = String(args.get('host') ?? process.env.DOCS_HOST ?? '127.0.0.1');
 const thisFile = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(thisFile), '..', 'docs-website', 'public');
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const method = req.method ?? 'GET';
   if (method !== 'GET' && method !== 'HEAD') {
     return serveError(res, rootDir, 405, 'Method Not Allowed');
@@ -150,8 +143,10 @@ const server = http.createServer(async (req, res) => {
     return serveError(res, rootDir, 404, 'Not Found');
   }
 
-  await serveFile(res, filePath, method);
-});
+  return serveFile(res, filePath, method);
+}
+
+const server = http.createServer(handleRequest);
 
 server.listen(port, host, () => {
   // eslint-disable-next-line no-console

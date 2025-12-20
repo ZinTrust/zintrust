@@ -94,12 +94,12 @@ export function encodeHref(href: string): string {
   }
 
   // Prevent javascript: protocol
-  if (new RegExp(/^\s*javascript:/i).exec(href) !== null) {
+  if (/^\s*javascript:/i.test(href)) {
     return '';
   }
 
   // Prevent data: protocol (unless explicitly allowed)
-  if (new RegExp(/^\s*data:text\/html/i).exec(href) !== null) {
+  if (/^\s*data:text\/html/i.test(href)) {
     return '';
   }
 
@@ -127,7 +127,7 @@ export function isSafeUrl(url: string): boolean {
   }
 
   // Block dangerous protocols
-  if (new RegExp(/^\w+:/).exec(trimmed) !== null) {
+  if (/^\w+:/.test(trimmed)) {
     return false;
   }
 

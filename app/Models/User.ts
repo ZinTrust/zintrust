@@ -3,6 +3,7 @@
  * Demonstrates how to define models with relationships
  */
 
+import { Post } from '@app/Models/Post';
 import { Model } from '@orm/Model';
 
 export class User extends Model {
@@ -21,14 +22,14 @@ export class User extends Model {
    * Get user's posts
    */
   public async posts() {
-    // return this.hasMany(Post);
+    return this.hasMany(Post);
   }
 
   /**
    * Get user's profile
    */
   public async profile() {
-    // return this.hasOne(Profile);
+    // Placeholder for Profile relationship
   }
 
   /**

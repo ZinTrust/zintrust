@@ -343,8 +343,7 @@ function generateReport(issues: SonarCloudIssue[]): string {
   report += 'DETAILED ISSUES\n';
   report += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
 
-  for (const issue of issues.slice(0, 50)) {
-    // Show first 50 detailed
+  for (const issue of issues) {
     const file = issue.component.split(':').pop() || 'unknown';
     const line = issue.line || 0;
     const severity = issue.impacts?.[0]?.severity || issue.severity;
@@ -369,10 +368,6 @@ function generateReport(issues: SonarCloudIssue[]): string {
       }
     }
     report += '\n';
-  }
-
-  if (issues.length > 50) {
-    report += `\n... and ${issues.length - 50} more issues\n`;
   }
 
   return report;
@@ -430,9 +425,23 @@ async function main(): Promise<void> {
 
     logger.info('Fetching issues from SonarCloud...\n');
 
-    const issues = await client.fetchAllIssues(params);
+    let issues = await client.fetchAllIssues(params);
 
-    logger.info(`\n✓ Fetched ${issues.length} issues\n`);
+    // Filter out ignored paths (docs-website is excluded from scanning)
+    const ignoredPaths = ['docs-website/'];
+    const originalCount = issues.length;
+    issues = issues.filter((issue) => {
+      const file = issue.component.split(':').pop() || '';
+      return !ignoredPaths.some((path) => file.startsWith(path));
+    });
+
+    if (originalCount !== issues.length) {
+      logger.info(
+        `\n✓ Fetched ${originalCount} issues (${originalCount - issues.length} filtered out)\n`
+      );
+    } else {
+      logger.info(`\n✓ Fetched ${issues.length} issues\n`);
+    }
 
     // Generate report
     const report = generateReport(issues);
@@ -443,9 +452,8 @@ async function main(): Promise<void> {
       fs.mkdirSync(outputDir, { recursive: true });
     }
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const reportFile = path.join(outputDir, `sonarcloud-issues-${timestamp}.txt`);
-    const jsonFile = path.join(outputDir, `sonarcloud-issues-${timestamp}.json`);
+    const reportFile = path.join(outputDir, 'sonarcloud-issues.txt');
+    const jsonFile = path.join(outputDir, 'sonarcloud-issues.json');
 
     fs.writeFileSync(reportFile, report);
     fs.writeFileSync(jsonFile, JSON.stringify(issues, null, 2));
@@ -471,7 +479,7 @@ async function main(): Promise<void> {
       ]);
       logger.info('Measures fetched successfully', { measures });
 
-      const measuresFile = path.join(outputDir, `sonarcloud-measures-${timestamp}.json`);
+      const measuresFile = path.join(outputDir, 'sonarcloud-measures.json');
       fs.writeFileSync(measuresFile, JSON.stringify(measures, null, 2));
       logger.info(`✓ Measures saved to: ${measuresFile}`);
     }

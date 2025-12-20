@@ -4,13 +4,13 @@
  * Common middleware patterns for Zintrust
  */
 
+import { Logger } from '@config/logger';
 import { Request } from '@http/Request';
 import { Response } from '@http/Response';
-import { Schema, Validator, ValidationError } from '@validation/Validator';
-import { JwtManager } from '@security/JwtManager';
 import { CsrfTokenManager } from '@security/CsrfTokenManager';
+import { JwtManager } from '@security/JwtManager';
 import { XssProtection } from '@security/XssProtection';
-import { Logger } from '@config/logger';
+import { Schema, ValidationError, Validator } from '@validation/Validator';
 
 /**
  * Authentication Middleware
@@ -27,15 +27,6 @@ export const authMiddleware = async (
     res.setStatus(401).json({ error: 'Unauthorized' });
     return;
   }
-
-  // In production: verify JWT token
-  // const user = verifyToken(token);
-  // if (!user) {
-  //   res.setStatus(401).json({ error: 'Invalid token' });
-  //   return;
-  // }
-  // Store user in request for later use
-  // req.user = user;
 
   await next();
 };
@@ -80,15 +71,6 @@ export const jsonMiddleware = async (
     return;
   }
 
-  // In production: parse request body
-  // const chunks: Buffer[] = [];
-  // req.getRaw().on('data', (chunk) => chunks.push(chunk));
-  // req.getRaw().on('end', () => {
-  //   const body = Buffer.concat(chunks).toString('utf-8');
-  //   req.setBody(JSON.parse(body));
-  //   await next();
-  // });
-
   await next();
 };
 
@@ -105,13 +87,13 @@ export const loggingMiddleware = async (
   const method = req.getMethod();
   const path = req.getPath();
 
-  console.log(`→ ${method} ${path}`);
+  Logger.info(`→ ${method} ${path}`);
 
   await next();
 
   const duration = Date.now() - startTime;
   const status = res.getStatus();
-  console.log(`← ${status} ${method} ${path} (${duration}ms)`);
+  Logger.info(`← ${status} ${method} ${path} (${duration}ms)`);
 };
 
 /**
@@ -125,7 +107,7 @@ export const rateLimitMiddleware = async (
   res: Response,
   next: () => Promise<void>
 ): Promise<void> => {
-  const ip = (req.getRaw().socket.remoteAddress || 'unknown');
+  const ip = req.getRaw().socket.remoteAddress || 'unknown';
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute
   const maxRequests = 100;

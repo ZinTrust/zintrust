@@ -103,7 +103,7 @@ export class HealthCheckHandler {
 
     try {
       result.checks.database = await this.checkDatabase();
-      if (result.checks.database === false) {
+      if (!result.checks.database) {
         result.status = 'degraded';
         result.message = 'Database connection failed';
       }
@@ -123,7 +123,7 @@ export class HealthCheckHandler {
     for (const depService of this.dependencies) {
       const isHealthy = await this.checkDependencyService(depService);
       result.checks.dependencies[depService] = isHealthy;
-      if (isHealthy === false) {
+      if (!isHealthy) {
         result.status = 'degraded';
       }
     }

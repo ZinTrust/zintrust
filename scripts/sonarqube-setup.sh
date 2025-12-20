@@ -58,7 +58,7 @@ case $choice in
         # Wait for server to be ready
         max_attempts=12
         attempt=0
-        while [ $attempt -lt $max_attempts ]; do
+        while [[ $attempt -lt $max_attempts ]]; do
             if curl -s http://localhost:9000/api/system/status | grep -q '"status":"UP"'; then
                 echo "✅ SonarQube is ready!"
                 break
@@ -68,7 +68,7 @@ case $choice in
             ((attempt++))
         done
 
-        if [ $attempt -eq $max_attempts ]; then
+        if [[ $attempt -eq $max_attempts ]]; then
             echo "⚠️  SonarQube may still be starting. Check http://localhost:9000"
         fi
 
@@ -94,7 +94,7 @@ case $choice in
         echo ""
         read -p "Enter your SonarQube Cloud token: " sonar_token
 
-        if [ -z "$sonar_token" ]; then
+        if [[ -z "$sonar_token" ]]; then
             echo "❌ Token is required"
             exit 1
         fi
@@ -112,7 +112,7 @@ case $choice in
         read -p "Enter SonarQube URL (e.g., http://localhost:9000): " sonar_url
         read -p "Enter SonarQube token: " sonar_token
 
-        if [ -z "$sonar_url" ] || [ -z "$sonar_token" ]; then
+        if [[ -z "$sonar_url" ]] || [[ -z "$sonar_token" ]]; then
             echo "❌ URL and token are required"
             exit 1
         fi
