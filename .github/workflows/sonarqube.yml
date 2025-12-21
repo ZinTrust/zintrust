@@ -81,6 +81,33 @@ jobs:
             exit 1
           fi
 
+      - name: Verify SonarCloud Project Exists
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "🔍 Checking if project ZinTrust_ZinTrust exists in zintrust organization..."
+          RESPONSE=$(curl -s -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/projects/search?organization=zintrust&projects=ZinTrust_ZinTrust" -w "\n%{http_code}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          echo "Response HTTP Code: $HTTP_CODE"
+          echo "Response Body: $BODY"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            PROJECT_COUNT=$(echo "$BODY" | grep -o '"key":"ZinTrust_ZinTrust"' | wc -l)
+            if [ "$PROJECT_COUNT" -gt 0 ]; then
+              echo "✅ Project ZinTrust_ZinTrust exists and is accessible"
+            else
+              echo "❌ Project ZinTrust_ZinTrust NOT found in zintrust organization"
+              echo "Available projects:"
+              echo "$BODY" | grep -o '"key":"[^"]*"' || echo "No projects found"
+              exit 1
+            fi
+          else
+            echo "❌ Error accessing project info (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+
       - name: Upload coverage to SonarQube
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
