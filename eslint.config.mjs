@@ -100,6 +100,19 @@ export default defineConfig(
     },
   },
   {
+    files: ['tests/**/*.ts'],
+    linterOptions: {
+      reportUnusedDisableDirectives: false,
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-extraneous-class': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      'max-lines-per-function': 'off',
+    },
+  },
+  {
     files: ['src/orm/adapters/**/*.ts'],
     languageOptions: {
       globals: {

@@ -70,7 +70,7 @@ describe('Server', () => {
 
     // Simulate request
     if (requestHandler) {
-      await requestHandler(mockReq, mockRes);
+      requestHandler(mockReq, mockRes);
     }
 
     // Verify security headers

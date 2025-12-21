@@ -44,7 +44,7 @@ describe('Env Config', () => {
 
     it('should handle invalid numbers', () => {
       process.env['TEST_INT'] = 'invalid';
-      expect(getInt('TEST_INT')).toBe(NaN);
+      expect(getInt('TEST_INT')).toBe(Number.NaN);
     });
   });
 

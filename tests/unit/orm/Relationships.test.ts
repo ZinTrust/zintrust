@@ -1,6 +1,6 @@
 import { Model } from '@orm/Model';
-import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 import { QueryBuilder } from '@orm/QueryBuilder';
+import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Model and QueryBuilder

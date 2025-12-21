@@ -18,7 +18,6 @@ vi.mock('@/middleware/MiddlewareStack');
 vi.mock('@/container/ServiceContainer');
 vi.mock('@/http/Request', () => ({
   Request: class {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     constructor(_req: any) {
       return mockRequestInstance;
     }
@@ -26,7 +25,6 @@ vi.mock('@/http/Request', () => ({
 }));
 vi.mock('@/http/Response', () => ({
   Response: class {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     constructor(_res: any) {
       return mockResponseInstance;
     }

@@ -15,15 +15,11 @@ describe('Logger Config', () => {
   let consoleLogSpy: any;
   let consoleWarnSpy: any;
   let consoleErrorSpy: any;
-  // let consoleDebugSpy: any;
-  // let exitSpy: any;
 
   beforeEach(() => {
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    // consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
-    // exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
   });
 
   afterEach(() => {

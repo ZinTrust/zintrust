@@ -15,15 +15,17 @@ import { NodeServerAdapter } from '@runtime/adapters/NodeServerAdapter';
 const RUNTIME_VAR = 'RUNTIME';
 const AUTO = 'auto';
 
+function hasEnvValue(key: string): boolean {
+  return Env.get(key).trim() !== '';
+}
+
 /**
  * Detect current runtime environment
  */
 export function detectRuntime(): string {
-  const explicit = Env.get(RUNTIME_VAR);
+  const explicit = Env.get(RUNTIME_VAR).trim();
 
-  if (explicit !== undefined && explicit !== AUTO) {
-    return explicit;
-  }
+  if (explicit !== '' && explicit !== AUTO) return explicit;
 
   // Auto-detection logic
   if (isLambda() === true) {
@@ -85,9 +87,9 @@ export function createAdapterForRuntime(runtime: string, config: AdapterConfig):
  */
 function isLambda(): boolean {
   return (
-    Env.get('LAMBDA_TASK_ROOT') !== undefined ||
-    Env.get('AWS_LAMBDA_FUNCTION_NAME') !== undefined ||
-    Env.get('AWS_EXECUTION_ENV') !== undefined
+    hasEnvValue('LAMBDA_TASK_ROOT') === true ||
+    hasEnvValue('AWS_LAMBDA_FUNCTION_NAME') === true ||
+    hasEnvValue('AWS_EXECUTION_ENV') === true
   );
 }
 

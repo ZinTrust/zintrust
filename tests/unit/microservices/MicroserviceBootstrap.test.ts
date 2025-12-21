@@ -37,17 +37,15 @@ describe('MicroserviceBootstrap', () => {
     bootstrap.setServicesDir(mockServicesDir);
 
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readdirSync).mockImplementation(
-      ((dir: any) => {
-        if (dir === mockServicesDir) {
-          return ['domain1'] as unknown as fs.Dirent[];
-        }
-        if (dir === path.join(mockServicesDir, 'domain1')) {
-          return ['service1'] as unknown as fs.Dirent[];
-        }
-        return [] as unknown as fs.Dirent[];
-      }) as any
-    );
+    vi.mocked(fs.readdirSync).mockImplementation(((dir: any) => {
+      if (dir === mockServicesDir) {
+        return ['domain1'] as unknown as fs.Dirent[];
+      }
+      if (dir === path.join(mockServicesDir, 'domain1')) {
+        return ['service1'] as unknown as fs.Dirent[];
+      }
+      return [] as unknown as fs.Dirent[];
+    }) as any);
 
     vi.mocked(fs.statSync).mockReturnValue({
       isDirectory: () => true,
