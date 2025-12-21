@@ -2,7 +2,7 @@ import { N1Detector } from '@profiling/N1Detector';
 import { QueryLogEntry } from '@profiling/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('N1Detector', () => {
+describe('N1Detector Basic Detection - Thresholds Basic', () => {
   let detector: N1Detector;
 
   beforeEach(() => {
@@ -53,6 +53,14 @@ describe('N1Detector', () => {
     expect(patterns[0].queryCount).toBe(5);
     expect(patterns[0].table).toBe('users');
   });
+});
+
+describe('N1Detector Basic Detection - Thresholds Severity', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
+  });
 
   it('should mark critical N+1 pattern with 10+ queries', () => {
     const logs: QueryLogEntry[] = Array.from({ length: 10 }, (_, i) => ({
@@ -80,6 +88,14 @@ describe('N1Detector', () => {
     const patterns = detector.detect(logs);
     expect(patterns).toHaveLength(1);
     expect(patterns[0].severity).toBe('warning');
+  });
+});
+
+describe('N1Detector Basic Detection - Negative Cases', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
   });
 
   it('should not flag queries < 5 occurrences', () => {
@@ -117,6 +133,14 @@ describe('N1Detector', () => {
     const patterns = detector.detect(logs);
     expect(patterns).toHaveLength(0);
   });
+});
+
+describe('N1Detector Advanced Detection - Extraction', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
+  });
 
   it('should extract table name from SELECT query', () => {
     const logs: QueryLogEntry[] = Array.from({ length: 5 }, (_, i) => ({
@@ -129,6 +153,14 @@ describe('N1Detector', () => {
 
     const patterns = detector.detect(logs);
     expect(patterns[0].table).toBe('products');
+  });
+});
+
+describe('N1Detector Advanced Detection - Multiple Patterns Basic', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
   });
 
   it('should handle multiple N+1 patterns in same request', () => {
@@ -169,49 +201,37 @@ describe('N1Detector', () => {
         timestamp: new Date(),
         context: 'req-6',
       },
-      // Pattern 2: 6 queries on posts table
-      {
+    ];
+
+    const patterns = detector.detect(logs);
+    expect(patterns).toHaveLength(1);
+    expect(patterns[0].table).toBe('users');
+  });
+});
+
+describe('N1Detector Advanced Detection - Multiple Patterns Advanced', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
+  });
+
+  it('should handle multiple N+1 patterns in same request', () => {
+    const logs: QueryLogEntry[] = [
+      ...Array.from({ length: 5 }, (_, i) => ({
+        sql: 'SELECT * FROM users WHERE id = ?',
+        params: [i + 1],
+        duration: 10,
+        timestamp: new Date(),
+        context: 'req-6',
+      })),
+      ...Array.from({ length: 6 }, (_, i) => ({
         sql: 'SELECT * FROM posts WHERE user_id = ?',
-        params: [1],
+        params: [i + 1],
         duration: 8,
         timestamp: new Date(),
         context: 'req-6',
-      },
-      {
-        sql: 'SELECT * FROM posts WHERE user_id = ?',
-        params: [2],
-        duration: 8,
-        timestamp: new Date(),
-        context: 'req-6',
-      },
-      {
-        sql: 'SELECT * FROM posts WHERE user_id = ?',
-        params: [3],
-        duration: 8,
-        timestamp: new Date(),
-        context: 'req-6',
-      },
-      {
-        sql: 'SELECT * FROM posts WHERE user_id = ?',
-        params: [4],
-        duration: 8,
-        timestamp: new Date(),
-        context: 'req-6',
-      },
-      {
-        sql: 'SELECT * FROM posts WHERE user_id = ?',
-        params: [5],
-        duration: 8,
-        timestamp: new Date(),
-        context: 'req-6',
-      },
-      {
-        sql: 'SELECT * FROM posts WHERE user_id = ?',
-        params: [6],
-        duration: 8,
-        timestamp: new Date(),
-        context: 'req-6',
-      },
+      })),
     ];
 
     const patterns = detector.detect(logs);
@@ -220,6 +240,14 @@ describe('N1Detector', () => {
       'posts',
       'users',
     ]);
+  });
+});
+
+describe('N1Detector Advanced Detection - Edge Cases', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
   });
 
   it('should ignore different SQL queries', () => {

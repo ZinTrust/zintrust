@@ -1,7 +1,7 @@
 import { JwtManager, JwtPayload } from '@security/JwtManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('JwtManager', () => {
+describe('JwtManager Basic Tests', () => {
   let manager: JwtManager;
   const secret = 'test-secret-key-for-hmac-256';
 
@@ -42,6 +42,16 @@ describe('JwtManager', () => {
     const decoded = manager.verify(token, 'HS256');
     expect(decoded.iat).toBeDefined();
     expect(typeof decoded.iat).toBe('number');
+  });
+});
+
+describe('JwtManager Claims', () => {
+  let manager: JwtManager;
+  const secret = 'test-secret-key-for-hmac-256';
+
+  beforeEach(() => {
+    manager = new JwtManager();
+    manager.setHmacSecret(secret);
   });
 
   it('HS256: should add expiration claim', () => {
@@ -85,6 +95,16 @@ describe('JwtManager', () => {
 
     const decoded = manager.verify(token, 'HS256');
     expect(decoded.jti).toBe(jti);
+  });
+});
+
+describe('JwtManager Algorithms and Payloads', () => {
+  let manager: JwtManager;
+  const secret = 'test-secret-key-for-hmac-256';
+
+  beforeEach(() => {
+    manager = new JwtManager();
+    manager.setHmacSecret(secret);
   });
 
   it('HS512: should sign with HS512', () => {

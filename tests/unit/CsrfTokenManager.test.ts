@@ -1,7 +1,7 @@
 import { CsrfTokenManager } from '@security/CsrfTokenManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('CsrfTokenManager', () => {
+describe('CsrfTokenManager Basic', () => {
   let manager: CsrfTokenManager;
 
   beforeEach(() => {
@@ -61,6 +61,14 @@ describe('CsrfTokenManager', () => {
     expect(data?.createdAt).toBeInstanceOf(Date);
     expect(data?.expiresAt).toBeInstanceOf(Date);
   });
+});
+
+describe('CsrfTokenManager Advanced Operations', () => {
+  let manager: CsrfTokenManager;
+
+  beforeEach(() => {
+    manager = new CsrfTokenManager();
+  });
 
   it('should invalidate token', () => {
     const sessionId = 'session-9';
@@ -103,6 +111,14 @@ describe('CsrfTokenManager', () => {
     const cleanedCount = manager.cleanup();
 
     expect(cleanedCount).toBe(0); // Token not yet expired
+  });
+});
+
+describe('CsrfTokenManager Advanced State', () => {
+  let manager: CsrfTokenManager;
+
+  beforeEach(() => {
+    manager = new CsrfTokenManager();
   });
 
   it('should track token count', () => {

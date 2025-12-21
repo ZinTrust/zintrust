@@ -87,7 +87,6 @@ export async function scaffold(
     }
 
     const servicePath = getServicePath(projectRoot, options);
-    const filesCreated: string[] = [];
 
     // Check if service already exists
     if (FileGenerator.directoryExists(servicePath)) {
@@ -100,93 +99,71 @@ export async function scaffold(
       };
     }
 
-    // Create service directory structure
-    const dirs = [
-      'src/controllers',
-      'src/models',
-      'src/services',
-      'src/middleware',
-      'src/migrations',
-      'src/factories',
-    ];
-
-    for (const dir of dirs) {
-      FileGenerator.createDirectory(path.join(servicePath, dir));
-    }
-
-    Logger.info(`✅ Created service directories for '${options.name}'`);
-
-    // Create service config file
-    const configPath = path.join(servicePath, 'service.config.json');
-    const configContent = generateServiceConfig(options);
-    FileGenerator.writeFile(configPath, configContent);
-
-    // Create index.ts (service entry point)
-    const indexPath = path.join(servicePath, 'src', 'index.ts');
-    const indexContent = generateServiceIndex(options);
-    FileGenerator.writeFile(indexPath, indexContent);
-
-    // Create routes file
-    const routesPath = path.join(servicePath, 'src', 'routes.ts');
-    const routesContent = generateServiceRoutes(options);
-    FileGenerator.writeFile(routesPath, routesContent);
-
-    // Create example controller
-    const controllerPath = path.join(servicePath, 'src', 'controllers', 'ExampleController.ts');
-    const controllerContent = generateExampleController(options);
-    FileGenerator.writeFile(controllerPath, controllerContent);
-
-    // Create example model
-    const modelPath = path.join(servicePath, 'src', 'models', 'Example.ts');
-    const modelContent = generateExampleModel(options);
-    FileGenerator.writeFile(modelPath, modelContent);
-
-    // Create .env file
-    const envPath = path.join(servicePath, '.env');
-    const envContent = generateServiceEnv(options);
-    FileGenerator.writeFile(envPath, envContent);
-
-    // Create middleware placeholder
-    const middlewarePath = path.join(servicePath, 'src', 'middleware', 'index.ts');
-    const middlewareContent = '// Service middleware exports\nexport {};\n';
-    FileGenerator.writeFile(middlewarePath, middlewareContent);
-
-    // Create service README
-    const readmePath = path.join(servicePath, 'README.md');
-    const readmeContent = generateServiceReadme(options);
-    FileGenerator.writeFile(readmePath, readmeContent);
-
-    filesCreated.push(
-      configPath,
-      indexPath,
-      routesPath,
-      controllerPath,
-      modelPath,
-      envPath,
-      middlewarePath,
-      readmePath
-    );
-
-    Logger.info(`✅ Generated service '${options.name}' with ${filesCreated.length} files`);
+    createServiceDirectories(servicePath);
+    const filesCreated = createServiceFiles(servicePath, options);
 
     return {
       success: true,
       serviceName: options.name,
       servicePath,
       filesCreated,
-      message: `Service '${options.name}' created successfully at ${servicePath}`,
+      message: `Service '${options.name}' scaffolded successfully`,
     };
   } catch (error) {
-    Logger.error('Service scaffolding error', error);
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    Logger.error('Service scaffolding failed', error);
     return {
       success: false,
       serviceName: options.name,
       servicePath: '',
       filesCreated: [],
-      message: `Failed to create service: ${errorMsg}`,
+      message: (error as Error).message,
     };
   }
+}
+
+/**
+ * Create service directory structure
+ */
+function createServiceDirectories(servicePath: string): void {
+  const dirs = [
+    'src/controllers',
+    'src/models',
+    'src/services',
+    'src/middleware',
+    'src/migrations',
+    'src/factories',
+  ];
+
+  for (const dir of dirs) {
+    FileGenerator.createDirectory(path.join(servicePath, dir));
+  }
+
+  Logger.info('✅ Created service directories');
+}
+
+/**
+ * Create initial service files
+ */
+function createServiceFiles(servicePath: string, options: ServiceOptions): string[] {
+  const files: Array<{ path: string; content: string }> = [
+    { path: 'service.config.json', content: generateServiceConfig(options) },
+    { path: 'src/index.ts', content: generateServiceIndex(options) },
+    { path: 'src/routes.ts', content: generateServiceRoutes(options) },
+    { path: 'src/controllers/ExampleController.ts', content: generateExampleController(options) },
+    { path: 'src/models/Example.ts', content: generateExampleModel(options) },
+    { path: '.env', content: generateServiceEnv(options) },
+    { path: 'src/middleware/index.ts', content: '// Service middleware exports\nexport {};\n' },
+    { path: 'README.md', content: generateServiceReadme(options) },
+  ];
+
+  const created: string[] = [];
+  for (const file of files) {
+    const fullPath = path.join(servicePath, file.path);
+    FileGenerator.writeFile(fullPath, file.content);
+    created.push(fullPath);
+  }
+
+  return created;
 }
 
 /**

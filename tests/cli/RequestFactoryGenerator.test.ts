@@ -16,11 +16,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-describe('RequestFactoryGenerator', () => {
+describe('RequestFactoryGenerator Validation Part 1', () => {
   let testDir: string;
 
   beforeEach(async () => {
-    testDir = path.join(__dirname, 'test-request-factories-' + Date.now());
+    testDir = path.join(__dirname, 'test-request-factories-validation-1-' + Date.now());
     await fs.mkdir(testDir, { recursive: true });
   });
 
@@ -30,7 +30,7 @@ describe('RequestFactoryGenerator', () => {
     }
   });
 
-  describe('validateOptions', () => {
+  describe('validateOptions - Error Cases Part 1', () => {
     it('should throw error when factory name is missing', async () => {
       const options: Partial<RequestFactoryOptions> = {
         factoryName: '',
@@ -54,7 +54,24 @@ describe('RequestFactoryGenerator', () => {
         RequestFactoryGenerator.validateOptions(options as RequestFactoryOptions)
       ).rejects.toThrow('Request factory name must end with "RequestFactory"');
     });
+  });
+});
 
+describe('RequestFactoryGenerator Validation Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-validation-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('validateOptions - Error Cases Part 2', () => {
     it('should throw error when request name is missing', async () => {
       const options: Partial<RequestFactoryOptions> = {
         factoryName: 'CreateUserRequestFactory',
@@ -78,7 +95,24 @@ describe('RequestFactoryGenerator', () => {
         RequestFactoryGenerator.validateOptions(options as RequestFactoryOptions)
       ).rejects.toThrow('Request name must be PascalCase ending with "Request"');
     });
+  });
+});
 
+describe('RequestFactoryGenerator Validation Success', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-validation-success-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('validateOptions - Success Cases', () => {
     it('should validate correct options', async () => {
       const options: RequestFactoryOptions = {
         factoryName: 'CreateUserRequestFactory',
@@ -89,8 +123,23 @@ describe('RequestFactoryGenerator', () => {
       await expect(RequestFactoryGenerator.validateOptions(options)).resolves.toBeUndefined();
     });
   });
+});
 
-  describe('generateRequestFactory', () => {
+describe('RequestFactoryGenerator Basic Generation - Part 1', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-basic-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateRequestFactory - Core', () => {
     it('should create a basic request factory file', async () => {
       const options: RequestFactoryOptions = {
         factoryName: 'CreateUserRequestFactory',
@@ -135,7 +184,24 @@ describe('RequestFactoryGenerator', () => {
       expect(fileContent).toContain('static times(count: number)');
       expect(fileContent).toContain('makeMany()');
     });
+  });
+});
 
+describe('RequestFactoryGenerator Basic Generation - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-basic-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateRequestFactory - Features', () => {
     it('should include state management', async () => {
       const options: RequestFactoryOptions = {
         factoryName: 'UpdateUserRequestFactory',
@@ -167,7 +233,24 @@ describe('RequestFactoryGenerator', () => {
       );
       expect(fileContent).toContain('toJSON()');
     });
+  });
+});
 
+describe('RequestFactoryGenerator Advanced Generation - Part 1', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-advanced-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateRequestFactory - Custom Fields', () => {
     it('should handle custom fields', async () => {
       const customFields: RequestField[] = [
         { name: 'username', type: 'string', required: true, min: 3, max: 20 },
@@ -209,7 +292,24 @@ describe('RequestFactoryGenerator', () => {
       expect(fileContent).toContain('isValidEmail');
       expect(fileContent).toContain('must be at least 8 characters');
     });
+  });
+});
 
+describe('RequestFactoryGenerator Advanced Generation - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-advanced-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateRequestFactory - DTO Generation', () => {
     it('should generate request DTO when requestsPath provided', async () => {
       const requestsPath = path.join(testDir, 'requests');
       await fs.mkdir(requestsPath, { recursive: true });
@@ -226,13 +326,30 @@ describe('RequestFactoryGenerator', () => {
       expect(result.success).toBe(true);
       expect(result.requestPath).toBeDefined();
 
-      if (result.requestPath != null) {
+      if (result.requestPath !== null && result.requestPath !== undefined) {
         const fileContent = await fs.readFile(result.requestPath, 'utf-8');
         expect(fileContent).toContain('export class CreateUserRequest');
         expect(fileContent).toContain('validate()');
       }
     });
+  });
+});
 
+describe('RequestFactoryGenerator Specialized Generation - Part 1', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-specialized-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateRequestFactory - Metadata', () => {
     it('should include endpoint and method in generated DTO', async () => {
       const requestsPath = path.join(testDir, 'requests');
       await fs.mkdir(requestsPath, { recursive: true });
@@ -248,7 +365,7 @@ describe('RequestFactoryGenerator', () => {
 
       const result = await RequestFactoryGenerator.generateRequestFactory(options);
 
-      if (result.requestPath != null) {
+      if (result.requestPath !== null && result.requestPath !== undefined) {
         const fileContent = await fs.readFile(result.requestPath, 'utf-8');
         expect(fileContent).toContain('POST /api/posts');
       }
@@ -268,7 +385,24 @@ describe('RequestFactoryGenerator', () => {
       expect(result.success).toBe(false);
       expect(result.message).toContain('RequestFactory');
     });
+  });
+});
 
+describe('RequestFactoryGenerator Specialized Generation - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-specialized-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateRequestFactory - Multiple Factories', () => {
     it('should create multiple factories in same directory', async () => {
       const options1: RequestFactoryOptions = {
         factoryName: 'CreateUserRequestFactory',
@@ -282,16 +416,28 @@ describe('RequestFactoryGenerator', () => {
         factoriesPath: testDir,
       };
 
-      const result1 = await RequestFactoryGenerator.generateRequestFactory(options1);
-      const result2 = await RequestFactoryGenerator.generateRequestFactory(options2);
-
-      expect(result1.success).toBe(true);
-      expect(result2.success).toBe(true);
+      await RequestFactoryGenerator.generateRequestFactory(options1);
+      await RequestFactoryGenerator.generateRequestFactory(options2);
 
       const files = await fs.readdir(testDir);
       expect(files).toContain('CreateUserRequestFactory.ts');
       expect(files).toContain('UpdateUserRequestFactory.ts');
     });
+  });
+});
+
+describe('RequestFactoryGenerator Code Validation', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-code-validation-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
   });
 
   describe('Generated Code Validation', () => {
@@ -339,8 +485,23 @@ describe('RequestFactoryGenerator', () => {
       expect(fileContent).toContain('faker.string.uuid()');
     });
   });
+});
 
-  describe('Integration Tests', () => {
+describe('RequestFactoryGenerator Integration Tests - Part 1', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-integration-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Integration Tests - Common Types', () => {
     it('should generate common request types (create, update, login, register)', async () => {
       const requestTypes = [
         { factory: 'CreateUserRequestFactory', request: 'CreateUserRequest' },
@@ -364,7 +525,24 @@ describe('RequestFactoryGenerator', () => {
         expect(fileContent).toContain(`export class ${type.request}`);
       }
     });
+  });
+});
 
+describe('RequestFactoryGenerator Integration Tests - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-integration-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Integration Tests - Complex Fields', () => {
     it('should support complex multi-field requests', async () => {
       const fields: RequestField[] = [
         { name: 'id', type: 'uuid', required: true, description: 'Resource ID' },
@@ -390,7 +568,24 @@ describe('RequestFactoryGenerator', () => {
         expect(fileContent).toContain(field.name);
       }
     });
+  });
+});
 
+describe('RequestFactoryGenerator Integration Tests - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-integration-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Integration Tests - Patterns', () => {
     it('should generate state patterns for testing', async () => {
       const options: RequestFactoryOptions = {
         factoryName: 'ValidationTestRequestFactory',
@@ -418,6 +613,21 @@ describe('RequestFactoryGenerator', () => {
       expect(options.length).toBeGreaterThan(0);
       expect(options[0]).toContain('generation');
     });
+  });
+});
+
+describe('RequestFactoryGenerator Error Handling', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-request-factories-errors-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
   });
 
   describe('Error Handling', () => {

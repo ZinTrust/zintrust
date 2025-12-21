@@ -177,15 +177,15 @@ export class QueryBuilder {
         .join(' AND ');
     }
 
-    if (this.orderByClause) {
+    if (this.orderByClause !== undefined && this.orderByClause !== null) {
       sql += ` ORDER BY ${this.orderByClause.column} ${this.orderByClause.direction}`;
     }
 
-    if (this.limitValue != null) {
+    if (this.limitValue !== undefined && this.limitValue !== null) {
       sql += ` LIMIT ${this.limitValue}`;
     }
 
-    if (this.offsetValue != null) {
+    if (this.offsetValue !== undefined && this.offsetValue !== null) {
       sql += ` OFFSET ${this.offsetValue}`;
     }
 

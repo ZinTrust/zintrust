@@ -1,7 +1,7 @@
 import { QueryLogger, QueryLoggerInstance } from '@profiling/QueryLogger';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('QueryLogger', () => {
+describe('QueryLogger Basic Tests', () => {
   let logger: QueryLoggerInstance;
 
   beforeEach(() => {
@@ -39,6 +39,27 @@ describe('QueryLogger', () => {
 
     expect(logger.getQueryLog('request-a')).toHaveLength(1);
     expect(logger.getQueryLog('request-b')).toHaveLength(1);
+  });
+
+  it('should get current context', () => {
+    logger.setContext('my-context');
+    expect(logger.getContext()).toBe('my-context');
+  });
+
+  it('should log to default context if none set', () => {
+    logger.logQuery('SELECT * FROM users', [], 10);
+
+    const logs = logger.getQueryLog('default');
+    expect(logs).toHaveLength(1);
+  });
+});
+
+describe('QueryLogger Advanced Tests', () => {
+  let logger: QueryLoggerInstance;
+
+  beforeEach(() => {
+    logger = QueryLogger.getInstance();
+    logger.clear();
   });
 
   it('should provide query summary with execution counts', () => {

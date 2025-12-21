@@ -113,8 +113,16 @@ program
       console.log(`\n📦 Found ${configs.length} microservice(s):\n`);
 
       for (const config of configs) {
-        console.log(`  • ${config.name} (${config.domain}) - v${config.version || '1.0.0'}`);
-        if (config.dependencies?.length) {
+        const version =
+          config.version !== undefined && config.version !== null && config.version !== ''
+            ? config.version
+            : '1.0.0';
+        console.log(`  • ${config.name} (${config.domain}) - v${version}`);
+        if (
+          config.dependencies !== undefined &&
+          config.dependencies !== null &&
+          config.dependencies.length > 0
+        ) {
           console.log(`    Dependencies: ${config.dependencies.join(', ')}`);
         }
       }

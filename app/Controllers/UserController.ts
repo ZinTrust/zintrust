@@ -42,7 +42,12 @@ export class UserController extends Controller {
       const body = req.getBody() as Record<string, unknown>;
 
       // Validation would go here
-      if (!body['name'] || !body['email']) {
+      if (
+        body['name'] === undefined ||
+        body['name'] === null ||
+        body['email'] === undefined ||
+        body['email'] === null
+      ) {
         res.setStatus(422).json({ error: 'Validation failed' });
         return;
       }

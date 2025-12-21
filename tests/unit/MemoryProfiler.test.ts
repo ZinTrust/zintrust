@@ -1,7 +1,7 @@
 import { MemoryProfiler } from '@profiling/MemoryProfiler';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('MemoryProfiler', () => {
+describe('MemoryProfiler Basic Tests', () => {
   let profiler: MemoryProfiler;
 
   beforeEach(() => {
@@ -26,6 +26,30 @@ describe('MemoryProfiler', () => {
     expect(snapshot.external).toBeGreaterThanOrEqual(0);
   });
 
+  it('should have valid timestamp in snapshot', () => {
+    profiler.start();
+    const snapshot = profiler.end();
+
+    expect(snapshot.timestamp.getTime()).toBeGreaterThan(0);
+  });
+
+  it('should include all memory metrics in delta', () => {
+    profiler.start();
+    const delta = profiler.end();
+
+    expect(Object.keys(delta).sort((a, b) => a.localeCompare(b))).toEqual(
+      ['external', 'heapTotal', 'heapUsed', 'rss', 'timestamp'].sort((a, b) => a.localeCompare(b))
+    );
+  });
+});
+
+describe('MemoryProfiler Advanced Cycles', () => {
+  let profiler: MemoryProfiler;
+
+  beforeEach(() => {
+    profiler = new MemoryProfiler();
+  });
+
   it('should calculate memory delta between snapshots', async () => {
     profiler.start();
 
@@ -33,7 +57,7 @@ describe('MemoryProfiler', () => {
     Array.from({ length: 1000 }, (_, i) => ({
       id: i,
       name: `Item ${i}`,
-      data: new Array(100).fill(Math.random()),
+      data: new Array(100).fill(Math.random()), // NOSONAR
     }));
 
     const delta = profiler.end();
@@ -58,6 +82,14 @@ describe('MemoryProfiler', () => {
     const delta2 = profiler.end();
     expect(delta2).toBeDefined();
   });
+});
+
+describe('MemoryProfiler Advanced Metrics', () => {
+  let profiler: MemoryProfiler;
+
+  beforeEach(() => {
+    profiler = new MemoryProfiler();
+  });
 
   it('should return non-negative memory values', () => {
     profiler.start();
@@ -77,7 +109,7 @@ describe('MemoryProfiler', () => {
       const _temp = [
         {
           buffer: Buffer.alloc(10000),
-          data: new Array(1000).fill(Math.random()),
+          data: new Array(1000).fill(Math.random()), // NOSONAR
         },
       ];
       expect(_temp.length).toBe(1);

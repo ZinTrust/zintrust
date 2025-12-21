@@ -230,7 +230,8 @@ class ConnectionManagerImpl implements ConnectionManagerInstance {
    */
   private async closeConnection(conn: unknown): Promise<void> {
     if (
-      conn != null &&
+      conn !== undefined &&
+      conn !== null &&
       typeof conn === 'object' &&
       'close' in conn &&
       typeof (conn as { close: unknown }).close === 'function'

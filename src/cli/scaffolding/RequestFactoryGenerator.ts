@@ -138,7 +138,25 @@ import { ${options.requestName} } from '@app/Requests/${options.requestName}';
 export class ${options.factoryName} {
   ${buildFactoryClassBody(options, fields, fieldDefinitions)}
 
+  ${buildStateManagementMethods(fields)}
+
   /**
+   * Get required field names
+   */
+  private getRequiredFields(): string[] {
+    return this.getAllFields().filter(f => f.required !== false).map(f => f.name);
+  }
+}
+
+${buildRequestDtoClass(options, fields, validationRules)}
+`;
+}
+
+/**
+ * Build state management methods
+ */
+function buildStateManagementMethods(fields: RequestField[]): string {
+  return `/**
    * Apply state modifications
    */
   private applyStates(data: Record<string, unknown>): void {
@@ -182,18 +200,7 @@ export class ${options.factoryName} {
         delete data[key];
       }
     });
-  }
-
-  /**
-   * Get required field names
-   */
-  private getRequiredFields(): string[] {
-    return this.getAllFields().filter(f => f.required !== false).map(f => f.name);
-  }
-}
-
-${buildRequestDtoClass(options, fields, validationRules)}
-`;
+  }`;
 }
 
 /**
@@ -208,7 +215,20 @@ function buildFactoryClassBody(
   private count = 1;
   private states: Set<string> = new Set();
 
-  /**
+${buildFactoryStaticMethods(options)}
+
+${buildFactoryStateManagement()}
+
+${buildFactoryGenerationMethods(options, fieldDefinitions)}
+
+${buildFactoryHelperMethods(fields)}`;
+}
+
+/**
+ * Build factory static methods
+ */
+function buildFactoryStaticMethods(options: RequestFactoryOptions): string {
+  return `  /**
    * Create a single request instance
    */
   static create(overrides?: Partial<${options.requestName}>): ${options.requestName} {
@@ -229,8 +249,14 @@ function buildFactoryClassBody(
     this.count = Math.max(1, Math.min(n, 1000));
     return this;
   }
+`;
+}
 
-  /**
+/**
+ * Build factory state management methods
+ */
+function buildFactoryStateManagement(): string {
+  return `  /**
    * Apply a state to the factory
    */
   state(name: string): this {
@@ -239,50 +265,27 @@ function buildFactoryClassBody(
   }
 
   /**
-   * Generate field value
+   * Apply state modifications
    */
-  private generateField(fieldName: string): unknown {
-    const field = this.findField(fieldName);
-    if (!field) return null;
-
-    return this.getFakerValue(field);
+  private applyStates(data: Record<string, unknown>): void {
+    this.states.forEach(state => {
+      const methodName = \`apply\${state.charAt(0).toUpperCase() + state.slice(1)}State\`;
+      if (typeof (this as any)[methodName] === 'function') {
+        (this as any)[methodName](data);
+      }
+    });
   }
+`;
+}
 
-  /**
-   * Get faker value for field
-   */
-  private getFakerValue(field: RequestField): unknown {
-    const fakerMap: Record<string, () => unknown> = {
-      string: () => faker.lorem.word(),
-      email: () => faker.internet.email(),
-      phone: () => faker.phone.number('+1 (###) ###-####'),
-      number: () => faker.number.int({ min: field.min || 1, max: field.max || 100 }),
-      boolean: () => faker.datatype.boolean(),
-      date: () => faker.date.future().toISOString().split('T')[0],
-      uuid: () => faker.string.uuid(),
-      url: () => faker.internet.url(),
-      json: () => ({ data: faker.lorem.word() }),
-    };
-
-    return fakerMap[field.type]?.() ?? faker.lorem.word();
-  }
-
-  /**
-   * Find field definition
-   */
-  private findField(fieldName: string): RequestField | undefined {
-    const fields = this.getAllFields();
-    return fields.find(f => f.name === fieldName);
-  }
-
-  /**
-   * Get all field definitions
-   */
-  private getAllFields(): RequestField[] {
-    return ${JSON.stringify(fields, null, 4)};
-  }
-
-  /**
+/**
+ * Build factory generation methods
+ */
+function buildFactoryGenerationMethods(
+  options: RequestFactoryOptions,
+  fieldDefinitions: string
+): string {
+  return `  /**
    * Make a single request instance
    */
   make(overrides?: Partial<${options.requestName}>): ${options.requestName} {
@@ -295,7 +298,7 @@ ${fieldDefinitions}
     this.applyStates(data);
 
     // Apply overrides
-    if (overrides) {
+    if (overrides !== undefined && overrides !== null) {
       Object.assign(data, overrides);
     }
 
@@ -318,6 +321,64 @@ ${fieldDefinitions}
    */
   get(): ${options.requestName}[] {
     return this.makeMany();
+  }
+`;
+}
+
+/**
+ * Build factory helper methods
+ */
+function buildFactoryHelperMethods(fields: RequestField[]): string {
+  return `  /**
+   * Generate field value
+   */
+  private generateField(fieldName: string): unknown {
+    const field = this.findField(fieldName);
+    if (field === undefined || field === null) return null;
+
+    return this.getFakerValue(field);
+  }
+
+  ${buildFakerValueMethod()}
+
+  /**
+   * Find field definition
+   */
+  private findField(fieldName: string): RequestField | undefined {
+    const fields = this.getAllFields();
+    return fields.find(f => f.name === fieldName);
+  }
+
+  /**
+   * Get all field definitions
+   */
+  private getAllFields(): RequestField[] {
+    return ${JSON.stringify(fields, null, 4)};
+  }
+`;
+}
+
+/**
+ * Build faker value method
+ */
+function buildFakerValueMethod(): string {
+  return `/**
+   * Get faker value for field
+   */
+  private getFakerValue(field: RequestField): unknown {
+    const fakerMap: Record<string, () => unknown> = {
+      string: () => faker.lorem.word(),
+      email: () => faker.internet.email(),
+      phone: () => faker.phone.number('+1 (###) ###-####'),
+      number: () => faker.number.int({ min: field.min || 1, max: field.max || 100 }),
+      boolean: () => faker.datatype.boolean(),
+      date: () => faker.date.future().toISOString().split('T')[0],
+      uuid: () => faker.string.uuid(),
+      url: () => faker.internet.url(),
+      json: () => ({ data: faker.lorem.word() }),
+    };
+
+    return fakerMap[field.type]?.() ?? faker.lorem.word();
   }`;
 }
 

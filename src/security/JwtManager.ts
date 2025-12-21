@@ -58,30 +58,7 @@ export class JwtManager {
     const now = Math.floor(Date.now() / 1000);
 
     // Build claims
-    const claims: JwtPayload = {
-      ...payload,
-      iat: now,
-    };
-
-    if (options.expiresIn != null) {
-      claims.exp = now + options.expiresIn;
-    }
-
-    if (options.issuer != null) {
-      claims.iss = options.issuer;
-    }
-
-    if (options.audience != null) {
-      claims.aud = options.audience;
-    }
-
-    if (options.subject != null) {
-      claims.sub = options.subject;
-    }
-
-    if (options.jwtId != null) {
-      claims.jti = options.jwtId;
-    }
+    const claims = this.buildClaims(payload, options, now);
 
     // Encode header and payload
     const header = {
@@ -94,23 +71,62 @@ export class JwtManager {
     const message = `${encodedHeader}.${encodedPayload}`;
 
     // Sign
-    let signature: string;
-
-    if (algorithm.startsWith('HS')) {
-      if (this.hmacSecret == null) {
-        throw new Error('HMAC secret not configured');
-      }
-      signature = this.signHmac(message, algorithm as 'HS256' | 'HS512');
-    } else if (algorithm === 'RS256') {
-      if (this.rsaPrivateKey == null) {
-        throw new Error('RSA private key not configured');
-      }
-      signature = this.signRsa(message);
-    } else {
-      throw new Error(`Unsupported algorithm: ${algorithm}`);
-    }
+    const signature = this.generateSignature(message, algorithm);
 
     return `${message}.${signature}`;
+  }
+
+  /**
+   * Build JWT claims from payload and options
+   */
+  private buildClaims(payload: JwtPayload, options: JwtOptions, now: number): JwtPayload {
+    const claims: JwtPayload = {
+      ...payload,
+      iat: now,
+    };
+
+    if (options.expiresIn !== undefined && options.expiresIn !== null) {
+      claims.exp = now + options.expiresIn;
+    }
+
+    if (options.issuer !== undefined && options.issuer !== null) {
+      claims.iss = options.issuer;
+    }
+
+    if (options.audience !== undefined && options.audience !== null) {
+      claims.aud = options.audience;
+    }
+
+    if (options.subject !== undefined && options.subject !== null) {
+      claims.sub = options.subject;
+    }
+
+    if (options.jwtId !== undefined && options.jwtId !== null) {
+      claims.jti = options.jwtId;
+    }
+
+    return claims;
+  }
+
+  /**
+   * Generate signature based on algorithm
+   */
+  private generateSignature(message: string, algorithm: string): string {
+    if (algorithm.startsWith('HS')) {
+      if (this.hmacSecret === null) {
+        throw new Error('HMAC secret not configured');
+      }
+      return this.signHmac(message, algorithm as 'HS256' | 'HS512');
+    }
+
+    if (algorithm === 'RS256') {
+      if (this.rsaPrivateKey === null) {
+        throw new Error('RSA private key not configured');
+      }
+      return this.signRsa(message);
+    }
+
+    throw new Error(`Unsupported algorithm: ${algorithm}`);
   }
 
   /**
@@ -180,7 +196,7 @@ export class JwtManager {
   }
 
   private signHmac(message: string, algorithm: 'HS256' | 'HS512'): string {
-    if (this.hmacSecret == null) {
+    if (this.hmacSecret === null) {
       throw new Error('HMAC secret not configured');
     }
 
@@ -191,7 +207,7 @@ export class JwtManager {
   }
 
   private signRsa(message: string): string {
-    if (this.rsaPrivateKey == null) {
+    if (this.rsaPrivateKey === null) {
       throw new Error('RSA private key not configured');
     }
 
@@ -207,7 +223,7 @@ export class JwtManager {
       const expectedSignature = this.signHmac(message, algorithm as 'HS256' | 'HS512');
       return this.timingSafeEquals(encodedSignature, expectedSignature);
     } else if (algorithm === 'RS256') {
-      if (this.rsaPublicKey == null) {
+      if (this.rsaPublicKey === null) {
         throw new Error('RSA public key not configured');
       }
       const verify = createVerify('RSA-SHA256'); // NOSONAR
@@ -223,12 +239,12 @@ export class JwtManager {
     const now = Math.floor(Date.now() / 1000);
 
     // Check expiration
-    if (payload.exp != null && payload.exp <= now) {
+    if (payload.exp !== undefined && payload.exp !== null && payload.exp <= now) {
       throw new Error('Token expired');
     }
 
     // Check not before
-    if (payload.nbf != null && payload.nbf > now) {
+    if (payload.nbf !== undefined && payload.nbf !== null && payload.nbf > now) {
       throw new Error('Token not yet valid');
     }
   }

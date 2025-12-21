@@ -23,7 +23,7 @@ export const authMiddleware = async (
 ): Promise<void> => {
   const token = req.getHeader('authorization');
 
-  if (!token) {
+  if (token === undefined || token === '') {
     res.setStatus(401).json({ error: 'Unauthorized' });
     return;
   }
@@ -66,7 +66,7 @@ export const jsonMiddleware = async (
     return;
   }
 
-  if (!req.isJson()) {
+  if (req.isJson() === false) {
     res.setStatus(415).json({ error: 'Content-Type must be application/json' });
     return;
   }
@@ -107,12 +107,12 @@ export const rateLimitMiddleware = async (
   res: Response,
   next: () => Promise<void>
 ): Promise<void> => {
-  const ip = req.getRaw().socket.remoteAddress || 'unknown';
+  const ip = req.getRaw().socket.remoteAddress ?? 'unknown';
   const now = Date.now();
   const windowMs = 60 * 1000; // 1 minute
   const maxRequests = 100;
 
-  if (!requestCounts.has(ip)) {
+  if (requestCounts.has(ip) === false) {
     requestCounts.set(ip, []);
   }
 
@@ -158,14 +158,14 @@ export const jwtMiddleware = (jwtManager: JwtManager, algorithm: 'HS256' | 'RS25
   return async (req: Request, res: Response, next: () => Promise<void>): Promise<void> => {
     const authHeader = req.getHeader('authorization');
 
-    if (!authHeader) {
+    if (authHeader === undefined || authHeader === '') {
       res.setStatus(401).json({ error: 'Missing authorization header' });
       return;
     }
 
     const [scheme, token] = authHeader.split(' ');
 
-    if (scheme !== 'Bearer' || !token) {
+    if (scheme !== 'Bearer' || token === undefined || token === '') {
       res.setStatus(401).json({ error: 'Invalid authorization header format' });
       return;
     }
@@ -191,28 +191,28 @@ export const csrfMiddleware = (csrfManager: CsrfTokenManager) => {
     const method = req.getMethod();
 
     // Only validate on state-changing requests
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) === false) {
       await next();
       return;
     }
 
-    const sessionId = (req as any).sessionId || req.getHeader('x-session-id');
+    const sessionId = (req as any).sessionId ?? req.getHeader('x-session-id');
 
-    if (!sessionId) {
+    if (sessionId === undefined || sessionId === '') {
       res.setStatus(400).json({ error: 'Missing session ID' });
       return;
     }
 
     const csrfToken = req.getHeader('x-csrf-token');
 
-    if (!csrfToken) {
+    if (csrfToken === undefined || csrfToken === '') {
       res.setStatus(403).json({ error: 'Missing CSRF token' });
       return;
     }
 
     const isValid = csrfManager.validateToken(sessionId, csrfToken as string);
 
-    if (!isValid) {
+    if (isValid === false) {
       res.setStatus(403).json({ error: 'Invalid or expired CSRF token' });
       return;
     }
@@ -233,7 +233,7 @@ export const validationMiddleware = (schema: Schema) => {
     }
 
     try {
-      const body = (req as any).body || {};
+      const body = (req as any).body ?? {};
       Validator.validate(body, schema);
       await next();
     } catch (error) {
@@ -263,7 +263,7 @@ export const xssProtectionMiddleware = async (
 
   // Sanitize request body if present
   const body = (req as any).body;
-  if (body && typeof body === 'object') {
+  if (body !== undefined && body !== null && typeof body === 'object') {
     for (const [key, value] of Object.entries(body)) {
       if (typeof value === 'string') {
         (body as Record<string, unknown>)[key] = XssProtection.escape(value);

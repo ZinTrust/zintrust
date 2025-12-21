@@ -189,47 +189,33 @@ class ServiceClient {
   private timeout: number = 5000;
   private headers: Record<string, string>;
 
-  constructor(config: ServiceConfig) {
+${this.buildServiceClientConstructor()}
+
+  ${this.buildServiceClientRequestMethod()}
+
+${this.buildServiceClientHttpMethods()}
+}`;
+  }
+
+  /**
+   * Build ServiceClient constructor
+   */
+  private static buildServiceClientConstructor(): string {
+    return `  constructor(config: ServiceConfig) {
     this.baseUrl = config.baseUrl;
     this.timeout = config.timeout !== undefined ? config.timeout : 5000;
     this.headers = {
       'Content-Type': 'application/json',
       ...config.headers,
     };
+  }`;
   }
 
   /**
-   * Make HTTP request
+   * Build ServiceClient HTTP methods
    */
-  async request<T>(
-    method: string,
-    path: string,
-    data?: Record<string, unknown>,
-    headers?: Record<string, string>
-  ): Promise<{ status: number; body: T; headers: Record<string, string> }> {
-    const url = \`\${this.baseUrl}\${path}\`;
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers: { ...this.headers, ...headers },
-        body: data ? JSON.stringify(data) : undefined,
-        signal: AbortSignal.timeout(this.timeout),
-      });
-
-      const body = await response.json();
-
-      return {
-        status: response.status,
-        body: body as T,
-        headers: Object.fromEntries(response.headers.entries()),
-      };
-    } catch (error) {
-      throw new Error(\`Service call failed: \${(error as Error).message}\`);
-    }
-  }
-
-  /**
+  private static buildServiceClientHttpMethods(): string {
+    return `  /**
    * GET request
    */
   async get<T>(path: string, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
@@ -267,8 +253,43 @@ class ServiceClient {
   async delete<T>(path: string, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
     const res = await this.request<T>('DELETE', path, undefined, headers);
     return { status: res.status, body: res.body };
+  }`;
   }
-}`;
+
+  /**
+   * Build ServiceClient request method
+   */
+  private static buildServiceClientRequestMethod(): string {
+    return `/**
+   * Make HTTP request
+   */
+  async request<T>(
+    method: string,
+    path: string,
+    data?: Record<string, unknown>,
+    headers?: Record<string, string>
+  ): Promise<{ status: number; body: T; headers: Record<string, string> }> {
+    const url = \`\${this.baseUrl}\${path}\`;
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { ...this.headers, ...headers },
+        body: data ? JSON.stringify(data) : undefined,
+        signal: AbortSignal.timeout(this.timeout),
+      });
+
+      const body = await response.json();
+
+      return {
+        status: response.status,
+        body: body as T,
+        headers: Object.fromEntries(response.headers.entries()),
+      };
+    } catch (error) {
+      throw new Error(\`Service call failed: \${(error as Error).message}\`);
+    }
+  }`;
   }
 
   /**

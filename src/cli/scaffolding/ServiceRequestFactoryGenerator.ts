@@ -127,7 +127,6 @@ function buildFactoryCode(options: ServiceRequestOptions): string {
   const interfaceNameResponse = `${options.name.replace('Request', '')}Response`;
 
   const fields = options.fields.map((f) => buildFieldLine(f)).join('\n    ');
-
   const fakerMethods = options.fields.map((f) => buildFakerMethod(f)).join('\n  ');
 
   return `/**
@@ -138,33 +137,74 @@ function buildFactoryCode(options: ServiceRequestOptions): string {
 
 import { faker } from '@faker-js/faker';
 
-/**
- * ${interfaceNameRequest} - Request payload interface
- */
-export interface ${interfaceNameRequest} {
-${fields}
-}
-
-/**
- * ${interfaceNameResponse} - Response payload interface
- */
-export interface ${interfaceNameResponse} {
-  success: boolean;
-  data?: ${interfaceNameRequest};
-  message?: string;
-  errors?: Record<string, string[]>;
-}
+${buildInterfaces(interfaceNameRequest, interfaceNameResponse, fields)}
 
 /**
  * ${factoryClassName} - Factory for generating test requests
  * Usage: ${factoryClassName}.make() or ${factoryClassName}.times(5).make()
  */
 export class ${factoryClassName} {
-  private _count: number = 1;
+  ${buildFactoryClassBody(options, factoryClassName, interfaceNameRequest, fakerMethods)}
+}
+
+${buildFactoryHelpers(options, factoryClassName, interfaceNameRequest)}
+`;
+}
+
+/**
+ * Build interfaces
+ */
+function buildInterfaces(request: string, response: string, fields: string): string {
+  return `/**
+ * ${request} - Request payload interface
+ */
+export interface ${request} {
+${fields}
+}
+
+/**
+ * ${response} - Response payload interface
+ */
+export interface ${response} {
+  success: boolean;
+  data?: ${request};
+  message?: string;
+  errors?: Record<string, string[]>;
+}`;
+}
+
+/**
+ * Build factory class body
+ */
+function buildFactoryClassBody(
+  options: ServiceRequestOptions,
+  factoryClassName: string,
+  interfaceNameRequest: string,
+  fakerMethods: string
+): string {
+  return `private _count: number = 1;
   private _state: 'valid' | 'invalid' | 'minimal' = 'valid';
   private _overrides: Partial<${interfaceNameRequest}> = {};
 
+${buildFactoryStaticMethods(factoryClassName, interfaceNameRequest)}
+
+${buildFactoryChainMethods(factoryClassName, interfaceNameRequest)}
+
+${buildFactoryGenerationMethods(interfaceNameRequest)}
+
+${buildFactoryStateMethods(options, interfaceNameRequest)}
+
   /**
+   * Faker helper methods
+   */
+${fakerMethods}`;
+}
+
+/**
+ * Build factory static methods
+ */
+function buildFactoryStaticMethods(factoryClassName: string, interfaceNameRequest: string): string {
+  return `  /**
    * Create a new factory instance
    */
   static make(): ${interfaceNameRequest} {
@@ -197,8 +237,44 @@ export class ${factoryClassName} {
     factory._overrides = overrides;
     return factory;
   }
+`;
+}
+
+/**
+ * Build factory chain methods
+ */
+function buildFactoryChainMethods(factoryClassName: string, interfaceNameRequest: string): string {
+  return `  /**
+   * Set count and chain
+   */
+  count(count: number): ${factoryClassName} {
+    this._count = count;
+    return this;
+  }
 
   /**
+   * Set state and chain
+   */
+  withState(state: 'valid' | 'invalid' | 'minimal'): ${factoryClassName} {
+    this._state = state;
+    return this;
+  }
+
+  /**
+   * Override fields and chain
+   */
+  withOverrides(overrides: Partial<${interfaceNameRequest}>): ${factoryClassName} {
+    this._overrides = overrides;
+    return this;
+  }
+`;
+}
+
+/**
+ * Build factory generation methods
+ */
+function buildFactoryGenerationMethods(interfaceNameRequest: string): string {
+  return `  /**
    * Generate count instances
    */
   makeMany(): ${interfaceNameRequest}[] {
@@ -231,30 +307,6 @@ export class ${factoryClassName} {
   }
 
   /**
-   * Set count and chain
-   */
-  count(count: number): ${factoryClassName} {
-    this._count = count;
-    return this;
-  }
-
-  /**
-   * Set state and chain
-   */
-  withState(state: 'valid' | 'invalid' | 'minimal'): ${factoryClassName} {
-    this._state = state;
-    return this;
-  }
-
-  /**
-   * Override fields and chain
-   */
-  withOverrides(overrides: Partial<${interfaceNameRequest}>): ${factoryClassName} {
-    this._overrides = overrides;
-    return this;
-  }
-
-  /**
    * Generate single instance based on state
    */
   private generateSingle(): ${interfaceNameRequest} {
@@ -275,8 +327,17 @@ export class ${factoryClassName} {
     // Apply overrides
     return { ...data, ...this._overrides };
   }
+`;
+}
 
-  /**
+/**
+ * Build factory state methods
+ */
+function buildFactoryStateMethods(
+  options: ServiceRequestOptions,
+  interfaceNameRequest: string
+): string {
+  return `  /**
    * Build valid request state
    */
   private buildValidState(): ${interfaceNameRequest} {
@@ -296,14 +357,18 @@ ${buildInvalidStateBody(options)}
   private buildMinimalState(): ${interfaceNameRequest} {
 ${buildMinimalStateBody(options)}
   }
-
-  /**
-   * Faker helper methods
-   */
-${fakerMethods}
+`;
 }
 
 /**
+ * Build factory helpers
+ */
+function buildFactoryHelpers(
+  options: ServiceRequestOptions,
+  factoryClassName: string,
+  interfaceNameRequest: string
+): string {
+  return `/**
  * Request factory helpers
  */
 export const ${camelCase(options.name)}Factory = {
@@ -331,8 +396,7 @@ export const ${camelCase(options.name)}Factory = {
    * Create with custom overrides
    */
   with: (overrides: Partial<${interfaceNameRequest}>) => ${factoryClassName}.with(overrides).make(),
-};
-`;
+};`;
 }
 
 /**
@@ -414,12 +478,12 @@ function getReturnType(type: string): string {
  */
 function buildValidStateBody(options: ServiceRequestOptions): string {
   const requiredFields = options.fields
-    .filter((f) => f.required)
+    .filter((f) => f.required === true)
     .map((f) => `      ${f.name}: this.${f.name}(),`)
     .join('\n');
 
   const optionalFields = options.fields
-    .filter((f) => !(f.required ?? false))
+    .filter((f) => f.required !== true)
     .map((f) => `      ${f.name}: this.${f.name}(),`)
     .join('\n');
 
@@ -444,7 +508,7 @@ function buildInvalidStateBody(_options: ServiceRequestOptions): string {
  */
 function buildMinimalStateBody(options: ServiceRequestOptions): string {
   const minimalFields = options.fields
-    .filter((f) => f.required)
+    .filter((f) => f.required === true)
     .map((f) => `      ${f.name}: this.${f.name}(),`)
     .join('\n');
 

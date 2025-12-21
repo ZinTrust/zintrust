@@ -15,7 +15,7 @@ export function get(key: string, defaultValue?: string): string {
  */
 export function getInt(key: string, defaultValue?: number): number {
   const value = process.env[key];
-  if (value == null) return defaultValue ?? 0;
+  if (value === undefined || value === null) return defaultValue ?? 0;
   return Number.parseInt(value, 10);
 }
 
@@ -24,7 +24,7 @@ export function getInt(key: string, defaultValue?: number): number {
  */
 export function getBool(key: string, defaultValue?: boolean): boolean {
   const value = process.env[key];
-  if (value == null) return defaultValue ?? false;
+  if (value === undefined || value === null) return defaultValue ?? false;
   return value.toLowerCase() === 'true' || value === '1';
 }
 

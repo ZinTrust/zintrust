@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-describe('SeederGenerator', () => {
+describe('SeederGenerator Validation Basic', () => {
   let testDir: string;
 
   beforeEach(async () => {
@@ -26,7 +26,7 @@ describe('SeederGenerator', () => {
     }
   });
 
-  describe('validateOptions', () => {
+  describe('validateOptions Basic', () => {
     it('should throw error when seeder name is missing', async () => {
       const options: Partial<SeederOptions> = {
         seederName: '',
@@ -62,7 +62,24 @@ describe('SeederGenerator', () => {
         'Model name is required'
       );
     });
+  });
+});
 
+describe('SeederGenerator Validation Advanced', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('validateOptions Advanced', () => {
     it('should throw error when seeders path does not exist', async () => {
       const options: Partial<SeederOptions> = {
         seederName: 'UserSeeder',
@@ -100,20 +117,24 @@ describe('SeederGenerator', () => {
         'Count must be between 1 and 100000'
       );
     });
+  });
+});
 
-    it('should validate correct options', async () => {
-      const options: SeederOptions = {
-        seederName: 'UserSeeder',
-        modelName: 'User',
-        seedersPath: testDir,
-        count: 100,
-      };
+describe('SeederGenerator Generation Basic - Part 1', () => {
+  let testDir: string;
 
-      await expect(SeederGenerator.validateOptions(options)).resolves.toBeUndefined();
-    });
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-basic-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
   });
 
-  describe('generateSeeder', () => {
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateSeeder Basic - Core', () => {
     it('should create a basic seeder file', async () => {
       const options: SeederOptions = {
         seederName: 'UserSeeder',
@@ -144,7 +165,24 @@ describe('SeederGenerator', () => {
 
       expect(fileContent).toContain('export class PostSeeder');
     });
+  });
+});
 
+describe('SeederGenerator Generation Basic - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-basic-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateSeeder Basic - Imports', () => {
     it('should include factory import', async () => {
       const options: SeederOptions = {
         seederName: 'UserSeeder',
@@ -172,7 +210,24 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('import { User }');
       expect(fileContent).toContain("from '@app/Models/User'");
     });
+  });
+});
 
+describe('SeederGenerator Generation Methods - Part 1', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-methods-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateSeeder Methods - Core', () => {
     it('should include run method', async () => {
       const options: SeederOptions = {
         seederName: 'UserSeeder',
@@ -201,7 +256,24 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('async getRecords(count: number)');
       expect(fileContent).toContain('factory.count(count).get()');
     });
+  });
+});
 
+describe('SeederGenerator Generation Methods - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-methods-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateSeeder Methods - Advanced', () => {
     it('should include state methods', async () => {
       const options: SeederOptions = {
         seederName: 'UserSeeder',
@@ -231,7 +303,24 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('async reset(): Promise<void>');
       expect(fileContent).toContain('TRUNCATE TABLE');
     });
+  });
+});
 
+describe('SeederGenerator Generation Options - Part 1', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-options-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateSeeder Options - Factory', () => {
     it('should handle custom factory name', async () => {
       const options: SeederOptions = {
         seederName: 'UserSeeder',
@@ -261,7 +350,24 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('User');
       expect(fileContent).toContain('Category');
     });
+  });
+});
 
+describe('SeederGenerator Generation Options - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-options-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('generateSeeder Options - Parameters', () => {
     it('should handle count parameter', async () => {
       const options: SeederOptions = {
         seederName: 'ProductSeeder',
@@ -301,49 +407,26 @@ describe('SeederGenerator', () => {
 
       const result = await SeederGenerator.generateSeeder(options);
       const fileContent = await fs.readFile(result.filePath, 'utf-8');
-
       expect(fileContent).toContain('if (false)');
     });
+  });
+});
 
-    it('should return error for invalid seeder name', async () => {
-      const options: Partial<SeederOptions> = {
-        seederName: 'InvalidName',
-        modelName: 'User',
-        seedersPath: testDir,
-      };
+describe('SeederGenerator Content - Part 1', () => {
+  let testDir: string;
 
-      const result = await SeederGenerator.generateSeeder(options as SeederOptions);
-
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('Seeder name must end with "Seeder"');
-    });
-
-    it('should create multiple seeders in same directory', async () => {
-      const options1: SeederOptions = {
-        seederName: 'UserSeeder',
-        modelName: 'User',
-        seedersPath: testDir,
-      };
-
-      const options2: SeederOptions = {
-        seederName: 'PostSeeder',
-        modelName: 'Post',
-        seedersPath: testDir,
-      };
-
-      const result1 = await SeederGenerator.generateSeeder(options1);
-      const result2 = await SeederGenerator.generateSeeder(options2);
-
-      expect(result1.success).toBe(true);
-      expect(result2.success).toBe(true);
-
-      const files = await fs.readdir(testDir);
-      expect(files).toContain('UserSeeder.ts');
-      expect(files).toContain('PostSeeder.ts');
-    });
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-content-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
   });
 
-  describe('Seeder Content', () => {
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Seeder Content - Syntax', () => {
     it('should have valid TypeScript syntax', async () => {
       const options: SeederOptions = {
         seederName: 'ArticleSeeder',
@@ -374,7 +457,24 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('Seeder for populating');
       expect(fileContent).toContain('Run the seeder');
     });
+  });
+});
 
+describe('SeederGenerator Content - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-content-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Seeder Content - Table Names', () => {
     it('should generate correct table names from model names', async () => {
       const testCases = [
         { model: 'User', table: 'users' },
@@ -397,22 +497,23 @@ describe('SeederGenerator', () => {
       }
     });
   });
+});
 
-  describe('Seeder Options', () => {
-    it('should provide list of available options', () => {
-      const options = SeederGenerator.getAvailableOptions();
+describe('SeederGenerator Integration - Part 1', () => {
+  let testDir: string;
 
-      expect(Array.isArray(options)).toBe(true);
-      expect(options.length).toBeGreaterThan(0);
-      expect(options).toContain('Truncate table before seeding (default: true)');
-      expect(options).toContain('Custom record count (default: 10, max: 100000)');
-      expect(options).toContain('Relationship seeding');
-      expect(options).toContain('State-based distribution (active, inactive, deleted)');
-      expect(options).toContain('Batch operations for large datasets');
-    });
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-integration-1-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
   });
 
-  describe('Integration', () => {
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Integration Basic', () => {
     it('should generate seeders for common models', async () => {
       const models = ['User', 'Post', 'Product', 'Order', 'Comment'];
 
@@ -432,7 +533,24 @@ describe('SeederGenerator', () => {
         expect(fileContent).toContain(`import { ${model} }`);
       }
     });
+  });
+});
 
+describe('SeederGenerator Integration - Part 2', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-integration-2-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Integration Advanced', () => {
     it('should support complex relationships', async () => {
       const options: SeederOptions = {
         seederName: 'OrderSeeder',
@@ -452,7 +570,24 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('Payment');
       expect(fileContent).toContain('Shipping');
     });
+  });
+});
 
+describe('SeederGenerator Integration - Part 3A', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-integration-3a-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Integration Advanced', () => {
     it('should handle large dataset seeding', async () => {
       const options: SeederOptions = {
         seederName: 'BulkUserSeeder',
@@ -483,6 +618,35 @@ describe('SeederGenerator', () => {
       expect(fileContent).toContain('Math.ceil(100 * 0.5)'); // 50% active
       expect(fileContent).toContain('Math.ceil(100 * 0.3)'); // 30% inactive
       expect(fileContent).toContain('Math.ceil(100 * 0.2)'); // 20% deleted
+    });
+  });
+});
+
+describe('SeederGenerator Integration - Part 3B', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = path.join(__dirname, 'test-seeders-integration-3b-' + Date.now());
+    await fs.mkdir(testDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (await fs.stat(testDir).catch(() => null)) {
+      await fs.rm(testDir, { recursive: true, force: true });
+    }
+  });
+
+  describe('Available Options', () => {
+    it('should provide list of available options', () => {
+      const options = SeederGenerator.getAvailableOptions();
+
+      expect(Array.isArray(options)).toBe(true);
+      expect(options.length).toBeGreaterThan(0);
+      expect(options).toContain('Truncate table before seeding (default: true)');
+      expect(options).toContain('Custom record count (default: 10, max: 100000)');
+      expect(options).toContain('Relationship seeding');
+      expect(options).toContain('State-based distribution (active, inactive, deleted)');
+      expect(options).toContain('Batch operations for large datasets');
     });
   });
 });

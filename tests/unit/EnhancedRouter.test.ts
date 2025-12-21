@@ -1,7 +1,7 @@
 import { Router } from '@routing/EnhancedRouter';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('EnhancedRouter', () => {
+describe('EnhancedRouter Basic Tests', () => {
   let router: Router;
 
   beforeEach(() => {
@@ -30,6 +30,14 @@ describe('EnhancedRouter', () => {
     const url = router.url('nonexistent');
     expect(url).toBeNull();
   });
+});
+
+describe('EnhancedRouter Resource Routes', () => {
+  let router: Router;
+
+  beforeEach(() => {
+    router = new Router();
+  });
 
   it('should register resource routes', () => {
     const handlers = {
@@ -55,6 +63,14 @@ describe('EnhancedRouter', () => {
       'users.update',
       'users.destroy',
     ]);
+  });
+});
+
+describe('EnhancedRouter Route Groups', () => {
+  let router: Router;
+
+  beforeEach(() => {
+    router = new Router();
   });
 
   it('should support route groups with prefix', () => {

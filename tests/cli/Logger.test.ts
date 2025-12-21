@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-describe('Logger', () => {
+describe('Logger Initialization and Structure', () => {
   let testLogsDir: string;
   let loggerInstance: LoggerInstance;
 
@@ -37,6 +37,40 @@ describe('Logger', () => {
     expect(fs.existsSync(path.join(testLogsDir, 'errors'))).toBe(true);
     expect(fs.existsSync(path.join(testLogsDir, 'migrations'))).toBe(true);
     expect(fs.existsSync(path.join(testLogsDir, 'debug'))).toBe(true);
+  });
+
+  it('should return logs directory path', () => {
+    expect(loggerInstance.getLogsDirectory()).toBe(testLogsDir);
+  });
+
+  it('should return current log level', () => {
+    expect(loggerInstance.getLogLevel()).toBe('debug');
+  });
+
+  it('should be a singleton', () => {
+    const instance1 = Logger.getInstance();
+    const instance2 = Logger.getInstance();
+
+    expect(instance1).toBe(instance2);
+  });
+});
+
+describe('Logger Writing Operations', () => {
+  let testLogsDir: string;
+  let loggerInstance: LoggerInstance;
+
+  beforeEach(() => {
+    testLogsDir = path.join(process.cwd(), '.test-logs');
+    if (!fs.existsSync(testLogsDir)) {
+      fs.mkdirSync(testLogsDir, { recursive: true });
+    }
+    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testLogsDir)) {
+      fs.rmSync(testLogsDir, { recursive: true });
+    }
   });
 
   it('should write debug log entries', () => {
@@ -74,6 +108,25 @@ describe('Logger', () => {
     expect(content).toContain('Test warning message');
     expect(content).toContain('[WARN]');
   });
+});
+
+describe('Logger Advanced Writing', () => {
+  let testLogsDir: string;
+  let loggerInstance: LoggerInstance;
+
+  beforeEach(() => {
+    testLogsDir = path.join(process.cwd(), '.test-logs');
+    if (!fs.existsSync(testLogsDir)) {
+      fs.mkdirSync(testLogsDir, { recursive: true });
+    }
+    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testLogsDir)) {
+      fs.rmSync(testLogsDir, { recursive: true });
+    }
+  });
 
   it('should write error log entries to both app and error logs', () => {
     loggerInstance.error('Test error message');
@@ -100,6 +153,25 @@ describe('Logger', () => {
     const content = fs.readFileSync(logFile, 'utf-8');
 
     expect(content).toMatch(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]/);
+  });
+});
+
+describe('Logger Data and Filtering', () => {
+  let testLogsDir: string;
+  let loggerInstance: LoggerInstance;
+
+  beforeEach(() => {
+    testLogsDir = path.join(process.cwd(), '.test-logs');
+    if (!fs.existsSync(testLogsDir)) {
+      fs.mkdirSync(testLogsDir, { recursive: true });
+    }
+    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testLogsDir)) {
+      fs.rmSync(testLogsDir, { recursive: true });
+    }
   });
 
   it('should include data in log entries', () => {
@@ -129,6 +201,25 @@ describe('Logger', () => {
 
     expect(content).not.toContain('This should be ignored');
     expect(content).toContain('This should be logged');
+  });
+});
+
+describe('Logger Retrieval and Filtering', () => {
+  let testLogsDir: string;
+  let loggerInstance: LoggerInstance;
+
+  beforeEach(() => {
+    testLogsDir = path.join(process.cwd(), '.test-logs');
+    if (!fs.existsSync(testLogsDir)) {
+      fs.mkdirSync(testLogsDir, { recursive: true });
+    }
+    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(testLogsDir)) {
+      fs.rmSync(testLogsDir, { recursive: true });
+    }
   });
 
   it('should retrieve recent logs', () => {
@@ -165,20 +256,24 @@ describe('Logger', () => {
     expect(cleared).toBe(true);
     expect(fs.existsSync(logFile)).toBe(false);
   });
+});
 
-  it('should return logs directory path', () => {
-    expect(loggerInstance.getLogsDirectory()).toBe(testLogsDir);
+describe('Logger Parsing and Date Filtering', () => {
+  let testLogsDir: string;
+  let loggerInstance: LoggerInstance;
+
+  beforeEach(() => {
+    testLogsDir = path.join(process.cwd(), '.test-logs');
+    if (!fs.existsSync(testLogsDir)) {
+      fs.mkdirSync(testLogsDir, { recursive: true });
+    }
+    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
   });
 
-  it('should return current log level', () => {
-    expect(loggerInstance.getLogLevel()).toBe('debug');
-  });
-
-  it('should be a singleton', () => {
-    const instance1 = Logger.getInstance();
-    const instance2 = Logger.getInstance();
-
-    expect(instance1).toBe(instance2);
+  afterEach(() => {
+    if (fs.existsSync(testLogsDir)) {
+      fs.rmSync(testLogsDir, { recursive: true });
+    }
   });
 
   it('should parse log entries correctly', () => {

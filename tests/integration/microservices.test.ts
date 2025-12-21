@@ -10,7 +10,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-describe('Microservices Integration Tests', () => {
+describe('Microservices Service Discovery', () => {
   let bootstrap: MicroserviceBootstrap;
   let manager: typeof MicroserviceManager;
 
@@ -34,56 +34,100 @@ describe('Microservices Integration Tests', () => {
     await manager.stopAllServices();
   });
 
-  describe('Service Discovery', () => {
-    it('should discover services from filesystem', async () => {
-      const services = await bootstrap.discoverServices();
-      expect(services.length).toBeGreaterThan(0);
-      expect(services[0]).toHaveProperty('name');
-      expect(services[0]).toHaveProperty('domain');
-      expect(services[0]).toHaveProperty('port');
-    });
-
-    it('should get service configuration', () => {
-      const config = bootstrap.getServiceConfig('ecommerce', 'users');
-      expect(config).toBeDefined();
-      expect(config?.name).toBe('users');
-      expect(config?.domain).toBe('ecommerce');
-    });
-
-    it('should filter services by SERVICES env var', async () => {
-      process.env['SERVICES'] = 'users,payments';
-      const bootstrap2 = MicroserviceBootstrap.getInstance();
-      bootstrap2.setServicesDir(bootstrap.getServicesDir());
-
-      const services = await bootstrap2.discoverServices();
-      const serviceNames = services.map((s: ServiceConfig) => s.name);
-
-      expect(serviceNames).toContain('users');
-      expect(serviceNames).toContain('payments');
-      expect(serviceNames).not.toContain('orders');
-    });
+  it('should discover services from filesystem', async () => {
+    const services = await bootstrap.discoverServices();
+    expect(services.length).toBeGreaterThan(0);
+    expect(services[0]).toHaveProperty('name');
+    expect(services[0]).toHaveProperty('domain');
+    expect(services[0]).toHaveProperty('port');
   });
 
-  describe('Service Registry', () => {
-    it('should register service', async () => {
-      await bootstrap.registerServices();
-      const services = bootstrap.getAllServiceConfigs();
+  it('should get service configuration', () => {
+    const config = bootstrap.getServiceConfig('ecommerce', 'users');
+    expect(config).toBeDefined();
+    expect(config?.name).toBe('users');
+    expect(config?.domain).toBe('ecommerce');
+  });
 
-      expect(services.length).toBeGreaterThan(0);
-      expect(manager.getAllServices().length).toBeGreaterThan(0);
-    });
+  it('should filter services by SERVICES env var', async () => {
+    process.env['SERVICES'] = 'users,payments';
+    const bootstrap2 = MicroserviceBootstrap.getInstance();
+    bootstrap2.setServicesDir(bootstrap.getServicesDir());
 
-    it('should get service by domain and name', () => {
-      const service = manager.getService('ecommerce', 'users');
-      expect(service).toBeDefined();
-      expect(service?.name).toBe('users');
-    });
+    const services = await bootstrap2.discoverServices();
+    const serviceNames = services.map((s: ServiceConfig) => s.name);
 
-    it('should get services by domain', () => {
-      const services = manager.getServicesByDomain('ecommerce');
-      expect(services.length).toBeGreaterThan(0);
-      expect(services.every((s: ServiceRegistry) => s.domain === 'ecommerce')).toBe(true);
-    });
+    expect(serviceNames).toContain('users');
+    expect(serviceNames).toContain('payments');
+    expect(serviceNames).not.toContain('orders');
+  });
+});
+
+describe('Microservices Service Registry', () => {
+  let bootstrap: MicroserviceBootstrap;
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    bootstrap = MicroserviceBootstrap.getInstance();
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
+  });
+
+  it('should register service', async () => {
+    await bootstrap.registerServices();
+    const services = bootstrap.getAllServiceConfigs();
+
+    expect(services.length).toBeGreaterThan(0);
+    expect(manager.getAllServices().length).toBeGreaterThan(0);
+  });
+
+  it('should get service by domain and name', () => {
+    const service = manager.getService('ecommerce', 'users');
+    expect(service).toBeDefined();
+    expect(service?.name).toBe('users');
+  });
+
+  it('should get services by domain', () => {
+    const services = manager.getServicesByDomain('ecommerce');
+    expect(services.length).toBeGreaterThan(0);
+    expect(services.every((s: ServiceRegistry) => s.domain === 'ecommerce')).toBe(true);
+  });
+});
+
+describe('Microservices Authentication Strategies Basic', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
   });
 
   describe('Authentication Strategies - API Key Auth', () => {
@@ -106,6 +150,29 @@ describe('Microservices Integration Tests', () => {
       expect(key2).toBeDefined();
       expect(key1).not.toBe(key2);
     });
+  });
+});
+
+describe('Microservices Authentication Strategies JWT', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
   });
 
   describe('Authentication Strategies - JWT Auth', () => {
@@ -134,6 +201,29 @@ describe('Microservices Integration Tests', () => {
       expect(payload).toBeNull();
     });
   });
+});
+
+describe('Microservices Authentication Middleware', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
+  });
 
   describe('Authentication Strategies - Auth Middleware', () => {
     it('should skip auth for none strategy', async (): Promise<void> => {
@@ -154,7 +244,32 @@ describe('Microservices Integration Tests', () => {
       middleware(req, res, next);
       expect(contextSet).toBe(true);
     });
+  });
+});
 
+describe('Microservices Authentication Middleware Rejection', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
+  });
+
+  describe('Authentication Strategies - Auth Middleware Rejection', () => {
     it('should reject missing auth header for api-key', async (): Promise<void> => {
       const middleware = ServiceAuthMiddleware.middleware('api-key');
       let statusCode = 0;
@@ -176,6 +291,29 @@ describe('Microservices Integration Tests', () => {
       middleware(req, res, next);
       expect(statusCode).toBe(401);
     });
+  });
+});
+
+describe('Microservices Request Tracing', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
   });
 
   describe('Request Tracing', () => {
@@ -199,6 +337,29 @@ describe('Microservices Integration Tests', () => {
         Number.parseInt(headers1['x-trace-depth'])
       );
     });
+  });
+});
+
+describe('Microservices Health Checks', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
   });
 
   describe('Health Checks', () => {
@@ -227,6 +388,32 @@ describe('Microservices Integration Tests', () => {
       expect(monitor.areAllHealthy()).toBe(false); // Service not running
     });
   });
+});
+
+describe('Microservices Database Isolation', () => {
+  let bootstrap: MicroserviceBootstrap;
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(async () => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    bootstrap = MicroserviceBootstrap.getInstance();
+    manager = MicroserviceManager.getInstance();
+    await bootstrap.discoverServices();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
+  });
 
   describe('Database Isolation', () => {
     it('should identify isolated service', () => {
@@ -246,6 +433,86 @@ describe('Microservices Integration Tests', () => {
       const config2 = bootstrap.getServiceConfig('ecommerce', 'users');
       expect(config2?.database?.isolation).toBe('shared');
     });
+  });
+});
+
+describe('Microservices PostgreSQL Adapter', () => {
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(() => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    manager = MicroserviceManager.getInstance();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
+  });
+
+  describe('PostgreSQL Adapter', () => {
+    it('should create postgres adapter instance', () => {
+      const adapter = new PostgresAdapter({
+        host: 'localhost',
+        port: 5432,
+        database: 'zintrust',
+        user: 'postgres',
+        password: 'postgres', // NOSONAR
+        serviceName: 'users',
+        isolation: 'shared',
+      });
+
+      expect(adapter).toBeDefined();
+    });
+
+    it('should get connection pool', async () => {
+      const adapter = new PostgresAdapter({
+        host: 'localhost',
+        port: 5432,
+        database: 'zintrust',
+        user: 'postgres',
+        password: 'postgres', // NOSONAR
+        max: 10,
+      });
+
+      // Pool is created on first access (if connection succeeds)
+      // For this test, we just verify the adapter is configured
+      expect(adapter).toBeDefined();
+    });
+  });
+});
+
+describe('Microservices Auth and Tracing Configuration', () => {
+  let bootstrap: MicroserviceBootstrap;
+  let manager: typeof MicroserviceManager;
+
+  beforeAll(async () => {
+    // Reset singletons for clean state
+    MicroserviceBootstrap.reset();
+    MicroserviceManager.reset();
+
+    // Set microservices environment
+    process.env['MICROSERVICES'] = 'true';
+    process.env['SERVICES'] = 'users,orders,payments';
+    process.env['MICROSERVICES_TRACING'] = 'true';
+
+    bootstrap = MicroserviceBootstrap.getInstance();
+    manager = MicroserviceManager.getInstance();
+    await bootstrap.discoverServices();
+  });
+
+  afterAll(async () => {
+    process.env['MICROSERVICES'] = undefined;
+    process.env['SERVICES'] = undefined;
+    await manager.stopAllServices();
   });
 
   describe('Auth Strategy Configuration', () => {
@@ -279,37 +546,6 @@ describe('Microservices Integration Tests', () => {
     it('should check if tracing disabled for payments', () => {
       const enabled = bootstrap.isTracingEnabled('ecommerce', 'payments');
       expect(enabled).toBe(false);
-    });
-  });
-
-  describe('PostgreSQL Adapter', () => {
-    it('should create postgres adapter instance', () => {
-      const adapter = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'zintrust',
-        user: 'postgres',
-        password: 'postgres',
-        serviceName: 'users',
-        isolation: 'shared',
-      });
-
-      expect(adapter).toBeDefined();
-    });
-
-    it('should get connection pool', async () => {
-      const adapter = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'zintrust',
-        user: 'postgres',
-        password: 'postgres',
-        max: 10,
-      });
-
-      // Pool is created on first access (if connection succeeds)
-      // For this test, we just verify the adapter is configured
-      expect(adapter).toBeDefined();
     });
   });
 });

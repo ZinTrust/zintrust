@@ -1,8 +1,8 @@
 import { BUILT_IN_TEMPLATES, TemplateEngine, TemplateFile } from '@cli/scaffolding/TemplateEngine';
 import { describe, expect, it } from 'vitest';
 
-describe('TemplateEngine', () => {
-  describe('render', () => {
+describe('TemplateEngine Rendering Basic', () => {
+  describe('render Basic', () => {
     it('should replace simple variables', () => {
       const content = 'Hello {{name}}, welcome to {{project}}!';
       const variables = { name: 'John', project: 'Zintrust' };
@@ -42,7 +42,11 @@ describe('TemplateEngine', () => {
 
       expect(result).toBe('Enabled: true');
     });
+  });
+});
 
+describe('TemplateEngine Rendering Edge Cases', () => {
+  describe('render Edge Cases', () => {
     it('should skip undefined variables', () => {
       const content = 'Name: {{name}}, Age: {{age}}';
       const variables = { name: 'John', age: undefined };
@@ -78,7 +82,9 @@ describe('TemplateEngine', () => {
       expect(result).toBe('Name: John, name: john');
     });
   });
+});
 
+describe('TemplateEngine Rendering Paths and Content', () => {
   describe('renderPath', () => {
     it('should render file paths with variables', () => {
       const path = 'app/Models/{{ModelName}}.ts';
@@ -117,7 +123,9 @@ describe('TemplateEngine', () => {
       expect(result).toContain('constructor(public name: string) {}');
     });
   });
+});
 
+describe('TemplateEngine Variable Merging', () => {
   describe('mergeVariables', () => {
     it('should merge custom variables with defaults', () => {
       const defaults = { port: 3000, host: 'localhost', database: 'sqlite' };
@@ -143,11 +151,12 @@ describe('TemplateEngine', () => {
       const defaults = { a: 1 };
       const custom = { b: 2, c: 3 };
       const result = TemplateEngine.mergeVariables(custom, defaults);
-
       expect(result).toEqual({ a: 1, b: 2, c: 3 });
     });
   });
+});
 
+describe('TemplateEngine Variable Detection', () => {
   describe('hasVariables', () => {
     it('should detect variables in content', () => {
       expect(TemplateEngine.hasVariables('Hello {{name}}')).toBe(true);
@@ -164,7 +173,9 @@ describe('TemplateEngine', () => {
       expect(TemplateEngine.hasVariables('{{}')).toBe(false);
     });
   });
+});
 
+describe('TemplateEngine Variable Extraction', () => {
   describe('extractVariables', () => {
     it('should extract variable names', () => {
       const content = 'Hello {{name}}, welcome to {{project}}!';
@@ -195,7 +206,9 @@ describe('TemplateEngine', () => {
       expect(variables).toEqual([]);
     });
   });
+});
 
+describe('TemplateEngine Built-in Templates', () => {
   describe('BUILT_IN_TEMPLATES', () => {
     it('should have basic template', () => {
       expect(BUILT_IN_TEMPLATES['basic']).toBeDefined();

@@ -1,7 +1,7 @@
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { describe, expect, it } from 'vitest';
 
-describe('QueryBuilder Extended', () => {
+describe('QueryBuilder Extended Basic', () => {
   it('should support OR conditions', () => {
     const builder = new QueryBuilder('users');
     builder.where('role', 'admin').orWhere('role', 'moderator');
@@ -34,7 +34,9 @@ describe('QueryBuilder Extended', () => {
     const conditions = builder.getWhereClauses();
     expect(conditions[0].operator).toBe('BETWEEN');
   });
+});
 
+describe('QueryBuilder Extended Advanced', () => {
   it('should build complex query', () => {
     const builder = new QueryBuilder('posts');
     builder

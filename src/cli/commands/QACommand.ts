@@ -162,8 +162,21 @@ export class QACommand extends BaseCommand {
     if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
 
     const reportPath = path.join(reportDir, 'qa-report.html');
+    const html = this.getReportHtml(results);
 
-    const html = `
+    try {
+      fs.writeFileSync(reportPath, html);
+      this.info(`QA Report generated at: ${reportPath}`);
+
+      this.openReport(reportPath);
+    } catch (error) {
+      Logger.error('Failed to generate or open QA report', error);
+      this.warn('Could not automatically open the report.');
+    }
+  }
+
+  private getReportHtml(results: QAResults): string {
+    return `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -209,23 +222,17 @@ export class QACommand extends BaseCommand {
 </body>
 </html>
     `;
+  }
 
-    try {
-      fs.writeFileSync(reportPath, html);
-      this.info(`QA Report generated at: ${reportPath}`);
-
-      // Try to open the report
-      let command = 'xdg-open';
-      if (process.platform === 'win32') {
-        command = 'start';
-      } else if (process.platform === 'darwin') {
-        command = 'open';
-      }
-
-      execSync(`${command} ${reportPath}`);
-    } catch (error) {
-      Logger.error('Failed to generate or open QA report', error);
-      this.warn('Could not automatically open the report.');
+  private openReport(reportPath: string): void {
+    // Try to open the report
+    let command = 'xdg-open';
+    if (process.platform === 'win32') {
+      command = 'start';
+    } else if (process.platform === 'darwin') {
+      command = 'open';
     }
+
+    execSync(`${command} ${reportPath}`);
   }
 }

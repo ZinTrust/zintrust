@@ -124,18 +124,57 @@ function buildSeederCode(options: SeederOptions): string {
 ${imports}
 
 export class ${className} {
-  /**
+${buildSeederClassBody(options, count, truncate, relationshipMethods)}
+}
+`;
+}
+
+/**
+ * Build seeder class body
+ */
+function buildSeederClassBody(
+  options: SeederOptions,
+  count: number,
+  truncate: string,
+  relationshipMethods: string
+): string {
+  const factoryName = getFactoryName(options);
+  const modelLower = options.modelName.toLowerCase();
+
+  return `${buildSeederRunMethod(options, count, truncate, factoryName, modelLower)}
+
+${buildSeederGetRecordsMethod(factoryName)}
+
+${buildSeederWithStatesMethod(options, count, factoryName, modelLower)}
+
+${buildSeederWithRelationshipsMethod(options, count, factoryName, modelLower, relationshipMethods)}
+
+${buildSeederResetMethod(options)}`;
+}
+
+/**
+ * Build seeder run method
+ */
+function buildSeederRunMethod(
+  options: SeederOptions,
+  count: number,
+  truncate: string,
+  factoryName: string,
+  modelLower: string
+): string {
+  const tableName = getTableName(options.modelName);
+  return `  /**
    * Run the seeder
-   * Populates the ${options.modelName.toLowerCase()} table with ${count} records
+   * Populates the ${modelLower} table with ${count} records
    */
   async run(): Promise<void> {
     const count = ${count};
-    const factory = new ${getFactoryName(options)}();
+    const factory = new ${factoryName}();
 
     // Optionally truncate the table before seeding
     if (${truncate}) {
       // await Table.query().delete();
-      // Or use: await database.raw('TRUNCATE TABLE ${getTableName(options.modelName)}');
+      // Or use: await database.raw('TRUNCATE TABLE ${tableName}');
     }
 
     // Generate and create records
@@ -144,29 +183,39 @@ export class ${className} {
     for (const record of records) {
       // Insert using Query Builder (recommended)
       // await ${options.modelName}.create(record);
-
-      // Or using database adapter:
-      // await database
-      //   .table('${getTableName(options.modelName)}')
-      //   .insert(record);
     }
 
-    Logger.info(\`✅ Seeded \${count} ${options.modelName.toLowerCase()} records\`);
-  }
+    Logger.info(\`✅ Seeded \${count} ${modelLower} records\`);
+  }`;
+}
 
-  /**
+/**
+ * Build seeder getRecords method
+ */
+function buildSeederGetRecordsMethod(factoryName: string): string {
+  return `  /**
    * Get records from this seeder
    */
   async getRecords(count: number): Promise<Record<string, unknown>[]> {
-    const factory = new ${getFactoryName(options)}();
+    const factory = new ${factoryName}();
     return factory.count(count).get();
-  }
+  }`;
+}
 
-  /**
+/**
+ * Build seeder with states method
+ */
+function buildSeederWithStatesMethod(
+  options: SeederOptions,
+  count: number,
+  factoryName: string,
+  modelLower: string
+): string {
+  return `  /**
    * Seed with specific states
    */
   async seedWithStates(): Promise<void> {
-    const factory = new ${getFactoryName(options)}();
+    const factory = new ${factoryName}();
 
     // Create active records (50%)
     const active = factory.count(Math.ceil(${count} * 0.5)).state('active').get();
@@ -186,29 +235,44 @@ export class ${className} {
       // await ${options.modelName}.create(record);
     }
 
-    Logger.info(\`✅ Seeded ${count} ${options.modelName.toLowerCase()} records with state distribution\`);
-  }
+    Logger.info(\`✅ Seeded ${count} ${modelLower} records with state distribution\`);
+  }`;
+}
 
-  /**
+/**
+ * Build seeder with relationships method
+ */
+function buildSeederWithRelationshipsMethod(
+  options: SeederOptions,
+  count: number,
+  factoryName: string,
+  modelLower: string,
+  relationshipMethods: string
+): string {
+  return `  /**
    * Seed with relationships
    */
   async seedWithRelationships(): Promise<void> {
-    const factory = new ${getFactoryName(options)}();
+    const factory = new ${factoryName}();
 
 ${relationshipMethods}
 
-    Logger.info(\`✅ Seeded ${count} ${options.modelName.toLowerCase()} records with relationships\`);
-  }
+    Logger.info(\`✅ Seeded ${count} ${modelLower} records with relationships\`);
+  }`;
+}
 
-  /**
+/**
+ * Build seeder reset method
+ */
+function buildSeederResetMethod(options: SeederOptions): string {
+  const tableName = getTableName(options.modelName);
+  return `  /**
    * Reset seeder (truncate table)
    */
   async reset(): Promise<void> {
-    // await database.raw('TRUNCATE TABLE ${getTableName(options.modelName)}');
-    Logger.info(\`✅ Truncated ${getTableName(options.modelName)} table\`);
-  }
-}
-`;
+    // await database.raw('TRUNCATE TABLE ${tableName}');
+    Logger.info(\`✅ Truncated ${tableName} table\`);
+  }`;
 }
 
 /**

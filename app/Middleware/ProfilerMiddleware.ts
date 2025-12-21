@@ -27,7 +27,7 @@ export const ProfilerMiddleware: Middleware = async (req, res, next) => {
 
   // Set up query logging if database is available
   const db = req.context.db as any;
-  if (db?.onAfterQuery) {
+  if (db !== undefined && db !== null && typeof db.onAfterQuery === 'function') {
     db.onAfterQuery((sql: string, params: unknown[], duration: number) => {
       queryLogger.logQuery(sql, params, duration, 'middleware-profiling');
     });

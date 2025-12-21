@@ -62,7 +62,32 @@ export function getWorkflowTemplate(platform: string, branch: string, nodeVersio
   const isCloudflare = isAll || platform === 'cloudflare';
   const isDeno = isAll || platform === 'deno';
 
-  let content = `name: Deploy Cloud
+  let content = buildWorkflowHeader(platform, branch, nodeVersion);
+
+  if (isLambda) {
+    content += buildLambdaJob();
+  }
+
+  if (isFargate) {
+    content += buildFargateJob();
+  }
+
+  if (isCloudflare) {
+    content += buildCloudflareJob();
+  }
+
+  if (isDeno) {
+    content += buildDenoJob();
+  }
+
+  return content;
+}
+
+/**
+ * Build workflow header and build job
+ */
+function buildWorkflowHeader(platform: string, branch: string, nodeVersion: string): string {
+  return `name: Deploy Cloud
 
 on:
   push:
@@ -114,9 +139,13 @@ jobs:
           name: dist
           path: dist/
 `;
+}
 
-  if (isLambda) {
-    content += `
+/**
+ * Build Lambda job
+ */
+function buildLambdaJob(): string {
+  return `
   deploy-lambda:
     needs: build
     runs-on: ubuntu-latest
@@ -131,10 +160,13 @@ jobs:
       - name: Deploy to AWS Lambda
         run: echo "Deploying to Lambda..."
 `;
-  }
+}
 
-  if (isFargate) {
-    content += `
+/**
+ * Build Fargate job
+ */
+function buildFargateJob(): string {
+  return `
   deploy-fargate:
     needs: build
     runs-on: ubuntu-latest
@@ -144,10 +176,13 @@ jobs:
       - name: Build and Push Docker Image
         run: echo "Pushing to GHCR..."
 `;
-  }
+}
 
-  if (isCloudflare) {
-    content += `
+/**
+ * Build Cloudflare job
+ */
+function buildCloudflareJob(): string {
+  return `
   deploy-cloudflare:
     needs: build
     runs-on: ubuntu-latest
@@ -159,10 +194,13 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
 `;
-  }
+}
 
-  if (isDeno) {
-    content += `
+/**
+ * Build Deno job
+ */
+function buildDenoJob(): string {
+  return `
   deploy-deno:
     needs: build
     runs-on: ubuntu-latest
@@ -172,9 +210,6 @@ jobs:
       - name: Deploy to Deno Deploy
         run: echo "Deploying to Deno..."
 `;
-  }
-
-  return content;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { RequestProfiler } from '@profiling/RequestProfiler';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('RequestProfiler', () => {
+describe('RequestProfiler Basic Tests', () => {
   let profiler: RequestProfiler;
 
   beforeEach(() => {
@@ -32,10 +32,39 @@ describe('RequestProfiler', () => {
     expect(profile.n1Patterns).toBeInstanceOf(Array);
   });
 
+  it('should capture accurate duration', async () => {
+    const delay = 100;
+    const profile = await profiler.captureRequest(async () => {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    });
+
+    expect(profile.duration).toBeGreaterThanOrEqual(delay - 10); // Allow 10ms variance
+  });
+
+  it('should return unique timestamp for each profile', async () => {
+    const profile1 = await profiler.captureRequest(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    const profile2 = await profiler.captureRequest(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    expect(profile1.timestamp.getTime()).not.toEqual(profile2.timestamp.getTime());
+  });
+});
+
+describe('RequestProfiler Advanced Metrics', () => {
+  let profiler: RequestProfiler;
+
+  beforeEach(() => {
+    profiler = new RequestProfiler();
+  });
+
   it('should include memory delta in profile', async () => {
     const profile = await profiler.captureRequest(async () => {
       // Allocate some memory
-      new Array(1000).fill(Math.random());
+      new Array(1000).fill(Math.random()); // NOSONAR
     });
 
     expect(profile.memoryDelta).toBeDefined();
@@ -74,6 +103,14 @@ describe('RequestProfiler', () => {
     expect(Array.isArray(profile.n1Patterns)).toBe(true);
     expect(profile.timestamp instanceof Date).toBe(true);
     expect(profile.memoryDelta).toBeDefined();
+  });
+});
+
+describe('RequestProfiler Advanced Scenarios', () => {
+  let profiler: RequestProfiler;
+
+  beforeEach(() => {
+    profiler = new RequestProfiler();
   });
 
   it('should return unique timestamp for each profile', async () => {

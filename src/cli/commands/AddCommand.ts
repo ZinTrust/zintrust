@@ -10,7 +10,11 @@ import { FeatureScaffolder, FeatureType } from '@cli/scaffolding/FeatureScaffold
 import { MigrationGenerator, MigrationType } from '@cli/scaffolding/MigrationGenerator';
 import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
 import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
-import { ResponseFactoryGenerator, ResponseField } from '@cli/scaffolding/ResponseFactoryGenerator';
+import {
+  ResponseFactoryGenerator,
+  ResponseFactoryGeneratorResult,
+  ResponseField,
+} from '@cli/scaffolding/ResponseFactoryGenerator';
 import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
@@ -108,6 +112,8 @@ interface ResponseFactoryPromptAnswers {
   factoryName: string;
   responseName: string;
   responseType: string;
+  factoryPath?: string;
+  responsePath?: string;
   withDTO: boolean;
 }
 
@@ -157,7 +163,7 @@ export class AddCommand extends BaseCommand {
     const addOptions = options as AddOptions;
 
     try {
-      if (!type) {
+      if (type === undefined || type === '') {
         throw new Error(
           'Please specify what to add: service, feature, migration, model, controller, routes, factory, or seeder'
         );
@@ -248,7 +254,7 @@ export class AddCommand extends BaseCommand {
       auth: opts.auth ?? 'api-key',
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -333,7 +339,7 @@ export class AddCommand extends BaseCommand {
       withTest: opts.withTest,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -384,7 +390,7 @@ export class AddCommand extends BaseCommand {
       const answers = await this.promptMigrationConfig();
       name = answers.name;
       opts.type = answers.type;
-    } else if (!name) {
+    } else if (name === undefined || name === '') {
       throw new Error('Migration name is required');
     }
 
@@ -397,7 +403,7 @@ export class AddCommand extends BaseCommand {
       type: (opts.type ?? 'create') as MigrationType,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -455,7 +461,7 @@ export class AddCommand extends BaseCommand {
       timestamps: opts.timestamps !== false,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -521,7 +527,7 @@ export class AddCommand extends BaseCommand {
         : controllerType) as ControllerType,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -578,7 +584,7 @@ export class AddCommand extends BaseCommand {
       routes: [],
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -639,7 +645,7 @@ export class AddCommand extends BaseCommand {
           : config.relationships.split(',').map((r) => r.trim()),
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -756,7 +762,7 @@ export class AddCommand extends BaseCommand {
       truncate: config.truncate,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -797,7 +803,7 @@ export class AddCommand extends BaseCommand {
    * Ensure directory exists
    */
   private ensureDirectoryExists(dirPath: string): void {
-    if (!fs.existsSync(dirPath)) {
+    if (fs.existsSync(dirPath) === false) {
       fs.mkdirSync(dirPath, { recursive: true });
     }
   }
@@ -929,7 +935,7 @@ export class AddCommand extends BaseCommand {
       requestsPath,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -999,65 +1005,84 @@ export class AddCommand extends BaseCommand {
   ): Promise<void> {
     let name: string = factoryName ?? '';
     if (name === '' && opts.noInteractive !== true) {
-      const answer = await inquirer.prompt([
-        {
-          type: 'input',
-          name: 'factoryName',
-          message: 'Response factory name (e.g., UserResponseFactory):',
-          validate: (input: string): string | boolean => {
-            if (input === '') return 'Factory name is required';
-            if (!input.endsWith('ResponseFactory')) {
-              return 'Factory name must end with "ResponseFactory"';
-            }
-            return true;
-          },
-        },
-      ]);
-      name = answer.factoryName;
+      name = await this.promptResponseFactoryName();
     }
 
-    // Ensure name is a string before proceeding
     if (name === '') {
       throw new Error('Factory name is required');
     }
 
-    // Derive response name from factory name
     const responseName = name.replace('Factory', '');
-
-    const answers =
-      opts.noInteractive === true
-        ? { factoryName: name, responseName, responseType: 'success', withDTO: true }
-        : await this.promptResponseFactoryConfig(responseName);
+    const answers = await this.getResponseFactoryAnswers(name, responseName, opts);
 
     const factoriesPath = path.join(process.cwd(), 'database', 'factories');
     const responsesPath =
       answers.withDTO === true ? path.join(process.cwd(), 'app', 'Responses') : undefined;
 
-    // Ensure paths exist
-    if (!fs.existsSync(factoriesPath)) {
-      fs.mkdirSync(factoriesPath, { recursive: true });
+    this.ensureDirectoryExists(factoriesPath);
+    if (responsesPath !== undefined) {
+      this.ensureDirectoryExists(responsesPath);
     }
-    if (responsesPath !== undefined && !fs.existsSync(responsesPath)) {
-      fs.mkdirSync(responsesPath, { recursive: true });
-    }
-
-    // Generate with default fields
-    const defaultFields: ResponseField[] = this.getDefaultResponseFields(answers.responseType);
 
     const result = await ResponseFactoryGenerator.generate({
       factoryName: name,
       responseName: answers.responseName,
-      fields: defaultFields,
+      fields: this.getDefaultResponseFields(answers.responseType),
       factoriesPath,
       responsesPath,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
+    this.displayResponseFactorySuccess(name, result);
+  }
+
+  /**
+   * Prompt for response factory name
+   */
+  private async promptResponseFactoryName(): Promise<string> {
+    const answer = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'factoryName',
+        message: 'Response factory name (e.g., UserResponseFactory):',
+        validate: (input: string): string | boolean => {
+          if (input === '') return 'Factory name is required';
+          if (!input.endsWith('ResponseFactory')) {
+            return 'Factory name must end with "ResponseFactory"';
+          }
+          return true;
+        },
+      },
+    ]);
+    return answer.factoryName;
+  }
+
+  /**
+   * Get response factory answers
+   */
+  private async getResponseFactoryAnswers(
+    name: string,
+    responseName: string,
+    opts: AddOptions
+  ): Promise<ResponseFactoryPromptAnswers> {
+    if (opts.noInteractive === true) {
+      return { factoryName: name, responseName, responseType: 'success', withDTO: true };
+    }
+    return this.promptResponseFactoryConfig(responseName);
+  }
+
+  /**
+   * Display response factory success message
+   */
+  private displayResponseFactorySuccess(
+    name: string,
+    result: ResponseFactoryPromptAnswers | ResponseFactoryGeneratorResult
+  ): void {
     this.success(`Response factory '${name}' created successfully!`);
-    this.info(`Factory: ${path.basename(result.factoryPath)}`);
+    this.info(`Factory: ${path.basename(result.factoryPath ?? '')}`);
 
     if (result.responsePath !== undefined) {
       this.info(`DTO: ${path.basename(result.responsePath)}`);
@@ -1172,7 +1197,7 @@ export class AddCommand extends BaseCommand {
       nodeVersion: opts.nodeVersion ?? '20.x',
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 

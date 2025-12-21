@@ -78,9 +78,8 @@ export function getAvailableFeatures(): FeatureType[] {
  */
 export async function addFeature(options: FeatureOptions): Promise<FeatureScaffoldResult> {
   try {
-    // Validate options
     const validation = validateOptions(options);
-    if (!validation.valid) {
+    if (validation.valid === false) {
       return {
         success: false,
         featureName: options.name,
@@ -89,57 +88,17 @@ export async function addFeature(options: FeatureOptions): Promise<FeatureScaffo
       };
     }
 
-    const filesCreated: string[] = [];
-
-    // Ensure features directory exists
-    const featuresDir = path.join(options.servicePath, 'src', 'features');
-    FileGenerator.createDirectory(featuresDir);
-
-    // Create feature directory
-    const featureDir = path.join(featuresDir, options.name);
-    if (FileGenerator.directoryExists(featureDir)) {
+    const featureDir = prepareFeatureDirectory(options);
+    if (typeof featureDir === 'string' && featureDir.startsWith('Error:')) {
       return {
         success: false,
         featureName: options.name,
         filesCreated: [],
-        message: `Feature '${options.name}' already exists at ${featureDir}`,
+        message: featureDir.replace('Error: ', ''),
       };
     }
 
-    FileGenerator.createDirectory(featureDir);
-
-    // Get feature template
-    const generator = FEATURE_TEMPLATES[options.name];
-    if (generator === undefined) {
-      return {
-        success: false,
-        featureName: options.name,
-        filesCreated: [],
-        message: `No template found for feature '${options.name}'`,
-      };
-    }
-
-    // Generate feature files
-    const featureContent = generator();
-    const featurePath = path.join(featureDir, 'index.ts');
-    FileGenerator.writeFile(featurePath, featureContent);
-
-    // Create test file if requested
-    let testPath: string | undefined;
-    if (options.withTest === true) {
-      testPath = path.join(featureDir, `${options.name}.test.ts`);
-      const testContent = generateFeatureTest(options.name);
-      FileGenerator.writeFile(testPath, testContent);
-    }
-
-    // Create feature README
-    const readmePath = path.join(featureDir, 'README.md');
-    const readmeContent = generateFeatureReadme(options.name);
-    FileGenerator.writeFile(readmePath, readmeContent);
-
-    filesCreated.push(featurePath);
-    if (testPath !== undefined) filesCreated.push(testPath);
-    filesCreated.push(readmePath);
+    const filesCreated = generateFeatureFiles(options, featureDir);
 
     Logger.info(`✅ Added feature '${options.name}' with ${filesCreated.length} files`);
 
@@ -161,9 +120,85 @@ export async function addFeature(options: FeatureOptions): Promise<FeatureScaffo
   }
 }
 
+/**
+ * Prepare feature directory
+ */
+function prepareFeatureDirectory(options: FeatureOptions): string {
+  const featuresDir = path.join(options.servicePath, 'src', 'features');
+  FileGenerator.createDirectory(featuresDir);
+
+  const featureDir = path.join(featuresDir, options.name);
+  if (FileGenerator.directoryExists(featureDir)) {
+    return `Error: Feature '${options.name}' already exists at ${featureDir}`;
+  }
+
+  FileGenerator.createDirectory(featureDir);
+  return featureDir;
+}
+
+/**
+ * Generate feature files
+ */
+function generateFeatureFiles(options: FeatureOptions, featureDir: string): string[] {
+  const filesCreated: string[] = [];
+  const generator = FEATURE_TEMPLATES[options.name];
+
+  if (generator === undefined) {
+    return [];
+  }
+
+  const featureContent = generator();
+  const featurePath = path.join(featureDir, 'index.ts');
+  FileGenerator.writeFile(featurePath, featureContent);
+  filesCreated.push(featurePath);
+
+  if (options.withTest === true) {
+    const testPath = path.join(featureDir, `${options.name}.test.ts`);
+    FileGenerator.writeFile(testPath, generateFeatureTest(options.name));
+    filesCreated.push(testPath);
+  }
+
+  const readmePath = path.join(featureDir, 'README.md');
+  FileGenerator.writeFile(readmePath, generateFeatureReadme(options.name));
+  filesCreated.push(readmePath);
+
+  return filesCreated;
+}
+
 // Feature generators
 function generateAuthFeature(): string {
-  return `/**
+  return AUTH_TEMPLATE;
+}
+
+function generatePaymentsFeature(): string {
+  return PAYMENTS_TEMPLATE;
+}
+
+function generateLoggingFeature(): string {
+  return LOGGING_TEMPLATE;
+}
+
+function generateApiDocsFeature(): string {
+  return API_DOCS_TEMPLATE;
+}
+
+function generateEmailFeature(): string {
+  return EMAIL_TEMPLATE;
+}
+
+function generateCacheFeature(): string {
+  return CACHE_TEMPLATE;
+}
+
+function generateQueueFeature(): string {
+  return QUEUE_TEMPLATE;
+}
+
+function generateWebSocketFeature(): string {
+  return WEBSOCKET_TEMPLATE;
+}
+
+const AUTH_TEMPLATE = `/**
  * Authentication Feature
  * Provides JWT and session management
  */
@@ -214,10 +249,8 @@ export class AuthService {
 
 export default AuthService;
 `;
-}
 
-function generatePaymentsFeature(): string {
-  return `/**
+const PAYMENTS_TEMPLATE = `/**
  * Payments Feature
  * Handles payment processing and transactions
  */
@@ -265,10 +298,8 @@ export class PaymentService {
 
 export default PaymentService;
 `;
-}
 
-function generateLoggingFeature(): string {
-  return `/**
+const LOGGING_TEMPLATE = `/**
  * Logging Feature
  * Structured logging with multiple transports
  */
@@ -312,7 +343,7 @@ export class LoggingService {
    */
   public getLogs(level?: LogLevel, limit: number = 100): LogEntry[] {
     let filtered = this.logs;
-    if (level) {
+    if (level !== undefined) {
       filtered = filtered.filter((log) => log.level === level);
     }
     return filtered.slice(-limit);
@@ -328,10 +359,8 @@ export class LoggingService {
 
 export default LoggingService;
 `;
-}
 
-function generateApiDocsFeature(): string {
-  return `/**
+const API_DOCS_TEMPLATE = `/**
  * API Documentation Feature
  * Generates OpenAPI/Swagger documentation
  */
@@ -393,7 +422,7 @@ export class ApiDocService {
   private groupByPath(): Record<string, unknown> {
     const grouped: Record<string, unknown> = {};
     for (const endpoint of this.endpoints) {
-      if (!grouped[endpoint.path]) {
+      if (grouped[endpoint.path] === undefined) {
         grouped[endpoint.path] = {};
       }
       grouped[endpoint.path][endpoint.method.toLowerCase()] = {
@@ -410,10 +439,8 @@ export class ApiDocService {
 
 export default ApiDocService;
 `;
-}
 
-function generateEmailFeature(): string {
-  return `/**
+const EMAIL_TEMPLATE = `/**
  * Email Feature
  * Handles email sending
  */
@@ -457,10 +484,8 @@ export class EmailService {
 
 export default EmailService;
 `;
-}
 
-function generateCacheFeature(): string {
-  return `/**
+const CACHE_TEMPLATE = `/**
  * Cache Feature
  * In-memory and distributed caching
  */
@@ -481,7 +506,7 @@ export class CacheService {
    */
   public get<T>(key: string): T | null {
     const entry = this.cache.get(key);
-    if (!entry) return null;
+    if (entry === undefined) return null;
 
     if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
@@ -516,10 +541,8 @@ export class CacheService {
 
 export default CacheService;
 `;
-}
 
-function generateQueueFeature(): string {
-  return `/**
+const QUEUE_TEMPLATE = `/**
  * Queue Feature
  * Job queue processing
  */
@@ -569,7 +592,7 @@ export class QueueService {
   }
 
   private processQueue(): void {
-    if (this.processing) return;
+    if (this.processing === true) return;
     this.processing = true;
 
     // Process queue
@@ -585,10 +608,8 @@ export class QueueService {
 
 export default QueueService;
 `;
-}
 
-function generateWebSocketFeature(): string {
-  return `/**
+const WEBSOCKET_TEMPLATE = `/**
  * WebSocket Feature
  * Real-time communication
  */
@@ -611,7 +632,7 @@ export class WebSocketService {
    * Listen for event
    */
   public on(event: string, callback: (data: unknown) => void): void {
-    if (!this.listeners.has(event)) {
+    if (this.listeners.has(event) === false) {
       this.listeners.set(event, new Set());
     }
     this.listeners.get(event)?.add(callback);
@@ -622,7 +643,7 @@ export class WebSocketService {
    */
   public emit(event: string, data: unknown): void {
     const callbacks = this.listeners.get(event);
-    if (callbacks) {
+    if (callbacks !== undefined) {
       for (const callback of callbacks) {
         callback(data);
       }
@@ -634,7 +655,7 @@ export class WebSocketService {
    */
   public off(event: string, callback: (data: unknown) => void): void {
     const callbacks = this.listeners.get(event);
-    if (callbacks) {
+    if (callbacks !== undefined) {
       callbacks.delete(callback);
     }
   }
@@ -642,7 +663,6 @@ export class WebSocketService {
 
 export default WebSocketService;
 `;
-}
 
 /**
  * Generate feature test

@@ -61,7 +61,7 @@ export async function validateOptions(options: FactoryOptions): Promise<void> {
   }
 
   // Validate naming convention (must end with Factory)
-  if (!options.factoryName.endsWith('Factory')) {
+  if (options.factoryName.endsWith('Factory') === false) {
     throw new Error(`Factory name must end with 'Factory' (e.g., UserFactory, PostFactory)`);
   }
 
@@ -71,7 +71,7 @@ export async function validateOptions(options: FactoryOptions): Promise<void> {
     .then(() => true)
     .catch(() => false);
 
-  if (!pathExists) {
+  if (pathExists === false) {
     throw new Error(`Factories path does not exist: ${options.factoriesPath}`);
   }
 }
@@ -127,10 +127,50 @@ function buildFactoryCode(options: FactoryOptions): string {
  * Factory for generating test ${modelName} instances
  */
 export class ${factoryName} {
-  private data: Record<string, unknown> = {};
+${buildFactoryClassBody(factoryName, modelName, fakerFields, statePatterns, relationshipMethods)}
+}
+`;
+}
+
+/**
+ * Build factory class body
+ */
+function buildFactoryClassBody(
+  factoryName: string,
+  modelName: string,
+  fakerFields: string,
+  statePatterns: string,
+  relationshipMethods: string
+): string {
+  return `  private data: Record<string, unknown> = {};
   private states: Set<string> = new Set();
 
+${buildFactoryCoreMethods(factoryName, modelName, fakerFields)}
+
+${buildFactoryStateMethods(modelName)}
+
+${statePatterns}
+
+${relationshipMethods}
+
   /**
+   * Create and return merged result
+   */
+  create(): Partial<${modelName}> {
+    return this.getData();
+  }
+`;
+}
+
+/**
+ * Build factory core methods
+ */
+function buildFactoryCoreMethods(
+  factoryName: string,
+  modelName: string,
+  fakerFields: string
+): string {
+  return `  /**
    * Create a new factory instance
    */
   static new(): ${factoryName} {
@@ -176,8 +216,14 @@ ${fakerFields}
     this.states.add(name);
     return this;
   }
+`;
+}
 
-  /**
+/**
+ * Build factory state methods
+ */
+function buildFactoryStateMethods(modelName: string): string {
+  return `  /**
    * Get final data with states applied
    */
   private getData(): Partial<${modelName}> {
@@ -201,18 +247,6 @@ ${fakerFields}
 
     return result;
   }
-
-${statePatterns}
-
-${relationshipMethods}
-
-  /**
-   * Create and return merged result
-   */
-  create(): Partial<${modelName}> {
-    return this.getData();
-  }
-}
 `;
 }
 
@@ -284,7 +318,10 @@ function getFakerValueByName(fieldName: string, type: FieldType): string | null 
   ];
 
   const match = mappings.find((m) => m.condition);
-  return match ? match.value : null;
+  if (match !== undefined) {
+    return match.value;
+  }
+  return null;
 }
 
 /**

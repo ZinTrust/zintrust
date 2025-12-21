@@ -4,7 +4,7 @@ import { Response } from '@http/Response';
 import { MiddlewareStack } from '@middleware/MiddlewareStack';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-describe('MiddlewareStack', () => {
+describe('MiddlewareStack Basic Tests', () => {
   let stack: MiddlewareStack;
   let callOrder: string[] = [];
 
@@ -58,6 +58,16 @@ describe('MiddlewareStack', () => {
 
     expect(callOrder).toEqual(['first', 'second', 'third']);
   });
+});
+
+describe('MiddlewareStack Early Termination', () => {
+  let stack: MiddlewareStack;
+  let callOrder: string[] = [];
+
+  beforeEach(() => {
+    stack = new MiddlewareStack();
+    callOrder = [];
+  });
 
   it('should stop middleware chain early', async () => {
     stack.register('first', async (_req, _res, next) => {
@@ -93,6 +103,16 @@ describe('MiddlewareStack', () => {
     await stack.execute(req, res);
 
     expect(callOrder).toEqual(['first', 'second']);
+  });
+});
+
+describe('MiddlewareStack Selective Execution', () => {
+  let stack: MiddlewareStack;
+  let callOrder: string[] = [];
+
+  beforeEach(() => {
+    stack = new MiddlewareStack();
+    callOrder = [];
   });
 
   it('should execute only specified middleware', async () => {

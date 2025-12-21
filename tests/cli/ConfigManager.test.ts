@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const TEST_CONFIG_PATH = '/tmp/test-config-manager.json';
 
-describe('ConfigManager', () => {
+describe('ConfigManager Basic Operations', () => {
   beforeEach(async () => {
     // Clean up any existing test file
     try {
@@ -77,6 +77,26 @@ describe('ConfigManager', () => {
     manager.set('database.host', 'localhost');
     expect(manager.get('database.host')).toBe('localhost');
   });
+});
+
+describe('ConfigManager Advanced Operations', () => {
+  beforeEach(async () => {
+    // Clean up any existing test file
+    try {
+      await fs.unlink(TEST_CONFIG_PATH);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  afterEach(async () => {
+    // Clean up after tests
+    try {
+      await fs.unlink(TEST_CONFIG_PATH);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
 
   it('should merge partial config', async () => {
     const manager = new ConfigManager(TEST_CONFIG_PATH);
@@ -107,6 +127,71 @@ describe('ConfigManager', () => {
 
     await manager.reset();
     expect(manager.get('name')).toBe(DEFAULT_CONFIG.name);
+  });
+});
+
+describe('ConfigManager Persistence', () => {
+  beforeEach(async () => {
+    // Clean up any existing test file
+    try {
+      await fs.unlink(TEST_CONFIG_PATH);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  afterEach(async () => {
+    // Clean up after tests
+    try {
+      await fs.unlink(TEST_CONFIG_PATH);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  it('should create default config', async () => {
+    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    await manager.create({ name: 'initial-app' });
+
+    const exists = await manager.exists();
+    expect(exists).toBe(true);
+
+    const config = manager.getConfig();
+    expect(config.name).toBe('initial-app');
+  });
+
+  it('should persist changes across save and load', async () => {
+    let manager = new ConfigManager(TEST_CONFIG_PATH);
+    await manager.load();
+
+    manager.set('server.port', 5000);
+    await manager.save();
+
+    // Create new manager instance and load
+    manager = new ConfigManager(TEST_CONFIG_PATH);
+    await manager.load();
+
+    expect(manager.get('server.port')).toBe(5000);
+  });
+});
+
+describe('ConfigManager Export and Keys', () => {
+  beforeEach(async () => {
+    // Clean up any existing test file
+    try {
+      await fs.unlink(TEST_CONFIG_PATH);
+    } catch {
+      // Ignore if file doesn't exist
+    }
+  });
+
+  afterEach(async () => {
+    // Clean up after tests
+    try {
+      await fs.unlink(TEST_CONFIG_PATH);
+    } catch {
+      // Ignore if file doesn't exist
+    }
   });
 
   it('should export config as JSON', async () => {
@@ -140,30 +225,5 @@ describe('ConfigManager', () => {
 
     const value = manager.get('non.existent.key');
     expect(value).toBeUndefined();
-  });
-
-  it('should create default config', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
-    await manager.create({ name: 'initial-app' });
-
-    const exists = await manager.exists();
-    expect(exists).toBe(true);
-
-    const config = manager.getConfig();
-    expect(config.name).toBe('initial-app');
-  });
-
-  it('should persist changes across save and load', async () => {
-    let manager = new ConfigManager(TEST_CONFIG_PATH);
-    await manager.load();
-
-    manager.set('server.port', 5000);
-    await manager.save();
-
-    // Create new manager instance and load
-    manager = new ConfigManager(TEST_CONFIG_PATH);
-    await manager.load();
-
-    expect(manager.get('server.port')).toBe(5000);
   });
 });

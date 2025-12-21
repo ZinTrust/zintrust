@@ -221,14 +221,33 @@ function generateFactoryMethods(
   fields: ResponseField[],
   responseType: string
 ): string {
+  return `${buildFactoryStaticMethods(factoryName)}
+
+${buildFactoryConfigurationMethods()}
+
+${buildFactoryGenerationMethods(responseName)}
+
+  ${buildGenerateResponseMethod(responseName, fields, responseType)}`;
+}
+
+/**
+ * Build factory static methods
+ */
+function buildFactoryStaticMethods(factoryName: string): string {
   return `  /**
    * Create a new factory instance
    */
   static create(): ${factoryName} {
     return new ${factoryName}();
   }
+`;
+}
 
-  /**
+/**
+ * Build factory configuration methods
+ */
+function buildFactoryConfigurationMethods(): string {
+  return `  /**
    * Generate multiple responses
    */
   times(count: number): this {
@@ -243,8 +262,14 @@ function generateFactoryMethods(
     this.state = state;
     return this;
   }
+`;
+}
 
-  /**
+/**
+ * Build factory generation methods
+ */
+function buildFactoryGenerationMethods(responseName: string): string {
+  return `  /**
    * Generate single response
    */
   make(): ${responseName} {
@@ -275,8 +300,18 @@ function generateFactoryMethods(
   first(): ${responseName} {
     return this.make();
   }
+`;
+}
 
-  /**
+/**
+ * Build generate response method
+ */
+function buildGenerateResponseMethod(
+  responseName: string,
+  fields: ResponseField[],
+  responseType: string
+): string {
+  return `/**
    * Generate response with state handling
    */
   private generateResponse(): ${responseName} {

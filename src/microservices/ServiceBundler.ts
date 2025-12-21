@@ -40,13 +40,42 @@ export async function bundleService(config: BundleConfig): Promise<BundleResult>
   const serviceDir = `services/${domain}/${serviceName}`;
   const bundleDir = path.join(outputDir, `${domain}-${serviceName}`);
 
-  // Clean output directory
+  prepareBundleDirectory(bundleDir);
+
+  const { totalSize, fileCount } = copyServiceFiles(serviceDir, bundleDir);
+
+  const metadata = generateBundleMetadata(serviceName, domain, totalSize, fileCount, targetSize);
+  fs.writeFileSync(path.join(bundleDir, 'bundle.json'), JSON.stringify(metadata, null, 2));
+
+  logBundleSummary(totalSize, fileCount, targetSize);
+
+  return {
+    serviceName,
+    sizeBytes: totalSize,
+    sizeMB: Number.parseFloat((totalSize / (1024 * 1024)).toFixed(2)),
+    files: fileCount,
+    location: bundleDir,
+    optimized: totalSize < targetSize * 1024 * 1024,
+  };
+}
+
+/**
+ * Prepare bundle directory
+ */
+function prepareBundleDirectory(bundleDir: string): void {
   if (fs.existsSync(bundleDir) === true) {
     fs.rmSync(bundleDir, { recursive: true });
   }
   fs.mkdirSync(bundleDir, { recursive: true });
+}
 
-  // Copy production files only
+/**
+ * Copy service files to bundle directory
+ */
+function copyServiceFiles(
+  serviceDir: string,
+  bundleDir: string
+): { totalSize: number; fileCount: number } {
   const filesToCopy = [
     { src: `${serviceDir}/dist`, dest: `${bundleDir}/dist` },
     { src: `${serviceDir}/package.json`, dest: `${bundleDir}/package.json` },
@@ -72,8 +101,20 @@ export async function bundleService(config: BundleConfig): Promise<BundleResult>
     }
   }
 
-  // Generate bundle metadata
-  const metadata = {
+  return { totalSize, fileCount };
+}
+
+/**
+ * Generate bundle metadata
+ */
+function generateBundleMetadata(
+  serviceName: string,
+  domain: string,
+  totalSize: number,
+  fileCount: number,
+  targetSize: number
+): Record<string, unknown> {
+  return {
     service: serviceName,
     domain,
     timestamp: new Date().toISOString(),
@@ -81,24 +122,18 @@ export async function bundleService(config: BundleConfig): Promise<BundleResult>
     files: fileCount,
     optimized: totalSize < targetSize * 1024 * 1024,
   };
+}
 
-  fs.writeFileSync(path.join(bundleDir, 'bundle.json'), JSON.stringify(metadata, null, 2));
-
+/**
+ * Log bundle summary
+ */
+function logBundleSummary(totalSize: number, fileCount: number, targetSize: number): void {
   const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
   Logger.info(`  ✓ Size: ${sizeMB} MB (${fileCount} files)`);
 
   if (totalSize > targetSize * 1024 * 1024) {
     Logger.warn(`  ⚠️  Bundle exceeds ${targetSize} MB target - consider optimizing`);
   }
-
-  return {
-    serviceName,
-    sizeBytes: totalSize,
-    sizeMB: Number.parseFloat(sizeMB),
-    files: fileCount,
-    location: bundleDir,
-    optimized: totalSize < targetSize * 1024 * 1024,
-  };
 }
 
 /**

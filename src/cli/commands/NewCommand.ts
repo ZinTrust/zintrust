@@ -104,7 +104,23 @@ export class NewCommand extends BaseCommand {
     this.debug('Prompting for configuration...');
 
     const prompter = new PromptHelper();
-    const answers = await prompter.prompt([
+    const questions = this.getQuestions(projectName, defaults);
+    const answers = await prompter.prompt(questions);
+
+    return {
+      template: answers['template'] as string,
+      database: answers['database'] as string,
+      port: Number.parseInt(answers['port'] as string, 10),
+      author: answers['author'] as string,
+      description: answers['description'] as string,
+    };
+  }
+
+  /**
+   * Get configuration questions
+   */
+  private getQuestions(projectName: string, defaults: ProjectConfig): unknown[] {
+    return [
       {
         type: 'list',
         name: 'template',
@@ -144,15 +160,7 @@ export class NewCommand extends BaseCommand {
             ? `${projectName} - Zintrust Application`
             : defaults.description,
       },
-    ]);
-
-    return {
-      template: answers['template'] as string,
-      database: answers['database'] as string,
-      port: Number.parseInt(answers['port'] as string, 10),
-      author: answers['author'] as string,
-      description: answers['description'] as string,
-    };
+    ];
   }
 
   /**
@@ -171,7 +179,7 @@ export class NewCommand extends BaseCommand {
       overwrite,
     });
 
-    if (!result.success) {
+    if (result.success === false) {
       throw new Error(result.message);
     }
 
@@ -194,7 +202,7 @@ export class NewCommand extends BaseCommand {
     } catch (error: unknown) {
       Logger.error('Git initialization failed', error);
       // Log error and continue - git is optional
-      if (error instanceof Error && error.message) {
+      if (error instanceof Error && error.message !== '') {
         this.warn(`Git initialization failed: ${error.message}`);
       } else {
         this.warn('Git initialization failed (git may not be installed)');

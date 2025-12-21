@@ -314,7 +314,20 @@ async function generateServiceReadme(
   domain: string,
   port: number
 ): Promise<void> {
-  const readme = `# ${serviceName} Microservice
+  const readme = `${buildReadmeHeader(serviceName, domain, port)}
+
+${buildReadmeGettingStarted(domain, serviceName)}
+
+${buildReadmeApiInfo(serviceName, port)}`;
+
+  fs.writeFileSync(path.join(serviceDir, 'README.md'), readme);
+}
+
+/**
+ * Build README header
+ */
+function buildReadmeHeader(serviceName: string, domain: string, port: number): string {
+  return `# ${serviceName} Microservice
 
 Domain: \`${domain}\`
 
@@ -326,9 +339,14 @@ ${serviceName} microservice for Zintrust framework.
 
 \`\`\`
 ${port}
-\`\`\`
+\`\`\``;
+}
 
-## Getting Started
+/**
+ * Build README getting started section
+ */
+function buildReadmeGettingStarted(domain: string, serviceName: string): string {
+  return `## Getting Started
 
 ### Development
 
@@ -348,9 +366,14 @@ npm test
 
 \`\`\`bash
 npm run build
-\`\`\`
+\`\`\``;
+}
 
-## API Endpoints
+/**
+ * Build README API and environment info
+ */
+function buildReadmeApiInfo(serviceName: string, port: number): string {
+  return `## API Endpoints
 
 - \`GET /api/${serviceName}/health\` - Health check
 
@@ -378,10 +401,7 @@ const response = await manager.callService('other-service', {
 
 ## Dependencies
 
-- Zintrust Framework
-`;
-
-  fs.writeFileSync(path.join(serviceDir, 'README.md'), readme);
+- Zintrust Framework`;
 }
 
 async function generateSharedUtils(domain: string): Promise<void> {

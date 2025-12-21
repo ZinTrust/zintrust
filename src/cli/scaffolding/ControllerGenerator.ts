@@ -219,7 +219,7 @@ function buildShowMethod(modelName: string): string {
       const id = req.getParam('id');
       const record = await ${modelName}.find(id);
 
-      if (!record) {
+      if (record === null) {
         return res.setStatus(404).json({ error: 'Not found' });
       }
 
@@ -264,7 +264,7 @@ function buildUpdateMethod(modelName: string): string {
       const body = req.getBody() as Record<string, unknown>;
 
       const record = await ${modelName}.find(id);
-      if (!record) {
+      if (record === null) {
         return res.setStatus(404).json({ error: 'Not found' });
       }
 
@@ -291,7 +291,7 @@ function buildDestroyMethod(modelName: string): string {
       const id = req.getParam('id');
       const record = await ${modelName}.find(id);
 
-      if (!record) {
+      if (record === null) {
         return res.setStatus(404).json({ error: 'Not found' });
       }
 
@@ -339,13 +339,32 @@ import { Response } from '@http/Response';
 import { Controller } from '@http/Controller';
 
 export class ${className} extends Controller {
-  /**
+${buildApiControllerBody()}
+}
+`;
+}
+
+/**
+ * Build API controller body
+ */
+function buildApiControllerBody(): string {
+  return `${buildApiMainHandler()}
+
+${buildApiMethodHandlers()}
+
+${buildHandleErrorMethod()}`;
+}
+
+/**
+ * Build API main handler
+ */
+function buildApiMainHandler(): string {
+  return `  /**
    * API endpoint template
    */
   public async handleRequest(req: Request, res: Response): Promise<void> {
     try {
       const method = req.getMethod();
-      const path = req.getPath();
 
       // Route to appropriate handler
       if (method === 'GET') {
@@ -362,9 +381,14 @@ export class ${className} extends Controller {
     } catch (error) {
       this.handleError(res, error);
     }
-  }
+  }`;
+}
 
-  /**
+/**
+ * Build API method handlers
+ */
+function buildApiMethodHandlers(): string {
+  return `  /**
    * Handle GET requests
    */
   protected async handleGet(_req: Request, res: Response): Promise<void> {
@@ -390,17 +414,7 @@ export class ${className} extends Controller {
    */
   protected async handleDelete(_req: Request, res: Response): Promise<void> {
     res.setStatus(204).send();
-  }
-
-  /**
-   * Handle controller errors
-   */
-  protected handleError(res: Response, error: unknown): void {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    res.setStatus(500).json({ error: message });
-  }
-}
-`;
+  }`;
 }
 
 /**
@@ -515,14 +529,23 @@ import { Controller } from '@http/Controller';
 import { Logger } from '@config/logger';
 
 export class ${className} extends Controller {
-  /**
+${buildWebhookControllerBody()}
+}
+`;
+}
+
+/**
+ * Build Webhook controller body
+ */
+function buildWebhookControllerBody(): string {
+  return `  /**
    * Handle incoming webhook
    */
   public async handle(req: Request, res: Response): Promise<void> {
     try {
       // Verify webhook signature
       const signature = req.getHeader('x-webhook-signature');
-      if (!this.verifySignature(req, signature as string)) {
+      if (this.verifySignature(req, signature as string) === false) {
         return res.setStatus(401).json({ error: 'Invalid signature' });
       }
 
@@ -557,9 +580,7 @@ export class ${className} extends Controller {
   protected handleError(res: Response, error: unknown): void {
     const message = error instanceof Error ? error.message : 'Webhook error';
     res.setStatus(500).json({ error: message });
-  }
-}
-`;
+  }`;
 }
 
 /**

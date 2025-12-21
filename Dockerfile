@@ -17,7 +17,7 @@ COPY src ./src
 RUN npm run build
 
 # Runtime Stage - Production image
-FROM node:20-alpine
+FROM node:20-alpine AS runtime
 
 WORKDIR /app
 

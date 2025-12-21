@@ -16,7 +16,7 @@ class TestModel extends Model {
   }
 }
 
-describe('Model', () => {
+describe('Model Basic Tests', () => {
   let user: TestModel;
 
   beforeEach(() => {
@@ -53,6 +53,18 @@ describe('Model', () => {
 
     const json = user.toJSON();
     expect(json['password']).toBeUndefined();
+  });
+});
+
+describe('Model Advanced Tests', () => {
+  let user: TestModel;
+
+  beforeEach(() => {
+    user = new TestModel({
+      id: 1,
+      name: 'John Doe',
+      email: 'john@example.com',
+    });
   });
 
   it('should track dirty attributes', () => {

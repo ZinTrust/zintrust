@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
 import { ConfigValidator, ValidationResult } from '@cli/config/ConfigValidator';
 import { describe, expect, it } from 'vitest';
 
-describe('ConfigValidator', () => {
+describe('ConfigValidator Basic Validation', () => {
   it('should validate correct config', () => {
     const result = ConfigValidator.validate(DEFAULT_CONFIG);
 
@@ -53,7 +53,9 @@ describe('ConfigValidator', () => {
 
     expect(result.valid).toBe(false);
   });
+});
 
+describe('ConfigValidator Value Validation', () => {
   it('should validate single value correctly', () => {
     const error = ConfigValidator.validateValue('server.port', 3000);
     expect(error).toBeNull();
@@ -90,7 +92,9 @@ describe('ConfigValidator', () => {
     const invalidError = ConfigValidator.validateValue('version', 'latest');
     expect(invalidError).not.toBeNull();
   });
+});
 
+describe('ConfigValidator Formatting and Metadata', () => {
   it('should format validation errors for display', () => {
     const config = { ...DEFAULT_CONFIG, server: { ...DEFAULT_CONFIG.server, port: 500 } };
     const result = ConfigValidator.validate(config);
