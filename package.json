@@ -34,7 +34,7 @@
     "dev": "tsx watch src/index.ts",
     "deploy": "wrangler types && wrangler deploy",
     "git-reload": "git rm -r --cached .  && git add .",
-    "start": "node dist/index.js",
+    "start": "node dist/src/bootstrap.js",
     "type-check": "tsc --noEmit",
     "test:sonar": "vitest run --coverage && sonar-scanner",
     "sonarqube": "sonar-scanner",

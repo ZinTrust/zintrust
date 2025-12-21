@@ -12,6 +12,9 @@ RUN npm ci --ignore-scripts
 # Copy source code
 COPY tsconfig.json ./
 COPY src ./src
+COPY app ./app
+COPY routes ./routes
+COPY bin ./bin
 
 # Build TypeScript to JavaScript
 RUN npm run build
@@ -38,10 +41,14 @@ RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy application files
-COPY docs ./docs
-COPY routes ./routes
-COPY config ./config
+# Copy compiled application folders to root as expected by Application.ts
+COPY --from=builder /app/dist/app ./app
+COPY --from=builder /app/dist/routes ./routes
+COPY --from=builder /app/dist/src/config ./config
+COPY --from=builder /app/dist/src/database ./database
+
+# Copy static assets
+COPY docs-website ./docs-website
 
 # Change ownership to nodejs user
 RUN chown -R nodejs:nodejs /app
@@ -57,4 +64,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 3000
 
 # Start application
-CMD ["node", "dist/bootstrap.js"]
+CMD ["node", "dist/src/bootstrap.js"]
