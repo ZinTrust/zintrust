@@ -228,7 +228,7 @@ export class JwtManager {
       }
       const verify = createVerify('RSA-SHA256'); // NOSONAR
       verify.update(message);
-      const signature = Buffer.from(this.base64Decode(encodedSignature), 'binary');
+      const signature = this.base64DecodeBuffer(encodedSignature);
       return verify.verify(this.rsaPublicKey, signature);
     }
 
@@ -255,9 +255,13 @@ export class JwtManager {
   }
 
   private base64Decode(data: string): string {
+    return this.base64DecodeBuffer(data).toString('utf8');
+  }
+
+  private base64DecodeBuffer(data: string): Buffer {
     const padded = data + '==='.slice((data.length + 3) % 4);
     const base64 = padded.replaceAll('-', '+').replaceAll('_', '/');
-    return Buffer.from(base64, 'base64').toString('utf8');
+    return Buffer.from(base64, 'base64');
   }
 
   private timingSafeEquals(a: string, b: string): boolean {

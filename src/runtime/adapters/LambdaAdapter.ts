@@ -91,7 +91,7 @@ export class LambdaAdapter implements RuntimeAdapter {
     const lambdaEvent = event as LambdaEvent;
 
     // Support both API Gateway v1 and v2 formats, plus ALB
-    const isV2 = 'requestContext' in lambdaEvent && 'node:http' in lambdaEvent.requestContext;
+    const isV2 = 'requestContext' in lambdaEvent && 'http' in lambdaEvent.requestContext;
     const isAlb = 'requestContext' in lambdaEvent && 'elb' in lambdaEvent.requestContext;
 
     let requestData: {

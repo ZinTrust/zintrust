@@ -103,6 +103,14 @@ export class Server {
         filePath = path.join(filePath, 'index.html');
       }
 
+      // Handle clean URLs (try adding .html)
+      if (!fs.existsSync(filePath) && !path.extname(filePath)) {
+        const htmlPath = `${filePath}.html`;
+        if (fs.existsSync(htmlPath)) {
+          filePath = htmlPath;
+        }
+      }
+
       if (fs.existsSync(filePath)) {
         this.sendStaticFile(filePath, response);
         return true;
@@ -118,22 +126,13 @@ export class Server {
    * Map URL path to physical file path
    */
   private mapStaticPath(urlPath: string): string {
-    if (urlPath.startsWith('/doc/react')) {
-      const subPath = urlPath.replace('/doc/react', '') || '/index.html';
-      return path.join(process.cwd(), 'docs-website/react/out', subPath);
-    }
-
-    if (urlPath.startsWith('/doc/vue')) {
-      const subPath = urlPath.replace('/doc/vue', '') || '/index.html';
+    if (urlPath.startsWith('/doc')) {
+      const subPath = urlPath.replace('/doc', '') || '/index.html';
       return path.join(process.cwd(), 'docs-website/vue/.vitepress/dist', subPath);
     }
 
     if (urlPath === '/' || urlPath === '/index.html') {
       return path.join(process.cwd(), 'docs-website/index.html');
-    }
-
-    if (urlPath.startsWith('/react/') || urlPath.startsWith('/vue/')) {
-      return path.join(process.cwd(), 'docs-website', urlPath);
     }
 
     return '';

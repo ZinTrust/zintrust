@@ -1,7 +1,25 @@
 import { Model } from '@orm/Model';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { QueryBuilder } from '@orm/QueryBuilder';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock QueryBuilder
+vi.mock('@orm/QueryBuilder', () => {
+  const MockQueryBuilder = vi.fn(function () {
+    return {
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      first: vi.fn(),
+      get: vi.fn(),
+      getParameters: vi.fn().mockReturnValue([]),
+      toSQL: vi.fn().mockReturnValue('SELECT * FROM table'),
+    };
+  });
+  return { QueryBuilder: MockQueryBuilder };
+});
 
 class TestModel extends Model {
+  protected table = 'test_models';
+
   public setFillable(fillable: string[]): void {
     this.fillable = fillable;
   }
@@ -20,6 +38,7 @@ describe('Model Basic Tests', () => {
   let user: TestModel;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     user = new TestModel({
       id: 1,
       name: 'John Doe',
@@ -60,6 +79,7 @@ describe('Model Advanced Tests', () => {
   let user: TestModel;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     user = new TestModel({
       id: 1,
       name: 'John Doe',
@@ -104,7 +124,7 @@ describe('Model Advanced Tests', () => {
 
     // Mock save to avoid DB connection
     model.save = async (): Promise<boolean> => {
-      const now = new Date();
+      const now = new Date().toISOString();
       model.setAttribute('created_at', now);
       model.setAttribute('updated_at', now);
       return true;
@@ -114,5 +134,59 @@ describe('Model Advanced Tests', () => {
 
     expect(model.getAttribute('created_at')).toBeDefined();
     expect(model.getAttribute('updated_at')).toBeDefined();
+  });
+
+  it('should find model by id', async () => {
+    const mockFirst = vi.fn().mockResolvedValue({ id: 1, name: 'Found' });
+    (QueryBuilder as any).mockImplementation(function () {
+      return {
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        first: mockFirst,
+      };
+    });
+
+    const result = await TestModel.find(1);
+
+    expect(result).toBeInstanceOf(TestModel);
+    expect(result?.getAttribute('name')).toBe('Found');
+    expect(mockFirst).toHaveBeenCalled();
+  });
+
+  it('should return null if model not found', async () => {
+    const mockFirst = vi.fn().mockResolvedValue(null);
+    (QueryBuilder as any).mockImplementation(function () {
+      return {
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        first: mockFirst,
+      };
+    });
+
+    const result = await TestModel.find(999);
+
+    expect(result).toBeNull();
+  });
+
+  it('should get all models', async () => {
+    const mockGet = vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    (QueryBuilder as any).mockImplementation(function () {
+      return {
+        get: mockGet,
+      };
+    });
+
+    const results = await TestModel.all();
+
+    expect(results).toHaveLength(2);
+    expect(results[0]).toBeInstanceOf(TestModel);
+    expect(results[1]).toBeInstanceOf(TestModel);
+    expect(mockGet).toHaveBeenCalled();
+  });
+
+  it('should create model', () => {
+    const model = TestModel.create({ name: 'New' });
+    expect(model).toBeInstanceOf(TestModel);
+    expect(model.getAttribute('name')).toBe('New');
   });
 });

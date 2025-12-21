@@ -50,6 +50,36 @@ Run your migrations on the production database:
 zin migrate --force
 ```
 
+## Bundle Optimization
+
+For cloud deployments (AWS Lambda, Cloudflare Workers), bundle size is critical. Zintrust includes a built-in **Bundle Optimizer** to reduce your deployment artifact size.
+
+The optimizer performs:
+
+- **Tree-shaking**: Removes unused code and dependencies.
+- **Platform-specific pruning**: Removes adapters not needed for the target platform (e.g., removing SQL drivers for Cloudflare).
+- **Minification**: Compresses JavaScript files.
+
+To run the optimizer:
+
+```bash
+# Optimize for AWS Lambda
+npm run build:lambda
+
+# Optimize for Cloudflare Workers
+npm run build:cloudflare
+```
+
+You can also run the optimizer manually:
+
+```bash
+# Analyze current bundle
+npx tsx src/builder/BundleOptimizer.ts analyze
+
+# Optimize for specific platform
+npx tsx src/builder/BundleOptimizer.ts lambda
+```
+
 ## Static Assets
 
 If your application serves static assets, it's recommended to use a reverse proxy like **Nginx** to serve them directly for better performance.

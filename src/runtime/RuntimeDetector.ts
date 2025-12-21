@@ -96,14 +96,14 @@ function isLambda(): boolean {
  */
 function isCloudflare(): boolean {
   // @ts-expect-error - Cloudflare Workers global
-  return globalThis.ENVIRONMENT !== 'undefined' && globalThis.CF !== 'undefined';
+  return globalThis.CF !== undefined;
 }
 
 /**
  * Check if running on Deno
  */
 function isDeno(): boolean {
-  return (globalThis as unknown as { Deno: unknown }).Deno !== 'undefined';
+  return (globalThis as unknown as { Deno: unknown }).Deno !== undefined;
 }
 
 /**

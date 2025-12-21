@@ -230,7 +230,7 @@ export class Router {
     let regexPath = path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
     // Replace parameters like :id with capture groups
-    regexPath = regexPath.replaceAll(/\\:([a-zA-Z_]\w*)/g, (_, paramName) => {
+    regexPath = regexPath.replaceAll(/:([a-zA-Z_]\w*)/g, (_, paramName) => {
       paramNames.push(paramName);
       return '([^/]+)';
     });
