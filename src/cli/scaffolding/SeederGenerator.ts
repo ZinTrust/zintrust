@@ -243,7 +243,7 @@ function buildSeederWithStatesMethod(
  * Build seeder with relationships method
  */
 function buildSeederWithRelationshipsMethod(
-  options: SeederOptions,
+  _options: SeederOptions,
   count: number,
   factoryName: string,
   modelLower: string,
