@@ -32,7 +32,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts', 'app/**/*.d.ts', 'routes/**/*.d.ts'],
       lines: 90,

@@ -23,7 +23,6 @@ out/
 .pnp
 .pnp.js
 *.tsbuildinfo
-sonar-project.properties
 .sonarlint/
 .github/copilot-instructions.md
 .github/copilot-instructions-todo.md

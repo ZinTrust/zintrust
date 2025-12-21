@@ -7,7 +7,7 @@ import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
 import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const TEST_CONFIG_PATH = '/tmp/test-config-manager.json';
+const TEST_CONFIG_PATH = '/tmp/test-config-manager.json'; // NOSONAR
 
 describe('ConfigManager Basic Operations', () => {
   beforeEach(async () => {

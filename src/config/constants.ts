@@ -46,7 +46,7 @@ export const ENV_KEYS = {
   DB_PORT: 'DB_PORT',
   DB_DATABASE: 'DB_DATABASE',
   DB_USERNAME: 'DB_USERNAME',
-  DB_PASSWORD: 'DB_PASSWORD',
+  DB_PASSWORD: 'DB_PASSWORD', // NOSONARQUBE
 } as const;
 
 export const DEFAULTS = {
