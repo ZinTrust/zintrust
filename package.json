@@ -111,7 +111,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.5.3",
-    "sonarqube-scanner": "^5.0.0",
+    "sonarqube-scanner": "^4.3.2",
     "tsc-alias": "^1.8.16",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",

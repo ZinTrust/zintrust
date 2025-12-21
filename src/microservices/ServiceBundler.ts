@@ -186,7 +186,7 @@ export async function createServiceImage(
 WORKDIR /app
 
 COPY package.json ./
-RUN npm install --production
+RUN npm install --production --ignore-scripts
 
 COPY dist ./dist
 
