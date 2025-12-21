@@ -254,7 +254,7 @@ jobs:
 
       - name: Generate SBOM and update dependency graph
         run: |
-          npx @cyclonedx/npm --output-file sbom.json
+          npx @cyclonedx/cyclonedx-npm --output-file sbom.json
           echo "✅ SBOM generated: sbom.json"
 
       - name: Upload SBOM artifacts

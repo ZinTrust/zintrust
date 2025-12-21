@@ -37,35 +37,34 @@ export function sanitizeHtml(html: string): string {
   }
 
   // Remove script tags and content
-  let sanitized = html.replaceAll(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  let sanitized = html.replaceAll(/<script\b[\s\S]*?<\/script>/gi, '');
 
   // Remove iframe, object, embed, and base tags
-  sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[^>]*>/gi, '');
+  sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[\s\S]*?>/gi, '');
   sanitized = sanitized.replaceAll(/<\/(?:iframe|object|embed|base)>/gi, '');
 
   // Remove event handlers (on*)
-  sanitized = sanitized.replaceAll(/\s*on\w+\s*=\s*['"][^'"]*['"]/gi, '');
-  sanitized = sanitized.replaceAll(/\s*on\w+\s*=\s*[^\s>]*/gi, '');
+  sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi, '');
 
   // Remove javascript: and data: URIs in attributes
   sanitized = sanitized.replaceAll(
-    /\s*(?:href|src|action|formaction|xlink:href)\s*=\s*['"]\s*(?:javascript|data):[^'"]*['"]/gi,
+    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*['"]\s*(?:javascript|data):[\s\S]*?['"]/gi,
     ''
   );
   sanitized = sanitized.replaceAll(
-    /\s*(?:href|src|action|formaction|xlink:href)\s*=\s*(?:javascript|data):[^\s>]*/gi,
+    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*(?:javascript|data):[^\s>]*?(\s|>|$)/gi,
     ''
   );
 
   // Remove style tags and style attributes with potentially dangerous content
-  sanitized = sanitized.replaceAll(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-  sanitized = sanitized.replaceAll(/\s*style\s*=\s*['"][^'"]*['"]/gi, '');
+  sanitized = sanitized.replaceAll(/<style\b[\s\S]*?<\/style>/gi, '');
+  sanitized = sanitized.replaceAll(/\bstyle\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi, '');
 
   // Remove form elements
-  sanitized = sanitized.replaceAll(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '');
+  sanitized = sanitized.replaceAll(/<form\b[\s\S]*?<\/form>/gi, '');
 
   // Remove object and embed tags
-  sanitized = sanitized.replaceAll(/<(?:object|embed|applet|meta|link|base)\b[^>]*>/gi, '');
+  sanitized = sanitized.replaceAll(/<(?:object|embed|applet|meta|link|base)\b[\s\S]*?>/gi, '');
 
   return sanitized.trim();
 }

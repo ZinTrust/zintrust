@@ -135,8 +135,8 @@ describe('Validator Advanced Rules', () => {
       return typeof val === 'string' && val.length >= 8;
     });
 
-    expect(() => Validator.validate({ password: 'short' }, schema)).toThrow();
-    expect(() => Validator.validate({ password: 'longenough' }, schema)).not.toThrow();
+    expect(() => Validator.validate({ password: 'short' }, schema)).toThrow(); // NOSONAR
+    expect(() => Validator.validate({ password: 'longenough' }, schema)).not.toThrow(); // NOSONAR
   });
 });
 
@@ -180,7 +180,7 @@ describe('Validator Helpers and Multiple Rules', () => {
   it('should validate all rules on field', () => {
     const schema = new Schema().required('password').string('password').minLength('password', 8);
 
-    expect(() => Validator.validate({ password: 'short' }, schema)).toThrow();
-    expect(() => Validator.validate({ password: 'longenough' }, schema)).not.toThrow();
+    expect(() => Validator.validate({ password: 'short' }, schema)).toThrow(); // NOSONAR
+    expect(() => Validator.validate({ password: 'longenough' }, schema)).not.toThrow(); // NOSONAR
   });
 });
