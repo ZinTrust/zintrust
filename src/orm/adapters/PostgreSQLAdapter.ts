@@ -11,6 +11,7 @@ import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
  * Requires: npm install pg
  */
 export class PostgreSQLAdapter extends BaseAdapter {
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(config: DatabaseConfig) {
     super(config);
   }

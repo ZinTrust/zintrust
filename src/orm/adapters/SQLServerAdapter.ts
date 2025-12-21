@@ -11,6 +11,7 @@ import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
  * Requires: npm install mssql
  */
 export class SQLServerAdapter extends BaseAdapter {
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(config: DatabaseConfig) {
     super(config);
   }
@@ -22,6 +23,7 @@ export class SQLServerAdapter extends BaseAdapter {
       this.connected = true;
       Logger.info(`✓ SQL Server connected (${this.config.host}:${this.config.port || 1433})`);
     } catch (error) {
+      Logger.error('Failed to connect to SQL Server', error);
       throw new Error(`Failed to connect to SQL Server: ${String(error)}`);
     }
   }

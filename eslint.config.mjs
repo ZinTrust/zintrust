@@ -18,9 +18,6 @@ export default defineConfig(
       '*.log',
       '.DS_Store',
       'wrangler.jsonc',
-      'src/functions/**',
-      'src/orm/adapters/**',
-      'src/runtime/adapters/**',
       'docs-website/**',
       'scripts/**',
       'vitest.config.ts',
@@ -69,9 +66,9 @@ export default defineConfig(
         'error',
         {
           selector:
-            "CatchClause:not(:has(CallExpression[callee.object.name='Logger'][callee.property.name='error']))",
+            "CatchClause:not(:has(CallExpression[callee.object.name='Logger'][callee.property.name='error'])):not(:has(CallExpression[callee.object.type='MemberExpression'][callee.object.property.name='logger'][callee.property.name='error']))",
           message:
-            'Every catch block must include a Logger.error() call to ensure proper error tracking.',
+            'Every catch block must include a Logger.error() or this.logger?.error() call to ensure proper error tracking.',
         },
       ],
     },
@@ -100,6 +97,89 @@ export default defineConfig(
     files: ['src/cli/logger/Logger.ts', 'tests/**/*.ts'],
     rules: {
       'no-restricted-syntax': 'off',
+    },
+  },
+  {
+    files: ['src/orm/adapters/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.es2022,
+        Database: 'readonly', // better-sqlite3
+        Statement: 'readonly',
+        Connection: 'readonly', // mysql2
+        Pool: 'readonly',
+        Client: 'readonly', // pg
+        ConnectionPool: 'readonly', // mssql
+        D1Database: 'readonly', // Cloudflare D1
+        D1Result: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+    },
+  },
+  {
+    files: ['src/runtime/adapters/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.es2022,
+        // AWS Lambda
+        AWSLambda: 'readonly',
+        context: 'readonly',
+        event: 'readonly',
+        callback: 'readonly',
+        // Cloudflare Workers
+        Cloudflare: 'readonly',
+        FetchEvent: 'readonly',
+        ExtendableEvent: 'readonly',
+        // Deno
+        Deno: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+    },
+  },
+  {
+    files: ['src/functions/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.es2022,
+        ...globals.browser,
+        // AWS Lambda
+        AWSLambda: 'readonly',
+        context: 'readonly',
+        event: 'readonly',
+        callback: 'readonly',
+        // Cloudflare Workers
+        Cloudflare: 'readonly',
+        FetchEvent: 'readonly',
+        ExtendableEvent: 'readonly',
+        // Deno
+        Deno: 'readonly',
+        // Database connections
+        Database: 'readonly',
+        Statement: 'readonly',
+        Connection: 'readonly',
+        Pool: 'readonly',
+        Client: 'readonly',
+        ConnectionPool: 'readonly',
+        D1Database: 'readonly',
+        D1Result: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'warn',
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+      'no-console': 'off',
     },
   },
   {

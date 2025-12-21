@@ -14,6 +14,7 @@ export class SQLiteAdapter extends BaseAdapter {
   private readonly statements: Map<string, unknown> = new Map();
   private readonly data: Map<string, Record<string, unknown>[]> = new Map();
 
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(config: DatabaseConfig) {
     super(config);
   }

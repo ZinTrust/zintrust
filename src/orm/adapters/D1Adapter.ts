@@ -6,14 +6,27 @@
 import { Logger } from '@config/logger';
 import { BaseAdapter, DatabaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
 
+interface D1Database {
+  prepare: (sql: string) => D1Statement;
+}
+
+interface D1Statement {
+  bind: (...params: unknown[]) => D1StatementBound;
+}
+
+interface D1StatementBound {
+  all: () => Promise<{ results: Record<string, unknown>[] }>;
+  first: () => Promise<Record<string, unknown> | null>;
+}
+
 export class D1Adapter extends BaseAdapter {
-  private readonly db: any;
+  private readonly db: D1Database | undefined;
 
   constructor(config: DatabaseConfig) {
     super(config);
     // In Cloudflare Workers, the D1 database is usually bound to a variable in the environment
     // We expect it to be passed in the config or available globally
-    this.db = (globalThis as any).env?.DB;
+    this.db = (globalThis as unknown as { env?: { DB?: D1Database } }).env?.DB;
   }
 
   public async connect(): Promise<void> {
@@ -44,8 +57,11 @@ export class D1Adapter extends BaseAdapter {
         rows: results || [],
         rowCount: results?.length || 0,
       };
-    } catch (error: any) {
-      Logger.error(`D1 Query Error: ${error.message}`, { sql, parameters });
+    } catch (error) {
+      Logger.error(`D1 Query Error: ${error instanceof Error ? error.message : String(error)}`, {
+        sql,
+        parameters,
+      });
       throw error;
     }
   }
@@ -64,8 +80,11 @@ export class D1Adapter extends BaseAdapter {
         .bind(...parameters)
         .first();
       return result || null;
-    } catch (error: any) {
-      Logger.error(`D1 QueryOne Error: ${error.message}`, { sql, parameters });
+    } catch (error) {
+      Logger.error(`D1 QueryOne Error: ${error instanceof Error ? error.message : String(error)}`, {
+        sql,
+        parameters,
+      });
       throw error;
     }
   }

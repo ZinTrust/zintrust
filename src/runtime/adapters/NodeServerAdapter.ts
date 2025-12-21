@@ -129,7 +129,7 @@ export class NodeServerAdapter implements RuntimeAdapter {
 
     // Collect request body
     req.on('data', (chunk: Buffer) => {
-      const maxSize = this.config.maxBodySize || 10 * 1024 * 1024;
+      const maxSize = this.config.maxBodySize ?? 10 * 1024 * 1024;
       if (chunks.length * chunk.length > maxSize) {
         res.writeHead(413, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Payload Too Large' }));
@@ -144,7 +144,7 @@ export class NodeServerAdapter implements RuntimeAdapter {
         body = chunks.length > 0 ? Buffer.concat(chunks) : null;
 
         // Set request timeout
-        const timeout = this.config.timeout || 30000;
+        const timeout = this.config.timeout ?? 30000;
         const timeoutHandle = setTimeout(() => {
           res.writeHead(504, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Gateway Timeout' }));
@@ -164,6 +164,7 @@ export class NodeServerAdapter implements RuntimeAdapter {
           remoteAddr: req.socket.remoteAddress,
         });
       } catch (error) {
+        this.logger?.error('Request processing error', error as Error);
         this.handleError(res, error as Error);
       }
     });
@@ -209,11 +210,20 @@ export class NodeServerAdapter implements RuntimeAdapter {
 function createDefaultLogger() {
   return {
     debug: (msg: string, data?: unknown) =>
-      Logger.debug(`[Node.js] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.debug(
+        `[Node.js] ${msg}`,
+        data !== undefined && data !== null ? JSON.stringify(data) : ''
+      ),
     info: (msg: string, data?: unknown) =>
-      Logger.info(`[Node.js] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.info(
+        `[Node.js] ${msg}`,
+        data !== undefined && data !== null ? JSON.stringify(data) : ''
+      ),
     warn: (msg: string, data?: unknown) =>
-      Logger.warn(`[Node.js] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.warn(
+        `[Node.js] ${msg}`,
+        data !== undefined && data !== null ? JSON.stringify(data) : ''
+      ),
     error: (msg: string, err?: Error) => Logger.error(`[Node.js] ${msg}`, err?.message),
   };
 }

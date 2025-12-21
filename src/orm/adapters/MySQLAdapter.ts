@@ -13,6 +13,7 @@ import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
 export class MySQLAdapter extends BaseAdapter {
   private readonly pool: unknown = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(config: DatabaseConfig) {
     super(config);
   }
@@ -55,17 +56,21 @@ export class MySQLAdapter extends BaseAdapter {
   }
 
   public async transaction<T>(callback: (adapter: MySQLAdapter) => Promise<T>): Promise<T> {
-    const connection = await (this.pool as any)?.getConnection();
+    type Connection = { query: (sql: string) => Promise<void>; release: () => void };
+    const connection = await (
+      this.pool as unknown as { getConnection?: () => Promise<Connection> }
+    )?.getConnection?.();
     try {
-      await connection?.query('START TRANSACTION');
+      await (connection as unknown as Connection | undefined)?.query?.('START TRANSACTION');
       const result = await callback(this);
-      await connection?.query('COMMIT');
+      await (connection as unknown as Connection | undefined)?.query?.('COMMIT');
       return result;
     } catch (error) {
-      await connection?.query('ROLLBACK');
+      Logger.error('Transaction error', error instanceof Error ? error : new Error(String(error)));
+      await (connection as unknown as Connection | undefined)?.query?.('ROLLBACK');
       throw error;
     } finally {
-      connection?.release();
+      (connection as unknown as Connection | undefined)?.release?.();
     }
   }
 
