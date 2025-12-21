@@ -24,7 +24,7 @@ export class SQLiteAdapter extends BaseAdapter {
     this.data.clear();
     this.statements.clear();
     this.connected = true;
-    Logger.info(`✓ SQLite connected (${this.config.database || ':memory:'})`);
+    Logger.info(`✓ SQLite connected (${this.config.database ?? ':memory:'})`);
   }
 
   public async disconnect(): Promise<void> {

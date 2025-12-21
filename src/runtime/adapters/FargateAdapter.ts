@@ -63,7 +63,7 @@ export class FargateAdapter implements RuntimeAdapter {
   }
 
   private handleRequestData(chunk: Buffer, chunks: Buffer[], res: ServerResponse): void {
-    if (chunks.length * chunk.length > (this.config.maxBodySize || 10 * 1024 * 1024)) {
+    if (chunks.length * chunk.length > (this.config.maxBodySize ?? 10 * 1024 * 1024)) {
       res.writeHead(413, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Payload Too Large' }));
       return;
@@ -96,7 +96,7 @@ export class FargateAdapter implements RuntimeAdapter {
     res: ServerResponse,
     body: Buffer | null
   ): Promise<void> {
-    const timeout = this.config.timeout || 30000;
+    const timeout = this.config.timeout ?? 30000;
     const timeoutHandle = setTimeout(() => {
       res.writeHead(504, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Gateway Timeout' }));
@@ -144,7 +144,7 @@ export class FargateAdapter implements RuntimeAdapter {
     throw new Error('Fargate adapter uses native Node.js HTTP server');
   }
 
-  getLogger() {
+  getLogger(): NonNullable<AdapterConfig['logger']> {
     return (
       this.logger || {
         debug: (msg: string) => Logger.debug(`[Fargate] ${msg}`),
@@ -160,7 +160,14 @@ export class FargateAdapter implements RuntimeAdapter {
     return true;
   }
 
-  getEnvironment() {
+  getEnvironment(): {
+    nodeEnv: string;
+    runtime: string;
+    dbConnection: string;
+    dbHost?: string;
+    dbPort?: number;
+    [key: string]: unknown;
+  } {
     return {
       nodeEnv: Env.NODE_ENV,
       runtime: 'fargate',
@@ -174,11 +181,11 @@ export class FargateAdapter implements RuntimeAdapter {
 function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
-      Logger.debug(`[Fargate] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.debug(`[Fargate] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     info: (msg: string, data?: unknown) =>
-      Logger.info(`[Fargate] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.info(`[Fargate] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     warn: (msg: string, data?: unknown) =>
-      Logger.warn(`[Fargate] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.warn(`[Fargate] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     error: (msg: string, err?: Error) => Logger.error(`[Fargate] ${msg}`, err?.message),
   };
 }

@@ -203,20 +203,23 @@ export class CloudflareAdapter implements RuntimeAdapter {
     const res = {
       statusCode: 200,
       headers: responseData.headers,
-      writeHead: function (statusCode: number, headers?: Record<string, string | string[]>) {
+      writeHead: function (
+        statusCode: number,
+        headers?: Record<string, string | string[]>
+      ): object {
         responseData.statusCode = statusCode;
         if (headers) {
           responseData.headers = { ...responseData.headers, ...headers };
         }
         return this;
       },
-      end: function (chunk?: string | Buffer) {
-        if (chunk) {
+      end: function (chunk?: string | Buffer): object {
+        if (chunk !== undefined) {
           responseData.body = chunk;
         }
         return this;
       },
-      write: function (chunk: string | Buffer) {
+      write: function (chunk: string | Buffer): boolean {
         responseData.body = chunk;
         return true;
       },

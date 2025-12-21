@@ -47,7 +47,7 @@ export class DenoAdapter implements RuntimeAdapter {
       const { res, responseData } = this.createMockHttpObjects(request);
 
       // Set request timeout
-      const timeout = this.config.timeout || 30000;
+      const timeout = this.config.timeout ?? 30000;
       const timeoutHandle = setTimeout(() => {
         responseData.statusCode = 504;
         responseData.body = JSON.stringify({
@@ -109,7 +109,7 @@ export class DenoAdapter implements RuntimeAdapter {
       path: url.pathname,
       headers,
       query: Object.fromEntries(url.searchParams.entries()),
-      remoteAddr: headers['x-forwarded-for']?.toString().split(',')[0] || '0.0.0.0',
+      remoteAddr: headers['x-forwarded-for']?.toString().split(',')[0] ?? '0.0.0.0',
     };
   }
 
@@ -124,8 +124,12 @@ export class DenoAdapter implements RuntimeAdapter {
       }
     }
 
-    const body =
-      typeof response.body === 'string' ? response.body : response.body?.toString('utf-8') || '';
+    let body = '';
+    if (typeof response.body === 'string') {
+      body = response.body;
+    } else if (response.body !== null && response.body !== undefined) {
+      body = response.body.toString('utf-8');
+    }
 
     return new Response(body, {
       status: response.statusCode,
@@ -163,13 +167,13 @@ export class DenoAdapter implements RuntimeAdapter {
     [key: string]: unknown;
   } {
     // @ts-ignore - Deno.env is available in Deno runtime
-    const env = Deno.env.toObject?.() || {};
+    const env = (Deno.env.toObject?.() ?? {}) as Record<string, string>;
     return {
-      nodeEnv: env.DENO_ENV || 'production',
+      nodeEnv: env['DENO_ENV'] ?? 'production',
       runtime: 'deno',
-      dbConnection: env.DB_CONNECTION || 'postgresql',
-      dbHost: env.DB_HOST,
-      dbPort: env.DB_PORT ? Number.parseInt(env.DB_PORT, 10) : undefined,
+      dbConnection: env['DB_CONNECTION'] ?? 'postgresql',
+      dbHost: env['DB_HOST'],
+      dbPort: env['DB_PORT'] ? Number.parseInt(env['DB_PORT'], 10) : undefined,
     };
   }
 
@@ -186,7 +190,7 @@ export class DenoAdapter implements RuntimeAdapter {
    */
   getEnvVar(key: string, defaultValue?: string): string {
     // @ts-ignore - Deno.env is available in Deno runtime
-    return Deno.env.get?.(key) || defaultValue || '';
+    return Deno.env.get?.(key) ?? defaultValue ?? '';
   }
 
   /**
@@ -229,23 +233,26 @@ export class DenoAdapter implements RuntimeAdapter {
     const res = {
       statusCode: 200,
       headers: responseData.headers,
-      setHeader: function (key: string, value: string | string[]) {
+      setHeader: function (key: string, value: string | string[]): object {
         responseData.headers[key.toLowerCase()] = value;
         return this;
       },
-      writeHead: function (statusCode: number, headers?: Record<string, string | string[]>) {
+      writeHead: function (
+        statusCode: number,
+        headers?: Record<string, string | string[]>
+      ): object {
         responseData.statusCode = statusCode;
         if (headers) {
           responseData.headers = { ...responseData.headers, ...headers };
         }
         return this;
       },
-      end: function (chunk: EnvBody) {
-        if (chunk) {
+      end: function (chunk: EnvBody): void {
+        if (chunk !== null && chunk !== undefined && chunk !== '') {
           responseData.body = chunk;
         }
       },
-      write: function (chunk: string | Buffer) {
+      write: function (chunk: string | Buffer): boolean {
         responseData.body = chunk;
         return true;
       },
@@ -258,11 +265,11 @@ export class DenoAdapter implements RuntimeAdapter {
 function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
-      Logger.debug(`[Deno] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.debug(`[Deno] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     info: (msg: string, data?: unknown) =>
-      Logger.info(`[Deno] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.info(`[Deno] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     warn: (msg: string, data?: unknown) =>
-      Logger.warn(`[Deno] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.warn(`[Deno] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     error: (msg: string, err?: Error) => Logger.error(`[Deno] ${msg}`, err?.message),
   };
 }

@@ -54,8 +54,8 @@ export class D1Adapter extends BaseAdapter {
       const { results } = await stmt.all();
 
       return {
-        rows: results || [],
-        rowCount: results?.length || 0,
+        rows: results,
+        rowCount: results.length,
       };
     } catch (error) {
       Logger.error(`D1 Query Error: ${error instanceof Error ? error.message : String(error)}`, {

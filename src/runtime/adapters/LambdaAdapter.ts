@@ -115,7 +115,7 @@ export class LambdaAdapter implements RuntimeAdapter {
       method: requestData.method.toUpperCase(),
       path: requestData.path,
       headers: this.normalizeHeaders(requestData.headers),
-      body: requestData.body ? Buffer.from(requestData.body) : null,
+      body: requestData.body === null ? null : Buffer.from(requestData.body),
       query: requestData.query,
       remoteAddr: requestData.remoteAddr,
     };
@@ -132,13 +132,13 @@ export class LambdaAdapter implements RuntimeAdapter {
     body: string | null;
     remoteAddr: string;
   } {
-    const headers = event.headers || {};
+    const headers = event.headers ?? {};
     return {
       method: event.requestContext.http.method,
       path: event.rawPath,
       headers,
-      query: event.queryStringParameters || {},
-      body: event.body || null,
+      query: event.queryStringParameters ?? {},
+      body: event.body ?? null,
       remoteAddr: this.getRemoteAddrV2(event, headers),
     };
   }
@@ -154,13 +154,13 @@ export class LambdaAdapter implements RuntimeAdapter {
     body: string | null;
     remoteAddr: string;
   } {
-    const headers = event.headers || {};
+    const headers = event.headers ?? {};
     return {
       method: event.httpMethod,
       path: event.path,
       headers,
-      query: event.queryStringParameters || {},
-      body: event.body || null,
+      query: event.queryStringParameters ?? {},
+      body: event.body ?? null,
       remoteAddr: this.getRemoteAddrAlb(headers),
     };
   }
@@ -176,13 +176,13 @@ export class LambdaAdapter implements RuntimeAdapter {
     body: string | null;
     remoteAddr: string;
   } {
-    const headers = event.headers || {};
+    const headers = event.headers ?? {};
     return {
       method: event.httpMethod,
       path: event.path,
       headers,
-      query: event.queryStringParameters || {},
-      body: event.body || null,
+      query: event.queryStringParameters ?? {},
+      body: event.body ?? null,
       remoteAddr: this.getRemoteAddrV1(headers),
     };
   }
@@ -207,33 +207,44 @@ export class LambdaAdapter implements RuntimeAdapter {
     event: LambdaEventV2,
     headers: Record<string, string | string[]>
   ): string {
-    return (
-      event.requestContext.http.sourceIp ||
-      headers['x-forwarded-for']?.toString().split(',')[0] ||
-      '0.0.0.0'
-    );
+    if (event.requestContext.http.sourceIp !== '') {
+      return event.requestContext.http.sourceIp;
+    }
+    const forwarded = headers['x-forwarded-for']?.toString().split(',')[0];
+    if (forwarded !== undefined && forwarded !== '') {
+      return forwarded;
+    }
+    return '0.0.0.0';
   }
 
   /**
    * Get remote address for ALB
    */
   private getRemoteAddrAlb(headers: Record<string, string | string[]>): string {
-    return (
-      headers['x-forwarded-for']?.toString().split(',')[0] ||
-      headers['x-real-ip']?.toString() ||
-      '0.0.0.0'
-    );
+    const forwarded = headers['x-forwarded-for']?.toString().split(',')[0];
+    if (forwarded !== undefined && forwarded !== '') {
+      return forwarded;
+    }
+    const realIp = headers['x-real-ip']?.toString();
+    if (realIp !== undefined && realIp !== '') {
+      return realIp;
+    }
+    return '0.0.0.0';
   }
 
   /**
    * Get remote address for API Gateway v1
    */
   private getRemoteAddrV1(headers: Record<string, string | string[]>): string {
-    return (
-      headers['X-Forwarded-For']?.toString().split(',')[0] ||
-      headers['x-forwarded-for']?.toString().split(',')[0] ||
-      '0.0.0.0'
-    );
+    const forwardedCap = headers['X-Forwarded-For']?.toString().split(',')[0];
+    if (forwardedCap !== undefined && forwardedCap !== '') {
+      return forwardedCap;
+    }
+    const forwarded = headers['x-forwarded-for']?.toString().split(',')[0];
+    if (forwarded !== undefined && forwarded !== '') {
+      return forwarded;
+    }
+    return '0.0.0.0';
   }
 
   formatResponse(response: PlatformResponse): unknown {
@@ -242,8 +253,10 @@ export class LambdaAdapter implements RuntimeAdapter {
       statusCode: response.statusCode,
       headers: response.headers,
       body:
-        typeof response.body === 'string' ? response.body : response.body?.toString('utf-8') || '',
-      isBase64Encoded: response.isBase64Encoded || false,
+        typeof response.body === 'string'
+          ? response.body
+          : (response.body?.toString('utf-8') ?? ''),
+      isBase64Encoded: response.isBase64Encoded ?? false,
     };
   }
 
@@ -287,9 +300,9 @@ export class LambdaAdapter implements RuntimeAdapter {
 
   private parseBody(event: LambdaEvent): Buffer | null {
     const body = event.body;
-    if (!body) return null;
+    if (body === null || body === undefined || body === '') return null;
 
-    if (event.isBase64Encoded && typeof body === 'string') {
+    if (event.isBase64Encoded === true && typeof body === 'string') {
       return Buffer.from(body, 'base64');
     }
 
@@ -316,7 +329,10 @@ export class LambdaAdapter implements RuntimeAdapter {
     req.method = request.method;
     req.url = request.path;
     req.headers = request.headers;
-    (req as unknown as { remoteAddress: string }).remoteAddress = request.remoteAddr || '0.0.0.0';
+    (req as unknown as { remoteAddress: string }).remoteAddress =
+      request.remoteAddr !== undefined && request.remoteAddr !== ''
+        ? request.remoteAddr
+        : '0.0.0.0';
 
     // Create mock response object
     const res = new ServerResponse(req);
@@ -334,16 +350,16 @@ export class LambdaAdapter implements RuntimeAdapter {
       return res;
     };
 
-    res.end = function (chunk?: unknown, _encodingOrCb?: unknown, _cb?: unknown) {
+    res.end = function (chunk?: unknown, _encodingOrCb?: unknown, _cb?: unknown): ServerResponse {
       if (typeof chunk === 'function') {
         (chunk as () => void)();
-      } else if (chunk) {
+      } else if (chunk !== null && chunk !== undefined) {
         responseData.body = chunk as string | Buffer;
       }
       return res;
     };
 
-    res.write = function (chunk: string | Buffer) {
+    res.write = function (chunk: string | Buffer): boolean {
       responseData.body = chunk;
       return true;
     };
@@ -395,11 +411,11 @@ type LambdaEvent = LambdaEventV1 | LambdaEventV2 | LambdaEventAlb;
 function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
-      Logger.debug(`[Lambda] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.debug(`[Lambda] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     info: (msg: string, data?: unknown) =>
-      Logger.info(`[Lambda] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.info(`[Lambda] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     warn: (msg: string, data?: unknown) =>
-      Logger.warn(`[Lambda] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.warn(`[Lambda] ${msg}`, data === undefined ? '' : JSON.stringify(data)),
     error: (msg: string, err?: Error) => Logger.error(`[Lambda] ${msg}`, err?.message),
   };
 }

@@ -21,7 +21,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
       // In production: const pg = require('pg');
       // this.pool = new pg.Pool({...config});
       this.connected = true;
-      Logger.info(`✓ PostgreSQL connected (${this.config.host}:${this.config.port || 5432})`);
+      Logger.info(`✓ PostgreSQL connected (${this.config.host}:${this.config.port ?? 5432})`);
     } catch (error) {
       Logger.error('Failed to connect to PostgreSQL', error);
       throw new Error(`Failed to connect to PostgreSQL: ${String(error)}`);

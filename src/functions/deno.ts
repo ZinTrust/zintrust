@@ -47,7 +47,7 @@ const deno = async (request: Request): Promise<Response> => {
 
     // Create Deno adapter
     const adapter = new DenoAdapter({
-      handler: async (req, res) => {
+      handler: async (req, res): Promise<void> => {
         // Process through Zintrust kernel
         await app.handleRequest(req, res);
       },
@@ -80,7 +80,7 @@ export default deno;
  * Uncomment to test locally with: deno run --allow-net functions/deno.ts
  */
 // @ts-ignore - Deno specific property
-if (import.meta.main) {
+if ((import.meta as unknown as Record<string, unknown>).main === true) {
   const adapter = new DenoAdapter({
     handler: async (req, res): Promise<void> => {
       // Process through Zintrust kernel
@@ -90,9 +90,9 @@ if (import.meta.main) {
   });
 
   // @ts-ignore - Deno is available in Deno runtime
-  const port = Number.parseInt(Deno.env.get('PORT') || '3000', 10);
+  const port = Number.parseInt((Deno.env.get('PORT') as string | undefined) ?? '3000', 10);
   // @ts-ignore - Deno is available in Deno runtime
-  const host = Deno.env.get('HOST') || '0.0.0.0';
+  const host = (Deno.env.get('HOST') as string | undefined) ?? '0.0.0.0';
 
   Logger.info(`Starting Deno server on ${host}:${port}...`);
 
