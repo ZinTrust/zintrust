@@ -16,11 +16,6 @@ const mockQueryBuilder = {
   join: Mock;
 };
 
-// const mockModel = {
-//   query: vi.fn().mockReturnValue(mockQueryBuilder),
-//   getAttribute: vi.fn(),
-// } as unknown as Model;
-
 // Mock class for RelatedModel
 class RelatedModel extends Model {
   static query() {

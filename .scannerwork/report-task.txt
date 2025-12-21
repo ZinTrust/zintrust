@@ -1,0 +1,8 @@
+organization=zintrust
+projectKey=ZinTrust_ZinTrust
+serverUrl=https://sonarcloud.io
+serverVersion=8.0.0.77855
+branch=master
+dashboardUrl=https://sonarcloud.io/dashboard?id=ZinTrust_ZinTrust&branch=master
+ceTaskId=AZtBwv8jjMMRRFGS01Wz
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZtBwv8jjMMRRFGS01Wz

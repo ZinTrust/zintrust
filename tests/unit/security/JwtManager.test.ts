@@ -73,7 +73,7 @@ describe('JwtManager', () => {
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
     });
 
-    jwtManager.setRsaKeys(privateKey as string, publicKey as string);
+    jwtManager.setRsaKeys(privateKey, publicKey);
 
     const payload = { userId: 789 };
     const token = jwtManager.sign(payload, { algorithm: 'RS256' });

@@ -66,7 +66,8 @@ describe('Server', () => {
       return { listen: vi.fn() };
     });
 
-    new Server(mockApp);
+    const server = new Server(mockApp);
+    expect(server.getHttpServer()).toBeDefined();
 
     // Simulate request
     if (requestHandler) {

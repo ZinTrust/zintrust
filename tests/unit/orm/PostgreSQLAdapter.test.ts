@@ -9,7 +9,7 @@ describe('PostgreSQLAdapter', () => {
     port: 5432,
     database: 'test_db',
     username: 'user',
-    password: 'password',
+    password: 'password', // NOSONAR
   };
   const adapter = new PostgreSQLAdapter(config);
 

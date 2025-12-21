@@ -26,7 +26,7 @@ describe('CloudflareAdapter', () => {
     it('should handle Cloudflare Request object', async () => {
       const request = new Request('http://localhost/test', {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '1.2.3.4' },
+        headers: { 'Content-Type': 'application/json', 'cf-connecting-ip': '1.2.3.4' }, // NOSONAR
       });
 
       const response = await adapter.handle(request);
@@ -70,7 +70,7 @@ describe('CloudflareAdapter', () => {
     it('should parse Cloudflare request correctly', () => {
       const request = new Request('http://localhost/path?query=1', {
         method: 'GET',
-        headers: { 'X-Custom': 'value', 'cf-connecting-ip': '10.0.0.1' },
+        headers: { 'X-Custom': 'value', 'cf-connecting-ip': '10.0.0.1' }, // NOSONAR
       });
 
       // Since parseRequest is public in the class definition I saw:
@@ -79,7 +79,7 @@ describe('CloudflareAdapter', () => {
       expect(parsed.method).toBe('GET');
       expect(parsed.path).toBe('/path');
       expect(parsed.query).toEqual({ query: '1' });
-      expect(parsed.remoteAddr).toBe('10.0.0.1');
+      expect(parsed.remoteAddr).toBe('10.0.0.1'); // NOSONAR
     });
   });
 });

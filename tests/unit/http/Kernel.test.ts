@@ -17,17 +17,13 @@ vi.mock('@/routing/EnhancedRouter');
 vi.mock('@/middleware/MiddlewareStack');
 vi.mock('@/container/ServiceContainer');
 vi.mock('@/http/Request', () => ({
-  Request: class {
-    constructor(_req: any) {
-      return mockRequestInstance;
-    }
+  Request: function Request(_req: unknown) {
+    return mockRequestInstance as unknown;
   },
 }));
 vi.mock('@/http/Response', () => ({
-  Response: class {
-    constructor(_res: any) {
-      return mockResponseInstance;
-    }
+  Response: function Response(_res: unknown) {
+    return mockResponseInstance as unknown;
   },
 }));
 vi.mock('@/config/logger');
@@ -84,7 +80,7 @@ describe('Kernel', () => {
   });
 
   it('should register global middleware', () => {
-    kernel.registerGlobalMiddleware('auth', 'log');
+    expect(() => kernel.registerGlobalMiddleware('auth', 'log')).not.toThrow();
   });
 
   it('should register route middleware', () => {
@@ -104,8 +100,6 @@ describe('Kernel', () => {
 
     await kernel.handleRequest(mockReq, mockRes);
 
-    // expect(Request).toHaveBeenCalledWith(mockReq); // Cannot check this easily with class mock
-    // expect(Response).toHaveBeenCalledWith(mockRes);
     expect(mockMiddlewareStack.execute).toHaveBeenCalledTimes(2); // Global + Route
     expect(mockRequest.setParams).toHaveBeenCalledWith({ id: '1' });
     expect(routeHandler).toHaveBeenCalledWith(mockRequest, mockResponse);

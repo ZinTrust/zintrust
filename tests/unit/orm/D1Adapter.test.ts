@@ -9,7 +9,7 @@ describe('D1Adapter', () => {
     host: 'localhost',
     database: 'test',
     username: 'user',
-    password: 'password',
+    password: 'password', // NOSONAR
   };
 
   const mockD1 = {

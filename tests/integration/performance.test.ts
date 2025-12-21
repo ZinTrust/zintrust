@@ -434,6 +434,8 @@ describe('Performance Export Tests', () => {
     });
 
     benchmark.export(outputFile);
+
+    expect(fs.existsSync(outputFile)).toBe(true);
   });
 });
 

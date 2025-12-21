@@ -45,6 +45,7 @@ export class User extends Model {
    * Get full name accessor
    */
   public getFullName(): string {
-    return String(this.getAttribute('name') ?? '');
+    const name = this.getAttribute('name');
+    return typeof name === 'string' ? name : '';
   }
 }
