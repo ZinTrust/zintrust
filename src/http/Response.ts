@@ -3,6 +3,7 @@
  * Wraps Node.js ServerResponse with additional utilities
  */
 
+import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import * as http from 'node:http';
 
 export class Response {
@@ -13,7 +14,7 @@ export class Response {
 
   constructor(res: http.ServerResponse) {
     this.res = res;
-    this.setHeader('Content-Type', 'application/json');
+    this.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.JSON);
   }
 
   /**
@@ -59,7 +60,7 @@ export class Response {
    * Send JSON response
    */
   public json(data: unknown): void {
-    this.setHeader('Content-Type', 'application/json');
+    this.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.JSON);
     this.res.end(JSON.stringify(data));
   }
 
@@ -67,7 +68,7 @@ export class Response {
    * Send text response
    */
   public text(text: string): void {
-    this.setHeader('Content-Type', 'text/plain');
+    this.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
     this.res.end(text);
   }
 
@@ -75,7 +76,7 @@ export class Response {
    * Send HTML response
    */
   public html(html: string): void {
-    this.setHeader('Content-Type', 'text/html');
+    this.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.HTML);
     this.res.end(html);
   }
 

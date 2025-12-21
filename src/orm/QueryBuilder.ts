@@ -3,6 +3,7 @@
  * Build queries without raw SQL
  */
 
+import { DatabaseError } from '@/exceptions/ZintrustError';
 import { Database } from '@orm/Database';
 
 export interface WhereClause {
@@ -237,7 +238,7 @@ export class QueryBuilder {
    */
   public async first(): Promise<unknown> {
     if (!this.db) {
-      throw new Error('Database instance not provided to QueryBuilder');
+      throw new DatabaseError('Database instance not provided to QueryBuilder');
     }
     this.limit(1);
     const results = await this.db.query(this.toSQL(), this.getParameters(), this.isReadOperation());
@@ -249,7 +250,7 @@ export class QueryBuilder {
    */
   public async get(): Promise<unknown[]> {
     if (!this.db) {
-      throw new Error('Database instance not provided to QueryBuilder');
+      throw new DatabaseError('Database instance not provided to QueryBuilder');
     }
     return this.db.query(this.toSQL(), this.getParameters(), this.isReadOperation());
   }

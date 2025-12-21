@@ -36,7 +36,9 @@ export interface ServiceIntegrationTestResult {
 export class ServiceIntegrationTestGenerator {
   public readonly version = '1.0.0';
 
-  private constructor() {}
+  private constructor() {
+    // Private constructor for static utility class
+  }
 
   /**
    * Generate service integration tests

@@ -10,6 +10,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { Kernel } from '@http/Kernel';
 import { ApplicationBootstrap } from '@runtime/RuntimeDetector';
+import { validateUrl } from '@security/UrlValidator';
 
 /**
  * Microservice configuration
@@ -205,6 +206,10 @@ export async function callService<T = unknown>(
 ): Promise<ServiceResponse<T>> {
   const service = getRunningService(serviceName);
   const url = `${service.baseUrl}${request.path}`;
+
+  // SSRF Protection
+  validateUrl(url);
+
   const { signal, timeoutHandle } = createAbortSignal(request.timeout ?? 5000);
 
   try {

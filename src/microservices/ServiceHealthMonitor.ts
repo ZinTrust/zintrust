@@ -6,6 +6,7 @@
 import { Logger } from '@config/logger';
 import { Request } from '@http/Request';
 import { Response } from '@http/Response';
+import { validateUrl } from '@security/UrlValidator';
 
 export interface HealthCheckResult {
   service: string;
@@ -129,14 +130,21 @@ export class HealthCheckHandler {
     }
   }
 
-  private async checkDependencyService(_depService: string): Promise<boolean> {
+  private async checkDependencyService(depService: string): Promise<boolean> {
     try {
-      const depResponse = await fetch(`http://localhost:3000/health`, {
+      // In a real environment, we would resolve the service URL
+      // For now, we assume it's on localhost with a standard port mapping or discovery
+      const url = `http://localhost:3000/health?service=${depService}`;
+
+      // SSRF Protection
+      validateUrl(url);
+
+      const depResponse = await fetch(url, {
         signal: AbortSignal.timeout(2000),
       });
       return depResponse.ok;
     } catch (error) {
-      Logger.error('Dependency health check failed', error);
+      Logger.error(`Dependency health check failed for ${depService}`, error);
       return false;
     }
   }

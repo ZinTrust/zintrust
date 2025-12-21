@@ -157,7 +157,7 @@ describe('Performance Memory Monitor Basic Tests', () => {
     // Allocate memory
     const arr: number[] = [];
     for (let i = 0; i < 50000; i++) {
-      arr.push(Math.random());
+      arr.push(Math.random()); // NOSONAR
     }
 
     // Give time for snapshot
@@ -180,7 +180,7 @@ describe('Performance Memory Monitor Basic Tests', () => {
     const monitor = new MemoryMonitor();
     monitor.start(50);
 
-    const largeArray = new Array(100000).fill(Math.random());
+    const largeArray = new Array(100000).fill(Math.random()); // NOSONAR
     expect(largeArray.length).toBe(100000);
 
     // Keep array alive
@@ -247,7 +247,7 @@ describe('Performance Memory Monitor Advanced Tests - Part 2', () => {
     // Simulate work with memory allocation
     let sum = 0;
     for (let iteration = 0; iteration < 5; iteration++) {
-      const tempArray = new Array(100000).fill(Math.random());
+      const tempArray = new Array(100000).fill(Math.random()); // NOSONAR
       expect(tempArray.length).toBe(100000);
       let iterationSum = 0;
       for (let i = 0; i < 500000; i++) {
@@ -270,7 +270,7 @@ describe('Performance Memory Monitor Advanced Tests - Part 2', () => {
     // Allocate memory
     const largeArray = new Array(50000).fill(0);
     for (let i = 0; i < largeArray.length; i++) {
-      largeArray[i] = Math.random();
+      largeArray[i] = Math.random(); // NOSONAR
     }
 
     // Work with array

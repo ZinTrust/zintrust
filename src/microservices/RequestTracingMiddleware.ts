@@ -33,6 +33,7 @@ export function middleware(
 ): (req: Request, res: Response, next: NextFunction) => void | Promise<void> {
   return (req: Request, res: Response, next: NextFunction) => {
     if (enabled === false || Math.random() > samplingRate) {
+      // NOSONAR
       return next();
     }
 

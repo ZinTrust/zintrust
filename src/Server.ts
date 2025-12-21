@@ -5,6 +5,7 @@
 
 import { Application } from '@/Application';
 import { appConfig } from '@config/app';
+import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { Logger } from '@config/logger';
 import { Request } from '@http/Request';
 import { Response } from '@http/Response';
@@ -19,21 +20,21 @@ export class Server {
   private readonly host: string;
 
   private readonly mimeTypes: Record<string, string> = {
-    '.html': 'text/html',
-    '.js': 'text/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpg',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.wav': 'audio/wav',
-    '.mp4': 'video/mp4',
-    '.woff': 'application/font-woff',
-    '.ttf': 'application/font-ttf',
-    '.eot': 'application/vnd.ms-fontobject',
-    '.otf': 'application/font-otf',
-    '.wasm': 'application/wasm',
+    '.html': MIME_TYPES.HTML,
+    '.js': MIME_TYPES.JS,
+    '.css': MIME_TYPES.CSS,
+    '.json': MIME_TYPES.JSON,
+    '.png': MIME_TYPES.PNG,
+    '.jpg': MIME_TYPES.JPG,
+    '.gif': MIME_TYPES.GIF,
+    '.svg': MIME_TYPES.SVG,
+    '.wav': MIME_TYPES.WAV,
+    '.mp4': MIME_TYPES.MP4,
+    '.woff': MIME_TYPES.WOFF,
+    '.ttf': MIME_TYPES.TTF,
+    '.eot': MIME_TYPES.EOT,
+    '.otf': MIME_TYPES.OTF,
+    '.wasm': MIME_TYPES.WASM,
   };
 
   constructor(app: Application, port?: number, host?: string) {
@@ -50,13 +51,13 @@ export class Server {
    */
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     // Security Headers
-    res.setHeader('X-Powered-By', 'ZinTrust');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader(HTTP_HEADERS.X_POWERED_BY, 'ZinTrust');
+    res.setHeader(HTTP_HEADERS.X_CONTENT_TYPE_OPTIONS, 'nosniff');
+    res.setHeader(HTTP_HEADERS.X_FRAME_OPTIONS, 'DENY');
+    res.setHeader(HTTP_HEADERS.X_XSS_PROTECTION, '1; mode=block');
+    res.setHeader(HTTP_HEADERS.REFERRER_POLICY, 'strict-origin-when-cross-origin');
     res.setHeader(
-      'Content-Security-Policy',
+      HTTP_HEADERS.CONTENT_SECURITY_POLICY,
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
     );
 
@@ -82,7 +83,7 @@ export class Server {
       }
     } catch (error) {
       Logger.error('Server error:', error);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.writeHead(500, { [HTTP_HEADERS.CONTENT_TYPE]: MIME_TYPES.JSON });
       res.end(JSON.stringify({ message: 'Internal Server Error' }));
     }
   }

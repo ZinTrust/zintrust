@@ -42,7 +42,9 @@ export class MicroserviceBootstrap {
   private readonly serviceConfigs: Map<string, ServiceConfig> = new Map();
   private servicesDir: string = path.join(process.cwd(), 'src', 'services');
 
-  private constructor() {}
+  private constructor() {
+    // Private constructor for singleton pattern
+  }
 
   public static getInstance(): MicroserviceBootstrap {
     MicroserviceBootstrap.instance ??= new MicroserviceBootstrap();

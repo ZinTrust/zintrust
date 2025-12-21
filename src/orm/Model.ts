@@ -3,6 +3,8 @@
  * Full ORM capabilities with eager/lazy loading
  */
 
+import { DatabaseError } from '@/exceptions/ZintrustError';
+import { DEFAULTS } from '@config/constants';
 import { Database, useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
@@ -16,7 +18,7 @@ export interface ModelConfig {
 }
 
 export class Model {
-  protected connection: string = 'default';
+  protected connection: string = DEFAULTS.CONNECTION;
   protected table: string = '';
   protected fillable: string[] = [];
   protected hidden: string[] = [];
@@ -124,7 +126,7 @@ export class Model {
    */
   public async save(): Promise<boolean> {
     if (this.db === undefined) {
-      throw new Error('Database not initialized');
+      throw new DatabaseError('Database not initialized');
     }
 
     if (this.timestamps && this.attributes['created_at'] === undefined) {
@@ -146,7 +148,7 @@ export class Model {
   public async delete(): Promise<boolean> {
     if (this.exists === false) return false;
     if (this.db === undefined) {
-      throw new Error('Database not initialized');
+      throw new DatabaseError('Database not initialized');
     }
 
     // In production: execute DELETE query

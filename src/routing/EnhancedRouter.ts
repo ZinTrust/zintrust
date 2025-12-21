@@ -224,12 +224,19 @@ export class Router {
    */
   private pathToRegex(path: string): { pattern: RegExp; paramNames: string[] } {
     const paramNames: string[] = [];
-    let regexPath = path.replaceAll(/:([a-zA-Z_]\w*)/g, (_, paramName) => {
+
+    // Escape special regex characters to prevent ReDoS and unintended matching
+    // We keep ':' for parameter matching
+    let regexPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Replace parameters like :id with capture groups
+    regexPath = regexPath.replaceAll(/\\:([a-zA-Z_]\w*)/g, (_, paramName) => {
       paramNames.push(paramName);
       return '([^/]+)';
     });
 
     regexPath = `^${regexPath}$`;
+    // SonarQube S2631: The regex is built from developer-defined routes, not user input
     const pattern = new RegExp(regexPath);
 
     return { pattern, paramNames };
