@@ -62,8 +62,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_ID || 'ZinTrust_ZinTrust' }}
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION || 'zintrust' }}
+            -Dsonar.projectKey=ZinTrust_ZinTrust
+            -Dsonar.organization=zintrust
             -Dsonar.sources=src,app,routes
             -Dsonar.tests=tests
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
@@ -72,11 +72,9 @@ jobs:
       - name: Comment PR with SonarQube results
         if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true'
         uses: actions/github-script@v7
-        env:
-          SONAR_PROJECT_ID: ${{ secrets.SONAR_PROJECT_ID || 'ZinTrust_ZinTrust' }}
         with:
           script: |
-            const projectId = process.env.SONAR_PROJECT_ID;
+            const projectId = 'ZinTrust_ZinTrust';
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
