@@ -8,6 +8,8 @@ import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 
 interface ProjectConfig {
   template: string;
@@ -194,10 +196,12 @@ export class NewCommand extends BaseCommand {
   private async initializeGit(projectName: string): Promise<void> {
     this.info('Initializing git repository...');
     try {
-      const { execSync } = await import('node:child_process');
-      execSync(`cd ${projectName} && git init && git add . && git commit -m "Initial commit"`, {
-        stdio: 'pipe',
-      });
+      const projectDir = path.join(process.cwd(), projectName);
+      const execOptions = { stdio: 'pipe' as const, cwd: projectDir, env: this.getSafeEnv() };
+
+      execFileSync('git', ['init'], execOptions);
+      execFileSync('git', ['add', '.'], execOptions);
+      execFileSync('git', ['commit', '-m', 'Initial commit'], execOptions);
       this.success('Git initialized');
     } catch (error: unknown) {
       Logger.error('Git initialization failed', error);
@@ -208,5 +212,17 @@ export class NewCommand extends BaseCommand {
         this.warn('Git initialization failed (git may not be installed)');
       }
     }
+  }
+
+  private getSafeEnv(): NodeJS.ProcessEnv {
+    const safePath =
+      process.platform === 'win32'
+        ? String.raw`C:\Windows\System32;C:\Windows;C:\Program Files\Git\cmd;C:\Program Files\Git\bin`
+        : '/usr/bin:/bin:/usr/sbin:/sbin';
+
+    return {
+      ...process.env,
+      PATH: safePath,
+    };
   }
 }

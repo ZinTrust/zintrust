@@ -27,3 +27,10 @@ We will acknowledge your report within 48 hours and provide a timeline for the f
 - **XSS**: Sanitize all user-provided content before rendering or storing.
 - **Authentication**: Use the built-in `Auth` middleware for protected routes.
 - **Dependencies**: Keep dependencies up to date and avoid adding unnecessary external packages.
+
+## Automated Security Scans (CI)
+
+This repo runs a `Security Scan` GitHub Actions workflow that checks dependencies, secrets, and static analysis.
+
+- CodeQL results are generated as SARIF artifacts (download from the workflow run).
+- Publishing SARIF to GitHub Code Scanning requires GitHub Advanced Security to be enabled for the repository.

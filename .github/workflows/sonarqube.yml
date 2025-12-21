@@ -57,12 +57,13 @@ jobs:
 
       - name: Upload coverage to SonarQube
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        if: steps.check_secrets.outputs.has_token == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=ZinTrust_ZinTrust
+            -Dsonar.projectKey=zintrust_zintrust
             -Dsonar.organization=zintrust
             -Dsonar.sources=src,app,routes
             -Dsonar.tests=tests

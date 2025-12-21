@@ -32,8 +32,7 @@ export function middleware(
   samplingRate: number = 1
 ): (req: Request, res: Response, next: NextFunction) => void | Promise<void> {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (enabled === false || Math.random() > samplingRate) {
-      // NOSONAR
+    if (enabled === false || shouldSampleRequest(samplingRate) === false) {
       return next();
     }
 
@@ -79,6 +78,15 @@ export function middleware(
 
     next();
   };
+}
+
+function shouldSampleRequest(samplingRate: number): boolean {
+  if (samplingRate >= 1) return true;
+  if (samplingRate <= 0) return false;
+
+  const scale = 1_000_000;
+  const value = crypto.randomInt(0, scale) / scale;
+  return value <= samplingRate;
 }
 
 /**

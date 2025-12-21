@@ -6,7 +6,7 @@
 import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -22,6 +22,8 @@ interface QAResults {
   tests: QAResult;
   sonar: QAResult;
 }
+
+type ExecOutput = Buffer | string | null | undefined;
 
 export class QACommand extends BaseCommand {
   protected name = 'qa';
@@ -70,12 +72,16 @@ export class QACommand extends BaseCommand {
   private async runLint(result: QAResult): Promise<void> {
     this.info('Step 1/4: Running ESLint...');
     try {
-      execSync('npm run lint', { stdio: 'pipe' });
+      this.runNpmScript('lint');
       result.status = 'passed';
     } catch (e: unknown) {
-      const error = e as { stdout?: Buffer; message: string };
+      const error = e as {
+        stdout?: ExecOutput;
+        stderr?: ExecOutput;
+        message: string;
+      };
       result.status = 'failed';
-      result.output = error.stdout === undefined ? error.message : error.stdout.toString();
+      result.output = this.formatExecErrorOutput(error);
       Logger.error('QA Suite: Linting failed', error);
     }
   }
@@ -83,12 +89,16 @@ export class QACommand extends BaseCommand {
   private async runTypeCheck(result: QAResult): Promise<void> {
     this.info('Step 2/4: Running Type-check...');
     try {
-      execSync('npm run type-check', { stdio: 'pipe' });
+      this.runNpmScript('type-check');
       result.status = 'passed';
     } catch (e: unknown) {
-      const error = e as { stdout?: Buffer; message: string };
+      const error = e as {
+        stdout?: ExecOutput;
+        stderr?: ExecOutput;
+        message: string;
+      };
       result.status = 'failed';
-      result.output = error.stdout === undefined ? error.message : error.stdout.toString();
+      result.output = this.formatExecErrorOutput(error);
       Logger.error('QA Suite: Type-check failed', error);
     }
   }
@@ -96,12 +106,16 @@ export class QACommand extends BaseCommand {
   private async runTests(result: QAResult): Promise<void> {
     this.info('Step 3/4: Running Tests & Coverage...');
     try {
-      execSync('npm run test:coverage', { stdio: 'pipe' });
+      this.runNpmScript('test:coverage');
       result.status = 'passed';
     } catch (e: unknown) {
-      const error = e as { stdout?: Buffer; message: string };
+      const error = e as {
+        stdout?: ExecOutput;
+        stderr?: ExecOutput;
+        message: string;
+      };
       result.status = 'failed';
-      result.output = error.stdout === undefined ? error.message : error.stdout.toString();
+      result.output = this.formatExecErrorOutput(error);
       Logger.error('QA Suite: Tests failed', error);
     }
   }
@@ -117,12 +131,16 @@ export class QACommand extends BaseCommand {
 
     if (isSonarRunning) {
       try {
-        execSync('npm run sonarqube', { stdio: 'pipe' });
+        this.runNpmScript('sonarqube');
         result.status = 'passed';
       } catch (e: unknown) {
-        const error = e as { stdout?: Buffer; message: string };
+        const error = e as {
+          stdout?: ExecOutput;
+          stderr?: ExecOutput;
+          message: string;
+        };
         result.status = 'failed';
-        result.output = error.stdout === undefined ? error.message : error.stdout.toString();
+        result.output = this.formatExecErrorOutput(error);
         Logger.error('QA Suite: SonarQube failed', error);
       }
     } else {
@@ -225,14 +243,76 @@ export class QACommand extends BaseCommand {
   }
 
   private openReport(reportPath: string): void {
-    // Try to open the report
-    let command = 'xdg-open';
+    // Try to open the report with a fixed, non-user-controlled binary path.
     if (process.platform === 'win32') {
-      command = 'start';
-    } else if (process.platform === 'darwin') {
-      command = 'open';
+      execFileSync(String.raw`C:\Windows\System32\cmd.exe`, ['/c', 'start', '', reportPath], {
+        stdio: 'ignore',
+        env: this.getSafeEnv(),
+      });
+      return;
     }
 
-    execSync(`${command} ${reportPath}`);
+    const commandPath = process.platform === 'darwin' ? '/usr/bin/open' : '/usr/bin/xdg-open';
+    execFileSync(commandPath, [reportPath], { stdio: 'ignore', env: this.getSafeEnv() });
+  }
+
+  private runNpmScript(scriptName: string): void {
+    const npmPath = this.resolveNpmPath();
+
+    // Run npm directly (absolute path, no PATH lookup).
+    // Provide a fixed PATH comprised of system directories + Node bin (Sonar S4036).
+    // Use stdio=inherit to avoid maxBuffer failures and to show progress output.
+    execFileSync(npmPath, ['run', scriptName], {
+      stdio: 'inherit',
+      env: this.getSafeEnv(),
+    });
+  }
+
+  private resolveNpmPath(): string {
+    const nodeBinDir = path.dirname(process.execPath);
+
+    const candidates =
+      process.platform === 'win32'
+        ? [path.join(nodeBinDir, 'npm.cmd'), path.join(nodeBinDir, 'npm.exe')]
+        : [path.join(nodeBinDir, 'npm')];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) return candidate;
+    }
+
+    throw new Error(
+      'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
+    );
+  }
+
+  private getSafeEnv(): NodeJS.ProcessEnv {
+    // Build a fixed, unwriteable PATH that includes Node's directory (Sonar S4036).
+    // Node is typically installed in a read-only system location (e.g., /opt/homebrew/bin on macOS).
+    const nodeBinDir = path.dirname(process.execPath);
+    const safePath =
+      process.platform === 'win32'
+        ? [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, nodeBinDir].join(';')
+        : ['/usr/bin', '/bin', '/usr/sbin', '/sbin', nodeBinDir].join(':');
+
+    return {
+      ...process.env,
+      PATH: safePath,
+      // Ensure npm can run JS bin scripts with `#!/usr/bin/env node` even when PATH is hardened.
+      npm_config_scripts_prepend_node_path: 'true',
+    };
+  }
+
+  private formatExecErrorOutput(error: {
+    stdout?: ExecOutput;
+    stderr?: ExecOutput;
+    message: string;
+  }): string {
+    if (typeof error.stdout === 'string' && error.stdout !== '') return error.stdout;
+    if (Buffer.isBuffer(error.stdout) && error.stdout.length > 0) return error.stdout.toString();
+
+    if (typeof error.stderr === 'string' && error.stderr !== '') return error.stderr;
+    if (Buffer.isBuffer(error.stderr) && error.stderr.length > 0) return error.stderr.toString();
+
+    return error.message;
   }
 }

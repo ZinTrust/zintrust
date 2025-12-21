@@ -248,41 +248,59 @@ class LoggerImpl implements LoggerInstance {
   }
 
   private parseLogEntry(line: string): LogEntry {
-    const timestampMatch = new RegExp(/^\[([^\]]+)\]/).exec(line);
-    if (timestampMatch === null) {
-      throw new Error('Invalid log format');
-    }
+    const timestampParts = this.extractBracketValue(line);
+    if (timestampParts === null) throw new Error('Invalid log format');
 
-    const timestamp = timestampMatch[1];
-    const afterTimestamp = line.substring(timestampMatch[0].length).trim();
+    const levelParts = this.extractBracketValue(timestampParts.rest.trim());
+    if (levelParts === null) throw new Error('Invalid log level format');
 
-    const levelMatch = new RegExp(/^\[([^\]]+)\]/).exec(afterTimestamp);
-    if (levelMatch === null) {
-      throw new Error('Invalid log level format');
-    }
-
-    const level = levelMatch[1].toLowerCase() as LogLevel;
-    const rest = afterTimestamp.substring(levelMatch[0].length).trim();
-
-    let message = rest;
-    let data: Record<string, unknown> | undefined;
-
-    const jsonMatch = new RegExp(/^(.+?)\s+({.+})$/).exec(rest);
-    if (jsonMatch !== null) {
-      message = jsonMatch[1];
-      try {
-        data = JSON.parse(jsonMatch[2]) as Record<string, unknown>;
-      } catch {
-        message = rest;
-      }
-    }
+    const level = levelParts.value.toLowerCase() as LogLevel;
+    const messageParts = this.parseMessageAndData(levelParts.rest.trim());
 
     return {
-      timestamp,
+      timestamp: timestampParts.value,
       level,
-      message,
-      data,
+      message: messageParts.message,
+      data: messageParts.data,
     };
+  }
+
+  private extractBracketValue(input: string): { value: string; rest: string } | null {
+    if (input.startsWith('[') === false) return null;
+
+    const endIndex = input.indexOf(']');
+    if (endIndex <= 1) return null;
+
+    return {
+      value: input.slice(1, endIndex),
+      rest: input.slice(endIndex + 1),
+    };
+  }
+
+  private parseMessageAndData(rest: string): { message: string; data?: Record<string, unknown> } {
+    // Avoid regex backtracking (Sonar S5852): detect a trailing JSON object via bounded string operations.
+    // Format is produced by `formatLogEntry()`: "... <message> {<json>}".
+    if (rest.endsWith('}') === false) return { message: rest };
+
+    const jsonDelimiterIndex = rest.lastIndexOf(' {');
+    if (jsonDelimiterIndex <= 0) return { message: rest };
+
+    const messageCandidate = rest.slice(0, jsonDelimiterIndex).trimEnd();
+    const jsonCandidate = rest.slice(jsonDelimiterIndex + 1).trim();
+    if (jsonCandidate.startsWith('{') === false || jsonCandidate.length <= 1) {
+      return { message: rest };
+    }
+
+    try {
+      const parsed = JSON.parse(jsonCandidate) as unknown;
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return { message: rest };
+      }
+
+      return { message: messageCandidate, data: parsed as Record<string, unknown> };
+    } catch {
+      return { message: rest };
+    }
   }
 
   public filterByLevel(logs: LogEntry[], level: LogLevel): LogEntry[] {

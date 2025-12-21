@@ -4,6 +4,7 @@
  */
 
 import chalk from 'chalk';
+import { randomInt } from 'node:crypto';
 import * as os from 'node:os';
 import * as readline from 'node:readline';
 
@@ -88,18 +89,15 @@ export class Dashboard {
     };
 
     // Mock some activity for demonstration
-    if (Math.random() > 0.7) {
-      // NOSONAR
-      this.stats.requests.total += Math.floor(Math.random() * 3); // NOSONAR
-      this.stats.requests.active = Math.floor(Math.random() * 5); // NOSONAR
-      this.stats.requests.avgDuration = Math.floor(Math.random() * 100 + 20); // NOSONAR
+    if (randomInt(0, 1000) > 700) {
+      this.stats.requests.total += randomInt(0, 3);
+      this.stats.requests.active = randomInt(0, 5);
+      this.stats.requests.avgDuration = randomInt(20, 120);
     }
 
-    if (Math.random() > 0.8) {
-      // NOSONAR
-      this.stats.queries.total += Math.floor(Math.random() * 10); // NOSONAR
-      if (Math.random() > 0.9) {
-        // NOSONAR
+    if (randomInt(0, 1000) > 800) {
+      this.stats.queries.total += randomInt(0, 10);
+      if (randomInt(0, 1000) > 900) {
         this.stats.queries.n1Warnings++;
       }
     }

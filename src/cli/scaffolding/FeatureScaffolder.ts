@@ -255,6 +255,8 @@ const PAYMENTS_TEMPLATE = `/**
  * Handles payment processing and transactions
  */
 
+import { randomBytes } from 'node:crypto';
+
 export interface PaymentConfig {
   provider: 'stripe' | 'paypal' | 'square';
   apiKey: string;
@@ -278,7 +280,7 @@ export class PaymentService {
    */
   public async processPayment(payment: Payment): Promise<{ success: boolean; transactionId?: string }> {
     // Implementation depends on provider
-    return { success: true, transactionId: 'txn_' + Math.random().toString(36).slice(2) }; // NOSONAR
+    return { success: true, transactionId: 'txn_' + randomBytes(8).toString('hex') };
   }
 
   /**
@@ -445,6 +447,8 @@ const EMAIL_TEMPLATE = `/**
  * Handles email sending
  */
 
+import { randomBytes } from 'node:crypto';
+
 export interface EmailConfig {
   provider: 'sendgrid' | 'mailgun' | 'nodemailer';
   apiKey?: string;
@@ -467,7 +471,7 @@ export class EmailService {
    */
   public async send(message: EmailMessage): Promise<{ success: boolean; messageId?: string }> {
     // Implementation depends on provider
-    return { success: true, messageId: 'msg_' + Math.random().toString(36).slice(2) }; // NOSONAR
+    return { success: true, messageId: 'msg_' + randomBytes(8).toString('hex') };
   }
 
   /**
@@ -547,6 +551,8 @@ const QUEUE_TEMPLATE = `/**
  * Job queue processing
  */
 
+import { randomBytes } from 'node:crypto';
+
 export interface Job {
   id: string;
   name: string;
@@ -572,7 +578,7 @@ export class QueueService {
    */
   public async enqueue(name: string, data: Record<string, unknown>): Promise<Job> {
     const job: Job = {
-      id: 'job_' + Math.random().toString(36).slice(2), // NOSONAR
+      id: 'job_' + randomBytes(8).toString('hex'),
       name,
       data,
       status: 'pending',

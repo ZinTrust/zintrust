@@ -207,7 +207,7 @@ export class Router {
 
     let url = route.path;
     for (const [key, value] of Object.entries(params)) {
-      url = url.replace(`:${key}`, value);
+      url = url.replaceAll(`:${key}`, value);
     }
     return url;
   }
@@ -227,7 +227,7 @@ export class Router {
 
     // Escape special regex characters to prevent ReDoS and unintended matching
     // We keep ':' for parameter matching
-    let regexPath = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let regexPath = path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
     // Replace parameters like :id with capture groups
     regexPath = regexPath.replaceAll(/\\:([a-zA-Z_]\w*)/g, (_, paramName) => {
