@@ -207,7 +207,7 @@ export class NodeServerAdapter implements RuntimeAdapter {
   }
 }
 
-function createDefaultLogger() {
+function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
       Logger.debug(

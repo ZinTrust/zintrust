@@ -247,7 +247,7 @@ export class DenoAdapter implements RuntimeAdapter {
   }
 }
 
-function createDefaultLogger() {
+function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
       Logger.debug(`[Deno] ${msg}`, data ? JSON.stringify(data) : ''),

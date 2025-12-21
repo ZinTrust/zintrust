@@ -234,7 +234,7 @@ export interface CloudflareRequest extends Request {
   };
 }
 
-function createDefaultLogger() {
+function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
       Logger.debug(`[Cloudflare] ${msg}`, data ? JSON.stringify(data) : ''),

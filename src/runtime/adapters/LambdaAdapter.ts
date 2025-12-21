@@ -392,7 +392,7 @@ interface LambdaEventAlb {
 
 type LambdaEvent = LambdaEventV1 | LambdaEventV2 | LambdaEventAlb;
 
-function createDefaultLogger() {
+function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
       Logger.debug(`[Lambda] ${msg}`, data ? JSON.stringify(data) : ''),
