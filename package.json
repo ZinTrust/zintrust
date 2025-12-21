@@ -69,6 +69,7 @@
     "ecommerce:up": "cd services/ecommerce && docker-compose up -d",
     "ecommerce:down": "cd services/ecommerce && docker-compose down",
     "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
+    "cleanup:github-actions": "bash ./scripts/cleanup-github-actions.sh",
     "prepare": "husky"
   },
   "lint-staged": {
