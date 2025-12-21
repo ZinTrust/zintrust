@@ -16,7 +16,7 @@ describe('ConnectionManager', () => {
     database: 'test_db',
     host: 'localhost',
     username: 'user',
-    password: 'password',
+    password: 'password', // NOSONAR
   };
 
   it('should throw if accessed before initialization', async () => {

@@ -6,6 +6,7 @@
 import { Logger } from '@config/logger';
 import { CodeGenerationBenchmark } from '@performance/CodeGenerationBenchmark';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /**
  * Run baseline and save results
@@ -25,7 +26,28 @@ export async function establishBaseline(): Promise<void> {
 }
 
 // Run if called directly
-if (require.main === module) {
+type GlobalWithBaselineMainFlag = typeof globalThis & {
+  __ZINTRUST_ESTABLISH_BASELINE_MAIN__?: boolean;
+};
+
+function isMainModuleEsm(): boolean {
+  try {
+    const entry = process.argv[1];
+    if (entry === undefined || entry === '') return false;
+
+    const entryUrl = pathToFileURL(path.resolve(entry)).href;
+    return entryUrl === import.meta.url;
+  } catch (err) {
+    Logger.error('❌ Baseline failed:', err);
+    return false;
+  }
+}
+
+const isMainModule =
+  (globalThis as GlobalWithBaselineMainFlag).__ZINTRUST_ESTABLISH_BASELINE_MAIN__ ??
+  isMainModuleEsm();
+
+if (isMainModule) {
   await establishBaseline().catch((err) => {
     Logger.error('❌ Baseline failed:', err);
     process.exit(1);

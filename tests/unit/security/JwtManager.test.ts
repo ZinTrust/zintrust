@@ -6,6 +6,13 @@ describe('JwtManager', () => {
   let jwtManager: JwtManager;
   const hmacSecret = 'test-secret-key';
 
+  const base64Url = (input: string): string =>
+    Buffer.from(input, 'utf8')
+      .toString('base64')
+      .replaceAll('+', '-')
+      .replaceAll('/', '_')
+      .replaceAll('=', '');
+
   beforeEach(() => {
     jwtManager = new JwtManager();
     jwtManager.setHmacSecret(hmacSecret);
@@ -112,5 +119,102 @@ describe('JwtManager', () => {
     expect(decoded.aud).toBe('my-users');
     expect(decoded.sub).toBe('user-1');
     expect(decoded.jti).toBe('unique-id');
+  });
+
+  it('should throw on invalid token format (verify/decode)', () => {
+    expect(() => jwtManager.verify('not-a-jwt')).toThrow('Invalid token format');
+    expect(() => jwtManager.decode('not-a-jwt')).toThrow('Invalid token format');
+  });
+
+  it('should fail verification when token is not yet valid (nbf in future)', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const token = jwtManager.sign({ nbf: now + 60 });
+
+    expect(() => jwtManager.verify(token)).toThrow(
+      'Token verification failed: Token not yet valid'
+    );
+  });
+
+  it('should ignore null option values when building claims', () => {
+    const token = jwtManager.sign(
+      {},
+      {
+        expiresIn: null as unknown as number,
+        issuer: null as unknown as string,
+        audience: null as unknown as string,
+        subject: null as unknown as string,
+        jwtId: null as unknown as string,
+      }
+    );
+
+    const decoded = jwtManager.verify(token);
+    expect(decoded.exp).toBeUndefined();
+    expect(decoded.iss).toBeUndefined();
+    expect(decoded.aud).toBeUndefined();
+    expect(decoded.sub).toBeUndefined();
+    expect(decoded.jti).toBeUndefined();
+  });
+
+  it('should throw for unsupported algorithms on sign', () => {
+    expect(() => jwtManager.sign({}, { algorithm: 'none' as unknown as 'HS256' })).toThrow(
+      'Unsupported algorithm: none'
+    );
+  });
+
+  it('should fail verification when RS256 public key is not configured', () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    const signer = new JwtManager();
+    signer.setRsaKeys(privateKey, publicKey);
+    const token = signer.sign({ userId: 1 }, { algorithm: 'RS256' });
+
+    const verifier = new JwtManager();
+    expect(() => verifier.verify(token, 'RS256')).toThrow(
+      'Token verification failed: RSA public key not configured'
+    );
+  });
+
+  it('should reject tokens when verifySignature falls back to false', () => {
+    const header = base64Url(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+    const payload = base64Url(JSON.stringify({ userId: 1 }));
+    const signature = base64Url('sig');
+
+    const token = `${header}.${payload}.${signature}`;
+    expect(() => jwtManager.verify(token, 'none' as unknown as 'HS256')).toThrow(
+      'Token verification failed: Invalid signature'
+    );
+  });
+
+  it('should throw a helpful error when token payload is invalid JSON', () => {
+    const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+    const payload = base64Url('not-json');
+    const signature = base64Url('sig');
+
+    const token = `${header}.${payload}.${signature}`;
+    expect(() => jwtManager.decode(token)).toThrow(/Invalid token payload:/u);
+  });
+
+  it('generateJwtId: returns a 32-char hex string', () => {
+    const id = jwtManager.generateJwtId();
+    expect(id).toMatch(/^[0-9a-f]{32}$/u);
+  });
+
+  it('should fail verification when HMAC secret is missing during signature verification', () => {
+    const token = jwtManager.sign({ userId: 1 }, { algorithm: 'HS256' });
+
+    const verifier = new JwtManager();
+    expect(() => verifier.verify(token, 'HS256')).toThrow(
+      'Token verification failed: HMAC secret not configured'
+    );
+  });
+
+  it('signRsa: throws when private key is missing (direct call for coverage)', () => {
+    const mgr = new JwtManager();
+    const direct = mgr as unknown as { signRsa: (message: string) => string };
+    expect(() => direct.signRsa('msg')).toThrow('RSA private key not configured');
   });
 });

@@ -7,6 +7,7 @@ import { Logger } from '@config/logger';
 import { Benchmark, MemoryMonitor } from '@performance/Benchmark';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * CodeGenerationBenchmark - Benchmark all generators
@@ -236,7 +237,25 @@ export async function runCodeGenerationBenchmarks(): Promise<void> {
 }
 
 // Run if called directly
-if (require.main === module) {
+const isMain = ((): boolean => {
+  const override = (globalThis as unknown as { __ZINTRUST_CODEGEN_BENCHMARK_MAIN__?: unknown })
+    .__ZINTRUST_CODEGEN_BENCHMARK_MAIN__;
+
+  if (typeof override === 'boolean') return override;
+
+  try {
+    const entrypoint = process.argv[1];
+    if (typeof entrypoint !== 'string') return false;
+
+    const currentFilePath = fileURLToPath(new URL(import.meta.url));
+    return path.resolve(entrypoint) === path.resolve(currentFilePath);
+  } catch (err) {
+    Logger.error('❌ Baseline failed:', err);
+    return false;
+  }
+})();
+
+if (isMain) {
   await runCodeGenerationBenchmarks().catch((err) => {
     Logger.error('Benchmark failed:', err);
     process.exit(1);

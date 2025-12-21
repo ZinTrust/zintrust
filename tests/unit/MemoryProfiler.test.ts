@@ -1,131 +1,174 @@
-import { MemoryProfiler } from '@profiling/MemoryProfiler';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { MemoryProfiler, formatBytes } from '@profiling/MemoryProfiler';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('MemoryProfiler Basic Tests', () => {
+type GlobalWithGc = typeof globalThis & { gc?: () => void };
+
+describe('MemoryProfiler', () => {
   let profiler: MemoryProfiler;
+  const globalWithGc = globalThis as GlobalWithGc;
+  const originalGc = globalWithGc.gc;
 
   beforeEach(() => {
     profiler = new MemoryProfiler();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2020-01-01T00:00:00.000Z'));
   });
 
-  it('should capture initial memory snapshot', () => {
-    profiler.start();
-    const snapshot = profiler.end();
-
-    expect(snapshot).toBeDefined();
-    expect(snapshot.heapUsed).toBeGreaterThan(0);
-    expect(snapshot.heapTotal).toBeGreaterThan(0);
-    expect(snapshot.rss).toBeGreaterThan(0);
-    expect(snapshot.timestamp).toBeInstanceOf(Date);
+  afterEach(() => {
+    globalWithGc.gc = originalGc;
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
-  it('should have external memory property', () => {
-    profiler.start();
-    const snapshot = profiler.end();
+  it('start() calls gc when available and captures start snapshot', () => {
+    const gc = vi.fn();
+    globalWithGc.gc = gc;
 
-    expect(snapshot.external).toBeGreaterThanOrEqual(0);
-  });
+    const memoryUsageSpy = vi.spyOn(process, 'memoryUsage');
+    memoryUsageSpy.mockReturnValue({
+      heapUsed: 100,
+      heapTotal: 200,
+      external: 10,
+      rss: 300,
+      arrayBuffers: 0,
+    });
 
-  it('should have valid timestamp in snapshot', () => {
-    profiler.start();
-    const snapshot = profiler.end();
-
-    expect(snapshot.timestamp.getTime()).toBeGreaterThan(0);
-  });
-
-  it('should include all memory metrics in delta', () => {
-    profiler.start();
-    const delta = profiler.end();
-
-    expect(Object.keys(delta).sort((a, b) => a.localeCompare(b))).toEqual(
-      ['external', 'heapTotal', 'heapUsed', 'rss', 'timestamp'].sort((a, b) => a.localeCompare(b))
-    );
-  });
-});
-
-describe('MemoryProfiler Advanced Cycles', () => {
-  let profiler: MemoryProfiler;
-
-  beforeEach(() => {
-    profiler = new MemoryProfiler();
-  });
-
-  it('should calculate memory delta between snapshots', async () => {
     profiler.start();
 
-    // Allocate some memory
-    Array.from({ length: 1000 }, (_, i) => ({
-      id: i,
-      name: `Item ${i}`,
-      data: new Array(100).fill(Math.random()), // NOSONAR
-    }));
-
-    const delta = profiler.end();
-
-    expect(delta.heapUsed).toBeDefined();
-    expect(delta.heapTotal).toBeDefined();
+    expect(gc).toHaveBeenCalledTimes(1);
+    expect(profiler.getStartSnapshot()).toEqual({
+      heapUsed: 100,
+      heapTotal: 200,
+      external: 10,
+      rss: 300,
+      timestamp: new Date('2020-01-01T00:00:00.000Z'),
+    });
+    expect(profiler.getEndSnapshot()).toBeNull();
   });
 
-  it('should have valid timestamp in snapshot', () => {
-    profiler.start();
-    const snapshot = profiler.end();
+  it('start() does not call gc when unavailable and clears a previous end snapshot', () => {
+    globalWithGc.gc = undefined;
 
-    expect(snapshot.timestamp.getTime()).toBeGreaterThan(0);
+    const memoryUsageSpy = vi.spyOn(process, 'memoryUsage');
+    memoryUsageSpy
+      .mockReturnValueOnce({
+        heapUsed: 10,
+        heapTotal: 20,
+        external: 1,
+        rss: 30,
+        arrayBuffers: 0,
+      })
+      .mockReturnValueOnce({
+        heapUsed: 11,
+        heapTotal: 21,
+        external: 2,
+        rss: 31,
+        arrayBuffers: 0,
+      });
+
+    profiler.start();
+    profiler.end();
+    expect(profiler.getEndSnapshot()).not.toBeNull();
+
+    profiler.start();
+    expect(profiler.getEndSnapshot()).toBeNull();
   });
 
-  it('should allow multiple start/end cycles', () => {
+  it('delta() returns zeros before start/end are completed', () => {
+    expect(profiler.delta()).toEqual({
+      heapUsed: 0,
+      heapTotal: 0,
+      external: 0,
+      rss: 0,
+    });
+
+    const memoryUsageSpy = vi.spyOn(process, 'memoryUsage');
+    memoryUsageSpy.mockReturnValue({
+      heapUsed: 1,
+      heapTotal: 2,
+      external: 3,
+      rss: 4,
+      arrayBuffers: 0,
+    });
     profiler.start();
-    const delta1 = profiler.end();
-    expect(delta1).toBeDefined();
 
-    profiler.start();
-    const delta2 = profiler.end();
-    expect(delta2).toBeDefined();
-  });
-});
-
-describe('MemoryProfiler Advanced Metrics', () => {
-  let profiler: MemoryProfiler;
-
-  beforeEach(() => {
-    profiler = new MemoryProfiler();
-  });
-
-  it('should return non-negative memory values', () => {
-    profiler.start();
-    const delta = profiler.end();
-
-    expect(delta.heapUsed).toBeGreaterThanOrEqual(0);
-    expect(delta.heapTotal).toBeGreaterThanOrEqual(0);
-    expect(delta.external).toBeGreaterThanOrEqual(0);
-    expect(delta.rss).toBeGreaterThanOrEqual(0);
+    expect(profiler.delta()).toEqual({
+      heapUsed: 0,
+      heapTotal: 0,
+      external: 0,
+      rss: 0,
+    });
   });
 
-  it('should track significant memory changes', async () => {
+  it('end() captures end snapshot and delta() computes differences', () => {
+    const memoryUsageSpy = vi.spyOn(process, 'memoryUsage');
+    memoryUsageSpy
+      .mockReturnValueOnce({
+        heapUsed: 100,
+        heapTotal: 200,
+        external: 10,
+        rss: 300,
+        arrayBuffers: 0,
+      })
+      .mockReturnValueOnce({
+        heapUsed: 140,
+        heapTotal: 240,
+        external: 25,
+        rss: 260,
+        arrayBuffers: 0,
+      });
+
     profiler.start();
+    vi.setSystemTime(new Date('2020-01-01T00:00:01.000Z'));
+    const endSnapshot = profiler.end();
 
-    // Create a significant memory allocation
-    for (let i = 0; i < 100; i++) {
-      const _temp = [
-        {
-          buffer: Buffer.alloc(10000),
-          data: new Array(1000).fill(Math.random()), // NOSONAR
-        },
-      ];
-      expect(_temp.length).toBe(1);
-    }
-
-    const delta = profiler.end();
-
-    expect(delta.heapUsed).toBeGreaterThanOrEqual(0);
+    expect(profiler.getEndSnapshot()).toEqual(endSnapshot);
+    expect(endSnapshot.timestamp).toEqual(new Date('2020-01-01T00:00:01.000Z'));
+    expect(profiler.delta()).toEqual({
+      heapUsed: 40,
+      heapTotal: 40,
+      external: 15,
+      rss: -40,
+    });
   });
 
-  it('should include all memory metrics in delta', () => {
-    profiler.start();
-    const delta = profiler.end();
+  it('getReport() returns a message when not started/completed', () => {
+    expect(profiler.getReport()).toBe('Memory profiling not started or completed');
+  });
 
-    expect(Object.keys(delta).sort((a, b) => a.localeCompare(b))).toEqual(
-      ['external', 'heapTotal', 'heapUsed', 'rss', 'timestamp'].sort((a, b) => a.localeCompare(b))
-    );
+  it('getReport() formats a human-readable report when completed', () => {
+    const memoryUsageSpy = vi.spyOn(process, 'memoryUsage');
+    memoryUsageSpy
+      .mockReturnValueOnce({
+        heapUsed: 0,
+        heapTotal: 1024,
+        external: 0,
+        rss: 1024 * 1024,
+        arrayBuffers: 0,
+      })
+      .mockReturnValueOnce({
+        heapUsed: 1024,
+        heapTotal: 2 * 1024,
+        external: 1024,
+        rss: 0,
+        arrayBuffers: 0,
+      });
+
+    profiler.start();
+    profiler.end();
+
+    const report = profiler.getReport();
+    expect(report).toContain('Memory Profile Report:');
+    expect(report).toContain('Heap Used: 1.00 KB');
+    expect(report).toContain('Heap Total: 1.00 KB');
+    expect(report).toContain('External: 1.00 KB');
+    expect(report).toContain('RSS: -1.00 MB');
+  });
+
+  it('formatBytes covers zero, positive, and negative values', () => {
+    expect(formatBytes(0)).toBe('0 B');
+    expect(formatBytes(1024)).toBe('1.00 KB');
+    expect(formatBytes(-1024)).toBe('-1.00 KB');
+    expect(MemoryProfiler.formatBytes(1024 * 1024)).toBe('1.00 MB');
   });
 });

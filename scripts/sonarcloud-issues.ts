@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as path from 'node:path';
+import { loadEnv } from './utils/env';
 
 interface SonarCloudIssue {
   key: string;
@@ -209,60 +210,51 @@ class SonarCloudClient {
       req.end();
     });
   }
-}
 
-/**
- * Strip quotes from value if present
- */
-function stripQuotes(value: string): string {
-  if (value.length < 2) return value;
+  /**
+   * Fetch uncovered files
+   */
+  public async fetchUncoveredFiles(): Promise<unknown> {
+    const queryString = `component=${encodeURIComponent(this.projectKey)}&metricKeys=coverage,uncovered_lines&qualifiers=FIL&ps=500`;
 
-  const firstChar = value[0];
-  const lastChar = value[value.length - 1];
-  const isDoubleQuoted = firstChar === '"' && lastChar === '"';
-  const isSingleQuoted = firstChar === "'" && lastChar === "'";
+    const options = {
+      hostname: this.baseUrl,
+      path: `/api/measures/component_tree?${queryString}`,
+      method: 'GET',
+      headers: this.token
+        ? {
+            Authorization: `Bearer ${this.token}`,
+          }
+        : {},
+    };
 
-  if (isDoubleQuoted || isSingleQuoted) {
-    return value.slice(1, -1);
-  }
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let data = '';
 
-  return value;
-}
+        res.on('data', (chunk: Buffer) => {
+          data += chunk.toString();
+        });
 
-/**
- * Parse a single line from .env file
- */
-function parseEnvLine(line: string): { key: string; value: string } | null {
-  const trimmedLine = line.trim();
-  if (trimmedLine.length === 0 || trimmedLine.startsWith('#')) return null;
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            try {
+              resolve(JSON.parse(data));
+            } catch (error) {
+              reject(new Error(`Failed to parse response: ${error}`));
+            }
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          }
+        });
+      });
 
-  const eqIndex = trimmedLine.indexOf('=');
-  if (eqIndex === -1) return null;
+      req.on('error', (error) => {
+        reject(error);
+      });
 
-  const key = trimmedLine.slice(0, eqIndex).trim();
-  if (key.length === 0) return null;
-
-  const valueRaw = trimmedLine.slice(eqIndex + 1).trim();
-  return { key, value: stripQuotes(valueRaw) };
-}
-
-/**
- * Load environment variables from .env file
- */
-function loadEnv(): void {
-  try {
-    const envPath = path.join(process.cwd(), '.env');
-    if (!fs.existsSync(envPath)) return;
-
-    const envContent = fs.readFileSync(envPath, 'utf-8');
-    for (const line of envContent.split('\n')) {
-      const result = parseEnvLine(line);
-      if (result) {
-        process.env[result.key] = result.value;
-      }
-    }
-  } catch {
-    // Ignore errors loading .env
+      req.end();
+    });
   }
 }
 
@@ -493,7 +485,7 @@ function parseArguments(args: string[]): QueryParams {
  * Main execution
  */
 async function main(): Promise<void> {
-  loadEnv();
+  loadEnv(true);
   const args = process.argv.slice(2);
   const organization = process.env['SONAR_ORGANIZATION'] || 'ZinTrust_ZinTrust';
   const projectKey = process.env['SONAR_PROJECT_KEY'] || 'ZinTrust_ZinTrust';
@@ -529,6 +521,11 @@ async function main(): Promise<void> {
     // Optionally fetch quality measures
     if (args.includes('--measures')) {
       await fetchAndSaveMeasures(client);
+    }
+
+    // Optionally fetch uncovered files
+    if (args.includes('--uncovered')) {
+      await fetchAndSaveUncovered(client);
     }
   } catch (error) {
     console.error('❌ Error:', error);
@@ -567,6 +564,48 @@ async function saveReports(issues: SonarCloudIssue[]): Promise<void> {
   console.log(report);
   console.log(`\n✓ Report saved to: ${reportFile}`);
   console.log(`✓ JSON data saved to: ${jsonFile}`);
+}
+
+/**
+ * Fetch and save uncovered files
+ */
+async function fetchAndSaveUncovered(client: SonarCloudClient): Promise<void> {
+  console.log('\nFetching uncovered files...');
+  const data = await client.fetchUncoveredFiles();
+
+  const outputDir = path.join(process.cwd(), 'reports');
+  const uncoveredFile = path.join(outputDir, 'sonarcloud-uncovered.json');
+  fs.writeFileSync(uncoveredFile, JSON.stringify(data, null, 2));
+  console.log(`✓ Uncovered files saved to: ${uncoveredFile}`);
+
+  // Also print a summary
+  if (
+    data &&
+    typeof data === 'object' &&
+    'components' in data &&
+    Array.isArray((data as any).components)
+  ) {
+    const components = (data as any).components;
+    console.log('\nUncovered Files Summary (< 80%):');
+    console.log('------------------------');
+
+    const uncovered = components
+      .filter((c: any) => {
+        const coverage = c.measures.find((m: any) => m.metric === 'coverage');
+        return coverage && Number.parseFloat(coverage.value) < 80;
+      })
+      .map((c: any) => {
+        const coverage = c.measures.find((m: any) => m.metric === 'coverage')?.value || '0';
+        const uncoveredLines =
+          c.measures.find((m: any) => m.metric === 'uncovered_lines')?.value || '0';
+        return { path: c.path, coverage, uncoveredLines };
+      })
+      .sort((a: any, b: any) => Number.parseFloat(a.coverage) - Number.parseFloat(b.coverage));
+
+    uncovered.forEach((f: any) => {
+      console.log(`${f.coverage}% coverage (${f.uncoveredLines} uncovered lines) - ${f.path}`);
+    });
+  }
 }
 
 /**

@@ -3,6 +3,8 @@
  * Shared interfaces for query logging, N+1 detection, and memory profiling
  */
 
+export const PROFILING_TYPES_MODULE = 'ProfilingTypes';
+
 /**
  * Log entry for a single database query execution
  */

@@ -13,8 +13,18 @@ describe('Request', () => {
   ): IncomingMessage => {
     const socket = new Socket();
     const req = new IncomingMessage(socket);
-    req.url = options.url ?? '/';
-    req.method = options.method ?? 'GET';
+
+    if ('url' in options) {
+      req.url = options.url;
+    } else {
+      req.url = '/';
+    }
+
+    if ('method' in options) {
+      req.method = options.method;
+    } else {
+      req.method = 'GET';
+    }
 
     // Simulate Node.js behavior of lowercasing headers
     const headers: Record<string, string> = {};
@@ -33,9 +43,19 @@ describe('Request', () => {
     expect(req.getMethod()).toBe('POST');
   });
 
+  it('should default method to GET when missing', () => {
+    const req = new Request(createMockRequest({ method: undefined }));
+    expect(req.getMethod()).toBe('GET');
+  });
+
   it('should get path', () => {
     const req = new Request(createMockRequest({ url: '/users?id=1' }));
     expect(req.getPath()).toBe('/users');
+  });
+
+  it('should default path to / when url missing', () => {
+    const req = new Request(createMockRequest({ url: undefined }));
+    expect(req.getPath()).toBe('/');
   });
 
   it('should get headers', () => {
@@ -53,6 +73,16 @@ describe('Request', () => {
     const req = new Request(createMockRequest({ url: '/users?id=1&tags=a&tags=b' }));
     expect(req.getQueryParam('id')).toBe('1');
     expect(req.getQueryParam('tags')).toEqual(['a', 'b']);
+  });
+
+  it('should return query object', () => {
+    const req = new Request(createMockRequest({ url: '/users?id=1' }));
+    expect(req.getQuery()).toEqual({ id: '1' });
+  });
+
+  it('should accumulate repeated query parameters into an array', () => {
+    const req = new Request(createMockRequest({ url: '/users?tags=a&tags=b&tags=c' }));
+    expect(req.getQueryParam('tags')).toEqual(['a', 'b', 'c']);
   });
 
   it('should manage route parameters', () => {

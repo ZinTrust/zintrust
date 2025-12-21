@@ -284,3 +284,62 @@ describe('N1Detector Advanced Detection - Edge Cases', () => {
     expect(patterns).toHaveLength(0);
   });
 });
+
+describe('N1Detector SQL Extraction - Non-SELECT Statements', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
+  });
+
+  it('extracts table name from INSERT statement', () => {
+    expect(detector.extractTableFromSQL('INSERT INTO users (id) VALUES (1)')).toBe('users');
+    expect(detector.extractTableFromSQL('  INSERT   INTO   `posts` (id) VALUES (1)  ')).toBe(
+      'posts'
+    );
+  });
+
+  it('extracts table name from UPDATE statement', () => {
+    expect(detector.extractTableFromSQL('UPDATE users SET name = ? WHERE id = ?')).toBe('users');
+    expect(detector.extractTableFromSQL('UPDATE `orders` SET status = ?')).toBe('orders');
+  });
+
+  it('extracts table name from DELETE statement', () => {
+    expect(detector.extractTableFromSQL('DELETE FROM users WHERE id = ?')).toBe('users');
+    expect(detector.extractTableFromSQL('DELETE   FROM   `sessions` WHERE id = ?')).toBe(
+      'sessions'
+    );
+  });
+
+  it('returns unknown when table cannot be extracted', () => {
+    expect(detector.extractTableFromSQL('BEGIN')).toBe('unknown');
+  });
+});
+
+describe('N1Detector Utility Methods', () => {
+  let detector: N1Detector;
+
+  beforeEach(() => {
+    detector = new N1Detector();
+  });
+
+  it('getSeverity returns warning vs critical', () => {
+    expect(detector.getSeverity(9)).toBe('warning');
+    expect(detector.getSeverity(10)).toBe('critical');
+  });
+
+  it('generateSummary returns message when no patterns exist', () => {
+    expect(detector.generateSummary([])).toBe('No N+1 patterns detected');
+  });
+
+  it('generateSummary formats pattern details', () => {
+    const summary = detector.generateSummary([
+      { table: 'users', queryCount: 5, query: 'SELECT * FROM users', severity: 'warning' },
+      { table: 'posts', queryCount: 10, query: 'SELECT * FROM posts', severity: 'critical' },
+    ]);
+
+    expect(summary).toContain('N+1 Query Patterns Detected:');
+    expect(summary).toContain('[WARNING] Table "users": 5 identical queries');
+    expect(summary).toContain('[CRITICAL] Table "posts": 10 identical queries');
+  });
+});

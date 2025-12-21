@@ -8,7 +8,6 @@ import { Logger } from '@config/logger';
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 
 interface QAResult {
@@ -24,6 +23,20 @@ interface QAResults {
 }
 
 type ExecOutput = Buffer | string | null | undefined;
+
+interface SonarMeasure {
+  metric: string;
+  value: string;
+}
+
+interface SonarComponent {
+  path: string;
+  measures: SonarMeasure[];
+}
+
+interface SonarReport {
+  components: SonarComponent[];
+}
 
 export class QACommand extends BaseCommand {
   protected name = 'qa';
@@ -127,52 +140,26 @@ export class QACommand extends BaseCommand {
     }
 
     this.info('Step 4/4: Running SonarQube Analysis...');
-    const isSonarRunning = await this.checkSonarQube();
 
-    if (isSonarRunning) {
-      try {
-        this.runNpmScript('sonarqube');
-        result.status = 'passed';
-      } catch (e: unknown) {
-        const error = e as {
-          stdout?: ExecOutput;
-          stderr?: ExecOutput;
-          message: string;
-        };
-        result.status = 'failed';
-        result.output = this.formatExecErrorOutput(error);
-        Logger.error('QA Suite: SonarQube failed', error);
-      }
-    } else {
+    try {
+      this.runNpmScript('sonarqube');
+      result.status = 'passed';
+    } catch (e: unknown) {
+      const error = e as {
+        stdout?: ExecOutput;
+        stderr?: ExecOutput;
+        message: string;
+      };
       result.status = 'failed';
-      result.output =
-        'SonarQube is not running locally on port 9000. Please start it using "npm run docker:up" or follow the setup guide.';
-      this.warn('SonarQube is not running. Skipping analysis.');
+      result.output = this.formatExecErrorOutput(error);
+      Logger.error('QA Suite: SonarQube failed', error);
+    } finally {
+      try {
+        this.runUncoveredScript();
+      } catch (error) {
+        Logger.error('Failed to fetch uncovered files report', error);
+      }
     }
-  }
-
-  /**
-   * Check if SonarQube is running on port 9000
-   */
-  private async checkSonarQube(): Promise<boolean> {
-    return new Promise((resolve) => {
-      const socket = new net.Socket();
-      const timeout = 2000;
-
-      socket.setTimeout(timeout);
-      socket.once('error', () => {
-        socket.destroy();
-        resolve(false);
-      });
-      socket.once('timeout', () => {
-        socket.destroy();
-        resolve(false);
-      });
-      socket.connect(9000, '127.0.0.1', () => {
-        socket.end();
-        resolve(true);
-      });
-    });
   }
 
   private generateReport(results: QAResults): void {
@@ -233,6 +220,8 @@ export class QACommand extends BaseCommand {
               .join('')}
         </div>
 
+        ${this.getUncoveredHtml()}
+
         <footer class="text-center text-slate-500 text-sm">
             &copy; ${new Date().getFullYear()} Zintrust Framework. All rights reserved.
         </footer>
@@ -240,6 +229,89 @@ export class QACommand extends BaseCommand {
 </body>
 </html>
     `;
+  }
+
+  private getUncoveredHtml(): string {
+    const reportPath = path.join(process.cwd(), 'reports', 'sonarcloud-uncovered.json');
+    if (!fs.existsSync(reportPath)) return '';
+
+    try {
+      const data = JSON.parse(fs.readFileSync(reportPath, 'utf-8')) as SonarReport | null;
+      if (!data || !Array.isArray(data.components)) return '';
+
+      const components = data.components
+        .filter((c: SonarComponent) => {
+          const coverage = c.measures.find((m: SonarMeasure) => m.metric === 'coverage');
+          return coverage !== undefined && Number.parseFloat(coverage.value) < 80;
+        })
+        .map((c: SonarComponent) => {
+          const coverage =
+            c.measures.find((m: SonarMeasure) => m.metric === 'coverage')?.value ?? '0';
+          const uncoveredLines =
+            c.measures.find((m: SonarMeasure) => m.metric === 'uncovered_lines')?.value ?? '0';
+          return { path: c.path, coverage, uncoveredLines };
+        })
+        .sort(
+          (a: { coverage: string }, b: { coverage: string }) =>
+            Number.parseFloat(a.coverage) - Number.parseFloat(b.coverage)
+        );
+
+      if (components.length === 0) return '';
+
+      return this.renderUncoveredTable(components);
+    } catch (error) {
+      Logger.error('Failed to read uncovered report', error);
+      return '';
+    }
+  }
+
+  private renderUncoveredTable(
+    components: Array<{ path: string; coverage: string; uncoveredLines: string }>
+  ): string {
+    return `
+        <div class="card p-6 rounded-lg shadow-xl mb-8">
+            <h2 class="text-xl font-semibold mb-4">Uncovered Files (< 80%)</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-800 text-xs uppercase font-medium text-slate-400">
+                        <tr>
+                            <th class="px-4 py-3 rounded-l-lg">File</th>
+                            <th class="px-4 py-3">Coverage</th>
+                            <th class="px-4 py-3 rounded-r-lg">Uncovered Lines</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700">
+                        ${components
+                          .map(
+                            (c) => `
+                            <tr class="hover:bg-slate-800/50 transition-colors">
+                                <td class="px-4 py-3 font-mono text-blue-400">${c.path}</td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="${
+                                          Number(c.coverage) < 50
+                                            ? 'text-red-400'
+                                            : 'text-yellow-400'
+                                        }">${c.coverage}%</span>
+                                        <div class="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                            <div class="h-full ${
+                                              Number(c.coverage) < 50
+                                                ? 'bg-red-500'
+                                                : 'bg-yellow-500'
+                                            }" style="width: ${c.coverage}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-slate-400">${c.uncoveredLines}</td>
+                            </tr>
+                        `
+                          )
+                          .join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      `;
   }
 
   private openReport(reportPath: string): void {
@@ -256,8 +328,16 @@ export class QACommand extends BaseCommand {
     execFileSync(commandPath, [reportPath], { stdio: 'ignore', env: this.getSafeEnv() });
   }
 
+  private runUncoveredScript(): void {
+    const npxPath = this.resolveBinPath('npx');
+    execFileSync(npxPath, ['tsx', 'scripts/sonarcloud-issues.ts', '--uncovered'], {
+      stdio: 'inherit',
+      env: this.getSafeEnv(),
+    });
+  }
+
   private runNpmScript(scriptName: string): void {
-    const npmPath = this.resolveNpmPath();
+    const npmPath = this.resolveBinPath('npm');
 
     // Run npm directly (absolute path, no PATH lookup).
     // Provide a fixed PATH comprised of system directories + Node bin (Sonar S4036).
@@ -268,20 +348,20 @@ export class QACommand extends BaseCommand {
     });
   }
 
-  private resolveNpmPath(): string {
+  private resolveBinPath(binName: string): string {
     const nodeBinDir = path.dirname(process.execPath);
 
     const candidates =
       process.platform === 'win32'
-        ? [path.join(nodeBinDir, 'npm.cmd'), path.join(nodeBinDir, 'npm.exe')]
-        : [path.join(nodeBinDir, 'npm')];
+        ? [path.join(nodeBinDir, `${binName}.cmd`), path.join(nodeBinDir, `${binName}.exe`)]
+        : [path.join(nodeBinDir, binName)];
 
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) return candidate;
     }
 
     throw new Error(
-      'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
+      `Unable to locate ${binName} executable. Ensure Node.js is installed in the standard location.`
     );
   }
 

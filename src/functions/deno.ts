@@ -80,7 +80,12 @@ export default deno;
  * Uncomment to test locally with: deno run --allow-net functions/deno.ts
  */
 // @ts-ignore - Deno specific property
-if ((import.meta as unknown as Record<string, unknown>).main === true) {
+type GlobalWithDenoMainFlag = typeof globalThis & { __ZINTRUST_DENO_MAIN__?: boolean };
+const isMainModule =
+  (globalThis as GlobalWithDenoMainFlag).__ZINTRUST_DENO_MAIN__ ??
+  (import.meta as unknown as Record<string, unknown>)['main'] === true;
+
+if (isMainModule) {
   const adapter = new DenoAdapter({
     handler: async (req, res): Promise<void> => {
       // Process through Zintrust kernel

@@ -1,3 +1,4 @@
+import { ValidationError as ValidationErrorClass } from '@/validation/ValidationError';
 import { Schema, ValidationError, Validator } from '@/validation/Validator';
 import { describe, expect, it } from 'vitest';
 
@@ -59,6 +60,16 @@ describe('Validator', () => {
     expect(() => Validator.validate({ name: 'VeryLongNameHere' }, schema)).toThrow(ValidationError);
   });
 
+  it('should validate minLength/maxLength for arrays', () => {
+    const schema = new Schema().minLength('tags', 2).maxLength('tags', 3);
+
+    expect(Validator.validate({ tags: ['a', 'b'] }, schema)).toEqual({ tags: ['a', 'b'] });
+    expect(() => Validator.validate({ tags: ['a'] }, schema)).toThrow(ValidationError);
+    expect(() => Validator.validate({ tags: ['a', 'b', 'c', 'd'] }, schema)).toThrow(
+      ValidationError
+    );
+  });
+
   it('should validate regex', () => {
     const schema = new Schema().regex('code', /^[A-Z]{3}$/);
 
@@ -100,5 +111,30 @@ describe('Validator', () => {
         expect(error.errors[1].field).toBe('email');
       }
     }
+  });
+
+  it('ValidationError helpers should work as expected', () => {
+    const error = new ValidationErrorClass(
+      [
+        { field: 'email', message: 'Invalid email', rule: 'email' },
+        { field: 'email', message: 'Required', rule: 'required' },
+        { field: 'name', message: 'Required', rule: 'required' },
+      ],
+      'Custom message'
+    );
+
+    expect(error.message).toBe('Custom message');
+    expect(error.name).toBe('ValidationError');
+
+    expect(error.toObject()).toEqual({
+      email: ['Invalid email', 'Required'],
+      name: ['Required'],
+    });
+
+    expect(error.getFieldError('email')).toBe('Invalid email');
+    expect(error.getFieldError('missing')).toBeUndefined();
+
+    expect(error.hasFieldError('email')).toBe(true);
+    expect(error.hasFieldError('missing')).toBe(false);
   });
 });

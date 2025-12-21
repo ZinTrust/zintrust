@@ -101,16 +101,20 @@ function verifyPbkdf2(password: string, hash: string): boolean {
 /**
  * Hash with bcrypt
  */
-async function hashBcrypt(password: string): Promise<string> {
+async function hashBcrypt(bcryptModule: BcryptModule, password: string): Promise<string> {
   const rounds = 12;
-  return bcrypt === undefined ? '' : bcrypt.hash(password, rounds);
+  return bcryptModule.hash(password, rounds);
 }
 
 /**
  * Verify bcrypt hash
  */
-async function verifyBcrypt(password: string, hash: string): Promise<boolean> {
-  return bcrypt === undefined ? false : bcrypt.compare(password, hash);
+async function verifyBcrypt(
+  bcryptModule: BcryptModule,
+  password: string,
+  hash: string
+): Promise<boolean> {
+  return bcryptModule.compare(password, hash);
 }
 
 /**
@@ -123,7 +127,7 @@ export const Encryptor = {
   async hash(password: string): Promise<string> {
     await ensureLoaded();
     if (algorithm === 'bcrypt' && bcrypt !== undefined) {
-      return hashBcrypt(password);
+      return hashBcrypt(bcrypt, password);
     }
     return hashPbkdf2(password);
   },
@@ -137,7 +141,7 @@ export const Encryptor = {
     if (hash.startsWith('$2')) {
       // bcrypt hash format
       if (bcrypt !== undefined) {
-        return verifyBcrypt(password, hash);
+        return verifyBcrypt(bcrypt, password, hash);
       }
       throw new Error('bcrypt not available to verify hash');
     }

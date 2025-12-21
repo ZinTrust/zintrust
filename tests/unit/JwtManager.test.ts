@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JwtManager Basic Tests', () => {
   let manager: JwtManager;
-  const secret = 'test-secret-key-for-hmac-256';
+  const secret = 'test-secret-key-for-hmac-256'; // NOSONAR
 
   beforeEach(() => {
     manager = new JwtManager();

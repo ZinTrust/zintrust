@@ -9,49 +9,7 @@
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-
-function stripWrappingQuotes(value: string): string {
-  if (value.length < 2) return value;
-
-  const firstChar = value[0];
-  const lastChar = value[value.length - 1];
-
-  const isDoubleQuoted = firstChar === '"' && lastChar === '"';
-  const isSingleQuoted = firstChar === "'" && lastChar === "'";
-
-  if (isDoubleQuoted || isSingleQuoted) {
-    return value.slice(1, -1);
-  }
-
-  return value;
-}
-
-function loadDotEnv(): void {
-  try {
-    const envPath = path.join(process.cwd(), '.env');
-    if (!fs.existsSync(envPath)) return;
-
-    const envContent = fs.readFileSync(envPath, 'utf-8');
-    for (const rawLine of envContent.split('\n')) {
-      const line = rawLine.trim();
-      if (line.length === 0 || line.startsWith('#')) continue;
-
-      const eqIndex = line.indexOf('=');
-      if (eqIndex === -1) continue;
-
-      const key = line.slice(0, eqIndex).trim();
-      const valueRaw = line.slice(eqIndex + 1).trim();
-
-      if (key.length === 0) continue;
-      if (process.env[key] !== undefined) continue; // don't override existing env
-
-      const value = stripWrappingQuotes(valueRaw);
-      process.env[key] = value;
-    }
-  } catch {
-    // Ignore .env loading errors
-  }
-}
+import { loadEnv } from './utils/env';
 
 function getScannerBinPath(): string {
   const binName = process.platform === 'win32' ? 'sonar-scanner.cmd' : 'sonar-scanner';
@@ -80,7 +38,7 @@ function getSafeEnv(): NodeJS.ProcessEnv {
 }
 
 async function main(): Promise<void> {
-  loadDotEnv();
+  loadEnv();
 
   const binPath = getScannerBinPath();
   const args = process.argv.slice(2);

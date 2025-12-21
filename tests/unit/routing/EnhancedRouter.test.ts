@@ -26,6 +26,23 @@ describe('EnhancedRouter', () => {
     expect(match?.handler).toBe(handler);
   });
 
+  it('should register and match PATCH route', () => {
+    const handler = vi.fn();
+    router.patch('/test', handler);
+
+    const match = router.match('PATCH', '/test');
+    expect(match).not.toBeNull();
+    expect(match?.handler).toBe(handler);
+  });
+
+  it('should register and match any-method route', () => {
+    const handler = vi.fn();
+    router.any('/wild', handler);
+
+    expect(router.match('GET', '/wild')?.handler).toBe(handler);
+    expect(router.match('POST', '/wild')?.handler).toBe(handler);
+  });
+
   it('should match route with parameters', () => {
     const handler = vi.fn();
     router.get('/users/:id/posts/:postId', handler);
@@ -99,6 +116,56 @@ describe('EnhancedRouter', () => {
     const route = router.getByName('test.route');
     expect(route).toBeDefined();
     expect(route?.path).toBe('/test');
+  });
+
+  it('should generate URLs for named routes', () => {
+    const handler = vi.fn();
+    router.get('/users/:id', handler, 'users.show');
+
+    expect(router.url('users.show', { id: '123' })).toBe('/users/123');
+    expect(router.url('users.show')).toBe('/users/:id');
+    expect(router.url('missing.route')).toBeNull();
+  });
+
+  it('should escape special regex characters in static paths', () => {
+    const handler = vi.fn();
+    router.get('/special.+', handler);
+
+    expect(router.match('GET', '/special.+')?.handler).toBe(handler);
+    expect(router.match('GET', '/specialX+')?.handler).toBeUndefined();
+  });
+
+  it('should expose registered routes via getRoutes()', () => {
+    const handler = vi.fn();
+    router.get('/a', handler);
+    router.post('/b', handler);
+
+    const routes = router.getRoutes();
+    expect(routes).toHaveLength(2);
+    expect(routes[0].path).toBe('/a');
+    expect(routes[1].path).toBe('/b');
+  });
+
+  it('should handle defensive case when regex exec returns null', () => {
+    const handler = vi.fn();
+    router.get('/defensive', handler);
+
+    type ExecTestPattern = {
+      test: (value: string) => boolean;
+      exec: (value: string) => RegExpExecArray | null;
+    };
+
+    type RouteWithPattern = {
+      pattern: ExecTestPattern;
+    };
+
+    const routes = router.getRoutes() as unknown as RouteWithPattern[];
+    routes[0].pattern = {
+      test: () => true,
+      exec: () => null,
+    };
+
+    expect(router.match('GET', '/defensive')).toBeNull();
   });
 
   it('should return null for non-matching route', () => {

@@ -71,6 +71,9 @@ describe('CsrfTokenManager', () => {
     const token = csrfManager.generateToken(sessionId);
     const initialData = csrfManager.getTokenData(sessionId);
     const initialExpiry = initialData?.expiresAt.getTime();
+    if (initialExpiry === undefined) {
+      throw new Error('Initial expiry is undefined');
+    }
 
     // Advance time slightly
     vi.setSystemTime(new Date(Date.now() + 1000));
@@ -79,9 +82,14 @@ describe('CsrfTokenManager', () => {
     const refreshedData = csrfManager.getTokenData(sessionId);
 
     expect(refreshedToken).toBe(token);
-    expect(refreshedData?.expiresAt.getTime()).toBeGreaterThan(initialExpiry!);
+    expect(refreshedData?.expiresAt.getTime()).toBeGreaterThan(initialExpiry);
 
     vi.useRealTimers();
+  });
+
+  it('should return null when refreshing a missing session token', () => {
+    const refreshedToken = csrfManager.refreshToken('missing-session');
+    expect(refreshedToken).toBeNull();
   });
 
   it('should not refresh an expired token', () => {

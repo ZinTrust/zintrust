@@ -28,7 +28,9 @@
       "@functions/*": ["src/functions/*"],
       "@services/*": ["src/services/*"],
       "@app/*": ["app/*"],
-      "@microservices/*": ["src/microservices/*"]
+      "@routes/*": ["routes/*"],
+      "@microservices/*": ["src/microservices/*"],
+      "@scripts/*": ["scripts/*"]
     },
     "strict": true,
     "strictNullChecks": true,

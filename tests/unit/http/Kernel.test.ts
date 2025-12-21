@@ -8,6 +8,9 @@ import { Router } from '@/routing/EnhancedRouter';
 import * as http from 'node:http';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { RequestProfiler } from '@/profiling/RequestProfiler';
+import type { ProfileReport } from '@profiling/types';
+
 // Global mock instances
 let mockRequestInstance: any;
 let mockResponseInstance: any;
@@ -105,6 +108,42 @@ describe('Kernel', () => {
     expect(routeHandler).toHaveBeenCalledWith(mockRequest, mockResponse);
   });
 
+  it('should not execute route middleware when none configured', async () => {
+    (mockRouter.match as Mock).mockReturnValue({
+      handler: vi.fn(),
+      params: {},
+      middleware: [],
+    });
+
+    await kernel.handleRequest(mockReq, mockRes);
+
+    expect(mockMiddlewareStack.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('should profile request when x-profile header is true', async () => {
+    (mockRouter.match as Mock).mockReturnValue({
+      handler: vi.fn(),
+      params: {},
+      middleware: [],
+    });
+
+    mockReq.headers = { 'x-profile': 'true' };
+
+    const captureSpy = vi
+      .spyOn(RequestProfiler.prototype, 'captureRequest')
+      .mockImplementation(async (fn: () => Promise<unknown>) => {
+        await fn();
+        return { ok: true } as unknown as ProfileReport;
+      });
+
+    await kernel.handleRequest(mockReq, mockRes);
+
+    expect(captureSpy).toHaveBeenCalledTimes(1);
+    expect((mockResponse.locals as unknown as Record<string, unknown>)['profile']).toEqual({
+      ok: true,
+    });
+  });
+
   it('should handle 404 Not Found', async () => {
     (mockRouter.match as Mock).mockReturnValue(null);
 
@@ -155,6 +194,20 @@ describe('Kernel', () => {
 
     expect(responseStatusSpy(mockResponse)).toHaveBeenCalledWith(200);
     expect(mockResponse.json).toHaveBeenCalledWith({ message: 'OK' });
+  });
+
+  it('should not send default response if response already ended', async () => {
+    (mockRes as unknown as { writableEnded: boolean }).writableEnded = true;
+    (mockRouter.match as Mock).mockReturnValue({
+      handler: vi.fn(),
+      params: {},
+      middleware: [],
+    });
+
+    await kernel.handleRequest(mockReq, mockRes);
+
+    expect(responseStatusSpy(mockResponse)).not.toHaveBeenCalledWith(200);
+    expect(mockResponse.json).not.toHaveBeenCalledWith({ message: 'OK' });
   });
 
   it('should expose getters', () => {

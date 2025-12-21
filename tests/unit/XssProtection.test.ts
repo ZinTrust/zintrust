@@ -143,7 +143,7 @@ describe('XssProtection URI and URL Validation', () => {
     });
 
     it('should block javascript: protocol', () => {
-      const result = XssProtection.encodeHref('javascript:alert("XSS")'); // NOSONAR
+      const result = XssProtection.encodeHref('javascript:alert("XSS")'); // NOSONAR: S1523 - Test case for blocking javascript: protocol
       expect(result).toBe('');
     });
 
@@ -172,7 +172,7 @@ describe('XssProtection JSON and Safety', () => {
     });
 
     it('should block javascript: protocol', () => {
-      expect(XssProtection.isSafeUrl('javascript:alert(1)')).toBe(false); // NOSONAR
+      expect(XssProtection.isSafeUrl('javascript:alert(1)')).toBe(false); // NOSONAR: S1523 - Test case for blocking javascript: protocol
     });
 
     it('should block data: protocol', () => {

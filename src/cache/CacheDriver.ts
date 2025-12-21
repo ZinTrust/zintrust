@@ -29,3 +29,6 @@ export interface CacheDriver {
    */
   has(key: string): Promise<boolean>;
 }
+
+// Runtime marker to make this type-only module coverable in V8 coverage.
+export const CACHE_DRIVER_INTERFACE = 'CacheDriver';

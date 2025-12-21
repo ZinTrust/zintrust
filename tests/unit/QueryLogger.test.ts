@@ -52,6 +52,16 @@ describe('QueryLogger Basic Tests', () => {
     const logs = logger.getQueryLog('default');
     expect(logs).toHaveLength(1);
   });
+
+  it('should not recreate existing context log array on repeated setContext', () => {
+    logger.setContext('repeat');
+    logger.logQuery('SELECT 1', [], 1);
+
+    logger.setContext('repeat');
+    logger.logQuery('SELECT 2', [], 1);
+
+    expect(logger.getQueryLog('repeat')).toHaveLength(2);
+  });
 });
 
 describe('QueryLogger Advanced Tests', () => {
@@ -112,5 +122,80 @@ describe('QueryLogger Advanced Tests', () => {
 
     const logs = logger.getQueryLog('request-5');
     expect(logs[0].params).toEqual(params);
+  });
+});
+
+describe('QueryLogger Facade Coverage', () => {
+  beforeEach(() => {
+    QueryLogger.clear();
+  });
+
+  it('getInstance returns the same singleton instance', () => {
+    const a = QueryLogger.getInstance();
+    const b = QueryLogger.getInstance();
+    expect(a).toBe(b);
+  });
+
+  it('facade methods forward correctly (context, counts, totals, logs)', () => {
+    QueryLogger.setContext('ctx-1');
+    expect(QueryLogger.getContext()).toBe('ctx-1');
+
+    QueryLogger.logQuery('SELECT 1', [], 10);
+    QueryLogger.logQuery('SELECT 2', [], 5);
+
+    expect(QueryLogger.getQueryCount('ctx-1')).toBe(2);
+    expect(QueryLogger.getTotalDuration('ctx-1')).toBe(15);
+
+    const logs = QueryLogger.getQueryLog('ctx-1');
+    expect(logs).toHaveLength(2);
+    expect(logs[0].timestamp).toBeInstanceOf(Date);
+  });
+
+  it('getN1Suspects honors default threshold and custom threshold', () => {
+    QueryLogger.setContext('ctx-n1');
+    for (let i = 0; i < 5; i++) {
+      QueryLogger.logQuery('SELECT * FROM users WHERE id = ?', [1], 1);
+    }
+    QueryLogger.logQuery('SELECT * FROM posts', [], 1);
+
+    expect(QueryLogger.getQuerySummary('ctx-n1').size).toBe(2);
+
+    expect(QueryLogger.getN1Suspects('ctx-n1')).toHaveLength(1);
+    expect(QueryLogger.getN1Suspects('ctx-n1', 6)).toHaveLength(0);
+  });
+
+  it('getAllLogs returns a copy of the map and clear() resets default context', () => {
+    QueryLogger.setContext('ctx-a');
+    QueryLogger.logQuery('SELECT 1', [], 1);
+    QueryLogger.setContext('ctx-b');
+    QueryLogger.logQuery('SELECT 2', [], 2);
+
+    const all = QueryLogger.getAllLogs();
+    expect(all.size).toBe(2);
+
+    all.clear();
+    expect(QueryLogger.getAllLogs().size).toBe(2);
+
+    QueryLogger.clear();
+    expect(QueryLogger.getContext()).toBe('default');
+  });
+});
+
+describe('QueryLogger Rare Branches', () => {
+  let logger: QueryLoggerInstance;
+
+  beforeEach(() => {
+    logger = QueryLogger.getInstance();
+    logger.clear();
+  });
+
+  it('covers the path where a context exists but its logs array is undefined', () => {
+    const impl = logger as unknown as { logs: Map<string, unknown> };
+
+    logger.setContext('weird');
+    impl.logs.set('weird', undefined);
+
+    logger.logQuery('SELECT * FROM weird', [], 1, 'weird');
+    expect(logger.getQueryLog('weird')).toEqual([]);
   });
 });

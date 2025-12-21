@@ -48,11 +48,11 @@ export function sanitizeHtml(html: string): string {
 
   // Remove javascript: and data: URIs in attributes
   sanitized = sanitized.replaceAll(
-    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*['"]\s*(?:javascript|data):[\s\S]*?['"]/gi,
+    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*['"]\s*(?:javascript|data):[\s\S]*?['"]/gi, // NOSONAR: S1523 - We are removing javascript: and data: protocols to prevent XSS
     ''
   );
   sanitized = sanitized.replaceAll(
-    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*(?:javascript|data):[^\s>]*?(\s|>|$)/gi,
+    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*(?:javascript|data):[^\s>]*?(\s|>|$)/gi, // NOSONAR: S1523 - We are removing javascript: and data: protocols to prevent XSS
     ''
   );
 
@@ -92,13 +92,18 @@ export function encodeHref(href: string): string {
     return '';
   }
 
-  // Prevent javascript: protocol
-  if (/^\s*javascript:/i.test(href)) {
+  // Prevent javascript: protocol (including obfuscated versions)
+  // We remove control characters and whitespace for the check
+  // eslint-disable-next-line no-control-regex
+  const protocolCheck = href.replaceAll(/[\x00-\x20]/g, '').toLowerCase();
+  const jsProtocol = 'javascript:'; // NOSONAR: S1523 - We are explicitly blocking javascript: protocol to prevent XSS
+  if (protocolCheck.startsWith(jsProtocol)) {
     return '';
   }
 
   // Prevent data: protocol (unless explicitly allowed)
-  if (/^\s*data:text\/html/i.test(href)) {
+  if (protocolCheck.startsWith('data:text/html')) {
+    // NOSONAR: S1523 - We are explicitly blocking data: protocol to prevent XSS
     return '';
   }
 

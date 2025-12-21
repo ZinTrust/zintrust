@@ -18,12 +18,8 @@ export class N1Detector {
     // Remove excess whitespace and normalize
     const normalized = sql.trim().replaceAll(/\s+/g, ' ');
 
-    // SELECT ... FROM table
-    let match = new RegExp(/FROM\s+`?(\w+)`?/i).exec(normalized);
-    if (match) return match[1];
-
     // INSERT INTO table
-    match = new RegExp(/INSERT\s+INTO\s+`?(\w+)`?/i).exec(normalized);
+    let match = new RegExp(/INSERT\s+INTO\s+`?(\w+)`?/i).exec(normalized);
     if (match) return match[1];
 
     // UPDATE table
@@ -32,6 +28,10 @@ export class N1Detector {
 
     // DELETE FROM table
     match = new RegExp(/DELETE\s+FROM\s+`?(\w+)`?/i).exec(normalized);
+    if (match) return match[1];
+
+    // SELECT ... FROM table
+    match = new RegExp(/FROM\s+`?(\w+)`?/i).exec(normalized);
     if (match) return match[1];
 
     return 'unknown';

@@ -24,6 +24,8 @@ export default defineConfig({
       '@services': path.resolve(__dirname, './src/services'),
       '@app': path.resolve(__dirname, './app'),
       '@microservices': path.resolve(__dirname, './src/microservices'),
+      '@routes': path.resolve(__dirname, './routes'),
+      '@scripts': path.resolve(__dirname, './scripts'),
     },
   },
   test: {
@@ -33,7 +35,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts'],
+      include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts', 'scripts/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts', 'app/**/*.d.ts', 'routes/**/*.d.ts'],
       lines: 90,
       functions: 90,
