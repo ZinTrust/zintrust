@@ -22,6 +22,7 @@ export class PostgreSQLAdapter extends BaseAdapter {
       this.connected = true;
       Logger.info(`✓ PostgreSQL connected (${this.config.host}:${this.config.port || 5432})`);
     } catch (error) {
+      Logger.error('Failed to connect to PostgreSQL', error);
       throw new Error(`Failed to connect to PostgreSQL: ${String(error)}`);
     }
   }

@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import { Request } from '@http/Request';
 import { Response } from '@http/Response';
 import { MicroserviceBootstrap, ServiceConfig } from '@microservices/MicroserviceBootstrap';
@@ -465,7 +466,7 @@ describe('Microservices PostgreSQL Adapter', () => {
         port: 5432,
         database: 'zintrust',
         user: 'postgres',
-        password: 'postgres', // NOSONAR
+        password: Env.DB_PASSWORD || 'postgres',
         serviceName: 'users',
         isolation: 'shared',
       });
@@ -479,7 +480,7 @@ describe('Microservices PostgreSQL Adapter', () => {
         port: 5432,
         database: 'zintrust',
         user: 'postgres',
-        password: 'postgres', // NOSONAR
+        password: Env.DB_PASSWORD || 'postgres',
         max: 10,
       });
 

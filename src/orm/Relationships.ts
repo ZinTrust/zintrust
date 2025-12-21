@@ -106,18 +106,11 @@ export class BelongsToMany {
    * Get related model instances through pivot table
    */
   public async get(instance: Model): Promise<Model[]> {
-    const instanceId = instance.getAttribute('id');
-    if (
-      instanceId === undefined ||
-      instanceId === null ||
-      instanceId === '' ||
-      this._throughTable === '' ||
-      this._foreignKey === '' ||
-      this._relatedKey === ''
-    ) {
+    if (!this.isValidInstance(instance)) {
       return [];
     }
 
+    const instanceId = instance.getAttribute('id');
     const relatedTable = new (this.relatedModel as unknown as new () => Model)().getTable();
 
     const related = (await this.relatedModel
@@ -127,5 +120,20 @@ export class BelongsToMany {
       .get()) as Model[];
 
     return related;
+  }
+
+  /**
+   * Validate if instance and relationship configuration are valid
+   */
+  private isValidInstance(instance: Model): boolean {
+    const instanceId = instance.getAttribute('id');
+    return (
+      instanceId !== undefined &&
+      instanceId !== null &&
+      instanceId !== '' &&
+      this._throughTable !== '' &&
+      this._foreignKey !== '' &&
+      this._relatedKey !== ''
+    );
   }
 }

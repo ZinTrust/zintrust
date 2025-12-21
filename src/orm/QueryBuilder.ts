@@ -164,31 +164,64 @@ export class QueryBuilder {
    * Note: In production, use database adapter for SQL generation
    */
   public toSQL(): string {
-    const escapeIdentifier = (id: string): string => `"${id.replaceAll('"', '""')}"`;
-    const columns = this.selectColumns.map((c) => (c === '*' ? c : escapeIdentifier(c))).join(', ');
-    const table = escapeIdentifier(this.tableName);
+    const columns = this.buildSelectClause();
+    const table = this.escapeIdentifier(this.tableName);
 
     let sql = `SELECT ${columns} FROM ${table}`;
 
-    if (this.whereConditions.length > 0) {
-      sql += ' WHERE ';
-      sql += this.whereConditions
-        .map((clause) => `${escapeIdentifier(clause.column)} ${clause.operator} ?`)
-        .join(' AND ');
-    }
+    sql += this.buildWhereClause();
+    sql += this.buildOrderByClause();
+    sql += this.buildLimitOffsetClause();
 
-    if (this.orderByClause !== undefined && this.orderByClause !== null) {
-      sql += ` ORDER BY ${this.orderByClause.column} ${this.orderByClause.direction}`;
-    }
+    return sql;
+  }
 
+  /**
+   * Escape SQL identifier
+   */
+  private escapeIdentifier(id: string): string {
+    return `"${id.replaceAll('"', '""')}"`;
+  }
+
+  /**
+   * Build SELECT clause
+   */
+  private buildSelectClause(): string {
+    return this.selectColumns.map((c) => (c === '*' ? c : this.escapeIdentifier(c))).join(', ');
+  }
+
+  /**
+   * Build WHERE clause
+   */
+  private buildWhereClause(): string {
+    if (this.whereConditions.length === 0) return '';
+
+    const conditions = this.whereConditions
+      .map((clause) => `${this.escapeIdentifier(clause.column)} ${clause.operator} ?`)
+      .join(' AND ');
+
+    return ` WHERE ${conditions}`;
+  }
+
+  /**
+   * Build ORDER BY clause
+   */
+  private buildOrderByClause(): string {
+    if (!this.orderByClause) return '';
+    return ` ORDER BY ${this.orderByClause.column} ${this.orderByClause.direction}`;
+  }
+
+  /**
+   * Build LIMIT and OFFSET clause
+   */
+  private buildLimitOffsetClause(): string {
+    let sql = '';
     if (this.limitValue !== undefined && this.limitValue !== null) {
       sql += ` LIMIT ${this.limitValue}`;
     }
-
     if (this.offsetValue !== undefined && this.offsetValue !== null) {
       sql += ` OFFSET ${this.offsetValue}`;
     }
-
     return sql;
   }
 

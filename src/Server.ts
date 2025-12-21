@@ -107,7 +107,7 @@ export class Server {
         return true;
       }
     } catch (error) {
-      Logger.error(`Error serving static file ${filePath}:`, error);
+      Logger.error(`Error serving static file ${filePath}`, error);
     }
 
     return false;

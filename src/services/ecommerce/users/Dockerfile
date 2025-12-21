@@ -2,7 +2,7 @@
 # Target: < 1 MB final image
 
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112 AS builder
 
 WORKDIR /build
 
@@ -21,7 +21,7 @@ COPY tsconfig.json ./
 RUN npm run build 2>/dev/null || true
 
 # Stage 2: Runtime
-FROM node:20-alpine
+FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112
 
 WORKDIR /app
 

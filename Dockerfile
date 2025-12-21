@@ -1,5 +1,5 @@
 # Build Stage - Compile TypeScript
-FROM node:20-alpine AS builder
+FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112 AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY src ./src
 RUN npm run build
 
 # Runtime Stage - Production image
-FROM node:20-alpine AS runtime
+FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112 AS runtime
 
 WORKDIR /app
 
