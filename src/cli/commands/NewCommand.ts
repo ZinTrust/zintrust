@@ -9,6 +9,7 @@ import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import path from 'node:path';
 
 interface ProjectConfig {
@@ -199,9 +200,11 @@ export class NewCommand extends BaseCommand {
       const projectDir = path.join(process.cwd(), projectName);
       const execOptions = { stdio: 'pipe' as const, cwd: projectDir, env: this.getSafeEnv() };
 
-      execFileSync('git', ['init'], execOptions);
-      execFileSync('git', ['add', '.'], execOptions);
-      execFileSync('git', ['commit', '-m', 'Initial commit'], execOptions);
+      const gitBin = this.getGitBinary();
+
+      execFileSync(gitBin, ['init'], execOptions);
+      execFileSync(gitBin, ['add', '.'], execOptions);
+      execFileSync(gitBin, ['commit', '-m', 'Initial commit'], execOptions);
       this.success('Git initialized');
     } catch (error: unknown) {
       Logger.error('Git initialization failed', error);
@@ -214,11 +217,48 @@ export class NewCommand extends BaseCommand {
     }
   }
 
+  private getGitBinary(): string {
+    // On Windows, avoid relying on PATH for executable resolution.
+    if (process.platform !== 'win32') {
+      return 'git';
+    }
+
+    const programFiles = process.env['ProgramFiles'];
+    const programFilesX86 = process.env['ProgramFiles(x86)'];
+
+    const candidates: string[] = [];
+    if (typeof programFiles === 'string' && programFiles.length > 0) {
+      candidates.push(path.join(programFiles, 'Git', 'cmd', 'git.exe'));
+    }
+    if (typeof programFilesX86 === 'string' && programFilesX86.length > 0) {
+      candidates.push(path.join(programFilesX86, 'Git', 'cmd', 'git.exe'));
+    }
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    // Fallback: will only work if git is available in the restricted PATH.
+    return 'git';
+  }
+
   private getSafeEnv(): NodeJS.ProcessEnv {
+    // Sonar (S4036): PATH must only contain fixed, unwritable directories to avoid path injection.
+    // Note: On Windows, we intentionally *do not* add Git install directories to PATH; we resolve git.exe
+    // via absolute paths in getGitBinary().
+    const nodeBinDir = path.dirname(process.execPath);
     const safePath =
       process.platform === 'win32'
-        ? String.raw`C:\Windows\System32;C:\Windows;C:\Program Files\Git\cmd;C:\Program Files\Git\bin`
-        : '/usr/bin:/bin:/usr/sbin:/sbin';
+        ? [
+            String.raw`C:\Windows\System32`,
+            String.raw`C:\Windows`,
+            String.raw`C:\Windows\System32\Wbem`,
+            String.raw`C:\Windows\System32\WindowsPowerShell\v1.0`,
+            nodeBinDir,
+          ].join(';')
+        : ['/usr/bin', '/bin', '/usr/sbin', '/sbin', nodeBinDir].join(':');
 
     return {
       ...process.env,

@@ -251,7 +251,8 @@ function validateArray(field: string, value: unknown, message: string): FieldErr
 }
 
 function validateEmail(field: string, value: unknown, message: string): FieldError | null {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Sonar S5852: Use a safe regex that avoids backtracking by excluding dots from domain labels
+  const emailRegex = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
   return typeof value !== 'string' || !emailRegex.test(value)
     ? { field, message, rule: 'email' }
     : null;

@@ -329,7 +329,8 @@ export const SecretsManager = {
 export const SECRETS = {
   // Database credentials
   DB_USERNAME: 'db/username',
-  DB_PASSWORD: 'db/password',
+  // Secret identifier only (not a credential value)
+  DB_PASSWORD: 'db/password', // NOSONAR (typescript:S2068) - secret key name, not hardcoded password
   DB_HOST: 'db/host',
   DB_PORT: 'db/port',
   DB_DATABASE: 'db/database',

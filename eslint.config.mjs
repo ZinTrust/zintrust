@@ -23,6 +23,7 @@ export default defineConfig(
       'vitest.config.ts',
       'eslint.config.mjs',
       'worker-configuration.d.ts',
+      '.scannerwork/**',
     ],
   },
   eslint.configs.recommended,

@@ -156,7 +156,9 @@ export const CONFIG_RULES: Record<string, ValidationRule> = {
   version: {
     type: 'string',
     required: true,
-    pattern: /^\d+\.\d+\.\d+.*$/,
+    // SemVer: MAJOR.MINOR.PATCH with optional -prerelease and +build metadata
+    // Avoids `.*` patterns (Sonar S5852: potential super-linear backtracking).
+    pattern: /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
     description: 'Semantic version (e.g. 1.0.0)',
   },
   'server.port': {

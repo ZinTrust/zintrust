@@ -24,6 +24,7 @@ out/
 .pnp.js
 *.tsbuildinfo
 .sonarlint/
+.scannerwork/
 .github/copilot-instructions.md
 .github/copilot-instructions-todo.md
 md/
