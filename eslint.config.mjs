@@ -51,6 +51,19 @@ export default defineConfig(
       '@typescript-eslint/strict-boolean-expressions': 'warn',
       '@typescript-eslint/ban-ts-comment': 'off',
       'no-console': 'error',
+      eqeqeq: ['error', 'always'],
+      'no-negated-condition': 'error',
+      'max-len': [
+        'error',
+        {
+          code: 120,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+          ignoreRegExpLiterals: true,
+        },
+      ],
+      'max-lines-per-function': ['error', { max: 50, skipBlankLines: true, skipComments: true }],
       'no-restricted-syntax': [
         'error',
         {
