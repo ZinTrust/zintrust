@@ -54,7 +54,7 @@ export async function handler(
 
     // Create Lambda adapter
     const adapter = new LambdaAdapter({
-      handler: async (req, res) => {
+      handler: async (req, res): Promise<void> => {
         // Process through Zintrust kernel
         await app.handleRequest(req, res);
       },

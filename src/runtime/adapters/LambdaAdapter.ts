@@ -45,7 +45,7 @@ export class LambdaAdapter implements RuntimeAdapter {
       const body = this.parseBody(lambdaEvent);
 
       // Set request timeout
-      const timeout = this.config.timeout || 30000;
+      const timeout = this.config.timeout ?? 30000;
       const timeoutHandle = setTimeout(() => {
         res.writeHead(504, { 'Content-Type': 'application/json' });
         res.end(

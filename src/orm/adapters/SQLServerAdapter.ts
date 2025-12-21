@@ -21,7 +21,7 @@ export class SQLServerAdapter extends BaseAdapter {
       // In production: const sql = require('mssql');
       // this.pool = new sql.ConnectionPool({...config}).connect();
       this.connected = true;
-      Logger.info(`✓ SQL Server connected (${this.config.host}:${this.config.port || 1433})`);
+      Logger.info(`✓ SQL Server connected (${this.config.host}:${this.config.port ?? 1433})`);
     } catch (error) {
       Logger.error('Failed to connect to SQL Server', error);
       throw new Error(`Failed to connect to SQL Server: ${String(error)}`);

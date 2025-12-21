@@ -133,7 +133,12 @@ export class DenoAdapter implements RuntimeAdapter {
     });
   }
 
-  getLogger() {
+  getLogger(): {
+    debug(msg: string, data?: unknown): void;
+    info(msg: string, data?: unknown): void;
+    warn(msg: string, data?: unknown): void;
+    error(msg: string, err?: Error): void;
+  } {
     return (
       this.logger || {
         debug: (msg: string) => Logger.debug(`[Deno] ${msg}`),
@@ -149,7 +154,14 @@ export class DenoAdapter implements RuntimeAdapter {
     return false;
   }
 
-  getEnvironment() {
+  getEnvironment(): {
+    nodeEnv: string;
+    runtime: string;
+    dbConnection: string;
+    dbHost?: string;
+    dbPort?: number;
+    [key: string]: unknown;
+  } {
     // @ts-ignore - Deno.env is available in Deno runtime
     const env = Deno.env.toObject?.() || {};
     return {
@@ -199,11 +211,7 @@ export class DenoAdapter implements RuntimeAdapter {
   private createMockHttpObjects(request: PlatformRequest): {
     req: unknown;
     res: MockResponse;
-    responseData: {
-      statusCode: number;
-      headers: Record<string, string | string[]>;
-      body: EnvBody;
-    };
+    responseData: { statusCode: number; headers: Record<string, string | string[]>; body: EnvBody };
   } {
     const responseData = {
       statusCode: 200,

@@ -82,7 +82,7 @@ export default deno;
 // @ts-ignore - Deno specific property
 if (import.meta.main) {
   const adapter = new DenoAdapter({
-    handler: async (req, res) => {
+    handler: async (req, res): Promise<void> => {
       // Process through Zintrust kernel
       const app = await initializeKernel();
       await app.handleRequest(req, res);

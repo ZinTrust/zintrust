@@ -111,7 +111,7 @@ export class CloudflareAdapter implements RuntimeAdapter {
     }
 
     const body =
-      typeof response.body === 'string' ? response.body : response.body?.toString('utf-8') || '';
+      typeof response.body === 'string' ? response.body : (response.body?.toString('utf-8') ?? '');
 
     return new Response(body, {
       status: response.statusCode,
@@ -119,7 +119,12 @@ export class CloudflareAdapter implements RuntimeAdapter {
     });
   }
 
-  getLogger() {
+  getLogger(): {
+    debug(msg: string, data?: unknown): void;
+    info(msg: string, data?: unknown): void;
+    warn(msg: string, data?: unknown): void;
+    error(msg: string, err?: Error): void;
+  } {
     return (
       this.logger || {
         debug: (msg: string) => Logger.debug(`[Cloudflare] ${msg}`),
@@ -135,13 +140,20 @@ export class CloudflareAdapter implements RuntimeAdapter {
     return false;
   }
 
-  getEnvironment() {
+  getEnvironment(): {
+    nodeEnv: string;
+    runtime: string;
+    dbConnection: string;
+    dbHost?: string;
+    dbPort?: number;
+    [key: string]: unknown;
+  } {
     // @ts-ignore - Cloudflare Workers environment
-    const env = globalThis.env || {};
+    const env = globalThis.env ?? {};
     return {
-      nodeEnv: env.ENVIRONMENT || 'production',
+      nodeEnv: env.ENVIRONMENT ?? 'production',
       runtime: 'cloudflare',
-      dbConnection: env.DB_CONNECTION || 'd1', // D1 is Cloudflare's database
+      dbConnection: env.DB_CONNECTION ?? 'd1', // D1 is Cloudflare's database
       dbHost: undefined, // D1 uses bindings, not host
       dbPort: undefined,
     };
@@ -153,7 +165,7 @@ export class CloudflareAdapter implements RuntimeAdapter {
    */
   getD1Database(): unknown {
     // @ts-ignore - Cloudflare Workers environment
-    return globalThis.env?.DB || null;
+    return globalThis.env?.DB ?? null;
   }
 
   /**
@@ -162,7 +174,7 @@ export class CloudflareAdapter implements RuntimeAdapter {
    */
   getKV(namespace: string): unknown {
     // @ts-ignore - Cloudflare Workers environment
-    return globalThis.env?.[namespace] || null;
+    return globalThis.env?.[namespace] ?? null;
   }
 
   private createMockHttpObjects(request: PlatformRequest): {
@@ -237,11 +249,20 @@ export interface CloudflareRequest extends Request {
 function createDefaultLogger(): AdapterConfig['logger'] {
   return {
     debug: (msg: string, data?: unknown) =>
-      Logger.debug(`[Cloudflare] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.debug(
+        `[Cloudflare] ${msg}`,
+        data !== undefined && data !== null ? JSON.stringify(data) : ''
+      ),
     info: (msg: string, data?: unknown) =>
-      Logger.info(`[Cloudflare] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.info(
+        `[Cloudflare] ${msg}`,
+        data !== undefined && data !== null ? JSON.stringify(data) : ''
+      ),
     warn: (msg: string, data?: unknown) =>
-      Logger.warn(`[Cloudflare] ${msg}`, data ? JSON.stringify(data) : ''),
+      Logger.warn(
+        `[Cloudflare] ${msg}`,
+        data !== undefined && data !== null ? JSON.stringify(data) : ''
+      ),
     error: (msg: string, err?: Error) => Logger.error(`[Cloudflare] ${msg}`, err?.message),
   };
 }

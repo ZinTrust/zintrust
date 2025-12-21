@@ -23,7 +23,7 @@ export class MySQLAdapter extends BaseAdapter {
       // In production: const mysql = require('mysql2/promise');
       // this.pool = mysql.createPool({...config});
       this.connected = true;
-      Logger.info(`✓ MySQL connected (${this.config.host}:${this.config.port || 3306})`);
+      Logger.info(`✓ MySQL connected (${this.config.host}:${this.config.port ?? 3306})`);
     } catch (error) {
       Logger.error('Failed to connect to MySQL:', error);
       throw new Error(`Failed to connect to MySQL: ${String(error)}`);
@@ -58,7 +58,7 @@ export class MySQLAdapter extends BaseAdapter {
   public async transaction<T>(callback: (adapter: MySQLAdapter) => Promise<T>): Promise<T> {
     type Connection = { query: (sql: string) => Promise<void>; release: () => void };
     const connection = await (
-      this.pool as unknown as { getConnection?: () => Promise<Connection> }
+      this.pool as { getConnection?: () => Promise<Connection> }
     )?.getConnection?.();
     try {
       await (connection as unknown as Connection | undefined)?.query?.('START TRANSACTION');

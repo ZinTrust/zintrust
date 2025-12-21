@@ -45,7 +45,7 @@ export default {
 
       // Create Cloudflare adapter
       const adapter = new CloudflareAdapter({
-        handler: async (req, res) => {
+        handler: async (req, res): Promise<void> => {
           // Process through Zintrust kernel
           await app.handleRequest(req, res);
         },
