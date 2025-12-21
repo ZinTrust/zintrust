@@ -55,6 +55,32 @@ jobs:
             echo "✅ SonarQube credentials available"
           fi
 
+      - name: Verify SonarCloud Token Permissions
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "🔍 Checking SonarCloud token permissions..."
+          # Test token by fetching organization info
+          RESPONSE=$(curl -s -u "$SONAR_TOKEN:" "https://sonarcloud.io/api/organizations/search?organizations=zintrust" -w "\n%{http_code}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+
+          echo "Response HTTP Code: $HTTP_CODE"
+          echo "Response Body: $BODY"
+
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Token is valid and can access zintrust organization"
+          elif [ "$HTTP_CODE" = "401" ]; then
+            echo "❌ Token is invalid or expired (401 Unauthorized)"
+            exit 1
+          elif [ "$HTTP_CODE" = "403" ]; then
+            echo "❌ Token doesn't have permission to access zintrust organization (403 Forbidden)"
+            exit 1
+          else
+            echo "❌ Unexpected response: $HTTP_CODE"
+            exit 1
+          fi
+
       - name: Upload coverage to SonarQube
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
