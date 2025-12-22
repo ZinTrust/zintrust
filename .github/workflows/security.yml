@@ -13,14 +13,12 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: write
-
 jobs:
   dependency-check:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -69,6 +67,8 @@ jobs:
   secret-scanning:
     name: Secret Detection
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -96,6 +96,9 @@ jobs:
   code-scanning:
     name: CodeQL Security Analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout code
@@ -142,6 +145,9 @@ jobs:
   sast-scanning:
     name: SAST - Static Code Analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout code
@@ -176,6 +182,9 @@ jobs:
   license-compliance:
     name: License Compliance Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout code
@@ -208,6 +217,8 @@ jobs:
   security-headers:
     name: Security Headers Validation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -247,6 +258,9 @@ jobs:
     name: Dependency Graph Update
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout code
