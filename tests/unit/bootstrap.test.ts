@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 // Mock dependencies
 vi.mock('@/Application');
 vi.mock('@/Server');
+vi.mock('@routes/api', () => ({
+  registerRoutes: vi.fn(),
+}));
 vi.mock('@config/env', () => ({
   Env: {
     PORT: 3000,
@@ -34,7 +37,7 @@ describe('Bootstrap', () => {
   type ListenFn = () => Promise<void>;
 
   let mockServer: { listen: ReturnType<typeof vi.fn<ListenFn>> };
-  let mockApp: Record<string, never>;
+  let mockApp: { getRouter: Mock };
   let signalHandlers: Partial<Record<SignalName, SignalHandler>>;
 
   beforeEach(() => {
@@ -58,7 +61,9 @@ describe('Bootstrap', () => {
     vi.spyOn(process, 'cwd').mockReturnValue('/test/cwd');
 
     // Setup mocks
-    mockApp = {};
+    mockApp = {
+      getRouter: vi.fn().mockReturnValue({}),
+    };
     (Application as Mock).mockImplementation(function () {
       return mockApp;
     });

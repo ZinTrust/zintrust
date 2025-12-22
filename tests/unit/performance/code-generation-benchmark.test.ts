@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loggerInfo = vi.fn();
@@ -247,8 +248,7 @@ describe('CodeGenerationBenchmark', () => {
 
     const originalArgv = process.argv;
     process.argv = [...originalArgv];
-    process.argv[1] =
-      '/opt/homebrew/var/www/Sites/cako/zintrust/src/performance/CodeGenerationBenchmark.ts';
+    process.argv[1] = path.resolve(process.cwd(), 'src/performance/CodeGenerationBenchmark.ts');
 
     // Don't override - let it detect from argv[1]
     (globalThis as any).__ZINTRUST_CODEGEN_BENCHMARK_MAIN__ = undefined;

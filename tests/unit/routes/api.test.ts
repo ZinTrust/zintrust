@@ -91,7 +91,12 @@ describe('Routes API', () => {
 
       await rootHandler(req, res);
 
-      expect(res.json).toHaveBeenCalledWith({ message: 'Welcome to Zintrust API' });
+      expect(res.json).toHaveBeenCalledWith({
+        framework: 'Zintrust Framework',
+        version: '0.1.0',
+        env: 'test',
+        database: 'sqlite',
+      });
     });
 
     it('should handle health check success', async () => {

@@ -7,6 +7,7 @@ import { Application } from '@/Application';
 import { Server } from '@/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { registerRoutes } from '@routes/api';
 
 /**
  * Bootstrap and start the server
@@ -15,6 +16,9 @@ async function bootstrap(): Promise<void> {
   try {
     // Create application instance
     const app = new Application(process.cwd());
+
+    // Register routes
+    registerRoutes(app.getRouter());
 
     // Get port and host from environment
     const port = Env.PORT;

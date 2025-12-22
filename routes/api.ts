@@ -23,7 +23,12 @@ export function registerRoutes(router: Router): void {
  */
 function registerPublicRoutes(router: Router): void {
   router.get('/', async (req, res) => {
-    res.json({ message: 'Welcome to Zintrust API' });
+    res.json({
+      framework: 'Zintrust Framework',
+      version: '0.1.0',
+      env: Env.NODE_ENV ?? 'development',
+      database: Env.DB_CONNECTION ?? 'sqlite',
+    });
   });
 
   router.get('/health', async (req, res) => {

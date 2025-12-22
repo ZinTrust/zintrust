@@ -1,5 +1,5 @@
 # Build Stage - Compile TypeScript
-FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112 AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY bin ./bin
 RUN npm run build
 
 # Runtime Stage - Production image
-FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112 AS runtime
+FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
@@ -45,7 +45,8 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist/app ./app
 COPY --from=builder /app/dist/routes ./routes
 COPY --from=builder /app/dist/src/config ./config
-COPY --from=builder /app/dist/src/database ./database
+# Use a wildcard to avoid error if database folder is empty/missing
+COPY --from=builder /app/dist/src/databas* ./database/
 
 
 # Change ownership to nodejs user
@@ -62,4 +63,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 3000
 
 # Start application
-CMD ["node", "dist/src/bootstrap.js"]
+CMD ["npx", "tsx", "dist/src/bootstrap.js"]
