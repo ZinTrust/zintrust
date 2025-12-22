@@ -27,8 +27,9 @@ jobs:
           # Limit results to keep file size under GitHub's 10MB limit
           severity: 'CRITICAL,HIGH'
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeQL-action/upload-sarif@v4 # Updated to v4
+      - name: Upload Trivy scan results to Upload Artifact
+        uses: actions/upload-artifact@v4.4.3 # v4.4.3
         if: always() # Ensures upload even if vulnerabilities are found
         with:
-          sarif_file: 'trivy-results.sarif'
+          name: trivy-results
+          path: 'trivy-results.sarif'
