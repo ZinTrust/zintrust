@@ -3,7 +3,7 @@
  * Focus on lines that are marked as uncovered in the coverage report
  */
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Low-Coverage Targeted Tests', () => {
   beforeEach(() => {
