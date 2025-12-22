@@ -39,8 +39,14 @@ function isMainModuleEsm(): boolean {
     const currentFilePath = fileURLToPath(new URL(import.meta.url));
 
     // Use realpathSync to handle symlinks (common on macOS /var -> /private/var)
+    if (!('realpathSync' in fs)) {
+      return path.resolve(entry) === path.resolve(currentFilePath);
+    }
+
     try {
-      return fs.realpathSync(entry) === fs.realpathSync(currentFilePath);
+      const realpathSync = (fs as unknown as { realpathSync: (value: string) => string })
+        .realpathSync;
+      return realpathSync(entry) === realpathSync(currentFilePath);
     } catch (err) {
       Logger.error('realpathSync failed, falling back to path.resolve', err);
       return path.resolve(entry) === path.resolve(currentFilePath);
