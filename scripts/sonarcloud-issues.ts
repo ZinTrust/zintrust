@@ -57,6 +57,7 @@ interface SonarCloudResponse {
 }
 
 interface QueryParams {
+  organization?: string;
   componentKeys?: string;
   impactSeverities?: string;
   issueStatuses?: string;
@@ -84,6 +85,7 @@ class SonarCloudClient {
    */
   public async fetchIssues(params: QueryParams = {}): Promise<SonarCloudResponse> {
     const defaultParams: QueryParams = {
+      organization: this.organization,
       componentKeys: this.projectKey,
       ps: 500, // Max page size
       p: 1,
@@ -640,5 +642,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   });
 }
+
+export const __testing = {
+  filterIgnoredPaths,
+  parseArguments,
+  saveReports,
+  fetchAndSaveMeasures,
+  fetchAndSaveUncovered,
+};
 
 export { SonarCloudClient };

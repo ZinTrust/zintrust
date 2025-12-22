@@ -397,10 +397,13 @@ describe('MigrationGenerator Multiple Migrations', () => {
     };
 
     const result1 = await MigrationGenerator.generateMigration(options1);
-    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     const result2 = await MigrationGenerator.generateMigration(options2);
 
     expect(result1.success).toBe(true);
+    if (!result2.success) {
+      console.log('Migration 2 failed:', result2);
+    }
     expect(result2.success).toBe(true);
 
     const files = fs.readdirSync(migrationsPath);

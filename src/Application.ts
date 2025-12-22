@@ -96,7 +96,7 @@ export class Application {
    * Check if application is in testing mode
    */
   public isTesting(): boolean {
-    return this.environment === 'testing';
+    return this.environment === 'testing' || this.environment === 'test';
   }
 
   /**

@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@config/logger', () => ({
+  Logger: {
+    error: vi.fn(),
+  },
+}));
+
 describe('Security Config', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -21,5 +27,14 @@ describe('Security Config', () => {
     expect(securityConfig.xss).toBeDefined();
     expect(securityConfig.helmet).toBeDefined();
     expect(securityConfig.session).toBeDefined();
+  });
+
+  it('should throw when JWT_SECRET is missing', async () => {
+    delete process.env['JWT_SECRET'];
+    vi.resetModules();
+
+    await expect(import('@/config/security')).rejects.toThrow(
+      'Missing required secret: JWT_SECRET'
+    );
   });
 });

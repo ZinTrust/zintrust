@@ -99,6 +99,15 @@ describe('Environment Utils', () => {
       expect(process.env['ANOTHER_KEY']).toBe('123');
     });
 
+    it('should skip invalid or comment lines while loading', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue('# comment\n\nINVALID_LINE\nOK=1');
+
+      loadEnv();
+
+      expect(process.env['OK']).toBe('1');
+    });
+
     it('should not override existing variables by default', () => {
       process.env['EXISTING_KEY'] = 'original';
       vi.mocked(fs.existsSync).mockReturnValue(true);

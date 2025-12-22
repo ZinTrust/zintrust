@@ -25,7 +25,7 @@ export function escapeHtml(text: string): string {
   if (typeof text !== 'string') {
     return '';
   }
-  return text.replaceAll(/[&<>"'/]/g, (char) => HTML_ESCAPE_MAP[char] || char);
+  return text.replaceAll(/[&<>"'/`=]/g, (char) => HTML_ESCAPE_MAP[char] || char);
 }
 
 /**

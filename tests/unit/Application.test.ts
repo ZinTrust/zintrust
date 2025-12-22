@@ -51,10 +51,29 @@ describe('Application', () => {
     expect(typeof app.isDevelopment()).toBe('boolean');
     expect(typeof app.isProduction()).toBe('boolean');
     expect(typeof app.isTesting()).toBe('boolean');
+    expect(typeof app.getEnvironment()).toBe('string');
   });
 
   it('should boot', async () => {
     const app = new Application('/root');
     await expect(app.boot()).resolves.toBeUndefined();
+  });
+
+  it('should skip logger initialization when DISABLE_LOGGING is true', async () => {
+    process.env['DISABLE_LOGGING'] = 'true';
+    vi.resetModules();
+
+    const initialize = vi.fn();
+    vi.doMock('@cli/logger/Logger', () => ({
+      Logger: {
+        initialize,
+      },
+    }));
+
+    const { Application: FreshApplication } = await import('@/Application');
+    new FreshApplication('/root');
+
+    expect(initialize).not.toHaveBeenCalled();
+    delete process.env['DISABLE_LOGGING'];
   });
 });

@@ -47,8 +47,6 @@ COPY --from=builder /app/dist/routes ./routes
 COPY --from=builder /app/dist/src/config ./config
 COPY --from=builder /app/dist/src/database ./database
 
-# Copy static assets
-COPY docs-website ./docs-website
 
 # Change ownership to nodejs user
 RUN chown -R nodejs:nodejs /app

@@ -8,18 +8,19 @@
 
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadEnv } from './utils/env';
 
 function getScannerBinPath(): string {
-  const binName = process.platform === 'win32' ? 'sonar-scanner.cmd' : 'sonar-scanner';
+  const binName = os.platform() === 'win32' ? 'sonar-scanner.cmd' : 'sonar-scanner';
   return path.join(process.cwd(), 'node_modules', '.bin', binName);
 }
 
 function getSafePath(): string {
   // Sonar (S4036): PATH must only contain fixed, unwritable directories.
   const nodeBinDir = path.dirname(process.execPath);
-  return process.platform === 'win32'
+  return os.platform() === 'win32'
     ? [
         String.raw`C:\Windows\System32`,
         String.raw`C:\Windows`,
