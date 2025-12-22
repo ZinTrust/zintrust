@@ -134,7 +134,7 @@ jobs:
           output: codeql-results
 
       - name: Upload CodeQL SARIF artifacts
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@v6.0.0 # v4.4.3
         if: always()
         with:
           name: codeql-sarif
@@ -171,7 +171,7 @@ jobs:
           npm run type-check 2>&1 | tee typecheck-report.txt || true
 
       - name: Upload SAST reports
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@v6.0.0 # v4.4.3
         if: always()
         with:
           name: sast-reports
@@ -208,7 +208,7 @@ jobs:
           npx license-checker --summary
 
       - name: Upload license report
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@v6.0.0 # v4.4.3
         if: always()
         with:
           name: license-report
@@ -283,7 +283,7 @@ jobs:
           echo "✅ SBOM generated: sbom.json"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@v6.0.0 # v4.4.3
         if: always()
         with:
           name: sbom-reports
