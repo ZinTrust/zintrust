@@ -330,7 +330,7 @@ export class QACommand extends BaseCommand {
 
   private runUncoveredScript(): void {
     const npxPath = this.resolveBinPath('npx');
-    execFileSync(npxPath, ['tsx', 'scripts/sonarcloud-issues.ts', '--uncovered'], {
+    execFileSync(npxPath, ['tsx', 'dev/sonarcloud-issues.ts', '--uncovered'], {
       stdio: 'inherit',
       env: this.getSafeEnv(),
     });

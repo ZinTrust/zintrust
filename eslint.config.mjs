@@ -25,6 +25,7 @@ export default defineConfig(
       'worker-configuration.d.ts',
       '.scannerwork/**',
       'check_vi.ts',
+      'dev/**',
     ],
   },
   eslint.configs.recommended,

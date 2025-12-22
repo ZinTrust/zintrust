@@ -62,20 +62,24 @@ export function mergeTemplateVariables(
 
 /**
  * Check if content contains template variables
+ * Uses a non-backtracking pattern to prevent ReDoS vulnerability (S5852)
+ * Limits variable name length to 255 characters as a practical constraint
  */
 export function hasTemplateVariables(content: string): boolean {
-  return /{{[^}]+}}/.test(content);
+  return /\{\{[^}]{1,255}\}\}/.test(content);
 }
 
 /**
  * Extract variable names from content
+ * Uses a non-backtracking pattern to prevent ReDoS vulnerability (S5852)
+ * Limits variable name length to 255 characters as a practical constraint
  */
 export function extractTemplateVariables(content: string): string[] {
-  const matches = content.match(/{{([^}]+)}}/g);
+  const matches = content.match(/\{\{([^}]{1,255})\}\}/g);
   if (matches === null) return [];
 
   return matches
-    .map((match) => match.replaceAll(/{{|}}/g, '').trim())
+    .map((match) => match.replaceAll(/\{\{|\}\}/g, '').trim())
     .filter((v, i, arr) => arr.indexOf(v) === i); // Unique
 }
 
