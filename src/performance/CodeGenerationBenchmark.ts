@@ -248,7 +248,14 @@ const isMain = ((): boolean => {
     if (typeof entrypoint !== 'string') return false;
 
     const currentFilePath = fileURLToPath(new URL(import.meta.url));
-    return path.resolve(entrypoint) === path.resolve(currentFilePath);
+
+    // Use realpathSync to handle symlinks (common on macOS /var -> /private/var)
+    try {
+      return fs.realpathSync(entrypoint) === fs.realpathSync(currentFilePath);
+    } catch (err) {
+      Logger.error('❌ Baseline failed:', err);
+      return path.resolve(entrypoint) === path.resolve(currentFilePath);
+    }
   } catch (err) {
     Logger.error('❌ Baseline failed:', err);
     return false;

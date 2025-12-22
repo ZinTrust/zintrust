@@ -5,8 +5,9 @@
 
 import { Logger } from '@config/logger';
 import { CodeGenerationBenchmark } from '@performance/CodeGenerationBenchmark';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Run baseline and save results
@@ -35,8 +36,15 @@ function isMainModuleEsm(): boolean {
     const entry = process.argv[1];
     if (entry === undefined || entry === '') return false;
 
-    const entryUrl = pathToFileURL(path.resolve(entry)).href;
-    return entryUrl === import.meta.url;
+    const currentFilePath = fileURLToPath(new URL(import.meta.url));
+
+    // Use realpathSync to handle symlinks (common on macOS /var -> /private/var)
+    try {
+      return fs.realpathSync(entry) === fs.realpathSync(currentFilePath);
+    } catch (err) {
+      Logger.error('realpathSync failed, falling back to path.resolve', err);
+      return path.resolve(entry) === path.resolve(currentFilePath);
+    }
   } catch (err) {
     Logger.error('❌ Baseline failed:', err);
     return false;
