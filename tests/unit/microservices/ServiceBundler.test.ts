@@ -248,7 +248,7 @@ describe('ServiceBundler', () => {
       });
 
       const services = ['failing-service'];
-      void (await bundleAll('domain', services));
+      void (await bundleAll('domain', services)); // NOSONAR to avoid unused warning
 
       // Should catch error and log it
       expect(vi.mocked(Logger.error)).toHaveBeenCalled();

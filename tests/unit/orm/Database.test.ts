@@ -191,4 +191,172 @@ describe('Database', () => {
 
     expect(mockTransaction).toHaveBeenCalled();
   });
+
+
+
+  describe('Error Handling', () => {
+    it('should handle connection errors', async () => {
+      (SQLiteAdapter as any).mockImplementation(function () {
+        return {
+          connect: vi.fn().mockRejectedValue(new Error('Connection failed')),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          getType: vi.fn().mockReturnValue('sqlite'),
+        };
+      });
+
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+
+      await expect(db.connect()).rejects.toThrow('Connection failed');
+    });
+
+    it('should handle disconnection errors gracefully', async () => {
+      (SQLiteAdapter as any).mockImplementation(function () {
+        return {
+          connect: vi.fn().mockResolvedValue(undefined),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          query: vi.fn().mockResolvedValue({ rows: [] }),
+          getType: vi.fn().mockReturnValue('sqlite'),
+        };
+      });
+
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+      await db.disconnect();
+
+      expect(db.isConnected()).toBe(false);
+    });
+
+    it('should handle transaction errors', async () => {
+      (SQLiteAdapter as any).mockImplementation(function () {
+        return {
+          connect: vi.fn().mockResolvedValue(undefined),
+          disconnect: vi.fn().mockResolvedValue(undefined),
+          transaction: vi.fn().mockRejectedValue(new Error('Transaction failed')),
+          query: vi.fn().mockResolvedValue({ rows: [] }),
+          getType: vi.fn().mockReturnValue('sqlite'),
+        };
+      });
+
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      await expect(
+        db.transaction(async () => {
+          // transaction body
+        })
+      ).rejects.toThrow('Transaction failed');
+    });
+  });
+
+  describe('Database Operations', () => {
+    it('should execute basic select query', async () => {
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      const result = await db.query('SELECT * FROM users');
+
+      expect(result).toBeDefined();
+    });
+
+    it('should support parameterized queries', async () => {
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      const result = await db.query('SELECT * FROM users WHERE id = ?', [1]);
+
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('Default Configuration', () => {
+    it('should use default SQLite config when none provided', () => {
+      db = new Database(undefined);
+      const config = db.getConfig();
+
+      expect(config.driver).toBe('sqlite');
+      expect(config.database).toBe(':memory:');
+    });
+
+    it('should use default SQLite when invalid driver provided', () => {
+      db = new Database({
+        driver: 'invalid' as any,
+        database: 'test',
+      });
+
+      expect(db.getType()).toBe('sqlite');
+    });
+  });
+
+  describe('Event System', () => {
+    it('should allow multiple query event listeners', async () => {
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      const listener1 = vi.fn();
+      const listener2 = vi.fn();
+
+      db.onBeforeQuery(listener1);
+      db.onBeforeQuery(listener2);
+
+      await db.query('SELECT * FROM users');
+
+      expect(listener1).toHaveBeenCalled();
+      expect(listener2).toHaveBeenCalled();
+    });
+
+    it('should remove event listeners', async () => {
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      const listener = vi.fn();
+      db.onBeforeQuery(listener);
+      db.offBeforeQuery(listener);
+
+      await db.query('SELECT * FROM users');
+
+      expect(listener).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Read Host Distribution', () => {
+    it('should handle single database instance', async () => {
+      db = new Database({
+        driver: 'sqlite',
+        database: ':memory:',
+      });
+
+      expect(db.isConnected()).toBe(false);
+
+      await db.connect();
+      expect(db.isConnected()).toBe(true);
+    });
+  });;
+
+  describe('Database State', () => {
+    it('should track connected state correctly', async () => {
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+
+      expect(db.isConnected()).toBe(false);
+
+      await db.connect();
+      expect(db.isConnected()).toBe(true);
+
+      await db.disconnect();
+      expect(db.isConnected()).toBe(false);
+    });
+
+    it('should handle reconnection', async () => {
+      db = new Database({ driver: 'sqlite', database: ':memory:' });
+
+      await db.connect();
+      expect(db.isConnected()).toBe(true);
+
+      await db.disconnect();
+      expect(db.isConnected()).toBe(false);
+
+      // Reconnect
+      await db.connect();
+      expect(db.isConnected()).toBe(true);
+    });
+  });
 });

@@ -166,7 +166,7 @@ describe('RequestTracingMiddleware', () => {
   describe('Response Timing', () => {
     it('should wrap json method to track response timing', () => {
       const mw = middleware('test-service', true, 1);
-      void (mockRes.json as any);
+      void mockRes.json; // NOSONAR to avoid unused warning
       mw(mockReq as Request, mockRes as Response, nextFn);
 
       // Verify json method was reassigned
