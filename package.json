@@ -1,0 +1,125 @@
+{
+  "name": "zintrust",
+  "version": "0.1.0",
+  "description": "Production-grade TypeScript backend framework for JavaScript",
+  "homepage": "https://zintrust.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZinTrust/ZinTrust.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ZinTrust/ZinTrust/issues"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "zintrust": "./bin/zintrust.ts",
+    "zin": "./bin/zin.ts",
+    "z": "./bin/z.ts",
+    "zt": "./bin/zt.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "tsc && tsc-alias",
+    "watch": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "format": "prettier --write 'src/**/*.ts'",
+    "dev": "tsx watch src/index.ts",
+    "deploy": "wrangler types && wrangler deploy",
+    "git-reload": "git rm -r --cached .  && git add .",
+    "start": "node dist/src/bootstrap.js",
+    "type-check": "tsc --noEmit",
+    "test:sonar": "vitest run --coverage && tsx dev/sonar-scan.ts",
+    "sonarqube": "tsx dev/sonar-scan.ts",
+    "sonarqube:setup": "node dev/sonarqube-setup.js",
+    "sonarcloud:issues": "tsx dev/sonarcloud-issues.ts",
+    "sonarcloud:issues:low": "tsx dev/sonarcloud-issues.ts --low --open",
+    "sonarcloud:issues:measures": "tsx dev/sonarcloud-issues.ts --measures",
+    "sonarcloud:check": "bash dev/sonarcloud-check.sh",
+    "docker:build": "docker build -t zintrust:latest .",
+    "docker:build:prod": "docker build -t zintrust:latest --target runtime .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:stop": "docker-compose stop",
+    "docker:logs": "docker-compose logs -f app",
+    "docker:shell": "docker-compose run --rm app sh",
+    "docker:test": "docker-compose exec app npm test",
+    "docker:migrate": "docker-compose exec app node dist/bootstrap.js migrate",
+    "docker:seed": "docker-compose exec app node dist/bootstrap.js seed",
+    "microservices:generate": "tsx bin/zintrust-microservices.ts generate",
+    "microservices:bundle": "tsx bin/zintrust-microservices.ts bundle",
+    "microservices:docker": "tsx bin/zintrust-microservices.ts docker",
+    "microservices:discover": "tsx bin/zintrust-microservices.ts discover",
+    "microservices:status": "tsx bin/zintrust-microservices.ts status",
+    "microservices:health": "tsx bin/zintrust-microservices.ts health",
+    "docs:dev:vue": "cd docs-website/vue && npm run dev",
+    "docs:dev": "node scripts/docs-website-dev.mjs --port 7030",
+    "docs:build:vue": "mkdir -p docs-website/vue/public && cp docs-website/zintrust.svg docs-website/vue/public/ && cp docs/*.md docs-website/vue/ && cd docs-website/vue && npm run build && mkdir -p ../public/doc && cp -R .vitepress/dist/* ../public/doc/",
+    "docs:build:portal": "mkdir -p docs-website/public && cp docs-website/index.html docs-website/public/ && cp docs-website/zintrust.svg docs-website/public/ && cp docs-website/_headers docs-website/public/ && cp -R docs-website/brand docs-website/public/ && cp docs-website/vue/.vitepress/dist/404.html docs-website/public/404.html",
+    "docs:build:all": "rm -rf docs-website/public && npm run docs:build:portal && npm run docs:build:vue",
+    "docs:brand:png": "node scripts/convert-brand-svgs-to-png.mjs --input docs-website/brand --max 2048",
+    "dbl": "npm run docs:build:all",
+    "ecommerce:up": "cd services/ecommerce && docker-compose up -d",
+    "ecommerce:down": "cd services/ecommerce && docker-compose down",
+    "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
+    "cleanup:github-actions": "bash ./dev/cleanup-github-actions.sh",
+    "prepare": "husky",
+    "check-up": "npx npm-check-updates"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix"
+    ]
+  },
+  "keywords": [
+    "framework",
+    "typescript",
+    "backend",
+    "orm",
+    "query-builder",
+    "rest-api",
+    "react",
+    "react-api",
+    "vue",
+    "vue-api",
+    "symfony",
+    "laravel"
+  ],
+  "author": "Zintrust Team",
+  "license": "MIT",
+  "overrides": {
+    "node-forge": "1.3.3",
+    "cross-spawn": "^7.0.5",
+    "glob": "^11.1.0"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "inquirer": "^13.1.0",
+    "tsx": "^4.21.0"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^25.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.50.0",
+    "@typescript-eslint/parser": "^8.50.0",
+    "@vitest/coverage-v8": "^4.0.16",
+    "eslint": "^9.39.2",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4",
+    "sonarqube-scanner": "^4.3.2",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.50.0",
+    "vitest": "^4.0.16"
+  }
+}

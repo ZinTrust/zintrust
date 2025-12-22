@@ -1,0 +1,98 @@
+{
+  "name": "Code Generation Performance",
+  "results": [
+    {
+      "name": "Model Generation",
+      "duration": 0.11195800000007239,
+      "memoryBefore": 12747856,
+      "memoryAfter": 12787608,
+      "memoryDelta": 39752,
+      "iterationCount": 10,
+      "averageTime": 0.01119580000000724,
+      "averageMemory": 3975.2,
+      "timestamp": "2025-12-22T11:53:20.870Z",
+      "metadata": {
+        "type": "model",
+        "fields": 7
+      }
+    },
+    {
+      "name": "Controller Generation",
+      "duration": 0.04845799999995393,
+      "memoryBefore": 12790496,
+      "memoryAfter": 12826712,
+      "memoryDelta": 36216,
+      "iterationCount": 10,
+      "averageTime": 0.0048457999999953925,
+      "averageMemory": 3621.6,
+      "timestamp": "2025-12-22T11:53:20.870Z",
+      "metadata": {
+        "type": "controller",
+        "actions": 5
+      }
+    },
+    {
+      "name": "Migration Generation",
+      "duration": 0.053832999999997355,
+      "memoryBefore": 12829616,
+      "memoryAfter": 12864688,
+      "memoryDelta": 35072,
+      "iterationCount": 10,
+      "averageTime": 0.005383299999999735,
+      "averageMemory": 3507.2,
+      "timestamp": "2025-12-22T11:53:20.870Z",
+      "metadata": {
+        "type": "migration",
+        "columns": 4
+      }
+    },
+    {
+      "name": "Factory Generation",
+      "duration": 0.04653900000002409,
+      "memoryBefore": 12867312,
+      "memoryAfter": 12901240,
+      "memoryDelta": 33928,
+      "iterationCount": 10,
+      "averageTime": 0.0046539000000024085,
+      "averageMemory": 3392.8,
+      "timestamp": "2025-12-22T11:53:20.870Z",
+      "metadata": {
+        "type": "factory",
+        "fields": 3
+      }
+    },
+    {
+      "name": "Seeder Generation",
+      "duration": 0.044792000000029475,
+      "memoryBefore": 12903864,
+      "memoryAfter": 12941824,
+      "memoryDelta": 37960,
+      "iterationCount": 10,
+      "averageTime": 0.004479200000002947,
+      "averageMemory": 3796,
+      "timestamp": "2025-12-22T11:53:20.870Z",
+      "metadata": {
+        "type": "seeder",
+        "count": 100
+      }
+    },
+    {
+      "name": "Full Feature Generation",
+      "duration": 0.024666999999936934,
+      "memoryBefore": 12945352,
+      "memoryAfter": 12956304,
+      "memoryDelta": 10952,
+      "iterationCount": 5,
+      "averageTime": 0.004933399999987387,
+      "averageMemory": 2190.4,
+      "timestamp": "2025-12-22T11:53:20.870Z",
+      "metadata": {
+        "type": "batch",
+        "generators": 5
+      }
+    }
+  ],
+  "totalDuration": 2,
+  "startTime": "2025-12-22T11:53:20.869Z",
+  "endTime": "2025-12-22T11:53:20.871Z"
+}

@@ -1,0 +1,41 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net --allow-env functions/deno.ts",
+    "deploy": "deno deploy --project=zintrust --production functions/deno.ts"
+  },
+  "imports": {
+    "std/": "https://deno.land/std@0.208.0/",
+    "std/http": "https://deno.land/std@0.208.0/http/mod.ts",
+    "std/log": "https://deno.land/std@0.208.0/log/mod.ts",
+    "std/encoding": "https://deno.land/std@0.208.0/encoding/mod.ts"
+  },
+  "compilerOptions": {
+    "lib": ["deno.window"],
+    "strict": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"],
+      "exclude": ["no-empty-interface"]
+    },
+    "include": ["src/", "functions/"],
+    "exclude": ["dist/"]
+  },
+  "fmt": {
+    "include": ["src/", "functions/"],
+    "exclude": ["dist/", "vendor/"],
+    "semiColons": true,
+    "singleQuote": true,
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "proseWrap": "preserve"
+  }
+}
