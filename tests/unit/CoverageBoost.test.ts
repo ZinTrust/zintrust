@@ -402,7 +402,7 @@ describe('CLI', () => {
     // Mock parseAsync to throw
     vi.spyOn(cli.getProgram(), 'parseAsync').mockRejectedValue(err);
 
-    await cli.run(['test']);
+    await cli.run(['qa']);
     expect(spy).toHaveBeenCalledWith(1);
   });
 
