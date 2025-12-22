@@ -246,7 +246,7 @@ describe('QACommand', () => {
       const options = { report: false };
       try {
         await command.execute(options);
-      } catch (error) {
+      } catch {
         // Error expected
       }
 

@@ -71,7 +71,7 @@ describe('DatabaseAdapter - Interfaces and BaseAdapter', () => {
         host: 'localhost',
         port: 5432,
         username: 'user',
-        password: 'pass',
+        password: 'pass', // NOSONAR
         synchronize: true,
         logging: true,
         readHosts: ['host1', 'host2'],

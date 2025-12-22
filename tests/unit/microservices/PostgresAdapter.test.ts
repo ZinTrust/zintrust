@@ -259,7 +259,7 @@ describe('PostgresAdapter', () => {
         port: 5432,
         database: 'testdb',
         user: 'testuser',
-        password: 'testpass',
+        password: monkpass,
         isolation: 'shared' as const,
       };
 
@@ -320,7 +320,7 @@ describe('PostgresAdapter', () => {
         port: 5432,
         database: 'testdb',
         user: 'testuser',
-        password: 'testpass',
+        password: monkpass,
         isolation: 'shared' as const,
       };
 
@@ -425,7 +425,7 @@ describe('PostgresAdapter', () => {
         port: 5433,
         database: 'mydb',
         user: 'myuser',
-        password: 'mypass',
+        password: monkpass,
         isolation: 'isolated' as const,
         serviceName: 'my-service',
         max: 30,

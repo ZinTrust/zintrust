@@ -192,8 +192,6 @@ describe('Database', () => {
     expect(mockTransaction).toHaveBeenCalled();
   });
 
-
-
   describe('Error Handling', () => {
     it('should handle connection errors', async () => {
       (SQLiteAdapter as any).mockImplementation(function () {
@@ -330,7 +328,7 @@ describe('Database', () => {
       await db.connect();
       expect(db.isConnected()).toBe(true);
     });
-  });;
+  });
 
   describe('Database State', () => {
     it('should track connected state correctly', async () => {
