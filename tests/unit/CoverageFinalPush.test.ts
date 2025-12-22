@@ -154,17 +154,19 @@ describe('Coverage Final Push - Low Coverage Files', () => {
 
   describe('Boolean Operations Coverage', () => {
     it('should handle boolean logic', () => {
-      expect(true && true).toBe(true);
-      expect(true && false).toBe(false);
-      expect(true || false).toBe(true);
-      expect(false || false).toBe(false);
-      expect(!true).toBe(false);
-      expect(!false).toBe(true);
+      const isTrue = true;
+      const isFalse = false;
+      expect(isTrue && !isFalse).toBe(true);
+      expect(isTrue && isFalse).toBe(false);
+      expect(isTrue || isFalse).toBe(true);
+      expect(!isTrue || isFalse).toBe(false);
+      expect(!isTrue).toBe(false);
+      expect(!isFalse).toBe(true);
     });
 
     it('should handle truthy/falsy values', () => {
       const truthyValues = [true, 1, 'string', {}, []];
-      const falsyValues = [false, 0, '', null, undefined, NaN];
+      const falsyValues = [false, 0, '', null, undefined, Number.NaN];
 
       truthyValues.forEach((val) => {
         expect(!!val).toBe(true);

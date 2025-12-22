@@ -3,7 +3,7 @@
  * Focus on low-coverage command files
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('CLI Commands Coverage Enhancement', () => {
   beforeEach(() => {
