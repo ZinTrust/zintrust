@@ -223,12 +223,35 @@ describe('CodeGenerationBenchmark', () => {
     vi.resetModules();
     vi.clearAllMocks();
 
+    // Re-setup all mocks after resetModules
+    loggerInfo.mockClear();
+    loggerError.mockClear();
+
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        info: loggerInfo,
+        error: loggerError,
+      },
+    }));
+
+    vi.doMock('@performance/Benchmark', () => ({
+      Benchmark: BenchmarkCtor,
+      MemoryMonitor: MemoryMonitorCtor,
+    }));
+
+    vi.doMock('node:fs', () => ({
+      existsSync,
+      mkdirSync,
+      rmSync,
+    }));
+
     const originalArgv = process.argv;
     process.argv = [...originalArgv];
     process.argv[1] =
       '/opt/homebrew/var/www/Sites/cako/zintrust/src/performance/CodeGenerationBenchmark.ts';
 
-    (globalThis as any).__ZINTRUST_CODEGEN_BENCHMARK_MAIN__ = 'nope';
+    // Don't override - let it detect from argv[1]
+    (globalThis as any).__ZINTRUST_CODEGEN_BENCHMARK_MAIN__ = undefined;
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as any);
 
@@ -243,11 +266,37 @@ describe('CodeGenerationBenchmark', () => {
 
     exitSpy.mockRestore();
     process.argv = originalArgv;
+
+    vi.doUnmock('@config/logger');
+    vi.doUnmock('@performance/Benchmark');
+    vi.doUnmock('node:fs');
   });
 
   it('main-module path: runs successfully when forced main', async () => {
     vi.resetModules();
     vi.clearAllMocks();
+
+    // Re-setup all mocks after resetModules
+    loggerInfo.mockClear();
+    loggerError.mockClear();
+
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        info: loggerInfo,
+        error: loggerError,
+      },
+    }));
+
+    vi.doMock('@performance/Benchmark', () => ({
+      Benchmark: BenchmarkCtor,
+      MemoryMonitor: MemoryMonitorCtor,
+    }));
+
+    vi.doMock('node:fs', () => ({
+      existsSync,
+      mkdirSync,
+      rmSync,
+    }));
 
     // Ensure runAll() uses timers but completes deterministically.
     existsSync.mockReturnValueOnce(false).mockReturnValueOnce(true);
@@ -276,10 +325,38 @@ describe('CodeGenerationBenchmark', () => {
 
     exitSpy.mockRestore();
     setTimeoutSpy.mockRestore();
+
+    vi.doUnmock('@config/logger');
+    vi.doUnmock('@performance/Benchmark');
+    vi.doUnmock('node:fs');
   });
 
   it('main-module path: logs and exits on failure', async () => {
     vi.resetModules();
+    vi.clearAllMocks();
+
+    // Re-setup all mocks after resetModules
+    loggerInfo.mockClear();
+    loggerError.mockClear();
+
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        info: loggerInfo,
+        error: loggerError,
+      },
+    }));
+
+    vi.doMock('@performance/Benchmark', () => ({
+      Benchmark: BenchmarkCtor,
+      MemoryMonitor: MemoryMonitorCtor,
+    }));
+
+    vi.doMock('node:fs', () => ({
+      existsSync,
+      mkdirSync,
+      rmSync,
+    }));
+
     (globalThis as any).__ZINTRUST_CODEGEN_BENCHMARK_MAIN__ = true;
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as any);
@@ -294,5 +371,9 @@ describe('CodeGenerationBenchmark', () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     exitSpy.mockRestore();
+
+    vi.doUnmock('@config/logger');
+    vi.doUnmock('@performance/Benchmark');
+    vi.doUnmock('node:fs');
   });
 });
