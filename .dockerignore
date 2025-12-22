@@ -1,0 +1,59 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules (will be installed fresh)
+node_modules
+npm-debug.log
+
+# Testing
+tests
+coverage
+.vitest
+
+# Development
+.env.local
+.env.*.local
+.editorconfig
+
+# Build artifacts
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs
+README.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Project files
+*.log
+.env.example
+vitest.config.ts
+jest.config.js
+.eslintrc.json
+.prettierrc.json
+
+# Misc
+LICENSE
+CHANGELOG.md

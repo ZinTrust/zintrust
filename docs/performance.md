@@ -1,0 +1,46 @@
+# Performance Optimization
+
+Zintrust is built for speed, but there are several techniques you can use to further optimize your application.
+
+## Memoization
+
+Use the `@Memoize` decorator to cache the results of expensive function calls.
+
+```typescript
+import { Memoize } from '@performance/Optimizer';
+
+class StatsService {
+  @Memoize()
+  async getGlobalStats() {
+    // Expensive database aggregation
+  }
+}
+```
+
+## Lazy Loading
+
+Zintrust supports lazy loading for heavy dependencies to improve startup time.
+
+```typescript
+const bcrypt = await LazyLoader.load('bcrypt');
+```
+
+## Parallel Execution
+
+When performing multiple independent operations, use `ParallelGenerator` to run them concurrently.
+
+```typescript
+import { Parallel } from '@performance/Optimizer';
+
+await Parallel.run([() => fetchUser(), () => fetchPosts(), () => fetchSettings()]);
+```
+
+## Database Optimization
+
+- **Eager Loading**: Use `with()` to avoid N+1 queries.
+- **Indexing**: Ensure your database columns are properly indexed.
+- **Query Caching**: Cache frequent query results in Redis or memory.
+
+## Production Mode
+
+Always run Zintrust in production mode (`APP_ENV=production`) to disable debug logging and enable internal optimizations.

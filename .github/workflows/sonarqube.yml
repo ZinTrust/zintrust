@@ -1,0 +1,89 @@
+# SonarQube Analysis
+# Deep code analysis: Tracks technical debt, code smells, and coverage trends
+
+name: SonarQube Analysis
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+  schedule:
+    # Run every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  sonarqube-deep-scan:
+    name: SonarQube Deep Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0 # Full history for better analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Validate SonarQube secrets
+        id: check_secrets
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "⚠️  SONAR_TOKEN secret is not configured. Skipping SonarQube upload."
+            exit 1
+          else
+            echo "has_token=true" >> $GITHUB_OUTPUT
+            echo "✅ SonarQube credentials available"
+          fi
+
+      - name: Upload coverage to SonarQube
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=ZinTrust_ZinTrust
+            -Dsonar.organization=zintrust
+            -Dsonar.sources=src,app,routes
+            -Dsonar.tests=tests
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.verbose=true
+
+      - name: Comment PR with SonarQube results
+        if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const projectId = 'ZinTrust_ZinTrust';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ SonarQube analysis completed! Check the [dashboard](https://sonarcloud.io/project/overview?id=${projectId}) for detailed results.`
+            })
+
+      - name: Check quality gates
+        uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
