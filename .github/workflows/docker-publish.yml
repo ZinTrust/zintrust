@@ -45,6 +45,7 @@ jobs:
         with:
           context: .
           pull: true
+          no-cache: true
           load: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
           target: runtime
@@ -64,6 +65,7 @@ jobs:
         with:
           context: .
           pull: true
+          no-cache: true
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
