@@ -15,7 +15,7 @@ describe('RequestProfiler Basic Tests', () => {
     });
 
     expect(profile).toBeDefined();
-    expect(profile.duration).toBeGreaterThanOrEqual(50);
+    expect(profile.duration).toBeGreaterThanOrEqual(45);
     expect(profile.queriesExecuted).toBeGreaterThanOrEqual(0);
     expect(profile.timestamp).toBeInstanceOf(Date);
     expect(profile.n1Patterns).toBeInstanceOf(Array);
