@@ -432,7 +432,7 @@ describe('Adapter Branch Coverage Enhancement', () => {
 
     it('should validate DEFAULT constraints', () => {
       const applyDefault = (value: unknown, defaultVal: unknown) => {
-        return value === undefined || value === null ? defaultVal : value;
+        return value ?? defaultVal;
       };
 
       expect(applyDefault(undefined, 'default')).toBe('default');

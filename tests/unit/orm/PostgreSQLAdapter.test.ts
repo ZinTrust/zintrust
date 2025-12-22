@@ -47,4 +47,24 @@ describe('PostgreSQLAdapter', () => {
     });
     expect(result).toBe('success');
   });
+
+  it('should handle transaction errors', async () => {
+    await adapter.connect();
+    const error = new Error('Transaction failed');
+    await expect(
+      adapter.transaction(async () => {
+        throw error;
+      })
+    ).rejects.toThrow('Transaction failed');
+  });
+
+  it('should get parameter placeholder', () => {
+    const placeholder = (adapter as any).getParameterPlaceholder(1);
+    expect(placeholder).toBe('$1');
+  });
+
+  it('should get parameter placeholder for different indices', () => {
+    expect((adapter as any).getParameterPlaceholder(0)).toBe('$0');
+    expect((adapter as any).getParameterPlaceholder(5)).toBe('$5');
+  });
 });

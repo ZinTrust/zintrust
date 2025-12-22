@@ -3,9 +3,9 @@
  * Tests specifically designed to exercise uncovered branches
  */
 
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Configuration Module Branch Coverage', () => {
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('Configuration Module Branch Coverage', () => {
       process.env['TEST_TRUE_2'] = 'True';
       process.env['TEST_TRUE_3'] = 'TRUE';
       process.env['TEST_TRUE_4'] = '1';
-      
+
       expect(Env.getBool('TEST_TRUE_1')).toBe(true);
       expect(Env.getBool('TEST_TRUE_2')).toBe(true);
       expect(Env.getBool('TEST_TRUE_3')).toBe(true);
@@ -47,7 +47,7 @@ describe('Configuration Module Branch Coverage', () => {
       process.env['TEST_FALSE_2'] = 'False';
       process.env['TEST_FALSE_3'] = 'FALSE';
       process.env['TEST_FALSE_4'] = '0';
-      
+
       expect(Env.getBool('TEST_FALSE_1')).toBe(false);
       expect(Env.getBool('TEST_FALSE_2')).toBe(false);
       expect(Env.getBool('TEST_FALSE_3')).toBe(false);
@@ -68,7 +68,9 @@ describe('Configuration Module Branch Coverage', () => {
     it('should handle NODE_ENV variations', () => {
       const nodeEnv = Env.get('NODE_ENV');
       expect(nodeEnv).toBeDefined();
-      expect(['test', 'development', 'production', 'staging'].includes(nodeEnv as string) || true).toBe(true);
+      expect(
+        ['test', 'development', 'production', 'staging'].includes(nodeEnv as string) || true
+      ).toBe(true);
     });
 
     it('should handle numeric string conversion', () => {
@@ -105,7 +107,10 @@ describe('Configuration Module Branch Coverage', () => {
     it('should distinguish between empty string and default', () => {
       process.env['NULL_TEST'] = '';
       expect(Env.get('NULL_TEST')).toBe('');
-      const valueWithDefault = Env.get('TRULY_UNDEFINED_TEST_THAT_DOES_NOT_EXIST_' + Date.now(), 'default');
+      const valueWithDefault = Env.get(
+        'TRULY_UNDEFINED_TEST_THAT_DOES_NOT_EXIST_' + Date.now(),
+        'default'
+      );
       expect(valueWithDefault).toBe('default');
     });
   });
@@ -172,22 +177,22 @@ describe('Configuration Module Branch Coverage', () => {
 
     it('should handle all log levels with data', () => {
       const data = { userId: 1, action: 'login' };
-      
+
       const debugSpy = vi.spyOn(Logger, 'debug');
       Logger.debug('Debug', data);
       expect(debugSpy).toHaveBeenCalled();
       debugSpy.mockRestore();
-      
+
       const infoSpy = vi.spyOn(Logger, 'info');
       Logger.info('Info', data);
       expect(infoSpy).toHaveBeenCalled();
       infoSpy.mockRestore();
-      
+
       const warnSpy = vi.spyOn(Logger, 'warn');
       Logger.warn('Warn', data);
       expect(warnSpy).toHaveBeenCalled();
       warnSpy.mockRestore();
-      
+
       const errorSpy = vi.spyOn(Logger, 'error');
       Logger.error('Error', data);
       expect(errorSpy).toHaveBeenCalled();
@@ -214,11 +219,11 @@ describe('Configuration Module Branch Coverage', () => {
       process.env['VAR1'] = 'value1';
       process.env['VAR2'] = '2';
       process.env['VAR3'] = 'true';
-      
+
       const v1 = Env.get('VAR1');
       const v2 = Env.getInt('VAR2');
       const v3 = Env.getBool('VAR3');
-      
+
       expect(v1).toBe('value1');
       expect(v2).toBe(2);
       expect(v3).toBe(true);
@@ -227,7 +232,7 @@ describe('Configuration Module Branch Coverage', () => {
     it('should handle overriding environment variables', () => {
       process.env['OVERRIDE_TEST'] = 'original';
       expect(Env.get('OVERRIDE_TEST')).toBe('original');
-      
+
       process.env['OVERRIDE_TEST'] = 'modified';
       expect(Env.get('OVERRIDE_TEST')).toBe('modified');
     });
@@ -235,7 +240,7 @@ describe('Configuration Module Branch Coverage', () => {
     it('should handle case sensitivity in env var names', () => {
       process.env['CASE_SENSITIVE'] = 'lowercase';
       process.env['case_sensitive'] = 'SHOULD_NOT_MATCH';
-      
+
       const value = Env.get('CASE_SENSITIVE');
       expect(value).toBe('lowercase');
     });
@@ -261,7 +266,7 @@ describe('Configuration Module Branch Coverage', () => {
       Logger.debug('Middle', { val: v1 });
       const v2 = Env.getInt('SOME_INT', 0);
       Logger.warn('End', { val: v2 });
-      
+
       expect(v2).toBe(0);
     });
 
@@ -294,14 +299,8 @@ describe('Configuration Module Branch Coverage', () => {
     });
 
     it('should handle Logger with different message types', () => {
-      const messages = [
-        'string message',
-        123,
-        true,
-        { object: 'value' },
-        ['array', 'values'],
-      ];
-      
+      const messages = ['string message', 123, true, { object: 'value' }, ['array', 'values']];
+
       expect(() => {
         for (const msg of messages) {
           Logger.info(String(msg));

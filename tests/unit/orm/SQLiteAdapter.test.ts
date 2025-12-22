@@ -43,4 +43,15 @@ describe('SQLiteAdapter', () => {
     });
     expect(result).toBe('success');
   });
+
+  it('should get parameter placeholder for index', () => {
+    const placeholder = (adapter as any).getParameterPlaceholder(1);
+    expect(placeholder).toBe('$1');
+  });
+
+  it('should get parameter placeholder for different indices', () => {
+    expect((adapter as any).getParameterPlaceholder(0)).toBe('$0');
+    expect((adapter as any).getParameterPlaceholder(5)).toBe('$5');
+    expect((adapter as any).getParameterPlaceholder(10)).toBe('$10');
+  });
 });

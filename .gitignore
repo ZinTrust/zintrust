@@ -30,3 +30,5 @@ out/
 md/
 docs-website/
 plans/
+coverage_output.txt
+UNCOVERED_LINES.md

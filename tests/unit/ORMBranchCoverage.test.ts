@@ -3,8 +3,8 @@
  * Focus on conditional logic in Model, Database, and Adapter classes
  */
 
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { Model } from '@orm/Model';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('ORM Module Branch Coverage', () => {
   beforeEach(() => {
@@ -21,7 +21,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'test_models';
         fillable = ['name', 'email'];
       };
-      
+
       const model = new TestModel();
       expect(model).toBeDefined();
       expect((model as any)['table']).toBeDefined();
@@ -32,7 +32,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         fillable = ['name'];
       };
-      
+
       new TestModel();
       // Test different assignment patterns
       const data = { name: 'test', email: 'test@example.com' };
@@ -44,7 +44,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         fillable = ['id', 'name', 'email', 'created_at'];
       };
-      
+
       const model = new TestModel();
       const fillable = (model as any).fillable || [];
       expect(fillable.length).toBeGreaterThan(0);
@@ -55,7 +55,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         guarded = ['id', 'created_at', 'updated_at'];
       };
-      
+
       const model = new TestModel();
       const guarded = (model as any).guarded || [];
       expect(Array.isArray(guarded)).toBe(true);
@@ -66,7 +66,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         timestamps = true;
       };
-      
+
       const model = new TestModel();
       const hasTimestamps = (model as any).timestamps;
       expect(typeof hasTimestamps).toBe('boolean');
@@ -77,7 +77,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         hidden = ['password', 'secret_token'];
       };
-      
+
       const model = new TestModel();
       const hidden = (model as any).hidden || [];
       expect(Array.isArray(hidden)).toBe(true);
@@ -88,7 +88,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         appends = ['display_name', 'avatar_url'];
       };
-      
+
       const model = new TestModel();
       const appends = (model as any).appends || [];
       expect(Array.isArray(appends)).toBe(true);
@@ -98,12 +98,12 @@ describe('ORM Module Branch Coverage', () => {
       const TestModel = class extends Model {
         protected table = 'tests';
         casts = {
-          'is_active': 'boolean',
-          'created_at': 'datetime',
-          'metadata': 'json',
+          is_active: 'boolean',
+          created_at: 'datetime',
+          metadata: 'json',
         };
       };
-      
+
       const model = new TestModel();
       const casts = (model as any).casts || {};
       expect(Object.keys(casts).length).toBeGreaterThan(0);
@@ -114,7 +114,7 @@ describe('ORM Module Branch Coverage', () => {
         protected table = 'tests';
         relationships = ['belongsTo', 'hasMany', 'belongsToMany'];
       };
-      
+
       const model = new TestModel();
       const relations = (model as any).relationships || [];
       expect(Array.isArray(relations)).toBe(true);
@@ -124,7 +124,7 @@ describe('ORM Module Branch Coverage', () => {
       const TestModel = class extends Model {
         protected table = 'tests';
       };
-      
+
       const model = new TestModel();
       expect(model).toBeDefined();
       // Test counter increment/decrement logic
@@ -164,8 +164,8 @@ describe('ORM Module Branch Coverage', () => {
       const minValue = 10;
       const maxValue = 20;
       const testValues = [5, 10, 15, 20, 25];
-      
-      const inRange = testValues.filter(v => v >= minValue && v <= maxValue);
+
+      const inRange = testValues.filter((v) => v >= minValue && v <= maxValue);
       expect(inRange).toEqual([10, 15, 20]);
     });
 
@@ -175,8 +175,8 @@ describe('ORM Module Branch Coverage', () => {
         { id: 2, deleted_at: null },
         { id: 3, deleted_at: '2024-01-01' },
       ];
-      
-      const nullValues = data.filter(d => d.deleted_at === null);
+
+      const nullValues = data.filter((d) => d.deleted_at === null);
       expect(nullValues.length).toBe(2);
     });
 
@@ -209,7 +209,7 @@ describe('ORM Module Branch Coverage', () => {
     it('should handle distinct flag', () => {
       const distinctOn = ['category', 'status'];
       const regular = ['id', 'name'];
-      
+
       expect(distinctOn.length).toBe(2);
       expect(regular.length).toBe(2);
     });
@@ -235,7 +235,7 @@ describe('ORM Module Branch Coverage', () => {
         'UPDATE users SET': 'write',
         'DELETE FROM users': 'write',
       };
-      
+
       expect(queries['SELECT * FROM users']).toBe('read');
       expect(queries['INSERT INTO users VALUES']).toBe('write');
     });
@@ -243,7 +243,7 @@ describe('ORM Module Branch Coverage', () => {
     it('should handle prepared statement caching', () => {
       const cache = new Map();
       const statement = 'SELECT * FROM users WHERE id = ?';
-      
+
       cache.set(statement, { prepared: true });
       expect(cache.has(statement)).toBe(true);
       expect(cache.get(statement).prepared).toBe(true);
@@ -252,7 +252,7 @@ describe('ORM Module Branch Coverage', () => {
     it('should handle connection retry logic', () => {
       const maxRetries = 3;
       const retryDelays = [100, 200, 400]; // exponential backoff
-      
+
       expect(maxRetries).toBe(3);
       expect(retryDelays.length).toBe(3);
       expect(retryDelays[2]).toBeGreaterThan(retryDelays[1]);
@@ -264,7 +264,7 @@ describe('ORM Module Branch Coverage', () => {
         query: 30000,
         statement: 60000,
       };
-      
+
       expect(timeouts.query).toBeGreaterThan(timeouts.connection);
       expect(timeouts.statement).toBeGreaterThan(timeouts.query);
     });
@@ -276,7 +276,7 @@ describe('ORM Module Branch Coverage', () => {
         '1062': 'Duplicate entry',
         '1054': 'Unknown column',
       };
-      
+
       expect(errorCodes['1045']).toBeDefined();
       expect(Object.keys(errorCodes).length).toBe(4);
     });
@@ -287,7 +287,7 @@ describe('ORM Module Branch Coverage', () => {
         'mysql://user:pass@localhost:3306/db',
         'sqlite:///path/to/db.sqlite',
       ];
-      
+
       expect(urls.length).toBe(3);
       expect(urls[0]).toContain('postgres');
       expect(urls[2]).toContain('sqlite');
@@ -299,9 +299,9 @@ describe('ORM Module Branch Coverage', () => {
         'INSERT INTO users VALUES (2)',
         'INSERT INTO users VALUES (3)',
       ];
-      
+
       expect(batch.length).toBe(3);
-      expect(batch.every(q => q.includes('INSERT'))).toBe(true);
+      expect(batch.every((q) => q.includes('INSERT'))).toBe(true);
     });
 
     it('should handle schema caching', () => {
@@ -309,7 +309,7 @@ describe('ORM Module Branch Coverage', () => {
         users: ['id', 'name', 'email'],
         posts: ['id', 'title', 'user_id'],
       };
-      
+
       expect(schema.users.length).toBe(3);
       expect(schema.posts.length).toBe(3);
     });
@@ -329,10 +329,10 @@ describe('ORM Module Branch Coverage', () => {
 
     it('should handle relation constraints', () => {
       const constraints = {
-        'active': (q: any) => q.where('status', 'active'),
-        'recent': (q: any) => q.whereDate('created_at', '>', new Date(Date.now() - 86400000)),
+        active: (q: any) => q.where('status', 'active'),
+        recent: (q: any) => q.whereDate('created_at', '>', new Date(Date.now() - 86400000)),
       };
-      
+
       expect(Object.keys(constraints).length).toBe(2);
     });
 
@@ -356,8 +356,15 @@ describe('ORM Module Branch Coverage', () => {
   describe('Migration and Schema Branches', () => {
     it('should handle column type variations', () => {
       const types = [
-        'string', 'text', 'integer', 'boolean',
-        'timestamp', 'date', 'json', 'decimal', 'enum'
+        'string',
+        'text',
+        'integer',
+        'boolean',
+        'timestamp',
+        'date',
+        'json',
+        'decimal',
+        'enum',
       ];
       expect(types.length).toBe(9);
     });
@@ -370,7 +377,7 @@ describe('ORM Module Branch Coverage', () => {
         index: true,
         primary: true,
       };
-      
+
       expect(Object.keys(modifiers).length).toBe(5);
     });
 
@@ -379,7 +386,7 @@ describe('ORM Module Branch Coverage', () => {
         { column: 'user_id', references: 'users.id', onDelete: 'CASCADE' },
         { column: 'post_id', references: 'posts.id', onDelete: 'SET NULL' },
       ];
-      
+
       expect(constraints.length).toBe(2);
       expect(constraints[0].onDelete).toBe('CASCADE');
     });
@@ -390,7 +397,7 @@ describe('ORM Module Branch Coverage', () => {
         composite: ['category_id', 'status'],
         fulltext: ['title', 'body'],
       };
-      
+
       expect(Object.keys(indexes).length).toBe(3);
     });
 
@@ -400,8 +407,8 @@ describe('ORM Module Branch Coverage', () => {
         { name: 'create_posts', batch: 1 },
         { name: 'add_timestamps', batch: 2 },
       ];
-      
-      const batch1 = migrations.filter(m => m.batch === 1);
+
+      const batch1 = migrations.filter((m) => m.batch === 1);
       expect(batch1.length).toBe(2);
     });
   });

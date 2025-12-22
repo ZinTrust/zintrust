@@ -85,4 +85,49 @@ describe('D1Adapter', () => {
       'D1 database binding not found'
     );
   });
+
+  it('should throw if queryOne called without DB binding', async () => {
+    delete (globalThis as any).env.DB;
+    const noDbAdapter = new D1Adapter(mockConfig);
+
+    await expect(noDbAdapter.queryOne('SELECT * FROM users LIMIT 1', [])).rejects.toThrow(
+      'D1 database binding not found'
+    );
+  });
+
+  it('should handle queryOne errors', async () => {
+    mockD1.prepare.mockImplementation(() => {
+      throw new Error('QueryOne failed');
+    });
+
+    await expect(adapter.queryOne('SELECT * FROM users LIMIT 1', [])).rejects.toThrow(
+      'QueryOne failed'
+    );
+  });
+
+  it('should handle transaction callback', async () => {
+    const mockBind = vi.fn().mockReturnThis();
+    const mockAll = vi.fn().mockResolvedValue({ results: [{ id: 1 }] });
+
+    mockD1.prepare.mockReturnValue({
+      bind: mockBind,
+      all: mockAll,
+    });
+
+    const result = await adapter.transaction(async (trx) => {
+      return await trx.query('INSERT INTO users', []);
+    });
+
+    expect(result.rows).toEqual([{ id: 1 }]);
+  });
+
+  it('should return correct parameter placeholder', () => {
+    const placeholder = (adapter as any).getParameterPlaceholder(0);
+    expect(placeholder).toBe('?');
+  });
+
+  it('should disconnect successfully', async () => {
+    await adapter.disconnect();
+    expect(adapter.isConnected()).toBe(false);
+  });
 });
