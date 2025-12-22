@@ -3,7 +3,7 @@
  * Import actual adapter modules and test all paths
  */
 
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('ORM Adapters - Direct Coverage', () => {
   beforeEach(() => {
