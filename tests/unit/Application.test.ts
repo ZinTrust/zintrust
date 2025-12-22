@@ -71,7 +71,7 @@ describe('Application', () => {
     }));
 
     const { Application: FreshApplication } = await import('@/Application');
-    new FreshApplication('/root');
+    new FreshApplication('/root'); // NOSONAR
 
     expect(initialize).not.toHaveBeenCalled();
     delete process.env['DISABLE_LOGGING'];

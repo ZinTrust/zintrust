@@ -588,7 +588,7 @@ describe('MicroserviceManager', () => {
 
     it('should include lastHealthCheck in summary', async () => {
       initialize([], 3000);
-      void (await registerService({ name: 'users', domain: 'users' }));
+      void (await registerService({ name: 'users', domain: 'users' })); // NOSONAR to avoid unused warning
 
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
       await checkServiceHealth('users');

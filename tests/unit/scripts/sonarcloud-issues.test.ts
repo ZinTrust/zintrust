@@ -248,7 +248,7 @@ describe('scripts/sonarcloud-issues', () => {
     process.argv = ['node', scriptPath, '--measures', '--uncovered', '--open', '--types=BUG'];
     process.env['SONAR_TOKEN'] = 'token';
 
-    await vi.resetModules();
+    vi.resetModules();
     await import('@scripts/sonarcloud-issues');
 
     expect(logSpy).toHaveBeenCalled();
@@ -404,7 +404,7 @@ describe('scripts/sonarcloud-issues', () => {
     process.argv = ['node', scriptPath];
     issuesState.statusCode = 500;
 
-    await vi.resetModules();
+    vi.resetModules();
     await expect(import('@scripts/sonarcloud-issues')).rejects.toThrow(/process\.exit:1/);
   });
 
@@ -418,7 +418,7 @@ describe('scripts/sonarcloud-issues', () => {
     }) as unknown as typeof process.exit;
     process.exit = exitMock;
 
-    await vi.resetModules();
+    vi.resetModules();
     await expect(import('@scripts/sonarcloud-issues')).rejects.toThrow(/process\.exit:1/);
   });
 });

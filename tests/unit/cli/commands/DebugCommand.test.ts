@@ -194,7 +194,7 @@ describe('DebugCommand', () => {
     });
 
     it('should setup SIGINT handler for graceful shutdown', async () => {
-      void vi.spyOn(process, 'on');
+      vi.spyOn(process, 'on');
 
       // The execute method should attach SIGINT handler
       // This test verifies the command is set up for graceful shutdown

@@ -199,7 +199,7 @@ describe('Coverage Boost - Final Push', () => {
       const req = new Request({ url: '/doc/clean-url', method: 'GET', headers: {} } as any);
 
       // @ts-ignore - access private helper for deterministic path
-      const basePath = server.mapStaticPath('/doc/clean-url') as string;
+      const basePath = server.mapStaticPath('/doc/clean-url');
       const htmlPath = `${basePath}.html`;
 
       vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
@@ -224,7 +224,7 @@ describe('Coverage Boost - Final Push', () => {
       const req = new Request({ url: '/doc/missing', method: 'GET', headers: {} } as any);
 
       // @ts-ignore - access private helper for deterministic path
-      const basePath = server.mapStaticPath('/doc/missing') as string;
+      const basePath = server.mapStaticPath('/doc/missing');
       const htmlPath = `${basePath}.html`;
 
       vi.mocked(fs.existsSync).mockImplementation((p) => {
@@ -247,7 +247,7 @@ describe('Coverage Boost - Final Push', () => {
       const req = new Request({ url: '/doc/dir', method: 'GET', headers: {} } as any);
 
       // @ts-ignore
-      const dirPath = server.mapStaticPath('/doc/dir') as string;
+      const dirPath = server.mapStaticPath('/doc/dir');
       const indexPath = path.join(dirPath, 'index.html');
 
       vi.spyOn(fs, 'existsSync').mockReturnValue(true);
@@ -347,7 +347,7 @@ describe('Coverage Boost - Final Push', () => {
     it('should return early when error equals version in handleExecutionError', async () => {
       const cli = new CLI();
       // @ts-ignore
-      const version = cli.version as string;
+      const version = cli.version;
       // @ts-ignore
       expect(() => cli.handleExecutionError(version)).not.toThrow();
     });
@@ -362,7 +362,7 @@ describe('Coverage Boost - Final Push', () => {
         try {
           // @ts-ignore
           await helpCmd._actionHandler(['unknown']);
-        } catch (e) {
+        } catch {
           // Expected commander exit
         }
       }
@@ -376,7 +376,7 @@ describe('Coverage Boost - Final Push', () => {
         try {
           // @ts-ignore
           await helpCmd._actionHandler(['help']);
-        } catch (e) {
+        } catch {
           // Expected commander exit
         }
       }
@@ -390,7 +390,7 @@ describe('Coverage Boost - Final Push', () => {
         try {
           // @ts-ignore
           await helpCmd._actionHandler([]);
-        } catch (e) {
+        } catch {
           // Expected commander exit
         }
       }
@@ -594,8 +594,8 @@ describe('Coverage Boost - Final Push', () => {
       expect(container.has('test')).toBe(true);
       expect(container.resolve('test')).toEqual({ foo: 'bar' });
       expect(container.get('test')).toEqual({ foo: 'bar' });
-
-      container.singleton('single', () => ({ count: Math.random() }));
+      const getcount = Math.random(); // NOSONAR
+      container.singleton('single', () => ({ count: getcount })); // NOSONAR
       const s1 = container.resolve('single');
       const s2 = container.resolve('single');
       expect(s1).toBe(s2);
