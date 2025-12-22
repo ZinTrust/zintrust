@@ -71,7 +71,7 @@
     "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
     "cleanup:github-actions": "bash ./dev/cleanup-github-actions.sh",
     "prepare": "husky",
-    "upgrade:interactive": "npx npm-check-updates -i"
+    "check-up": "npx npm-check-updates"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -103,7 +103,7 @@
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "inquirer": "^13.1.0",
-    "tsx": "^4.7.0"
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
@@ -112,13 +112,13 @@
     "@typescript-eslint/parser": "^8.50.0",
     "@vitest/coverage-v8": "^4.0.16",
     "eslint": "^9.39.2",
-    "globals": "^15.14.0",
+    "globals": "^16.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
-    "prettier": "^3.5.3",
+    "prettier": "^3.7.4",
     "sonarqube-scanner": "^4.3.2",
     "tsc-alias": "^1.8.16",
-    "typescript": "^5.3.3",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.0",
     "vitest": "^4.0.16"
   }
