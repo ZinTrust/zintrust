@@ -360,11 +360,11 @@ describe('Integration Tests - Source Code Coverage', () => {
     });
 
     it('should handle nullish coalescing', () => {
-      let value: null | string = null;
+      const value: null | string = null;
       const result = value ?? 'default';
       expect(result).toBe('default');
 
-      let defined: unknown = 0;
+      const defined: unknown = 0;
       expect(defined ?? 'default').toBe(0);
     });
   });

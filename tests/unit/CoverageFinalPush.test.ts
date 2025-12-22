@@ -45,7 +45,7 @@ describe('Coverage Final Push - Low Coverage Files', () => {
         'snake_case',
         '',
         ' ',
-        '\\n',
+        String.raw`\n`,
         'with\ttabs',
       ];
 
@@ -183,7 +183,7 @@ describe('Coverage Final Push - Low Coverage Files', () => {
       const fn1 = () => 'result';
       const fn2 = (a: number) => a * 2;
       const fn3 = (a: number, b: number) => a + b;
-      const fn4 = async () => Promise.resolve('async');
+      const fn4 = async () => 'async';
 
       expect(fn1()).toBe('result');
       expect(fn2(5)).toBe(10);
