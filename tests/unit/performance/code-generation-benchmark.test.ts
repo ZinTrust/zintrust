@@ -223,14 +223,14 @@ describe('CodeGenerationBenchmark', () => {
     vi.resetModules();
     vi.clearAllMocks();
 
-    // Re-setup all mocks after resetModules
-    loggerInfo.mockClear();
-    loggerError.mockClear();
+    // Create fresh mock instances for this test
+    const testLoggerError = vi.fn();
+    const testLoggerInfo = vi.fn();
 
     vi.doMock('@config/logger', () => ({
       Logger: {
-        info: loggerInfo,
-        error: loggerError,
+        info: testLoggerInfo,
+        error: testLoggerError,
       },
     }));
 
@@ -261,7 +261,7 @@ describe('CodeGenerationBenchmark', () => {
 
     await import('@performance/CodeGenerationBenchmark' + '?v=esm-main-fail');
 
-    expect(loggerError).toHaveBeenCalledWith('Benchmark failed:', expect.any(Error));
+    expect(testLoggerError).toHaveBeenCalledWith('Benchmark failed:', expect.any(Error));
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     exitSpy.mockRestore();

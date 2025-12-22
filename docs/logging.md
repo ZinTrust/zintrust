@@ -115,7 +115,8 @@ The ESLint rule `no-restricted-syntax` enforces that every catch block includes 
 ```typescript
 // ❌ INVALID - ESLint Error
 try {
-  await database.query('SELECT * FROM users');
+  const User = require('@app/Models/User');
+  await User.query().get();
 } catch (error) {
   // Missing Logger.error() call!
   return null;
@@ -123,7 +124,8 @@ try {
 
 // ✅ VALID - Compliant with safety rule
 try {
-  await database.query('SELECT * FROM users');
+  const User = require('@app/Models/User');
+  await User.query().get();
 } catch (error) {
   Logger.error('Database query failed', error);
   return null;
