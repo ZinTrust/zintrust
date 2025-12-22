@@ -3,7 +3,7 @@
  * Direct tests for Model, Database, and Adapter classes
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Database and ORM Critical Paths', () => {
   beforeEach(() => {
