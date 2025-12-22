@@ -1,0 +1,32 @@
+name: Trivy Security Scan
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Required to checkout the repo
+      security-events: write # Required to upload results to the Security tab
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@0.32.0 # Use the latest version
+      with:
+        scan-type: 'fs' # 'fs' for filesystem scan of the codebase
+        format: 'github' # Format for GitHub Advanced Security
+        output: 'trivy-results.sarif.'
+        # GITHUB_TOKEN is automatically used by the action for private repo access
+        github-token: ${{ secrets.GITHUB_TOKEN }} 
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeQL-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif.'
