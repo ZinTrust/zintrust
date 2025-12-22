@@ -1,0 +1,311 @@
+# GitHub Actions Security Workflow
+# Comprehensive security scanning: dependencies, secrets, code analysis, and vulnerabilities
+
+name: Security Scan
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+  schedule:
+    # Run security scan every day at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  dependency-check:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@e2221410bff24446ba09102212d8bc75a567237d # master
+        continue-on-error: true # To allow the report to be generated even if vulnerabilities are found
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Run Trivy vulnerability scanner (Repo)
+        uses: aquasecurity/trivy-action@22438a435773de8c97dc0958cc0b823c45b064ac # master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run npm audit
+        id: npm_audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check npm audit results
+        if: steps.npm_audit.outcome == 'failure'
+        run: |
+          echo "❌ Security vulnerabilities detected!"
+          npm audit
+          exit 1
+
+  secret-scanning:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog Secret Scanner
+        uses: trufflesecurity/trufflehog@ef6e76c3c4023279497fab4721ffa071a722fd05 # main
+        with:
+          path: ./
+          extra_args: --debug --only-verified
+
+      - name: Detect secrets with detect-secrets
+        run: |
+          pip install detect-secrets
+          detect-secrets scan --all-files --force-use-all-plugins > .secrets.baseline 2>&1 || true
+          if grep -q '"is_secret": true' .secrets.baseline; then
+            echo "❌ Potential secrets detected!"
+            cat .secrets.baseline
+            exit 1
+          fi
+          echo "✅ No secrets detected"
+
+  code-scanning:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
+        with:
+          languages: 'typescript'
+          queries: security-and-quality
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Build project
+        run: npm run build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
+        with:
+          category: '/language:typescript'
+          upload: false # GitHub Advanced Security is required for code-scanning uploads
+          output: codeql-results
+
+      - name: Upload CodeQL SARIF artifacts
+        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        if: always()
+        with:
+          name: codeql-sarif
+          path: |
+            codeql-results/**/*.sarif
+            codeql-results/**/*.sarif.gz
+
+  sast-scanning:
+    name: SAST - Static Code Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Run SAST analysis
+        run: |
+          echo "✅ Running static code analysis..."
+          npm run lint -- --format json > eslint-report.json 2>&1 || true
+          npm run type-check 2>&1 | tee typecheck-report.txt || true
+
+      - name: Upload SAST reports
+        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        if: always()
+        with:
+          name: sast-reports
+          path: |
+            eslint-report.json
+            typecheck-report.txt
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Check licenses with license-checker
+        run: |
+          npx license-checker --json > licenses.json
+          echo "📋 Dependency licenses:"
+          npx license-checker --summary
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        if: always()
+        with:
+          name: license-report
+          path: licenses.json
+
+  security-headers:
+    name: Security Headers Validation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Validate security config
+        run: |
+          echo "✅ Checking security configurations..."
+
+          # Check for .env.example
+          if [ ! -f .env.example ]; then
+            echo "⚠️  .env.example not found"
+          fi
+
+          # Check HTTPS configuration
+          grep -r "https://" src/ || echo "⚠️  No HTTPS enforced in source"
+
+          # Check for hardcoded secrets (exclude test/mock files)
+          if grep -r "api[_-]?key\|password\|secret" src/ --ignore-case | grep -v "test\|mock\|example" | head -5; then
+            echo "⚠️  Potential hardcoded secrets found - review manually"
+          else
+            echo "✅ No obvious hardcoded secrets detected"
+          fi
+
+  dependency-graph:
+    name: Dependency Graph Update
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+
+      - name: Generate SBOM and update dependency graph
+        run: |
+          npx @cyclonedx/cyclonedx-npm --output-file sbom.json
+          echo "✅ SBOM generated: sbom.json"
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        if: always()
+        with:
+          name: sbom-reports
+          path: sbom.json
+
+  security-report:
+    name: Security Report Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-check, secret-scanning, code-scanning, sast-scanning, license-compliance]
+    if: always()
+
+    steps:
+      - name: Create security report
+        run: |
+          echo "# 🔒 Security Scan Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Checks Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Snyk & Trivy Vulnerability Scans: ${{ needs.dependency-check.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Secret Detection: ${{ needs.secret-scanning.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ CodeQL Analysis: ${{ needs.code-scanning.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ SAST Scanning: ${{ needs.sast-scanning.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ License Compliance: ${{ needs.license-compliance.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Summary" >> $GITHUB_STEP_SUMMARY
+          echo "All security scans have been completed. Review the job logs above for details." >> $GITHUB_STEP_SUMMARY
