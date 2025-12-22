@@ -69,7 +69,7 @@ export class ProjectScaffolder {
       errors.push('Project name is required');
     }
 
-    if (options.name !== undefined && /^[a-z0-9\-_]+$/.test(options.name) === false) {
+    if (options.name !== undefined && /^[a-z\d\-_]+$/.test(options.name) === false) {
       errors.push(
         'Project name must contain only lowercase letters, numbers, hyphens, and underscores'
       );

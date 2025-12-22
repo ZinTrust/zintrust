@@ -38,7 +38,7 @@ export class PromptHelper {
         default: defaultName ?? 'my-zintrust-app',
         validate: (input: string): string | boolean => {
           if (!input.trim()) return 'Project name cannot be empty';
-          if (!/^[a-z0-9\-_]+$/i.test(input))
+          if (!/^[a-z\d\-_]+$/i.test(input))
             return 'Project name can only contain letters, numbers, hyphens, and underscores';
           return true;
         },

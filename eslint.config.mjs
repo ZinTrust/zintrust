@@ -24,6 +24,7 @@ export default defineConfig(
       'eslint.config.mjs',
       'worker-configuration.d.ts',
       '.scannerwork/**',
+      'check_vi.ts',
     ],
   },
   eslint.configs.recommended,
@@ -43,7 +44,10 @@ export default defineConfig(
   },
   {
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/explicit-function-return-type': 'warn',
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/strict-boolean-expressions': 'warn',

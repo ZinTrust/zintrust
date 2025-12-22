@@ -67,4 +67,26 @@ describe('PostgreSQLAdapter', () => {
     expect((adapter as any).getParameterPlaceholder(0)).toBe('$0');
     expect((adapter as any).getParameterPlaceholder(5)).toBe('$5');
   });
+
+  it('should handle connection error', async () => {
+    const errorConfig: DatabaseConfig = { ...config, host: 'error' };
+    const errorAdapter = new PostgreSQLAdapter(errorConfig);
+    await expect(errorAdapter.connect()).rejects.toThrow(
+      'Failed to connect to PostgreSQL: Connection failed'
+    );
+  });
+
+  it('should handle config with custom port', async () => {
+    const customConfig: DatabaseConfig = { ...config, port: 5433 };
+    const customAdapter = new PostgreSQLAdapter(customConfig);
+    await customAdapter.connect();
+    expect(customAdapter.isConnected()).toBe(true);
+  });
+
+  it('should handle config without port (default port)', async () => {
+    const { port: _, ...configWithoutPort } = config;
+    const defaultAdapter = new PostgreSQLAdapter(configWithoutPort as DatabaseConfig);
+    await defaultAdapter.connect();
+    expect(defaultAdapter.isConnected()).toBe(true);
+  });
 });

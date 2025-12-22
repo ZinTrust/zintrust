@@ -276,7 +276,6 @@ describe('Routing and HTTP Module Coverage', () => {
     });
 
     it('should handle ETag generation', () => {
-      const content = 'response content';
       const etags = [
         { version: 1, etag: 'etag1' },
         { version: 2, etag: 'etag2' },

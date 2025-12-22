@@ -49,7 +49,7 @@ export async function validateOptions(options: RequestFactoryOptions): Promise<v
     );
   }
 
-  if (!/^[A-Z][a-zA-Z0-9]*RequestFactory$/.test(options.factoryName)) {
+  if (!/^[A-Z][a-zA-Z\d]*RequestFactory$/.test(options.factoryName)) {
     throw new Error('Request factory name must be PascalCase ending with "RequestFactory"');
   }
 
@@ -57,7 +57,7 @@ export async function validateOptions(options: RequestFactoryOptions): Promise<v
     throw new Error('Request name is required');
   }
 
-  if (!/^[A-Z][a-zA-Z0-9]*Request$/.test(options.requestName)) {
+  if (!/^[A-Z][a-zA-Z\d]*Request$/.test(options.requestName)) {
     throw new Error('Request name must be PascalCase ending with "Request"');
   }
 

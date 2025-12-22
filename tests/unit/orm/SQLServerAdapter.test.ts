@@ -1,8 +1,13 @@
 import { SQLServerAdapter } from '@/orm/adapters/SQLServerAdapter';
 import { DatabaseConfig } from '@/orm/DatabaseAdapter';
-import { describe, expect, it } from 'vitest';
+import { Logger } from '@config/logger';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('SQLServerAdapter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   const config: DatabaseConfig = {
     driver: 'sqlserver',
     host: 'localhost',
@@ -85,12 +90,36 @@ describe('SQLServerAdapter', () => {
     expect(customAdapter.isConnected()).toBe(true);
   });
 
+  it('should handle config without port (default port)', async () => {
+    const { port: _, ...configWithoutPort } = config;
+    const defaultAdapter = new SQLServerAdapter(configWithoutPort as any);
+    await defaultAdapter.connect();
+    expect(defaultAdapter.isConnected()).toBe(true);
+  });
+
+  it('should handle connection error', async () => {
+    const errorAdapter = new SQLServerAdapter(config);
+    const loggerSpy = vi.spyOn(Logger, 'info').mockImplementation(() => {
+      throw new Error('Connection failed');
+    });
+
+    await expect(errorAdapter.connect()).rejects.toThrow(
+      'Failed to connect to SQL Server: Error: Connection failed'
+    );
+    expect(errorAdapter.isConnected()).toBe(false);
+
+    loggerSpy.mockRestore();
+  });
+
   it('should handle transaction error', async () => {
     await adapter.connect();
+    const loggerSpy = vi.spyOn(Logger, 'error');
     await expect(
       adapter.transaction(async () => {
         throw new Error('Transaction failed');
       })
     ).rejects.toThrow('Transaction failed');
+    expect(loggerSpy).toHaveBeenCalled();
+    loggerSpy.mockRestore();
   });
 });

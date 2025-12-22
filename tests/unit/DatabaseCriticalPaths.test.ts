@@ -63,7 +63,7 @@ describe('Database and ORM Critical Paths', () => {
         original: { id: 1, name: 'Original' },
         current: { id: 1, name: 'Original' },
         isDirty: function (attribute?: string) {
-          if (!attribute) {
+          if (attribute === undefined) {
             return JSON.stringify(this.original) !== JSON.stringify(this.current);
           }
           return (

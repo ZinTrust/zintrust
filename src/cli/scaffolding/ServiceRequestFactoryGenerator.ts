@@ -48,11 +48,11 @@ export function validateOptions(options: ServiceRequestOptions): {
 } {
   const errors: string[] = [];
 
-  if (options.name === undefined || !/^[A-Z][a-zA-Z0-9]*Request$/.test(options.name)) {
+  if (options.name === undefined || !/^[A-Z][a-zA-Z\d]*Request$/.test(options.name)) {
     errors.push(`Invalid factory name '${options.name}'. Must match pattern: *Request`);
   }
 
-  if (options.serviceName === undefined || !/^[a-z][a-z0-9_]*$/.test(options.serviceName)) {
+  if (options.serviceName === undefined || !/^[a-z][a-z\d_]*$/.test(options.serviceName)) {
     errors.push(
       `Invalid service name '${options.serviceName}'. Must be lowercase with underscores.`
     );

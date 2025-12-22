@@ -48,7 +48,7 @@ export async function validateOptions(options: SeederOptions): Promise<void> {
     throw new Error('Seeder name must end with "Seeder" (e.g., UserSeeder)');
   }
 
-  if (!/^[A-Z][a-zA-Z0-9]*Seeder$/.test(options.seederName)) {
+  if (!/^[A-Z][a-zA-Z\d]*Seeder$/.test(options.seederName)) {
     throw new Error('Seeder name must be PascalCase ending with "Seeder"');
   }
 
@@ -56,7 +56,7 @@ export async function validateOptions(options: SeederOptions): Promise<void> {
     throw new Error('Model name is required');
   }
 
-  if (!/^[A-Z][a-zA-Z0-9]*$/.test(options.modelName)) {
+  if (!/^[A-Z][a-zA-Z\d]*$/.test(options.modelName)) {
     throw new Error('Model name must be PascalCase (e.g., User, Post)');
   }
 

@@ -64,7 +64,7 @@ export interface ModelGeneratorResult {
 export function validateOptions(options: ModelOptions): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (/^[A-Z][a-zA-Z0-9]*$/.test(options.name) === false) {
+  if (/^[A-Z][a-zA-Z\d]*$/.test(options.name) === false) {
     errors.push(`Invalid model name '${options.name}'. Must start with uppercase letter.`);
   }
 

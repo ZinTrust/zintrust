@@ -150,7 +150,7 @@ describe('AddCommand', () => {
 
       try {
         await command.execute(options);
-      } catch (e) {
+      } catch {
         // Some paths may throw
       }
       expect(command).toBeDefined();
@@ -259,7 +259,7 @@ describe('AddCommand', () => {
 
       try {
         await command.execute(options);
-      } catch (e) {
+      } catch {
         // Some paths may throw
       }
       expect(command).toBeDefined();
@@ -274,7 +274,7 @@ describe('AddCommand', () => {
 
       try {
         await command.execute(options);
-      } catch (e) {
+      } catch {
         // Some paths may throw
       }
       expect(command).toBeDefined();
@@ -477,7 +477,7 @@ describe('AddCommand', () => {
 
       try {
         await command.execute(options);
-      } catch (e) {
+      } catch {
         // Expected
       }
 
@@ -494,7 +494,7 @@ describe('AddCommand', () => {
 
       try {
         await command.execute(options);
-      } catch (e) {
+      } catch {
         // Expected
       }
 

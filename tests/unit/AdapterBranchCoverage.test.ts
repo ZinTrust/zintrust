@@ -5,203 +5,203 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('Adapter Branch Coverage Enhancement', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('Database Connection Handling', () => {
+  it('should handle connection pool initialization', () => {
+    const pool = {
+      initialized: false,
+      init: function () {
+        this.initialized = true;
+      },
+      getConnection: function () {
+        if (!this.initialized) throw new Error('Pool not initialized');
+        return { query: vi.fn() };
+      },
+    };
+
+    expect(pool.initialized).toBe(false);
+    pool.init();
+    expect(pool.initialized).toBe(true);
+    expect(() => pool.getConnection()).not.toThrow();
   });
 
-  describe('Database Connection Handling', () => {
-    it('should handle connection pool initialization', () => {
-      const pool = {
-        initialized: false,
-        init: function () {
-          this.initialized = true;
-        },
-        getConnection: function () {
-          if (!this.initialized) throw new Error('Pool not initialized');
-          return { query: vi.fn() };
-        },
-      };
+  it('should handle database connection failures', async () => {
+    const db = {
+      connect: vi.fn().mockRejectedValue(new Error('Connection timeout')),
+      reconnect: vi.fn(),
+    };
 
-      expect(pool.initialized).toBe(false);
-      pool.init();
-      expect(pool.initialized).toBe(true);
-      expect(() => pool.getConnection()).not.toThrow();
-    });
-
-    it('should handle database connection failures', () => {
-      const db = {
-        connect: vi.fn().mockRejectedValue(new Error('Connection timeout')),
-        reconnect: vi.fn(),
-      };
-
-      expect(db.connect()).rejects.toThrow('Connection timeout');
-    });
-
-    it('should handle transaction state management', () => {
-      const transaction = {
-        inTransaction: false,
-        begin: function () {
-          this.inTransaction = true;
-        },
-        commit: function () {
-          if (!this.inTransaction) throw new Error('No active transaction');
-          this.inTransaction = false;
-        },
-        rollback: function () {
-          this.inTransaction = false;
-        },
-      };
-
-      expect(transaction.inTransaction).toBe(false);
-      transaction.begin();
-      expect(transaction.inTransaction).toBe(true);
-      transaction.commit();
-      expect(transaction.inTransaction).toBe(false);
-    });
-
-    it('should handle nested transaction attempts', () => {
-      const transaction = {
-        depth: 0,
-        begin: function () {
-          this.depth++;
-        },
-        commit: function () {
-          this.depth--;
-        },
-      };
-
-      transaction.begin();
-      expect(transaction.depth).toBe(1);
-      transaction.begin();
-      expect(transaction.depth).toBe(2);
-      transaction.commit();
-      expect(transaction.depth).toBe(1);
-      transaction.commit();
-      expect(transaction.depth).toBe(0);
-    });
+    await expect(db.connect()).rejects.toThrow('Connection timeout');
   });
 
-  describe('Query Execution Paths', () => {
-    it('should execute select queries', () => {
-      const query = { type: 'SELECT', executed: false };
-      if (query.type === 'SELECT') {
-        query.executed = true;
-      }
-      expect(query.executed).toBe(true);
-    });
+  it('should handle transaction state management', () => {
+    const transaction = {
+      inTransaction: false,
+      begin: function () {
+        this.inTransaction = true;
+      },
+      commit: function () {
+        if (!this.inTransaction) throw new Error('No active transaction');
+        this.inTransaction = false;
+      },
+      rollback: function () {
+        this.inTransaction = false;
+      },
+    };
 
-    it('should execute insert queries', () => {
-      const query = { type: 'INSERT', executed: false };
-      if (query.type === 'INSERT') {
-        query.executed = true;
-      }
-      expect(query.executed).toBe(true);
-    });
-
-    it('should execute update queries', () => {
-      const query = { type: 'UPDATE', executed: false };
-      if (query.type === 'UPDATE') {
-        query.executed = true;
-      }
-      expect(query.executed).toBe(true);
-    });
-
-    it('should execute delete queries', () => {
-      const query = { type: 'DELETE', executed: false };
-      if (query.type === 'DELETE') {
-        query.executed = true;
-      }
-      expect(query.executed).toBe(true);
-    });
-
-    it('should handle raw SQL execution', () => {
-      const executor = {
-        executeRaw: function (sql: string) {
-          const isSelect = sql.toUpperCase().startsWith('SELECT');
-          return { isSelect, sql };
-        },
-      };
-
-      const result1 = executor.executeRaw('SELECT * FROM users');
-      expect(result1.isSelect).toBe(true);
-
-      const result2 = executor.executeRaw('INSERT INTO users VALUES (1)');
-      expect(result2.isSelect).toBe(false);
-    });
+    expect(transaction.inTransaction).toBe(false);
+    transaction.begin();
+    expect(transaction.inTransaction).toBe(true);
+    transaction.commit();
+    expect(transaction.inTransaction).toBe(false);
   });
 
-  describe('Result Processing Paths', () => {
-    it('should process single row results', () => {
-      const results = [{ id: 1, name: 'User' }];
-      const processedResult = results.length === 1 ? results[0] : null;
-      expect(processedResult).toEqual({ id: 1, name: 'User' });
-    });
+  it('should handle nested transaction attempts', () => {
+    const transaction = {
+      depth: 0,
+      begin: function () {
+        this.depth++;
+      },
+      commit: function () {
+        this.depth--;
+      },
+    };
 
-    it('should process multiple row results', () => {
-      const results = [
-        { id: 1, name: 'User1' },
-        { id: 2, name: 'User2' },
-      ];
-      expect(results.length).toBe(2);
-      expect(Array.isArray(results)).toBe(true);
-    });
+    transaction.begin();
+    expect(transaction.depth).toBe(1);
+    transaction.begin();
+    expect(transaction.depth).toBe(2);
+    transaction.commit();
+    expect(transaction.depth).toBe(1);
+    transaction.commit();
+    expect(transaction.depth).toBe(0);
+  });
+});
 
-    it('should handle empty results', () => {
-      const results: unknown[] = [];
-      expect(results.length).toBe(0);
-      expect(results.length === 0).toBe(true);
-    });
+describe('Query Execution Paths', () => {
+  it('should execute select queries', () => {
+    const query = { type: 'SELECT', executed: false };
+    if (query.type === 'SELECT') {
+      query.executed = true;
+    }
+    expect(query.executed).toBe(true);
+  });
 
-    it('should handle null results', () => {
-      const result = null;
+  it('should execute insert queries', () => {
+    const query = { type: 'INSERT', executed: false };
+    if (query.type === 'INSERT') {
+      query.executed = true;
+    }
+    expect(query.executed).toBe(true);
+  });
+
+  it('should execute update queries', () => {
+    const query = { type: 'UPDATE', executed: false };
+    if (query.type === 'UPDATE') {
+      query.executed = true;
+    }
+    expect(query.executed).toBe(true);
+  });
+
+  it('should execute delete queries', () => {
+    const query = { type: 'DELETE', executed: false };
+    if (query.type === 'DELETE') {
+      query.executed = true;
+    }
+    expect(query.executed).toBe(true);
+  });
+
+  it('should handle raw SQL execution', () => {
+    const executor = {
+      executeRaw: function (sql: string) {
+        const isSelect = sql.toUpperCase().startsWith('SELECT');
+        return { isSelect, sql };
+      },
+    };
+
+    const result1 = executor.executeRaw('SELECT * FROM users');
+    expect(result1.isSelect).toBe(true);
+
+    const result2 = executor.executeRaw('INSERT INTO users VALUES (1)');
+    expect(result2.isSelect).toBe(false);
+  });
+});
+
+describe('Result Processing Paths', () => {
+  it('should process single row results', () => {
+    const results = [{ id: 1, name: 'User' }];
+    const processedResult = results.length === 1 ? results[0] : null;
+    expect(processedResult).toEqual({ id: 1, name: 'User' });
+  });
+
+  it('should process multiple row results', () => {
+    const results = [
+      { id: 1, name: 'User1' },
+      { id: 2, name: 'User2' },
+    ];
+    expect(results.length).toBe(2);
+    expect(Array.isArray(results)).toBe(true);
+  });
+
+  it('should handle empty results', () => {
+    const results: unknown[] = [];
+    expect(results.length).toBe(0);
+    expect(results.length === 0).toBe(true);
+  });
+
+  it('should handle null results', () => {
+    const result: null | boolean = null;
+    if (result === null) {
       expect(result === null).toBe(true);
-      expect(!result).toBe(true);
-    });
-
-    it('should process result transformation', () => {
-      const transform = (data: Record<string, unknown>) => ({
-        ...data,
-        transformed: true,
-      });
-
-      const result = transform({ id: 1, name: 'Test' });
-      expect(result.transformed).toBe(true);
-    });
+      expect(result === null).toBe(true);
+    }
   });
 
-  describe('Error Handling in Adapters', () => {
-    it('should handle ECONNREFUSED errors', () => {
-      const adapter = {
-        connect: vi.fn().mockRejectedValue({ code: 'ECONNREFUSED' }),
-      };
-
-      expect(adapter.connect()).rejects.toEqual({ code: 'ECONNREFUSED' });
+  it('should process result transformation', () => {
+    const transform = (data: Record<string, unknown>) => ({
+      ...data,
+      transformed: true,
     });
 
-    it('should handle TIMEOUT errors', () => {
-      const adapter = {
-        execute: vi.fn().mockRejectedValue(new Error('Query timeout')),
-      };
+    const result = transform({ id: 1, name: 'Test' });
+    expect(result.transformed).toBe(true);
+  });
+});
 
-      expect(adapter.execute()).rejects.toThrow('Query timeout');
-    });
+describe('Error Handling in Adapters', () => {
+  it('should handle ECONNREFUSED errors', async () => {
+    const adapter = {
+      connect: vi.fn().mockRejectedValue({ code: 'ECONNREFUSED' }),
+    };
 
-    it('should handle SYNTAX_ERROR', () => {
-      const adapter = {
-        query: vi.fn().mockRejectedValue(new Error('Syntax error in query')),
-      };
+    await expect(adapter.connect()).rejects.toEqual({ code: 'ECONNREFUSED' });
+  });
 
-      expect(adapter.query('INVALID SQL')).rejects.toThrow('Syntax error');
-    });
+  it('should handle TIMEOUT errors', async () => {
+    const adapter = {
+      execute: vi.fn().mockRejectedValue(new Error('Query timeout')),
+    };
 
-    it('should handle AUTH_FAILED errors', () => {
-      const adapter = {
-        authenticate: vi.fn().mockRejectedValue(new Error('Authentication failed')),
-      };
+    await expect(adapter.execute()).rejects.toThrow('Query timeout');
+  });
 
-      expect(adapter.authenticate()).rejects.toThrow('Authentication');
-    });
+  it('should handle SYNTAX_ERROR', async () => {
+    const adapter = {
+      query: vi.fn().mockRejectedValue(new Error('Syntax error in query')),
+    };
+
+    await expect(adapter.query('INVALID SQL')).rejects.toThrow('Syntax error');
+  });
+
+  it('should handle AUTH_FAILED errors', async () => {
+    const adapter = {
+      authenticate: vi.fn().mockRejectedValue(new Error('Authentication failed')),
+    };
+
+    await expect(adapter.authenticate()).rejects.toThrow('Authentication');
   });
 
   describe('Adapter State Management', () => {
@@ -257,7 +257,13 @@ describe('Adapter Branch Coverage Enhancement', () => {
           { id: 2, inUse: false },
         ],
         acquire: function () {
-          const conn = this.available.find((c) => !c.inUse);
+          let conn;
+          for (const c of this.available) {
+            if (!c.inUse) {
+              conn = c;
+              break;
+            }
+          }
           if (conn) conn.inUse = true;
           return conn;
         },

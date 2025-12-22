@@ -47,7 +47,7 @@ export function validateOptions(options: ControllerOptions): { valid: boolean; e
   if (
     options.name === undefined ||
     options.name === '' ||
-    /^[A-Z][a-zA-Z0-9]*Controller$/.test(options.name) === false
+    /^[A-Z][a-zA-Z\d]*Controller$/.test(options.name) === false
   ) {
     errors.push(`Invalid controller name '${options.name}'. Must end with 'Controller'.`);
   }

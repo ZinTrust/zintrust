@@ -482,7 +482,7 @@ export class AddCommand extends BaseCommand {
         name: 'name',
         message: 'Model name (PascalCase, e.g., User, Post):',
         validate: (v: string): string | boolean =>
-          /^[A-Z][a-zA-Z0-9]*$/.test(v) || 'Must be PascalCase',
+          /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
       },
       {
         type: 'confirm',
@@ -548,7 +548,7 @@ export class AddCommand extends BaseCommand {
         name: 'name',
         message: 'Controller name (PascalCase, e.g., UserController):',
         validate: (v: string): string | boolean =>
-          /^[A-Z][a-zA-Z0-9]*Controller$/.test(v) || 'Must be PascalCase ending with "Controller"',
+          /^[A-Z][a-zA-Z\d]*Controller$/.test(v) || 'Must be PascalCase ending with "Controller"',
       },
       {
         type: 'list',
@@ -690,14 +690,14 @@ export class AddCommand extends BaseCommand {
         name: 'name',
         message: 'Factory name (PascalCase, must end with "Factory", e.g., UserFactory):',
         validate: (v: string): string | boolean =>
-          /^[A-Z][a-zA-Z0-9]*Factory$/.test(v) || 'Must be PascalCase ending with "Factory"',
+          /^[A-Z][a-zA-Z\d]*Factory$/.test(v) || 'Must be PascalCase ending with "Factory"',
       },
       {
         type: 'input',
         name: 'model',
         message: 'Model name (e.g., User, Post):',
         validate: (v: string): string | boolean =>
-          /^[A-Z][a-zA-Z0-9]*$/.test(v) || 'Must be PascalCase',
+          /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
       },
       {
         type: 'confirm',
@@ -848,14 +848,14 @@ export class AddCommand extends BaseCommand {
         name: 'name',
         message: 'Seeder name (PascalCase, must end with "Seeder", e.g., UserSeeder):',
         validate: (v: string): string | boolean =>
-          /^[A-Z][a-zA-Z0-9]*Seeder$/.test(v) || 'Must be PascalCase ending with "Seeder"',
+          /^[A-Z][a-zA-Z\d]*Seeder$/.test(v) || 'Must be PascalCase ending with "Seeder"',
       },
       {
         type: 'input',
         name: 'model',
         message: 'Model name (e.g., User, Post):',
         validate: (v: string): string | boolean =>
-          /^[A-Z][a-zA-Z0-9]*$/.test(v) || 'Must be PascalCase',
+          /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
       },
       {
         type: 'input',

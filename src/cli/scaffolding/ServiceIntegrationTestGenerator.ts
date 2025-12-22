@@ -81,13 +81,13 @@ export class ServiceIntegrationTestGenerator {
 
     if (options.name === undefined || options.name.trim() === '') {
       errors.push('Integration test name is required');
-    } else if (!/^[A-Z][a-zA-Z0-9]*Service$/.test(options.name)) {
+    } else if (!/^[A-Z][a-zA-Z\d]*Service$/.test(options.name)) {
       errors.push('Integration test name must be PascalCase and end with Service');
     }
 
     if (options.serviceName === undefined || options.serviceName.trim() === '') {
       errors.push('Service name is required');
-    } else if (!/^[a-z0-9-]+$/.test(options.serviceName)) {
+    } else if (!/^[a-z\d-]+$/.test(options.serviceName)) {
       errors.push('Service name must be lowercase alphanumeric with hyphens');
     }
 

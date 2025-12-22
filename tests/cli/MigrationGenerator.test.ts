@@ -4,6 +4,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { MigrationGenerator, type MigrationOptions } from '@cli/scaffolding/MigrationGenerator';
+import { Logger } from '@config/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -402,7 +403,7 @@ describe('MigrationGenerator Multiple Migrations', () => {
 
     expect(result1.success).toBe(true);
     if (!result2.success) {
-      console.log('Migration 2 failed:', result2);
+      Logger.error('Migration 2 failed:', result2);
     }
     expect(result2.success).toBe(true);
 

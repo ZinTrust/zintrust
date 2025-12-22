@@ -22,8 +22,8 @@ export class MySQLAdapter extends BaseAdapter {
     try {
       // In production: const mysql = require('mysql2/promise');
       // this.pool = mysql.createPool({...config});
-      this.connected = true;
       Logger.info(`✓ MySQL connected (${this.config.host}:${this.config.port ?? 3306})`);
+      this.connected = true;
     } catch (error) {
       Logger.error('Failed to connect to MySQL:', error);
       throw new Error(`Failed to connect to MySQL: ${String(error)}`);

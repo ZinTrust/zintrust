@@ -150,7 +150,7 @@ export const CONFIG_RULES: Record<string, ValidationRule> = {
     required: true,
     minLength: 3,
     maxLength: 100,
-    pattern: /^[a-z0-9\-_]+$/i,
+    pattern: /^[a-z\d\-_]+$/i,
     description: 'Project name (alphanumeric, hyphens, underscores)',
   },
   version: {
@@ -158,7 +158,7 @@ export const CONFIG_RULES: Record<string, ValidationRule> = {
     required: true,
     // SemVer: MAJOR.MINOR.PATCH with optional -prerelease and +build metadata
     // Avoids `.*` patterns (Sonar S5852: potential super-linear backtracking).
-    pattern: /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/,
+    pattern: /^\d+\.\d+\.\d+(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/,
     description: 'Semantic version (e.g. 1.0.0)',
   },
   'server.port': {

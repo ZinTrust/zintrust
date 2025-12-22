@@ -557,7 +557,7 @@ describe('LogsCommand', () => {
       LogsCommand.register(mockProgram as any);
 
       const descriptionCalls = vi.mocked(mockProgram.description).mock.calls;
-      expect(descriptionCalls.some((c) => c[0].includes('logs'))).toBe(true);
+      expect(descriptionCalls.some((c: any[]) => (c[0] as string).includes('logs'))).toBe(true);
     });
 
     it('registers level option with default "info"', async () => {
@@ -574,7 +574,7 @@ describe('LogsCommand', () => {
 
       const levelOption = vi
         .mocked(mockProgram.option)
-        .mock.calls.find((c) => c[0].includes('--level'));
+        .mock.calls.find((c: any[]) => (c[0] as string).includes('--level'));
       expect(levelOption?.[2]).toBe('info');
     });
 
@@ -592,7 +592,7 @@ describe('LogsCommand', () => {
 
       const linesOption = vi
         .mocked(mockProgram.option)
-        .mock.calls.find((c) => c[0].includes('--lines'));
+        .mock.calls.find((c: any[]) => (c[0] as string).includes('--lines'));
       expect(linesOption?.[2]).toBe('50');
     });
 
@@ -610,7 +610,7 @@ describe('LogsCommand', () => {
 
       const categoryOption = vi
         .mocked(mockProgram.option)
-        .mock.calls.find((c) => c[0].includes('--category'));
+        .mock.calls.find((c: any[]) => (c[0] as string).includes('--category'));
       expect(categoryOption?.[2]).toBe('app');
     });
   });
