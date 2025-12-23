@@ -49,15 +49,23 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  console.error(`[ERROR] ${message}`, errorMessage); // eslint-disable-line no-console
-  FileLogger.error(message, { error: errorMessage }, category);
+  const errorMessage = error === undefined ? '' : (error instanceof Error ? error.message : String(error));
+  if (errorMessage) {
+    console.error(`[ERROR] ${message}`, errorMessage); // eslint-disable-line no-console
+  } else {
+    console.error(`[ERROR] ${message}`); // eslint-disable-line no-console
+  }
+  FileLogger.error(message, errorMessage ? { error: errorMessage } : {}, category);
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  console.error(`[FATAL] ${message}`, errorMessage); // eslint-disable-line no-console
-  FileLogger.error(`FATAL: ${message}`, { error: errorMessage }, category);
+  const errorMessage = error === undefined ? '' : (error instanceof Error ? error.message : String(error));
+  if (errorMessage) {
+    console.error(`[FATAL] ${message}`, errorMessage); // eslint-disable-line no-console
+  } else {
+    console.error(`[FATAL] ${message}`); // eslint-disable-line no-console
+  }
+  FileLogger.error(`FATAL: ${message}`, errorMessage ? { error: errorMessage } : {}, category);
   if (isProduction) {
     process.exit(1);
   }
