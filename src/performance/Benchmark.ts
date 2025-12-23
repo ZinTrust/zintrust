@@ -358,7 +358,13 @@ export const MemoryMonitor = Object.freeze({
        * Start monitoring
        */
       start(intervalMs: number = 100): void {
+        if (interval) {
+          clearInterval(interval);
+        }
+
         snapshots = [];
+        const MAX_SNAPSHOTS = 10000; // Limit to 10,000 snapshots (~1MB)
+
         interval = setInterval(() => {
           const mem = process.memoryUsage();
           snapshots.push({
@@ -369,6 +375,11 @@ export const MemoryMonitor = Object.freeze({
             rss: mem.rss,
             arrayBuffers: mem.arrayBuffers || 0,
           });
+
+          // Prevent unbounded growth
+          if (snapshots.length > MAX_SNAPSHOTS) {
+            snapshots.shift();
+          }
         }, intervalMs);
       },
 

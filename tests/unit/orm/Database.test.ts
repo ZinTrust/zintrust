@@ -86,8 +86,8 @@ vi.mock('@orm/adapters/D1Adapter', () => ({
 describe('Database', () => {
   let db: IDatabase;
 
-  beforeEach(() => {
-    resetDatabase();
+  beforeEach(async () => {
+    await resetDatabase();
     vi.clearAllMocks();
   });
 

@@ -139,6 +139,7 @@ const createAuroraDataApiConnection = (): AuroraDataApiConnection => ({
 interface ConnectionState {
   connections: Map<string, unknown>;
   connectionPool: PooledConnection[];
+  cleanupInterval?: NodeJS.Timeout;
 }
 
 /**
@@ -212,7 +213,11 @@ const getOrReuseConnection = async (state: ConnectionState): Promise<unknown> =>
  * Periodically clean up idle connections
  */
 const startIdleConnectionCleanup = (state: ConnectionState, idleTimeout: number): void => {
-  setInterval(() => {
+  if (state.cleanupInterval) {
+    clearInterval(state.cleanupInterval);
+  }
+
+  state.cleanupInterval = setInterval(() => {
     const now = Date.now();
     const toRemove: string[] = [];
 
@@ -259,6 +264,11 @@ const createNewConnection = async (
  * Close all connections (graceful shutdown)
  */
 const closeAllConnections = async (state: ConnectionState): Promise<void> => {
+  if (state.cleanupInterval) {
+    clearInterval(state.cleanupInterval);
+    state.cleanupInterval = undefined;
+  }
+
   for (const [id, conn] of state.connections.entries()) {
     try {
       await closeConnection(conn);

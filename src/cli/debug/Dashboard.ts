@@ -169,10 +169,23 @@ const DashboardFactory = Object.freeze({
         hideCursor();
         dashboard.render();
 
+        if (state.timer) {
+          clearInterval(state.timer);
+        }
+
         state.timer = setInterval(() => {
           dashboard.updateStats();
           dashboard.render();
         }, 1000);
+
+        // Ensure cleanup on exit
+        const cleanup = (): void => {
+          dashboard.stop();
+          process.exit(0);
+        };
+
+        process.on('SIGINT', cleanup);
+        process.on('SIGTERM', cleanup);
       },
 
       /**

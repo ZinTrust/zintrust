@@ -21,9 +21,13 @@ export interface IValidationError extends Error {
  */
 export const toObject = (errors: FieldError[]): Record<string, string[]> => {
   const result: Record<string, string[]> = {};
+  const MAX_ERRORS_PER_FIELD = 10;
+
   for (const error of errors) {
     result[error.field] ??= [];
-    result[error.field].push(error.message);
+    if (result[error.field].length < MAX_ERRORS_PER_FIELD) {
+      result[error.field].push(error.message);
+    }
   }
   return result;
 };

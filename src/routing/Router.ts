@@ -34,11 +34,13 @@ export interface ResourceController {
 export type IRouter = {
   routes: Route[];
   prefix: string;
+  routeIndex: Map<string, Route[]>;
 };
 
 export const createRouter = (): IRouter => ({
   routes: <Route[]>[],
   prefix: '',
+  routeIndex: new Map<string, Route[]>(),
 });
 
 /**
@@ -66,41 +68,85 @@ const pathToRegex = (path: string): { pattern: RegExp; paramNames: string[] } =>
  * Register a route
  */
 const registerRoute = (
-  routes: Route[],
+  router: IRouter,
   method: string,
   path: string,
   handler: RouteHandler
 ): void => {
   const { pattern, paramNames } = pathToRegex(path);
-  routes.push({
+  const route: Route = {
     method,
     path,
     pattern,
     handler,
     paramNames,
+  };
+
+  router.routes.push(route);
+
+  // Index by method for faster lookup
+  if (!router.routeIndex.has(method)) {
+    router.routeIndex.set(method, []);
+  }
+  router.routeIndex.get(method)?.push(route);
+};
+
+/**
+ * Extract parameters from a matching route
+ */
+const getRouteMatch = (route: Route, path: string): RouteMatch | null => {
+  const match = route.pattern.exec(path);
+  if (!match) return null;
+
+  const params: Record<string, string> = {};
+  route.paramNames.forEach((paramName, index) => {
+    params[paramName] = match[index + 1];
   });
+
+  return {
+    handler: route.handler,
+    params,
+  };
+};
+
+/**
+ * Fallback linear search for manually added routes
+ */
+const findInFallback = (router: IRouter, method: string, path: string): RouteMatch | null => {
+  for (const route of router.routes) {
+    // Skip if already checked via index
+    if (router.routeIndex !== undefined) {
+      const methodRoutes = router.routeIndex.get(route.method);
+      if (methodRoutes?.includes(route) ?? false) continue;
+    }
+
+    if (route.method !== method && route.method !== '*') continue;
+
+    const match = getRouteMatch(route, path);
+    if (match) return match;
+  }
+  return null;
 };
 
 /**
  * Match a request to a route
  */
-const matchRoute = (routes: Route[], method: string, path: string): RouteMatch | null => {
-  for (const route of routes) {
-    if (route.method === method || route.method === '*') {
-      const match = route.pattern.exec(path);
-      if (match) {
-        const params: Record<string, string> = {};
-        route.paramNames.forEach((paramName, index) => {
-          params[paramName] = match[index + 1];
-        });
-        return {
-          handler: route.handler,
-          params,
-        };
-      }
+const matchRoute = (router: IRouter, method: string, path: string): RouteMatch | null => {
+  // Try fast lookup first
+  if (router.routeIndex !== undefined) {
+    const candidates = [
+      ...(router.routeIndex.get(method) || []),
+      ...(router.routeIndex.get('*') || []),
+    ];
+
+    for (const route of candidates) {
+      const match = getRouteMatch(route, path);
+      if (match) return match;
     }
   }
-  return null;
+
+  // Fallback to linear search for manually added routes or if index is missing
+  return findInFallback(router, method, path);
 };
 
 const stripTrailingSlashes = (value: string): string => {
@@ -136,6 +182,7 @@ const joinPaths = (prefix: string, path: string): string => {
 const scopeRouter = (router: IRouter, prefix: string): IRouter => ({
   routes: router.routes,
   prefix: joinPaths(router.prefix, prefix),
+  routeIndex: router.routeIndex,
 });
 
 const group = (router: IRouter, prefix: string, callback: RouteGroupCallback): void => {
@@ -146,47 +193,47 @@ const resource = (router: IRouter, path: string, controller: ResourceController)
   const base = joinPaths(router.prefix, path);
   const withId = `${base.endsWith('/') ? base.slice(0, -1) : base}/:id`;
 
-  if (controller.index) registerRoute(router.routes, 'GET', base, controller.index);
-  if (controller.store) registerRoute(router.routes, 'POST', base, controller.store);
-  if (controller.show) registerRoute(router.routes, 'GET', withId, controller.show);
+  if (controller.index) registerRoute(router, 'GET', base, controller.index);
+  if (controller.store) registerRoute(router, 'POST', base, controller.store);
+  if (controller.show) registerRoute(router, 'GET', withId, controller.show);
 
   if (controller.update) {
-    registerRoute(router.routes, 'PUT', withId, controller.update);
-    registerRoute(router.routes, 'PATCH', withId, controller.update);
+    registerRoute(router, 'PUT', withId, controller.update);
+    registerRoute(router, 'PATCH', withId, controller.update);
   }
 
-  if (controller.destroy) registerRoute(router.routes, 'DELETE', withId, controller.destroy);
+  if (controller.destroy) registerRoute(router, 'DELETE', withId, controller.destroy);
 };
 
 const get = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router.routes, 'GET', joinPaths(router.prefix, path), handler);
+  registerRoute(router, 'GET', joinPaths(router.prefix, path), handler);
 };
 
 const post = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router.routes, 'POST', joinPaths(router.prefix, path), handler);
+  registerRoute(router, 'POST', joinPaths(router.prefix, path), handler);
 };
 
 const put = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router.routes, 'PUT', joinPaths(router.prefix, path), handler);
+  registerRoute(router, 'PUT', joinPaths(router.prefix, path), handler);
 };
 
 const patch = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router.routes, 'PATCH', joinPaths(router.prefix, path), handler);
+  registerRoute(router, 'PATCH', joinPaths(router.prefix, path), handler);
 };
 
 const del = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router.routes, 'DELETE', joinPaths(router.prefix, path), handler);
+  registerRoute(router, 'DELETE', joinPaths(router.prefix, path), handler);
 };
 
 const any = (router: IRouter, path: string, handler: RouteHandler): void => {
   const fullPath = joinPaths(router.prefix, path);
   ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].forEach((method) => {
-    registerRoute(router.routes, method, fullPath, handler);
+    registerRoute(router, method, fullPath, handler);
   });
 };
 
 const match = (router: IRouter, method: string, path: string): RouteMatch | null =>
-  matchRoute(router.routes, method, path);
+  matchRoute(router, method, path);
 
 const getRoutes = (router: IRouter): Route[] => router.routes;
 

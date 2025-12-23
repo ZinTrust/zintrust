@@ -189,6 +189,14 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
   return instance;
 }
 
-export function resetDatabase(): void {
+export async function resetDatabase(): Promise<void> {
+  for (const instance of databaseInstances.values()) {
+    try {
+      await instance.disconnect();
+      // eslint-disable-next-line no-restricted-syntax
+    } catch {
+      // Ignore errors during disconnect
+    }
+  }
   databaseInstances.clear();
 }

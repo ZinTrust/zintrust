@@ -88,18 +88,19 @@ export const BundleOptimizer = Object.freeze({
 /**
  * Get all files recursively
  */
-function getFilesRecursive(dir: string): string[] {
+async function getFilesRecursive(dir: string): Promise<string[]> {
   if (!fs.existsSync(dir)) {
     return [];
   }
 
   const files: string[] = [];
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...getFilesRecursive(fullPath));
+      const subFiles = await getFilesRecursive(fullPath);
+      files.push(...subFiles);
     } else {
       files.push(fullPath);
     }
@@ -178,24 +179,26 @@ function printAnalysis(analysis: BundleAnalysis): void {
  * Analyze bundle structure
  */
 async function analyze(distDir: string, options: OptimizationOptions): Promise<BundleAnalysis> {
-  const files = getFilesRecursive(distDir);
+  const files = await getFilesRecursive(distDir);
   let totalSize = 0;
 
-  const fileAnalysis = files.map((file) => {
-    const stats = fs.statSync(file);
-    const size = stats.size;
-    totalSize += size;
+  const fileAnalysis = await Promise.all(
+    files.map(async (file) => {
+      const stats = await fs.promises.stat(file);
+      const size = stats.size;
+      totalSize += size;
 
-    return {
-      path: path.relative(distDir, file),
-      size,
-      percentage: 0,
-    };
-  });
+      return {
+        path: path.relative(distDir, file),
+        size,
+        percentage: 0,
+      };
+    })
+  );
 
   // Calculate percentages
   fileAnalysis.forEach((f) => {
-    f.percentage = (f.size / totalSize) * 100;
+    f.percentage = totalSize > 0 ? (f.size / totalSize) * 100 : 0;
   });
 
   // Sort by size descending
@@ -225,7 +228,7 @@ async function removeUnusedAdapters(
     for (const file of files) {
       const filePath = path.join(adapterDir, file);
       if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+        await fs.promises.unlink(filePath);
         if (options.verbose === true) {
           Logger.info(`  ✓ Removed ${adapter} adapter`);
         }
@@ -237,7 +240,7 @@ async function removeUnusedAdapters(
 /**
  * Remove dev dependencies from node_modules
  */
-function removeDevDependencies(distDir: string, options: OptimizationOptions): void {
+async function removeDevDependencies(distDir: string, options: OptimizationOptions): Promise<void> {
   const nmDir = path.join(distDir, '..', 'node_modules');
   const devDeps = [
     '@types',
@@ -256,7 +259,7 @@ function removeDevDependencies(distDir: string, options: OptimizationOptions): v
   for (const dep of devDeps) {
     const depPath = path.join(nmDir, dep);
     if (fs.existsSync(depPath)) {
-      fs.rmSync(depPath, { recursive: true });
+      await fs.promises.rm(depPath, { recursive: true });
       if (options.verbose === true) {
         Logger.info(`  ✓ Removed ${dep}`);
       }
@@ -277,14 +280,18 @@ async function minifyJavaScript(_aggressive: boolean = false): Promise<void> {
 /**
  * Remove a specific module
  */
-function removeModule(distDir: string, options: OptimizationOptions, modulePath: string): void {
+async function removeModule(
+  distDir: string,
+  options: OptimizationOptions,
+  modulePath: string
+): Promise<void> {
   const distModule = modulePath.replace('src/', `${distDir}/`).replace('.ts', '.js');
 
   if (fs.existsSync(distModule)) {
-    fs.unlinkSync(distModule);
+    await fs.promises.unlink(distModule);
     const dtsPath = distModule.replace('.js', '.d.ts');
     if (fs.existsSync(dtsPath)) {
-      fs.unlinkSync(dtsPath);
+      await fs.promises.unlink(dtsPath);
     }
     if (options.verbose === true) {
       Logger.info(`  ✓ Removed module: ${modulePath}`);
@@ -303,7 +310,10 @@ function hasUsedModule(_moduleName: string): boolean {
 /**
  * Remove unused middleware
  */
-function removeUnusedMiddleware(distDir: string, options: OptimizationOptions): void {
+async function removeUnusedMiddleware(
+  distDir: string,
+  options: OptimizationOptions
+): Promise<void> {
   const middlewareDir = path.join(distDir, 'middleware');
 
   // Keep only essential middleware, remove optional ones
@@ -314,7 +324,7 @@ function removeUnusedMiddleware(distDir: string, options: OptimizationOptions): 
   for (const file of optionalMiddleware) {
     const filePath = path.join(middlewareDir, file);
     if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+      await fs.promises.unlink(filePath);
       if (options.verbose === true) {
         Logger.info(`  ✓ Removed middleware: ${file}`);
       }
@@ -333,13 +343,17 @@ function inlineSmallFiles(threshold: number): void {
 /**
  * Remove files matching patterns
  */
-function removeFiles(distDir: string, options: OptimizationOptions, patterns: string[]): void {
-  const files = getFilesRecursive(distDir);
+async function removeFiles(
+  distDir: string,
+  options: OptimizationOptions,
+  patterns: string[]
+): Promise<void> {
+  const files = await getFilesRecursive(distDir);
 
   for (const file of files) {
     for (const pattern of patterns) {
       if (file.includes(pattern)) {
-        fs.unlinkSync(file);
+        await fs.promises.unlink(file);
         if (options.verbose === true) {
           Logger.info(`  ✓ Removed ${path.relative(distDir, file)}`);
         }
@@ -358,14 +372,14 @@ async function optimizeForLambda(distDir: string, options: OptimizationOptions):
   await removeUnusedAdapters(distDir, options, 'mysql', 'sqlserver', 'd1');
 
   // Remove dev dependencies from node_modules
-  removeDevDependencies(distDir, options);
+  await removeDevDependencies(distDir, options);
 
   // Minify all JS files
   await minifyJavaScript();
 
   // Remove unused security modules if not needed
   if (!hasUsedModule('CsrfTokenManager')) {
-    removeModule(distDir, options, 'src/security/CsrfTokenManager.ts');
+    await removeModule(distDir, options, 'src/security/CsrfTokenManager.ts');
   }
 
   Logger.info('✅ Lambda optimization complete');
@@ -381,13 +395,13 @@ async function optimizeForCloudflare(distDir: string, options: OptimizationOptio
   await removeUnusedAdapters(distDir, options, 'postgresql', 'mysql', 'sqlserver');
 
   // Remove Node.js HTTP server adapter
-  removeModule(distDir, options, 'src/runtime/adapters/NodeServerAdapter.ts');
+  await removeModule(distDir, options, 'src/runtime/adapters/NodeServerAdapter.ts');
 
   // Minify aggressively
   await minifyJavaScript(true);
 
   // Tree-shake unused middleware
-  removeUnusedMiddleware(distDir, options);
+  await removeUnusedMiddleware(distDir, options);
 
   // Inline small files
   inlineSmallFiles(10240); // 10 KB threshold
@@ -411,11 +425,11 @@ async function optimizeForDeno(distDir: string, options: OptimizationOptions): P
   Logger.info('🦕 Optimizing for Deno Deploy...');
 
   // Remove Node.js-specific modules
-  removeModule(distDir, options, 'src/runtime/adapters/NodeServerAdapter.ts');
-  removeModule(distDir, options, 'src/runtime/adapters/LambdaAdapter.ts');
+  await removeModule(distDir, options, 'src/runtime/adapters/NodeServerAdapter.ts');
+  await removeModule(distDir, options, 'src/runtime/adapters/LambdaAdapter.ts');
 
   // Keep Deno adapter only
-  removeModule(distDir, options, 'src/runtime/adapters/CloudflareAdapter.ts');
+  await removeModule(distDir, options, 'src/runtime/adapters/CloudflareAdapter.ts');
 
   // Minify
   await minifyJavaScript();
@@ -431,7 +445,7 @@ async function optimizeForFargate(distDir: string, options: OptimizationOptions)
 
   // Keep all adapters for flexibility
   // Only remove unnecessary test files
-  removeFiles(distDir, options, ['.test.ts', '.spec.ts', '.test.js', '.spec.js']);
+  await removeFiles(distDir, options, ['.test.ts', '.spec.ts', '.test.js', '.spec.js']);
 
   // Light minification
   await minifyJavaScript(false);

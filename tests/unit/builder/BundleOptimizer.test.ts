@@ -6,7 +6,40 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type PathLike = string | Buffer | URL;
 
-vi.mock('node:fs');
+vi.mock('node:fs', () => ({
+  default: {
+    existsSync: vi.fn(),
+    readdirSync: vi.fn(),
+    statSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    rmSync: vi.fn(),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
+    promises: {
+      readdir: vi.fn(),
+      stat: vi.fn(),
+      unlink: vi.fn(),
+      rm: vi.fn(),
+      readFile: vi.fn(),
+      writeFile: vi.fn(),
+    },
+  },
+  existsSync: vi.fn(),
+  readdirSync: vi.fn(),
+  statSync: vi.fn(),
+  unlinkSync: vi.fn(),
+  rmSync: vi.fn(),
+  readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  promises: {
+    readdir: vi.fn(),
+    stat: vi.fn(),
+    unlink: vi.fn(),
+    rm: vi.fn(),
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
+  },
+}));
 vi.mock('node:path');
 vi.mock('@config/logger');
 vi.mock('node:process', () => ({
@@ -23,6 +56,22 @@ beforeEach(() => {
   vi.mocked(fs.statSync).mockReturnValue({ size: 500 } as any);
   vi.mocked(fs.unlinkSync).mockReturnValue(undefined);
   vi.mocked(fs.rmSync).mockReturnValue(undefined);
+
+  // Mock fs.promises to use the sync mocks
+  vi.mocked(fs.promises.readdir).mockImplementation(async (dir, options) =>
+    fs.readdirSync(dir as any, options as any)
+  );
+  vi.mocked(fs.promises.stat).mockImplementation(async (path) => fs.statSync(path as any));
+  vi.mocked(fs.promises.unlink).mockImplementation(async (path) => fs.unlinkSync(path as any));
+  vi.mocked(fs.promises.rm).mockImplementation(async (path, options) =>
+    fs.rmSync(path as any, options as any)
+  );
+  vi.mocked(fs.promises.readFile).mockImplementation(async (path, options) =>
+    fs.readFileSync(path as any, options as any)
+  );
+  vi.mocked(fs.promises.writeFile).mockImplementation(async (path, data, options) =>
+    fs.writeFileSync(path as any, data as any, options as any)
+  );
 });
 
 afterEach(() => {

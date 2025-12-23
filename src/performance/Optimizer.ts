@@ -24,6 +24,7 @@ interface CacheState {
   cache: Map<string, { code: string; timestamp: number }>;
   cacheDir: string;
   ttlMs: number;
+  cleanupInterval?: NodeJS.Timeout;
 }
 
 /**
@@ -47,6 +48,21 @@ export const GenerationCache = Object.freeze({
     // Initialize
     loadFromDisk(state);
 
+    // Active cleanup every 10 minutes
+    state.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, entry] of state.cache.entries()) {
+        if (now - entry.timestamp > state.ttlMs) {
+          state.cache.delete(key);
+          // Also try to delete from disk
+          const file = path.join(state.cacheDir, `${key}.json`);
+          if (fs.existsSync(file)) {
+            fs.unlinkSync(file);
+          }
+        }
+      }
+    }, 600000);
+
     return {
       /**
        * Get from cache
@@ -60,6 +76,10 @@ export const GenerationCache = Object.freeze({
         // Check TTL
         if (Date.now() - entry.timestamp > state.ttlMs) {
           state.cache.delete(key);
+          const file = path.join(state.cacheDir, `${key}.json`);
+          if (fs.existsSync(file)) {
+            fs.unlinkSync(file);
+          }
           return null;
         }
 
@@ -88,6 +108,9 @@ export const GenerationCache = Object.freeze({
        * Clear cache
        */
       clear(): void {
+        if (state.cleanupInterval) {
+          clearInterval(state.cleanupInterval);
+        }
         clearCache(state);
       },
 
@@ -174,11 +197,25 @@ function formatBytes(bytes: number): string {
  * Get cache key from params
  */
 function getCacheKey(type: string, params: Record<string, unknown>): string {
-  const paramStr = JSON.stringify(params)
-    .split('')
-    .sort((a, b) => a.localeCompare(b))
-    .join('');
-  return `${type}:${Buffer.from(paramStr).toString('base64')}`;
+  // Use a more efficient key generation
+  const paramStr = JSON.stringify(params);
+  // Simple hash-like string for the key
+  let hash = 0;
+  for (let i = 0; i < paramStr.length; i++) {
+    const char = paramStr.codePointAt(i);
+    hash = (hash << 5) - hash + (char ?? 0);
+    hash = toInt32(hash); // Convert to 32bit integer
+  }
+  return `${type}:${hash.toString(36)}:${Buffer.from(paramStr.slice(0, 32)).toString('base64')}`;
+}
+
+/**
+ * Convert a number to a signed 32-bit integer (equivalent to JS ToInt32)
+ */
+function toInt32(value: number): number {
+  const truncated = Math.trunc(value);
+  const uint32 = ((truncated % 4294967296) + 4294967296) % 4294967296;
+  return uint32 > 2147483647 ? uint32 - 4294967296 : uint32;
 }
 
 /**

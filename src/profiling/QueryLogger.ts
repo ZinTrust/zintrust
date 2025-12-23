@@ -67,6 +67,9 @@ export interface IQueryLogger {
 const logs = new Map<string, QueryLogEntry[] | undefined>();
 let currentContext = 'default';
 
+const MAX_CONTEXTS = 1000;
+const MAX_QUERIES_PER_CONTEXT = 500;
+
 /**
  * QueryLogger tracks all database queries executed during a request context
  * Provides N+1 detection heuristic by flagging identical queries executed 5+ times
@@ -84,6 +87,13 @@ export const QueryLogger = Object.freeze({
   setContext(context: string): void {
     currentContext = context;
     if (!logs.has(context)) {
+      // Prevent unbounded growth of contexts
+      if (logs.size >= MAX_CONTEXTS) {
+        const firstKey = logs.keys().next().value;
+        if (firstKey !== undefined) {
+          logs.delete(firstKey);
+        }
+      }
       logs.set(context, []);
     }
   },
@@ -105,6 +115,13 @@ export const QueryLogger = Object.freeze({
     context: string = currentContext
   ): void {
     if (!logs.has(context)) {
+      // Prevent unbounded growth of contexts
+      if (logs.size >= MAX_CONTEXTS) {
+        const firstKey = logs.keys().next().value;
+        if (firstKey !== undefined) {
+          logs.delete(firstKey);
+        }
+      }
       logs.set(context, []);
     }
 
@@ -119,6 +136,11 @@ export const QueryLogger = Object.freeze({
     const contextLogs = logs.get(context);
     if (Array.isArray(contextLogs)) {
       contextLogs.push(entry);
+
+      // Prevent unbounded growth of queries per context
+      if (contextLogs.length > MAX_QUERIES_PER_CONTEXT) {
+        contextLogs.shift();
+      }
     }
   },
 
