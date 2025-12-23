@@ -87,7 +87,7 @@ describe('Database', () => {
   let db: IDatabase;
 
   beforeEach(async () => {
-    await resetDatabase();
+    resetDatabase();
     vi.clearAllMocks();
   });
 
