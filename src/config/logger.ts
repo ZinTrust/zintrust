@@ -49,7 +49,8 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
-  const errorMessage = error === undefined ? '' : (error instanceof Error ? error.message : String(error));
+  const errorMessage =
+    error === undefined ? '' : error instanceof Error ? error.message : String(error);
   if (errorMessage) {
     console.error(`[ERROR] ${message}`, errorMessage); // eslint-disable-line no-console
   } else {
@@ -59,7 +60,8 @@ const logError = (message: string, error?: unknown, category?: string): void => 
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
-  const errorMessage = error === undefined ? '' : (error instanceof Error ? error.message : String(error));
+  const errorMessage =
+    error === undefined ? '' : error instanceof Error ? error.message : String(error);
   if (errorMessage) {
     console.error(`[FATAL] ${message}`, errorMessage); // eslint-disable-line no-console
   } else {
