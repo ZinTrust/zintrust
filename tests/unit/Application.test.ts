@@ -32,7 +32,7 @@ vi.mock('@config/logger', () => ({
 }));
 vi.mock('@config/env', () => ({
   Env: {
-    get: vi.fn((key, defaultVal) => defaultVal),
+    get: vi.fn((_key, defaultVal) => defaultVal),
   },
 }));
 

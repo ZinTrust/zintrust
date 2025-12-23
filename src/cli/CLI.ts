@@ -194,12 +194,12 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
 /**
  * CLI - Main CLI Class
  * Orchestrates all CLI commands using Commander
- * Sealed namespace for immutability
+ *
+ * Notes:
+ * - `CLI.create()` is the preferred API (used by current bin scripts/tests).
+ * - `new CLI()` remains supported for backward compatibility with older bin scripts.
  */
 export const CLI = Object.freeze({
-  /**
-   * Create a new CLI instance
-   */
   create(): ICLI {
     const program = new Command();
     const version = loadVersion();
@@ -207,20 +207,12 @@ export const CLI = Object.freeze({
     setupProgram(program, version);
     registerCommands(program);
 
-    return {
-      /**
-       * Run CLI with arguments
-       */
-      async run(args: string[]): Promise<void> {
-        return runCLI(program, version, args);
-      },
+    const run = async (args: string[]): Promise<void> => runCLI(program, version, args);
+    const getProgram = (): Command => program;
 
-      /**
-       * Get program instance (for testing)
-       */
-      getProgram(): Command {
-        return program;
-      },
-    };
+    return Object.freeze({
+      run,
+      getProgram,
+    });
   },
 });

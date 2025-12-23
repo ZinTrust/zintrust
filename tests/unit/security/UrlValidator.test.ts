@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Mock Env to allow NODE_ENV manipulation for testing
 vi.mock('@config/env', () => ({
   Env: {
-    get: vi.fn((key: string, defaultValue?: string) => defaultValue || ''),
-    getInt: vi.fn((key: string, defaultValue?: number) => defaultValue || 0),
-    getBool: vi.fn((key: string, defaultValue?: boolean) => defaultValue || false),
+    get: vi.fn((_key: string, defaultValue?: string) => defaultValue || ''),
+    getInt: vi.fn((_key: string, defaultValue?: number) => defaultValue || 0),
+    getBool: vi.fn((_key: string, defaultValue?: boolean) => defaultValue || false),
     NODE_ENV: 'development',
     PORT: 3000,
   },

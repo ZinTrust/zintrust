@@ -71,6 +71,7 @@
     "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
     "cleanup:github-actions": "bash ./dev/cleanup-github-actions.sh",
     "prepare": "husky",
+    "postinstall": "npm link",
     "check-up": "npx npm-check-updates"
   },
   "lint-staged": {

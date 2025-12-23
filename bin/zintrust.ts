@@ -7,9 +7,9 @@
  * Shortcuts: zin, z
  */
 
-import { CLI } from '@cli/CLI.js';
-import { ErrorHandler } from '@cli/ErrorHandler.js';
-import { Logger } from '@config/logger.js';
+import { CLI } from '@cli/CLI';
+import { ErrorHandler } from '@cli/ErrorHandler';
+import { Logger } from '@config/logger';
 
 async function main(): Promise<void> {
   try {
