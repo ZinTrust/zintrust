@@ -1,6 +1,6 @@
 declare namespace NodeJS {
   interface ProcessEnv {
-    NODE_ENV: 'development' | 'production' | 'testing';
+    NODE_ENV: 'development' | 'production' | 'testing' | undefined;
 
     USE_RAW_QRY: string | undefined;
     SERVICE_API_KEY: string;

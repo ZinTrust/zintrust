@@ -58,9 +58,17 @@ beforeEach(() => {
   vi.mocked(fs.rmSync).mockReturnValue(undefined);
 
   // Mock fs.promises to use the sync mocks
-  vi.mocked(fs.promises.readdir).mockImplementation(async (dir, options) =>
-    fs.readdirSync(dir as any, options as any)
-  );
+  vi.mocked(fs.promises.readdir).mockImplementation((async (
+    dir: fs.PathLike,
+    options?: unknown
+  ) => {
+    const result = fs.readdirSync(
+      dir,
+      options as Parameters<typeof fs.readdirSync>[1]
+    ) as unknown as string[] | fs.Dirent[];
+
+    return result;
+  }) as unknown as typeof fs.promises.readdir);
   vi.mocked(fs.promises.stat).mockImplementation(async (path) => fs.statSync(path as any));
   vi.mocked(fs.promises.unlink).mockImplementation(async (path) => fs.unlinkSync(path as any));
   vi.mocked(fs.promises.rm).mockImplementation(async (path, options) =>

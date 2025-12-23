@@ -26,7 +26,7 @@ describe('Logger Config', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    delete process.env['NODE_ENV'];
+    delete process.env.NODE_ENV;
   });
 
   it('should log info', async () => {
