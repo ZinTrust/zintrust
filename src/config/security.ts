@@ -24,15 +24,22 @@ function warnMissingSecret(secretName: string): string {
   return 'dev-unsafe-jwt-secret';
 }
 
+let cachedJwtSecret: string | undefined;
+
 const securityConfigObj = {
   /**
    * JWT Configuration
    */
   jwt: {
     enabled: Env.getBool('JWT_ENABLED', true),
-    secret: Env.getBool('JWT_ENABLED', true)
-      ? Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET')
-      : Env.get('JWT_SECRET') || '',
+    get secret(): string {
+      if (cachedJwtSecret !== undefined) return cachedJwtSecret;
+      const isEnabled = Env.getBool('JWT_ENABLED', true);
+      cachedJwtSecret = isEnabled
+        ? Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET')
+        : Env.get('JWT_SECRET') || '';
+      return cachedJwtSecret;
+    },
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',
     expiresIn: Env.get('JWT_EXPIRES_IN', '1h'),
     refreshExpiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '7d'),

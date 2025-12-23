@@ -116,7 +116,7 @@ describe('Real Source Code Tests - Direct Module Coverage', () => {
     });
 
     it('should handle Env.get with fallback', () => {
-      const missing = Env.get('MISSING_VAR_XYZ_' + Math.random(), 'fallback');
+      const missing = Env.get('MISSING_VAR_XYZ_' + Math.random(), 'fallback'); // NOSONAR
       expect(missing).toBe('fallback');
     });
 
@@ -155,9 +155,9 @@ describe('Real Source Code Tests - Direct Module Coverage', () => {
         '',
       ];
 
-      messages.forEach((msg) => {
+      for (const msg of messages) {
         expect(() => Logger.info(msg)).not.toThrow();
-      });
+      }
     });
 
     it('should log with different data types', () => {
@@ -170,9 +170,9 @@ describe('Real Source Code Tests - Direct Module Coverage', () => {
         { boolean: true },
       ];
 
-      dataItems.forEach((data) => {
+      for (const data of dataItems) {
         expect(() => Logger.info('test', data)).not.toThrow();
-      });
+      }
     });
 
     it('should handle error with different error types', () => {
@@ -183,9 +183,9 @@ describe('Real Source Code Tests - Direct Module Coverage', () => {
         new SyntaxError('Syntax error'),
       ];
 
-      errors.forEach((err) => {
+      for (const err of errors) {
         expect(() => Logger.error('error occurred', err)).not.toThrow();
-      });
+      }
     });
 
     it('should log all levels in sequence', () => {
@@ -250,10 +250,10 @@ describe('Real Source Code Tests - Direct Module Coverage', () => {
 
     it('should handle environment property access', () => {
       const props = ['NODE_ENV', 'PORT', 'DEBUG', 'LOG_LEVEL'];
-      props.forEach((prop) => {
+      for (const prop of props) {
         const value = Env[prop as keyof typeof Env];
         expect(value).toBeDefined();
-      });
+      }
     });
 
     it('should provide consistent get method', () => {

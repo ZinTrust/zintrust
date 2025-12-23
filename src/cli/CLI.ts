@@ -170,8 +170,6 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
 
     await program.parseAsync(['node', 'zintrust', ...args]);
   } catch (error) {
-    Logger.error('CLI execution failed', error);
-
     // Check for commander-specific errors that need special handling
     if (
       error instanceof Error &&
@@ -181,12 +179,14 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
     ) {
       const exitCode = getExitCode(error);
       if (exitCode !== 0) {
+        Logger.error('CLI execution failed', error);
         process.exit(exitCode);
       }
       return;
     }
 
     // Handle all other errors with proper logging
+    Logger.error('CLI execution failed', error);
     handleExecutionError(error, version);
   }
 };

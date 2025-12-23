@@ -29,22 +29,23 @@ describe('Security Config', () => {
     expect(securityConfig.session).toBeDefined();
   });
 
-  it('should throw when JWT_SECRET is missing', async () => {
-    delete process.env['JWT_SECRET'];
+  it('should fall back to dev secret when JWT_SECRET is missing in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('JWT_ENABLED', 'true');
+    vi.stubEnv('JWT_SECRET', '');
     vi.resetModules();
 
-    // In non-production environments, missing JWT_SECRET should not crash import;
-    // it should warn and fall back to a deterministic dev secret.
-    process.env['NODE_ENV'] = 'development';
     const { securityConfig } = await import('@/config/security');
     expect(securityConfig.jwt.secret).toBe('dev-unsafe-jwt-secret');
+  });
 
-    // In production, missing JWT_SECRET should throw.
-    delete process.env['JWT_SECRET'];
+  it('should throw when JWT_SECRET is missing in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_ENABLED', 'true');
+    vi.stubEnv('JWT_SECRET', '');
     vi.resetModules();
-    process.env['NODE_ENV'] = 'production';
-    await expect(import('@/config/security')).rejects.toThrow(
-      'Missing required secret: JWT_SECRET'
-    );
+
+    const { securityConfig } = await import('@/config/security');
+    expect(() => securityConfig.jwt.secret).toThrow('Missing required secret: JWT_SECRET');
   });
 });

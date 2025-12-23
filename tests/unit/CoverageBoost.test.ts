@@ -328,7 +328,7 @@ describe('CLI', () => {
     const cli = CLI.create();
     const exitSpy = vi
       .spyOn(process, 'exit')
-      .mockImplementation((() => undefined) as unknown as (code?: number) => never);
+      .mockImplementation((() => undefined) as unknown as (code?: string | number | null) => never);
 
     const commanderError = new Error('commander');
     // @ts-ignore
@@ -358,7 +358,7 @@ describe('CLI', () => {
     const cli = CLI.create();
     const exitSpy = vi
       .spyOn(process, 'exit')
-      .mockImplementation((() => undefined) as unknown as (code?: number) => never);
+      .mockImplementation((() => undefined) as unknown as (code?: string | number | null) => never);
 
     const nonCommanderError = { message: 'no-code' };
     vi.spyOn(cli.getProgram(), 'parseAsync').mockRejectedValue(nonCommanderError);

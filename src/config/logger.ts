@@ -18,6 +18,19 @@ interface ILogger {
 const isDevelopment = Env.NODE_ENV === 'development' || Env.NODE_ENV === undefined;
 const isProduction = Env.NODE_ENV === 'production';
 
+/**
+ * Helper to extract error message from unknown error type
+ */
+const getErrorMessage = (error?: unknown): string => {
+  if (error === undefined) {
+    return '';
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+};
+
 // Private helper functions
 const logDebug = (message: string, data?: unknown, category?: string): void => {
   if (isDevelopment) {
@@ -49,24 +62,14 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
-  const errorMessage =
-    error === undefined ? '' : error instanceof Error ? error.message : String(error);
-  if (errorMessage) {
-    console.error(`[ERROR] ${message}`, errorMessage); // eslint-disable-line no-console
-  } else {
-    console.error(`[ERROR] ${message}`); // eslint-disable-line no-console
-  }
+  const errorMessage = getErrorMessage(error);
+  console.error(`[ERROR] ${message}`, errorMessage); // eslint-disable-line no-console
   FileLogger.error(message, errorMessage ? { error: errorMessage } : {}, category);
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
-  const errorMessage =
-    error === undefined ? '' : error instanceof Error ? error.message : String(error);
-  if (errorMessage) {
-    console.error(`[FATAL] ${message}`, errorMessage); // eslint-disable-line no-console
-  } else {
-    console.error(`[FATAL] ${message}`); // eslint-disable-line no-console
-  }
+  const errorMessage = getErrorMessage(error);
+  console.error(`[FATAL] ${message}`, errorMessage); // eslint-disable-line no-console
   FileLogger.error(`FATAL: ${message}`, errorMessage ? { error: errorMessage } : {}, category);
   if (isProduction) {
     process.exit(1);

@@ -5,7 +5,7 @@
  * Sealed namespace pattern - all exports through Env namespace
  */
 
-import path from 'node:path/win32';
+import path from 'node:path';
 
 // Private helper functions
 const get = (key: string, defaultValue?: string): string => {
