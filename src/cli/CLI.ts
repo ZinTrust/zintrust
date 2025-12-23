@@ -73,7 +73,7 @@ const registerCommands = (program: Command): void => {
     D1MigrateCommand.create(),
     DebugCommand.create(),
     ConfigCommand.create(),
-    QACommand.create(),
+    QACommand(),
     FixCommand.create(),
   ];
 

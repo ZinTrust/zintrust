@@ -12,7 +12,7 @@ describe('QACommand', () => {
   let command: any;
 
   beforeEach(() => {
-    command = QACommand.create();
+    command = QACommand();
     vi.resetAllMocks();
 
     // Mock fs.existsSync to return true for npm check
@@ -186,7 +186,7 @@ describe('QACommand', () => {
       expect(command.generateReport).toHaveBeenCalled();
     });
 
-    it('should not generate report when report option is false', async () => {
+    it('should always generate report regardless of report option', async () => {
       command.runLint = vi.fn().mockResolvedValue(undefined);
       command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
       command.runTests = vi.fn().mockResolvedValue(undefined);
@@ -197,7 +197,8 @@ describe('QACommand', () => {
       const options = { report: false };
       await command.execute(options);
 
-      expect(command.generateReport).not.toHaveBeenCalled();
+      // Report is now always generated to show QA scan status
+      expect(command.generateReport).toHaveBeenCalled();
     });
 
     it('should mark all checks as passed when successful', async () => {
@@ -489,7 +490,7 @@ describe('QACommand', () => {
       expect(command.generateReport).toHaveBeenCalled();
     });
 
-    it('should not call generateReport when report option is false', async () => {
+    it('should always call generateReport to show QA scan status', async () => {
       command.runLint = vi.fn().mockResolvedValue(undefined);
       command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
       command.runTests = vi.fn().mockResolvedValue(undefined);
@@ -500,7 +501,8 @@ describe('QACommand', () => {
 
       await command.execute({ report: false });
 
-      expect(command.generateReport).not.toHaveBeenCalled();
+      // Report is always generated to show QA suite scan status
+      expect(command.generateReport).toHaveBeenCalled();
     });
 
     it('should handle report generation failure gracefully', async () => {
