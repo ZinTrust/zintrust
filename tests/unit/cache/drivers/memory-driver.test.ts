@@ -10,7 +10,7 @@ describe('MemoryDriver', () => {
   it('get/set: returns stored values and supports generic typing', async () => {
     const { MemoryDriver } = await import('@cache/drivers/MemoryDriver');
 
-    const driver = new MemoryDriver();
+    const driver = MemoryDriver.create();
 
     await driver.set('a', { n: 1 });
     const value = await driver.get<{ n: number }>('a');
@@ -23,7 +23,7 @@ describe('MemoryDriver', () => {
   it('get/has: expires items with ttl and deletes on access', async () => {
     const { MemoryDriver } = await import('@cache/drivers/MemoryDriver');
 
-    const driver = new MemoryDriver();
+    const driver = MemoryDriver.create();
 
     // Key "k": cover expiry path inside get()
     await driver.set('k', 'v', 1);
@@ -41,7 +41,7 @@ describe('MemoryDriver', () => {
   it('delete/clear: removes entries', async () => {
     const { MemoryDriver } = await import('@cache/drivers/MemoryDriver');
 
-    const driver = new MemoryDriver();
+    const driver = MemoryDriver.create();
 
     await driver.set('a', 1);
     await driver.set('b', 2);
@@ -57,7 +57,7 @@ describe('MemoryDriver', () => {
   it('set: stores null expiry when ttl is undefined', async () => {
     const { MemoryDriver } = await import('@cache/drivers/MemoryDriver');
 
-    const driver = new MemoryDriver();
+    const driver = MemoryDriver.create();
 
     await driver.set('p', 'perm');
 

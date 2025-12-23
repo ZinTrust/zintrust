@@ -123,16 +123,16 @@ function buildSeederCode(options: SeederOptions): string {
 
 ${imports}
 
-export class ${className} {
-${buildSeederClassBody(options, count, truncate, relationshipMethods)}
-}
+export const ${className} = Object.freeze({
+${buildSeederObjectBody(options, count, truncate, relationshipMethods)}
+});
 `;
 }
 
 /**
- * Build seeder class body
+ * Build seeder object body
  */
-function buildSeederClassBody(
+function buildSeederObjectBody(
   options: SeederOptions,
   count: number,
   truncate: string,
@@ -141,13 +141,13 @@ function buildSeederClassBody(
   const factoryName = getFactoryName(options);
   const modelLower = options.modelName.toLowerCase();
 
-  return `${buildSeederRunMethod(options, count, truncate, factoryName, modelLower)}
+  return `${buildSeederRunMethod(options, count, truncate, factoryName, modelLower)},
 
-${buildSeederGetRecordsMethod(factoryName)}
+${buildSeederGetRecordsMethod(factoryName)},
 
-${buildSeederWithStatesMethod(options, count, factoryName, modelLower)}
+${buildSeederWithStatesMethod(options, count, factoryName, modelLower)},
 
-${buildSeederWithRelationshipsMethod(options, count, factoryName, modelLower, relationshipMethods)}
+${buildSeederWithRelationshipsMethod(options, count, factoryName, modelLower, relationshipMethods)},
 
 ${buildSeederResetMethod(options)}`;
 }
@@ -169,7 +169,7 @@ function buildSeederRunMethod(
    */
   async run(): Promise<void> {
     const count = ${count};
-    const factory = new ${factoryName}();
+    const factory = ${factoryName}.new();
 
     // Optionally truncate the table before seeding
     if (${truncate}) {
@@ -178,7 +178,7 @@ function buildSeederRunMethod(
     }
 
     // Generate and create records
-    const records = factory.count(count).get();
+    const records = factory.count(count);
 
     for (const record of records) {
       // Insert using Query Builder (recommended)
@@ -197,8 +197,8 @@ function buildSeederGetRecordsMethod(factoryName: string): string {
    * Get records from this seeder
    */
   async getRecords(count: number): Promise<Record<string, unknown>[]> {
-    const factory = new ${factoryName}();
-    return factory.count(count).get();
+    const factory = ${factoryName}.new();
+    return factory.count(count);
   }`;
 }
 
@@ -215,22 +215,22 @@ function buildSeederWithStatesMethod(
    * Seed with specific states
    */
   async seedWithStates(): Promise<void> {
-    const factory = new ${factoryName}();
+    const factory = ${factoryName}.new();
 
     // Create active records (50%)
-    const active = factory.count(Math.ceil(${count} * 0.5)).state('active').get();
+    const active = factory.state('active').count(Math.ceil(${count} * 0.5));
     for (const record of active) {
       // await ${options.modelName}.create(record);
     }
 
     // Create inactive records (30%)
-    const inactive = factory.count(Math.ceil(${count} * 0.3)).state('inactive').get();
+    const inactive = factory.state('inactive').count(Math.ceil(${count} * 0.3));
     for (const record of inactive) {
       // await ${options.modelName}.create(record);
     }
 
     // Create deleted records (20%)
-    const deleted = factory.count(Math.ceil(${count} * 0.2)).state('deleted').get();
+    const deleted = factory.state('deleted').count(Math.ceil(${count} * 0.2));
     for (const record of deleted) {
       // await ${options.modelName}.create(record);
     }
@@ -253,7 +253,7 @@ function buildSeederWithRelationshipsMethod(
    * Seed with relationships
    */
   async seedWithRelationships(): Promise<void> {
-    const factory = new ${factoryName}();
+    const factory = ${factoryName}.new();
 
 ${relationshipMethods}
 
@@ -292,7 +292,7 @@ import { ${options.modelName} } from '@app/Models/${options.modelName}';`;
 function buildRelationshipMethods(options: SeederOptions): string {
   if (options.relationships === undefined || options.relationships.length === 0) {
     return `    const factory = new ${getFactoryName(options)}();
-    const records = factory.count(${options.count ?? 10}).get();
+    const records = factory.count(${options.count ?? 10});
 
     // Create records with relationships (implement as needed)
     for (const record of records) {
@@ -363,10 +363,10 @@ export function getAvailableOptions(): string[] {
   ];
 }
 
-export const SeederGenerator = {
+export const SeederGenerator = Object.freeze({
   validateOptions,
   generateSeeder,
   getAvailableOptions,
-};
+});
 
 export default SeederGenerator;

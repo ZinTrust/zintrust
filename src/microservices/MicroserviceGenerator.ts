@@ -14,49 +14,326 @@ export interface GenerateServiceOptions {
   version?: string; // e.g., '1.0.0'
 }
 
-/**
- * Microservice code generator
- */
-
-/**
- * Generate microservices folder structure
- */
-export async function generate(options: GenerateServiceOptions): Promise<void> {
-  const { domain, services, basePort = 3001, version = '1.0.0' } = options;
-
-  Logger.info(`\n🏗️  Generating microservices for domain: ${domain}`);
-  Logger.info(`📦 Services: ${services.join(', ')}\n`);
-
-  for (let i = 0; i < services.length; i++) {
-    const serviceName = services[i];
-    const servicePort = basePort + i;
-
-    await generateService({
-      domain,
-      serviceName,
-      port: servicePort,
-      version,
-    });
-  }
-
-  // Generate shared utils
-  await generateSharedUtils(domain);
-
-  // Generate docker-compose for local dev
-  await generateDockerCompose(domain, services, basePort);
-
-  Logger.info(`✅ Microservices generated in services/${domain}/\n`);
+export interface IMicroserviceGenerator {
+  generate(options: GenerateServiceOptions): Promise<void>;
 }
 
 /**
- * Generate individual microservice
+ * Microservice code generator
  */
-async function generateService(config: {
+export const MicroserviceGenerator = Object.freeze(
+  (): {
+    getInstance(): IMicroserviceGenerator;
+    create(): IMicroserviceGenerator;
+  } => {
+    let instance: IMicroserviceGenerator | undefined;
+
+    return {
+      getInstance(): IMicroserviceGenerator {
+        instance ??= this.create();
+        return instance;
+      },
+
+      /**
+       * Create a new microservice generator instance
+       */
+      create(): IMicroserviceGenerator {
+        return {
+          /**
+           * Generate microservices folder structure
+           */
+          async generate(options: GenerateServiceOptions): Promise<void> {
+            const { domain, services, basePort = 3001, version = '1.0.0' } = options;
+
+            Logger.info(`\n🏗️  Generating microservices for domain: ${domain}`);
+            Logger.info(`📦 Services: ${services.join(', ')}\n`);
+
+            for (let i = 0; i < services.length; i++) {
+              const serviceName = services[i];
+              const servicePort = basePort + i;
+
+              await generateService({
+                domain,
+                serviceName,
+                port: servicePort,
+                version,
+              });
+            }
+
+            // Generate shared utils
+            await generateSharedUtils(domain);
+
+            // Generate docker-compose for local dev
+            await generateDockerCompose(domain, services, basePort);
+
+            Logger.info(`✅ Microservices generated in services/${domain}/\n`);
+          },
+        };
+      },
+    };
+  }
+)();
+
+const pascalCase = (str: string): string => {
+  return str
+    .split(/[-_]/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+};
+
+const buildReadmeHeader = (serviceName: string, domain: string, port: number): string => {
+  return `# ${serviceName} Microservice
+
+Domain: \`${domain}\`
+
+## Description
+
+${serviceName} microservice for Zintrust framework.
+
+## Port
+
+\`\`\`
+${port}
+\`\`\``;
+};
+
+const buildReadmeGettingStarted = (domain: string, serviceName: string): string => {
+  return `## Getting Started
+
+### Development
+
+\`\`\`bash
+cd services/${domain}/${serviceName}
+npm install
+npm run dev
+\`\`\`
+
+### Testing
+
+\`\`\`bash
+npm test
+\`\`\`
+
+### Build
+
+\`\`\`bash
+npm run build
+\`\`\``;
+};
+
+const buildReadmeApiInfo = (serviceName: string, port: number): string => {
+  return `## API Endpoints
+
+- \`GET /api/${serviceName}/health\` - Health check
+
+## Environment Variables
+
+\`\`\`bash
+SERVICE_NAME=${serviceName}
+SERVICE_PORT=${port}
+DB_CONNECTION=postgresql
+\`\`\`
+
+## Inter-Service Communication
+
+Call another service:
+
+\`\`\`typescript
+import { MicroserviceManager } from '@microservices/MicroserviceManager';
+
+const manager = MicroserviceManager.getInstance();
+const response = await manager.callService('other-service', {
+  method: 'GET',
+  path: '/api/other-service/data',
+});
+\`\`\`
+
+## Dependencies
+
+- Zintrust Framework`;
+};
+
+const generateServiceConfig = async (
+  serviceDir: string,
+  serviceName: string,
+  port: number,
+  version: string
+): Promise<void> => {
+  const config = {
+    name: serviceName,
+    version,
+    port,
+    description: `${serviceName} microservice`,
+    dependencies: [],
+    healthCheck: '/health',
+  };
+
+  fs.writeFileSync(path.join(serviceDir, 'service.config.json'), JSON.stringify(config, null, 2));
+};
+
+const generateServiceKernel = async (
+  serviceDir: string,
+  serviceName: string,
+  domain: string
+): Promise<void> => {
+  const code = `import { Application } from '@http/Application';
+import { Kernel, IKernel } from '@http/Kernel';
+
+/**
+ * ${serviceName} Microservice Kernel
+ * Domain: ${domain}
+ */
+export const ${pascalCase(serviceName)}Kernel = {
+  create(app: Application): IKernel {
+    const kernel = Kernel.create(app);
+
+    // Register service-specific logic here
+    // kernel.router.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+    return kernel;
+  }
+};
+
+export default ${pascalCase(serviceName)}Kernel.create(Application.create());
+`;
+
+  fs.writeFileSync(path.join(serviceDir, 'src', 'Kernel.ts'), code);
+};
+
+const generateServiceRoutes = async (serviceDir: string, serviceName: string): Promise<void> => {
+  const code = `import { IRouter } from '@routing/Router';
+
+/**
+ * ${serviceName} service routes
+ */
+export default function routes(router: IRouter): void {
+  router.group({ prefix: '/api/${serviceName}' }, () => {
+    // Health check
+    router.get('/health', '${pascalCase(serviceName)}Controller@health');
+
+    // TODO: Add your routes here
+    // router.get('/', '${pascalCase(serviceName)}Controller@index');
+  });
+}
+`;
+
+  fs.writeFileSync(path.join(serviceDir, 'src', 'routes', 'index.ts'), code);
+};
+
+const generateServiceController = async (
+  serviceDir: string,
+  serviceName: string
+): Promise<void> => {
+  const code = `import { Controller, IController } from '@http/Controller';
+import { Request } from '@http/Request';
+import { Response } from '@http/Response';
+
+/**
+ * ${pascalCase(serviceName)} Controller
+ */
+export interface I${pascalCase(serviceName)}Controller extends IController {
+  health(req: Request, res: Response): Promise<void>;
+}
+
+export const ${pascalCase(serviceName)}Controller = {
+  create(): I${pascalCase(serviceName)}Controller {
+    return {
+      ...Controller.create(),
+      /**
+       * Health check
+       */
+      async health(_req: Request, res: Response): Promise<void> {
+        res.json({ status: 'ok', service: '${serviceName}' }, 200);
+      },
+    };
+  }
+};
+`;
+
+  fs.writeFileSync(path.join(serviceDir, 'src', 'http', 'Controllers', 'index.ts'), code);
+};
+
+const generateServiceModel = async (serviceDir: string, serviceName: string): Promise<void> => {
+  const modelName = pascalCase(serviceName.slice(0, -1)); // Remove 's'
+  const code = `import { Model } from '@orm/Model';
+
+/**
+ * ${modelName} Model
+ */
+export const ${modelName} = Model.define('${serviceName}', {
+  fillable: [
+    // TODO: Add fillable attributes
+  ],
+  hidden: [
+    // 'password',
+  ],
+  casts: {
+    // 'created_at': 'datetime',
+  },
+});
+`;
+
+  fs.writeFileSync(path.join(serviceDir, 'src', 'models', 'index.ts'), code);
+};
+
+const generateServiceTest = async (serviceDir: string, serviceName: string): Promise<void> => {
+  const code = `import { describe, it, expect } from 'vitest';
+
+/**
+ * ${serviceName} tests
+ */
+describe('${serviceName} service', () => {
+  it('should have health check endpoint', async () => {
+    // TODO: Implement tests
+    expect(true).toBe(true);
+  });
+});
+`;
+
+  fs.writeFileSync(path.join(serviceDir, 'tests', 'Feature', 'Example.test.ts'), code);
+};
+
+const generateServicePackageJson = async (
+  serviceDir: string,
+  serviceName: string,
+  version: string
+): Promise<void> => {
+  const pkg = {
+    name: `@zintrust/${serviceName}`,
+    version,
+    description: `${serviceName} microservice`,
+    type: 'module',
+    scripts: {
+      dev: 'tsx watch src/index.ts',
+      build: 'tsc',
+      test: 'vitest',
+    },
+  };
+
+  fs.writeFileSync(path.join(serviceDir, 'package.json'), JSON.stringify(pkg, null, 2));
+};
+
+const generateServiceReadme = async (
+  serviceDir: string,
+  serviceName: string,
+  domain: string,
+  port: number
+): Promise<void> => {
+  const readme = `${buildReadmeHeader(serviceName, domain, port)}
+
+${buildReadmeGettingStarted(domain, serviceName)}
+
+${buildReadmeApiInfo(serviceName, port)}`;
+
+  fs.writeFileSync(path.join(serviceDir, 'README.md'), readme);
+};
+
+const generateService = async (config: {
   domain: string;
   serviceName: string;
   port: number;
   version: string;
-}): Promise<void> {
+}): Promise<void> => {
   const { domain, serviceName, port, version } = config;
   const serviceDir = `services/${domain}/${serviceName}`;
 
@@ -91,320 +368,9 @@ async function generateService(config: {
   await generateServiceReadme(serviceDir, serviceName, domain, port);
 
   Logger.info(`  ✓ Generated: ${serviceName}`);
-}
+};
 
-async function generateServiceConfig(
-  serviceDir: string,
-  serviceName: string,
-  port: number,
-  version: string
-): Promise<void> {
-  const config = {
-    name: serviceName,
-    version,
-    port,
-    description: `${serviceName} microservice`,
-    dependencies: [],
-    healthCheck: '/health',
-  };
-
-  fs.writeFileSync(path.join(serviceDir, 'service.config.json'), JSON.stringify(config, null, 2));
-}
-
-async function generateServiceKernel(
-  serviceDir: string,
-  serviceName: string,
-  domain: string
-): Promise<void> {
-  const code = `import { Application } from '@http/Application';
-import { Kernel } from '@http/Kernel';
-import { ServiceRegistry } from '@microservices/MicroserviceManager';
-
-/**
- * ${serviceName} Microservice Kernel
- * Domain: ${domain}
- */
-export class ${pascalCase(serviceName)}Kernel extends Kernel {
-  constructor(app: Application) {
-    super(app);
-    this.registerRoutes();
-    this.registerMiddleware();
-  }
-
-  private registerRoutes(): void {
-    // Import and register routes
-    // import routes from './src/routes';
-    // routes(this.router);
-  }
-
-  private registerMiddleware(): void {
-    // Register service-specific middleware
-    // this.middleware.register(authMiddleware);
-  }
-
-  /**
-   * Service health check
-   */
-  async health(): Promise<ServiceHealth> {
-    return {
-      status: 'healthy',
-      service: '${serviceName}',
-      timestamp: new Date().toISOString(),
-    };
-  }
-}
-
-interface ServiceHealth {
-  status: 'healthy' | 'unhealthy';
-  service: string;
-  timestamp: string;
-}
-
-export default new ${pascalCase(serviceName)}Kernel(new Application());
-`;
-
-  fs.writeFileSync(path.join(serviceDir, 'src', 'Kernel.ts'), code);
-}
-
-async function generateServiceRoutes(serviceDir: string, serviceName: string): Promise<void> {
-  const code = `import { Router } from '@routing/EnhancedRouter';
-
-/**
- * ${serviceName} service routes
- */
-export default function routes(router: Router): void {
-  router.group({ prefix: '/api/${serviceName}' }, () => {
-    // Health check
-    router.get('/health', '${pascalCase(serviceName)}Controller@health');
-
-    // TODO: Add your routes here
-    // router.get('/', '${pascalCase(serviceName)}Controller@index');
-    // router.get('/:id', '${pascalCase(serviceName)}Controller@show');
-    // router.post('/', '${pascalCase(serviceName)}Controller@store');
-  });
-}
-`;
-
-  fs.writeFileSync(path.join(serviceDir, 'src', 'routes', 'index.ts'), code);
-}
-
-async function generateServiceController(serviceDir: string, serviceName: string): Promise<void> {
-  const code = `import { Controller } from '@http/Controller';
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
-
-/**
- * ${pascalCase(serviceName)} Controller
- */
-export class ${pascalCase(serviceName)}Controller extends Controller {
-  /**
-   * Health check
-   */
-  async health(_req: Request, res: Response): Promise<void> {
-    res.json({ status: 'ok', service: '${serviceName}' }, 200);
-  }
-
-  // TODO: Add your controller methods here
-  /*
-  async index(req: Request, res: Response): Promise<void> {
-    // List all ${serviceName}
-  }
-
-  async show(req: Request, res: Response): Promise<void> {
-    // Show specific ${serviceName}
-  }
-
-  async store(req: Request, res: Response): Promise<void> {
-    // Create new ${serviceName}
-  }
-
-  async update(req: Request, res: Response): Promise<void> {
-    // Update ${serviceName}
-  }
-
-  async destroy(req: Request, res: Response): Promise<void> {
-    // Delete ${serviceName}
-  }
-  */
-}
-`;
-
-  fs.writeFileSync(path.join(serviceDir, 'src', 'node:http', 'Controllers', 'index.ts'), code);
-}
-
-async function generateServiceModel(serviceDir: string, serviceName: string): Promise<void> {
-  const modelName = pascalCase(serviceName.slice(0, -1)); // Remove 's'
-  const code = `import { Model } from '@orm/Model';
-
-/**
- * ${modelName} Model
- */
-export class ${modelName} extends Model {
-  protected table = '${serviceName}';
-
-  protected fillable = [
-    // TODO: Add fillable attributes
-  ];
-
-  protected hidden = [
-    // 'password',
-  ];
-
-  protected casts = {
-    // 'created_at': 'datetime',
-    // 'updated_at': 'datetime',
-  };
-}
-`;
-
-  fs.writeFileSync(path.join(serviceDir, 'src', 'models', 'index.ts'), code);
-}
-
-async function generateServiceTest(serviceDir: string, serviceName: string): Promise<void> {
-  const code = `import { describe, it, expect } from 'vitest';
-
-/**
- * ${serviceName} tests
- */
-describe('${serviceName} service', () => {
-  it('should have health check endpoint', async () => {
-    // TODO: Implement tests
-    expect(true).toBe(true);
-  });
-
-  // TODO: Add more tests
-  /*
-  it('should list ${serviceName}', async () => {
-    // GET /api/${serviceName}
-  });
-
-  it('should create ${serviceName}', async () => {
-    // POST /api/${serviceName}
-  });
-  */
-});
-`;
-
-  fs.writeFileSync(path.join(serviceDir, 'tests', 'Feature', 'Example.test.ts'), code);
-}
-
-async function generateServicePackageJson(
-  serviceDir: string,
-  serviceName: string,
-  version: string
-): Promise<void> {
-  const pkg = {
-    name: `@zintrust/${serviceName}`,
-    version,
-    description: `${serviceName} microservice`,
-    type: 'module',
-    scripts: {
-      dev: 'tsx watch src/index.ts',
-      build: 'tsc',
-      test: 'vitest',
-    },
-  };
-
-  fs.writeFileSync(path.join(serviceDir, 'package.json'), JSON.stringify(pkg, null, 2));
-}
-
-async function generateServiceReadme(
-  serviceDir: string,
-  serviceName: string,
-  domain: string,
-  port: number
-): Promise<void> {
-  const readme = `${buildReadmeHeader(serviceName, domain, port)}
-
-${buildReadmeGettingStarted(domain, serviceName)}
-
-${buildReadmeApiInfo(serviceName, port)}`;
-
-  fs.writeFileSync(path.join(serviceDir, 'README.md'), readme);
-}
-
-/**
- * Build README header
- */
-function buildReadmeHeader(serviceName: string, domain: string, port: number): string {
-  return `# ${serviceName} Microservice
-
-Domain: \`${domain}\`
-
-## Description
-
-${serviceName} microservice for Zintrust framework.
-
-## Port
-
-\`\`\`
-${port}
-\`\`\``;
-}
-
-/**
- * Build README getting started section
- */
-function buildReadmeGettingStarted(domain: string, serviceName: string): string {
-  return `## Getting Started
-
-### Development
-
-\`\`\`bash
-cd services/${domain}/${serviceName}
-npm install
-npm run dev
-\`\`\`
-
-### Testing
-
-\`\`\`bash
-npm test
-\`\`\`
-
-### Build
-
-\`\`\`bash
-npm run build
-\`\`\``;
-}
-
-/**
- * Build README API and environment info
- */
-function buildReadmeApiInfo(serviceName: string, port: number): string {
-  return `## API Endpoints
-
-- \`GET /api/${serviceName}/health\` - Health check
-
-## Environment Variables
-
-\`\`\`bash
-SERVICE_NAME=${serviceName}
-SERVICE_PORT=${port}
-DB_CONNECTION=postgresql
-\`\`\`
-
-## Inter-Service Communication
-
-Call another service:
-
-\`\`\`typescript
-import { MicroserviceManager } from '@microservices/MicroserviceManager';
-
-const manager = MicroserviceManager.getInstance();
-const response = await manager.callService('other-service', {
-  method: 'GET',
-  path: '/api/other-service/data',
-});
-\`\`\`
-
-## Dependencies
-
-- Zintrust Framework`;
-}
-
-async function generateSharedUtils(domain: string): Promise<void> {
+const generateSharedUtils = async (domain: string): Promise<void> => {
   const sharedDir = `services/${domain}/shared`;
 
   if (!fs.existsSync(sharedDir)) {
@@ -434,13 +400,13 @@ async function generateSharedUtils(domain: string): Promise<void> {
 `;
     fs.writeFileSync(utilsFile, code);
   }
-}
+};
 
-async function generateDockerCompose(
+const generateDockerCompose = async (
   domain: string,
   services: string[],
   basePort: number
-): Promise<void> {
+): Promise<void> => {
   const services_config = services
     .map((service, i) => {
       const port = basePort + i;
@@ -487,17 +453,6 @@ volumes:
 `;
 
   fs.writeFileSync(`services/${domain}/docker-compose.yml`, compose);
-}
-
-function pascalCase(str: string): string {
-  return str
-    .split(/[-_]/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-}
-
-export const MicroserviceGenerator = {
-  generate,
 };
 
 /**
@@ -509,7 +464,7 @@ export async function generateMicroservices(
   port: number = 3001
 ): Promise<void> {
   try {
-    await MicroserviceGenerator.generate({
+    await MicroserviceGenerator.getInstance().generate({
       domain,
       services: services.map((s: string) => s.trim()),
       basePort: port,
@@ -520,3 +475,8 @@ export async function generateMicroservices(
     process.exit(1);
   }
 }
+
+export const generate = (options: GenerateServiceOptions): Promise<void> =>
+  MicroserviceGenerator.getInstance().generate(options);
+
+export default MicroserviceGenerator;

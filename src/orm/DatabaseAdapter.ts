@@ -3,7 +3,21 @@
  * Defines contract for different database implementations
  */
 
+/**
+ * Minimal D1 Database interface for type safety
+ */
+export interface ID1Database {
+  prepare(sql: string): {
+    bind(...values: unknown[]): {
+      all<T = unknown>(): Promise<{ results?: T[]; success: boolean; error?: string }>;
+      first<T = unknown>(): Promise<T | null>;
+      run(): Promise<{ success: boolean; error?: string }>;
+    };
+  };
+}
+
 export interface DatabaseConfig {
+  d1?: ID1Database;
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
   database?: string;
   host?: string;
@@ -20,7 +34,7 @@ export interface QueryResult {
   rowCount: number;
 }
 
-export interface DatabaseAdapter {
+export interface IDatabaseAdapter {
   /**
    * Connect to database
    */
@@ -44,7 +58,13 @@ export interface DatabaseAdapter {
   /**
    * Execute multiple queries in transaction
    */
-  transaction<T>(callback: (adapter: DatabaseAdapter) => Promise<T>): Promise<T>;
+  transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;
+
+  /**
+   * Execute raw SQL query (only available when USE_RAW_QRY=true)
+   * WARNING: Bypasses QueryBuilder safety. Use parameterized queries.
+   */
+  rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]>;
 
   /**
    * Get database type
@@ -55,34 +75,22 @@ export interface DatabaseAdapter {
    * Check connection status
    */
   isConnected(): boolean;
+
+  /**
+   * Get placeholder for parameterized query
+   */
+  getPlaceholder(index: number): string;
 }
 
-export abstract class BaseAdapter implements DatabaseAdapter {
-  protected config: DatabaseConfig;
-  protected connected = false;
-
-  constructor(config: DatabaseConfig) {
-    this.config = config;
-  }
-
-  abstract connect(): Promise<void>;
-  abstract disconnect(): Promise<void>;
-  abstract query(sql: string, parameters: unknown[]): Promise<QueryResult>;
-  abstract queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null>;
-  abstract transaction<T>(callback: (adapter: DatabaseAdapter) => Promise<T>): Promise<T>;
-
-  public getType(): string {
-    return this.config.driver;
-  }
-
-  public isConnected(): boolean {
-    return this.connected;
-  }
-
+/**
+ * Base Adapter Utilities
+ * Refactored to Functional Object pattern
+ */
+export const BaseAdapter = Object.freeze({
   /**
    * Sanitize parameter value
    */
-  protected sanitize(value: unknown): string {
+  sanitize(value: unknown): string {
     if (value === null || value === undefined) {
       return 'NULL';
     }
@@ -97,28 +105,22 @@ export abstract class BaseAdapter implements DatabaseAdapter {
     }
     // For objects, convert to JSON string representation
     return `'${JSON.stringify(value).replaceAll("'", "''")}'`;
-  }
+  },
 
   /**
    * Build parameterized query (for adapters that need it)
    */
-  protected buildParameterizedQuery(
+  buildParameterizedQuery(
     sql: string,
-    parameters: unknown[]
+    parameters: unknown[],
+    getPlaceholder: (index: number) => string = () => '?'
   ): { sql: string; parameters: unknown[] } {
     let paramIndex = 0;
     const processedSql = sql.replaceAll('?', () => {
       paramIndex++;
-      return this.getParameterPlaceholder(paramIndex);
+      return getPlaceholder(paramIndex);
     });
 
     return { sql: processedSql, parameters };
-  }
-
-  /**
-   * Get database-specific parameter placeholder
-   */
-  protected getParameterPlaceholder(_index: number): string {
-    return '?';
-  }
-}
+  },
+});

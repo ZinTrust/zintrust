@@ -1,7 +1,16 @@
+import { codecovVitePlugin } from '@codecov/vite-plugin';
 import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  plugins: [
+    // Put the Codecov vite plugin after all other plugins
+    codecovVitePlugin({
+      enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+      bundleName: 'zintrust',
+      uploadToken: process.env.CODECOV_TOKEN,
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -32,15 +41,18 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    setupFiles: ['tests/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts', 'scripts/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts', 'app/**/*.d.ts', 'routes/**/*.d.ts'],
-      lines: 90,
-      functions: 90,
-      branches: 85,
-      statements: 90,
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 85,
+        statements: 90,
+      },
     },
     testTimeout: 10000,
   },

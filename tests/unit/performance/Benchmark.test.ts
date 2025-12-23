@@ -44,7 +44,7 @@ describe('Benchmark', () => {
         arrayBuffers: 1,
       });
 
-    const benchmark = new Benchmark('Test Suite');
+    const benchmark = Benchmark.create('Test Suite');
     const result = benchmark.measure('sync', () => 123, 2, { feature: 'x' });
 
     expect(result.name).toBe('sync');
@@ -68,7 +68,7 @@ describe('Benchmark', () => {
   });
 
   it('returns a helpful message when no results exist', () => {
-    const benchmark = new Benchmark('Empty');
+    const benchmark = Benchmark.create('Empty');
     expect(benchmark.getTable()).toBe('No benchmark results');
   });
 
@@ -96,7 +96,7 @@ describe('Benchmark', () => {
         arrayBuffers: 1,
       });
 
-    const benchmark = new Benchmark('Suite A');
+    const benchmark = Benchmark.create('Suite A');
     const result = await benchmark.measureAsync('async', async () => 1, 1);
     expect(result.duration).toBe(3);
 
@@ -133,7 +133,7 @@ describe('Benchmark', () => {
         arrayBuffers: 1,
       });
 
-    const benchmark = new Benchmark('Suite');
+    const benchmark = Benchmark.create('Suite');
     const fast = benchmark.measure('op-a', () => 1, 2);
     benchmark.measure('op-missing', () => 2, 2);
 
@@ -180,7 +180,7 @@ describe('Benchmark', () => {
         arrayBuffers: 1,
       });
 
-    const benchmark = new Benchmark('Suite');
+    const benchmark = Benchmark.create('Suite');
     benchmark.measure('only-current', () => 1);
 
     const previous: BenchmarkSuite = {
@@ -197,7 +197,7 @@ describe('Benchmark', () => {
   });
 
   it('formats a comparison report for positive and negative overall improvement', () => {
-    const benchmark = new Benchmark('Suite');
+    const benchmark = Benchmark.create('Suite');
 
     const positive: ComparisonResult = {
       timestamp: new Date('2020-01-01T00:00:00.000Z'),
@@ -240,7 +240,7 @@ describe('Benchmark', () => {
 
 describe('MemoryMonitor', () => {
   it('returns zeros when no snapshots exist', () => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     const stats = monitor.getStats();
     expect(stats.snapshots).toBe(0);
     expect(stats.peakHeap).toBe(0);
@@ -276,7 +276,7 @@ describe('MemoryMonitor', () => {
       };
     });
 
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start(100);
     vi.advanceTimersByTime(250);
 

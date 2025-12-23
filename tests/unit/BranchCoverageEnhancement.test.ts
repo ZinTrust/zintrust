@@ -4,8 +4,28 @@
  */
 
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock Logger module
+vi.mock('@config/logger', () => ({
+  Logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    scope: vi.fn().mockReturnValue({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      fatal: vi.fn(),
+    }),
+  },
+}));
+
+// Import mocked Logger after vi.mock
+import { Logger } from '@config/logger';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -116,100 +136,75 @@ describe('Env Module Conditional Paths', () => {
 
 describe('Logger Module Conditional Paths', () => {
   it('should handle logging with null values', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message', null);
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging with undefined values', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message');
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging empty objects', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message', {});
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging empty arrays', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message', []);
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging empty strings', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('');
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging with special characters', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message with @#$%^&*() special chars');
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging with very long messages', () => {
-    const spy = vi.spyOn(Logger, 'info');
     const longMessage = 'A'.repeat(10000);
     Logger.info(longMessage);
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging with circular references', () => {
-    const spy = vi.spyOn(Logger, 'info');
     const obj: any = { name: 'test' };
     obj.self = obj;
     Logger.info('Message', obj);
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle all log levels with data', () => {
     const data = { userId: 1, action: 'login' };
 
-    const debugSpy = vi.spyOn(Logger, 'debug');
     Logger.debug('Debug', data);
-    expect(debugSpy).toHaveBeenCalled();
-    debugSpy.mockRestore();
+    expect(Logger.debug).toHaveBeenCalled();
+    vi.clearAllMocks();
 
-    const infoSpy = vi.spyOn(Logger, 'info');
     Logger.info('Info', data);
-    expect(infoSpy).toHaveBeenCalled();
-    infoSpy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
+    vi.clearAllMocks();
 
-    const warnSpy = vi.spyOn(Logger, 'warn');
     Logger.warn('Warn', data);
-    expect(warnSpy).toHaveBeenCalled();
-    warnSpy.mockRestore();
+    expect(Logger.warn).toHaveBeenCalled();
+    vi.clearAllMocks();
 
-    const errorSpy = vi.spyOn(Logger, 'error');
     Logger.error('Error', data);
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
+    expect(Logger.error).toHaveBeenCalled();
   });
 
   it('should handle logging with boolean values', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message', { active: true, deleted: false });
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should handle logging zero and negative numbers', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Message', { zero: 0, negative: -100 });
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 });
 

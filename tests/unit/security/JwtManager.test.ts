@@ -1,9 +1,10 @@
+import type { IJwtManager } from '@/security/JwtManager';
 import { JwtManager } from '@/security/JwtManager';
 import { generateKeyPairSync } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JwtManager', () => {
-  let jwtManager: JwtManager;
+  let jwtManager: IJwtManager;
   const hmacSecret = 'test-secret-key';
 
   const base64Url = (input: string): string =>
@@ -14,7 +15,7 @@ describe('JwtManager', () => {
       .replaceAll('=', '');
 
   beforeEach(() => {
-    jwtManager = new JwtManager();
+    jwtManager = JwtManager.create();
     jwtManager.setHmacSecret(hmacSecret);
   });
 
@@ -90,14 +91,14 @@ describe('JwtManager', () => {
   });
 
   it('should throw error if RSA keys are missing for RS256', () => {
-    const noKeyManager = new JwtManager();
+    const noKeyManager = JwtManager.create();
     expect(() => noKeyManager.sign({}, { algorithm: 'RS256' })).toThrow(
       'RSA private key not configured'
     );
   });
 
   it('should throw error if HMAC secret is missing for HS256', () => {
-    const noKeyManager = new JwtManager();
+    const noKeyManager = JwtManager.create();
     expect(() => noKeyManager.sign({}, { algorithm: 'HS256' })).toThrow(
       'HMAC secret not configured'
     );
@@ -168,11 +169,11 @@ describe('JwtManager', () => {
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
     });
 
-    const signer = new JwtManager();
+    const signer = JwtManager.create();
     signer.setRsaKeys(privateKey, publicKey);
     const token = signer.sign({ userId: 1 }, { algorithm: 'RS256' });
 
-    const verifier = new JwtManager();
+    const verifier = JwtManager.create();
     expect(() => verifier.verify(token, 'RS256')).toThrow(
       'Token verification failed: RSA public key not configured'
     );
@@ -206,14 +207,14 @@ describe('JwtManager', () => {
   it('should fail verification when HMAC secret is missing during signature verification', () => {
     const token = jwtManager.sign({ userId: 1 }, { algorithm: 'HS256' });
 
-    const verifier = new JwtManager();
+    const verifier = JwtManager.create();
     expect(() => verifier.verify(token, 'HS256')).toThrow(
       'Token verification failed: HMAC secret not configured'
     );
   });
 
   it('signRsa: throws when private key is missing (direct call for coverage)', () => {
-    const mgr = new JwtManager();
+    const mgr = JwtManager.create();
     const direct = mgr as unknown as { signRsa: (message: string) => string };
     expect(() => direct.signRsa('msg')).toThrow('RSA private key not configured');
   });

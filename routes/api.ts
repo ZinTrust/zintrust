@@ -8,10 +8,26 @@ import { UserController } from '@app/Controllers/UserController';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { useDatabase } from '@orm/Database';
-import { Router } from '@routing/EnhancedRouter';
 
 export function registerRoutes(router: Router): void {
-  const userController = new UserController();
+  const userController: UserController = ((): UserController => {
+    const maybeWithCreate = UserController as unknown as { create?: () => UserController };
+    if (typeof maybeWithCreate.create === 'function') {
+      return maybeWithCreate.create();
+    }
+
+    try {
+      const factory = UserController as unknown as () => UserController;
+      return factory();
+    } catch (error) {
+      Logger.error(
+        'UserController could not be instantiated via factory, falling back to constructor',
+        error
+      );
+      const Ctor = UserController as unknown as new () => UserController;
+      return new Ctor();
+    }
+  })();
 
   registerPublicRoutes(router);
   registerApiV1Routes(router, userController);

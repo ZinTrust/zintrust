@@ -1,11 +1,69 @@
 /**
  * Storage Configuration
  * File storage and cloud storage settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 
-export const storageConfig = {
+type EnvGetValue = ReturnType<typeof Env.get>;
+type EnvGetBoolValue = ReturnType<typeof Env.getBool>;
+
+type LocalStorageDriverConfig = {
+  driver: 'local';
+  root: EnvGetValue;
+  url: EnvGetValue;
+  visibility: EnvGetValue;
+};
+
+type S3StorageDriverConfig = {
+  driver: 's3';
+  key: EnvGetValue;
+  secret: EnvGetValue;
+  region: typeof Env.AWS_REGION;
+  bucket: EnvGetValue;
+  url: EnvGetValue;
+  endpoint: EnvGetValue;
+  usePathStyleUrl: EnvGetBoolValue;
+};
+
+type GcsStorageDriverConfig = {
+  driver: 'gcs';
+  projectId: EnvGetValue;
+  keyFile: EnvGetValue;
+  bucket: EnvGetValue;
+  url: EnvGetValue;
+};
+
+type StorageDrivers = {
+  local: LocalStorageDriverConfig;
+  s3: S3StorageDriverConfig;
+  gcs: GcsStorageDriverConfig;
+};
+
+type StorageDriverName = keyof StorageDrivers;
+type StorageDriverConfig = StorageDrivers[StorageDriverName];
+
+type StorageConfigRuntime = {
+  default: string;
+  drivers: StorageDrivers;
+};
+
+const isStorageDriverName = (value: string, drivers: StorageDrivers): value is StorageDriverName => {
+  return value in drivers;
+};
+
+const getStorageDriver = (config: StorageConfigRuntime): StorageDriverConfig => {
+  const driverName = config.default;
+
+  if (isStorageDriverName(driverName, config.drivers)) {
+    return config.drivers[driverName];
+  }
+
+  return config.drivers.local;
+};
+
+const storageConfigObj = {
   /**
    * Default storage driver
    */
@@ -43,9 +101,8 @@ export const storageConfig = {
   /**
    * Get storage driver config
    */
-  getDriver() {
-    const driverName = this.default as keyof typeof this.drivers;
-    return this.drivers[driverName];
+  getDriver(this: StorageConfigRuntime): StorageDriverConfig {
+    return getStorageDriver(this);
   },
 
   /**
@@ -72,6 +129,8 @@ export const storageConfig = {
     path: Env.get('BACKUPS_PATH', 'storage/backups'),
     driver: Env.get('BACKUP_DRIVER', 's3'),
   },
-} as const;
+};
+
+export const storageConfig = Object.freeze(storageConfigObj);
 
 export type StorageConfig = typeof storageConfig;

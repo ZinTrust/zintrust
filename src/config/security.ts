@@ -1,18 +1,38 @@
 /**
  * Security Configuration
  * JWT, CSRF, encryption and other security settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 
-export const securityConfig = {
+/**
+ * Helper to warn about missing secrets
+ */
+function warnMissingSecret(secretName: string): string {
+  Logger.error(`❌ CRITICAL: ${secretName} environment variable is not set!`);
+  Logger.error('⚠️  Application may not function correctly. Set this in production immediately.');
+
+  const nodeEnv = Env.get('NODE_ENV', 'development');
+  if (nodeEnv === 'production') {
+    throw new Error(`Missing required secret: ${secretName}`);
+  }
+
+  // In non-production environments, allow the app/CLI to start while still warning loudly.
+  // This is intentionally predictable for local development and test tooling.
+  return 'dev-unsafe-jwt-secret';
+}
+
+const securityConfigObj = {
   /**
    * JWT Configuration
    */
   jwt: {
     enabled: Env.getBool('JWT_ENABLED', true),
-    secret: Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET'),
+    secret: Env.getBool('JWT_ENABLED', true)
+      ? Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET')
+      : Env.get('JWT_SECRET') || '',
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',
     expiresIn: Env.get('JWT_EXPIRES_IN', '1h'),
     refreshExpiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '7d'),
@@ -116,13 +136,6 @@ export const securityConfig = {
     requireSpecialChars: Env.getBool('PASSWORD_REQUIRE_SPECIAL_CHARS', true),
     bcryptRounds: Env.getInt('BCRYPT_ROUNDS', 10),
   },
-};
+} as const;
 
-/**
- * Helper to warn about missing secrets
- */
-function warnMissingSecret(secretName: string): string {
-  Logger.error(`❌ CRITICAL: ${secretName} environment variable is not set!`);
-  Logger.error('⚠️  Application may not function correctly. Set this in production immediately.');
-  throw new Error(`Missing required secret: ${secretName}`);
-}
+export const securityConfig = Object.freeze(securityConfigObj);

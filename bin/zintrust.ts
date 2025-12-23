@@ -13,7 +13,7 @@ import { Logger } from '@config/logger.js';
 
 async function main(): Promise<void> {
   try {
-    const cli = new CLI();
+    const cli = CLI.create();
     await cli.run(process.argv.slice(2));
   } catch (error) {
     Logger.error('CLI execution failed', error);

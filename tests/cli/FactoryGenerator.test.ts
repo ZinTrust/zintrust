@@ -156,7 +156,8 @@ describe('FactoryGenerator Class Structure', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('export class PostFactory');
+    expect(content).toContain('Object.freeze({');
+    expect(content).toContain('export const PostFactory');
   });
 
   it('should include Faker import', async () => {
@@ -240,7 +241,7 @@ describe('FactoryGenerator Methods', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('make(): Partial<User>');
+    expect(content).toContain('make = () => ({');
   });
 
   it('should include count method', async () => {
@@ -253,7 +254,7 @@ describe('FactoryGenerator Methods', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('count(n: number)');
+    expect(content).toContain('count(n: number) {');
   });
 
   it('should include state method', async () => {
@@ -345,7 +346,7 @@ describe('FactoryGenerator Default Models', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('create(): Partial<User>');
+    expect(content).toContain('create() {');
   });
 
   it('should handle User factory defaults', async () => {

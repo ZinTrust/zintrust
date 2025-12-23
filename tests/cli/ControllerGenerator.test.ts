@@ -153,7 +153,8 @@ describe('ControllerGenerator CRUD and Resource', () => {
     const controllerFile = path.join(testControllersDir, 'PostController.ts');
     const content = await fs.readFile(controllerFile, 'utf-8');
 
-    expect(content).toContain('class PostController');
+    expect(content).toContain('Object.freeze({');
+    expect(content).toContain('export const PostController');
     expect(content).toContain('index(');
     expect(content).toContain('show(');
     expect(content).toContain('store(');

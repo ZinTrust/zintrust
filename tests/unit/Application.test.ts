@@ -1,26 +1,52 @@
 import { Application } from '@/Application';
-import { ServiceContainer } from '@/container/ServiceContainer';
-import { MiddlewareStack } from '@/middleware/MiddlewareStack';
-import { Router } from '@/routing/EnhancedRouter';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
-vi.mock('@/container/ServiceContainer');
-vi.mock('@/routing/EnhancedRouter');
-vi.mock('@/middleware/MiddlewareStack');
-vi.mock('@/config/logger');
+vi.mock('@/container/ServiceContainer', () => ({
+  ServiceContainer: {
+    create: vi.fn(() => ({
+      singleton: vi.fn(),
+      get: vi.fn(),
+      make: vi.fn(),
+    })),
+  },
+}));
+vi.mock('@/routing/Router', () => ({
+  Router: {
+    createRouter: vi.fn(() => ({ get: vi.fn(), post: vi.fn() })),
+  },
+}));
+vi.mock('@/middleware/MiddlewareStack', () => ({
+  MiddlewareStack: {
+    create: vi.fn(() => ({ use: vi.fn(), handle: vi.fn() })),
+  },
+}));
+vi.mock('@config/logger', () => ({
+  Logger: Object.freeze({
+    initialize: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
+}));
+vi.mock('@config/env', () => ({
+  Env: {
+    get: vi.fn((key, defaultVal) => defaultVal),
+  },
+}));
 
 describe('Application', () => {
   it('should initialize core services', () => {
-    const app = new Application('/root');
+    const app = Application.create('/root');
 
-    expect(app.getContainer()).toBeInstanceOf(ServiceContainer);
-    expect(app.getRouter()).toBeInstanceOf(Router);
-    expect(app.getMiddlewareStack()).toBeInstanceOf(MiddlewareStack);
+    expect(app.getContainer()).toBeDefined();
+    expect(app.getRouter()).toBeDefined();
+    expect(app.getMiddlewareStack()).toBeDefined();
   });
 
   it('should register core paths', () => {
-    const app = new Application('/root');
+    const app = Application.create('/root');
     const container = app.getContainer();
 
     expect(container.singleton).toHaveBeenCalledWith('paths', {
@@ -34,7 +60,7 @@ describe('Application', () => {
   });
 
   it('should register core instances', () => {
-    const app = new Application('/root');
+    const app = Application.create('/root');
     const container = app.getContainer();
 
     expect(container.singleton).toHaveBeenCalledWith('env', expect.any(String));
@@ -44,7 +70,7 @@ describe('Application', () => {
   });
 
   it('should detect environment', () => {
-    const app = new Application('/root');
+    const app = Application.create('/root');
     // Default is development in test env usually, or whatever appConfig says.
     // Since we didn't mock appConfig, it uses real one.
     // Let's just check the methods exist and return booleans
@@ -55,7 +81,7 @@ describe('Application', () => {
   });
 
   it('should boot', async () => {
-    const app = new Application('/root');
+    const app = Application.create('/root');
     await expect(app.boot()).resolves.toBeUndefined();
   });
 
@@ -71,7 +97,7 @@ describe('Application', () => {
     }));
 
     const { Application: FreshApplication } = await import('@/Application');
-    new FreshApplication('/root'); // NOSONAR
+    FreshApplication.create('/root'); // NOSONAR
 
     expect(initialize).not.toHaveBeenCalled();
     delete process.env['DISABLE_LOGGING'];

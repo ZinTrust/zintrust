@@ -36,7 +36,10 @@ export type {
   ModelRelationship,
 } from '@cli/scaffolding/ModelGenerator';
 export { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
-export type { ProjectOptions, ScaffoldingResult } from '@cli/scaffolding/ProjectScaffolder';
+export type {
+  ProjectScaffoldOptions,
+  ProjectScaffoldResult,
+} from '@cli/scaffolding/ProjectScaffolder';
 export { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
 export type {
   RequestFactoryGeneratorResult,
@@ -62,6 +65,18 @@ export type {
   SeederGeneratorResult,
   SeederOptions,
 } from '@cli/scaffolding/SeederGenerator';
+export { ServiceIntegrationTestGenerator } from '@cli/scaffolding/ServiceIntegrationTestGenerator';
+export type {
+  ServiceEndpoint,
+  ServiceIntegrationTestOptions,
+  ServiceIntegrationTestResult,
+} from '@cli/scaffolding/ServiceIntegrationTestGenerator';
+export { ServiceRequestFactoryGenerator } from '@cli/scaffolding/ServiceRequestFactoryGenerator';
+export type {
+  ServiceRequestFactoryResult,
+  ServiceRequestField,
+  ServiceRequestOptions,
+} from '@cli/scaffolding/ServiceRequestFactoryGenerator';
 export { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 export type { ServiceOptions, ServiceScaffoldResult } from '@cli/scaffolding/ServiceScaffolder';
 export { BUILT_IN_TEMPLATES, TemplateEngine } from '@cli/scaffolding/TemplateEngine';

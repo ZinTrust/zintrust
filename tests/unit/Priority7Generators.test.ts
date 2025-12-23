@@ -281,12 +281,11 @@ describe('ServiceRequestFactoryGenerator Generation Tests - Part 4', () => {
 
     // Verify chaining methods
     expect(content).toContain('times(count: number)');
-    expect(content).toContain('state(state:');
-    expect(content).toContain('with(overrides:');
-    expect(content).toContain('makeMany()');
-    expect(content).toContain('make()');
-    expect(content).toContain('first()');
-    expect(content).toContain('get()');
+    expect(content).toContain('withState(state:');
+    expect(content).toContain('withOverrides(overrides:');
+    expect(content).toContain('makeMany():');
+    expect(content).toContain('make():');
+    expect(content).toContain('get():');
   });
 
   it('should handle validation errors', async () => {
@@ -443,10 +442,10 @@ describe('ServiceIntegrationTestGenerator Generation Tests - Part 2', () => {
     const content = fs.readFileSync(result.testFile, 'utf-8');
 
     // Verify all endpoints are tested
-    expect(content).toContain('POST /api/orders');
-    expect(content).toContain('GET /api/orders/:id');
-    expect(content).toContain('PATCH /api/orders/:id');
-    expect(content).toContain('DELETE /api/orders/:id');
+    expect(content).toContain("client.post('/api/orders'");
+    expect(content).toContain("client.get('/api/orders/:id'");
+    expect(content).toContain("client.patch('/api/orders/:id'");
+    expect(content).toContain("client.delete('/api/orders/:id'");
   });
 });
 
@@ -526,10 +525,9 @@ describe('ServiceIntegrationTestGenerator Generation Tests - Part 3', () => {
     const content = fs.readFileSync(result.testFile, 'utf-8');
 
     // Verify test helpers
-    expect(content).toContain('createContext');
-    expect(content).toContain('createClient');
-    expect(content).toContain('verifyHealth');
-    expect(content).toContain('waitForService');
+    expect(content).toContain('function createClient');
+    expect(content).toContain('ServiceClient.create');
+    expect(content).toContain('interface TestContext');
   });
 
   it('should include consumer service reference when provided', async () => {

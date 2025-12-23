@@ -1,4 +1,4 @@
-import { Application } from '@/Application';
+import { IApplication } from '@/Application';
 import { Server } from '@/Server';
 import * as http from 'node:http';
 import { type Mock, describe, expect, it, vi } from 'vitest';
@@ -16,11 +16,11 @@ describe('Server', () => {
     getRouter: vi.fn().mockReturnValue({
       match: vi.fn(),
     }),
-  } as unknown as Application;
+  } as unknown as IApplication;
 
   it('should create http server', () => {
     (http.createServer as Mock).mockReturnValue({});
-    const server = new Server(mockApp);
+    const server = Server.create(mockApp);
     expect(http.createServer).toHaveBeenCalled();
     expect(server.getHttpServer()).toBeDefined();
   });
@@ -32,7 +32,7 @@ describe('Server', () => {
     };
     (http.createServer as Mock).mockReturnValue(mockHttpServer);
 
-    const server = new Server(mockApp, 3000, 'localhost');
+    const server = Server.create(mockApp, 3000, 'localhost');
     await server.listen();
 
     expect(mockHttpServer.listen).toHaveBeenCalledWith(3000, 'localhost', expect.any(Function));
@@ -45,7 +45,7 @@ describe('Server', () => {
     };
     (http.createServer as Mock).mockReturnValue(mockHttpServer);
 
-    const server = new Server(mockApp);
+    const server = Server.create(mockApp);
     await server.close();
 
     expect(mockHttpServer.close).toHaveBeenCalled();
@@ -66,7 +66,7 @@ describe('Server', () => {
       return { listen: vi.fn() };
     });
 
-    const server = new Server(mockApp);
+    const server = Server.create(mockApp);
     expect(server.getHttpServer()).toBeDefined();
 
     // Simulate request

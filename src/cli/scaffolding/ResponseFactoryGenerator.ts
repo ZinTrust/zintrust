@@ -110,19 +110,98 @@ export async function generate(
 }
 
 /**
+ * Generate factory methods (times, setState, make, makeMany, get, first)
+ */
+function generateFactoryMethods(): string {
+  return `      /**
+       * Generate multiple responses
+       */
+      times(count: number) {
+        recordCount = count;
+        return factory;
+      },
+
+      /**
+       * Set response state (success, error, partial)
+       */
+      setState(state: 'success' | 'error' | 'partial') {
+        responseState = state;
+        return factory;
+      },
+
+      /**
+       * Generate single response
+       */
+      make() {
+        return factory.generateResponse();
+      },
+
+      /**
+       * Generate multiple responses
+       */
+      makeMany() {
+        return Array.from({ length: recordCount }, () => factory.generateResponse());
+      },
+
+      /**
+       * Alias for makeMany()
+       */
+      get() {
+        return factory.makeMany();
+      },
+
+      /**
+       * Get first response
+       */
+      first() {
+        return factory.make();
+      },`;
+}
+
+/**
+ * Generate response generation method
+ */
+function generateResponseMethod(
+  responseName: string,
+  fields: ResponseField[],
+  responseType: string
+): string {
+  return `      /**
+       * Generate response with state handling
+       */
+      generateResponse() {
+        const data: Record<string, unknown> = {
+${generateFieldAssignments(fields, responseType)}
+        };
+
+        // Apply state transformations
+        if (responseState === 'error') {
+          data.status = 'error';
+          data.errors = ['An error occurred'];
+        } else if (responseState === 'partial') {
+          // Set some fields to null/undefined for partial response testing
+          ${generatePartialFields(fields)}
+        }
+
+        return ${responseName}.create(data);
+      },`;
+}
+
+/**
  * Generate response factory code
  */
 function generateFactoryCode(options: ResponseFactoryOptions): string {
   const { factoryName, responseName, fields = [], responseType = 'success' } = options;
 
-  const factoryMethods = generateFactoryMethods(factoryName, responseName, fields, responseType);
   const helperMethods = generateHelperMethods(fields);
 
   const dtoImport =
     options.responsesPath === undefined
-      ? `export interface ${responseName} {
-${generateFieldInterfaces(fields)}
-}`
+      ? `export const ${responseName} = {
+  create(data: Record<string, unknown> = {}) {
+    return { ...data };
+  }
+};`
       : `import { ${responseName} } from '@app/Responses/${responseName}';`;
 
   return `/**
@@ -139,14 +218,25 @@ ${dtoImport}
 /**
  * ${factoryName} - Generates response test data
  */
-export class ${factoryName} {
-  private count = 1;
-  private state: 'success' | 'error' | 'partial' = 'success';
+export const ${factoryName} = Object.freeze({
+  /**
+   * Create a new factory instance
+   */
+  new() {
+    let recordCount = 1;
+    let responseState = 'success';
 
-${factoryMethods}
+    const factory = {
+${generateFactoryMethods()}
+
+${generateResponseMethod(responseName, fields, responseType)}
 
 ${helperMethods}
-}
+    };
+
+    return factory;
+  }
+});
 
 export default ${factoryName};
 `;
@@ -169,13 +259,44 @@ async function generateResponseDTO(options: ResponseFactoryOptions): Promise<str
  * Type: ${options.responseType}
  */
 
-${generateDTOFields(options.fields ?? [])}
+export const ${options.responseName} = Object.freeze({
+  create(data: Record<string, unknown> = {}) {
+    const response = {
+      ...data,
 
-export class ${options.responseName} {
-${generateDTOConstructor(options.fields ?? [])}
+      /**
+       * Serialize to JSON
+       */
+      toJSON() {
+        const d = response as any;
+        return {
+${(options.fields ?? []).map((f) => `          ${f.name}: d.${f.name}`).join(',\n')}
+        };
+      },
 
-${generateDTOMethods(options.fields ?? [])}
-}
+      /**
+       * Validate response
+       */
+      validate(): string[] {
+        const errors: string[] = [];
+        const d = response as any;
+
+${(options.fields ?? [])
+  .filter((f) => f.required === true)
+  .map(
+    (f) => `        if (d.${f.name} === undefined || d.${f.name} === null) {
+          errors.push('${f.name} is required');
+        }`
+  )
+  .join('\n')}
+
+        return errors;
+      },
+    };
+
+    return response;
+  }
+};
 
 export default ${options.responseName};
 `;
@@ -187,300 +308,71 @@ export default ${options.responseName};
 }
 
 /**
- * Generate field interfaces
- */
-function generateFieldInterfaces(fields: ResponseField[]): string {
-  return generateFieldDeclarations(fields);
-}
-
-/**
- * Generate DTO field declarations
- */
-function generateDTOFields(fields: ResponseField[]): string {
-  return generateFieldDeclarations(fields);
-}
-
-/**
- * Generate field declarations (shared implementation)
- */
-function generateFieldDeclarations(fields: ResponseField[]): string {
-  return fields
-    .map(
-      (field) =>
-        `  ${field.name}${field.required === true ? '' : '?'}: ${getTypeScriptType(field)};`
-    )
-    .join('\n');
-}
-
-/**
- * Generate factory methods (create, times, state, make, etc.)
- */
-function generateFactoryMethods(
-  factoryName: string,
-  responseName: string,
-  fields: ResponseField[],
-  responseType: string
-): string {
-  return `${buildFactoryStaticMethods(factoryName)}
-
-${buildFactoryConfigurationMethods()}
-
-${buildFactoryGenerationMethods(responseName)}
-
-  ${buildGenerateResponseMethod(responseName, fields, responseType)}`;
-}
-
-/**
- * Build factory static methods
- */
-function buildFactoryStaticMethods(factoryName: string): string {
-  return `  /**
-   * Create a new factory instance
-   */
-  static create(): ${factoryName} {
-    return new ${factoryName}();
-  }
-`;
-}
-
-/**
- * Build factory configuration methods
- */
-function buildFactoryConfigurationMethods(): string {
-  return `  /**
-   * Generate multiple responses
-   */
-  times(count: number): this {
-    this.count = count;
-    return this;
-  }
-
-  /**
-   * Set response state (success, error, partial)
-   */
-  setState(state: 'success' | 'error' | 'partial'): this {
-    this.state = state;
-    return this;
-  }
-`;
-}
-
-/**
- * Build factory generation methods
- */
-function buildFactoryGenerationMethods(responseName: string): string {
-  return `  /**
-   * Generate single response
-   */
-  make(): ${responseName} {
-    return this.generateResponse();
-  }
-
-  /**
-   * Generate multiple responses
-   */
-  makeMany(): ${responseName}[] {
-    const responses: ${responseName}[] = [];
-    for (let i = 0; i < this.count; i++) {
-      responses.push(this.generateResponse());
-    }
-    return responses;
-  }
-
-  /**
-   * Alias for makeMany()
-   */
-  get(): ${responseName}[] {
-    return this.makeMany();
-  }
-
-  /**
-   * Get first response
-   */
-  first(): ${responseName} {
-    return this.make();
-  }
-`;
-}
-
-/**
- * Build generate response method
- */
-function buildGenerateResponseMethod(
-  responseName: string,
-  fields: ResponseField[],
-  responseType: string
-): string {
-  return `/**
-   * Generate response with state handling
-   */
-  private generateResponse(): ${responseName} {
-    const response: ${responseName} = {
-${generateFieldAssignments(fields, responseType)}
-    };
-
-    // Apply state transformations
-    if (this.state === 'error') {
-      response.status = 'error';
-      response.errors = ['An error occurred'];
-    } else if (this.state === 'partial') {
-      // Set some fields to null/undefined for partial response testing
-      ${generatePartialFields(fields)}
-    }
-
-    return response;
-  }`;
-}
-
-/**
- * Generate field assignments with Faker data
+ * Generate field assignments for the factory
  */
 function generateFieldAssignments(fields: ResponseField[], responseType: string): string {
-  const baseFields = fields
-    .map((field) => `      ${field.name}: this.generate${capitalizeType(field.type)}(),`)
-    .join('\n');
+  const assignments = fields.map((field) => {
+    let value = 'faker.lorem.word()';
 
-  const typeFields = generateTypeFields(responseType);
+    if (field.type === 'email') value = 'faker.internet.email()';
+    else if (field.type === 'number') value = 'faker.number.int({ min: 1, max: 1000 })';
+    else if (field.type === 'boolean') value = 'faker.datatype.boolean()';
+    else if (field.type === 'uuid') value = 'faker.string.uuid()';
+    else if (field.type === 'date') value = 'faker.date.recent().toISOString()';
+    else if (field.type === 'json') value = '{ key: faker.lorem.word() }';
 
-  return `${typeFields}
-${baseFields}`;
+    if (field.array === true) {
+      value = `Array.from({ length: 3 }, () => ${value})`;
+    }
+
+    return `          ${field.name}: ${value},`;
+  });
+
+  if (responseType === 'paginated') {
+    // Provide a minimal, predictable pagination shape for tests and examples.
+    if (!fields.some((f) => f.name === 'pagination')) {
+      assignments.push('          pagination: { page: 1, limit: 10, total: 100 },');
+    }
+    if (!fields.some((f) => f.name === 'items')) {
+      assignments.push('          items: [],');
+    }
+  }
+
+  if (responseType === 'success' && !fields.some((f) => f.name === 'status')) {
+    assignments.push("          status: 'success',");
+  }
+
+  return assignments.join('\n');
 }
 
 /**
- * Generate type-specific response fields
- */
-function generateTypeFields(responseType: string): string {
-  const types: Record<string, string> = {
-    success: `      status: 'success',
-      code: 200,`,
-    error: `      status: 'error',
-      code: 400,
-      errors: [],`,
-    paginated: `      status: 'success',
-      code: 200,
-      data: [],
-      pagination: {
-        page: 1,
-        limit: 10,
-        total: 0,
-        pages: 0,
-      },`,
-  };
-
-  return types[responseType] || '';
-}
-
-/**
- * Generate partial field handling
+ * Generate partial field modifications
  */
 function generatePartialFields(fields: ResponseField[]): string {
-  const nullableFields = fields.filter((f) => f.nullable === true || f.required !== true);
-  if (nullableFields.length === 0) return '';
-
-  return nullableFields
-    .slice(0, 2)
-    .map((field) => `      response.${field.name} = null;`)
-    .join('\n      ');
+  return fields
+    .filter((f) => (f.required ?? false) !== true)
+    .map((f) => `data.${f.name} = null;`)
+    .join('\n          ');
 }
 
 /**
- * Generate helper methods for field generation
+ * Generate helper methods for the factory
  */
 function generateHelperMethods(fields: ResponseField[]): string {
-  const uniqueTypes = [...new Set(fields.map((f) => f.type))];
-
-  return uniqueTypes.map((type) => generateHelperMethodForType(type)).join('\n\n');
-}
-
-/**
- * Generate a single helper method for a specific type
- */
-function generateHelperMethodForType(type: string): string {
-  const generators: Record<string, { body: string; returnType: string }> = {
-    string: { body: 'faker.lorem.word()', returnType: 'string' },
-    number: { body: 'faker.number.int({ min: 1, max: 1000 })', returnType: 'number' },
-    boolean: { body: 'faker.datatype.boolean()', returnType: 'boolean' },
-    date: { body: 'faker.date.recent().toISOString()', returnType: 'string' },
-    json: { body: '{ key: faker.lorem.word() }', returnType: 'Record<string, unknown>' },
-    uuid: { body: 'faker.string.uuid()', returnType: 'string' },
-    email: { body: 'faker.internet.email()', returnType: 'string' },
-  };
-
-  const config = generators[type] ?? { body: 'null', returnType: 'unknown' };
-
-  return `  private generate${capitalizeType(type)}(): ${config.returnType} {
-    return ${config.body};
-  }`;
-}
-
-/**
- * Generate DTO constructor
- */
-function generateDTOConstructor(fields: ResponseField[]): string {
-  const params = fields
+  return fields
     .map(
-      (field) =>
-        `    ${field.name}${field.required === true ? '' : '?'}: ${getTypeScriptType(field)}`
+      (field) => `
+      /**
+       * Set ${field.name}
+       */
+      with${capitalizeType(field.name)}(value: any) {
+        return factory.generateResponse().then((res: any) => {
+          res.${field.name} = value;
+          return res;
+        });
+      },`
     )
-    .join(',\n');
-
-  const assignments = fields.map((field) => `    this.${field.name} = ${field.name};`).join('\n');
-
-  return `  constructor(
-${params}
-  ) {
-${assignments}
-  }`;
-}
-
-/**
- * Generate DTO methods
- */
-function generateDTOMethods(fields: ResponseField[]): string {
-  return `  /**
-   * Serialize to JSON
-   */
-  toJSON(): Record<string, unknown> {
-    return {
-${fields.map((f) => `      ${f.name}: this.${f.name}`).join(',\n')}
-    };
-  }
-
-  /**
-   * Validate response
-   */
-  validate(): string[] {
-    const errors: string[] = [];
-
-${fields
-  .filter((f) => f.required === true)
-  .map(
-    (f) => `    if (this.${f.name} === undefined || this.${f.name} === null) {
-      errors.push('${f.name} is required');
-    }`
-  )
-  .join('\n')}
-
-    return errors;
-  }`;
-}
-
-/**
- * Get TypeScript type for field
- */
-function getTypeScriptType(field: ResponseField): string {
-  let baseType = field.type as string;
-  if (field.type === 'json') {
-    baseType = 'Record<string, unknown>';
-  } else if (field.type === 'date') {
-    baseType = 'string';
-  }
-
-  if (field.array === true) {
-    return `${baseType}[]${field.nullable === true ? ' | null' : ''}`;
-  }
-
-  return field.nullable === true ? `${baseType} | null` : baseType;
+    .join('\n');
 }
 
 /**
@@ -494,7 +386,7 @@ function capitalizeType(type: string): string {
  * Response Factory Generator - Phase 7
  * Generates response/output DTO factories with built-in validation
  */
-export const ResponseFactoryGenerator = {
+export const ResponseFactoryGenerator = Object.freeze({
   validateOptions,
   generate,
-};
+});

@@ -153,8 +153,9 @@ describe('RequestFactoryGenerator Basic Generation - Part 1', () => {
       expect(result.factoryPath).toContain('CreateUserRequestFactory.ts');
 
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
-      expect(fileContent).toContain('export class CreateUserRequestFactory');
-      expect(fileContent).toContain('export class CreateUserRequest');
+      expect(fileContent).toContain('Object.freeze({');
+      expect(fileContent).toContain('export const CreateUserRequestFactory');
+      expect(fileContent).toContain('export const CreateUserRequest');
     });
 
     it('should generate factory with create method', async () => {
@@ -167,8 +168,9 @@ describe('RequestFactoryGenerator Basic Generation - Part 1', () => {
       const result = await RequestFactoryGenerator.generateRequestFactory(options);
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
 
-      expect(fileContent).toContain('static create(overrides');
+      expect(fileContent).toContain('new()');
       expect(fileContent).toContain('make(overrides');
+      expect(fileContent).toContain('return LoginRequest.create(data)');
     });
 
     it('should generate factory with times method for multiple instances', async () => {
@@ -181,8 +183,9 @@ describe('RequestFactoryGenerator Basic Generation - Part 1', () => {
       const result = await RequestFactoryGenerator.generateRequestFactory(options);
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
 
-      expect(fileContent).toContain('static times(count: number)');
-      expect(fileContent).toContain('makeMany()');
+      expect(fileContent).toContain('count(n: number)');
+      expect(fileContent).toContain('get()');
+      expect(fileContent).toContain('Array.from({ length: recordCount }');
     });
   });
 });
@@ -213,9 +216,10 @@ describe('RequestFactoryGenerator Basic Generation - Part 2', () => {
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
 
       expect(fileContent).toContain('state(name: string)');
-      expect(fileContent).toContain("this.states.has('invalid')");
-      expect(fileContent).toContain("this.states.has('empty')");
-      expect(fileContent).toContain("this.states.has('minimal')");
+      expect(fileContent).toContain('const states = new Set<string>()');
+      expect(fileContent).toContain("states.has('invalid')");
+      expect(fileContent).toContain("states.has('empty')");
+      expect(fileContent).toContain("states.has('minimal')");
     });
 
     it('should include validation methods', async () => {
@@ -228,9 +232,9 @@ describe('RequestFactoryGenerator Basic Generation - Part 2', () => {
       const result = await RequestFactoryGenerator.generateRequestFactory(options);
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
 
-      expect(fileContent).toContain(
-        'validate(): { valid: boolean; errors: Record<string, string> }'
-      );
+      expect(fileContent).toContain('validate()');
+      expect(fileContent).toContain('const errors: Record<string, string>');
+      expect(fileContent).toContain('valid:');
       expect(fileContent).toContain('toJSON()');
     });
   });
@@ -328,7 +332,8 @@ describe('RequestFactoryGenerator Advanced Generation - Part 2', () => {
 
       if (result.requestPath !== null && result.requestPath !== undefined) {
         const fileContent = await fs.readFile(result.requestPath, 'utf-8');
-        expect(fileContent).toContain('export class CreateUserRequest');
+        expect(fileContent).toContain('Object.freeze({');
+        expect(fileContent).toContain('export const CreateUserRequest');
         expect(fileContent).toContain('validate()');
       }
     });
@@ -452,9 +457,9 @@ describe('RequestFactoryGenerator Code Validation', () => {
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
 
       // Check for basic TypeScript patterns
-      expect(fileContent).toMatch(/export (class|interface)/);
-      expect(fileContent).toMatch(/constructor/);
-      expect(fileContent).toMatch(/private|public|static/);
+      expect(fileContent).toMatch(/export const/);
+      expect(fileContent).toContain('Object.freeze({');
+      expect(fileContent).toContain("import { faker } from '@faker-js/faker'");
     });
 
     it('should include proper field type generation', async () => {
@@ -521,8 +526,9 @@ describe('RequestFactoryGenerator Integration Tests - Part 1', () => {
         expect(result.success).toBe(true);
 
         const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
-        expect(fileContent).toContain(`export class ${type.factory}`);
-        expect(fileContent).toContain(`export class ${type.request}`);
+        expect(fileContent).toContain('Object.freeze({');
+        expect(fileContent).toContain(`export const ${type.factory}`);
+        expect(fileContent).toContain(`export const ${type.request}`);
       }
     });
   });
@@ -601,9 +607,9 @@ describe('RequestFactoryGenerator Integration Tests - Part 2', () => {
       const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
 
       // Check for state patterns in the code
-      expect(fileContent).toContain("this.states.has('invalid')");
-      expect(fileContent).toContain("this.states.has('empty')");
-      expect(fileContent).toContain("this.states.has('minimal')");
+      expect(fileContent).toContain("states.has('invalid')");
+      expect(fileContent).toContain("states.has('empty')");
+      expect(fileContent).toContain("states.has('minimal')");
     });
 
     it('should provide available options list', () => {

@@ -10,22 +10,24 @@ export interface PromptOptions {
   defaults?: Record<string, unknown>;
 }
 
-export class PromptHelper {
+/**
+ * Prompt Helper Factory
+ * Sealed namespace for immutability
+ */
+export const PromptHelper = Object.freeze({
   /**
    * Generic prompt method for custom questions
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public async prompt(questions: any): Promise<Record<string, unknown>> {
-    return inquirer.prompt(questions);
-  }
+  async prompt(questions: unknown): Promise<Record<string, unknown>> {
+    return (inquirer as { prompt: (q: unknown) => Promise<Record<string, unknown>> }).prompt(
+      questions
+    );
+  },
 
   /**
    * Ask for project name
    */
-  public static async projectName(
-    defaultName?: string,
-    interactive: boolean = true
-  ): Promise<string> {
+  async projectName(defaultName?: string, interactive: boolean = true): Promise<string> {
     if (!interactive && defaultName !== undefined && defaultName !== '') {
       return defaultName;
     }
@@ -46,12 +48,12 @@ export class PromptHelper {
     ]);
 
     return answer.projectName;
-  }
+  },
 
   /**
    * Ask for database type
    */
-  public static async databaseType(
+  async databaseType(
     defaultDb: string = 'postgresql',
     interactive: boolean = true
   ): Promise<string> {
@@ -74,15 +76,12 @@ export class PromptHelper {
     ]);
 
     return answer.database;
-  }
+  },
 
   /**
    * Ask for port number
    */
-  public static async port(
-    defaultPort: number = 3000,
-    interactive: boolean = true
-  ): Promise<number> {
+  async port(defaultPort: number = 3000, interactive: boolean = true): Promise<number> {
     if (!interactive) {
       return defaultPort;
     }
@@ -101,12 +100,12 @@ export class PromptHelper {
     ]);
 
     return answer.port;
-  }
+  },
 
   /**
    * Ask for feature selection
    */
-  public static async selectFeatures(
+  async selectFeatures(
     availableFeatures: string[] = ['auth', 'payments', 'notifications'],
     interactive: boolean = true
   ): Promise<string[]> {
@@ -125,12 +124,12 @@ export class PromptHelper {
     ]);
 
     return answer.features;
-  }
+  },
 
   /**
    * Confirm action
    */
-  public static async confirm(
+  async confirm(
     message: string,
     defaultConfirm: boolean = true,
     interactive: boolean = true
@@ -149,12 +148,12 @@ export class PromptHelper {
     ]);
 
     return answer.confirmed;
-  }
+  },
 
   /**
    * Choose from list
    */
-  public static async chooseFrom(
+  async chooseFrom(
     message: string,
     choices: string[],
     defaultChoice: string = choices[0],
@@ -175,12 +174,12 @@ export class PromptHelper {
     ]);
 
     return answer.choice;
-  }
+  },
 
   /**
    * Get text input
    */
-  public static async textInput(
+  async textInput(
     message: string,
     defaultValue: string = '',
     interactive: boolean = true
@@ -192,12 +191,12 @@ export class PromptHelper {
     const answer = await inquirer.prompt([
       {
         type: 'input',
-        name: 'text',
+        name: 'input',
         message,
         default: defaultValue,
       },
     ]);
 
-    return answer.text;
-  }
-}
+    return answer.input;
+  },
+});

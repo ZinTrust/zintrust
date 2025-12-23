@@ -1,15 +1,81 @@
 /**
  * Database Configuration
  * Database connections and pooling settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 
-export const databaseConfig = {
+type SqliteConnectionConfig = {
+  driver: 'sqlite';
+  database: string;
+  migrations: string;
+};
+
+type PostgresqlConnectionConfig = {
+  driver: 'postgresql';
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  ssl: boolean;
+  pooling: {
+    enabled: boolean;
+    min: number;
+    max: number;
+    idleTimeout: number;
+    connectionTimeout: number;
+  };
+};
+
+type MysqlConnectionConfig = {
+  driver: 'mysql';
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  pooling: {
+    enabled: boolean;
+    min: number;
+    max: number;
+  };
+};
+
+type DatabaseConnections = {
+  sqlite: SqliteConnectionConfig;
+  postgresql: PostgresqlConnectionConfig;
+  mysql: MysqlConnectionConfig;
+};
+
+type DatabaseConnectionName = keyof DatabaseConnections;
+type DatabaseConnectionConfig = DatabaseConnections[DatabaseConnectionName];
+
+type DatabaseConfigShape = {
+  default: DatabaseConnectionName;
+  connections: DatabaseConnections;
+};
+
+const isDatabaseConnectionName = (value: string): value is DatabaseConnectionName => {
+  return value === 'sqlite' || value === 'postgresql' || value === 'mysql';
+};
+
+const getDefaultConnection = (): DatabaseConnectionName => {
+  const value = Env.DB_CONNECTION;
+  return isDatabaseConnectionName(value) ? value : 'sqlite';
+};
+
+const getDatabaseConnection = (config: DatabaseConfigShape): DatabaseConnectionConfig => {
+  const connName: DatabaseConnectionName = config.default;
+  return config.connections[connName];
+};
+
+const databaseConfigObj = {
   /**
    * Default database connection
    */
-  default: Env.DB_CONNECTION,
+  default: getDefaultConnection(),
 
   /**
    * Database connections
@@ -54,9 +120,8 @@ export const databaseConfig = {
   /**
    * Get current connection config
    */
-  getConnection() {
-    const connName = this.default as keyof typeof this.connections;
-    return this.connections[connName];
+  getConnection(this: DatabaseConfigShape): DatabaseConnectionConfig {
+    return getDatabaseConnection(this);
   },
 
   /**
@@ -81,6 +146,7 @@ export const databaseConfig = {
   seeders: {
     directory: 'database/seeders',
   },
-} as const;
+};
 
+export const databaseConfig = Object.freeze(databaseConfigObj);
 export type DatabaseConfig = typeof databaseConfig;

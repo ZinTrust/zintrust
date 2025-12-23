@@ -1,13 +1,17 @@
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
+
 /**
  * Enhanced Router with Route Groups and Resource Routes
  * Declarative routing API with intuitive syntax
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
-
-export type RouteHandler = (req: Request, res: Response) => Promise<void> | void;
-export type Middleware = (req: Request, res: Response, next: () => Promise<void>) => Promise<void>;
+export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
+export type Middleware = (
+  req: IRequest,
+  res: IResponse,
+  next: () => Promise<void>
+) => Promise<void>;
 
 export interface RegisteredRoute {
   method: string;
@@ -26,219 +30,222 @@ export interface RouteMatch {
   name?: string;
 }
 
-export class Router {
-  private readonly routes: RegisteredRoute[] = [];
-  private readonly nameMap = new Map<string, RegisteredRoute>();
-  private currentGroup?: { prefix: string; middleware: string[] };
+export interface IRouter {
+  routes: RegisteredRoute[];
+  nameMap: Map<string, RegisteredRoute>;
+  currentGroup?: { prefix: string; middleware: string[] };
+}
 
-  /**
-   * Register a GET route
-   */
-  public get(path: string, handler: RouteHandler, name?: string): RegisteredRoute {
-    return this.registerRoute('GET', path, handler, name);
+const createRouter = (): IRouter => ({
+  routes: <RegisteredRoute[]>[],
+  nameMap: new Map<string, RegisteredRoute>(),
+  currentGroup: undefined,
+});
+
+const get = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute =>
+  registerRoute(router.routes, router.nameMap, router.currentGroup, 'GET', path, handler, name);
+
+const post = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute =>
+  registerRoute(router.routes, router.nameMap, router.currentGroup, 'POST', path, handler, name);
+
+const put = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute =>
+  registerRoute(router.routes, router.nameMap, router.currentGroup, 'PUT', path, handler, name);
+
+const patch = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute =>
+  registerRoute(router.routes, router.nameMap, router.currentGroup, 'PATCH', path, handler, name);
+
+const del = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute =>
+  registerRoute(router.routes, router.nameMap, router.currentGroup, 'DELETE', path, handler, name);
+
+const any = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute =>
+  registerRoute(router.routes, router.nameMap, router.currentGroup, '*', path, handler, name);
+
+const resource = (
+  router: IRouter,
+  resourceName: string,
+  controller: {
+    index: RouteHandler;
+    create: RouteHandler;
+    store: RouteHandler;
+    show: RouteHandler;
+    edit: RouteHandler;
+    update: RouteHandler;
+    destroy: RouteHandler;
+  }
+): void => {
+  get(router, `/${resourceName}`, controller.index, `${resourceName}.index`);
+  get(router, `/${resourceName}/create`, controller.create, `${resourceName}.create`);
+  post(router, `/${resourceName}`, controller.store, `${resourceName}.store`);
+  get(router, `/${resourceName}/:id`, controller.show, `${resourceName}.show`);
+  get(router, `/${resourceName}/:id/edit`, controller.edit, `${resourceName}.edit`);
+  put(router, `/${resourceName}/:id`, controller.update, `${resourceName}.update`);
+  del(router, `/${resourceName}/:id`, controller.destroy, `${resourceName}.destroy`);
+};
+
+const group = (
+  router: IRouter,
+  options: { prefix?: string; middleware?: string[] },
+  callback: (router: IRouter) => void
+): void => {
+  const prevGroup = router.currentGroup;
+  router.currentGroup = {
+    prefix: (prevGroup?.prefix ?? '') + (options.prefix ?? ''),
+    middleware: [...(prevGroup?.middleware ?? []), ...(options.middleware ?? [])],
+  };
+  callback(router);
+  router.currentGroup = prevGroup;
+};
+
+const match = (router: IRouter, method: string, path: string): RouteMatch | null =>
+  matchRoute(router.routes, method, path);
+
+const getByName = (router: IRouter, name: string): RegisteredRoute | undefined =>
+  router.nameMap.get(name);
+
+const url = (router: IRouter, name: string, params: Record<string, string> = {}): string | null =>
+  generateUrl(router.nameMap, name, params);
+
+const getRoutes = (router: IRouter): RegisteredRoute[] => router.routes;
+
+/**
+ * Enhanced Router - Sealed namespace for HTTP routing
+ * Declarative API with route groups, resource routes, and named routes
+ */
+export const EnhancedRouter = Object.freeze({
+  createRouter,
+  get,
+  post,
+  put,
+  patch,
+  del,
+  any,
+  resource,
+  group,
+  match,
+  getByName,
+  url,
+  getRoutes,
+});
+
+export default EnhancedRouter;
+function pathToRegex(path: string): { pattern: RegExp; paramNames: string[] } {
+  const paramNames: string[] = [];
+  let regexPath = path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  regexPath = regexPath.replaceAll(/:([a-zA-Z_]\w*)/g, (_, paramName) => {
+    paramNames.push(paramName);
+    return '([^/]+)';
+  });
+  regexPath = `^${regexPath}$`;
+  return { pattern: new RegExp(regexPath), paramNames };
+}
+
+/**
+ * Internal route registration
+ */
+function registerRoute(
+  routes: RegisteredRoute[],
+  nameMap: Map<string, RegisteredRoute>,
+  currentGroup: { prefix: string; middleware: string[] } | undefined,
+  method: string,
+  path: string,
+  handler: RouteHandler,
+  name?: string
+): RegisteredRoute {
+  let fullPath = path;
+  let middleware: string[] = [];
+
+  if (currentGroup !== undefined) {
+    fullPath = currentGroup.prefix + path;
+    middleware = [...currentGroup.middleware];
   }
 
-  /**
-   * Register a POST route
-   */
-  public post(path: string, handler: RouteHandler, name?: string): RegisteredRoute {
-    return this.registerRoute('POST', path, handler, name);
+  const { pattern, paramNames } = pathToRegex(fullPath);
+
+  const route: RegisteredRoute = {
+    method,
+    path: fullPath,
+    name,
+    pattern,
+    handler,
+    paramNames,
+    middleware,
+  };
+
+  routes.push(route);
+  if (name !== undefined) {
+    nameMap.set(name, route);
   }
 
-  /**
-   * Register a PUT route
-   */
-  public put(path: string, handler: RouteHandler, name?: string): RegisteredRoute {
-    return this.registerRoute('PUT', path, handler, name);
-  }
+  return route;
+}
 
-  /**
-   * Register a PATCH route
-   */
-  public patch(path: string, handler: RouteHandler, name?: string): RegisteredRoute {
-    return this.registerRoute('PATCH', path, handler, name);
-  }
-
-  /**
-   * Register a DELETE route
-   */
-  public delete(path: string, handler: RouteHandler, name?: string): RegisteredRoute {
-    return this.registerRoute('DELETE', path, handler, name);
-  }
-
-  /**
-   * Register a route for all methods
-   */
-  public any(path: string, handler: RouteHandler, name?: string): RegisteredRoute {
-    return this.registerRoute('*', path, handler, name);
-  }
-
-  /**
-   * Register resource routes (CRUD)
-   */
-  public resource(
-    resource: string,
-    controller: {
-      index: RouteHandler;
-      create: RouteHandler;
-      store: RouteHandler;
-      show: RouteHandler;
-      edit: RouteHandler;
-      update: RouteHandler;
-      destroy: RouteHandler;
-    }
-  ): void {
-    // GET /resources
-    this.get(`/${resource}`, controller.index, `${resource}.index`);
-    // GET /resources/create
-    this.get(`/${resource}/create`, controller.create, `${resource}.create`);
-    // POST /resources
-    this.post(`/${resource}`, controller.store, `${resource}.store`);
-    // GET /resources/:id
-    this.get(`/${resource}/:id`, controller.show, `${resource}.show`);
-    // GET /resources/:id/edit
-    this.get(`/${resource}/:id/edit`, controller.edit, `${resource}.edit`);
-    // PUT /resources/:id
-    this.put(`/${resource}/:id`, controller.update, `${resource}.update`);
-    // DELETE /resources/:id
-    this.delete(`/${resource}/:id`, controller.destroy, `${resource}.destroy`);
-  }
-
-  /**
-   * Create a route group with shared prefix and middleware
-   */
-  public group(
-    options: { prefix?: string; middleware?: string[] },
-    callback: (router: Router) => void
-  ): void {
-    const prevGroup = this.currentGroup;
-
-    // Compose prefixes and middleware for nested groups
-    const prefix = (prevGroup?.prefix ?? '') + (options.prefix ?? '');
-    const middleware = [...(prevGroup?.middleware ?? []), ...(options.middleware ?? [])];
-
-    this.currentGroup = {
-      prefix,
-      middleware,
-    };
-
-    callback(this);
-
-    this.currentGroup = prevGroup;
-  }
-
-  /**
-   * Register a route
-   */
-  private registerRoute(
-    method: string,
-    path: string,
-    handler: RouteHandler,
-    name?: string
-  ): RegisteredRoute {
-    // Apply group prefix and middleware
-    let fullPath = path;
-    let middleware: string[] = [];
-
-    if (this.currentGroup !== undefined) {
-      fullPath = this.currentGroup.prefix + path;
-      middleware = [...this.currentGroup.middleware];
-    }
-
-    const { pattern, paramNames } = this.pathToRegex(fullPath);
-
-    const route: RegisteredRoute = {
-      method,
-      path: fullPath,
-      name,
-      pattern,
-      handler,
-      paramNames,
-      middleware,
-    };
-
-    this.routes.push(route);
-
-    if (name !== undefined) {
-      this.nameMap.set(name, route);
-    }
-
-    return route;
-  }
-
-  /**
-   * Match a request to a route
-   */
-  public match(method: string, path: string): RouteMatch | null {
-    for (const route of this.routes) {
-      if ((route.method === method || route.method === '*') && route.pattern.test(path)) {
-        const match = route.pattern.exec(path);
-        if (match !== null) {
-          const params: Record<string, string> = {};
-          route.paramNames.forEach((paramName, index) => {
-            params[paramName] = match[index + 1];
-          });
-
-          return {
-            handler: route.handler,
-            params,
-            middleware: route.middleware,
-            name: route.name,
-          };
-        }
+/**
+ * Match route against method and path
+ */
+function matchRoute(routes: RegisteredRoute[], method: string, path: string): RouteMatch | null {
+  for (const route of routes) {
+    if ((route.method === method || route.method === '*') && route.pattern.test(path)) {
+      const match = route.pattern.exec(path);
+      if (match !== null) {
+        const params: Record<string, string> = {};
+        route.paramNames.forEach((paramName, index) => {
+          params[paramName] = match[index + 1];
+        });
+        return {
+          handler: route.handler,
+          params,
+          middleware: route.middleware,
+          name: route.name,
+        };
       }
     }
-    return null;
   }
+  return null;
+}
 
-  /**
-   * Get route by name
-   */
-  public getByName(name: string): RegisteredRoute | undefined {
-    return this.nameMap.get(name);
+/**
+ * Generate URL from route name and params
+ */
+function generateUrl(
+  nameMap: Map<string, RegisteredRoute>,
+  name: string,
+  params: Record<string, string>
+): string | null {
+  const route = nameMap.get(name);
+  if (route === undefined) return null;
+  let url = route.path;
+  for (const [key, value] of Object.entries(params)) {
+    url = url.replaceAll(`:${key}`, value);
   }
-
-  /**
-   * Generate URL for named route
-   */
-  public url(name: string, params: Record<string, string> = {}): string | null {
-    const route = this.nameMap.get(name);
-    if (route === undefined) return null;
-
-    let url = route.path;
-    for (const [key, value] of Object.entries(params)) {
-      url = url.replaceAll(`:${key}`, value);
-    }
-    return url;
-  }
-
-  /**
-   * Get all registered routes
-   */
-  public getRoutes(): RegisteredRoute[] {
-    return this.routes;
-  }
-
-  /**
-   * Convert path pattern to regex
-   */
-  private pathToRegex(path: string): { pattern: RegExp; paramNames: string[] } {
-    const paramNames: string[] = [];
-
-    // Escape special regex characters to prevent ReDoS and unintended matching
-    // We keep ':' for parameter matching
-    let regexPath = path.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
-    // Replace parameters like :id with capture groups
-    regexPath = regexPath.replaceAll(/:([a-zA-Z_]\w*)/g, (_, paramName) => {
-      paramNames.push(paramName);
-      return '([^/]+)';
-    });
-
-    regexPath = `^${regexPath}$`;
-    // SonarQube S2631: The regex is built from developer-defined routes, not user input
-    const pattern = new RegExp(regexPath);
-
-    return { pattern, paramNames };
-  }
+  return url;
 }

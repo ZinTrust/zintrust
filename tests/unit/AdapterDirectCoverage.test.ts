@@ -18,7 +18,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should instantiate D1Adapter with config', async () => {
       const { D1Adapter } = await import('@orm/adapters/D1Adapter');
-      const adapter = new D1Adapter({
+      const adapter = D1Adapter.create({
         driver: 'd1',
       });
       expect(adapter).toBeDefined();
@@ -26,14 +26,14 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should have query method', async () => {
       const { D1Adapter } = await import('@orm/adapters/D1Adapter');
-      const adapter = new D1Adapter({ driver: 'd1' });
+      const adapter = D1Adapter.create({ driver: 'd1' });
       expect(adapter.query).toBeDefined();
       expect(typeof adapter.query).toBe('function');
     });
 
     it('should have getType method', async () => {
       const { D1Adapter } = await import('@orm/adapters/D1Adapter');
-      const adapter = new D1Adapter({ driver: 'd1' });
+      const adapter = D1Adapter.create({ driver: 'd1' });
       expect(adapter.getType).toBeDefined();
       expect(adapter.getType()).toBe('d1');
     });
@@ -47,7 +47,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should instantiate SQLiteAdapter', async () => {
       const { SQLiteAdapter } = await import('@orm/adapters/SQLiteAdapter');
-      const adapter = new SQLiteAdapter({
+      const adapter = SQLiteAdapter.create({
         driver: 'sqlite',
         database: ':memory:',
       });
@@ -56,7 +56,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should have proper methods', async () => {
       const { SQLiteAdapter } = await import('@orm/adapters/SQLiteAdapter');
-      const adapter = new SQLiteAdapter({
+      const adapter = SQLiteAdapter.create({
         driver: 'sqlite',
         database: ':memory:',
       });
@@ -72,7 +72,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should instantiate MySQLAdapter with config', async () => {
       const { MySQLAdapter } = await import('@orm/adapters/MySQLAdapter');
-      const adapter = new MySQLAdapter({
+      const adapter = MySQLAdapter.create({
         driver: 'mysql',
         host: 'localhost',
         port: 3306,
@@ -83,7 +83,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should have getType method returning mysql', async () => {
       const { MySQLAdapter } = await import('@orm/adapters/MySQLAdapter');
-      const adapter = new MySQLAdapter({
+      const adapter = MySQLAdapter.create({
         driver: 'mysql',
         host: 'localhost',
       });
@@ -99,7 +99,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should instantiate PostgreSQLAdapter', async () => {
       const { PostgreSQLAdapter } = await import('@orm/adapters/PostgreSQLAdapter');
-      const adapter = new PostgreSQLAdapter({
+      const adapter = PostgreSQLAdapter.create({
         driver: 'postgresql',
         host: 'localhost',
         port: 5432,
@@ -109,7 +109,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should have getType method returning postgresql', async () => {
       const { PostgreSQLAdapter } = await import('@orm/adapters/PostgreSQLAdapter');
-      const adapter = new PostgreSQLAdapter({
+      const adapter = PostgreSQLAdapter.create({
         driver: 'postgresql',
       });
       expect(adapter.getType()).toBe('postgresql');
@@ -124,7 +124,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should instantiate SQLServerAdapter', async () => {
       const { SQLServerAdapter } = await import('@orm/adapters/SQLServerAdapter');
-      const adapter = new SQLServerAdapter({
+      const adapter = SQLServerAdapter.create({
         driver: 'sqlserver',
         host: 'localhost',
       } as any);
@@ -133,7 +133,7 @@ describe('ORM Adapters - Direct Coverage', () => {
 
     it('should have getType method returning sqlserver', async () => {
       const { SQLServerAdapter } = await import('@orm/adapters/SQLServerAdapter');
-      const adapter = new SQLServerAdapter({
+      const adapter = SQLServerAdapter.create({
         driver: 'sqlserver',
       });
       expect(adapter.getType()).toBe('sqlserver');
@@ -153,7 +153,7 @@ describe('Database Module Direct Coverage', () => {
 
   it('should instantiate Database with config', async () => {
     const { Database } = await import('@orm/Database');
-    const db = new Database({
+    const db = Database.create({
       driver: 'sqlite',
       database: ':memory:',
     });
@@ -162,7 +162,7 @@ describe('Database Module Direct Coverage', () => {
 
   it('should access table method', async () => {
     const { Database } = await import('@orm/Database');
-    const db = new Database({
+    const db = Database.create({
       driver: 'sqlite',
       database: ':memory:',
     });
@@ -172,7 +172,7 @@ describe('Database Module Direct Coverage', () => {
 
   it('should create query builder', async () => {
     const { Database } = await import('@orm/Database');
-    const db = new Database({
+    const db = Database.create({
       driver: 'sqlite',
       database: ':memory:',
     });
@@ -197,14 +197,14 @@ describe('QueryBuilder Module Direct Coverage', () => {
       getAdapter: vi.fn(),
     } as any;
 
-    const qb = new QueryBuilder(mockDb as any);
+    const qb = QueryBuilder.create(mockDb);
     expect(qb).toBeDefined();
   });
 
   it('should have where method', async () => {
     const { QueryBuilder } = await import('@orm/QueryBuilder');
     const mockDb = { getAdapter: vi.fn() } as any;
-    const qb = new QueryBuilder(mockDb as any);
+    const qb = QueryBuilder.create(mockDb);
     expect(qb.where).toBeDefined();
     expect(typeof qb.where).toBe('function');
   });
@@ -212,7 +212,7 @@ describe('QueryBuilder Module Direct Coverage', () => {
   it('should have select method', async () => {
     const { QueryBuilder } = await import('@orm/QueryBuilder');
     const mockDb = { getAdapter: vi.fn() } as any;
-    const qb = new QueryBuilder(mockDb as any);
+    const qb = QueryBuilder.create(mockDb);
     expect(qb.select).toBeDefined();
     expect(typeof qb.select).toBe('function');
   });
@@ -220,7 +220,7 @@ describe('QueryBuilder Module Direct Coverage', () => {
   it('should have orderBy method', async () => {
     const { QueryBuilder } = await import('@orm/QueryBuilder');
     const mockDb = { getAdapter: vi.fn() } as any;
-    const qb = new QueryBuilder(mockDb as any);
+    const qb = QueryBuilder.create(mockDb);
     expect(qb.orderBy).toBeDefined();
     expect(typeof qb.orderBy).toBe('function');
   });
@@ -228,7 +228,7 @@ describe('QueryBuilder Module Direct Coverage', () => {
   it('should have limit method', async () => {
     const { QueryBuilder } = await import('@orm/QueryBuilder');
     const mockDb = { getAdapter: vi.fn() } as any;
-    const qb = new QueryBuilder(mockDb as any);
+    const qb = QueryBuilder.create(mockDb);
     expect(qb.limit).toBeDefined();
     expect(typeof qb.limit).toBe('function');
   });
@@ -236,7 +236,7 @@ describe('QueryBuilder Module Direct Coverage', () => {
   it('should chain methods', async () => {
     const { QueryBuilder } = await import('@orm/QueryBuilder');
     const mockDb = { getAdapter: vi.fn() } as any;
-    const qb = new QueryBuilder(mockDb as any);
+    const qb = QueryBuilder.create(mockDb);
     const result = qb.select('id', 'name').where('id', '=', 1).limit(10);
     expect(result).toBeDefined();
   });
@@ -254,10 +254,14 @@ describe('Model Module Direct Coverage', () => {
 
   it('should have table property', async () => {
     const { Model } = await import('@orm/Model');
-    const TestModel = class extends Model {
-      protected static table = 'users';
-    };
-    expect(TestModel).toBeDefined();
+    const TestModel = Model.define({
+      table: 'users',
+      fillable: [],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+    expect(TestModel.getTable()).toBe('users');
   });
 
   it('should have create method', async () => {
@@ -280,27 +284,35 @@ describe('Model Module Direct Coverage', () => {
 
   it('should have where method', async () => {
     const { Model } = await import('@orm/Model');
-    const qb = Model.query();
+    const qb = Model.query('users');
     expect(qb.where).toBeDefined();
     expect(typeof qb.where).toBe('function');
   });
 
   it('should have save method', async () => {
     const { Model } = await import('@orm/Model');
-    const TestModel = class extends Model {
-      public id?: number;
-    };
-    const instance = new TestModel();
+    const TestModel = Model.define({
+      table: 'users',
+      fillable: [],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+    const instance = TestModel.create();
     expect(instance.save).toBeDefined();
     expect(typeof instance.save).toBe('function');
   });
 
   it('should have delete method', async () => {
     const { Model } = await import('@orm/Model');
-    const TestModel = class extends Model {
-      public id?: number;
-    };
-    const instance = new TestModel();
+    const TestModel = Model.define({
+      table: 'users',
+      fillable: [],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+    });
+    const instance = TestModel.create();
     expect(instance.delete).toBeDefined();
     expect(typeof instance.delete).toBe('function');
   });

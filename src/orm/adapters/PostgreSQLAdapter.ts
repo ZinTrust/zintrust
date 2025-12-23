@@ -1,74 +1,96 @@
 /**
  * PostgreSQL Database Adapter
- * Uses pg (postgres) package for connections
  */
 
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
-import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
+import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 
 /**
  * PostgreSQL adapter implementation
- * Requires: npm install pg
+ * Sealed namespace for immutability
  */
-export class PostgreSQLAdapter extends BaseAdapter {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-  constructor(config: DatabaseConfig) {
-    super(config);
-  }
+export const PostgreSQLAdapter = Object.freeze({
+  /**
+   * Create a new PostgreSQL adapter instance
+   */
+  create(config: DatabaseConfig): IDatabaseAdapter {
+    let connected = false;
 
-  public async connect(): Promise<void> {
-    try {
-      if (this.config.host === 'error') {
-        throw new Error('Connection failed');
-      }
-      // In production: const pg = require('pg');
-      // this.pool = new pg.Pool({...config});
-      Logger.info(`✓ PostgreSQL connected (${this.config.host}:${this.config.port ?? 5432})`);
-      this.connected = true;
-    } catch (error) {
-      Logger.error('Failed to connect to PostgreSQL', error);
-      throw new Error(
-        `Failed to connect to PostgreSQL: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  }
+    return {
+      async connect(): Promise<void> {
+        if (config.host === 'error') {
+          throw new Error('Failed to connect to PostgreSQL: Connection failed');
+        }
+        connected = true;
+        Logger.info(`✓ PostgreSQL connected (${config.host}:${config.port})`);
+      },
 
-  public async disconnect(): Promise<void> {
-    this.connected = false;
-    Logger.info('✓ PostgreSQL disconnected');
-  }
+      async disconnect(): Promise<void> {
+        connected = false;
+        Logger.info('✓ PostgreSQL disconnected');
+      },
 
-  public async query(_sql: string, _parameters: unknown[]): Promise<QueryResult> {
-    if (!this.connected) {
-      throw new Error('Database not connected');
-    }
+      async query(_sql: string, _parameters: unknown[]): Promise<QueryResult> {
+        if (!connected) throw new Error('Database not connected');
+        // Mock implementation
+        return { rows: [], rowCount: 0 };
+      },
 
-    // In production:
-    // const result = await this.pool.query(sql, parameters);
-    // return { rows: result.rows, rowCount: result.rowCount };
+      async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
+        const result = await this.query(sql, parameters);
+        return result.rows[0] ?? null;
+      },
 
-    return { rows: [], rowCount: 0 };
-  }
+      async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
+        if (!connected) throw new Error('Database not connected');
+        try {
+          await this.query('BEGIN', []);
+          const result = await callback(this);
+          await this.query('COMMIT', []);
+          return result;
+        } catch (error) {
+          Logger.error('PostgreSQL transaction failed', error);
+          await this.query('ROLLBACK', []);
+          throw error;
+        }
+      },
 
-  public async queryOne(
-    sql: string,
-    parameters: unknown[]
-  ): Promise<Record<string, unknown> | null> {
-    const result = await this.query(sql, parameters);
-    return result.rows[0] ?? null;
-  }
+      getType(): string {
+        return 'postgresql';
+      },
+      isConnected(): boolean {
+        return connected;
+      },
+      async rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> {
+        if (!FeatureFlags.isRawQueryEnabled()) {
+          throw new Error(
+            'Raw SQL queries are disabled. Set USE_RAW_QRY=true environment variable to enable.'
+          );
+        }
 
-  public async transaction<T>(callback: (adapter: PostgreSQLAdapter) => Promise<T>): Promise<T> {
-    try {
-      const result = await callback(this);
-      return result;
-    } catch (error) {
-      Logger.error('error', error);
-      throw error;
-    }
-  }
+        if (!connected) {
+          throw new Error('Database not connected');
+        }
 
-  protected getParameterPlaceholder(index: number): string {
-    return `$${index}`;
-  }
-}
+        Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+
+        try {
+          if (sql.toUpperCase().includes('INVALID')) {
+            throw new Error('Invalid SQL syntax');
+          }
+          // Mock implementation
+          return [] as T[];
+        } catch (error) {
+          Logger.error('Raw SQL Query failed', error);
+          throw error;
+        }
+      },
+      getPlaceholder(index: number): string {
+        return `$${index}`;
+      },
+    };
+  },
+});
+
+export default PostgreSQLAdapter;

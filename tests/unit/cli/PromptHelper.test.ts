@@ -150,14 +150,14 @@ describe('PromptHelper', () => {
     });
 
     it('should prompt for text when interactive', async () => {
-      vi.mocked(inquirer.prompt).mockResolvedValue({ text: 'hello' });
+      vi.mocked(inquirer.prompt).mockResolvedValue({ input: 'hello' });
       await expect(PromptHelper.textInput('Enter', '', true)).resolves.toBe('hello');
     });
   });
 
   describe('instance method prompt', () => {
     it('should call inquirer.prompt', async () => {
-      const helper = new PromptHelper();
+      const helper = PromptHelper;
       const questions = [{ name: 'q1' }];
       vi.mocked(inquirer.prompt).mockResolvedValue({ q1: 'a1' });
 

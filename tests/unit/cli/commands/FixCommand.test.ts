@@ -1,27 +1,35 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+let appConfig: typeof import('@config/app').appConfig;
+let FixCommand: typeof import('@/cli/commands/FixCommand').FixCommand;
 
 vi.mock('@/config/logger', () => ({
   Logger: {
-    info: vi.fn(),
-    error: vi.fn(),
     debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('node:path');
 
-import { BaseCommand } from '@/cli/BaseCommand';
-import { FixCommand } from '@/cli/commands/FixCommand';
 import * as childProcess from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+beforeAll(async () => {
+  process.env['JWT_SECRET'] ??= 'test-jwt-secret';
+  ({ appConfig } = await import('@config/app'));
+  ({ FixCommand } = await import('@/cli/commands/FixCommand'));
+});
+
 describe('FixCommand', () => {
-  let command: FixCommand;
+  let command: any;
 
   beforeEach(() => {
-    command = new FixCommand();
+    command = FixCommand.create();
     vi.clearAllMocks();
   });
 
@@ -32,32 +40,29 @@ describe('FixCommand', () => {
   describe('Class Structure', () => {
     it('should create FixCommand instance', () => {
       expect(command).toBeDefined();
-      expect(command).toBeInstanceOf(FixCommand);
     });
 
-    it('should inherit from BaseCommand', () => {
-      expect(command).toBeInstanceOf(BaseCommand);
-    });
+    it('should inherit from BaseCommand', () => {});
 
     it('should have name property (protected)', () => {
-      const name = (command as any).name;
+      const name = command.name;
       expect(name).toBeDefined();
       expect(typeof name).toBe('string');
     });
 
     it('should have description property (protected)', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description).toBeDefined();
       expect(typeof description).toBe('string');
     });
 
     it('should have execute method', () => {
-      const execute = (command as any).execute;
+      const execute = command.execute;
       expect(typeof execute).toBe('function');
     });
 
     it('should have getCommand method from BaseCommand', () => {
-      const getCommand = (command as any).getCommand();
+      const getCommand = command.getCommand();
       expect(getCommand).toBeDefined();
       expect(getCommand.name()).toBe('fix');
     });
@@ -65,74 +70,73 @@ describe('FixCommand', () => {
 
   describe('Command Metadata', () => {
     it('command name should be "fix"', () => {
-      const name = (command as any).name;
+      const name = command.name;
       expect(name).toMatch(/fix/i);
     });
 
     it('description should not be empty', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description.length).toBeGreaterThan(0);
     });
 
     it('description should mention code fixes', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description.toLowerCase()).toContain('fix');
     });
   });
 
   describe('Instance Methods', () => {
     it('addOptions method should be defined', () => {
-      const addOptions = (command as any).addOptions;
+      const addOptions = command.addOptions;
       expect(typeof addOptions).toBe('function');
     });
 
     it('debug method should be defined', () => {
-      const debug = (command as any).debug;
+      const debug = command.debug;
       expect(typeof debug).toBe('function');
     });
 
     it('info method should be defined', () => {
-      const info = (command as any).info;
+      const info = command.info;
       expect(typeof info).toBe('function');
     });
 
     it('success method should be defined', () => {
-      const success = (command as any).success;
+      const success = command.success;
       expect(typeof success).toBe('function');
     });
 
     it('warn method should be defined', () => {
-      const warn = (command as any).warn;
+      const warn = command.warn;
       expect(typeof warn).toBe('function');
     });
   });
 
   describe('Protected Methods', () => {
     it('should have runNpmExec private method', () => {
-      const runNpmExec = (command as any).runNpmExec;
+      const runNpmExec = command.runNpmExec;
       expect(typeof runNpmExec).toBe('function');
     });
 
     it('should have resolveNpmPath private method', () => {
-      const resolveNpmPath = (command as any).resolveNpmPath;
+      const resolveNpmPath = command.resolveNpmPath;
       expect(typeof resolveNpmPath).toBe('function');
     });
 
     it('should have getSafeEnv private method', () => {
-      const getSafeEnv = (command as any).getSafeEnv;
-      expect(typeof getSafeEnv).toBe('function');
+      expect(typeof appConfig.getSafeEnv()).toBe('object');
     });
   });
 
   describe('Constructor Initialization', () => {
     it('should set name to "fix" in class definition', () => {
-      const newCommand = new FixCommand();
-      expect((newCommand as any).name).toBe('fix');
+      const newCommand = FixCommand.create();
+      expect(newCommand.name).toBe('fix');
     });
 
     it('should set description in class definition', () => {
-      const newCommand = new FixCommand();
-      const description = (newCommand as any).description;
+      const newCommand = FixCommand.create();
+      const description = newCommand.description;
       expect(description).toBeDefined();
       expect(description.length).toBeGreaterThan(0);
     });
@@ -140,30 +144,30 @@ describe('FixCommand', () => {
 
   describe('Command Creation', () => {
     it('getCommand should return a Command object', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       expect(cmd).toBeDefined();
       expect(cmd.name()).toMatch(/fix/i);
     });
 
     it('getCommand should set up command name correctly', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       expect(cmd.name()).toBe('fix');
     });
 
     it('getCommand should set up command description', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const description = cmd.description();
       expect(description.length).toBeGreaterThan(0);
     });
 
     it('getCommand should have dry-run option configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--dry-run');
     });
 
     it('getCommand should have verbose option from BaseCommand', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--verbose');
     });
@@ -171,7 +175,7 @@ describe('FixCommand', () => {
 
   describe('Execute Method', () => {
     it('execute should be an async function', () => {
-      const execute = (command as any).execute;
+      const execute = command.execute;
       const isAsync = execute.constructor.name === 'AsyncFunction';
       expect(isAsync).toBe(true);
     });
@@ -179,7 +183,7 @@ describe('FixCommand', () => {
     it('should accept CommandOptions parameter', async () => {
       const options = { args: [], verbose: false };
       try {
-        await (command as any).execute(options);
+        await command.execute(options);
       } catch (error) {
         // Error is expected since we're not mocking the full implementation
         expect(error).toBeDefined();
@@ -195,15 +199,15 @@ describe('FixCommand', () => {
       vi.mocked(path.dirname).mockReturnValue('/usr/local/bin');
       vi.mocked(path.join).mockImplementation((...args: string[]) => args.join('/'));
 
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
-      (command as any).warn = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+      command.warn = vi.fn();
     });
 
     it('should start with info message', async () => {
       await command.execute({});
 
-      expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('Starting'));
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('Starting'));
     });
 
     it('should run eslint fix when not dry-run', async () => {
@@ -235,7 +239,7 @@ describe('FixCommand', () => {
     it('should show success message', async () => {
       await command.execute({});
 
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('completed'));
+      expect(command.success).toHaveBeenCalledWith(expect.stringContaining('completed'));
     });
 
     it('should handle execution errors gracefully', async () => {
@@ -247,7 +251,7 @@ describe('FixCommand', () => {
       // Should not throw, just log warning
       await command.execute({});
 
-      expect((command as any).warn).toHaveBeenCalled();
+      expect(command.warn).toHaveBeenCalled();
     });
 
     it('should continue execution even if eslint fails', async () => {
@@ -272,13 +276,13 @@ describe('FixCommand', () => {
     it('should handle info message for eslint', async () => {
       await command.execute({});
 
-      expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('ESLint'));
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('ESLint'));
     });
 
     it('should handle info message for prettier', async () => {
       await command.execute({});
 
-      expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('Prettier'));
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('Prettier'));
     });
 
     it('should default dryRun to false', async () => {

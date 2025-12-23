@@ -5,114 +5,97 @@
 
 import { MemoryDelta, MemorySnapshot } from '@profiling/types';
 
+export interface IMemoryProfiler {
+  start(): void;
+  end(): MemorySnapshot;
+  delta(): MemoryDelta;
+  getStartSnapshot(): MemorySnapshot | null;
+  getEndSnapshot(): MemorySnapshot | null;
+  getReport(): string;
+}
+
 /**
  * MemoryProfiler captures memory usage before and after request execution
- * Provides delta calculation for memory consumption analysis
+ * Sealed namespace for immutability
  */
-export class MemoryProfiler {
-  private startSnapshot: MemorySnapshot | null = null;
-  private endSnapshot: MemorySnapshot | null = null;
-
+export const MemoryProfiler = Object.freeze({
   /**
-   * Capture current memory state
+   * Create a new memory profiler instance
    */
-  private captureSnapshot(): MemorySnapshot {
-    const mem = process.memoryUsage();
-    return {
-      heapUsed: mem.heapUsed,
-      heapTotal: mem.heapTotal,
-      external: mem.external,
-      rss: mem.rss,
-      timestamp: new Date(),
-    };
-  }
+  create(): IMemoryProfiler {
+    let startSnapshot: MemorySnapshot | null = null;
+    let endSnapshot: MemorySnapshot | null = null;
 
-  /**
-   * Start memory profiling
-   * Should be called before request execution
-   */
-  public start(): void {
-    // Force garbage collection if available
-    if (globalThis.gc) {
-      globalThis.gc();
-    }
-
-    this.startSnapshot = this.captureSnapshot();
-    this.endSnapshot = null;
-  }
-
-  /**
-   * End memory profiling
-   * Should be called after request execution
-   */
-  public end(): MemorySnapshot {
-    this.endSnapshot = this.captureSnapshot();
-    return this.endSnapshot;
-  }
-
-  /**
-   * Get memory delta between start and end
-   */
-  public delta(): MemoryDelta {
-    if (!this.startSnapshot || !this.endSnapshot) {
+    const captureSnapshot = (): MemorySnapshot => {
+      const mem = process.memoryUsage();
       return {
-        heapUsed: 0,
-        heapTotal: 0,
-        external: 0,
-        rss: 0,
+        heapUsed: mem.heapUsed,
+        heapTotal: mem.heapTotal,
+        external: mem.external,
+        rss: mem.rss,
+        timestamp: new Date(),
       };
-    }
-
-    return {
-      heapUsed: this.endSnapshot.heapUsed - this.startSnapshot.heapUsed,
-      heapTotal: this.endSnapshot.heapTotal - this.startSnapshot.heapTotal,
-      external: this.endSnapshot.external - this.startSnapshot.external,
-      rss: this.endSnapshot.rss - this.startSnapshot.rss,
     };
-  }
 
-  /**
-   * Get start snapshot
-   */
-  public getStartSnapshot(): MemorySnapshot | null {
-    return this.startSnapshot;
-  }
+    const delta = (): MemoryDelta => {
+      if (!startSnapshot || !endSnapshot) {
+        return { heapUsed: 0, heapTotal: 0, external: 0, rss: 0 };
+      }
 
-  /**
-   * Get end snapshot
-   */
-  public getEndSnapshot(): MemorySnapshot | null {
-    return this.endSnapshot;
-  }
+      return {
+        heapUsed: endSnapshot.heapUsed - startSnapshot.heapUsed,
+        heapTotal: endSnapshot.heapTotal - startSnapshot.heapTotal,
+        external: endSnapshot.external - startSnapshot.external,
+        rss: endSnapshot.rss - startSnapshot.rss,
+      };
+    };
+
+    const profiler: IMemoryProfiler = {
+      start() {
+        if (globalThis.gc) globalThis.gc();
+        startSnapshot = captureSnapshot();
+        endSnapshot = null;
+      },
+      end() {
+        endSnapshot = captureSnapshot();
+        return endSnapshot;
+      },
+      delta,
+      getStartSnapshot() {
+        return startSnapshot;
+      },
+      getEndSnapshot() {
+        return endSnapshot;
+      },
+      getReport() {
+        if (!startSnapshot || !endSnapshot) {
+          return 'Memory profiling not started or completed';
+        }
+
+        const d = delta();
+        const lines: string[] = ['Memory Profile Report:'];
+
+        lines.push(
+          `  Heap Used: ${formatBytes(d.heapUsed)}`,
+          `  Heap Total: ${formatBytes(d.heapTotal)}`,
+          `  External: ${formatBytes(d.external)}`,
+          `  RSS: ${formatBytes(d.rss)}`
+        );
+
+        return lines.join('\n');
+      },
+    };
+
+    return profiler;
+  },
 
   /**
    * Format memory value as human-readable string
    */
-  public static formatBytes(bytes: number): string {
+  formatBytes(bytes: number): string {
     return formatBytes(bytes);
-  }
-
-  /**
-   * Get human-readable memory report
-   */
-  public getReport(): string {
-    if (!this.startSnapshot || !this.endSnapshot) {
-      return 'Memory profiling not started or completed';
-    }
-
-    const d = this.delta();
-    const lines: string[] = ['Memory Profile Report:'];
-
-    lines.push(
-      `  Heap Used: ${MemoryProfiler.formatBytes(d.heapUsed)}`,
-      `  Heap Total: ${MemoryProfiler.formatBytes(d.heapTotal)}`,
-      `  External: ${MemoryProfiler.formatBytes(d.external)}`,
-      `  RSS: ${MemoryProfiler.formatBytes(d.rss)}`
-    );
-
-    return lines.join('\n');
-  }
-}
+  },
+});
 
 /**
  * Format memory value as human-readable string

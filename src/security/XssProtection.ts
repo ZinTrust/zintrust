@@ -1,6 +1,7 @@
 /**
  * XSS Protection Utilities
  * HTML escaping and sanitization (pure TypeScript, zero dependencies)
+ * Sealed namespace pattern - all exports through XssProtection namespace
  */
 
 import { Logger } from '@config/logger';
@@ -21,17 +22,17 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
 /**
  * Escape HTML special characters
  */
-export function escapeHtml(text: string): string {
+const escapeHtml = (text: string): string => {
   if (typeof text !== 'string') {
     return '';
   }
   return text.replaceAll(/[&<>"'/`=]/g, (char) => HTML_ESCAPE_MAP[char] || char);
-}
+};
 
 /**
  * Sanitize HTML by removing dangerous tags and attributes
  */
-export function sanitizeHtml(html: string): string {
+const sanitizeHtml = (html: string): string => {
   if (typeof html !== 'string') {
     return '';
   }
@@ -67,12 +68,12 @@ export function sanitizeHtml(html: string): string {
   sanitized = sanitized.replaceAll(/<(?:object|embed|applet|meta|link|base)\b[\s\S]*?>/gi, '');
 
   return sanitized.trim();
-}
+};
 
 /**
  * Encode URI component to prevent injection in URLs
  */
-export function encodeUri(uri: string): string {
+const encodeUri = (uri: string): string => {
   if (typeof uri !== 'string') {
     return '';
   }
@@ -82,12 +83,12 @@ export function encodeUri(uri: string): string {
     Logger.error('URI encoding failed', error);
     return '';
   }
-}
+};
 
 /**
  * Encode URI for use in href attribute
  */
-export function encodeHref(href: string): string {
+const encodeHref = (href: string): string => {
   if (typeof href !== 'string') {
     return '';
   }
@@ -108,12 +109,12 @@ export function encodeHref(href: string): string {
   }
 
   return escapeHtml(href);
-}
+};
 
 /**
  * Check if string is safe URL (http, https, or relative)
  */
-export function isSafeUrl(url: string): boolean {
+const isSafeUrl = (url: string): boolean => {
   if (typeof url !== 'string') {
     return false;
   }
@@ -136,25 +137,35 @@ export function isSafeUrl(url: string): boolean {
   }
 
   return true;
-}
+};
 
 /**
  * Escape JSON for safe embedding in HTML
  */
-export function escapeJson(obj: unknown): string {
+export const escapeJson = (obj: unknown): string => {
   const json = JSON.stringify(obj);
   return escapeHtml(json);
+};
+
+export interface IXssProtection {
+  escape(text: string): string;
+  sanitize(html: string): string;
+  encodeUri(uri: string): string;
+  encodeHref(href: string): string;
+  isSafeUrl(url: string): boolean;
+  escapeJson(obj: unknown): string;
 }
 
 /**
  * XSS Protection Utilities
  * HTML escaping and sanitization (pure TypeScript, zero dependencies)
+ * Sealed namespace with protection methods
  */
-export const XssProtection = {
+export const XssProtection: IXssProtection = Object.freeze({
   escape: escapeHtml,
   sanitize: sanitizeHtml,
   encodeUri,
   encodeHref,
   isSafeUrl,
   escapeJson,
-};
+});

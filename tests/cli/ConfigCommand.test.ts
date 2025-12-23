@@ -2,14 +2,15 @@
  * ConfigCommand Tests
  */
 
+import { IBaseCommand } from '@cli/BaseCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('ConfigCommand', () => {
-  let command: ConfigCommand;
+  let command: IBaseCommand;
 
   beforeEach(() => {
-    command = new ConfigCommand();
+    command = ConfigCommand.create();
   });
 
   it('should be created with correct name', () => {
@@ -56,13 +57,6 @@ describe('ConfigCommand', () => {
     expect(command).toBeDefined();
     expect(command.getCommand).toBeDefined();
     expect(command.execute).toBeDefined();
-  });
-
-  it('should have logging methods', () => {
-    expect(command['info']).toBeDefined();
-    expect(command['success']).toBeDefined();
-    expect(command['warn']).toBeDefined();
-    expect(command['debug']).toBeDefined();
   });
 
   it('should default to list action', async () => {

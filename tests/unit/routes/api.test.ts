@@ -2,7 +2,6 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { useDatabase } from '@orm/Database';
 import { registerRoutes } from '@routes/api';
-import { Router } from '@routing/EnhancedRouter';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // Mock dependencies
@@ -27,26 +26,33 @@ vi.mock('@config/env', () => ({
 }));
 vi.mock('@config/logger');
 vi.mock('@orm/Database');
-vi.mock('@routing/EnhancedRouter');
 
 describe('Routes API', () => {
-  let router: Router;
+  let router: {
+    get: Mock;
+    post: Mock;
+    put: Mock;
+    delete: Mock;
+    group: Mock;
+    resource: Mock;
+  };
   let mockDb: { query: Mock };
 
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Setup Router mock
-    router = new Router();
-    router.get = vi.fn();
-    router.post = vi.fn();
-    router.put = vi.fn();
-    router.delete = vi.fn();
-    router.group = vi.fn((options: unknown, callback: (r: Router) => void) => {
-      String(options);
-      callback(router);
-    }) as unknown as Router['group'];
-    router.resource = vi.fn();
+    router = {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+      group: vi.fn((options: unknown, callback: (r: unknown) => void) => {
+        String(options);
+        callback(router);
+      }),
+      resource: vi.fn(),
+    };
 
     // Setup Database mock
     mockDb = {
@@ -63,13 +69,13 @@ describe('Routes API', () => {
     expect(router.get).toHaveBeenCalledWith('/health', expect.any(Function));
 
     // Verify API v1 group
-    expect(router.group).toHaveBeenCalledWith(
+    expect((router as any).group).toHaveBeenCalledWith(
       expect.objectContaining({ prefix: '/api/v1' }),
       expect.any(Function)
     );
 
     // Verify Admin group
-    expect(router.group).toHaveBeenCalledWith(
+    expect((router as any).group).toHaveBeenCalledWith(
       expect.objectContaining({ prefix: '/admin' }),
       expect.any(Function)
     );
@@ -253,7 +259,7 @@ describe('Routes API', () => {
 
     it('should register user resource', () => {
       registerRoutes(router);
-      expect(router.resource).toHaveBeenCalledWith('users', expect.any(Object));
+      expect((router as any).resource).toHaveBeenCalledWith('users', expect.any(Object));
     });
 
     it('should register profile routes', async () => {

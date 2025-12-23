@@ -147,21 +147,42 @@ USE_RAW_QRY=true
 
 ### Raw SQL Example
 
-Once enabled, you can access the underlying adapter:
+Once enabled via environment variable, you can execute raw queries:
 
 ```typescript
-// Only works if USE_RAW_QRY=true
-if (process.env.USE_RAW_QRY === 'true') {
-  const result = await adapter.query('SELECT * FROM users WHERE created_at > $1', [
-    new Date('2024-01-01'),
-  ]);
-}
+import { PostgresAdapter } from '@microservices/PostgresAdapter';
+import { Env } from '@config/env';
+
+const adapter = new PostgresAdapter({
+  host: 'postgres',
+  port: 5432,
+  database: 'zintrust',
+  user: 'postgres',
+  password: 'postgres',
+});
+
+await adapter.connect();
+
+// Raw query available when USE_RAW_QRY=true (checked at app bootstrap)
+const result = await adapter.rawQuery('SELECT * FROM users WHERE created_at > $1', [
+  new Date('2024-01-01'),
+]);
 ```
 
-**Instead, use QueryBuilder:**
+**Per-Adapter Parameter Syntax:**
+
+| Adapter       | Syntax                | Example                                   |
+| ------------- | --------------------- | ----------------------------------------- |
+| PostgreSQL    | `$1, $2, $3...`       | `WHERE id = $1 AND status = $2`           |
+| MySQL         | `?, ?, ?...`          | `WHERE id = ? AND status = ?`             |
+| SQLite        | `$1, $2, $3...`       | `WHERE id = $1 AND status = $2`           |
+| SQL Server    | `@param0, @param1...` | `WHERE id = @param0 AND status = @param1` |
+| Cloudflare D1 | `?, ?, ?...`          | `WHERE id = ? AND status = ?`             |
+
+**Instead, use QueryBuilder (Recommended):**
 
 ```typescript
-// ✅ Recommended approach
+// ✅ Recommended approach - type-safe and secure
 const User = require('@app/Models/User');
 const result = await User.query().where('created_at', '>', new Date('2024-01-01')).get();
 ```

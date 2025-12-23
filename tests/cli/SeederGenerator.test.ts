@@ -149,8 +149,9 @@ describe('SeederGenerator Generation Basic - Part 1', () => {
       expect(result.filePath).toContain('UserSeeder.ts');
 
       const fileContent = await fs.readFile(result.filePath, 'utf-8');
-      expect(fileContent).toContain('class UserSeeder');
-      expect(fileContent).toContain('async run()');
+      expect(fileContent).toContain('Object.freeze({');
+      expect(fileContent).toContain('export const UserSeeder');
+      expect(fileContent).toContain('async run(): Promise<void>');
     });
 
     it('should generate seeder with correct class name', async () => {
@@ -163,7 +164,8 @@ describe('SeederGenerator Generation Basic - Part 1', () => {
       const result = await SeederGenerator.generateSeeder(options);
       const fileContent = await fs.readFile(result.filePath, 'utf-8');
 
-      expect(fileContent).toContain('export class PostSeeder');
+      expect(fileContent).toContain('Object.freeze({');
+      expect(fileContent).toContain('export const PostSeeder');
     });
   });
 });
@@ -240,7 +242,7 @@ describe('SeederGenerator Generation Methods - Part 1', () => {
       const fileContent = await fs.readFile(result.filePath, 'utf-8');
 
       expect(fileContent).toContain('async run(): Promise<void>');
-      expect(fileContent).toContain('factory.count(25).get()');
+      expect(fileContent).toContain('const records = factory.count(count)');
     });
 
     it('should include getRecords method', async () => {
@@ -254,7 +256,7 @@ describe('SeederGenerator Generation Methods - Part 1', () => {
       const fileContent = await fs.readFile(result.filePath, 'utf-8');
 
       expect(fileContent).toContain('async getRecords(count: number)');
-      expect(fileContent).toContain('factory.count(count).get()');
+      expect(fileContent).toContain('return factory.count(count)');
     });
   });
 });
@@ -437,7 +439,8 @@ describe('SeederGenerator Content - Part 1', () => {
       const result = await SeederGenerator.generateSeeder(options);
       const fileContent = await fs.readFile(result.filePath, 'utf-8');
 
-      expect(fileContent).toContain('export class');
+      expect(fileContent).toContain('export const ArticleSeeder');
+      expect(fileContent).toContain('Object.freeze({');
       expect(fileContent).toContain('async');
       expect(fileContent).toContain('Promise<void>');
       expect(fileContent).toContain('Logger.info');
@@ -529,7 +532,8 @@ describe('SeederGenerator Integration - Part 1', () => {
         expect(result.success).toBe(true);
 
         const fileContent = await fs.readFile(result.filePath, 'utf-8');
-        expect(fileContent).toContain(`export class ${model}Seeder`);
+        expect(fileContent).toContain(`export const ${model}Seeder`);
+        expect(fileContent).toContain('Object.freeze({');
         expect(fileContent).toContain(`import { ${model} }`);
       }
     });

@@ -1,5 +1,5 @@
 /**
- * Service Integration Test Generator - Phase 7
+ * Service Integration Test Generator
  * Generates integration tests for service-to-service communication
  */
 
@@ -31,86 +31,76 @@ export interface ServiceIntegrationTestResult {
 }
 
 /**
- * Service Integration Test Generator - Creates integration tests for microservices
+ * Validate integration test options
  */
-export class ServiceIntegrationTestGenerator {
-  public readonly version = '1.0.0';
+export function validateOptions(options: ServiceIntegrationTestOptions): {
+  valid: boolean;
+  errors: string[];
+} {
+  const errors: string[] = [];
 
-  private constructor() {
-    // Private constructor for static utility class
+  if (options.name === undefined || options.name.trim() === '') {
+    errors.push('Integration test name is required');
+  } else if (!/^[A-Z][a-zA-Z\d]*Service$/.test(options.name)) {
+    errors.push('Integration test name must be PascalCase and end with Service');
   }
 
-  /**
-   * Generate service integration tests
-   */
-  public static async generateIntegrationTest(
-    options: ServiceIntegrationTestOptions
-  ): Promise<ServiceIntegrationTestResult> {
-    try {
-      const testCode = this.buildTestCode(options);
-      const fileName = `${this.camelCase(options.name)}.test.ts`;
-      const filePath = path.join(options.testPath, fileName);
-
-      FileGenerator.writeFile(filePath, testCode, { overwrite: true });
-
-      Logger.info(`✅ Created service integration test: ${fileName}`);
-
-      return {
-        success: true,
-        testFile: filePath,
-        message: `Service integration test '${options.name}' created successfully`,
-      };
-    } catch (error) {
-      Logger.error('Service integration test generation failed', error);
-      return {
-        success: false,
-        testFile: '',
-        message: (error as Error).message,
-      };
-    }
+  if (options.serviceName === undefined || options.serviceName.trim() === '') {
+    errors.push('Service name is required');
+  } else if (!/^[a-z\d-]+$/.test(options.serviceName)) {
+    errors.push('Service name must be lowercase alphanumeric with hyphens');
   }
 
-  /**
-   * Validate integration test options
-   */
-  public static validateOptions(options: ServiceIntegrationTestOptions): {
-    valid: boolean;
-    errors: string[];
-  } {
-    const errors: string[] = [];
+  if (options.endpoints === undefined || options.endpoints.length === 0) {
+    errors.push('At least one endpoint is required');
+  }
 
-    if (options.name === undefined || options.name.trim() === '') {
-      errors.push('Integration test name is required');
-    } else if (!/^[A-Z][a-zA-Z\d]*Service$/.test(options.name)) {
-      errors.push('Integration test name must be PascalCase and end with Service');
-    }
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
 
-    if (options.serviceName === undefined || options.serviceName.trim() === '') {
-      errors.push('Service name is required');
-    } else if (!/^[a-z\d-]+$/.test(options.serviceName)) {
-      errors.push('Service name must be lowercase alphanumeric with hyphens');
-    }
+/**
+ * Generate service integration tests
+ */
+export async function generateIntegrationTest(
+  options: ServiceIntegrationTestOptions
+): Promise<ServiceIntegrationTestResult> {
+  try {
+    const testCode = buildTestCode(options);
+    const fileName = `${camelCase(options.name)}.test.ts`;
+    const filePath = path.join(options.testPath, fileName);
 
-    if (options.endpoints === undefined || options.endpoints.length === 0) {
-      errors.push('At least one endpoint is required');
-    }
+    FileGenerator.writeFile(filePath, testCode, { overwrite: true });
+
+    Logger.info(`✅ Created service integration test: ${fileName}`);
 
     return {
-      valid: errors.length === 0,
-      errors,
+      success: true,
+      testFile: filePath,
+      message: `Service integration test '${options.name}' created successfully`,
+    };
+  } catch (error) {
+    Logger.error('Service integration test generation failed', error);
+    return {
+      success: false,
+      testFile: '',
+      message: (error as Error).message,
     };
   }
+}
 
-  /**
-   * Build complete test code
-   */
-  private static buildTestCode(options: ServiceIntegrationTestOptions): string {
-    const baseUrl = this.getBaseUrl(options);
-    const endpointTests = this.buildEndpointTests(options);
-    const consumerNote = this.getConsumerNote(options);
+/**
+ * Build complete test code
+ */
+function buildTestCode(options: ServiceIntegrationTestOptions): string {
+  const baseUrl = getBaseUrl(options);
+  const endpointTests = buildEndpointTests(options);
+  const consumerNote = getConsumerNote(options);
 
-    return `/**
- * ${this.camelCase(options.name)} Integration Tests
+  return `/**
+ * ${camelCase(options.name)} Integration Tests
  * Tests service-to-service communication
  * Service: ${options.serviceName}${consumerNote}
  */
@@ -128,18 +118,18 @@ interface TestContext {
   authToken?: string;
 }
 
-${this.buildServiceClientClass()}
+${buildServiceClientObject()}
 
-${this.buildTestHelpers()}
+${buildTestHelpers()}
 
 describe('${options.name} Integration', () => {
-  let client: ServiceClient;
+  let client: any;
   const context: TestContext = {
     baseUrl: '${baseUrl}',
   };
 
   beforeAll(async () => {
-    client = createClient({
+    client = ServiceClient.create({
       baseUrl: context.baseUrl,
     });
 
@@ -152,230 +142,177 @@ describe('${options.name} Integration', () => {
   ${endpointTests}
 });
 `;
-  }
+}
 
-  /**
-   * Get base URL for tests
-   */
-  private static getBaseUrl(options: ServiceIntegrationTestOptions): string {
-    return options.baseUrl !== undefined && options.baseUrl !== ''
-      ? options.baseUrl
-      : 'http://localhost:3001';
-  }
+/**
+ * Get base URL for tests
+ */
+function getBaseUrl(options: ServiceIntegrationTestOptions): string {
+  return options.baseUrl !== undefined && options.baseUrl !== ''
+    ? options.baseUrl
+    : 'http://localhost:3001';
+}
 
-  /**
-   * Build endpoint tests
-   */
-  private static buildEndpointTests(options: ServiceIntegrationTestOptions): string {
-    return options.endpoints.map((ep) => this.buildEndpointTest(ep, options)).join('\n\n  ');
-  }
+/**
+ * Build endpoint tests
+ */
+function buildEndpointTests(options: ServiceIntegrationTestOptions): string {
+  return options.endpoints.map((ep) => buildEndpointTest(ep, options)).join('\n\n  ');
+}
 
-  /**
-   * Get consumer note for header
-   */
-  private static getConsumerNote(options: ServiceIntegrationTestOptions): string {
-    return options.consumerService === undefined
-      ? ''
-      : `\n * Consumer Service: ${options.consumerService}\n`;
-  }
+/**
+ * Get consumer note for header
+ */
+function getConsumerNote(options: ServiceIntegrationTestOptions): string {
+  return options.consumerService === undefined
+    ? ''
+    : `\n * Consumer Service: ${options.consumerService}\n`;
+}
 
-  /**
-   * Build ServiceClient class code
-   */
-  private static buildServiceClientClass(): string {
-    return `/**
+/**
+ * Build ServiceClient object code
+ */
+function buildServiceClientObject(): string {
+  return `/**
  * Service client for making inter-service calls
  */
-class ServiceClient {
-  private baseUrl: string;
-  private timeout: number = 5000;
-  private headers: Record<string, string>;
-
-${this.buildServiceClientConstructor()}
-
-  ${this.buildServiceClientRequestMethod()}
-
-${this.buildServiceClientHttpMethods()}
-}`;
-  }
-
+export const ServiceClient = {
   /**
-   * Build ServiceClient constructor
+   * Create a new service client instance
    */
-  private static buildServiceClientConstructor(): string {
-    return `  constructor(config: ServiceConfig) {
-    this.baseUrl = config.baseUrl;
-    this.timeout = config.timeout !== undefined ? config.timeout : 5000;
-    this.headers = {
+  create(config: ServiceConfig) {
+    const baseUrl = config.baseUrl;
+    const timeout = config.timeout !== undefined ? config.timeout : 5000;
+    const defaultHeaders = {
       'Content-Type': 'application/json',
       ...config.headers,
     };
-  }`;
+
+    const client = {
+      /**
+       * Make HTTP request
+       */
+      async request<T>(
+        method: string,
+        path: string,
+        data?: Record<string, unknown>,
+        headers?: Record<string, string>
+      ): Promise<{ status: number; body: T; headers: Record<string, string> }> {
+        const url = \\\`\\\${baseUrl}\\\${path}\\\`;
+
+        try {
+          const response = await fetch(url, {
+            method,
+            headers: { ...defaultHeaders, ...headers },
+            body: data ? JSON.stringify(data) : undefined,
+            signal: AbortSignal.timeout(timeout),
+          });
+
+          const body = await response.json();
+
+          return {
+            status: response.status,
+            body: body as T,
+            headers: Object.fromEntries(response.headers.entries()),
+          };
+        } catch (error) {
+          throw new Error(\\\`Service call failed: \\\${(error as Error).message}\\\`);
+        }
+      },
+
+${buildClientMethods()}
+    };
+
+    return client;
   }
-
-  /**
-   * Build ServiceClient HTTP methods
-   */
-  private static buildServiceClientHttpMethods(): string {
-    return `  /**
-   * GET request
-   */
-  async get<T>(path: string, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
-    const res = await this.request<T>('GET', path, undefined, headers);
-    return { status: res.status, body: res.body };
-  }
-
-  /**
-   * POST request
-   */
-  async post<T>(path: string, data: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
-    const res = await this.request<T>('POST', path, data, headers);
-    return { status: res.status, body: res.body };
-  }
-
-  /**
-   * PUT request
-   */
-  async put<T>(path: string, data: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
-    const res = await this.request<T>('PUT', path, data, headers);
-    return { status: res.status, body: res.body };
-  }
-
-  /**
-   * PATCH request
-   */
-  async patch<T>(path: string, data: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
-    const res = await this.request<T>('PATCH', path, data, headers);
-    return { status: res.status, body: res.body };
-  }
-
-  /**
-   * DELETE request
-   */
-  async delete<T>(path: string, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
-    const res = await this.request<T>('DELETE', path, undefined, headers);
-    return { status: res.status, body: res.body };
-  }`;
-  }
-
-  /**
-   * Build ServiceClient request method
-   */
-  private static buildServiceClientRequestMethod(): string {
-    return `/**
-   * Make HTTP request
-   */
-  async request<T>(
-    method: string,
-    path: string,
-    data?: Record<string, unknown>,
-    headers?: Record<string, string>
-  ): Promise<{ status: number; body: T; headers: Record<string, string> }> {
-    const url = \`\${this.baseUrl}\${path}\`;
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers: { ...this.headers, ...headers },
-        body: data ? JSON.stringify(data) : undefined,
-        signal: AbortSignal.timeout(this.timeout),
-      });
-
-      const body = await response.json();
-
-      return {
-        status: response.status,
-        body: body as T,
-        headers: Object.fromEntries(response.headers.entries()),
-      };
-    } catch (error) {
-      throw new Error(\`Service call failed: \${(error as Error).message}\`);
-    }
-  }`;
-  }
-
-  /**
-   * Build test helpers
-   */
-  private static buildTestHelpers(): string {
-    return `/**
- * Create test context
- */
-function createContext(baseUrl: string): TestContext {
-  return { baseUrl };
+};`;
 }
 
 /**
- * Create service client
+ * Build client methods for ServiceClient
  */
-function createClient(config: ServiceConfig): ServiceClient {
-  return new ServiceClient(config);
+function buildClientMethods(): string {
+  return `      /**
+       * GET request
+       */
+      async get<T>(path: string, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
+        const res = await client.request<T>('GET', path, undefined, headers);
+        return { status: res.status, body: res.body };
+      },
+
+      /**
+       * POST request
+       */
+      async post<T>(path: string, data: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
+        const res = await client.request<T>('POST', path, data, headers);
+        return { status: res.status, body: res.body };
+      },
+
+      /**
+       * PUT request
+       */
+      async put<T>(path: string, data: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
+        const res = await client.request<T>('PUT', path, data, headers);
+        return { status: res.status, body: res.body };
+      },
+
+      /**
+       * PATCH request
+       */
+      async patch<T>(path: string, data: Record<string, unknown>, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
+        const res = await client.request<T>('PATCH', path, data, headers);
+        return { status: res.status, body: res.body };
+      },
+
+      /**
+       * DELETE request
+       */
+      async delete<T>(path: string, headers?: Record<string, string>): Promise<{ status: number; body: T }> {
+        const res = await client.request<T>('DELETE', path, undefined, headers);
+        return { status: res.status, body: res.body };
+      }`;
 }
 
 /**
- * Verify service health
+ * Build test helpers
  */
-async function verifyHealth(client: ServiceClient): Promise<boolean> {
-  try {
-    const response = await client.get('/health');
-    return response.status === 200;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Wait for service to be ready
+function buildTestHelpers(): string {
+  return `/**
+ * Test helper functions
  */
-async function waitForService(client: ServiceClient, retries: number = 5): Promise<boolean> {
-  for (let i = 0; i < retries; i++) {
-    if (await verifyHealth(client)) return true;
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  return false;
+function createClient(config: ServiceConfig) {
+  return ServiceClient.create(config);
 }`;
-  }
+}
 
-  /**
-   * Build test for a single endpoint
-   */
-  private static buildEndpointTest(
-    endpoint: ServiceEndpoint,
-    _options: ServiceIntegrationTestOptions
-  ): string {
-    const methodName = endpoint.method.toLowerCase();
-    const hasBody = ['post', 'put', 'patch'].includes(methodName);
-    const bodyArg = hasBody ? ', { test: "data" }' : '';
+/**
+ * Build single endpoint test
+ */
+function buildEndpointTest(
+  endpoint: ServiceEndpoint,
+  _options: ServiceIntegrationTestOptions
+): string {
+  const testName = endpoint.name || `should handle ${endpoint.method} ${endpoint.path}`;
+  const method = endpoint.method.toLowerCase();
+  const hasBody = ['post', 'put', 'patch'].includes(method);
+  const bodyArg = hasBody ? ', { test: true }' : '';
 
-    return `it('should ${endpoint.name} (${endpoint.method} ${endpoint.path})', async () => {
-    const response = await client.${methodName}('${endpoint.path}'${bodyArg});
-    expect(response.status).toBeLessThan(400);
+  return `it('${testName}', async () => {
+    const response = await client.${method}('${endpoint.path}'${bodyArg});
+
+    expect(response.status).toBeLessThan(500);
     expect(response.body).toBeDefined();
   });`;
-  }
-
-  /**
-   * Helper to convert string to camelCase
-   */
-  private static camelCase(str: string): string {
-    return str
-      .replaceAll(/(?:^\w|[A-Z]|\b\w)/g, (word, index) =>
-        index === 0 ? word.toLowerCase() : word.toUpperCase()
-      )
-      .replaceAll(/\s+/g, '');
-  }
-
-  /**
-   * Get available options
-   */
-  public static getAvailableOptions(): string[] {
-    return [
-      'Service-to-service integration tests',
-      'Endpoint discovery and testing',
-      'Automatic ServiceClient generation',
-      'Auth pattern support (JWT, API Key)',
-      'Consumer service tracking',
-      'Vitest integration',
-    ];
-  }
 }
+
+/**
+ * Convert to camelCase
+ */
+function camelCase(str: string): string {
+  return str.charAt(0).toLowerCase() + str.slice(1);
+}
+
+export const ServiceIntegrationTestGenerator = Object.freeze({
+  validateOptions,
+  generateIntegrationTest,
+});

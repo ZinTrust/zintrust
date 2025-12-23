@@ -1,10 +1,11 @@
 /**
  * Validator
  * Schema-based input validation with fluent API matching QueryBuilder style
+ * Sealed namespace pattern - all exports through Validator namespace
  */
 
 import { Logger } from '@config/logger';
-import { FieldError, ValidationError } from '@validation/ValidationError';
+import { FieldError, createValidationError } from '@validation/ValidationError';
 
 export type Rule =
   | 'required'
@@ -28,143 +29,90 @@ export interface ValidationRule {
   message?: string;
 }
 
+export interface ISchema {
+  required(field: string, message?: string): ISchema;
+  string(field: string, message?: string): ISchema;
+  number(field: string, message?: string): ISchema;
+  integer(field: string, message?: string): ISchema;
+  boolean(field: string, message?: string): ISchema;
+  array(field: string, message?: string): ISchema;
+  email(field: string, message?: string): ISchema;
+  min(field: string, value: number, message?: string): ISchema;
+  max(field: string, value: number, message?: string): ISchema;
+  minLength(field: string, value: number, message?: string): ISchema;
+  maxLength(field: string, value: number, message?: string): ISchema;
+  regex(field: string, pattern: RegExp, message?: string): ISchema;
+  in(field: string, values: unknown[], message?: string): ISchema;
+  custom(field: string, validator: (value: unknown) => boolean, message?: string): ISchema;
+  getRules(): Map<string, ValidationRule[]>;
+}
+
+const addSimpleRule = (
+  schema: ISchema,
+  rules: Map<string, ValidationRule[]>,
+  field: string,
+  rule: Rule,
+  message?: string
+): ISchema => {
+  if (!rules.has(field)) rules.set(field, []);
+  rules.get(field)?.push({ rule, message });
+  return schema;
+};
+
+const addComplexRule = (
+  schema: ISchema,
+  rules: Map<string, ValidationRule[]>,
+  field: string,
+  rule: Rule,
+  value: unknown,
+  message?: string
+): ISchema => {
+  if (!rules.has(field)) rules.set(field, []);
+  rules.get(field)?.push({ rule, value, message });
+  return schema;
+};
+
+export interface SchemaType {
+  create(): ISchema;
+}
+
 /**
  * Schema builder for defining validation rules
+ * Sealed namespace for immutability
  */
-export class Schema {
-  private readonly rules: Map<string, ValidationRule[]> = new Map();
-
+export const Schema = Object.freeze({
   /**
-   * Define a required field
+   * Create a new schema instance
    */
-  public required(field: string, message?: string): this {
-    this.addRule(field, { rule: 'required', message });
-    return this;
-  }
+  create(): ISchema {
+    const rules: Map<string, ValidationRule[]> = new Map();
 
-  /**
-   * Define a string field with optional length constraints
-   */
-  public string(field: string, message?: string): this {
-    this.addRule(field, { rule: 'string', message });
-    return this;
-  }
+    const schema: ISchema = {
+      required: (f, m) => addSimpleRule(schema, rules, f, 'required', m),
+      string: (f, m) => addSimpleRule(schema, rules, f, 'string', m),
+      number: (f, m) => addSimpleRule(schema, rules, f, 'number', m),
+      integer: (f, m) => addSimpleRule(schema, rules, f, 'integer', m),
+      boolean: (f, m) => addSimpleRule(schema, rules, f, 'boolean', m),
+      array: (f, m) => addSimpleRule(schema, rules, f, 'array', m),
+      email: (f, m) => addSimpleRule(schema, rules, f, 'email', m),
+      min: (f, v, m) => addComplexRule(schema, rules, f, 'min', v, m),
+      max: (f, v, m) => addComplexRule(schema, rules, f, 'max', v, m),
+      minLength: (f, v, m) => addComplexRule(schema, rules, f, 'minLength', v, m),
+      maxLength: (f, v, m) => addComplexRule(schema, rules, f, 'maxLength', v, m),
+      regex: (f, p, m) => addComplexRule(schema, rules, f, 'regex', p, m),
+      in: (f, v, m) => addComplexRule(schema, rules, f, 'in', v, m),
+      custom: (f, v, m) => addComplexRule(schema, rules, f, 'custom', v, m),
+      getRules: () => rules,
+    };
 
-  /**
-   * Define a number field
-   */
-  public number(field: string, message?: string): this {
-    this.addRule(field, { rule: 'number', message });
-    return this;
-  }
-
-  /**
-   * Define an integer field
-   */
-  public integer(field: string, message?: string): this {
-    this.addRule(field, { rule: 'integer', message });
-    return this;
-  }
-
-  /**
-   * Define a boolean field
-   */
-  public boolean(field: string, message?: string): this {
-    this.addRule(field, { rule: 'boolean', message });
-    return this;
-  }
-
-  /**
-   * Define an array field
-   */
-  public array(field: string, message?: string): this {
-    this.addRule(field, { rule: 'array', message });
-    return this;
-  }
-
-  /**
-   * Define email validation
-   */
-  public email(field: string, message?: string): this {
-    this.addRule(field, { rule: 'email', message });
-    return this;
-  }
-
-  /**
-   * Validate minimum value for numbers
-   */
-  public min(field: string, value: number, message?: string): this {
-    this.addRule(field, { rule: 'min', value, message });
-    return this;
-  }
-
-  /**
-   * Validate maximum value for numbers
-   */
-  public max(field: string, value: number, message?: string): this {
-    this.addRule(field, { rule: 'max', value, message });
-    return this;
-  }
-
-  /**
-   * Validate minimum string/array length
-   */
-  public minLength(field: string, value: number, message?: string): this {
-    this.addRule(field, { rule: 'minLength', value, message });
-    return this;
-  }
-
-  /**
-   * Validate maximum string/array length
-   */
-  public maxLength(field: string, value: number, message?: string): this {
-    this.addRule(field, { rule: 'maxLength', value, message });
-    return this;
-  }
-
-  /**
-   * Validate against regex pattern
-   */
-  public regex(field: string, pattern: RegExp, message?: string): this {
-    this.addRule(field, { rule: 'regex', value: pattern, message });
-    return this;
-  }
-
-  /**
-   * Validate value is in list
-   */
-  public in(field: string, values: unknown[], message?: string): this {
-    this.addRule(field, { rule: 'in', value: values, message });
-    return this;
-  }
-
-  /**
-   * Custom validation function
-   */
-  public custom(field: string, validator: (value: unknown) => boolean, message?: string): this {
-    this.addRule(field, { rule: 'custom', value: validator, message });
-    return this;
-  }
-
-  /**
-   * Get all rules
-   */
-  public getRules(): Map<string, ValidationRule[]> {
-    return this.rules;
-  }
-
-  private addRule(field: string, rule: ValidationRule): void {
-    if (!this.rules.has(field)) {
-      this.rules.set(field, []);
-    }
-    this.rules.get(field)?.push(rule);
-  }
-}
+    return schema;
+  },
+});
 
 /**
  * Validate data against schema
  */
-export function validate(data: Record<string, unknown>, schema: Schema): Record<string, unknown> {
+const validate = (data: Record<string, unknown>, schema: ISchema): Record<string, unknown> => {
   const errors: FieldError[] = [];
   const rules = schema.getRules();
 
@@ -180,16 +128,16 @@ export function validate(data: Record<string, unknown>, schema: Schema): Record<
   }
 
   if (errors.length > 0) {
-    throw new ValidationError(errors);
+    throw createValidationError(errors);
   }
 
   return data;
-}
+};
 
 /**
  * Check if data is valid without throwing
  */
-export function isValid(data: Record<string, unknown>, schema: Schema): boolean {
+const isValid = (data: Record<string, unknown>, schema: ISchema): boolean => {
   try {
     validate(data, schema);
     return true;
@@ -197,7 +145,7 @@ export function isValid(data: Record<string, unknown>, schema: Schema): boolean 
     Logger.error('Validation failed', error);
     return false;
   }
-}
+};
 
 function validateRule(field: string, value: unknown, rule: ValidationRule): FieldError | null {
   const message = (rule?.message ?? '') || getDefaultMessage(field, rule.rule);
@@ -350,10 +298,12 @@ function getDefaultMessage(field: string, rule: Rule): string {
 /**
  * Validator validates data against a schema
  */
-export const Validator = {
+// Sealed namespace with validation functionality
+export const Validator = Object.freeze({
+  Schema,
   validate,
   isValid,
-};
+});
 
 /**
  * Export ValidationError for use in tests and applications

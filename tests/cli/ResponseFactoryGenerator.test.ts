@@ -172,7 +172,9 @@ describe('ResponseFactoryGenerator Success Generation - Part 2', () => {
 
     expect(result.success).toBe(true);
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('| null'); // Nullable fields use type union syntax
+    // Nullable/non-required fields are set to null in the partial state branch
+    expect(content).toContain('data.middleName = null');
+    expect(content).toContain('data.bio = null');
   });
 
   it('should support array fields', async () => {
@@ -190,7 +192,8 @@ describe('ResponseFactoryGenerator Success Generation - Part 2', () => {
 
     expect(result.success).toBe(true);
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('tags?: string[]');
+    expect(content).toContain('tags: Array.from');
+    expect(content).toContain('data.tags = null');
   });
 });
 
@@ -268,7 +271,8 @@ describe('ResponseFactoryGenerator Factory Methods - Part 1', () => {
     });
 
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('static create()');
+    expect(content).toContain('Object.freeze({');
+    expect(content).toContain('new()');
   });
 
   it('should include times() method', async () => {
@@ -318,7 +322,7 @@ describe('ResponseFactoryGenerator Factory Methods - Part 2', () => {
     });
 
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('make():');
+    expect(content).toContain('make()');
   });
 
   it('should include makeMany() method', async () => {
@@ -329,7 +333,7 @@ describe('ResponseFactoryGenerator Factory Methods - Part 2', () => {
     });
 
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('makeMany():');
+    expect(content).toContain('makeMany()');
   });
 
   it('should include get() alias', async () => {
@@ -340,7 +344,7 @@ describe('ResponseFactoryGenerator Factory Methods - Part 2', () => {
     });
 
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('get():');
+    expect(content).toContain('get()');
   });
 
   it('should include first() method', async () => {
@@ -351,7 +355,7 @@ describe('ResponseFactoryGenerator Factory Methods - Part 2', () => {
     });
 
     const content = await fs.readFile(result.factoryPath, 'utf-8');
-    expect(content).toContain('first():');
+    expect(content).toContain('first()');
   });
 });
 
@@ -396,7 +400,7 @@ describe('ResponseFactoryGenerator Code Validation and Integration', () => {
         const dtoContent = await fs.readFile(result.responsePath, 'utf-8');
         expect(dtoContent).toContain('toJSON()');
         expect(dtoContent).toContain('validate()');
-        expect(dtoContent).toContain('constructor');
+        expect(dtoContent).toContain('create(data:');
       }
     });
   });
@@ -485,11 +489,9 @@ describe('ResponseFactoryGenerator Code Validation Basic', () => {
       // Should have proper imports
       expect(content).toContain('import { faker }');
 
-      // Should have class declaration
-      expect(content).toContain('export class ValidResponseFactory');
-
-      // Should have interface
-      expect(content).toContain('export interface ValidResponse');
+      // Should have sealed namespace
+      expect(content).toContain('Object.freeze({');
+      expect(content).toContain('export const ValidResponseFactory');
 
       // Should have proper structure
       expect(content).toContain('{');
@@ -535,9 +537,9 @@ describe('ResponseFactoryGenerator Code Validation DTO', () => {
       if (typeof result.responsePath === 'string') {
         const dtoContent = await fs.readFile(result.responsePath, 'utf-8');
 
-        // Should have proper class structure
-        expect(dtoContent).toContain('export class UserResponse');
-        expect(dtoContent).toContain('constructor');
+        // Should have proper sealed namespace structure
+        expect(dtoContent).toContain('Object.freeze({');
+        expect(dtoContent).toContain('export const UserResponse');
         expect(dtoContent).toContain('toJSON()');
         expect(dtoContent).toContain('validate()');
 

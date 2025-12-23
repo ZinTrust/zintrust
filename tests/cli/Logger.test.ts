@@ -13,6 +13,9 @@ describe('Logger Initialization and Structure', () => {
   let loggerInstance: LoggerInstance;
 
   beforeEach(() => {
+    // Reset singleton between tests to avoid cross-test coupling
+    globalThis.__loggerInstance = undefined;
+
     // Create temporary logs directory for testing
     testLogsDir = path.join(process.cwd(), '.test-logs');
     if (!fs.existsSync(testLogsDir)) {
@@ -20,7 +23,7 @@ describe('Logger Initialization and Structure', () => {
     }
 
     // Initialize logger with test directory
-    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+    loggerInstance = Logger.create(testLogsDir, 1024 * 1024, 'debug');
   });
 
   afterEach(() => {
@@ -28,15 +31,13 @@ describe('Logger Initialization and Structure', () => {
     if (fs.existsSync(testLogsDir)) {
       fs.rmSync(testLogsDir, { recursive: true });
     }
+
+    globalThis.__loggerInstance = undefined;
   });
 
   it('should create logs directory structure', () => {
     expect(fs.existsSync(testLogsDir)).toBe(true);
-    expect(fs.existsSync(path.join(testLogsDir, 'cli'))).toBe(true);
-    expect(fs.existsSync(path.join(testLogsDir, 'app'))).toBe(true);
-    expect(fs.existsSync(path.join(testLogsDir, 'errors'))).toBe(true);
-    expect(fs.existsSync(path.join(testLogsDir, 'migrations'))).toBe(true);
-    expect(fs.existsSync(path.join(testLogsDir, 'debug'))).toBe(true);
+    // Current logger writes to category-based files in the logs dir (e.g., app.log)
   });
 
   it('should return logs directory path', () => {
@@ -60,53 +61,53 @@ describe('Logger Writing Operations', () => {
   let loggerInstance: LoggerInstance;
 
   beforeEach(() => {
+    globalThis.__loggerInstance = undefined;
     testLogsDir = path.join(process.cwd(), '.test-logs');
     if (!fs.existsSync(testLogsDir)) {
       fs.mkdirSync(testLogsDir, { recursive: true });
     }
-    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+    loggerInstance = Logger.create(testLogsDir, 1024 * 1024, 'debug');
   });
 
   afterEach(() => {
     if (fs.existsSync(testLogsDir)) {
       fs.rmSync(testLogsDir, { recursive: true });
     }
+
+    globalThis.__loggerInstance = undefined;
   });
 
   it('should write debug log entries', () => {
     loggerInstance.debug('Test debug message', { data: 'test' });
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
 
     expect(fs.existsSync(logFile)).toBe(true);
     const content = fs.readFileSync(logFile, 'utf-8');
     expect(content).toContain('Test debug message');
-    expect(content).toContain('[DEBUG]');
+    expect(content).toContain('"level":"debug"');
   });
 
   it('should write info log entries', () => {
     loggerInstance.info('Test info message');
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
 
     expect(fs.existsSync(logFile)).toBe(true);
     const content = fs.readFileSync(logFile, 'utf-8');
     expect(content).toContain('Test info message');
-    expect(content).toContain('[INFO]');
+    expect(content).toContain('"level":"info"');
   });
 
   it('should write warn log entries', () => {
     loggerInstance.warn('Test warning message');
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
 
     expect(fs.existsSync(logFile)).toBe(true);
     const content = fs.readFileSync(logFile, 'utf-8');
     expect(content).toContain('Test warning message');
-    expect(content).toContain('[WARN]');
+    expect(content).toContain('"level":"warn"');
   });
 });
 
@@ -115,25 +116,30 @@ describe('Logger Advanced Writing', () => {
   let loggerInstance: LoggerInstance;
 
   beforeEach(() => {
+    globalThis.__loggerInstance = undefined;
     testLogsDir = path.join(process.cwd(), '.test-logs');
     if (!fs.existsSync(testLogsDir)) {
       fs.mkdirSync(testLogsDir, { recursive: true });
     }
-    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+    loggerInstance = Logger.create(testLogsDir, 1024 * 1024, 'debug');
   });
 
   afterEach(() => {
     if (fs.existsSync(testLogsDir)) {
       fs.rmSync(testLogsDir, { recursive: true });
     }
+
+    globalThis.__loggerInstance = undefined;
   });
 
   it('should write error log entries to both app and error logs', () => {
+    // Default category is 'app'
     loggerInstance.error('Test error message');
+    // And errors can also be logged to a separate category file
+    loggerInstance.error('Test error message', undefined, 'errors');
 
-    const today = new Date().toISOString().split('T')[0];
-    const appLogFile = path.join(testLogsDir, 'app', `${today}.log`);
-    const errorLogFile = path.join(testLogsDir, 'errors', `${today}.log`);
+    const appLogFile = path.join(testLogsDir, 'app.log');
+    const errorLogFile = path.join(testLogsDir, 'errors.log');
 
     expect(fs.existsSync(appLogFile)).toBe(true);
     expect(fs.existsSync(errorLogFile)).toBe(true);
@@ -142,17 +148,18 @@ describe('Logger Advanced Writing', () => {
     const errorContent = fs.readFileSync(errorLogFile, 'utf-8');
 
     expect(appContent).toContain('Test error message');
+    expect(appContent).toContain('"level":"error"');
     expect(errorContent).toContain('Test error message');
+    expect(errorContent).toContain('"level":"error"');
   });
 
   it('should include timestamps in log entries', () => {
     loggerInstance.info('Test message with timestamp');
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
     const content = fs.readFileSync(logFile, 'utf-8');
 
-    expect(content).toMatch(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]/);
+    expect(content).toMatch(/"timestamp":"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"/);
   });
 });
 
@@ -161,25 +168,27 @@ describe('Logger Data and Filtering', () => {
   let loggerInstance: LoggerInstance;
 
   beforeEach(() => {
+    globalThis.__loggerInstance = undefined;
     testLogsDir = path.join(process.cwd(), '.test-logs');
     if (!fs.existsSync(testLogsDir)) {
       fs.mkdirSync(testLogsDir, { recursive: true });
     }
-    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+    loggerInstance = Logger.create(testLogsDir, 1024 * 1024, 'debug');
   });
 
   afterEach(() => {
     if (fs.existsSync(testLogsDir)) {
       fs.rmSync(testLogsDir, { recursive: true });
     }
+
+    globalThis.__loggerInstance = undefined;
   });
 
   it('should include data in log entries', () => {
     const testData = { userId: 123, action: 'login' };
     loggerInstance.info('User logged in', testData);
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
     const content = fs.readFileSync(logFile, 'utf-8');
 
     expect(content).toContain('userId');
@@ -190,13 +199,12 @@ describe('Logger Data and Filtering', () => {
 
   it('should respect log level filtering', () => {
     // Create logger with info level (debug messages ignored)
-    const infoLogger = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'info');
+    const infoLogger = Logger.create(testLogsDir, 1024 * 1024, 'info');
 
     infoLogger.debug('This should be ignored');
     infoLogger.info('This should be logged');
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
     const content = fs.readFileSync(logFile, 'utf-8');
 
     expect(content).not.toContain('This should be ignored');
@@ -209,17 +217,20 @@ describe('Logger Retrieval and Filtering', () => {
   let loggerInstance: LoggerInstance;
 
   beforeEach(() => {
+    globalThis.__loggerInstance = undefined;
     testLogsDir = path.join(process.cwd(), '.test-logs');
     if (!fs.existsSync(testLogsDir)) {
       fs.mkdirSync(testLogsDir, { recursive: true });
     }
-    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+    loggerInstance = Logger.create(testLogsDir, 1024 * 1024, 'debug');
   });
 
   afterEach(() => {
     if (fs.existsSync(testLogsDir)) {
       fs.rmSync(testLogsDir, { recursive: true });
     }
+
+    globalThis.__loggerInstance = undefined;
   });
 
   it('should retrieve recent logs', () => {
@@ -248,8 +259,7 @@ describe('Logger Retrieval and Filtering', () => {
   it('should clear logs', () => {
     loggerInstance.info('Message to be cleared');
 
-    const today = new Date().toISOString().split('T')[0];
-    const logFile = path.join(testLogsDir, 'app', `${today}.log`);
+    const logFile = path.join(testLogsDir, 'app.log');
     expect(fs.existsSync(logFile)).toBe(true);
 
     const cleared = loggerInstance.clearLogs('app');
@@ -263,17 +273,20 @@ describe('Logger Parsing and Date Filtering', () => {
   let loggerInstance: LoggerInstance;
 
   beforeEach(() => {
+    globalThis.__loggerInstance = undefined;
     testLogsDir = path.join(process.cwd(), '.test-logs');
     if (!fs.existsSync(testLogsDir)) {
       fs.mkdirSync(testLogsDir, { recursive: true });
     }
-    loggerInstance = Logger.initialize(testLogsDir, 1024 * 1024, 30, 'debug');
+    loggerInstance = Logger.create(testLogsDir, 1024 * 1024, 'debug');
   });
 
   afterEach(() => {
     if (fs.existsSync(testLogsDir)) {
       fs.rmSync(testLogsDir, { recursive: true });
     }
+
+    globalThis.__loggerInstance = undefined;
   });
 
   it('should parse log entries correctly', () => {

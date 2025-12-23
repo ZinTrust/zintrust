@@ -3,19 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 describe('BaseCommand', () => {
   it('should create command with name and description', (): void => {
-    class TestCommand extends BaseCommand {
-      constructor() {
-        super();
-        this.name = 'test';
-        this.description = 'Test command';
-      }
-
-      async execute(): Promise<void> {
+    const command = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: async () => {
         // Empty implementation
-      }
-    }
+      },
+    });
 
-    const command = new TestCommand();
     const cmd = command.getCommand();
 
     expect(cmd.name()).toBe('test');
@@ -23,27 +18,18 @@ describe('BaseCommand', () => {
   });
 
   it('should have verbose option', (): void => {
-    class TestCommand extends BaseCommand {
-      constructor() {
-        super();
-        this.name = 'test-verbose';
-        this.description = 'Test command with verbose option';
-      }
-
-      async execute(): Promise<void> {
+    const command = BaseCommand.create({
+      name: 'test-verbose',
+      description: 'Test command with verbose option',
+      execute: async () => {
         // Empty implementation
-      }
-    }
+      },
+    });
 
-    const command = new TestCommand();
     const cmd = command.getCommand();
 
-    // Check that the command has options
-    expect(cmd.options).toBeDefined();
-    expect(cmd.options.length).toBeGreaterThan(0);
-
-    // Verify verbose option exists
-    const verboseOption = cmd.options.find((opt) => opt.long === '--verbose');
-    expect(verboseOption).toBeDefined();
+    const options = cmd.options;
+    const hasVerbose = options.some((opt: any) => opt.long === '--verbose');
+    expect(hasVerbose).toBe(true);
   });
 });

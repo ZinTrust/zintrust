@@ -7,7 +7,7 @@
 
 import { Logger } from '@config/logger';
 import { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
-import { MicroserviceManager, ServiceDiscovery } from '@microservices/MicroserviceManager';
+import { MicroserviceManager } from '@microservices/MicroserviceManager';
 import { ServiceBundler } from '@microservices/ServiceBundler';
 import { program } from 'commander';
 import { readFileSync } from 'node:fs';
@@ -32,7 +32,7 @@ program
   .action(async (domain: string, services: string, options: any) => {
     try {
       const serviceList = services.split(',').map((s) => s.trim());
-      await MicroserviceGenerator.generate({
+      await MicroserviceGenerator.getInstance().generate({
         domain,
         services: serviceList,
         basePort: Number.parseInt(options.port),
@@ -54,13 +54,17 @@ program
   .description('Bundle microservices for deployment')
   .option('--output <dir>', 'Output directory', 'dist/services')
   .option('--target-size <mb>', 'Target bundle size in MB', '1')
-  .action(async (domain: string, services: string, options: any) => {
+  .action(async (domain: string, services: string, options: Record<string, unknown>) => {
     try {
       const serviceList = services.split(',').map((s) => s.trim());
-      const results = await ServiceBundler.bundleAll(domain, serviceList, options.output);
+      const results = await ServiceBundler.getInstance().bundleAll(
+        domain,
+        serviceList,
+        options['output'] as string
+      );
 
-      const allOptimized = results.every((r) => r.optimized);
-      if (!allOptimized) {
+      const allOptimized = results.every((r: { optimized: boolean }) => r.optimized === true);
+      if (allOptimized === false) {
         console.warn('\n⚠️  Some services exceed target size. Consider optimizing bundle.');
       }
     } catch (error) {
@@ -82,7 +86,7 @@ program
       const serviceList = services.split(',').map((s) => s.trim());
 
       for (const service of serviceList) {
-        await ServiceBundler.createServiceImage(service, domain, options.registry);
+        await ServiceBundler.getInstance().createServiceImage(service, domain, options.registry);
       }
 
       console.log(
@@ -103,7 +107,7 @@ program
   .description('Discover available microservices')
   .action(async () => {
     try {
-      const configs = await ServiceDiscovery.discoverServices();
+      const configs = await MicroserviceManager.discoverServices();
 
       if (configs.length === 0) {
         console.log('No microservices found in services/ folder');

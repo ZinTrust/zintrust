@@ -1,15 +1,15 @@
-import { MemoryProfiler, formatBytes } from '@profiling/MemoryProfiler';
+import { IMemoryProfiler, MemoryProfiler, formatBytes } from '@profiling/MemoryProfiler';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type GlobalWithGc = typeof globalThis & { gc?: () => void };
 
 describe('MemoryProfiler', () => {
-  let profiler: MemoryProfiler;
+  let profiler: IMemoryProfiler;
   const globalWithGc = globalThis as GlobalWithGc;
   const originalGc = globalWithGc.gc;
 
   beforeEach(() => {
-    profiler = new MemoryProfiler();
+    profiler = MemoryProfiler.create();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2020-01-01T00:00:00.000Z'));
   });

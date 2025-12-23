@@ -1,11 +1,11 @@
-import { CsrfTokenManager } from '@security/CsrfTokenManager';
+import { CsrfTokenManager, ICsrfTokenManager } from '@security/CsrfTokenManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('CsrfTokenManager Basic', () => {
-  let manager: CsrfTokenManager;
+  let manager: ICsrfTokenManager;
 
   beforeEach(() => {
-    manager = new CsrfTokenManager();
+    manager = CsrfTokenManager.create();
   });
 
   it('should generate token for session', () => {
@@ -64,10 +64,10 @@ describe('CsrfTokenManager Basic', () => {
 });
 
 describe('CsrfTokenManager Advanced Operations', () => {
-  let manager: CsrfTokenManager;
+  let manager: ICsrfTokenManager;
 
   beforeEach(() => {
-    manager = new CsrfTokenManager();
+    manager = CsrfTokenManager.create();
   });
 
   it('should invalidate token', () => {
@@ -115,10 +115,10 @@ describe('CsrfTokenManager Advanced Operations', () => {
 });
 
 describe('CsrfTokenManager Advanced State', () => {
-  let manager: CsrfTokenManager;
+  let manager: ICsrfTokenManager;
 
   beforeEach(() => {
-    manager = new CsrfTokenManager();
+    manager = CsrfTokenManager.create();
   });
 
   it('should track token count', () => {

@@ -81,7 +81,7 @@ describe('RedisDriver', () => {
     });
 
     const { RedisDriver } = await import('@cache/drivers/RedisDriver');
-    const driver = new RedisDriver();
+    const driver = RedisDriver.create();
 
     await expect(driver.get<string>('myKey')).resolves.toBe('hi');
     await driver.set('myKey', 'hi');
@@ -114,7 +114,7 @@ describe('RedisDriver', () => {
     });
 
     const { RedisDriver } = await import('@cache/drivers/RedisDriver');
-    const driver = new RedisDriver();
+    const driver = RedisDriver.create();
 
     await expect(driver.get('missing')).resolves.toBeNull();
   });
@@ -135,7 +135,7 @@ describe('RedisDriver', () => {
     });
 
     const { RedisDriver } = await import('@cache/drivers/RedisDriver');
-    const driver = new RedisDriver();
+    const driver = RedisDriver.create();
 
     await expect(driver.has('a')).resolves.toBe(false);
 
@@ -155,7 +155,7 @@ describe('RedisDriver', () => {
     });
 
     const { RedisDriver } = await import('@cache/drivers/RedisDriver');
-    const driver = new RedisDriver();
+    const driver = RedisDriver.create();
 
     await expect(driver.get('k')).resolves.toBeNull();
 

@@ -3,7 +3,7 @@
  * Define how models relate to each other
  */
 
-import { Model } from '@orm/Model';
+import { IModel, Model, ModelStatic } from '@orm/Model';
 
 export type RelationshipType = 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
 
@@ -15,125 +15,132 @@ export interface Relation {
   throughTable?: string;
 }
 
+export interface IRelationship {
+  get(instance: IModel): Promise<unknown>;
+}
+
+type TableNameProvider = { getTable(): string };
+
+const isTableNameProviderConstructor = (value: unknown): value is new () => TableNameProvider => {
+  if (typeof value !== 'function') return false;
+  const maybe = value as { prototype?: unknown };
+  if (maybe.prototype === undefined || maybe.prototype === null) return false;
+  const proto = maybe.prototype as { getTable?: unknown };
+  return typeof proto.getTable === 'function';
+};
+
+const getRelatedTableName = (relatedModel: ModelStatic): string => {
+  if (typeof relatedModel.getTable === 'function') {
+    return relatedModel.getTable();
+  }
+
+  const candidate = relatedModel as unknown;
+  if (isTableNameProviderConstructor(candidate)) {
+    return new candidate().getTable();
+  }
+
+  throw new Error('Related model does not provide a table name');
+};
+
 /**
- * Base Relationship class to avoid code duplication
+ * HasOne Relationship
+ * Sealed namespace object following Pattern 2
+ *
+ * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
  */
-abstract class BaseRelation {
-  protected readonly relatedModel: typeof Model;
-  protected readonly foreignKey: string;
-  protected readonly localKey: string;
+export const HasOne = Object.freeze({
+  create(relatedModel: ModelStatic, foreignKey: string, localKey: string): IRelationship {
+    return {
+      async get(instance: IModel): Promise<unknown> {
+        const value = instance.getAttribute(localKey);
+        if (value === undefined || value === null || value === '') return null;
 
-  constructor(relatedModel: typeof Model, foreignKey: string, localKey: string) {
-    this.relatedModel = relatedModel;
-    this.foreignKey = foreignKey;
-    this.localKey = localKey;
-  }
-}
+        return await relatedModel.query().where(foreignKey, '=', value).first();
+      },
+    };
+  },
+});
 
 /**
- * Relationship Builder
+ * HasMany Relationship
+ * Sealed namespace object following Pattern 2
+ *
+ * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
  */
-export class HasOne extends BaseRelation {
-  /**
-   * Get related model instance
-   */
-  public async get(instance: Model): Promise<Model | null> {
-    const value = instance.getAttribute(this.localKey);
-    if (value === undefined || value === null || value === '') return null;
+export const HasMany = Object.freeze({
+  create(relatedModel: ModelStatic, foreignKey: string, localKey: string): IRelationship {
+    return {
+      async get(instance: IModel): Promise<unknown[]> {
+        const value = instance.getAttribute(localKey);
+        if (value === undefined || value === null || value === '') return [];
 
-    const related = (await this.relatedModel
-      .query()
-      .where(this.foreignKey, '=', value)
-      .first()) as Model | null;
+        return await relatedModel.query().where(foreignKey, '=', value).get();
+      },
+    };
+  },
+});
 
-    return related ?? null;
-  }
-}
+/**
+ * BelongsTo Relationship
+ * Sealed namespace object following Pattern 2
+ *
+ * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
+ */
+export const BelongsTo = Object.freeze({
+  create(relatedModel: ModelStatic, foreignKey: string, localKey: string): IRelationship {
+    return {
+      async get(instance: IModel): Promise<unknown> {
+        const value = instance.getAttribute(foreignKey);
+        if (value === undefined || value === null || value === '') return null;
 
-export class HasMany extends BaseRelation {
-  /**
-   * Get related model instances
-   */
-  public async get(instance: Model): Promise<Model[]> {
-    const value = instance.getAttribute(this.localKey);
-    if (value === undefined || value === null || value === '') return [];
+        return await relatedModel.query().where(localKey, '=', value).first();
+      },
+    };
+  },
+});
 
-    const related = (await this.relatedModel
-      .query()
-      .where(this.foreignKey, '=', value)
-      .get()) as Model[];
-
-    return related;
-  }
-}
-
-export class BelongsTo extends BaseRelation {
-  /**
-   * Get related model instance
-   */
-  public async get(instance: Model): Promise<Model | null> {
-    const value = instance.getAttribute(this.foreignKey);
-    if (value === undefined || value === null || value === '') return null;
-
-    const related = (await this.relatedModel
-      .query()
-      .where(this.localKey, '=', value)
-      .first()) as Model | null;
-
-    return related ?? null;
-  }
-}
-
-export class BelongsToMany {
-  private readonly relatedModel: typeof Model;
-  private readonly _throughTable: string;
-  private readonly _foreignKey: string;
-  private readonly _relatedKey: string;
-
-  constructor(
-    relatedModel: typeof Model,
+/**
+ * BelongsToMany Relationship
+ * Sealed namespace object following Pattern 2
+ *
+ * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
+ */
+export const BelongsToMany = Object.freeze({
+  create(
+    relatedModel: ModelStatic,
     throughTable: string,
     foreignKey: string,
     relatedKey: string
-  ) {
-    this.relatedModel = relatedModel;
-    this._throughTable = throughTable;
-    this._foreignKey = foreignKey;
-    this._relatedKey = relatedKey;
-  }
+  ): IRelationship {
+    const isValidInstance = (instance: IModel): boolean => {
+      const instanceId = instance.getAttribute('id');
+      return (
+        instanceId !== undefined &&
+        instanceId !== null &&
+        instanceId !== '' &&
+        throughTable !== '' &&
+        foreignKey !== '' &&
+        relatedKey !== ''
+      );
+    };
 
-  /**
-   * Get related model instances through pivot table
-   */
-  public async get(instance: Model): Promise<Model[]> {
-    if (!this.isValidInstance(instance)) {
-      return [];
-    }
+    return {
+      async get(instance: IModel): Promise<unknown[]> {
+        if (!isValidInstance(instance)) {
+          return [];
+        }
 
-    const instanceId = instance.getAttribute('id');
-    const relatedTable = new (this.relatedModel as unknown as new () => Model)().getTable();
+        const instanceId = instance.getAttribute('id');
+        // In functional pattern, we might need a different way to get table name
+        // if relatedModel is not a class.
+        const relatedTable = getRelatedTableName(relatedModel);
 
-    const related = (await this.relatedModel
-      .query()
-      .join(this._throughTable, `${relatedTable}.id = ${this._throughTable}.${this._relatedKey}`)
-      .where(`${this._throughTable}.${this._foreignKey}`, instanceId as string)
-      .get()) as Model[];
-
-    return related;
-  }
-
-  /**
-   * Validate if instance and relationship configuration are valid
-   */
-  private isValidInstance(instance: Model): boolean {
-    const instanceId = instance.getAttribute('id');
-    return (
-      instanceId !== undefined &&
-      instanceId !== null &&
-      instanceId !== '' &&
-      this._throughTable !== '' &&
-      this._foreignKey !== '' &&
-      this._relatedKey !== ''
-    );
-  }
-}
+        return await relatedModel
+          .query()
+          .join(throughTable, `${relatedTable}.id = ${throughTable}.${relatedKey}`)
+          .where(`${throughTable}.${foreignKey}`, instanceId as string)
+          .get();
+      },
+    };
+  },
+});

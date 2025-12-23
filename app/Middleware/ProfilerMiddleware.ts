@@ -22,7 +22,7 @@ export const ProfilerMiddleware: Middleware = async (req, res, next) => {
     return;
   }
 
-  const profiler = new RequestProfiler();
+  const profiler = RequestProfiler.create();
   const queryLogger = profiler.getQueryLogger();
 
   // Set up query logging if database is available

@@ -1,11 +1,11 @@
-import { RequestProfiler } from '@profiling/RequestProfiler';
+import { IRequestProfiler, RequestProfiler } from '@profiling/RequestProfiler';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('RequestProfiler Basic Tests', () => {
-  let profiler: RequestProfiler;
+  let profiler: IRequestProfiler;
 
   beforeEach(() => {
-    profiler = new RequestProfiler();
+    profiler = RequestProfiler.create();
   });
 
   it('should capture request profile with all metrics', async () => {
@@ -55,10 +55,10 @@ describe('RequestProfiler Basic Tests', () => {
 });
 
 describe('RequestProfiler Advanced Metrics', () => {
-  let profiler: RequestProfiler;
+  let profiler: IRequestProfiler;
 
   beforeEach(() => {
-    profiler = new RequestProfiler();
+    profiler = RequestProfiler.create();
   });
 
   it('should include memory delta in profile', async () => {
@@ -107,10 +107,10 @@ describe('RequestProfiler Advanced Metrics', () => {
 });
 
 describe('RequestProfiler Advanced Scenarios', () => {
-  let profiler: RequestProfiler;
+  let profiler: IRequestProfiler;
 
   beforeEach(() => {
-    profiler = new RequestProfiler();
+    profiler = RequestProfiler.create();
   });
 
   it('should return unique timestamp for each profile', async () => {

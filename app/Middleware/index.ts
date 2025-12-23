@@ -1,24 +1,38 @@
-// @ts-nocheck - Example middleware - WIP
+import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
+import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
 /**
  * Example Middleware
  * Common middleware patterns for Zintrust
  */
 
 import { Logger } from '@config/logger';
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
-import { CsrfTokenManager } from '@security/CsrfTokenManager';
-import { JwtManager } from '@security/JwtManager';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 import { XssProtection } from '@security/XssProtection';
-import { Schema, ValidationError, Validator } from '@validation/Validator';
+import type { ISchema, SchemaType } from '@validation/Validator';
+import { Validator } from '@validation/Validator';
+
+type JwtManagerInput = IJwtManager | JwtManagerType;
+type CsrfManagerInput = ICsrfTokenManager | CsrfTokenManagerType;
+
+const resolveJwtManager = (jwtManager: JwtManagerInput): IJwtManager =>
+  'verify' in jwtManager ? jwtManager : jwtManager.create();
+
+const resolveCsrfManager = (csrfManager: CsrfManagerInput): ICsrfTokenManager =>
+  'validateToken' in csrfManager ? csrfManager : csrfManager.create();
+
+type ValidationSchema = ISchema | SchemaType;
+
+const resolveSchema = (schema: ValidationSchema): ISchema =>
+  'getRules' in schema ? schema : schema.create();
 
 /**
  * Authentication Middleware
  * Verify user is authenticated
  */
 export const authMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   const token = req.getHeader('authorization');
@@ -36,8 +50,8 @@ export const authMiddleware = async (
  * Handle CORS headers
  */
 export const corsMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -57,8 +71,8 @@ export const corsMiddleware = async (
  * Parse JSON request bodies
  */
 export const jsonMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   if (req.getMethod() === 'GET' || req.getMethod() === 'DELETE') {
@@ -79,8 +93,8 @@ export const jsonMiddleware = async (
  * Log all requests
  */
 export const loggingMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   const startTime = Date.now();
@@ -103,8 +117,8 @@ export const loggingMiddleware = async (
 const requestCounts = new Map<string, number[]>();
 
 export const rateLimitMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   const ip = req.getRaw().socket.remoteAddress ?? 'unknown';
@@ -135,13 +149,13 @@ export const rateLimitMiddleware = async (
  * Redirect URLs with trailing slashes
  */
 export const trailingSlashMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   const path = req.getPath();
 
-  if (path.length > 1 && path.endsWith('/')) {
+  if (path.length > 1 && path.endsWith('/') === true) {
     const withoutSlash = path.slice(0, -1);
     res.redirect(withoutSlash, 301);
     return;
@@ -154,8 +168,8 @@ export const trailingSlashMiddleware = async (
  * JWT Authentication Middleware
  * Verify JWT token and extract claims
  */
-export const jwtMiddleware = (jwtManager: JwtManager, algorithm: 'HS256' | 'RS256' = 'HS256') => {
-  return async (req: Request, res: Response, next: () => Promise<void>): Promise<void> => {
+export const jwtMiddleware = (jwtManager: JwtManagerInput, algorithm: JwtAlgorithm = 'HS256') => {
+  return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
     const authHeader = req.getHeader('authorization');
 
     if (authHeader === undefined || authHeader === '') {
@@ -163,7 +177,8 @@ export const jwtMiddleware = (jwtManager: JwtManager, algorithm: 'HS256' | 'RS25
       return;
     }
 
-    const [scheme, token] = authHeader.split(' ');
+    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    const [scheme, token] = authHeaderStr.split(' ');
 
     if (scheme !== 'Bearer' || token === undefined || token === '') {
       res.setStatus(401).json({ error: 'Invalid authorization header format' });
@@ -171,7 +186,7 @@ export const jwtMiddleware = (jwtManager: JwtManager, algorithm: 'HS256' | 'RS25
     }
 
     try {
-      const payload = jwtManager.verify(token, algorithm);
+      const payload = resolveJwtManager(jwtManager).verify(token, algorithm);
       // Store in request context (TypeScript allows dynamic properties)
       (req as any).user = payload;
       await next();
@@ -186,8 +201,8 @@ export const jwtMiddleware = (jwtManager: JwtManager, algorithm: 'HS256' | 'RS25
  * CSRF Protection Middleware
  * Validate CSRF tokens for state-changing requests
  */
-export const csrfMiddleware = (csrfManager: CsrfTokenManager) => {
-  return async (req: Request, res: Response, next: () => Promise<void>): Promise<void> => {
+export const csrfMiddleware = (csrfManager: CsrfManagerInput) => {
+  return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
     const method = req.getMethod();
 
     // Only validate on state-changing requests
@@ -210,7 +225,10 @@ export const csrfMiddleware = (csrfManager: CsrfTokenManager) => {
       return;
     }
 
-    const isValid = csrfManager.validateToken(sessionId, csrfToken as string);
+    const isValid = resolveCsrfManager(csrfManager).validateToken(
+      String(sessionId),
+      String(csrfToken)
+    );
 
     if (isValid === false) {
       res.setStatus(403).json({ error: 'Invalid or expired CSRF token' });
@@ -225,8 +243,8 @@ export const csrfMiddleware = (csrfManager: CsrfTokenManager) => {
  * Input Validation Middleware
  * Validate request body against schema
  */
-export const validationMiddleware = (schema: Schema) => {
-  return async (req: Request, res: Response, next: () => Promise<void>): Promise<void> => {
+export const validationMiddleware = (schema: SchemaType) => {
+  return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
     if (req.getMethod() === 'GET' || req.getMethod() === 'DELETE') {
       await next();
       return;
@@ -234,12 +252,12 @@ export const validationMiddleware = (schema: Schema) => {
 
     try {
       const body = (req as any).body ?? {};
-      Validator.validate(body, schema);
+      Validator.validate(body, resolveSchema(schema));
       await next();
     } catch (error) {
       Logger.error('Validation error:', error);
-      if (error instanceof ValidationError) {
-        res.setStatus(422).json({ errors: error.toObject() });
+      if (error !== undefined && typeof (error as any).toObject === 'function') {
+        res.setStatus(422).json({ errors: (error as any).toObject() });
       } else {
         res.setStatus(400).json({ error: 'Invalid request body' });
       }
@@ -252,8 +270,8 @@ export const validationMiddleware = (schema: Schema) => {
  * Sanitize and escape user input
  */
 export const xssProtectionMiddleware = async (
-  req: Request,
-  res: Response,
+  req: IRequest,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   // Add XSS protection headers

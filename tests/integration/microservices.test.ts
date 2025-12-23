@@ -1,8 +1,16 @@
 import { Env } from '@config/env';
 import { Request } from '@http/Request';
-import { Response } from '@http/Response';
-import { MicroserviceBootstrap, ServiceConfig } from '@microservices/MicroserviceBootstrap';
-import { MicroserviceManager, ServiceRegistry } from '@microservices/MicroserviceManager';
+import { IResponse, Response } from '@http/Response';
+import {
+  IMicroserviceBootstrap,
+  MicroserviceBootstrap,
+  ServiceConfig,
+} from '@microservices/MicroserviceBootstrap';
+import {
+  IMicroserviceManager,
+  MicroserviceConfig,
+  MicroserviceManager,
+} from '@microservices/MicroserviceManager';
 import { PostgresAdapter } from '@microservices/PostgresAdapter';
 import { RequestTracingMiddleware } from '@microservices/RequestTracingMiddleware';
 import { ApiKeyAuth, JwtAuth, ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
@@ -12,8 +20,8 @@ import { Socket } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 describe('Microservices Service Discovery', () => {
-  let bootstrap: MicroserviceBootstrap;
-  let manager: typeof MicroserviceManager;
+  let bootstrap: IMicroserviceBootstrap;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -65,8 +73,8 @@ describe('Microservices Service Discovery', () => {
 });
 
 describe('Microservices Service Registry', () => {
-  let bootstrap: MicroserviceBootstrap;
-  let manager: typeof MicroserviceManager;
+  let bootstrap: IMicroserviceBootstrap;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -105,12 +113,12 @@ describe('Microservices Service Registry', () => {
   it('should get services by domain', () => {
     const services = manager.getServicesByDomain('ecommerce');
     expect(services.length).toBeGreaterThan(0);
-    expect(services.every((s: ServiceRegistry) => s.domain === 'ecommerce')).toBe(true);
+    expect(services.every((s: MicroserviceConfig) => s.domain === 'ecommerce')).toBe(true);
   });
 });
 
 describe('Microservices Authentication Strategies Basic', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -133,17 +141,17 @@ describe('Microservices Authentication Strategies Basic', () => {
 
   describe('Authentication Strategies - API Key Auth', () => {
     it('should verify valid API key', () => {
-      const auth = new ApiKeyAuth('test-key');
+      const auth = ApiKeyAuth.create('test-key');
       expect(auth.verify('test-key')).toBe(true);
     });
 
     it('should reject invalid API key', () => {
-      const auth = new ApiKeyAuth('test-key');
+      const auth = ApiKeyAuth.create('test-key');
       expect(auth.verify('wrong-key')).toBe(false);
     });
 
     it('should generate new API key', () => {
-      const auth = new ApiKeyAuth();
+      const auth = ApiKeyAuth.create();
       const key1 = auth.generate();
       const key2 = auth.generate();
 
@@ -155,7 +163,7 @@ describe('Microservices Authentication Strategies Basic', () => {
 });
 
 describe('Microservices Authentication Strategies JWT', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -178,7 +186,7 @@ describe('Microservices Authentication Strategies JWT', () => {
 
   describe('Authentication Strategies - JWT Auth', () => {
     it('should sign and verify JWT token', () => {
-      const auth = new JwtAuth('secret');
+      const auth = JwtAuth.create('secret');
       const token = auth.sign({ serviceName: 'users', userId: 123 });
 
       expect(token).toBeDefined();
@@ -188,16 +196,16 @@ describe('Microservices Authentication Strategies JWT', () => {
     });
 
     it('should reject invalid JWT token', () => {
-      const auth = new JwtAuth('secret');
+      const auth = JwtAuth.create('secret');
       const payload = auth.verify('invalid.token.here');
       expect(payload).toBeNull();
     });
 
     it('should reject tampered JWT token', () => {
-      const auth1 = new JwtAuth('secret1');
+      const auth1 = JwtAuth.create('secret1');
       const token = auth1.sign({ serviceName: 'users' });
 
-      const auth2 = new JwtAuth('secret2');
+      const auth2 = JwtAuth.create('secret2');
       const payload = auth2.verify(token);
       expect(payload).toBeNull();
     });
@@ -205,7 +213,7 @@ describe('Microservices Authentication Strategies JWT', () => {
 });
 
 describe('Microservices Authentication Middleware', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -233,10 +241,10 @@ describe('Microservices Authentication Middleware', () => {
 
       const incomingMsg = new IncomingMessage(new Socket());
       incomingMsg.headers = {};
-      const req = new Request(incomingMsg);
+      const req = Request.create(incomingMsg);
 
       const serverRes = new ServerResponse(incomingMsg);
-      const res = new Response(serverRes);
+      const res = Response.create(serverRes);
 
       const next = (): void => {
         contextSet = true;
@@ -249,7 +257,7 @@ describe('Microservices Authentication Middleware', () => {
 });
 
 describe('Microservices Authentication Middleware Rejection', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -277,12 +285,12 @@ describe('Microservices Authentication Middleware Rejection', () => {
 
       const incomingMsg = new IncomingMessage(new Socket());
       incomingMsg.headers = {};
-      const req = new Request(incomingMsg);
+      const req = Request.create(incomingMsg);
 
       const serverRes = new ServerResponse(incomingMsg);
-      const res = new Response(serverRes);
+      const res = Response.create(serverRes);
       const originalSetStatus = res.setStatus.bind(res);
-      res.setStatus = (code: number): Response => {
+      res.setStatus = (code: number): IResponse => {
         statusCode = code;
         return originalSetStatus(code);
       };
@@ -296,7 +304,7 @@ describe('Microservices Authentication Middleware Rejection', () => {
 });
 
 describe('Microservices Request Tracing', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -342,7 +350,7 @@ describe('Microservices Request Tracing', () => {
 });
 
 describe('Microservices Health Checks', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -365,7 +373,7 @@ describe('Microservices Health Checks', () => {
 
   describe('Health Checks', () => {
     it('should create health check handler', () => {
-      const handler = new HealthCheckHandler('users', '1.0.0', 3001, 'ecommerce', []);
+      const handler = HealthCheckHandler.create('users', '1.0.0', 3001, 'ecommerce', []);
       expect(handler).toBeDefined();
     });
 
@@ -376,7 +384,7 @@ describe('Microservices Health Checks', () => {
         payments: 'http://localhost:3003/health',
       };
 
-      const monitor = new ServiceHealthMonitor(healthCheckUrls);
+      const monitor = ServiceHealthMonitor.create(healthCheckUrls);
       expect(monitor).toBeDefined();
     });
 
@@ -385,15 +393,15 @@ describe('Microservices Health Checks', () => {
         users: 'http://localhost:3001/health',
       };
 
-      const monitor = new ServiceHealthMonitor(healthCheckUrls);
+      const monitor = ServiceHealthMonitor.create(healthCheckUrls);
       expect(monitor.areAllHealthy()).toBe(false); // Service not running
     });
   });
 });
 
 describe('Microservices Database Isolation', () => {
-  let bootstrap: MicroserviceBootstrap;
-  let manager: typeof MicroserviceManager;
+  let bootstrap: IMicroserviceBootstrap;
+  let manager: IMicroserviceManager;
 
   beforeAll(async () => {
     // Reset singletons for clean state
@@ -438,7 +446,7 @@ describe('Microservices Database Isolation', () => {
 });
 
 describe('Microservices PostgreSQL Adapter', () => {
-  let manager: typeof MicroserviceManager;
+  let manager: IMicroserviceManager;
 
   beforeAll(() => {
     // Reset singletons for clean state
@@ -461,7 +469,7 @@ describe('Microservices PostgreSQL Adapter', () => {
 
   describe('PostgreSQL Adapter', () => {
     it('should create postgres adapter instance', () => {
-      const adapter = new PostgresAdapter({
+      const adapter = PostgresAdapter.create({
         host: 'localhost',
         port: 5432,
         database: 'zintrust',
@@ -475,7 +483,7 @@ describe('Microservices PostgreSQL Adapter', () => {
     });
 
     it('should get connection pool', async () => {
-      const adapter = new PostgresAdapter({
+      const adapter = PostgresAdapter.create({
         host: 'localhost',
         port: 5432,
         database: 'zintrust',
@@ -492,8 +500,8 @@ describe('Microservices PostgreSQL Adapter', () => {
 });
 
 describe('Microservices Auth and Tracing Configuration', () => {
-  let bootstrap: MicroserviceBootstrap;
-  let manager: typeof MicroserviceManager;
+  let bootstrap: IMicroserviceBootstrap;
+  let manager: IMicroserviceManager;
 
   beforeAll(async () => {
     // Reset singletons for clean state

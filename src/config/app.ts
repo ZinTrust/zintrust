@@ -1,11 +1,20 @@
 /**
  * Application Configuration
  * Core application settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 
-export const appConfig = {
+const getSafeEnv = (): NodeJS.ProcessEnv => {
+  return {
+    ...process.env,
+    PATH: Env.SAFE_PATH,
+    npm_config_scripts_prepend_node_path: 'true',
+  };
+};
+
+const appConfigObj = {
   /**
    * Application name
    */
@@ -66,6 +75,11 @@ export const appConfig = {
    * Max request body size
    */
   maxBodySize: Env.get('MAX_BODY_SIZE', '10mb'),
+
+  getSafeEnv,
 } as const;
+
+export const appConfig = Object.freeze(appConfigObj);
+export { getSafeEnv };
 
 export type AppConfig = typeof appConfig;

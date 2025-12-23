@@ -39,79 +39,79 @@ describe('Request', () => {
   };
 
   it('should get method', () => {
-    const req = new Request(createMockRequest({ method: 'POST' }));
+    const req = Request.create(createMockRequest({ method: 'POST' }));
     expect(req.getMethod()).toBe('POST');
   });
 
   it('should default method to GET when missing', () => {
-    const req = new Request(createMockRequest({ method: undefined }));
+    const req = Request.create(createMockRequest({ method: undefined }));
     expect(req.getMethod()).toBe('GET');
   });
 
   it('should get path', () => {
-    const req = new Request(createMockRequest({ url: '/users?id=1' }));
+    const req = Request.create(createMockRequest({ url: '/users?id=1' }));
     expect(req.getPath()).toBe('/users');
   });
 
   it('should default path to / when url missing', () => {
-    const req = new Request(createMockRequest({ url: undefined }));
+    const req = Request.create(createMockRequest({ url: undefined }));
     expect(req.getPath()).toBe('/');
   });
 
   it('should get headers', () => {
-    const req = new Request(createMockRequest({ headers: { 'content-type': 'application/json' } }));
+    const req = Request.create(createMockRequest({ headers: { 'content-type': 'application/json' } }));
     expect(req.getHeaders()).toEqual({ 'content-type': 'application/json' });
     expect(req.headers).toEqual({ 'content-type': 'application/json' });
   });
 
   it('should get specific header', () => {
-    const req = new Request(createMockRequest({ headers: { 'Content-Type': 'application/json' } }));
+    const req = Request.create(createMockRequest({ headers: { 'Content-Type': 'application/json' } }));
     expect(req.getHeader('content-type')).toBe('application/json');
   });
 
   it('should parse query parameters', () => {
-    const req = new Request(createMockRequest({ url: '/users?id=1&tags=a&tags=b' }));
+    const req = Request.create(createMockRequest({ url: '/users?id=1&tags=a&tags=b' }));
     expect(req.getQueryParam('id')).toBe('1');
     expect(req.getQueryParam('tags')).toEqual(['a', 'b']);
   });
 
   it('should return query object', () => {
-    const req = new Request(createMockRequest({ url: '/users?id=1' }));
+    const req = Request.create(createMockRequest({ url: '/users?id=1' }));
     expect(req.getQuery()).toEqual({ id: '1' });
   });
 
   it('should accumulate repeated query parameters into an array', () => {
-    const req = new Request(createMockRequest({ url: '/users?tags=a&tags=b&tags=c' }));
+    const req = Request.create(createMockRequest({ url: '/users?tags=a&tags=b&tags=c' }));
     expect(req.getQueryParam('tags')).toEqual(['a', 'b', 'c']);
   });
 
   it('should manage route parameters', () => {
-    const req = new Request(createMockRequest());
+    const req = Request.create(createMockRequest());
     req.setParams({ id: '123' });
     expect(req.getParams()).toEqual({ id: '123' });
     expect(req.getParam('id')).toBe('123');
   });
 
   it('should manage body', () => {
-    const req = new Request(createMockRequest());
+    const req = Request.create(createMockRequest());
     const body = { foo: 'bar' };
     req.setBody(body);
     expect(req.getBody()).toBe(body);
   });
 
   it('should check if request is JSON', () => {
-    const jsonReq = new Request(
+    const jsonReq = Request.create(
       createMockRequest({ headers: { 'content-type': 'application/json' } })
     );
     expect(jsonReq.isJson()).toBe(true);
 
-    const htmlReq = new Request(createMockRequest({ headers: { 'content-type': 'text/html' } }));
+    const htmlReq = Request.create(createMockRequest({ headers: { 'content-type': 'text/html' } }));
     expect(htmlReq.isJson()).toBe(false);
   });
 
   it('should get raw request', () => {
     const rawReq = createMockRequest();
-    const req = new Request(rawReq);
+    const req = Request.create(rawReq);
     expect(req.getRaw()).toBe(rawReq);
   });
 });

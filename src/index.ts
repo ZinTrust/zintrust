@@ -19,7 +19,7 @@ export { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 export { Database, resetDatabase, useDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
-export { Router } from '@routing/EnhancedRouter';
+export { EnhancedRouter } from '@routing/EnhancedRouter';
 
 // Profiling
 export { MemoryProfiler } from '@profiling/MemoryProfiler';

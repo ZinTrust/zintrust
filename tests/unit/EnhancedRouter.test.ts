@@ -1,42 +1,42 @@
-import { Router } from '@routing/EnhancedRouter';
+import { EnhancedRouter, type IRouter } from '@routing/EnhancedRouter';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('EnhancedRouter Basic Tests', () => {
-  let router: Router;
+  let router: IRouter;
 
   beforeEach(() => {
-    router = new Router();
+    router = EnhancedRouter.createRouter();
   });
 
   it('should register named routes', () => {
     const handler = async (): Promise<void> => {};
-    router.get('/users', handler, 'users.index');
-    router.get('/users/:id', handler, 'users.show');
+    EnhancedRouter.get(router, '/users', handler, 'users.index');
+    EnhancedRouter.get(router, '/users/:id', handler, 'users.show');
 
-    const route = router.getByName('users.index');
+    const route = EnhancedRouter.getByName(router, 'users.index');
     expect(route?.name).toBe('users.index');
     expect(route?.path).toBe('/users');
   });
 
   it('should generate URLs for named routes', () => {
     const handler = async (): Promise<void> => {};
-    router.get('/users/:id/posts/:postId', handler, 'posts.show');
+    EnhancedRouter.get(router, '/users/:id/posts/:postId', handler, 'posts.show');
 
-    const url = router.url('posts.show', { id: '1', postId: '42' });
-    expect(url).toBe('/users/1/posts/42');
+    const generated = EnhancedRouter.url(router, 'posts.show', { id: '1', postId: '42' });
+    expect(generated).toBe('/users/1/posts/42');
   });
 
   it('should return null for non-existent route name', () => {
-    const url = router.url('nonexistent');
-    expect(url).toBeNull();
+    const generated = EnhancedRouter.url(router, 'nonexistent');
+    expect(generated).toBeNull();
   });
 });
 
 describe('EnhancedRouter Resource Routes', () => {
-  let router: Router;
+  let router: IRouter;
 
   beforeEach(() => {
-    router = new Router();
+    router = EnhancedRouter.createRouter();
   });
 
   it('should register resource routes', () => {
@@ -50,11 +50,11 @@ describe('EnhancedRouter Resource Routes', () => {
       destroy: async (): Promise<void> => {},
     };
 
-    router.resource('users', handlers);
-    const routes = router.getRoutes();
+    EnhancedRouter.resource(router, 'users', handlers);
+    const routes = EnhancedRouter.getRoutes(router);
 
     expect(routes).toHaveLength(7);
-    expect(routes.map((r) => r.name)).toEqual([
+    expect(routes.map((r: any) => r.name)).toEqual([
       'users.index',
       'users.create',
       'users.store',
@@ -67,21 +67,21 @@ describe('EnhancedRouter Resource Routes', () => {
 });
 
 describe('EnhancedRouter Route Groups', () => {
-  let router: Router;
+  let router: IRouter;
 
   beforeEach(() => {
-    router = new Router();
+    router = EnhancedRouter.createRouter();
   });
 
   it('should support route groups with prefix', () => {
     const handler = async (): Promise<void> => {};
 
-    router.group({ prefix: '/api' }, (r) => {
-      r.get('/users', handler, 'api.users.index');
-      r.get('/users/:id', handler, 'api.users.show');
+    EnhancedRouter.group(router, { prefix: '/api' }, (r: IRouter) => {
+      EnhancedRouter.get(r, '/users', handler, 'api.users.index');
+      EnhancedRouter.get(r, '/users/:id', handler, 'api.users.show');
     });
 
-    const routes = router.getRoutes();
+    const routes = EnhancedRouter.getRoutes(router);
     expect(routes[0].path).toBe('/api/users');
     expect(routes[1].path).toBe('/api/users/:id');
   });
@@ -89,35 +89,35 @@ describe('EnhancedRouter Route Groups', () => {
   it('should support route groups with middleware', () => {
     const handler = async (): Promise<void> => {};
 
-    router.group({ middleware: ['auth', 'admin'] }, (r) => {
-      r.get('/dashboard', handler);
+    EnhancedRouter.group(router, { middleware: ['auth', 'admin'] }, (r: IRouter) => {
+      EnhancedRouter.get(r, '/dashboard', handler);
     });
 
-    const routes = router.getRoutes();
+    const routes = EnhancedRouter.getRoutes(router);
     expect(routes[0].middleware).toEqual(['auth', 'admin']);
   });
 
   it('should support nested route groups', () => {
     const handler = async (): Promise<void> => {};
 
-    router.group({ prefix: '/api' }, (r) => {
-      r.group({ prefix: '/v1' }, (r2) => {
-        r2.get('/users', handler, 'api.v1.users');
+    EnhancedRouter.group(router, { prefix: '/api' }, (r: IRouter) => {
+      EnhancedRouter.group(r, { prefix: '/v1' }, (r2: IRouter) => {
+        EnhancedRouter.get(r2, '/users', handler, 'api.v1.users');
       });
     });
 
-    const routes = router.getRoutes();
+    const routes = EnhancedRouter.getRoutes(router);
     expect(routes[0].path).toBe('/api/v1/users');
   });
 
   it('should match routes with middleware', () => {
     const handler = async (): Promise<void> => {};
 
-    router.group({ middleware: ['auth'] }, (r) => {
-      r.get('/profile', handler);
+    EnhancedRouter.group(router, { middleware: ['auth'] }, (r: IRouter) => {
+      EnhancedRouter.get(r, '/profile', handler);
     });
 
-    const match = router.match('GET', '/profile');
-    expect(match?.middleware).toEqual(['auth']);
+    const routeMatch = EnhancedRouter.match(router, 'GET', '/profile');
+    expect(routeMatch?.middleware).toEqual(['auth']);
   });
 });

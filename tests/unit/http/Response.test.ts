@@ -1,10 +1,10 @@
-import { Response } from '@/http/Response';
+import { IResponse, Response } from '@/http/Response';
 import * as http from 'node:http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Response', () => {
   let mockRes: http.ServerResponse;
-  let response: Response;
+  let response: IResponse;
 
   beforeEach(() => {
     mockRes = {
@@ -13,7 +13,7 @@ describe('Response', () => {
       end: vi.fn(),
     } as unknown as http.ServerResponse;
 
-    response = new Response(mockRes);
+    response = Response.create(mockRes);
   });
 
   it('should set default content type to JSON', () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 describe('QueryBuilder Extended Basic', () => {
   it('should support OR conditions', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('role', 'admin').orWhere('role', 'moderator');
 
     const conditions = builder.getWhereClauses();
@@ -11,7 +11,7 @@ describe('QueryBuilder Extended Basic', () => {
   });
 
   it('should support IN operator', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('role', 'IN', ['admin', 'user', 'guest']);
 
     const conditions = builder.getWhereClauses();
@@ -20,7 +20,7 @@ describe('QueryBuilder Extended Basic', () => {
   });
 
   it('should support LIKE operator', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('name', 'LIKE', '%john%');
 
     const sql = builder.toSQL();
@@ -28,7 +28,7 @@ describe('QueryBuilder Extended Basic', () => {
   });
 
   it('should support BETWEEN operator', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('age', 'BETWEEN', [18, 65]);
 
     const conditions = builder.getWhereClauses();
@@ -38,7 +38,7 @@ describe('QueryBuilder Extended Basic', () => {
 
 describe('QueryBuilder Extended Advanced', () => {
   it('should build complex query', () => {
-    const builder = new QueryBuilder('posts');
+    const builder = QueryBuilder.create('posts');
     builder
       .select('id', 'title', 'user_id')
       .where('published', true)
@@ -56,7 +56,7 @@ describe('QueryBuilder Extended Advanced', () => {
   });
 
   it('should get all builder properties', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder
       .select('name', 'email')
       .where('active', true)

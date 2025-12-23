@@ -1,101 +1,137 @@
 /**
  * Cloudflare D1 Database Adapter
- * Interfaces with the native D1 binding in Cloudflare Workers
  */
 
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
-import { BaseAdapter, DatabaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
+import { DatabaseConfig, ID1Database, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 
-interface D1Database {
-  prepare: (sql: string) => D1Statement;
+/**
+ * Get D1 binding from config or global environment
+ */
+function getD1Binding(_config: DatabaseConfig): ID1Database | null {
+  // 1. Check config
+  if (_config.d1 !== undefined && _config.d1 !== null) return _config.d1;
+
+  // 2. Check global env (Cloudflare Workers)
+  const globalEnv = (globalThis as unknown as { env?: { DB?: ID1Database } }).env;
+  if (globalEnv?.DB !== undefined) return globalEnv.DB;
+
+  // 3. Check global scope
+  const globalDB = (globalThis as unknown as { DB?: ID1Database }).DB;
+  if (globalDB !== undefined) return globalDB;
+
+  return null;
 }
 
-interface D1Statement {
-  bind: (...params: unknown[]) => D1StatementBound;
-}
+/**
+ * D1 adapter implementation
+ */
+export const D1Adapter = Object.freeze({
+  /**
+   * Create a new D1 adapter instance
+   */
+  // eslint-disable-next-line max-lines-per-function
+  create(_config: DatabaseConfig): IDatabaseAdapter {
+    let connected = false;
 
-interface D1StatementBound {
-  all: () => Promise<{ results: Record<string, unknown>[] }>;
-  first: () => Promise<Record<string, unknown> | null>;
-}
+    return {
+      async connect(): Promise<void> {
+        connected = true;
+        Logger.info('✓ D1 connected');
+      },
 
-export class D1Adapter extends BaseAdapter {
-  private readonly db: D1Database | undefined;
+      async disconnect(): Promise<void> {
+        connected = false;
+        Logger.info('✓ D1 disconnected');
+      },
 
-  constructor(config: DatabaseConfig) {
-    super(config);
-    // In Cloudflare Workers, the D1 database is usually bound to a variable in the environment
-    // We expect it to be passed in the config or available globally
-    this.db = (globalThis as unknown as { env?: { DB?: D1Database } }).env?.DB;
-  }
+      async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
+        if (!connected) throw new Error('Database not connected');
 
-  public async connect(): Promise<void> {
-    if (!this.db) {
-      Logger.warn(
-        'D1 database binding "DB" not found in environment. Ensure it is configured in wrangler.jsonc'
-      );
-    }
-    this.connected = true;
-    Logger.info('✓ D1 Adapter initialized');
-  }
+        const db = getD1Binding(_config);
+        if (db === null) {
+          throw new Error('D1 database binding not found');
+        }
 
-  public async disconnect(): Promise<void> {
-    this.connected = false;
-    Logger.info('✓ D1 Adapter disconnected');
-  }
+        try {
+          const stmt = db.prepare(sql);
+          const result = await stmt.bind(...parameters).all();
+          const rows = (result.results as Record<string, unknown>[]) ?? [];
+          return {
+            rows,
+            rowCount: rows.length,
+          };
+        } catch (error) {
+          Logger.error(`D1 query failed: ${sql}`, error);
+          throw error;
+        }
+      },
 
-  public async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
-    if (!this.db) {
-      throw new Error('D1 database binding not found');
-    }
+      async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
+        if (!connected) throw new Error('Database not connected');
 
-    try {
-      const stmt = this.db.prepare(sql).bind(...parameters);
-      const { results } = await stmt.all();
+        const db = getD1Binding(_config);
+        if (db === null) {
+          throw new Error('D1 database binding not found');
+        }
 
-      return {
-        rows: results,
-        rowCount: results.length,
-      };
-    } catch (error) {
-      Logger.error(`D1 Query Error: ${error instanceof Error ? error.message : String(error)}`, {
-        sql,
-        parameters,
-      });
-      throw error;
-    }
-  }
+        try {
+          const stmt = db.prepare(sql);
+          const result = await stmt.bind(...parameters).first<Record<string, unknown>>();
+          return result || null;
+        } catch (error) {
+          Logger.error(`D1 queryOne failed: ${sql}`, error);
+          throw error;
+        }
+      },
 
-  public async queryOne(
-    sql: string,
-    parameters: unknown[]
-  ): Promise<Record<string, unknown> | null> {
-    if (!this.db) {
-      throw new Error('D1 database binding not found');
-    }
+      async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
+        if (!connected) throw new Error('Database not connected');
+        try {
+          const result = await callback(this);
+          return result;
+        } catch (error) {
+          Logger.error('Transaction failed', error);
+          throw error;
+        }
+      },
 
-    try {
-      const result = await this.db
-        .prepare(sql)
-        .bind(...parameters)
-        .first();
-      return result || null;
-    } catch (error) {
-      Logger.error(`D1 QueryOne Error: ${error instanceof Error ? error.message : String(error)}`, {
-        sql,
-        parameters,
-      });
-      throw error;
-    }
-  }
+      getType(): string {
+        return 'd1';
+      },
+      isConnected(): boolean {
+        return connected;
+      },
+      async rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> {
+        if (!FeatureFlags.isRawQueryEnabled()) {
+          throw new Error('Raw SQL queries are disabled');
+        }
 
-  public async transaction<T>(callback: (adapter: DatabaseAdapter) => Promise<T>): Promise<T> {
-    // D1 batching can be used for transactions
-    // For now, we'll just execute the callback as D1 doesn't support traditional BEGIN/COMMIT via prepare
-    return await callback(this);
-  }
+        if (!connected) {
+          throw new Error('Database not connected');
+        }
 
-  protected getParameterPlaceholder(_index: number): string {
-    return '?';
-  }
-}
+        const db = getD1Binding(_config);
+        if (db === null) {
+          throw new Error('D1 database binding not found');
+        }
+
+        try {
+          Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+          const stmt = db.prepare(sql);
+          const result = await stmt.bind(...(parameters ?? [])).all<T>();
+          return (result.results as T[]) ?? [];
+        } catch (error) {
+          Logger.error(`Raw SQL query failed: ${sql}`, error);
+          throw error;
+        }
+      },
+      getPlaceholder(_index: number): string {
+        return '?';
+      },
+    };
+  },
+});
+
+export default D1Adapter;

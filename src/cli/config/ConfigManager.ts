@@ -14,205 +14,206 @@ import { Logger } from '@config/logger';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export class ConfigManager {
-  private config: ProjectConfig | null = null;
-  private readonly configPath: string;
+export interface IConfigManager {
+  load(): Promise<ProjectConfig>;
+  save(config?: ProjectConfig): Promise<void>;
+  getConfig(): ProjectConfig;
+  get(key: string): unknown;
+  set(key: string, value: unknown): void;
+  exists(): Promise<boolean>;
+  create(initialConfig?: Partial<ProjectConfig>): Promise<void>;
+  reset(): Promise<void>;
+  merge(partial: Partial<ProjectConfig>): void;
+  export(): string;
+  getAllKeys(): string[];
+}
 
-  constructor(configPath: string = ConfigPaths.PROJECT_CONFIG, _isGlobal = false) {
-    this.configPath = configPath;
-  }
+interface ConfigState {
+  config: ProjectConfig | null;
+  configPath: string;
+}
 
-  /**
-   * Load configuration from file
-   */
-  async load(): Promise<ProjectConfig> {
-    try {
-      const content = await fs.readFile(this.configPath, 'utf-8');
-      this.config = JSON.parse(content) as ProjectConfig;
-      return this.config;
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        Logger.debug(`Config file not found at ${this.configPath}, using defaults`);
-        this.config = structuredClone(DEFAULT_CONFIG);
-        return this.config;
-      }
-      Logger.error(`Failed to load config: ${(err as Error).message}`);
-      throw err;
+/**
+ * Deep merge helper
+ */
+const deepMerge = (
+  target: Record<string, unknown>,
+  source: Record<string, unknown>
+): Record<string, unknown> => {
+  const result = { ...target };
+
+  for (const key in source) {
+    if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
+      result[key] = deepMerge(
+        (target[key] as Record<string, unknown>) ?? {},
+        source[key] as Record<string, unknown>
+      );
+    } else {
+      result[key] = source[key];
     }
   }
 
-  /**
-   * Save configuration to file
-   */
-  async save(config?: ProjectConfig): Promise<void> {
-    const toSave = config || this.config;
-    if (!toSave) {
-      throw new Error('No configuration to save');
+  return result;
+};
+
+/**
+ * Load configuration from file
+ */
+async function loadConfig(state: ConfigState): Promise<ProjectConfig> {
+  try {
+    const content = await fs.readFile(state.configPath, 'utf-8');
+    state.config = JSON.parse(content) as ProjectConfig;
+    return state.config;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      Logger.debug(`Config file not found at ${state.configPath}, using defaults`);
+      state.config = structuredClone(DEFAULT_CONFIG);
+      return state.config;
+    }
+    Logger.error(`Failed to load config: ${(err as Error).message}`);
+    throw err;
+  }
+}
+
+/**
+ * Save configuration to file
+ */
+async function saveConfig(state: ConfigState, newConfig?: ProjectConfig): Promise<void> {
+  const toSave = newConfig || state.config;
+  if (!toSave) {
+    throw new Error('No configuration to save');
+  }
+
+  try {
+    // Ensure directory exists
+    const dir = path.dirname(state.configPath);
+    if (dir !== '.') {
+      await fs.mkdir(dir, { recursive: true });
     }
 
-    try {
-      // Ensure directory exists
-      const dir = path.dirname(this.configPath);
-      if (dir !== '.') {
-        await fs.mkdir(dir, { recursive: true });
-      }
+    // Write config with nice formatting
+    await fs.writeFile(state.configPath, JSON.stringify(toSave, null, 2));
+    state.config = toSave;
+    Logger.debug(`Config saved to ${state.configPath}`);
+  } catch (err) {
+    Logger.error(`Failed to save config: ${(err as Error).message}`);
+    throw err;
+  }
+}
 
-      // Write config with nice formatting
-      await fs.writeFile(this.configPath, JSON.stringify(toSave, null, 2));
-      this.config = toSave;
-      Logger.debug(`Config saved to ${this.configPath}`);
-    } catch (err) {
-      Logger.error(`Failed to save config: ${(err as Error).message}`);
-      throw err;
+/**
+ * Get current configuration
+ */
+function getConfig(state: ConfigState): ProjectConfig {
+  state.config ??= structuredClone(DEFAULT_CONFIG);
+  return state.config;
+}
+
+/**
+ * Check if config file exists
+ */
+async function configExists(configPath: string): Promise<boolean> {
+  try {
+    await fs.access(configPath);
+    return true;
+  } catch (error) {
+    Logger.error('Config file access check failed', error);
+    return false;
+  }
+}
+
+/**
+ * Flatten object keys
+ */
+function flattenKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+  const keys: string[] = [];
+  for (const key in obj) {
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    const value = obj[key];
+
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      keys.push(...flattenKeys(value as Record<string, unknown>, fullKey));
+    } else {
+      keys.push(fullKey);
     }
   }
+  return keys;
+}
 
+/**
+ * Configuration Manager
+ * Handles reading, writing, and managing configuration files
+ * Sealed namespace for immutability
+ */
+export const ConfigManager = Object.freeze({
   /**
-   * Get current configuration
+   * Create a new config manager instance
    */
-  getConfig(): ProjectConfig {
-    this.config ??= structuredClone(DEFAULT_CONFIG);
-    return this.config;
-  }
-
-  /**
-   * Get a specific config value
-   */
-  get(key: string): unknown {
-    const config = this.getConfig();
-    return getConfigValue(config as Record<string, unknown>, key);
-  }
-
-  /**
-   * Set a specific config value
-   */
-  set(key: string, value: unknown): void {
-    const config = this.getConfig();
-    setConfigValue(config as Record<string, unknown>, key, value);
-  }
-
-  /**
-   * Check if config file exists
-   */
-  async exists(): Promise<boolean> {
-    try {
-      await fs.access(this.configPath);
-      return true;
-    } catch (error) {
-      Logger.error('Config file access check failed', error);
-      return false;
-    }
-  }
-
-  /**
-   * Create default config file
-   */
-  async create(initialConfig?: Partial<ProjectConfig>): Promise<void> {
-    const config = {
-      ...DEFAULT_CONFIG,
-      ...initialConfig,
-    };
-    await this.save(config as ProjectConfig);
-  }
-
-  /**
-   * Reset to default configuration
-   */
-  async reset(): Promise<void> {
-    this.config = structuredClone(DEFAULT_CONFIG);
-    await this.save();
-  }
-
-  /**
-   * Merge configuration
-   */
-  merge(partial: Partial<ProjectConfig>): void {
-    const config = this.getConfig();
-    this.config = this.deepMerge(config, partial as Record<string, unknown>) as ProjectConfig;
-  }
-
-  /**
-   * Deep merge helper
-   */
-  private deepMerge(
-    target: Record<string, unknown>,
-    source: Record<string, unknown>
-  ): Record<string, unknown> {
-    const result = { ...target };
-
-    for (const key in source) {
-      if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key])) {
-        result[key] = this.deepMerge(
-          (target[key] as Record<string, unknown>) ?? {},
-          source[key] as Record<string, unknown>
-        );
-      } else {
-        result[key] = source[key];
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Export configuration as JSON string
-   */
-  export(): string {
-    return JSON.stringify(this.getConfig(), null, 2);
-  }
-
-  /**
-   * Get all keys in config (flat list)
-   */
-  getAllKeys(): string[] {
-    const config = this.getConfig();
-    const keys: string[] = [];
-
-    const flatten = (obj: Record<string, unknown>, prefix = ''): void => {
-      for (const key in obj) {
-        const fullKey = prefix ? `${prefix}.${key}` : key;
-        const value = obj[key];
-
-        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-          flatten(value as Record<string, unknown>, fullKey);
-        } else {
-          keys.push(fullKey);
-        }
-      }
+  create(configPath: string = ConfigPaths.PROJECT_CONFIG): IConfigManager {
+    const state: ConfigState = {
+      config: null,
+      configPath,
     };
 
-    flatten(config as Record<string, unknown>);
-    return keys;
-  }
+    return {
+      load: () => loadConfig(state),
+      save: (newConfig?: ProjectConfig) => saveConfig(state, newConfig),
+      getConfig: () => getConfig(state),
+      get(key: string): unknown {
+        return getConfigValue(getConfig(state) as Record<string, unknown>, key);
+      },
+      set(key: string, value: unknown): void {
+        setConfigValue(getConfig(state) as Record<string, unknown>, key, value);
+      },
+      exists: () => configExists(configPath),
+      async create(initialConfig?: Partial<ProjectConfig>): Promise<void> {
+        const newConfig = { ...DEFAULT_CONFIG, ...initialConfig };
+        await saveConfig(state, newConfig as ProjectConfig);
+      },
+      async reset(): Promise<void> {
+        state.config = structuredClone(DEFAULT_CONFIG);
+        await saveConfig(state);
+      },
+      merge(partial: Partial<ProjectConfig>): void {
+        const currentConfig = getConfig(state);
+        state.config = deepMerge(
+          currentConfig as Record<string, unknown>,
+          partial as Record<string, unknown>
+        ) as ProjectConfig;
+      },
+      export: () => JSON.stringify(getConfig(state), null, 2),
+      getAllKeys: () => flattenKeys(getConfig(state) as Record<string, unknown>),
+    };
+  },
 
   /**
    * Create global config directory if not exists
    */
-  static async ensureGlobalConfigDir(): Promise<void> {
+  async ensureGlobalConfigDir(): Promise<void> {
     try {
       await fs.mkdir(ConfigPaths.GLOBAL_DIR, { recursive: true });
     } catch (err) {
       Logger.error('Could not create global config dir', err);
       Logger.debug(`Could not create global config dir: ${(err as Error).message}`);
     }
-  }
+  },
 
   /**
    * Get or create global config manager
    */
-  static async getGlobalConfig(): Promise<ConfigManager> {
-    await ConfigManager.ensureGlobalConfigDir();
-    const manager = new ConfigManager(ConfigPaths.GLOBAL_CONFIG, true);
+  async getGlobalConfig(): Promise<IConfigManager> {
+    await this.ensureGlobalConfigDir();
+    const manager = this.create(ConfigPaths.GLOBAL_CONFIG);
     await manager.load();
     return manager;
-  }
+  },
 
   /**
    * Get or create project config manager
    */
-  static async getProjectConfig(): Promise<ConfigManager> {
-    const manager = new ConfigManager(ConfigPaths.PROJECT_CONFIG, false);
+  async getProjectConfig(): Promise<IConfigManager> {
+    const manager = this.create(ConfigPaths.PROJECT_CONFIG);
     await manager.load();
     return manager;
-  }
-}
+  },
+});

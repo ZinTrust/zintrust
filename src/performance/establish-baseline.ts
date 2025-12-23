@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 export async function establishBaseline(): Promise<void> {
   Logger.info('📊 Establishing Performance Baseline...');
 
-  const benchmark = new CodeGenerationBenchmark();
+  const benchmark = CodeGenerationBenchmark();
   await benchmark.runAll();
 
   // Save baseline

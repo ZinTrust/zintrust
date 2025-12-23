@@ -1,6 +1,7 @@
 /**
  * Cache Manager
  * Central cache management and driver resolution
+ * Sealed namespace pattern - all exports through Cache namespace
  */
 
 import { CacheDriver } from '@cache/CacheDriver';
@@ -12,19 +13,38 @@ import { Env } from '@config/env';
 
 let instance: CacheDriver | undefined;
 
+type DriverWithCreate = {
+  create: () => CacheDriver;
+};
+
+type DriverConstructor = new () => CacheDriver;
+
+function buildDriver(driver: unknown): CacheDriver {
+  const maybeCreate = (driver as Partial<DriverWithCreate>).create;
+  if (typeof maybeCreate === 'function') {
+    return maybeCreate();
+  }
+
+  if (typeof driver === 'function') {
+    return new (driver as unknown as DriverConstructor)();
+  }
+
+  throw new Error('Invalid cache driver export');
+}
+
 function resolveDriver(): CacheDriver {
   const driverName = Env.CACHE_DRIVER;
 
   switch (driverName) {
     case 'kv':
-      return new KVDriver();
+      return buildDriver(KVDriver);
     case 'redis':
-      return new RedisDriver();
+      return buildDriver(RedisDriver);
     case 'mongodb':
-      return new MongoDriver();
+      return buildDriver(MongoDriver);
     case 'memory':
     default:
-      return new MemoryDriver();
+      return buildDriver(MemoryDriver);
   }
 }
 
@@ -36,55 +56,56 @@ function getDriverInstance(): CacheDriver {
 /**
  * Get an item from the cache
  */
-export async function get<T>(key: string): Promise<T | null> {
+const get = async <T>(key: string): Promise<T | null> => {
   return getDriverInstance().get<T>(key);
-}
+};
 
 /**
  * Store an item in the cache
  */
-export async function set<T>(key: string, value: T, ttl?: number): Promise<void> {
+const set = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
   await getDriverInstance().set(key, value, ttl);
-}
+};
 
 /**
  * Remove an item from the cache
  */
-export async function del(key: string): Promise<void> {
+const del = async (key: string): Promise<void> => {
   await getDriverInstance().delete(key);
-}
+};
 
 /**
  * Clear all items from the cache
  */
-export async function clear(): Promise<void> {
+const clear = async (): Promise<void> => {
   await getDriverInstance().clear();
-}
+};
 
 /**
  * Check if an item exists in the cache
  */
-export async function has(key: string): Promise<boolean> {
+const has = async (key: string): Promise<boolean> => {
   return getDriverInstance().has(key);
-}
+};
 
 /**
  * Get the underlying driver instance
  */
-export function getDriver(): CacheDriver {
+const getDriver = (): CacheDriver => {
   return getDriverInstance();
-}
+};
 
-export const Cache = {
+// Sealed namespace with cache functionality
+export const Cache = Object.freeze({
   get,
   set,
   delete: del,
   clear,
   has,
   getDriver,
-};
+});
 
 /**
- * Helper function to use cache
+ * Helper alias for cache
  */
 export const cache = Cache;

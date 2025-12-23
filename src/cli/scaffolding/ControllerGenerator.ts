@@ -156,24 +156,25 @@ function generateCrudController(options?: ControllerOptions): string {
  * Auto-generated CRUD controller
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 import { Controller } from '@http/Controller';
 import { ${modelName} } from '@app/Models/${modelName}';
 
-export class ${className} extends Controller {
-${buildIndexMethod(modelName)}
+export const ${className} = Object.freeze({
+  ...Controller,
+${buildIndexMethod(modelName)},
 
-${buildShowMethod(modelName)}
+${buildShowMethod(modelName)},
 
-${buildStoreMethod(modelName)}
+${buildStoreMethod(modelName)},
 
-${buildUpdateMethod(modelName)}
+${buildUpdateMethod(modelName)},
 
-${buildDestroyMethod(modelName)}
+${buildDestroyMethod(modelName)},
 
-${buildHandleErrorMethod()}
-}
+${buildHandleErrorMethod()},
+});
 `;
 }
 
@@ -185,7 +186,7 @@ function buildIndexMethod(modelName: string): string {
    * GET /
    * List all records
    */
-  public async index(req: Request, res: Response): Promise<void> {
+  async index(req: IRequest, res: IResponse): Promise<void> {
     try {
       const page = req.getQuery('page') as string || '1';
       const limit = req.getQuery('limit') as string || '10';
@@ -201,7 +202,7 @@ function buildIndexMethod(modelName: string): string {
         limit: parseInt(limit, 10),
       });
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
   }`;
 }
@@ -214,7 +215,7 @@ function buildShowMethod(modelName: string): string {
    * GET /:id
    * Show single record
    */
-  public async show(req: Request, res: Response): Promise<void> {
+  async show(req: IRequest, res: IResponse): Promise<void> {
     try {
       const id = req.getParam('id');
       const record = await ${modelName}.find(id);
@@ -225,7 +226,7 @@ function buildShowMethod(modelName: string): string {
 
       res.json({ data: record });
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
   }`;
 }
@@ -238,14 +239,14 @@ function buildStoreMethod(modelName: string): string {
    * POST /
    * Create new record
    */
-  public async store(req: Request, res: Response): Promise<void> {
+  async store(req: IRequest, res: IResponse): Promise<void> {
     try {
       const body = req.getBody() as Record<string, unknown>;
       const record = await ${modelName}.create(body);
 
       res.setStatus(201).json({ data: record });
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
   }`;
 }
@@ -258,7 +259,7 @@ function buildUpdateMethod(modelName: string): string {
    * PUT /:id
    * Update record
    */
-  public async update(req: Request, res: Response): Promise<void> {
+  async update(req: IRequest, res: IResponse): Promise<void> {
     try {
       const id = req.getParam('id');
       const body = req.getBody() as Record<string, unknown>;
@@ -273,7 +274,7 @@ function buildUpdateMethod(modelName: string): string {
 
       res.json({ data: record });
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
   }`;
 }
@@ -286,7 +287,7 @@ function buildDestroyMethod(modelName: string): string {
    * DELETE /:id
    * Delete record
    */
-  public async destroy(req: Request, res: Response): Promise<void> {
+  async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
       const id = req.getParam('id');
       const record = await ${modelName}.find(id);
@@ -298,7 +299,7 @@ function buildDestroyMethod(modelName: string): string {
       await record.delete();
       res.setStatus(204).send();
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
   }`;
 }
@@ -310,7 +311,7 @@ function buildHandleErrorMethod(): string {
   return `  /**
    * Handle controller errors
    */
-  protected handleError(res: Response, error: unknown): void {
+   handleError(res: IResponse, error: unknown): void {
     const message = error instanceof Error ? error.message : 'Internal server error';
     res.setStatus(500).json({ error: message });
   }`;
@@ -334,13 +335,13 @@ function generateApiController(options?: ControllerOptions): string {
  * Auto-generated API controller
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 import { Controller } from '@http/Controller';
 
-export class ${className} extends Controller {
-${buildApiControllerBody()}
-}
+export const ${className} = {\n  ...Controller,
+${buildApiControllerBody()},
+};
 `;
 }
 
@@ -348,9 +349,9 @@ ${buildApiControllerBody()}
  * Build API controller body
  */
 function buildApiControllerBody(): string {
-  return `${buildApiMainHandler()}
+  return `${buildApiMainHandler()},
 
-${buildApiMethodHandlers()}
+${buildApiMethodHandlers()},
 
 ${buildHandleErrorMethod()}`;
 }
@@ -362,24 +363,24 @@ function buildApiMainHandler(): string {
   return `  /**
    * API endpoint template
    */
-  public async handleRequest(req: Request, res: Response): Promise<void> {
+  async handleRequest(req: IRequest, res: IResponse): Promise<void> {
     try {
       const method = req.getMethod();
 
       // Route to appropriate handler
       if (method === 'GET') {
-        await this.handleGet(req, res);
+        await handleGet(req, res);
       } else if (method === 'POST') {
-        await this.handlePost(req, res);
+        await handlePost(req, res);
       } else if (method === 'PUT') {
-        await this.handlePut(req, res);
+        await handlePut(req, res);
       } else if (method === 'DELETE') {
-        await this.handleDelete(req, res);
+        await handleDelete(req, res);
       } else {
         res.setStatus(405).json({ error: 'Method not allowed' });
       }
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
   }`;
 }
@@ -391,28 +392,28 @@ function buildApiMethodHandlers(): string {
   return `  /**
    * Handle GET requests
    */
-  protected async handleGet(_req: Request, res: Response): Promise<void> {
+  async handleGet(_req: IRequest, res: IResponse): Promise<void> {
     res.json({ message: 'GET endpoint' });
-  }
+  },
 
   /**
    * Handle POST requests
    */
-  protected async handlePost(_req: Request, res: Response): Promise<void> {
+  async handlePost(_req: IRequest, res: IResponse): Promise<void> {
     res.setStatus(201).json({ message: 'POST endpoint' });
-  }
+  },
 
   /**
    * Handle PUT requests
    */
-  protected async handlePut(_req: Request, res: Response): Promise<void> {
+  async handlePut(_req: IRequest, res: IResponse): Promise<void> {
     res.json({ message: 'PUT endpoint' });
-  }
+  },
 
   /**
    * Handle DELETE requests
    */
-  protected async handleDelete(_req: Request, res: Response): Promise<void> {
+  async handleDelete(_req: IRequest, res: IResponse): Promise<void> {
     res.setStatus(204).send();
   }`;
 }
@@ -428,15 +429,15 @@ function generateGraphQLController(options?: ControllerOptions): string {
  * Auto-generated GraphQL controller
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 import { Controller } from '@http/Controller';
 
-export class ${className} extends Controller {
+export const ${className} = {\n  ...Controller,
   /**
    * GraphQL endpoint
    */
-  public async handle(req: Request, res: Response): Promise<void> {
+  async handle(req: IRequest, res: IResponse): Promise<void> {
     try {
       if (req.getMethod() !== 'POST') {
         return res.setStatus(405).json({ error: 'Method not allowed' });
@@ -446,30 +447,30 @@ export class ${className} extends Controller {
       const query = body.query as string;
 
       // TODO: Execute GraphQL query
-      const result = await this.executeQuery(query);
+      const result = await executeQuery(query);
 
       res.json(result);
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
-  }
+  },
 
   /**
    * Execute GraphQL query
    */
-  private async executeQuery(query: string): Promise<Record<string, unknown>> {
+  async executeQuery(query: string): Promise<Record<string, unknown>> {
     // TODO: Implement GraphQL execution
     return { data: null };
-  }
+  },
 
   /**
    * Handle controller errors
    */
-  protected handleError(res: Response, error: unknown): void {
+   handleError(res: IResponse, error: unknown): void {
     const message = error instanceof Error ? error.message : 'GraphQL error';
     res.setStatus(500).json({ errors: [{ message }] });
-  }
-}
+  },
+};
 `;
 }
 
@@ -486,29 +487,29 @@ function generateWebSocketController(options?: ControllerOptions): string {
 
 import { Logger } from '@config/logger';
 
-export class ${className} {
+export const ${className} = {
   /**
    * Handle WebSocket connection
    */
-  public async onConnect(socket: { id: string }): Promise<void> {
+  async onConnect(socket: { id: string }): Promise<void> {
     Logger.info('Client connected:', { socketId: socket.id });
-  }
+  },
 
   /**
    * Handle WebSocket message
    */
-  public async onMessage(socket: { emit: (event: string, data: unknown) => void }, message: unknown): Promise<void> {
+  async onMessage(socket: { emit: (event: string, data: unknown) => void }, message: unknown): Promise<void> {
     Logger.info('Message received:', { message });
     socket.emit('message', { echo: message });
-  }
+  },
 
   /**
    * Handle WebSocket disconnect
    */
-  public async onDisconnect(socket: { id: string }): Promise<void> {
+  async onDisconnect(socket: { id: string }): Promise<void> {
     Logger.info('Client disconnected:', { socketId: socket.id });
-  }
-}
+  },
+};
 `;
 }
 
@@ -523,14 +524,14 @@ function generateWebhookController(options?: ControllerOptions): string {
  * Auto-generated Webhook controller
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 import { Controller } from '@http/Controller';
 import { Logger } from '@config/logger';
 
-export class ${className} extends Controller {
-${buildWebhookControllerBody()}
-}
+export const ${className} = {\n  ...Controller,
+${buildWebhookControllerBody()},
+};
 `;
 }
 
@@ -541,43 +542,43 @@ function buildWebhookControllerBody(): string {
   return `  /**
    * Handle incoming webhook
    */
-  public async handle(req: Request, res: Response): Promise<void> {
+  async handle(req: IRequest, res: IResponse): Promise<void> {
     try {
       // Verify webhook signature
       const signature = req.getHeader('x-webhook-signature');
-      if (this.verifySignature(req, signature as string) === false) {
+      if (verifySignature(req, signature as string) === false) {
         return res.setStatus(401).json({ error: 'Invalid signature' });
       }
 
       const body = req.getBody();
-      await this.processWebhook(body);
+      await processWebhook(body);
 
       res.json({ success: true });
     } catch (error) {
-      this.handleError(res, error);
+      handleError(res, error);
     }
-  }
+  },
 
   /**
    * Verify webhook signature
    */
-  private verifySignature(req: Request, signature: string): boolean {
+   verifySignature(req: IRequest, signature: string): boolean {
     // TODO: Implement signature verification
     return true;
-  }
+  },
 
   /**
    * Process webhook payload
    */
-  private async processWebhook(payload: unknown): Promise<void> {
+  async processWebhook(payload: unknown): Promise<void> {
     // TODO: Implement webhook processing
     Logger.info('Processing webhook:', { payload });
-  }
+  },
 
   /**
    * Handle controller errors
    */
-  protected handleError(res: Response, error: unknown): void {
+   handleError(res: IResponse, error: unknown): void {
     const message = error instanceof Error ? error.message : 'Webhook error';
     res.setStatus(500).json({ error: message });
   }`;
@@ -593,8 +594,8 @@ export function getAvailableTypes(): ControllerType[] {
 /**
  * ControllerGenerator creates HTTP request handlers
  */
-export const ControllerGenerator = {
+export const ControllerGenerator = Object.freeze({
   validateOptions,
   generateController,
   getAvailableTypes,
-};
+});

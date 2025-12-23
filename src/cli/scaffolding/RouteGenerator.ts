@@ -356,11 +356,11 @@ export function getCommonMethods(): RouteMethod[] {
 /**
  * RouteGenerator creates route definitions
  */
-export const RouteGenerator = {
+export const RouteGenerator = Object.freeze({
   validateOptions,
   generateRoutes,
   getUserApiRoutes,
   getAuthRoutes,
   getAdminRoutes,
   getCommonMethods,
-};
+});

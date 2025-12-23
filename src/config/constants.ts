@@ -1,9 +1,10 @@
 /**
  * Framework Constants
  * Centralized string literals to prevent duplication (SonarQube S1192)
+ * Sealed namespace for immutability
  */
 
-export const HTTP_HEADERS = {
+const HTTP_HEADERS = {
   CONTENT_TYPE: 'Content-Type',
   ACCEPT: 'Accept',
   AUTHORIZATION: 'Authorization',
@@ -17,7 +18,7 @@ export const HTTP_HEADERS = {
   CONTENT_SECURITY_POLICY: 'Content-Security-Policy',
 } as const;
 
-export const MIME_TYPES = {
+const MIME_TYPES = {
   JSON: 'application/json',
   HTML: 'text/html',
   TEXT: 'text/plain',
@@ -36,7 +37,7 @@ export const MIME_TYPES = {
   WASM: 'application/wasm',
 } as const;
 
-export const ENV_KEYS = {
+const ENV_KEYS = {
   NODE_ENV: 'NODE_ENV',
   PORT: 'PORT',
   HOST: 'HOST',
@@ -49,8 +50,21 @@ export const ENV_KEYS = {
   DB_PASSWORD: 'DB_PASSWORD', // NOSONARQUBE
 } as const;
 
-export const DEFAULTS = {
+const DEFAULTS = {
   CONNECTION: 'default',
   DOMAIN: 'default',
   NAMESPACE: 'default',
 } as const;
+
+/**
+ * Constants namespace - sealed for immutability
+ */
+export const Constants = Object.freeze({
+  HTTP_HEADERS,
+  MIME_TYPES,
+  ENV_KEYS,
+  DEFAULTS,
+});
+
+// Re-export for backward compatibility
+export { DEFAULTS, ENV_KEYS, HTTP_HEADERS, MIME_TYPES };

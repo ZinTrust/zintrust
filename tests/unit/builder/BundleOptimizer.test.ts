@@ -30,37 +30,37 @@ afterEach(() => {
 });
 
 it('should create optimizer with lambda platform', () => {
-  const optimizer = new BundleOptimizer({ platform: 'lambda' });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda' });
   expect(optimizer).toBeDefined();
 });
 
 it('should create optimizer with cloudflare platform', () => {
-  const optimizer = new BundleOptimizer({ platform: 'cloudflare' });
+  const optimizer = BundleOptimizer.create({ platform: 'cloudflare' });
   expect(optimizer).toBeDefined();
 });
 
 it('should create optimizer with deno platform', () => {
-  const optimizer = new BundleOptimizer({ platform: 'deno' });
+  const optimizer = BundleOptimizer.create({ platform: 'deno' });
   expect(optimizer).toBeDefined();
 });
 
 it('should create optimizer with fargate platform', () => {
-  const optimizer = new BundleOptimizer({ platform: 'fargate' });
+  const optimizer = BundleOptimizer.create({ platform: 'fargate' });
   expect(optimizer).toBeDefined();
 });
 
 it('should create optimizer with verbose option', () => {
-  const optimizer = new BundleOptimizer({ platform: 'lambda', verbose: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', verbose: true });
   expect(optimizer).toBeDefined();
 });
 
 it('should create optimizer with targetSize option', () => {
-  const optimizer = new BundleOptimizer({ platform: 'lambda', targetSize: 5000000 });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', targetSize: 5000000 });
   expect(optimizer).toBeDefined();
 });
 
 it('should create optimizer with analyzeOnly option', () => {
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
   expect(optimizer).toBeDefined();
 });
 
@@ -90,7 +90,7 @@ it('should analyze bundle with multiple files', async () => {
 
   vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
 
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
   const analysis = await optimizer.optimize();
 
   expect(analysis.platform).toBe('lambda');
@@ -113,7 +113,7 @@ it('should calculate file percentages correctly', async () => {
 
   vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
 
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
   const analysis = await optimizer.optimize();
 
   const largeFile = analysis.files.find((f) => f.path.includes('large'));
@@ -140,7 +140,7 @@ it('should sort files by size descending', async () => {
 
   vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
 
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
   const analysis = await optimizer.optimize();
 
   for (let i = 0; i < analysis.files.length - 1; i++) {
@@ -150,7 +150,7 @@ it('should sort files by size descending', async () => {
 
 it('should handle empty dist directory', async () => {
   vi.mocked(fs.readdirSync).mockReturnValue([]);
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
   const analysis = await optimizer.optimize();
 
   expect(analysis.files).toHaveLength(0);
@@ -159,7 +159,7 @@ it('should handle empty dist directory', async () => {
 
 it('should handle missing dist directory', async () => {
   vi.mocked(fs.existsSync).mockReturnValue(false);
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
   const analysis = await optimizer.optimize();
 
   expect(analysis.files).toHaveLength(0);
@@ -171,7 +171,7 @@ describe('Lambda Optimization', () => {
     vi.mocked(fs.readdirSync).mockReturnValue([
       { name: 'test.js', isDirectory: () => false },
     ] as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -184,7 +184,7 @@ describe('Lambda Optimization', () => {
   it('should remove unused ORM adapters for lambda', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -194,7 +194,7 @@ describe('Lambda Optimization', () => {
   it('should remove dev dependencies for lambda', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({
+    const optimizer = BundleOptimizer.create({
       platform: 'lambda',
       analyzeOnly: false,
       verbose: true,
@@ -207,7 +207,7 @@ describe('Lambda Optimization', () => {
 
   it('should minify javascript for lambda', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -220,7 +220,7 @@ describe('Cloudflare Optimization', () => {
     vi.mocked(fs.readdirSync).mockReturnValue([
       { name: 'test.js', isDirectory: () => false },
     ] as any);
-    const optimizer = new BundleOptimizer({ platform: 'cloudflare', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'cloudflare', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -236,7 +236,7 @@ describe('Cloudflare Optimization', () => {
 
     vi.mocked(fs.statSync).mockReturnValue({ size: 1048576 } as any);
 
-    const optimizer = new BundleOptimizer({ platform: 'cloudflare', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'cloudflare', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -247,7 +247,7 @@ describe('Cloudflare Optimization', () => {
   it('should remove node server adapter for cloudflare', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({ platform: 'cloudflare', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'cloudflare', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -256,7 +256,7 @@ describe('Cloudflare Optimization', () => {
 
   it('should inline small files for cloudflare', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
-    const optimizer = new BundleOptimizer({ platform: 'cloudflare', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'cloudflare', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -266,7 +266,7 @@ describe('Cloudflare Optimization', () => {
   it('should remove unused middleware for cloudflare', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({ platform: 'cloudflare', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'cloudflare', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -279,7 +279,7 @@ describe('Deno Optimization', () => {
     vi.mocked(fs.readdirSync).mockReturnValue([
       { name: 'test.js', isDirectory: () => false },
     ] as any);
-    const optimizer = new BundleOptimizer({ platform: 'deno', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'deno', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -289,7 +289,7 @@ describe('Deno Optimization', () => {
   it('should remove node specific modules for deno', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({ platform: 'deno', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'deno', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -302,7 +302,7 @@ describe('Fargate Optimization', () => {
     vi.mocked(fs.readdirSync).mockReturnValue([
       { name: 'test.js', isDirectory: () => false },
     ] as any);
-    const optimizer = new BundleOptimizer({ platform: 'fargate', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'fargate', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -315,7 +315,7 @@ describe('Fargate Optimization', () => {
       { name: 'spec.spec.js', isDirectory: () => false },
     ] as any);
 
-    const optimizer = new BundleOptimizer({ platform: 'fargate', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'fargate', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -324,7 +324,7 @@ describe('Fargate Optimization', () => {
 
   it('should keep all adapters for fargate', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
-    const optimizer = new BundleOptimizer({ platform: 'fargate', analyzeOnly: false });
+    const optimizer = BundleOptimizer.create({ platform: 'fargate', analyzeOnly: false });
 
     await optimizer.optimize();
 
@@ -338,7 +338,7 @@ describe('Recommendations', () => {
       { name: 'huge.js', isDirectory: () => false },
     ] as any);
     vi.mocked(fs.statSync).mockReturnValue({ size: 150 * 1024 * 1024 } as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
     const analysis = await optimizer.optimize();
 
     expect(analysis.recommendations.some((r) => r.includes('exceeds 100 MB'))).toBe(true);
@@ -356,7 +356,7 @@ describe('Recommendations', () => {
       return { size: 1000 } as any;
     });
 
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
     const analysis = await optimizer.optimize();
 
     expect(analysis.recommendations.some((r) => r.includes('%'))).toBe(true);
@@ -367,7 +367,7 @@ describe('Recommendations', () => {
       { name: 'large.js', isDirectory: () => false },
     ] as any);
     vi.mocked(fs.statSync).mockReturnValue({ size: 2 * 1024 * 1024 } as any);
-    const optimizer = new BundleOptimizer({ platform: 'cloudflare', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'cloudflare', analyzeOnly: true });
     const analysis = await optimizer.optimize();
 
     expect(analysis.recommendations.some((r) => r.includes('Cloudflare'))).toBe(true);
@@ -378,7 +378,7 @@ describe('Recommendations', () => {
       { name: 'small.js', isDirectory: () => false },
     ] as any);
     vi.mocked(fs.statSync).mockReturnValue({ size: 100000 } as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
     const analysis = await optimizer.optimize();
 
     expect(analysis.recommendations).toBeDefined();
@@ -392,7 +392,7 @@ describe('Analysis Report', () => {
       { name: 'test.js', isDirectory: () => false },
     ] as any);
     vi.mocked(fs.statSync).mockReturnValue({ size: 500 } as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     await optimizer.optimize();
 
@@ -404,7 +404,7 @@ describe('Analysis Report', () => {
       { name: 'test.js', isDirectory: () => false },
     ] as any);
     vi.mocked(fs.statSync).mockReturnValue({ size: 500 } as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     await optimizer.optimize();
 
@@ -416,7 +416,7 @@ describe('Analysis Report', () => {
       { name: 'test1.js', isDirectory: () => false },
       { name: 'test2.js', isDirectory: () => false },
     ] as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     await optimizer.optimize();
 
@@ -428,7 +428,7 @@ describe('Verbose Logging', () => {
   it('should log removed files when verbose is true', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({
+    const optimizer = BundleOptimizer.create({
       platform: 'lambda',
       verbose: true,
       analyzeOnly: false,
@@ -442,7 +442,7 @@ describe('Verbose Logging', () => {
   it('should not log removed files when verbose is false', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    const optimizer = new BundleOptimizer({
+    const optimizer = BundleOptimizer.create({
       platform: 'lambda',
       verbose: false,
       analyzeOnly: false,
@@ -457,12 +457,12 @@ describe('Verbose Logging', () => {
 
 describe('Target Size Option', () => {
   it('should accept target size option', () => {
-    const optimizer = new BundleOptimizer({ platform: 'lambda', targetSize: 3000000 });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', targetSize: 3000000 });
     expect(optimizer).toBeDefined();
   });
 
   it('should accept undefined target size', () => {
-    const optimizer = new BundleOptimizer({ platform: 'lambda', targetSize: undefined });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', targetSize: undefined });
     expect(optimizer).toBeDefined();
   });
 });
@@ -472,7 +472,7 @@ describe('Analyze Only Mode', () => {
     vi.mocked(fs.readdirSync).mockReturnValue([
       { name: 'test.js', isDirectory: () => false },
     ] as any);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     await optimizer.optimize();
 
@@ -481,7 +481,7 @@ describe('Analyze Only Mode', () => {
 
   it('should return analysis in analyzeOnly mode', async () => {
     vi.mocked(fs.readdirSync).mockReturnValue([]);
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     const analysis = await optimizer.optimize();
 
@@ -500,7 +500,7 @@ describe('Error Handling', () => {
       throw new Error('Stat failed');
     });
 
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     try {
       await optimizer.optimize();
@@ -514,7 +514,7 @@ describe('Error Handling', () => {
       throw new Error('Read failed');
     });
 
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
     try {
       await optimizer.optimize();
@@ -563,7 +563,7 @@ describe('CLI Integration', () => {
     vi.mocked(fs.statSync).mockReturnValue({ size: 100 } as any);
     vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
 
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
     const analysis = await optimizer.optimize();
 
     expect(analysis.files.length).toBeGreaterThanOrEqual(2);
@@ -578,7 +578,7 @@ describe('CLI Integration', () => {
     vi.mocked(fs.statSync).mockReturnValue({ size: 100 } as any);
     vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
 
-    const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+    const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
     const analysis = await optimizer.optimize();
 
     expect(analysis.files.length).toBe(2);
@@ -588,7 +588,7 @@ describe('CLI Integration', () => {
 it('should format sizes in MB', async () => {
   vi.mocked(fs.readdirSync).mockReturnValue([{ name: 'test.js', isDirectory: () => false }] as any);
   vi.mocked(fs.statSync).mockReturnValue({ size: 5 * 1024 * 1024 } as any);
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
   await optimizer.optimize();
 
@@ -598,7 +598,7 @@ it('should format sizes in MB', async () => {
 it('should format sizes in KB', async () => {
   vi.mocked(fs.readdirSync).mockReturnValue([{ name: 'test.js', isDirectory: () => false }] as any);
   vi.mocked(fs.statSync).mockReturnValue({ size: 500 * 1024 } as any);
-  const optimizer = new BundleOptimizer({ platform: 'lambda', analyzeOnly: true });
+  const optimizer = BundleOptimizer.create({ platform: 'lambda', analyzeOnly: true });
 
   await optimizer.optimize();
 

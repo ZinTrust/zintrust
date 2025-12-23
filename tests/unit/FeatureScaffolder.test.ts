@@ -3,7 +3,7 @@ import {
   getAvailableFeatures,
   validateOptions,
 } from '@cli/scaffolding/FeatureScaffolder';
-import * as FileGenerator from '@cli/scaffolding/FileGenerator';
+import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

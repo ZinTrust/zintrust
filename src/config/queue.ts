@@ -1,15 +1,71 @@
 /**
  * Queue Configuration
  * Background job and message queue settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 
-export const queueConfig = {
+type QueueDriverName = 'sync' | 'database' | 'redis' | 'rabbitmq' | 'sqs';
+
+type SyncQueueDriverConfig = {
+  driver: 'sync';
+};
+
+type DatabaseQueueDriverConfig = {
+  driver: 'database';
+  table: string;
+  connection: string;
+};
+
+type RedisQueueDriverConfig = {
+  driver: 'redis';
+  host: string;
+  port: number;
+  password?: string;
+  database: number;
+};
+
+type RabbitMqQueueDriverConfig = {
+  driver: 'rabbitmq';
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  vhost: string;
+};
+
+type SqsQueueDriverConfig = {
+  driver: 'sqs';
+  key?: string;
+  secret?: string;
+  region: string;
+  queueUrl?: string;
+};
+
+type QueueDriversConfig = {
+  sync: SyncQueueDriverConfig;
+  database: DatabaseQueueDriverConfig;
+  redis: RedisQueueDriverConfig;
+  rabbitmq: RabbitMqQueueDriverConfig;
+  sqs: SqsQueueDriverConfig;
+};
+
+type QueueConfigWithDrivers = {
+  default: QueueDriverName;
+  drivers: QueueDriversConfig;
+};
+
+const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
+  const driverName = config.default;
+  return config.drivers[driverName];
+};
+
+const queueConfigObj = {
   /**
    * Default queue driver
    */
-  default: Env.get('QUEUE_DRIVER', 'sync'),
+  default: Env.get('QUEUE_DRIVER', 'sync') as QueueDriverName,
 
   /**
    * Queue drivers
@@ -45,14 +101,13 @@ export const queueConfig = {
       region: Env.AWS_REGION,
       queueUrl: Env.get('AWS_SQS_QUEUE_URL'),
     },
-  },
+  } satisfies QueueDriversConfig,
 
   /**
    * Get queue driver config
    */
-  getDriver() {
-    const driverName = this.default as keyof typeof this.drivers;
-    return this.drivers[driverName];
+  getDriver(): QueueDriversConfig[QueueDriverName] {
+    return getQueueDriver(this);
   },
 
   /**
@@ -72,6 +127,8 @@ export const queueConfig = {
     backoff: Env.getInt('QUEUE_JOB_BACKOFF', 0),
     workers: Env.getInt('QUEUE_WORKERS', 1),
   },
-} as const;
+};
+
+export const queueConfig = Object.freeze(queueConfigObj);
 
 export type QueueConfig = typeof queueConfig;

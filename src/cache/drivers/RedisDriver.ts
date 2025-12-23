@@ -8,22 +8,20 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import * as net from 'node:net';
 
-export class RedisDriver implements CacheDriver {
-  private client: net.Socket | null = null;
-  private readonly host: string;
-  private readonly port: number;
+/**
+ * Create a new Redis driver instance
+ */
+const create = (): CacheDriver => {
+  let client: net.Socket | null = null;
+  const host = Env.REDIS_HOST;
+  const port = Env.REDIS_PORT;
 
-  constructor() {
-    this.host = Env.REDIS_HOST;
-    this.port = Env.REDIS_PORT;
-  }
-
-  private async connect(): Promise<net.Socket> {
-    if (this.client && !this.client.destroyed) return this.client;
+  const connect = async (): Promise<net.Socket> => {
+    if (client && !client.destroyed) return client;
 
     return new Promise((resolve, reject) => {
-      const socket = net.connect(this.port, this.host, () => {
-        this.client = socket;
+      const socket = net.connect(port, host, () => {
+        client = socket;
         resolve(socket);
       });
 
@@ -32,52 +30,61 @@ export class RedisDriver implements CacheDriver {
         reject(err);
       });
     });
-  }
+  };
 
-  private async sendCommand(command: string): Promise<string> {
-    const socket = await this.connect();
+  const sendCommand = async (command: string): Promise<string> => {
+    const socket = await connect();
     return new Promise((resolve, _reject) => {
       socket.once('data', (data) => {
         resolve(data.toString());
       });
       socket.write(command);
     });
-  }
+  };
 
-  public async get<T>(key: string): Promise<T | null> {
-    try {
-      const response = await this.sendCommand(`GET ${key}\r\n`);
-      if (response.startsWith('$-1')) return null;
+  return {
+    async get<T>(key: string): Promise<T | null> {
+      try {
+        const response = await sendCommand(`GET ${key}\r\n`);
+        if (response.startsWith('$-1')) return null;
 
-      // Basic RESP parsing
-      const lines = response.split('\r\n');
-      const value = lines[1];
-      return JSON.parse(value) as T;
-    } catch (error) {
-      Logger.error('Redis GET failed', error);
-      return null;
-    }
-  }
+        // Basic RESP parsing
+        const lines = response.split('\r\n');
+        const value = lines[1];
+        return JSON.parse(value) as T;
+      } catch (error) {
+        Logger.error('Redis GET failed', error);
+        return null;
+      }
+    },
 
-  public async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const jsonValue = JSON.stringify(value);
-    let command = `SET ${key} ${jsonValue}\r\n`;
-    if (ttl !== undefined) {
-      command = `SETEX ${key} ${ttl} ${jsonValue}\r\n`;
-    }
-    await this.sendCommand(command);
-  }
+    async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+      const jsonValue = JSON.stringify(value);
+      let command = `SET ${key} ${jsonValue}\r\n`;
+      if (ttl !== undefined) {
+        command = `SETEX ${key} ${ttl} ${jsonValue}\r\n`;
+      }
+      await sendCommand(command);
+    },
 
-  public async delete(key: string): Promise<void> {
-    await this.sendCommand(`DEL ${key}\r\n`);
-  }
+    async delete(key: string): Promise<void> {
+      await sendCommand(`DEL ${key}\r\n`);
+    },
 
-  public async clear(): Promise<void> {
-    await this.sendCommand(`FLUSHDB\r\n`);
-  }
+    async clear(): Promise<void> {
+      await sendCommand(`FLUSHDB\r\n`);
+    },
 
-  public async has(key: string): Promise<boolean> {
-    const response = await this.sendCommand(`EXISTS ${key}\r\n`);
-    return response.includes(':1');
-  }
-}
+    async has(key: string): Promise<boolean> {
+      const response = await sendCommand(`EXISTS ${key}\r\n`);
+      return response.includes(':1');
+    },
+  };
+};
+
+/**
+ * RedisDriver namespace - sealed for immutability
+ */
+export const RedisDriver = Object.freeze({
+  create,
+});

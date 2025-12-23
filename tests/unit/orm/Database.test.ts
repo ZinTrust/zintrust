@@ -1,51 +1,90 @@
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
-import { Database, resetDatabase, useDatabase } from '@orm/Database';
+import { Database, IDatabase, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock adapters
 vi.mock('@orm/adapters/SQLiteAdapter', () => {
-  const MockAdapter = vi.fn(function () {
-    return {
-      connect: vi.fn().mockResolvedValue(undefined),
-      disconnect: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-      queryOne: vi.fn().mockResolvedValue(null),
-      transaction: vi.fn().mockImplementation((cb) => cb()),
-      getType: vi.fn().mockReturnValue('sqlite'),
-    };
-  });
-  return { SQLiteAdapter: MockAdapter };
+  return {
+    SQLiteAdapter: {
+      create: vi.fn().mockReturnValue({
+        connect: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        queryOne: vi.fn().mockResolvedValue(null),
+        transaction: vi.fn().mockImplementation((cb) => cb()),
+        getType: vi.fn().mockReturnValue('sqlite'),
+        getPlaceholder: vi.fn().mockReturnValue('?'),
+        rawQuery: vi.fn().mockResolvedValue([]),
+      }),
+    },
+  };
 });
 
 vi.mock('@orm/adapters/PostgreSQLAdapter', () => {
-  const MockAdapter = vi.fn(function () {
-    return {
+  return {
+    PostgreSQLAdapter: {
+      create: vi.fn().mockReturnValue({
+        connect: vi.fn().mockResolvedValue(undefined),
+        disconnect: vi.fn().mockResolvedValue(undefined),
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        queryOne: vi.fn().mockResolvedValue(null),
+        transaction: vi.fn().mockImplementation((cb) => cb()),
+        getType: vi.fn().mockReturnValue('postgresql'),
+        getPlaceholder: vi.fn().mockReturnValue('$1'),
+        rawQuery: vi.fn().mockResolvedValue([]),
+      }),
+    },
+  };
+});
+
+vi.mock('@orm/adapters/MySQLAdapter', () => ({
+  MySQLAdapter: {
+    create: vi.fn().mockReturnValue({
       connect: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
       query: vi.fn().mockResolvedValue({ rows: [] }),
       queryOne: vi.fn().mockResolvedValue(null),
       transaction: vi.fn().mockImplementation((cb) => cb()),
-      getType: vi.fn().mockReturnValue('postgresql'),
-    };
-  });
-  return { PostgreSQLAdapter: MockAdapter };
-});
-
-vi.mock('@orm/adapters/MySQLAdapter', () => ({
-  MySQLAdapter: vi.fn(),
+      getType: vi.fn().mockReturnValue('mysql'),
+      getPlaceholder: vi.fn().mockReturnValue('?'),
+      rawQuery: vi.fn().mockResolvedValue([]),
+    }),
+  },
 }));
 
 vi.mock('@orm/adapters/SQLServerAdapter', () => ({
-  SQLServerAdapter: vi.fn(),
+  SQLServerAdapter: {
+    create: vi.fn().mockReturnValue({
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      transaction: vi.fn().mockImplementation((cb) => cb()),
+      getType: vi.fn().mockReturnValue('sqlserver'),
+      getPlaceholder: vi.fn().mockReturnValue('@p1'),
+      rawQuery: vi.fn().mockResolvedValue([]),
+    }),
+  },
 }));
 
 vi.mock('@orm/adapters/D1Adapter', () => ({
-  D1Adapter: vi.fn(),
+  D1Adapter: {
+    create: vi.fn().mockReturnValue({
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      transaction: vi.fn().mockImplementation((cb) => cb()),
+      getType: vi.fn().mockReturnValue('d1'),
+      getPlaceholder: vi.fn().mockReturnValue('?'),
+      rawQuery: vi.fn().mockResolvedValue([]),
+    }),
+  },
 }));
 
 describe('Database', () => {
-  let db: Database;
+  let db: IDatabase;
 
   beforeEach(() => {
     resetDatabase();
@@ -53,32 +92,32 @@ describe('Database', () => {
   });
 
   it('should create SQLite adapter by default', () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
-    expect(SQLiteAdapter).toHaveBeenCalled();
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
+    expect(SQLiteAdapter.create).toHaveBeenCalled();
     expect(db.getType()).toBe('sqlite');
   });
 
   it('should create PostgreSQL adapter', () => {
-    db = new Database({ driver: 'postgresql', database: 'test' });
-    expect(PostgreSQLAdapter).toHaveBeenCalled();
+    db = Database.create({ driver: 'postgresql', database: 'test' });
+    expect(PostgreSQLAdapter.create).toHaveBeenCalled();
     expect(db.getType()).toBe('postgresql');
   });
 
   it('should connect to database', async () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
     await db.connect();
     expect(db.isConnected()).toBe(true);
   });
 
   it('should disconnect from database', async () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
     await db.connect();
     await db.disconnect();
     expect(db.isConnected()).toBe(false);
   });
 
   it('should throw error on query without connection', async () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
     const query = db.query('SELECT * FROM users');
     await expect(query).rejects.toThrow('Database not connected');
   });
@@ -90,20 +129,20 @@ describe('Database', () => {
   });
 
   it('should create table builder', () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
     const builder = db.table('users');
     expect(builder).toBeDefined();
   });
 
   it('should get config', () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
     const config = db.getConfig();
     expect(config.driver).toBe('sqlite');
     expect(config.database).toBe(':memory:');
   });
 
   it('should emit events on query', async () => {
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
     await db.connect();
 
     const beforeHandler = vi.fn();
@@ -124,27 +163,35 @@ describe('Database', () => {
     const mockReadQuery2 = vi.fn().mockResolvedValue({ rows: [] });
 
     // Mock SQLiteAdapter to return different instances based on config
-    (SQLiteAdapter as any).mockImplementation(function (config: any) {
+    (SQLiteAdapter.create as any).mockImplementation(function (config: any) {
       if (config.host === 'read1') {
         return {
           connect: vi.fn(),
           query: mockReadQuery1,
+          getType: vi.fn().mockReturnValue('sqlite'),
+          getPlaceholder: vi.fn().mockReturnValue('?'),
+          rawQuery: vi.fn().mockResolvedValue([]),
         };
       }
       if (config.host === 'read2') {
         return {
           connect: vi.fn(),
           query: mockReadQuery2,
+          getType: vi.fn().mockReturnValue('sqlite'),
+          getPlaceholder: vi.fn().mockReturnValue('?'),
+          rawQuery: vi.fn().mockResolvedValue([]),
         };
       }
       return {
         connect: vi.fn(),
         query: mockWriteQuery,
         getType: vi.fn().mockReturnValue('sqlite'),
+        getPlaceholder: vi.fn().mockReturnValue('?'),
+        rawQuery: vi.fn().mockResolvedValue([]),
       };
     });
 
-    db = new Database({
+    db = Database.create({
       driver: 'sqlite',
       database: 'test',
       readHosts: ['read1', 'read2'],
@@ -172,7 +219,7 @@ describe('Database', () => {
   it('should delegate transaction to write adapter', async () => {
     const mockTransaction = vi.fn().mockImplementation((cb) => cb());
 
-    (SQLiteAdapter as any).mockImplementation(function () {
+    (SQLiteAdapter.create as any).mockImplementation(() => {
       return {
         connect: vi.fn().mockResolvedValue(undefined),
         disconnect: vi.fn().mockResolvedValue(undefined),
@@ -183,9 +230,9 @@ describe('Database', () => {
       };
     });
 
-    db = new Database({ driver: 'sqlite', database: ':memory:' });
+    db = Database.create({ driver: 'sqlite', database: ':memory:' });
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: IDatabase) => {
       expect(trx).toBe(db);
     });
 
@@ -194,7 +241,7 @@ describe('Database', () => {
 
   describe('Error Handling', () => {
     it('should handle connection errors', async () => {
-      (SQLiteAdapter as any).mockImplementation(function () {
+      (SQLiteAdapter.create as any).mockImplementation(() => {
         return {
           connect: vi.fn().mockRejectedValue(new Error('Connection failed')),
           disconnect: vi.fn().mockResolvedValue(undefined),
@@ -202,13 +249,13 @@ describe('Database', () => {
         };
       });
 
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
 
       await expect(db.connect()).rejects.toThrow('Connection failed');
     });
 
     it('should handle disconnection errors gracefully', async () => {
-      (SQLiteAdapter as any).mockImplementation(function () {
+      (SQLiteAdapter.create as any).mockImplementation(() => {
         return {
           connect: vi.fn().mockResolvedValue(undefined),
           disconnect: vi.fn().mockResolvedValue(undefined),
@@ -217,7 +264,7 @@ describe('Database', () => {
         };
       });
 
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
       await db.connect();
       await db.disconnect();
 
@@ -225,7 +272,7 @@ describe('Database', () => {
     });
 
     it('should handle transaction errors', async () => {
-      (SQLiteAdapter as any).mockImplementation(function () {
+      (SQLiteAdapter.create as any).mockImplementation(() => {
         return {
           connect: vi.fn().mockResolvedValue(undefined),
           disconnect: vi.fn().mockResolvedValue(undefined),
@@ -235,7 +282,7 @@ describe('Database', () => {
         };
       });
 
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
       await db.connect();
 
       await expect(
@@ -248,7 +295,7 @@ describe('Database', () => {
 
   describe('Database Operations', () => {
     it('should execute basic select query', async () => {
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
       await db.connect();
 
       const result = await db.query('SELECT * FROM users');
@@ -257,7 +304,7 @@ describe('Database', () => {
     });
 
     it('should support parameterized queries', async () => {
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
       await db.connect();
 
       const result = await db.query('SELECT * FROM users WHERE id = ?', [1]);
@@ -268,7 +315,7 @@ describe('Database', () => {
 
   describe('Default Configuration', () => {
     it('should use default SQLite config when none provided', () => {
-      db = new Database(undefined);
+      db = Database.create();
       const config = db.getConfig();
 
       expect(config.driver).toBe('sqlite');
@@ -276,7 +323,7 @@ describe('Database', () => {
     });
 
     it('should use default SQLite when invalid driver provided', () => {
-      db = new Database({
+      db = Database.create({
         driver: 'invalid' as any,
         database: 'test',
       });
@@ -287,7 +334,7 @@ describe('Database', () => {
 
   describe('Event System', () => {
     it('should allow multiple query event listeners', async () => {
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
       await db.connect();
 
       const listener1 = vi.fn();
@@ -303,7 +350,7 @@ describe('Database', () => {
     });
 
     it('should remove event listeners', async () => {
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
       await db.connect();
 
       const listener = vi.fn();
@@ -318,7 +365,7 @@ describe('Database', () => {
 
   describe('Read Host Distribution', () => {
     it('should handle single database instance', async () => {
-      db = new Database({
+      db = Database.create({
         driver: 'sqlite',
         database: ':memory:',
       });
@@ -332,7 +379,7 @@ describe('Database', () => {
 
   describe('Database State', () => {
     it('should track connected state correctly', async () => {
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
 
       expect(db.isConnected()).toBe(false);
 
@@ -344,7 +391,7 @@ describe('Database', () => {
     });
 
     it('should handle reconnection', async () => {
-      db = new Database({ driver: 'sqlite', database: ':memory:' });
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
 
       await db.connect();
       expect(db.isConnected()).toBe(true);

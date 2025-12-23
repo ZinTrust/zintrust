@@ -1,6 +1,7 @@
 /**
  * Template Engine
  * Handles template rendering with variable substitution
+ * Sealed namespace with immutable template rendering methods
  */
 
 export interface TemplateVariables {
@@ -23,7 +24,7 @@ export interface TemplateFile {
 /**
  * Render template content with variables
  */
-export function renderTemplate(content: string, variables: TemplateVariables): string {
+const renderTemplate = (content: string, variables: TemplateVariables): string => {
   let result = content;
 
   for (const [key, value] of Object.entries(variables)) {
@@ -34,66 +35,66 @@ export function renderTemplate(content: string, variables: TemplateVariables): s
   }
 
   return result;
-}
+};
 
 /**
  * Render file path with variables
  */
-export function renderTemplatePath(path: string, variables: TemplateVariables): string {
+const renderTemplatePath = (path: string, variables: TemplateVariables): string => {
   return renderTemplate(path, variables);
-}
+};
 
 /**
  * Replace template variables in content
  */
-export function renderTemplateContent(content: string, variables: TemplateVariables): string {
+const renderTemplateContent = (content: string, variables: TemplateVariables): string => {
   return renderTemplate(content, variables);
-}
+};
 
 /**
  * Get template variables with default values
  */
-export function mergeTemplateVariables(
+const mergeTemplateVariables = (
   custom: TemplateVariables,
   defaults: TemplateVariables
-): TemplateVariables {
+): TemplateVariables => {
   return { ...defaults, ...custom };
-}
+};
 
 /**
  * Check if content contains template variables
  * Uses a non-backtracking pattern to prevent ReDoS vulnerability (S5852)
  * Limits variable name length to 255 characters as a practical constraint
  */
-export function hasTemplateVariables(content: string): boolean {
+const hasTemplateVariables = (content: string): boolean => {
   return /\{\{[^}]{1,255}\}\}/.test(content);
-}
+};
 
 /**
  * Extract variable names from content
  * Uses a non-backtracking pattern to prevent ReDoS vulnerability (S5852)
  * Limits variable name length to 255 characters as a practical constraint
  */
-export function extractTemplateVariables(content: string): string[] {
+const extractTemplateVariables = (content: string): string[] => {
   const matches = content.match(/\{\{([^}]{1,255})\}\}/g);
   if (matches === null) return [];
 
   return matches
     .map((match) => match.replaceAll(/\{\{|\}\}/g, '').trim())
     .filter((v, i, arr) => arr.indexOf(v) === i); // Unique
-}
+};
 
 /**
- * TemplateEngine namespace for backward compatibility
+ * TemplateEngine namespace - sealed for immutability
  */
-export const TemplateEngine = {
+export const TemplateEngine = Object.freeze({
   render: renderTemplate,
   renderPath: renderTemplatePath,
   renderContent: renderTemplateContent,
   mergeVariables: mergeTemplateVariables,
   hasVariables: hasTemplateVariables,
   extractVariables: extractTemplateVariables,
-};
+});
 
 /**
  * Built-in template definitions
@@ -252,7 +253,7 @@ export default app;`,
         path: 'routes/api.ts',
         content: `import { Router } from '@zintrust/routing';
 
-export function registerRoutes(router: Router): void {
+const registerRoutes = (router: Router): void => {
   router.get('/', async (req, res) => {
     res.json({ message: 'Welcome to {{projectName}}!' });
   });
@@ -389,7 +390,7 @@ export default app;`,
         path: 'routes/api.ts',
         content: `import { Router } from '@zintrust/routing';
 
-export function registerApiRoutes(router: Router): void {
+const registerApiRoutes = (router: Router): void => {
   router.group({ prefix: '/api/v1' }, (r) => {
     // Health check
     r.get('/health', async (req, res) => {

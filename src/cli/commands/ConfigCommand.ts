@@ -3,8 +3,8 @@
  * Handles configuration operations: get, set, list, reset, edit, export
  */
 
-import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
-import { ConfigManager } from '@cli/config/ConfigManager';
+import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { ConfigManager, IConfigManager } from '@cli/config/ConfigManager';
 import type { ProjectConfig } from '@cli/config/ConfigSchema';
 import { ConfigValidator } from '@cli/config/ConfigValidator';
 import { ErrorHandler } from '@cli/ErrorHandler';
@@ -13,327 +13,382 @@ import { Logger } from '@config/logger';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-export class ConfigCommand extends BaseCommand {
-  constructor() {
-    super();
-    this.name = 'config';
-    this.description = 'Manage project configuration';
-  }
+type ConfigManagerLike = {
+  get?: (key: string) => unknown;
+  set?: (key: string, value: unknown) => void;
+  save?: () => Promise<void>;
+  reset?: () => Promise<void>;
+  getConfig?: () => ProjectConfig;
+  getAllKeys?: () => string[];
+  export?: () => string;
+};
 
-  protected addOptions(command: Command): void {
-    command.argument('[action]', 'Action: get, set, list, reset, edit, export');
-    command.argument('[key]', 'Configuration key (for get/set)');
-    command.argument('[value]', 'Configuration value (for set)');
-    command.option('--global', 'Use global config instead of project config');
-    command.option('--show-defaults', 'Show default values for all keys');
-    command.option('--json', 'Output as JSON');
-  }
-
-  async execute(options: CommandOptions): Promise<void> {
-    void options; // NOSONAR Mark as intentionally unused
-    const cmd = this.getCommand();
-    const args = cmd.args;
-    const opts = cmd.opts();
-
-    const action = args[0] ?? 'list';
-    const key = args[1];
-    const value = args[2];
-
-    try {
-      const manager = await this.getConfigManager(opts['global'] === true);
-      await this.handleAction(action, manager, key, value, opts);
-    } catch (err) {
-      Logger.error('Config command failed', err);
-      ErrorHandler.handle(err as Error);
-    }
-  }
-
-  /**
-   * Get configuration manager
-   */
-  private async getConfigManager(isGlobal: boolean): Promise<ConfigManager> {
-    if (isGlobal) {
-      return await ConfigManager.getGlobalConfig();
-    }
-    return await ConfigManager.getProjectConfig();
-  }
-
-  /**
-   * Handle configuration action
-   */
-  private async handleAction(
+type IConfigCommand = IBaseCommand & {
+  getConfigManager: (isGlobal: boolean) => Promise<IConfigManager>;
+  handleAction: (
     action: string,
-    manager: ConfigManager,
+    manager: ConfigManagerLike,
     key?: string,
     value?: string,
-    opts?: Record<string, unknown>
-  ): Promise<void> {
-    switch (action.toLowerCase()) {
-      case 'get':
-        await this.handleGet(manager, key, opts);
-        break;
-      case 'set':
-        await this.handleSet(manager, key, value, opts);
-        break;
-      case 'list':
-        await this.handleList(manager, opts);
-        break;
-      case 'reset':
-        await this.handleReset(manager, opts);
-        break;
-      case 'edit':
-        await this.handleEdit(manager, opts);
-        break;
-      case 'export':
-        await this.handleExport(manager, opts);
-        break;
-      default:
-        ErrorHandler.usageError(`Unknown action: ${action}`);
+    options?: CommandOptions
+  ) => Promise<void>;
+  handleGet: (manager: ConfigManagerLike, key?: string, value?: string) => Promise<void>;
+  handleSet: (
+    manager: ConfigManagerLike,
+    key?: string,
+    value?: string,
+    options?: CommandOptions
+  ) => Promise<void>;
+  handleList: (manager: ConfigManagerLike, options: CommandOptions) => Promise<void>;
+  handleReset: (manager: ConfigManagerLike) => Promise<void>;
+  handleEdit: (manager: ConfigManagerLike) => Promise<void>;
+  handleExport: (manager: ConfigManagerLike) => void;
+  parseConfigValue: (value?: string) => unknown;
+  formatConfigValue: (value: unknown) => string;
+  displayValidationStatus: (config: ProjectConfig) => void;
+  displayConfigurationKeys: (keys: string[]) => void;
+  displayConfigurationValues: (config: ProjectConfig) => void;
+  editSingleConfig: (manager: ConfigManagerLike, selectedKey: string) => Promise<void>;
+};
+
+const addOptions = (command: Command): void => {
+  command.argument('[action]', 'Action: get, set, list, reset, edit, export');
+  command.argument('[key]', 'Configuration key (for get/set)');
+  command.argument('[value]', 'Configuration value (for set)');
+  command.option('--global', 'Use global config instead of project config');
+  command.option('--json', 'Output as JSON');
+  command.option('--show-defaults', 'Show default values in list');
+};
+
+const getGlobalConfigManager = async (): Promise<IConfigManager> => ConfigManager.getGlobalConfig();
+
+const getProjectConfigManager = async (): Promise<IConfigManager> =>
+  ConfigManager.getProjectConfig();
+
+const formatConfigValue = (value: unknown): string => {
+  if (value === undefined || value === null) return chalk.gray('null');
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  if (typeof value === 'boolean') return value ? chalk.green('true') : chalk.red('false');
+  if (typeof value === 'number') return chalk.yellow(value.toString());
+  return String(value);
+};
+
+const parseConfigValue = (value?: string): unknown => {
+  if (value === undefined) return undefined;
+  if (value === '') return '';
+
+  const lower = value.toLowerCase();
+  if (lower === 'true') return true;
+  if (lower === 'false') return false;
+  if (lower === 'null') return null;
+
+  if (/^-?\d+$/.test(value)) return Number.parseInt(value, 10);
+  if (/^-?\d+\.\d+$/.test(value)) return Number.parseFloat(value);
+
+  if (value.startsWith('{') || value.startsWith('[')) {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch (error) {
+      Logger.error('Failed to parse JSON config value', error);
+      return value;
     }
   }
 
-  /**
-   * Handle 'get' subcommand
-   */
-  private async handleGet(
-    manager: ConfigManager,
-    key?: string,
-    _options?: Record<string, unknown>
-  ): Promise<void> {
-    if (key === undefined || key === '') {
-      ErrorHandler.usageError('Key is required for get action');
-      return;
-    }
+  return value;
+};
 
-    const value = manager.get(key);
-    if (value === undefined) {
-      this.warn(`No value found for key: ${key}`);
-      return;
-    }
-
-    if (typeof value === 'object' && value !== null) {
-      this.info(JSON.stringify(value, null, 2));
-    } else {
-      this.info(String(value)); // NOSONAR - type checked to ensure not object or null
-    }
+const displayValidationStatus = (cmd: IBaseCommand, config: ProjectConfig): void => {
+  const validation = ConfigValidator.validate(config);
+  if (validation?.valid === true) {
+    cmd.info(chalk.green('  ✅ Configuration is valid'));
+    return;
   }
 
-  /**
-   * Handle 'set' subcommand
-   */
-  private async handleSet(
-    manager: ConfigManager,
-    key?: string,
-    value?: string,
-    _options?: Record<string, unknown>
-  ): Promise<void> {
-    if (key === undefined || key === '') {
-      ErrorHandler.usageError('Key is required for set action');
-      return;
-    }
+  const errors = validation?.errors ?? [];
+  cmd.info(chalk.red(`  ❌ Configuration has ${errors.length} errors:`));
+  for (const error of errors) {
+    cmd.info(chalk.red(`     - ${error}`));
+  }
+};
 
-    const newValue = this.parseConfigValue(value);
+const displayConfigurationKeys = (cmd: IBaseCommand, keys: string[]): void => {
+  const sorted = keys.slice().sort((a, b) => a.localeCompare(b));
+  cmd.info(chalk.cyan('\n  Available Keys:'));
+  for (const key of sorted) {
+    cmd.info(`  • ${key}`);
+  }
+};
 
-    // Validate the value
-    const error = ConfigValidator.validateValue(key, newValue);
-    if (error !== undefined && error !== null) {
-      ErrorHandler.usageError(error.message);
-      return;
-    }
+const displayConfigurationValues = (cmd: IBaseCommand, config: ProjectConfig): void => {
+  cmd.info('');
+  const entries = Object.entries(config).sort(([a], [b]) => a.localeCompare(b));
+  for (const [key, value] of entries) {
+    cmd.info(`${chalk.cyan(key)}: ${formatConfigValue(value)}`);
+  }
+};
 
-    manager.set(key, newValue);
+const handleGet = async (
+  cmd: IBaseCommand,
+  manager: ConfigManagerLike,
+  key?: string
+): Promise<void> => {
+  if (key === undefined) {
+    ErrorHandler.usageError('Configuration key is required for "get"');
+    return;
+  }
+
+  if (typeof manager.get !== 'function') {
+    cmd.warn('Configuration manager does not support "get"');
+    return;
+  }
+
+  const value = manager.get(key);
+  if (value === undefined) {
+    cmd.warn(`Configuration key "${key}" not found`);
+    return;
+  }
+
+  cmd.info(formatConfigValue(value));
+};
+
+const handleSet = async (
+  cmd: IBaseCommand,
+  manager: ConfigManagerLike,
+  key?: string,
+  value?: string
+): Promise<void> => {
+  if (key === undefined || value === undefined) {
+    ErrorHandler.usageError('Both key and value are required for "set"');
+    return;
+  }
+
+  if (typeof manager.set !== 'function') {
+    cmd.warn('Configuration manager does not support "set"');
+    return;
+  }
+
+  const parsedValue = parseConfigValue(value);
+  const validationError = ConfigValidator.validateValue(key, parsedValue);
+  if (validationError) {
+    cmd.warn(`Validation error for "${key}": ${validationError}`);
+    return;
+  }
+
+  manager.set(key, parsedValue);
+  if (typeof manager.save === 'function') {
     await manager.save();
-    this.success(`Configuration updated: ${key} = ${JSON.stringify(newValue)}`);
+  }
+  cmd.success(`Configuration updated: ${key} = ${value}`);
+};
+
+const handleList = async (
+  cmd: IBaseCommand,
+  manager: ConfigManagerLike,
+  options: CommandOptions
+): Promise<void> => {
+  if (options['json'] === true && typeof manager.export === 'function') {
+    cmd.info(manager.export());
+    return;
   }
 
-  /**
-   * Parse a configuration value from string input
-   */
-  private parseConfigValue(value?: string): unknown {
-    if (value === undefined || value === '') return value;
+  const config =
+    typeof manager.getConfig === 'function' ? manager.getConfig() : ({} as ProjectConfig);
+  cmd.info(chalk.bold('\n🛠️  Current Configuration:\n'));
+  displayValidationStatus(cmd, config);
+  displayConfigurationKeys(cmd, Object.keys(config));
+  displayConfigurationValues(cmd, config);
 
-    // Try to parse as JSON if it looks like JSON
-    if (value.startsWith('{') || value.startsWith('[') || value.startsWith('"')) {
-      try {
-        return JSON.parse(value);
-      } catch (error) {
-        Logger.error('JSON parse failed in config value', error);
-        return value; // Keep as string if JSON parsing fails
-      }
-    }
+  if (options['showDefaults'] === true) {
+    cmd.info(chalk.gray('\n(Default values shown above)'));
+  }
+};
 
-    // Parse as boolean
-    if (value === 'true') return true;
-    if (value === 'false') return false;
+const handleReset = async (cmd: IBaseCommand, manager: ConfigManagerLike): Promise<void> => {
+  const confirmed = await PromptHelper.confirm(
+    'Are you sure you want to reset configuration to defaults?',
+    false
+  );
 
-    // Parse as number
-    if (!Number.isNaN(Number(value))) return Number(value);
-
-    return value;
+  if (!confirmed) {
+    cmd.info('Reset cancelled');
+    return;
   }
 
-  /**
-   * Handle 'list' subcommand
-   */
-  private async handleList(
-    manager: ConfigManager,
-    options?: Record<string, unknown>
-  ): Promise<void> {
-    const config = manager.getConfig();
-
-    if (options?.['json'] === true) {
-      this.info(manager.export());
-      return;
-    }
-
-    const keys = manager.getAllKeys();
-    const displayOptions = options?.['showDefaults'] === true;
-
-    this.info(chalk.bold('\n📋 Configuration:\n'));
-
-    for (const key of keys) {
-      const value = manager.get(key);
-      const desc = ConfigValidator.getDescription(key);
-      const descStr = desc === undefined ? '' : ` (${chalk.gray(desc)})`;
-      const valueStr = this.formatConfigValue(value);
-      this.info(`  ${chalk.bold(key)}: ${valueStr}${descStr}`);
-    }
-
-    this.info('');
-    this.displayValidationStatus(config);
-
-    if (displayOptions) {
-      this.displayConfigurationKeys(keys);
-    }
-  }
-
-  /**
-   * Format a configuration value for display
-   */
-  private formatConfigValue(value: unknown): string {
-    if (value === undefined || value === null) {
-      return chalk.gray('null');
-    }
-    if (typeof value === 'boolean') {
-      return value ? chalk.green('true') : chalk.red('false');
-    }
-    if (typeof value === 'number') {
-      return chalk.yellow(String(value));
-    }
-    if (typeof value === 'object' && value !== null) {
-      return chalk.cyan(JSON.stringify(value));
-    }
-    return chalk.cyan(`"${value}"`); // NOSONAR - type checked to ensure not object or null
-  }
-
-  /**
-   * Display configuration validation status
-   */
-  private displayValidationStatus(config: ProjectConfig): void {
-    const validation = ConfigValidator.validate(config);
-    if (validation.valid) {
-      this.success('✅ All configuration values are valid');
-    } else {
-      this.warn(`⚠️  Configuration has ${validation.errors.length} validation issues`);
-      for (const error of validation.errors) {
-        this.warn(`   • ${error.key}: ${error.message}`);
-      }
-    }
-  }
-
-  /**
-   * Display all configuration keys
-   */
-  private displayConfigurationKeys(keys: string[]): void {
-    this.info(chalk.bold('\n📝 Configuration keys:\n'));
-    for (const key of keys) {
-      this.info(`  ${key}`);
-    }
-  }
-
-  /**
-   * Handle 'reset' subcommand
-   */
-  private async handleReset(
-    manager: ConfigManager,
-    _options?: Record<string, unknown>
-  ): Promise<void> {
-    const confirm = await PromptHelper.confirm(
-      'Are you sure you want to reset configuration to defaults?',
-      false
-    );
-
-    if (!confirm) {
-      this.info('Reset cancelled');
-      return;
-    }
-
+  if (typeof manager.reset === 'function') {
     await manager.reset();
-    this.success('Configuration reset to defaults');
+  }
+  cmd.success('Configuration reset to defaults');
+};
+
+const editSingleConfig = async (
+  cmd: IBaseCommand,
+  manager: ConfigManagerLike,
+  selectedKey: string
+): Promise<void> => {
+  const currentValue = typeof manager.get === 'function' ? manager.get(selectedKey) : undefined;
+  let defaultValue = '';
+  if (currentValue !== undefined) {
+    defaultValue =
+      typeof currentValue === 'object' ? JSON.stringify(currentValue) : String(currentValue);
   }
 
-  /**
-   * Handle 'edit' subcommand - Interactive config editing
-   */
-  private async handleEdit(manager: ConfigManager, _options?: unknown): Promise<void> {
-    const keys = manager.getAllKeys();
+  const newValue = await PromptHelper.textInput(
+    `Enter new value for "${selectedKey}":`,
+    defaultValue
+  );
+  if (newValue === undefined) return;
 
-    this.info(chalk.bold('\n🔧 Interactive Configuration Editor\n'));
-
-    let continueEditing = true;
-
-    while (continueEditing) {
-      const selectedKey = await PromptHelper.chooseFrom('Which setting would you like to edit?', [
-        ...keys,
-        '(Done)',
-      ]);
-
-      if (selectedKey === '(Done)') {
-        continueEditing = false; // NOSONAR - intentional assignment to control loop exit
-        break;
-      }
-
-      await this.editSingleConfig(manager, selectedKey);
-    }
-
-    await manager.save();
-    this.success('Configuration saved');
+  const parsedValue = parseConfigValue(newValue);
+  const validationError = ConfigValidator.validateValue(selectedKey, parsedValue);
+  if (validationError) {
+    cmd.warn(`Validation error: ${validationError}`);
+    return;
   }
 
-  /**
-   * Edit a single configuration value
-   */
-  private async editSingleConfig(manager: ConfigManager, selectedKey: string): Promise<void> {
-    const currentValue = manager.get(selectedKey);
-
-    const valueStr =
-      typeof currentValue === 'object' && currentValue !== null
-        ? JSON.stringify(currentValue)
-        : String(currentValue ?? ''); // NOSONAR - type checked to ensure not object or null
-
-    const newValue = await PromptHelper.textInput(`Enter new value for ${selectedKey}`, valueStr);
-
-    // Parse and validate the new value
-    const parsedValue = this.parseConfigValue(newValue);
-
-    const error = ConfigValidator.validateValue(selectedKey, parsedValue);
-    if (error !== undefined && error !== null) {
-      this.warn(`Validation failed: ${error.message}`);
-      return;
-    }
-
+  if (typeof manager.set === 'function') {
     manager.set(selectedKey, parsedValue);
-    this.success(`Updated ${selectedKey}`);
+  }
+  if (typeof manager.save === 'function') {
+    await manager.save();
+  }
+  cmd.success(`Updated ${selectedKey}`);
+};
+
+const handleEdit = async (cmd: IBaseCommand, manager: ConfigManagerLike): Promise<void> => {
+  cmd.info(chalk.bold('\n📝 Interactive Configuration Editor\n'));
+
+  const config =
+    typeof manager.getConfig === 'function' ? manager.getConfig() : ({} as ProjectConfig);
+  const keys = Object.keys(config);
+  const fallbackKeys = typeof manager.getAllKeys === 'function' ? manager.getAllKeys() : [];
+  const availableKeys = keys.length > 0 ? keys : fallbackKeys;
+
+  if (availableKeys.length === 0) {
+    cmd.warn('No configuration keys found');
+    return;
   }
 
-  /**
-   * Handle 'export' subcommand
-   */
-  private async handleExport(
-    manager: ConfigManager,
-    _options?: Record<string, unknown>
-  ): Promise<void> {
-    const exported = manager.export();
-    this.info(exported);
+  const menuKeys = [...availableKeys].sort((a, b) => a.localeCompare(b)).concat(['(Done)']);
+
+  while (true) {
+    const selectedKey = await PromptHelper.chooseFrom(
+      'Select configuration key to edit:',
+      menuKeys
+    );
+    if (selectedKey === '' || selectedKey === '(Done)') break;
+    await editSingleConfig(cmd, manager, selectedKey);
   }
-}
+
+  cmd.success('Configuration editing complete');
+};
+
+const handleExport = (cmd: IBaseCommand, manager: ConfigManagerLike): void => {
+  cmd.info(typeof manager.export === 'function' ? manager.export() : '{}');
+};
+
+const getArg = (args: unknown, index: number): string | undefined => {
+  if (!Array.isArray(args)) return undefined;
+  const value = args[index];
+  return typeof value === 'string' ? value : undefined;
+};
+
+const executeConfig = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
+  const typedCmd = cmd as IConfigCommand;
+  const command = cmd.getCommand();
+  const mergedOptions = {
+    ...(typeof command.opts === 'function' ? command.opts() : {}),
+    ...options,
+  };
+
+  const action = getArg(options.args, 0) ?? getArg(command.args, 0) ?? 'list';
+  const key = getArg(options.args, 1) ?? getArg(command.args, 1);
+  const value = getArg(options.args, 2) ?? getArg(command.args, 2);
+
+  const manager = await typedCmd.getConfigManager(mergedOptions['global'] === true);
+  await typedCmd.handleAction(action, manager, key, value, mergedOptions);
+};
+
+/**
+ * Config Command Factory
+ */
+export const ConfigCommand = Object.freeze({
+  /**
+   * Create a new config command instance
+   */
+  create(): IBaseCommand {
+    const cmd = BaseCommand.create({
+      name: 'config',
+      description: 'Manage application configuration',
+      addOptions,
+      execute: async (options: CommandOptions): Promise<void> => executeConfig(cmd, options),
+    }) as IConfigCommand;
+
+    cmd.getConfigManager = async (isGlobal: boolean): Promise<IConfigManager> =>
+      isGlobal ? getGlobalConfigManager() : getProjectConfigManager();
+
+    cmd.handleGet = async (
+      manager: ConfigManagerLike,
+      key?: string,
+      value?: string
+    ): Promise<void> => handleGet(cmd, manager, key ?? value);
+
+    cmd.handleSet = async (
+      manager: ConfigManagerLike,
+      key?: string,
+      value?: string
+    ): Promise<void> => handleSet(cmd, manager, key, value);
+
+    cmd.handleList = async (manager: ConfigManagerLike, options: CommandOptions): Promise<void> =>
+      handleList(cmd, manager, options);
+
+    cmd.handleReset = async (manager: ConfigManagerLike): Promise<void> =>
+      handleReset(cmd, manager);
+
+    cmd.handleEdit = async (manager: ConfigManagerLike): Promise<void> => handleEdit(cmd, manager);
+
+    cmd.handleExport = (manager: ConfigManagerLike): void => handleExport(cmd, manager);
+
+    cmd.handleAction = async (
+      action: string,
+      manager: ConfigManagerLike,
+      key?: string,
+      value?: string,
+      options?: CommandOptions
+    ): Promise<void> => {
+      switch (action.toLowerCase()) {
+        case 'get':
+          await cmd.handleGet(manager, key, value);
+          return;
+        case 'set':
+          await cmd.handleSet(manager, key, value, options);
+          return;
+        case 'list':
+          await cmd.handleList(manager, options ?? {});
+          return;
+        case 'reset':
+          await cmd.handleReset(manager);
+          return;
+        case 'edit':
+          await cmd.handleEdit(manager);
+          return;
+        case 'export':
+          cmd.handleExport(manager);
+          return;
+        default:
+          ErrorHandler.usageError(`Unknown action: ${action}`);
+      }
+    };
+
+    cmd.parseConfigValue = (value?: string): unknown => parseConfigValue(value);
+    cmd.formatConfigValue = (value: unknown): string => formatConfigValue(value);
+    cmd.displayValidationStatus = (config: ProjectConfig): void =>
+      displayValidationStatus(cmd, config);
+    cmd.displayConfigurationKeys = (keys: string[]): void => displayConfigurationKeys(cmd, keys);
+    cmd.displayConfigurationValues = (config: ProjectConfig): void =>
+      displayConfigurationValues(cmd, config);
+    cmd.editSingleConfig = async (manager: ConfigManagerLike, selectedKey: string): Promise<void> =>
+      editSingleConfig(cmd, manager, selectedKey);
+
+    return cmd;
+  },
+});

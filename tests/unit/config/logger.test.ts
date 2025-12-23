@@ -98,8 +98,8 @@ describe('Logger Config', () => {
 
   describe('ScopedLogger', () => {
     it('should log with scope prefix', async () => {
-      const { createLoggerScope } = await import('@/config/logger');
-      const scoped = createLoggerScope('MyScope');
+      const { Logger } = await import('@/config/logger');
+      const scoped = Logger.scope('MyScope');
       scoped.info('Scoped message');
       expect(consoleLogSpy).toHaveBeenCalledWith(
         expect.stringContaining('[MyScope] Scoped message'),
@@ -108,8 +108,8 @@ describe('Logger Config', () => {
     });
 
     it('should forward debug/warn/error/fatal through scope', async () => {
-      const { createLoggerScope } = await import('@/config/logger');
-      const scoped = createLoggerScope('MyScope');
+      const { Logger } = await import('@/config/logger');
+      const scoped = Logger.scope('MyScope');
 
       scoped.debug('d');
       scoped.warn('w');

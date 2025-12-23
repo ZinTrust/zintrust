@@ -1,113 +1,65 @@
 import { Controller } from '@/http/Controller';
-import { Request } from '@/http/Request';
-import { Response } from '@/http/Response';
-import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest';
-
-// Concrete implementation for testing
-class TestController extends Controller {
-  public testJson(data: unknown, statusCode?: number) {
-    return this.json(data, statusCode);
-  }
-
-  public testError(message: string, statusCode?: number) {
-    return this.error(message, statusCode);
-  }
-
-  public testRedirect(url: string, statusCode?: number) {
-    return this.redirect(url, statusCode);
-  }
-
-  public testParam(req: Request, name: string) {
-    return this.param(req, name);
-  }
-
-  public testQuery(req: Request, name: string) {
-    return this.query(req, name);
-  }
-
-  public testBody(req: Request) {
-    return this.body(req);
-  }
-}
+import { type IRequest } from '@/http/Request';
+import { type IResponse } from '@/http/Response';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 describe('Controller', () => {
-  let controller: TestController;
-  let mockReq: Request;
-  let mockRes: Response;
+  let mockReq: IRequest;
+  let mockRes: IResponse;
 
   beforeEach(() => {
-    controller = new TestController();
     mockReq = {
       getParam: vi.fn(),
       getQueryParam: vi.fn(),
       getBody: vi.fn(),
-    } as unknown as Request;
+    } as unknown as IRequest;
+    
     mockRes = {
       setStatus: vi.fn().mockReturnThis(),
       json: vi.fn(),
       redirect: vi.fn(),
-    } as unknown as Response;
+    } as unknown as IResponse;
   });
 
   it('should send JSON response', () => {
-    const handler = controller.testJson({ success: true }, 201);
-    handler(mockReq, mockRes);
+    const data = { foo: 'bar' };
+    Controller.json(mockRes, data, 201);
     expect(mockRes.setStatus).toHaveBeenCalledWith(201);
-    expect(mockRes.json).toHaveBeenCalledWith({ success: true });
-  });
-
-  it('should send JSON response with default status', () => {
-    const handler = controller.testJson({ success: true });
-    handler(mockReq, mockRes);
-    expect(mockRes.setStatus).toHaveBeenCalledWith(200);
-    expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+    expect(mockRes.json).toHaveBeenCalledWith(data);
   });
 
   it('should send error response', () => {
-    const handler = controller.testError('Bad Request', 400);
-    handler(mockReq, mockRes);
-    expect(mockRes.setStatus).toHaveBeenCalledWith(400);
-    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Bad Request' });
-  });
-
-  it('should send error response with default status', () => {
-    const handler = controller.testError('Bad Request');
-    handler(mockReq, mockRes);
-    expect(mockRes.setStatus).toHaveBeenCalledWith(400);
-    expect(mockRes.json).toHaveBeenCalledWith({ error: 'Bad Request' });
+    const message = 'Error message';
+    Controller.error(mockRes, message, 404);
+    expect(mockRes.setStatus).toHaveBeenCalledWith(404);
+    expect(mockRes.json).toHaveBeenCalledWith({ error: message });
   });
 
   it('should redirect', () => {
-    const handler = controller.testRedirect('/home', 301);
-    handler(mockReq, mockRes);
-    expect(mockRes.redirect).toHaveBeenCalledWith('/home', 301);
+    const url = '/new-url';
+    Controller.redirect(mockRes, url, 301);
+    expect(mockRes.redirect).toHaveBeenCalledWith(url, 301);
   });
 
-  it('should redirect with default status', () => {
-    const handler = controller.testRedirect('/home');
-    handler(mockReq, mockRes);
-    expect(mockRes.redirect).toHaveBeenCalledWith('/home', 302);
-  });
-
-  it('should get param', () => {
-    (mockReq.getParam as Mock).mockReturnValue('123');
-    const result = controller.testParam(mockReq, 'id');
-    expect(result).toBe('123');
+  it('should get route parameter', () => {
+    vi.mocked(mockReq.getParam).mockReturnValue('value');
+    const result = Controller.param(mockReq, 'id');
     expect(mockReq.getParam).toHaveBeenCalledWith('id');
+    expect(result).toBe('value');
   });
 
-  it('should get query param', () => {
-    (mockReq.getQueryParam as Mock).mockReturnValue('search');
-    const result = controller.testQuery(mockReq, 'q');
-    expect(result).toBe('search');
-    expect(mockReq.getQueryParam).toHaveBeenCalledWith('q');
+  it('should get query parameter', () => {
+    vi.mocked(mockReq.getQueryParam).mockReturnValue('value');
+    const result = Controller.query(mockReq, 'search');
+    expect(mockReq.getQueryParam).toHaveBeenCalledWith('search');
+    expect(result).toBe('value');
   });
 
-  it('should get body', () => {
-    const body = { name: 'Test' };
-    (mockReq.getBody as Mock).mockReturnValue(body);
-    const result = controller.testBody(mockReq);
-    expect(result).toBe(body);
+  it('should get request body', () => {
+    const body = { foo: 'bar' };
+    vi.mocked(mockReq.getBody).mockReturnValue(body);
+    const result = Controller.body(mockReq);
     expect(mockReq.getBody).toHaveBeenCalled();
+    expect(result).toBe(body);
   });
 });

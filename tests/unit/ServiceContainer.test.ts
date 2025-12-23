@@ -1,11 +1,12 @@
+import type { IServiceContainer } from '@container/ServiceContainer';
 import { ServiceContainer } from '@container/ServiceContainer';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('ServiceContainer', () => {
-  let container: ServiceContainer;
+  let container: IServiceContainer;
 
   beforeEach(() => {
-    container = new ServiceContainer();
+    container = ServiceContainer.create();
   });
 
   it('should register and resolve a service', () => {

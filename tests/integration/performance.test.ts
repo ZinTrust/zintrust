@@ -3,17 +3,17 @@
  * Test suite for performance benchmarking and optimization
  */
 
-import { Benchmark, MemoryMonitor } from '@performance/Benchmark';
+import { Benchmark, IBenchmark, MemoryMonitor } from '@performance/Benchmark';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 describe('Performance Benchmark Basic Tests - Part 1', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
   let testDir: string;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
     testDir = path.join(process.cwd(), '.test-bench-benchmark-1');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -66,11 +66,11 @@ describe('Performance Benchmark Basic Tests - Part 1', () => {
 });
 
 describe('Performance Benchmark Basic Tests - Part 2', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
   let testDir: string;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
     testDir = path.join(process.cwd(), '.test-bench-benchmark-2');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -98,11 +98,11 @@ describe('Performance Benchmark Basic Tests - Part 2', () => {
 });
 
 describe('Performance Benchmark Advanced Tests', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
   let testDir: string;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
     testDir = path.join(process.cwd(), '.test-bench-benchmark-adv');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -151,7 +151,7 @@ describe('Performance Benchmark Advanced Tests', () => {
 
 describe('Performance Memory Monitor Basic Tests', () => {
   it('MemoryMonitor: should track memory usage', (): void => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start(50);
 
     // Allocate memory
@@ -177,7 +177,7 @@ describe('Performance Memory Monitor Basic Tests', () => {
   });
 
   it('MemoryMonitor: should calculate memory delta', (): void => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start(50);
 
     const largeArray = new Array(100000).fill(Math.random()); // NOSONAR
@@ -197,7 +197,7 @@ describe('Performance Memory Monitor Basic Tests', () => {
   });
 
   it('MemoryMonitor: should format stats as human-readable string', () => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start();
     const _arr = new Array(1000).fill(42);
     expect(_arr.length).toBe(1000);
@@ -211,7 +211,7 @@ describe('Performance Memory Monitor Basic Tests', () => {
 
 describe('Performance Memory Monitor Advanced Tests - Part 1', () => {
   it('MemoryMonitor: should track memory usage during operations', () => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start();
 
     let sum = 0;
@@ -227,7 +227,7 @@ describe('Performance Memory Monitor Advanced Tests - Part 1', () => {
   });
 
   it('MemoryMonitor: should format stats as human-readable string', () => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start();
     const _arr = new Array(1000).fill(42);
     expect(_arr.length).toBe(1000);
@@ -241,7 +241,7 @@ describe('Performance Memory Monitor Advanced Tests - Part 1', () => {
 
 describe('Performance Memory Monitor Advanced Tests - Part 2', () => {
   it('MemoryMonitor: should support periodic snapshots', (): void => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
     monitor.start(100); // 100ms interval
 
     // Simulate work with memory allocation
@@ -263,7 +263,7 @@ describe('Performance Memory Monitor Advanced Tests - Part 2', () => {
   });
 
   it('Memory: should track memory before and after operations', (): void => {
-    const monitor = new MemoryMonitor();
+    const monitor = MemoryMonitor.create();
 
     monitor.start(50);
 
@@ -291,7 +291,7 @@ describe('Performance Memory Monitor Advanced Tests - Part 2', () => {
 
 describe('Performance Comparison Tests - Part 1', () => {
   it('Comparison: should compare benchmark results', (): void => {
-    const baseline = new Benchmark('Baseline');
+    const baseline = Benchmark.create('Baseline');
     baseline.measure(
       'Operation',
       () => {
@@ -304,7 +304,7 @@ describe('Performance Comparison Tests - Part 1', () => {
       5
     );
 
-    const current = new Benchmark('Current');
+    const current = Benchmark.create('Current');
     current.measure(
       'Operation',
       () => {
@@ -326,7 +326,7 @@ describe('Performance Comparison Tests - Part 1', () => {
 
 describe('Performance Comparison Tests - Part 2', () => {
   it('Comparison: should detect performance regressions', (): void => {
-    const baseline = new Benchmark('Baseline');
+    const baseline = Benchmark.create('Baseline');
     baseline.measure(
       'Quick Op',
       () => {
@@ -339,7 +339,7 @@ describe('Performance Comparison Tests - Part 2', () => {
       10
     );
 
-    const current = new Benchmark('Current');
+    const current = Benchmark.create('Current');
     current.measure(
       'Quick Op',
       () => {
@@ -359,7 +359,7 @@ describe('Performance Comparison Tests - Part 2', () => {
 
 describe('Performance Comparison Tests - Part 3', () => {
   it('Comparison: should detect performance improvements', (): void => {
-    const baseline = new Benchmark('Baseline');
+    const baseline = Benchmark.create('Baseline');
     baseline.measure(
       'Slow Op',
       () => {
@@ -372,7 +372,7 @@ describe('Performance Comparison Tests - Part 3', () => {
       10
     );
 
-    const current = new Benchmark('Current');
+    const current = Benchmark.create('Current');
     current.measure(
       'Slow Op',
       () => {
@@ -391,11 +391,11 @@ describe('Performance Comparison Tests - Part 3', () => {
 });
 
 describe('Performance Export Tests', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
   let testDir: string;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
     testDir = path.join(process.cwd(), '.test-bench-export-file');
     if (!fs.existsSync(testDir)) {
       fs.mkdirSync(testDir, { recursive: true });
@@ -440,10 +440,10 @@ describe('Performance Export Tests', () => {
 });
 
 describe('Performance Characteristics Tests - Part 1', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
   });
 
   it('Characteristics: should measure object creation', (): void => {
@@ -484,10 +484,10 @@ describe('Performance Characteristics Tests - Part 1', () => {
 });
 
 describe('Performance Characteristics Tests - Part 2', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
   });
 
   it('Characteristics: should measure JSON operations', (): void => {
@@ -515,10 +515,10 @@ describe('Performance Characteristics Tests - Part 2', () => {
 });
 
 describe('Performance Edge Cases Tests', () => {
-  let benchmark: Benchmark;
+  let benchmark: IBenchmark;
 
   beforeAll(() => {
-    benchmark = new Benchmark('Test Suite');
+    benchmark = Benchmark.create('Test Suite');
   });
 
   it('Edge Cases: should handle zero iterations as default', (): void => {

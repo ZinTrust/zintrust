@@ -1,108 +1,40 @@
 import { Application } from '@/Application';
 import { Logger } from '@config/logger';
-import { Kernel } from '@http/Kernel';
+import { IKernel, Kernel } from '@http/Kernel';
 import { LambdaAdapter } from '@runtime/adapters/LambdaAdapter';
-import { PlatformResponse } from '@runtime/RuntimeAdapter';
+import { IncomingMessage, ServerResponse } from 'node:http';
 
-/**
- * AWS Lambda handler entry point
- * Exports handler function for use in Lambda configuration
- *
- * Usage in serverless.yml or SAM template:
- * handler: functions/lambda.handler
- */
+let kernel: IKernel | null = null;
 
-let kernel: Kernel | null = null;
-
-/**
- * Initialize Zintrust kernel once per container (warm containers)
- */
-async function initializeKernel(): Promise<Kernel> {
-  if (kernel) {
+async function initializeKernel(): Promise<IKernel> {
+  if (kernel !== null) {
     return kernel;
   }
 
-  const app = new Application(process.cwd());
-  const router = app.getRouter();
-  const middlewareStack = app.getMiddlewareStack();
-  const container = app.getContainer();
+  const app = Application.create();
+  await app.boot();
 
-  kernel = new Kernel(router, middlewareStack, container);
-
-  // Register routes, middleware, etc.
-  // This would normally come from routes/api.ts
+  kernel = Kernel.create(app.getRouter(), app.getContainer());
 
   return kernel;
 }
 
-/**
- * AWS Lambda handler
- * Receives API Gateway or ALB events and returns formatted response
- */
-export async function handler(
-  event: unknown,
-  context: {
-    requestId: string;
-    functionName: string;
-    functionVersion: string;
-    memoryLimitInMB: string;
-  }
-): Promise<PlatformResponse> {
+export const handler = async (event: unknown, context: unknown): Promise<unknown> => {
   try {
-    // Initialize kernel (once per warm container)
     const app = await initializeKernel();
 
-    // Create Lambda adapter
-    const adapter = new LambdaAdapter({
-      handler: async (req, res): Promise<void> => {
-        // Process through Zintrust kernel
-        await app.handleRequest(req, res);
+    const adapter = LambdaAdapter.create({
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+        await app.handle(req, res);
       },
     });
 
-    // Handle Lambda event
-    const response = await adapter.handle(event, context);
-
-    // Log request for CloudWatch
-    const startTime = Date.now();
-    const duration = Date.now() - startTime;
-
-    Logger.info('Lambda execution summary', {
-      timestamp: new Date().toISOString(),
-      requestId: context.requestId,
-      duration,
-      statusCode: response.statusCode,
-      functionName: context.functionName,
-      functionVersion: context.functionVersion,
-      memoryUsed: context.memoryLimitInMB,
-    });
-
-    return response;
+    return await adapter.handle(event, context);
   } catch (error) {
-    Logger.error('Lambda handler error:', error);
+    Logger.error('Lambda handler error:', error as Error);
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        error: 'Internal Server Error',
-        statusCode: 500,
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify({ message: 'Internal Server Error' }),
     };
   }
-}
-
-/**
- * Lambda warmup handler
- * Used by CloudWatch Events or other services to keep Lambda warm
- * Reduces cold start time for actual requests
- */
-export async function warmup(): Promise<{ statusCode: number }> {
-  try {
-    await initializeKernel();
-    return { statusCode: 200 };
-  } catch (error) {
-    Logger.error('Warmup failed:', error);
-    return { statusCode: 500 };
-  }
-}
+};

@@ -412,7 +412,8 @@ describe('app/Middleware/index.ts', () => {
   it('validationMiddleware: skips GET/DELETE, validates ok, and handles ValidationError vs other error', async () => {
     const { validationMiddleware } = await import('@app/Middleware/index');
 
-    const handler = validationMiddleware({} as any);
+    const schema = { getRules: vi.fn(() => ({})) };
+    const handler = validationMiddleware(schema as any);
 
     const nextSkip = vi.fn().mockResolvedValue(undefined);
     await handler(

@@ -1,118 +1,98 @@
 /**
- * Application - Core Zintrust Application Class
- * Manages framework lifecycle, service registration, and bootstrapping
+ * Application - Framework core entry point
+ * Handles application lifecycle, booting, and environment
  */
 
-import { Logger } from '@cli/logger/Logger';
-import { appConfig } from '@config/app';
+import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
+import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
+import { type IRouter, Router } from '@/routing/Router';
 import { Env } from '@config/env';
-import { ServiceContainer } from '@container/ServiceContainer';
-import { MiddlewareStack } from '@middleware/MiddlewareStack';
-import { Router } from '@routing/EnhancedRouter';
+import { Logger } from '@config/logger';
 
-export class Application {
-  private readonly container: ServiceContainer;
-  private readonly router: Router;
-  private readonly middlewareStack: MiddlewareStack;
-  private readonly environment: string;
+export interface IApplication {
+  boot(): Promise<void>;
+  shutdown(): Promise<void>;
+  isBooted(): boolean;
+  isDevelopment(): boolean;
+  isProduction(): boolean;
+  isTesting(): boolean;
+  getEnvironment(): string;
+  getRouter(): IRouter;
+  getContainer(): IServiceContainer;
+  getMiddlewareStack(): IMiddlewareStack;
+  getBasePath(): string;
+}
 
-  constructor(baseDirectory: string) {
-    this.container = new ServiceContainer();
-    this.router = new Router();
-    this.middlewareStack = new MiddlewareStack();
-    this.environment = appConfig.environment;
-
-    // Initialize logger with environment settings
-    if (!Env.DISABLE_LOGGING) {
-      Logger.initialize(undefined, undefined, undefined, Env.LOG_LEVEL);
-    }
-
-    this.registerCoreServices(baseDirectory);
-  }
-
+/**
+ * Application Factory
+ */
+export const Application = Object.freeze({
   /**
-   * Register core framework services
+   * Create a new application instance
    */
-  private registerCoreServices(baseDirectory: string): void {
-    // Register framework paths
-    this.container.singleton('paths', {
-      base: baseDirectory,
-      app: `${baseDirectory}/app`,
-      config: `${baseDirectory}/config`,
-      database: `${baseDirectory}/database`,
-      routes: `${baseDirectory}/routes`,
-      tests: `${baseDirectory}/tests`,
+  create(basePath: string = process.cwd()): IApplication {
+    const environment = Env.get('NODE_ENV', 'development');
+    const container = ServiceContainer.create();
+    const router = Router.createRouter();
+    const middlewareStack = MiddlewareStack.create();
+    let booted = false;
+
+    // Register core paths
+    container.singleton('paths', {
+      base: basePath,
+      app: `${basePath}/app`,
+      config: `${basePath}/config`,
+      database: `${basePath}/database`,
+      routes: `${basePath}/routes`,
+      tests: `${basePath}/tests`,
     });
 
-    // Register environment
-    this.container.singleton('env', this.environment);
+    // Register core instances
+    container.singleton('env', environment);
+    container.singleton('router', router);
+    container.singleton('middleware', middlewareStack);
+    container.singleton('container', container);
 
-    // Register router
-    this.container.singleton('router', this.router);
+    /**
+     * Boot the application
+     */
+    async function boot(): Promise<void> {
+      if (booted) return;
 
-    // Register middleware stack
-    this.container.singleton('middleware', this.middlewareStack);
+      Logger.info(`🚀 Booting Zintrust Application in ${environment} mode...`);
 
-    // Register container itself
-    this.container.singleton('container', this.container);
-  }
+      // Load configuration
+      // Load routes
+      // Register service providers
+      // Bootstrap services
 
-  /**
-   * Get the service container
-   */
-  public getContainer(): ServiceContainer {
-    return this.container;
-  }
+      booted = true;
+      Logger.info('✅ Application booted successfully');
+    }
 
-  /**
-   * Get the router instance
-   */
-  public getRouter(): Router {
-    return this.router;
-  }
+    /**
+     * Shutdown the application
+     */
+    async function shutdown(): Promise<void> {
+      Logger.info('🛑 Shutting down application...');
+      // Cleanup resources
+      booted = false;
+    }
 
-  /**
-   * Get the middleware stack instance
-   */
-  public getMiddlewareStack(): MiddlewareStack {
-    return this.middlewareStack;
-  }
+    return {
+      boot,
+      shutdown,
+      isBooted: (): boolean => booted,
+      isDevelopment: (): boolean => environment === 'development',
+      isProduction: (): boolean => environment === 'production',
+      isTesting: (): boolean => environment === 'testing' || environment === 'test',
+      getEnvironment: (): string => environment,
+      getRouter: (): IRouter => router,
+      getContainer: (): IServiceContainer => container,
+      getMiddlewareStack: (): IMiddlewareStack => middlewareStack,
+      getBasePath: (): string => basePath,
+    };
+  },
+});
 
-  /**
-   * Check if application is in development mode
-   */
-  public isDevelopment(): boolean {
-    return this.environment === 'development';
-  }
-
-  /**
-   * Check if application is in production mode
-   */
-  public isProduction(): boolean {
-    return this.environment === 'production';
-  }
-
-  /**
-   * Check if application is in testing mode
-   */
-  public isTesting(): boolean {
-    return this.environment === 'testing' || this.environment === 'test';
-  }
-
-  /**
-   * Get environment
-   */
-  public getEnvironment(): string {
-    return this.environment;
-  }
-
-  /**
-   * Boot the application
-   */
-  public async boot(): Promise<void> {
-    // Load configuration
-    // Load routes
-    // Register service providers
-    // Bootstrap services
-  }
-}
+export default Application;

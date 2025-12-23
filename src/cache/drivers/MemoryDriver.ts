@@ -5,43 +5,57 @@
 
 import { CacheDriver } from '@cache/CacheDriver';
 
-export class MemoryDriver implements CacheDriver {
-  private readonly storage = new Map<string, { value: unknown; expires: number | null }>();
+/**
+ * Memory Cache Driver
+ * Simple in-memory storage for local development
+ * Refactored to Functional Object pattern
+ */
+const create = (): CacheDriver => {
+  const storage = new Map<string, { value: unknown; expires: number | null }>();
 
-  public async get<T>(key: string): Promise<T | null> {
-    const item = this.storage.get(key);
-    if (item === undefined) return null;
+  return {
+    async get<T>(key: string): Promise<T | null> {
+      const item = storage.get(key);
+      if (item === undefined) return null;
 
-    if (item.expires !== null && item.expires < Date.now()) {
-      this.storage.delete(key);
-      return null;
-    }
+      if (item.expires !== null && item.expires < Date.now()) {
+        storage.delete(key);
+        return null;
+      }
 
-    return item.value as T;
-  }
+      return item.value as T;
+    },
 
-  public async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-    const expires = ttl === undefined ? null : Date.now() + ttl * 1000;
-    this.storage.set(key, { value, expires });
-  }
+    async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+      const expires = ttl === undefined ? null : Date.now() + ttl * 1000;
+      storage.set(key, { value, expires });
+    },
 
-  public async delete(key: string): Promise<void> {
-    this.storage.delete(key);
-  }
+    async delete(key: string): Promise<void> {
+      storage.delete(key);
+    },
 
-  public async clear(): Promise<void> {
-    this.storage.clear();
-  }
+    async clear(): Promise<void> {
+      storage.clear();
+    },
 
-  public async has(key: string): Promise<boolean> {
-    const item = this.storage.get(key);
-    if (item === undefined) return false;
+    async has(key: string): Promise<boolean> {
+      const item = storage.get(key);
+      if (item === undefined) return false;
 
-    if (item.expires !== null && item.expires < Date.now()) {
-      this.storage.delete(key);
-      return false;
-    }
+      if (item.expires !== null && item.expires < Date.now()) {
+        storage.delete(key);
+        return false;
+      }
 
-    return true;
-  }
-}
+      return true;
+    },
+  };
+};
+
+/**
+ * MemoryDriver namespace - sealed for immutability
+ */
+export const MemoryDriver = Object.freeze({
+  create,
+});

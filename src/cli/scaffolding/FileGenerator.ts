@@ -1,6 +1,7 @@
 /**
  * File Generator
  * Handles creation of files and directories
+ * Sealed namespace with file I/O operations
  */
 
 import { Logger } from '@config/logger';
@@ -16,7 +17,7 @@ export interface FileCreationOptions {
 /**
  * Create a directory recursively
  */
-export function createDirectory(dirPath: string): boolean {
+const createDirectory = (dirPath: string): boolean => {
   try {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
@@ -28,26 +29,26 @@ export function createDirectory(dirPath: string): boolean {
     Logger.error(`Failed to create directory ${dirPath}:`, error);
     throw error;
   }
-}
+};
 
 /**
  * Create multiple directories
  */
-export function createDirectories(directories: string[], baseDir: string): void {
+const createDirectories = (directories: string[], baseDir: string): void => {
   for (const dir of directories) {
     const fullPath = path.join(baseDir, dir);
     createDirectory(fullPath);
   }
-}
+};
 
 /**
  * Write file content
  */
-export function writeFile(
+const writeFile = (
   filePath: string,
   content: string,
   options: FileCreationOptions = {}
-): boolean {
+): boolean => {
   const { overwrite = false, createDirs = true, encoding = 'utf-8' } = options;
 
   try {
@@ -72,16 +73,16 @@ export function writeFile(
     Logger.error(`Failed to write file ${filePath}:`, error);
     throw error;
   }
-}
+};
 
 /**
  * Write multiple files
  */
-export function writeFiles(
+const writeFiles = (
   files: Array<{ path: string; content: string }>,
   baseDir: string,
   options?: FileCreationOptions
-): number {
+): number => {
   let count = 0;
 
   for (const file of files) {
@@ -92,38 +93,38 @@ export function writeFiles(
   }
 
   return count;
-}
+};
 
 /**
  * Read file content
  */
-export function readFile(filePath: string, encoding: BufferEncoding = 'utf-8'): string {
+const readFile = (filePath: string, encoding: BufferEncoding = 'utf-8'): string => {
   try {
     return fs.readFileSync(filePath, { encoding });
   } catch (error) {
     Logger.error(`Failed to read file ${filePath}:`, error);
     throw error;
   }
-}
+};
 
 /**
  * Check if file exists
  */
-export function fileExists(filePath: string): boolean {
+const fileExists = (filePath: string): boolean => {
   return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
-}
+};
 
 /**
  * Check if directory exists
  */
-export function directoryExists(dirPath: string): boolean {
+const directoryExists = (dirPath: string): boolean => {
   return fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory();
-}
+};
 
 /**
  * Delete file
  */
-export function deleteFile(filePath: string): boolean {
+const deleteFile = (filePath: string): boolean => {
   try {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
@@ -135,12 +136,12 @@ export function deleteFile(filePath: string): boolean {
     Logger.error(`Failed to delete file ${filePath}:`, error);
     throw error;
   }
-}
+};
 
 /**
  * Delete directory recursively
  */
-export function deleteDirectory(dirPath: string): boolean {
+const deleteDirectory = (dirPath: string): boolean => {
   try {
     if (fs.existsSync(dirPath)) {
       fs.rmSync(dirPath, { recursive: true, force: true });
@@ -152,12 +153,12 @@ export function deleteDirectory(dirPath: string): boolean {
     Logger.error(`Failed to delete directory ${dirPath}:`, error);
     throw error;
   }
-}
+};
 
 /**
  * List files in directory
  */
-export function listFiles(dirPath: string, recursive = false): string[] {
+const listFiles = (dirPath: string, recursive = false): string[] => {
   try {
     if (!fs.existsSync(dirPath)) return [];
 
@@ -184,16 +185,16 @@ export function listFiles(dirPath: string, recursive = false): string[] {
     Logger.error(`Failed to list files in ${dirPath}:`, error);
     return [];
   }
-}
+};
 
 /**
  * Copy file
  */
-export function copyFile(
+const copyFile = (
   source: string,
   destination: string,
   options: FileCreationOptions = {}
-): boolean {
+): boolean => {
   try {
     const { createDirs = true } = options;
 
@@ -213,12 +214,12 @@ export function copyFile(
     Logger.error(`Failed to copy file ${source}:`, error);
     throw error;
   }
-}
+};
 
 /**
  * Get directory size in bytes
  */
-export function getDirectorySize(dirPath: string): number {
+const getDirectorySize = (dirPath: string): number => {
   let size = 0;
 
   try {
@@ -245,12 +246,12 @@ export function getDirectorySize(dirPath: string): number {
   }
 
   return size;
-}
+};
 
 /**
- * FileGenerator namespace for backward compatibility
+ * FileGenerator namespace - sealed for immutability
  */
-export const FileGenerator = {
+export const FileGenerator = Object.freeze({
   createDirectory,
   createDirectories,
   writeFile,
@@ -263,4 +264,4 @@ export const FileGenerator = {
   listFiles,
   copyFile,
   getDirectorySize,
-};
+});

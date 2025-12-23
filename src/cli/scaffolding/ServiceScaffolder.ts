@@ -253,48 +253,51 @@ function generateExampleController(options: ServiceOptions): string {
  * Example Controller for ${options.name} Service
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
+import { Controller } from '@http/Controller';
 
-export class ${className} {
+export const ${className} = {
+  ...Controller,
+
   /**
    * List all items
    */
-  public async index(_req: Request, res: Response): Promise<void> {
+  async index(_req: IRequest, res: IResponse): Promise<void> {
     res.json({ data: [] });
-  }
+  },
 
   /**
    * Create new item
    */
-  public async store(_req: Request, res: Response): Promise<void> {
+  async store(_req: IRequest, res: IResponse): Promise<void> {
     res.setStatus(201).json({ created: true });
-  }
+  },
 
   /**
    * Get item by ID
    */
-  public async show(req: Request, res: Response): Promise<void> {
+  async show(req: IRequest, res: IResponse): Promise<void> {
     const { id } = req.getParams();
     res.json({ id });
-  }
+  },
 
   /**
    * Update item
    */
-  public async update(req: Request, res: Response): Promise<void> {
+  async update(req: IRequest, res: IResponse): Promise<void> {
     const { id } = req.getParams();
     res.json({ updated: true, id });
-  }
+  },
 
   /**
    * Delete item
    */
-  public async destroy(req: Request, res: Response): Promise<void> {
+  async destroy(req: IRequest, res: IResponse): Promise<void> {
     const { id } = req.getParams();
     res.json({ deleted: true, id });
-  }
-}
+  },
+};
 `;
 }
 
@@ -308,14 +311,15 @@ function generateExampleModel(options: ServiceOptions): string {
 
 import { Model } from '@orm/Model';
 
-export class Example extends Model {
-  protected table = '${options.name}';
-  protected fillable = ['name', 'description'];
-  protected timestamps = true;
-
+export const Example = Model.define({
+  table: '${options.name}',
+  fillable: ['name', 'description'],
+  timestamps: true,
+  casts: {},
+}, {
   // Define relationships here
-  // public async user() { return this.belongsTo(User); }
-}
+  // async user(model: IModel) { return model.belongsTo(User); }
+});
 `;
 }
 
@@ -415,8 +419,8 @@ Uses \`${config.auth}\` authentication strategy.
 `;
 }
 
-export const ServiceScaffolder = {
+export const ServiceScaffolder = Object.freeze({
   validateOptions,
   getServicePath,
   scaffold,
-};
+});

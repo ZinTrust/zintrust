@@ -1,12 +1,4 @@
-import {
-  createAdapter,
-  createAdapterForRuntime,
-  detectRuntime,
-  getRuntimeInfo,
-  initialize,
-  setupGracefulShutdown,
-  shutdown,
-} from '@/runtime/RuntimeDetector';
+import { ApplicationBootstrap, RuntimeDetector } from '@/runtime/RuntimeDetector';
 import { Env } from '@config/env';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import { DenoAdapter } from '@runtime/adapters/DenoAdapter';
@@ -85,23 +77,37 @@ vi.mock('@config/logger', () => ({
 }));
 
 vi.mock('@runtime/adapters/LambdaAdapter', () => ({
-  LambdaAdapter: class LambdaAdapter extends adapterState.BaseAdapterMock {},
+  LambdaAdapter: {
+    create: (config: unknown) => new adapterState.BaseAdapterMock(config),
+  },
 }));
 
 vi.mock('@runtime/adapters/CloudflareAdapter', () => ({
-  CloudflareAdapter: class CloudflareAdapter extends adapterState.BaseAdapterMock {},
+  CloudflareAdapter: {
+    create: (config: unknown) => new adapterState.BaseAdapterMock(config),
+  },
 }));
 
 vi.mock('@runtime/adapters/FargateAdapter', () => ({
-  FargateAdapter: class FargateAdapter extends adapterState.ServerAdapterMock {},
+  FargateAdapter: {
+    create: (config: unknown) => new adapterState.ServerAdapterMock(config),
+  },
 }));
 
 vi.mock('@runtime/adapters/DenoAdapter', () => ({
-  DenoAdapter: class DenoAdapter extends adapterState.ServerAdapterMock {},
+  DenoAdapter: {
+    create: (config: unknown) => new adapterState.ServerAdapterMock(config),
+    startServer: async () => undefined,
+    getKV: async () => undefined,
+    getEnvVar: () => '',
+    isDeployEnvironment: () => false,
+  },
 }));
 
 vi.mock('@runtime/adapters/NodeServerAdapter', () => ({
-  NodeServerAdapter: class NodeServerAdapter extends adapterState.ServerAdapterMock {},
+  NodeServerAdapter: {
+    create: (config: unknown) => new adapterState.ServerAdapterMock(config),
+  },
 }));
 
 describe('RuntimeDetector', () => {
@@ -131,7 +137,7 @@ describe('RuntimeDetector', () => {
         if (key === 'RUNTIME') return 'fargate';
         return '';
       });
-      expect(detectRuntime()).toBe('fargate');
+      expect(RuntimeDetector.detectRuntime()).toBe('fargate');
     });
 
     it('should auto-detect when RUNTIME=auto', () => {
@@ -141,7 +147,7 @@ describe('RuntimeDetector', () => {
         return '';
       });
 
-      expect(detectRuntime()).toBe('lambda');
+      expect(RuntimeDetector.detectRuntime()).toBe('lambda');
     });
 
     it('should detect Lambda', () => {
@@ -149,20 +155,20 @@ describe('RuntimeDetector', () => {
         if (key === 'AWS_LAMBDA_FUNCTION_NAME') return 'my-func';
         return '';
       });
-      expect(detectRuntime()).toBe('lambda');
+      expect(RuntimeDetector.detectRuntime()).toBe('lambda');
     });
 
     it('should detect Deno', () => {
       vi.mocked(Env.get).mockReturnValue('');
       (globalThis as unknown as Record<string, unknown>)['Deno'] = {};
-      expect(detectRuntime()).toBe('deno');
+      expect(RuntimeDetector.detectRuntime()).toBe('deno');
     });
 
     it('should detect Cloudflare', () => {
       vi.mocked(Env.get).mockReturnValue('');
       (globalThis as unknown as Record<string, unknown>)['CF'] = {};
       (globalThis as unknown as Record<string, unknown>)['ENVIRONMENT'] = 'production';
-      expect(detectRuntime()).toBe('cloudflare');
+      expect(RuntimeDetector.detectRuntime()).toBe('cloudflare');
     });
 
     it('should default to nodejs', () => {
@@ -171,7 +177,7 @@ describe('RuntimeDetector', () => {
       const globals = globalThis as unknown as Record<string, unknown>;
       delete globals['Deno'];
       delete globals['CF'];
-      expect(detectRuntime()).toBe('nodejs');
+      expect(RuntimeDetector.detectRuntime()).toBe('nodejs');
     });
   });
 
@@ -181,7 +187,7 @@ describe('RuntimeDetector', () => {
         if (key === 'RUNTIME') return 'lambda';
         return '';
       });
-      const adapter = createAdapter(mockConfig);
+      const adapter = RuntimeDetector.createAdapter(mockConfig);
       expect(adapter).toBeInstanceOf(LambdaAdapter);
     });
 
@@ -190,7 +196,7 @@ describe('RuntimeDetector', () => {
         if (key === 'RUNTIME') return 'fargate';
         return '';
       });
-      const adapter = createAdapter(mockConfig);
+      const adapter = RuntimeDetector.createAdapter(mockConfig);
       expect(adapter).toBeInstanceOf(FargateAdapter);
     });
 
@@ -199,7 +205,7 @@ describe('RuntimeDetector', () => {
         if (key === 'RUNTIME') return 'cloudflare';
         return '';
       });
-      const adapter = createAdapter(mockConfig);
+      const adapter = RuntimeDetector.createAdapter(mockConfig);
       expect(adapter).toBeInstanceOf(CloudflareAdapter);
     });
 
@@ -208,7 +214,7 @@ describe('RuntimeDetector', () => {
         if (key === 'RUNTIME') return 'deno';
         return '';
       });
-      const adapter = createAdapter(mockConfig);
+      const adapter = RuntimeDetector.createAdapter(mockConfig);
       // DenoAdapter might be tricky to instantiate if it checks global Deno in constructor?
       // Checked DenoAdapter code, it doesn't check global Deno in constructor.
       expect(adapter).toBeInstanceOf(DenoAdapter);
@@ -219,26 +225,26 @@ describe('RuntimeDetector', () => {
         if (key === 'RUNTIME') return 'nodejs';
         return '';
       });
-      const adapter = createAdapter(mockConfig);
+      const adapter = RuntimeDetector.createAdapter(mockConfig);
       expect(adapter).toBeInstanceOf(NodeServerAdapter);
     });
   });
 
   describe('createAdapterForRuntime', () => {
     it('should create adapter for runtime (case-insensitive) and log', () => {
-      const adapter = createAdapterForRuntime('LaMbDa', mockConfig);
+      const adapter = RuntimeDetector.createAdapterForRuntime('LaMbDa', mockConfig);
       expect(adapter).toBeInstanceOf(LambdaAdapter);
       expect(mockConfig.logger.info).toHaveBeenCalledWith('Using Lambda adapter');
     });
 
     it('should default to NodeServerAdapter for unknown runtime', () => {
-      const adapter = createAdapterForRuntime('weird-runtime', mockConfig);
+      const adapter = RuntimeDetector.createAdapterForRuntime('weird-runtime', mockConfig);
       expect(adapter).toBeInstanceOf(NodeServerAdapter);
       expect(mockConfig.logger.info).toHaveBeenCalledWith('Using Node.js HTTP server adapter');
     });
 
     it('should use default logger when config.logger is missing', () => {
-      const adapter = createAdapterForRuntime('nodejs', {
+      const adapter = RuntimeDetector.createAdapterForRuntime('nodejs', {
         handler: vi.fn(),
       });
 
@@ -260,7 +266,7 @@ describe('RuntimeDetector', () => {
         return defaultValue;
       });
 
-      const info = getRuntimeInfo();
+      const info = RuntimeDetector.getRuntimeInfo();
       expect(info['detected_runtime']).toBe('lambda');
       expect(info['lambda_function_name']).toBe('fn');
       expect(info['lambda_function_version']).toBe('1');
@@ -277,7 +283,7 @@ describe('RuntimeDetector', () => {
         version: { deno: '2.0.0' },
       };
 
-      const info = getRuntimeInfo();
+      const info = RuntimeDetector.getRuntimeInfo();
       expect(info['detected_runtime']).toBe('deno');
       expect(info['deno_version']).toBe('2.0.0');
     });
@@ -290,9 +296,9 @@ describe('RuntimeDetector', () => {
         return '';
       });
 
-      const startSpy = vi.spyOn(NodeServerAdapter.prototype, 'startServer');
+      const startSpy = vi.spyOn(adapterState.ServerAdapterMock.prototype, 'startServer');
 
-      await initialize(vi.fn());
+      await ApplicationBootstrap.initialize(vi.fn());
 
       const config = adapterState.getLastConfig() as {
         logger: {
@@ -332,8 +338,8 @@ describe('RuntimeDetector', () => {
       });
       adapterState.setOmitStartServer(true);
 
-      const startSpy = vi.spyOn(NodeServerAdapter.prototype, 'startServer');
-      await initialize(vi.fn());
+      const startSpy = vi.spyOn(adapterState.ServerAdapterMock.prototype, 'startServer');
+      await ApplicationBootstrap.initialize(vi.fn());
       expect(startSpy).not.toHaveBeenCalled();
     });
 
@@ -343,9 +349,9 @@ describe('RuntimeDetector', () => {
         return '';
       });
 
-      const startSpy = vi.spyOn(DenoAdapter.prototype, 'startServer');
+      const startSpy = vi.spyOn(adapterState.ServerAdapterMock.prototype, 'startServer');
 
-      await initialize(vi.fn());
+      await ApplicationBootstrap.initialize(vi.fn());
 
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[Runtime] Application initializing',
@@ -362,8 +368,8 @@ describe('RuntimeDetector', () => {
       });
       adapterState.setOmitStartServer(true);
 
-      const startSpy = vi.spyOn(DenoAdapter.prototype, 'startServer');
-      await initialize(vi.fn());
+      const startSpy = vi.spyOn(adapterState.ServerAdapterMock.prototype, 'startServer');
+      await ApplicationBootstrap.initialize(vi.fn());
       expect(startSpy).not.toHaveBeenCalled();
     });
 
@@ -373,7 +379,7 @@ describe('RuntimeDetector', () => {
         return '';
       });
 
-      await initialize(vi.fn());
+      await ApplicationBootstrap.initialize(vi.fn());
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[Runtime] Adapter initialized, ready for events',
         undefined
@@ -386,7 +392,7 @@ describe('RuntimeDetector', () => {
         return '';
       });
 
-      await initialize(vi.fn());
+      await ApplicationBootstrap.initialize(vi.fn());
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[Runtime] Adapter initialized, ready for events',
         undefined
@@ -399,14 +405,14 @@ describe('RuntimeDetector', () => {
         return '';
       });
 
-      const startSpy = vi.spyOn(FargateAdapter.prototype, 'startServer');
-      await initialize(vi.fn());
+      const startSpy = vi.spyOn(adapterState.ServerAdapterMock.prototype, 'startServer');
+      await ApplicationBootstrap.initialize(vi.fn());
       expect(startSpy).toHaveBeenCalledWith(Env.PORT, Env.HOST);
     });
 
     it('shutdown should call process.exit(0) and log signal', async () => {
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-      await shutdown('SIGINT');
+      await ApplicationBootstrap.shutdown('SIGINT');
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[Runtime] Received SIGINT, gracefully shutting down...',
         undefined
@@ -417,7 +423,7 @@ describe('RuntimeDetector', () => {
 
     it('shutdown should default to SIGTERM', async () => {
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-      await shutdown();
+      await ApplicationBootstrap.shutdown();
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[Runtime] Received SIGTERM, gracefully shutting down...',
         undefined
@@ -435,7 +441,7 @@ describe('RuntimeDetector', () => {
 
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
 
-      setupGracefulShutdown();
+      ApplicationBootstrap.setupGracefulShutdown();
       expect(onSpy).toHaveBeenCalled();
       expect(typeof handlers['SIGTERM']).toBe('function');
       expect(typeof handlers['SIGINT']).toBe('function');

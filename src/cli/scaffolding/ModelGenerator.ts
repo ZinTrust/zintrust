@@ -145,22 +145,23 @@ function buildModelCode(options: ModelOptions): string {
  * Auto-generated model file
  */
 
-import { Model } from '@orm/Model';
+import { Model, IModel } from '@orm/Model';
 
-export class ${options.name} extends Model {
-  protected table = '${table}';
-  protected fillable = [${fillable.map((f) => `'${f}'`).join(', ')}];
-  protected hidden = [${hidden.map((f) => `'${f}'`).join(', ')}];
-  protected timestamps = ${options.timestamps !== false};
-  protected casts = {
+export const ${options.name} = Object.freeze(
+  Model.define({
+  table: '${table}',
+  fillable: [${fillable.map((f) => `'${f}'`).join(', ')}],
+  hidden: [${hidden.map((f) => `'${f}'`).join(', ')}],
+  timestamps: ${options.timestamps !== false},
+  casts: {
 `;
 
   // Add field casts
   code += buildCasts(options.fields);
 
   code += `
-  };
-
+  },
+}, {
 `;
 
   // Add relationships
@@ -169,7 +170,8 @@ export class ${options.name} extends Model {
   // Add soft delete if enabled
   code += buildSoftDelete(options.softDelete);
 
-  code += `}
+  code += `})
+);
 `;
 
   return code;
@@ -210,9 +212,9 @@ function buildRelationships(relationships?: ModelRelationship[]): string {
       code += `  /**
    * Get associated ${rel.model}
    */
-  public async ${method}() {
-    return this.hasOne(${rel.model}, '${foreignKey}');
-  }
+  async ${method}(model: IModel) {
+    return model.hasOne(${rel.model}, '${foreignKey}');
+  },
 
 `;
     } else if (rel.type === 'hasMany') {
@@ -220,18 +222,18 @@ function buildRelationships(relationships?: ModelRelationship[]): string {
       code += `  /**
    * Get associated ${rel.model} records
    */
-  public async ${plural}() {
-    return this.hasMany(${rel.model}, '${foreignKey}');
-  }
+  async ${plural}(model: IModel) {
+    return model.hasMany(${rel.model}, '${foreignKey}');
+  },
 
 `;
     } else if (rel.type === 'belongsTo') {
       code += `  /**
    * Get parent ${rel.model}
    */
-  public async ${method}() {
-    return this.belongsTo(${rel.model}, '${foreignKey}');
-  }
+  async ${method}(model: IModel) {
+    return model.belongsTo(${rel.model}, '${foreignKey}');
+  },
 
 `;
     }
@@ -246,27 +248,12 @@ function buildSoftDelete(softDelete?: boolean): string {
   if (softDelete !== true) return '';
 
   return `  /**
-   * Scope: Active records (not soft deleted)
-   */
-  public static active() {
-    return this.query().whereNull('deleted_at');
-  }
-
-  /**
-   * Scope: Only soft deleted records
-   */
-  public static onlyTrashed() {
-    return this.query().whereNotNull('deleted_at');
-  }
-
-  /**
    * Soft delete this model
    */
-  public async softDelete(): Promise<void> {
-    this.setAttribute('deleted_at', new Date().toISOString());
-    await this.save();
-  }
-
+  async softDelete(model: IModel): Promise<void> {
+    model.setAttribute('deleted_at', new Date().toISOString());
+    await model.save();
+  },
 `;
 }
 
@@ -343,11 +330,11 @@ export function getOrderFields(): ModelField[] {
 /**
  * ModelGenerator creates type-safe ORM models
  */
-export const ModelGenerator = {
+export const ModelGenerator = Object.freeze({
   validateOptions,
   generateModel,
   getCommonFieldTypes,
   getUserFields,
   getPostFields,
   getOrderFields,
-};
+});

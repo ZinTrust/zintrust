@@ -1,11 +1,12 @@
+import type { ICsrfTokenManager } from '@/security/CsrfTokenManager';
 import { CsrfTokenManager } from '@/security/CsrfTokenManager';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('CsrfTokenManager', () => {
-  let csrfManager: CsrfTokenManager;
+  let csrfManager: ICsrfTokenManager;
 
   beforeEach(() => {
-    csrfManager = new CsrfTokenManager();
+    csrfManager = CsrfTokenManager.create();
   });
 
   it('should generate a token for a session', () => {
@@ -115,7 +116,7 @@ describe('CsrfTokenManager', () => {
 
     // Expire session1
     const tokenData1 = csrfManager.getTokenData(session1);
-    if (tokenData1) {
+    if (tokenData1 !== null) {
       tokenData1.expiresAt = new Date(Date.now() - 1000);
     }
 

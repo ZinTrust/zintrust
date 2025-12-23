@@ -215,7 +215,7 @@ function buildDenoJob(): string {
 /**
  * WorkflowGenerator object for backward compatibility
  */
-export const WorkflowGenerator = {
+export const WorkflowGenerator = Object.freeze({
   generate: generateWorkflow,
   getTemplate: getWorkflowTemplate,
-};
+});

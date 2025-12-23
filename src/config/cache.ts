@@ -1,11 +1,67 @@
 /**
  * Cache Configuration
  * Caching drivers and settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 
-export const cacheConfig = {
+type MemoryCacheDriverConfig = {
+  driver: 'memory';
+  ttl: number;
+};
+
+type RedisCacheDriverConfig = {
+  driver: 'redis';
+  host: string;
+  port: number;
+  password: string | undefined;
+  database: number;
+  ttl: number;
+};
+
+type MemcachedCacheDriverConfig = {
+  driver: 'memcached';
+  servers: string[];
+  ttl: number;
+};
+
+type FileCacheDriverConfig = {
+  driver: 'file';
+  path: string;
+  ttl: number;
+};
+
+type CacheDriverConfig =
+  | MemoryCacheDriverConfig
+  | RedisCacheDriverConfig
+  | MemcachedCacheDriverConfig
+  | FileCacheDriverConfig;
+
+type CacheDrivers = {
+  memory: MemoryCacheDriverConfig;
+  redis: RedisCacheDriverConfig;
+  memcached: MemcachedCacheDriverConfig;
+  file: FileCacheDriverConfig;
+};
+
+type CacheConfigInput = {
+  default: string;
+  drivers: CacheDrivers;
+};
+
+const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
+  const defaultDriver = config.default;
+
+  if (Object.prototype.hasOwnProperty.call(config.drivers, defaultDriver)) {
+    const driverName = defaultDriver as keyof CacheDrivers;
+    return config.drivers[driverName];
+  }
+
+  return config.drivers.memory;
+};
+
+const cacheConfigObj = {
   /**
    * Default cache driver
    */
@@ -42,9 +98,8 @@ export const cacheConfig = {
   /**
    * Get cache driver config
    */
-  getDriver() {
-    const driverName = this.default as keyof typeof this.drivers;
-    return this.drivers[driverName];
+  getDriver(): CacheDriverConfig {
+    return getCacheDriver(this);
   },
 
   /**
@@ -56,6 +111,7 @@ export const cacheConfig = {
    * Default cache TTL (seconds)
    */
   ttl: Env.getInt('CACHE_DEFAULT_TTL', 3600),
-} as const;
+};
 
+export const cacheConfig = Object.freeze(cacheConfigObj);
 export type CacheConfig = typeof cacheConfig;

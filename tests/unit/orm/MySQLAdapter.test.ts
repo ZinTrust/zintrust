@@ -1,6 +1,5 @@
 import { MySQLAdapter } from '@/orm/adapters/MySQLAdapter';
 import { DatabaseConfig } from '@/orm/DatabaseAdapter';
-import { Logger } from '@config/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('MySQLAdapter', () => {
@@ -16,7 +15,7 @@ describe('MySQLAdapter', () => {
     username: 'root',
     password: 'password', // NOSONAR
   };
-  const adapter = new MySQLAdapter(config);
+  const adapter = MySQLAdapter.create(config);
 
   it('should create adapter instance', () => {
     expect(adapter).toBeDefined();
@@ -33,7 +32,7 @@ describe('MySQLAdapter', () => {
   });
 
   it('should throw if querying when not connected', async () => {
-    const disconnectedAdapter = new MySQLAdapter(config);
+    const disconnectedAdapter = MySQLAdapter.create(config);
     await expect(disconnectedAdapter.query('SELECT 1', [])).rejects.toThrow(
       'Database not connected'
     );
@@ -70,7 +69,7 @@ describe('MySQLAdapter', () => {
 
   it('should get parameter placeholder', async () => {
     await adapter.connect();
-    const placeholder = (adapter as any).getParameterPlaceholder(0);
+    const placeholder = adapter.getPlaceholder(0);
     expect(placeholder).toBe('?');
   });
 
@@ -79,41 +78,30 @@ describe('MySQLAdapter', () => {
       ...config,
       port: 3307,
     };
-    const customAdapter = new MySQLAdapter(customConfig);
+    const customAdapter = MySQLAdapter.create(customConfig);
     await customAdapter.connect();
     expect(customAdapter.isConnected()).toBe(true);
   });
 
   it('should handle config without port (default port)', async () => {
     const { port: _, ...configWithoutPort } = config;
-    const defaultAdapter = new MySQLAdapter(configWithoutPort as any);
+    const defaultAdapter = MySQLAdapter.create(configWithoutPort as any);
     await defaultAdapter.connect();
     expect(defaultAdapter.isConnected()).toBe(true);
   });
 
   it('should handle connection error', async () => {
-    const errorAdapter = new MySQLAdapter(config);
-    const loggerSpy = vi.spyOn(Logger, 'info').mockImplementation(() => {
-      throw new Error('Connection failed');
-    });
-
+    const errorConfig: DatabaseConfig = { ...config, host: 'error' };
+    const errorAdapter = MySQLAdapter.create(errorConfig);
     await expect(errorAdapter.connect()).rejects.toThrow(
       'Failed to connect to MySQL: Error: Connection failed'
     );
     expect(errorAdapter.isConnected()).toBe(false);
-
-    loggerSpy.mockRestore();
   });
 
   it('should handle transaction error and rollback', async () => {
     await adapter.connect();
-    const mockConnection = {
-      query: vi.fn().mockResolvedValue(undefined),
-      release: vi.fn(),
-    };
-    (adapter as any).pool = {
-      getConnection: vi.fn().mockResolvedValue(mockConnection),
-    };
+    const querySpy = vi.spyOn(adapter, 'query');
 
     await expect(
       adapter.transaction(async () => {
@@ -121,20 +109,13 @@ describe('MySQLAdapter', () => {
       })
     ).rejects.toThrow('Transaction failed');
 
-    expect(mockConnection.query).toHaveBeenCalledWith('START TRANSACTION');
-    expect(mockConnection.query).toHaveBeenCalledWith('ROLLBACK');
-    expect(mockConnection.release).toHaveBeenCalled();
+    expect(querySpy).toHaveBeenCalledWith('START TRANSACTION', []);
+    expect(querySpy).toHaveBeenCalledWith('ROLLBACK', []);
   });
 
   it('should handle transaction error with non-error object', async () => {
     await adapter.connect();
-    const mockConnection = {
-      query: vi.fn().mockResolvedValue(undefined),
-      release: vi.fn(),
-    };
-    (adapter as any).pool = {
-      getConnection: vi.fn().mockResolvedValue(mockConnection),
-    };
+    const querySpy = vi.spyOn(adapter, 'query');
 
     await expect(
       adapter.transaction(async () => {
@@ -143,26 +124,19 @@ describe('MySQLAdapter', () => {
       })
     ).rejects.toBe('string error');
 
-    expect(mockConnection.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(querySpy).toHaveBeenCalledWith('ROLLBACK', []);
   });
 
-  it('should handle transaction success with connection pool', async () => {
+  it('should handle transaction success', async () => {
     await adapter.connect();
-    const mockConnection = {
-      query: vi.fn().mockResolvedValue(undefined),
-      release: vi.fn(),
-    };
-    (adapter as any).pool = {
-      getConnection: vi.fn().mockResolvedValue(mockConnection),
-    };
+    const querySpy = vi.spyOn(adapter, 'query');
 
     const result = await adapter.transaction(async () => {
       return 'success';
     });
 
     expect(result).toBe('success');
-    expect(mockConnection.query).toHaveBeenCalledWith('START TRANSACTION');
-    expect(mockConnection.query).toHaveBeenCalledWith('COMMIT');
-    expect(mockConnection.release).toHaveBeenCalled();
+    expect(querySpy).toHaveBeenCalledWith('START TRANSACTION', []);
+    expect(querySpy).toHaveBeenCalledWith('COMMIT', []);
   });
 });

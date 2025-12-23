@@ -301,7 +301,7 @@ function toPascalCase(name: string): string {
 /**
  * MigrationGenerator creates database migration files
  */
-export const MigrationGenerator = {
+export const MigrationGenerator = Object.freeze({
   validateOptions,
   generateMigration,
-};
+});

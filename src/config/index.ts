@@ -21,8 +21,9 @@ export { storageConfig, type StorageConfig } from '@config/storage';
 
 /**
  * Combined configuration object
+ * Sealed namespace for immutability
  */
-export const config = {
+export const config = Object.freeze({
   app: appConfig,
   database: databaseConfig,
   storage: storageConfig,
@@ -30,6 +31,6 @@ export const config = {
   microservices: microservicesConfig,
   cache: cacheConfig,
   queue: queueConfig,
-} as const;
+} as const);
 
 export type Config = typeof config;

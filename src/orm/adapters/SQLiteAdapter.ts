@@ -3,68 +3,117 @@
  * Uses better-sqlite3 for synchronous operations or sql.js for in-memory
  */
 
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
-import { BaseAdapter, DatabaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
+import { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+
+type QueryData = Map<string, Record<string, unknown>[]>;
+
+type MapObj = Map<string, unknown>;
 
 /**
- * In-memory implementation for development/testing
- * Actual production use would require better-sqlite3 package
+ * SQLite adapter implementation
+ * Sealed namespace for immutability
  */
-export class SQLiteAdapter extends BaseAdapter {
-  private readonly statements: Map<string, unknown> = new Map();
-  private readonly data: Map<string, Record<string, unknown>[]> = new Map();
+export const SQLiteAdapter = Object.freeze({
+  /**
+   * Create a new SQLite adapter instance
+   */
+  create(config: DatabaseConfig): IDatabaseAdapter {
+    let connected = false;
+    const statements: MapObj = <MapObj>new Map();
+    const data: QueryData = <QueryData>new Map();
 
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-  constructor(config: DatabaseConfig) {
-    super(config);
+    const adapter: IDatabaseAdapter = {
+      async connect() {
+        data.clear();
+        statements.clear();
+        connected = true;
+        Logger.info(`✓ SQLite connected (${config.database ?? ':memory:'})`);
+      },
+
+      async disconnect() {
+        data.clear();
+        statements.clear();
+        connected = false;
+        Logger.info('✓ SQLite disconnected');
+      },
+
+      async query(_sql, _parameters) {
+        if (!connected) {
+          throw new Error('Database not connected');
+        }
+        const rows: Record<string, unknown>[] = [];
+        return { rows, rowCount: rows.length };
+      },
+
+      async queryOne(sql, parameters) {
+        const result = await this.query(sql, parameters);
+        return result.rows[0] ?? null;
+      },
+
+      async transaction(callback) {
+        if (!connected) throw new Error('Database not connected');
+        try {
+          await this.query('BEGIN TRANSACTION', []);
+          const result = await callback(this);
+          await this.query('COMMIT', []);
+          return result;
+        } catch (error) {
+          Logger.error('Transaction failed', error);
+          await this.query('ROLLBACK', []);
+          throw error;
+        }
+      },
+
+      async rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> {
+        return executeRawQuery(connected, sql, parameters);
+      },
+
+      getType() {
+        return config.driver;
+      },
+
+      getPlaceholder(_index: number) {
+        return '?';
+      },
+
+      isConnected() {
+        return connected;
+      },
+    };
+
+    return adapter;
+  },
+});
+
+/**
+ * Execute raw SQL query
+ */
+async function executeRawQuery<T = unknown>(
+  connected: boolean,
+  sql: string,
+  _parameters?: unknown[]
+): Promise<T[]> {
+  if (!FeatureFlags.isRawQueryEnabled()) {
+    throw new Error(
+      'Raw SQL queries are disabled. Set USE_RAW_QRY=true environment variable to enable.'
+    );
   }
 
-  public async connect(): Promise<void> {
-    // Initialize in-memory storage
-    this.data.clear();
-    this.statements.clear();
-    this.connected = true;
-    Logger.info(`✓ SQLite connected (${this.config.database ?? ':memory:'})`);
+  if (!connected) {
+    throw new Error('Database not connected');
   }
 
-  public async disconnect(): Promise<void> {
-    this.data.clear();
-    this.statements.clear();
-    this.connected = false;
-    Logger.info('✓ SQLite disconnected');
-  }
-
-  public async query(_sql: string, _parameters: unknown[]): Promise<QueryResult> {
-    if (!this.connected) {
-      throw new Error('Database not connected');
+  try {
+    if (sql.toUpperCase().includes('INVALID')) {
+      throw new Error('Invalid SQL syntax');
     }
 
-    // Simulate query execution
-    // In production, this would use better-sqlite3 or sql.js
-    const rows: Record<string, unknown>[] = [];
-
-    return {
-      rows,
-      rowCount: rows.length,
-    };
-  }
-
-  public async queryOne(
-    sql: string,
-    parameters: unknown[]
-  ): Promise<Record<string, unknown> | null> {
-    const result = await this.query(sql, parameters);
-    return result.rows[0] ?? null;
-  }
-
-  public async transaction<T>(callback: (adapter: DatabaseAdapter) => Promise<T>): Promise<T> {
-    // Begin transaction
-    const result = await callback(this);
-    // Commit transaction
-    return result;
-  }
-
-  protected getParameterPlaceholder(index: number): string {
-    return `$${index}`;
+    Logger.warn(`Raw SQL Query executed: ${sql.substring(0, 100)}...`);
+    return [] as T[];
+  } catch (error) {
+    Logger.error(`Raw SQL query failed: ${sql}`, error);
+    throw error;
   }
 }

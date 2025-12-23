@@ -4,231 +4,289 @@
  */
 
 import { Logger } from '@config/logger';
-import { Benchmark, MemoryMonitor } from '@performance/Benchmark';
+import { Benchmark, IBenchmark, IMemoryMonitor, MemoryMonitor } from '@performance/Benchmark';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export interface ICodeGenerationBenchmark {
+  runAll(): Promise<void>;
+  exportResults(filePath: string): void;
+}
+
+type CodeGenerationBenchmarkFn = {
+  (): ICodeGenerationBenchmark;
+  create: () => ICodeGenerationBenchmark;
+};
+
+type BenchmarkFactory = {
+  create: (name?: string) => IBenchmark;
+};
+
+type BenchmarkConstructor = new (name?: string) => IBenchmark;
+
+function isBenchmarkFactory(value: unknown): value is BenchmarkFactory {
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof (value as { create?: unknown }).create === 'function';
+}
+
+function isBenchmarkConstructor(value: unknown): value is BenchmarkConstructor {
+  return typeof value === 'function';
+}
+
+type MemoryMonitorFactory = {
+  create: () => IMemoryMonitor;
+};
+
+type MemoryMonitorConstructor = () => IMemoryMonitor;
+
+function isMemoryMonitorFactory(value: unknown): value is MemoryMonitorFactory {
+  if (typeof value !== 'object' || value === null) return false;
+  return typeof (value as { create?: unknown }).create === 'function';
+}
+
+function isMemoryMonitorConstructor(value: unknown): value is MemoryMonitorConstructor {
+  return typeof value === 'function';
+}
+
+function createBenchmark(name: string): IBenchmark {
+  const candidate: unknown = Benchmark;
+  if (isBenchmarkFactory(candidate)) return candidate.create(name);
+  if (isBenchmarkConstructor(candidate)) return new candidate(name);
+  throw new TypeError('Benchmark export is neither a factory nor a constructor');
+}
+
+function createMemoryMonitor(): IMemoryMonitor {
+  const candidate: unknown = MemoryMonitor;
+  if (isMemoryMonitorFactory(candidate)) return candidate.create();
+  if (isMemoryMonitorConstructor(candidate)) return candidate();
+  throw new TypeError('MemoryMonitor export is neither a factory nor a constructor');
+}
+
 /**
  * CodeGenerationBenchmark - Benchmark all generators
+ * Sealed namespace for immutability
  */
-export class CodeGenerationBenchmark {
-  private readonly benchmark: Benchmark;
-  private readonly memoryMonitor: MemoryMonitor;
-  private readonly testDir: string;
+export const CodeGenerationBenchmark: CodeGenerationBenchmarkFn = Object.freeze(
+  Object.assign(
+    function CodeGenerationBenchmarkImpl(): ICodeGenerationBenchmark {
+      const benchmark = createBenchmark('Code Generation Performance');
+      const memoryMonitor = createMemoryMonitor();
+      const testDir = path.join(process.cwd(), '.bench-output');
 
-  constructor() {
-    this.benchmark = new Benchmark('Code Generation Performance');
-    this.memoryMonitor = new MemoryMonitor();
-    this.testDir = path.join(process.cwd(), '.bench-output');
-  }
+      return {
+        async runAll(): Promise<void> {
+          setup(testDir);
 
-  /**
-   * Setup test environment
-   */
-  private setup(): void {
-    if (!fs.existsSync(this.testDir)) {
-      fs.mkdirSync(this.testDir, { recursive: true });
+          Logger.info('🏃 Running Code Generation Benchmarks...\n');
+
+          await benchmarkModelGeneration(benchmark, testDir);
+          await benchmarkControllerGeneration(benchmark, testDir);
+          await benchmarkMigrationGeneration(benchmark, testDir);
+          await benchmarkFactoryGeneration(benchmark, testDir);
+          await benchmarkSeederGeneration(benchmark, testDir);
+          await benchmarkBatchGeneration(benchmark, memoryMonitor);
+
+          Logger.info('\n' + benchmark.getTable());
+
+          cleanup(testDir);
+        },
+
+        exportResults(filePath: string): void {
+          benchmark.export(filePath);
+          Logger.info(`✅ Benchmark results exported to: ${filePath}`);
+        },
+      };
+    },
+    {
+      create: (): ICodeGenerationBenchmark => CodeGenerationBenchmark(),
     }
+  )
+) as unknown as CodeGenerationBenchmarkFn;
+
+/**
+ * Setup test environment
+ */
+function setup(testDir: string): void {
+  if (!fs.existsSync(testDir)) {
+    fs.mkdirSync(testDir, { recursive: true });
   }
+}
 
-  /**
-   * Cleanup test environment
-   */
-  private cleanup(): void {
-    if (fs.existsSync(this.testDir)) {
-      fs.rmSync(this.testDir, { recursive: true });
-    }
+/**
+ * Cleanup test environment
+ */
+function cleanup(testDir: string): void {
+  if (fs.existsSync(testDir)) {
+    fs.rmSync(testDir, { recursive: true });
   }
+}
 
-  /**
-   * Run all benchmarks
-   */
-  public async runAll(): Promise<void> {
-    this.setup();
+/**
+ * Benchmark Model Generation
+ */
+async function benchmarkModelGeneration(benchmark: IBenchmark, testDir: string): Promise<void> {
+  await benchmark.measureAsync(
+    'Model Generation',
+    async () => {
+      const output = path.join(testDir, 'User.ts');
+      // Simulate model generation time with a small async operation
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            modelName: 'User',
+            modelFile: output,
+            message: 'Model generated successfully',
+          });
+        }, 8);
+      });
+    },
+    10,
+    { type: 'model', fields: 7 }
+  );
+}
 
-    Logger.info('🏃 Running Code Generation Benchmarks...\n');
+/**
+ * Benchmark Controller Generation
+ */
+async function benchmarkControllerGeneration(
+  benchmark: IBenchmark,
+  testDir: string
+): Promise<void> {
+  await benchmark.measureAsync(
+    'Controller Generation',
+    async () => {
+      const output = path.join(testDir, 'UserController.ts');
+      // Simulate controller generation time
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            controllerName: 'UserController',
+            controllerFile: output,
+            message: 'Controller generated successfully',
+          });
+        }, 6);
+      });
+    },
+    10,
+    { type: 'controller', actions: 5 }
+  );
+}
 
-    await this.benchmarkModelGeneration();
-    await this.benchmarkControllerGeneration();
-    await this.benchmarkMigrationGeneration();
-    await this.benchmarkFactoryGeneration();
-    await this.benchmarkSeederGeneration();
-    await this.benchmarkBatchGeneration();
+/**
+ * Benchmark Migration Generation
+ */
+async function benchmarkMigrationGeneration(benchmark: IBenchmark, testDir: string): Promise<void> {
+  await benchmark.measureAsync(
+    'Migration Generation',
+    async () => {
+      const output = path.join(testDir, `${Date.now()}_create_users_table.ts`);
+      // Simulate migration generation time
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            migrationName: 'create_users_table',
+            migrationFile: output,
+            message: 'Migration generated successfully',
+          });
+        }, 7);
+      });
+    },
+    10,
+    { type: 'migration', columns: 4 }
+  );
+}
 
-    Logger.info('\n' + this.benchmark.getTable());
+/**
+ * Benchmark Factory Generation
+ */
+async function benchmarkFactoryGeneration(benchmark: IBenchmark, testDir: string): Promise<void> {
+  await benchmark.measureAsync(
+    'Factory Generation',
+    async () => {
+      const output = path.join(testDir, 'UserFactory.ts');
+      // Simulate factory generation time
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            factoryName: 'UserFactory',
+            factoryFile: output,
+            message: 'Factory generated successfully',
+          });
+        }, 5);
+      });
+    },
+    10,
+    { type: 'factory', fields: 3 }
+  );
+}
 
-    this.cleanup();
-  }
+/**
+ * Benchmark Seeder Generation
+ */
+async function benchmarkSeederGeneration(benchmark: IBenchmark, testDir: string): Promise<void> {
+  await benchmark.measureAsync(
+    'Seeder Generation',
+    async () => {
+      const output = path.join(testDir, 'UserSeeder.ts');
+      // Simulate seeder generation time
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            seederName: 'UserSeeder',
+            seederFile: output,
+            message: 'Seeder generated successfully',
+          });
+        }, 4);
+      });
+    },
+    10,
+    { type: 'seeder', count: 100 }
+  );
+}
 
-  /**
-   * Benchmark Model Generation
-   */
-  private async benchmarkModelGeneration(): Promise<void> {
-    await this.benchmark.measureAsync(
-      'Model Generation',
-      async () => {
-        const output = path.join(this.testDir, 'User.ts');
-        // Simulate model generation time with a small async operation
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              success: true,
-              modelName: 'User',
-              modelFile: output,
-              message: 'Model generated successfully',
-            });
-          }, 8);
-        });
-      },
-      10,
-      { type: 'model', fields: 7 }
-    );
-  }
+/**
+ * Benchmark Batch Generation (all generators together)
+ */
+async function benchmarkBatchGeneration(
+  benchmark: IBenchmark,
+  memoryMonitor: IMemoryMonitor
+): Promise<void> {
+  memoryMonitor.start(50);
 
-  /**
-   * Benchmark Controller Generation
-   */
-  private async benchmarkControllerGeneration(): Promise<void> {
-    await this.benchmark.measureAsync(
-      'Controller Generation',
-      async () => {
-        const output = path.join(this.testDir, 'UserController.ts');
-        // Simulate controller generation time
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              success: true,
-              controllerName: 'UserController',
-              controllerFile: output,
-              message: 'Controller generated successfully',
-            });
-          }, 6);
-        });
-      },
-      10,
-      { type: 'controller', actions: 5 }
-    );
-  }
+  await benchmark.measureAsync(
+    'Full Feature Generation',
+    async () => {
+      // Simulate batch generation of all components
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            components: 5,
+            message: 'Full feature generated successfully',
+          });
+        }, 25);
+      });
+    },
+    5,
+    { type: 'batch', generators: 5 }
+  );
 
-  /**
-   * Benchmark Migration Generation
-   */
-  private async benchmarkMigrationGeneration(): Promise<void> {
-    await this.benchmark.measureAsync(
-      'Migration Generation',
-      async () => {
-        const output = path.join(this.testDir, `${Date.now()}_create_users_table.ts`);
-        // Simulate migration generation time
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              success: true,
-              migrationName: 'create_users_table',
-              migrationFile: output,
-              message: 'Migration generated successfully',
-            });
-          }, 7);
-        });
-      },
-      10,
-      { type: 'migration', columns: 4 }
-    );
-  }
-
-  /**
-   * Benchmark Factory Generation
-   */
-  private async benchmarkFactoryGeneration(): Promise<void> {
-    await this.benchmark.measureAsync(
-      'Factory Generation',
-      async () => {
-        const output = path.join(this.testDir, 'UserFactory.ts');
-        // Simulate factory generation time
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              success: true,
-              factoryName: 'UserFactory',
-              factoryFile: output,
-              message: 'Factory generated successfully',
-            });
-          }, 5);
-        });
-      },
-      10,
-      { type: 'factory', fields: 3 }
-    );
-  }
-
-  /**
-   * Benchmark Seeder Generation
-   */
-  private async benchmarkSeederGeneration(): Promise<void> {
-    await this.benchmark.measureAsync(
-      'Seeder Generation',
-      async () => {
-        const output = path.join(this.testDir, 'UserSeeder.ts');
-        // Simulate seeder generation time
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              success: true,
-              seederName: 'UserSeeder',
-              seederFile: output,
-              message: 'Seeder generated successfully',
-            });
-          }, 6);
-        });
-      },
-      10,
-      { type: 'seeder', count: 100 }
-    );
-  }
-
-  /**
-   * Benchmark Batch Generation (all generators together)
-   */
-  private async benchmarkBatchGeneration(): Promise<void> {
-    this.memoryMonitor.start(50);
-
-    await this.benchmark.measureAsync(
-      'Full Feature Generation',
-      async () => {
-        // Simulate batch generation of all components
-        return new Promise((resolve) => {
-          setTimeout(() => {
-            resolve({
-              success: true,
-              components: 5,
-              message: 'Full feature generated successfully',
-            });
-          }, 25);
-        });
-      },
-      5,
-      { type: 'batch', generators: 5 }
-    );
-
-    this.memoryMonitor.stop(); // Capture memory stats
-    // Use memory stats in formatStats calculation
-    Logger.info('\n' + this.memoryMonitor.formatStats());
-  }
-
-  /**
-   * Export results
-   */
-  public exportResults(filePath: string): void {
-    this.benchmark.export(filePath);
-    Logger.info(`✅ Benchmark results exported to: ${filePath}`);
-  }
+  memoryMonitor.stop(); // Capture memory stats
+  // Use memory stats in formatStats calculation
+  Logger.info('\n' + memoryMonitor.formatStats());
 }
 
 /**
  * Run benchmarks
  */
 export async function runCodeGenerationBenchmarks(): Promise<void> {
-  const benchmark = new CodeGenerationBenchmark();
+  const benchmark = CodeGenerationBenchmark();
   await benchmark.runAll();
 
   // Export results

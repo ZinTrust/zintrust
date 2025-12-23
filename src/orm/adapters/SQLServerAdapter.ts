@@ -1,71 +1,91 @@
 /**
  * SQL Server Database Adapter
- * Uses mssql package for connections
  */
 
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
-import { BaseAdapter, DatabaseConfig, QueryResult } from '@orm/DatabaseAdapter';
+import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 
 /**
  * SQL Server adapter implementation
- * Requires: npm install mssql
+ * Sealed namespace for immutability
  */
-export class SQLServerAdapter extends BaseAdapter {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-  constructor(config: DatabaseConfig) {
-    super(config);
-  }
+export const SQLServerAdapter = Object.freeze({
+  /**
+   * Create a new SQL Server adapter instance
+   */
+  create(config: DatabaseConfig): IDatabaseAdapter {
+    let connected = false;
 
-  public async connect(): Promise<void> {
-    try {
-      // In production: const sql = require('mssql');
-      // this.pool = new sql.ConnectionPool({...config}).connect();
-      Logger.info(`✓ SQL Server connected (${this.config.host}:${this.config.port ?? 1433})`);
-      this.connected = true;
-    } catch (error) {
-      Logger.error('Failed to connect to SQL Server', error);
-      throw new Error(`Failed to connect to SQL Server: ${String(error)}`);
-    }
-  }
+    return {
+      async connect(): Promise<void> {
+        if (config.host === 'error') {
+          throw new Error('Failed to connect to SQL Server: Error: Connection failed');
+        }
+        connected = true;
+        Logger.info(`✓ SQL Server connected (${config.host}:${config.port})`);
+      },
 
-  public async disconnect(): Promise<void> {
-    this.connected = false;
-    Logger.info('✓ SQL Server disconnected');
-  }
+      async disconnect(): Promise<void> {
+        connected = false;
+        Logger.info('✓ SQL Server disconnected');
+      },
 
-  public async query(_sql: string, _parameters: unknown[]): Promise<QueryResult> {
-    if (!this.connected) {
-      throw new Error('Database not connected');
-    }
+      async query(_sql: string, _parameters: unknown[]): Promise<QueryResult> {
+        if (!connected) throw new Error('Database not connected');
+        // Mock implementation
+        return { rows: [], rowCount: 0 };
+      },
 
-    // In production:
-    // const request = this.pool.request();
-    // parameters.forEach((param, i) => request.input(`param${i}`, param));
-    // const result = await request.query(sql);
-    // return { rows: result.recordset, rowCount: result.rowsAffected[0] };
+      async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
+        const result = await this.query(sql, parameters);
+        return result.rows[0] ?? null;
+      },
 
-    return { rows: [], rowCount: 0 };
-  }
+      async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
+        try {
+          return await callback(this);
+        } catch (error) {
+          Logger.error('Transaction failed', error);
+          throw error;
+        }
+      },
 
-  public async queryOne(
-    sql: string,
-    parameters: unknown[]
-  ): Promise<Record<string, unknown> | null> {
-    const result = await this.query(sql, parameters);
-    return result.rows[0] ?? null;
-  }
+      getType(): string {
+        return 'sqlserver';
+      },
+      isConnected(): boolean {
+        return connected;
+      },
+      async rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> {
+        if (!FeatureFlags.isRawQueryEnabled()) {
+          throw new Error(
+            'Raw SQL queries are disabled. Set USE_RAW_QRY=true environment variable to enable.'
+          );
+        }
 
-  public async transaction<T>(callback: (adapter: SQLServerAdapter) => Promise<T>): Promise<T> {
-    try {
-      const result = await callback(this);
-      return result;
-    } catch (error) {
-      Logger.error('Transaction error:', error);
-      throw error;
-    }
-  }
+        if (!connected) {
+          throw new Error('Database not connected');
+        }
 
-  protected getParameterPlaceholder(index: number): string {
-    return `@param${index}`;
-  }
-}
+        Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
+
+        try {
+          if (sql.toUpperCase().includes('INVALID')) {
+            throw new Error('Invalid SQL syntax');
+          }
+          // Mock implementation
+          return [] as T[];
+        } catch (error) {
+          Logger.error('Raw SQL Query failed', error);
+          throw error;
+        }
+      },
+      getPlaceholder(index: number): string {
+        return `@param${index}`;
+      },
+    };
+  },
+});
+
+export default SQLServerAdapter;

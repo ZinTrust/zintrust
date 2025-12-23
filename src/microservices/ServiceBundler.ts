@@ -25,14 +25,86 @@ export interface BundleResult {
   optimized: boolean;
 }
 
+export interface IServiceBundler {
+  bundleService(config: BundleConfig): Promise<BundleResult>;
+  bundleAll(domain: string, services: string[], outputDir?: string): Promise<BundleResult[]>;
+  createServiceImage(serviceName: string, domain: string, registry?: string): Promise<string>;
+}
+
+export interface IServiceBundlerManager {
+  getInstance(): IServiceBundler;
+  bundleService(config: BundleConfig): Promise<BundleResult>;
+  bundleAll(domain: string, services: string[], outputDir?: string): Promise<BundleResult[]>;
+  createServiceImage(serviceName: string, domain: string, registry?: string): Promise<string>;
+  create(): IServiceBundler;
+}
+
 /**
  * Service bundler for independent deployment
  */
+export const ServiceBundler = Object.freeze((): IServiceBundlerManager => {
+  let instance: IServiceBundler | undefined;
+
+  return {
+    getInstance(): IServiceBundler {
+      instance ??= this.create();
+      return instance;
+    },
+
+    bundleService(config: BundleConfig): Promise<BundleResult> {
+      return this.getInstance().bundleService(config);
+    },
+
+    bundleAll(domain: string, services: string[], outputDir?: string): Promise<BundleResult[]> {
+      return this.getInstance().bundleAll(domain, services, outputDir);
+    },
+
+    createServiceImage(serviceName: string, domain: string, registry?: string): Promise<string> {
+      return this.getInstance().createServiceImage(serviceName, domain, registry);
+    },
+
+    /**
+     * Create a new service bundler instance
+     */
+    create(): IServiceBundler {
+      return {
+        /**
+         * Bundle a single microservice
+         */
+        async bundleService(config: BundleConfig): Promise<BundleResult> {
+          return runBundleService(config);
+        },
+
+        /**
+         * Bundle multiple services
+         */
+        async bundleAll(
+          domain: string,
+          services: string[],
+          outputDir: string = 'dist/services'
+        ): Promise<BundleResult[]> {
+          return runBundleAll(domain, services, outputDir, (c) => this.bundleService(c));
+        },
+
+        /**
+         * Create Docker image for service
+         */
+        async createServiceImage(
+          serviceName: string,
+          domain: string,
+          registry: string = 'localhost:5000'
+        ): Promise<string> {
+          return runCreateServiceImage(serviceName, domain, registry);
+        },
+      };
+    },
+  };
+})();
 
 /**
- * Bundle a single microservice
+ * Run bundle for a single service
  */
-export async function bundleService(config: BundleConfig): Promise<BundleResult> {
+async function runBundleService(config: BundleConfig): Promise<BundleResult> {
   const { serviceName, domain, outputDir, targetSize = 1 } = config;
 
   Logger.info(`\n📦 Bundling service: ${serviceName}`);
@@ -60,89 +132,13 @@ export async function bundleService(config: BundleConfig): Promise<BundleResult>
 }
 
 /**
- * Prepare bundle directory
+ * Run bundle for all services
  */
-function prepareBundleDirectory(bundleDir: string): void {
-  if (fs.existsSync(bundleDir) === true) {
-    fs.rmSync(bundleDir, { recursive: true });
-  }
-  fs.mkdirSync(bundleDir, { recursive: true });
-}
-
-/**
- * Copy service files to bundle directory
- */
-function copyServiceFiles(
-  serviceDir: string,
-  bundleDir: string
-): { totalSize: number; fileCount: number } {
-  const filesToCopy = [
-    { src: `${serviceDir}/dist`, dest: `${bundleDir}/dist` },
-    { src: `${serviceDir}/package.json`, dest: `${bundleDir}/package.json` },
-    { src: `${serviceDir}/service.config.json`, dest: `${bundleDir}/service.config.json` },
-    { src: `${serviceDir}/.env.example`, dest: `${bundleDir}/.env.example` },
-  ];
-
-  let totalSize = 0;
-  let fileCount = 0;
-
-  for (const { src, dest } of filesToCopy) {
-    if (fs.existsSync(src) === true) {
-      const stats = fs.statSync(src);
-      if (stats.isDirectory() === true) {
-        copyDirectory(src, dest);
-        totalSize += getDirectorySize(dest);
-        fileCount += countFiles(dest);
-      } else {
-        fs.copyFileSync(src, dest);
-        totalSize += stats.size;
-        fileCount++;
-      }
-    }
-  }
-
-  return { totalSize, fileCount };
-}
-
-/**
- * Generate bundle metadata
- */
-function generateBundleMetadata(
-  serviceName: string,
-  domain: string,
-  totalSize: number,
-  fileCount: number,
-  targetSize: number
-): Record<string, unknown> {
-  return {
-    service: serviceName,
-    domain,
-    timestamp: new Date().toISOString(),
-    sizeBytes: totalSize,
-    files: fileCount,
-    optimized: totalSize < targetSize * 1024 * 1024,
-  };
-}
-
-/**
- * Log bundle summary
- */
-function logBundleSummary(totalSize: number, fileCount: number, targetSize: number): void {
-  const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-  Logger.info(`  ✓ Size: ${sizeMB} MB (${fileCount} files)`);
-
-  if (totalSize > targetSize * 1024 * 1024) {
-    Logger.warn(`  ⚠️  Bundle exceeds ${targetSize} MB target - consider optimizing`);
-  }
-}
-
-/**
- * Bundle multiple services
- */
-export async function bundleAll(
+async function runBundleAll(
   domain: string,
   services: string[],
-  outputDir: string = 'dist/services'
+  outputDir: string,
+  bundleServiceFn: (config: BundleConfig) => Promise<BundleResult>
 ): Promise<BundleResult[]> {
   Logger.info(`\n📦 Bundling ${services.length} services for domain: ${domain}`);
 
@@ -150,7 +146,7 @@ export async function bundleAll(
 
   for (const service of services) {
     try {
-      const result = await bundleService({
+      const result = await bundleServiceFn({
         serviceName: service,
         domain,
         outputDir,
@@ -168,12 +164,12 @@ export async function bundleAll(
 }
 
 /**
- * Create Docker image for service
+ * Run create service image
  */
-export async function createServiceImage(
+async function runCreateServiceImage(
   serviceName: string,
   domain: string,
-  registry: string = 'localhost:5000'
+  registry: string
 ): Promise<string> {
   const serviceDir = `services/${domain}/${serviceName}`;
   const imageTag = `${registry}/${domain}-${serviceName}:latest`;
@@ -181,25 +177,7 @@ export async function createServiceImage(
   Logger.info(`\n🐳 Creating Docker image: ${imageTag}`);
 
   // Generate minimal Dockerfile
-  const dockerfile = String.raw`FROM node:20-alpine
-
-WORKDIR /app
-
-COPY package.json ./
-RUN npm install --production --ignore-scripts
-
-COPY dist ./dist
-
-ENV NODE_ENV=production
-ENV SERVICE_NAME=${serviceName}
-
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD node -e "require('node:http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
-
-EXPOSE 3000
-
-CMD ["node", "dist/src/Kernel.js"]
-`;
+  const dockerfile = generateDockerfile(serviceName);
 
   fs.writeFileSync(path.join(serviceDir, 'Dockerfile'), dockerfile);
 
@@ -279,6 +257,86 @@ function countFiles(dir: string): number {
 }
 
 /**
+ * Prepare bundle directory
+ */
+function prepareBundleDirectory(bundleDir: string): void {
+  if (fs.existsSync(bundleDir) === true) {
+    fs.rmSync(bundleDir, { recursive: true });
+  }
+  fs.mkdirSync(bundleDir, { recursive: true });
+}
+
+/**
+ * Copy service files to bundle directory
+ */
+function copyServiceFiles(
+  serviceDir: string,
+  bundleDir: string
+): { totalSize: number; fileCount: number } {
+  const filesToCopy = [
+    { src: `${serviceDir}/dist`, dest: `${bundleDir}/dist` },
+    { src: `${serviceDir}/package.json`, dest: `${bundleDir}/package.json` },
+    {
+      src: `${serviceDir}/service.config.json`,
+      dest: `${bundleDir}/service.config.json`,
+    },
+    { src: `${serviceDir}/.env.example`, dest: `${bundleDir}/.env.example` },
+  ];
+
+  let totalSize = 0;
+  let fileCount = 0;
+
+  for (const { src, dest } of filesToCopy) {
+    if (fs.existsSync(src) === true) {
+      const stats = fs.statSync(src);
+      if (stats.isDirectory() === true) {
+        copyDirectory(src, dest);
+        totalSize += getDirectorySize(dest);
+        fileCount += countFiles(dest);
+      } else {
+        fs.copyFileSync(src, dest);
+        totalSize += stats.size;
+        fileCount++;
+      }
+    }
+  }
+
+  return { totalSize, fileCount };
+}
+
+/**
+ * Generate bundle metadata
+ */
+function generateBundleMetadata(
+  serviceName: string,
+  domain: string,
+  totalSize: number,
+  fileCount: number,
+  targetSize: number
+): Record<string, unknown> {
+  return {
+    service: serviceName,
+    domain,
+    timestamp: new Date().toISOString(),
+    sizeBytes: totalSize,
+    files: fileCount,
+    optimized: totalSize < targetSize * 1024 * 1024,
+  };
+}
+
+/**
+ * Log bundle summary
+ */
+function logBundleSummary(totalSize: number, fileCount: number, targetSize: number): void {
+  const sizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+  Logger.info(`  ✓ Size: ${sizeMB} MB (${fileCount} files)`);
+
+  if (totalSize > targetSize * 1024 * 1024) {
+    Logger.warn(`  ⚠️  Bundle exceeds ${targetSize} MB target - consider optimizing`);
+  }
+}
+
+/**
  * Print bundle summary
  */
 function printBundleSummary(results: BundleResult[]): void {
@@ -302,23 +360,62 @@ function printBundleSummary(results: BundleResult[]): void {
   Logger.info(`Total: ${totalMB} MB across ${totalFiles} files\n`);
 }
 
-export const ServiceBundler = {
-  bundleService,
-  bundleAll,
-  createServiceImage,
-};
+/**
+ * Generate minimal Dockerfile
+ */
+function generateDockerfile(serviceName: string): string {
+  return String.raw`FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install --production --ignore-scripts
+
+COPY dist ./dist
+
+ENV NODE_ENV=production
+ENV SERVICE_NAME=${serviceName}
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD node -e "require('node:http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+EXPOSE 3000
+
+CMD ["node", "dist/src/Kernel.js"]
+`;
+}
 
 /**
  * CLI command to bundle services
  */
 export async function bundleServices(domain: string, services: string): Promise<void> {
   const serviceList = services.split(',').map((s) => s.trim());
-  const results = await ServiceBundler.bundleAll(domain, serviceList, 'dist/services');
+  const results = await ServiceBundler.getInstance().bundleAll(
+    domain,
+    serviceList,
+    'dist/services'
+  );
 
-  const allOptimized = results.every((r) => r.optimized);
+  const allOptimized = results.every((r: BundleResult) => r.optimized);
   if (allOptimized) {
     Logger.info('✅ All services optimized for serverless deployment!');
   } else {
     Logger.info('⚠️  Some services exceed 1MB target - consider further optimization');
   }
 }
+
+export const bundleService = (config: BundleConfig): Promise<BundleResult> =>
+  ServiceBundler.getInstance().bundleService(config);
+export const bundleAll = (
+  domain: string,
+  services: string[],
+  outputDir?: string
+): Promise<BundleResult[]> => ServiceBundler.getInstance().bundleAll(domain, services, outputDir);
+export const createServiceImage = (
+  serviceName: string,
+  domain: string,
+  registry?: string
+): Promise<string> =>
+  ServiceBundler.getInstance().createServiceImage(serviceName, domain, registry);
+
+export default ServiceBundler;

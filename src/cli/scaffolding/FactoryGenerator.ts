@@ -126,128 +126,89 @@ function buildFactoryCode(options: FactoryOptions): string {
  * ${factoryName}
  * Factory for generating test ${modelName} instances
  */
-export class ${factoryName} {
-${buildFactoryClassBody(factoryName, modelName, fakerFields, statePatterns, relationshipMethods)}
-}
+export const ${factoryName} = Object.freeze({
+${buildFactoryObjectBody(modelName, fakerFields, statePatterns, relationshipMethods)}
+});
 `;
 }
 
 /**
- * Build factory class body
+ * Build factory object body
  */
-function buildFactoryClassBody(
-  factoryName: string,
-  modelName: string,
+function buildFactoryObjectBody(
+  _modelName: string,
   fakerFields: string,
   statePatterns: string,
   relationshipMethods: string
 ): string {
-  return `  private data: Record<string, unknown> = {};
-  private states: Set<string> = new Set();
-
-${buildFactoryCoreMethods(factoryName, modelName, fakerFields)}
-
-${buildFactoryStateMethods(modelName)}
-
-${statePatterns}
-
-${relationshipMethods}
-
-  /**
-   * Create and return merged result
-   */
-  create(): Partial<${modelName}> {
-    return this.getData();
-  }
-`;
-}
-
-/**
- * Build factory core methods
- */
-function buildFactoryCoreMethods(
-  factoryName: string,
-  modelName: string,
-  fakerFields: string
-): string {
   return `  /**
    * Create a new factory instance
    */
-  static new(): ${factoryName} {
-    return new ${factoryName}();
-  }
+  new() {
+    let customData: Record<string, unknown> = {};
+    const states = new Set<string>();
 
-  /**
-   * Create and return instance
-   */
-  make(): Partial<${modelName}> {
-    return {
+    const make = () => ({
 ${fakerFields}
-    };
-  }
+    });
 
-  /**
-   * Create multiple instances
-   */
-  count(n: number): Partial<${modelName}>[] {
-    return Array.from({ length: n }, () => this.make());
-  }
+    const factory = {
+      /**
+       * Set custom data
+       */
+      data(data: Record<string, unknown>) {
+        customData = { ...customData, ...data };
+        return factory;
+      },
 
-  /**
-   * Set custom data
-   */
-  data(data: Record<string, unknown>): this {
-    this.data = { ...this.data, ...data };
-    return this;
-  }
+      /**
+       * Set attribute value
+       */
+      set(key: string, value: unknown) {
+        customData[key] = value;
+        return factory;
+      },
 
-  /**
-   * Set attribute value
-   */
-  set(key: string, value: unknown): this {
-    this.data[key] = value;
-    return this;
-  }
+      /**
+       * Apply state
+       */
+      state(name: string) {
+        states.add(name);
+        return factory;
+      },
 
-  /**
-   * Apply state
-   */
-  state(name: string): this {
-    this.states.add(name);
-    return this;
-  }
-`;
-}
+      /**
+       * Create multiple instances
+       */
+      count(n: number) {
+        return Array.from({ length: n }, () => factory.create());
+      },
 
-/**
- * Build factory state methods
- */
-function buildFactoryStateMethods(modelName: string): string {
-  return `  /**
-   * Get final data with states applied
-   */
-  private getData(): Partial<${modelName}> {
-    let result = this.make();
+${relationshipMethods}
 
-    // Apply custom data
-    result = { ...result, ...this.data };
+${statePatterns}
 
-    // Apply states
-    if (this.states.has('active') === true) {
-      result = { ...result, ...this.getActiveState() };
-    }
+      /**
+       * Create and return merged result
+       */
+      create() {
+        let result = { ...make(), ...customData };
 
-    if (this.states.has('inactive') === true) {
-      result = { ...result, ...this.getInactiveState() };
-    }
+        // Apply states
+        if (states.has('active')) {
+          result = { ...result, ...factory.getActiveState() };
+        }
+        if (states.has('inactive')) {
+          result = { ...result, ...factory.getInactiveState() };
+        }
+        if (states.has('deleted')) {
+          result = { ...result, ...factory.getDeletedState() };
+        }
 
-    if (this.states.has('deleted') === true) {
-      result = { ...result, ...this.getDeletedState() };
-    }
-
-    return result;
-  }
-`;
+        return result;
+      }
+    return factory;
+  }`;
 }
 
 /**
@@ -346,34 +307,34 @@ function getFakerValueByType(type: FieldType): string {
 /**
  * Build state pattern methods
  */
-function buildStatePatterns(modelName: string): string {
-  return `  /**
-   * State: Active
-   */
-  private getActiveState(): Partial<${modelName}> {
-    return {
-      active: true,
-      deleted_at: null,
-    };
-  }
+function buildStatePatterns(_modelName: string): string {
+  return `      /**
+       * State: Active
+       */
+      getActiveState() {
+        return {
+          active: true,
+          deleted_at: null,
+        };
+      },
 
-  /**
-   * State: Inactive
-   */
-  private getInactiveState(): Partial<${modelName}> {
-    return {
-      active: false,
-    };
-  }
+      /**
+       * State: Inactive
+       */
+      getInactiveState() {
+        return {
+          active: false,
+        };
+      },
 
-  /**
-   * State: Deleted (soft delete)
-   */
-  private getDeletedState(): Partial<${modelName}> {
-    return {
-      deleted_at: faker.date.past().toISOString(),
-    };
-  }`;
+      /**
+       * State: Deleted (soft delete)
+       */
+      getDeletedState() {
+        return {
+          deleted_at: faker.date.past().toISOString(),
+        };
+      },`;
 }
 
 /**
@@ -388,15 +349,15 @@ function buildRelationshipMethods(relationships: string[]): string {
     .map((rel) => {
       const factoryName = `${rel}Factory`;
       const relField = camelCase(rel) + '_id';
-      return `  /**
-   * Associate ${rel}
-   */
-  with${rel}(id?: number): this {
-    this.data.${relField} = id || ${factoryName}.new().create().id;
-    return this;
-  }`;
+      return `      /**
+       * Associate ${rel}
+       */
+      with${rel}(id?: number) {
+        customData.${relField} = id || ${factoryName}.new().create().id;
+        return factory;
+      },`;
     })
-    .join('\n\n  ');
+    .join('\n\n');
 }
 
 /**
@@ -463,8 +424,8 @@ export function getAvailableTypes(): string[] {
 /**
  * Factory Generator - Generates test data factories
  */
-export const FactoryGenerator = {
+export const FactoryGenerator = Object.freeze({
   validateOptions,
   generateFactory,
   getAvailableTypes,
-};
+});

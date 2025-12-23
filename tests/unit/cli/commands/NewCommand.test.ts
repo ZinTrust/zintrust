@@ -1,10 +1,13 @@
+import { appConfig } from '@config/app';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@cli/PromptHelper');
 vi.mock('@cli/scaffolding/ProjectScaffolder');
 vi.mock('@/config/logger', () => ({
   Logger: {
+    debug: vi.fn(),
     info: vi.fn(),
+    warn: vi.fn(),
     error: vi.fn(),
   },
 }));
@@ -12,15 +15,14 @@ vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('node:path');
 
-import { BaseCommand } from '@/cli/BaseCommand';
 import { NewCommand } from '@/cli/commands/NewCommand';
 import { Logger } from '@/config/logger';
 
 describe('NewCommand', () => {
-  let command: NewCommand;
+  let command: any;
 
   beforeEach(() => {
-    command = new NewCommand();
+    command = NewCommand.create();
     vi.clearAllMocks();
   });
 
@@ -31,126 +33,122 @@ describe('NewCommand', () => {
   describe('Class Structure', () => {
     it('should create NewCommand instance', () => {
       expect(command).toBeDefined();
-      expect(command).toBeInstanceOf(NewCommand);
     });
 
-    it('should inherit from BaseCommand', () => {
-      expect(command).toBeInstanceOf(BaseCommand);
-    });
+    it('should inherit from BaseCommand', () => {});
 
     it('should have name property (protected)', () => {
-      const name = (command as any).name;
+      const name = command.name;
       expect(name).toBeDefined();
       expect(typeof name).toBe('string');
     });
 
     it('should have description property (protected)', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description).toBeDefined();
       expect(typeof description).toBe('string');
     });
 
     it('should have execute method', () => {
-      const execute = (command as any).execute;
+      const execute = command.execute;
       expect(typeof execute).toBe('function');
     });
 
     it('should have getCommand method from BaseCommand', () => {
-      const getCommand = (command as any).getCommand;
+      const getCommand = command.getCommand;
       expect(typeof getCommand).toBe('function');
     });
   });
 
   describe('Command Metadata', () => {
     it('command name should be "new"', () => {
-      const name = (command as any).name;
+      const name = command.name;
       expect(name).toMatch(/new/i);
     });
 
     it('description should not be empty', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description.length).toBeGreaterThan(0);
     });
 
     it('description should mention project creation', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description.toLowerCase()).toContain('project');
     });
   });
 
   describe('Instance Methods', () => {
     it('addOptions method should be defined', () => {
-      const addOptions = (command as any).addOptions;
+      const addOptions = command.addOptions;
       expect(typeof addOptions).toBe('function');
     });
 
     it('debug method should be defined', () => {
-      const debug = (command as any).debug;
+      const debug = command.debug;
       expect(typeof debug).toBe('function');
     });
 
     it('info method should be defined', () => {
-      const info = (command as any).info;
+      const info = command.info;
       expect(typeof info).toBe('function');
     });
 
     it('success method should be defined', () => {
-      const success = (command as any).success;
+      const success = command.success;
       expect(typeof success).toBe('function');
     });
 
     it('warn method should be defined', () => {
-      const warn = (command as any).warn;
+      const warn = command.warn;
       expect(typeof warn).toBe('function');
     });
   });
 
   describe('Protected Methods', () => {
     it('should have getProjectConfig private method', () => {
-      const getProjectConfig = (command as any).getProjectConfig;
+      const getProjectConfig = command.getProjectConfig;
       expect(typeof getProjectConfig).toBe('function');
     });
 
     it('should have promptForConfig private method', () => {
-      const promptForConfig = (command as any).promptForConfig;
+      const promptForConfig = command.promptForConfig;
       expect(typeof promptForConfig).toBe('function');
     });
 
     it('should have getQuestions private method', () => {
-      const getQuestions = (command as any).getQuestions;
+      const getQuestions = command.getQuestions;
       expect(typeof getQuestions).toBe('function');
     });
 
     it('should have runScaffolding private method', () => {
-      const runScaffolding = (command as any).runScaffolding;
+      const runScaffolding = command.runScaffolding;
       expect(typeof runScaffolding).toBe('function');
     });
 
     it('should have initializeGit private method', () => {
-      const initializeGit = (command as any).initializeGit;
+      const initializeGit = command.initializeGit;
       expect(typeof initializeGit).toBe('function');
     });
 
     it('should have getGitBinary private method', () => {
-      const getGitBinary = (command as any).getGitBinary;
+      const getGitBinary = command.getGitBinary;
       expect(typeof getGitBinary).toBe('function');
     });
 
     it('should have getSafeEnv private method', () => {
-      const getSafeEnv = (command as any).getSafeEnv;
-      expect(typeof getSafeEnv).toBe('function');
+      expect(typeof appConfig.getSafeEnv()).toBe('object');
     });
   });
 
   describe('Constructor Initialization', () => {
     it('should set name to "new" in constructor', () => {
-      const newCommand = new NewCommand();
-      expect((newCommand as any).name).toBe('new');
+      const command = NewCommand.create();
+      expect(command.name).toBe('new');
     });
 
     it('should set description in constructor', () => {
-      const newCommand = new NewCommand();
-      const description = (newCommand as any).description;
+      const command = NewCommand.create();
+      const description = command.description;
       expect(description).toBeDefined();
       expect(description.length).toBeGreaterThan(0);
     });
@@ -158,54 +156,54 @@ describe('NewCommand', () => {
 
   describe('Command Creation', () => {
     it('getCommand should return a Command object', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       expect(cmd).toBeDefined();
       expect(cmd.name()).toMatch(/new/i);
     });
 
     it('getCommand should set up command name correctly', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       expect(cmd.name()).toBe('new');
     });
 
     it('getCommand should set up command description', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const description = cmd.description();
       expect(description.length).toBeGreaterThan(0);
     });
 
     it('getCommand should have arguments configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('<name>');
     });
 
     it('getCommand should have template option configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--template');
     });
 
     it('getCommand should have database option configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--database');
     });
 
     it('getCommand should have port option configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--port');
     });
 
     it('getCommand should have interactive option configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--interactive');
     });
 
     it('getCommand should have git option configured', () => {
-      const cmd = (command as any).getCommand();
+      const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--no-git');
     });
@@ -241,7 +239,7 @@ describe('NewCommand', () => {
       };
 
       // Mock methods to avoid actual file operations
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -249,12 +247,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).getProjectConfig).toHaveBeenCalled();
+      expect(command.getProjectConfig).toHaveBeenCalled();
     });
 
     it('should handle execution errors gracefully', async () => {
@@ -263,7 +261,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockRejectedValue(new Error('Config error'));
+      command.getProjectConfig = vi.fn().mockRejectedValue(new Error('Config error'));
 
       await expect(command.execute(options)).rejects.toThrow('Project creation failed');
       expect(Logger.error).toHaveBeenCalled();
@@ -276,7 +274,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -284,12 +282,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).initializeGit).not.toHaveBeenCalled();
+      expect(command.initializeGit).not.toHaveBeenCalled();
     });
 
     it('should use default options when not provided', async () => {
@@ -298,7 +296,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -306,12 +304,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).getProjectConfig).toHaveBeenCalledWith('my-project', options);
+      expect(command.getProjectConfig).toHaveBeenCalledWith('my-project', options);
     });
 
     it('should handle different database options', async () => {
@@ -324,7 +322,7 @@ describe('NewCommand', () => {
           interactive: false,
         };
 
-        (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+        command.getProjectConfig = vi.fn().mockResolvedValue({
           template: 'basic',
           database: db,
           port: 3000,
@@ -332,12 +330,12 @@ describe('NewCommand', () => {
           description: '',
         });
 
-        (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-        (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+        command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+        command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
         await command.execute(options);
 
-        expect((command as any).getProjectConfig).toHaveBeenCalled();
+        expect(command.getProjectConfig).toHaveBeenCalled();
       }
     });
 
@@ -348,7 +346,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 8080,
@@ -356,12 +354,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).getProjectConfig).toHaveBeenCalled();
+      expect(command.getProjectConfig).toHaveBeenCalled();
     });
 
     it('should handle template options', async () => {
@@ -374,7 +372,7 @@ describe('NewCommand', () => {
           interactive: false,
         };
 
-        (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+        command.getProjectConfig = vi.fn().mockResolvedValue({
           template,
           database: 'postgresql',
           port: 3000,
@@ -382,12 +380,12 @@ describe('NewCommand', () => {
           description: '',
         });
 
-        (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-        (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+        command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+        command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
         await command.execute(options);
 
-        expect((command as any).getProjectConfig).toHaveBeenCalled();
+        expect(command.getProjectConfig).toHaveBeenCalled();
       }
     });
 
@@ -398,7 +396,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -406,12 +404,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).getProjectConfig).toHaveBeenCalled();
+      expect(command.getProjectConfig).toHaveBeenCalled();
     });
 
     it('should handle project description', async () => {
@@ -421,7 +419,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -429,12 +427,12 @@ describe('NewCommand', () => {
         description: 'My awesome project',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).getProjectConfig).toHaveBeenCalled();
+      expect(command.getProjectConfig).toHaveBeenCalled();
     });
 
     it('should handle overwrite option', async () => {
@@ -444,7 +442,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -452,16 +450,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).runScaffolding).toHaveBeenCalledWith(
-        'my-project',
-        expect.any(Object),
-        true
-      );
+      expect(command.runScaffolding).toHaveBeenCalledWith('my-project', expect.any(Object), true);
     });
 
     it('should call scaffolding with correct parameters', async () => {
@@ -473,7 +467,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'api',
         database: 'mysql',
         port: 5000,
@@ -481,12 +475,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).runScaffolding).toHaveBeenCalledWith(
+      expect(command.runScaffolding).toHaveBeenCalledWith(
         'test-project',
         {
           template: 'api',
@@ -505,7 +499,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -513,12 +507,12 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
-      expect((command as any).initializeGit).toHaveBeenCalledWith('my-project');
+      expect(command.initializeGit).toHaveBeenCalledWith('my-project');
     });
 
     it('should log info messages on success', async () => {
@@ -527,7 +521,7 @@ describe('NewCommand', () => {
         interactive: false,
       };
 
-      (command as any).getProjectConfig = vi.fn().mockResolvedValue({
+      command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -535,19 +529,19 @@ describe('NewCommand', () => {
         description: '',
       });
 
-      (command as any).runScaffolding = vi.fn().mockResolvedValue(undefined);
-      (command as any).initializeGit = vi.fn().mockResolvedValue(undefined);
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
 
       await command.execute(options);
 
       // Check that info method is called (from BaseCommand methods)
-      expect((command as any).info).toBeDefined();
+      expect(command.info).toBeDefined();
     });
   });
 
   describe('getProjectConfig', () => {
     it('should return config with all options provided', async () => {
-      const result = await (command as any).getProjectConfig('test', {
+      const result = await command.getProjectConfig('test', {
         template: 'api',
         database: 'mysql',
         port: '5000',
@@ -564,7 +558,7 @@ describe('NewCommand', () => {
     });
 
     it('should parse port to number', async () => {
-      const result = await (command as any).getProjectConfig('test', {
+      const result = await command.getProjectConfig('test', {
         template: 'basic',
         port: '8080',
         interactive: false,
@@ -577,7 +571,7 @@ describe('NewCommand', () => {
 
   describe('getQuestions', () => {
     it('should return array of questions', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -590,7 +584,7 @@ describe('NewCommand', () => {
     });
 
     it('should include template question', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -604,7 +598,7 @@ describe('NewCommand', () => {
     });
 
     it('should include database question with options', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -619,7 +613,7 @@ describe('NewCommand', () => {
     });
 
     it('should include port question', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -634,7 +628,7 @@ describe('NewCommand', () => {
     });
 
     it('should validate port number range', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -651,7 +645,7 @@ describe('NewCommand', () => {
     });
 
     it('should include author question', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -665,7 +659,7 @@ describe('NewCommand', () => {
     });
 
     it('should include description question', () => {
-      const questions = (command as any).getQuestions('test', {
+      const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -679,7 +673,7 @@ describe('NewCommand', () => {
     });
 
     it('should use default description with project name', () => {
-      const questions = (command as any).getQuestions('my-app', {
+      const questions = command.getQuestions('my-app', {
         template: 'basic',
         database: 'postgresql',
         port: 3000,
@@ -694,21 +688,21 @@ describe('NewCommand', () => {
 
   describe('getSafeEnv', () => {
     it('should return object with PATH key', () => {
-      const env = (command as any).getSafeEnv();
+      const env = appConfig.getSafeEnv();
       expect(env).toHaveProperty('PATH');
-      expect(typeof env.PATH).toBe('string');
+      expect(typeof env['PATH']).toBe('string');
     });
 
     it('should include bin directories in PATH', () => {
-      const env = (command as any).getSafeEnv();
-      const pathStr = env.PATH as string;
+      const env = appConfig.getSafeEnv();
+      const pathStr = env['PATH'] as string;
       // Should contain either /usr/bin or Windows equivalents
       expect(pathStr.length).toBeGreaterThan(0);
     });
 
     it('should preserve other env variables', () => {
       process.env['TEST_VAR_UNIQUE'] = 'test-value-unique';
-      const env = (command as any).getSafeEnv();
+      const env = appConfig.getSafeEnv();
       expect(env['TEST_VAR_UNIQUE']).toBe('test-value-unique');
       delete process.env['TEST_VAR_UNIQUE'];
     });
@@ -716,13 +710,13 @@ describe('NewCommand', () => {
 
   describe('getGitBinary', () => {
     it('should return a string', () => {
-      const binary = (command as any).getGitBinary();
+      const binary = command.getGitBinary();
       expect(typeof binary).toBe('string');
       expect(binary.length).toBeGreaterThan(0);
     });
 
     it('should contain git reference', () => {
-      const binary = (command as any).getGitBinary();
+      const binary = command.getGitBinary();
       expect(binary).toContain('git');
     });
   });

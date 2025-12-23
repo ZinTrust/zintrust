@@ -9,10 +9,10 @@ vi.mock('node:fs');
 vi.mock('@/config/logger');
 
 describe('QACommand', () => {
-  let command: QACommand;
+  let command: any;
 
   beforeEach(() => {
-    command = new QACommand();
+    command = QACommand.create();
     vi.resetAllMocks();
 
     // Mock fs.existsSync to return true for npm check
@@ -29,7 +29,7 @@ describe('QACommand', () => {
       const result = { status: 'pending', output: '' } as any;
       const options = { sonar: false };
 
-      await (command as any).runSonar(result, options);
+      await command.runSonar(result, options);
 
       expect(result.status).toBe('skipped');
       expect(child_process.execFileSync).not.toHaveBeenCalled();
@@ -39,7 +39,7 @@ describe('QACommand', () => {
       const result = { status: 'pending', output: '' } as any;
       const options = { sonar: true };
 
-      await (command as any).runSonar(result, options);
+      await command.runSonar(result, options);
 
       expect(result.status).toBe('passed');
       expect(child_process.execFileSync).toHaveBeenCalledWith(
@@ -59,7 +59,7 @@ describe('QACommand', () => {
         throw new Error('Sonar failed');
       });
 
-      await (command as any).runSonar(result, options);
+      await command.runSonar(result, options);
 
       expect(result.status).toBe('failed');
       expect(result.output).toBe('Sonar failed');
@@ -69,34 +69,34 @@ describe('QACommand', () => {
 
   describe('Execute Method', () => {
     it('should initialize results with pending status', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
 
-      expect((command as any).runLint).toHaveBeenCalled();
+      expect(command.runLint).toHaveBeenCalled();
     });
 
     it('should run lint first', async () => {
       const executionOrder: string[] = [];
 
-      (command as any).runLint = vi.fn().mockImplementation(() => {
+      command.runLint = vi.fn().mockImplementation(() => {
         executionOrder.push('lint');
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation(() => {
+      command.runTypeCheck = vi.fn().mockImplementation(() => {
         executionOrder.push('typeCheck');
       });
-      (command as any).runTests = vi.fn().mockImplementation(() => {
+      command.runTests = vi.fn().mockImplementation(() => {
         executionOrder.push('tests');
       });
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
@@ -107,18 +107,18 @@ describe('QACommand', () => {
     it('should run type check after lint', async () => {
       const executionOrder: string[] = [];
 
-      (command as any).runLint = vi.fn().mockImplementation(() => {
+      command.runLint = vi.fn().mockImplementation(() => {
         executionOrder.push('lint');
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation(() => {
+      command.runTypeCheck = vi.fn().mockImplementation(() => {
         executionOrder.push('typeCheck');
       });
-      (command as any).runTests = vi.fn().mockImplementation(() => {
+      command.runTests = vi.fn().mockImplementation(() => {
         executionOrder.push('tests');
       });
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
@@ -129,18 +129,18 @@ describe('QACommand', () => {
     it('should run tests after type check', async () => {
       const executionOrder: string[] = [];
 
-      (command as any).runLint = vi.fn().mockImplementation(() => {
+      command.runLint = vi.fn().mockImplementation(() => {
         executionOrder.push('lint');
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation(() => {
+      command.runTypeCheck = vi.fn().mockImplementation(() => {
         executionOrder.push('typeCheck');
       });
-      (command as any).runTests = vi.fn().mockImplementation(() => {
+      command.runTests = vi.fn().mockImplementation(() => {
         executionOrder.push('tests');
       });
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
@@ -151,20 +151,20 @@ describe('QACommand', () => {
     it('should run sonar after tests', async () => {
       const executionOrder: string[] = [];
 
-      (command as any).runLint = vi.fn().mockImplementation(() => {
+      command.runLint = vi.fn().mockImplementation(() => {
         executionOrder.push('lint');
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation(() => {
+      command.runTypeCheck = vi.fn().mockImplementation(() => {
         executionOrder.push('typeCheck');
       });
-      (command as any).runTests = vi.fn().mockImplementation(() => {
+      command.runTests = vi.fn().mockImplementation(() => {
         executionOrder.push('tests');
       });
-      (command as any).runSonar = vi.fn().mockImplementation(() => {
+      command.runSonar = vi.fn().mockImplementation(() => {
         executionOrder.push('sonar');
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
@@ -173,75 +173,75 @@ describe('QACommand', () => {
     });
 
     it('should generate report when report option is true', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: true };
       await command.execute(options);
 
-      expect((command as any).generateReport).toHaveBeenCalled();
+      expect(command.generateReport).toHaveBeenCalled();
     });
 
     it('should not generate report when report option is false', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
 
-      expect((command as any).generateReport).not.toHaveBeenCalled();
+      expect(command.generateReport).not.toHaveBeenCalled();
     });
 
     it('should mark all checks as passed when successful', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation((result: any) => {
+      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runTests = vi.fn().mockImplementation((result: any) => {
+      command.runTests = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runSonar = vi.fn().mockImplementation((result: any) => {
+      command.runSonar = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
 
-      expect((command as any).info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
+      expect(command.info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
     });
 
     it('should handle failures gracefully', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'failed';
       });
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
 
-      expect((command as any).info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
+      expect(command.info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
     });
 
     it('should handle execution errors', async () => {
-      (command as any).runLint = vi.fn().mockRejectedValue(new Error('Lint error'));
-      (command as any).info = vi.fn();
-      (command as any).debug = vi.fn();
+      command.runLint = vi.fn().mockRejectedValue(new Error('Lint error'));
+      command.info = vi.fn();
+      command.debug = vi.fn();
 
       const options = { report: false };
       try {
@@ -254,79 +254,78 @@ describe('QACommand', () => {
     });
 
     it('should display info message at start', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
 
-      expect((command as any).info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
+      expect(command.info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
     });
 
     it('should pass correct options to sonar', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false, noSonar: true };
       await command.execute(options);
 
-      expect((command as any).runSonar).toHaveBeenCalledWith(expect.any(Object), options);
+      expect(command.runSonar).toHaveBeenCalledWith(expect.any(Object), options);
     });
 
     it('should update result objects during execution', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
         result.output = 'Lint passed';
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation((result: any) => {
+      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
         result.output = 'Type check passed';
       });
-      (command as any).runTests = vi.fn().mockImplementation((result: any) => {
+      command.runTests = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
         result.output = 'Tests passed';
       });
-      (command as any).runSonar = vi.fn().mockImplementation((result: any) => {
+      command.runSonar = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
         result.output = 'Sonar passed';
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
 
       const options = { report: false };
       await command.execute(options);
 
-      expect((command as any).info).toHaveBeenCalled();
+      expect(command.info).toHaveBeenCalled();
     });
   });
 
   describe('Class Structure', () => {
     it('should create QACommand instance', () => {
       expect(command).toBeDefined();
-      expect(command).toBeInstanceOf(QACommand);
     });
 
     it('should have protected name property', () => {
-      expect((command as any).name).toBeDefined();
-      expect((command as any).name).toBe('qa');
+      expect(command.name).toBeDefined();
+      expect(command.name).toBe('qa');
     });
 
     it('should have protected description property', () => {
-      expect((command as any).description).toBeDefined();
-      expect((command as any).description.length).toBeGreaterThan(0);
+      expect(command.description).toBeDefined();
+      expect(command.description.length).toBeGreaterThan(0);
     });
 
     it('should have addOptions method', () => {
-      expect((command as any).addOptions).toBeDefined();
-      expect(typeof (command as any).addOptions).toBe('function');
+      expect(command.addOptions).toBeDefined();
+      expect(typeof command.addOptions).toBe('function');
     });
 
     it('should have execute method', () => {
@@ -362,7 +361,7 @@ describe('QACommand', () => {
 
       vi.mocked(child_process.execFileSync).mockReturnValue('Lint passed' as any);
 
-      await (command as any).runLint(result);
+      await command.runLint(result);
 
       expect(result.status).toBe('passed');
     });
@@ -372,7 +371,7 @@ describe('QACommand', () => {
 
       vi.mocked(child_process.execFileSync).mockReturnValue('Lint completed' as any);
 
-      await (command as any).runLint(result);
+      await command.runLint(result);
 
       expect(result.output).toBeDefined();
     });
@@ -384,7 +383,7 @@ describe('QACommand', () => {
         throw new Error('Lint failed');
       });
 
-      await (command as any).runLint(result);
+      await command.runLint(result);
 
       expect(result.status).toBe('failed');
     });
@@ -397,7 +396,7 @@ describe('QACommand', () => {
         throw error;
       });
 
-      await (command as any).runLint(result);
+      await command.runLint(result);
 
       expect(Logger.error).toHaveBeenCalled();
     });
@@ -409,7 +408,7 @@ describe('QACommand', () => {
 
       vi.mocked(child_process.execFileSync).mockReturnValue('Type check passed' as any);
 
-      await (command as any).runTypeCheck(result);
+      await command.runTypeCheck(result);
 
       expect(result.status).toBe('passed');
     });
@@ -421,7 +420,7 @@ describe('QACommand', () => {
         throw new Error('Type check failed');
       });
 
-      await (command as any).runTypeCheck(result);
+      await command.runTypeCheck(result);
 
       expect(result.status).toBe('failed');
     });
@@ -433,7 +432,7 @@ describe('QACommand', () => {
         throw new Error('Type check error');
       });
 
-      await (command as any).runTypeCheck(result);
+      await command.runTypeCheck(result);
 
       expect(Logger.error).toHaveBeenCalled();
     });
@@ -445,7 +444,7 @@ describe('QACommand', () => {
 
       vi.mocked(child_process.execFileSync).mockReturnValue('Tests passed' as any);
 
-      await (command as any).runTests(result);
+      await command.runTests(result);
 
       expect(result.status).toBe('passed');
     });
@@ -457,7 +456,7 @@ describe('QACommand', () => {
         throw new Error('Tests failed');
       });
 
-      await (command as any).runTests(result);
+      await command.runTests(result);
 
       expect(result.status).toBe('failed');
     });
@@ -469,7 +468,7 @@ describe('QACommand', () => {
         throw new Error('Test error');
       });
 
-      await (command as any).runTests(result);
+      await command.runTests(result);
 
       expect(Logger.error).toHaveBeenCalled();
     });
@@ -477,43 +476,43 @@ describe('QACommand', () => {
 
   describe('Report Generation', () => {
     it('should call generateReport when report option is true', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       await command.execute({ report: true });
 
-      expect((command as any).generateReport).toHaveBeenCalled();
+      expect(command.generateReport).toHaveBeenCalled();
     });
 
     it('should not call generateReport when report option is false', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       await command.execute({ report: false });
 
-      expect((command as any).generateReport).not.toHaveBeenCalled();
+      expect(command.generateReport).not.toHaveBeenCalled();
     });
 
     it('should handle report generation failure gracefully', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn().mockImplementation(() => {
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn().mockImplementation(() => {
         throw new Error('Report generation failed');
       });
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       try {
         await command.execute({ report: true });
@@ -527,74 +526,72 @@ describe('QACommand', () => {
 
   describe('Success and Failure Messages', () => {
     it('should show success message when all checks pass', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation((result: any) => {
+      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runTests = vi.fn().mockImplementation((result: any) => {
+      command.runTests = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runSonar = vi.fn().mockImplementation((result: any) => {
+      command.runSonar = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
-      (command as any).warn = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+      command.warn = vi.fn();
 
       await command.execute({ report: false });
 
-      expect((command as any).success).toHaveBeenCalledWith(
-        expect.stringContaining('passed successfully')
-      );
+      expect(command.success).toHaveBeenCalledWith(expect.stringContaining('passed successfully'));
     });
 
     it('should show warning when some checks fail', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'failed';
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation((result: any) => {
+      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runTests = vi.fn().mockImplementation((result: any) => {
+      command.runTests = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runSonar = vi.fn().mockImplementation((result: any) => {
+      command.runSonar = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
-      (command as any).warn = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+      command.warn = vi.fn();
 
       await command.execute({ report: false });
 
-      expect((command as any).warn).toHaveBeenCalledWith(expect.stringContaining('failures'));
+      expect(command.warn).toHaveBeenCalledWith(expect.stringContaining('failures'));
     });
 
     it('should show success when some checks are skipped but all pass or skip', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation((result: any) => {
+      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
         result.status = 'skipped';
       });
-      (command as any).runTests = vi.fn().mockImplementation((result: any) => {
+      command.runTests = vi.fn().mockImplementation((result: any) => {
         result.status = 'passed';
       });
-      (command as any).runSonar = vi.fn().mockImplementation((result: any) => {
+      command.runSonar = vi.fn().mockImplementation((result: any) => {
         result.status = 'skipped';
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
-      (command as any).warn = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+      command.warn = vi.fn();
 
       await command.execute({ report: false });
 
-      expect((command as any).success).toHaveBeenCalled();
+      expect(command.success).toHaveBeenCalled();
     });
   });
 
@@ -602,7 +599,7 @@ describe('QACommand', () => {
     it('should skip sonar when --no-sonar option is provided', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      await (command as any).runSonar(result, { sonar: false });
+      await command.runSonar(result, { sonar: false });
 
       expect(result.status).toBe('skipped');
     });
@@ -610,7 +607,7 @@ describe('QACommand', () => {
     it('should run sonar when sonar option is true or not provided', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      await (command as any).runSonar(result, {});
+      await command.runSonar(result, {});
 
       expect(result.status).toBe('passed');
     });
@@ -618,8 +615,8 @@ describe('QACommand', () => {
 
   describe('Error Handling', () => {
     it('should catch and log errors from execute', async () => {
-      (command as any).runLint = vi.fn().mockRejectedValue(new Error('Fatal error'));
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockRejectedValue(new Error('Fatal error'));
+      command.info = vi.fn();
 
       try {
         await command.execute({});
@@ -632,17 +629,17 @@ describe('QACommand', () => {
 
     it('should rethrow errors after logging', async () => {
       const testError = new Error('Test error');
-      (command as any).runLint = vi.fn().mockRejectedValue(testError);
-      (command as any).info = vi.fn();
+      command.runLint = vi.fn().mockRejectedValue(testError);
+      command.info = vi.fn();
 
       await expect(command.execute({})).rejects.toThrow();
     });
 
     it('should log debug info on errors', async () => {
       const testError = new Error('Debug test');
-      (command as any).runLint = vi.fn().mockRejectedValue(testError);
-      (command as any).info = vi.fn();
-      (command as any).debug = vi.fn();
+      command.runLint = vi.fn().mockRejectedValue(testError);
+      command.info = vi.fn();
+      command.debug = vi.fn();
 
       try {
         await command.execute({});
@@ -650,54 +647,54 @@ describe('QACommand', () => {
         // Expected
       }
 
-      expect((command as any).debug).toHaveBeenCalled();
+      expect(command.debug).toHaveBeenCalled();
     });
   });
 
   describe('Options Handling', () => {
     it('should accept --no-sonar option', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       const options = { sonar: false, report: false };
       await command.execute(options);
 
-      expect((command as any).runSonar).toHaveBeenCalledWith(expect.any(Object), options);
+      expect(command.runSonar).toHaveBeenCalledWith(expect.any(Object), options);
     });
 
     it('should accept --report option as true', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       await command.execute({ report: true });
 
-      expect((command as any).generateReport).toHaveBeenCalled();
+      expect(command.generateReport).toHaveBeenCalled();
     });
 
     it('should handle combined options', async () => {
-      (command as any).runLint = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       const options = { sonar: false, report: true };
       await command.execute(options);
 
-      expect((command as any).runSonar).toHaveBeenCalledWith(expect.any(Object), options);
-      expect((command as any).generateReport).toHaveBeenCalled();
+      expect(command.runSonar).toHaveBeenCalledWith(expect.any(Object), options);
+      expect(command.generateReport).toHaveBeenCalled();
     });
   });
 
@@ -705,21 +702,21 @@ describe('QACommand', () => {
     it('should run all steps in correct order', async () => {
       const order: string[] = [];
 
-      (command as any).runLint = vi.fn().mockImplementation(() => {
+      command.runLint = vi.fn().mockImplementation(() => {
         order.push('lint');
       });
-      (command as any).runTypeCheck = vi.fn().mockImplementation(() => {
+      command.runTypeCheck = vi.fn().mockImplementation(() => {
         order.push('typeCheck');
       });
-      (command as any).runTests = vi.fn().mockImplementation(() => {
+      command.runTests = vi.fn().mockImplementation(() => {
         order.push('tests');
       });
-      (command as any).runSonar = vi.fn().mockImplementation(() => {
+      command.runSonar = vi.fn().mockImplementation(() => {
         order.push('sonar');
       });
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       await command.execute({});
 
@@ -727,21 +724,21 @@ describe('QACommand', () => {
     });
 
     it('should continue executing steps even if one step marks failed', async () => {
-      (command as any).runLint = vi.fn().mockImplementation((result: any) => {
+      command.runLint = vi.fn().mockImplementation((result: any) => {
         result.status = 'failed';
       });
-      (command as any).runTypeCheck = vi.fn().mockResolvedValue(undefined);
-      (command as any).runTests = vi.fn().mockResolvedValue(undefined);
-      (command as any).runSonar = vi.fn().mockResolvedValue(undefined);
-      (command as any).generateReport = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).success = vi.fn();
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
 
       await command.execute({});
 
-      expect((command as any).runTypeCheck).toHaveBeenCalled();
-      expect((command as any).runTests).toHaveBeenCalled();
-      expect((command as any).runSonar).toHaveBeenCalled();
+      expect(command.runTypeCheck).toHaveBeenCalled();
+      expect(command.runTests).toHaveBeenCalled();
+      expect(command.runSonar).toHaveBeenCalled();
     });
   });
 });

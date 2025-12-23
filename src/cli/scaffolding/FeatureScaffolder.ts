@@ -211,41 +211,49 @@ export interface AuthConfig {
   algorithm: 'HS256' | 'HS512';
 }
 
-export class AuthService {
-  constructor(private config: AuthConfig) {}
-
+/**
+ * AuthService - Pure Functional Object
+ */
+export const AuthService = {
   /**
-   * Generate JWT token
+   * Create a new auth service instance
    */
-  public generateToken(payload: Record<string, unknown>): string {
-    return jwt.sign(payload, this.config.secret, {
-      expiresIn: this.config.expiresIn,
-      algorithm: this.config.algorithm,
-    });
-  }
+  create(config: AuthConfig) {
+    return {
+      /**
+       * Generate JWT token
+       */
+      generateToken(payload: Record<string, unknown>): string {
+        return jwt.sign(payload, config.secret, {
+          expiresIn: config.expiresIn,
+          algorithm: config.algorithm,
+        });
+      },
 
-  /**
-   * Verify JWT token
-   */
-  public verifyToken(token: string): Record<string, unknown> | null {
-    try {
-      return jwt.verify(token, this.config.secret) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
+      /**
+       * Verify JWT token
+       */
+      verifyToken(token: string): Record<string, unknown> | null {
+        try {
+          return jwt.verify(token, config.secret) as Record<string, unknown>;
+        } catch {
+          return null;
+        }
+      },
 
-  /**
-   * Decode token (without verification)
-   */
-  public decodeToken(token: string): Record<string, unknown> | null {
-    try {
-      return jwt.decode(token) as Record<string, unknown> | null;
-    } catch {
-      return null;
-    }
+      /**
+       * Decode token (without verification)
+       */
+      decodeToken(token: string): Record<string, unknown> | null {
+        try {
+          return jwt.decode(token) as Record<string, unknown> | null;
+        } catch {
+          return null;
+        }
+      }
+    };
   }
-}
+};
 
 export default AuthService;
 `;
@@ -272,31 +280,39 @@ export interface Payment {
   createdAt: Date;
 }
 
-export class PaymentService {
-  constructor(private config: PaymentConfig) {}
-
+/**
+ * PaymentService - Pure Functional Object
+ */
+export const PaymentService = {
   /**
-   * Process payment
+   * Create a new payment service instance
    */
-  public async processPayment(payment: Payment): Promise<{ success: boolean; transactionId?: string }> {
-    // Implementation depends on provider
-    return { success: true, transactionId: 'txn_' + randomBytes(8).toString('hex') };
-  }
+  create(config: PaymentConfig) {
+    return {
+      /**
+       * Process payment
+       */
+      async processPayment(payment: Payment): Promise<{ success: boolean; transactionId?: string }> {
+        // Implementation depends on provider
+        return { success: true, transactionId: 'txn_' + randomBytes(8).toString('hex') };
+      },
 
-  /**
-   * Refund payment
-   */
-  public async refundPayment(transactionId: string): Promise<{ success: boolean }> {
-    return { success: true };
-  }
+      /**
+       * Refund payment
+       */
+      async refundPayment(transactionId: string): Promise<{ success: boolean }> {
+        return { success: true };
+      },
 
-  /**
-   * Get payment status
-   */
-  public async getStatus(transactionId: string): Promise<Payment | null> {
-    return null;
+      /**
+       * Get payment status
+       */
+      async getStatus(transactionId: string): Promise<Payment | null> {
+        return null;
+      }
+    };
   }
-}
+};
 
 export default PaymentService;
 `;
@@ -305,6 +321,8 @@ const LOGGING_TEMPLATE = `/**
  * Logging Feature
  * Structured logging with multiple transports
  */
+
+import { Logger } from '@config/logger';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -315,49 +333,59 @@ export interface LogEntry {
   context?: Record<string, unknown>;
 }
 
-export class LoggingService {
-  private logs: LogEntry[] = [];
-
+/**
+ * LoggingService - Pure Functional Object
+ */
+export const LoggingService = {
   /**
-   * Log message
+   * Create a new logging service instance
    */
-  public log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
-    const entry: LogEntry = {
-      timestamp: new Date(),
-      level,
-      message,
-      context,
+  create() {
+    let logs: LogEntry[] = [];
+
+    return {
+      /**
+       * Log message
+       */
+      log(level: LogLevel, message: string, context?: Record<string, unknown>): void {
+        const entry: LogEntry = {
+          timestamp: new Date(),
+          level,
+          message,
+          context,
+        };
+
+        logs.push(entry);
+
+        if (level === 'error') {
+          Logger.error(message, context);
+        } else if (level === 'warn') {
+          Logger.warn(message, context);
+        } else {
+          Logger.info(message, context);
+        }
+      },
+
+      /**
+       * Get logs
+       */
+      getLogs(level?: LogLevel, limit: number = 100): LogEntry[] {
+        let filtered = logs;
+        if (level !== undefined) {
+          filtered = filtered.filter((log) => log.level === level);
+        }
+        return filtered.slice(-limit);
+      },
+
+      /**
+       * Clear logs
+       */
+      clear(): void {
+        logs = [];
+      }
     };
-
-    this.logs.push(entry);
-
-    if (level === 'error') {
-      Logger.error(message, context);
-    } else if (level === 'warn') {
-      Logger.warn(message, context);
-    } else {
-      Logger.info(message, context);
-    }
   }
-
-  /**
-   * Get logs
-   */
-  public getLogs(level?: LogLevel, limit: number = 100): LogEntry[] {
-    let filtered = this.logs;
-    if (level !== undefined) {
-      filtered = filtered.filter((log) => log.level === level);
-    }
-    return filtered.slice(-limit);
-  }
-
-  /**
-   * Clear logs
-   */
-  public clear(): void {
-    this.logs = [];
-  }
-}
+};
 
 export default LoggingService;
 `;
@@ -377,67 +405,79 @@ export interface ApiEndpoint {
   tags?: string[];
 }
 
-export class ApiDocService {
-  private endpoints: ApiEndpoint[] = [];
-
+/**
+ * ApiDocService - Pure Functional Object
+ */
+export const ApiDocService = {
   /**
-   * Register endpoint
+   * Create a new API doc service instance
    */
-  public registerEndpoint(endpoint: ApiEndpoint): void {
-    this.endpoints.push(endpoint);
-  }
+  create() {
+    let endpoints: ApiEndpoint[] = [];
 
-  /**
-   * Generate OpenAPI spec
-   */
-  public generateOpenApiSpec(): Record<string, unknown> {
-    return {
-      openapi: '3.0.0',
-      info: {
-        title: 'Service API',
-        version: '1.0.0',
+    const service = {
+      /**
+       * Register endpoint
+       */
+      registerEndpoint(endpoint: ApiEndpoint): void {
+        endpoints.push(endpoint);
       },
-      paths: this.groupByPath(),
-    };
-  }
 
-  /**
-   * Generate Swagger/OpenAPI HTML
-   */
-  public generateSwaggerHtml(): string {
-    const spec = this.generateOpenApiSpec();
-    return \`<html>
-      <body>
-        <div id="swagger-ui"></div>
-        <script>
-          window.onload = function() {
-            window.ui = SwaggerUIBundle({
-              spec: \${JSON.stringify(spec)},
-              dom_id: '#swagger-ui',
-            });
+      /**
+       * Generate OpenAPI spec
+       */
+      generateOpenApiSpec(): Record<string, unknown> {
+        return {
+          openapi: '3.0.0',
+          info: {
+            title: 'Service API',
+            version: '1.0.0',
+          },
+          paths: service.groupByPath(),
+        };
+      },
+
+      /**
+       * Generate Swagger/OpenAPI HTML
+       */
+      generateSwaggerHtml(): string {
+        const spec = service.generateOpenApiSpec();
+        return \`<html>
+          <body>
+            <div id="swagger-ui"></div>
+            <script>
+              window.onload = function() {
+                window.ui = SwaggerUIBundle({
+                  spec: \${JSON.stringify(spec)},
+                  dom_id: '#swagger-ui',
+                });
+              };
+            </script>
+          </body>
+        </html>\`;
+      },
+
+      groupByPath(): Record<string, unknown> {
+        const grouped: Record<string, unknown> = {};
+        for (const endpoint of endpoints) {
+          if (grouped[endpoint.path] === undefined) {
+            grouped[endpoint.path] = {};
+          }
+          grouped[endpoint.path][endpoint.method.toLowerCase()] = {
+            description: endpoint.description,
+            parameters: endpoint.parameters,
+            requestBody: endpoint.requestBody,
+            responses: endpoint.responses,
+            tags: endpoint.tags,
           };
-        </script>
-      </body>
-    </html>\`;
-  }
-
-  private groupByPath(): Record<string, unknown> {
-    const grouped: Record<string, unknown> = {};
-    for (const endpoint of this.endpoints) {
-      if (grouped[endpoint.path] === undefined) {
-        grouped[endpoint.path] = {};
+        }
+        return grouped;
       }
-      grouped[endpoint.path][endpoint.method.toLowerCase()] = {
-        description: endpoint.description,
-        parameters: endpoint.parameters,
-        requestBody: endpoint.requestBody,
-        responses: endpoint.responses,
-        tags: endpoint.tags,
-      };
-    }
-    return grouped;
+    };
+
+    return service;
   }
-}
+};
 
 export default ApiDocService;
 `;
@@ -463,28 +503,36 @@ export interface EmailMessage {
   attachments?: Array<{ filename: string; content: string }>;
 }
 
-export class EmailService {
-  constructor(private config: EmailConfig) {}
-
+/**
+ * EmailService - Pure Functional Object
+ */
+export const EmailService = {
   /**
-   * Send email
+   * Create a new email service instance
    */
-  public async send(message: EmailMessage): Promise<{ success: boolean; messageId?: string }> {
-    // Implementation depends on provider
-    return { success: true, messageId: 'msg_' + randomBytes(8).toString('hex') };
-  }
+  create(config: EmailConfig) {
+    return {
+      /**
+       * Send email
+       */
+      async send(message: EmailMessage): Promise<{ success: boolean; messageId?: string }> {
+        // Implementation depends on provider
+        return { success: true, messageId: 'msg_' + randomBytes(8).toString('hex') };
+      },
 
-  /**
-   * Send template email
-   */
-  public async sendTemplate(
-    to: string,
-    template: string,
-    data: Record<string, unknown>
-  ): Promise<{ success: boolean }> {
-    return { success: true };
+      /**
+       * Send template email
+       */
+      async sendTemplate(
+        to: string,
+        template: string,
+        data: Record<string, unknown>
+      ): Promise<{ success: boolean }> {
+        return { success: true };
+      }
+    };
   }
-}
+};
 
 export default EmailService;
 `;
@@ -500,48 +548,56 @@ export interface CacheConfig {
   backend?: 'memory' | 'redis';
 }
 
-export class CacheService {
-  private cache = new Map<string, { value: unknown; expiresAt: number }>();
-
-  constructor(private config: CacheConfig) {}
-
+/**
+ * CacheService - Pure Functional Object
+ */
+export const CacheService = {
   /**
-   * Get cached value
+   * Create a new cache service instance
    */
-  public get<T>(key: string): T | null {
-    const entry = this.cache.get(key);
-    if (entry === undefined) return null;
+  create(config: CacheConfig) {
+    let cache = new Map<string, { value: unknown; expiresAt: number }>();
 
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
-      return null;
-    }
+    return {
+      /**
+       * Get cached value
+       */
+      get<T>(key: string): T | null {
+        const entry = cache.get(key);
+        if (entry === undefined) return null;
 
-    return entry.value as T;
+        if (Date.now() > entry.expiresAt) {
+          cache.delete(key);
+          return null;
+        }
+
+        return entry.value as T;
+      },
+
+      /**
+       * Set cache value
+       */
+      set<T>(key: string, value: T): void {
+        const expiresAt = Date.now() + config.ttl * 1000;
+        cache.set(key, { value, expiresAt });
+      },
+
+      /**
+       * Delete cache entry
+       */
+      delete(key: string): boolean {
+        return cache.delete(key);
+      },
+
+      /**
+       * Clear all cache
+       */
+      clear(): void {
+        cache.clear();
+      }
+    };
   }
-
-  /**
-   * Set cache value
-   */
-  public set<T>(key: string, value: T): void {
-    const expiresAt = Date.now() + this.config.ttl * 1000;
-    this.cache.set(key, { value, expiresAt });
-  }
-
-  /**
-   * Delete cache entry
-   */
-  public delete(key: string): boolean {
-    return this.cache.delete(key);
-  }
-
-  /**
-   * Clear all cache
-   */
-  public clear(): void {
-    this.cache.clear();
-  }
-}
+};
 
 export default CacheService;
 `;
@@ -567,50 +623,60 @@ export interface QueueConfig {
   concurrency?: number;
 }
 
-export class QueueService {
-  private jobs: Job[] = [];
-  private processing = false;
-
-  constructor(private config: QueueConfig) {}
-
+/**
+ * QueueService - Pure Functional Object
+ */
+export const QueueService = {
   /**
-   * Add job to queue
+   * Create a new queue service instance
    */
-  public async enqueue(name: string, data: Record<string, unknown>): Promise<Job> {
-    const job: Job = {
-      id: 'job_' + randomBytes(8).toString('hex'),
-      name,
-      data,
-      status: 'pending',
-      createdAt: new Date(),
+  create(config: QueueConfig) {
+    let jobs: Job[] = [];
+    let processing = false;
+
+    const service = {
+      /**
+       * Add job to queue
+       */
+      async enqueue(name: string, data: Record<string, unknown>): Promise<Job> {
+        const job: Job = {
+          id: 'job_' + randomBytes(8).toString('hex'),
+          name,
+          data,
+          status: 'pending',
+          createdAt: new Date(),
+        };
+
+        jobs.push(job);
+        service.processQueue();
+        return job;
+      },
+
+      /**
+       * Get job status
+       */
+      getJob(id: string): Job | undefined {
+        return jobs.find((job) => job.id === id);
+      },
+
+      processQueue(): void {
+        if (processing === true) return;
+        processing = true;
+
+        // Process queue
+        const pendingJobs = jobs.filter((job) => job.status === 'pending');
+        for (const job of pendingJobs) {
+          job.status = 'completed';
+          job.processedAt = new Date();
+        }
+
+        processing = false;
+      }
     };
 
-    this.jobs.push(job);
-    this.processQueue();
-    return job;
+    return service;
   }
-
-  /**
-   * Get job status
-   */
-  public getJob(id: string): Job | undefined {
-    return this.jobs.find((job) => job.id === id);
-  }
-
-  private processQueue(): void {
-    if (this.processing === true) return;
-    this.processing = true;
-
-    // Process queue
-    const pendingJobs = this.jobs.filter((job) => job.status === 'pending');
-    for (const job of pendingJobs) {
-      job.status = 'completed';
-      job.processedAt = new Date();
-    }
-
-    this.processing = false;
-  }
-}
+};
 
 export default QueueService;
 `;
@@ -631,41 +697,51 @@ export interface SocketMessage {
   timestamp: Date;
 }
 
-export class WebSocketService {
-  private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
-
+/**
+ * WebSocketService - Pure Functional Object
+ */
+export const WebSocketService = {
   /**
-   * Listen for event
+   * Create a new websocket service instance
    */
-  public on(event: string, callback: (data: unknown) => void): void {
-    if (this.listeners.has(event) === false) {
-      this.listeners.set(event, new Set());
-    }
-    this.listeners.get(event)?.add(callback);
-  }
+  create() {
+    let listeners: Map<string, Set<(data: unknown) => void>> = new Map();
 
-  /**
-   * Emit event
-   */
-  public emit(event: string, data: unknown): void {
-    const callbacks = this.listeners.get(event);
-    if (callbacks !== undefined) {
-      for (const callback of callbacks) {
-        callback(data);
+    return {
+      /**
+       * Listen for event
+       */
+      on(event: string, callback: (data: unknown) => void): void {
+        if (listeners.has(event) === false) {
+          listeners.set(event, new Set());
+        }
+        listeners.get(event)?.add(callback);
+      },
+
+      /**
+       * Emit event
+       */
+      emit(event: string, data: unknown): void {
+        const callbacks = listeners.get(event);
+        if (callbacks !== undefined) {
+          for (const callback of callbacks) {
+            callback(data);
+          }
+        }
+      },
+
+      /**
+       * Stop listening
+       */
+      off(event: string, callback: (data: unknown) => void): void {
+        const callbacks = listeners.get(event);
+        if (callbacks !== undefined) {
+          callbacks.delete(callback);
+        }
       }
-    }
+    };
   }
-
-  /**
-   * Stop listening
-   */
-  public off(event: string, callback: (data: unknown) => void): void {
-    const callbacks = this.listeners.get(event);
-    if (callbacks !== undefined) {
-      callbacks.delete(callback);
-    }
-  }
-}
+};
 
 export default WebSocketService;
 `;
@@ -673,14 +749,14 @@ export default WebSocketService;
 /**
  * Generate feature test
  */
-function generateFeatureTest(name: FeatureType): string {
+function generateFeatureTest(_name: FeatureType): string {
   return `/**
- * ${name} Feature Tests
+ * \${name} Feature Tests
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 
-describe('${name} Feature', () => {
+describe('\${name} Feature', () => {
   beforeEach(() => {
     // Setup
   });
@@ -699,17 +775,17 @@ describe('${name} Feature', () => {
 /**
  * Generate feature README
  */
-function generateFeatureReadme(name: FeatureType): string {
-  return `# ${name.charAt(0).toUpperCase()}${name.slice(1)} Feature
+function generateFeatureReadme(_name: FeatureType): string {
+  return `# \${name.charAt(0).toUpperCase()}\${name.slice(1)} Feature
 
-This feature provides ${name} functionality for the service.
+This feature provides \${name} functionality for the service.
 
 ## Usage
 
 \`\`\`typescript
-import ${name}Service from './index';
+import \${name}Service from './index';
 
-const service = new ${name}Service(config);
+const service = \${name}Service.create(config);
 // Use service...
 \`\`\`
 
@@ -720,7 +796,7 @@ See service configuration for settings related to this feature.
 ## Testing
 
 \`\`\`bash
-npm test -- ${name}.test.ts
+npm test -- \${name}.test.ts
 \`\`\`
 `;
 }
@@ -728,8 +804,8 @@ npm test -- ${name}.test.ts
 /**
  * FeatureScaffolder adds features to services
  */
-export const FeatureScaffolder = {
+export const FeatureScaffolder = Object.freeze({
   validateOptions,
   getAvailableFeatures,
   addFeature,
-};
+});

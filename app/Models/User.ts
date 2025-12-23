@@ -1,51 +1,53 @@
 /**
- * Example User Model
- * Demonstrates how to define models with relationships
+ * User Model
  */
 
 import { Post } from '@app/Models/Post';
-import { Model } from '@orm/Model';
-import { HasMany, HasOne } from '@orm/Relationships';
+import { IModel, Model } from '@orm/Model';
 
-export class User extends Model {
-  protected table = 'users';
-  protected fillable = ['name', 'email', 'password'];
-  protected hidden = ['password'];
-  protected timestamps = true;
-  protected casts = {
-    email_verified_at: 'datetime',
-    password: 'hashed', // NOSONAR
-    is_admin: 'boolean',
-    metadata: 'json',
-  };
+/**
+ * User Model Definition
+ */
+export const User = Model.define(
+  {
+    table: 'users',
+    fillable: ['name', 'email', 'password'],
+    hidden: ['password'],
+    timestamps: true,
+    casts: {
+      email_verified_at: 'datetime',
+    },
+  },
+  {
+    /**
+     * Get user's profile
+     */
+    profile(_model: IModel) {
+      return undefined; // Placeholder
+    },
 
-  /**
-   * Get user's posts
-   */
-  public posts(): HasMany {
-    return this.hasMany(Post);
+    /**
+     * Get user's posts
+     */
+    posts(model: IModel) {
+      return model.hasMany(Post);
+    },
+
+    /**
+     * Check if user is admin
+     */
+    isAdmin(model: IModel) {
+      return model.getAttribute('is_admin') === 1;
+    },
+
+    /**
+     * Get user's full name
+     */
+    getFullName(model: IModel) {
+      const name = model.getAttribute('name');
+      return typeof name === 'string' ? name : '';
+    },
   }
+);
 
-  /**
-   * Get user's profile
-   */
-  public profile(): HasOne | undefined {
-    // Placeholder for Profile relationship
-    return undefined;
-  }
-
-  /**
-   * Check if user is admin
-   */
-  public isAdmin(): boolean {
-    return Boolean(this.getAttribute('is_admin'));
-  }
-
-  /**
-   * Get full name accessor
-   */
-  public getFullName(): string {
-    const name = this.getAttribute('name');
-    return typeof name === 'string' ? name : '';
-  }
-}
+export default User;

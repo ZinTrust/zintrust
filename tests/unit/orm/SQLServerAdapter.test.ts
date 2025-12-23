@@ -1,7 +1,27 @@
 import { SQLServerAdapter } from '@/orm/adapters/SQLServerAdapter';
 import { DatabaseConfig } from '@/orm/DatabaseAdapter';
-import { Logger } from '@config/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock Logger module to track method calls
+vi.mock('@config/logger', () => ({
+  Logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    scope: vi.fn().mockReturnValue({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      fatal: vi.fn(),
+    }),
+  },
+}));
+
+// Import mocked Logger after vi.mock
+import { Logger } from '@config/logger';
 
 describe('SQLServerAdapter', () => {
   beforeEach(() => {
@@ -16,7 +36,7 @@ describe('SQLServerAdapter', () => {
     username: 'sa',
     password: 'password', // NOSONAR
   };
-  const adapter = new SQLServerAdapter(config);
+  const adapter = SQLServerAdapter.create(config);
 
   it('should create adapter instance', () => {
     expect(adapter).toBeDefined();
@@ -33,7 +53,7 @@ describe('SQLServerAdapter', () => {
   });
 
   it('should throw if querying when not connected', async () => {
-    const disconnectedAdapter = new SQLServerAdapter(config);
+    const disconnectedAdapter = SQLServerAdapter.create(config);
     await expect(disconnectedAdapter.query('SELECT 1', [])).rejects.toThrow(
       'Database not connected'
     );
@@ -70,13 +90,13 @@ describe('SQLServerAdapter', () => {
 
   it('should get parameter placeholder with index', async () => {
     await adapter.connect();
-    const placeholder = (adapter as any).getParameterPlaceholder(0);
+    const placeholder = adapter.getPlaceholder(0);
     expect(placeholder).toBe('@param0');
   });
 
   it('should get parameter placeholder with different index', async () => {
     await adapter.connect();
-    const placeholder = (adapter as any).getParameterPlaceholder(5);
+    const placeholder = adapter.getPlaceholder(5);
     expect(placeholder).toBe('@param5');
   });
 
@@ -85,41 +105,34 @@ describe('SQLServerAdapter', () => {
       ...config,
       port: 1434,
     };
-    const customAdapter = new SQLServerAdapter(customConfig);
+    const customAdapter = SQLServerAdapter.create(customConfig);
     await customAdapter.connect();
     expect(customAdapter.isConnected()).toBe(true);
   });
 
   it('should handle config without port (default port)', async () => {
     const { port: _, ...configWithoutPort } = config;
-    const defaultAdapter = new SQLServerAdapter(configWithoutPort as any);
+    const defaultAdapter = SQLServerAdapter.create(configWithoutPort as any);
     await defaultAdapter.connect();
     expect(defaultAdapter.isConnected()).toBe(true);
   });
 
   it('should handle connection error', async () => {
-    const errorAdapter = new SQLServerAdapter(config);
-    const loggerSpy = vi.spyOn(Logger, 'info').mockImplementation(() => {
-      throw new Error('Connection failed');
-    });
-
+    const errorConfig: DatabaseConfig = { ...config, host: 'error' };
+    const errorAdapter = SQLServerAdapter.create(errorConfig);
     await expect(errorAdapter.connect()).rejects.toThrow(
       'Failed to connect to SQL Server: Error: Connection failed'
     );
     expect(errorAdapter.isConnected()).toBe(false);
-
-    loggerSpy.mockRestore();
   });
 
   it('should handle transaction error', async () => {
     await adapter.connect();
-    const loggerSpy = vi.spyOn(Logger, 'error');
     await expect(
       adapter.transaction(async () => {
         throw new Error('Transaction failed');
       })
     ).rejects.toThrow('Transaction failed');
-    expect(loggerSpy).toHaveBeenCalled();
-    loggerSpy.mockRestore();
+    expect(Logger.error).toHaveBeenCalled();
   });
 });

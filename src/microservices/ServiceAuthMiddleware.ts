@@ -1,7 +1,7 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 import crypto from 'node:crypto';
 
 // Middleware next function type
@@ -19,202 +19,199 @@ export interface AuthContext {
   authenticated: boolean;
 }
 
+export interface IApiKeyAuth {
+  verify(token: string): boolean;
+  generate(): string;
+}
+
 /**
  * API Key Authentication
  */
+export const ApiKeyAuth = Object.freeze({
+  /**
+   * Create a new API key auth instance
+   */
+  create(apiKey?: string): IApiKeyAuth {
+    const generateSecureApiKeyDefault = (): string => {
+      return crypto.randomBytes(32).toString('hex');
+    };
 
-function getApiKey(): string {
-  const envKey = Env.SERVICE_API_KEY;
-  const secureDefault = generateSecureApiKeyDefault();
-  if (envKey === undefined || envKey === secureDefault) {
-    Logger.warn(
-      '⚠️  WARNING: Using generated default API key. Set SERVICE_API_KEY environment variable in production!'
-    );
-    return secureDefault;
-  }
-  return envKey;
-}
+    const getApiKey = (): string => {
+      const envKey = Env.get('SERVICE_API_KEY');
+      const secureDefault = generateSecureApiKeyDefault();
+      if (envKey === undefined || envKey === secureDefault) {
+        Logger.warn(
+          '⚠️  WARNING: Using generated default API key. Set SERVICE_API_KEY environment variable in production!'
+        );
+        return secureDefault;
+      }
+      return envKey;
+    };
 
-function generateSecureApiKeyDefault(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
+    const key = apiKey ?? getApiKey();
 
-export class ApiKeyAuth {
-  private readonly apiKey: string;
+    return {
+      verify(token: string): boolean {
+        return token === key;
+      },
 
-  constructor(apiKey?: string) {
-    this.apiKey = apiKey ?? getApiKey();
-  }
+      generate(): string {
+        return crypto.randomBytes(32).toString('hex');
+      },
+    };
+  },
+});
 
-  public verify(token: string): boolean {
-    return token === this.apiKey;
-  }
-
-  public generate(): string {
-    return crypto.randomBytes(32).toString('hex');
-  }
+export interface IJwtAuth {
+  sign(payload: Record<string, unknown>, expiresIn?: string): string;
+  verify(token: string): Record<string, unknown> | null;
 }
 
 /**
  * JWT Authentication
  */
+export const JwtAuth = Object.freeze({
+  /**
+   * Create a new JWT auth instance
+   */
+  create(secret?: string): IJwtAuth {
+    const generateSecureJwtDefault = (): string => {
+      return crypto.randomBytes(32).toString('hex');
+    };
 
-function getJwtSecret(): string {
-  const envSecret = Env.SERVICE_JWT_SECRET;
-  const secureDefault = generateSecureJwtDefault();
-  if (envSecret === undefined || envSecret === secureDefault) {
-    Logger.warn(
-      '⚠️  WARNING: Using generated default JWT secret. Set SERVICE_JWT_SECRET environment variable in production!'
-    );
-    return secureDefault;
-  }
-  return envSecret;
-}
-
-function generateSecureJwtDefault(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-export class JwtAuth {
-  private readonly secret: string;
-
-  constructor(secret?: string) {
-    this.secret = secret ?? getJwtSecret();
-  }
-
-  public sign(payload: Record<string, unknown>, _expiresIn: string = '1h'): string {
-    // Simplified JWT (in production, use jsonwebtoken library)
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
-    const body = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString('base64');
-
-    const signature = crypto
-      .createHmac('sha256', this.secret)
-      .update(`${header}.${body}`)
-      .digest('base64');
-
-    return `${header}.${body}.${signature}`;
-  }
-
-  public verify(token: string): Record<string, unknown> | null {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) return null;
-      const [header, body, signature] = parts;
-      const expectedSignature = crypto
-        .createHmac('sha256', this.secret)
-        .update(`${header}.${body}`)
-        .digest('base64');
-
-      if (signature !== expectedSignature) {
-        return null;
+    const getJwtSecret = (): string => {
+      const envSecret = Env.get('SERVICE_JWT_SECRET');
+      const secureDefault = generateSecureJwtDefault();
+      if (envSecret === undefined || envSecret === secureDefault) {
+        Logger.warn(
+          '⚠️  WARNING: Using generated default JWT secret. Set SERVICE_JWT_SECRET environment variable in production!'
+        );
+        return secureDefault;
       }
+      return envSecret;
+    };
 
-      return JSON.parse(Buffer.from(body, 'base64').toString()) as Record<string, unknown>;
-    } catch (error) {
-      Logger.error('JWT verification failed', error);
-      return null;
-    }
-  }
+    const jwtSecret = secret ?? getJwtSecret();
+
+    return {
+      sign(payload: Record<string, unknown>, _expiresIn: string = '1h'): string {
+        // Simplified JWT (in production, use jsonwebtoken library)
+        const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
+        const body = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString(
+          'base64'
+        );
+
+        const signature = crypto
+          .createHmac('sha256', jwtSecret)
+          .update(`${header}.${body}`)
+          .digest('base64');
+
+        return `${header}.${body}.${signature}`;
+      },
+
+      verify(token: string): Record<string, unknown> | null {
+        try {
+          const parts = token.split('.');
+          if (parts.length !== 3) return null;
+          const [header, body, signature] = parts;
+          const expectedSignature = crypto
+            .createHmac('sha256', jwtSecret)
+            .update(`${header}.${body}`)
+            .digest('base64');
+
+          if (signature !== expectedSignature) {
+            return null;
+          }
+
+          return JSON.parse(Buffer.from(body, 'base64').toString()) as Record<string, unknown>;
+        } catch (error) {
+          Logger.error('JWT verification failed', error);
+          return null;
+        }
+      },
+    };
+  },
+});
+
+export interface ICustomAuth {
+  verify(token: string): boolean;
 }
 
 /**
  * Custom Authentication (developer-defined)
  */
-export class CustomAuth {
-  private readonly validator: (token: string) => boolean;
+export const CustomAuth = Object.freeze({
+  /**
+   * Create a new custom auth instance
+   */
+  create(validator: (token: string) => boolean): ICustomAuth {
+    return {
+      verify(token: string): boolean {
+        return validator(token);
+      },
+    };
+  },
+});
 
-  constructor(validator: (token: string) => boolean) {
-    this.validator = validator;
-  }
-
-  verify(token: string): boolean {
-    return this.validator(token);
-  }
+export interface IServiceAuthMiddleware {
+  registerCustomAuth(validator: (token: string) => boolean): void;
+  middleware(
+    strategy: AuthStrategy
+  ): (req: IRequest, res: IResponse, next: NextFunction) => void | Promise<void>;
 }
 
 /**
  * Service-to-Service Authentication Middleware
  */
+type AuthHeader = { scheme: string; token: string };
 
-const defaultApiKeyAuth = new ApiKeyAuth();
-const defaultJwtAuth = new JwtAuth();
-let customValidator: ((token: string) => boolean) | null = null;
-
-/**
- * Register custom auth validator
- */
-export function registerCustomAuth(validator: (token: string) => boolean): void {
-  customValidator = validator;
-}
-
-/**
- * Middleware to authenticate service-to-service calls
- */
-export function middleware(
-  strategy: AuthStrategy
-): (req: Request, res: Response, next: NextFunction) => void | Promise<void> {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const context = createAuthContext(strategy);
-
-    if (strategy === 'none') {
-      return attachContextAndNext(req, context, next);
-    }
-
-    const auth = parseAuthHeader(req);
-    if (!auth) {
-      return res.setStatus(401).json({ error: 'Missing or invalid authorization header' });
-    }
-
-    const result = verifyStrategy(strategy, auth.scheme, auth.token, context);
-    if (!result.authenticated) {
-      return res.setStatus(result.status ?? 401).json({ error: result.error });
-    }
-
-    return finalizeServiceAuth(req, context, next);
-  };
+interface VerifyResult {
+  authenticated: boolean;
+  status?: number;
+  error?: string;
 }
 
 /**
  * Create initial authentication context
  */
-function createAuthContext(strategy: AuthStrategy): AuthContext {
+const createAuthContext = (strategy: AuthStrategy): AuthContext => {
   return {
     isServiceCall: false,
     strategy,
     authenticated: strategy === 'none',
   };
-}
+};
 
 /**
  * Attach context to request and proceed to next middleware
  */
-function attachContextAndNext(
-  req: Request,
+const attachContextAndNext = (
+  req: IRequest,
   context: AuthContext,
   next: NextFunction
-): void | Promise<void> {
+): void | Promise<void> => {
   req.context ??= {};
   req.context['serviceAuth'] = context;
   return next();
-}
+};
 
 /**
  * Finalize successful service authentication
  */
-function finalizeServiceAuth(
-  req: Request,
+const finalizeServiceAuth = (
+  req: IRequest,
   context: AuthContext,
   next: NextFunction
-): void | Promise<void> {
+): void | Promise<void> => {
   context.authenticated = true;
   context.isServiceCall = true;
   return attachContextAndNext(req, context, next);
-}
+};
 
 /**
  * Parse authorization header
  */
-function parseAuthHeader(req: Request): { scheme: string; token: string } | null {
+const parseAuthHeader = (req: IRequest): AuthHeader | null => {
   const authHeader = req.getHeader('authorization');
   if (authHeader === undefined || typeof authHeader !== 'string') {
     return null;
@@ -233,55 +230,40 @@ function parseAuthHeader(req: Request): { scheme: string; token: string } | null
   }
 
   return { scheme, token };
-}
-
-/**
- * Verify authentication strategy
- */
-function verifyStrategy(
-  strategy: string,
-  scheme: string,
-  token: string,
-  context: AuthContext
-): { authenticated: boolean; status?: number; error?: string } {
-  switch (strategy) {
-    case 'api-key':
-      return verifyApiKeyStrategy(scheme, token);
-    case 'jwt':
-      return verifyJwtStrategy(scheme, token, context);
-    case 'custom':
-      return verifyCustomStrategy(token);
-    default:
-      return { authenticated: false, status: 401, error: 'Unsupported strategy' };
-  }
-}
+};
 
 /**
  * Verify API Key strategy
  */
-function verifyApiKeyStrategy(
+const verifyApiKeyStrategy = (
+  apiKeyAuth: IApiKeyAuth,
   scheme: string,
   token: string
-): { authenticated: boolean; status?: number; error?: string } {
-  if (scheme !== 'Bearer' || defaultApiKeyAuth.verify(token) === false) {
+): VerifyResult => {
+  if (scheme !== 'Bearer' || apiKeyAuth.verify(token) === false) {
     return { authenticated: false, status: 403, error: 'Invalid API key' };
   }
   return { authenticated: true };
-}
+};
 
 /**
  * Verify JWT strategy
  */
-function verifyJwtStrategy(
+const verifyJwtStrategy = (
+  jwtAuth: IJwtAuth,
   scheme: string,
   token: string,
   context: AuthContext
-): { authenticated: boolean; status?: number; error?: string } {
+): VerifyResult => {
   if (scheme !== 'Bearer') {
-    return { authenticated: false, status: 401, error: 'Invalid authorization scheme' };
+    return {
+      authenticated: false,
+      status: 401,
+      error: 'Invalid authorization scheme',
+    };
   }
 
-  const payload = defaultJwtAuth.verify(token);
+  const payload = jwtAuth.verify(token);
   if (payload === null) {
     return { authenticated: false, status: 403, error: 'Invalid JWT token' };
   }
@@ -289,25 +271,93 @@ function verifyJwtStrategy(
   const serviceName = payload['serviceName'];
   context.serviceName = typeof serviceName === 'string' ? serviceName : '';
   return { authenticated: true };
-}
+};
 
 /**
  * Verify Custom strategy
  */
-function verifyCustomStrategy(token: string): {
-  authenticated: boolean;
-  status?: number;
-  error?: string;
-} {
+const verifyCustomStrategy = (
+  customValidator: ((token: string) => boolean) | null,
+  token: string
+): VerifyResult => {
   if (customValidator === null || customValidator(token) === false) {
     return { authenticated: false, status: 403, error: 'Authentication failed' };
   }
   return { authenticated: true };
-}
-
-export const ServiceAuthMiddleware = {
-  middleware,
-  registerCustomAuth,
 };
+
+/**
+ * Verify authentication strategy
+ */
+const verifyStrategy = (
+  strategy: AuthStrategy,
+  auth: AuthHeader,
+  context: AuthContext,
+  deps: {
+    apiKeyAuth: IApiKeyAuth;
+    jwtAuth: IJwtAuth;
+    customValidator: ((token: string) => boolean) | null;
+  }
+): VerifyResult => {
+  switch (strategy) {
+    case 'api-key':
+      return verifyApiKeyStrategy(deps.apiKeyAuth, auth.scheme, auth.token);
+    case 'jwt':
+      return verifyJwtStrategy(deps.jwtAuth, auth.scheme, auth.token, context);
+    case 'custom':
+      return verifyCustomStrategy(deps.customValidator, auth.token);
+    default:
+      return { authenticated: false, status: 401, error: 'Unsupported strategy' };
+  }
+};
+
+const createServiceAuthMiddleware = (): IServiceAuthMiddleware => {
+  const defaultApiKeyAuth = ApiKeyAuth.create();
+  const defaultJwtAuth = JwtAuth.create();
+  let customValidator: ((token: string) => boolean) | null = null;
+
+  return {
+    /**
+     * Register custom auth validator
+     */
+    registerCustomAuth(validator: (token: string) => boolean): void {
+      customValidator = validator;
+    },
+
+    /**
+     * Middleware to authenticate service-to-service calls
+     */
+    middleware(
+      strategy: AuthStrategy
+    ): (req: IRequest, res: IResponse, next: NextFunction) => void | Promise<void> {
+      return (req: IRequest, res: IResponse, next: NextFunction) => {
+        const context = createAuthContext(strategy);
+
+        if (strategy === 'none') {
+          return attachContextAndNext(req, context, next);
+        }
+
+        const auth = parseAuthHeader(req);
+        if (auth === null) {
+          return res.setStatus(401).json({ error: 'Missing or invalid authorization header' });
+        }
+
+        const result = verifyStrategy(strategy, auth, context, {
+          apiKeyAuth: defaultApiKeyAuth,
+          jwtAuth: defaultJwtAuth,
+          customValidator,
+        });
+
+        if (!result.authenticated) {
+          return res.setStatus(result.status ?? 401).json({ error: result.error });
+        }
+
+        return finalizeServiceAuth(req, context, next);
+      };
+    },
+  };
+};
+
+export const ServiceAuthMiddleware = Object.freeze(createServiceAuthMiddleware());
 
 export default ServiceAuthMiddleware;

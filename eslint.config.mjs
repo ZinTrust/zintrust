@@ -51,6 +51,7 @@ export default defineConfig(
       ],
       '@typescript-eslint/explicit-function-return-type': 'warn',
       '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-extraneous-class': ['error', { allowStaticOnly: false }],
       '@typescript-eslint/strict-boolean-expressions': 'warn',
       '@typescript-eslint/ban-ts-comment': 'off',
       'no-console': 'error',
@@ -75,6 +76,11 @@ export default defineConfig(
             "CatchClause:not(:has(CallExpression[callee.object.name='Logger'][callee.property.name='error'])):not(:has(CallExpression[callee.object.type='MemberExpression'][callee.object.property.name='logger'][callee.property.name='error']))",
           message:
             'Every catch block must include a Logger.error() or this.logger?.error() call to ensure proper error tracking.',
+        },
+        {
+          selector: 'ExportNamedDeclaration > ClassDeclaration:not([superClass])',
+          message:
+            'Exported classes must extend a base class (Model, Controller, etc.). Use Sealed Namespace Objects for utilities and singletons.',
         },
       ],
     },
@@ -106,7 +112,20 @@ export default defineConfig(
     },
   },
   {
-    files: ['tests/**/*.ts'],
+    files: ['src/config/features.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
+    files: ['tests/**/*.ts', '**/*.test.ts'],
+    languageOptions: {
+      parserOptions: {
+        // Tests are not part of the main tsconfig project; disable project-based parsing here.
+        // This avoids "file was not found in any of the provided project(s)" parsing errors.
+        project: false,
+      },
+    },
     linterOptions: {
       reportUnusedDisableDirectives: false,
     },
@@ -115,6 +134,7 @@ export default defineConfig(
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-extraneous-class': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/strict-boolean-expressions': 'off',
       'max-lines-per-function': 'off',
     },
   },
@@ -213,6 +233,30 @@ export default defineConfig(
               message: 'Please use path aliases (e.g., @orm/Model) instead of relative imports.',
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['./*', '../*'],
+              message: 'Please use path aliases (e.g., @orm/Model) instead of relative imports.',
+            },
+          ],
+        },
+      ],
+      '@typescript-eslint/explicit-function-return-type': [
+        'warn',
+        {
+          allowExpressions: true,
+          allowTypedFunctionExpressions: true,
+          allowHigherOrderFunctions: true,
         },
       ],
     },

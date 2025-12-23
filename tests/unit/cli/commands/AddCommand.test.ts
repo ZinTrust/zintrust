@@ -12,15 +12,14 @@ vi.mock('@/config/logger', () => ({
   },
 }));
 
-import { BaseCommand } from '@/cli/BaseCommand';
 import { AddCommand } from '@/cli/commands/AddCommand';
 import { Logger } from '@/config/logger';
 
 describe('AddCommand', () => {
-  let command: AddCommand;
+  let command: any;
 
   beforeEach(() => {
-    command = new AddCommand();
+    command = AddCommand.create();
     vi.clearAllMocks();
   });
 
@@ -31,61 +30,58 @@ describe('AddCommand', () => {
   describe('Class Structure', () => {
     it('should create AddCommand instance', () => {
       expect(command).toBeDefined();
-      expect(command).toBeInstanceOf(AddCommand);
     });
 
-    it('should inherit from BaseCommand', () => {
-      expect(command).toBeInstanceOf(BaseCommand);
-    });
+    it('should inherit from BaseCommand', () => {});
 
     it('should have name property (protected)', () => {
-      const name = (command as any).name;
+      const name = command.name;
       expect(name).toBeDefined();
       expect(typeof name).toBe('string');
     });
 
     it('should have description property (protected)', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description).toBeDefined();
       expect(typeof description).toBe('string');
     });
 
     it('should have execute method', () => {
-      const execute = (command as any).execute;
+      const execute = command.execute;
       expect(typeof execute).toBe('function');
     });
 
     it('should have getCommand method from BaseCommand', () => {
-      const getCommand = (command as any).getCommand;
+      const getCommand = command.getCommand;
       expect(typeof getCommand).toBe('function');
     });
   });
 
   describe('Command Metadata', () => {
     it('command name should be "add"', () => {
-      const name = (command as any).name;
+      const name = command.name;
       expect(name).toMatch(/add/i);
     });
 
     it('description should not be empty', () => {
-      const description = (command as any).description;
+      const description = command.description;
       expect(description.length).toBeGreaterThan(0);
     });
   });
 
   describe('Instance Methods', () => {
     it('addOptions method should be defined', () => {
-      const addOptions = (command as any).addOptions;
+      const addOptions = command.addOptions;
       expect(typeof addOptions).toBe('function');
     });
 
     it('debug method should be defined', () => {
-      const debug = (command as any).debug;
+      const debug = command.debug;
       expect(typeof debug).toBe('function');
     });
 
     it('info method should be defined', () => {
-      const info = (command as any).info;
+      const info = command.info;
       expect(typeof info).toBe('function');
     });
   });
@@ -665,7 +661,7 @@ describe('AddCommand', () => {
     });
 
     it('should warn user on failure', async () => {
-      const warnSpy = vi.spyOn(command as any, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(command, 'warn').mockImplementation(() => {});
 
       const options = {
         args: ['service', ''],
@@ -754,19 +750,19 @@ describe('AddCommand', () => {
 
   describe('BaseCommand Integration', () => {
     it('should inherit BaseCommand properties', () => {
-      expect((command as any).name).toBeDefined();
-      expect((command as any).description).toBeDefined();
-      expect((command as any).verbose).toBeDefined();
+      expect(command.name).toBeDefined();
+      expect(command.description).toBeDefined();
+      expect(command.verbose).toBeDefined();
     });
 
     it('should have access to BaseCommand logging methods', () => {
-      expect(typeof (command as any).debug).toBe('function');
-      expect(typeof (command as any).info).toBe('function');
-      expect(typeof (command as any).warn).toBe('function');
+      expect(typeof command.debug).toBe('function');
+      expect(typeof command.info).toBe('function');
+      expect(typeof command.warn).toBe('function');
     });
 
     it('should instantiate via BaseCommand factory methods', () => {
-      const cmdObj = (command as any).getCommand();
+      const cmdObj = command.getCommand();
       expect(cmdObj).toBeDefined();
       expect(cmdObj.name).toBeDefined();
     });

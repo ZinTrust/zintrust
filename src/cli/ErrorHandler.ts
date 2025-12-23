@@ -1,6 +1,7 @@
 /**
  * Error Handler - CLI Error Formatting & Exit Codes
  * Provides consistent error formatting and proper Unix exit codes
+ * Sealed namespace with immutable error handling methods
  */
 
 import { Env } from '@config/env';
@@ -17,22 +18,19 @@ export const EXIT_CODES = {
  * Format and display error
  * Exit codes: 0 (success), 1 (runtime error), 2 (usage error)
  */
-export function handleError(
-  error: Error | string,
-  exitCode: number = EXIT_CODES.RUNTIME_ERROR
-): void {
+const handleError = (error: Error | string, exitCode: number = EXIT_CODES.RUNTIME_ERROR): void => {
   const message = typeof error === 'string' ? error : error.message;
   const formattedMessage = `${chalk.red('[ERROR]')} ${message}`;
 
   Logger.error(formattedMessage);
 
   process.exit(exitCode);
-}
+};
 
 /**
  * Display usage error with help hint
  */
-export function usageError(message: string, command?: string): void {
+const usageError = (message: string, command?: string): void => {
   const helpText = `Run: zin ${command} --help`;
   const hint = command !== undefined && command !== '' ? `\n${chalk.gray(helpText)}` : '';
   const formattedMessage = `${chalk.red('[ERROR]')} ${message}${hint}`;
@@ -40,20 +38,20 @@ export function usageError(message: string, command?: string): void {
   Logger.warn(formattedMessage);
 
   process.exit(EXIT_CODES.USAGE_ERROR);
-}
+};
 
 /**
  * Display info message
  */
-export function displayInfo(message: string): void {
+const displayInfo = (message: string): void => {
   const formatted = `${chalk.blue('[i]')} ${message}`;
   Logger.info(formatted);
-}
+};
 
 /**
  * Display framework banner
  */
-export function displayBanner(version: string): void {
+const displayBanner = (version: string): void => {
   /* eslint-disable no-console */
   const framework = 'Zintrust Framework';
   const bannerWidth = 46;
@@ -84,38 +82,38 @@ export function displayBanner(version: string): void {
   console.log(chalk.cyan('└' + '─'.repeat(bannerWidth) + '┘'));
   console.log();
   /* eslint-enable no-console */
-}
+};
 
 /**
  * Display success message
  */
-export function displaySuccess(message: string): void {
+const displaySuccess = (message: string): void => {
   const formatted = `${chalk.green('[✓]')} ${message}`;
   Logger.info(formatted);
-}
+};
 
 /**
  * Display warning message
  */
-export function displayWarning(message: string): void {
+const displayWarning = (message: string): void => {
   const formatted = `${chalk.yellow('[!]')} ${message}`;
   Logger.warn(formatted);
-}
+};
 
 /**
  * Display debug message (only if verbose)
  */
-export function displayDebug(message: string, verbose: boolean = false): void {
+const displayDebug = (message: string, verbose: boolean = false): void => {
   if (verbose) {
     const formatted = `${chalk.gray('[DEBUG]')} ${message}`;
     Logger.debug(formatted);
   }
-}
+};
 
 /**
- * ErrorHandler namespace for backward compatibility
+ * ErrorHandler namespace - sealed for immutability
  */
-export const ErrorHandler = {
+export const ErrorHandler = Object.freeze({
   handle: handleError,
   usageError,
   info: displayInfo,
@@ -123,4 +121,4 @@ export const ErrorHandler = {
   warn: displayWarning,
   debug: displayDebug,
   banner: displayBanner,
-};
+});

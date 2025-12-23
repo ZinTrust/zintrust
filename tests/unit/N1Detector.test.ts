@@ -1,12 +1,12 @@
 import { N1Detector } from '@profiling/N1Detector';
-import { QueryLogEntry } from '@profiling/types';
+import { IN1Detector, QueryLogEntry } from '@profiling/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('N1Detector Basic Detection - Thresholds Basic', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should detect N+1 pattern with 5+ identical queries', () => {
@@ -56,10 +56,10 @@ describe('N1Detector Basic Detection - Thresholds Basic', () => {
 });
 
 describe('N1Detector Basic Detection - Thresholds Severity', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should mark critical N+1 pattern with 10+ queries', () => {
@@ -92,10 +92,10 @@ describe('N1Detector Basic Detection - Thresholds Severity', () => {
 });
 
 describe('N1Detector Basic Detection - Negative Cases', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should not flag queries < 5 occurrences', () => {
@@ -136,10 +136,10 @@ describe('N1Detector Basic Detection - Negative Cases', () => {
 });
 
 describe('N1Detector Advanced Detection - Extraction', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should extract table name from SELECT query', () => {
@@ -157,10 +157,10 @@ describe('N1Detector Advanced Detection - Extraction', () => {
 });
 
 describe('N1Detector Advanced Detection - Multiple Patterns Basic', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should handle multiple N+1 patterns in same request', () => {
@@ -210,10 +210,10 @@ describe('N1Detector Advanced Detection - Multiple Patterns Basic', () => {
 });
 
 describe('N1Detector Advanced Detection - Multiple Patterns Advanced', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should handle multiple N+1 patterns in same request', () => {
@@ -244,10 +244,10 @@ describe('N1Detector Advanced Detection - Multiple Patterns Advanced', () => {
 });
 
 describe('N1Detector Advanced Detection - Edge Cases', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('should ignore different SQL queries', () => {
@@ -286,10 +286,10 @@ describe('N1Detector Advanced Detection - Edge Cases', () => {
 });
 
 describe('N1Detector SQL Extraction - Non-SELECT Statements', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('extracts table name from INSERT statement', () => {
@@ -317,10 +317,10 @@ describe('N1Detector SQL Extraction - Non-SELECT Statements', () => {
 });
 
 describe('N1Detector Utility Methods', () => {
-  let detector: N1Detector;
+  let detector: IN1Detector;
 
   beforeEach(() => {
-    detector = new N1Detector();
+    detector = N1Detector.create();
   });
 
   it('getSeverity returns warning vs critical', () => {

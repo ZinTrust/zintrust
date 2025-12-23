@@ -117,43 +117,51 @@ async function verifyBcrypt(
   return bcryptModule.compare(password, hash);
 }
 
+export interface IEncryptor {
+  hash(password: string): Promise<string>;
+  verify(password: string, hash: string): Promise<boolean>;
+  getAlgorithm(): HashAlgorithm;
+}
+
 /**
  * Encryptor handles password hashing and verification
+ * Refactored to Functional Object pattern
  */
-export const Encryptor = {
-  /**
-   * Hash a password
-   */
-  async hash(password: string): Promise<string> {
-    await ensureLoaded();
-    if (algorithm === 'bcrypt' && bcrypt !== undefined) {
-      return hashBcrypt(bcrypt, password);
-    }
-    return hashPbkdf2(password);
-  },
-
-  /**
-   * Verify password against hash
-   */
-  async verify(password: string, hash: string): Promise<boolean> {
-    await ensureLoaded();
-    // Detect hash format
-    if (hash.startsWith('$2')) {
-      // bcrypt hash format
-      if (bcrypt !== undefined) {
-        return verifyBcrypt(bcrypt, password, hash);
-      }
-      throw new Error('bcrypt not available to verify hash');
-    }
-
-    // PBKDF2 hash format (algorithm$iterations$salt$hash)
-    return verifyPbkdf2(password, hash);
-  },
-
-  /**
-   * Get current algorithm
-   */
-  getAlgorithm(): HashAlgorithm {
-    return algorithm;
-  },
+const hash = async (password: string): Promise<string> => {
+  await ensureLoaded();
+  if (algorithm === 'bcrypt' && bcrypt !== undefined) {
+    return hashBcrypt(bcrypt, password);
+  }
+  return hashPbkdf2(password);
 };
+
+/**
+ * Verify password against hash
+ */
+const verify = async (password: string, hash: string): Promise<boolean> => {
+  await ensureLoaded();
+  // Detect hash format
+  if (hash.startsWith('$2')) {
+    // bcrypt hash format
+    if (bcrypt !== undefined) {
+      return verifyBcrypt(bcrypt, password, hash);
+    }
+    throw new Error('bcrypt not available to verify hash');
+  }
+
+  // PBKDF2 hash format (algorithm$iterations$salt$hash)
+  return verifyPbkdf2(password, hash);
+};
+
+/**
+ * Get current algorithm
+ */
+const getAlgorithm = (): HashAlgorithm => {
+  return algorithm;
+};
+
+export const Encryptor: IEncryptor = Object.freeze({
+  hash,
+  verify,
+  getAlgorithm,
+});

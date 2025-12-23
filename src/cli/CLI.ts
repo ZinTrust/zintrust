@@ -21,187 +21,206 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export class CLI {
-  private readonly program: Command;
-  private version: string = '1.0.0';
+export interface ICLI {
+  run(args: string[]): Promise<void>;
+  getProgram(): Command;
+}
 
-  constructor() {
-    this.program = new Command();
-    this.loadVersion();
-    this.setupProgram();
-    this.registerCommands();
+/**
+ * CLI - Main CLI Class
+ * Orchestrates all CLI commands using Commander
+ */
+/**
+ * Load version from package.json
+ */
+const loadVersion = (): string => {
+  try {
+    const packagePath = join(__dirname, '../../package.json');
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
+      version?: string;
+    };
+    return typeof packageJson.version === 'string' ? packageJson.version : '1.0.0';
+  } catch (error) {
+    Logger.error('Failed to load version from package.json', error);
+    // Use default version if package.json not found
+    return '1.0.0';
+  }
+};
+
+/**
+ * Setup program metadata
+ */
+const setupProgram = (program: Command, version: string): void => {
+  program
+    .name('zintrust')
+    .description('Zintrust Framework CLI - Build production-grade TypeScript APIs')
+    .version(version, '-v, --version', 'Output version number')
+    .helpOption('-h, --help', 'Display help for command')
+    .usage('[command] [options]');
+
+  // Global error handling
+  program.exitOverride();
+};
+
+/**
+ * Register all available commands
+ */
+const registerCommands = (program: Command): void => {
+  const commands = [
+    NewCommand.create(),
+    AddCommand.create(),
+    MigrateCommand.create(),
+    D1MigrateCommand.create(),
+    DebugCommand.create(),
+    ConfigCommand.create(),
+    QACommand.create(),
+    FixCommand.create(),
+  ];
+
+  for (const command of commands) {
+    program.addCommand(command.getCommand());
   }
 
-  /**
-   * Load version from package.json
-   */
-  private loadVersion(): void {
-    try {
-      const packagePath = join(__dirname, '../../package.json');
-      const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8')) as { version?: string };
-      this.version = typeof packageJson.version === 'string' ? packageJson.version : '1.0.0';
-    } catch (error) {
-      Logger.error('Failed to load version from package.json', error);
-      // Use default version if package.json not found
-      this.version = '1.0.0';
-    }
-  }
-
-  /**
-   * Setup program metadata
-   */
-  private setupProgram(): void {
-    this.program
-      .name('zintrust')
-      .description('Zintrust Framework CLI - Build production-grade TypeScript APIs')
-      .version(this.version, '-v, --version', 'Output version number')
-      .helpOption('-h, --help', 'Display help for command')
-      .usage('[command] [options]');
-
-    // Global error handling
-    this.program.exitOverride();
-  }
-
-  /**
-   * Register all available commands
-   */
-  private registerCommands(): void {
-    const commands = [
-      new NewCommand(),
-      new AddCommand(),
-      new MigrateCommand(),
-      new D1MigrateCommand(),
-      new DebugCommand(),
-      new ConfigCommand(),
-      new QACommand(),
-      new FixCommand(),
-    ];
-
-    for (const command of commands) {
-      this.program.addCommand(command.getCommand());
-    }
-
-    // Help command
-    this.program
-      .command('help [command]')
-      .description('Display help for a command')
-      .action((commandName: string) => {
-        if (commandName) {
-          const cmd = this.program.commands.find((c) => c.name() === commandName);
-          if (cmd) {
-            cmd.help();
-          } else {
-            Logger.error(`Unknown command: ${commandName}`);
-            this.program.help();
-          }
+  // Help command
+  program
+    .command('help [command]')
+    .description('Display help for a command')
+    .action((commandName: string) => {
+      if (commandName) {
+        const cmd = program.commands.find((c) => c.name() === commandName);
+        if (cmd) {
+          cmd.help();
         } else {
-          this.program.help();
+          Logger.error(`Unknown command: ${commandName}`);
+          program.help();
         }
-      });
+      } else {
+        program.help();
+      }
+    });
+};
+
+/**
+ * Check if error is a commander error that can be safely ignored
+ */
+const isIgnorableCommanderError = (error: unknown): boolean => {
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    error.code.startsWith('commander.')
+  ) {
+    const commanderError = error as unknown as Error & { exitCode: number };
+    return typeof commanderError.exitCode === 'number' && commanderError.exitCode === 0;
+  }
+  return false;
+};
+
+/**
+ * Get exit code from error
+ */
+const getExitCode = (error: unknown): number => {
+  if (
+    error instanceof Error &&
+    'exitCode' in error &&
+    typeof (error as unknown as { exitCode: unknown }).exitCode === 'number'
+  ) {
+    return (error as unknown as { exitCode: number }).exitCode;
+  }
+  return 1;
+};
+
+/**
+ * Handle CLI execution error
+ */
+const handleExecutionError = (error: unknown, version: string): void => {
+  if (isIgnorableCommanderError(error)) {
+    return;
   }
 
-  /**
-   * Check if error is a version request
-   */
-  private isVersionRequest(args: string[]): boolean {
-    return args.includes('-v') || args.includes('--version');
+  if (error === version) {
+    return;
   }
 
-  /**
-   * Check if error is a commander error that can be safely ignored
-   */
-  private isIgnorableCommanderError(error: unknown): boolean {
+  Logger.error('CLI execution failed', error);
+  if (error instanceof Error) {
+    ErrorHandler.handle(error);
+  }
+  throw error;
+};
+
+/**
+ * Run CLI with arguments
+ */
+const runCLI = async (program: Command, version: string, args: string[]): Promise<void> => {
+  try {
+    // Always show banner
+    ErrorHandler.banner(version);
+
+    // If version is requested, we've already shown the banner which includes the version.
+    if (args.includes('-v') || args.includes('--version')) {
+      return;
+    }
+
+    // Show help if no arguments provided
+    if (args.length === 0) {
+      program.help();
+      return;
+    }
+
+    await program.parseAsync(['node', 'zintrust', ...args]);
+  } catch (error) {
+    Logger.error('CLI execution failed', error);
+
+    // Check for commander-specific errors that need special handling
     if (
       error instanceof Error &&
       'code' in error &&
       typeof error.code === 'string' &&
       error.code.startsWith('commander.')
     ) {
-      const commanderError = error as unknown as Error & { exitCode: number };
-      return typeof commanderError.exitCode === 'number' && commanderError.exitCode === 0;
-    }
-    return false;
-  }
-
-  /**
-   * Get exit code from error
-   */
-  private getExitCode(error: unknown): number {
-    if (
-      error instanceof Error &&
-      'exitCode' in error &&
-      typeof (error as unknown as { exitCode: unknown }).exitCode === 'number'
-    ) {
-      return (error as unknown as { exitCode: number }).exitCode;
-    }
-    return 1;
-  }
-
-  /**
-   * Handle CLI execution error
-   */
-  private handleExecutionError(error: unknown): void {
-    if (this.isIgnorableCommanderError(error)) {
+      const exitCode = getExitCode(error);
+      if (exitCode !== 0) {
+        process.exit(exitCode);
+      }
       return;
     }
 
-    if (error === this.version) {
-      return;
-    }
-
-    Logger.error('CLI execution failed', error);
-    if (error instanceof Error) {
-      ErrorHandler.handle(error);
-    }
-    throw error;
+    // Handle all other errors with proper logging
+    handleExecutionError(error, version);
   }
+};
 
+/**
+ * CLI - Main CLI Class
+ * Orchestrates all CLI commands using Commander
+ * Sealed namespace for immutability
+ */
+export const CLI = Object.freeze({
   /**
-   * Run CLI with arguments
+   * Create a new CLI instance
    */
-  public async run(args: string[]): Promise<void> {
-    try {
-      // Always show banner
-      ErrorHandler.banner(this.version);
+  create(): ICLI {
+    const program = new Command();
+    const version = loadVersion();
 
-      // If version is requested, we've already shown the banner which includes the version.
-      if (this.isVersionRequest(args)) {
-        return;
-      }
+    setupProgram(program, version);
+    registerCommands(program);
 
-      // Show help if no arguments provided
-      if (args.length === 0) {
-        this.program.help();
-        return;
-      }
+    return {
+      /**
+       * Run CLI with arguments
+       */
+      async run(args: string[]): Promise<void> {
+        return runCLI(program, version, args);
+      },
 
-      await this.program.parseAsync(['node', 'zintrust', ...args]);
-    } catch (error) {
-      Logger.error('CLI execution failed', error);
-
-      // Check for commander-specific errors that need special handling
-      if (
-        error instanceof Error &&
-        'code' in error &&
-        typeof error.code === 'string' &&
-        error.code.startsWith('commander.')
-      ) {
-        const exitCode = this.getExitCode(error);
-        if (exitCode !== 0) {
-          process.exit(exitCode);
-        }
-        return;
-      }
-
-      // Handle all other errors with proper logging
-      this.handleExecutionError(error);
-    }
-  }
-
-  /**
-   * Get program instance (for testing)
-   */
-  public getProgram(): Command {
-    return this.program;
-  }
-}
+      /**
+       * Get program instance (for testing)
+       */
+      getProgram(): Command {
+        return program;
+      },
+    };
+  },
+});

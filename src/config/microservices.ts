@@ -1,11 +1,12 @@
 /**
  * Microservices Configuration
  * Microservices architecture and service discovery settings
+ * Sealed namespace for immutability
  */
 
 import { Env } from '@config/env';
 
-export const microservicesConfig = {
+const microservicesConfigObj = {
   /**
    * Enable microservices mode
    */
@@ -97,5 +98,7 @@ export const microservicesConfig = {
     namespace: Env.get('SERVICE_MESH_NAMESPACE', 'default'),
   },
 } as const;
+
+export const microservicesConfig = Object.freeze(microservicesConfigObj);
 
 export type MicroservicesConfig = typeof microservicesConfig;
