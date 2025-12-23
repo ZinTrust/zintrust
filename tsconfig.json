@@ -53,7 +53,7 @@
     "emitDecoratorMetadata": true,
     "downlevelIteration": true
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "tests/**/*"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "tests/**/*", "env.d.ts"],
   "exclude": [
     "node_modules",
     "dist",

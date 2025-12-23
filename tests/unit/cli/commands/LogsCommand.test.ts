@@ -1,694 +1,208 @@
-import { Logger } from '@/config/logger';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import type { CommandOptions } from '@cli/BaseCommand';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock dependencies before importing the command
-vi.mock('node:fs');
-vi.mock('node:path');
+type LogEntry = {
+  timestamp: string;
+  level: string;
+  message: string;
+  data?: Record<string, unknown>;
+};
+
 vi.mock('chalk', () => ({
   default: {
-    gray: vi.fn((text) => text),
-    blue: vi.fn((text) => text),
-    yellow: vi.fn((text) => text),
-    red: vi.fn((text) => text),
-    green: vi.fn((text) => text),
-    cyan: vi.fn((text) => text),
-    white: vi.fn((text) => text),
+    gray: (t: string): string => t,
+    blue: (t: string): string => t,
+    yellow: (t: string): string => t,
+    red: (t: string): string => t,
+    green: (t: string): string => t,
+    cyan: (t: string): string => t,
+    white: (t: string): string => t,
   },
 }));
-vi.mock('@/config/logger');
-vi.mock('@cli/logger/Logger', () => ({
-  Logger: {
-    getInstance: vi.fn(() => ({
-      getLogs: vi.fn(() => []),
-      filterByLevel: vi.fn((logs) => logs),
-      clearLogs: vi.fn(() => true),
-      getLogsDirectory: vi.fn(() => '/app/logs'),
-      parseLogEntry: vi.fn(() => ({
-        timestamp: '2025-01-01T00:00:00Z',
+
+vi.mock('@config/logger', () => {
+  const Logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    scope: vi.fn(),
+  };
+  return { Logger };
+});
+
+vi.mock('@cli/logger/Logger', () => {
+  const instance = {
+    getLogs: vi.fn((_category: string, _lines: number): LogEntry[] => []),
+    filterByLevel: vi.fn((logs: LogEntry[]) => logs),
+    clearLogs: vi.fn((_category: string): boolean => true),
+    getLogsDirectory: vi.fn((): string => '/logs'),
+    parseLogEntry: vi.fn(
+      (_line: string): LogEntry => ({
+        timestamp: '2025-01-01T00:00:00.000Z',
         level: 'info',
-        message: 'Test',
+        message: 'ok',
         data: {},
-      })),
-    })),
-  },
-}));
+      })
+    ),
+  };
+
+  return {
+    Logger: {
+      getInstance: vi.fn(() => instance),
+    },
+    __getInstance: (): typeof instance => instance,
+  };
+});
+
+vi.mock('node:fs', () => {
+  const api = {
+    existsSync: vi.fn(() => true),
+    statSync: vi.fn(() => ({ size: 0 })),
+    createReadStream: vi.fn(() => ({ on: vi.fn() })),
+  };
+  return {
+    default: api,
+    ...api,
+    __api: api,
+  };
+});
 
 describe('LogsCommand', () => {
-  let capturedHandler: ((options: any) => Promise<void>) | null = null;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    capturedHandler = null;
-
-    // Setup fs mocks
-    vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.statSync).mockReturnValue({ size: 100 } as any);
-    vi.mocked(fs.createReadStream).mockReturnValue({
-      on: vi.fn(),
-    } as any);
-
-    // Setup path mocks
-    vi.mocked(path.join).mockImplementation((...args: string[]) => args.join('/'));
-  });
-
-  afterEach(() => {
     vi.resetModules();
   });
 
-  describe('Basic Command Structure', () => {
-    it('exports LogsCommand with register method', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-      expect(LogsCommand).toBeDefined();
-      expect(LogsCommand.register).toBeDefined();
-      expect(typeof LogsCommand.register).toBe('function');
-    });
-
-    it('registers logs command with correct name', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      expect(mockProgram.command).toHaveBeenCalledWith('logs');
-    });
-
-    it('sets command description', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      expect(mockProgram.description).toHaveBeenCalledWith('View and manage application logs');
-    });
-
-    it('registers all required options', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const optionCalls = vi.mocked(mockProgram.option).mock.calls.map((c) => c[0]);
-      expect(optionCalls).toContain('-l, --level <level>');
-      expect(optionCalls).toContain('-c, --clear');
-      expect(optionCalls).toContain('-f, --follow');
-      expect(optionCalls).toContain('-n, --lines <number>');
-      expect(optionCalls).toContain('--category <category>');
-    });
-
-    it('sets correct option defaults', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const optionCalls = vi.mocked(mockProgram.option).mock.calls;
-      // Check level default
-      const levelCall = optionCalls.find((c) => c[0] === '-l, --level <level>');
-      expect(levelCall?.[2]).toBe('info');
-      // Check lines default
-      const linesCall = optionCalls.find((c) => c[0] === '-n, --lines <number>');
-      expect(linesCall?.[2]).toBe('50');
-      // Check category default
-      const categoryCall = optionCalls.find((c) => c[0] === '--category <category>');
-      expect(categoryCall?.[2]).toBe('app');
-    });
-
-    it('sets action handler', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      expect(mockProgram.action).toHaveBeenCalledWith(expect.any(Function));
-    });
-
-    it('exports default export matching named export', async () => {
-      const module = await import('@/cli/commands/LogsCommand');
-      expect(module.default).toBeDefined();
-      expect(module.default).toBe(module.LogsCommand);
-    });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  describe('Handler Invocation', () => {
-    it('handler is callable with LogsOptions', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
+  it('display path: prints "No logs found" when empty', async () => {
+    const { LogsCommand } = await import('@cli/commands/LogsCommand');
+    const { Logger } = await import('@config/logger');
 
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      // Should not throw
-      expect(async () => {
-        await capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: false,
-          lines: '10',
-          category: 'app',
-        });
-      }).not.toThrow();
-    });
-
-    it('invokes handler without error on clear option', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await expect(
-        capturedHandler?.({
-          level: 'info',
-          clear: true,
-          follow: false,
-          lines: '10',
-          category: 'app',
-        })
-      ).resolves.not.toThrow();
-    });
-
-    it('invokes handler without error on follow option', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await expect(
-        capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: true,
-          lines: '10',
-          category: 'app',
-        })
-      ).resolves.not.toThrow();
-    });
-
-    it('invokes handler without error on display option', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await expect(
-        capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: false,
-          lines: '10',
-          category: 'app',
-        })
-      ).resolves.not.toThrow();
-    });
-
-    it('logs are displayed with Logger.info when no options set', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await capturedHandler?.({
-        level: 'info',
-        clear: false,
-        follow: false,
-        lines: '10',
-        category: 'app',
-      });
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-
-    it('logs are cleared with Logger when clear is true', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await capturedHandler?.({
-        level: 'info',
-        clear: true,
-        follow: false,
-        lines: '10',
-        category: 'app',
-      });
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-
-    it('following logs calls Logger.info when follow is true', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await capturedHandler?.({
-        level: 'info',
-        clear: false,
-        follow: true,
-        lines: '10',
-        category: 'app',
-      });
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-
-    it('handles category parameter correctly', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await capturedHandler?.({
-        level: 'info',
-        clear: true,
-        follow: false,
-        lines: '10',
-        category: 'errors',
-      });
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-
-    it('handles numeric lines parameter', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await capturedHandler?.({
-        level: 'info',
-        clear: false,
-        follow: false,
-        lines: '100',
-        category: 'app',
-      });
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-
-    it('handles various log levels', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const levels = ['debug', 'info', 'warn', 'error', 'all'];
-
-      for (const level of levels) {
-        await capturedHandler?.({
-          level,
-          clear: false,
-          follow: false,
-          lines: '10',
-          category: 'app',
-        });
-      }
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
+    await LogsCommand.create().execute({} satisfies CommandOptions);
+    expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('No logs found'));
   });
 
-  describe('Exported LogsCommand Interface', () => {
-    it('exports LogsCommand with register method', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-      expect(LogsCommand).toBeDefined();
-      expect(LogsCommand.register).toBeDefined();
-      expect(typeof LogsCommand.register).toBe('function');
-    });
+  it('display path: filters by level and prints "No logs found with level" when filtered empty', async () => {
+    const { LogsCommand } = await import('@cli/commands/LogsCommand');
+    const { Logger } = await import('@config/logger');
+    const logMod = (await import('@cli/logger/Logger')) as unknown as {
+      __getInstance: () => unknown;
+    };
 
-    it('LogsCommand register is callable with Commander program', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
+    const instance = logMod.__getInstance() as {
+      getLogs: ReturnType<typeof vi.fn>;
+      filterByLevel: ReturnType<typeof vi.fn>;
+    };
 
-      expect(() => {
-        LogsCommand.register(mockProgram as any);
-      }).not.toThrow();
-    });
+    instance.getLogs.mockReturnValueOnce([
+      { timestamp: 't', level: 'info', message: 'm', data: {} },
+    ]);
+    instance.filterByLevel.mockReturnValueOnce([]);
+
+    await LogsCommand.create().execute({
+      level: 'error',
+      lines: '50',
+      category: 'app',
+    } satisfies CommandOptions);
+    expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('No logs found with level'));
   });
 
-  describe('Option Combinations', () => {
-    it('should handle all options together', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
+  it('clear path: prints success and failure based on clearLogs return', async () => {
+    const { LogsCommand } = await import('@cli/commands/LogsCommand');
+    const { Logger } = await import('@config/logger');
+    const logMod = (await import('@cli/logger/Logger')) as unknown as {
+      __getInstance: () => unknown;
+    };
 
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
+    const instance = logMod.__getInstance() as { clearLogs: ReturnType<typeof vi.fn> };
+
+    instance.clearLogs.mockReturnValueOnce(true);
+    await LogsCommand.create().execute({ clear: true, category: 'app' } satisfies CommandOptions);
+    expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('Cleared logs'));
+
+    instance.clearLogs.mockReturnValueOnce(false);
+    await LogsCommand.create().execute({ clear: true, category: 'app' } satisfies CommandOptions);
+    expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('Failed to clear logs'));
+  });
+
+  it('follow path: early returns when category directory is missing', async () => {
+    const { LogsCommand } = await import('@cli/commands/LogsCommand');
+    const { Logger } = await import('@config/logger');
+    const fsMod = (await import('node:fs')) as unknown as {
+      __api: { existsSync: ReturnType<typeof vi.fn> };
+    };
+
+    fsMod.__api.existsSync.mockReturnValueOnce(false);
+    await LogsCommand.create().execute({
+      follow: true,
+      category: 'missing',
+    } satisfies CommandOptions);
+    expect(Logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('Log category directory not found')
+    );
+  });
+
+  it('follow path: processes new log chunk and logs parse errors', async () => {
+    const { LogsCommand } = await import('@cli/commands/LogsCommand');
+    const { Logger } = await import('@config/logger');
+    const fsMod = (await import('node:fs')) as unknown as {
+      __api: {
+        existsSync: ReturnType<typeof vi.fn>;
+        statSync: ReturnType<typeof vi.fn>;
+        createReadStream: ReturnType<typeof vi.fn>;
       };
+    };
+    const logMod = (await import('@cli/logger/Logger')) as unknown as {
+      __getInstance: () => unknown;
+    };
+    const instance = logMod.__getInstance() as { parseLogEntry: ReturnType<typeof vi.fn> };
 
-      LogsCommand.register(mockProgram as any);
+    fsMod.__api.existsSync.mockReturnValue(true);
+    fsMod.__api.statSync.mockReturnValueOnce({ size: 10 });
 
-      await capturedHandler?.({
-        level: 'error',
-        clear: true,
-        follow: true,
-        lines: '100',
-        category: 'custom',
+    let onData: ((chunk: string | Buffer) => void) | undefined;
+    fsMod.__api.createReadStream.mockReturnValue({
+      on: vi.fn((event: string, handler: unknown) => {
+        if (event === 'data' && typeof handler === 'function') {
+          onData = handler as (chunk: string | Buffer) => void;
+        }
+      }),
+    });
+
+    instance.parseLogEntry
+      .mockImplementationOnce((line: string) => ({ timestamp: 't', level: 'info', message: line }))
+      .mockImplementationOnce(() => {
+        throw new Error('bad line');
       });
 
-      expect(Logger.info).toHaveBeenCalled();
-    });
+    let capturedSigint: (() => void) | undefined;
+    const processOnSpy = vi.spyOn(process, 'on').mockImplementation(((
+      event: string,
+      handler: () => void
+    ) => {
+      if (event === 'SIGINT') capturedSigint = handler;
+      return process;
+    }) as unknown as typeof process.on);
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      void code; //NOSONAR
+      return undefined as never;
+    }) as unknown as typeof process.exit);
 
-    it('should handle clear with different levels', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
+    vi.useFakeTimers();
+    await LogsCommand.create().execute({ follow: true, category: 'app' } satisfies CommandOptions);
+    await vi.advanceTimersByTimeAsync(1000);
 
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
+    onData?.('line1\nline2\n');
+    expect(Logger.error).toHaveBeenCalledWith('Failed to process log line', expect.any(Error));
 
-      LogsCommand.register(mockProgram as any);
+    capturedSigint?.();
+    expect(exitSpy).toHaveBeenCalledWith(0);
 
-      for (const level of ['debug', 'info', 'warn', 'error']) {
-        await capturedHandler?.({
-          level,
-          clear: true,
-          follow: false,
-          lines: '50',
-          category: 'app',
-        });
-      }
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-
-    it('should handle follow with different categories', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const categories = ['app', 'cli', 'errors', 'migrations', 'debug', 'custom'];
-
-      for (const category of categories) {
-        await capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: true,
-          lines: '10',
-          category,
-        });
-      }
-
-      expect(Logger.info).toHaveBeenCalled();
-    });
-  });
-
-  describe('Command Registration Details', () => {
-    it('should set command name to "logs"', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      expect(mockProgram.command).toHaveBeenCalledWith('logs');
-    });
-
-    it('should set description to viewing and managing logs', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const descriptionCalls = vi.mocked(mockProgram.description).mock.calls;
-      expect(descriptionCalls.some((c: any[]) => (c[0] as string).includes('logs'))).toBe(true);
-    });
-
-    it('registers level option with default "info"', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const levelOption = vi
-        .mocked(mockProgram.option)
-        .mock.calls.find((c: any[]) => (c[0] as string).includes('--level'));
-      expect(levelOption?.[2]).toBe('info');
-    });
-
-    it('registers lines option with default "50"', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const linesOption = vi
-        .mocked(mockProgram.option)
-        .mock.calls.find((c: any[]) => (c[0] as string).includes('--lines'));
-      expect(linesOption?.[2]).toBe('50');
-    });
-
-    it('registers category option with default "app"', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn(),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      const categoryOption = vi
-        .mocked(mockProgram.option)
-        .mock.calls.find((c: any[]) => (c[0] as string).includes('--category'));
-      expect(categoryOption?.[2]).toBe('app');
-    });
-  });
-
-  describe('Handler Execution Paths', () => {
-    it('executes handler with minimal options', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await expect(
-        capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: false,
-          lines: '50',
-          category: 'app',
-        })
-      ).resolves.not.toThrow();
-    });
-
-    it('executes handler with large lines count', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await expect(
-        capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: false,
-          lines: '10000',
-          category: 'app',
-        })
-      ).resolves.not.toThrow();
-    });
-
-    it('executes handler with small lines count', async () => {
-      const { LogsCommand } = await import('@/cli/commands/LogsCommand');
-
-      const mockProgram = {
-        command: vi.fn().mockReturnThis(),
-        description: vi.fn().mockReturnThis(),
-        option: vi.fn().mockReturnThis(),
-        action: vi.fn((handler) => {
-          capturedHandler = handler;
-        }),
-      };
-
-      LogsCommand.register(mockProgram as any);
-
-      await expect(
-        capturedHandler?.({
-          level: 'info',
-          clear: false,
-          follow: false,
-          lines: '1',
-          category: 'app',
-        })
-      ).resolves.not.toThrow();
-    });
+    processOnSpy.mockRestore();
+    exitSpy.mockRestore();
   });
 });

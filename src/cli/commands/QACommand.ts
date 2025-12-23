@@ -7,7 +7,7 @@ import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -25,6 +25,216 @@ interface QAResults {
   tests: QAResult;
   sonar: QAResult;
 }
+
+const QA_REPORT_CSS = `
+:root {
+  --qa-bg: #f8fafc;
+  --qa-panel: #ffffff;
+  --qa-text: #0f172a;
+  --qa-muted: #64748b;
+  --qa-border: #e2e8f0;
+  --qa-accent: #667eea;
+  --qa-success: #16a34a;
+  --qa-danger: #dc2626;
+  --qa-warn: #f59e0b;
+}
+
+body.qa-body {
+  margin: 0;
+  color: var(--qa-text);
+  background: var(--qa-bg);
+}
+
+.qa-shell {
+  max-width: 980px;
+  margin: 48px auto;
+  padding: 0 20px;
+}
+
+.qa-panel {
+  border: 1px solid var(--qa-border);
+  border-radius: 14px;
+  background: var(--qa-panel);
+  overflow: hidden;
+}
+
+.qa-hero {
+  padding: 28px 28px 18px;
+  border-bottom: 1px solid var(--qa-border);
+  background: linear-gradient(180deg, rgba(102, 126, 234, 0.10), rgba(255, 255, 255, 0));
+}
+
+.qa-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.qa-subtitle {
+  margin: 8px 0 0;
+  color: var(--qa-muted);
+  font-size: 14px;
+}
+
+.qa-meta {
+  margin-top: 12px;
+  color: var(--qa-muted);
+  font-size: 12px;
+}
+
+.qa-content {
+  padding: 22px 28px 28px;
+}
+
+.qa-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--qa-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 800px) {
+  .qa-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.qa-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+
+.qa-summary-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--qa-accent);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.qa-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--qa-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.qa-scan-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.qa-scan-item {
+  border: 1px solid var(--qa-border);
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.qa-scan-item.passed { border-left: 4px solid var(--qa-success); }
+.qa-scan-item.failed { border-left: 4px solid var(--qa-danger); }
+.qa-scan-item.skipped { border-left: 4px solid var(--qa-warn); }
+.qa-scan-item.pending { border-left: 4px solid var(--qa-border); }
+
+.qa-scan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 10px;
+}
+
+.qa-scan-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.qa-status-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.qa-status-icon.passed { background: var(--qa-success); }
+.qa-status-icon.failed { background: var(--qa-danger); }
+.qa-status-icon.skipped { background: var(--qa-warn); }
+.qa-status-icon.pending { background: #94a3b8; }
+
+.qa-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.qa-status-badge.passed { background: #dcfce7; color: #14532d; }
+.qa-status-badge.failed { background: #fee2e2; color: #7f1d1d; }
+.qa-status-badge.skipped { background: #fef3c7; color: #78350f; }
+.qa-status-badge.pending { background: #e2e8f0; color: #334155; }
+
+.qa-scan-details {
+  padding: 0 14px 14px;
+  color: var(--qa-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.qa-actions {
+  margin-top: 10px;
+}
+
+.qa-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--qa-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.qa-link:hover {
+  text-decoration: none;
+  filter: brightness(0.98);
+}
+
+.qa-footer {
+  border-top: 1px solid var(--qa-border);
+  padding: 14px 28px;
+  color: var(--qa-muted);
+  font-size: 12px;
+  background: #fff;
+}
+`;
 
 const createEmptyResult = (): QAResult => ({ status: 'pending', output: '' });
 
@@ -96,28 +306,28 @@ const getScanItemHTML = (
   extra: string = ''
 ): string => {
   return `
-                <div class="scan-item ${result.status}">
-                    <div class="scan-header">
-                        <div class="scan-title">
-                            <div class="status-icon ${result.status}">${getStatusIcon(result.status)}</div>
-                            <span>${name}</span>
-                        </div>
-                        <span class="status-badge ${result.status}">${result.status}</span>
-                    </div>
-                    <div class="scan-details">
-                        ${description}
-                        ${extra}
-                    </div>
-                </div>`;
+        <div class="qa-scan-item ${result.status}">
+          <div class="qa-scan-header">
+            <div class="qa-scan-title">
+              <div class="qa-status-icon ${result.status}">${getStatusIcon(result.status)}</div>
+              <span>${name}</span>
+            </div>
+            <span class="qa-status-badge ${result.status}">${result.status}</span>
+          </div>
+          <div class="qa-scan-details">
+            ${description}
+            ${extra}
+          </div>
+        </div>`;
 };
 
 const getSummaryItemHTML = (label: string, status: string): string => {
   const icon = getStatusIcon(status);
   return `
-                <div class="summary-item">
-                    <div class="summary-value">${icon}</div>
-                    <div class="summary-label">${label}</div>
-                </div>`;
+        <div class="qa-summary-item">
+          <div class="qa-summary-value">${icon}</div>
+          <div class="qa-summary-label">${label}</div>
+        </div>`;
 };
 
 const getScanDescription = (type: keyof QAResults, status: string): string => {
@@ -165,38 +375,41 @@ const generateQAReport = (results: QAResults): string => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zintrust QA Report</title>
     <link rel="stylesheet" href="base.css">
+    <link rel="stylesheet" href="qa-report.css">
 </head>
 <body class="qa-body">
-    <div class="container">
-        <div class="header">
-            <h1>🎯 Zintrust QA Report</h1>
-            <p>Quality Assurance Suite Results</p>
+    <main class="qa-shell">
+      <section class="qa-panel">
+        <header class="qa-hero">
+          <h1 class="qa-title">Zintrust QA Report</h1>
+          <p class="qa-subtitle">Quality Assurance Suite Results</p>
+          <div class="qa-meta">Generated on ${timestamp}</div>
+        </header>
+
+        <div class="qa-content">
+          <div class="qa-summary">
+            ${getSummaryItemHTML('Lint', results.lint.status)}
+            ${getSummaryItemHTML('Type Check', results.typeCheck.status)}
+            ${getSummaryItemHTML('Tests', results.tests.status)}
+            ${getSummaryItemHTML('Sonar', results.sonar.status)}
+          </div>
+
+          <div class="qa-scan-list">
+            ${getScanItemHTML('ESLint (Linting)', results.lint, lintDesc)}
+            ${getScanItemHTML('TypeScript Compiler (Type Check)', results.typeCheck, typeDesc)}
+            ${getScanItemHTML(
+              'Vitest (Unit Tests)',
+              results.tests,
+              testDesc,
+              '<div class="qa-actions"><a href="index.html" class="qa-link">View Coverage Report</a></div>'
+            )}
+            ${getScanItemHTML('SonarQube (Code Quality)', results.sonar, sonarDesc)}
+          </div>
         </div>
 
-        <div class="content">
-            <div class="timestamp">
-                Generated on ${timestamp}
-            </div>
-
-            <div class="summary">
-                ${getSummaryItemHTML('Lint', results.lint.status)}
-                ${getSummaryItemHTML('Type Check', results.typeCheck.status)}
-                ${getSummaryItemHTML('Tests', results.tests.status)}
-                ${getSummaryItemHTML('Sonar', results.sonar.status)}
-            </div>
-
-            <div style="margin-top: 30px;">
-                ${getScanItemHTML('ESLint (Linting)', results.lint, lintDesc)}
-                ${getScanItemHTML('TypeScript Compiler (Type Check)', results.typeCheck, typeDesc)}
-                ${getScanItemHTML('Vitest (Unit Tests)', results.tests, testDesc, '<br><a href="index.html" class="coverage-link" style="display: inline-block; margin-top: 10px;">View Coverage Report</a>')}
-                ${getScanItemHTML('SonarQube (Code Quality)', results.sonar, sonarDesc)}
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>Zintrust Framework QA Suite | Generated automatically</p>
-        </div>
-    </div>
+        <footer class="qa-footer">Zintrust Framework QA Suite | Generated automatically</footer>
+      </section>
+    </main>
 </body>
 </html>`;
 };
@@ -216,15 +429,15 @@ const openInBrowser = (filePath: string): void => {
 
     // macOS
     if (process.platform === 'darwin') {
-      execSync(`open "${fileUrl}"`);
+      execFileSync('open', [fileUrl]); //NOSONAR
     }
     // Linux
     else if (process.platform === 'linux') {
-      execSync(`xdg-open "${fileUrl}"`);
+      execFileSync('xdg-open', [fileUrl]); //NOSONAR
     }
     // Windows
     else if (process.platform === 'win32') {
-      execSync(`start "${fileUrl}"`);
+      execFileSync('cmd', ['/c', 'start', '""', fileUrl]); //NOSONAR
     }
 
     Logger.info(`Opened: ${filePath}`);
@@ -264,10 +477,12 @@ const generateReport = async (results: QAResults): Promise<void> => {
   // Generate HTML report with QA results and coverage
   const htmlContent = generateQAReport(results);
   const reportPath = 'coverage/qa-report.html';
+  const reportCssPath = 'coverage/qa-report.css';
 
   try {
     const fs = await import('node:fs/promises');
     await fs.writeFile(reportPath, htmlContent);
+    await fs.writeFile(reportCssPath, QA_REPORT_CSS);
     Logger.info(`QA report generated: ${reportPath}`);
   } catch (error) {
     Logger.error('Failed to generate QA report', error);

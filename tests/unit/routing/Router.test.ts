@@ -110,4 +110,57 @@ describe('Router', (): void => {
     expect(routeMatch?.handler).toBe(handler);
     expect(routeMatch?.params).toEqual({});
   });
+
+  it('should support group() with prefix normalization', (): void => {
+    const handler = async (): Promise<void> => {};
+
+    Router.group(router, ' api/ ', (scoped) => {
+      Router.get(scoped, 'users', handler);
+      Router.get(scoped, '/', handler);
+    });
+
+    const routes = Router.getRoutes(router);
+    const paths = routes.map((r) => r.path).sort((a, b) => a.localeCompare(b));
+    expect(paths).toEqual(['/api', '/api/users']);
+  });
+
+  it('should support nested group() prefixes', (): void => {
+    const handler = async (): Promise<void> => {};
+
+    Router.group(router, '/api', (api) => {
+      Router.group(api, 'v1/', (v1) => {
+        Router.get(v1, '/ping', handler);
+      });
+    });
+
+    const routeMatch = Router.match(router, 'GET', '/api/v1/ping');
+    expect(routeMatch?.handler).toBe(handler);
+  });
+
+  it('should register RESTful routes via resource()', (): void => {
+    const handler = async (): Promise<void> => {};
+
+    Router.group(router, '/api', (api) => {
+      Router.resource(api, '/posts/', {
+        index: handler,
+        store: handler,
+        show: handler,
+        update: handler,
+        destroy: handler,
+      });
+    });
+
+    const routes = Router.getRoutes(router);
+    expect(routes).toHaveLength(6);
+
+    expect(routes.some((r) => r.method === 'GET' && r.path.startsWith('/api/posts'))).toBe(true);
+    expect(routes.some((r) => r.method === 'POST' && r.path.startsWith('/api/posts'))).toBe(true);
+    expect(routes.some((r) => r.method === 'PUT' && r.path.includes(':id'))).toBe(true);
+    expect(routes.some((r) => r.method === 'PATCH' && r.path.includes(':id'))).toBe(true);
+    expect(routes.some((r) => r.method === 'DELETE' && r.path.includes(':id'))).toBe(true);
+
+    const match = Router.match(router, 'GET', '/api/posts/123');
+    expect(match?.handler).toBe(handler);
+    expect(match?.params).toEqual({ id: '123' });
+  });
 });
