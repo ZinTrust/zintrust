@@ -1,3 +1,4 @@
+// TEMPLATE_START
 /* eslint-disable @typescript-eslint/require-await */
 /**
  * SQL Server Database Adapter
@@ -91,3 +92,4 @@ export const SQLServerAdapter = Object.freeze({
 });
 
 export default SQLServerAdapter;
+// TEMPLATE_END

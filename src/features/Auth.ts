@@ -1,3 +1,4 @@
+// TEMPLATE_START
 import * as bcrypt from 'bcrypt';
 import { sign, verify, type Secret, type SignOptions } from 'jsonwebtoken';
 
@@ -36,3 +37,4 @@ export const Auth = Object.freeze({
     return verify(token, secret) as T;
   },
 });
+// TEMPLATE_END

@@ -1,6 +1,6 @@
-import { Logger } from '@config/logger';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+// TEMPLATE_START
+import * as bcrypt from 'bcrypt';
+import { sign, verify, type Secret, type SignOptions } from 'jsonwebtoken';
 
 export const Auth = Object.freeze({
   /**
@@ -21,14 +21,20 @@ export const Auth = Object.freeze({
   /**
    * Generate a JWT token
    */
-  generateToken(payload: object, secret: string, expiresIn = '1h'): string {
-    return jwt.sign(payload, secret, { expiresIn });
+  generateToken(
+    payload: Record<string, unknown>,
+    secret: Secret,
+    expiresIn: NonNullable<SignOptions['expiresIn']> = '1h'
+  ): string {
+    const options: SignOptions = { expiresIn };
+    return sign(payload, secret, options);
   },
 
   /**
    * Verify a JWT token
    */
-  verifyToken<T>(token: string, secret: string): T {
-    return jwt.verify(token, secret) as T;
-  }
+  verifyToken<T>(token: string, secret: Secret): T {
+    return verify(token, secret) as T;
+  },
 });
+// TEMPLATE_END

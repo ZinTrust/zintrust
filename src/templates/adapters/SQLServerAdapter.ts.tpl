@@ -1,3 +1,5 @@
+// TEMPLATE_START
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * SQL Server Database Adapter
  */
@@ -49,8 +51,7 @@ export const SQLServerAdapter = Object.freeze({
         try {
           return await callback(this);
         } catch (error) {
-          Logger.error('Transaction failed', error);
-          throw error;
+          throw ErrorFactory.createTryCatchError('Transaction failed', error);
         }
       },
 
@@ -91,3 +92,4 @@ export const SQLServerAdapter = Object.freeze({
 });
 
 export default SQLServerAdapter;
+// TEMPLATE_END

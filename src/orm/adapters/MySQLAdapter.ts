@@ -1,3 +1,4 @@
+// TEMPLATE_START
 /* eslint-disable @typescript-eslint/require-await */
 /**
  * MySQL Database Adapter
@@ -93,3 +94,4 @@ export const MySQLAdapter = Object.freeze({
 });
 
 export default MySQLAdapter;
+// TEMPLATE_END

@@ -1,3 +1,5 @@
+// TEMPLATE_START
+
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
@@ -70,3 +72,4 @@ function bytesToHex(bytes: Uint8Array): string {
   for (const b of bytes) out += b.toString(16).padStart(2, '0');
   return out;
 }
+// TEMPLATE_END

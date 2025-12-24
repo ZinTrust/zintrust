@@ -1,3 +1,4 @@
+// TEMPLATE_START
 /* eslint-disable @typescript-eslint/require-await */
 /**
  * SQLite Database Adapter
@@ -185,3 +186,4 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
 export const SQLiteAdapter = Object.freeze({
   create: createSQLiteAdapter,
 });
+// TEMPLATE_END

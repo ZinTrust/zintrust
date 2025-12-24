@@ -1,3 +1,5 @@
+// TEMPLATE_START
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * MySQL Database Adapter
  */
@@ -21,7 +23,9 @@ export const MySQLAdapter = Object.freeze({
     return {
       async connect(): Promise<void> {
         if (config.host === 'error') {
-          throw ErrorFactory.createConnectionError('Failed to connect to MySQL: Error: Connection failed');
+          throw ErrorFactory.createConnectionError(
+            'Failed to connect to MySQL: Error: Connection failed'
+          );
         }
         connected = true;
         Logger.info(`✓ MySQL connected (${config.host}:${config.port})`);
@@ -88,5 +92,4 @@ export const MySQLAdapter = Object.freeze({
     };
   },
 });
-
-export default MySQLAdapter;
+// TEMPLATE_END

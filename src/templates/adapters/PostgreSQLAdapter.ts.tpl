@@ -1,3 +1,5 @@
+// TEMPLATE_START
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * PostgreSQL Database Adapter
  */
@@ -93,5 +95,4 @@ export const PostgreSQLAdapter = Object.freeze({
     };
   },
 });
-
-export default PostgreSQLAdapter;
+// TEMPLATE_END

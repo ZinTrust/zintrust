@@ -1,0 +1,8 @@
+{
+  "src/orm/adapters/SQLiteAdapter.ts": "60f28f047215f11b86fdc22633894d86a818144d",
+  "src/orm/adapters/PostgreSQLAdapter.ts": "a4c619f6072b6d2c26194162f357d50b8559d6ab",
+  "src/orm/adapters/MySQLAdapter.ts": "2534d8ee739eb0699a91f0d06cc6f44751fb2512",
+  "src/orm/adapters/SQLServerAdapter.ts": "3d51e8da8f39fee6bc1d0f8cacbc59eb0e016a53",
+  "src/features/Auth.ts": "ee07ddee391969c5c9c3c036edc77a1c62bc1e9f",
+  "src/features/Queue.ts": "47f1e27edd5005cb55512d10807c8a1c833dba66"
+}
