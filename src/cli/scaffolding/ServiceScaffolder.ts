@@ -5,7 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface ServiceOptions {
   name: string; // e.g., 'users', 'orders', 'payments'
@@ -208,8 +208,8 @@ import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { Logger } from '@config/logger';
 import { Env } from '@config/env';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = new Application(path.join(__dirname, '..'));

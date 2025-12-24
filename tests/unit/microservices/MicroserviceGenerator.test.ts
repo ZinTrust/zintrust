@@ -1,6 +1,6 @@
 import { generate } from '@/microservices/MicroserviceGenerator';
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
+import { default as fs } from '@node-singletons/fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs');

@@ -1,7 +1,7 @@
 import { CommonUtils } from '@common/index';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import os from '@node-singletons/os';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('CommonUtils', () => {

@@ -1,6 +1,6 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from 'node:path';
 
 /**
  * Common utilities - Sealed namespace for immutability

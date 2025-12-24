@@ -12,8 +12,8 @@ import {
 } from '@cli/config/ConfigSchema';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from 'node:path';
 
 export interface IConfigManager {
   load(): Promise<ProjectConfig>;

@@ -4,8 +4,8 @@
  */
 
 import { LogEntry, Logger, LoggerInstance } from '@cli/logger/Logger';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { fs } from '@node-singletons';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('Logger Initialization and Structure', () => {

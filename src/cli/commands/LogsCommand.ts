@@ -7,10 +7,10 @@ import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger as FileLogger, LogEntry, LogLevel, LoggerInstance } from '@cli/logger/Logger';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { default as fs } from '@node-singletons/fs';
 import chalk from 'chalk';
 import { Command } from 'commander';
-import fs from 'node:fs';
-import path from 'node:path';
+import * as path from 'node:path';
 
 interface LogsOptions {
   level: string;

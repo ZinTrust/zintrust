@@ -4,8 +4,8 @@
  */
 
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from 'node:path';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -117,7 +117,7 @@ const createProjectConfigFile = (
 
     fs.writeFileSync(fullPath, JSON.stringify(config, null, 2));
     return true;
-    // eslint-disable-next-line no-restricted-syntax
+     
   } catch {
     return false;
   }

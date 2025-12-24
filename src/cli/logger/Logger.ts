@@ -3,8 +3,8 @@
  * Logs to files with rotation, retention policies, and multiple log levels
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import * as fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 

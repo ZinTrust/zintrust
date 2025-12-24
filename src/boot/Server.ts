@@ -10,10 +10,10 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
+import * as fs from '@node-singletons/fs';
+import * as http from '@node-singletons/http';
+import * as path from '@node-singletons/path';
 import { Router } from '@routing/Router';
-import * as fs from 'node:fs';
-import * as http from 'node:http';
-import * as path from 'node:path';
 
 export interface IServer {
   listen(): Promise<void>;

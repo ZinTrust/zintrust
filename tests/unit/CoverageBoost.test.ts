@@ -14,8 +14,8 @@ import { QueryLogger } from '@profiling/QueryLogger';
 import { EnhancedRouter, type IRouter } from '@routing/EnhancedRouter';
 import { Router } from '@routing/Router';
 import { XssProtection } from '@security/XssProtection';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { fs } from '@node-singletons';
+import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let httpRequestHandler: ((req: unknown, res: unknown) => void | Promise<void>) | undefined;

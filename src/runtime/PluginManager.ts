@@ -7,11 +7,11 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { execSync } from '@node-singletons/child-process';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { PluginDefinition, PluginRegistry } from '@runtime/PluginRegistry';
-import { execSync } from 'node:child_process';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../../');

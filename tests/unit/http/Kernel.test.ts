@@ -3,7 +3,7 @@ import { IServiceContainer, ServiceContainer } from '@/container/ServiceContaine
 import { IKernel, Kernel } from '@/http/Kernel';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { Router } from '@/routing/Router';
-import * as http from 'node:http';
+import * as http from '@node-singletons/http';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IRequest } from '@/http/Request';

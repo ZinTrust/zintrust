@@ -1,4 +1,4 @@
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const benchmarkRunAll = vi.fn<() => Promise<void>>();

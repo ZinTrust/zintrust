@@ -4,7 +4,7 @@
  */
 
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
-import * as http from 'node:http';
+import * as http from '@node-singletons/http';
 
 export interface IResponse {
   status(code: number): IResponse;

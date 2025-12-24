@@ -1,8 +1,8 @@
 import { Application } from '@boot/Application';
 import { Logger } from '@config/logger';
 import { IKernel, Kernel } from '@http/Kernel';
+import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { LambdaAdapter } from '@runtime/adapters/LambdaAdapter';
-import { IncomingMessage, ServerResponse } from 'node:http';
 
 let kernel: IKernel | null = null;
 

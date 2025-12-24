@@ -5,7 +5,7 @@
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { createHmac, createSign, createVerify, randomBytes } from 'node:crypto';
+import { createHmac, createSign, createVerify, randomBytes } from '@node-singletons/crypto';
 
 export type JwtAlgorithm = 'HS256' | 'HS512' | 'RS256';
 

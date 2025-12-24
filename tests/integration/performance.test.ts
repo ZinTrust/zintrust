@@ -4,8 +4,8 @@
  */
 
 import { Benchmark, IBenchmark, MemoryMonitor } from '@performance/Benchmark';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { fs } from '@node-singletons';
+import * as path from '@node-singletons/path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 describe('Performance Benchmark Basic Tests - Part 1', () => {

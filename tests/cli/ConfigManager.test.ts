@@ -4,8 +4,8 @@
 
 import { ConfigManager } from '@cli/config/ConfigManager';
 import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const TEST_CONFIG_PATH = path.join(process.cwd(), 'tests/tmp/test-config-manager.json');

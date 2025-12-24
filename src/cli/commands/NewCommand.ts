@@ -11,8 +11,8 @@ import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import chalk from 'chalk';
 import { Command } from 'commander';
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
+import { execFileSync } from '@node-singletons/child-process';
+import * as path from '@node-singletons/path';
 
 type TemplateType = 'basic' | 'api' | 'microservice';
 type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb';

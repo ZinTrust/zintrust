@@ -1,5 +1,5 @@
 import { loadEnv, parseEnvLine, stripQuotes } from '@scripts/utils/env';
-import * as fs from 'node:fs';
+import { fs } from '@node-singletons';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs');

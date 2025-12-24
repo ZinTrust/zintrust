@@ -7,8 +7,8 @@ import { IServiceContainer } from '@container/ServiceContainer';
 import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
 import { IMiddlewareStack, Middleware, MiddlewareStack } from '@middleware/MiddlewareStack';
+import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { IRouter, Router } from '@routing/Router';
-import { IncomingMessage, ServerResponse } from 'node:http';
 
 export interface IKernel {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;

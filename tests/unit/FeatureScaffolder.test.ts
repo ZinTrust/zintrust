@@ -4,9 +4,9 @@ import {
   validateOptions,
 } from '@cli/scaffolding/FeatureScaffolder';
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import os from '@node-singletons/os';
+import * as path from '@node-singletons/path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 function makeTempDir(prefix: string): string {

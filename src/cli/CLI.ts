@@ -17,10 +17,10 @@ import { StartCommand } from '@cli/commands/StartCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { readFileSync } from '@node-singletons/fs';
+import { dirname, join } from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { Command } from 'commander';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

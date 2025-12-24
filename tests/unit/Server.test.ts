@@ -1,6 +1,6 @@
 import { IApplication } from '@boot/Application';
 import { Server } from '@boot/Server';
-import * as http from 'node:http';
+import * as http from '@node-singletons/http';
 import { type Mock, describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies

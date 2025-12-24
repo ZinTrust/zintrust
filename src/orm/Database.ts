@@ -4,6 +4,7 @@
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
@@ -11,7 +12,6 @@ import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
-import { EventEmitter } from 'node:events';
 
 export interface IDatabase {
   connect(): Promise<void>;

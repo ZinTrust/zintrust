@@ -74,3 +74,13 @@ npm run deploy
 ```
 
 This will use Wrangler to bundle and upload your application to the Cloudflare edge.
+
+Because the Wrangler config defines multiple environments, deployments should always specify a target environment. `npm run deploy` defaults to `production`.
+
+```bash
+# Deploy to production
+WRANGLER_ENV=production npm run deploy
+
+# Deploy to development
+WRANGLER_ENV=development npm run deploy
+```

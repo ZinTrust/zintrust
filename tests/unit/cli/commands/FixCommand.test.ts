@@ -15,9 +15,9 @@ vi.mock('node:child_process');
 vi.mock('node:fs');
 vi.mock('node:path');
 
-import * as childProcess from 'node:child_process';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { fs } from '@node-singletons';
+import * as childProcess from '@node-singletons/child-process';
+import * as path from '@node-singletons/path';
 
 beforeAll(async () => {
   process.env['JWT_SECRET'] ??= 'test-jwt-secret';

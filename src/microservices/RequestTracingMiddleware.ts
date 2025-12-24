@@ -2,7 +2,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
-import crypto from 'node:crypto';
+import * as crypto from '@node-singletons/crypto';
 
 // Middleware next function type
 export type NextFunction = (error?: Error) => void | Promise<void>;
@@ -90,7 +90,7 @@ function createTracingMiddleware(
 ): (req: IRequest, res: IResponse, next: NextFunction) => void | Promise<void> {
   return async (req: IRequest, res: IResponse, next: NextFunction) => {
     if (enabled === false || shouldSampleRequest(samplingRate) === false) {
-      return await next();
+      return next();
     }
 
     // Check for existing trace ID (from parent service)

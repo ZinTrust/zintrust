@@ -11,9 +11,9 @@ import {
   ServiceRequestFactoryGenerator,
   ServiceRequestOptions,
 } from '@cli/scaffolding/ServiceRequestFactoryGenerator';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import { fs } from '@node-singletons';
+import * as os from '@node-singletons/os';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('ServiceRequestFactoryGenerator Validation Tests - Part 1', () => {

@@ -1,4 +1,4 @@
-import path from 'node:path';
+import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loggerInfo = vi.fn();

@@ -1,5 +1,5 @@
 import { Request } from '@http/Request';
-import { IncomingMessage } from 'node:http';
+import { IncomingMessage } from '@node-singletons/http';
 import { Socket } from 'node:net';
 import { describe, expect, it } from 'vitest';
 
@@ -59,13 +59,17 @@ describe('Request', () => {
   });
 
   it('should get headers', () => {
-    const req = Request.create(createMockRequest({ headers: { 'content-type': 'application/json' } }));
+    const req = Request.create(
+      createMockRequest({ headers: { 'content-type': 'application/json' } })
+    );
     expect(req.getHeaders()).toEqual({ 'content-type': 'application/json' });
     expect(req.headers).toEqual({ 'content-type': 'application/json' });
   });
 
   it('should get specific header', () => {
-    const req = Request.create(createMockRequest({ headers: { 'Content-Type': 'application/json' } }));
+    const req = Request.create(
+      createMockRequest({ headers: { 'Content-Type': 'application/json' } })
+    );
     expect(req.getHeader('content-type')).toBe('application/json');
   });
 

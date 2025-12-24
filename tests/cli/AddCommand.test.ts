@@ -5,9 +5,9 @@
 
 import { IBaseCommand } from '@cli/BaseCommand';
 import { AddCommand } from '@cli/commands/AddCommand';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);

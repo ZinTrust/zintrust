@@ -4,8 +4,8 @@
  */
 
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 export interface BundleConfig {
   serviceName: string;

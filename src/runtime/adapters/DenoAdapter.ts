@@ -2,6 +2,7 @@
  * Runtime adapter for Deno
  */
 import Logger from '@config/logger';
+import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import {
   AdapterConfig,
   createMockHttpObjects,
@@ -10,7 +11,6 @@ import {
   PlatformResponse,
   RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
-import { IncomingMessage, ServerResponse } from 'node:http';
 
 /**
  * Deno runtime adapter for Deno Deploy and edge compute environments

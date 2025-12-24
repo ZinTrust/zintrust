@@ -1,4 +1,4 @@
-import { EventEmitter } from 'node:events';
+import { EventEmitter } from '@node-singletons/events';
 
 import type { AdapterConfig, IRequestBody } from '@/runtime/RuntimeAdapter';
 import { describe, expect, it, vi } from 'vitest';

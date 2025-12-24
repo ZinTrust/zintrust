@@ -7,10 +7,10 @@
 import { TemplateRegistry } from '@/templates/TemplateRegistry.js';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as crypto from '@node-singletons/crypto';
+import { default as fs } from '@node-singletons/fs';
+import { fileURLToPath } from '@node-singletons/url';
+import * as path from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

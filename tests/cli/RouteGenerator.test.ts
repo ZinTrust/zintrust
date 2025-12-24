@@ -8,8 +8,8 @@ import {
   type RouteDefinition,
   type RouteOptions,
 } from '@cli/scaffolding/RouteGenerator';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('RouteGenerator Validation', () => {

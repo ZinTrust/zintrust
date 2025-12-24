@@ -3,6 +3,7 @@
  */
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import {
   AdapterConfig,
   createMockHttpObjects,
@@ -12,7 +13,6 @@ import {
   PlatformResponse,
   RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
-import { IncomingMessage, ServerResponse } from 'node:http';
 
 /**
  * Cloudflare Workers adapter for Cloudflare's edge compute platform

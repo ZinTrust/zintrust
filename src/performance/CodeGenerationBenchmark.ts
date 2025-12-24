@@ -5,10 +5,10 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { fs } from '@node-singletons';
+import { fileURLToPath } from '@node-singletons/url';
 import { Benchmark, IBenchmark, IMemoryMonitor, MemoryMonitor } from '@performance/Benchmark';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 export interface ICodeGenerationBenchmark {
   runAll(): Promise<void>;

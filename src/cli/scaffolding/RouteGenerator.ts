@@ -5,7 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from 'node:path';
 
 export type RouteMethod = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'resource';
 

@@ -7,10 +7,10 @@ import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { execFileSync } from '@node-singletons/child-process';
+import { existsSync } from '@node-singletons/fs';
+import { resolve } from '@node-singletons/path';
 import { Command } from 'commander';
-import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 /**
  * QA Result interface

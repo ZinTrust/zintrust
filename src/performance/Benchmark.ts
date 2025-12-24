@@ -3,7 +3,7 @@
  * Measures code generation, memory usage, and overall performance
  */
 
-import * as fs from 'node:fs';
+import { fs } from '@node-singletons';
 
 export interface BenchmarkResult {
   name: string;

@@ -50,7 +50,7 @@ vi.mock('node:http', () => {
   };
 });
 
-import { EventEmitter } from 'node:events';
+import { EventEmitter } from '@node-singletons/events';
 
 import { NodeServerAdapter } from '@/runtime/adapters/NodeServerAdapter';
 

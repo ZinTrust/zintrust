@@ -3,9 +3,9 @@ import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCo
 import { SpawnUtil } from '@cli/utils/spawn';
 import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { existsSync, readFileSync } from '@node-singletons/fs';
 import { Command } from 'commander';
-import { existsSync, readFileSync } from 'node:fs';
-import path from 'node:path';
+import * as path from 'node:path';
 
 type StartMode = 'development' | 'production' | 'testing';
 

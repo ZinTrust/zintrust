@@ -3,7 +3,7 @@
  * Wraps Node.js IncomingMessage with additional utilities
  */
 
-import * as http from 'node:http';
+import * as http from '@node-singletons/http';
 
 type HeadParam = string | string[] | undefined;
 

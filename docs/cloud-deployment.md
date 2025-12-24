@@ -24,7 +24,13 @@ This will create a `.github/workflows/deploy-cloud.yml` file tailored to your ch
 Zintrust can be deployed to Cloudflare Workers using the `wrangler` CLI.
 
 ```bash
-npm run deploy:cloudflare
+npm run deploy
+```
+
+By default, this deploy targets the `production` Wrangler environment. To deploy to a different environment:
+
+```bash
+WRANGLER_ENV=development npm run deploy
 ```
 
 Ensure you have configured your `wrangler.toml` with the necessary KV namespaces for secrets management.

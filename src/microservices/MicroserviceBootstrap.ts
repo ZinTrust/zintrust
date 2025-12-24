@@ -5,8 +5,8 @@ import {
   getEnabledServices,
   isMicroservicesEnabled,
 } from '@microservices/MicroserviceManager';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 /**
  * Service configuration from service.config.json

@@ -33,7 +33,9 @@
       "@app/*": ["./app/*"],
       "@routes/*": ["./routes/*"],
       "@microservices/*": ["./src/microservices/*"],
-      "@scripts/*": ["./scripts/*"]
+      "@scripts/*": ["./scripts/*"],
+      "@node-singletons/*": ["./src/node-singletons/*"],
+      "@node-singletons": ["./src/node-singletons/index.ts"]
     },
     "strict": true,
     "strictNullChecks": true,

@@ -4,10 +4,10 @@
  */
 
 import { Logger } from '@config/logger';
+import { fs } from '@node-singletons';
+import { fileURLToPath } from '@node-singletons/url';
 import { CodeGenerationBenchmark } from '@performance/CodeGenerationBenchmark';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 /**
  * Run baseline and save results

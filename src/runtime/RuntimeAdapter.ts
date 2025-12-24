@@ -1,4 +1,4 @@
-import { IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 
 type Tbody = string | Buffer | null;
 

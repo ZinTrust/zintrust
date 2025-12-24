@@ -9,10 +9,10 @@ import { Logger } from '@config/logger';
 import { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
 import { MicroserviceManager } from '@microservices/MicroserviceManager';
 import { ServiceBundler } from '@microservices/ServiceBundler';
+import { readFileSync } from '@node-singletons/fs';
+import { dirname, join } from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { program } from 'commander';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -6,8 +6,8 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from 'node:path';
 
 export interface FileCreationOptions {
   overwrite?: boolean;

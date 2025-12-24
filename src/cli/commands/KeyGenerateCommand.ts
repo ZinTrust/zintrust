@@ -5,10 +5,10 @@
 
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
+import * as crypto from '@node-singletons/crypto';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { Command } from 'commander';
-import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
 export const KeyGenerateCommand = Object.freeze({
   create(): IBaseCommand {

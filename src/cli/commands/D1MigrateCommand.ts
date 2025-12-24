@@ -9,7 +9,7 @@ import { ErrorFactory } from '@/exceptions/ZintrustError';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from '@node-singletons/child-process';
 
 type ID1MigrateCommand = IBaseCommand & {
   resolveNpmPath: () => string;

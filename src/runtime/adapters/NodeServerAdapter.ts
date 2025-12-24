@@ -1,13 +1,13 @@
 import { Env } from '@config/env';
 import Logger from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { createServer, IncomingMessage, Server, ServerResponse } from '@node-singletons/http';
 import {
   AdapterConfig,
   PlatformRequest,
   PlatformResponse,
   RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
-import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
 
 /**
  * Node.js HTTP Server adapter for standard containers and traditional servers

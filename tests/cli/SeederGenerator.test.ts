@@ -4,9 +4,9 @@
  */
 
 import { SeederGenerator, SeederOptions } from '@cli/scaffolding/SeederGenerator';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);

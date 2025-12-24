@@ -1,7 +1,7 @@
 import { QACommand } from '@/cli/commands/QACommand';
 import { Logger } from '@config/logger';
-import * as child_process from 'node:child_process';
-import * as fs from 'node:fs';
+import { fs } from '@node-singletons';
+import * as child_process from '@node-singletons/child-process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:child_process');

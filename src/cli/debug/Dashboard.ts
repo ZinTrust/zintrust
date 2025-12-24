@@ -3,10 +3,10 @@
  * Terminal-based real-time monitoring UI
  */
 
+import { randomInt } from '@node-singletons/crypto';
+import * as os from '@node-singletons/os';
+import * as readline from '@node-singletons/readline';
 import chalk from 'chalk';
-import { randomInt } from 'node:crypto';
-import * as os from 'node:os';
-import * as readline from 'node:readline';
 
 export interface DashboardStats {
   uptime: number;
@@ -217,6 +217,6 @@ type DashboardCtor = {
   create(): IDashboard;
 };
 
-export const Dashboard = Object.assign(function DashboardCtorImpl(): IDashboard {
+export const Dashboard = Object.assign((): IDashboard => {
   return DashboardFactory.create();
 }, DashboardFactory) as unknown as DashboardCtor;

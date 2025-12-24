@@ -8,8 +8,8 @@
  */
 
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from 'node:path';
 
 export interface OptimizationOptions {
   platform: 'lambda' | 'cloudflare' | 'deno' | 'fargate';

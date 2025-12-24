@@ -15,7 +15,7 @@ import { PostgresAdapter } from '@microservices/PostgresAdapter';
 import { RequestTracingMiddleware } from '@microservices/RequestTracingMiddleware';
 import { ApiKeyAuth, JwtAuth, ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
 import { HealthCheckHandler, ServiceHealthMonitor } from '@microservices/ServiceHealthMonitor';
-import { IncomingMessage, ServerResponse } from 'node:http';
+import { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { Socket } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 

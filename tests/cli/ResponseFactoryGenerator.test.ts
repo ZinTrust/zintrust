@@ -1,7 +1,7 @@
 import { ResponseFactoryGenerator, ResponseField } from '@cli/scaffolding/ResponseFactoryGenerator';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import os from '@node-singletons/os';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('ResponseFactoryGenerator Validation', () => {

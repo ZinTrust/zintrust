@@ -7,9 +7,9 @@ import { appConfig } from '@/config';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
-import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
+import { execFileSync } from '@node-singletons/child-process';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 type IFixCommand = IBaseCommand & {
   resolveNpmPath: () => string;

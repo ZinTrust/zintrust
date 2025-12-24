@@ -38,6 +38,20 @@ export default defineConfig({
       '@microservices': path.resolve(__dirname, './src/microservices'),
       '@routes': path.resolve(__dirname, './routes'),
       '@scripts': path.resolve(__dirname, './scripts'),
+      '@node-singletons': path.resolve(__dirname, './src/node-singletons'),
+      '@node-singletons/http': path.resolve(__dirname, './src/node-singletons/http.ts'),
+      '@node-singletons/crypto': path.resolve(__dirname, './src/node-singletons/crypto.ts'),
+      '@node-singletons/events': path.resolve(__dirname, './src/node-singletons/events.ts'),
+      '@node-singletons/perf-hooks': path.resolve(__dirname, './src/node-singletons/perf-hooks.ts'),
+      '@node-singletons/fs': path.resolve(__dirname, './src/node-singletons/fs.ts'),
+      '@node-singletons/path': path.resolve(__dirname, './src/node-singletons/path.ts'),
+      '@node-singletons/child-process': path.resolve(
+        __dirname,
+        './src/node-singletons/child-process.ts'
+      ),
+      '@node-singletons/url': path.resolve(__dirname, './src/node-singletons/url.ts'),
+      '@node-singletons/os': path.resolve(__dirname, './src/node-singletons/os.ts'),
+      '@node-singletons/readline': path.resolve(__dirname, './src/node-singletons/readline.ts'),
     },
   },
   test: {

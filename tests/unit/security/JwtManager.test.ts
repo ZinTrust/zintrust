@@ -1,6 +1,6 @@
 import type { IJwtManager } from '@/security/JwtManager';
 import { JwtManager } from '@/security/JwtManager';
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync } from '@node-singletons/crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JwtManager', () => {

@@ -5,7 +5,7 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import * as fs from 'node:fs';
+import { fs } from '@node-singletons';
 import * as path from 'node:path';
 
 export interface IGenerationCache {

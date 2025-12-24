@@ -8,13 +8,18 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from '@node-singletons/http';
 import type {
   AdapterConfig,
   PlatformRequest,
   PlatformResponse,
   RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 export interface FargateEnvironment {
   [key: string]: unknown;

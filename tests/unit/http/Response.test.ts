@@ -1,5 +1,5 @@
 import { IResponse, Response } from '@/http/Response';
-import * as http from 'node:http';
+import * as http from '@node-singletons/http';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Response', () => {

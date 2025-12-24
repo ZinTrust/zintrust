@@ -3,9 +3,10 @@
  * Type-safe access to environment variables
  *
  * Sealed namespace pattern - all exports through Env namespace
+ * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
  */
 
-import path from 'node:path';
+import * as path from 'node:path';
 
 // Private helper functions
 const get = (key: string, defaultValue?: string): string => {
@@ -97,14 +98,31 @@ export const Env = Object.freeze({
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
 
-  // Paths
-  NODE_BIN_DIR: path.dirname(process.execPath),
-  SAFE_PATH:
-    process.platform === 'win32'
-      ? [
-          String.raw`C:\Windows\System32`,
-          String.raw`C:\Windows`,
-          path.dirname(process.execPath),
-        ].join(';')
-      : ['/usr/bin', '/bin', '/usr/sbin', '/sbin', path.dirname(process.execPath)].join(':'),
+  // Paths (safely constructed for Node.js environments)
+  NODE_BIN_DIR: (() => {
+    try {
+      return typeof process !== 'undefined' && process.execPath
+        ? path.dirname(process.execPath)
+        : '/usr/bin';
+    } catch {
+      // Fallback for non-Node environments
+      return '';
+    }
+  })(),
+  SAFE_PATH: (() => {
+    try {
+      if (typeof process === 'undefined' || !process.execPath) {
+        return ''; // Non-Node environment
+      }
+
+      const binDir = path.dirname(process.execPath);
+      if (process.platform === 'win32') {
+        return [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, binDir].join(';');
+      }
+      return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', binDir].join(':');
+    } catch {
+      // Fallback for non-Node environments
+      return '';
+    }
+  })(),
 });
