@@ -8,6 +8,7 @@ import { Application } from '@/Application';
 import { Server } from '@/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
  * Bootstrap implementation
@@ -36,7 +37,7 @@ const BootstrapFunctions = Object.freeze({
 
       Logger.info(`Server running at http://${host}:${port}`);
     } catch (error) {
-      Logger.error('Failed to bootstrap application:', error);
+      ErrorFactory.createTryCatchError('Failed to bootstrap application:', error);
       process.exit(1);
     }
   },

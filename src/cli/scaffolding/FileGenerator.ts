@@ -5,6 +5,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -26,8 +27,7 @@ const createDirectory = (dirPath: string): boolean => {
     }
     return false;
   } catch (error) {
-    Logger.error(`Failed to create directory ${dirPath}:`, error);
-    throw error;
+    throw ErrorFactory.createCliError(`Failed to create directory ${dirPath}:`, error);
   }
 };
 
@@ -70,8 +70,7 @@ const writeFile = (
     Logger.info(`Created file: ${filePath}`);
     return true;
   } catch (error) {
-    Logger.error(`Failed to write file ${filePath}:`, error);
-    throw error;
+    throw ErrorFactory.createCliError(`Failed to write file ${filePath}:`, error);
   }
 };
 
@@ -102,8 +101,7 @@ const readFile = (filePath: string, encoding: BufferEncoding = 'utf-8'): string 
   try {
     return fs.readFileSync(filePath, { encoding });
   } catch (error) {
-    Logger.error(`Failed to read file ${filePath}:`, error);
-    throw error;
+    throw ErrorFactory.createCliError(`Failed to read file ${filePath}:`, error);
   }
 };
 
@@ -133,8 +131,7 @@ const deleteFile = (filePath: string): boolean => {
     }
     return false;
   } catch (error) {
-    Logger.error(`Failed to delete file ${filePath}:`, error);
-    throw error;
+    throw ErrorFactory.createCliError(`Failed to delete file ${filePath}:`, error);
   }
 };
 
@@ -150,8 +147,7 @@ const deleteDirectory = (dirPath: string): boolean => {
     }
     return false;
   } catch (error) {
-    Logger.error(`Failed to delete directory ${dirPath}:`, error);
-    throw error;
+    throw ErrorFactory.createCliError(`Failed to delete directory ${dirPath}:`, error);
   }
 };
 
@@ -182,7 +178,7 @@ const listFiles = (dirPath: string, recursive = false): string[] => {
     traverse(dirPath);
     return files;
   } catch (error) {
-    Logger.error(`Failed to list files in ${dirPath}:`, error);
+    ErrorFactory.createCliError(`Failed to list files in ${dirPath}:`, error);
     return [];
   }
 };
@@ -199,7 +195,7 @@ const copyFile = (
     const { createDirs = true } = options;
 
     if (!fs.existsSync(source)) {
-      throw new Error(`Source file not found: ${source}`);
+      ErrorFactory.createCliError(`Source file not found: ${source}`, { source });
     }
 
     const dir = path.dirname(destination);
@@ -211,8 +207,7 @@ const copyFile = (
     Logger.info(`Copied file: ${source} → ${destination}`);
     return true;
   } catch (error) {
-    Logger.error(`Failed to copy file ${source}:`, error);
-    throw error;
+    throw ErrorFactory.createCliError(`Failed to copy file ${source}:`, error);
   }
 };
 
@@ -242,7 +237,7 @@ const getDirectorySize = (dirPath: string): number => {
 
     traverse(dirPath);
   } catch (error) {
-    Logger.error(`Failed to calculate directory size for ${dirPath}:`, error);
+    throw ErrorFactory.createCliError(`Failed to calculate directory size for ${dirPath}:`, error);
   }
 
   return size;

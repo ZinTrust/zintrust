@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * Application - Framework core entry point
  * Handles application lifecycle, booting, and environment
@@ -75,7 +76,9 @@ export const Application = Object.freeze({
      */
     async function shutdown(): Promise<void> {
       Logger.info('🛑 Shutting down application...');
-      // Cleanup resources
+      // Cleanup resources and services
+      // TODO have global clear system then call it here
+      Logger.info('✅ Application shut down successfully');
       booted = false;
     }
 

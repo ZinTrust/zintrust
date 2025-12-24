@@ -3,6 +3,8 @@
  * Manages service registration and resolution with proven dependency injection patterns
  */
 
+import { ErrorFactory } from '@exceptions/ZintrustError';
+
 type ServiceFactory<T = unknown> = () => T;
 
 interface ServiceBinding<T = unknown> {
@@ -62,7 +64,10 @@ export const ServiceContainer = Object.freeze({
         const binding = bindings.get(key);
 
         if (binding === undefined) {
-          throw new Error(`Service "${key}" is not registered in the container`);
+          throw ErrorFactory.createNotFoundError(
+            `Service "${key}" is not registered in the container`,
+            { key }
+          );
         }
 
         if (binding.singleton === true) {

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@cli/PromptHelper');
 vi.mock('@cli/scaffolding/ProjectScaffolder');
-vi.mock('@/config/logger', () => ({
+vi.mock('@config/logger', () => ({
   Logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -16,7 +16,6 @@ vi.mock('node:fs');
 vi.mock('node:path');
 
 import { NewCommand } from '@/cli/commands/NewCommand';
-import { Logger } from '@/config/logger';
 
 describe('NewCommand', () => {
   let command: any;
@@ -264,7 +263,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockRejectedValue(new Error('Config error'));
 
       await expect(command.execute(options)).rejects.toThrow('Project creation failed');
-      expect(Logger.error).toHaveBeenCalled();
+      await expect(command.execute(options)).rejects.toMatchObject({ code: 'CLI_ERROR' });
     });
 
     it('should skip git initialization when git option is false', async () => {

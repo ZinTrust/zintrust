@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DatabaseError } from '@/exceptions/ZintrustError';
 import { Model, type IModel, type ModelConfig, type ModelStatic } from '@orm/Model';
 
 const fakePass = 'pdd';
@@ -147,7 +146,7 @@ describe('Model', () => {
 
     dbMod.__setDb(undefined);
     const noDbModel = TestModel.create({ name: 'A' });
-    await expect(noDbModel.save()).rejects.toBeInstanceOf(DatabaseError);
+    await expect(noDbModel.save()).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
 
     dbMod.__setDb({});
     const m = TestModel.create({ name: 'A' });

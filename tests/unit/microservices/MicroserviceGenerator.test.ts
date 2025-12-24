@@ -43,6 +43,10 @@ describe('MicroserviceGenerator', () => {
       expect.any(String)
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('Dockerfile'),
+      expect.any(String)
+    );
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('docker-compose.yml'),
       expect.any(String)
     );

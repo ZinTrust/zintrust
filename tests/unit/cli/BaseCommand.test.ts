@@ -61,6 +61,6 @@ describe('BaseCommand', () => {
     await commanderCmd.parseAsync(['--verbose'], { from: 'user' });
 
     expect(executeMock).toHaveBeenCalled();
-    expect(ErrorHandler.handle).toHaveBeenCalledWith(error);
+    expect(ErrorHandler.handle).toHaveBeenCalledWith(error, undefined, false);
   });
 });

@@ -10,6 +10,7 @@ import { MemoryDriver } from '@cache/drivers/MemoryDriver';
 import { MongoDriver } from '@cache/drivers/MongoDriver';
 import { RedisDriver } from '@cache/drivers/RedisDriver';
 import { Env } from '@config/env';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 let instance: CacheDriver | undefined;
 
@@ -29,7 +30,7 @@ function buildDriver(driver: unknown): CacheDriver {
     return new (driver as unknown as DriverConstructor)();
   }
 
-  throw new Error('Invalid cache driver export');
+  throw ErrorFactory.createGeneralError('Invalid cache driver export');
 }
 
 function resolveDriver(): CacheDriver {

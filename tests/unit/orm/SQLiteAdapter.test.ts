@@ -23,15 +23,17 @@ describe('SQLiteAdapter', () => {
     await expect(adapter.query('SELECT 1', [])).rejects.toThrow('Database not connected');
   });
 
-  it('should return empty result for query (mock implementation)', async () => {
+  it('should return empty result for query', async () => {
     await adapter.connect();
+    await adapter.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)', []);
     const result = await adapter.query('SELECT * FROM users', []);
     expect(result.rows).toEqual([]);
     expect(result.rowCount).toBe(0);
   });
 
-  it('should return null for queryOne (mock implementation)', async () => {
+  it('should return null for queryOne', async () => {
     await adapter.connect();
+    await adapter.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)', []);
     const result = await adapter.queryOne('SELECT * FROM users LIMIT 1', []);
     expect(result).toBeNull();
   });

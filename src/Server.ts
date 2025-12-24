@@ -7,6 +7,7 @@ import { IApplication } from '@/Application';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
 import { Router } from '@routing/Router';
@@ -95,7 +96,7 @@ const serveStatic = async (request: IRequest, response: IResponse): Promise<bool
       return true;
     }
   } catch (error) {
-    Logger.error(`Error serving static file ${filePath}`, error);
+    ErrorFactory.createTryCatchError(`Error serving static file ${filePath}`, error);
   }
 
   return false;
@@ -147,7 +148,7 @@ const handleRequest = async (
       await route.handler(request, response);
     }
   } catch (error) {
-    Logger.error('Server error:', error as Error);
+    ErrorFactory.createTryCatchError('Server error:', error);
     res.writeHead(500, { [HTTP_HEADERS.CONTENT_TYPE]: MIME_TYPES.JSON });
     res.end(JSON.stringify({ message: 'Internal Server Error' }));
   }
@@ -165,12 +166,12 @@ export const Server = Object.freeze({
     const serverPort = port ?? appConfig.port;
     const serverHost = host ?? appConfig.host;
 
-    const httpServer = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) =>
-      handleRequest(app, req, res)
+    const httpServer = http.createServer(
+      async (req: http.IncomingMessage, res: http.ServerResponse) => handleRequest(app, req, res)
     );
 
     return {
-      listen(): Promise<void> {
+      async listen(): Promise<void> {
         return new Promise((resolve) => {
           httpServer.listen(serverPort, serverHost, () => {
             Logger.info(`Zintrust server running at http://${serverHost}:${serverPort}`);
@@ -178,7 +179,7 @@ export const Server = Object.freeze({
           });
         });
       },
-      close(): Promise<void> {
+      async close(): Promise<void> {
         return new Promise((resolve) => {
           httpServer.close(() => {
             Logger.info('Zintrust server stopped');

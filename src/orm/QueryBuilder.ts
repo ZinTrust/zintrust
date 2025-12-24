@@ -3,7 +3,7 @@
  * Build queries without raw SQL
  */
 
-import { DatabaseError } from '@/exceptions/ZintrustError';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IDatabase } from '@orm/Database';
 
 export interface WhereClause {
@@ -90,7 +90,7 @@ const buildLimitOffsetClause = (limit?: number, offset?: number): string => {
  * Execute query and return first result
  */
 async function executeFirst<T>(builder: IQueryBuilder, db?: IDatabase): Promise<T | null> {
-  if (!db) throw new DatabaseError('Database instance not provided to QueryBuilder');
+  if (!db) throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
   builder.limit(1);
   const results = (await db.query(
     builder.toSQL(),
@@ -104,7 +104,7 @@ async function executeFirst<T>(builder: IQueryBuilder, db?: IDatabase): Promise<
  * Execute query and return all results
  */
 async function executeGet<T>(builder: IQueryBuilder, db?: IDatabase): Promise<T[]> {
-  if (!db) throw new DatabaseError('Database instance not provided to QueryBuilder');
+  if (!db) throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
   return (await db.query(
     builder.toSQL(),
     builder.getParameters(),
@@ -122,11 +122,10 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
       return builder;
     },
     where: (column, operator, value) => {
-      if (value === undefined) {
-        value = operator;
-        operator = '=';
-      }
-      state.whereConditions.push({ column, operator: operator as string, value });
+      const finalOperator = value === undefined ? '=' : operator;
+      const finalValue = value === undefined ? operator : value;
+
+      state.whereConditions.push({ column, operator: finalOperator as string, value: finalValue });
       return builder;
     },
     andWhere: (column, operator, value) => builder.where(column, operator, value),
@@ -167,8 +166,8 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
       )}`;
     },
     getParameters: () => state.whereConditions.map((clause) => clause.value),
-    first: <T>() => executeFirst<T>(builder, db),
-    get: <T>() => executeGet<T>(builder, db),
+    first: async <T>() => executeFirst<T>(builder, db),
+    get: async <T>() => executeGet<T>(builder, db),
   };
 
   return builder;

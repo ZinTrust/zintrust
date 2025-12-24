@@ -99,7 +99,7 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.useFakeTimers();
 
-    const bench = new CodeGenerationBenchmark();
+    const bench = CodeGenerationBenchmark();
     const runPromise = bench.runAll();
 
     await vi.runAllTimersAsync();
@@ -130,7 +130,7 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.useFakeTimers();
 
-    const bench = new CodeGenerationBenchmark();
+    const bench = CodeGenerationBenchmark();
     const runPromise = bench.runAll();
 
     await vi.runAllTimersAsync();

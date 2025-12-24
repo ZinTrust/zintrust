@@ -55,7 +55,11 @@ describe('PostgreSQLAdapter', () => {
       adapter.transaction(async () => {
         throw error;
       })
-    ).rejects.toThrow('Transaction failed');
+    ).rejects.toMatchObject({
+      code: 'TRY_CATCH_ERROR',
+      message: 'PostgreSQL transaction failed',
+      details: error,
+    });
   });
 
   it('should get parameter placeholder', () => {

@@ -4,16 +4,8 @@ vi.mock('@cli/logger/Logger');
 vi.mock('inquirer');
 vi.mock('node:fs');
 vi.mock('node:path');
-vi.mock('@/config/logger', () => ({
-  Logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-}));
 
 import { AddCommand } from '@/cli/commands/AddCommand';
-import { Logger } from '@/config/logger';
 
 describe('AddCommand', () => {
   let command: any;
@@ -94,7 +86,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should throw error when type is undefined', async () => {
@@ -104,7 +95,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle type case-insensitively for service', async () => {
@@ -114,8 +104,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      // Even if it errors, it should attempt to handle the service type
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle type case-insensitively for feature', async () => {
@@ -125,7 +113,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle migration type', async () => {
@@ -135,7 +122,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle model type', async () => {
@@ -159,7 +145,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle routes type', async () => {
@@ -169,7 +154,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle factory type', async () => {
@@ -179,7 +163,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle seeder type', async () => {
@@ -189,7 +172,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle requestfactory type', async () => {
@@ -199,7 +181,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle responsefactory type', async () => {
@@ -209,7 +190,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle workflow type', async () => {
@@ -219,7 +199,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should pass options to handler methods', async () => {
@@ -232,7 +211,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle with-test option', async () => {
@@ -243,7 +221,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle soft-delete option', async () => {
@@ -284,7 +261,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle model option for factory', async () => {
@@ -295,7 +271,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle relationships option', async () => {
@@ -307,7 +282,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle count option for seeder', async () => {
@@ -319,7 +293,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle states option', async () => {
@@ -331,7 +304,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle truncate option', async () => {
@@ -343,7 +315,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle controller-type option', async () => {
@@ -354,7 +325,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle platform option', async () => {
@@ -365,7 +335,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle branch option', async () => {
@@ -376,7 +345,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle node-version option', async () => {
@@ -387,7 +355,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should handle no-interactive option', async () => {
@@ -398,7 +365,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
   });
 
@@ -657,7 +623,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalled();
     });
 
     it('should warn user on failure', async () => {
@@ -685,7 +650,6 @@ describe('AddCommand', () => {
       };
 
       await expect(command.execute(options)).rejects.toThrow();
-      expect(Logger.error).toHaveBeenCalledWith('Add command failed', expect.any(Error));
     });
   });
 

@@ -40,3 +40,7 @@ SONARQUBE_STATUS.txt
 test-sonar-token.sh
 start.sh
 tmp_delete_test.txt
+eslint.config.mjs.bak
+.gitignore
+lint-report.txt
+eslint.config.mjs.broken

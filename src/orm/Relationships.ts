@@ -3,6 +3,7 @@
  * Define how models relate to each other
  */
 
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IModel, Model, ModelStatic } from '@orm/Model';
 
 export type RelationshipType = 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
@@ -39,7 +40,7 @@ const getRelatedTableName = (relatedModel: ModelStatic): string => {
     return new candidate().getTable();
   }
 
-  throw new Error('Related model does not provide a table name');
+  throw ErrorFactory.createConfigError('Related model does not provide a table name');
 };
 
 /**
@@ -55,7 +56,7 @@ export const HasOne = Object.freeze({
         const value = instance.getAttribute(localKey);
         if (value === undefined || value === null || value === '') return null;
 
-        return await relatedModel.query().where(foreignKey, '=', value).first();
+        return relatedModel.query().where(foreignKey, '=', value).first();
       },
     };
   },
@@ -74,7 +75,7 @@ export const HasMany = Object.freeze({
         const value = instance.getAttribute(localKey);
         if (value === undefined || value === null || value === '') return [];
 
-        return await relatedModel.query().where(foreignKey, '=', value).get();
+        return relatedModel.query().where(foreignKey, '=', value).get();
       },
     };
   },
@@ -93,7 +94,7 @@ export const BelongsTo = Object.freeze({
         const value = instance.getAttribute(foreignKey);
         if (value === undefined || value === null || value === '') return null;
 
-        return await relatedModel.query().where(localKey, '=', value).first();
+        return relatedModel.query().where(localKey, '=', value).first();
       },
     };
   },
@@ -135,7 +136,7 @@ export const BelongsToMany = Object.freeze({
         // if relatedModel is not a class.
         const relatedTable = getRelatedTableName(relatedModel);
 
-        return await relatedModel
+        return relatedModel
           .query()
           .join(throughTable, `${relatedTable}.id = ${throughTable}.${relatedKey}`)
           .where(`${throughTable}.${foreignKey}`, instanceId as string)

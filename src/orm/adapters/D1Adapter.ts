@@ -4,6 +4,7 @@
 
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { DatabaseConfig, ID1Database, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 
 /**
@@ -36,22 +37,24 @@ export const D1Adapter = Object.freeze({
     let connected = false;
 
     return {
+      // eslint-disable-next-line @typescript-eslint/require-await
       async connect(): Promise<void> {
         connected = true;
         Logger.info('✓ D1 connected');
       },
 
+      // eslint-disable-next-line @typescript-eslint/require-await
       async disconnect(): Promise<void> {
         connected = false;
         Logger.info('✓ D1 disconnected');
       },
 
       async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
-        if (!connected) throw new Error('Database not connected');
+        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
         const db = getD1Binding(_config);
         if (db === null) {
-          throw new Error('D1 database binding not found');
+          throw ErrorFactory.createConfigError('D1 database binding not found');
         }
 
         try {
@@ -63,37 +66,34 @@ export const D1Adapter = Object.freeze({
             rowCount: rows.length,
           };
         } catch (error) {
-          Logger.error(`D1 query failed: ${sql}`, error);
-          throw error;
+          throw ErrorFactory.createTryCatchError(`D1 query failed: ${sql}`, error);
         }
       },
 
       async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
-        if (!connected) throw new Error('Database not connected');
+        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
         const db = getD1Binding(_config);
         if (db === null) {
-          throw new Error('D1 database binding not found');
+          throw ErrorFactory.createConfigError('D1 database binding not found');
         }
 
         try {
           const stmt = db.prepare(sql);
           const result = await stmt.bind(...parameters).first<Record<string, unknown>>();
-          return result || null;
+          return result ?? null;
         } catch (error) {
-          Logger.error(`D1 queryOne failed: ${sql}`, error);
-          throw error;
+          throw ErrorFactory.createTryCatchError(`D1 queryOne failed: ${sql}`, error);
         }
       },
 
       async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
-        if (!connected) throw new Error('Database not connected');
+        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
         try {
           const result = await callback(this);
           return result;
         } catch (error) {
-          Logger.error('Transaction failed', error);
-          throw error;
+          throw ErrorFactory.createTryCatchError('Transaction failed', error);
         }
       },
 
@@ -105,16 +105,16 @@ export const D1Adapter = Object.freeze({
       },
       async rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> {
         if (!FeatureFlags.isRawQueryEnabled()) {
-          throw new Error('Raw SQL queries are disabled');
+          throw ErrorFactory.createConfigError('Raw SQL queries are disabled');
         }
 
         if (!connected) {
-          throw new Error('Database not connected');
+          throw ErrorFactory.createConnectionError('Database not connected');
         }
 
         const db = getD1Binding(_config);
         if (db === null) {
-          throw new Error('D1 database binding not found');
+          throw ErrorFactory.createConfigError('D1 database binding not found');
         }
 
         try {
@@ -123,8 +123,7 @@ export const D1Adapter = Object.freeze({
           const result = await stmt.bind(...(parameters ?? [])).all<T>();
           return (result.results as T[]) ?? [];
         } catch (error) {
-          Logger.error(`Raw SQL query failed: ${sql}`, error);
-          throw error;
+          throw ErrorFactory.createTryCatchError(`Raw SQL query failed: ${sql}`, error);
         }
       },
       getPlaceholder(_index: number): string {

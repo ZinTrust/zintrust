@@ -1,3 +1,4 @@
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -19,7 +20,7 @@ export const CommonUtils = Object.freeze({
       if (fs.existsSync(candidate)) return candidate;
     }
 
-    throw new Error(
+    throw ErrorFactory.createGeneralError(
       'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
     );
   },

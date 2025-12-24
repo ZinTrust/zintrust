@@ -6,6 +6,7 @@
 
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
  * Helper to warn about missing secrets
@@ -16,7 +17,7 @@ function warnMissingSecret(secretName: string): string {
 
   const nodeEnv = Env.get('NODE_ENV', 'development');
   if (nodeEnv === 'production') {
-    throw new Error(`Missing required secret: ${secretName}`);
+    throw ErrorFactory.createConfigError(`Missing required secret: ${secretName}`, { secretName });
   }
 
   // In non-production environments, allow the app/CLI to start while still warning loudly.

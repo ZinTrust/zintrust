@@ -5,6 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -46,15 +47,15 @@ export interface ResponseFactoryGeneratorResult {
  */
 export async function validateOptions(options: ResponseFactoryOptions): Promise<void> {
   if (options.factoryName.trim() === '') {
-    throw new Error('Response factory name is required');
+    throw ErrorFactory.createCliError('Response factory name is required');
   }
 
   if (options.responseName.trim() === '') {
-    throw new Error('Response class name is required');
+    throw ErrorFactory.createCliError('Response class name is required');
   }
 
   if (options.factoriesPath === '') {
-    throw new Error('Factories path is required');
+    throw ErrorFactory.createCliError('Factories path is required');
   }
 
   // Verify factory path exists
@@ -64,7 +65,7 @@ export async function validateOptions(options: ResponseFactoryOptions): Promise<
     .catch(() => false);
 
   if (!pathExists) {
-    throw new Error(`Factories directory not found: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(`Factories directory not found: ${options.factoriesPath}`);
   }
 }
 
@@ -99,7 +100,7 @@ export async function generate(
       message: `Response factory '${options.factoryName}' generated successfully`,
     };
   } catch (err) {
-    Logger.error('Response factory generation failed', err);
+    ErrorFactory.createTryCatchError('Response factory generation failed', err);
     const message = err instanceof Error ? err.message : String(err);
     return {
       success: false,
@@ -247,7 +248,7 @@ export default ${factoryName};
  */
 async function generateResponseDTO(options: ResponseFactoryOptions): Promise<string> {
   if (options.responsesPath === undefined) {
-    throw new Error('Responses path is required');
+    throw ErrorFactory.createCliError('Responses path is required');
   }
 
   const dtoPath = path.join(options.responsesPath, `${options.responseName}.ts`);

@@ -6,6 +6,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -41,38 +42,38 @@ export interface SeederGeneratorResult {
  */
 export async function validateOptions(options: SeederOptions): Promise<void> {
   if (options.seederName === undefined || options.seederName.trim() === '') {
-    throw new Error('Seeder name is required');
+    throw ErrorFactory.createCliError('Seeder name is required');
   }
 
   if (!options.seederName.endsWith('Seeder')) {
-    throw new Error('Seeder name must end with "Seeder" (e.g., UserSeeder)');
+    throw ErrorFactory.createCliError('Seeder name must end with "Seeder" (e.g., UserSeeder)');
   }
 
   if (!/^[A-Z][a-zA-Z\d]*Seeder$/.test(options.seederName)) {
-    throw new Error('Seeder name must be PascalCase ending with "Seeder"');
+    throw ErrorFactory.createCliError('Seeder name must be PascalCase ending with "Seeder"');
   }
 
   if (options.modelName === undefined || options.modelName.trim() === '') {
-    throw new Error('Model name is required');
+    throw ErrorFactory.createCliError('Model name is required');
   }
 
   if (!/^[A-Z][a-zA-Z\d]*$/.test(options.modelName)) {
-    throw new Error('Model name must be PascalCase (e.g., User, Post)');
+    throw ErrorFactory.createCliError('Model name must be PascalCase (e.g., User, Post)');
   }
 
   if (options.count !== undefined && (options.count < 1 || options.count > 100000)) {
-    throw new Error('Count must be between 1 and 100000');
+    throw ErrorFactory.createCliError('Count must be between 1 and 100000');
   }
 
   // Verify seeders path exists
   const pathStat = await fs.stat(options.seedersPath).catch(() => null);
 
   if (pathStat === null) {
-    throw new Error(`Seeders path does not exist: ${options.seedersPath}`);
+    throw ErrorFactory.createCliError(`Seeders path does not exist: ${options.seedersPath}`);
   }
 
   if (!pathStat.isDirectory()) {
-    throw new Error(`Seeders path is not a directory: ${options.seedersPath}`);
+    throw ErrorFactory.createCliError(`Seeders path is not a directory: ${options.seedersPath}`);
   }
 }
 

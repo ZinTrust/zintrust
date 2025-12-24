@@ -106,6 +106,7 @@ function buildTestCode(options: ServiceIntegrationTestOptions): string {
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 interface ServiceConfig {
   baseUrl: string;
@@ -216,7 +217,10 @@ export const ServiceClient = {
             headers: Object.fromEntries(response.headers.entries()),
           };
         } catch (error) {
-          throw new Error(\\\`Service call failed: \\\${(error as Error).message}\\\`);
+          throw ErrorFactory.createTryCatchError(
+            \\\`Service call failed: \\\${(error as Error).message}\\\`,
+            error
+          );
         }
       },
 

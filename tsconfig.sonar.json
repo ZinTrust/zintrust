@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "node16",
+    "baseUrl": "."
+  },
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "env.d.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    ".next",
+    ".git",
+    ".vscode",
+    ".github",
+    ".idea",
+    "*.log",
+    ".DS_Store",
+    "wrangler.jsonc",
+    "dev",
+    "tests"
+  ]
+}

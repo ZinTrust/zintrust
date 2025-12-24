@@ -7,6 +7,7 @@
  */
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import type {
   AdapterConfig,
   PlatformRequest,
@@ -36,7 +37,7 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
   startServer(port?: number, host?: string): Promise<void>;
   stop(): Promise<void>;
 } {
-  const logger = config.logger || createDefaultFargateLogger();
+  const logger = config.logger ?? createDefaultFargateLogger();
   const state: FargateAdapterState = {};
 
   return {
@@ -45,17 +46,17 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
     async handle(): Promise<PlatformResponse> {
       // Fargate adapter doesn't handle individual requests
       // Instead, use startServer() to run continuous HTTP server
-      throw new Error(
+      throw ErrorFactory.createConfigError(
         'Fargate adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
       );
     },
 
     parseRequest(): PlatformRequest {
-      throw new Error('Fargate adapter uses native Node.js HTTP server');
+      throw ErrorFactory.createConfigError('Fargate adapter uses native Node.js HTTP server');
     },
 
     formatResponse(): unknown {
-      throw new Error('Fargate adapter uses native Node.js HTTP server');
+      throw ErrorFactory.createConfigError('Fargate adapter uses native Node.js HTTP server');
     },
 
     async startServer(port: number = 3000, host: string = '0.0.0.0'): Promise<void> {
@@ -111,7 +112,7 @@ export async function startFargateServer(
   host: string,
   serverFactory: NodeServerFactory = createServer
 ): Promise<void> {
-  return await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     state.server = serverFactory((req: IncomingMessage, res: ServerResponse) => {
       void handleFargateRequest(config, logger, req, res);
     });
@@ -154,7 +155,7 @@ export async function stopFargateServer(
  * Exported for unit testing.
  */
 export async function readIncomingMessageBody(req: IncomingMessage): Promise<Buffer | null> {
-  return await new Promise<Buffer | null>((resolve, reject) => {
+  return new Promise<Buffer | null>((resolve, reject) => {
     const chunks: Buffer[] = [];
 
     req.on('data', (chunk: Buffer) => {
@@ -206,8 +207,8 @@ export async function handleFargateRequest(
  */
 export function normalizeError(error: unknown): Error {
   if (error instanceof Error) return error;
-  if (typeof error === 'string') return new Error(error);
-  return new Error('Unknown error');
+  if (typeof error === 'string') return ErrorFactory.createGeneralError(error);
+  return ErrorFactory.createGeneralError('Unknown error', error);
 }
 
 export function createDefaultFargateLogger(): AdapterConfig['logger'] {

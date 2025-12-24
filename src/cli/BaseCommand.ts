@@ -4,7 +4,7 @@
  */
 
 import { ErrorHandler } from '@cli/ErrorHandler';
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 
 export interface CommandOptions {
@@ -14,12 +14,13 @@ export interface CommandOptions {
 }
 
 export interface IBaseCommand {
+  [x: string]: unknown;
   name: string;
   description: string;
   verbose?: boolean;
   getCommand(): Command;
   addOptions?: (command: Command) => void;
-  execute(options: CommandOptions): Promise<void>;
+  execute(options: CommandOptions): void;
   info(message: string): void;
   success(message: string): void;
   warn(message: string): void;
@@ -38,7 +39,7 @@ export const BaseCommand = Object.freeze({
     name: string;
     description: string;
     addOptions?: (command: Command) => void;
-    execute: (options: CommandOptions) => Promise<void>;
+    execute: (options: CommandOptions) => void | Promise<void>;
   }): IBaseCommand {
     const getCommand = (): Command => {
       const command = new Command(config.name);
@@ -58,9 +59,15 @@ export const BaseCommand = Object.freeze({
 
         try {
           await config.execute(options);
-        } catch (error) {
-          Logger.error('Command execution failed', error);
-          ErrorHandler.handle(error as Error);
+        } catch (error: unknown) {
+          if (error instanceof Error) {
+            ErrorFactory.createTryCatchError('Command execution failed', error);
+            ErrorHandler.handle(error, undefined, false);
+            return;
+          }
+
+          const wrapped = ErrorFactory.createTryCatchError('Command execution failed', error);
+          ErrorHandler.handle(wrapped, undefined, false);
         }
       });
 
@@ -73,7 +80,7 @@ export const BaseCommand = Object.freeze({
       verbose: false,
       addOptions: config.addOptions,
       getCommand,
-      execute: config.execute,
+      execute: config.execute as (options: CommandOptions) => void,
       info: (msg: string) => ErrorHandler.info(msg),
       success: (msg: string) => ErrorHandler.success(msg),
       warn: (msg: string) => ErrorHandler.warn(msg),

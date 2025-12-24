@@ -11,6 +11,7 @@ import {
   setConfigValue,
 } from '@cli/config/ConfigSchema';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -70,7 +71,7 @@ async function loadConfig(state: ConfigState): Promise<ProjectConfig> {
       state.config = structuredClone(DEFAULT_CONFIG);
       return state.config;
     }
-    Logger.error(`Failed to load config: ${(err as Error).message}`);
+    ErrorFactory.createCliError(`Failed to load config: ${(err as Error).message}`);
     throw err;
   }
 }
@@ -79,9 +80,9 @@ async function loadConfig(state: ConfigState): Promise<ProjectConfig> {
  * Save configuration to file
  */
 async function saveConfig(state: ConfigState, newConfig?: ProjectConfig): Promise<void> {
-  const toSave = newConfig || state.config;
+  const toSave = newConfig ?? state.config;
   if (!toSave) {
-    throw new Error('No configuration to save');
+    throw ErrorFactory.createConfigError('No configuration to save');
   }
 
   try {
@@ -96,7 +97,7 @@ async function saveConfig(state: ConfigState, newConfig?: ProjectConfig): Promis
     state.config = toSave;
     Logger.debug(`Config saved to ${state.configPath}`);
   } catch (err) {
-    Logger.error(`Failed to save config: ${(err as Error).message}`);
+    ErrorFactory.createCliError(`Failed to save config: ${(err as Error).message}`);
     throw err;
   }
 }
@@ -117,7 +118,7 @@ async function configExists(configPath: string): Promise<boolean> {
     await fs.access(configPath);
     return true;
   } catch (error) {
-    Logger.error('Config file access check failed', error);
+    ErrorFactory.createCliError('Config file access check failed', error);
     return false;
   }
 }
@@ -156,8 +157,8 @@ export const ConfigManager = Object.freeze({
     };
 
     return {
-      load: () => loadConfig(state),
-      save: (newConfig?: ProjectConfig) => saveConfig(state, newConfig),
+      load: async () => loadConfig(state),
+      save: async (newConfig?: ProjectConfig) => saveConfig(state, newConfig),
       getConfig: () => getConfig(state),
       get(key: string): unknown {
         return getConfigValue(getConfig(state) as Record<string, unknown>, key);
@@ -165,7 +166,7 @@ export const ConfigManager = Object.freeze({
       set(key: string, value: unknown): void {
         setConfigValue(getConfig(state) as Record<string, unknown>, key, value);
       },
-      exists: () => configExists(configPath),
+      exists: async () => configExists(configPath),
       async create(initialConfig?: Partial<ProjectConfig>): Promise<void> {
         const newConfig = { ...DEFAULT_CONFIG, ...initialConfig };
         await saveConfig(state, newConfig as ProjectConfig);
@@ -193,7 +194,7 @@ export const ConfigManager = Object.freeze({
     try {
       await fs.mkdir(ConfigPaths.GLOBAL_DIR, { recursive: true });
     } catch (err) {
-      Logger.error('Could not create global config dir', err);
+      ErrorFactory.createCliError('Could not create global config dir', err);
       Logger.debug(`Could not create global config dir: ${(err as Error).message}`);
     }
   },

@@ -6,6 +6,7 @@
 import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -262,7 +263,7 @@ const runNpmScript = (name: string, script: string, result: QAResult): boolean =
   } catch (error) {
     result.status = 'failed';
     result.output = errorToMessage(error);
-    Logger.error(`${name} failed`, error);
+    ErrorFactory.createTryCatchError(`${name} failed`, error);
     Logger.warn(`${name} failed`);
     return false;
   }
@@ -442,32 +443,32 @@ const openInBrowser = (filePath: string): void => {
 
     Logger.info(`Opened: ${filePath}`);
   } catch (error) {
-    Logger.error('Could not open browser', error);
+    ErrorFactory.createTryCatchError('Could not open browser', error);
   }
 };
 
 interface IQACommand extends IBaseCommand {
   addOptions(command: Command): void;
-  runLint(result: QAResult): Promise<void>;
-  runTypeCheck(result: QAResult): Promise<void>;
-  runTests(result: QAResult): Promise<void>;
-  runSonar(result: QAResult, options: CommandOptions): Promise<void>;
+  runLint(result: QAResult): void;
+  runTypeCheck(result: QAResult): void;
+  runTests(result: QAResult): void;
+  runSonar(result: QAResult, options: CommandOptions): void;
   generateReport(results: QAResults): Promise<void>;
 }
 
-const runLint = async (result: QAResult): Promise<void> => {
+const runLint = (result: QAResult): void => {
   runNpmScript('Lint', 'lint', result);
 };
 
-const runTypeCheck = async (result: QAResult): Promise<void> => {
+const runTypeCheck = (result: QAResult): void => {
   runNpmScript('Type Check', 'type-check', result);
 };
 
-const runTests = async (result: QAResult): Promise<void> => {
+const runTests = (result: QAResult): void => {
   runNpmScript('Tests', 'test:coverage', result);
 };
 
-const runSonar = async (result: QAResult, options: CommandOptions): Promise<void> => {
+const runSonar = (result: QAResult, options: CommandOptions): void => {
   runSonarIfEnabled(result, options);
 };
 
@@ -485,7 +486,7 @@ const generateReport = async (results: QAResults): Promise<void> => {
     await fs.writeFile(reportCssPath, QA_REPORT_CSS);
     Logger.info(`QA report generated: ${reportPath}`);
   } catch (error) {
-    Logger.error('Failed to generate QA report', error);
+    ErrorFactory.createTryCatchError('Failed to generate QA report', error);
   }
 };
 
@@ -501,7 +502,7 @@ const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void>
     qa.info('Generating test coverage report...');
     await qa.runTests(results.tests);
 
-    await qa.runSonar(results.sonar, options);
+    qa.runSonar(results.sonar, options);
 
     // Always generate report to show QA suite results
     await qa.generateReport(results);
@@ -521,7 +522,7 @@ const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void>
       }
     }
   } catch (error) {
-    Logger.error('QA Suite execution failed', error);
+    ErrorFactory.createTryCatchError('QA Suite execution failed', error);
     qa.debug(error);
     throw error;
   }
@@ -541,7 +542,7 @@ export const QACommand = (): IQACommand => {
     name: 'qa',
     description: 'Run full Quality Assurance suite',
     addOptions,
-    execute: (options) => executeQA(qa, options),
+    execute: async (options) => executeQA(qa, options),
   });
 
   const qa: IQACommand = {
@@ -552,7 +553,7 @@ export const QACommand = (): IQACommand => {
     runTests,
     runSonar,
     generateReport,
-    execute: (options) => executeQA(qa, options),
+    execute: async (options) => executeQA(qa, options),
   };
 
   return qa;

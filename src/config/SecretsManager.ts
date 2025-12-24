@@ -5,6 +5,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export interface CloudflareKV {
   get(key: string): Promise<string | null>;
@@ -97,10 +98,10 @@ async function runSetSecret(
       await setInCloudflareKV(config, key, value, options);
       break;
     case 'deno':
-      throw new Error('Cannot set secrets in Deno environment');
+      throw ErrorFactory.createConfigError('Cannot set secrets in Deno environment');
     case 'local':
     default:
-      throw new Error('Cannot set secrets in local environment');
+      throw ErrorFactory.createConfigError('Cannot set secrets in local environment');
   }
 
   // Invalidate cache
@@ -125,7 +126,7 @@ async function runDeleteSecret(
     case 'deno':
     case 'local':
     default:
-      throw new Error('Cannot delete secrets in this environment');
+      throw ErrorFactory.createConfigError('Cannot delete secrets in this environment');
   }
 
   // Invalidate cache
@@ -171,9 +172,9 @@ const SecretsManagerImpl = {
       async rotateSecret(_key: string): Promise<void> {
         if (config.platform === 'aws') {
           // AWS Secrets Manager supports automatic rotation
-          throw new Error('Secret rotation not implemented');
+          throw ErrorFactory.createConfigError('Secret rotation not implemented');
         }
-        throw new Error('Secret rotation not supported on this platform');
+        throw ErrorFactory.createConfigError('Secret rotation not supported on this platform');
       },
 
       /**
@@ -212,10 +213,12 @@ const SecretsManagerImpl = {
 async function getFromAWSSecretsManager(key: string): Promise<string> {
   try {
     Logger.debug(`[AWS] Getting secret: ${key}`);
-    throw new Error('AWS SDK not available in core - use wrapper module');
+    throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
   } catch (error) {
-    Logger.error(`Failed to retrieve secret from AWS:`, error as Error);
-    throw new Error(`Failed to retrieve secret from AWS: ${(error as Error).message}`);
+    throw ErrorFactory.createTryCatchError(
+      `Failed to retrieve secret from AWS: ${(error as Error).message}`,
+      error
+    );
   }
 }
 
@@ -225,12 +228,12 @@ async function setInAWSSecretsManager(
   _options?: SetSecretOptions
 ): Promise<void> {
   Logger.info(`[AWS] Setting secret: ${key}`);
-  throw new Error('AWS SDK not available in core - use wrapper module');
+  throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
 }
 
 async function deleteFromAWSSecretsManager(key: string): Promise<void> {
   Logger.info(`[AWS] Deleting secret: ${key}`);
-  throw new Error('AWS SDK not available in core - use wrapper module');
+  throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
 }
 
 async function listFromAWSSecretsManager(pattern?: string): Promise<string[]> {
@@ -243,11 +246,11 @@ async function listFromAWSSecretsManager(pattern?: string): Promise<string[]> {
  */
 async function getFromCloudflareKV(config: SecretConfig, key: string): Promise<string> {
   if (config.kv === undefined) {
-    throw new Error('Cloudflare KV namespace not configured');
+    throw ErrorFactory.createConfigError('Cloudflare KV namespace not configured');
   }
   const value = await config.kv.get(key);
   if (value === null || value === '') {
-    throw new Error(`Secret not found: ${key}`);
+    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
   }
   return value;
 }
@@ -259,7 +262,7 @@ async function setInCloudflareKV(
   options?: SetSecretOptions
 ): Promise<void> {
   if (config.kv === undefined) {
-    throw new Error('Cloudflare KV namespace not configured');
+    throw ErrorFactory.createConfigError('Cloudflare KV namespace not configured');
   }
   const ttl = options?.expirationTtl;
   await config.kv.put(key, value, { expirationTtl: ttl });
@@ -267,14 +270,14 @@ async function setInCloudflareKV(
 
 async function deleteFromCloudflareKV(config: SecretConfig, key: string): Promise<void> {
   if (config.kv === undefined) {
-    throw new Error('Cloudflare KV namespace not configured');
+    throw ErrorFactory.createConfigError('Cloudflare KV namespace not configured');
   }
   await config.kv.delete(key);
 }
 
 async function listFromCloudflareKV(config: SecretConfig, pattern?: string): Promise<string[]> {
   if (config.kv === undefined) {
-    throw new Error('Cloudflare KV namespace not configured');
+    throw ErrorFactory.createConfigError('Cloudflare KV namespace not configured');
   }
   const result = await config.kv.list({ prefix: pattern });
   return result.keys.map((k: { name: string }) => k.name);
@@ -288,7 +291,7 @@ async function getFromDenoEnv(key: string): Promise<string> {
     globalThis as unknown as Record<string, { env?: { get?: (key: string) => string } }>
   )['Deno']?.env?.get?.(key);
   if (value === undefined || value === null || value === '') {
-    throw new Error(`Secret not found: ${key}`);
+    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
   }
   return value;
 }
@@ -299,7 +302,7 @@ async function getFromDenoEnv(key: string): Promise<string> {
 async function getFromEnv(key: string): Promise<string> {
   const value = process.env[key];
   if (value === undefined || value === null || value === '') {
-    throw new Error(`Secret not found: ${key}`);
+    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
   }
   return value;
 }
@@ -317,7 +320,9 @@ export const SecretsManager = Object.freeze({
       instance = SecretsManagerImpl.create(config);
     }
     if (instance === undefined) {
-      throw new Error('SecretsManager not initialized. Call getInstance(config) first.');
+      throw ErrorFactory.createConfigError(
+        'SecretsManager not initialized. Call getInstance(config) first.'
+      );
     }
     return instance;
   },

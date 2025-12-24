@@ -8,11 +8,14 @@ import { ConfigCommand } from '@cli/commands/ConfigCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
+import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
+import { PluginCommand } from '@cli/commands/PluginCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -41,7 +44,7 @@ const loadVersion = (): string => {
     };
     return typeof packageJson.version === 'string' ? packageJson.version : '1.0.0';
   } catch (error) {
-    Logger.error('Failed to load version from package.json', error);
+    ErrorFactory.createCliError('Failed to load version from package.json', error);
     // Use default version if package.json not found
     return '1.0.0';
   }
@@ -73,8 +76,10 @@ const registerCommands = (program: Command): void => {
     D1MigrateCommand.create(),
     DebugCommand.create(),
     ConfigCommand.create(),
+    PluginCommand.create(),
     QACommand(),
     FixCommand.create(),
+    KeyGenerateCommand.create(),
   ];
 
   for (const command of commands) {
@@ -133,7 +138,7 @@ const getExitCode = (error: unknown): number => {
 /**
  * Handle CLI execution error
  */
-const handleExecutionError = (error: unknown, version: string): void => {
+const handleExecutionError = (error: unknown, version: string, log: boolean = true): void => {
   if (isIgnorableCommanderError(error)) {
     return;
   }
@@ -142,11 +147,10 @@ const handleExecutionError = (error: unknown, version: string): void => {
     return;
   }
 
-  Logger.error('CLI execution failed', error);
   if (error instanceof Error) {
-    ErrorHandler.handle(error);
+    ErrorHandler.handle(error, undefined, log);
   }
-  throw error;
+  throw ErrorFactory.createCliError('Unhandled CLI execution error', error);
 };
 
 /**
@@ -179,15 +183,15 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
     ) {
       const exitCode = getExitCode(error);
       if (exitCode !== 0) {
-        Logger.error('CLI execution failed', error);
+        ErrorFactory.createCliError('CLI execution failed', error);
         process.exit(exitCode);
       }
       return;
     }
 
     // Handle all other errors with proper logging
-    Logger.error('CLI execution failed', error);
-    handleExecutionError(error, version);
+    ErrorFactory.createCliError('CLI execution failed', error);
+    handleExecutionError(error, version, false);
   }
 };
 

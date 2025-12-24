@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -272,11 +273,7 @@ export const LazyLoader = Object.freeze({
           modules.set(modulePath, module);
           return module as T;
         } catch (err) {
-          Logger.error(
-            `Failed to load module: ${modulePath}`,
-            err instanceof Error ? err : new Error(String(err))
-          );
-          throw new Error(`Failed to load module: ${modulePath}`);
+          throw ErrorFactory.createTryCatchError(`Failed to load module: ${modulePath}`, err);
         }
       },
 
@@ -284,7 +281,7 @@ export const LazyLoader = Object.freeze({
        * Preload modules
        */
       async preload(modulePaths: string[]): Promise<void> {
-        await Promise.all(modulePaths.map((path) => this.load(path)));
+        await Promise.all(modulePaths.map(async (path) => this.load(path)));
       },
 
       /**
@@ -312,7 +309,7 @@ export async function runBatch<T>(
 
   for (let i = 0; i < generators.length; i += batchSize) {
     const batch = generators.slice(i, i + batchSize);
-    const batchResults = await Promise.all(batch.map((gen) => gen()));
+    const batchResults = await Promise.all(batch.map(async (gen) => gen()));
     results.push(...batchResults);
   }
 
@@ -323,7 +320,7 @@ export async function runBatch<T>(
  * Run all generators in parallel
  */
 export async function runAll<T>(generators: Array<() => Promise<T>>): Promise<T[]> {
-  return Promise.all(generators.map((gen) => gen()));
+  return Promise.all(generators.map(async (gen) => gen()));
 }
 
 export const ParallelGenerator = Object.freeze({

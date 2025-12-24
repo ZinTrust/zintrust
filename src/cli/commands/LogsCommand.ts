@@ -6,6 +6,7 @@
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger as FileLogger, LogEntry, LogLevel, LoggerInstance } from '@cli/logger/Logger';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import fs from 'node:fs';
@@ -62,7 +63,7 @@ const printLogEntry = (log: LogEntry): void => {
 const parseLogEntry = (loggerInstance: LoggerInstance, line: string): LogEntry => {
   const maybe = loggerInstance as unknown as { parseLogEntry?: (l: string) => LogEntry };
   if (typeof maybe.parseLogEntry !== 'function') {
-    throw new TypeError('LoggerInstance does not support parseLogEntry');
+    throw ErrorFactory.createGeneralError('LoggerInstance does not support parseLogEntry');
   }
   return maybe.parseLogEntry(line);
 };
@@ -75,7 +76,7 @@ const processLogChunk = (chunk: string | Buffer, loggerInstance: LoggerInstance)
       const entry = parseLogEntry(loggerInstance, line);
       printLogEntry(entry);
     } catch (error) {
-      Logger.error('Failed to process log line', error);
+      ErrorFactory.createTryCatchError('Failed to process log line', error);
     }
   }
 };
@@ -165,7 +166,7 @@ const clearLogs = (loggerInstance: LoggerInstance, category: string): void => {
   }
 };
 
-const executeLogs = async (options: CommandOptions): Promise<void> => {
+const executeLogs = (options: CommandOptions): void => {
   const normalized = normalizeLogsOptions(options);
   const loggerInstance = FileLogger.getInstance();
 
@@ -204,7 +205,7 @@ export const LogsCommand = Object.freeze({
       name: 'logs',
       description: 'View and manage application logs',
       addOptions,
-      execute: async (options: CommandOptions): Promise<void> => executeLogs(options),
+      execute: (options: CommandOptions): void => executeLogs(options),
     });
 
     return cmd;
@@ -224,8 +225,8 @@ export const LogsCommand = Object.freeze({
       .option('-n, --lines <number>', 'Number of lines to show', '50')
       .option('--category <category>', 'Log category (app, cli, errors, migrations, debug)', 'app');
 
-    cmd.action(async (options: unknown) => {
-      await executeLogs(options as CommandOptions);
+    cmd.action((options: unknown) => {
+      executeLogs(options as CommandOptions);
     });
   },
 });

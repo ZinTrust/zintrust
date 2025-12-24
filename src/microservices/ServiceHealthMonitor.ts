@@ -208,7 +208,7 @@ export const ServiceHealthMonitor = Object.freeze({
     healthCheckUrls: Record<string, string>, // serviceName -> healthCheckUrl
     intervalMs: number = 30000 // Check every 30 seconds
   ): IServiceHealthMonitor {
-    let checkIntervalId: NodeJS.Timeout | undefined;
+    let checkIntervalId: ReturnType<typeof setInterval> | undefined;
     const lastResults: Map<string, HealthCheckResult> = new Map();
 
     return createMonitorObject(
@@ -230,15 +230,15 @@ function createMonitorObject(
   healthCheckUrls: Record<string, string>,
   intervalMs: number,
   lastResults: Map<string, HealthCheckResult>,
-  getIntervalId: () => NodeJS.Timeout | undefined,
-  setIntervalId: (id: NodeJS.Timeout | undefined) => void
+  getIntervalId: () => ReturnType<typeof setInterval> | undefined,
+  setIntervalId: (id: ReturnType<typeof setInterval> | undefined) => void
 ): IServiceHealthMonitor {
   const self: IServiceHealthMonitor = {
     /**
      * Start continuous health monitoring
      */
     start(): void {
-      startMonitoring(intervalMs, () => self.checkAll(), getIntervalId, setIntervalId);
+      startMonitoring(intervalMs, async () => self.checkAll(), getIntervalId, setIntervalId);
     },
 
     /**
@@ -298,8 +298,8 @@ function createMonitorObject(
 function startMonitoring(
   intervalMs: number,
   checkAll: () => Promise<AggregatedHealthStatus>,
-  getIntervalId: () => NodeJS.Timeout | undefined,
-  setIntervalId: (id: NodeJS.Timeout | undefined) => void
+  getIntervalId: () => ReturnType<typeof setInterval> | undefined,
+  setIntervalId: (id: ReturnType<typeof setInterval> | undefined) => void
 ): void {
   if (getIntervalId() !== undefined) {
     Logger.warn('Health monitoring already started');
@@ -307,20 +307,46 @@ function startMonitoring(
   }
 
   Logger.info('🏥 Starting service health monitoring');
-  checkAll(); // Initial check
+
+  let inFlight = false;
+  const safeCheckAll = async (): Promise<void> => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      await checkAll();
+    } catch (err) {
+      Logger.error('Service health monitoring tick failed:', err);
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  void safeCheckAll(); // Initial check
 
   const id = setInterval(() => {
-    checkAll();
+    void safeCheckAll();
   }, intervalMs);
+
+  // Node: allow process to exit; other runtimes may not support unref()
+  if (isUnrefableTimer(id)) {
+    id.unref();
+  }
   setIntervalId(id);
+}
+
+type UnrefableTimer = { unref: () => void };
+
+function isUnrefableTimer(value: unknown): value is UnrefableTimer {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
 }
 
 /**
  * Stop monitoring logic
  */
 function stopMonitoring(
-  getIntervalId: () => NodeJS.Timeout | undefined,
-  setIntervalId: (id: NodeJS.Timeout | undefined) => void
+  getIntervalId: () => ReturnType<typeof setInterval> | undefined,
+  setIntervalId: (id: ReturnType<typeof setInterval> | undefined) => void
 ): void {
   const id = getIntervalId();
   if (id !== undefined) {
@@ -458,7 +484,7 @@ async function runAllChecks(
   healthCheckUrls: Record<string, string>,
   lastResults: Map<string, HealthCheckResult>
 ): Promise<AggregatedHealthStatus> {
-  const checks = Object.entries(healthCheckUrls).map(([serviceName, url]) =>
+  const checks = Object.entries(healthCheckUrls).map(async ([serviceName, url]) =>
     checkService(serviceName, url)
   );
 

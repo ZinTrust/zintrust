@@ -25,6 +25,8 @@
       "@deployment/*": ["./src/deployment/*"],
       "@cache/*": ["./src/cache/*"],
       "@config/*": ["./src/config/*"],
+      "@common/*": ["./src/common/*"],
+      "@exceptions/*": ["./src/exceptions/*"],
       "@functions/*": ["./src/functions/*"],
       "@services/*": ["./src/services/*"],
       "@app/*": ["./app/*"],

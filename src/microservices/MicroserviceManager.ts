@@ -6,6 +6,7 @@
 import { Env } from '@/config/env';
 import { Logger } from '@/config/logger';
 import { validateUrl } from '@/security/UrlValidator';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export interface MicroserviceConfig {
   name: string;
@@ -175,7 +176,7 @@ const registerService = (config: MicroserviceConfig): MicroserviceConfig => {
 const startService = async (name: string, _handler?: unknown): Promise<boolean> => {
   const service = services.get(name);
   if (service === undefined) {
-    throw new Error('Service not found');
+    throw ErrorFactory.createNotFoundError('Service not found', { name });
   }
 
   service.status = 'running';
@@ -224,11 +225,14 @@ const callService = async (
 ): Promise<unknown> => {
   const service = services.get(name);
   if (service === undefined) {
-    throw new Error('Service not found');
+    throw ErrorFactory.createNotFoundError('Service not found', { name });
   }
 
   if (service.status !== 'running') {
-    throw new Error('Service not running');
+    throw ErrorFactory.createConnectionError('Service not running', {
+      name,
+      status: service.status,
+    });
   }
 
   const callOptions = toCallOptions(pathOrOptions, options);
@@ -243,6 +247,7 @@ const callService = async (
   const timeoutMs = callOptions.timeout;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   if (typeof timeoutMs === 'number') {
+    // eslint-disable-next-line no-restricted-syntax
     timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   }
 
@@ -265,8 +270,10 @@ const callService = async (
       data,
     };
   } catch (error) {
-    Logger.error('Failed to call service', error as Error);
-    throw new Error('Failed to call service');
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+    throw ErrorFactory.createTryCatchError('Failed to call service', error);
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);

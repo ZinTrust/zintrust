@@ -1,12 +1,71 @@
 import { QACommand } from '@/cli/commands/QACommand';
-import { Logger } from '@/config/logger';
+import { Logger } from '@config/logger';
 import * as child_process from 'node:child_process';
 import * as fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:child_process');
 vi.mock('node:fs');
-vi.mock('@/config/logger');
+vi.mock('@config/logger', () => ({
+  Logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+const throwSonarFailed = (): never => {
+  throw new Error('Sonar failed');
+};
+
+type QAStatus = 'pending' | 'passed' | 'failed' | 'skipped';
+type QAResultLike = { status: QAStatus; output?: string };
+
+const setStatus =
+  (status: QAStatus) =>
+  (result: QAResultLike): void => {
+    result.status = status;
+  };
+
+const setStatusAndOutput =
+  (status: QAStatus, output: string) =>
+  (result: QAResultLike): void => {
+    result.status = status;
+    result.output = output;
+  };
+
+const throwError = (error: Error) => (): never => {
+  throw error;
+};
+
+const throwLintFailed = (): never => {
+  throw new Error('Lint failed');
+};
+
+const throwTypeCheckFailed = (): never => {
+  throw new Error('Type check failed');
+};
+
+const throwTypeCheckError = (): never => {
+  throw new Error('Type check error');
+};
+
+const throwTestsFailed = (): never => {
+  throw new Error('Tests failed');
+};
+
+const throwTestError = (): never => {
+  throw new Error('Test error');
+};
+
+const throwReportGenerationFailed = (): never => {
+  throw new Error('Report generation failed');
+};
+
+const pushOrder = (order: string[], step: string) => (): void => {
+  order.push(step);
+};
 
 describe('QACommand', () => {
   let command: any;
@@ -55,9 +114,7 @@ describe('QACommand', () => {
       const result = { status: 'pending', output: '' } as any;
       const options = { sonar: true };
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw new Error('Sonar failed');
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwSonarFailed);
 
       await command.runSonar(result, options);
 
@@ -85,15 +142,9 @@ describe('QACommand', () => {
     it('should run lint first', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn().mockImplementation(() => {
-        executionOrder.push('lint');
-      });
-      command.runTypeCheck = vi.fn().mockImplementation(() => {
-        executionOrder.push('typeCheck');
-      });
-      command.runTests = vi.fn().mockImplementation(() => {
-        executionOrder.push('tests');
-      });
+      command.runLint = vi.fn(() => executionOrder.push('lint'));
+      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
+      command.runTests = vi.fn(() => executionOrder.push('tests'));
       command.runSonar = vi.fn().mockResolvedValue(undefined);
       command.generateReport = vi.fn();
       command.info = vi.fn();
@@ -107,15 +158,9 @@ describe('QACommand', () => {
     it('should run type check after lint', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn().mockImplementation(() => {
-        executionOrder.push('lint');
-      });
-      command.runTypeCheck = vi.fn().mockImplementation(() => {
-        executionOrder.push('typeCheck');
-      });
-      command.runTests = vi.fn().mockImplementation(() => {
-        executionOrder.push('tests');
-      });
+      command.runLint = vi.fn(() => executionOrder.push('lint'));
+      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
+      command.runTests = vi.fn(() => executionOrder.push('tests'));
       command.runSonar = vi.fn().mockResolvedValue(undefined);
       command.generateReport = vi.fn();
       command.info = vi.fn();
@@ -129,15 +174,9 @@ describe('QACommand', () => {
     it('should run tests after type check', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn().mockImplementation(() => {
-        executionOrder.push('lint');
-      });
-      command.runTypeCheck = vi.fn().mockImplementation(() => {
-        executionOrder.push('typeCheck');
-      });
-      command.runTests = vi.fn().mockImplementation(() => {
-        executionOrder.push('tests');
-      });
+      command.runLint = vi.fn(() => executionOrder.push('lint'));
+      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
+      command.runTests = vi.fn(() => executionOrder.push('tests'));
       command.runSonar = vi.fn().mockResolvedValue(undefined);
       command.generateReport = vi.fn();
       command.info = vi.fn();
@@ -151,18 +190,10 @@ describe('QACommand', () => {
     it('should run sonar after tests', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn().mockImplementation(() => {
-        executionOrder.push('lint');
-      });
-      command.runTypeCheck = vi.fn().mockImplementation(() => {
-        executionOrder.push('typeCheck');
-      });
-      command.runTests = vi.fn().mockImplementation(() => {
-        executionOrder.push('tests');
-      });
-      command.runSonar = vi.fn().mockImplementation(() => {
-        executionOrder.push('sonar');
-      });
+      command.runLint = vi.fn(() => executionOrder.push('lint'));
+      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
+      command.runTests = vi.fn(() => executionOrder.push('tests'));
+      command.runSonar = vi.fn(() => executionOrder.push('sonar'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
 
@@ -202,18 +233,10 @@ describe('QACommand', () => {
     });
 
     it('should mark all checks as passed when successful', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runTests = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runSonar = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatus('passed'));
+      command.runTypeCheck = vi.fn().mockImplementation(setStatus('passed'));
+      command.runTests = vi.fn().mockImplementation(setStatus('passed'));
+      command.runSonar = vi.fn().mockImplementation(setStatus('passed'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
 
@@ -224,9 +247,7 @@ describe('QACommand', () => {
     });
 
     it('should handle failures gracefully', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'failed';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatus('failed'));
       command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
       command.runTests = vi.fn().mockResolvedValue(undefined);
       command.runSonar = vi.fn().mockResolvedValue(undefined);
@@ -283,22 +304,12 @@ describe('QACommand', () => {
     });
 
     it('should update result objects during execution', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-        result.output = 'Lint passed';
-      });
-      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-        result.output = 'Type check passed';
-      });
-      command.runTests = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-        result.output = 'Tests passed';
-      });
-      command.runSonar = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-        result.output = 'Sonar passed';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatusAndOutput('passed', 'Lint passed'));
+      command.runTypeCheck = vi
+        .fn()
+        .mockImplementation(setStatusAndOutput('passed', 'Type check passed'));
+      command.runTests = vi.fn().mockImplementation(setStatusAndOutput('passed', 'Tests passed'));
+      command.runSonar = vi.fn().mockImplementation(setStatusAndOutput('passed', 'Sonar passed'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
 
@@ -380,9 +391,7 @@ describe('QACommand', () => {
     it('should mark lint as failed on error', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw new Error('Lint failed');
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwLintFailed);
 
       await command.runLint(result);
 
@@ -393,9 +402,7 @@ describe('QACommand', () => {
       const result = { status: 'pending', output: '' } as any;
       const error = new Error('Linting error');
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw error;
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwError(error));
 
       await command.runLint(result);
 
@@ -417,9 +424,7 @@ describe('QACommand', () => {
     it('should mark type check as failed on error', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw new Error('Type check failed');
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwTypeCheckFailed);
 
       await command.runTypeCheck(result);
 
@@ -429,9 +434,7 @@ describe('QACommand', () => {
     it('should log errors during type check', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw new Error('Type check error');
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwTypeCheckError);
 
       await command.runTypeCheck(result);
 
@@ -453,9 +456,7 @@ describe('QACommand', () => {
     it('should mark tests as failed on error', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw new Error('Tests failed');
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwTestsFailed);
 
       await command.runTests(result);
 
@@ -465,9 +466,7 @@ describe('QACommand', () => {
     it('should log errors during tests', async () => {
       const result = { status: 'pending', output: '' } as any;
 
-      vi.mocked(child_process.execFileSync).mockImplementation(() => {
-        throw new Error('Test error');
-      });
+      vi.mocked(child_process.execFileSync).mockImplementation(throwTestError);
 
       await command.runTests(result);
 
@@ -510,9 +509,7 @@ describe('QACommand', () => {
       command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
       command.runTests = vi.fn().mockResolvedValue(undefined);
       command.runSonar = vi.fn().mockResolvedValue(undefined);
-      command.generateReport = vi.fn().mockImplementation(() => {
-        throw new Error('Report generation failed');
-      });
+      command.generateReport = vi.fn().mockImplementation(throwReportGenerationFailed);
       command.info = vi.fn();
       command.success = vi.fn();
 
@@ -528,18 +525,10 @@ describe('QACommand', () => {
 
   describe('Success and Failure Messages', () => {
     it('should show success message when all checks pass', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runTests = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runSonar = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatus('passed'));
+      command.runTypeCheck = vi.fn().mockImplementation(setStatus('passed'));
+      command.runTests = vi.fn().mockImplementation(setStatus('passed'));
+      command.runSonar = vi.fn().mockImplementation(setStatus('passed'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
       command.success = vi.fn();
@@ -551,18 +540,10 @@ describe('QACommand', () => {
     });
 
     it('should show warning when some checks fail', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'failed';
-      });
-      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runTests = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runSonar = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatus('failed'));
+      command.runTypeCheck = vi.fn().mockImplementation(setStatus('passed'));
+      command.runTests = vi.fn().mockImplementation(setStatus('passed'));
+      command.runSonar = vi.fn().mockImplementation(setStatus('passed'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
       command.success = vi.fn();
@@ -574,18 +555,10 @@ describe('QACommand', () => {
     });
 
     it('should show success when some checks are skipped but all pass or skip', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runTypeCheck = vi.fn().mockImplementation((result: any) => {
-        result.status = 'skipped';
-      });
-      command.runTests = vi.fn().mockImplementation((result: any) => {
-        result.status = 'passed';
-      });
-      command.runSonar = vi.fn().mockImplementation((result: any) => {
-        result.status = 'skipped';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatus('passed'));
+      command.runTypeCheck = vi.fn().mockImplementation(setStatus('skipped'));
+      command.runTests = vi.fn().mockImplementation(setStatus('passed'));
+      command.runSonar = vi.fn().mockImplementation(setStatus('skipped'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
       command.success = vi.fn();
@@ -704,18 +677,10 @@ describe('QACommand', () => {
     it('should run all steps in correct order', async () => {
       const order: string[] = [];
 
-      command.runLint = vi.fn().mockImplementation(() => {
-        order.push('lint');
-      });
-      command.runTypeCheck = vi.fn().mockImplementation(() => {
-        order.push('typeCheck');
-      });
-      command.runTests = vi.fn().mockImplementation(() => {
-        order.push('tests');
-      });
-      command.runSonar = vi.fn().mockImplementation(() => {
-        order.push('sonar');
-      });
+      command.runLint = vi.fn().mockImplementation(pushOrder(order, 'lint'));
+      command.runTypeCheck = vi.fn().mockImplementation(pushOrder(order, 'typeCheck'));
+      command.runTests = vi.fn().mockImplementation(pushOrder(order, 'tests'));
+      command.runSonar = vi.fn().mockImplementation(pushOrder(order, 'sonar'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
       command.success = vi.fn();
@@ -726,9 +691,7 @@ describe('QACommand', () => {
     });
 
     it('should continue executing steps even if one step marks failed', async () => {
-      command.runLint = vi.fn().mockImplementation((result: any) => {
-        result.status = 'failed';
-      });
+      command.runLint = vi.fn().mockImplementation(setStatus('failed'));
       command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
       command.runTests = vi.fn().mockResolvedValue(undefined);
       command.runSonar = vi.fn().mockResolvedValue(undefined);

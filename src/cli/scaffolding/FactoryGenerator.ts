@@ -5,6 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -49,20 +50,22 @@ export interface FactoryGeneratorResult {
  */
 export async function validateOptions(options: FactoryOptions): Promise<void> {
   if (options.factoryName === '') {
-    throw new Error('Factory name is required');
+    throw ErrorFactory.createCliError('Factory name is required');
   }
 
   if (options.modelName === '') {
-    throw new Error('Model name is required');
+    throw ErrorFactory.createCliError('Model name is required');
   }
 
   if (options.factoriesPath === '') {
-    throw new Error('Factories path is required');
+    throw ErrorFactory.createCliError('Factories path is required');
   }
 
   // Validate naming convention (must end with Factory)
   if (options.factoryName.endsWith('Factory') === false) {
-    throw new Error(`Factory name must end with 'Factory' (e.g., UserFactory, PostFactory)`);
+    throw ErrorFactory.createCliError(
+      `Factory name must end with 'Factory' (e.g., UserFactory, PostFactory)`
+    );
   }
 
   // Validate path exists
@@ -72,7 +75,7 @@ export async function validateOptions(options: FactoryOptions): Promise<void> {
     .catch(() => false);
 
   if (pathExists === false) {
-    throw new Error(`Factories path does not exist: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(`Factories path does not exist: ${options.factoriesPath}`);
   }
 }
 
@@ -97,7 +100,7 @@ export async function generateFactory(options: FactoryOptions): Promise<FactoryG
       factoryName: options.factoryName,
     };
   } catch (error) {
-    Logger.error('Factory generation failed', error);
+    ErrorFactory.createCliError('Factory generation failed', error);
     const message = `Failed to generate factory: ${(error as Error).message}`;
     return {
       success: false,

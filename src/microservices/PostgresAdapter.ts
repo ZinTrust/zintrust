@@ -1,4 +1,5 @@
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
  * Minimal interfaces for PostgreSQL to avoid direct dependency on 'pg' types
@@ -71,7 +72,7 @@ const configByInstance = new WeakMap<IPostgresAdapter, PostgresPoolConfig>();
 function getAdapterConfig(adapter: IPostgresAdapter): PostgresPoolConfig {
   const config = configByInstance.get(adapter);
   if (config === undefined) {
-    throw new Error('PostgresAdapter not initialized');
+    throw ErrorFactory.createConfigError('PostgresAdapter not initialized');
   }
   return config;
 }
@@ -79,7 +80,7 @@ function getAdapterConfig(adapter: IPostgresAdapter): PostgresPoolConfig {
 function getPools(adapter: IPostgresAdapter): Map<string, PostgresPool> {
   const pools = poolsByInstance.get(adapter);
   if (pools === undefined) {
-    throw new Error('PostgresAdapter not initialized');
+    throw ErrorFactory.createConfigError('PostgresAdapter not initialized');
   }
   return pools;
 }
@@ -197,7 +198,10 @@ function runGetPool(pools: Map<string, PostgresPool>, getPoolKey: () => string):
   const poolKey = getPoolKey();
   const pool = pools.get(poolKey);
   if (pool === undefined) {
-    throw new Error('Connection pool not initialized. Call connect() first.');
+    throw ErrorFactory.createConnectionError(
+      'Connection pool not initialized. Call connect() first.',
+      { poolKey }
+    );
   }
   return pool;
 }
@@ -238,7 +242,7 @@ async function runDisconnect(
  * Internal function to disconnect all pools
  */
 async function runDisconnectAll(pools: Map<string, PostgresPool>): Promise<void> {
-  const promises = Array.from(pools.values()).map((pool) => pool.end());
+  const promises = Array.from(pools.values()).map(async (pool) => pool.end());
   await Promise.all(promises);
   pools.clear();
   Logger.info('🔌 All PostgreSQL pools disconnected');
@@ -287,8 +291,10 @@ async function runConnect(
     pools.set(poolKey, pool);
     Logger.info(`🐘 PostgreSQL pool initialized: ${poolKey}`);
   } catch (error) {
-    Logger.error(`Failed to initialize PostgreSQL pool:`, error as Error);
-    throw new Error(`Failed to initialize PostgreSQL pool: ${(error as Error).message}`);
+    throw ErrorFactory.createTryCatchError(
+      `Failed to initialize PostgreSQL pool: ${(error as Error).message}`,
+      error
+    );
   }
 }
 

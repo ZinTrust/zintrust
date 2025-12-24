@@ -57,8 +57,16 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 - `zin migrate:fresh`: Drop all tables and re-run all migrations
 - `zin seed`: Run database seeders
 
+## Plugin Commands
+
+- `zin plugin list` (alias: `zin p -l`): List available plugins
+- `zin plugin install <id>` (alias: `zin p -i`): Install a plugin
+- `zin plugin uninstall <id>` (alias: `zin p -u`): Uninstall a plugin
+
 ## Configuration Commands
 
+- `zin key:generate`: Generate and set the application key
+- `zin key:generate --show`: Display the key without modifying .env
 - `zin config list`: List all configuration values
 - `zin config get <key>`: Get a specific configuration value
 - `zin config set <key> <value>`: Set a configuration value

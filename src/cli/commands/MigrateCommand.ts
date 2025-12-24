@@ -4,7 +4,7 @@
  */
 
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 
 /**
@@ -44,8 +44,10 @@ export const MigrateCommand = Object.freeze({
           cmd.success('Migrations completed successfully');
         }
       } catch (error) {
-        Logger.error('Migration command failed', error);
-        throw new Error(`Migration failed: ${(error as Error).message}`);
+        throw ErrorFactory.createTryCatchError(
+          `Migration failed: ${(error as Error).message}`,
+          error
+        );
       }
     };
 

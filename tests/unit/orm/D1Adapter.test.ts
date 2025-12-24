@@ -72,7 +72,9 @@ describe('D1Adapter', () => {
       throw new Error('D1 Error');
     });
 
-    await expect(adapter.query('SELECT * FROM users', [])).rejects.toThrow('D1 Error');
+    await expect(adapter.query('SELECT * FROM users', [])).rejects.toThrow(
+      'D1 query failed: SELECT * FROM users'
+    );
   });
 
   it('should warn if DB binding is missing', async () => {
@@ -106,7 +108,7 @@ describe('D1Adapter', () => {
     });
 
     await expect(adapter.queryOne('SELECT * FROM users LIMIT 1', [])).rejects.toThrow(
-      'QueryOne failed'
+      'D1 queryOne failed: SELECT * FROM users LIMIT 1'
     );
   });
 

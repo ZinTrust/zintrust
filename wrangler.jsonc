@@ -17,17 +17,17 @@
       "custom_domain": true,
     },
   ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "zintrust_db",
-      "database_id": "your-d1-id-here",
-    },
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "CACHE",
-      "id": "your-kv-id-here",
-    },
-  ],
+  // "d1_databases": [
+  //   {
+  //     "binding": "DB",
+  //     "database_name": "zintrust_db",
+  //     "database_id": "your-d1-id-here",
+  //   },
+  // ],
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "CACHE",
+  //     "id": "your-kv-id-here",
+  //   },
+  // ],
 }

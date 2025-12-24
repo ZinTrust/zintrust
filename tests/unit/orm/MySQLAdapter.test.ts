@@ -107,7 +107,15 @@ describe('MySQLAdapter', () => {
       adapter.transaction(async () => {
         throw new Error('Transaction failed');
       })
-    ).rejects.toThrow('Transaction failed');
+    ).rejects.toMatchObject({
+      code: 'TRY_CATCH_ERROR',
+      message: 'MySQL transaction failed',
+    });
+    await expect(
+      adapter.transaction(async () => {
+        throw new Error('Transaction failed');
+      })
+    ).rejects.toHaveProperty('details.message', 'Transaction failed');
 
     expect(querySpy).toHaveBeenCalledWith('START TRANSACTION', []);
     expect(querySpy).toHaveBeenCalledWith('ROLLBACK', []);
@@ -122,7 +130,11 @@ describe('MySQLAdapter', () => {
         // eslint-disable-next-line no-throw-literal
         throw 'string error';
       })
-    ).rejects.toBe('string error');
+    ).rejects.toMatchObject({
+      code: 'TRY_CATCH_ERROR',
+      message: 'MySQL transaction failed',
+      details: 'string error',
+    });
 
     expect(querySpy).toHaveBeenCalledWith('ROLLBACK', []);
   });

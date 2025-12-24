@@ -5,6 +5,7 @@ import { appConfig } from '@config/app';
  */
 
 import { resolveNpmPath } from '@/common';
+import { ErrorFactory } from '@/exceptions/ZintrustError';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { Command } from 'commander';
@@ -13,10 +14,10 @@ import { execFileSync } from 'node:child_process';
 type ID1MigrateCommand = IBaseCommand & {
   resolveNpmPath: () => string;
   getSafeEnv: () => NodeJS.ProcessEnv;
-  runWrangler: (args: string[]) => string;
+  runWrangler: (args: string[]) => Promise<string>;
 };
 
-const runWrangler = (cmd: IBaseCommand, args: string[]): string => {
+const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> => {
   const npmPath = resolveNpmPath();
   cmd.debug(`Executing: npm exec --yes -- wrangler ${args.join(' ')}`);
 
@@ -35,16 +36,20 @@ const executeD1Migrate = async (cmd: IBaseCommand, options: CommandOptions): Pro
   cmd.info(`Running D1 migrations for ${dbName} (${isLocal ? 'local' : 'remote'})...`);
 
   try {
-    const output = runWrangler(cmd, ['d1', 'migrations', 'apply', dbName, target]);
+    const output = await runWrangler(cmd, ['d1', 'migrations', 'apply', dbName, target]);
     if (output !== '') cmd.info(output);
     cmd.info('✓ D1 migrations completed successfully');
   } catch (error: unknown) {
     Logger.error('D1 Migration failed', error);
+    ErrorFactory.createCliError('D1 Migration failed', error);
 
     const err = error as { stdout?: Buffer; stderr?: Buffer };
     if (err.stdout !== undefined && err.stdout.length > 0) cmd.info(err.stdout.toString());
     if (err.stderr !== undefined && err.stderr.length > 0)
       Logger.error('Wrangler stderr', err.stderr.toString());
+
+    if (err.stderr !== undefined && err.stderr.length > 0)
+      ErrorFactory.createCliError('Wrangler stderr', err.stderr.toString());
 
     throw error;
   }
@@ -79,7 +84,7 @@ export const D1MigrateCommand = Object.freeze({
 
     cmd.resolveNpmPath = (): string => resolveNpmPath();
     cmd.getSafeEnv = (): NodeJS.ProcessEnv => appConfig.getSafeEnv();
-    cmd.runWrangler = (args: string[]): string => runWrangler(cmd, args);
+    cmd.runWrangler = async (args: string[]): Promise<string> => runWrangler(cmd, args);
 
     return cmd;
   },

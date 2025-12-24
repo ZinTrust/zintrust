@@ -4,7 +4,7 @@
  * Uses native Node.js crypto module (zero external dependencies)
  */
 
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHmac, createSign, createVerify, randomBytes } from 'node:crypto';
 
 export type JwtAlgorithm = 'HS256' | 'HS512' | 'RS256';
@@ -117,15 +117,17 @@ function verifyToken(
 ): JwtPayload {
   const parts = token.split('.');
   if (parts.length !== 3) {
-    throw new Error('Invalid token format');
+    throw ErrorFactory.createSecurityError('Invalid token format');
   }
 
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
 
   try {
-    const header = JSON.parse(base64Decode(encodedHeader));
-    if (header.alg !== algorithm) {
-      throw new Error(`Algorithm mismatch: expected ${algorithm}, got ${header.alg}`);
+    const header = <Record<string, unknown>>JSON.parse(base64Decode(encodedHeader));
+    if (header['alg'] !== algorithm) {
+      throw ErrorFactory.createSecurityError(
+        `Algorithm mismatch: expected ${algorithm}, got ${header['alg']}`
+      );
     }
 
     const message = `${encodedHeader}.${encodedPayload}`;
@@ -138,15 +140,16 @@ function verifyToken(
     );
 
     if (!isValid) {
-      throw new Error('Invalid signature');
+      throw ErrorFactory.createSecurityError('Invalid signature');
     }
 
     const payload = JSON.parse(base64Decode(encodedPayload)) as JwtPayload;
     verifyClaims(payload);
     return payload;
   } catch (error) {
-    Logger.error('JWT verification failed', error as Error);
-    throw new Error(`Token verification failed: ${(error as Error).message}`);
+    throw ErrorFactory.createSecurityError(
+      `Token verification failed: ${(error as Error).message}`
+    );
   }
 }
 
@@ -156,15 +159,14 @@ function verifyToken(
 function decodeToken(token: string): JwtPayload {
   const parts = token.split('.');
   if (parts.length !== 3) {
-    throw new Error('Invalid token format');
+    throw ErrorFactory.createSecurityError('Invalid token format');
   }
 
   try {
     const payload = JSON.parse(base64Decode(parts[1])) as JwtPayload;
     return payload;
   } catch (error) {
-    Logger.error('JWT decode failed', error as Error);
-    throw new Error(`Invalid token payload: ${(error as Error).message}`);
+    throw ErrorFactory.createSecurityError(`Invalid token payload: ${(error as Error).message}`);
   }
 }
 
@@ -213,7 +215,7 @@ function timingSafeEquals(a: string, b: string): boolean {
  */
 function signHmac(message: string, algorithm: 'HS256' | 'HS512', secret: string | null): string {
   if (secret === null) {
-    throw new Error('HMAC secret not configured');
+    throw ErrorFactory.createSecurityError('HMAC secret not configured');
   }
 
   const digestAlgorithm = algorithm === 'HS256' ? 'sha256' : 'sha512';
@@ -227,7 +229,7 @@ function signHmac(message: string, algorithm: 'HS256' | 'HS512', secret: string 
  */
 function signRsa(message: string, privateKey: string | null): string {
   if (privateKey === null) {
-    throw new Error('RSA private key not configured');
+    throw ErrorFactory.createSecurityError('RSA private key not configured');
   }
 
   const sign = createSign('RSA-SHA256');
@@ -254,7 +256,7 @@ function generateSignature(
     return signRsa(message, rsaPrivateKey);
   }
 
-  throw new Error(`Unsupported algorithm: ${algorithm}`);
+  throw ErrorFactory.createSecurityError(`Unsupported algorithm: ${algorithm}`);
 }
 
 /**
@@ -272,7 +274,7 @@ function verifySignature(
     return timingSafeEquals(encodedSignature, expectedSignature);
   } else if (algorithm === 'RS256') {
     if (rsaPublicKey === null) {
-      throw new Error('RSA public key not configured');
+      throw ErrorFactory.createSecurityError('RSA public key not configured');
     }
     const verify = createVerify('RSA-SHA256'); // NOSONAR LCHECK
     verify.update(message);
@@ -322,10 +324,10 @@ function verifyClaims(payload: JwtPayload): void {
   const now = Math.floor(Date.now() / 1000);
 
   if (payload.exp !== undefined && payload.exp !== null && payload.exp <= now) {
-    throw new Error('Token expired');
+    throw ErrorFactory.createSecurityError('Token expired');
   }
 
   if (payload.nbf !== undefined && payload.nbf !== null && payload.nbf > now) {
-    throw new Error('Token not yet valid');
+    throw ErrorFactory.createSecurityError('Token not yet valid');
   }
 }

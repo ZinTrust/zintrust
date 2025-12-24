@@ -2,7 +2,6 @@ import { Application, IApplication } from '@/Application';
 import { Server } from '@/Server';
 import { CLI } from '@/cli/CLI';
 import { ErrorHandler } from '@/cli/ErrorHandler';
-import { DatabaseError } from '@/exceptions/ZintrustError';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';
@@ -362,7 +361,11 @@ describe('CLI', () => {
 
     const nonCommanderError = { message: 'no-code' };
     vi.spyOn(cli.getProgram(), 'parseAsync').mockRejectedValue(nonCommanderError);
-    await expect(cli.run(['some-command'])).rejects.toBe(nonCommanderError);
+    await expect(cli.run(['some-command'])).rejects.toMatchObject({
+      code: 'CLI_ERROR',
+      message: 'Unhandled CLI execution error',
+    });
+    await expect(cli.run(['some-command'])).rejects.toHaveProperty('details', nonCommanderError);
     expect(exitSpy).not.toHaveBeenCalled();
     exitSpy.mockRestore();
   });
@@ -451,13 +454,21 @@ describe('CLI', () => {
     const cli = CLI.create();
     const parseError = new Error('boom');
     vi.spyOn(cli.getProgram(), 'parseAsync').mockRejectedValue(parseError);
-    await expect(cli.run(['some-command'])).rejects.toThrow('boom');
+    await expect(cli.run(['some-command'])).rejects.toMatchObject({
+      code: 'CLI_ERROR',
+      message: 'Unhandled CLI execution error',
+      details: expect.any(Error),
+    });
   });
 
   it('should throw non-Error values without calling ErrorHandler.handle', async () => {
     const cli = CLI.create();
     vi.spyOn(cli.getProgram(), 'parseAsync').mockRejectedValue('not-an-error');
-    await expect(cli.run(['some-command'])).rejects.toBe('not-an-error');
+    await expect(cli.run(['some-command'])).rejects.toMatchObject({
+      code: 'CLI_ERROR',
+      message: 'Unhandled CLI execution error',
+      details: 'not-an-error',
+    });
   });
 });
 
@@ -744,8 +755,8 @@ describe('ORM - QueryBuilder & Database', () => {
 
   it('should throw DatabaseError when no db is provided', async () => {
     const qb = QueryBuilder.create('users');
-    await expect(qb.get()).rejects.toThrow(DatabaseError);
-    await expect(qb.first()).rejects.toThrow(DatabaseError);
+    await expect(qb.get()).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
+    await expect(qb.first()).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
   });
 });
 

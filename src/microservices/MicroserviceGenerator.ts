@@ -366,8 +366,45 @@ const generateService = async (config: {
   await generateServiceTest(serviceDir, serviceName);
   await generateServicePackageJson(serviceDir, serviceName, version);
   await generateServiceReadme(serviceDir, serviceName, domain, port);
+  await generateDockerfile(serviceDir, serviceName);
 
   Logger.info(`  ✓ Generated: ${serviceName}`);
+};
+
+const generateDockerfile = async (serviceDir: string, serviceName: string): Promise<void> => {
+  const code = `FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+# Note: In a real monorepo, you might want to copy the root package.json as well
+COPY package.json ./
+RUN npm install
+
+# Copy source code
+# We assume the context is the root of the project
+COPY . .
+
+# Build application
+RUN npm run build
+
+ENV NODE_ENV=production
+ENV SERVICE_NAME=${serviceName}
+ENV SERVICE_PORT=3000
+
+# Standard Zintrust environment variables
+ENV DB_CONNECTION=postgresql
+ENV DB_HOST=postgres
+ENV DB_PORT=5432
+ENV REDIS_HOST=redis
+ENV REDIS_PORT=6379
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]
+`;
+
+  fs.writeFileSync(path.join(serviceDir, 'Dockerfile'), code);
 };
 
 const generateSharedUtils = async (domain: string): Promise<void> => {
@@ -412,7 +449,7 @@ const generateDockerCompose = async (
       const port = basePort + i;
       return `  ${service}:
     build:
-      context: .
+      context: ../../
       dockerfile: services/${domain}/${service}/Dockerfile
     ports:
       - "${port}:3000"
@@ -421,6 +458,17 @@ const generateDockerCompose = async (
       MICROSERVICES: "true"
       SERVICE_NAME: ${service}
       SERVICE_PORT: 3000
+      # Database Configuration
+      DB_CONNECTION: postgresql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: zintrust_${service}
+      DB_USERNAME: zintrust
+      DB_PASSWORD: zintrust
+      # Cache Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Custom environment variables can be added here
     depends_on:
       - postgres
       - redis
@@ -429,6 +477,9 @@ const generateDockerCompose = async (
     .join('\n');
 
   const compose = `version: '3.9'
+
+# Zintrust Microservices Stack: ${domain}
+# Run with: docker-compose up -d
 
 services:
 ${services_config}
@@ -476,7 +527,7 @@ export async function generateMicroservices(
   }
 }
 
-export const generate = (options: GenerateServiceOptions): Promise<void> =>
+export const generate = async (options: GenerateServiceOptions): Promise<void> =>
   MicroserviceGenerator.getInstance().generate(options);
 
 export default MicroserviceGenerator;

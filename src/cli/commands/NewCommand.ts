@@ -8,7 +8,7 @@ import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
@@ -49,7 +49,7 @@ const checkGitInstalled = (): boolean => {
     execFileSync(getGitBinary(), ['--version'], { stdio: 'ignore', env: appConfig.getSafeEnv() });
     return true;
   } catch (error) {
-    Logger.error('Git check failed', error);
+    ErrorFactory.createCliError('Git check failed', error);
     return false;
   }
 };
@@ -67,7 +67,7 @@ const initializeGitRepo = (projectPath: string, log: Pick<IBaseCommand, 'info' |
     });
     log.info('✅ Git repository initialized');
   } catch (error) {
-    Logger.error('Git initialization failed', error);
+    ErrorFactory.createCliError('Git initialization failed', error);
     log.warn('Could not initialize git repository');
   }
 };
@@ -214,7 +214,7 @@ const installDependencies = (
     });
     log.info('✅ Dependencies installed successfully');
   } catch (error) {
-    Logger.error('Dependency installation failed', error);
+    ErrorFactory.createCliError('Dependency installation failed', error);
     log.warn('Please run "npm install" manually in the project directory');
   }
 };
@@ -252,7 +252,7 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
   try {
     const argName = options.args?.[0];
     const projectName = argName ?? (await PromptHelper.projectName('my-zintrust-app', true));
-    if (!projectName) throw new Error('Project name is required');
+    if (!projectName) throw ErrorFactory.createCliError('Project name is required');
 
     const config = await command.getProjectConfig(projectName, options);
 
@@ -262,7 +262,7 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
     const result = await command.runScaffolding(projectName, config, overwrite);
 
     if (isFailureResult(result)) {
-      throw new Error(result.message ?? 'Project scaffolding failed');
+      throw ErrorFactory.createCliError(result.message ?? 'Project scaffolding failed', result);
     }
 
     if (options['git'] !== false) {
@@ -277,8 +277,7 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
     command.success(`\n✨ Project ${projectName} created successfully!`);
     command.info(`\nNext steps:\n  cd ${projectName}\n  npm run dev\n`);
   } catch (error) {
-    Logger.error('Project creation failed', error);
-    throw new Error(`Project creation failed: ${errorToMessage(error)}`);
+    throw ErrorFactory.createCliError(`Project creation failed: ${errorToMessage(error)}`, error);
   }
 };
 

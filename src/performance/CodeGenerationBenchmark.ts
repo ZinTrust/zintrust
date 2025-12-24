@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Benchmark, IBenchmark, IMemoryMonitor, MemoryMonitor } from '@performance/Benchmark';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -53,14 +54,16 @@ function createBenchmark(name: string): IBenchmark {
   const candidate: unknown = Benchmark;
   if (isBenchmarkFactory(candidate)) return candidate.create(name);
   if (isBenchmarkConstructor(candidate)) return new candidate(name);
-  throw new TypeError('Benchmark export is neither a factory nor a constructor');
+  throw ErrorFactory.createGeneralError('Benchmark export is neither a factory nor a constructor');
 }
 
 function createMemoryMonitor(): IMemoryMonitor {
   const candidate: unknown = MemoryMonitor;
   if (isMemoryMonitorFactory(candidate)) return candidate.create();
   if (isMemoryMonitorConstructor(candidate)) return candidate();
-  throw new TypeError('MemoryMonitor export is neither a factory nor a constructor');
+  throw ErrorFactory.createGeneralError(
+    'MemoryMonitor export is neither a factory nor a constructor'
+  );
 }
 
 /**
@@ -69,7 +72,7 @@ function createMemoryMonitor(): IMemoryMonitor {
  */
 export const CodeGenerationBenchmark: CodeGenerationBenchmarkFn = Object.freeze(
   Object.assign(
-    function CodeGenerationBenchmarkImpl(): ICodeGenerationBenchmark {
+    (): ICodeGenerationBenchmark => {
       const benchmark = createBenchmark('Code Generation Performance');
       const memoryMonitor = createMemoryMonitor();
       const testDir = path.join(process.cwd(), '.bench-output');

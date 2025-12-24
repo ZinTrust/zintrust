@@ -1,4 +1,3 @@
-import { ConnectionManager } from '@/orm/ConnectionManager';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock Logger
@@ -11,6 +10,14 @@ vi.mock('@/config/logger', () => ({
 }));
 
 describe('ConnectionManager', () => {
+  const loadConnectionManager = async (): Promise<
+    typeof import('@/orm/ConnectionManager').ConnectionManager
+  > => {
+    vi.resetModules();
+    const mod = await import('@/orm/ConnectionManager');
+    return mod.ConnectionManager;
+  };
+
   const config = {
     adapter: 'postgresql' as const,
     database: 'test_db',
@@ -32,32 +39,84 @@ describe('ConnectionManager', () => {
 
     // If I want to test the throw, I must ensure it's not initialized.
     // I'll assume it's fresh.
+    const ConnectionManager = await loadConnectionManager();
     await expect(ConnectionManager.getConnection()).rejects.toThrow(
       'ConnectionManager not initialized'
     );
   });
 
   it('should initialize correctly', () => {
-    const instance = ConnectionManager.getInstance(config);
-    expect(instance).toBeDefined();
+    // No async here; safe to use a fresh module instance each time.
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    return (async () => {
+      const ConnectionManager = await loadConnectionManager();
+      const instance = ConnectionManager.getInstance(config);
+      expect(instance).toBeDefined();
+    })();
   });
 
   it('should return the same instance', () => {
-    const instance1 = ConnectionManager.getInstance(config);
-    const instance2 = ConnectionManager.getInstance();
-    expect(instance1).toBe(instance2);
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    return (async () => {
+      const ConnectionManager = await loadConnectionManager();
+      const instance1 = ConnectionManager.getInstance(config);
+      const instance2 = ConnectionManager.getInstance();
+      expect(instance1).toBe(instance2);
+    })();
   });
 
   it('should get connection', async () => {
-    const instance = ConnectionManager.getInstance();
+    const ConnectionManager = await loadConnectionManager();
+    const instance = ConnectionManager.getInstance(config);
     const conn = await instance.getConnection();
     expect(conn).toBeDefined();
     expect((conn as any).adapter).toBe('postgresql');
   });
 
   it('should get pool stats', () => {
-    const stats = ConnectionManager.getPoolStats();
-    expect(stats).toBeDefined();
-    expect(stats.total).toBeGreaterThanOrEqual(0);
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    return (async () => {
+      const ConnectionManager = await loadConnectionManager();
+      ConnectionManager.getInstance(config);
+      const stats = ConnectionManager.getPoolStats();
+      expect(stats).toBeDefined();
+      expect(stats.total).toBeGreaterThanOrEqual(0);
+    })();
+  });
+
+  it('should clear wait timeout when an idle connection becomes available', async () => {
+    vi.useFakeTimers();
+
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    const ConnectionManager = await loadConnectionManager();
+    const instance = ConnectionManager.getInstance({ ...config, maxConnections: 1 });
+
+    const conn1 = await instance.getConnection('c1');
+    expect(conn1).toBeDefined();
+
+    let rejected: unknown;
+    const pending = instance.getConnection('c2').catch((err: unknown) => {
+      rejected = err;
+      throw err;
+    });
+
+    // Allow the wait loop to start
+    await vi.advanceTimersByTimeAsync(150);
+    expect(rejected).toBeUndefined();
+
+    // Release first connection so it becomes idle and can be reused
+    await instance.releaseConnection('c1');
+    await vi.advanceTimersByTimeAsync(150);
+
+    const conn2 = await pending;
+    expect(conn2).toBeDefined();
+
+    // If the timeout wasn't cleared, this would later trigger and reject.
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(rejected).toBeUndefined();
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+    vi.useRealTimers();
   });
 });

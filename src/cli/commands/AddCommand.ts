@@ -19,7 +19,7 @@ import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import fs from 'node:fs';
@@ -201,7 +201,7 @@ const addService = async (
     name = answers.name;
     Object.assign(opts, answers);
   } else if (name === '') {
-    throw new Error('Service name is required');
+    throw ErrorFactory.createValidationError('Service name is required');
   }
 
   cmd.info(`Creating service: ${name}...`);
@@ -214,7 +214,7 @@ const addService = async (
     auth: opts.auth ?? 'api-key',
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Service '${name}' created successfully!`);
   cmd.info(`\nFiles created: ${result.filesCreated.length}`);
@@ -263,10 +263,10 @@ const addFeature = async (
     servicePath = answers.servicePath;
     opts.withTest = answers.withTest;
   } else if (name === '') {
-    throw new Error('Feature name is required');
+    throw ErrorFactory.createValidationError('Feature name is required');
   }
 
-  if (servicePath === '') throw new Error('Service path is required');
+  if (servicePath === '') throw ErrorFactory.createValidationError('Service path is required');
 
   const fullServicePath = path.join(projectRoot, servicePath);
   cmd.info(`Adding feature: ${name}...`);
@@ -277,7 +277,7 @@ const addFeature = async (
     withTest: opts.withTest,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Feature '${name}' added successfully!`);
   cmd.info(`Files created: ${result.filesCreated.length}`);
@@ -286,7 +286,7 @@ const addFeature = async (
   );
 };
 
-const promptMigrationConfig = (): Promise<MigrationPromptAnswers> => {
+const promptMigrationConfig = async (): Promise<MigrationPromptAnswers> => {
   return inquirer.prompt([
     {
       type: 'input',
@@ -316,7 +316,7 @@ const addMigration = async (
     name = answers.name;
     opts.type = answers.type;
   } else if (name === '') {
-    throw new Error('Migration name is required');
+    throw ErrorFactory.createValidationError('Migration name is required');
   }
 
   const migrationsPath = path.join(projectRoot, 'database', 'migrations');
@@ -328,7 +328,7 @@ const addMigration = async (
     type: (opts.type ?? 'create') as MigrationType,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success('Migration created successfully!');
   cmd.info(`File: ${path.basename(result.filePath)}`);
@@ -375,7 +375,7 @@ const addModel = async (
     opts.softDelete = answers.softDelete;
     opts.timestamps = answers.timestamps;
   } else if (name === '') {
-    throw new Error('Model name is required');
+    throw ErrorFactory.createValidationError('Model name is required');
   }
 
   const modelPath = path.join(projectRoot, 'app', 'Models');
@@ -388,7 +388,7 @@ const addModel = async (
     timestamps: opts.timestamps !== false,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Model '${name}' created successfully!`);
   cmd.info(`File: ${path.basename(result.modelFile)}`);
@@ -430,7 +430,7 @@ const addController = async (
     name = answers.name;
     controllerType = answers.type;
   } else if (name === '') {
-    throw new Error('Controller name is required');
+    throw ErrorFactory.createValidationError('Controller name is required');
   }
 
   const controllerPath = path.join(projectRoot, 'app', 'Controllers');
@@ -444,7 +444,7 @@ const addController = async (
       : controllerType) as ControllerType,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Controller '${name}' created successfully!`);
   cmd.info(`File: ${path.basename(result.controllerFile)}`);
@@ -476,7 +476,7 @@ const addRoutes = async (
     const answers = await promptRoutesConfig();
     name = answers.name;
   } else if (name === '') {
-    throw new Error('Route group name is required');
+    throw ErrorFactory.createValidationError('Route group name is required');
   }
 
   const routesPath = path.join(projectRoot, 'routes');
@@ -488,7 +488,7 @@ const addRoutes = async (
     routes: [],
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Routes file '${name}' created successfully!`);
   cmd.info(`File: ${path.basename(result.routeFile)}`);
@@ -552,7 +552,7 @@ const promptFactoryConfig = async (): Promise<FactoryPromptAnswers> => {
         default: '',
       },
     ]);
-    return { ...answers, relationships: relAnswers.relationships };
+    return { ...answers, relationships: relAnswers.relationships as string };
   }
 
   return answers;
@@ -574,11 +574,11 @@ const addFactory = async (
       relationships: answers.relationships ?? '',
     };
   } else if (config.name === '') {
-    throw new Error('Factory name is required');
+    throw ErrorFactory.createValidationError('Factory name is required');
   }
 
   if (config.modelName === '' && opts.noInteractive !== true) {
-    throw new Error('Model name is required for factory generation');
+    throw ErrorFactory.createValidationError('Model name is required for factory generation');
   }
 
   const factoriesPath = path.join(projectRoot, 'database', 'factories');
@@ -594,7 +594,7 @@ const addFactory = async (
         : config.relationships.split(',').map((r: string) => r.trim()),
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   displayFactorySuccess(cmd, config.name, result.filePath);
 };
@@ -720,11 +720,11 @@ const addSeeder = async (
       truncate: answers.truncate,
     };
   } else if (config.name === '') {
-    throw new Error('Seeder name is required');
+    throw ErrorFactory.createValidationError('Seeder name is required');
   }
 
   if (config.modelName === '' && opts.noInteractive !== true) {
-    throw new Error('Model name is required for seeder generation');
+    throw ErrorFactory.createValidationError('Model name is required for seeder generation');
   }
 
   const seedersPath = path.join(projectRoot, 'database', 'seeders');
@@ -740,7 +740,7 @@ const addSeeder = async (
     truncate: config.truncate,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   displaySeederSuccess(
     cmd,
@@ -812,7 +812,7 @@ const addRequestFactory = async (
     withDTO = answer.withDTO;
   }
 
-  if (name === '') throw new Error('Factory name is required');
+  if (name === '') throw ErrorFactory.createValidationError('Factory name is required');
 
   const factoriesPath = path.join(process.cwd(), 'database', 'factories');
   const requestsPath = withDTO === true ? path.join(process.cwd(), 'app', 'Requests') : undefined;
@@ -829,7 +829,7 @@ const addRequestFactory = async (
     requestsPath,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Request factory '${name}' created successfully!`);
   cmd.info(`Factory: ${path.basename(result.factoryPath)}`);
@@ -854,7 +854,7 @@ const promptResponseFactoryName = async (): Promise<string> => {
       },
     },
   ]);
-  return answer.factoryName;
+  return answer.factoryName as string;
 };
 
 const promptResponseFactoryConfig = async (
@@ -949,7 +949,7 @@ const addResponseFactory = async (
     name = await promptResponseFactoryName();
   }
 
-  if (name === '') throw new Error('Factory name is required');
+  if (name === '') throw ErrorFactory.createValidationError('Factory name is required');
 
   const responseName = name.replace('Factory', '');
   const answers = await getResponseFactoryAnswers(name, responseName, opts);
@@ -969,7 +969,7 @@ const addResponseFactory = async (
     responsesPath,
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   displayResponseFactorySuccess(cmd, name, result);
 };
@@ -1028,7 +1028,7 @@ const addWorkflow = async (
     nodeVersion: opts.nodeVersion ?? '20.x',
   });
 
-  if (result.success === false) throw new Error(result.message);
+  if (result.success === false) throw ErrorFactory.createCliError(result.message);
   cmd.success(result.message);
 };
 
@@ -1075,7 +1075,7 @@ const handleType = async (
       await addWorkflow(cmd, name, opts);
       break;
     default:
-      throw new Error(
+      throw ErrorFactory.createCliError(
         `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow`
       );
   }
@@ -1095,14 +1095,14 @@ const executeAdd = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
 
   try {
     if (type === undefined || type === '') {
-      throw new Error(
+      throw ErrorFactory.createCliError(
         'Please specify what to add: service, feature, migration, model, controller, routes, factory, or seeder'
       );
     }
 
     await handleType(cmd, type.toLowerCase(), name, addOpts);
   } catch (error) {
-    Logger.error('Add command failed', error);
+    ErrorFactory.createCliError('Add command failed', error);
     cmd.warn(`Failed: ${(error as Error).message}`);
     throw error;
   }

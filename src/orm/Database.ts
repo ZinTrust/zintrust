@@ -3,6 +3,7 @@
  * Central database connection management and query execution
  */
 
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
@@ -129,27 +130,33 @@ export const Database = Object.freeze({
     const db: IDatabase = {
       async connect() {
         await writeAdapter.connect();
-        for (const adapter of readAdapters) {
-          if (adapter !== writeAdapter) await adapter.connect();
-        }
+        await Promise.all(
+          readAdapters
+            .filter((adapter) => adapter !== writeAdapter)
+            .map(async (adapter) => adapter.connect())
+        );
         connected = true;
       },
       async disconnect() {
         await writeAdapter.disconnect();
-        for (const adapter of readAdapters) {
-          if (adapter !== writeAdapter) await adapter.disconnect();
-        }
+        await Promise.all(
+          readAdapters
+            .filter((adapter) => adapter !== writeAdapter)
+            .map(async (adapter) => adapter.disconnect())
+        );
         connected = false;
       },
       isConnected() {
         return connected;
       },
       async query(sql, parameters = [], isRead = false) {
-        if (connected === false) throw new Error('Database not connected. Call connect() first.');
+        if (connected === false)
+          throw ErrorFactory.createConnectionError('Database not connected. Call connect() first.');
         return executeQuery(getAdapter(isRead), eventEmitter, sql, parameters, 'query');
       },
       async queryOne(sql, parameters = [], isRead = false) {
-        if (connected === false) throw new Error('Database not connected. Call connect() first.');
+        if (connected === false)
+          throw ErrorFactory.createConnectionError('Database not connected. Call connect() first.');
         return executeQueryOne(getAdapter(isRead), eventEmitter, sql, parameters);
       },
       async transaction<T>(callback: (db: IDatabase) => Promise<T>) {
@@ -184,19 +191,19 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
   }
   const instance = databaseInstances.get(connection);
   if (instance === undefined) {
-    throw new Error(`Failed to initialize database instance: ${connection}`);
+    throw ErrorFactory.createConfigError(`Failed to initialize database instance: ${connection}`);
   }
   return instance;
 }
 
 export async function resetDatabase(): Promise<void> {
-  for (const instance of databaseInstances.values()) {
+  const promises = Array.from(databaseInstances.values()).map(async (instance) => {
     try {
       await instance.disconnect();
-      // eslint-disable-next-line no-restricted-syntax
     } catch {
       // Ignore errors during disconnect
     }
-  }
+  });
+  await Promise.all(promises);
   databaseInstances.clear();
 }

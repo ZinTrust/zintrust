@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 /**
@@ -16,18 +17,32 @@ interface BcryptModule {
   compare: (data: string, encrypted: string) => Promise<boolean>;
 }
 
+function isBcryptModule(value: unknown): value is BcryptModule {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+  return typeof record['hash'] === 'function' && typeof record['compare'] === 'function';
+}
+
 let algorithm: HashAlgorithm = 'pbkdf2';
 let bcrypt: BcryptModule | undefined;
 let loadingPromise: Promise<void> | undefined;
 
 async function loadBcrypt(): Promise<void> {
   try {
-    // @ts-expect-error - bcrypt is an optional dependency
-    const module = (await import('bcrypt')) as { default?: BcryptModule } & BcryptModule;
-    bcrypt = module.default ?? (module as BcryptModule);
+    const imported: unknown = await import('bcrypt');
+    const module = imported as { default?: unknown } & Record<string, unknown>;
+    const candidate: unknown = module.default ?? module;
+
+    if (!isBcryptModule(candidate)) {
+      throw ErrorFactory.createConfigError('Invalid bcrypt module shape');
+    }
+
+    bcrypt = candidate;
     algorithm = 'bcrypt';
   } catch (error) {
     Logger.error('bcrypt not installed, falling back to PBKDF2', error);
+    ErrorFactory.createSecurityError('bcrypt not installed, falling back to PBKDF2', error);
     // bcrypt not installed, will use PBKDF2
     algorithm = 'pbkdf2';
   }
@@ -75,8 +90,8 @@ function hashPbkdf2(password: string): string {
 /**
  * Verify PBKDF2 hash
  */
-function verifyPbkdf2(password: string, hash: string): boolean {
-  const parts = hash.split('$');
+function verifyPbkdf2(password: string, passwordHash: string): boolean {
+  const parts = passwordHash.split('$');
   const iterationsStr = parts[1];
   const salt = parts[2];
   const storedHash = parts[3];
@@ -94,6 +109,7 @@ function verifyPbkdf2(password: string, hash: string): boolean {
     return timingSafeEquals(computed, storedHash);
   } catch (error) {
     Logger.error('PBKDF2 verification failed', error);
+    ErrorFactory.createSecurityError('PBKDF2 verification failed', error);
     return false;
   }
 }
@@ -112,9 +128,9 @@ async function hashBcrypt(bcryptModule: BcryptModule, password: string): Promise
 async function verifyBcrypt(
   bcryptModule: BcryptModule,
   password: string,
-  hash: string
+  passwordHash: string
 ): Promise<boolean> {
-  return bcryptModule.compare(password, hash);
+  return bcryptModule.compare(password, passwordHash);
 }
 
 export interface IEncryptor {
@@ -138,19 +154,19 @@ const hash = async (password: string): Promise<string> => {
 /**
  * Verify password against hash
  */
-const verify = async (password: string, hash: string): Promise<boolean> => {
+const verify = async (password: string, passwordHash: string): Promise<boolean> => {
   await ensureLoaded();
   // Detect hash format
-  if (hash.startsWith('$2')) {
+  if (passwordHash.startsWith('$2')) {
     // bcrypt hash format
     if (bcrypt !== undefined) {
-      return verifyBcrypt(bcrypt, password, hash);
+      return verifyBcrypt(bcrypt, password, passwordHash);
     }
-    throw new Error('bcrypt not available to verify hash');
+    throw ErrorFactory.createConfigError('bcrypt not available to verify hash');
   }
 
   // PBKDF2 hash format (algorithm$iterations$salt$hash)
-  return verifyPbkdf2(password, hash);
+  return verifyPbkdf2(password, passwordHash);
 };
 
 /**

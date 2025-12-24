@@ -18,12 +18,17 @@ export const EXIT_CODES = {
  * Format and display error
  * Exit codes: 0 (success), 1 (runtime error), 2 (usage error)
  */
-const handleError = (error: Error | string, exitCode: number = EXIT_CODES.RUNTIME_ERROR): void => {
+const handleError = (
+  error: Error | string,
+  exitCode: number = EXIT_CODES.RUNTIME_ERROR,
+  log: boolean = true
+): void => {
   const message = typeof error === 'string' ? error : error.message;
   const formattedMessage = `${chalk.red('[ERROR]')} ${message}`;
 
-  Logger.error(formattedMessage);
-
+  if (log) {
+    Logger.error(formattedMessage);
+  }
   process.exit(exitCode);
 };
 

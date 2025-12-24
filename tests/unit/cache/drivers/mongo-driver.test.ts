@@ -129,7 +129,7 @@ describe('MongoDriver', () => {
 
     await expect(driver.has('k')).resolves.toBe(false);
 
-    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom');
+    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom', undefined);
   });
 
   it('handles non-Error thrown values in request()', async () => {
@@ -143,7 +143,7 @@ describe('MongoDriver', () => {
     const driver = MongoDriver.create();
 
     await expect(driver.get('k')).resolves.toBeNull();
-    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom');
+    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom', undefined);
   });
 
   it('sends correct actions for set/delete/clear and has()', async () => {

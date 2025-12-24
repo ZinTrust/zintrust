@@ -6,6 +6,7 @@
 import { CacheDriver } from '@cache/CacheDriver';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
  * MongoDB Cache Driver
@@ -45,7 +46,7 @@ export const MongoDriver = Object.freeze({
         return await response.json();
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        Logger.error(`MongoDB Cache Error: ${message}`);
+        ErrorFactory.createTryCatchError(`MongoDB Cache Error: ${message}`);
         return null;
       }
     };

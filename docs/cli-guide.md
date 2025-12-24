@@ -63,6 +63,25 @@ zin config set user.email user@example.com
 zin config reset               # Reset to defaults
 ```
 
+### Security
+
+```bash
+zin key:generate               # Generate APP_KEY
+zin key:generate --show        # Show key without saving
+```
+
+### Plugin Management
+
+Manage framework extensions and database adapters.
+
+```bash
+zin plugin list                # List available plugins
+zin plugin install a:sqlite    # Install SQLite adapter
+zin p -i a:postgres            # Short syntax for installing Postgres
+```
+
+See [Plugin System](./plugins.md) for more details.
+
 ### Quality Assurance
 
 ```bash

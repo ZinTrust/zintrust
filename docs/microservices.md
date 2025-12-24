@@ -47,3 +47,7 @@ Zintrust automatically propagates an `x-trace-id` header across service boundari
 ## Monitoring
 
 Use the `zin debug` command to see a real-time dashboard of all running services, their health, and resource consumption.
+
+## Docker Integration
+
+Zintrust automatically generates Dockerfiles and Docker Compose configurations for your microservices. See the [Docker Integration Guide](microservices-docker.md) for more details.

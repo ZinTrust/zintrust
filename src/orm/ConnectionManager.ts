@@ -1,3 +1,5 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * Persistent Connection Manager for Zintrust Framework
  * Handles database connections across different runtime environments
@@ -6,7 +8,7 @@
 
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-
+import { ErrorFactory } from '@exceptions/ZintrustError';
 export interface ConnectionConfig {
   adapter: 'postgresql' | 'mysql' | 'sqlserver' | 'd1' | 'aurora-data-api';
   host?: string;
@@ -71,15 +73,21 @@ const testConnection = async (config: ConnectionConfig, _conn: unknown): Promise
     if (config.adapter === 'postgresql' || config.adapter === 'mysql') {
       // SELECT 1 for PostgreSQL/MySQL
       await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Connection test timeout')), 5000);
-        // In real implementation, query the connection
-        clearTimeout(timeout);
-        resolve(true);
+        const timeout = globalThis.setTimeout(
+          () => reject(ErrorFactory.createConnectionError('Connection test timeout')),
+          5000
+        );
+        try {
+          // In real implementation, query the connection
+          resolve(true);
+        } finally {
+          clearTimeout(timeout);
+        }
       });
     }
     return true;
   } catch (error) {
-    Logger.error('Connection test failed:', error as Error);
+    ErrorFactory.createConnectionError('Connection test failed:', error as Error);
     return false;
   }
 };
@@ -108,7 +116,9 @@ const createConnection = async (config: ConnectionConfig, id: string): Promise<u
     id,
     adapter: config.adapter,
     query: async (_sql: string, _params?: unknown[]): Promise<unknown> => {
-      throw new Error(`Query execution not implemented for ${config.adapter}`);
+      throw ErrorFactory.createDatabaseError(
+        `Query execution not implemented for ${config.adapter}`
+      );
     },
     close: async (): Promise<void> => {
       Logger.info(`Connection ${id} closed`);
@@ -123,13 +133,13 @@ const createAuroraDataApiConnection = (): AuroraDataApiConnection => ({
   execute: async (_sql: string, _params?: unknown[]): Promise<AuroraQueryResult> => {
     // Call Aurora Data API via AWS SDK
     // Requires proper IAM permissions
-    throw new Error('Aurora Data API not implemented yet');
+    throw ErrorFactory.createConfigError('Aurora Data API not implemented yet');
   },
   batch: async (
     _statements: Array<{ sql: string; params?: unknown[] }>
   ): Promise<AuroraQueryResult[]> => {
     // Execute batch statements
-    throw new Error('Aurora Data API batch not implemented yet');
+    throw ErrorFactory.createConfigError('Aurora Data API batch not implemented yet');
   },
 });
 
@@ -139,7 +149,7 @@ const createAuroraDataApiConnection = (): AuroraDataApiConnection => ({
 interface ConnectionState {
   connections: Map<string, unknown>;
   connectionPool: PooledConnection[];
-  cleanupInterval?: NodeJS.Timeout;
+  cleanupInterval?: ReturnType<typeof setInterval>;
 }
 
 /**
@@ -181,23 +191,59 @@ const findIdleConnection = (state: ConnectionState): unknown => {
 /**
  * Wait for a connection to become available
  */
-const waitForIdleConnection = (state: ConnectionState): Promise<unknown> => {
+const waitForIdleConnection = async (state: ConnectionState): Promise<unknown> => {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     const checkInterval = setInterval(() => {
       const idle = state.connectionPool.find((c) => !c.isActive);
       if (idle !== undefined) {
-        clearInterval(checkInterval);
+        if (settled) return;
+        settled = true;
+        cleanup();
         updateConnectionUsage(state.connectionPool, idle.id);
         resolve(state.connections.get(idle.id));
       }
     }, 100);
 
-    setTimeout(() => {
+    const cleanup = (): void => {
       clearInterval(checkInterval);
-      reject(new Error('Connection pool exhausted - timeout waiting for available connection'));
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    };
+
+    // Node: allow process to exit; other runtimes may not support unref()
+    if (isUnrefableTimer(checkInterval)) {
+      checkInterval.unref();
+    }
+
+    // eslint-disable-next-line no-restricted-syntax
+    timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(
+        ErrorFactory.createConnectionError(
+          'Connection pool exhausted - timeout waiting for available connection'
+        )
+      );
     }, 30000);
+
+    if (isUnrefableTimer(timeoutId)) {
+      timeoutId.unref();
+    }
   });
 };
+
+type UnrefableTimer = { unref: () => void };
+
+function isUnrefableTimer(value: unknown): value is UnrefableTimer {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+}
 
 /**
  * Get or reuse a connection when at max capacity
@@ -273,7 +319,7 @@ const closeAllConnections = async (state: ConnectionState): Promise<void> => {
     try {
       await closeConnection(conn);
     } catch (error) {
-      Logger.error(`Failed to close connection ${id}:`, error as Error);
+      ErrorFactory.createConnectionError(`Failed to close connection ${id}:`, error as Error);
     }
   }
   state.connections.clear();
@@ -390,7 +436,9 @@ export const ConnectionManager = Object.freeze({
       instance = ConnectionManagerImpl.create(config);
     }
     if (instance === undefined) {
-      throw new Error('ConnectionManager not initialized. Call getInstance(config) first.');
+      throw ErrorFactory.createConfigError(
+        'ConnectionManager not initialized. Call getInstance(config) first.'
+      );
     }
     return instance;
   },
@@ -456,7 +504,7 @@ export interface AuroraQueryResult {
  */
 export async function getDatabaseSecret(_secretName: string): Promise<DatabaseSecret> {
   // Would use AWS SDK to fetch from Secrets Manager
-  throw new Error('Secrets Manager integration not implemented');
+  throw ErrorFactory.createConfigError('Secrets Manager integration not implemented');
 }
 
 /**

@@ -5,6 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -40,36 +41,42 @@ export interface RequestFactoryGeneratorResult {
  */
 export async function validateOptions(options: RequestFactoryOptions): Promise<void> {
   if (options.factoryName.trim() === '') {
-    throw new Error('Request factory name is required');
+    throw ErrorFactory.createCliError('Request factory name is required');
   }
 
   if (!options.factoryName.endsWith('RequestFactory')) {
-    throw new Error(
+    throw ErrorFactory.createCliError(
       'Request factory name must end with "RequestFactory" (e.g., CreateUserRequestFactory)'
     );
   }
 
   if (!/^[A-Z][a-zA-Z\d]*RequestFactory$/.test(options.factoryName)) {
-    throw new Error('Request factory name must be PascalCase ending with "RequestFactory"');
+    throw ErrorFactory.createCliError(
+      'Request factory name must be PascalCase ending with "RequestFactory"'
+    );
   }
 
   if (options.requestName.trim() === '') {
-    throw new Error('Request name is required');
+    throw ErrorFactory.createCliError('Request name is required');
   }
 
   if (!/^[A-Z][a-zA-Z\d]*Request$/.test(options.requestName)) {
-    throw new Error('Request name must be PascalCase ending with "Request"');
+    throw ErrorFactory.createCliError('Request name must be PascalCase ending with "Request"');
   }
 
   // Verify factories path exists
   const pathStat = await fs.stat(options.factoriesPath).catch(() => null);
 
   if (pathStat === null) {
-    throw new Error(`Request factories path does not exist: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(
+      `Request factories path does not exist: ${options.factoriesPath}`
+    );
   }
 
   if (!pathStat.isDirectory()) {
-    throw new Error(`Request factories path is not a directory: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(
+      `Request factories path is not a directory: ${options.factoriesPath}`
+    );
   }
 }
 
@@ -110,7 +117,7 @@ export async function generateRequestFactory(
 
     return result;
   } catch (error) {
-    Logger.error('Request factory generation failed', error);
+    ErrorFactory.createTryCatchError('Request factory generation failed', error);
     return {
       success: false,
       factoryPath: '',

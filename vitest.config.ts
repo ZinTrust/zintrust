@@ -29,6 +29,8 @@ export default defineConfig({
       '@deployment': path.resolve(__dirname, './src/deployment'),
       '@cache': path.resolve(__dirname, './src/cache'),
       '@config': path.resolve(__dirname, './src/config'),
+      '@common': path.resolve(__dirname, './src/common'),
+      '@exceptions': path.resolve(__dirname, './src/exceptions'),
       '@functions': path.resolve(__dirname, './src/functions'),
       '@services': path.resolve(__dirname, './src/services'),
       '@app': path.resolve(__dirname, './app'),

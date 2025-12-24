@@ -188,10 +188,7 @@ describe('LazyLoader', () => {
 
     const dataUrl = 'data:text/javascript,throw%20%22boom%22';
     await expect(loader.load(dataUrl)).rejects.toThrow(`Failed to load module: ${dataUrl}`);
-    expect(loggerError).toHaveBeenCalledWith(
-      `Failed to load module: ${dataUrl}`,
-      expect.any(Error)
-    );
+    expect(loggerError).toHaveBeenCalledWith(`Failed to load module: ${dataUrl}`, 'boom');
   });
 
   it('preloads multiple modules', async () => {

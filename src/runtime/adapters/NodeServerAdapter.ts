@@ -1,5 +1,6 @@
 import { Env } from '@config/env';
 import Logger from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import {
   AdapterConfig,
   PlatformRequest,
@@ -28,7 +29,7 @@ export const NodeServerAdapter = Object.freeze({
       platform: 'nodejs',
 
       async handle(): Promise<PlatformResponse> {
-        throw new Error(
+        throw ErrorFactory.createConfigError(
           'Node.js adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
         );
       },
@@ -48,11 +49,11 @@ export const NodeServerAdapter = Object.freeze({
       },
 
       parseRequest(): PlatformRequest {
-        throw new Error('Node.js adapter uses native Node.js HTTP');
+        throw ErrorFactory.createConfigError('Node.js adapter uses native Node.js HTTP');
       },
 
       formatResponse(): unknown {
-        throw new Error('Node.js adapter uses native Node.js HTTP');
+        throw ErrorFactory.createConfigError('Node.js adapter uses native Node.js HTTP');
       },
 
       getLogger(): {
@@ -62,7 +63,7 @@ export const NodeServerAdapter = Object.freeze({
         error(msg: string, err?: Error): void;
       } {
         return (
-          logger || {
+          logger ?? {
             debug: (msg: string) => Logger.debug(`[Node.js] ${msg}`),
             info: (msg: string) => Logger.info(`[Node.js] ${msg}`),
             warn: (msg: string) => Logger.warn(`[Node.js] ${msg}`),

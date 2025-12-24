@@ -63,6 +63,52 @@ const okJsonResponse = (ok: boolean): Response => {
   } as unknown as Response;
 };
 
+const delay = async (ms: number): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+};
+
+const fetchOk = async (): Promise<Response> => okJsonResponse(true);
+const dbCheckFails = async (): Promise<boolean> => false;
+const dbCheckThrows = async (): Promise<boolean> => {
+  throw new Error('db down');
+};
+const delayedOkResponse = async (): Promise<Response> => {
+  await delay(1000);
+  return okJsonResponse(true);
+};
+
+const getUnhealthyStatus = (): AggregatedHealthStatus =>
+  ({
+    timestamp: 't',
+    totalServices: 1,
+    healthy: 0,
+    degraded: 0,
+    unhealthy: 1,
+    services: [],
+  }) satisfies AggregatedHealthStatus;
+
+const getDegradedStatus = (): AggregatedHealthStatus =>
+  ({
+    timestamp: 't',
+    totalServices: 2,
+    healthy: 1,
+    degraded: 1,
+    unhealthy: 0,
+    services: [],
+  }) satisfies AggregatedHealthStatus;
+
+const getHealthyStatus = (): AggregatedHealthStatus =>
+  ({
+    timestamp: 't',
+    totalServices: 1,
+    healthy: 1,
+    degraded: 0,
+    unhealthy: 0,
+    services: [],
+  }) satisfies AggregatedHealthStatus;
+
 describe('ServiceHealthMonitor', (): void => {
   beforeEach((): void => {
     vi.clearAllMocks();
@@ -70,7 +116,7 @@ describe('ServiceHealthMonitor', (): void => {
     vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
 
     // Default fetch mock (can be overridden in tests)
-    (globalThis as unknown as { fetch?: unknown }).fetch = vi.fn(async () => okJsonResponse(true));
+    (globalThis as unknown as { fetch?: unknown }).fetch = vi.fn(fetchOk);
   });
 
   afterEach((): void => {
@@ -103,7 +149,7 @@ describe('ServiceHealthMonitor', (): void => {
         3000,
         'localhost',
         ['dep-a'],
-        async () => false
+        dbCheckFails
       );
       const { res, state } = createFakeRes();
 
@@ -126,9 +172,7 @@ describe('ServiceHealthMonitor', (): void => {
         3000,
         'localhost',
         [],
-        async () => {
-          throw new Error('db down');
-        }
+        dbCheckThrows
       );
       const { res, state } = createFakeRes();
 
@@ -204,20 +248,37 @@ describe('ServiceHealthMonitor', (): void => {
       setIntervalSpy.mockRestore();
       clearIntervalSpy.mockRestore();
     });
+
+    it('does not overlap checks when a previous tick is still running', async (): Promise<void> => {
+      const monitor = ServiceHealthMonitor.create({ a: 'http://a/health' }, 100); //NOSONAR
+      const checkAllSpy = vi.spyOn(monitor, 'checkAll');
+
+      (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        delayedOkResponse
+      );
+
+      monitor.start();
+      expect(checkAllSpy).toHaveBeenCalledTimes(1);
+
+      // Advance time while the first check is still in flight
+      await vi.advanceTimersByTimeAsync(500);
+      expect(checkAllSpy).toHaveBeenCalledTimes(1);
+
+      // Complete the first check
+      await vi.advanceTimersByTimeAsync(600);
+
+      // Next interval tick should trigger another check
+      await vi.advanceTimersByTimeAsync(100);
+      expect(checkAllSpy).toHaveBeenCalledTimes(2);
+
+      monitor.stop();
+    });
   });
 
   describe('HealthCheckAggregator', (): void => {
     it('returns 503 when any service is unhealthy', async (): Promise<void> => {
       const monitor = {
-        getLastStatus: (): AggregatedHealthStatus =>
-          ({
-            timestamp: 't',
-            totalServices: 1,
-            healthy: 0,
-            degraded: 0,
-            unhealthy: 1,
-            services: [],
-          }) satisfies AggregatedHealthStatus,
+        getLastStatus: getUnhealthyStatus,
       } as unknown as IServiceHealthMonitor;
 
       const agg = HealthCheckAggregator.create(monitor);
@@ -229,15 +290,7 @@ describe('ServiceHealthMonitor', (): void => {
 
     it('returns 202 when any service is degraded and none unhealthy', async (): Promise<void> => {
       const monitor = {
-        getLastStatus: (): AggregatedHealthStatus =>
-          ({
-            timestamp: 't',
-            totalServices: 2,
-            healthy: 1,
-            degraded: 1,
-            unhealthy: 0,
-            services: [],
-          }) satisfies AggregatedHealthStatus,
+        getLastStatus: getDegradedStatus,
       } as unknown as IServiceHealthMonitor;
 
       const agg = HealthCheckAggregator.create(monitor);
@@ -249,15 +302,7 @@ describe('ServiceHealthMonitor', (): void => {
 
     it('returns 200 when all services are healthy', async (): Promise<void> => {
       const monitor = {
-        getLastStatus: (): AggregatedHealthStatus =>
-          ({
-            timestamp: 't',
-            totalServices: 1,
-            healthy: 1,
-            degraded: 0,
-            unhealthy: 0,
-            services: [],
-          }) satisfies AggregatedHealthStatus,
+        getLastStatus: getHealthyStatus,
       } as unknown as IServiceHealthMonitor;
 
       const agg = HealthCheckAggregator.create(monitor);

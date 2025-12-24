@@ -3,8 +3,8 @@
  * Full ORM capabilities with eager/lazy loading
  */
 
-import { DatabaseError } from '@/exceptions/ZintrustError';
 import { DEFAULTS } from '@config/constants';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
 import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne, IRelationship } from '@orm/Relationships';
@@ -29,7 +29,7 @@ const getRelatedTableName = (relatedModel: ModelStatic): string => {
     return new candidate().getTable();
   }
 
-  throw new Error('Related model does not provide a table name');
+  throw ErrorFactory.createConfigError('Related model does not provide a table name');
 };
 
 export interface ModelConfig {
@@ -200,8 +200,11 @@ export const createModel = (
     },
     getAttribute: (key): unknown => attrs[key],
     getAttributes: (): Record<string, unknown> => ({ ...attrs }),
+
+    // remove in production - use saveChanges pattern
+    // eslint-disable-next-line @typescript-eslint/require-await
     async save(): Promise<boolean> {
-      if (db === undefined) throw new DatabaseError('Database not initialized');
+      if (db === undefined) throw ErrorFactory.createDatabaseError('Database not initialized');
       if (config.timestamps) {
         attrs['created_at'] = attrs['created_at'] ?? new Date().toISOString();
         attrs['updated_at'] = new Date().toISOString();
@@ -210,6 +213,9 @@ export const createModel = (
       original = { ...attrs };
       return true;
     },
+
+    // remove in production - use delete pattern
+    // eslint-disable-next-line @typescript-eslint/require-await
     async delete(): Promise<boolean> {
       if (!isExists || db === undefined) return false;
       return true;
@@ -303,8 +309,8 @@ export const define = <T extends Record<string, (m: IModel, ...args: unknown[]) 
           : never;
       };
     },
-    find: (id: unknown): Promise<IModel | null> => find(config, id),
-    all: (): Promise<IModel[]> => all(config),
+    find: async (id: unknown): Promise<IModel | null> => find(config, id),
+    all: async (): Promise<IModel[]> => all(config),
     query: (): IQueryBuilder => query(config.table, config.connection),
     getTable: (): string => config.table,
   };

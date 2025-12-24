@@ -51,15 +51,23 @@ export const ServiceBundler = Object.freeze((): IServiceBundlerManager => {
       return instance;
     },
 
-    bundleService(config: BundleConfig): Promise<BundleResult> {
+    async bundleService(config: BundleConfig): Promise<BundleResult> {
       return this.getInstance().bundleService(config);
     },
 
-    bundleAll(domain: string, services: string[], outputDir?: string): Promise<BundleResult[]> {
+    async bundleAll(
+      domain: string,
+      services: string[],
+      outputDir?: string
+    ): Promise<BundleResult[]> {
       return this.getInstance().bundleAll(domain, services, outputDir);
     },
 
-    createServiceImage(serviceName: string, domain: string, registry?: string): Promise<string> {
+    async createServiceImage(
+      serviceName: string,
+      domain: string,
+      registry?: string
+    ): Promise<string> {
       return this.getInstance().createServiceImage(serviceName, domain, registry);
     },
 
@@ -83,7 +91,7 @@ export const ServiceBundler = Object.freeze((): IServiceBundlerManager => {
           services: string[],
           outputDir: string = 'dist/services'
         ): Promise<BundleResult[]> {
-          return runBundleAll(domain, services, outputDir, (c) => this.bundleService(c));
+          return runBundleAll(domain, services, outputDir, async (c) => this.bundleService(c));
         },
 
         /**
@@ -142,20 +150,21 @@ async function runBundleAll(
 ): Promise<BundleResult[]> {
   Logger.info(`\n📦 Bundling ${services.length} services for domain: ${domain}`);
 
-  const results: BundleResult[] = [];
-
-  for (const service of services) {
+  const promises = services.map(async (service) => {
     try {
-      const result = await bundleServiceFn({
+      return await bundleServiceFn({
         serviceName: service,
         domain,
         outputDir,
       });
-      results.push(result);
     } catch (error) {
       Logger.error(`Failed to bundle ${service}:`, error);
+      return null;
     }
-  }
+  });
+
+  const allResults = await Promise.all(promises);
+  const results = allResults.filter((r): r is BundleResult => r !== null);
 
   // Print summary
   printBundleSummary(results);
@@ -377,7 +386,7 @@ ENV NODE_ENV=production
 ENV SERVICE_NAME=${serviceName}
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD node -e "require('node:http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD node -e "require('node:http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
 EXPOSE 3000
 
@@ -404,14 +413,14 @@ export async function bundleServices(domain: string, services: string): Promise<
   }
 }
 
-export const bundleService = (config: BundleConfig): Promise<BundleResult> =>
+export const bundleService = async (config: BundleConfig): Promise<BundleResult> =>
   ServiceBundler.getInstance().bundleService(config);
-export const bundleAll = (
+export const bundleAll = async (
   domain: string,
   services: string[],
   outputDir?: string
 ): Promise<BundleResult[]> => ServiceBundler.getInstance().bundleAll(domain, services, outputDir);
-export const createServiceImage = (
+export const createServiceImage = async (
   serviceName: string,
   domain: string,
   registry?: string

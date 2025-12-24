@@ -5,7 +5,7 @@
 
 import { appConfig } from '@/config';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -29,7 +29,7 @@ const resolveNpmPath = (): string => {
     if (fs.existsSync(candidate)) return candidate;
   }
 
-  throw new Error(
+  throw ErrorFactory.createCliError(
     'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
   );
 };
@@ -54,7 +54,7 @@ const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
     try {
       runNpmScript(cmd, ['lint', '--', isDryRun ? '--fix-dry-run' : '--fix']);
     } catch (error) {
-      Logger.error('ESLint fix failed', error);
+      ErrorFactory.createCliError('ESLint fix failed', error);
       cmd.warn('ESLint fix encountered some issues, continuing...');
     }
 
@@ -62,13 +62,13 @@ const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
     try {
       runNpmScript(cmd, ['format']);
     } catch (error) {
-      Logger.error('Prettier format failed', error);
+      ErrorFactory.createCliError('Prettier format failed', error);
       cmd.warn('Prettier format encountered some issues.');
     }
 
     cmd.success('Code fixes completed successfully!');
   } catch (error) {
-    Logger.error('Fix command failed', error);
+    ErrorFactory.createCliError('Fix command failed', error);
     cmd.warn('Some fixes could not be applied automatically.');
   }
 };

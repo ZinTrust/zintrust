@@ -43,6 +43,7 @@ export const Env = Object.freeze({
   PORT: getInt('PORT', 3000),
   HOST: get('HOST', 'localhost'),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
+  APP_KEY: get('APP_KEY', ''),
 
   // Database
   DB_CONNECTION: get('DB_CONNECTION', 'sqlite'),
