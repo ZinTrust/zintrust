@@ -1,5 +1,5 @@
-import { IApplication } from '@/Application';
-import { Server } from '@/Server';
+import { IApplication } from '@boot/Application';
+import { Server } from '@boot/Server';
 import * as http from 'node:http';
 import { type Mock, describe, expect, it, vi } from 'vitest';
 

@@ -10,6 +10,7 @@
     "moduleResolution": "bundler",
     "paths": {
       "@/*": ["./src/*"],
+      "@boot/*": ["./src/boot/*"],
       "@cli/*": ["./src/cli/*"],
       "@orm/*": ["./src/orm/*"],
       "@routing/*": ["./src/routing/*"],

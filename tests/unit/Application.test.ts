@@ -1,4 +1,4 @@
-import { Application } from '@/Application';
+import { Application } from '@boot/Application';
 import { describe, expect, it, vi } from 'vitest';
 
 // Mock dependencies
@@ -96,7 +96,7 @@ describe('Application', () => {
       },
     }));
 
-    const { Application: FreshApplication } = await import('@/Application');
+    const { Application: FreshApplication } = await import('@boot/Application');
     FreshApplication.create('/root'); // NOSONAR
 
     expect(initialize).not.toHaveBeenCalled();

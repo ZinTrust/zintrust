@@ -92,4 +92,6 @@ export const MySQLAdapter = Object.freeze({
     };
   },
 });
+
+export default MySQLAdapter;
 // TEMPLATE_END

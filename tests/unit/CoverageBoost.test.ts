@@ -1,7 +1,7 @@
-import { Application, IApplication } from '@/Application';
-import { Server } from '@/Server';
 import { CLI } from '@/cli/CLI';
 import { ErrorHandler } from '@/cli/ErrorHandler';
+import { Application, IApplication } from '@boot/Application';
+import { Server } from '@boot/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';

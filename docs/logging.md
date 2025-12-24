@@ -42,7 +42,7 @@ LOG_LEVEL=error    # Captures: error only
 The logger is initialized in the Application constructor with the environment setting:
 
 ```typescript
-// In src/Application.ts
+// In src/boot/Application.ts
 if (!Env.DISABLE_LOGGING) {
   Logger.initialize(undefined, undefined, undefined, Env.LOG_LEVEL);
 }

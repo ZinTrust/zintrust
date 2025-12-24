@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const handleRequest = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('@/Application', () => {
+vi.mock('@boot/Application', () => {
   const createAppMock = () => ({
     boot: vi.fn().mockResolvedValue(undefined),
     getRouter: vi.fn().mockReturnValue({}),
@@ -89,7 +89,7 @@ describe('functions/lambda', () => {
     expect(res2.statusCode).toBe(200);
     expect(Logger.error as unknown as Mock).not.toHaveBeenCalled();
 
-    const { Application } = await import('@/Application');
+    const { Application } = await import('@boot/Application');
     const { Kernel } = await import('@http/Kernel');
 
     expect(Application.create as unknown as Mock).toHaveBeenCalledTimes(1);

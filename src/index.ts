@@ -3,8 +3,8 @@
  * Built for performance, type safety, and exceptional developer experience
  */
 
-export { Application } from '@/Application';
-export { Server } from '@/Server';
+export { Application } from '@boot/Application';
+export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
 export { Controller } from '@http/Controller';
 export { Kernel } from '@http/Kernel';

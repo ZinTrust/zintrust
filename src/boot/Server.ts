@@ -3,7 +3,7 @@
  * Uses Node.js built-in HTTP server with no external dependencies
  */
 
-import { IApplication } from '@/Application';
+import { IApplication } from '@boot/Application';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { Logger } from '@config/logger';

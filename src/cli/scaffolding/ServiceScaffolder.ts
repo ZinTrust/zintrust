@@ -204,8 +204,8 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { Application } from '@/Application';
-import { Server } from '@/Server';
+import { Application } from '@boot/Application';
+import { Server } from '@boot/Server';
 import { Logger } from '@config/logger';
 import { Env } from '@config/env';
 import path from 'node:path';

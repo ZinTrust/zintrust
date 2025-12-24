@@ -95,4 +95,7 @@ export const PostgreSQLAdapter = Object.freeze({
     };
   },
 });
+
+export default PostgreSQLAdapter;
+
 // TEMPLATE_END

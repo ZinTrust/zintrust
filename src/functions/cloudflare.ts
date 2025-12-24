@@ -1,4 +1,4 @@
-import { Application } from '@/Application';
+import { Application } from '@boot/Application';
 import { Logger } from '@config/logger';
 import { IKernel, Kernel } from '@http/Kernel';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';

@@ -32,7 +32,7 @@
     "lint": "eslint .",
     "format": "prettier --write 'src/**/*.ts'",
     "dev": "tsx watch src/index.ts",
-    "deploy": "wrangler types && wrangler deploy",
+    "deploy": "cd docs-website && wrangler types && wrangler deploy",
     "templates:sync": "tsx src/scripts/TemplateSync.ts",
     "git-reload": "git rm -r --cached .  && git add .",
     "start": "node dist/src/bootstrap.js",

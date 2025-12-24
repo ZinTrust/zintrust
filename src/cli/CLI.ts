@@ -13,6 +13,7 @@ import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { QACommand } from '@cli/commands/QACommand';
+import { StartCommand } from '@cli/commands/StartCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -72,6 +73,7 @@ const registerCommands = (program: Command): void => {
   const commands = [
     NewCommand.create(),
     AddCommand.create(),
+    StartCommand.create(),
     MigrateCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),

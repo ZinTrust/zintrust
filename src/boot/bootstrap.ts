@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Application } from '@/Application';
-import { Server } from '@/Server';
+import { Application } from '@boot/Application';
+import { Server } from '@boot/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -37,8 +37,13 @@ const BootstrapFunctions = Object.freeze({
 
       Logger.info(`Server running at http://${host}:${port}`);
     } catch (error) {
-      ErrorFactory.createTryCatchError('Failed to bootstrap application:', error);
+      Logger.error('Failed to bootstrap application:', error as Error);
+      const structuredError = ErrorFactory.createTryCatchError(
+        'Failed to bootstrap application:',
+        error
+      );
       process.exit(1);
+      throw structuredError;
     }
   },
 
@@ -50,11 +55,24 @@ const BootstrapFunctions = Object.freeze({
       Logger.info('SIGTERM received, shutting down gracefully...');
       process.exit(0);
     });
+
+    process.on('SIGINT', () => {
+      Logger.info('SIGINT received, shutting down gracefully...');
+      process.exit(0);
+    });
   },
 });
 
 // Run bootstrap
-await BootstrapFunctions.start();
+await BootstrapFunctions.start().catch((error) => {
+  try {
+    Logger.error('Failed to bootstrap application:', error as Error);
+  } catch {
+    // best-effort logging
+  }
+
+  process.exit(1);
+});
 
 // Handle graceful shutdown
 BootstrapFunctions.setupShutdownHandler();

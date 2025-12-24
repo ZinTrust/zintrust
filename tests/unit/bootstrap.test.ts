@@ -1,11 +1,19 @@
-import { Application } from '@/Application';
-import { Server } from '@/Server';
+import { Application } from '@boot/Application';
+import { Server } from '@boot/Server';
 import { Logger } from '@config/logger';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // Mock dependencies
-vi.mock('@/Application');
-vi.mock('@/Server');
+vi.mock('@boot/Application', () => ({
+  Application: {
+    create: vi.fn(),
+  },
+}));
+vi.mock('@boot/Server', () => ({
+  Server: {
+    create: vi.fn(),
+  },
+}));
 vi.mock('@routes/api', () => ({
   registerRoutes: vi.fn(),
 }));
@@ -29,7 +37,20 @@ vi.mock('@config/env', () => ({
     }),
   },
 }));
-vi.mock('@config/logger');
+vi.mock('@config/logger', () => ({
+  Logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    scope: vi.fn(() => ({
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
+    })),
+  },
+}));
 
 describe('Bootstrap', () => {
   type SignalName = 'SIGTERM' | 'SIGINT';
@@ -79,7 +100,7 @@ describe('Bootstrap', () => {
   });
 
   it('should bootstrap application successfully and register shutdown handlers', async () => {
-    await import('../../src/bootstrap' + '?v=success');
+    await import('../../src/boot/bootstrap' + '?v=success');
 
     expect(Application.create).toHaveBeenCalled();
     expect(Server.create).toHaveBeenCalledWith(mockApp, 3000, 'localhost');
@@ -96,11 +117,11 @@ describe('Bootstrap', () => {
 
   it('should handle bootstrap errors via internal try/catch', async () => {
     const error = new Error('Bootstrap failed');
-    (Server.create as unknown as Mock).mockImplementation(function () {
+    (Server.create as unknown as Mock).mockImplementation(() => {
       throw error;
     });
 
-    await import('../../src/bootstrap' + '?v=internal-error');
+    await import('../../src/boot/bootstrap' + '?v=internal-error');
 
     expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', error);
     expect(process.exit).toHaveBeenCalledWith(1);
@@ -108,7 +129,7 @@ describe('Bootstrap', () => {
 
   it('should cover the top-level bootstrap().catch handler when Logger.error throws', async () => {
     const internalError = new Error('Bootstrap failed');
-    (Server.create as unknown as Mock).mockImplementation(function () {
+    (Server.create as unknown as Mock).mockImplementation(() => {
       throw internalError;
     });
 
@@ -117,7 +138,7 @@ describe('Bootstrap', () => {
       // Just log, don't throw
     });
 
-    await import('../../src/bootstrap' + '?v=top-level-catch');
+    await import('../../src/boot/bootstrap' + '?v=top-level-catch');
 
     expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', internalError);
     expect(process.exit).toHaveBeenCalledWith(1);

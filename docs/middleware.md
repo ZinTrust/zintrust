@@ -27,7 +27,7 @@ export const authMiddleware: Middleware = async (req, res, next) => {
 
 ## Registering Middleware
 
-Middleware are registered in the `src/bootstrap.ts` or directly in route groups.
+Middleware are registered in the `src/boot/bootstrap.ts` or directly in route groups.
 
 ### Global Middleware
 

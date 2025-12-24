@@ -286,8 +286,10 @@ const handleExport = (cmd: IBaseCommand, manager: ConfigManagerLike): void => {
   cmd.info(typeof manager.export === 'function' ? manager.export() : '{}');
 };
 
+const isUnknownArray = (value: unknown): value is unknown[] => Array.isArray(value);
+
 const getArg = (args: unknown, index: number): string | undefined => {
-  if (!Array.isArray(args)) return undefined;
+  if (!isUnknownArray(args)) return undefined;
   const value = args[index];
   return typeof value === 'string' ? value : undefined;
 };
@@ -295,8 +297,16 @@ const getArg = (args: unknown, index: number): string | undefined => {
 const executeConfig = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
   const typedCmd = cmd as IConfigCommand;
   const command = cmd.getCommand();
-  const mergedOptions = {
-    ...(typeof command.opts === 'function' ? command.opts() : {}),
+  const toRecord = (value: unknown): Record<string, unknown> => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value as Record<string, unknown>;
+  };
+
+  const commandOpts: Record<string, unknown> =
+    typeof command.opts === 'function' ? toRecord(command.opts() as unknown) : {};
+
+  const mergedOptions: CommandOptions = {
+    ...commandOpts,
     ...options,
   };
 

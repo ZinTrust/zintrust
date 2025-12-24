@@ -15,6 +15,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@cli': path.resolve(__dirname, './src/cli'),
+      '@boot': path.resolve(__dirname, './src/boot'),
       '@orm': path.resolve(__dirname, './src/orm'),
       '@routing': path.resolve(__dirname, './src/routing'),
       '@middleware': path.resolve(__dirname, './src/middleware'),
