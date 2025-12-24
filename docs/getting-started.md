@@ -87,15 +87,15 @@ npm run build
 // app/Models/User.ts
 import { Model } from '@orm/Model';
 
-export class User extends Model {
-  protected table = 'users';
-  protected fillable = ['name', 'email', 'password'];
-  protected hidden = ['password'];
-  protected timestamps = true;
-  protected casts = {
+export const User = Model.define({
+  table: 'users',
+  fillable: ['name', 'email', 'password'],
+  hidden: ['password'],
+  timestamps: true,
+  casts: {
     is_admin: 'boolean',
-  };
-}
+  },
+});
 ```
 
 ### 2. Create a Route

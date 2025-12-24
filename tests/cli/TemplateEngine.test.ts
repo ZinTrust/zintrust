@@ -105,22 +105,22 @@ describe('TemplateEngine Rendering Paths and Content', () => {
 
   describe('renderContent', () => {
     it('should render content with variables', () => {
-      const content = 'export class {{ClassName}} {}';
-      const variables = { ClassName: 'User' };
-      const result = TemplateEngine.renderContent(content, variables);
-
-      expect(result).toBe('export class User {}');
-    });
-
-    it('should handle multi-line content', () => {
-      const content = `class {{Name}} {
-  constructor(public name: string) {}
-}`;
+      const content = 'export const {{Name}} = Object.freeze({});';
       const variables = { Name: 'User' };
       const result = TemplateEngine.renderContent(content, variables);
 
-      expect(result).toContain('class User {');
-      expect(result).toContain('constructor(public name: string) {}');
+      expect(result).toBe('export const User = Object.freeze({});');
+    });
+
+    it('should handle multi-line content', () => {
+      const content = `export const {{Name}} = Object.freeze({
+  getName: () => '{{Name}}',
+});`;
+      const variables = { Name: 'User' };
+      const result = TemplateEngine.renderContent(content, variables);
+
+      expect(result).toContain('export const User = Object.freeze({');
+      expect(result).toContain("getName: () => 'User'");
     });
   });
 });

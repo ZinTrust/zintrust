@@ -9,24 +9,9 @@ import { useDatabase } from '@orm/Database';
 import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne, IRelationship } from '@orm/Relationships';
 
-type TableNameProvider = { getTable(): string };
-
-const isTableNameProviderConstructor = (value: unknown): value is new () => TableNameProvider => {
-  if (typeof value !== 'function') return false;
-  const maybe = value as { prototype?: unknown };
-  if (maybe.prototype === undefined || maybe.prototype === null) return false;
-  const proto = maybe.prototype as { getTable?: unknown };
-  return typeof proto.getTable === 'function';
-};
-
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
   if (typeof relatedModel.getTable === 'function') {
     return relatedModel.getTable();
-  }
-
-  const candidate = relatedModel as unknown;
-  if (isTableNameProviderConstructor(candidate)) {
-    return new candidate().getTable();
   }
 
   throw ErrorFactory.createConfigError('Related model does not provide a table name');
@@ -52,7 +37,6 @@ export interface ModelConfig {
 export interface ModelStatic {
   query(): IQueryBuilder;
   getTable?(): string;
-  new?(): { getTable(): string };
   name?: string;
 }
 
@@ -149,12 +133,10 @@ const createModelRelationships = (
     HasOne.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
   hasMany: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
     HasMany.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
-  belongsTo: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
-    BelongsTo.create(
-      relatedModel,
-      foreignKey ?? `${relatedModel.name?.toLowerCase() ?? 'related'}_id`,
-      'id'
-    ),
+  belongsTo: (relatedModel: ModelStatic, foreignKey?: string): IRelationship => {
+    const relatedTable = getRelatedTableName(relatedModel);
+    return BelongsTo.create(relatedModel, foreignKey ?? `${relatedTable.slice(0, -1)}_id`, 'id');
+  },
   belongsToMany: (
     relatedModel: ModelStatic,
     throughTable?: string,

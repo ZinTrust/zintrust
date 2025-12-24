@@ -13,18 +13,26 @@ zin add model User
 A basic model looks like this:
 
 ```typescript
-import { Model } from '@orm/Model';
+import { IModel, Model } from '@orm/Model';
 
-export class User extends Model {
-  protected connection = 'default';
-  protected table = 'users';
-  protected fillable = ['name', 'email', 'password'];
-  protected hidden = ['password'];
-  protected casts = {
-    is_admin: 'boolean',
-    metadata: 'json',
-  };
-}
+export const User = Model.define(
+  {
+    connection: 'default',
+    table: 'users',
+    fillable: ['name', 'email', 'password'],
+    hidden: ['password'],
+    timestamps: true,
+    casts: {
+      is_admin: 'boolean',
+      metadata: 'json',
+    },
+  },
+  {
+    isAdmin(model: IModel) {
+      return model.getAttribute('is_admin') === true;
+    },
+  }
+);
 ```
 
 ### Using Models in Controllers & Services
@@ -55,13 +63,19 @@ Both patterns work. Choose based on your context: use static imports for cleaner
 
 ## Multi-Database Support
 
-Zintrust supports multiple database connections. You can specify which connection a model should use by setting the `protected connection` property.
+Zintrust supports multiple database connections. You can specify which connection a model should use by setting `connection` in `Model.define(...)`.
 
 ```typescript
-export class ExternalUser extends Model {
-  protected connection = 'external_db';
-  protected table = 'users';
-}
+import { Model } from '@orm/Model';
+
+export const ExternalUser = Model.define({
+  connection: 'external_db',
+  table: 'users',
+  fillable: [],
+  hidden: [],
+  timestamps: false,
+  casts: {},
+});
 ```
 
 You can initialize connections in your application bootstrap:
@@ -103,21 +117,45 @@ Zintrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and 
 #### HasMany
 
 ```typescript
-class User extends Model {
-  public posts() {
-    return this.hasMany(Post);
+import { Post } from '@app/Models/Post';
+import { IModel, Model } from '@orm/Model';
+
+export const User = Model.define(
+  {
+    table: 'users',
+    fillable: [],
+    hidden: [],
+    timestamps: true,
+    casts: {},
+  },
+  {
+    posts(model: IModel) {
+      return model.hasMany(Post);
+    },
   }
-}
+);
 ```
 
 #### BelongsToMany (Pivot Tables)
 
 ```typescript
-class Post extends Model {
-  public tags() {
-    return this.belongsToMany(Tag);
+import { Tag } from '@app/Models/Tag';
+import { IModel, Model } from '@orm/Model';
+
+export const Post = Model.define(
+  {
+    table: 'posts',
+    fillable: [],
+    hidden: [],
+    timestamps: true,
+    casts: {},
+  },
+  {
+    tags(model: IModel) {
+      return model.belongsToMany(Tag);
+    },
   }
-}
+);
 ```
 
 By default, Zintrust will look for a pivot table named by joining the two table names in alphabetical order (e.g., `posts_tags`).
@@ -126,7 +164,7 @@ By default, Zintrust will look for a pivot table named by joining the two table 
 
 ```typescript
 // Create
-const user = new User({ name: 'John' });
+const user = User.create({ name: 'John' });
 await user.save();
 
 // Update

@@ -1,6 +1,6 @@
 /**
  * Factory Generator
- * Generates test data factory classes for models
+ * Generates test data factory modules for models
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';

@@ -242,56 +242,56 @@ npm run test tests/integration/microservices.test.ts
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Microservices Architecture                    │
+│                    Microservices Architecture                   │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              MicroserviceBootstrap                       │  │
-│  │  - Service Discovery from services/ directory           │  │
-│  │  - Configuration loading from service.config.json       │  │
-│  │  - Service registration with MicroserviceManager        │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│           │                    │                   │             │
-│           ▼                    ▼                   ▼             │
-│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐  │
-│  │ Users Service  │  │ Orders Service │  │Payments Service  │  │
-│  │ :3001          │  │ :3002          │  │ :3003            │  │
-│  │                │  │                │  │                  │  │
-│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │  │
-│  │ │ServiceAuth │ │  │ │ServiceAuth │ │  │ │ServiceAuth   │ │  │
-│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │  │
-│  │ │api-key     │ │  │ │jwt         │ │  │ │none          │ │  │
-│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │  │
-│  │                │  │                │  │                  │  │
-│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │  │
-│  │ │RequestTrace│ │  │ │RequestTrace│ │  │ │RequestTrace  │ │  │
-│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │  │
-│  │ │enabled     │ │  │ │enabled     │ │  │ │disabled      │ │  │
-│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │  │
-│  │                │  │                │  │                  │  │
-│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │  │
-│  │ │Health      │ │  │ │Health      │ │  │ │Health        │ │  │
-│  │ │CheckHandler│ │  │ │CheckHandler│ │  │ │CheckHandler  │ │  │
-│  │ │ /health    │ │  │ │ /health    │ │  │ │ /health      │ │  │
-│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │  │
-│  └────────────────┘  └────────────────┘  └──────────────────┘  │
-│           │                    │                   │             │
-│           └────────────────────┼───────────────────┘             │
-│                                │                                 │
-│                   ┌────────────▼─────────────┐                   │
-│                   │  ServiceHealthMonitor    │                   │
-│                   │  - Continuous monitoring │                   │
-│                   │  - Aggregated health     │                   │
-│                   │  - Dependency checking   │                   │
-│                   └────────────┬─────────────┘                   │
-│                                │                                 │
-│                   ┌────────────▼─────────────────────┐            │
-│                   │  PostgreSQL (Shared or Isolated) │            │
-│                   │  - Connection pooling            │            │
-│                   │  - Schema isolation              │            │
-│                   │  - Transaction support           │            │
-│                   └──────────────────────────────────┘            │
-│                                                                  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              MicroserviceBootstrap                       │   │
+│  │  - Service Discovery from services/ directory            │   │
+│  │  - Configuration loading from service.config.json          │   │
+│  │  - Service registration with MicroserviceManager         │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│           │                    │                   │            │
+│           ▼                    ▼                   ▼            │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐   │
+│  │ Users Service  │  │ Orders Service │  │Payments Service  │   │
+│  │ :3001          │  │ :3002          │  │ :3003            │   │
+│  │                │  │                │  │                  │   │
+│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
+│  │ │ServiceAuth │ │  │ │ServiceAuth │ │  │ │ServiceAuth   │ │   │
+│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │   │
+│  │ │api-key     │ │  │ │jwt         │ │  │ │none          │ │   │
+│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │   │
+│  │                │  │                │  │                  │   │
+│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
+│  │ │RequestTrace│ │  │ │RequestTrace│ │  │ │RequestTrace  │ │   │
+│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │   │
+│  │ │enabled     │ │  │ │enabled     │ │  │ │disabled      │ │   │
+│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │   │
+│  │                │  │                │  │                  │   │
+│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
+│  │ │Health      │ │  │ │Health      │ │  │ │Health        │ │   │
+│  │ │CheckHandler│ │  │ │CheckHandler│ │  │ │CheckHandler  │ │   │
+│  │ │ /health    │ │  │ │ /health    │ │  │ │ /health      │ │   │
+│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │   │
+│  └────────────────┘  └────────────────┘  └──────────────────┘   │
+│           │                    │                   │            │
+│           └────────────────────┼───────────────────┘            │
+│                                │                                │
+│                   ┌────────────▼─────────────┐                  │
+│                   │  ServiceHealthMonitor    │                  │
+│                   │  - Continuous monitoring │                  │
+│                   │  - Aggregated health     │                  │
+│                   │  - Dependency checking   │                  │
+│                   └────────────┬─────────────┘                  │
+│                                │                                │
+│                   ┌────────────▼─────────────────────┐          │
+│                   │  PostgreSQL (Shared or Isolated) │          │
+│                   │  - Connection pooling            │          │
+│                   │  - Schema isolation              │          │
+│                   │  - Transaction support           │          │
+│                   └──────────────────────────────────┘          │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

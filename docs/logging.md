@@ -4,7 +4,7 @@ Zintrust features a robust, file-based logging system that helps you monitor you
 
 ## Basic Usage
 
-Use the `Logger` class to record information:
+Use the `Logger` namespace to record information:
 
 ```typescript
 import { Logger } from '@config/logger';

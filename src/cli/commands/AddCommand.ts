@@ -767,7 +767,7 @@ const promptRequestFactoryConfig = async (): Promise<RequestFactoryPromptAnswers
     {
       type: 'input',
       name: 'requestName',
-      message: 'Request class name:',
+      message: 'Request name:',
       default: (ans: { factoryName: string }): string => ans.factoryName.replace('Factory', ''),
     },
     {
@@ -786,7 +786,7 @@ const promptRequestFactoryConfig = async (): Promise<RequestFactoryPromptAnswers
     {
       type: 'confirm',
       name: 'withDTO',
-      message: 'Generate request DTO class?',
+      message: 'Generate request DTO?',
       default: true,
     },
   ]);
@@ -864,7 +864,7 @@ const promptResponseFactoryConfig = async (
     {
       type: 'input',
       name: 'factoryName',
-      message: 'Factory class name:',
+      message: 'Factory name:',
       default: `${defaultResponseName}Factory`,
       validate: (input: string): string | boolean => {
         if (input === '') return 'Factory name is required';
@@ -875,7 +875,7 @@ const promptResponseFactoryConfig = async (
     {
       type: 'input',
       name: 'responseName',
-      message: 'Response class name:',
+      message: 'Response name:',
       default: defaultResponseName,
       validate: (input: string): string | boolean => {
         if (input === '') return 'Response name is required';
@@ -893,7 +893,7 @@ const promptResponseFactoryConfig = async (
     {
       type: 'confirm',
       name: 'withDTO',
-      message: 'Generate response DTO class?',
+      message: 'Generate response DTO?',
       default: true,
     },
   ]);

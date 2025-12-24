@@ -46,9 +46,10 @@ For larger deployments, you can implement custom discovery drivers for Consul, E
 ```typescript
 import { DiscoveryDriver } from '@microservices/types';
 
-class ConsulDriver implements DiscoveryDriver {
+export const consulDriver: DiscoveryDriver = {
   async resolve(serviceName: string): Promise<string> {
     // Consul lookup logic
-  }
-}
+    return serviceName;
+  },
+};
 ```

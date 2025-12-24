@@ -1,6 +1,6 @@
 # Controllers
 
-Controllers group related request handling logic into a single class.
+Controllers group related request handling logic into a single module (plain object / factory).
 
 ## Creating Controllers
 
@@ -11,58 +11,63 @@ zin add controller UserController
 ## Basic Controller
 
 ```typescript
-// ✅ Static import approach
-import { Controller } from '@http/Controller';
 import { User } from '@app/Models/User';
+import { Controller } from '@http/Controller';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 
-export class UserController extends Controller {
-  async show(req) {
-    const user = await User.query().find(req.params.id);
+export const UserController = {
+  async show(req: IRequest, res: IResponse): Promise<void> {
+    const user = await User.find(req.params['id']);
 
-    if (!user) {
-      return this.error('User not found', 404);
+    if (user === null) {
+      Controller.error(res, 'User not found', 404);
+      return;
     }
 
-    return this.json(user);
-  }
-}
+    Controller.json(res, { data: user });
+  },
+};
 ```
 
 **Or with dynamic imports:**
 
 ```typescript
-// ✅ Dynamic import approach (in async contexts)
 import { Controller } from '@http/Controller';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 
-export class UserController extends Controller {
-  async show(req) {
+export const UserController = {
+  async show(req: IRequest, res: IResponse): Promise<void> {
     const { User } = await import('@app/Models/User');
-    const user = await User.query().find(req.params.id);
+    const user = await User.find(req.params['id']);
 
-    if (!user) {
-      return this.error('User not found', 404);
+    if (user === null) {
+      Controller.error(res, 'User not found', 404);
+      return;
     }
 
-    return this.json(user);
-  }
-}
+    Controller.json(res, { data: user });
+  },
+};
 ```
 
 ## Dependency Injection
 
-Zintrust supports basic dependency injection in controller constructors:
+For dependency injection, prefer a factory function that closes over dependencies:
 
 ```typescript
-export class UserController extends Controller {
-  constructor(private userService: UserService) {
-    super();
-  }
-}
+export const createUserController = (userService: UserService) => ({
+  async show(req: IRequest, res: IResponse): Promise<void> {
+    const user = await userService.getById(req.params['id']);
+    Controller.json(res, { data: user });
+  },
+});
 ```
 
 ## Response Helpers
 
-The base `Controller` class provides several helper methods:
+The `Controller` namespace provides several helper methods:
 
 - `this.json(data, status)`: Returns a JSON response.
 - `this.error(message, status)`: Returns an error response.

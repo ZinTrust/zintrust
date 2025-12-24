@@ -4,17 +4,17 @@ Zintrust is built for speed, but there are several techniques you can use to fur
 
 ## Memoization
 
-Use the `@Memoize` decorator to cache the results of expensive function calls.
+Use `Memoize.create(...)` to cache the results of expensive function calls.
 
 ```typescript
 import { Memoize } from '@performance/Optimizer';
 
-class StatsService {
-  @Memoize()
-  async getGlobalStats() {
-    // Expensive database aggregation
-  }
-}
+const getGlobalStats = async (): Promise<unknown> => {
+  // Expensive database aggregation
+  return { ok: true };
+};
+
+export const getGlobalStatsMemoized = Memoize.create(getGlobalStats, { ttl: 60_000 });
 ```
 
 ## Lazy Loading

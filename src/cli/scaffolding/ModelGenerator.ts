@@ -1,6 +1,6 @@
 /**
  * ModelGenerator - Generate ORM model files
- * Creates type-safe model classes with relationships and validation
+ * Creates type-safe model modules with relationships and validation
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';

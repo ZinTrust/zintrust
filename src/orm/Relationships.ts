@@ -20,24 +20,9 @@ export interface IRelationship {
   get(instance: IModel): Promise<unknown>;
 }
 
-type TableNameProvider = { getTable(): string };
-
-const isTableNameProviderConstructor = (value: unknown): value is new () => TableNameProvider => {
-  if (typeof value !== 'function') return false;
-  const maybe = value as { prototype?: unknown };
-  if (maybe.prototype === undefined || maybe.prototype === null) return false;
-  const proto = maybe.prototype as { getTable?: unknown };
-  return typeof proto.getTable === 'function';
-};
-
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
   if (typeof relatedModel.getTable === 'function') {
     return relatedModel.getTable();
-  }
-
-  const candidate = relatedModel as unknown;
-  if (isTableNameProviderConstructor(candidate)) {
-    return new candidate().getTable();
   }
 
   throw ErrorFactory.createConfigError('Related model does not provide a table name');
@@ -132,8 +117,6 @@ export const BelongsToMany = Object.freeze({
         }
 
         const instanceId = instance.getAttribute('id');
-        // In functional pattern, we might need a different way to get table name
-        // if relatedModel is not a class.
         const relatedTable = getRelatedTableName(relatedModel);
 
         return relatedModel

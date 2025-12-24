@@ -42,7 +42,7 @@ describe('ResponseFactoryGenerator Validation', () => {
       });
       expect.fail('Should throw error');
     } catch (err) {
-      expect((err as Error).message).toContain('Response class name is required');
+      expect((err as Error).message).toContain('Response name is required');
     }
   });
 

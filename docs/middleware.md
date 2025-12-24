@@ -13,17 +13,16 @@ zin add middleware AuthMiddleware
 A middleware must implement the `Middleware` interface:
 
 ```typescript
-import { Request, Response, NextFunction } from '@http/types';
+import type { Middleware } from '@middleware/MiddlewareStack';
 
-export class AuthMiddleware {
-  async handle(req: Request, res: Response, next: NextFunction) {
-    if (!req.headers['authorization']) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    await next();
+export const authMiddleware: Middleware = async (req, res, next) => {
+  if (!req.getHeader('authorization')) {
+    res.setStatus(401).json({ error: 'Unauthorized' });
+    return;
   }
-}
+
+  await next();
+};
 ```
 
 ## Registering Middleware

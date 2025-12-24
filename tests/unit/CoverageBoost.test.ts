@@ -761,26 +761,26 @@ describe('ORM - QueryBuilder & Database', () => {
 });
 
 describe('ORM - Relationships', () => {
-  class MockModel {
-    static readonly table = 'users';
-    static query() {
-      const qb = QueryBuilder.create(this.table);
-      qb.get = vi.fn().mockResolvedValue([{ id: 1, name: 'Test' }]);
-      qb.first = vi.fn().mockResolvedValue({ id: 1, name: 'Test' });
-      return qb;
-    }
-    getAttribute(key: string) {
+  const createRelatedModel = () => {
+    const qb = QueryBuilder.create('users');
+    qb.get = vi.fn().mockResolvedValue([{ id: 1, name: 'Test' }]);
+    qb.first = vi.fn().mockResolvedValue({ id: 1, name: 'Test' });
+    return {
+      getTable: (): string => 'users',
+      query: () => qb,
+    };
+  };
+
+  const createInstance = () => ({
+    getAttribute: (key: string) => {
       if (key === 'id') return 1;
       return 'val';
-    }
-    getTable() {
-      return 'users';
-    }
-  }
+    },
+  });
 
   it('should handle HasOne', async () => {
-    const rel = HasOne.create(MockModel as any, 'user_id', 'id');
-    const result = await rel.get(new MockModel() as any);
+    const rel = HasOne.create(createRelatedModel() as any, 'user_id', 'id');
+    const result = await rel.get(createInstance() as any);
     expect(result).toBeDefined();
 
     // Test null case
@@ -789,20 +789,25 @@ describe('ORM - Relationships', () => {
   });
 
   it('should handle HasMany', async () => {
-    const rel = HasMany.create(MockModel as any, 'user_id', 'id');
-    const result = await rel.get(new MockModel() as any);
+    const rel = HasMany.create(createRelatedModel() as any, 'user_id', 'id');
+    const result = await rel.get(createInstance() as any);
     expect(Array.isArray(result)).toBe(true);
   });
 
   it('should handle BelongsTo', async () => {
-    const rel = BelongsTo.create(MockModel as any, 'user_id', 'id');
-    const result = await rel.get(new MockModel() as any);
+    const rel = BelongsTo.create(createRelatedModel() as any, 'user_id', 'id');
+    const result = await rel.get(createInstance() as any);
     expect(result).toBeDefined();
   });
 
   it('should handle BelongsToMany', async () => {
-    const rel = BelongsToMany.create(MockModel as any, 'user_roles', 'user_id', 'role_id');
-    const result = await rel.get(new MockModel() as any);
+    const rel = BelongsToMany.create(
+      createRelatedModel() as any,
+      'user_roles',
+      'user_id',
+      'role_id'
+    );
+    const result = await rel.get(createInstance() as any);
     expect(Array.isArray(result)).toBe(true);
 
     // Test invalid instance

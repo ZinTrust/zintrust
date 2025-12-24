@@ -10,24 +10,7 @@ import { Logger } from '@config/logger';
 import { useDatabase } from '@orm/Database';
 
 export function registerRoutes(router: Router): void {
-  const userController: UserController = ((): UserController => {
-    const maybeWithCreate = UserController as unknown as { create?: () => UserController };
-    if (typeof maybeWithCreate.create === 'function') {
-      return maybeWithCreate.create();
-    }
-
-    try {
-      const factory = UserController as unknown as () => UserController;
-      return factory();
-    } catch (error) {
-      Logger.error(
-        'UserController could not be instantiated via factory, falling back to constructor',
-        error
-      );
-      const Ctor = UserController as unknown as new () => UserController;
-      return new Ctor();
-    }
-  })();
+  const userController: UserController = UserController.create();
 
   registerPublicRoutes(router);
   registerApiV1Routes(router, userController);
@@ -90,13 +73,13 @@ function registerApiV1Routes(router: Router, userController: UserController): vo
     r.group({ middleware: ['auth'] }, (pr) => {
       // User resource (CRUD)
       pr.resource('users', {
-        index: userController.index.bind(userController),
-        create: userController.create.bind(userController),
-        store: userController.store.bind(userController),
-        show: userController.show.bind(userController),
-        edit: userController.edit.bind(userController),
-        update: userController.update.bind(userController),
-        destroy: userController.destroy.bind(userController),
+        index: userController.index,
+        create: userController.create,
+        store: userController.store,
+        show: userController.show,
+        edit: userController.edit,
+        update: userController.update,
+        destroy: userController.destroy,
       });
 
       // Custom user routes

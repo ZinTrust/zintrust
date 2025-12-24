@@ -51,7 +51,7 @@ export async function validateOptions(options: ResponseFactoryOptions): Promise<
   }
 
   if (options.responseName.trim() === '') {
-    throw ErrorFactory.createCliError('Response class name is required');
+    throw ErrorFactory.createCliError('Response name is required');
   }
 
   if (options.factoriesPath === '') {

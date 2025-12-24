@@ -255,7 +255,7 @@ export const migration: Migration = {
 }
 
 /**
- * Convert class name to table name
+ * Convert name to table name
  */
 function getTableNameFromClass(className: string): string {
   // Remove prefixes

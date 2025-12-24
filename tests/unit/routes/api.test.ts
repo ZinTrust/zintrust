@@ -6,17 +6,20 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // Mock dependencies
 vi.mock('@app/Controllers/UserController', () => {
-  class MockUserController {
-    index = vi.fn();
-    create = vi.fn();
-    store = vi.fn();
-    show = vi.fn();
-    edit = vi.fn();
-    update = vi.fn();
-    destroy = vi.fn();
-  }
+  const createMockUserController = () => ({
+    index: vi.fn(),
+    create: vi.fn(),
+    store: vi.fn(),
+    show: vi.fn(),
+    edit: vi.fn(),
+    update: vi.fn(),
+    destroy: vi.fn(),
+  });
+
   return {
-    UserController: MockUserController,
+    UserController: {
+      create: () => createMockUserController(),
+    },
   };
 });
 vi.mock('@config/env', () => ({
