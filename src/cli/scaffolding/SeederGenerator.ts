@@ -5,6 +5,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
@@ -303,18 +304,18 @@ function buildRelationshipMethods(options: SeederOptions): string {
 
   const relationshipCode = options.relationships
     .map((rel) => {
-      const relId = `${camelCase(rel)}Id`;
+      const relId = `${CommonUtils.camelCase(rel)}Id`;
 
       return `    // Seed with ${rel} relationships
-    const ${camelCase(rel)}s = await ${rel}.all();
-    if (${camelCase(rel)}s.length > 0) {
+    const ${CommonUtils.camelCase(rel)}s = await ${rel}.all();
+    if (${CommonUtils.camelCase(rel)}s.length > 0) {
       const factory = new ${getFactoryName(options)}();
       const records = factory
-        .count(Math.min(${options.count ?? 10}, ${camelCase(rel)}s.length))
+        .count(Math.min(${options.count ?? 10}, ${CommonUtils.camelCase(rel)}s.length))
         .get();
 
       for (let i = 0; i < records.length; i++) {
-        records[i].${relId} = ${camelCase(rel)}s[i].id;
+        records[i].${relId} = ${CommonUtils.camelCase(rel)}s[i].id;
         // await ${options.modelName}.create(records[i]);
       }
     }`;
@@ -342,13 +343,6 @@ function getTableName(modelName: string): string {
       .toLowerCase()
       .replace(/^_/, '') + 's'
   );
-}
-
-/**
- * Convert string to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 /**

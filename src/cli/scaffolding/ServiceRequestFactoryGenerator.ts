@@ -4,6 +4,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
 import path from 'node:path';
 
@@ -331,7 +332,7 @@ function buildFactoryHelpers(
   return `/**
  * Request factory helpers
  */
-export const ${camelCase(options.name)}Factory = {
+export const ${CommonUtils.camelCase(options.name)}Factory = {
   /**
    * Create single request
    */
@@ -476,13 +477,6 @@ function buildMinimalStateBody(options: ServiceRequestOptions): string {
           // Only required fields
 ${minimalFields}
         };`;
-}
-
-/**
- * Convert to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 export const ServiceRequestFactoryGenerator = Object.freeze({

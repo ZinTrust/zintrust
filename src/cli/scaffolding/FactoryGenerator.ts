@@ -4,6 +4,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from 'node:fs/promises';
@@ -351,7 +352,7 @@ function buildRelationshipMethods(relationships: string[]): string {
   return relationships
     .map((rel) => {
       const factoryName = `${rel}Factory`;
-      const relField = camelCase(rel) + '_id';
+      const relField = CommonUtils.camelCase(rel) + '_id';
       return `      /**
        * Associate ${rel}
        */
@@ -408,13 +409,6 @@ function getDefaultFields(modelName: string): FactoryField[] {
   };
 
   return defaults[modelName] ?? [{ name: 'id', type: 'integer' }];
-}
-
-/**
- * Convert PascalCase to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 /**

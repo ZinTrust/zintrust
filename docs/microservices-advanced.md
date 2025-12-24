@@ -42,7 +42,7 @@ await adapter.connect();
 await adapter.createServiceSchema('ecommerce_users');
 
 // Query using QueryBuilder (Recommended)
-const User = require('@app/Models/User');
+const { User } = await import('@app/Models/User');
 const result = await User.query().where('id', 1).first();
 ```
 
@@ -81,7 +81,7 @@ const adapter = new PostgresAdapter({
 await adapter.connect();
 
 // Query using QueryBuilder (Recommended)
-const Payment = require('@app/Models/Payment');
+const { Payment } = await import('@app/Models/Payment');
 const result = await Payment.query().where('id', 1).first();
 ```
 
@@ -108,8 +108,8 @@ const stats = adapter.getPoolStats();
 console.log(`Connections: ${stats.totalConnections}, Idle: ${stats.idleConnections}`);
 
 // Run transaction with QueryBuilder (Recommended)
-const User = require('@app/Models/User');
-const UserProfile = require('@app/Models/UserProfile');
+const { User } = await import('@app/Models/User');
+const { UserProfile } = await import('@app/Models/UserProfile');
 
 await adapter.transaction(async () => {
   const user = await User.query().insert({
@@ -183,7 +183,7 @@ const result = await adapter.rawQuery('SELECT * FROM users WHERE created_at > $1
 
 ```typescript
 // ✅ Recommended approach - type-safe and secure
-const User = require('@app/Models/User');
+const { User } = await import('@app/Models/User');
 const result = await User.query().where('created_at', '>', new Date('2024-01-01')).get();
 ```
 

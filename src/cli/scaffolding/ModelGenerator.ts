@@ -4,6 +4,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
 import path from 'node:path';
 
@@ -136,7 +137,7 @@ export async function generateModel(options: ModelOptions): Promise<ModelGenerat
  * Build model TypeScript code
  */
 function buildModelCode(options: ModelOptions): string {
-  const table = options.table ?? toSnakeCase(options.name) + 's';
+  const table = options.table ?? CommonUtils.toSnakeCase(options.name) + 's';
   const fillable = options.fillable ?? (options.fields ? options.fields.map((f) => f.name) : []);
   const hidden = options.hidden ?? [];
 
@@ -205,8 +206,8 @@ function buildRelationships(relationships?: ModelRelationship[]): string {
 
   let code = '';
   for (const rel of relationships) {
-    const foreignKey = rel.foreignKey ?? `${toSnakeCase(rel.model)}_id`;
-    const method = toCamelCase(rel.model);
+    const foreignKey = rel.foreignKey ?? `${CommonUtils.toSnakeCase(rel.model)}_id`;
+    const method = CommonUtils.camelCase(rel.model);
 
     if (rel.type === 'hasOne') {
       code += `  /**
@@ -255,23 +256,6 @@ function buildSoftDelete(softDelete?: boolean): string {
     await model.save();
   },
 `;
-}
-
-/**
- * Convert camelCase to snake_case
- */
-function toSnakeCase(str: string): string {
-  return str
-    .replaceAll(/([A-Z])/g, '_$1')
-    .toLowerCase()
-    .replace(/^_/, '');
-}
-
-/**
- * Convert snake_case to camelCase
- */
-function toCamelCase(str: string): string {
-  return str.replaceAll(/_([a-z])/g, (g) => g[1].toUpperCase());
 }
 
 /**

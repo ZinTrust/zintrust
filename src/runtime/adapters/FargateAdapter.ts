@@ -69,7 +69,7 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
 
     getLogger(): NonNullable<AdapterConfig['logger']> {
       return (
-        logger || {
+        logger ?? {
           debug: (msg: string) => Logger.debug(`[Fargate] ${msg}`),
           info: (msg: string) => Logger.info(`[Fargate] ${msg}`),
           warn: (msg: string) => Logger.warn(`[Fargate] ${msg}`),

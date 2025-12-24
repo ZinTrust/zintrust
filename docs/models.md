@@ -27,6 +27,32 @@ export class User extends Model {
 }
 ```
 
+### Using Models in Controllers & Services
+
+You can import models using **static imports** (at module level) or **dynamic imports** (in async functions):
+
+```typescript
+// ✅ Static import (preferred for top-level code)
+import { User } from '@app/Models/User';
+
+export const UserController = {
+  async index(req, res) {
+    const users = await User.all();
+    res.json({ data: users });
+  },
+};
+```
+
+```typescript
+// ✅ Dynamic import (preferred in async functions, error handlers)
+async function fetchUser(id) {
+  const { User } = await import('@app/Models/User');
+  return await User.find(id);
+}
+```
+
+Both patterns work. Choose based on your context: use static imports for cleaner module-level code, dynamic imports for conditional or error-handling paths.
+
 ## Multi-Database Support
 
 Zintrust supports multiple database connections. You can specify which connection a model should use by setting the `protected connection` property.

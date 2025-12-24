@@ -11,10 +11,32 @@ zin add controller UserController
 ## Basic Controller
 
 ```typescript
+// ✅ Static import approach
+import { Controller } from '@http/Controller';
+import { User } from '@app/Models/User';
+
+export class UserController extends Controller {
+  async show(req) {
+    const user = await User.query().find(req.params.id);
+
+    if (!user) {
+      return this.error('User not found', 404);
+    }
+
+    return this.json(user);
+  }
+}
+```
+
+**Or with dynamic imports:**
+
+```typescript
+// ✅ Dynamic import approach (in async contexts)
 import { Controller } from '@http/Controller';
 
 export class UserController extends Controller {
   async show(req) {
+    const { User } = await import('@app/Models/User');
     const user = await User.query().find(req.params.id);
 
     if (!user) {

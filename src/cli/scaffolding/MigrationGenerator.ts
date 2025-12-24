@@ -4,6 +4,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
 import path from 'node:path';
 
@@ -122,7 +123,7 @@ function detectType(name: string): 'create' | 'alter' | 'drop' {
  * Generate migration file content
  */
 function generateMigrationContent(name: string, type: 'create' | 'alter' | 'drop'): string {
-  const className = toPascalCase(name);
+  const className = CommonUtils.toPascalCase(name);
 
   if (type === 'create') {
     return generateCreateMigration(className);
@@ -286,16 +287,6 @@ function getTableNameFromClass(className: string): string {
   }
 
   return tableName;
-}
-
-/**
- * Convert snake_case to PascalCase
- */
-function toPascalCase(name: string): string {
-  return name
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
 }
 
 /**

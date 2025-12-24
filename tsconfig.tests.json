@@ -4,5 +4,6 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["tests/**/*", "src/**/*", "app/**/*", "routes/**/*", "bin/**/*"]
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*"],
+  "exclude": ["tests/**/*"]
 }

@@ -4,6 +4,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
 import path from 'node:path';
 
@@ -69,7 +70,7 @@ export async function generateIntegrationTest(
 ): Promise<ServiceIntegrationTestResult> {
   try {
     const testCode = buildTestCode(options);
-    const fileName = `${camelCase(options.name)}.test.ts`;
+    const fileName = `${CommonUtils.camelCase(options.name)}.test.ts`;
     const filePath = path.join(options.testPath, fileName);
 
     FileGenerator.writeFile(filePath, testCode, { overwrite: true });
@@ -100,7 +101,7 @@ function buildTestCode(options: ServiceIntegrationTestOptions): string {
   const consumerNote = getConsumerNote(options);
 
   return `/**
- * ${camelCase(options.name)} Integration Tests
+ * ${CommonUtils.camelCase(options.name)} Integration Tests
  * Tests service-to-service communication
  * Service: ${options.serviceName}${consumerNote}
  */
@@ -307,13 +308,6 @@ function buildEndpointTest(
     expect(response.status).toBeLessThan(500);
     expect(response.body).toBeDefined();
   });`;
-}
-
-/**
- * Convert to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
 }
 
 export const ServiceIntegrationTestGenerator = Object.freeze({
