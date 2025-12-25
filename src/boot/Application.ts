@@ -31,7 +31,21 @@ export const Application = Object.freeze({
   /**
    * Create a new application instance
    */
-  create(basePath: string = process.cwd()): IApplication {
+  create(basePath?: string): IApplication {
+    const resolvedBasePath = (() => {
+      if (typeof basePath === 'string') {
+        return basePath;
+      }
+      if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+        return process.cwd();
+      }
+      return '';
+    })();
+
+    const joinFromBase = (subPath: string): string => {
+      return resolvedBasePath.length > 0 ? `${resolvedBasePath}/${subPath}` : subPath;
+    };
+
     const environment = Env.get('NODE_ENV', 'development');
     const container = ServiceContainer.create();
     const router = Router.createRouter();
@@ -40,12 +54,12 @@ export const Application = Object.freeze({
 
     // Register core paths
     container.singleton('paths', {
-      base: basePath,
-      app: `${basePath}/app`,
-      config: `${basePath}/config`,
-      database: `${basePath}/database`,
-      routes: `${basePath}/routes`,
-      tests: `${basePath}/tests`,
+      base: resolvedBasePath,
+      app: joinFromBase('app'),
+      config: joinFromBase('config'),
+      database: joinFromBase('database'),
+      routes: joinFromBase('routes'),
+      tests: joinFromBase('tests'),
     });
 
     // Register core instances
@@ -63,7 +77,12 @@ export const Application = Object.freeze({
       Logger.info(`🚀 Booting Zintrust Application in ${environment} mode...`);
 
       // Load configuration
-      // Load routes
+      try {
+        const { registerRoutes } = await import('@routes/api');
+        registerRoutes(router);
+      } catch (error) {
+        Logger.error('Failed to register routes:', error as Error);
+      }
       // Register service providers
       // Bootstrap services
 
@@ -93,7 +112,7 @@ export const Application = Object.freeze({
       getRouter: (): IRouter => router,
       getContainer: (): IServiceContainer => container,
       getMiddlewareStack: (): IMiddlewareStack => middlewareStack,
-      getBasePath: (): string => basePath,
+      getBasePath: (): string => resolvedBasePath,
     };
   },
 });

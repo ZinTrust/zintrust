@@ -8,9 +8,9 @@
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { performance } from '@node-singletons/perf-hooks';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import Database from 'better-sqlite3';
-import { performance } from 'node:perf_hooks';
 
 function normalizeFilename(database: string | null | undefined): string {
   const value = (database ?? '').trim();

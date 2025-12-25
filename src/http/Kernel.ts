@@ -60,6 +60,8 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
         return;
       }
 
+      req.setParams(route.params);
+
       // Execute middleware and handler
       await route.handler(req, res);
     } catch (error) {

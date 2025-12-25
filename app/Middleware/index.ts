@@ -188,7 +188,7 @@ export const jwtMiddleware = (jwtManager: JwtManagerInput, algorithm: JwtAlgorit
     try {
       const payload = resolveJwtManager(jwtManager).verify(token, algorithm);
       // Store in request context (TypeScript allows dynamic properties)
-      (req as any).user = payload;
+      req.user = payload;
       await next();
     } catch (error) {
       Logger.error('JWT verification failed:', error);
@@ -211,7 +211,7 @@ export const csrfMiddleware = (csrfManager: CsrfManagerInput) => {
       return;
     }
 
-    const sessionId = (req as any).sessionId ?? req.getHeader('x-session-id');
+    const sessionId = req.sessionId ?? req.getHeader('x-session-id');
 
     if (sessionId === undefined || sessionId === '') {
       res.setStatus(400).json({ error: 'Missing session ID' });
@@ -251,13 +251,18 @@ export const validationMiddleware = (schema: SchemaType) => {
     }
 
     try {
-      const body = (req as any).body ?? {};
+      const body = req.body ?? {};
       Validator.validate(body, resolveSchema(schema));
       await next();
-    } catch (error) {
+    } catch (error: unknown) {
       Logger.error('Validation error:', error);
-      if (error !== undefined && typeof (error as any).toObject === 'function') {
-        res.setStatus(422).json({ errors: (error as any).toObject() });
+      const newError = error as Error & { toObject?: () => Record<string, unknown> };
+      if (
+        error !== undefined &&
+        'toObject' in newError &&
+        typeof newError.toObject === 'function'
+      ) {
+        res.setStatus(422).json({ errors: newError.toObject() });
       } else {
         res.setStatus(400).json({ error: 'Invalid request body' });
       }
@@ -280,11 +285,11 @@ export const xssProtectionMiddleware = async (
   res.setHeader('X-XSS-Protection', '1; mode=block');
 
   // Sanitize request body if present
-  const body = (req as any).body;
+  const body = req.body;
   if (body !== undefined && body !== null && typeof body === 'object') {
     for (const [key, value] of Object.entries(body)) {
       if (typeof value === 'string') {
-        (body as Record<string, unknown>)[key] = XssProtection.escape(value);
+        body[key] = XssProtection.escape(value);
       }
     }
   }

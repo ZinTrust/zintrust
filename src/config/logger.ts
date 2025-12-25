@@ -3,8 +3,6 @@
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
-
-import { Logger as FileLogger } from '@cli/logger/Logger';
 import { Env } from '@config/env';
 
 interface ILogger {
@@ -33,45 +31,33 @@ const getErrorMessage = (error?: unknown): string => {
 
 // Private helper functions
 const logDebug = (message: string, data?: unknown, category?: string): void => {
+  String(category);
   if (isDevelopment) {
     console.debug(`[DEBUG] ${message}`, data ?? ''); // eslint-disable-line no-console
   }
-  FileLogger.debug(
-    message,
-    typeof data === 'object' ? (data as Record<string, unknown>) : { data },
-    category
-  );
 };
 
 const logInfo = (message: string, data?: unknown, category?: string): void => {
+  String(category);
   console.log(`[INFO] ${message}`, data ?? ''); // eslint-disable-line no-console
-  FileLogger.info(
-    message,
-    typeof data === 'object' ? (data as Record<string, unknown>) : { data },
-    category
-  );
 };
 
 const logWarn = (message: string, data?: unknown, category?: string): void => {
+  String(category);
   console.warn(`[WARN] ${message}`, data ?? ''); // eslint-disable-line no-console
-  FileLogger.warn(
-    message,
-    typeof data === 'object' ? (data as Record<string, unknown>) : { data },
-    category
-  );
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
   const errorMessage = getErrorMessage(error);
+  String(category);
   console.error(`[ERROR] ${message}`, errorMessage); // eslint-disable-line no-console
-  FileLogger.error(message, errorMessage ? { error: errorMessage } : {}, category);
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
   const errorMessage = getErrorMessage(error);
+  String(category);
   console.error(`[FATAL] ${message}`, errorMessage); // eslint-disable-line no-console
-  FileLogger.error(`FATAL: ${message}`, errorMessage ? { error: errorMessage } : {}, category);
-  if (isProduction) {
+  if (isProduction && typeof process !== 'undefined') {
     process.exit(1);
   }
 };

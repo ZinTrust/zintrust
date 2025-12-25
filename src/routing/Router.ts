@@ -135,8 +135,8 @@ const matchRoute = (router: IRouter, method: string, path: string): RouteMatch |
   // Try fast lookup first
   if (router.routeIndex !== undefined) {
     const candidates = [
-      ...(router.routeIndex.get(method) || []),
-      ...(router.routeIndex.get('*') || []),
+      ...(router.routeIndex.get(method) ?? []),
+      ...(router.routeIndex.get('*') ?? []),
     ];
 
     for (const route of candidates) {

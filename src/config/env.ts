@@ -6,21 +6,42 @@
  * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
  */
 
-import * as path from 'node:path';
+type ProcessLike = {
+  env?: Record<string, string | undefined>;
+  execPath?: string;
+  platform?: string;
+};
+
+const getProcessLike = (): ProcessLike | undefined => {
+  return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
+};
+
+const dirnameFromExecPath = (execPath: string, platform?: string): string => {
+  const separator = platform === 'win32' ? '\\' : '/';
+  const lastSep = execPath.lastIndexOf(separator);
+  if (lastSep <= 0) return '';
+  return execPath.slice(0, lastSep);
+};
 
 // Private helper functions
 const get = (key: string, defaultValue?: string): string => {
-  return process.env[key] ?? defaultValue ?? '';
+  const proc = getProcessLike();
+  const env = proc?.env ?? {};
+  return env[key] ?? defaultValue ?? '';
 };
 
 const getInt = (key: string, defaultValue?: number): number => {
-  const value = process.env[key];
+  const proc = getProcessLike();
+  const env = proc?.env ?? {};
+  const value = env[key];
   if (value === undefined || value === null) return defaultValue ?? 0;
   return Number.parseInt(value, 10);
 };
 
 const getBool = (key: string, defaultValue?: boolean): boolean => {
-  const value = process.env[key];
+  const proc = getProcessLike();
+  const env = proc?.env ?? {};
+  const value = env[key];
   if (value === undefined || value === null) return defaultValue ?? false;
   return value.toLowerCase() === 'true' || value === '1';
 };
@@ -41,7 +62,7 @@ export const Env = Object.freeze({
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development'),
-  PORT: getInt('PORT', 3000),
+  PORT: getInt('APP_PORT', 3000),
   HOST: get('HOST', 'localhost'),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
   APP_KEY: get('APP_KEY', ''),
@@ -101,9 +122,9 @@ export const Env = Object.freeze({
   // Paths (safely constructed for Node.js environments)
   NODE_BIN_DIR: (() => {
     try {
-      return typeof process !== 'undefined' && process.execPath
-        ? path.dirname(process.execPath)
-        : '/usr/bin';
+      const proc = getProcessLike();
+      if (proc?.execPath === null || proc?.execPath === undefined) return '';
+      return dirnameFromExecPath(proc.execPath, proc.platform);
     } catch {
       // Fallback for non-Node environments
       return '';
@@ -111,12 +132,11 @@ export const Env = Object.freeze({
   })(),
   SAFE_PATH: (() => {
     try {
-      if (typeof process === 'undefined' || !process.execPath) {
-        return ''; // Non-Node environment
-      }
+      const proc = getProcessLike();
+      if (proc?.execPath === null || proc?.execPath === undefined) return '';
 
-      const binDir = path.dirname(process.execPath);
-      if (process.platform === 'win32') {
+      const binDir = dirnameFromExecPath(proc.execPath, proc.platform);
+      if (proc.platform === 'win32') {
         return [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, binDir].join(';');
       }
       return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', binDir].join(':');

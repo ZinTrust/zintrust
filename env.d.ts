@@ -7,6 +7,7 @@ declare namespace NodeJS {
     SERVICE_JWT_SECRET: string;
     BASE_URL: string;
     MODE: string;
+    APP_PORT: string;
   }
 }
 
@@ -14,6 +15,7 @@ declare namespace NodeJS {
 interface ImportMetaEnv {
   readonly MODE: string;
   readonly BASE_URL: string;
+  readonly APP_PORT: string;
   readonly NODE_ENV: 'development' | 'production' | 'testing';
 }
 

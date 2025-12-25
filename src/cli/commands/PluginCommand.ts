@@ -65,19 +65,29 @@ export const PluginCommand = Object.freeze({
   },
 });
 
-async function listPlugins() {
+async function listPlugins(): Promise<void> {
   const plugins = PluginManager.list();
   Logger.info('Available Plugins:');
 
-  for (const [id, plugin] of Object.entries(plugins)) {
-    const isInstalled = await PluginManager.isInstalled(id);
+  const pluginEntries = Object.entries(plugins);
+
+  const installedStatuses = await Promise.all(
+    pluginEntries.map(async ([id]) => PluginManager.isInstalled(id))
+  );
+
+  for (let i = 0; i < pluginEntries.length; i++) {
+    const [id, plugin] = pluginEntries[i];
+    const isInstalled = installedStatuses[i] ?? false;
     const status = isInstalled ? '✓ Installed' : '- Available';
-    const aliases = plugin.aliases ? `(aliases: ${plugin.aliases.join(', ')})` : '';
+    const aliases =
+      plugin.aliases !== undefined && plugin.aliases.length > 0
+        ? `(aliases: ${plugin.aliases.join(', ')})`
+        : '';
     Logger.info(`  ${id.padEnd(20)} ${status.padEnd(15)} ${plugin.description} ${aliases}`);
   }
 }
 
-async function installPlugin(pluginId: string) {
+async function installPlugin(pluginId: string): Promise<void> {
   try {
     await PluginManager.install(pluginId);
   } catch (error) {
@@ -86,7 +96,7 @@ async function installPlugin(pluginId: string) {
   }
 }
 
-async function uninstallPlugin(pluginId: string) {
+async function uninstallPlugin(pluginId: string): Promise<void> {
   try {
     await PluginManager.uninstall(pluginId);
   } catch (error) {

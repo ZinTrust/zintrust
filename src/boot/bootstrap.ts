@@ -38,12 +38,8 @@ const BootstrapFunctions = Object.freeze({
       Logger.info(`Server running at http://${host}:${port}`);
     } catch (error) {
       Logger.error('Failed to bootstrap application:', error as Error);
-      const structuredError = ErrorFactory.createTryCatchError(
-        'Failed to bootstrap application:',
-        error
-      );
+      ErrorFactory.createTryCatchError('Failed to bootstrap application:', error);
       process.exit(1);
-      throw structuredError;
     }
   },
 

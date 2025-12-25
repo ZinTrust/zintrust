@@ -24,7 +24,7 @@ export const CloudflareAdapter = Object.freeze({
    * Create a new Cloudflare adapter instance
    */
   create(config: AdapterConfig): RuntimeAdapter {
-    const logger = config.logger || createDefaultLogger();
+    const logger = config.logger ?? createDefaultLogger();
 
     return {
       platform: 'cloudflare',
@@ -48,7 +48,7 @@ export const CloudflareAdapter = Object.freeze({
         error(msg: string, err?: Error): void;
       } {
         return (
-          logger || {
+          logger ?? {
             debug: (msg: string) => Logger.debug(`[Cloudflare] ${msg}`),
             info: (msg: string) => Logger.info(`[Cloudflare] ${msg}`),
             warn: (msg: string) => Logger.warn(`[Cloudflare] ${msg}`),
@@ -111,9 +111,7 @@ async function handleCloudflareRequest(
 
     // Read request body
     const body =
-      request.method !== 'GET' && request.method !== 'HEAD'
-        ? Buffer.from(await request.text())
-        : null;
+      request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : null;
 
     // Create mock Node.js request/response objects
     const { req, res, responseData } = createMockHttpObjects(platformRequest);
@@ -197,8 +195,14 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
     }
   }
 
-  const body =
-    typeof response.body === 'string' ? response.body : (response.body?.toString('utf-8') ?? '');
+  let body: string = '';
+  if (response.body !== null && response.body !== undefined) {
+    if (typeof response.body === 'string') {
+      body = response.body;
+    } else {
+      body = response.body.toString();
+    }
+  }
 
   return new Response(body, {
     status: response.statusCode,

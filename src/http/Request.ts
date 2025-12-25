@@ -6,8 +6,11 @@
 import * as http from '@node-singletons/http';
 
 type HeadParam = string | string[] | undefined;
+type JwtPayload = import('/opt/homebrew/var/www/Sites/zintrust/src/index').JwtPayload;
 
 export interface IRequest {
+  sessionId: HeadParam;
+  user: JwtPayload | undefined;
   params: Record<string, string>;
   body: Record<string, unknown>;
   getMethod(): string;
@@ -58,6 +61,135 @@ const toBodyRecord = (value: unknown): Record<string, unknown> => {
   return isPlainObject(value) ? value : {};
 };
 
+type RequestState = {
+  sessionId: HeadParam;
+  user: JwtPayload | undefined;
+  params: Record<string, string>;
+  body: unknown;
+  bodyRecord: Record<string, unknown>;
+};
+
+const createRequestState = (req: http.IncomingMessage): RequestState => {
+  return {
+    sessionId: req.headers['x-session-id'],
+    user: undefined,
+    params: {},
+    body: null,
+    bodyRecord: {},
+  };
+};
+
+const setBodyState = (state: RequestState, newBody: unknown): void => {
+  state.body = newBody;
+  state.bodyRecord = toBodyRecord(newBody);
+};
+
+const createRequestProperties = (
+  state: RequestState,
+  context: Record<string, unknown>
+): Pick<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'context'> => {
+  return {
+    get sessionId(): HeadParam {
+      return state.sessionId;
+    },
+    set sessionId(newSessionId: HeadParam) {
+      state.sessionId = newSessionId;
+    },
+
+    get user(): JwtPayload | undefined {
+      return state.user;
+    },
+    set user(newUser: JwtPayload | undefined) {
+      state.user = newUser;
+    },
+
+    context,
+
+    get params(): Record<string, string> {
+      return state.params;
+    },
+    set params(newParams: Record<string, string>) {
+      state.params = newParams;
+    },
+
+    get body(): Record<string, unknown> {
+      return state.bodyRecord;
+    },
+    set body(newBody: Record<string, unknown>) {
+      setBodyState(state, newBody);
+    },
+  };
+};
+
+const createRequestMethods = (
+  req: http.IncomingMessage,
+  query: Record<string, string | string[]>,
+  state: RequestState
+): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'context'> => {
+  return {
+    getMethod(): string {
+      return req.method ?? 'GET';
+    },
+    getPath(): string {
+      const url = req.url;
+      return url === undefined ? '/' : url.split('?')[0];
+    },
+    getHeaders(): http.IncomingHttpHeaders {
+      return req.headers;
+    },
+    get headers(): http.IncomingHttpHeaders {
+      return req.headers;
+    },
+    getHeader(name: string): HeadParam {
+      return req.headers[name.toLowerCase()];
+    },
+
+    getParams(): Record<string, string> {
+      return state.params;
+    },
+    getParam(key: string): string | undefined {
+      return state.params[key];
+    },
+    setParams(newParams: Record<string, string>): void {
+      state.params = newParams;
+    },
+
+    getQuery(): Record<string, string | string[]> {
+      return query;
+    },
+    getQueryParam(key: string): HeadParam {
+      return query[key];
+    },
+
+    setBody(newBody: unknown): void {
+      setBodyState(state, newBody);
+    },
+    getBody(): unknown {
+      return state.body;
+    },
+
+    isJson(): boolean {
+      const contentType = this.getHeader('content-type');
+      return typeof contentType === 'string' && contentType.includes('application/json');
+    },
+    getRaw(): http.IncomingMessage {
+      return req;
+    },
+  };
+};
+
+const createRequestApi = (
+  req: http.IncomingMessage,
+  query: Record<string, string | string[]>,
+  context: Record<string, unknown>,
+  state: RequestState
+): IRequest => {
+  return {
+    ...createRequestProperties(state, context),
+    ...createRequestMethods(req, query, state),
+  };
+};
+
 export const Request = Object.freeze({
   /**
    * Create a new request instance
@@ -65,74 +197,9 @@ export const Request = Object.freeze({
   create(req: http.IncomingMessage): IRequest {
     const query = parseQuery(req.url ?? '/');
     const context: Record<string, unknown> = {};
+    const state = createRequestState(req);
 
-    let paramsState: Record<string, string> = {};
-    let bodyState: unknown = null;
-    let bodyRecordState: Record<string, unknown> = {};
-
-    return {
-      context,
-      get params(): Record<string, string> {
-        return paramsState;
-      },
-      set params(newParams: unknown) {
-        if (isPlainObject(newParams)) {
-          paramsState = newParams as unknown as Record<string, string>;
-        }
-      },
-      get body(): Record<string, unknown> {
-        return bodyRecordState;
-      },
-      set body(newBody: Record<string, unknown>) {
-        bodyState = newBody;
-        bodyRecordState = toBodyRecord(newBody);
-      },
-      getMethod(): string {
-        return req.method ?? 'GET';
-      },
-      getPath(): string {
-        const url = req.url;
-        return url === undefined ? '/' : url.split('?')[0];
-      },
-      getHeaders(): http.IncomingHttpHeaders {
-        return req.headers;
-      },
-      get headers(): http.IncomingHttpHeaders {
-        return req.headers;
-      },
-      getHeader(name: string): HeadParam {
-        return req.headers[name.toLowerCase()];
-      },
-      getParams(): Record<string, string> {
-        return paramsState;
-      },
-      getParam(key: string): string | undefined {
-        return paramsState[key];
-      },
-      setParams(newParams: Record<string, string>): void {
-        paramsState = newParams;
-      },
-      getQuery(): Record<string, string | string[]> {
-        return query;
-      },
-      getQueryParam(key: string): HeadParam {
-        return query[key];
-      },
-      setBody(newBody: unknown): void {
-        bodyState = newBody;
-        bodyRecordState = toBodyRecord(newBody);
-      },
-      getBody(): unknown {
-        return bodyState;
-      },
-      isJson(): boolean {
-        const contentType = this.getHeader('content-type');
-        return typeof contentType === 'string' && contentType.includes('application/json');
-      },
-      getRaw(): http.IncomingMessage {
-        return req;
-      },
-    };
+    return createRequestApi(req, query, context, state);
   },
 });
 

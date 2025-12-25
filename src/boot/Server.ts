@@ -39,17 +39,39 @@ const MIME_TYPES_MAP: Record<string, string> = {
   '.wasm': MIME_TYPES.WASM,
 };
 
+const getDocsPublicRoot = (): string => {
+  if (process.env.NODE_ENV === 'production') {
+    return path.join(process.cwd(), 'dist/public');
+  }
+  return path.join(process.cwd(), 'docs-website/public');
+};
+
+const stripLeadingSlashes = (value: string): string => value.replace(/^\/+/, '');
+
 /**
  * Map URL path to physical file path
  */
 const mapStaticPath = (urlPath: string): string => {
-  if (urlPath.startsWith('/doc')) {
-    const subPath = urlPath.replace('/doc', '') || '/index.html';
-    return path.join(process.cwd(), 'docs-website/vue/.vitepress/dist', subPath);
-  }
+  const publicRoot = getDocsPublicRoot();
 
   if (urlPath === '/' || urlPath === '/index.html') {
-    return path.join(process.cwd(), 'docs-website/index.html');
+    return path.join(publicRoot, 'index.html');
+  }
+
+  if (urlPath.startsWith('/doc')) {
+    const rest = stripLeadingSlashes(urlPath.slice('/doc'.length));
+    // /doc -> <publicRoot>/doc, /doc/foo -> <publicRoot>/doc/foo
+    return rest === '' ? path.join(publicRoot, 'doc') : path.join(publicRoot, 'doc', rest);
+  }
+
+  // Allow serving a small set of root docs assets.
+  if (
+    urlPath === '/404.html' ||
+    urlPath === '/_headers' ||
+    urlPath === '/zintrust.svg' ||
+    urlPath.startsWith('/brand/')
+  ) {
+    return path.join(publicRoot, stripLeadingSlashes(urlPath));
   }
 
   return '';
@@ -71,8 +93,18 @@ const sendStaticFile = (filePath: string, response: IResponse): void => {
 /**
  * Serve static files from docs-website
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 const serveStatic = async (request: IRequest, response: IResponse): Promise<boolean> => {
   const urlPath = request.getPath();
+
+  // Canonicalize docs base path (VitePress expects trailing slash for correct relative resolution)
+  if (urlPath === '/doc') {
+    response.setStatus(302);
+    response.setHeader('Location', '/doc/');
+    response.send('');
+    return true;
+  }
+
   let filePath = mapStaticPath(urlPath);
 
   if (!filePath) return false;
@@ -145,6 +177,7 @@ const handleRequest = async (
       response.setStatus(404).json({ message: 'Not Found' });
     } else {
       // Handler found, execute route handler
+      request.setParams(route.params);
       await route.handler(request, response);
     }
   } catch (error) {

@@ -449,23 +449,23 @@ const openInBrowser = (filePath: string): void => {
 
 interface IQACommand extends IBaseCommand {
   addOptions(command: Command): void;
-  runLint(result: QAResult): void;
-  runTypeCheck(result: QAResult): void;
-  runTests(result: QAResult): void;
+  runLint(result: QAResult): Promise<void>;
+  runTypeCheck(result: QAResult): Promise<void>;
+  runTests(result: QAResult): Promise<void>;
   runSonar(result: QAResult, options: CommandOptions): void;
   generateReport(results: QAResults): Promise<void>;
 }
 
-const runLint = (result: QAResult): void => {
-  runNpmScript('Lint', 'lint', result);
+const runLint = async (result: QAResult): Promise<void> => {
+  await runNpmScript('Lint', 'lint', result); // NOSONAR await needed for proper async handling when plugin used
 };
 
-const runTypeCheck = (result: QAResult): void => {
-  runNpmScript('Type Check', 'type-check', result);
+const runTypeCheck = async (result: QAResult): Promise<void> => {
+  await runNpmScript('Type Check', 'type-check', result); // NOSONAR
 };
 
-const runTests = (result: QAResult): void => {
-  runNpmScript('Tests', 'test:coverage', result);
+const runTests = async (result: QAResult): Promise<void> => {
+  await runNpmScript('Tests', 'test:coverage', result); // NOSONAR
 };
 
 const runSonar = (result: QAResult, options: CommandOptions): void => {
@@ -553,7 +553,7 @@ export const QACommand = (): IQACommand => {
     runTests,
     runSonar,
     generateReport,
-    execute: async (options) => executeQA(qa, options),
+    execute: async (options): Promise<void> => executeQA(qa, options), // NOSONAR
   };
 
   return qa;

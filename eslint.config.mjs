@@ -167,7 +167,9 @@ export default defineConfig(
       'no-await-in-loop': 'warn', // Usually indicates performance issue (N+1 queries)
       'no-constant-condition': 'error',
       'no-duplicate-case': 'error',
-      'no-duplicate-imports': 'error',
+      // Allow `import type { ... }` alongside a value import from the same module.
+      // This prevents false positives when using separate type-only imports.
+      'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
       'no-empty-function': ['warn', { allow: ['arrowFunctions', 'constructors'] }],
       'no-empty': ['error', { allowEmptyCatch: false }],
       'no-fallthrough': 'error',
@@ -259,7 +261,7 @@ export default defineConfig(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/require-await': 'off',
       'no-undef': 'off',
-      'no-duplicate-imports': 'warn',
+      'no-duplicate-imports': ['warn', { allowSeparateTypeImports: true }],
     },
   },
   {

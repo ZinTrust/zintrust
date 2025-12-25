@@ -8,7 +8,7 @@ import { TemplateRegistry } from '@/templates/TemplateRegistry.js';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as crypto from '@node-singletons/crypto';
-import { default as fs } from '@node-singletons/fs';
+import fs from '@node-singletons/fs';
 import { fileURLToPath } from '@node-singletons/url';
 import * as path from 'node:path';
 
@@ -95,6 +95,7 @@ function saveChecksums(checksums: ChecksumRecord): void {
 /**
  * Main sync function
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function syncTemplates(): Promise<void> {
   Logger.info('🔄 Syncing templates...\n');
 

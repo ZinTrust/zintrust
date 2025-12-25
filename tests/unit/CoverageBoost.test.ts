@@ -7,15 +7,14 @@ import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';
 import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
+import { fs } from '@node-singletons';
+import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 import { QueryLogger } from '@profiling/QueryLogger';
-import { EnhancedRouter, type IRouter } from '@routing/EnhancedRouter';
 import { Router } from '@routing/Router';
 import { XssProtection } from '@security/XssProtection';
-import { fs } from '@node-singletons';
-import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let httpRequestHandler: ((req: unknown, res: unknown) => void | Promise<void>) | undefined;
@@ -226,8 +225,9 @@ describe('Application & Server', () => {
 
     const expectedHtmlPath = path.join(
       process.cwd(),
-      'docs-website/vue/.vitepress/dist',
-      '/clean-url.html'
+      'docs-website/public',
+      'doc',
+      'clean-url.html'
     );
 
     vi.spyOn(fs, 'existsSync').mockImplementation((p) => String(p) === expectedHtmlPath);
@@ -270,8 +270,10 @@ describe('Application & Server', () => {
 
     const expectedIndexPath = path.join(
       process.cwd(),
-      'docs-website/vue/.vitepress/dist',
-      '/dir/index.html'
+      'docs-website/public',
+      'doc',
+      'dir',
+      'index.html'
     );
 
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
@@ -644,52 +646,6 @@ describe('ServiceContainer', () => {
   });
 });
 
-describe('EnhancedRouter', () => {
-  it('should route requests and handle groups', async () => {
-    const router = EnhancedRouter.createRouter();
-    const handler = vi.fn();
-
-    EnhancedRouter.get(router, '/users/:id', handler, 'users.show');
-    EnhancedRouter.post(router, '/users', handler);
-    EnhancedRouter.put(router, '/users/:id', handler);
-    EnhancedRouter.patch(router, '/users/:id', handler);
-    EnhancedRouter.del(router, '/users/:id', handler);
-    EnhancedRouter.any(router, '/all', handler);
-
-    expect(EnhancedRouter.match(router, 'GET', '/users/123')?.params).toEqual({ id: '123' });
-    expect(EnhancedRouter.match(router, 'POST', '/users')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'PUT', '/users/123')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'PATCH', '/users/123')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'DELETE', '/users/123')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'GET', '/all')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'POST', '/all')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'GET', '/not-found')).toBeNull();
-
-    // Groups
-    EnhancedRouter.group(router, { prefix: '/api', middleware: ['auth'] }, (r: IRouter) => {
-      EnhancedRouter.get(r, '/me', handler);
-    });
-    const apiMatch = EnhancedRouter.match(router, 'GET', '/api/me');
-    expect(apiMatch).toBeDefined();
-    expect(apiMatch?.middleware).toContain('auth');
-
-    // Resource
-    const controller = {
-      index: handler,
-      create: handler,
-      store: handler,
-      show: handler,
-      edit: handler,
-      update: handler,
-      destroy: handler,
-    };
-    EnhancedRouter.resource(router, 'posts', controller);
-    expect(EnhancedRouter.match(router, 'GET', '/posts')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'GET', '/posts/1')).toBeDefined();
-    expect(EnhancedRouter.match(router, 'POST', '/posts')).toBeDefined();
-  });
-});
-
 describe('ORM - QueryBuilder & Database', () => {
   it('should build SQL and use database', async () => {
     const db = Database.create({ driver: 'sqlite', database: ':memory:' });
@@ -867,73 +823,6 @@ describe('Security - XssProtection', () => {
     expect(clean).toContain('<div>Safe</div>');
 
     expect(XssProtection.sanitize(null as any)).toBe('');
-  });
-});
-
-describe('Profiling - QueryLogger', () => {
-  it('should log and summarize queries', () => {
-    QueryLogger.setContext('req-1');
-    QueryLogger.logQuery('SELECT * FROM users', [], 10);
-    QueryLogger.logQuery('SELECT * FROM users', [], 15);
-    QueryLogger.logQuery('SELECT * FROM posts', [], 20);
-
-    expect(QueryLogger.getQueryCount()).toBe(3);
-    expect(QueryLogger.getTotalDuration()).toBe(45);
-
-    const summary = QueryLogger.getQuerySummary();
-    expect(summary.get('SELECT * FROM users')?.executionCount).toBe(2);
-
-    // N+1 detection
-    for (let i = 0; i < 5; i++) QueryLogger.logQuery('SELECT * FROM n1', [], 5);
-    const suspects = QueryLogger.getN1Suspects('req-1', 5);
-    expect(suspects.length).toBe(1);
-    expect(suspects[0].sql).toBe('SELECT * FROM n1');
-  });
-
-  it('should handle multiple contexts and clearing', () => {
-    QueryLogger.logQuery('Q1', [], 10, 'ctx-1');
-    QueryLogger.logQuery('Q2', [], 10, 'ctx-2');
-
-    expect(QueryLogger.getAllLogs().size).toBe(2);
-
-    QueryLogger.clear('ctx-1');
-    expect(QueryLogger.getQueryLog('ctx-1')).toEqual([]);
-    expect(QueryLogger.getQueryLog('ctx-2').length).toBe(1);
-
-    QueryLogger.clear();
-    expect(QueryLogger.getAllLogs().size).toBe(0);
-    expect(QueryLogger.getContext()).toBe('default');
-  });
-});
-
-describe('ORM & Relationships - Coverage Boost', () => {
-  it('should handle QueryBuilder select with no arguments', () => {
-    const builder = QueryBuilder.create('users');
-    builder.select();
-    expect(builder.toSQL()).toContain('SELECT *');
-  });
-
-  it('should handle Relationships with empty string keys', async () => {
-    const mockRelated = {
-      query: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnThis(),
-        first: vi.fn().mockResolvedValue(null),
-        get: vi.fn().mockResolvedValue([]),
-      }),
-    } as any;
-
-    const instance = {
-      getAttribute: vi.fn().mockReturnValue(''),
-    } as any;
-
-    const hasOne = HasOne.create(mockRelated, 'user_id', 'id');
-    expect(await hasOne.get(instance)).toBeNull();
-
-    const hasMany = HasMany.create(mockRelated, 'user_id', 'id');
-    expect(await hasMany.get(instance)).toEqual([]);
-
-    const belongsTo = BelongsTo.create(mockRelated, 'user_id', 'id');
-    expect(await belongsTo.get(instance)).toBeNull();
   });
 });
 

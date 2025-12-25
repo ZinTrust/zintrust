@@ -1,13 +1,15 @@
 import { resolveNpmPath } from '@/common';
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
+import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
-import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, readFileSync } from '@node-singletons/fs';
 import { Command } from 'commander';
 import * as path from 'node:path';
 
 type StartMode = 'development' | 'production' | 'testing';
+
+type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 'testing';
 
 type StartCommandOptions = CommandOptions & {
   wrangler?: boolean;
@@ -17,30 +19,64 @@ type StartCommandOptions = CommandOptions & {
   port?: string;
 };
 
-const isValidMode = (value: string): value is StartMode =>
-  value === 'development' || value === 'production' || value === 'testing';
+const isValidModeInput = (value: string): value is StartModeInput =>
+  value === 'development' ||
+  value === 'dev' ||
+  value === 'production' ||
+  value === 'pro' ||
+  value === 'prod' ||
+  value === 'testing';
+
+const normalizeMode = (value: StartModeInput): StartMode => {
+  if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
+  if (value === 'testing') return 'testing';
+  return 'development';
+};
+
+const resolveModeFromAppMode = (): StartMode => {
+  const raw = typeof process.env['APP_MODE'] === 'string' ? process.env['APP_MODE'].trim() : '';
+  const normalized = raw.toLowerCase();
+
+  if (normalized === 'production' || normalized === 'pro' || normalized === 'prod') {
+    return 'production';
+  }
+
+  // Per spec: any other APP_MODE is treated as development.
+  return 'development';
+};
 
 const resolveMode = (options: StartCommandOptions): StartMode => {
   const raw = typeof options.mode === 'string' ? options.mode.trim() : '';
 
   if (raw !== '') {
-    if (isValidMode(raw)) return raw;
+    if (isValidModeInput(raw)) return normalizeMode(raw);
     throw ErrorFactory.createCliError(
       `Error: Invalid --mode '${raw}'. Expected one of: development, production, testing.`
     );
   }
 
-  const envMode = typeof process.env['NODE_ENV'] === 'string' ? process.env['NODE_ENV'] : '';
-  if (envMode !== '' && isValidMode(envMode)) return envMode;
-  return 'development';
+  return resolveModeFromAppMode();
 };
 
 const resolvePort = (options: StartCommandOptions): number | undefined => {
-  const raw = typeof options.port === 'string' ? options.port.trim() : '';
-  if (raw === '') return undefined;
-  const parsed = Number.parseInt(raw, 10);
+  const cliPort = typeof options.port === 'string' ? options.port.trim() : '';
+  if (cliPort !== '') {
+    const parsed = Number.parseInt(cliPort, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 65536) {
+      throw ErrorFactory.createCliError(`Error: Invalid --port '${cliPort}'. Expected 1-65535.`);
+    }
+    return parsed;
+  }
+
+  // .env is primary (loaded by EnvFileLoader with overrideExisting=true)
+  const envPort = process.env['APP_PORT'] ?? process.env['PORT'] ?? '';
+  if (envPort === '') return undefined;
+
+  const parsed = Number.parseInt(envPort, 10);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 65536) {
-    throw ErrorFactory.createCliError(`Error: Invalid --port '${raw}'. Expected 1-65535.`);
+    throw ErrorFactory.createCliError(
+      `Error: Invalid APP_PORT/PORT '${envPort}'. Expected 1-65535.`
+    );
   }
   return parsed;
 };
@@ -107,12 +143,19 @@ const resolveWranglerEntry = (cwd: string): string | undefined => {
   return existsSync(entry) ? 'src/functions/cloudflare.ts' : undefined;
 };
 
+const resolveBootstrapEntryTs = (cwd: string): string | undefined => {
+  const boot = path.join(cwd, 'src/boot/bootstrap.ts');
+  if (existsSync(boot)) return 'src/boot/bootstrap.ts';
+  return undefined;
+};
+
 const resolveNodeDevCommand = (
   cwd: string,
   packageJson: { name?: unknown; scripts?: Record<string, unknown> }
 ): { command: string; args: string[] } => {
   if (isFrameworkRepo(packageJson)) {
-    return { command: 'tsx', args: ['watch', 'src/bootstrap.ts'] };
+    const bootstrap = resolveBootstrapEntryTs(cwd);
+    return { command: 'tsx', args: ['watch', bootstrap ?? 'src/index.ts'] };
   }
 
   if (hasDevScript(packageJson)) {
@@ -120,8 +163,9 @@ const resolveNodeDevCommand = (
     return { command: npm, args: ['run', 'dev'] };
   }
 
-  if (existsSync(path.join(cwd, 'src/bootstrap.ts'))) {
-    return { command: 'tsx', args: ['watch', 'src/bootstrap.ts'] };
+  const bootstrap = resolveBootstrapEntryTs(cwd);
+  if (bootstrap !== undefined) {
+    return { command: 'tsx', args: ['watch', bootstrap] };
   }
 
   if (existsSync(path.join(cwd, 'src/index.ts'))) {
@@ -134,41 +178,25 @@ const resolveNodeDevCommand = (
 };
 
 const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] } => {
-  const compiled = path.join(cwd, 'dist/src/bootstrap.js');
-  if (!existsSync(compiled)) {
+  const compiledBoot = path.join(cwd, 'dist/src/boot/bootstrap.js');
+
+  let compiled: string | undefined;
+  if (existsSync(compiledBoot)) {
+    compiled = 'dist/src/boot/bootstrap.js';
+  }
+
+  if (compiled === undefined) {
     throw ErrorFactory.createCliError(
-      "Error: Compiled app not found at dist/src/bootstrap.js. Run 'npm run build' first."
+      "Error: Compiled app not found at dist/src/boot/bootstrap.js Run 'npm run build' first."
     );
   }
 
-  return { command: 'node', args: ['dist/src/bootstrap.js'] };
-};
-
-const resolveSpawnEnv = (
-  baseEnv: NodeJS.ProcessEnv,
-  mode: StartMode,
-  runtime: string | undefined,
-  port: number | undefined
-): NodeJS.ProcessEnv => {
-  const env: NodeJS.ProcessEnv = { ...baseEnv };
-
-  env['NODE_ENV'] = mode;
-
-  if (typeof runtime === 'string' && runtime !== '') {
-    env['RUNTIME'] = runtime;
-  }
-
-  if (typeof port === 'number') {
-    env['PORT'] = String(port);
-  }
-
-  return env;
+  return { command: 'node', args: [compiled] };
 };
 
 const executeWranglerStart = async (
   cmd: IBaseCommand,
   cwd: string,
-  env: NodeJS.ProcessEnv,
   port: number | undefined,
   runtime: string | undefined
 ): Promise<void> => {
@@ -197,14 +225,13 @@ const executeWranglerStart = async (
   }
 
   cmd.info('Starting in Wrangler dev mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'wrangler', args: wranglerArgs, env });
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'wrangler', args: wranglerArgs });
   process.exit(exitCode);
 };
 
 const executeNodeStart = async (
   cmd: IBaseCommand,
   cwd: string,
-  env: NodeJS.ProcessEnv,
   mode: StartMode,
   watchEnabled: boolean
 ): Promise<void> => {
@@ -217,44 +244,42 @@ const executeNodeStart = async (
   if (mode === 'development') {
     if (!watchEnabled) {
       cmd.warn('Watch mode disabled; starting once.');
-      const args = existsSync(path.join(cwd, 'src/bootstrap.ts'))
-        ? ['src/bootstrap.ts']
-        : ['src/index.ts'];
+      const bootstrap = resolveBootstrapEntryTs(cwd);
+      const args = bootstrap === undefined ? ['src/index.ts'] : [bootstrap];
 
-      const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env });
+      const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
       process.exit(exitCode);
-      return;
     }
 
     const packageJson = readPackageJson(cwd);
     const dev = resolveNodeDevCommand(cwd, packageJson);
     cmd.info('Starting in development mode (watch enabled)...');
-    const exitCode = await SpawnUtil.spawnAndWait({ command: dev.command, args: dev.args, env });
+    const exitCode = await SpawnUtil.spawnAndWait({ command: dev.command, args: dev.args });
     process.exit(exitCode);
-    return;
   }
 
   const prod = resolveNodeProdCommand(cwd);
   cmd.info('Starting in production mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: prod.command, args: prod.args, env });
+  const exitCode = await SpawnUtil.spawnAndWait({ command: prod.command, args: prod.args });
   process.exit(exitCode);
 };
 
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
   const cwd = process.cwd();
+  EnvFileLoader.ensureLoaded();
   const mode = resolveMode(options);
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
 
-  const env = resolveSpawnEnv(appConfig.getSafeEnv(), mode, runtime, port);
+  EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime });
 
   if (options.wrangler === true) {
-    await executeWranglerStart(cmd, cwd, env, port, runtime);
+    await executeWranglerStart(cmd, cwd, port, runtime);
     return;
   }
 
   const watchEnabled = resolveWatchPreference(options, mode);
-  await executeNodeStart(cmd, cwd, env, mode, watchEnabled);
+  await executeNodeStart(cmd, cwd, mode, watchEnabled);
 };
 
 export const StartCommand = Object.freeze({

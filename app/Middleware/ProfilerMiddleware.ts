@@ -26,7 +26,7 @@ export const ProfilerMiddleware: Middleware = async (req, res, next) => {
   const queryLogger = profiler.getQueryLogger();
 
   // Set up query logging if database is available
-  const db = req.context.db as any;
+  const db = req.context.db;
   if (db !== undefined && db !== null && typeof db.onAfterQuery === 'function') {
     db.onAfterQuery((sql: string, params: unknown[], duration: number) => {
       queryLogger.logQuery(sql, params, duration, 'middleware-profiling');
@@ -34,7 +34,7 @@ export const ProfilerMiddleware: Middleware = async (req, res, next) => {
   }
 
   // Capture request execution
-  const profile = await profiler.captureRequest(() => next());
+  const profile = await profiler.captureRequest(async () => next());
 
   // Attach profile to response
   res.locals.profile = profile;

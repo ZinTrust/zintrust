@@ -20,7 +20,7 @@ import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { default as fs } from '@node-singletons/fs';
+import fs from '@node-singletons/fs';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import * as path from 'node:path';

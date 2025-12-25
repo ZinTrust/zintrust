@@ -1,5 +1,5 @@
 {
-  "src/orm/adapters/SQLiteAdapter.ts": "60f28f047215f11b86fdc22633894d86a818144d",
+  "src/orm/adapters/SQLiteAdapter.ts": "34d04f8f7de15cf0df290b0655d77d7d3b866170",
   "src/orm/adapters/PostgreSQLAdapter.ts": "38a31e4f83f067cb005f0721f1ed22dff8764808",
   "src/orm/adapters/MySQLAdapter.ts": "9a377aae842a25376bc9d7abdddc204dec35f726",
   "src/orm/adapters/SQLServerAdapter.ts": "3d51e8da8f39fee6bc1d0f8cacbc59eb0e016a53",

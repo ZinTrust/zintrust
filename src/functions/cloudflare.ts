@@ -22,6 +22,9 @@ async function initializeKernel(): Promise<IKernel> {
 export default {
   async fetch(request: Request, _env: unknown, _ctx: unknown): Promise<Response> {
     try {
+      // Make bindings available to framework code in Workers
+      (globalThis as unknown as { env?: unknown }).env = _env;
+
       const app = await initializeKernel();
 
       const adapter = CloudflareAdapter.create({

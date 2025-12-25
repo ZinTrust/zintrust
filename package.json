@@ -24,7 +24,7 @@
     "npm": ">=9.0.0"
   },
   "scripts": {
-    "build": "npm test && npm run templates:sync && tsc && tsc-alias",
+    "build": "npm test && npm run templates:sync && tsc && tsc-alias && npm run dbl && node scripts/copy-docs-public-to-dist.mjs",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
