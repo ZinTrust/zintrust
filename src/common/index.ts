@@ -1,5 +1,5 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { default as fs } from '@node-singletons/fs';
+import fs from '@node-singletons/fs';
 import * as path from 'node:path';
 
 /**

@@ -7,56 +7,13 @@
 
 import { IBaseCommand } from '@cli/BaseCommand';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
+import { DistPackager } from '@cli/utils/DistPackager';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import chalk from 'chalk';
 import { Command } from 'commander';
-
-const ensureDistIsInstallablePackage = (distPath: string): void => {
-  if (!fs.existsSync(distPath)) {
-    throw ErrorFactory.createConfigError(`Missing dist output at: ${distPath}`);
-  }
-
-  const rootPackageJsonPath = path.join(process.cwd(), 'package.json');
-  if (!fs.existsSync(rootPackageJsonPath)) {
-    throw ErrorFactory.createConfigError(`Missing package.json at: ${rootPackageJsonPath}`);
-  }
-
-  const rootPkg = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf8')) as {
-    name?: unknown;
-    version?: unknown;
-    dependencies?: unknown;
-  };
-
-  const distPackageJsonPath = path.join(distPath, 'package.json');
-  const distIndexJsPath = path.join(distPath, 'index.js');
-  const distIndexDtsPath = path.join(distPath, 'index.d.ts');
-
-  const distPackageJson = {
-    name: String(rootPkg.name ?? 'zintrust'),
-    version: String(rootPkg.version ?? '0.0.0'),
-    private: true,
-    type: 'module',
-    main: './index.js',
-    types: './index.d.ts',
-    exports: {
-      '.': {
-        types: './index.d.ts',
-        default: './index.js',
-      },
-    },
-    dependencies:
-      typeof rootPkg.dependencies === 'object' && rootPkg.dependencies !== null
-        ? rootPkg.dependencies
-        : {},
-  };
-
-  fs.writeFileSync(distPackageJsonPath, JSON.stringify(distPackageJson, null, 2) + '\n');
-  fs.writeFileSync(distIndexJsPath, "export * from './src/index.js';\n");
-  fs.writeFileSync(distIndexDtsPath, "export * from './src/index';\n");
-};
 
 const rewriteSimulatedAppDependencyToDist = (appPath: string, distPath: string): void => {
   const packageJsonPath = path.join(appPath, 'package.json');
@@ -68,7 +25,7 @@ const rewriteSimulatedAppDependencyToDist = (appPath: string, distPath: string):
     dependencies?: Record<string, string>;
   };
 
-  const dependencies: Record<string, string> = { ...(pkg.dependencies ?? {}) };
+  const dependencies: Record<string, string> = { ...pkg.dependencies };
   dependencies['zintrust'] = `file:${distPath}`;
 
   const nextPkg = {
@@ -120,7 +77,7 @@ export const SimulateCommand = {
           // For simulate apps only: install the locally-built framework from dist/
           // so the dev experience matches "fresh install" of the current build output.
           const distPath = path.join(process.cwd(), 'dist');
-          ensureDistIsInstallablePackage(distPath);
+          DistPackager.prepare(distPath, process.cwd());
           rewriteSimulatedAppDependencyToDist(appPath, distPath);
 
           Logger.info('✅ Simulated app created successfully!');

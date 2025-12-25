@@ -217,6 +217,11 @@ type DashboardCtor = {
   create(): IDashboard;
 };
 
-export const Dashboard = Object.assign((): IDashboard => {
+const DashboardCallable = function DashboardCallable(): IDashboard {
   return DashboardFactory.create();
-}, DashboardFactory) as unknown as DashboardCtor;
+};
+
+export const Dashboard = Object.assign(
+  DashboardCallable,
+  DashboardFactory
+) as unknown as DashboardCtor;

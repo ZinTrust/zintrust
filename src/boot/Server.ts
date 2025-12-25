@@ -56,7 +56,7 @@ const getFrameworkPublicRoots = (): string[] => {
   const thisDir = path.dirname(thisFile);
   const packageRoot = findPackageRoot(thisDir);
 
-  // Primary: framework ships built docs assets in dist/public
+  // Primary: framework ships built docs assets under dist/public (including /doc)
   const roots: string[] = [path.join(packageRoot, 'dist/public')];
 
   // Secondary: when running framework from source tree
@@ -98,7 +98,7 @@ const mapStaticPath = (urlPath: string): string => {
   if (urlPath.startsWith('/doc')) {
     const rest = stripLeadingSlashes(urlPath.slice('/doc'.length));
     // /doc -> <publicRoot>/doc, /doc/foo -> <publicRoot>/doc/foo
-    return rest === '' ? path.join(publicRoot) : path.join(publicRoot, rest);
+    return rest === '' ? path.join(publicRoot, 'doc') : path.join(publicRoot, 'doc', rest);
   }
 
   if (urlPath.startsWith('/assets')) {
@@ -228,14 +228,18 @@ const setSecurityHeaders = (res: http.ServerResponse, requestPath: string): void
  */
 const handleRequest = async (
   app: IApplication,
-  req: http.IncomingMessage,
+  req: http.IncomingMessage | null,
   res: http.ServerResponse
 ): Promise<void> => {
-  // Use the raw URL so docs assets (/doc/assets/...) get the correct CSP.
-  const requestPath = typeof req.url === 'string' ? req.url : '/';
-  setSecurityHeaders(res, requestPath);
-
   try {
+    // Use the raw URL so docs assets (/doc/assets/...) get the correct CSP.
+    const requestPath = typeof req?.url === 'string' ? req.url : '/';
+    setSecurityHeaders(res, requestPath);
+
+    if (!req) {
+      throw ErrorFactory.createConnectionError('Request object is missing');
+    }
+
     const request = Request.create(req);
     const response = Response.create(res);
 

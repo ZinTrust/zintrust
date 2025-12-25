@@ -342,8 +342,8 @@ const createNewCommandInstance = (): INewCommand => {
         initializeGitRepo(projectPath, commandInstance);
       }
     },
-    execute: (options: CommandOptions): void => {
-      void executeNewCommand(options, commandInstance);
+    execute: async (options: CommandOptions): Promise<void> => {
+      await executeNewCommand(options, commandInstance);
     },
   };
 

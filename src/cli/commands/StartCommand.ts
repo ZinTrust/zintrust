@@ -158,11 +158,6 @@ const resolveNodeDevCommand = (
     return { command: 'tsx', args: ['watch', bootstrap ?? 'src/index.ts'] };
   }
 
-  if (hasDevScript(packageJson)) {
-    const npm = resolveNpmPath();
-    return { command: npm, args: ['run', 'dev'] };
-  }
-
   const bootstrap = resolveBootstrapEntryTs(cwd);
   if (bootstrap !== undefined) {
     return { command: 'tsx', args: ['watch', bootstrap] };
@@ -170,6 +165,18 @@ const resolveNodeDevCommand = (
 
   if (existsSync(path.join(cwd, 'src/index.ts'))) {
     return { command: 'tsx', args: ['watch', 'src/index.ts'] };
+  }
+
+  // Fallback: if the app provides a dev script, run it.
+  // IMPORTANT: avoid calling `npm run dev` when the dev script itself invokes `zin`/`zintrust`
+  // (e.g. "dev": "zin s"), which would cause infinite recursion.
+  const devScript =
+    typeof packageJson.scripts?.['dev'] === 'string' ? String(packageJson.scripts['dev']) : '';
+  const devScriptCallsZin = /\bzin(?:trust)?\b/.test(devScript);
+
+  if (hasDevScript(packageJson) && !devScriptCallsZin) {
+    const npm = resolveNpmPath();
+    return { command: npm, args: ['run', 'dev'] };
   }
 
   throw ErrorFactory.createCliError(

@@ -12,6 +12,7 @@ import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
+import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
@@ -73,6 +74,7 @@ const setupProgram = (program: Command, version: string): void => {
 const registerCommands = (program: Command): void => {
   const commands = [
     NewCommand.create(),
+    PrepareCommand,
     AddCommand.create(),
     StartCommand.create(),
     MigrateCommand.create(),

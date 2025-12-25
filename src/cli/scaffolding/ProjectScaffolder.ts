@@ -113,7 +113,7 @@ const createProjectConfigFile = (
         connection: variables['database'] ?? 'sqlite',
       },
       server: {
-        port: variables['port'] ?? 3003,
+        port: variables['port'] ?? 3000,
       },
     };
 
@@ -132,7 +132,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
 
     const fullPath = path.join(projectPath, '.env');
     const name = String(variables['projectName'] ?? 'zintrust-app');
-    const port = Number(variables['port'] ?? 3003);
+    const port = Number(variables['port'] ?? 3000);
     const database = String(variables['database'] ?? 'sqlite');
 
     const appKey = (() => {
@@ -225,9 +225,9 @@ const BASIC_TEMPLATE: ProjectTemplate = {
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "zin s",
     "build": "tsc && tsc-alias",
-    "start": "node dist/src/index.js",
+    "start": "zin s --mode production --no-watch",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
@@ -243,10 +243,14 @@ const BASIC_TEMPLATE: ProjectTemplate = {
 }
 `,
     'tsconfig.json': `{
-  "extends": "./node_modules/@zintrust/framework/tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "strict": true,
+    "skipLibCheck": true,
     "paths": {
       "@app/*": ["./app/*"],
       "@routes/*": ["./routes/*"]
@@ -318,7 +322,12 @@ import type { IResponse } from '@http/Response';
 
 import { Task } from '@app/Models/Task';
 
-export const TaskController = {
+type TaskControllerHandlers = {
+  index: (_req: IRequest, res: IResponse) => Promise<void>;
+  store: (req: IRequest, res: IResponse) => Promise<void>;
+};
+
+export const TaskController: TaskControllerHandlers = {
   async index(_req: IRequest, res: IResponse): Promise<void> {
     const t1 = Task.create({ title: 'First task', completed: false }).setAttribute('id', 1);
     const t2 = Task.create({ title: 'Second task', completed: true }).setAttribute('id', 2);
@@ -494,7 +503,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     projectSlug: options.name,
     author: options.author ?? 'Your Name',
     description: options.description ?? '',
-    port: options.port ?? 3003,
+    port: options.port ?? 3000,
     database: options.database ?? 'sqlite',
     template: state.templateName,
     migrationTimestamp,

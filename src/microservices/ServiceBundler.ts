@@ -4,7 +4,7 @@
  */
 
 import { Logger } from '@config/logger';
-import { default as fs } from '@node-singletons/fs';
+import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 export interface BundleConfig {

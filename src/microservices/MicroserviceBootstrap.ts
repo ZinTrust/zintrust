@@ -5,7 +5,7 @@ import {
   getEnabledServices,
   isMicroservicesEnabled,
 } from '@microservices/MicroserviceManager';
-import { default as fs } from '@node-singletons/fs';
+import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 /**

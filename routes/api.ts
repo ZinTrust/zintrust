@@ -23,6 +23,7 @@ function registerPublicRoutes(router: IRouter): void {
   Router.get(router, '/', async (_req, res) => {
     res.json({
       framework: 'Zintrust Framework',
+      app_name: Env.APP_NAME,
       version: '0.1.0',
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
