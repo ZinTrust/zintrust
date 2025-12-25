@@ -9,10 +9,10 @@ import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import chalk from 'chalk';
-import { Command } from 'commander';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
+import chalk from 'chalk';
+import { Command } from 'commander';
 
 type TemplateType = 'basic' | 'api' | 'microservice';
 type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb';
@@ -85,7 +85,7 @@ const getBooleanOption = (options: CommandOptions, key: string, fallback: boolea
 const getProjectDefaults = (name: string, options: CommandOptions): NewProjectConfig => {
   const template = getStringOption(options, 'template', 'basic') as TemplateType;
   const database = getStringOption(options, 'database', 'sqlite') as DatabaseType;
-  const portRaw = getStringOption(options, 'port', '3000');
+  const portRaw = getStringOption(options, 'port', '3003');
   const portParsed = Number.parseInt(portRaw, 10);
   const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 3000;
 
@@ -237,7 +237,7 @@ const addOptions = (command: Command): void => {
   command.argument('<name>', 'Project name');
   command.option('--template <type>', 'Project template (basic, api, microservice)', 'basic');
   command.option('--database <type>', 'Database driver (sqlite, mysql, postgresql)', 'sqlite');
-  command.option('--port <number>', 'Default port number', '3000');
+  command.option('--port <number>', 'Default port number', '3003');
   command.option('--author <name>', 'Project author');
   command.option('--description <text>', 'Project description');
   command.option('--interactive', 'Run in interactive mode', true);
@@ -342,8 +342,9 @@ const createNewCommandInstance = (): INewCommand => {
         initializeGitRepo(projectPath, commandInstance);
       }
     },
-    execute: async (options: CommandOptions): Promise<void> =>
-      executeNewCommand(options, commandInstance),
+    execute: (options: CommandOptions): void => {
+      void executeNewCommand(options, commandInstance);
+    },
   };
 
   return commandInstance;

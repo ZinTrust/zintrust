@@ -64,6 +64,7 @@
     "dist",
     "build",
     "coverage",
+    "tests/cli/test-factories-*",
     ".next",
     ".git",
     ".vscode",
@@ -72,6 +73,7 @@
     "*.log",
     ".DS_Store",
     "wrangler.jsonc",
-    "dev"
+    "dev",
+    "simulate"
   ]
 }

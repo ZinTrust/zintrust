@@ -44,3 +44,4 @@ eslint.config.mjs.bak
 .gitignore
 lint-report.txt
 eslint.config.mjs.broken
+simulate/

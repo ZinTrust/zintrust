@@ -38,6 +38,7 @@ export default defineConfig(
       '.scannerwork/**',
       'check_vi.ts',
       'dev/**',
+      'simulate/**',
     ],
   },
   eslint.configs.recommended,

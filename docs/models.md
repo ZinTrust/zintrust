@@ -35,6 +35,24 @@ export const User = Model.define(
 );
 ```
 
+### Safe Mass Assignment (fillable)
+
+`fillable` is a **mass-assignment allow-list** used by `Model.create({...})` and `model.fill({...})`.
+
+- If `fillable` contains keys, only those keys are accepted.
+- If `fillable` is an empty array (`[]`), **all keys are accepted**.
+
+For scaffolds and real apps, prefer a strict `fillable` allow-list.
+
+### Custom Methods
+
+Zintrust supports adding custom model methods via the second argument to `Model.define(...)`.
+
+1. **Unbound method map** (existing pattern): methods receive the model instance as the first argument.
+
+2. **Plan function** (new pattern): provide a factory `(model) => ({ ...methods })` that returns _bound_ methods.
+   This is convenient for helpers built around `getAttribute(...)` / `setAttribute(...)`.
+
 ### Using Models in Controllers & Services
 
 You can import models using **static imports** (at module level) or **dynamic imports** (in async functions):
@@ -71,7 +89,7 @@ import { Model } from '@orm/Model';
 export const ExternalUser = Model.define({
   connection: 'external_db',
   table: 'users',
-  fillable: [],
+  fillable: ['name', 'email'],
   hidden: [],
   timestamps: false,
   casts: {},
@@ -100,11 +118,11 @@ The ORM uses a fluent `QueryBuilder` to construct SQL queries safely.
 ### Basic Queries
 
 ```typescript
-// Get all users
-const users = await User.query().get();
+// QueryBuilder returns plain rows (objects)
+const rows = await User.query().get();
 
-// Find by ID
-const user = await User.query().find(1);
+// For model instances, use the model helpers
+const user = await User.find(1);
 
 // Where clauses
 const activeUsers = await User.query().where('is_active', true).where('age', '>', 18).get();

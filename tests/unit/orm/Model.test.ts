@@ -236,6 +236,59 @@ describe('Model', () => {
     expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Zin');
   });
 
+  it('define plan function creates bound methods', async (): Promise<void> => {
+    const Test = Model.define({ ...baseConfig, casts: {}, timestamps: false }, (m) => ({
+      greet: (prefix: string): string => `${prefix} ${String(m.getAttribute('name'))}`,
+    }));
+
+    const m = Test.create({ name: 'Plan' });
+    expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Plan');
+  });
+
+  it('define methods are available on find() and all() results', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    const Test = Model.define(config, {
+      greet: (m: IModel): string => `hi ${String(m.getAttribute('name'))}`,
+    });
+
+    // find() path
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => ({ id: 2, name: 'Found' })),
+      get: vi.fn(async () => []),
+    } satisfies MockBuilder);
+
+    const found = await Test.find(2);
+    expect(found).not.toBeNull();
+    expect((found as IModel & { greet: () => string }).greet()).toBe('hi Found');
+
+    // all() path
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      get: vi.fn(async () => [
+        { id: 1, name: 'A' },
+        { id: 2, name: 'B' },
+      ]),
+    } satisfies MockBuilder);
+
+    const allRows = await Test.all();
+    expect(allRows).toHaveLength(2);
+    expect((allRows[0] as IModel & { greet: () => string }).greet()).toBe('hi A');
+  });
+
   it('relationship defaults route through related query builder', async (): Promise<void> => {
     const config: ModelConfig = {
       ...baseConfig,

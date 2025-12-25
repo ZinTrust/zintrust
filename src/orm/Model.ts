@@ -253,50 +253,79 @@ export const all = async (config: ModelConfig): Promise<IModel[]> => {
   });
 };
 
+type UnboundModelMethods = Record<string, (m: IModel, ...args: unknown[]) => unknown>;
+type BoundModelMethods = Record<string, (...args: never[]) => unknown>;
+
+type BoundFromUnbound<T extends UnboundModelMethods> = {
+  [K in keyof T]: T[K] extends (m: IModel, ...args: infer A) => infer R ? (...args: A) => R : never;
+};
+
+const bindUnboundMethods = <T extends UnboundModelMethods>(
+  model: IModel,
+  methods: T
+): BoundFromUnbound<T> => {
+  const bound: Record<string, (...args: unknown[]) => unknown> = {};
+  for (const [name, method] of Object.entries(methods)) {
+    bound[name] = (...args: unknown[]): unknown => method(model, ...args);
+  }
+  return bound as BoundFromUnbound<T>;
+};
+
+const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IModel & T => {
+  const extended = { ...model } as Record<string, unknown>;
+  for (const [name, method] of Object.entries(methods)) {
+    extended[name] = method;
+  }
+  return extended as IModel & T;
+};
+
+type DefinedModel<T extends BoundModelMethods> = {
+  create: (attributes?: Record<string, unknown>) => IModel & T;
+  find: (id: unknown) => Promise<(IModel & T) | null>;
+  all: () => Promise<Array<IModel & T>>;
+  query: () => IQueryBuilder;
+  getTable: () => string;
+};
+
 /**
  * Define a new model type
  */
-export const define = <T extends Record<string, (m: IModel, ...args: unknown[]) => unknown>>(
+export function define<const T extends UnboundModelMethods>(
   config: ModelConfig,
-  methods: T = {} as T
-): {
-  create: (attributes?: Record<string, unknown>) => IModel & {
-    [K in keyof T]: T[K] extends (m: IModel, ...args: infer A) => infer R
-      ? (...args: A) => R
-      : never;
+  methods?: T
+): DefinedModel<BoundFromUnbound<T>>;
+export function define<const T extends BoundModelMethods>(
+  config: ModelConfig,
+  plan: (model: IModel) => T
+): DefinedModel<T>;
+export function define(
+  config: ModelConfig,
+  methodsOrPlan?: UnboundModelMethods | ((model: IModel) => BoundModelMethods)
+): DefinedModel<BoundModelMethods> {
+  const isPlan = typeof methodsOrPlan === 'function';
+
+  const attach = (model: IModel): IModel & BoundModelMethods => {
+    const methods = isPlan
+      ? (methodsOrPlan as (m: IModel) => BoundModelMethods)(model)
+      : bindUnboundMethods(model, (methodsOrPlan as UnboundModelMethods | undefined) ?? {});
+    return extendModel(model, methods);
   };
-  find: (id: unknown) => Promise<IModel | null>;
-  all: () => Promise<IModel[]>;
-  query: () => IQueryBuilder;
-  getTable: () => string;
-} => {
+
   return {
-    create: (
-      attributes: Record<string, unknown> = {}
-    ): IModel & {
-      [K in keyof T]: T[K] extends (m: IModel, ...args: infer A) => infer R
-        ? (...args: A) => R
-        : never;
-    } => {
-      const model = createModel(config, attributes);
-      const extendedModel = { ...model } as Record<string, unknown>;
-
-      for (const [name, method] of Object.entries(methods)) {
-        extendedModel[name] = (...args: unknown[]): unknown => method(model, ...args);
-      }
-
-      return extendedModel as IModel & {
-        [K in keyof T]: T[K] extends (m: IModel, ...args: infer A) => infer R
-          ? (...args: A) => R
-          : never;
-      };
+    create: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
+      attach(createModel(config, attributes)),
+    find: async (id: unknown): Promise<(IModel & BoundModelMethods) | null> => {
+      const model = await find(config, id);
+      return model === null ? null : attach(model);
     },
-    find: async (id: unknown): Promise<IModel | null> => find(config, id),
-    all: async (): Promise<IModel[]> => all(config),
+    all: async (): Promise<Array<IModel & BoundModelMethods>> => {
+      const models = await all(config);
+      return models.map((m) => attach(m));
+    },
     query: (): IQueryBuilder => query(config.table, config.connection),
     getTable: (): string => config.table,
   };
-};
+}
 
 /**
  * Model namespace - sealed namespace object grouping all model operations

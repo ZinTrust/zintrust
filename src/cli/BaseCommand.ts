@@ -20,7 +20,7 @@ export interface IBaseCommand {
   verbose?: boolean;
   getCommand(): Command;
   addOptions?: (command: Command) => void;
-  execute(options: CommandOptions): void;
+  execute(options: CommandOptions): void | Promise<void>;
   info(message: string): void;
   success(message: string): void;
   warn(message: string): void;
@@ -80,7 +80,7 @@ export const BaseCommand = Object.freeze({
       verbose: false,
       addOptions: config.addOptions,
       getCommand,
-      execute: config.execute as (options: CommandOptions) => void,
+      execute: config.execute,
       info: (msg: string) => ErrorHandler.info(msg),
       success: (msg: string) => ErrorHandler.success(msg),
       warn: (msg: string) => ErrorHandler.warn(msg),

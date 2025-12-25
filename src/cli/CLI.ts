@@ -13,6 +13,7 @@ import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { QACommand } from '@cli/commands/QACommand';
+import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { Logger } from '@config/logger';
@@ -82,6 +83,7 @@ const registerCommands = (program: Command): void => {
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
+    SimulateCommand,
   ];
 
   for (const command of commands) {
@@ -174,7 +176,14 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
       return;
     }
 
-    await program.parseAsync(['node', 'zintrust', ...args]);
+    // Convert global aliases to subcommand format
+    // e.g., `zin -sim my-app` -> `zin simulate my-app`
+    let processedArgs = args;
+    if (args[0] === '-sim' || args[0] === '--sim') {
+      processedArgs = ['simulate', ...args.slice(1)];
+    }
+
+    await program.parseAsync(['node', 'zintrust', ...processedArgs]);
   } catch (error) {
     // Check for commander-specific errors that need special handling
     if (

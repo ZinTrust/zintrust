@@ -13,6 +13,7 @@ import { IResponse, Response } from '@http/Response';
 import * as fs from '@node-singletons/fs';
 import * as http from '@node-singletons/http';
 import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { Router } from '@routing/Router';
 
 export interface IServer {
@@ -39,11 +40,47 @@ const MIME_TYPES_MAP: Record<string, string> = {
   '.wasm': MIME_TYPES.WASM,
 };
 
-const getDocsPublicRoot = (): string => {
-  if (process.env.NODE_ENV === 'production') {
-    return path.join(process.cwd(), 'dist/public');
+const findPackageRoot = (startDir: string): string => {
+  let current = startDir;
+  for (let i = 0; i < 10; i++) {
+    if (fs.existsSync(path.join(current, 'package.json'))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
   }
-  return path.join(process.cwd(), 'docs-website/public');
+  return startDir;
+};
+
+const getFrameworkPublicRoots = (): string[] => {
+  const thisFile = fileURLToPath(import.meta.url);
+  const thisDir = path.dirname(thisFile);
+  const packageRoot = findPackageRoot(thisDir);
+
+  // Primary: framework ships built docs assets in dist/public
+  const roots: string[] = [path.join(packageRoot, 'dist/public')];
+
+  // Secondary: when running framework from source tree
+  roots.push(path.join(packageRoot, 'docs-website/public'));
+
+  return roots;
+};
+
+const getDocsPublicRoot = (): string => {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // First try app-local roots (developer app override), then fall back to framework-shipped assets.
+  const appRoots = isProduction
+    ? [path.join(process.cwd(), 'dist/public')]
+    : [path.join(process.cwd(), 'docs-website/public')];
+
+  const candidates = [...appRoots, ...getFrameworkPublicRoots()];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  // Fallback: preserve previous behavior even if missing on disk.
+  return appRoots[0] ?? path.join(process.cwd(), 'dist/public');
 };
 
 const stripLeadingSlashes = (value: string): string => value.replace(/^\/+/, '');
@@ -61,7 +98,23 @@ const mapStaticPath = (urlPath: string): string => {
   if (urlPath.startsWith('/doc')) {
     const rest = stripLeadingSlashes(urlPath.slice('/doc'.length));
     // /doc -> <publicRoot>/doc, /doc/foo -> <publicRoot>/doc/foo
-    return rest === '' ? path.join(publicRoot, 'doc') : path.join(publicRoot, 'doc', rest);
+    return rest === '' ? path.join(publicRoot) : path.join(publicRoot, rest);
+  }
+
+  if (urlPath.startsWith('/assets')) {
+    const rest = stripLeadingSlashes(urlPath.slice('/assets'.length));
+    // /assets -> <publicRoot>/assets, /assets/foo -> <publicRoot>/assets/foo
+    return rest === '' ? path.join(publicRoot, 'assets') : path.join(publicRoot, 'assets', rest);
+  }
+
+  if (urlPath.startsWith('/vp-icons.css')) {
+    // /vp-icons.css -> <publicRoot>/vp-icons.css
+    return path.join(publicRoot, 'vp-icons.css');
+  }
+
+  if (urlPath.startsWith('/hashmap.json')) {
+    // hashmap.json -> <publicRoot>hashmap.json
+    return path.join(publicRoot, 'hashmap.json');
   }
 
   // Allow serving a small set of root docs assets.
@@ -137,16 +190,37 @@ const serveStatic = async (request: IRequest, response: IResponse): Promise<bool
 /**
  * Set security headers on response
  */
-const setSecurityHeaders = (res: http.ServerResponse): void => {
+const getContentSecurityPolicyForPath = (requestPath: string): string => {
+  // Default CSP for the API/framework.
+  const baseCsp =
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data:; " +
+    "font-src 'self';";
+
+  // Docs pages intentionally load external assets (Tailwind CDN + Google Fonts).
+  // Keep this relaxation scoped to the docs base path.
+  if (!requestPath.startsWith('/doc')) return baseCsp;
+
+  return (
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+    "script-src-elem 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "img-src 'self' data: https:; " +
+    "font-src 'self' data: https://fonts.gstatic.com;"
+  );
+};
+
+const setSecurityHeaders = (res: http.ServerResponse, requestPath: string): void => {
   res.setHeader(HTTP_HEADERS.X_POWERED_BY, 'ZinTrust');
   res.setHeader(HTTP_HEADERS.X_CONTENT_TYPE_OPTIONS, 'nosniff');
   res.setHeader(HTTP_HEADERS.X_FRAME_OPTIONS, 'DENY');
   res.setHeader(HTTP_HEADERS.X_XSS_PROTECTION, '1; mode=block');
   res.setHeader(HTTP_HEADERS.REFERRER_POLICY, 'strict-origin-when-cross-origin');
-  res.setHeader(
-    HTTP_HEADERS.CONTENT_SECURITY_POLICY,
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self';"
-  );
+  res.setHeader(HTTP_HEADERS.CONTENT_SECURITY_POLICY, getContentSecurityPolicyForPath(requestPath));
 };
 
 /**
@@ -157,7 +231,9 @@ const handleRequest = async (
   req: http.IncomingMessage,
   res: http.ServerResponse
 ): Promise<void> => {
-  setSecurityHeaders(res);
+  // Use the raw URL so docs assets (/doc/assets/...) get the correct CSP.
+  const requestPath = typeof req.url === 'string' ? req.url : '/';
+  setSecurityHeaders(res, requestPath);
 
   try {
     const request = Request.create(req);
