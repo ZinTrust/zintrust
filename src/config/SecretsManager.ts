@@ -172,9 +172,11 @@ const SecretsManagerImpl = {
       async rotateSecret(_key: string): Promise<void> {
         if (config.platform === 'aws') {
           // AWS Secrets Manager supports automatic rotation
-          throw ErrorFactory.createConfigError('Secret rotation not implemented');
+          return Promise.reject(ErrorFactory.createConfigError('Secret rotation not implemented'));
         }
-        throw ErrorFactory.createConfigError('Secret rotation not supported on this platform');
+        return Promise.reject(
+          ErrorFactory.createConfigError('Secret rotation not supported on this platform')
+        );
       },
 
       /**
@@ -189,7 +191,7 @@ const SecretsManagerImpl = {
           case 'deno':
           case 'local':
           default:
-            return [];
+            return Promise.resolve([]);
         }
       },
 
@@ -215,9 +217,11 @@ async function getFromAWSSecretsManager(key: string): Promise<string> {
     Logger.debug(`[AWS] Getting secret: ${key}`);
     throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
   } catch (error) {
-    throw ErrorFactory.createTryCatchError(
-      `Failed to retrieve secret from AWS: ${(error as Error).message}`,
-      error
+    return Promise.reject(
+      ErrorFactory.createTryCatchError(
+        `Failed to retrieve secret from AWS: ${(error as Error).message}`,
+        error
+      )
     );
   }
 }
@@ -228,17 +232,21 @@ async function setInAWSSecretsManager(
   _options?: SetSecretOptions
 ): Promise<void> {
   Logger.info(`[AWS] Setting secret: ${key}`);
-  throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
+  return Promise.reject(
+    ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module')
+  );
 }
 
 async function deleteFromAWSSecretsManager(key: string): Promise<void> {
   Logger.info(`[AWS] Deleting secret: ${key}`);
-  throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
+  return Promise.reject(
+    ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module')
+  );
 }
 
 async function listFromAWSSecretsManager(pattern?: string): Promise<string[]> {
   Logger.info(`[AWS] Listing secrets with pattern: ${pattern ?? '*'}`);
-  return [];
+  return Promise.resolve([]);
 }
 
 /**
@@ -291,9 +299,9 @@ async function getFromDenoEnv(key: string): Promise<string> {
     globalThis as unknown as Record<string, { env?: { get?: (key: string) => string } }>
   )['Deno']?.env?.get?.(key);
   if (value === undefined || value === null || value === '') {
-    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
+    return Promise.reject(ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key }));
   }
-  return value;
+  return Promise.resolve(value);
 }
 
 /**
@@ -302,9 +310,9 @@ async function getFromDenoEnv(key: string): Promise<string> {
 async function getFromEnv(key: string): Promise<string> {
   const value = process.env[key];
   if (value === undefined || value === null || value === '') {
-    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
+    return Promise.reject(ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key }));
   }
-  return value;
+  return Promise.resolve(value);
 }
 
 /**

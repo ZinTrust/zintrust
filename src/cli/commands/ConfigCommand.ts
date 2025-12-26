@@ -16,8 +16,8 @@ import { Command } from 'commander';
 type ConfigManagerLike = {
   get?: (key: string) => unknown;
   set?: (key: string, value: unknown) => void;
-  save?: () => Promise<void>;
-  reset?: () => Promise<void>;
+  save?: () => void;
+  reset?: () => void;
   getConfig?: () => ProjectConfig;
   getAllKeys?: () => string[];
   export?: () => string;
@@ -32,14 +32,14 @@ type IConfigCommand = IBaseCommand & {
     value?: string,
     options?: CommandOptions
   ) => Promise<void>;
-  handleGet: (manager: ConfigManagerLike, key?: string, value?: string) => Promise<void>;
+  handleGet: (manager: ConfigManagerLike, key?: string, value?: string) => void;
   handleSet: (
     manager: ConfigManagerLike,
     key?: string,
     value?: string,
     options?: CommandOptions
-  ) => Promise<void>;
-  handleList: (manager: ConfigManagerLike, options: CommandOptions) => Promise<void>;
+  ) => void;
+  handleList: (manager: ConfigManagerLike, options: CommandOptions) => void;
   handleReset: (manager: ConfigManagerLike) => Promise<void>;
   handleEdit: (manager: ConfigManagerLike) => Promise<void>;
   handleExport: (manager: ConfigManagerLike) => void;
@@ -131,36 +131,31 @@ const displayConfigurationValues = (cmd: IBaseCommand, config: ProjectConfig): v
   }
 };
 
-const handleGet = async (
-  cmd: IBaseCommand,
-  manager: ConfigManagerLike,
-  key?: string
-): Promise<void> => {
+const handleGet = (cmd: IBaseCommand, manager: ConfigManagerLike, key?: string): void => {
   if (key === undefined) {
     ErrorHandler.usageError('Configuration key is required for "get"');
-    return;
   }
 
   if (typeof manager.get !== 'function') {
     cmd.warn('Configuration manager does not support "get"');
-    return;
   }
 
-  const value = manager.get(key);
-  if (value === undefined) {
-    cmd.warn(`Configuration key "${key}" not found`);
-    return;
-  }
+  if (typeof manager.get === 'function' && key !== undefined) {
+    const value = manager.get(key);
+    if (value === undefined) {
+      cmd.warn(`Configuration key "${key}" not found`);
+    }
 
-  cmd.info(formatConfigValue(value));
+    cmd.info(formatConfigValue(value));
+  }
 };
 
-const handleSet = async (
+const handleSet = (
   cmd: IBaseCommand,
   manager: ConfigManagerLike,
   key?: string,
   value?: string
-): Promise<void> => {
+): void => {
   if (key === undefined || value === undefined) {
     ErrorHandler.usageError('Both key and value are required for "set"');
     return;
@@ -180,19 +175,18 @@ const handleSet = async (
 
   manager.set(key, parsedValue);
   if (typeof manager.save === 'function') {
-    await manager.save();
+    manager.save();
   }
   cmd.success(`Configuration updated: ${key} = ${value}`);
 };
 
-const handleList = async (
+const handleList = (
   cmd: IBaseCommand,
   manager: ConfigManagerLike,
   options: CommandOptions
-): Promise<void> => {
+): void => {
   if (options['json'] === true && typeof manager.export === 'function') {
     cmd.info(manager.export());
-    return;
   }
 
   const config =
@@ -219,7 +213,7 @@ const handleReset = async (cmd: IBaseCommand, manager: ConfigManagerLike): Promi
   }
 
   if (typeof manager.reset === 'function') {
-    await manager.reset();
+    manager.reset();
   }
   cmd.success('Configuration reset to defaults');
 };
@@ -253,7 +247,7 @@ const editSingleConfig = async (
     manager.set(selectedKey, parsedValue);
   }
   if (typeof manager.save === 'function') {
-    await manager.save();
+    manager.save();
   }
   cmd.success(`Updated ${selectedKey}`);
 };
@@ -343,19 +337,13 @@ export const ConfigCommand = Object.freeze({
     cmd.getConfigManager = async (isGlobal: boolean): Promise<IConfigManager> =>
       isGlobal ? getGlobalConfigManager() : getProjectConfigManager();
 
-    cmd.handleGet = async (
-      manager: ConfigManagerLike,
-      key?: string,
-      value?: string
-    ): Promise<void> => handleGet(cmd, manager, key ?? value);
+    cmd.handleGet = (manager: ConfigManagerLike, key?: string, value?: string): void =>
+      handleGet(cmd, manager, key ?? value);
 
-    cmd.handleSet = async (
-      manager: ConfigManagerLike,
-      key?: string,
-      value?: string
-    ): Promise<void> => handleSet(cmd, manager, key, value);
+    cmd.handleSet = (manager: ConfigManagerLike, key?: string, value?: string): void =>
+      handleSet(cmd, manager, key, value);
 
-    cmd.handleList = async (manager: ConfigManagerLike, options: CommandOptions): Promise<void> =>
+    cmd.handleList = (manager: ConfigManagerLike, options: CommandOptions): void =>
       handleList(cmd, manager, options);
 
     cmd.handleReset = async (manager: ConfigManagerLike): Promise<void> =>
@@ -374,13 +362,13 @@ export const ConfigCommand = Object.freeze({
     ): Promise<void> => {
       switch (action.toLowerCase()) {
         case 'get':
-          await cmd.handleGet(manager, key, value);
+          cmd.handleGet(manager, key, value);
           return;
         case 'set':
-          await cmd.handleSet(manager, key, value, options);
+          cmd.handleSet(manager, key, value, options);
           return;
         case 'list':
-          await cmd.handleList(manager, options ?? {});
+          cmd.handleList(manager, options ?? {});
           return;
         case 'reset':
           await cmd.handleReset(manager);

@@ -28,13 +28,13 @@ const create = (): CacheDriver => {
   const kv = env === undefined ? undefined : (env['CACHE'] as KVNamespace);
 
   return {
-    async get<T>(key: string): Promise<T | null> {
+    get<T>(key: string): T | null {
       if (kv === undefined) return null;
-      const value = await kv.get(key, { type: 'json' });
+      const value = kv.get(key, { type: 'json' });
       return value as T;
     },
 
-    async set<T>(key: string, value: T, ttl?: number): Promise<void> {
+    set<T>(key: string, value: T, ttl?: number): void {
       if (kv === undefined) {
         Logger.warn('KV binding "CACHE" not found. Cache set ignored.');
         return;
@@ -46,22 +46,22 @@ const create = (): CacheDriver => {
         options.expirationTtl = Math.max(60, ttl);
       }
 
-      await kv.put(key, JSON.stringify(value), options);
+      kv.put(key, JSON.stringify(value), options);
     },
 
-    async delete(key: string): Promise<void> {
+    delete(key: string): void {
       if (kv === undefined) return;
-      await kv.delete(key);
+      kv.delete(key);
     },
 
-    async clear(): Promise<void> {
+    clear(): void {
       // KV doesn't support clearing all keys easily without listing and deleting
       Logger.warn('KV clear() is not implemented due to Cloudflare KV limitations.');
     },
 
-    async has(key: string): Promise<boolean> {
+    has(key: string): boolean {
       if (kv === undefined) return false;
-      const value = await kv.get(key);
+      const value = kv.get(key);
       return value !== null;
     },
   };

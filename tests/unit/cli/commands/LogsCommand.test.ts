@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import type { CommandOptions } from '@cli/BaseCommand';
 import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

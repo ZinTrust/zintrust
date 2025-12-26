@@ -202,7 +202,7 @@ function buildRouteCode(route: RouteDefinition, router: string): string {
  */
 function buildMethodRoute(route: RouteDefinition, router: string): string {
   const method = route.method;
-  const path = route.path;
+  const routePath = route.path;
   const controller = route.controller;
   const action = route.action ?? 'handle';
   const middleware =
@@ -213,14 +213,14 @@ function buildMethodRoute(route: RouteDefinition, router: string): string {
           return `, { middleware: [${middlewareList}] }`;
         })();
 
-  return `    ${router}.${method}('${path}', [${controller}, '${action}']${middleware});\n`;
+  return `    ${router}.${method}('${routePath}', [${controller}, '${action}']${middleware});\n`;
 }
 
 /**
  * Build resource route (RESTful CRUD)
  */
 function buildResourceRoute(route: RouteDefinition, router: string): string {
-  const path = route.path;
+  const routePath = route.path;
   const controller = route.controller;
   const middleware =
     route.middleware === undefined
@@ -230,7 +230,7 @@ function buildResourceRoute(route: RouteDefinition, router: string): string {
           return `, { middleware: [${middlewareList}] }`;
         })();
 
-  return `    ${router}.resource('${path}', ${controller}${middleware});\n`;
+  return `    ${router}.resource('${routePath}', ${controller}${middleware});\n`;
 }
 
 /**

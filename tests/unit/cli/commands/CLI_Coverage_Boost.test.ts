@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { AddCommand } from '@cli/commands/AddCommand';
 import { LogsCommand } from '@cli/commands/LogsCommand';
 import { NewCommand } from '@cli/commands/NewCommand';

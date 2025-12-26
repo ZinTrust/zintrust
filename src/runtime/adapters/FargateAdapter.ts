@@ -51,8 +51,10 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
     async handle(): Promise<PlatformResponse> {
       // Fargate adapter doesn't handle individual requests
       // Instead, use startServer() to run continuous HTTP server
-      throw ErrorFactory.createConfigError(
-        'Fargate adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
+      return Promise.reject(
+        ErrorFactory.createConfigError(
+          'Fargate adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
+        )
       );
     },
 

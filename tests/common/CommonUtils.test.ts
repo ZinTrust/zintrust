@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { CommonUtils } from '@common/index';
 import { default as fs } from '@node-singletons/fs';
 import os from '@node-singletons/os';

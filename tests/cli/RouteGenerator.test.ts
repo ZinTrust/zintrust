@@ -3,6 +3,7 @@
  * Tests for HTTP route generation
  */
 
+/* eslint-disable max-nested-callbacks */
 import {
   RouteGenerator,
   type RouteDefinition,

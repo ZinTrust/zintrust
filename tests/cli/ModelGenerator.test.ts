@@ -3,6 +3,7 @@
  * Tests for ORM model generation
  */
 
+/* eslint-disable max-nested-callbacks */
 import {
   ModelGenerator,
   type ModelField,

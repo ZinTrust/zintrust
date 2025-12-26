@@ -337,7 +337,7 @@ DATABASE_CONNECTION=${options.database === 'isolated' ? 'postgresql' : 'shared'}
 ${options.database === 'isolated' ? `${options.name?.toUpperCase()}_DB_HOST=localhost\n${options.name?.toUpperCase()}_DB_DATABASE=${options.name}\n${options.name?.toUpperCase()}_DB_USER=postgres\n${options.name?.toUpperCase()}_DB_PASSWORD=postgres` : ''}
 
 # Authentication
-SERVICE_AUTH_STRATEGY=${options.auth || 'api-key'}
+SERVICE_AUTH_STRATEGY=${options.auth ?? 'api-key'}
 SERVICE_AUTH_KEY=your-auth-key-here
 
 # Tracing

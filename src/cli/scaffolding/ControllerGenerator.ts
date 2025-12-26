@@ -78,17 +78,15 @@ export function validateOptions(options: ControllerOptions): { valid: boolean; e
 /**
  * Generate controller file
  */
-export async function generateController(
-  options: ControllerOptions
-): Promise<ControllerGeneratorResult> {
+export async function generateController(options: ControllerOptions): Promise<ControllerGeneratorResult> {
   const validation = validateOptions(options);
   if (validation.valid === false) {
-    return {
+    return Promise.resolve({
       success: false,
       controllerName: options.name,
       controllerFile: '',
       message: `Validation failed: ${validation.errors.join(', ')}`,
-    };
+    });
   }
 
   try {
@@ -98,30 +96,30 @@ export async function generateController(
 
     const created = FileGenerator.writeFile(controllerFile, controllerContent);
     if (created === false) {
-      return {
+      return Promise.resolve({
         success: false,
         controllerName: options.name,
         controllerFile,
         message: `Failed to create controller file`,
-      };
+      });
     }
 
     Logger.info(`✅ Generated controller: ${options.name}`);
 
-    return {
+    return Promise.resolve({
       success: true,
       controllerName: options.name,
       controllerFile,
       message: `Controller ${options.name} created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error(`Failed to generate controller: ${(error as Error).message}`);
-    return {
+    return Promise.resolve({
       success: false,
       controllerName: options.name,
       controllerFile: '',
       message: `Error: ${(error as Error).message}`,
-    };
+    });
   }
 }
 

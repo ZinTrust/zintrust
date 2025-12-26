@@ -2,6 +2,7 @@
  * MigrationGenerator Tests
  */
 
+/* eslint-disable max-nested-callbacks */
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { MigrationGenerator, type MigrationOptions } from '@cli/scaffolding/MigrationGenerator';
 import { Logger } from '@config/logger';

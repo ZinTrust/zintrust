@@ -129,14 +129,14 @@ async function runBundleService(config: BundleConfig): Promise<BundleResult> {
 
   logBundleSummary(totalSize, fileCount, targetSize);
 
-  return {
+  return Promise.resolve({
     serviceName,
     sizeBytes: totalSize,
     sizeMB: Number.parseFloat((totalSize / (1024 * 1024)).toFixed(2)),
     files: fileCount,
     location: bundleDir,
     optimized: totalSize < targetSize * 1024 * 1024,
-  };
+  });
 }
 
 /**
@@ -193,7 +193,7 @@ async function runCreateServiceImage(
   Logger.info(`  ✓ Dockerfile created at ${serviceDir}/Dockerfile`);
   Logger.info(`  To build: docker build -t ${imageTag} ${serviceDir}`);
 
-  return imageTag;
+  return Promise.resolve(imageTag);
 }
 
 /**

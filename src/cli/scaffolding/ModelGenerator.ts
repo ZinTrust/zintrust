@@ -92,12 +92,12 @@ export function validateOptions(options: ModelOptions): { valid: boolean; errors
 export async function generateModel(options: ModelOptions): Promise<ModelGeneratorResult> {
   const validation = validateOptions(options);
   if (validation.valid === false) {
-    return {
+    return Promise.resolve({
       success: false,
       modelName: options.name,
       modelFile: '',
       message: `Validation failed: ${validation.errors.join(', ')}`,
-    };
+    });
   }
 
   try {
@@ -106,30 +106,30 @@ export async function generateModel(options: ModelOptions): Promise<ModelGenerat
 
     const created = FileGenerator.writeFile(modelFile, modelContent);
     if (created === false) {
-      return {
+      return Promise.resolve({
         success: false,
         modelName: options.name,
         modelFile,
         message: `Failed to create model file`,
-      };
+      });
     }
 
     Logger.info(`✅ Generated model: ${options.name}`);
 
-    return {
+    return Promise.resolve({
       success: true,
       modelName: options.name,
       modelFile,
       message: `Model ${options.name} created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Model generation failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       modelName: options.name,
       modelFile: '',
       message: `Error: ${(error as Error).message}`,
-    };
+    });
   }
 }
 

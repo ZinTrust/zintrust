@@ -20,11 +20,12 @@ const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> =
   const npmPath = resolveNpmPath();
   cmd.debug(`Executing: npm exec --yes -- wrangler ${args.join(' ')}`);
 
-  return execFileSync(npmPath, ['exec', '--yes', '--', 'wrangler', ...args], {
+  const result = execFileSync(npmPath, ['exec', '--yes', '--', 'wrangler', ...args], {
     stdio: 'pipe',
     encoding: 'utf8',
     env: appConfig.getSafeEnv(),
   });
+  return Promise.resolve(result);
 };
 
 const executeD1Migrate = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {

@@ -176,23 +176,23 @@ const registerService = (config: MicroserviceConfig): MicroserviceConfig => {
 const startService = async (name: string, _handler?: unknown): Promise<boolean> => {
   const service = services.get(name);
   if (service === undefined) {
-    throw ErrorFactory.createNotFoundError('Service not found', { name });
+    return Promise.reject(ErrorFactory.createNotFoundError('Service not found', { name }));
   }
 
   service.status = 'running';
   Logger.info(`Service started: ${name}`);
-  return true;
+  return Promise.resolve(true);
 };
 
 const stopService = async (name: string): Promise<boolean> => {
   const service = services.get(name);
   if (service === undefined) {
-    return false;
+    return Promise.resolve(false);
   }
 
   service.status = 'stopped';
   Logger.info(`Service stopped: ${name}`);
-  return true;
+  return Promise.resolve(true);
 };
 
 const stopAllServices = async (): Promise<void> => {
@@ -200,6 +200,7 @@ const stopAllServices = async (): Promise<void> => {
   for (const service of services.values()) {
     service.status = 'stopped';
   }
+  return Promise.resolve();
 };
 
 const getService = (domain: string, name: string): MicroserviceConfig | undefined => {
@@ -332,7 +333,7 @@ const getStatusSummary = (): Record<string, unknown> => {
 };
 
 const discoverServices = async (): Promise<MicroserviceConfig[]> => {
-  return Array.from(services.values());
+  return Promise.resolve(Array.from(services.values()));
 };
 
 const getMicroserviceManager = (): IMicroserviceManagerFactory & IMicroserviceManager =>

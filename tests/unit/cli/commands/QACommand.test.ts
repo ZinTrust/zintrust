@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { QACommand } from '@/cli/commands/QACommand';
 import { Logger } from '@config/logger';
 import { fs } from '@node-singletons';

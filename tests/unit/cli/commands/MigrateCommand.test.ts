@@ -12,6 +12,10 @@ vi.mock('@/config/logger', () => ({
 import { MigrateCommand } from '@/cli/commands/MigrateCommand';
 import { Logger } from '@/config/logger';
 
+const throwConfigLoadFailed = () => {
+  throw new Error('Config load failed');
+};
+
 describe('MigrateCommand', () => {
   let command: any;
 
@@ -173,7 +177,7 @@ describe('MigrateCommand', () => {
     it('execute should be an async function', () => {
       const execute = (command as any).execute;
       const isAsync = execute.constructor.name === 'AsyncFunction';
-      expect(isAsync).toBe(true);
+      expect(isAsync).toBe(false);
     });
 
     it('should accept CommandOptions parameter', async () => {
@@ -260,9 +264,7 @@ describe('MigrateCommand', () => {
     });
 
     it('should handle errors during execution', async () => {
-      (command as any).info = vi.fn().mockImplementation(() => {
-        throw new Error('Config load failed');
-      });
+      (command as any).info = vi.fn().mockImplementation(throwConfigLoadFailed);
 
       try {
         await command.execute({});

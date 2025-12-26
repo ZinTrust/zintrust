@@ -43,10 +43,10 @@ export const MigrateCommand = Object.freeze({
           cmd.info('Running pending migrations...');
           cmd.success('Migrations completed successfully');
         }
+        return Promise.resolve();
       } catch (error) {
-        throw ErrorFactory.createTryCatchError(
-          `Migration failed: ${(error as Error).message}`,
-          error
+        return Promise.reject(
+          ErrorFactory.createTryCatchError(`Migration failed: ${(error as Error).message}`, error)
         );
       }
     };

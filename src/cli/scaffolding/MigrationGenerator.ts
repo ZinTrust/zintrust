@@ -50,19 +50,17 @@ export function validateOptions(options: MigrationOptions): { valid: boolean; er
 /**
  * Generate migration file
  */
-export async function generateMigration(
-  options: MigrationOptions
-): Promise<MigrationScaffoldResult> {
+export async function generateMigration(options: MigrationOptions): Promise<MigrationScaffoldResult> {
   try {
     // Validate options
     const validation = validateOptions(options);
     if (!validation.valid) {
-      return {
+      return Promise.resolve({
         success: false,
         migrationName: options.name,
         filePath: '',
         message: `Validation failed: ${validation.errors.join(', ')}`,
-      };
+      });
     }
 
     // Generate migration filename with timestamp
@@ -75,12 +73,12 @@ export async function generateMigration(
 
     // Check if migration already exists
     if (FileGenerator.fileExists(filePath)) {
-      return {
+      return Promise.resolve({
         success: false,
         migrationName: options.name,
         filePath,
         message: `Migration file already exists: ${filePath}`,
-      };
+      });
     }
 
     // Generate migration content based on type
@@ -92,21 +90,21 @@ export async function generateMigration(
 
     Logger.info(`✅ Created migration: ${filename}`);
 
-    return {
+    return Promise.resolve({
       success: true,
       migrationName: options.name,
       filePath,
       message: `Migration '${options.name}' created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Migration generation error:', error);
     const errorMsg = error instanceof Error ? error.message : String(error);
-    return {
+    return Promise.resolve({
       success: false,
       migrationName: options.name,
       filePath: '',
       message: `Failed to create migration: ${errorMsg}`,
-    };
+    });
   }
 }
 

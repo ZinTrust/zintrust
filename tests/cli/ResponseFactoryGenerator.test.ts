@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { ResponseFactoryGenerator, ResponseField } from '@cli/scaffolding/ResponseFactoryGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';
 import os from '@node-singletons/os';

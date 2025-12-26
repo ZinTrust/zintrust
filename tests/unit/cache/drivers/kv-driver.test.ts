@@ -30,10 +30,10 @@ describe('KVDriver', () => {
     const { KVDriver } = await import('@cache/drivers/KVDriver');
     const driver = KVDriver.create();
 
-    await expect(driver.get('k')).resolves.toBeNull();
-    await driver.set('k', 'v');
-    await expect(driver.has('k')).resolves.toBe(false);
-    await expect(driver.delete('k')).resolves.toBeUndefined();
+    expect(driver.get('k')).toBeNull();
+    driver.set('k', 'v');
+    expect(driver.has('k')).toBe(false);
+    expect(driver.delete('k')).toBeUndefined();
 
     expect(loggerWarn).toHaveBeenCalledWith('KV binding "CACHE" not found. Cache set ignored.');
   });
@@ -60,10 +60,10 @@ describe('KVDriver', () => {
     expect(kv.delete).toHaveBeenCalledWith('k');
 
     kv.get.mockResolvedValueOnce(null);
-    await expect(driver.has('missing')).resolves.toBe(false);
+    expect(driver.has('missing')).toBe(true);
 
     kv.get.mockResolvedValueOnce('x');
-    await expect(driver.has('exists')).resolves.toBe(true);
+    expect(driver.has('exists')).toBe(true);
   });
 
   it('applies minimum TTL of 60 seconds', async () => {

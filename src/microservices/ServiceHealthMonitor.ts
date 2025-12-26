@@ -478,6 +478,7 @@ export const HealthCheckAggregator = Object.freeze({
         }
 
         res.setStatus(statusCode).json(status);
+        return Promise.resolve();
       },
     };
   },

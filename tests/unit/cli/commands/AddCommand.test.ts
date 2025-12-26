@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { AddCommand } from '@cli/commands/AddCommand';
 import * as fs from '@node-singletons/fs';
 import inquirer from 'inquirer';

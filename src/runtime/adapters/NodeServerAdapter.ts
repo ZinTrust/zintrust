@@ -22,13 +22,13 @@ export const NodeServerAdapter = Object.freeze({
     startServer(port?: number, host?: string): Promise<void>;
     stop(): Promise<void>;
   } {
-    const logger = config.logger || createDefaultLogger();
+    const logger = config.logger ?? createDefaultLogger();
     const state: { server?: Server } = {};
 
     return {
       platform: 'nodejs',
 
-      async handle(): Promise<PlatformResponse> {
+      handle(): PlatformResponse {
         throw ErrorFactory.createConfigError(
           'Node.js adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
         );
@@ -102,7 +102,7 @@ async function startNodeServer(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     state.server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      void handleRequest(req, res, config, logger);
+      handleRequest(req, res, config, logger);
     });
 
     state.server.listen(port, host, () => {
@@ -166,12 +166,12 @@ function getNodeEnvironment(): {
 /**
  * Handle request processing
  */
-async function handleRequest(
+function handleRequest(
   req: IncomingMessage,
   res: ServerResponse,
   config: AdapterConfig,
   logger?: AdapterConfig['logger']
-): Promise<void> {
+): void {
   const chunks: Buffer[] = [];
   let body: Buffer | null = null;
 

@@ -305,7 +305,7 @@ export default ${options.responseName};
   FileGenerator.writeFile(dtoPath, dtoCode);
   Logger.info(`✅ Generated response DTO: ${options.responseName}`);
 
-  return dtoPath;
+  return Promise.resolve(dtoPath);
 }
 
 /**

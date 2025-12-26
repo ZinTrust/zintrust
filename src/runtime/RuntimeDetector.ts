@@ -232,6 +232,7 @@ const shutdown = async (signal: string = 'SIGTERM'): Promise<void> => {
 
   // Perform cleanup tasks
   process.exit(0);
+  return Promise.resolve();
 };
 
 /**

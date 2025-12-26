@@ -2,8 +2,10 @@
  * ControllerGenerator Tests
  * Tests for HTTP controller generation
  */
-
-import { ControllerGenerator, type ControllerOptions } from '@cli/scaffolding/ControllerGenerator';
+/* eslint-disable max-nested-callbacks */ import {
+  ControllerGenerator,
+  type ControllerOptions,
+} from '@cli/scaffolding/ControllerGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

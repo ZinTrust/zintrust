@@ -71,6 +71,8 @@ const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
     ErrorFactory.createCliError('Fix command failed', error);
     cmd.warn('Some fixes could not be applied automatically.');
   }
+
+  return Promise.resolve();
 };
 
 /**

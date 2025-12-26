@@ -58,7 +58,7 @@ interface BootstrapState {
  */
 async function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig[]> {
   if (!isMicroservicesEnabled()) {
-    return [];
+    return Promise.resolve([]);
   }
 
   try {
@@ -71,11 +71,11 @@ async function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig
     }
 
     Logger.info(`✅ Discovered ${services.length} microservices`);
-    return services;
+    return Promise.resolve(services);
   } catch (err) {
     Logger.error('Failed to discover microservices', err);
     handleDiscoveryError(err);
-    return [];
+    return Promise.resolve([]);
   }
 }
 
@@ -206,7 +206,7 @@ export const MicroserviceBootstrap = Object.freeze(
            */
           getServiceAuthStrategy(domain: string, name: string): string {
             const config = this.getServiceConfig(domain, name);
-            return config?.auth?.strategy || 'none';
+            return config?.auth?.strategy ?? 'none';
           },
 
           /**

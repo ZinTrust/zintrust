@@ -41,20 +41,20 @@ describe('AddCommand - Phase 5 Integration', () => {
 
   describe('AddCommand Integration', () => {
     it('should support model command', () => {
-      const command = AddCommand.create();
-      expect(command).toBeDefined();
+      const cmd = AddCommand.create();
+      expect(cmd).toBeDefined();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((command as any).name).toBe('add');
+      expect((cmd as any).name).toBe('add');
     });
 
     it('should support controller command', () => {
-      const command = AddCommand.create();
-      expect(command).toBeDefined();
+      const cmd = AddCommand.create();
+      expect(cmd).toBeDefined();
     });
 
     it('should support routes command', () => {
-      const command = AddCommand.create();
-      expect(command).toBeDefined();
+      const cmd = AddCommand.create();
+      expect(cmd).toBeDefined();
     });
 
     it('should have correct command name', () => {

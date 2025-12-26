@@ -33,7 +33,7 @@ describe('SpawnUtil', () => {
   it('spawns a command and returns exit code', async () => {
     mockChild.once.mockImplementation((event, cb) => {
       if (event === 'close') {
-        setTimeout(() => cb(0, null), 0);
+        cb(0, null);
       }
     });
 
@@ -142,8 +142,12 @@ describe('SpawnUtil', () => {
     });
 
     // Get the signal handlers
-    const sigintHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGINT')?.[1] as Function;
-    const sigtermHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGTERM')?.[1] as Function;
+    const sigintHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGINT')?.[1] as (
+      ...args: any[]
+    ) => void;
+    const sigtermHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGTERM')?.[1] as (
+      ...args: any[]
+    ) => void;
 
     expect(sigintHandler).toBeDefined();
     expect(sigtermHandler).toBeDefined();
@@ -176,7 +180,9 @@ describe('SpawnUtil', () => {
       args: [],
     });
 
-    const sigintHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGINT')?.[1] as Function;
+    const sigintHandler = onSpy.mock.calls.find((call) => call[0] === 'SIGINT')?.[1] as (
+      ...args: any[]
+    ) => void;
 
     expect(() => sigintHandler()).toThrow('Failed to forward signal to child process');
 

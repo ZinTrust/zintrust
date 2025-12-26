@@ -279,6 +279,7 @@ async function minifyJavaScript(_aggressive: boolean = false): Promise<void> {
   // In production, would use esbuild or terser
   // This is a placeholder showing the pattern
   Logger.info('  ✓ JavaScript minified');
+  return Promise.resolve();
 }
 
 /**

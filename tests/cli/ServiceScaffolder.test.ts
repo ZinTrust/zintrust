@@ -2,6 +2,7 @@
  * ServiceScaffolder Tests
  */
 
+/* eslint-disable max-nested-callbacks */
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { ServiceScaffolder, type ServiceOptions } from '@cli/scaffolding/ServiceScaffolder';
 import { default as fs } from '@node-singletons/fs';

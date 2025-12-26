@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { BundleOptimizer, runOptimizer } from '@/builder/BundleOptimizer';
 import { Logger } from '@config/logger';
 import { default as fs } from '@node-singletons/fs';
@@ -69,16 +70,18 @@ beforeEach(() => {
 
     return result;
   }) as unknown as typeof fs.promises.readdir);
-  vi.mocked(fs.promises.stat).mockImplementation(async (path) => fs.statSync(path as any));
-  vi.mocked(fs.promises.unlink).mockImplementation(async (path) => fs.unlinkSync(path as any));
-  vi.mocked(fs.promises.rm).mockImplementation(async (path, options) =>
-    fs.rmSync(path as any, options as any)
+  vi.mocked(fs.promises.stat).mockImplementation(async (filePath) => fs.statSync(filePath as any));
+  vi.mocked(fs.promises.unlink).mockImplementation(async (filePath) =>
+    fs.unlinkSync(filePath as any)
   );
-  vi.mocked(fs.promises.readFile).mockImplementation(async (path, options) =>
-    fs.readFileSync(path as any, options as any)
+  vi.mocked(fs.promises.rm).mockImplementation(async (filePath, options) =>
+    fs.rmSync(filePath as any, options as any)
   );
-  vi.mocked(fs.promises.writeFile).mockImplementation(async (path, data, options) =>
-    fs.writeFileSync(path as any, data as any, options as any)
+  vi.mocked(fs.promises.readFile).mockImplementation(async (filePath, options) =>
+    fs.readFileSync(filePath as any, options as any)
+  );
+  vi.mocked(fs.promises.writeFile).mockImplementation(async (filePath, data, options) =>
+    fs.writeFileSync(filePath as any, data as any, options as any)
   );
 });
 
