@@ -91,8 +91,6 @@ const distPackage = {
   publishConfig: {
     access: 'public',
   },
-  dependencies: rootPackage.dependencies,
-  devDependencies: rootPackage.devDependencies,
 };
 
 fs.writeFileSync(

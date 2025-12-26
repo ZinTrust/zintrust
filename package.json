@@ -83,7 +83,7 @@
     "prepare": "husky",
     "postinstall": "node -e \"process.exit(0)\"",
     "check-up": "npx npm-check-updates",
-    "pub": "npm run build && cd dist && npm publish"
+    "pub": "npm run pro:build && cd dist && npm publish"
   },
   "lint-staged": {
     "src/**/*.ts": [
