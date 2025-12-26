@@ -7,7 +7,7 @@ Zintrust provides a robust, zero-dependency security middleware suite to protect
 The security middleware is included in the core framework. You can import it from `@middleware`.
 
 ```typescript
-import { SecurityMiddleware, RateLimiter, CsrfMiddleware } from '@middleware';
+import { SecurityMiddleware, RateLimiter, CsrfMiddleware } from '@zintrust/core';
 ```
 
 ## Security Headers (Helmet & CORS)

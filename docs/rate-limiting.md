@@ -13,7 +13,7 @@ The `RateLimiter` middleware uses a Token Bucket algorithm to limit the number o
 To apply rate limiting to all routes, register it in your application boot process:
 
 ```typescript
-import { RateLimiter } from '@middleware';
+import { RateLimiter } from '@zintrust/core';
 
 app.getMiddlewareStack().register(
   'rateLimit',

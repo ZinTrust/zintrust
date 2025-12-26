@@ -136,7 +136,7 @@ Zintrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and 
 
 ```typescript
 import { Post } from '@app/Models/Post';
-import { IModel, Model } from '@orm/Model';
+import { IModel, Model } from '@zintrust/core';
 
 export const User = Model.define(
   {
@@ -158,7 +158,7 @@ export const User = Model.define(
 
 ```typescript
 import { Tag } from '@app/Models/Tag';
-import { IModel, Model } from '@orm/Model';
+import { IModel, Model } from '@zintrust/core';
 
 export const Post = Model.define(
   {
