@@ -27,8 +27,11 @@ const distPackage = {
   keywords: rootPackage.keywords,
   author: rootPackage.author,
   license: rootPackage.license,
-  // dependencies: rootPackage.dependencies,
-  // devDependencies: rootPackage.devDependencies,
+  publishConfig: {
+    access: 'public',
+  },
+  dependencies: rootPackage.dependencies,
+  devDependencies: rootPackage.devDependencies,
 };
 
 fs.writeFileSync(

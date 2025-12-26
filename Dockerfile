@@ -3,11 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for native modules (better-sqlite3, bcrypt)
+RUN apk add --no-cache python3 make g++
+
 # Copy package files
 COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN npm ci --ignore-scripts
+RUN npm ci
 
 # Copy source code
 COPY tsconfig.json ./
@@ -35,8 +38,11 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 # Copy package files for production dependencies
 COPY package.json package-lock.json ./
 
-# Install only production dependencies
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+# Install only production dependencies (requires build tools for native modules)
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci --omit=dev \
+    && apk del .build-deps \
+    && npm cache clean --force
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
