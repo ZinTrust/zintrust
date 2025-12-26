@@ -1,3 +1,4 @@
+import { createGeneralError } from '@exceptions/ZintrustError';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const handleRequest = vi.fn().mockResolvedValue(undefined);
@@ -80,7 +81,7 @@ describe('functions/lambda', () => {
       const calls = (Logger.error as unknown as Mock).mock.calls;
       const lastError = calls.at(-1)?.[1] as unknown;
       const message = lastError instanceof Error ? lastError.message : JSON.stringify(lastError);
-      throw new Error(
+      throw createGeneralError(
         `Expected success responses; got ${res1.statusCode}/${res2.statusCode}. Logged error: ${message}`
       );
     }
@@ -98,7 +99,7 @@ describe('functions/lambda', () => {
   });
 
   it('returns 500 response on lambda error', async () => {
-    mockHandle.mockRejectedValueOnce(new Error('boom'));
+    mockHandle.mockRejectedValueOnce(createGeneralError('boom'));
 
     const mod = await import('@functions/lambda' + '?v=error');
     const handler = mod.handler;

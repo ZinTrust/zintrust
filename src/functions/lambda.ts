@@ -29,9 +29,17 @@ export const handler = async (event: unknown, context: unknown): Promise<unknown
       },
     });
 
-    return adapter.handle(event, context);
+    return await adapter.handle(event, context);
   } catch (error) {
     Logger.error('Lambda handler error:', error as Error);
-    return new Response('Internal Server Error', { status: 500 });
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: 'Internal Server Error',
+      }),
+    };
   }
 };
