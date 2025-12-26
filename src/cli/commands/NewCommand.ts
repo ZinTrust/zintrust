@@ -1,13 +1,12 @@
-import { appConfig } from '@config/app';
 /**
  * New Command - Project scaffolding CLI command
  * Handles creation of new Zintrust projects
  */
-
 import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
+import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
@@ -39,6 +38,7 @@ type InquirerQuestion = Record<string, unknown>;
 
 const errorToMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
   return 'Unknown error';
 };
 

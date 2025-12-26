@@ -647,19 +647,21 @@ describe('Priority 7 - Microservices Integration - Part 3', () => {
       'DELETE',
     ];
 
-    for (const method of methods) {
-      const options: ServiceRequestOptions = {
-        name: `${method}UserRequest`,
-        serviceName: 'users',
-        endpoint: `/api/users${method === 'GET' ? '/:id' : ''}`,
-        method,
-        fields: [{ name: 'id', type: 'uuid', required: true }],
-        factoryPath: tempDir,
-      };
+    await Promise.all(
+      methods.map(async (method) => {
+        const options: ServiceRequestOptions = {
+          name: `${method}UserRequest`,
+          serviceName: 'users',
+          endpoint: `/api/users${method === 'GET' ? '/:id' : ''}`,
+          method,
+          fields: [{ name: 'id', type: 'uuid', required: true }],
+          factoryPath: tempDir,
+        };
 
-      const result = await ServiceRequestFactoryGenerator.generateRequestFactory(options);
-      expect(result.success).toBe(true);
-    }
+        const result = await ServiceRequestFactoryGenerator.generateRequestFactory(options);
+        expect(result.success).toBe(true);
+      })
+    );
 
     // Verify all factories were generated
     const files = fs.readdirSync(tempDir);

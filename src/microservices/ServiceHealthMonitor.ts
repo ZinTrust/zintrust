@@ -154,8 +154,14 @@ async function checkDependenciesHealth(
 
   result.checks.dependencies ??= {};
 
-  for (const depService of dependencies) {
-    const isHealthy = await checkDependencyService(depService);
+  const checks = await Promise.all(
+    dependencies.map(async (depService) => ({
+      depService,
+      isHealthy: await checkDependencyService(depService),
+    }))
+  );
+
+  for (const { depService, isHealthy } of checks) {
     result.checks.dependencies[depService] = isHealthy;
     if (!isHealthy) {
       result.status = 'degraded';

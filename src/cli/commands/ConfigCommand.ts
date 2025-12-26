@@ -107,7 +107,11 @@ const displayValidationStatus = (cmd: IBaseCommand, config: ProjectConfig): void
   const errors = validation?.errors ?? [];
   cmd.info(chalk.red(`  ❌ Configuration has ${errors.length} errors:`));
   for (const error of errors) {
-    cmd.info(chalk.red(`     - ${error}`));
+    const message =
+      error !== null && typeof error === 'object' && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : String(error);
+    cmd.info(chalk.red(`     - ${message}`));
   }
 };
 
@@ -170,7 +174,7 @@ const handleSet = async (
   const parsedValue = parseConfigValue(value);
   const validationError = ConfigValidator.validateValue(key, parsedValue);
   if (validationError) {
-    cmd.warn(`Validation error for "${key}": ${validationError}`);
+    cmd.warn(`Validation error for "${key}": ${validationError.message}`);
     return;
   }
 
@@ -241,7 +245,7 @@ const editSingleConfig = async (
   const parsedValue = parseConfigValue(newValue);
   const validationError = ConfigValidator.validateValue(selectedKey, parsedValue);
   if (validationError) {
-    cmd.warn(`Validation error: ${validationError}`);
+    cmd.warn(`Validation error: ${validationError.message}`);
     return;
   }
 
@@ -270,6 +274,8 @@ const handleEdit = async (cmd: IBaseCommand, manager: ConfigManagerLike): Promis
 
   const menuKeys = [...availableKeys].sort((a, b) => a.localeCompare(b)).concat(['(Done)']);
 
+  // Interactive prompt loop must be sequential.
+  /* eslint-disable no-await-in-loop */
   while (true) {
     const selectedKey = await PromptHelper.chooseFrom(
       'Select configuration key to edit:',
@@ -278,6 +284,7 @@ const handleEdit = async (cmd: IBaseCommand, manager: ConfigManagerLike): Promis
     if (selectedKey === '' || selectedKey === '(Done)') break;
     await editSingleConfig(cmd, manager, selectedKey);
   }
+  /* eslint-enable no-await-in-loop */
 
   cmd.success('Configuration editing complete');
 };

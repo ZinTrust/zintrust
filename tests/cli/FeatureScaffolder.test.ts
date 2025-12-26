@@ -284,18 +284,20 @@ describe('FeatureScaffolder Feature Types', () => {
   it('should add all feature types', async () => {
     const features = FeatureScaffolder.getAvailableFeatures();
 
-    for (const feature of features) {
-      const options: FeatureOptions = {
-        name: feature,
-        servicePath: path.join(testDir, `service-${feature}`),
-      };
+    await Promise.all(
+      features.map(async (feature) => {
+        const options: FeatureOptions = {
+          name: feature,
+          servicePath: path.join(testDir, `service-${feature}`),
+        };
 
-      // Create service dir for each feature
-      fs.mkdirSync(path.join(options.servicePath, 'src', 'features'), { recursive: true });
+        // Create service dir for each feature
+        fs.mkdirSync(path.join(options.servicePath, 'src', 'features'), { recursive: true });
 
-      const result = await FeatureScaffolder.addFeature(options);
-      expect(result.success).toBe(true);
-    }
+        const result = await FeatureScaffolder.addFeature(options);
+        expect(result.success).toBe(true);
+      })
+    );
   });
 
   it('should include feature content in generated file', async () => {

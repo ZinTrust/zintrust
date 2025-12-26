@@ -56,11 +56,57 @@ describe('BaseCommand', () => {
     });
 
     const commanderCmd = cmd.getCommand();
-
-    // Manually trigger the action handler by parsing args
-    await commanderCmd.parseAsync(['--verbose'], { from: 'user' });
+    await commanderCmd.parseAsync([], { from: 'user' });
 
     expect(executeMock).toHaveBeenCalled();
     expect(ErrorHandler.handle).toHaveBeenCalledWith(error, undefined, false);
+  });
+
+  it('should handle non-error objects during execution', async () => {
+    const error = 'String error';
+    const executeMock = vi.fn().mockRejectedValue(error);
+
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: executeMock,
+    });
+
+    const commanderCmd = cmd.getCommand();
+    await commanderCmd.parseAsync([], { from: 'user' });
+
+    expect(executeMock).toHaveBeenCalled();
+    expect(ErrorHandler.handle).toHaveBeenCalled();
+  });
+
+  it('should call ErrorHandler methods', () => {
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: vi.fn(),
+    });
+
+    cmd.info('info');
+    cmd.success('success');
+    cmd.warn('warn');
+    cmd.debug('debug');
+
+    expect(ErrorHandler.info).toHaveBeenCalledWith('info');
+    expect(ErrorHandler.success).toHaveBeenCalledWith('success');
+    expect(ErrorHandler.warn).toHaveBeenCalledWith('warn');
+    expect(ErrorHandler.debug).toHaveBeenCalledWith('debug', true);
+  });
+
+  it('should call addOptions if provided', () => {
+    const addOptionsMock = vi.fn();
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      addOptions: addOptionsMock,
+      execute: vi.fn(),
+    });
+
+    cmd.getCommand();
+    expect(addOptionsMock).toHaveBeenCalled();
   });
 });

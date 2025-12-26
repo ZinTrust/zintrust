@@ -15,9 +15,14 @@ export interface Template {
   directories: string[];
 }
 
+/**
+ * A file that will be copied from a template source into the generated project.
+ * `path`   -> destination path in the generated project
+ * `source` -> template file path (relative to the template root directory)
+ */
 export interface TemplateFile {
   path: string;
-  content: string;
+  source: string;
   isTemplate?: boolean;
 }
 
@@ -35,20 +40,6 @@ const renderTemplate = (content: string, variables: TemplateVariables): string =
   }
 
   return result;
-};
-
-/**
- * Render file path with variables
- */
-const renderTemplatePath = (path: string, variables: TemplateVariables): string => {
-  return renderTemplate(path, variables);
-};
-
-/**
- * Replace template variables in content
- */
-const renderTemplateContent = (content: string, variables: TemplateVariables): string => {
-  return renderTemplate(content, variables);
 };
 
 /**
@@ -89,15 +80,17 @@ const extractTemplateVariables = (content: string): string[] => {
  */
 export const TemplateEngine = Object.freeze({
   render: renderTemplate,
-  renderPath: renderTemplatePath,
-  renderContent: renderTemplateContent,
+  renderContent: renderTemplate,
+  renderPath: renderTemplate,
   mergeVariables: mergeTemplateVariables,
   hasVariables: hasTemplateVariables,
   extractVariables: extractTemplateVariables,
 });
 
 /**
- * Built-in template definitions
+ * Built-in template definitions (file-based; no inline contents)
+ *
+ * `source` paths are relative to your template root directory (wherever the CLI loader reads from).
  */
 export const BUILT_IN_TEMPLATES: Record<string, Template> = {
   basic: {
@@ -115,156 +108,16 @@ export const BUILT_IN_TEMPLATES: Record<string, Template> = {
       'database/seeders',
     ],
     files: [
-      {
-        path: 'package.json',
-        isTemplate: true,
-        content: `{
-  "name": "{{projectName}}",
-  "version": "1.0.0",
-  "description": "{{projectDescription}}",
-  "main": "dist/index.js",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest",
-    "build": "tsc",
-    "start": "node dist/index.js"
-  },
-  "keywords": [],
-  "author": "{{author}}",
-  "license": "MIT",
-  "dependencies": {
-    "@zintrust/framework": "*"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.3",
-    "tsx": "^4.6.2",
-    "vitest": "^1.1.0"
-  }
-}`,
-      },
-      {
-        path: '.env.example',
-        isTemplate: true,
-        content: `NODE_ENV=development
-APP_NAME={{projectName}}
-APP_PORT={{port}}
-APP_DEBUG=true
-DB_CONNECTION=sqlite
-DB_DATABASE=./database.sqlite`,
-      },
-      {
-        path: 'tsconfig.json',
-        content: `{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "lib": ["ES2022"],
-    "declaration": true,
-    "outDir": "./dist",
-    "rootDir": "./",
-    "baseUrl": "./",
-    "strict": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node"
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}`,
-      },
-      {
-        path: '.gitignore',
-        content: `# Node
-node_modules/
-npm-debug.log
-
-# Build
-dist/
-build/
-*.tsbuildinfo
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Tests
-coverage/
-.nyc_output/
-
-# Logs
-logs/
-*.log
-
-# Database
-*.sqlite
-*.sqlite3
-
-# OS
-.DS_Store
-Thumbs.db`,
-      },
-      {
-        path: 'README.md',
-        isTemplate: true,
-        content: `# {{projectName}}
-
-{{projectDescription}}
-
-## Getting Started
-
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
-
-## Development
-
-\`\`\`bash
-npm run dev          # Start development server
-npm test             # Run tests
-npm run build        # Build for production
-npm start            # Start production server
-\`\`\`
-
-## License
-
-MIT`,
-      },
-      {
-        path: 'src/index.ts',
-        content: `import { Application } from '@zintrust/framework';
-
-const app = new Application(__dirname);
-
-app.boot();
-
-export default app;`,
-      },
-      {
-        path: 'routes/api.ts',
-        content: `import { Router } from '@zintrust/routing';
-
-const registerRoutes = (router: Router): void => {
-  router.get('/', async (req, res) => {
-    res.json({ message: 'Welcome to {{projectName}}!' });
-  });
-
-  router.get('/health', async (req, res) => {
-    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-  });
-}`,
-      },
+      { path: 'package.json', source: 'basic/package.json', isTemplate: true },
+      { path: '.env.example', source: 'basic/.env.example', isTemplate: true },
+      { path: 'tsconfig.json', source: 'basic/tsconfig.json' },
+      { path: '.gitignore', source: 'basic/.gitignore' },
+      { path: 'README.md', source: 'basic/README.md', isTemplate: true },
+      { path: 'src/index.ts', source: 'basic/src/index.ts' },
+      { path: 'routes/api.ts', source: 'basic/routes/api.ts', isTemplate: true },
     ],
   },
+
   api: {
     name: 'api',
     description: 'RESTful API with microservices support',
@@ -282,128 +135,9 @@ const registerRoutes = (router: Router): void => {
       'services',
     ],
     files: [
-      {
-        path: 'package.json',
-        isTemplate: true,
-        content: `{
-  "name": "{{projectName}}",
-  "version": "1.0.0",
-  "description": "RESTful API {{projectDescription}}",
-  "main": "dist/index.js",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "microservices:generate": "zintrust microservices:generate"
-  },
-  "keywords": ["api", "rest"],
-  "author": "{{author}}",
-  "license": "MIT",
-  "dependencies": {
-    "@zintrust/framework": "*"
-  },
-  "devDependencies": {
-    "typescript": "^5.3.3",
-    "tsx": "^4.6.2",
-    "vitest": "^1.1.0"
-  }
-}`,
-      },
-      {
-        path: '.env.example',
-        isTemplate: true,
-        content: `NODE_ENV=development
-APP_NAME={{projectName}}
-APP_PORT={{port}}
-APP_DEBUG=true
-DB_CONNECTION=postgres
-DB_HOST=localhost
-DB_PORT=5432
-DB_DATABASE={{projectName}}_db
-DB_USERNAME=postgres
-DB_PASSWORD=password`,
-      },
-      {
-        path: 'README.md',
-        isTemplate: true,
-        content: `# {{projectName}} API
-
-{{projectDescription}}
-
-REST API built with Zintrust framework.
-
-## Features
-
-- Full REST API support
-- PostgreSQL database
-- User authentication
-- Comprehensive testing
-- Microservices ready
-
-## Getting Started
-
-\`\`\`bash
-npm install
-npm run dev
-\`\`\`
-
-API will be available at http://localhost:{{port}}
-
-## API Documentation
-
-### Health Check
-\`GET /health\`
-
-### Users
-\`GET /api/users\` - List all users
-\`POST /api/users\` - Create user
-\`GET /api/users/:id\` - Get user
-\`PUT /api/users/:id\` - Update user
-\`DELETE /api/users/:id\` - Delete user
-
-## Development
-
-\`\`\`bash
-npm run dev          # Start development server
-npm test             # Run tests
-npm run build        # Build for production
-npm start            # Start production server
-\`\`\`
-
-## License
-
-MIT`,
-      },
-      {
-        path: 'src/index.ts',
-        content: `import { Application } from '@zintrust/framework';
-
-const app = new Application(__dirname);
-
-// Load middleware, routes, etc.
-app.boot();
-
-export default app;`,
-      },
-      {
-        path: 'routes/api.ts',
-        content: `import { Router } from '@zintrust/routing';
-
-const registerApiRoutes = (router: Router): void => {
-  router.group({ prefix: '/api/v1' }, (r) => {
-    // Health check
-    r.get('/health', async (req, res) => {
-      res.json({ status: 'healthy', timestamp: new Date().toISOString() });
-    });
-
-    // User routes would go here
-    r.get('/users', async (req, res) => {
-      res.json({ users: [] });
-    });
-  });
-}`,
-      },
+      { path: 'package.json', source: 'api/package.json', isTemplate: true },
+      { path: '.env.example', source: 'api/.env.example', isTemplate: true },
+      { path: 'README.md', source: 'api/README.md', isTemplate: true },
     ],
   },
 };

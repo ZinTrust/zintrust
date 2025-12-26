@@ -195,6 +195,9 @@ describe('LazyLoader', () => {
     const { LazyLoader } = await loadOptimizer('lazy-preload');
     const loader = LazyLoader.create();
     await loader.preload(['node:os', 'node:path']);
+
+    const osMod = await loader.load('node:os');
+    expect(osMod).toBeDefined();
   });
 });
 

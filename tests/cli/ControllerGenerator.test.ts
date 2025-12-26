@@ -398,16 +398,17 @@ describe('ControllerGenerator Batch Operations', () => {
   it('should generate multiple controllers in same directory', async () => {
     const controllers = ['UserController', 'PostController', 'AdminController'];
 
-    for (const name of controllers) {
-      const options: ControllerOptions = {
-        name,
-        controllerPath: testControllersDir,
-        type: 'crud',
-      };
-
-      const result = await ControllerGenerator.generateController(options);
-      expect(result.success).toBe(true);
-    }
+    const results = await Promise.all(
+      controllers.map(async (name) => {
+        const options: ControllerOptions = {
+          name,
+          controllerPath: testControllersDir,
+          type: 'crud',
+        };
+        return ControllerGenerator.generateController(options);
+      })
+    );
+    results.forEach((result) => expect(result.success).toBe(true));
 
     // Verify all files were created
     const files = await fs.readdir(testControllersDir);

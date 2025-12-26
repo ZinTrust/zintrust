@@ -311,17 +311,17 @@ describe('CLI', () => {
 
   it('should run CLI with version request', async () => {
     const cli = CLI.create();
-    await cli.run(['-v']);
+    await expect(cli.run(['-v'])).resolves.toBeUndefined();
   });
 
   it('should run CLI with long version request', async () => {
     const cli = CLI.create();
-    await cli.run(['--version']);
+    await expect(cli.run(['--version'])).resolves.toBeUndefined();
   });
 
   it('should run CLI with help request', async () => {
     const cli = CLI.create();
-    await cli.run([]);
+    await expect(cli.run([])).resolves.toBeUndefined();
   });
 
   it('should handle CLI errors', async () => {
@@ -394,42 +394,68 @@ describe('CLI', () => {
 
     // Mock help command action
     const helpCmd = program.commands.find((c) => c.name() === 'help');
-    if (helpCmd) {
-      try {
-        // @ts-ignore
-        await helpCmd._actionHandler(['unknown']);
-      } catch {
-        // Expected commander exit
-      }
+    expect(helpCmd).toBeDefined();
+    if (!helpCmd) return;
+
+    // @ts-ignore - commander internal API
+    expect(typeof helpCmd._actionHandler).toBe('function');
+
+    let threw = false;
+    try {
+      // @ts-ignore
+      await helpCmd._actionHandler(['unknown']);
+    } catch {
+      // Expected commander exit
+      threw = true;
     }
+
+    expect(threw).toBe(true);
   });
 
   it('should call cmd.help() for a known command in help action', async () => {
     const cli = CLI.create();
     const program = cli.getProgram();
     const helpCmd = program.commands.find((c) => c.name() === 'help');
-    if (helpCmd) {
-      try {
-        // @ts-ignore
-        await helpCmd._actionHandler(['help']);
-      } catch {
-        // Expected commander exit
-      }
+
+    expect(helpCmd).toBeDefined();
+    if (!helpCmd) return;
+
+    const cmdHelpSpy = vi.spyOn(helpCmd, 'help').mockImplementation(() => {
+      throw new Error('help');
+    });
+
+    try {
+      // @ts-ignore
+      await helpCmd._actionHandler(['help']);
+    } catch {
+      // Expected commander exit
     }
+
+    expect(cmdHelpSpy).toHaveBeenCalledTimes(1);
+    cmdHelpSpy.mockRestore();
   });
 
   it('should call program.help() when help action has no command argument', async () => {
     const cli = CLI.create();
     const program = cli.getProgram();
     const helpCmd = program.commands.find((c) => c.name() === 'help');
-    if (helpCmd) {
-      try {
-        // @ts-ignore
-        await helpCmd._actionHandler([]);
-      } catch {
-        // Expected commander exit
-      }
+
+    expect(helpCmd).toBeDefined();
+    if (!helpCmd) return;
+
+    const helpSpy = vi.spyOn(program, 'help').mockImplementation(() => {
+      throw new Error('help');
+    });
+
+    try {
+      // @ts-ignore
+      await helpCmd._actionHandler([]);
+    } catch {
+      // Expected commander exit
     }
+
+    expect(helpSpy).toHaveBeenCalledTimes(1);
+    helpSpy.mockRestore();
   });
 
   it('should handle commander errors with exit codes', async () => {

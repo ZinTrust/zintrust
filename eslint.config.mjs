@@ -32,6 +32,9 @@ export default defineConfig(
       'wrangler.jsonc',
       'docs-website/**',
       'scripts/**',
+      // Generated during CLI tests/benchmarks in CI; should never be linted.
+      'tests/cli/test-factories-*',
+      'tests/cli/test-factories-*/**',
       'vitest.config.ts',
       'eslint.config.mjs',
       'worker-configuration.d.ts',

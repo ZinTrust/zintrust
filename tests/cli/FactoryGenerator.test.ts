@@ -537,15 +537,17 @@ describe('FactoryGenerator Advanced Fields', () => {
       { name: 'ProductFactory', model: 'Product' },
     ];
 
-    for (const factory of factories) {
-      const result = await FactoryGenerator.generateFactory({
-        factoryName: factory.name,
-        modelName: factory.model,
-        factoriesPath: testDir,
-      });
+    const results = await Promise.all(
+      factories.map(async (factory) =>
+        FactoryGenerator.generateFactory({
+          factoryName: factory.name,
+          modelName: factory.model,
+          factoriesPath: testDir,
+        })
+      )
+    );
 
-      expect(result.success).toBe(true);
-    }
+    results.forEach((result) => expect(result.success).toBe(true));
 
     const files = await fs.readdir(testDir);
     expect(files.length).toBe(3);

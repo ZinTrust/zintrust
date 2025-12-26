@@ -23,7 +23,7 @@ export const DenoAdapter = Object.freeze({
   create(config: AdapterConfig): RuntimeAdapter & {
     startServer(port?: number, host?: string): Promise<void>;
   } {
-    const logger = config.logger || createDefaultLogger();
+    const logger = config.logger ?? createDefaultLogger();
 
     return {
       platform: 'deno',
@@ -46,14 +46,14 @@ export const DenoAdapter = Object.freeze({
         warn(msg: string, data?: unknown): void;
         error(msg: string, err?: Error): void;
       } {
-        return (
-          logger || {
-            debug: (msg: string) => Logger.debug(`[Deno] ${msg}`),
-            info: (msg: string) => Logger.info(`[Deno] ${msg}`),
-            warn: (msg: string) => Logger.warn(`[Deno] ${msg}`),
-            error: (msg: string, err?: Error) => Logger.error(`[Deno] ${msg}`, err?.message),
-          }
-        );
+        return logger && Object.keys(logger).length > 0
+          ? logger
+          : {
+              debug: (msg: string) => Logger.debug(`[Deno] ${msg}`),
+              info: (msg: string) => Logger.info(`[Deno] ${msg}`),
+              warn: (msg: string) => Logger.warn(`[Deno] ${msg}`),
+              error: (msg: string, err?: Error) => Logger.error(`[Deno] ${msg}`, err?.message),
+            };
       },
 
       supportsPersistentConnections(): boolean {

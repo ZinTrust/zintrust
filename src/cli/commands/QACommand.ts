@@ -490,6 +490,12 @@ const generateReport = async (results: QAResults): Promise<void> => {
   }
 };
 
+const addOptions = (command: Command): void => {
+  command.option('--no-sonar', 'Skip SonarQube analysis');
+  command.option('--report', 'Generate QA report (with coverage)');
+  command.option('--no-open', 'Do not open coverage report in browser');
+};
+
 const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void> => {
   try {
     qa.info('Starting Zintrust QA Suite...');
@@ -532,12 +538,6 @@ const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void>
  * QA Command Factory - Create a new QA command instance
  */
 export const QACommand = (): IQACommand => {
-  const addOptions = (command: Command): void => {
-    command.option('--no-sonar', 'Skip SonarQube analysis');
-    command.option('--report', 'Generate QA report (with coverage)');
-    command.option('--no-open', 'Do not open coverage report in browser');
-  };
-
   const cmd = BaseCommand.create({
     name: 'qa',
     description: 'Run full Quality Assurance suite',
@@ -545,7 +545,7 @@ export const QACommand = (): IQACommand => {
     execute: async (options) => executeQA(qa, options),
   });
 
-  const qa: IQACommand = {
+  const qa = {
     ...cmd,
     addOptions,
     runLint,
@@ -553,7 +553,6 @@ export const QACommand = (): IQACommand => {
     runTests,
     runSonar,
     generateReport,
-    execute: async (options): Promise<void> => executeQA(qa, options), // NOSONAR
   };
 
   return qa;

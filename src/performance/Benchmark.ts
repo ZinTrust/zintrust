@@ -158,12 +158,15 @@ async function runMeasureAsync<T>(
   const durations: number[] = [];
   const memBefore = process.memoryUsage().heapUsed;
 
+  // Benchmark iterations must run sequentially to measure time per run.
+  /* eslint-disable no-await-in-loop */
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
     await fn();
     const duration = performance.now() - start;
     durations.push(duration);
   }
+  /* eslint-enable no-await-in-loop */
 
   const memAfter = process.memoryUsage().heapUsed;
   const totalDuration = durations.reduce((a, b) => a + b, 0);

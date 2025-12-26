@@ -232,7 +232,10 @@ describe('TemplateEngine Built-in Templates', () => {
 
     it('basic template should have required files', () => {
       const files = BUILT_IN_TEMPLATES['basic'].files;
-      const fileNames = files.map((f: TemplateFile) => f.path);
+      const fileNames: string[] = [];
+      for (const file of files) {
+        fileNames.push((file as TemplateFile).path);
+      }
 
       expect(fileNames).toContain('package.json');
       expect(fileNames).toContain('.env.example');
@@ -253,9 +256,9 @@ describe('TemplateEngine Built-in Templates', () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const file of (template as any).files) {
           expect(file.path).toBeDefined();
-          expect(file.content).toBeDefined();
+          expect(file.source).toBeDefined();
           expect(typeof file.path).toBe('string');
-          expect(typeof file.content).toBe('string');
+          expect(typeof file.source).toBe('string');
         }
       }
     });

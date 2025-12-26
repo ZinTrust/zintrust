@@ -29,7 +29,14 @@ describe('MigrateCommand', () => {
       expect(command).toBeDefined();
     });
 
-    it('should inherit from BaseCommand', () => {});
+    it('should inherit from BaseCommand', () => {
+      expect(typeof command.getCommand).toBe('function');
+      expect(typeof command.execute).toBe('function');
+      expect(typeof command.info).toBe('function');
+      expect(typeof command.warn).toBe('function');
+      expect(typeof command.success).toBe('function');
+      expect(typeof command.debug).toBe('function');
+    });
 
     it('should have name property (protected)', () => {
       const name = (command as any).name;

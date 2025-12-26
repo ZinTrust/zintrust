@@ -156,4 +156,140 @@ describe('EnvFileLoader', () => {
 
     await project.dispose();
   });
+
+  it('handles inline comments and quotes correctly', async () => {
+    const project = await createTempProject({
+      '.env': [
+        'VAR1=value # comment',
+        'VAR2="quoted value" # comment',
+        "VAR3='single quoted'",
+        'VAR4=value#notcomment',
+        'VAR5=value\t#tab comment',
+        'VAR6=#start comment',
+      ].join('\n'),
+    });
+
+    process.chdir(project.dir);
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    EnvFileLoader.load();
+
+    expect(process.env['VAR1']).toBe('value');
+    expect(process.env['VAR2']).toBe('quoted value');
+    expect(process.env['VAR3']).toBe('single quoted');
+    expect(process.env['VAR4']).toBe('value#notcomment');
+    expect(process.env['VAR5']).toBe('value');
+    expect(process.env['VAR6']).toBe('');
+
+    await project.dispose();
+  });
+
+  it('handles edge cases in parsing', async () => {
+    const project = await createTempProject({
+      '.env': [
+        'export KEY=val',
+        '   ',
+        '# just a comment',
+        'INVALID_LINE',
+        '=no_key',
+        'EMPTY_KEY=',
+      ].join('\n'),
+    });
+
+    process.chdir(project.dir);
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    EnvFileLoader.load();
+
+    expect(process.env['KEY']).toBe('val');
+    expect(process.env['EMPTY_KEY']).toBe('');
+
+    await project.dispose();
+  });
+
+  it('handles APP_MODE from process.env', async () => {
+    const project = await createTempProject({ '.env': '' });
+    process.chdir(project.dir);
+    delete process.env['NODE_ENV'];
+    process.env['APP_MODE'] = 'production';
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    const state = EnvFileLoader.load();
+
+    expect(state.mode).toBe('production');
+    expect(process.env['NODE_ENV']).toBe('production');
+
+    await project.dispose();
+  });
+
+  it('handles missing .env files gracefully', async () => {
+    const project = await createTempProject({});
+    process.chdir(project.dir);
+    delete process.env['APP_MODE'];
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    const state = EnvFileLoader.load();
+
+    expect(state.loadedFiles).toEqual([]);
+    expect(state.mode).toBeUndefined();
+
+    await project.dispose();
+  });
+
+  it('syncs PORT and APP_PORT in applyCliOverrides', async () => {
+    const project = await createTempProject({});
+    process.chdir(project.dir);
+    delete process.env['APP_MODE'];
+    delete process.env['PORT'];
+    delete (process.env as any)['APP_PORT'];
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+
+    process.env['PORT'] = '4000';
+    EnvFileLoader.applyCliOverrides({});
+    expect(process.env['APP_PORT']).toBe('4000');
+
+    delete process.env['PORT'];
+    delete (process.env as any)['APP_PORT'];
+    process.env['APP_PORT'] = '5000';
+    EnvFileLoader.applyCliOverrides({});
+    expect(process.env['PORT']).toBe('5000');
+
+    await project.dispose();
+  });
+
+  it('covers remaining branches in EnvFileLoader', async () => {
+    const project = await createTempProject({
+      '.env': 'KEY=val\n=invalid\n \n',
+      '.env.local': 'LOCAL=true',
+      '.env.dev.local': 'DEV_LOCAL=true',
+    });
+    process.chdir(project.dir);
+    delete process.env['APP_MODE'];
+    vi.resetModules();
+
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+
+    // Test caching
+    const state1 = EnvFileLoader.load();
+    const state2 = EnvFileLoader.load();
+    expect(state1).toBe(state2);
+
+    expect(process.env['LOCAL']).toBe('true');
+    expect(process.env['DEV_LOCAL']).toBeUndefined(); // mode is undefined
+
+    // Test with mode
+    vi.resetModules();
+    const { EnvFileLoader: EnvFileLoader2 } = await import('@cli/utils/EnvFileLoader');
+    process.env['APP_MODE'] = 'dev';
+    EnvFileLoader2.load();
+    expect(process.env['DEV_LOCAL']).toBe('true');
+
+    await project.dispose();
+  });
 });

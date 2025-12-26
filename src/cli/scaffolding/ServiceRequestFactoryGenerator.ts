@@ -6,7 +6,7 @@
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface ServiceRequestField {
   name: string;
@@ -77,9 +77,9 @@ export function validateOptions(options: ServiceRequestOptions): {
 /**
  * Generate request factory file
  */
-export async function generateRequestFactory(
+export function generateRequestFactory(
   options: ServiceRequestOptions
-): Promise<ServiceRequestFactoryResult> {
+): ServiceRequestFactoryResult {
   const validation = validateOptions(options);
   if (!validation.valid) {
     return {

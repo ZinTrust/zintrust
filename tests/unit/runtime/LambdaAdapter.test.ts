@@ -367,10 +367,11 @@ describe('LambdaAdapter', () => {
       handler: handler as unknown as AdapterConfig['handler'],
     });
 
-    for (const c of bodies) {
+    await bodies.reduce(async (prev, c) => {
+      await prev;
       const response = await adapter.handle(c.event);
       expect(response.statusCode).toBe(200);
-    }
+    }, Promise.resolve());
 
     expect(handler).toHaveBeenCalledTimes(3);
     expect((handler.mock.calls[0]?.[2] as Buffer).toString('utf-8')).toBe('test');

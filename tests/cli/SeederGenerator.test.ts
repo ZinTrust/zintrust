@@ -486,18 +486,20 @@ describe('SeederGenerator Content - Part 2', () => {
         { model: 'BlogPost', table: 'blog_posts' },
       ];
 
-      for (const testCase of testCases) {
-        const options: SeederOptions = {
-          seederName: `${testCase.model}Seeder`,
-          modelName: testCase.model,
-          seedersPath: testDir,
-        };
+      await Promise.all(
+        testCases.map(async (testCase) => {
+          const options: SeederOptions = {
+            seederName: `${testCase.model}Seeder`,
+            modelName: testCase.model,
+            seedersPath: testDir,
+          };
 
-        const result = await SeederGenerator.generateSeeder(options);
-        const fileContent = await fs.readFile(result.filePath, 'utf-8');
+          const result = await SeederGenerator.generateSeeder(options);
+          const fileContent = await fs.readFile(result.filePath, 'utf-8');
 
-        expect(fileContent).toContain(testCase.table);
-      }
+          expect(fileContent).toContain(testCase.table);
+        })
+      );
     });
   });
 });
@@ -520,22 +522,24 @@ describe('SeederGenerator Integration - Part 1', () => {
     it('should generate seeders for common models', async () => {
       const models = ['User', 'Post', 'Product', 'Order', 'Comment'];
 
-      for (const model of models) {
-        const options: SeederOptions = {
-          seederName: `${model}Seeder`,
-          modelName: model,
-          seedersPath: testDir,
-          count: 50,
-        };
+      await Promise.all(
+        models.map(async (model) => {
+          const options: SeederOptions = {
+            seederName: `${model}Seeder`,
+            modelName: model,
+            seedersPath: testDir,
+            count: 50,
+          };
 
-        const result = await SeederGenerator.generateSeeder(options);
-        expect(result.success).toBe(true);
+          const result = await SeederGenerator.generateSeeder(options);
+          expect(result.success).toBe(true);
 
-        const fileContent = await fs.readFile(result.filePath, 'utf-8');
-        expect(fileContent).toContain(`export const ${model}Seeder`);
-        expect(fileContent).toContain('Object.freeze({');
-        expect(fileContent).toContain(`import { ${model} }`);
-      }
+          const fileContent = await fs.readFile(result.filePath, 'utf-8');
+          expect(fileContent).toContain(`export const ${model}Seeder`);
+          expect(fileContent).toContain('Object.freeze({');
+          expect(fileContent).toContain(`import { ${model} }`);
+        })
+      );
     });
   });
 });

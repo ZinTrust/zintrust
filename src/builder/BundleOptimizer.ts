@@ -93,20 +93,19 @@ async function getFilesRecursive(dir: string): Promise<string[]> {
     return [];
   }
 
-  const files: string[] = [];
   const entries = await fs.promises.readdir(dir, { withFileTypes: true });
 
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      const subFiles = await getFilesRecursive(fullPath);
-      files.push(...subFiles);
-    } else {
-      files.push(fullPath);
-    }
-  }
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        return getFilesRecursive(fullPath);
+      }
+      return [fullPath];
+    })
+  );
 
-  return files;
+  return nested.flat();
 }
 
 /**
@@ -222,19 +221,22 @@ async function removeUnusedAdapters(
 ): Promise<void> {
   const adapterDir = path.join(distDir, 'orm', 'adapters');
 
-  for (const adapter of adapters) {
-    const files = [`${adapter}Adapter.js`, `${adapter}Adapter.d.ts`];
-
-    for (const file of files) {
-      const filePath = path.join(adapterDir, file);
-      if (fs.existsSync(filePath)) {
-        await fs.promises.unlink(filePath);
-        if (options.verbose === true) {
-          Logger.info(`  ✓ Removed ${adapter} adapter`);
-        }
-      }
-    }
-  }
+  await Promise.all(
+    adapters.map(async (adapter) => {
+      const files = [`${adapter}Adapter.js`, `${adapter}Adapter.d.ts`];
+      await Promise.all(
+        files.map(async (file) => {
+          const filePath = path.join(adapterDir, file);
+          if (fs.existsSync(filePath)) {
+            await fs.promises.unlink(filePath);
+            if (options.verbose === true) {
+              Logger.info(`  ✓ Removed ${adapter} adapter`);
+            }
+          }
+        })
+      );
+    })
+  );
 }
 
 /**
@@ -256,15 +258,17 @@ async function removeDevDependencies(distDir: string, options: OptimizationOptio
 
   if (!fs.existsSync(nmDir)) return;
 
-  for (const dep of devDeps) {
-    const depPath = path.join(nmDir, dep);
-    if (fs.existsSync(depPath)) {
-      await fs.promises.rm(depPath, { recursive: true });
-      if (options.verbose === true) {
-        Logger.info(`  ✓ Removed ${dep}`);
+  await Promise.all(
+    devDeps.map(async (dep) => {
+      const depPath = path.join(nmDir, dep);
+      if (fs.existsSync(depPath)) {
+        await fs.promises.rm(depPath, { recursive: true });
+        if (options.verbose === true) {
+          Logger.info(`  ✓ Removed ${dep}`);
+        }
       }
-    }
-  }
+    })
+  );
 }
 
 /**
@@ -321,15 +325,17 @@ async function removeUnusedMiddleware(
 
   if (!fs.existsSync(middlewareDir)) return;
 
-  for (const file of optionalMiddleware) {
-    const filePath = path.join(middlewareDir, file);
-    if (fs.existsSync(filePath)) {
-      await fs.promises.unlink(filePath);
-      if (options.verbose === true) {
-        Logger.info(`  ✓ Removed middleware: ${file}`);
+  await Promise.all(
+    optionalMiddleware.map(async (file) => {
+      const filePath = path.join(middlewareDir, file);
+      if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+        if (options.verbose === true) {
+          Logger.info(`  ✓ Removed middleware: ${file}`);
+        }
       }
-    }
-  }
+    })
+  );
 }
 
 /**
@@ -350,16 +356,16 @@ async function removeFiles(
 ): Promise<void> {
   const files = await getFilesRecursive(distDir);
 
-  for (const file of files) {
-    for (const pattern of patterns) {
-      if (file.includes(pattern)) {
-        await fs.promises.unlink(file);
-        if (options.verbose === true) {
-          Logger.info(`  ✓ Removed ${path.relative(distDir, file)}`);
-        }
+  const filesToRemove = files.filter((file) => patterns.some((pattern) => file.includes(pattern)));
+
+  await Promise.all(
+    filesToRemove.map(async (file) => {
+      await fs.promises.unlink(file);
+      if (options.verbose === true) {
+        Logger.info(`  ✓ Removed ${path.relative(distDir, file)}`);
       }
-    }
-  }
+    })
+  );
 }
 
 /**

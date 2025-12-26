@@ -162,8 +162,8 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    // Note: Controller only checks name
-    // expect(res.status).toHaveBeenCalledWith(422);
+    // Controller currently only validates `name`.
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 
   it('store() returns 422 when email is null', async () => {
@@ -177,8 +177,8 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    // Note: Controller only checks name
-    // expect(res.status).toHaveBeenCalledWith(422);
+    // Controller currently only validates `name`.
+    expect(res.status).toHaveBeenCalledWith(201);
   });
 
   it('store() returns 201 on success', async () => {

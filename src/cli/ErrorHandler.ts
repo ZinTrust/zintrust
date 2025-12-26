@@ -24,10 +24,9 @@ const handleError = (
   log: boolean = true
 ): void => {
   const message = typeof error === 'string' ? error : error.message;
-  const formattedMessage = `${chalk.red('[ERROR]')} ${message}`;
 
   if (log) {
-    Logger.error(formattedMessage);
+    Logger.error(message);
   }
   process.exit(exitCode);
 };
@@ -38,9 +37,8 @@ const handleError = (
 const usageError = (message: string, command?: string): void => {
   const helpText = `Run: zin ${command} --help`;
   const hint = command !== undefined && command !== '' ? `\n${chalk.gray(helpText)}` : '';
-  const formattedMessage = `${chalk.red('[ERROR]')} ${message}${hint}`;
 
-  Logger.warn(formattedMessage);
+  Logger.error(`${message}${hint}`);
 
   process.exit(EXIT_CODES.USAGE_ERROR);
 };

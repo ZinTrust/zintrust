@@ -152,12 +152,6 @@ const followLogs = (category: string): void => {
 };
 
 const clearLogs = (loggerInstance: LoggerInstance, category: string): void => {
-  const confirmed = true;
-  if (!confirmed) {
-    Logger.info(chalk.yellow('Clearing logs cancelled'));
-    return;
-  }
-
   const success = loggerInstance.clearLogs(category);
   if (success === true) {
     Logger.info(chalk.green(`✓ Cleared logs for category: ${category}`));
@@ -169,6 +163,10 @@ const clearLogs = (loggerInstance: LoggerInstance, category: string): void => {
 const executeLogs = (options: CommandOptions): void => {
   const normalized = normalizeLogsOptions(options);
   const loggerInstance = FileLogger.getInstance();
+
+  if (options['lines'] !== undefined && Number.isNaN(Number(options['lines']))) {
+    throw ErrorFactory.createGeneralError('Lines must be a number');
+  }
 
   if (normalized.clear) {
     clearLogs(loggerInstance, normalized.category);

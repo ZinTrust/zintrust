@@ -120,7 +120,9 @@ describe('ServiceBundler', () => {
     it('should handle different domains', async () => {
       const domains = ['default', 'security', 'commerce', 'communication'];
 
-      for (const domain of domains) {
+      await domains.reduce(async (prev, domain) => {
+        await prev;
+
         const config: BundleConfig = {
           serviceName: 'test',
           domain,
@@ -130,7 +132,7 @@ describe('ServiceBundler', () => {
         const result = await bundleService(config);
 
         expect(result.serviceName).toBe('test');
-      }
+      }, Promise.resolve());
     });
 
     it('should remove existing bundle directory before creating', async () => {
@@ -337,10 +339,12 @@ describe('ServiceBundler', () => {
     it('should handle multiple services with different registries', async () => {
       const registries = ['localhost:5000', 'registry.example.com', 'gcr.io/project'];
 
-      for (const registry of registries) {
+      await registries.reduce(async (prev, registry) => {
+        await prev;
+
         const imageTag = await createServiceImage('test-svc', 'domain', registry);
         expect(imageTag).toContain(registry);
-      }
+      }, Promise.resolve());
     });
 
     it('should generate complete Dockerfile with health check', async () => {
@@ -482,11 +486,13 @@ describe('ServiceBundler', () => {
         },
       ];
 
-      for (const config of configs) {
+      await configs.reduce(async (prev, config) => {
+        await prev;
+
         const result = await bundleService(config);
         expect(result.serviceName).toBe(config.serviceName);
         expect(result.location).toContain(config.domain);
-      }
+      }, Promise.resolve());
     });
   });
 
@@ -529,7 +535,9 @@ describe('ServiceBundler', () => {
     it('should bundle services with special characters in names', async () => {
       const specialNames = ['user-service', 'auth_service', 'api.service', 'v2-payment-service'];
 
-      for (const name of specialNames) {
+      await specialNames.reduce(async (prev, name) => {
+        await prev;
+
         const config: BundleConfig = {
           serviceName: name,
           domain: 'test',
@@ -538,13 +546,15 @@ describe('ServiceBundler', () => {
 
         const result = await bundleService(config);
         expect(result.serviceName).toBe(name);
-      }
+      }, Promise.resolve());
     });
 
     it('should handle domain names with various formats', async () => {
       const domains = ['default', 'my-domain', 'sub.domain', 'domain_v2', 'UPPERCASE'];
 
-      for (const domain of domains) {
+      await domains.reduce(async (prev, domain) => {
+        await prev;
+
         const config: BundleConfig = {
           serviceName: 'test',
           domain,
@@ -553,7 +563,7 @@ describe('ServiceBundler', () => {
 
         const result = await bundleService(config);
         expect(result.location).toContain(domain);
-      }
+      }, Promise.resolve());
     });
   });
 });

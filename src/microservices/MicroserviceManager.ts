@@ -306,11 +306,11 @@ const checkServiceHealth = async (name: string): Promise<boolean> => {
 };
 
 const healthCheckAll = async (): Promise<Record<string, boolean>> => {
-  const results: Record<string, boolean> = {};
-  for (const name of services.keys()) {
-    results[name] = await checkServiceHealth(name);
-  }
-  return results;
+  const names = Array.from(services.keys());
+  const entries = await Promise.all(
+    names.map(async (name) => [name, await checkServiceHealth(name)] as const)
+  );
+  return Object.fromEntries(entries) as Record<string, boolean>;
 };
 
 const getStatusSummary = (): Record<string, unknown> => {

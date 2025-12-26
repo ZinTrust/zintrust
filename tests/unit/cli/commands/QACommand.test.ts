@@ -2,10 +2,38 @@ import { QACommand } from '@/cli/commands/QACommand';
 import { Logger } from '@config/logger';
 import { fs } from '@node-singletons';
 import * as child_process from '@node-singletons/child-process';
+import * as fsPromises from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:child_process');
-vi.mock('node:fs');
+vi.mock('node:fs/promises', () => ({
+  writeFile: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@node-singletons/child-process', () => ({
+  execFileSync: vi.fn(),
+  execSync: vi.fn(),
+  spawn: vi.fn(),
+}));
+
+vi.mock('@node-singletons/fs', () => {
+  const mockFs = {
+    existsSync: vi.fn(),
+    writeFile: vi.fn(),
+    writeFileSync: vi.fn(),
+    readFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+  };
+  return {
+    ...mockFs,
+    default: mockFs,
+  };
+});
+
+vi.mock('@node-singletons/path', () => ({
+  resolve: vi.fn((...args) => args.join('/')),
+  join: vi.fn((...args) => args.join('/')),
+  dirname: vi.fn((p) => p.substring(0, p.lastIndexOf('/'))),
+}));
 vi.mock('@config/logger', () => ({
   Logger: {
     debug: vi.fn(),
@@ -17,6 +45,19 @@ vi.mock('@config/logger', () => ({
 
 const throwSonarFailed = (): never => {
   throw new Error('Sonar failed');
+};
+
+const recordExecutionOrder = (executionOrder: string[], step: string): void => {
+  executionOrder.push(step);
+};
+
+const execFileSyncOpenFails = (cmd: string): Buffer => {
+  if (cmd === 'open') throw new Error('Browser failed');
+  return Buffer.from('');
+};
+
+const throwStringError = (): never => {
+  throw 'String error';
 };
 
 type QAStatus = 'pending' | 'passed' | 'failed' | 'skipped';
@@ -65,6 +106,14 @@ const throwReportGenerationFailed = (): never => {
 
 const pushOrder = (order: string[], step: string) => (): void => {
   order.push(step);
+};
+
+const findQaReportHtmlWriteCall = (calls: any[]): any[] | undefined => {
+  for (const call of calls) {
+    const [filePath] = call;
+    if (String(filePath).endsWith('coverage/qa-report.html')) return call;
+  }
+  return undefined;
 };
 
 describe('QACommand', () => {
@@ -142,9 +191,9 @@ describe('QACommand', () => {
     it('should run lint first', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn(() => executionOrder.push('lint'));
-      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
-      command.runTests = vi.fn(() => executionOrder.push('tests'));
+      command.runLint = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'lint'));
+      command.runTypeCheck = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'typeCheck'));
+      command.runTests = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'tests'));
       command.runSonar = vi.fn().mockResolvedValue(undefined);
       command.generateReport = vi.fn();
       command.info = vi.fn();
@@ -158,9 +207,9 @@ describe('QACommand', () => {
     it('should run type check after lint', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn(() => executionOrder.push('lint'));
-      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
-      command.runTests = vi.fn(() => executionOrder.push('tests'));
+      command.runLint = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'lint'));
+      command.runTypeCheck = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'typeCheck'));
+      command.runTests = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'tests'));
       command.runSonar = vi.fn().mockResolvedValue(undefined);
       command.generateReport = vi.fn();
       command.info = vi.fn();
@@ -174,9 +223,9 @@ describe('QACommand', () => {
     it('should run tests after type check', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn(() => executionOrder.push('lint'));
-      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
-      command.runTests = vi.fn(() => executionOrder.push('tests'));
+      command.runLint = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'lint'));
+      command.runTypeCheck = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'typeCheck'));
+      command.runTests = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'tests'));
       command.runSonar = vi.fn().mockResolvedValue(undefined);
       command.generateReport = vi.fn();
       command.info = vi.fn();
@@ -190,10 +239,10 @@ describe('QACommand', () => {
     it('should run sonar after tests', async () => {
       const executionOrder: string[] = [];
 
-      command.runLint = vi.fn(() => executionOrder.push('lint'));
-      command.runTypeCheck = vi.fn(() => executionOrder.push('typeCheck'));
-      command.runTests = vi.fn(() => executionOrder.push('tests'));
-      command.runSonar = vi.fn(() => executionOrder.push('sonar'));
+      command.runLint = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'lint'));
+      command.runTypeCheck = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'typeCheck'));
+      command.runTests = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'tests'));
+      command.runSonar = vi.fn(recordExecutionOrder.bind(null, executionOrder, 'sonar'));
       command.generateReport = vi.fn();
       command.info = vi.fn();
 
@@ -704,6 +753,277 @@ describe('QACommand', () => {
       expect(command.runTypeCheck).toHaveBeenCalled();
       expect(command.runTests).toHaveBeenCalled();
       expect(command.runSonar).toHaveBeenCalled();
+    });
+  });
+
+  describe('Browser and Report Edge Cases', () => {
+    it('should handle openInBrowser on macOS', async () => {
+      vi.stubGlobal('process', { ...process, platform: 'darwin' });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      // We need to trigger executeQA to call openInBrowser
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+
+      await command.execute({ open: true });
+
+      expect(child_process.execFileSync).toHaveBeenCalledWith('open', [
+        expect.stringContaining('file://'),
+      ]);
+      vi.unstubAllGlobals();
+    });
+
+    it('should handle openInBrowser on Linux', async () => {
+      vi.stubGlobal('process', { ...process, platform: 'linux' });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+
+      await command.execute({ open: true });
+
+      expect(child_process.execFileSync).toHaveBeenCalledWith('xdg-open', [
+        expect.stringContaining('file://'),
+      ]);
+      vi.unstubAllGlobals();
+    });
+
+    it('should handle openInBrowser on Windows', async () => {
+      vi.stubGlobal('process', { ...process, platform: 'win32' });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+
+      await command.execute({ open: true });
+
+      expect(child_process.execFileSync).toHaveBeenCalledWith('cmd', [
+        '/c',
+        'start',
+        '""',
+        expect.stringContaining('file://'),
+      ]);
+      vi.unstubAllGlobals();
+    });
+
+    it('should handle openInBrowser when file does not exist', async () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+
+      await command.execute({ open: true });
+
+      // Should not call execFileSync for browser
+      expect(child_process.execFileSync).not.toHaveBeenCalledWith('open', expect.any(Array));
+    });
+
+    it('should handle openInBrowser failure', async () => {
+      vi.stubGlobal('process', { ...process, platform: 'darwin' });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(child_process.execFileSync).mockImplementation(execFileSyncOpenFails as any);
+
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+      command.info = vi.fn();
+      command.success = vi.fn();
+
+      await command.execute({ open: true });
+
+      expect(Logger.error).toHaveBeenCalled();
+      vi.unstubAllGlobals();
+    });
+
+    it('should handle generateReport failure', async () => {
+      // Mock dynamic import of node:fs/promises
+      vi.mocked(fsPromises.writeFile).mockRejectedValueOnce(new Error('Write failed'));
+
+      await command.generateReport({
+        lint: { status: 'passed', output: '' },
+        typeCheck: { status: 'passed', output: '' },
+        tests: { status: 'passed', output: '' },
+        sonar: { status: 'passed', output: '' },
+      });
+
+      expect(Logger.error).toHaveBeenCalled();
+    });
+
+    it('should handle unknown status in getStatusIcon', async () => {
+      // We can't easily call getStatusIcon directly as it's not exported,
+      // but we can trigger it via generateReport with a custom status
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      await command.generateReport({
+        lint: { status: 'unknown' as any, output: '' },
+        typeCheck: { status: 'passed', output: '' },
+        tests: { status: 'passed', output: '' },
+        sonar: { status: 'passed', output: '' },
+      });
+
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+      const htmlCall = findQaReportHtmlWriteCall(vi.mocked(fsPromises.writeFile).mock.calls);
+      expect(htmlCall).toBeDefined();
+      expect(String(htmlCall?.[1] ?? '')).toContain('○');
+    });
+
+    it('should handle unknown status in getScanDescription', async () => {
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      await command.generateReport({
+        lint: { status: 'pending', output: '' },
+        typeCheck: { status: 'passed', output: '' },
+        tests: { status: 'passed', output: '' },
+        sonar: { status: 'passed', output: '' },
+      });
+
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+      const htmlCall = findQaReportHtmlWriteCall(vi.mocked(fsPromises.writeFile).mock.calls);
+      expect(htmlCall).toBeDefined();
+      expect(String(htmlCall?.[1] ?? '')).toContain('pending');
+    });
+
+    it('should handle skipped status in getStatusIcon', async () => {
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      await command.generateReport({
+        lint: { status: 'skipped', output: '' },
+        typeCheck: { status: 'passed', output: '' },
+        tests: { status: 'passed', output: '' },
+        sonar: { status: 'passed', output: '' },
+      });
+
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+      const htmlCall = findQaReportHtmlWriteCall(vi.mocked(fsPromises.writeFile).mock.calls);
+      expect(htmlCall).toBeDefined();
+      expect(String(htmlCall?.[1] ?? '')).toContain('skipped');
+    });
+
+    it('should handle failed status in getStatusIcon', async () => {
+      vi.mocked(fsPromises.writeFile).mockResolvedValue(undefined);
+
+      await command.generateReport({
+        lint: { status: 'failed', output: '' },
+        typeCheck: { status: 'passed', output: '' },
+        tests: { status: 'passed', output: '' },
+        sonar: { status: 'passed', output: '' },
+      });
+
+      expect(fsPromises.writeFile).toHaveBeenCalled();
+      const htmlCall = findQaReportHtmlWriteCall(vi.mocked(fsPromises.writeFile).mock.calls);
+      expect(htmlCall).toBeDefined();
+      expect(String(htmlCall?.[1] ?? '')).toContain('failed');
+    });
+
+    it('should not open browser when --no-open is provided', async () => {
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+
+      await command.execute({ open: false });
+
+      expect(child_process.execFileSync).not.toHaveBeenCalledWith('open', expect.any(Array));
+    });
+
+    it('should handle unknown platform in openInBrowser', async () => {
+      vi.stubGlobal('process', { ...process, platform: 'freebsd' });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+
+      await command.execute({ open: true });
+
+      // Should not call any browser command
+      expect(child_process.execFileSync).not.toHaveBeenCalledWith('open', expect.any(Array));
+      expect(child_process.execFileSync).not.toHaveBeenCalledWith('xdg-open', expect.any(Array));
+      vi.unstubAllGlobals();
+    });
+
+    it('should handle openInBrowser when file does not exist directly', async () => {
+      // To hit the branch in openInBrowser, we need existsSync to return true first, then false
+      vi.mocked(fs.existsSync)
+        .mockReturnValueOnce(true) // for executeQA check
+        .mockReturnValueOnce(false); // for openInBrowser check
+
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.runSonar = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+
+      await command.execute({ open: true });
+
+      expect(Logger.warn).toHaveBeenCalledWith(expect.stringContaining('File not found'));
+    });
+
+    it('should handle errorToMessage with non-Error object', async () => {
+      vi.mocked(child_process.execFileSync).mockImplementationOnce(throwStringError as any);
+      const result = { status: 'pending', output: '' } as any;
+      await command.runLint(result);
+      expect(result.status).toBe('failed');
+      expect(result.output).toBe('Unknown error');
+    });
+
+    it('should skip sonar during execute when --no-sonar is provided', async () => {
+      command.runLint = vi.fn().mockResolvedValue(undefined);
+      command.runTypeCheck = vi.fn().mockResolvedValue(undefined);
+      command.runTests = vi.fn().mockResolvedValue(undefined);
+      command.generateReport = vi.fn();
+
+      await command.execute({ sonar: false });
+
+      expect(child_process.execFileSync).not.toHaveBeenCalledWith(
+        expect.any(String),
+        ['run', 'sonarqube'],
+        expect.any(Object)
+      );
+    });
+
+    it('should handle execution errors in executeQA catch block', async () => {
+      const errorCommand = QACommand();
+      errorCommand.runLint = vi.fn().mockRejectedValue(new Error('Fatal error'));
+      errorCommand.debug = vi.fn();
+
+      await expect(errorCommand.execute({})).rejects.toThrow('Fatal error');
+      expect(errorCommand.debug).toHaveBeenCalled();
+    });
+
+    it('should cover all options in addOptions', () => {
+      const mockCommand = {
+        option: vi.fn().mockReturnThis(),
+      } as any;
+      command.addOptions(mockCommand);
+      expect(mockCommand.option).toHaveBeenCalledWith('--no-sonar', expect.any(String));
+      expect(mockCommand.option).toHaveBeenCalledWith('--report', expect.any(String));
+      expect(mockCommand.option).toHaveBeenCalledWith('--no-open', expect.any(String));
     });
   });
 });

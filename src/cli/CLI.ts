@@ -153,9 +153,24 @@ const handleExecutionError = (error: unknown, version: string, log: boolean = tr
     return;
   }
 
+  const exitCode = getExitCode(error);
+
   if (error instanceof Error) {
     ErrorHandler.handle(error, undefined, log);
   }
+
+  // Check for commander-specific errors that need special handling
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    typeof (error as Error & { code: unknown }).code === 'string' &&
+    (error as Error & { code: string }).code.startsWith('commander.')
+  ) {
+    ErrorFactory.createCliError('CLI execution failed', error);
+    process.exit(exitCode);
+    return;
+  }
+
   throw ErrorFactory.createCliError('Unhandled CLI execution error', error);
 };
 
@@ -187,23 +202,7 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
 
     await program.parseAsync(['node', 'zintrust', ...processedArgs]);
   } catch (error) {
-    // Check for commander-specific errors that need special handling
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      typeof error.code === 'string' &&
-      error.code.startsWith('commander.')
-    ) {
-      const exitCode = getExitCode(error);
-      if (exitCode !== 0) {
-        ErrorFactory.createCliError('CLI execution failed', error);
-        process.exit(exitCode);
-      }
-      return;
-    }
-
-    // Handle all other errors with proper logging
-    ErrorFactory.createCliError('CLI execution failed', error);
+    // Handle all errors with proper logging and exit logic
     handleExecutionError(error, version, false);
   }
 };

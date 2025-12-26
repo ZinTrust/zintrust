@@ -129,12 +129,17 @@ describe('Kernel', () => {
   });
 
   it('should not execute route middleware when none configured', async () => {
+    const handler = vi.fn();
+
     vi.mocked(Router.match).mockReturnValue({
-      handler: vi.fn(),
+      handler,
       params: {},
     });
 
     await kernel.handleRequest(mockRequest, mockResponse);
+
+    expect(Router.match).toHaveBeenCalled();
+    expect(handler).toHaveBeenCalledWith(mockRequest, mockResponse);
   });
 
   it('should handle 404 Not Found', async () => {

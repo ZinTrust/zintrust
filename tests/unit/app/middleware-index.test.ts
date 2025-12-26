@@ -210,9 +210,11 @@ describe('app/Middleware/index.ts', () => {
     await rateLimitMiddleware(reqUnknownIp as any, createRes() as any, next);
 
     // Now call enough times to exceed maxRequests (100)
+    /* eslint-disable no-await-in-loop */
     for (let i = 0; i < 98; i += 1) {
       await rateLimitMiddleware(reqUnknownIp as any, createRes() as any, next);
     }
+    /* eslint-enable no-await-in-loop */
 
     const resBlocked = createRes();
     const nextBlocked = vi.fn().mockResolvedValue(undefined);

@@ -31,7 +31,14 @@ describe('DebugCommand', () => {
       expect(command).toBeDefined();
     });
 
-    it('should inherit from BaseCommand', () => {});
+    it('should inherit from BaseCommand', () => {
+      expect(typeof command.getCommand).toBe('function');
+      expect(typeof command.execute).toBe('function');
+      expect(typeof command.info).toBe('function');
+      expect(typeof command.warn).toBe('function');
+      expect(typeof command.success).toBe('function');
+      expect(typeof command.debug).toBe('function');
+    });
 
     it('should have name property (protected)', () => {
       const name = command.name;
@@ -216,14 +223,16 @@ describe('DebugCommand', () => {
     it('should handle different port configurations', async () => {
       const ports = ['3000', '4000', '5000', '8080'];
 
-      for (const port of ports) {
+      await ports.reduce(async (prev, port) => {
+        await prev;
+
         const options = { port };
         command.execute = vi.fn().mockResolvedValue(undefined);
 
         await command.execute(options);
 
         expect(command.execute).toHaveBeenCalledWith(options);
-      }
+      }, Promise.resolve());
     });
 
     it('should support profiling option', async () => {
@@ -393,7 +402,14 @@ describe('DebugCommand', () => {
       expect(typeof command.warn).toBe('function');
     });
 
-    it('should be instanceof BaseCommand', () => {});
+    it('should be instanceof BaseCommand', () => {
+      // BaseCommand is a factory (not a class), so we assert the expected shape.
+      expect(command).toMatchObject({
+        name: expect.any(String),
+        description: expect.any(String),
+      });
+      expect(typeof command.getCommand).toBe('function');
+    });
   });
 
   describe('Options Parsing', () => {

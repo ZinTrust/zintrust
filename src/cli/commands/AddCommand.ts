@@ -271,7 +271,7 @@ const addFeature = async (
   const fullServicePath = path.join(projectRoot, servicePath);
   cmd.info(`Adding feature: ${name}...`);
 
-  const result = await FeatureScaffolder.addFeature({
+  const result = FeatureScaffolder.addFeature({
     name: name as FeatureType,
     servicePath: fullServicePath,
     withTest: opts.withTest,
@@ -280,7 +280,7 @@ const addFeature = async (
   if (result.success === false) throw ErrorFactory.createCliError(result.message);
 
   cmd.success(`Feature '${name}' added successfully!`);
-  cmd.info(`Files created: ${result.filesCreated.length}`);
+  cmd.info(`Files created: ${result.filesCreated?.length || 0}`);
   cmd.info(
     `\nNext steps:\n  • Integrate feature in service\n  • Update routes if needed\n  • Add to configuration`
   );
@@ -577,7 +577,7 @@ const addFactory = async (
     throw ErrorFactory.createValidationError('Factory name is required');
   }
 
-  if (config.modelName === '' && opts.noInteractive !== true) {
+  if (config.modelName === '') {
     throw ErrorFactory.createValidationError('Model name is required for factory generation');
   }
 
@@ -723,7 +723,7 @@ const addSeeder = async (
     throw ErrorFactory.createValidationError('Seeder name is required');
   }
 
-  if (config.modelName === '' && opts.noInteractive !== true) {
+  if (config.modelName === '') {
     throw ErrorFactory.createValidationError('Model name is required for seeder generation');
   }
 
@@ -1124,5 +1124,25 @@ export const AddCommand = Object.freeze({
     });
 
     return cmd;
+  },
+
+  /**
+   * Internal helpers for testing
+   * @internal
+   */
+  _helpers: {
+    promptServiceConfig,
+    promptFeatureConfig,
+    promptMigrationConfig,
+    promptModelConfig,
+    promptControllerConfig,
+    promptRoutesConfig,
+    promptFactoryConfig,
+    promptSeederConfig,
+    promptRequestFactoryConfig,
+    promptResponseFactoryName,
+    promptResponseFactoryConfig,
+    promptWorkflowConfig,
+    getDefaultResponseFields,
   },
 });

@@ -1,11 +1,77 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AddCommand } from '@cli/commands/AddCommand';
+import * as fs from '@node-singletons/fs';
+import inquirer from 'inquirer';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@cli/logger/Logger');
-vi.mock('inquirer');
-vi.mock('node:fs');
-vi.mock('node:path');
+// Mock all generators
+vi.mock('@cli/scaffolding/ServiceScaffolder', () => ({
+  ServiceScaffolder: { scaffold: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/FeatureScaffolder', () => ({
+  FeatureScaffolder: {
+    getAvailableFeatures: vi.fn().mockReturnValue(['auth', 'cache']),
+    addFeature: vi.fn(),
+  },
+}));
+vi.mock('@cli/scaffolding/MigrationGenerator', () => ({
+  MigrationGenerator: { generateMigration: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/ModelGenerator', () => ({
+  ModelGenerator: { generateModel: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/ControllerGenerator', () => ({
+  ControllerGenerator: { generateController: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/RouteGenerator', () => ({
+  RouteGenerator: { generateRoutes: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/FactoryGenerator', () => ({
+  FactoryGenerator: { generateFactory: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/SeederGenerator', () => ({
+  SeederGenerator: { generateSeeder: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/RequestFactoryGenerator', () => ({
+  RequestFactoryGenerator: { generateRequestFactory: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/ResponseFactoryGenerator', () => ({
+  ResponseFactoryGenerator: { generate: vi.fn() },
+}));
+vi.mock('@cli/scaffolding/WorkflowGenerator', () => ({
+  WorkflowGenerator: { generate: vi.fn() },
+}));
 
-import { AddCommand } from '@/cli/commands/AddCommand';
+vi.mock('inquirer', () => ({
+  default: { prompt: vi.fn() },
+}));
+
+vi.mock('@node-singletons/fs', () => ({
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  default: {
+    existsSync: vi.fn(),
+    mkdirSync: vi.fn(),
+  },
+}));
+
+import { ControllerGenerator } from '@cli/scaffolding/ControllerGenerator';
+import { FactoryGenerator } from '@cli/scaffolding/FactoryGenerator';
+import { FeatureScaffolder } from '@cli/scaffolding/FeatureScaffolder';
+import { MigrationGenerator } from '@cli/scaffolding/MigrationGenerator';
+import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
+import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
+import { ResponseFactoryGenerator } from '@cli/scaffolding/ResponseFactoryGenerator';
+import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
+import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
+import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
+import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
+
+const findQuestion = (questions: any[], name: string) => {
+  for (const q of questions) {
+    if (q?.name === name) return q;
+  }
+  return undefined;
+};
 
 describe('AddCommand', () => {
   let command: any;
@@ -13,722 +79,755 @@ describe('AddCommand', () => {
   beforeEach(() => {
     command = AddCommand.create();
     vi.clearAllMocks();
+    vi.mocked(fs.existsSync).mockReturnValue(true);
   });
 
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
-
-  describe('Class Structure', () => {
-    it('should create AddCommand instance', () => {
-      expect(command).toBeDefined();
+  describe('execute', () => {
+    it('should handle service creation', async () => {
+      vi.mocked(ServiceScaffolder.scaffold).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filesCreated: ['file1'],
+        servicePath: '/path',
+        serviceName: 'users',
+      });
+      await command.execute({ args: ['service', 'users'] });
+      expect(ServiceScaffolder.scaffold).toHaveBeenCalled();
     });
 
-    it('should inherit from BaseCommand', () => {});
-
-    it('should have name property (protected)', () => {
-      const name = command.name;
-      expect(name).toBeDefined();
-      expect(typeof name).toBe('string');
-    });
-
-    it('should have description property (protected)', () => {
-      const description = command.description;
-      expect(description).toBeDefined();
-      expect(typeof description).toBe('string');
-    });
-
-    it('should have execute method', () => {
-      const execute = command.execute;
-      expect(typeof execute).toBe('function');
-    });
-
-    it('should have getCommand method from BaseCommand', () => {
-      const getCommand = command.getCommand;
-      expect(typeof getCommand).toBe('function');
-    });
-  });
-
-  describe('Command Metadata', () => {
-    it('command name should be "add"', () => {
-      const name = command.name;
-      expect(name).toMatch(/add/i);
-    });
-
-    it('description should not be empty', () => {
-      const description = command.description;
-      expect(description.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('Instance Methods', () => {
-    it('addOptions method should be defined', () => {
-      const addOptions = command.addOptions;
-      expect(typeof addOptions).toBe('function');
-    });
-
-    it('debug method should be defined', () => {
-      const debug = command.debug;
-      expect(typeof debug).toBe('function');
-    });
-
-    it('info method should be defined', () => {
-      const info = command.info;
-      expect(typeof info).toBe('function');
-    });
-  });
-
-  describe('Execute Method', () => {
-    it('should throw error when type is empty', async () => {
-      const options = {
-        args: ['', 'test'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should throw error when type is undefined', async () => {
-      const options = {
-        args: [],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle type case-insensitively for service', async () => {
-      const options = {
-        args: ['SERVICE', 'test-service'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle type case-insensitively for feature', async () => {
-      const options = {
-        args: ['FEATURE', 'test-feature'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle migration type', async () => {
-      const options = {
-        args: ['migration', 'test-migration'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle model type', async () => {
-      const options = {
-        args: ['model', 'User'],
-        verbose: false,
-      };
-
-      try {
-        await command.execute(options);
-      } catch {
-        // Some paths may throw
-      }
-      expect(command).toBeDefined();
-    });
-
-    it('should handle controller type', async () => {
-      const options = {
-        args: ['controller', 'UserController'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle routes type', async () => {
-      const options = {
-        args: ['routes', 'api'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle factory type', async () => {
-      const options = {
-        args: ['factory', 'UserFactory'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle seeder type', async () => {
-      const options = {
-        args: ['seeder', 'UserSeeder'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle requestfactory type', async () => {
-      const options = {
-        args: ['requestfactory', 'CreateUserRequestFactory'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle responsefactory type', async () => {
-      const options = {
-        args: ['responsefactory', 'UserResponseFactory'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle workflow type', async () => {
-      const options = {
-        args: ['workflow', 'ApprovalWorkflow'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should pass options to handler methods', async () => {
-      const options = {
-        args: ['service', 'test-service'],
-        verbose: false,
-        port: '3001',
-        database: 'shared' as const,
-        auth: 'jwt' as const,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle with-test option', async () => {
-      const options = {
-        args: ['feature', 'test-feature'],
-        verbose: false,
-        withTest: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle soft-delete option', async () => {
-      const options = {
-        args: ['model', 'User'],
-        verbose: false,
-        softDelete: true,
-      };
-
-      try {
-        await command.execute(options);
-      } catch {
-        // Some paths may throw
-      }
-      expect(command).toBeDefined();
-    });
-
-    it('should handle timestamps option', async () => {
-      const options = {
-        args: ['model', 'User'],
-        verbose: false,
-        timestamps: true,
-      };
-
-      try {
-        await command.execute(options);
-      } catch {
-        // Some paths may throw
-      }
-      expect(command).toBeDefined();
-    });
-
-    it('should handle resource option', async () => {
-      const options = {
-        args: ['routes', 'api'],
-        verbose: false,
-        resource: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle model option for factory', async () => {
-      const options = {
-        args: ['factory', 'UserFactory'],
-        verbose: false,
-        model: 'User',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle relationships option', async () => {
-      const options = {
-        args: ['factory', 'UserFactory'],
-        verbose: false,
-        model: 'User',
-        relationships: 'Post,Comment',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle count option for seeder', async () => {
-      const options = {
-        args: ['seeder', 'UserSeeder'],
-        verbose: false,
-        model: 'User',
-        count: '100',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle states option', async () => {
-      const options = {
-        args: ['seeder', 'UserSeeder'],
-        verbose: false,
-        model: 'User',
-        states: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle truncate option', async () => {
-      const options = {
-        args: ['seeder', 'UserSeeder'],
-        verbose: false,
-        model: 'User',
-        truncate: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle controller-type option', async () => {
-      const options = {
-        args: ['controller', 'UserController'],
-        verbose: false,
-        controllerType: 'crud',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle platform option', async () => {
-      const options = {
-        args: ['service', 'test-service'],
-        verbose: false,
-        platform: 'lambda',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle branch option', async () => {
-      const options = {
-        args: ['service', 'test-service'],
-        verbose: false,
-        branch: 'develop',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle node-version option', async () => {
-      const options = {
-        args: ['service', 'test-service'],
-        verbose: false,
-        nodeVersion: '18.x',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-
-    it('should handle no-interactive option', async () => {
-      const options = {
-        args: ['service', 'test-service'],
-        verbose: false,
-        noInteractive: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('AddOptions Interface', () => {
-    it('should support all AddOptions properties', () => {
-      const options: any = {
-        type: 'service',
+    it('should handle interactive service creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'users',
+        domain: 'ecommerce',
+        port: 3001,
         database: 'shared',
         auth: 'jwt',
-        port: '3001',
-        domain: 'example.com',
-        service: 'test-service',
+      });
+      vi.mocked(ServiceScaffolder.scaffold).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filesCreated: ['file1'],
+        servicePath: '/path',
+        serviceName: 'users',
+      });
+      await command.execute({ args: ['service'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(ServiceScaffolder.scaffold).toHaveBeenCalled();
+    });
+
+    it('should handle feature creation', async () => {
+      vi.mocked(FeatureScaffolder.addFeature).mockReturnValue({
+        success: true,
+        message: 'Success',
+        filesCreated: [],
+        featureName: 'auth',
+      });
+      await command.execute({ args: ['feature', 'auth'], service: 'src/services/users' });
+      expect(FeatureScaffolder.addFeature).toHaveBeenCalled();
+    });
+
+    it('should handle interactive feature creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'auth',
+        servicePath: 'src/services/users',
         withTest: true,
-        controllerType: 'crud',
+      });
+      vi.mocked(FeatureScaffolder.addFeature).mockReturnValue({
+        success: true,
+        message: 'Success',
+        filesCreated: [],
+        featureName: 'auth',
+      });
+      await command.execute({ args: ['feature'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(FeatureScaffolder.addFeature).toHaveBeenCalled();
+    });
+
+    it('should handle migration creation', async () => {
+      vi.mocked(MigrationGenerator.generateMigration).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/to/migration.ts',
+        migrationName: 'create_users_table',
+      });
+      await command.execute({ args: ['migration', 'create_users_table'] });
+      expect(MigrationGenerator.generateMigration).toHaveBeenCalled();
+    });
+
+    it('should handle interactive migration creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'create_users_table',
+        type: 'create',
+      });
+      vi.mocked(MigrationGenerator.generateMigration).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/to/migration.ts',
+        migrationName: 'create_users_table',
+      });
+      await command.execute({ args: ['migration'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(MigrationGenerator.generateMigration).toHaveBeenCalled();
+    });
+
+    it('should handle model creation', async () => {
+      vi.mocked(ModelGenerator.generateModel).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        modelFile: '/path/User.ts',
+        modelName: 'User',
+      });
+      await command.execute({ args: ['model', 'User'] });
+      expect(ModelGenerator.generateModel).toHaveBeenCalled();
+    });
+
+    it('should handle interactive model creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'User',
         softDelete: true,
         timestamps: true,
-        resource: true,
-        model: 'User',
-        relationships: 'Post',
-        count: '10',
-        states: false,
-        truncate: false,
-        noInteractive: false,
-        platform: 'lambda',
-        branch: 'main',
-        nodeVersion: '18',
-      };
-
-      expect(options.type).toBeDefined();
-      expect(options.database).toBe('shared');
-      expect(options.auth).toBe('jwt');
-    });
-  });
-
-  describe('Service Creation', () => {
-    it('should validate service name is not empty', async () => {
-      const options = {
-        args: ['service', ''],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+      });
+      vi.mocked(ModelGenerator.generateModel).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        modelFile: '/path/User.ts',
+        modelName: 'User',
+      });
+      await command.execute({ args: ['model'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(ModelGenerator.generateModel).toHaveBeenCalled();
     });
 
-    it('should handle service creation with database option', async () => {
-      const options = {
-        args: ['service', 'auth-service'],
-        verbose: false,
-        database: 'isolated' as const,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should handle controller creation', async () => {
+      vi.mocked(ControllerGenerator.generateController).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        controllerFile: '/path/UserController.ts',
+        controllerName: 'UserController',
+      });
+      await command.execute({ args: ['controller', 'UserController'] });
+      expect(ControllerGenerator.generateController).toHaveBeenCalled();
     });
 
-    it('should handle service creation with auth option', async () => {
-      const options = {
-        args: ['service', 'api-service'],
-        verbose: false,
-        auth: 'api-key' as const,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('Model Creation', () => {
-    it('should validate model name is provided', async () => {
-      const options = {
-        args: ['model', ''],
-        verbose: false,
-      };
-
-      try {
-        await command.execute(options);
-      } catch {
-        // Expected
-      }
-
-      expect(command).toBeDefined();
+    it('should handle interactive controller creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'UserController',
+        type: 'api',
+      });
+      vi.mocked(ControllerGenerator.generateController).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        controllerFile: '/path/UserController.ts',
+        controllerName: 'UserController',
+      });
+      await command.execute({ args: ['controller'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(ControllerGenerator.generateController).toHaveBeenCalled();
     });
 
-    it('should handle model with soft deletes', async () => {
-      const options = {
-        args: ['model', 'Post'],
-        verbose: false,
-        softDelete: true,
-        timestamps: true,
-      };
-
-      try {
-        await command.execute(options);
-      } catch {
-        // Expected
-      }
-
-      expect(command).toBeDefined();
-    });
-  });
-
-  describe('Controller Creation', () => {
-    it('should handle controller creation with type option', async () => {
-      const options = {
-        args: ['controller', 'UserController'],
-        verbose: false,
-        controllerType: 'api',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should handle routes creation', async () => {
+      vi.mocked(RouteGenerator.generateRoutes).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        routeFile: '/path/api.ts',
+        routeCount: 1,
+      });
+      await command.execute({ args: ['routes', 'api'] });
+      expect(RouteGenerator.generateRoutes).toHaveBeenCalled();
     });
 
-    it('should validate controller name', async () => {
-      const options = {
-        args: ['controller', 'InvalidName123@'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('Routes Creation', () => {
-    it('should handle routes creation with resource option', async () => {
-      const options = {
-        args: ['routes', 'api/users'],
-        verbose: false,
-        resource: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should handle interactive routes creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'api',
+      });
+      vi.mocked(RouteGenerator.generateRoutes).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        routeFile: '/path/api.ts',
+        routeCount: 1,
+      });
+      await command.execute({ args: ['routes'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(RouteGenerator.generateRoutes).toHaveBeenCalled();
     });
 
-    it('should validate routes name', async () => {
-      const options = {
-        args: ['routes', 'api'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('Factory Creation', () => {
-    it('should handle factory with relationships', async () => {
-      const options = {
-        args: ['factory', 'PostFactory'],
-        verbose: false,
-        model: 'Post',
-        relationships: 'User,Comment',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should handle factory creation', async () => {
+      vi.mocked(FactoryGenerator.generateFactory).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/UserFactory.ts',
+      });
+      await command.execute({ args: ['factory', 'UserFactory'], model: 'User' });
+      expect(FactoryGenerator.generateFactory).toHaveBeenCalled();
     });
 
-    it('should validate factory model option', async () => {
-      const options = {
-        args: ['factory', 'UserFactory'],
-        verbose: false,
-        model: 'NonExistentModel',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should handle interactive factory creation with relationships', async () => {
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({
+          name: 'UserFactory',
+          model: 'User',
+          addRelationships: true,
+        })
+        .mockResolvedValueOnce({
+          relationships: 'Profile,Post',
+        });
+      vi.mocked(FactoryGenerator.generateFactory).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/UserFactory.ts',
+      });
+      await command.execute({ args: ['factory'] });
+      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      expect(FactoryGenerator.generateFactory).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relationships: ['Profile', 'Post'],
+        })
+      );
     });
-  });
 
-  describe('Seeder Creation', () => {
-    it('should handle seeder with all options', async () => {
-      const options = {
-        args: ['seeder', 'UserSeeder'],
-        verbose: false,
+    it('should handle seeder creation', async () => {
+      vi.mocked(SeederGenerator.generateSeeder).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/UserSeeder.ts',
+      });
+      await command.execute({ args: ['seeder', 'UserSeeder'], model: 'User' });
+      expect(SeederGenerator.generateSeeder).toHaveBeenCalled();
+    });
+
+    it('should handle interactive seeder creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'UserSeeder',
         model: 'User',
         count: '50',
         states: true,
+        relationships: true,
         truncate: true,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+      });
+      vi.mocked(SeederGenerator.generateSeeder).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/UserSeeder.ts',
+      });
+      await command.execute({ args: ['seeder'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(SeederGenerator.generateSeeder).toHaveBeenCalled();
     });
 
-    it('should validate seeder count is numeric', async () => {
-      const options = {
-        args: ['seeder', 'UserSeeder'],
-        verbose: false,
-        model: 'User',
-        count: 'invalid',
-      };
+    it('should handle requestfactory creation', async () => {
+      vi.mocked(RequestFactoryGenerator.generateRequestFactory).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path/CreateUserRequestFactory.ts',
+        requestPath: '/path/CreateUserRequest.ts',
+      });
+      await command.execute({ args: ['requestfactory', 'CreateUserRequestFactory'] });
+      expect(RequestFactoryGenerator.generateRequestFactory).toHaveBeenCalled();
+    });
 
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should handle interactive requestfactory creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        factoryName: 'CreateUserRequestFactory',
+        requestName: 'CreateUserRequest',
+        endpoint: '/api/users',
+        method: 'POST',
+        withDTO: true,
+      });
+      vi.mocked(RequestFactoryGenerator.generateRequestFactory).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path/CreateUserRequestFactory.ts',
+      });
+      await command.execute({ args: ['requestfactory'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(RequestFactoryGenerator.generateRequestFactory).toHaveBeenCalled();
+    });
+
+    it('should handle responsefactory creation', async () => {
+      vi.mocked(ResponseFactoryGenerator.generate).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path/UserResponseFactory.ts',
+        responsePath: '/path/UserResponse.ts',
+      });
+      await command.execute({
+        args: ['responsefactory', 'UserResponseFactory'],
+        noInteractive: true,
+      });
+      expect(ResponseFactoryGenerator.generate).toHaveBeenCalled();
+    });
+
+    it('should handle interactive responsefactory creation', async () => {
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ factoryName: 'UserResponseFactory' })
+        .mockResolvedValueOnce({
+          factoryName: 'UserResponseFactory',
+          responseName: 'UserResponse',
+          responseType: 'error',
+          withDTO: true,
+        });
+      vi.mocked(ResponseFactoryGenerator.generate).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path/UserResponseFactory.ts',
+      });
+      await command.execute({ args: ['responsefactory'] });
+      expect(inquirer.prompt).toHaveBeenCalledTimes(2);
+      expect(ResponseFactoryGenerator.generate).toHaveBeenCalled();
+    });
+
+    it('should handle paginated responsefactory creation', async () => {
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({ factoryName: 'UserResponseFactory' })
+        .mockResolvedValueOnce({
+          factoryName: 'UserResponseFactory',
+          responseName: 'UserResponse',
+          responseType: 'paginated',
+          withDTO: true,
+        });
+      vi.mocked(ResponseFactoryGenerator.generate).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path/UserResponseFactory.ts',
+      });
+      await command.execute({ args: ['responsefactory'] });
+      expect(ResponseFactoryGenerator.generate).toHaveBeenCalled();
+    });
+
+    it('should handle workflow creation', async () => {
+      vi.mocked(WorkflowGenerator.generate).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/to/workflow.yml',
+      });
+      await command.execute({
+        args: ['workflow', 'deploy'],
+        platform: 'lambda',
+        noInteractive: true,
+      });
+      expect(WorkflowGenerator.generate).toHaveBeenCalled();
+    });
+
+    it('should handle interactive workflow creation', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        name: 'deploy',
+        platform: 'cloudflare',
+      });
+      vi.mocked(WorkflowGenerator.generate).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        filePath: '/path/to/workflow.yml',
+      });
+      await command.execute({ args: ['workflow'] });
+      expect(inquirer.prompt).toHaveBeenCalled();
+      expect(WorkflowGenerator.generate).toHaveBeenCalled();
+    });
+
+    it('should throw error for unknown type', async () => {
+      await expect(command.execute({ args: ['unknown'] })).rejects.toThrow(
+        /Unknown type "unknown"/
+      );
+    });
+
+    it('should throw error when service name is missing in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['service'], noInteractive: true })).rejects.toThrow(
+        /Service name is required/
+      );
+    });
+
+    it('should throw error when feature name is missing in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['feature'], noInteractive: true })).rejects.toThrow(
+        /Feature name is required/
+      );
+    });
+
+    it('should throw error when migration name is missing in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['migration'], noInteractive: true })).rejects.toThrow(
+        /Migration name is required/
+      );
+    });
+
+    it('should throw error when model name is required for factory', async () => {
+      await expect(
+        command.execute({ args: ['factory', 'UserFactory'], noInteractive: true })
+      ).rejects.toThrow(/Model name is required/);
+    });
+
+    it('should throw error when generator fails', async () => {
+      vi.mocked(ServiceScaffolder.scaffold).mockResolvedValue({
+        success: false,
+        message: 'Scaffold failed',
+        filesCreated: [],
+        servicePath: '',
+        serviceName: 'users',
+      });
+      await expect(command.execute({ args: ['service', 'users'] })).rejects.toThrow(
+        /Scaffold failed/
+      );
+    });
+
+    it('should handle request-factory alias', async () => {
+      vi.mocked(RequestFactoryGenerator.generateRequestFactory).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path',
+      });
+      await command.execute({ args: ['request-factory', 'MyFactory'], noInteractive: true });
+      expect(RequestFactoryGenerator.generateRequestFactory).toHaveBeenCalled();
+    });
+
+    it('should handle response-factory alias', async () => {
+      vi.mocked(ResponseFactoryGenerator.generate).mockResolvedValue({
+        success: true,
+        message: 'Success',
+        factoryPath: '/path',
+      });
+      await command.execute({ args: ['response-factory', 'MyFactory'], noInteractive: true });
+      expect(ResponseFactoryGenerator.generate).toHaveBeenCalled();
+    });
+
+    it('should throw error when type is missing', async () => {
+      await expect(command.execute({ args: [] })).rejects.toThrow(/Please specify what to add/);
+    });
+
+    it('should handle seeder with no model name in no-interactive mode', async () => {
+      await expect(
+        command.execute({ args: ['seeder', 'UserSeeder'], noInteractive: true })
+      ).rejects.toThrow(/Model name is required/);
+    });
+
+    it('should handle factory with no model name in no-interactive mode', async () => {
+      await expect(
+        command.execute({ args: ['factory', 'UserFactory'], noInteractive: true })
+      ).rejects.toThrow(/Model name is required/);
+    });
+
+    it('should handle feature with no service path in no-interactive mode', async () => {
+      await expect(
+        command.execute({ args: ['feature', 'auth'], noInteractive: true })
+      ).rejects.toThrow(/Service path is required/);
+    });
+
+    it('should handle model with no name in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['model'], noInteractive: true })).rejects.toThrow(
+        /Model name is required/
+      );
+    });
+
+    it('should handle controller with no name in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['controller'], noInteractive: true })).rejects.toThrow(
+        /Controller name is required/
+      );
+    });
+
+    it('should handle routes with no name in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['routes'], noInteractive: true })).rejects.toThrow(
+        /Route group name is required/
+      );
+    });
+
+    it('should handle requestfactory with no name in no-interactive mode', async () => {
+      await expect(
+        command.execute({ args: ['requestfactory'], noInteractive: true })
+      ).rejects.toThrow(/Factory name is required/);
+    });
+
+    it('should handle responsefactory with no name in no-interactive mode', async () => {
+      await expect(
+        command.execute({ args: ['responsefactory'], noInteractive: true })
+      ).rejects.toThrow(/Factory name is required/);
+    });
+
+    it('should add a response factory with error type', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        factoryName: 'ErrorResponseFactory',
+        responseName: 'ErrorResponse',
+        responseType: 'error',
+        withDTO: true,
+      });
+
+      await command.execute({ args: ['response-factory', 'ErrorResponseFactory'] });
+
+      expect(vi.mocked(ResponseFactoryGenerator.generate)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          factoryName: 'ErrorResponseFactory',
+          fields: expect.arrayContaining([{ name: 'code', type: 'number' }]),
+        })
+      );
+    });
+
+    it('should add a response factory with paginated type', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({
+        factoryName: 'PaginatedResponseFactory',
+        responseName: 'PaginatedResponse',
+        responseType: 'paginated',
+        withDTO: true,
+      });
+
+      await command.execute({ args: ['response-factory', 'PaginatedResponseFactory'] });
+
+      expect(vi.mocked(ResponseFactoryGenerator.generate)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          factoryName: 'PaginatedResponseFactory',
+          fields: expect.arrayContaining([{ name: 'id', type: 'uuid' }]),
+        })
+      );
+    });
+
+    it('should add a workflow with specific platform', async () => {
+      await command.execute({ args: ['workflow', 'deploy'], platform: 'lambda' });
+      expect(vi.mocked(WorkflowGenerator.generate)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'deploy',
+          platform: 'lambda',
+        })
+      );
+    });
+
+    it('should add a workflow with all platforms', async () => {
+      await command.execute({ args: ['workflow', 'deploy'], platform: 'all' });
+      expect(vi.mocked(WorkflowGenerator.generate)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          platform: 'all',
+        })
+      );
+    });
+
+    it('should handle unexpected errors in executeAdd', async () => {
+      // Force an unexpected error by mocking a generator to throw
+      vi.mocked(ServiceScaffolder.scaffold).mockRejectedValue(new Error('Unexpected error'));
+
+      await expect(command.execute({ args: ['service', 'TestService'] })).rejects.toThrow(
+        'Unexpected error'
+      );
     });
   });
 
-  describe('Request Factory Creation', () => {
-    it('should handle request factory creation', async () => {
-      const options = {
-        args: ['requestfactory', 'CreateUserRequest'],
-        verbose: false,
-      };
+  describe('Internal Helpers & Validators', () => {
+    const helpers = (AddCommand as any)._helpers;
 
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should validate service name', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'name');
+        expect(nameQuestion).toBeDefined();
+        expect(nameQuestion.validate('valid')).toBe(true);
+        expect(nameQuestion.validate('INVALID')).toBe('Must be lowercase letters only');
+        return Promise.resolve({ name: 'test' });
+      }) as any);
+      await helpers.promptServiceConfig('test');
+    });
+
+    it('should validate migration name', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'name');
+        expect(nameQuestion).toBeDefined();
+        expect(nameQuestion.validate('valid_migration')).toBe(true);
+        expect(nameQuestion.validate('Invalid Migration')).toBe('Must be snake_case');
+        return Promise.resolve({ name: 'test' });
+      }) as any);
+      await helpers.promptMigrationConfig();
+    });
+
+    it('should validate model name', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'name');
+        expect(nameQuestion).toBeDefined();
+        expect(nameQuestion.validate('ValidModel')).toBe(true);
+        expect(nameQuestion.validate('invalidModel')).toBe('Must be PascalCase');
+        return Promise.resolve({ name: 'test' });
+      }) as any);
+      await helpers.promptModelConfig();
+    });
+
+    it('should validate controller name', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'name');
+        expect(nameQuestion).toBeDefined();
+        expect(nameQuestion.validate('UserController')).toBe(true);
+        expect(nameQuestion.validate('User')).toBe('Must be PascalCase ending with "Controller"');
+        return Promise.resolve({ name: 'test' });
+      }) as any);
+      await helpers.promptControllerConfig();
+    });
+
+    it('should validate factory name and model', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'name');
+        const modelQuestion = findQuestion(questions, 'model');
+
+        expect(nameQuestion).toBeDefined();
+        expect(modelQuestion).toBeDefined();
+
+        expect(nameQuestion.validate('UserFactory')).toBe(true);
+        expect(nameQuestion.validate('User')).toBe('Must be PascalCase ending with "Factory"');
+
+        expect(modelQuestion.validate('User')).toBe(true);
+        expect(modelQuestion.validate('user')).toBe('Must be PascalCase');
+
+        return Promise.resolve({ name: 'test', model: 'test', addRelationships: false });
+      }) as any);
+      await helpers.promptFactoryConfig();
+    });
+
+    it('should validate seeder name, model and count', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'name');
+        const modelQuestion = findQuestion(questions, 'model');
+        const countQuestion = findQuestion(questions, 'count');
+
+        expect(nameQuestion).toBeDefined();
+        expect(modelQuestion).toBeDefined();
+        expect(countQuestion).toBeDefined();
+
+        expect(nameQuestion.validate('UserSeeder')).toBe(true);
+        expect(nameQuestion.validate('User')).toBe('Must be PascalCase ending with "Seeder"');
+
+        expect(modelQuestion.validate('User')).toBe(true);
+        expect(modelQuestion.validate('user')).toBe('Must be PascalCase');
+
+        expect(countQuestion.validate('100')).toBe(true);
+        expect(countQuestion.validate('0')).toBe('Must be between 1 and 100,000');
+        expect(countQuestion.validate('100001')).toBe('Must be between 1 and 100,000');
+
+        return Promise.resolve({ name: 'test', model: 'test', count: '100' });
+      }) as any);
+      await helpers.promptSeederConfig();
     });
 
     it('should validate request factory name', async () => {
-      const options = {
-        args: ['requestfactory', ''],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('Response Factory Creation', () => {
-    it('should handle response factory creation', async () => {
-      const options = {
-        args: ['responsefactory', 'UserResponse'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'factoryName');
+        expect(nameQuestion).toBeDefined();
+        expect(nameQuestion.validate('CreateUserRequestFactory')).toBe(true);
+        expect(nameQuestion.validate('')).toBe('Factory name is required');
+        expect(nameQuestion.validate('CreateUser')).toBe(
+          'Factory name must end with "RequestFactory"'
+        );
+        return Promise.resolve({ factoryName: 'test' });
+      }) as any);
+      await helpers.promptRequestFactoryConfig();
     });
 
     it('should validate response factory name', async () => {
-      const options = {
-        args: ['responsefactory', 'InvalidName@123'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('Workflow Creation', () => {
-    it('should handle workflow creation', async () => {
-      const options = {
-        args: ['workflow', 'ApprovalWorkflow'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'factoryName');
+        expect(nameQuestion).toBeDefined();
+        expect(nameQuestion.validate('UserResponseFactory')).toBe(true);
+        expect(nameQuestion.validate('')).toBe('Factory name is required');
+        expect(nameQuestion.validate('User')).toBe('Factory name must end with "ResponseFactory"');
+        return Promise.resolve({ factoryName: 'test' });
+      }) as any);
+      await helpers.promptResponseFactoryName();
     });
 
-    it('should validate workflow name', async () => {
-      const options = {
-        args: ['workflow', ''],
-        verbose: false,
-      };
+    it('should validate response factory config', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'factoryName');
+        const responseQuestion = findQuestion(questions, 'responseName');
 
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
+        expect(nameQuestion).toBeDefined();
+        expect(responseQuestion).toBeDefined();
 
-  describe('Error Handling', () => {
-    it('should log error on execution failure', async () => {
-      const options = {
-        args: ['invalid-type', 'test'],
-        verbose: false,
-      };
+        expect(nameQuestion.validate('UserFactory')).toBe(true);
+        expect(nameQuestion.validate('')).toBe('Factory name is required');
+        expect(nameQuestion.validate('User')).toBe('Factory name must end with "Factory"');
 
-      await expect(command.execute(options)).rejects.toThrow();
-    });
+        expect(responseQuestion.validate('UserResponse')).toBe(true);
+        expect(responseQuestion.validate('')).toBe('Response name is required');
+        expect(responseQuestion.validate('User')).toBe('Response name must end with "Response"');
 
-    it('should warn user on failure', async () => {
-      const warnSpy = vi.spyOn(command, 'warn').mockImplementation(() => {});
+        return Promise.resolve({ factoryName: 'test', responseName: 'test' });
+      }) as any);
 
-      const options = {
-        args: ['service', ''],
-        verbose: false,
-      };
-
-      try {
-        await command.execute(options);
-      } catch {
-        // Expected
-      }
-
-      expect(warnSpy).toHaveBeenCalled();
-      warnSpy.mockRestore();
+      await helpers.promptResponseFactoryConfig('UserResponse');
     });
 
-    it('should handle errors gracefully in nested methods', async () => {
-      const options = {
-        args: ['service', 'test-service'],
-        verbose: false,
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('Option Combinations', () => {
-    it('should handle service with all options', async () => {
-      const options = {
-        args: ['service', 'full-service'],
-        verbose: false,
-        database: 'isolated' as const,
-        auth: 'jwt' as const,
-        port: '3002',
-        domain: 'service.example.com',
-        platform: 'fargate' as const,
-        branch: 'develop',
-        nodeVersion: '20.x',
-      };
-
-      await expect(command.execute(options)).rejects.toThrow();
+    it('should return correct default response fields', () => {
+      expect(helpers.getDefaultResponseFields('success')).toHaveLength(3);
+      expect(helpers.getDefaultResponseFields('error')).toHaveLength(2);
+      expect(helpers.getDefaultResponseFields('paginated')).toHaveLength(2);
+      expect(helpers.getDefaultResponseFields('custom')).toHaveLength(0);
     });
 
-    it('should handle model with all options', async () => {
-      const options = {
-        args: ['model', 'FullModel'],
-        verbose: false,
-        softDelete: true,
-        timestamps: true,
-      };
+    it('should handle factory relationships prompt', async () => {
+      vi.mocked(inquirer.prompt)
+        .mockResolvedValueOnce({
+          name: 'UserFactory',
+          model: 'User',
+          addRelationships: true,
+        })
+        .mockResolvedValueOnce({
+          relationships: 'Profile,Post',
+        });
 
-      try {
-        await command.execute(options);
-      } catch {
-        // Expected
-      }
-
-      expect(command).toBeDefined();
+      const result = await helpers.promptFactoryConfig();
+      expect(result.relationships).toBe('Profile,Post');
     });
 
-    it('should handle factory with all options', async () => {
-      const options = {
-        args: ['factory', 'FullFactory'],
-        verbose: false,
-        model: 'FullModel',
-        relationships: 'Relation1,Relation2',
-      };
+    it('should handle factory generator failure', async () => {
+      vi.mocked(FactoryGenerator.generateFactory).mockResolvedValue({
+        success: false,
+        message: 'Factory generation failed',
+      });
 
-      await expect(command.execute(options)).rejects.toThrow();
+      await expect(
+        command.execute({ args: ['factory', 'UserFactory'], model: 'User' })
+      ).rejects.toThrow('Factory generation failed');
     });
 
-    it('should handle seeder with all options', async () => {
-      const options = {
-        args: ['seeder', 'FullSeeder'],
-        verbose: false,
-        model: 'FullModel',
-        count: '100',
-        states: true,
-        truncate: true,
-      };
+    it('should handle seeder generator failure', async () => {
+      vi.mocked(SeederGenerator.generateSeeder).mockResolvedValue({
+        success: false,
+        message: 'Seeder generation failed',
+        filePath: '',
+      });
 
-      await expect(command.execute(options)).rejects.toThrow();
-    });
-  });
-
-  describe('BaseCommand Integration', () => {
-    it('should inherit BaseCommand properties', () => {
-      expect(command.name).toBeDefined();
-      expect(command.description).toBeDefined();
-      expect(command.verbose).toBeDefined();
+      await expect(
+        command.execute({ args: ['seeder', 'UserSeeder'], model: 'User' })
+      ).rejects.toThrow('Seeder generation failed');
     });
 
-    it('should have access to BaseCommand logging methods', () => {
-      expect(typeof command.debug).toBe('function');
-      expect(typeof command.info).toBe('function');
-      expect(typeof command.warn).toBe('function');
+    it('should create directory if it does not exist', async () => {
+      const fsDefault = (fs as any).default;
+      vi.mocked(fsDefault.existsSync).mockImplementation((p: any) => {
+        if (p.toString().includes('database/seeders')) return false;
+        return true;
+      });
+
+      vi.mocked(SeederGenerator.generateSeeder).mockResolvedValue({
+        success: true,
+        filePath: '/path/to/seeder.ts',
+        message: 'Success',
+      });
+
+      await command.execute({ args: ['seeder', 'UserSeeder'], model: 'User' });
+      expect(fsDefault.mkdirSync).toHaveBeenCalled();
     });
 
-    it('should instantiate via BaseCommand factory methods', () => {
-      const cmdObj = command.getCommand();
-      expect(cmdObj).toBeDefined();
-      expect(cmdObj.name).toBeDefined();
+    it('should test request factory default name function', async () => {
+      vi.mocked(inquirer.prompt).mockImplementation(((questions: any) => {
+        const nameQuestion = findQuestion(questions, 'requestName');
+        expect(nameQuestion).toBeDefined();
+        if (typeof nameQuestion.default === 'function') {
+          expect(nameQuestion.default({ factoryName: 'CreateUserRequestFactory' })).toBe(
+            'CreateUserRequest'
+          );
+        }
+        return Promise.resolve({ factoryName: 'test', requestName: 'test' });
+      }) as any);
+      await helpers.promptRequestFactoryConfig();
+    });
+
+    it('should throw error when factory name is missing in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['factory'], noInteractive: true })).rejects.toThrow(
+        'Factory name is required'
+      );
+    });
+
+    it('should throw error when seeder name is missing in no-interactive mode', async () => {
+      await expect(command.execute({ args: ['seeder'], noInteractive: true })).rejects.toThrow(
+        'Seeder name is required'
+      );
     });
   });
 });

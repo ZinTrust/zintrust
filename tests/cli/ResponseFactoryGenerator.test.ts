@@ -126,17 +126,19 @@ describe('ResponseFactoryGenerator Multiple Types', () => {
       'paginated',
     ];
 
-    for (const type of types) {
-      const result = await ResponseFactoryGenerator.generate({
-        factoryName: `${type.charAt(0).toUpperCase()}ResponseFactory`,
-        responseName: `${type}Response`,
-        fields: [],
-        responseType: type,
-        factoriesPath: testDir,
-      });
+    const results = await Promise.all(
+      types.map(async (type) =>
+        ResponseFactoryGenerator.generate({
+          factoryName: `${type.charAt(0).toUpperCase()}ResponseFactory`,
+          responseName: `${type}Response`,
+          fields: [],
+          responseType: type,
+          factoriesPath: testDir,
+        })
+      )
+    );
 
-      expect(result.success).toBe(true);
-    }
+    results.forEach((result) => expect(result.success).toBe(true));
   });
 });
 
@@ -434,22 +436,27 @@ describe('ResponseFactoryGenerator Field Types Support', () => {
         'email',
       ];
 
-      for (const type of fieldTypes) {
-        const fields: ResponseField[] = [
-          { name: 'id', type: 'uuid', required: true },
-          { name: `${type}Field`, type },
-        ];
+      const results = await Promise.all(
+        fieldTypes.map(async (type) => {
+          const fields: ResponseField[] = [
+            { name: 'id', type: 'uuid', required: true },
+            { name: `${type}Field`, type },
+          ];
 
-        const result = await ResponseFactoryGenerator.generate({
-          factoryName: `${type.charAt(0).toUpperCase()}FieldFactory`,
-          responseName: `${type}Response`,
-          fields,
-          factoriesPath: testDir,
-        });
+          const result = await ResponseFactoryGenerator.generate({
+            factoryName: `${type.charAt(0).toUpperCase()}FieldFactory`,
+            responseName: `${type}Response`,
+            fields,
+            factoriesPath: testDir,
+          });
 
-        expect(result.success).toBe(true);
-        expect(result.factoryPath).toBeDefined();
-      }
+          expect(result.success).toBe(true);
+          expect(result.factoryPath).toBeDefined();
+        })
+      );
+
+      // keep `results` referenced to avoid unused warnings in strict setups
+      expect(results.length).toBe(fieldTypes.length);
     });
   });
 });
@@ -635,19 +642,21 @@ describe('Integration Tests - Part 2', () => {
       'paginated',
     ];
 
-    for (const type of types) {
-      const result = await ResponseFactoryGenerator.generate({
-        factoryName: `${type}TestFactory`,
-        responseName: `${type}TestResponse`,
-        responseType: type,
-        factoriesPath: testDir,
-      });
+    await Promise.all(
+      types.map(async (type) => {
+        const result = await ResponseFactoryGenerator.generate({
+          factoryName: `${type}TestFactory`,
+          responseName: `${type}TestResponse`,
+          responseType: type,
+          factoriesPath: testDir,
+        });
 
-      expect(result.success).toBe(true);
-      expect(result.factoryPath).toBeDefined();
+        expect(result.success).toBe(true);
+        expect(result.factoryPath).toBeDefined();
 
-      const content = await fs.readFile(result.factoryPath, 'utf-8');
-      expect(content.length).toBeGreaterThan(300);
-    }
+        const content = await fs.readFile(result.factoryPath, 'utf-8');
+        expect(content.length).toBeGreaterThan(300);
+      })
+    );
   });
 });

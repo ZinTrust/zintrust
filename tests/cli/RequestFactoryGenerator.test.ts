@@ -515,21 +515,23 @@ describe('RequestFactoryGenerator Integration Tests - Part 1', () => {
         { factory: 'RegisterRequestFactory', request: 'RegisterRequest' },
       ];
 
-      for (const type of requestTypes) {
-        const options: RequestFactoryOptions = {
-          factoryName: type.factory,
-          requestName: type.request,
-          factoriesPath: testDir,
-        };
+      await Promise.all(
+        requestTypes.map(async (type) => {
+          const options: RequestFactoryOptions = {
+            factoryName: type.factory,
+            requestName: type.request,
+            factoriesPath: testDir,
+          };
 
-        const result = await RequestFactoryGenerator.generateRequestFactory(options);
-        expect(result.success).toBe(true);
+          const result = await RequestFactoryGenerator.generateRequestFactory(options);
+          expect(result.success).toBe(true);
 
-        const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
-        expect(fileContent).toContain('Object.freeze({');
-        expect(fileContent).toContain(`export const ${type.factory}`);
-        expect(fileContent).toContain(`export const ${type.request}`);
-      }
+          const fileContent = await fs.readFile(result.factoryPath, 'utf-8');
+          expect(fileContent).toContain('Object.freeze({');
+          expect(fileContent).toContain(`export const ${type.factory}`);
+          expect(fileContent).toContain(`export const ${type.request}`);
+        })
+      );
     });
   });
 });

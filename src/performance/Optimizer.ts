@@ -305,15 +305,19 @@ export async function runBatch<T>(
   generators: Array<() => Promise<T>>,
   batchSize: number = 3
 ): Promise<T[]> {
-  const results: T[] = [];
-
+  const batches: Array<Array<() => Promise<T>>> = [];
   for (let i = 0; i < generators.length; i += batchSize) {
-    const batch = generators.slice(i, i + batchSize);
-    const batchResults = await Promise.all(batch.map(async (gen) => gen()));
-    results.push(...batchResults);
+    batches.push(generators.slice(i, i + batchSize));
   }
 
-  return results;
+  return batches.reduce(
+    async (accPromise, batch) => {
+      const acc = await accPromise;
+      const batchResults = await Promise.all(batch.map(async (gen) => gen()));
+      return acc.concat(batchResults);
+    },
+    Promise.resolve([] as T[])
+  );
 }
 
 /**

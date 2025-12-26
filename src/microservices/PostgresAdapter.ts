@@ -389,9 +389,12 @@ async function runMigrations(
   const client = await pool.connect();
 
   try {
+    // Migrations must run sequentially to preserve ordering.
+    /* eslint-disable no-await-in-loop */
     for (const migration of migrations) {
       await migration.up(client);
     }
+    /* eslint-enable no-await-in-loop */
     Logger.info(`✅ Migrations completed`);
   } finally {
     client.release();
@@ -441,9 +444,7 @@ export function getAllInstances(): IPostgresAdapter[] {
  * Disconnect all instances
  */
 export async function disconnectAll(): Promise<void> {
-  for (const adapter of instances.values()) {
-    await adapter.disconnectAll();
-  }
+  await Promise.all(Array.from(instances.values()).map(async (adapter) => adapter.disconnectAll()));
   instances.clear();
 }
 
