@@ -45,3 +45,4 @@ eslint.config.mjs.bak
 lint-report.txt
 eslint.config.mjs.broken
 simulate/
+test-project/

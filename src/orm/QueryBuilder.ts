@@ -193,4 +193,14 @@ export const QueryBuilder = Object.freeze({
 
     return createBuilder(state, db);
   },
+
+  /**
+   * Ping the database connection.
+   *
+   * This is intentionally a tiny, dependency-free check that can be reused by
+   * health/readiness endpoints without embedding SQL in route handlers.
+   */
+  async ping(db: IDatabase): Promise<void> {
+    await db.query('SELECT 1', [], true);
+  },
 });

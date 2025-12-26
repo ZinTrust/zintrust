@@ -38,6 +38,22 @@ interface SecretsManagerInstance {
   clearCache(key?: string): void;
 }
 
+function pruneCache(cache: Map<string, { value: string; expiresAt: number }>, maxEntries: number) {
+  if (cache.size <= maxEntries) return;
+
+  const now = Date.now();
+  for (const [key, entry] of cache.entries()) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+
+  // If still large, drop oldest entries (Map preserves insertion order)
+  while (cache.size > maxEntries) {
+    const next = cache.keys().next();
+    if (next.done === true) break;
+    cache.delete(next.value);
+  }
+}
+
 /**
  * Get secret value from appropriate backend
  */
@@ -52,6 +68,9 @@ async function runGetSecret(
   if (cached !== undefined && cached.expiresAt > Date.now()) {
     return cached.value;
   }
+
+  // Opportunistic cleanup if cache has grown
+  pruneCache(cache, 500);
 
   let value: string;
 
@@ -76,6 +95,8 @@ async function runGetSecret(
     value,
     expiresAt: Date.now() + ttl,
   });
+
+  pruneCache(cache, 500);
 
   return value;
 }

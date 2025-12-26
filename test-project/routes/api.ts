@@ -6,7 +6,7 @@
 import { UserController } from '@app/Controllers/UserController';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { useDatabase, type IRouter, Router } from '@zintrust/core';
+import { QueryBuilder, Router, useDatabase, type IRouter } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   const userController = UserController.create();
@@ -32,7 +32,7 @@ function registerPublicRoutes(router: IRouter): void {
   Router.get(router, '/health', async (_req, res) => {
     try {
       const db = useDatabase();
-      await db.query('SELECT 1');
+      await QueryBuilder.ping(db);
 
       const uptime =
         typeof process !== 'undefined' && typeof process.uptime === 'function'

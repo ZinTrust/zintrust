@@ -8,6 +8,9 @@ import { Env } from '@config/env';
 
 type ProcessLike = { env?: Record<string, string | undefined> };
 
+type Environment = 'development' | 'dev' | 'production' | 'prod' | 'pro' | 'testing' | 'test';
+type StartMode = 'development' | 'production' | 'testing';
+
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
 };
@@ -69,6 +72,17 @@ const getSafeEnv = (): NodeJS.ProcessEnv => {
   };
 };
 
+const normalizeMode = (): StartMode => {
+  const value = (
+    typeof (Env as unknown as { NODE_ENV?: unknown }).NODE_ENV === 'string'
+      ? (Env as unknown as { NODE_ENV: string }).NODE_ENV
+      : readEnvString('NODE_ENV', 'development')
+  ) as Environment;
+  if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
+  if (value === 'testing') return 'testing';
+  return 'development';
+};
+
 const appConfigObj = {
   /**
    * Application name
@@ -81,9 +95,7 @@ const appConfigObj = {
   /**
    * Application environment
    */
-  environment: (typeof (Env as unknown as { NODE_ENV?: unknown }).NODE_ENV === 'string'
-    ? (Env as unknown as { NODE_ENV: string }).NODE_ENV
-    : readEnvString('NODE_ENV', 'development')) as 'development' | 'production' | 'testing',
+  environment: normalizeMode(),
 
   /**
    * Application port

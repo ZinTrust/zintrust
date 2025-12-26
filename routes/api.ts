@@ -5,8 +5,7 @@
 
 import { UserController } from '@app/Controllers/UserController';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
-import { useDatabase } from '@orm/Database';
+import { registerHealthRoutes } from '@routes/health';
 import { type IRouter, Router } from '@routing/Router';
 
 export function registerRoutes(router: IRouter): void {
@@ -21,9 +20,7 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
-  registerHealthRoute(router);
-  registerHealthLiveRoute(router);
-  registerHealthReadyRoute(router);
+  registerHealthRoutes(router);
 }
 
 function registerRootRoute(router: IRouter): void {
@@ -35,104 +32,6 @@ function registerRootRoute(router: IRouter): void {
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
     });
-  });
-}
-
-function registerHealthRoute(router: IRouter): void {
-  Router.get(router, '/health', async (_req, res) => {
-    try {
-      const db = useDatabase();
-      await db.query('SELECT 1');
-
-      const uptime =
-        typeof process !== 'undefined' && typeof process.uptime === 'function'
-          ? process.uptime()
-          : 0;
-
-      res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime,
-        database: 'connected',
-        environment: Env.NODE_ENV ?? 'development',
-      });
-    } catch (error) {
-      Logger.error('Health check failed:', error);
-
-      const isProd =
-        typeof process !== 'undefined' &&
-        typeof process.env === 'object' &&
-        process.env !== null &&
-        process.env['NODE_ENV'] === 'production';
-
-      res.setStatus(503).json({
-        status: 'unhealthy',
-        timestamp: new Date().toISOString(),
-        database: 'disconnected',
-        error: isProd ? 'Service unavailable' : (error as Error).message,
-      });
-    }
-  });
-}
-
-function registerHealthLiveRoute(router: IRouter): void {
-  Router.get(router, '/health/live', async (_req, res) => {
-    const uptime =
-      typeof process !== 'undefined' && typeof process.uptime === 'function' ? process.uptime() : 0;
-
-    res.json({
-      status: 'alive',
-      timestamp: new Date().toISOString(),
-      uptime,
-    });
-  });
-}
-
-function registerHealthReadyRoute(router: IRouter): void {
-  Router.get(router, '/health/ready', async (_req, res) => {
-    const startTime = Date.now();
-
-    try {
-      const db = useDatabase();
-      await db.query('SELECT 1');
-
-      const responseTime = Date.now() - startTime;
-
-      res.json({
-        status: 'ready',
-        timestamp: new Date().toISOString(),
-        environment: Env.NODE_ENV ?? 'development',
-        dependencies: {
-          database: {
-            status: 'ready',
-            responseTime,
-          },
-        },
-      });
-    } catch (error) {
-      Logger.error('Readiness check failed:', error);
-
-      const isProd =
-        typeof process !== 'undefined' &&
-        typeof process.env === 'object' &&
-        process.env !== null &&
-        process.env['NODE_ENV'] === 'production';
-
-      const responseTime = Date.now() - startTime;
-
-      res.setStatus(503).json({
-        status: 'not_ready',
-        timestamp: new Date().toISOString(),
-        environment: Env.NODE_ENV ?? 'development',
-        dependencies: {
-          database: {
-            status: 'unavailable',
-            responseTime,
-          },
-        },
-        error: isProd ? 'Service unavailable' : (error as Error).message,
-      });
-    }
   });
 }
 

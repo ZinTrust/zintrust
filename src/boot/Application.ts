@@ -3,10 +3,10 @@
  * Handles application lifecycle, booting, and environment
  */
 
+import { appConfig } from '@/config';
 import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
 import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
-import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
@@ -219,7 +219,7 @@ export const Application = Object.freeze({
     const resolvedBasePath = resolveBasePath(basePath);
     const joinFromBase = makeJoinFromBase(resolvedBasePath);
 
-    const environment = Env.get('NODE_ENV', 'development');
+    const environment = appConfig.environment;
     const container = ServiceContainer.create();
     const router = Router.createRouter();
     const middlewareStack = MiddlewareStack.create();
@@ -247,7 +247,7 @@ export const Application = Object.freeze({
       isBooted: (): boolean => booted,
       isDevelopment: (): boolean => environment === 'development',
       isProduction: (): boolean => environment === 'production',
-      isTesting: (): boolean => environment === 'testing' || environment === 'test',
+      isTesting: (): boolean => environment === 'testing',
       getEnvironment: (): string => environment,
       getRouter: (): IRouter => router,
       getContainer: (): IServiceContainer => container,

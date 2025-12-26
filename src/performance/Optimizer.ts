@@ -28,6 +28,13 @@ interface CacheState {
   cleanupInterval?: NodeJS.Timeout;
 }
 
+type UnrefableTimer = { unref: () => void };
+
+function isUnrefableTimer(value: unknown): value is UnrefableTimer {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+}
+
 /**
  * Generation Cache - Cache generated code to avoid re-generating identical code
  * Sealed namespace for immutability
@@ -63,6 +70,11 @@ export const GenerationCache = Object.freeze({
         }
       }
     }, 600000);
+
+    // Node: allow process to exit; other runtimes may not support unref()
+    if (isUnrefableTimer(state.cleanupInterval)) {
+      state.cleanupInterval.unref();
+    }
 
     return {
       /**
@@ -111,6 +123,7 @@ export const GenerationCache = Object.freeze({
       clear(): void {
         if (state.cleanupInterval) {
           clearInterval(state.cleanupInterval);
+          state.cleanupInterval = undefined;
         }
         clearCache(state);
       },

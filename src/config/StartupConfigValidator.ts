@@ -1,3 +1,4 @@
+import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type StartupConfigValidationError = {
@@ -119,7 +120,7 @@ export const StartupConfigValidator = Object.freeze({
     const logRotationDays = getEnvInt('LOG_ROTATION_DAYS', 7);
     validatePositiveInt(errors, 'LOG_ROTATION_DAYS', logRotationDays);
 
-    if (nodeEnv === 'production') {
+    if (appConfig.isProduction()) {
       const appKey = getEnvString('APP_KEY', '');
       if (appKey.trim().length < 16) {
         pushError(

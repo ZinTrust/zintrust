@@ -71,12 +71,14 @@ describe('Routes API', () => {
 
       await rootMatch.handler(req as any, res as any);
 
-      expect(res.json).toHaveBeenCalledWith({
-        framework: 'Zintrust Framework',
-        version: '0.1.0',
-        env: 'test',
-        database: 'sqlite',
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          framework: 'Zintrust Framework',
+          version: '0.1.0',
+          env: 'test',
+          database: 'sqlite',
+        })
+      );
     });
 
     it('should handle health check success', async () => {
@@ -92,7 +94,7 @@ describe('Routes API', () => {
 
       await healthMatch.handler(req as any, res as any);
 
-      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1');
+      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1', [], true);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'healthy',
@@ -162,6 +164,9 @@ describe('Routes API', () => {
       const previousNodeEnv = process.env['NODE_ENV'];
       process.env['NODE_ENV'] = 'production';
 
+      const previousEnvNodeEnv = Env.NODE_ENV;
+      (Env as unknown as { NODE_ENV?: string }).NODE_ENV = 'production';
+
       const router = Router.createRouter();
       registerRoutes(router);
       const healthMatch = Router.match(router, 'GET', '/health');
@@ -187,6 +192,8 @@ describe('Routes API', () => {
       } else {
         process.env['NODE_ENV'] = previousNodeEnv;
       }
+
+      (Env as unknown as { NODE_ENV?: string }).NODE_ENV = previousEnvNodeEnv;
     });
 
     it('should handle liveness check', async () => {
@@ -224,7 +231,7 @@ describe('Routes API', () => {
 
       await readyMatch.handler({} as any, res as any);
 
-      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1');
+      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1', [], true);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'ready',

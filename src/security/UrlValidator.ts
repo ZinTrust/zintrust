@@ -3,7 +3,7 @@
  * Mitigates SSRF (SonarQube S5144)
  */
 
-import { Env } from '@config/env';
+import { appConfig } from '@/config';
 import { ErrorFactory, type IZintrustError } from '@exceptions/ZintrustError';
 
 export interface IUrlValidator {
@@ -20,17 +20,13 @@ const validate = (url: string, allowedDomains: string[] = ['localhost', '127.0.0
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname;
 
-    const nodeEnv =
-      typeof Env.NODE_ENV === 'string' && Env.NODE_ENV !== '' ? Env.NODE_ENV : 'development';
-    const isProduction = nodeEnv === 'production';
-
     // In a real microservices environment, we would check against a service registry
     // For now, we allow localhost and any domain in the allowed list
     const isAllowed = allowedDomains.some(
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
     );
 
-    if (!isAllowed && isProduction) {
+    if (!isAllowed && appConfig.isProduction()) {
       throw ErrorFactory.createValidationError(
         `URL hostname '${hostname}' is not allowed (SSRF Protection)`,
         { hostname }

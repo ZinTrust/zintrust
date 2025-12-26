@@ -282,12 +282,19 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
 };
 
 const createNewCommandInstance = (): INewCommand => {
+  // BaseCommand.getCommand() closes over the execute callback passed at creation time.
+  // NewCommand needs its final implementation (which depends on the constructed instance),
+  // so we use a mutable indirection.
+  let executeImpl: (options: CommandOptions) => Promise<void> | void = async () => {
+    // replaced below with NewCommand-aware execute implementation
+  };
+
   const base = BaseCommand.create({
     name: 'new',
     description: 'Create a new Zintrust project',
     addOptions,
-    execute: async (_options: CommandOptions): Promise<void> => {
-      // replaced below with NewCommand-aware execute implementation
+    execute: async (options: CommandOptions): Promise<void> => {
+      await executeImpl(options);
     },
   });
 
@@ -345,6 +352,8 @@ const createNewCommandInstance = (): INewCommand => {
       await executeNewCommand(options, commandInstance);
     },
   };
+
+  executeImpl = commandInstance.execute;
 
   return commandInstance;
 };

@@ -4,6 +4,7 @@
  * Sealed namespace for immutability
  */
 
+import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -14,9 +15,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 function warnMissingSecret(secretName: string): string {
   Logger.error(`❌ CRITICAL: ${secretName} environment variable is not set!`);
   Logger.error('⚠️  Application may not function correctly. Set this in production immediately.');
-
-  const nodeEnv = Env.get('NODE_ENV', 'development');
-  if (nodeEnv === 'production') {
+  if (appConfig.isProduction()) {
     throw ErrorFactory.createConfigError(`Missing required secret: ${secretName}`, { secretName });
   }
 
