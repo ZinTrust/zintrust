@@ -310,6 +310,9 @@ const BASIC_TEMPLATE: ProjectTemplate = {
     'config',
     'database/migrations',
     'database/seeders',
+    'logs',
+    'storage',
+    'tmp',
     'public',
     'routes',
     'src',
@@ -322,7 +325,16 @@ const BASIC_TEMPLATE: ProjectTemplate = {
 const API_TEMPLATE: ProjectTemplate = {
   name: 'api',
   description: 'API-focused Zintrust project structure',
-  directories: ['app/Controllers', 'app/Middleware', 'app/Models', 'routes', 'tests'],
+  directories: [
+    'app/Controllers',
+    'app/Middleware',
+    'app/Models',
+    'logs',
+    'storage',
+    'tmp',
+    'routes',
+    'tests',
+  ],
   files: {},
 };
 
@@ -333,6 +345,9 @@ const MICROSERVICE_TEMPLATE: ProjectTemplate = {
     'app/Controllers',
     'app/Middleware',
     'app/Models',
+    'logs',
+    'storage',
+    'tmp',
     'routes',
     'tests',
     'src/services',
@@ -351,6 +366,9 @@ const FULLSTACK_TEMPLATE: ProjectTemplate = {
     'config',
     'database/migrations',
     'database/seeders',
+    'logs',
+    'storage',
+    'tmp',
     'public',
     'routes',
     'src',
@@ -454,6 +472,8 @@ dist/
 .DS_Store
 coverage/
 logs/
+storage/
+tmp/
 *.log
 `;
   }

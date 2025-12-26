@@ -539,6 +539,10 @@ describe('ProjectScaffolder Requirements', () => {
     expect(FileGenerator.fileExists(path.join(projectPath, 'package.json'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.env'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.zintrust.json'))).toBe(true);
+    expect(FileGenerator.fileExists(path.join(projectPath, 'config', 'middleware.ts'))).toBe(true);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'src'))).toBe(true);
+    expect(FileGenerator.directoryExists(path.join(projectPath, 'logs'))).toBe(true);
+    expect(FileGenerator.directoryExists(path.join(projectPath, 'storage'))).toBe(true);
+    expect(FileGenerator.directoryExists(path.join(projectPath, 'tmp'))).toBe(true);
   });
 });

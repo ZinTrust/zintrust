@@ -6,6 +6,7 @@
 import { appConfig } from '@config/app';
 import { cacheConfig } from '@config/cache';
 import { databaseConfig } from '@config/database';
+import { middlewareConfig } from '@config/middleware';
 import { microservicesConfig } from '@config/microservices';
 import { queueConfig } from '@config/queue';
 import { securityConfig } from '@config/security';
@@ -14,6 +15,7 @@ import { storageConfig } from '@config/storage';
 export { appConfig, type AppConfig } from '@config/app';
 export { cacheConfig, type CacheConfig } from '@config/cache';
 export { databaseConfig, type DatabaseConfig } from '@config/database';
+export { middlewareConfig, type MiddlewareConfig } from '@config/middleware';
 export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
 export { queueConfig, type QueueConfig } from '@config/queue';
 export { securityConfig } from '@config/security';
@@ -31,6 +33,7 @@ export const config = Object.freeze({
   microservices: microservicesConfig,
   cache: cacheConfig,
   queue: queueConfig,
+  middleware: middlewareConfig,
 } as const);
 
 export type Config = typeof config;

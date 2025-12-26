@@ -51,6 +51,7 @@ export { Encryptor } from '@security/Encryptor';
 export { Hash } from '@security/Hash';
 export { JwtManager } from '@security/JwtManager';
 export type { JwtOptions, JwtPayload } from '@security/JwtManager';
+export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 
 // Exceptions

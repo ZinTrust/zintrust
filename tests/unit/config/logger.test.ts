@@ -51,8 +51,8 @@ describe('Logger Config', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.NODE_ENV;
-    delete process.env.LOG_FORMAT;
-    delete process.env.LOG_TO_FILE;
+    delete process.env['LOG_FORMAT'];
+    delete process.env['LOG_TO_FILE'];
   });
 
   it('should log info', async () => {
