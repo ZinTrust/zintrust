@@ -30,16 +30,22 @@ DB_HOST=your-db-host
 
 ## Running the Server
 
-You can start the server using `node`:
+You can start the server using the Zintrust CLI (provided by `@zintrust/core`):
 
 ```bash
-node dist/src/bootstrap.js
+npm start
+```
+
+Or directly using `node` (after building):
+
+```bash
+node dist/src/index.js
 ```
 
 For production, it's recommended to use a process manager like **PM2**:
 
 ```bash
-pm2 start dist/src/bootstrap.js --name zintrust-app
+pm2 start dist/src/index.js --name zintrust-app
 ```
 
 ## Migrations

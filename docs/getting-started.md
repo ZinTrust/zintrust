@@ -5,7 +5,7 @@ Welcome to Zintrust, a production-grade TypeScript backend framework with proven
 ## Quick Start (2 minutes)
 
 ```bash
-# Install Zintrust CLI
+# Install @zintrust/core (Zintrust CLI)
 npm install -g @zintrust/core
 
 # Create a new project
@@ -64,6 +64,8 @@ Zintrust is a **zero-dependency** backend framework built on:
 - npm (recommended)
 
 ### From npm (Recommended)
+
+Zintrust is distributed on npm as `@zintrust/core`.
 
 ```bash
 npm install -g @zintrust/core

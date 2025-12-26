@@ -29,8 +29,8 @@ To contribute to Zintrust, ensure you have the following installed:
 ### Initial Setup
 
 ```bash
-git clone https://github.com/ZinTrust/zintrust.git
-cd zintrust
+git clone https://github.com/ZinTrust/ZinTrust.git
+cd ZinTrust
 npm install
 npx husky init
 ```

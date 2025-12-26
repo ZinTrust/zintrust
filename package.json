@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
+  "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/ZinTrust/ZinTrust.git"

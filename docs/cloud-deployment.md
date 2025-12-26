@@ -4,7 +4,7 @@ Zintrust is designed to run seamlessly on various cloud platforms, from serverle
 
 ## Automated Workflows
 
-The easiest way to set up cloud deployment is using the Zintrust CLI to generate GitHub Actions workflows.
+The easiest way to set up cloud deployment is using the Zintrust CLI (installed via `@zintrust/core`) to generate GitHub Actions workflows.
 
 ```bash
 # Generate a workflow for AWS Lambda

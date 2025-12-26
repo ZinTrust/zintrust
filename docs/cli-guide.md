@@ -2,16 +2,27 @@
 
 ## Installation
 
+The Zintrust CLI is distributed on npm as `@zintrust/core`.
+
 ```bash
-# Development
+# Install globally from npm
+npm install -g @zintrust/core
+
+# Verify installation
+zin --version
+```
+
+## Development (from source)
+
+If you are working on the framework itself:
+
+```bash
+# Install dependencies
 npm install
 npm run build
 
 # Make available globally
 npm link
-
-# Verify installation
-zin --version
 ```
 
 ## Basic Commands

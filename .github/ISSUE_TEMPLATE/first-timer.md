@@ -9,7 +9,7 @@ body:
   Thank you for wanting to contribute to Zintrust. This issue is designed to be a great starting point for your first contribution.
 
       **Before you start:**
-      1. Read our [Contributor Guide](https://github.com/ZinTrust/zintrust/blob/master/docs/contributing.md).
+      1. Read our [Contributor Guide](https://github.com/ZinTrust/ZinTrust/blob/master/docs/contributing.md).
       2. Comment below to let us know you're working on this.
       3. Join our [Discord/Community] if you need help!
 

@@ -36,6 +36,26 @@ Production-grade TypeScript backend framework with zero external dependencies fo
 ## Quick Start
 
 ```bash
+# Install @zintrust/core (Zintrust CLI) globally
+npm install -g @zintrust/core
+
+# Create a new project
+zin new my-app
+cd my-app
+
+# Start development server
+npm run dev
+```
+
+## Development
+
+If you want to contribute to the framework:
+
+```bash
+# Clone the repository
+git clone https://github.com/ZinTrust/ZinTrust.git
+cd ZinTrust
+
 # Install dependencies
 npm install
 
