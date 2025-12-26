@@ -26,7 +26,7 @@ All services use same PostgreSQL instance with separate schemas:
 **Usage:**
 
 ```typescript
-import { PostgresAdapter } from '@microservices/PostgresAdapter';
+import { PostgresAdapter } from '@zintrust/core';
 
 const adapter = new PostgresAdapter({
   host: 'postgres',
@@ -150,8 +150,7 @@ USE_RAW_QRY=true
 Once enabled via environment variable, you can execute raw queries:
 
 ```typescript
-import { PostgresAdapter } from '@microservices/PostgresAdapter';
-import { Env } from '@config/env';
+import { PostgresAdapter, Env } from '@zintrust/core';
 
 const adapter = new PostgresAdapter({
   host: 'postgres',
@@ -192,7 +191,7 @@ const result = await User.query().where('created_at', '>', new Date('2024-01-01'
 Auto-discover and initialize microservices:
 
 ```typescript
-import { MicroserviceBootstrap } from '@microservices/MicroserviceBootstrap';
+import { MicroserviceBootstrap } from '@zintrust/core';
 
 const bootstrap = MicroserviceBootstrap.getInstance();
 

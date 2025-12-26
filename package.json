@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -31,7 +31,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && npm run dbl && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/generate-dist-package.mjs",
+    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && npm run dbl && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",

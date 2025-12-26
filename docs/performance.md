@@ -7,7 +7,7 @@ Zintrust is built for speed, but there are several techniques you can use to fur
 Use `Memoize.create(...)` to cache the results of expensive function calls.
 
 ```typescript
-import { Memoize } from '@performance/Optimizer';
+import { Memoize } from '@zintrust/core';
 
 const getGlobalStats = async (): Promise<unknown> => {
   // Expensive database aggregation
@@ -22,7 +22,7 @@ export const getGlobalStatsMemoized = Memoize.create(getGlobalStats, { ttl: 60_0
 Zintrust supports lazy loading for heavy dependencies to improve startup time.
 
 ```typescript
-import { LazyLoader } from '@performance/Optimizer';
+import { LazyLoader } from '@zintrust/core';
 
 const loader = LazyLoader.create();
 const bcrypt = await loader.load('bcrypt');
@@ -33,7 +33,7 @@ const bcrypt = await loader.load('bcrypt');
 When performing multiple independent operations, use `ParallelGenerator` to run them concurrently.
 
 ```typescript
-import { ParallelGenerator } from '@performance/Optimizer';
+import { ParallelGenerator } from '@zintrust/core';
 
 await ParallelGenerator.runAll([() => fetchUser(), () => fetchPosts(), () => fetchSettings()]);
 ```

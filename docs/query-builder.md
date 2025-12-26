@@ -5,7 +5,7 @@ Zintrust's Query Builder provides a fluent, type-safe interface for building SQL
 ## Basic Usage
 
 ```typescript
-import { db } from '@database/Database';
+import { db } from '@zintrust/core';
 
 const users = await db.table('users').get();
 ```

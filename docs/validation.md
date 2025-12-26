@@ -5,7 +5,7 @@ Zintrust provides a powerful validation system to ensure your application only p
 ## Basic Validation
 
 ```typescript
-import { Validator } from '@validation/Validator';
+import { Validator } from '@zintrust/core';
 
 const data = req.body;
 const rules = {

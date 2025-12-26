@@ -12,9 +12,7 @@ zin add controller UserController
 
 ```typescript
 import { User } from '@app/Models/User';
-import { Controller } from '@http/Controller';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import { Controller, type IRequest, type IResponse } from '@zintrust/core';
 
 export const UserController = {
   async show(req: IRequest, res: IResponse): Promise<void> {
@@ -33,9 +31,7 @@ export const UserController = {
 **Or with dynamic imports:**
 
 ```typescript
-import { Controller } from '@http/Controller';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import { Controller, type IRequest, type IResponse } from '@zintrust/core';
 
 export const UserController = {
   async show(req: IRequest, res: IResponse): Promise<void> {

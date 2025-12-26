@@ -26,7 +26,7 @@ export default {
 ## Using the Auth Guard
 
 ```typescript
-import { Auth } from '@auth/Auth';
+import { Auth } from '@zintrust/core';
 
 // Attempt login
 const token = await Auth.guard('jwt').attempt({ email, password });

@@ -13,7 +13,7 @@ zin add model User
 A basic model looks like this:
 
 ```typescript
-import { IModel, Model } from '@orm/Model';
+import { IModel, Model } from '@zintrust/core';
 
 export const User = Model.define(
   {
@@ -84,7 +84,7 @@ Both patterns work. Choose based on your context: use static imports for cleaner
 Zintrust supports multiple database connections. You can specify which connection a model should use by setting `connection` in `Model.define(...)`.
 
 ```typescript
-import { Model } from '@orm/Model';
+import { Model } from '@zintrust/core';
 
 export const ExternalUser = Model.define({
   connection: 'external_db',
@@ -99,7 +99,7 @@ export const ExternalUser = Model.define({
 You can initialize connections in your application bootstrap:
 
 ```typescript
-import { useDatabase } from '@orm/Database';
+import { useDatabase } from '@zintrust/core';
 
 useDatabase(
   {

@@ -7,7 +7,7 @@ Zintrust includes built-in profiling tools to help you identify and resolve perf
 The `RequestProfiler` tracks the execution time of every request, including time spent in middleware and controllers.
 
 ```typescript
-import { RequestProfiler } from '@profiling/RequestProfiler';
+import { RequestProfiler } from '@zintrust/core';
 
 // Create a profiler instance
 const profiler = RequestProfiler.create();
@@ -26,7 +26,7 @@ console.log(profiler.generateReport(report));
 Use the `MemoryProfiler` to track memory usage and identify potential leaks.
 
 ```typescript
-import { MemoryProfiler } from '@profiling/MemoryProfiler';
+import { MemoryProfiler } from '@zintrust/core';
 
 const memProfiler = MemoryProfiler.create();
 

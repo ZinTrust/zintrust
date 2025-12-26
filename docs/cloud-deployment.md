@@ -40,7 +40,7 @@ Ensure you have configured your `wrangler.toml` with the necessary KV namespaces
 Deploy Zintrust as a serverless function on AWS Lambda using the `LambdaAdapter`.
 
 ```typescript
-import { LambdaAdapter } from '@adapters/LambdaAdapter';
+import { LambdaAdapter } from '@zintrust/core';
 import { app } from './app';
 
 export const handler = LambdaAdapter.create(app);

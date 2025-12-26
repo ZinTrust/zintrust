@@ -6,7 +6,7 @@
 import * as http from '@node-singletons/http';
 
 type HeadParam = string | string[] | undefined;
-type JwtPayload = import('/opt/homebrew/var/www/Sites/zintrust/src/index').JwtPayload;
+type JwtPayload = import('@/index').JwtPayload;
 
 export interface IRequest {
   sessionId: HeadParam;

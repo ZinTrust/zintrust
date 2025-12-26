@@ -34,7 +34,7 @@ zin microservices:discover
 The `ServiceManager` periodically pings each service's health check endpoint. If a service is down, it's marked as unhealthy in the registry.
 
 ```typescript
-import { ServiceManager } from '@microservices/ServiceManager';
+import { ServiceManager } from '@zintrust/core';
 
 const isHealthy = await ServiceManager.isHealthy('inventory-service');
 ```
@@ -44,7 +44,7 @@ const isHealthy = await ServiceManager.isHealthy('inventory-service');
 For larger deployments, you can implement custom discovery drivers for Consul, Etcd, or Kubernetes:
 
 ```typescript
-import { DiscoveryDriver } from '@microservices/types';
+import { DiscoveryDriver } from '@zintrust/core';
 
 export const consulDriver: DiscoveryDriver = {
   async resolve(serviceName: string): Promise<string> {

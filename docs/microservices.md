@@ -30,7 +30,7 @@ This will create a new directory in `services/orders` with its own models, contr
 Zintrust provides a type-safe way to communicate between services using `ServiceRequestFactory`.
 
 ```typescript
-import { ServiceClient } from '@microservices/ServiceClient';
+import { ServiceClient } from '@zintrust/core';
 
 const userService = ServiceClient.for('user-service');
 const user = await userService.get('/users/1');

@@ -13,7 +13,7 @@ zin add middleware AuthMiddleware
 A middleware must implement the `Middleware` interface:
 
 ```typescript
-import type { Middleware } from '@middleware/MiddlewareStack';
+import type { Middleware } from '@zintrust/core';
 
 export const authMiddleware: Middleware = async (req, res, next) => {
   if (!req.getHeader('authorization')) {

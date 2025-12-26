@@ -20,7 +20,7 @@ Zintrust includes a `CsrfMiddleware` that automatically verifies CSRF tokens for
 The framework provides an `XssProtection` utility to sanitize user input and prevent XSS attacks.
 
 ```typescript
-import { Xss } from '@security/Xss';
+import { Xss } from '@zintrust/core';
 
 const cleanHtml = Xss.sanitize(req.body.content);
 ```
@@ -30,7 +30,7 @@ const cleanHtml = Xss.sanitize(req.body.content);
 Always use the built-in `Hash` utility for storing passwords:
 
 ```typescript
-import { Hash } from '@security/Hash';
+import { Hash } from '@zintrust/core';
 
 const hashedPassword = await Hash.make(password);
 const matches = await Hash.check(password, hashedPassword);

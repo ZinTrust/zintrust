@@ -41,9 +41,7 @@ Implement the `index` and `store` methods:
 
 ```typescript
 import { Task } from '@app/Models/Task';
-import { Controller } from '@http/Controller';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import { Controller, type IRequest, type IResponse } from '@zintrust/core';
 
 export const TaskController = {
   async index(_req: IRequest, res: IResponse): Promise<void> {
@@ -64,7 +62,7 @@ export const TaskController = {
 Add the routes to `routes/api.ts`:
 
 ```typescript
-import { Router, type IRouter } from '@routing/Router';
+import { Router, type IRouter } from '@zintrust/core';
 import { TaskController } from '@app/Controllers/TaskController';
 
 export function registerRoutes(router: IRouter): void {

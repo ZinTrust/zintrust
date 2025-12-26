@@ -7,7 +7,7 @@ Zintrust features a robust, file-based logging system that helps you monitor you
 Use the `Logger` namespace to record information:
 
 ```typescript
-import { Logger } from '@config/logger';
+import { Logger } from '@zintrust/core';
 
 Logger.info('User logged in', { userId: 1 });
 Logger.error('Database connection failed', { error: err.message });
