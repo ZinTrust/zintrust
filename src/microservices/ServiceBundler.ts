@@ -386,7 +386,7 @@ ENV NODE_ENV=production
 ENV SERVICE_NAME=${serviceName}
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD node -e "require('node:http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+  CMD node -e "require('node:http').get('http://localhost:7777/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
 EXPOSE 3000
 

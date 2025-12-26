@@ -23,7 +23,7 @@ describe('UrlValidator', () => {
   });
 
   it('should allow localhost by default', () => {
-    expect(() => validateUrl('http://localhost:3000/api')).not.toThrow();
+    expect(() => validateUrl('http://localhost:7777/api')).not.toThrow();
     expect(() => validateUrl('http://127.0.0.1:8080')).not.toThrow();
   });
 

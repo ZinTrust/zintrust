@@ -128,7 +128,7 @@ async function checkDependencyService(depService: string): Promise<boolean> {
   try {
     // In a real environment, we would resolve the service URL
     // For now, we assume it's on localhost with a standard port mapping or discovery
-    const url = `http://localhost:3000/health?service=${depService}`;
+    const url = `http://localhost:7777/health?service=${depService}`;
 
     // SSRF Protection
     validateUrl(url);

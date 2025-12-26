@@ -1,0 +1,293 @@
+diff --git a/src/config/env.ts b/src/config/env.ts
+index 9f35d1a..d4c2c2d 100644
+--- a/src/config/env.ts
++++ b/src/config/env.ts
+@@ -101,6 +101,7 @@ export const Env = Object.freeze({
+   // Logging
+   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
+   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
++  LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
+
+   // Paths (safely constructed for Node.js environments)
+   NODE_BIN_DIR: (() => {
+diff --git a/src/config/index.ts b/src/config/index.ts
+index 470a254..025b7fe 100644
+--- a/src/config/index.ts
++++ b/src/config/index.ts
+@@ -9,6 +9,7 @@ import { cacheConfig } from '@config/cache';
+ import { databaseConfig } from '@config/database';
++import { middlewareConfig } from '@config/middleware';
+ import { microservicesConfig } from '@config/microservices';
+ import { queueConfig } from '@config/queue';
+ import { securityConfig } from '@config/security';
+ import { storageConfig } from '@config/storage';
+@@ -22,6 +23,7 @@ export { cacheConfig, type CacheConfig } from '@config/cache';
+ export { databaseConfig, type DatabaseConfig } from '@config/database';
++export { middlewareConfig, type MiddlewareConfig } from '@config/middleware';
+ export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
+ export { queueConfig, type QueueConfig } from '@config/queue';
+ export { securityConfig } from '@config/security';
+ export { storageConfig, type StorageConfig } from '@config/storage';
+@@ -37,6 +39,7 @@ export const config = Object.freeze({
+   database: databaseConfig,
+   storage: storageConfig,
+   security: securityConfig,
++  middleware: middlewareConfig,
+   microservices: microservicesConfig,
+   cache: cacheConfig,
+   queue: queueConfig,
+ } as const);
+diff --git a/src/config/middleware.ts b/src/config/middleware.ts
+new file mode 100644
+index 0000000..d0c4f5d
+--- /dev/null
++++ b/src/config/middleware.ts
+@@ -0,0 +1,39 @@
++import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
++import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
++import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
++import { RateLimiter } from '@middleware/RateLimiter';
++import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
++import type { Middleware } from '@middleware/MiddlewareStack';
++
++export type MiddlewareConfig = {
++  global: Middleware[];
++  route: Record<string, Middleware>;
++};
++
++const shared = Object.freeze({
++  log: LoggingMiddleware.create(),
++  error: ErrorHandlerMiddleware.create(),
++  security: SecurityMiddleware.create(),
++  rateLimit: RateLimiter.create(),
++  csrf: CsrfMiddleware.create(),
++} satisfies Record<string, Middleware>);
++
++const middlewareConfigObj: MiddlewareConfig = {
++  global: [shared.log, shared.error, shared.security, shared.rateLimit, shared.csrf],
++  route: shared,
++};
++
++export const middlewareConfig = Object.freeze(middlewareConfigObj);
++export default middlewareConfig;
+diff --git a/src/http/Kernel.ts b/src/http/Kernel.ts
+index 0ce9d9f..fdb1276 100644
+--- a/src/http/Kernel.ts
++++ b/src/http/Kernel.ts
+@@ -3,6 +3,7 @@
+  * HTTP Kernel - Request handling and middleware pipeline
+  */
+
++import { middlewareConfig } from '@config/middleware';
+ import { Logger } from '@config/logger';
+ import { IServiceContainer } from '@container/ServiceContainer';
+ import { IRequest, Request } from '@http/Request';
+@@ -30,6 +31,16 @@ export interface IKernel {
+   getMiddlewareStack(): IMiddlewareStack;
+ }
+
++const isWritableEnded = (res: IResponse): boolean => {
++  if (typeof (res as IResponse).getRaw !== 'function') return false;
++  const raw = (res as IResponse).getRaw();
++  if (typeof raw !== 'object' || raw === null) return false;
++  if (!('writableEnded' in raw)) return false;
++  return Boolean((raw as unknown as { writableEnded?: boolean }).writableEnded);
++};
++
+ /**
+  * Terminate request lifecycle
+  */
+@@ -42,9 +53,21 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
+   const globalMiddleware: Middleware[] = <Middleware[]>[];
+   const routeMiddleware: Record<string, Middleware> = {};
+   const middlewareStack = MiddlewareStack.create();
+
++  // Register default middleware config
++  globalMiddleware.push(...middlewareConfig.global);
++  for (const [name, mw] of Object.entries(middlewareConfig.route)) {
++    routeMiddleware[name] = mw;
++  }
++
+   /**
+    * Handle incoming HTTP request (Node.js entry point)
+    */
+@@ -63,7 +86,7 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
+    * Handle wrapped request/response
+    */
+   const handleRequest = async (req: IRequest, res: IResponse): Promise<void> => {
+     try {
+       Logger.info(`[${req.getMethod()}] ${req.getPath()}`);
+@@ -82,9 +105,34 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
+
+       req.setParams(route.params);
+
+-      // Execute middleware and handler
+-      await route.handler(req, res);
++      const routeMiddlewareNames = Array.isArray((route as unknown as { middleware?: unknown }).middleware)
++        ? ((route as unknown as { middleware: unknown[] }).middleware.filter(
++            (m): m is string => typeof m === 'string'
++          ) as string[])
++        : [];
++
++      const resolvedRouteMiddleware = routeMiddlewareNames
++        .map((name) => routeMiddleware[name])
++        .filter((mw): mw is Middleware => typeof mw === 'function');
++
++      const middlewareToRun = [...globalMiddleware, ...resolvedRouteMiddleware];
++
++      let index = 0;
++      const next = async (): Promise<void> => {
++        if (index < middlewareToRun.length) {
++          const mw = middlewareToRun[index++];
++          await mw(req, res, next);
++          return;
++        }
++        await route.handler(req, res);
++      };
++
++      await next();
+     } catch (error) {
+       Logger.error('Kernel error:', error as Error);
+-      res.setStatus(500).json({ error: 'Internal Server Error' });
++      if (!isWritableEnded(res)) {
++        res.setStatus(500).json({ error: 'Internal Server Error' });
++      }
+     } finally {
+       terminate(req, res);
+     }
+diff --git a/src/middleware/ErrorHandlerMiddleware.ts b/src/middleware/ErrorHandlerMiddleware.ts
+new file mode 100644
+index 0000000..7b41b8f
+--- /dev/null
++++ b/src/middleware/ErrorHandlerMiddleware.ts
+@@ -0,0 +1,31 @@
++import { Logger } from '@config/logger';
++import type { IRequest } from '@http/Request';
++import type { IResponse } from '@http/Response';
++import type { Middleware } from '@middleware/MiddlewareStack';
++
++const isWritableEnded = (res: IResponse): boolean => {
++  if (typeof res.getRaw !== 'function') return false;
++  const raw = res.getRaw();
++  if (typeof raw !== 'object' || raw === null) return false;
++  if (!('writableEnded' in raw)) return false;
++  return Boolean((raw as unknown as { writableEnded?: boolean }).writableEnded);
++};
++
++export const ErrorHandlerMiddleware = Object.freeze({
++  create(): Middleware {
++    return async (_req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
++      try {
++        await next();
++      } catch (error) {
++        Logger.error('Unhandled request error:', error as Error);
++        if (!isWritableEnded(res)) {
++          res.setStatus(500);
++          res.json({ error: 'Internal Server Error' });
++        }
++      }
++    };
++  },
++});
++
++export default ErrorHandlerMiddleware;
+diff --git a/src/middleware/LoggingMiddleware.ts b/src/middleware/LoggingMiddleware.ts
+new file mode 100644
+index 0000000..903c48c
+--- /dev/null
++++ b/src/middleware/LoggingMiddleware.ts
+@@ -0,0 +1,44 @@
++import { Env } from '@config/env';
++import { Logger } from '@config/logger';
++import type { IRequest } from '@http/Request';
++import type { IResponse } from '@http/Response';
++import type { Middleware } from '@middleware/MiddlewareStack';
++
++export interface LoggingOptions {
++  enabled?: boolean;
++}
++
++const getStatusSafe = (res: IResponse): number => {
++  const anyRes = res as unknown as { getStatus?: () => number; statusCode?: number };
++  if (typeof anyRes.getStatus === 'function') return anyRes.getStatus();
++  if (typeof anyRes.statusCode === 'number') return anyRes.statusCode;
++  return 200;
++};
++
++export const LoggingMiddleware = Object.freeze({
++  create(options: LoggingOptions = {}): Middleware {
++    const enabled = typeof options.enabled === 'boolean' ? options.enabled : Env.LOG_HTTP_REQUEST;
++
++    return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
++      if (!enabled) {
++        await next();
++        return;
++      }
++
++      const start = Date.now();
++      const method = req.getMethod();
++      const path = req.getPath();
++
++      try {
++        await next();
++      } finally {
++        const durationMs = Date.now() - start;
++        const status = getStatusSafe(res);
++        Logger.info(`← ${status} ${method} ${path} (${durationMs}ms)`);
++      }
++    };
++  },
++});
++
++export default LoggingMiddleware;
+diff --git a/src/middleware/index.ts b/src/middleware/index.ts
+index 6e4b5b7..13d0bd7 100644
+--- a/src/middleware/index.ts
++++ b/src/middleware/index.ts
+@@ -5,7 +5,9 @@
+  */
+
+ export * from '@middleware/CsrfMiddleware';
++export * from '@middleware/ErrorHandlerMiddleware';
++export * from '@middleware/LoggingMiddleware';
+ export * from '@middleware/MiddlewareStack';
+ export * from '@middleware/RateLimiter';
+ export * from '@middleware/SecurityMiddleware';
+diff --git a/tests/unit/http/Kernel.test.ts b/tests/unit/http/Kernel.test.ts
+index 1eab5b2..be7ccbe 100644
+--- a/tests/unit/http/Kernel.test.ts
++++ b/tests/unit/http/Kernel.test.ts
+@@ -55,7 +55,7 @@ describe('Kernel', () => {
+
+   beforeEach(() => {
+     mockRouter = { routes: [] } as unknown as IRouter;
+     mockMiddlewareStack = { dummy: true };
+@@ -76,6 +76,7 @@ describe('Kernel', () => {
+     mockRes = {
+       writeHead: vi.fn(),
+       end: vi.fn(),
+       writableEnded: false,
+     } as unknown as http.ServerResponse;
+
+     mockRequest = {
+       getMethod: vi.fn().mockReturnValue('GET'),
+       getPath: vi.fn().mockReturnValue('/test'),
+       setParams: vi.fn(),
++      getHeader: vi.fn().mockReturnValue(undefined),
++      getRaw: vi.fn().mockReturnValue({ socket: { remoteAddress: '127.0.0.1' } }),
++      getBody: vi.fn().mockReturnValue({}),
++      context: { sessionId: 'test-session' },
+     } as unknown as IRequest;
+
+     mockResponse = {
+       setStatus: vi.fn().mockReturnThis(),
++      getStatus: vi.fn().mockReturnValue(200),
++      setHeader: vi.fn().mockReturnThis(),
+       json: vi.fn(),
++      getRaw: vi.fn().mockReturnValue(mockRes),
+       locals: {},
+     } as unknown as IResponse;
+
+     // Assign to global instances
+     mockRequestInstance = mockRequest;
+     mockResponseInstance = mockResponse;

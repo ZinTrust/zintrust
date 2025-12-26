@@ -16,7 +16,7 @@ cd my-app
 npm run dev
 ```
 
-Your API is now running at `http://localhost:3000`
+Your API is now running at `http://localhost:7777`
 
 ## What is Zintrust?
 
@@ -159,10 +159,10 @@ Test it:
 
 ```bash
 # Get all users
-curl http://localhost:3000/api/users
+curl http://localhost:7777/api/users
 
 # Create a user
-curl -X POST http://localhost:3000/api/users \
+curl -X POST http://localhost:7777/api/users \
   -H "Content-Type: application/json" \
   -d '{"name":"John","email":"john@example.com"}'
 ```
