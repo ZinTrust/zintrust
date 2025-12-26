@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/ZinTrust/ZinTrust.git"
@@ -12,21 +11,27 @@
     "url": "https://github.com/ZinTrust/ZinTrust/issues"
   },
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "bin": {
     "zintrust": "./bin/zintrust.ts",
     "zin": "./bin/zin.ts",
     "z": "./bin/z.ts",
     "zt": "./bin/zt.ts"
   },
+  "files": [
+    "bin",
+    "src",
+    "index.js",
+    "index.d.ts"
+  ],
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=9.0.0"
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && npm run dbl && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs",
+    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && npm run dbl && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/generate-dist-package.mjs",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -76,7 +81,8 @@
     "cleanup:github-actions": "bash ./dev/cleanup-github-actions.sh",
     "prepare": "husky",
     "postinstall": "node -e \"process.exit(0)\"",
-    "check-up": "npx npm-check-updates"
+    "check-up": "npx npm-check-updates",
+    "pub": "npm run build && cd dist && npm publish"
   },
   "lint-staged": {
     "src/**/*.ts": [
