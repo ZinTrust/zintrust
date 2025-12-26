@@ -105,7 +105,7 @@ describe('Bootstrap', () => {
     expect(Application.create).toHaveBeenCalled();
     expect(Server.create).toHaveBeenCalledWith(mockApp, 3000, 'localhost');
     expect(mockServer.listen).toHaveBeenCalled();
-    expect(Logger.info).toHaveBeenCalledWith('Server running at http://localhost:7777');
+    expect(Logger.info).toHaveBeenCalledWith('Server running at http://localhost:3000');
 
     expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
     expect(typeof signalHandlers.SIGTERM).toBe('function');

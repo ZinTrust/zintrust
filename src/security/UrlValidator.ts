@@ -20,13 +20,17 @@ const validate = (url: string, allowedDomains: string[] = ['localhost', '127.0.0
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname;
 
+    const nodeEnv =
+      typeof Env.NODE_ENV === 'string' && Env.NODE_ENV !== '' ? Env.NODE_ENV : 'development';
+    const isProduction = nodeEnv === 'production';
+
     // In a real microservices environment, we would check against a service registry
     // For now, we allow localhost and any domain in the allowed list
     const isAllowed = allowedDomains.some(
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
     );
 
-    if (!isAllowed && Env.NODE_ENV === 'production') {
+    if (!isAllowed && isProduction) {
       throw ErrorFactory.createValidationError(
         `URL hostname '${hostname}' is not allowed (SSRF Protection)`,
         { hostname }

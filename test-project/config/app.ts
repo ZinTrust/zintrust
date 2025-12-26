@@ -35,7 +35,13 @@ const appConfigObj = {
   /**
    * Application environment
    */
-  environment: Env.NODE_ENV as 'development' | 'production' | 'testing',
+  environment: Env.NODE_ENV as
+    | 'development'
+    | 'production'
+    | 'testing'
+    | 'dev'
+    | 'prod'
+    | undefined,
 
   /**
    * Application port
@@ -51,14 +57,19 @@ const appConfigObj = {
    * Is development environment
    */
   isDevelopment(): boolean {
-    return this.environment === 'development';
+    return (
+      this.environment === 'development' ||
+      this.environment === 'dev' ||
+      this.environment === undefined ||
+      this.environment === null
+    );
   },
 
   /**
    * Is production environment
    */
   isProduction(): boolean {
-    return this.environment === 'production';
+    return this.environment === 'production' || this.environment === 'prod';
   },
 
   /**

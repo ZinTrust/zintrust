@@ -14,6 +14,8 @@ vi.mock('@node-singletons/fs', () => ({
 vi.mock('@config/app', () => ({
   appConfig: {
     getSafeEnv: vi.fn(() => ({ SAFE: 'env' })),
+    isDevelopment: vi.fn(() => true),
+    isProduction: vi.fn(() => false),
   },
 }));
 

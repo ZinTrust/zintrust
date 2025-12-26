@@ -8,6 +8,7 @@ import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack'
 import { type IRouter, Router } from '@/routing/Router';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 
@@ -135,6 +136,37 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
   }
 };
 
+const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<void> => {
+  if (resolvedBasePath === '') return;
+  if (typeof process === 'undefined') return;
+
+  let nodeFs:
+    | {
+        existsSync: (path: string) => boolean;
+        mkdirSync: (path: string, options?: { recursive?: boolean }) => void;
+      }
+    | undefined;
+
+  try {
+    nodeFs = await import('@node-singletons/fs');
+  } catch {
+    return;
+  }
+
+  const dirs = ['logs', 'storage', 'tmp'];
+  for (const dir of dirs) {
+    const fullPath = path.join(resolvedBasePath, dir);
+    try {
+      if (!nodeFs.existsSync(fullPath)) {
+        nodeFs.mkdirSync(fullPath, { recursive: true });
+        Logger.info(`✓ Created directory: ${dir}`);
+      }
+    } catch (error: unknown) {
+      Logger.warn(`Failed to create ${dir} directory`, error as Error);
+    }
+  }
+};
+
 const createLifecycle = (params: {
   environment: string;
   resolvedBasePath: string;
@@ -147,6 +179,10 @@ const createLifecycle = (params: {
     if (params.getBooted()) return;
 
     Logger.info(`🚀 Booting Zintrust Application in ${params.environment} mode...`);
+
+    StartupConfigValidator.assertValid();
+
+    await initializeArtifactDirectories(params.resolvedBasePath);
     await registerRoutes(params.resolvedBasePath, params.router);
 
     // Register service providers

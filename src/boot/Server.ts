@@ -64,7 +64,7 @@ const getFrameworkPublicRoots = (): string[] => {
 };
 
 const getDocsPublicRoot = (): string => {
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = appConfig.isProduction();
 
   // First try app-local roots (developer app override), then fall back to framework-shipped assets.
   const appRoots = isProduction

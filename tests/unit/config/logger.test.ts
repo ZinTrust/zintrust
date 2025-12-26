@@ -10,6 +10,21 @@ vi.mock('@cli/logger/Logger', () => ({
   },
 }));
 
+const fsMocks = {
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  appendFileSync: vi.fn(),
+  readdirSync: vi.fn().mockReturnValue([]),
+  statSync: vi.fn().mockReturnValue({ size: 0, mtime: new Date() }),
+  renameSync: vi.fn(),
+  unlinkSync: vi.fn(),
+};
+
+vi.mock('@node-singletons/fs', () => fsMocks);
+vi.mock('@node-singletons/path', () => ({
+  join: (...parts: string[]) => parts.join('/'),
+}));
+
 describe('Logger Config', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -18,6 +33,15 @@ describe('Logger Config', () => {
 
   beforeEach(() => {
     vi.resetModules();
+
+    fsMocks.existsSync.mockReset();
+    fsMocks.mkdirSync.mockReset();
+    fsMocks.appendFileSync.mockReset();
+    fsMocks.readdirSync.mockReset();
+    fsMocks.statSync.mockReset();
+    fsMocks.renameSync.mockReset();
+    fsMocks.unlinkSync.mockReset();
+
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -27,6 +51,8 @@ describe('Logger Config', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.NODE_ENV;
+    delete process.env.LOG_FORMAT;
+    delete process.env.LOG_TO_FILE;
   });
 
   it('should log info', async () => {
@@ -94,6 +120,44 @@ describe('Logger Config', () => {
     const { Logger } = await import('@/config/logger');
     Logger.fatal('Fatal error', new Error('boom'));
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Fatal error'), 'boom');
+  });
+
+  describe('JSON logging', () => {
+    it('should emit valid JSON with redaction', async () => {
+      process.env['LOG_FORMAT'] = 'json';
+      vi.resetModules();
+
+      const { Logger } = await import('@/config/logger');
+      Logger.info('Hello', { password: 'secret', nested: { token: 'abc' }, ok: true });
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.any(String));
+      const raw = (consoleLogSpy.mock.calls[0]?.[0] ?? '') as string;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+      expect(parsed['level']).toBe('info');
+      expect(parsed['message']).toBe('Hello');
+
+      const data = parsed['data'] as any;
+      expect(data.password).toBe('[REDACTED]');
+      expect(data.nested.token).toBe('[REDACTED]');
+      expect(data.ok).toBe(true);
+    });
+
+    it('should handle circular data without crashing', async () => {
+      process.env['LOG_FORMAT'] = 'json';
+      vi.resetModules();
+
+      const { Logger } = await import('@/config/logger');
+
+      const payload: any = { a: 1 };
+      payload.self = payload;
+
+      Logger.info('Circular', payload);
+
+      const raw = (consoleLogSpy.mock.calls[0]?.[0] ?? '') as string;
+      const parsed = JSON.parse(raw) as any;
+      expect(parsed.data.self).toBe('[Circular]');
+    });
   });
 
   describe('ScopedLogger', () => {

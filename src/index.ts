@@ -48,12 +48,16 @@ export { Schema, Validator } from '@validation/Validator';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type { CsrfTokenData } from '@security/CsrfTokenManager';
 export { Encryptor } from '@security/Encryptor';
+export { Hash } from '@security/Hash';
 export { JwtManager } from '@security/JwtManager';
 export type { JwtOptions, JwtPayload } from '@security/JwtManager';
 export { XssProtection } from '@security/XssProtection';
 
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
+
+// Config
+export { StartupConfigValidator } from '@config/StartupConfigValidator';
 
 // Version
 export const version = '0.1.0';

@@ -3,8 +3,11 @@
  */
 
 import { Logger } from '@config/logger';
+import { middlewareConfig } from '@config/middleware';
 import { IServiceContainer } from '@container/ServiceContainer';
+import { ErrorResponse } from '@http/ErrorResponse';
 import { IRequest, Request } from '@http/Request';
+import { RequestContext } from '@http/RequestContext';
 import { IResponse, Response } from '@http/Response';
 import { IMiddlewareStack, Middleware, MiddlewareStack } from '@middleware/MiddlewareStack';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
@@ -28,6 +31,14 @@ function terminate(_req: IRequest, _res: IResponse): void {
   // Cleanup, logging, etc.
 }
 
+const isWritableEnded = (res: IResponse): boolean => {
+  if (typeof res.getRaw !== 'function') return false;
+  const raw = res.getRaw();
+  if (typeof raw !== 'object' || raw === null) return false;
+  if (!('writableEnded' in raw)) return false;
+  return Boolean((raw as unknown as { writableEnded?: boolean }).writableEnded);
+};
+
 /**
  * HTTP Kernel Factory
  */
@@ -35,6 +46,12 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
   const globalMiddleware: Middleware[] = <Middleware[]>[];
   const routeMiddleware: Record<string, Middleware> = {};
   const middlewareStack = MiddlewareStack.create();
+
+  // Register default middleware config
+  globalMiddleware.push(...middlewareConfig.global);
+  for (const [name, mw] of Object.entries(middlewareConfig.route)) {
+    routeMiddleware[name] = mw;
+  }
 
   /**
    * Handle incoming HTTP request (Node.js entry point)
@@ -49,24 +66,51 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
    * Handle wrapped request/response
    */
   const handleRequest = async (req: IRequest, res: IResponse): Promise<void> => {
+    const context = RequestContext.create(req);
     try {
-      Logger.info(`[${req.getMethod()}] ${req.getPath()}`);
+      await RequestContext.run(context, async () => {
+        Logger.info(`[${req.getMethod()}] ${req.getPath()}`);
 
-      // Match route
-      const route = Router.match(router, req.getMethod(), req.getPath());
+        // Match route
+        const route = Router.match(router, req.getMethod(), req.getPath());
 
-      if (!route) {
-        res.setStatus(404).json({ error: 'Not Found' });
-        return;
-      }
+        if (!route) {
+          res.setStatus(404).json(ErrorResponse.notFound('Route', context.requestId));
+          return;
+        }
 
-      req.setParams(route.params);
+        req.setParams(route.params);
 
-      // Execute middleware and handler
-      await route.handler(req, res);
+        const routeAny = route as unknown as { middleware?: unknown };
+        const routeMiddlewareNames = Array.isArray(routeAny.middleware)
+          ? routeAny.middleware.filter((m): m is string => typeof m === 'string')
+          : [];
+
+        const resolvedRouteMiddleware = routeMiddlewareNames
+          .map((name) => routeMiddleware[name])
+          .filter((mw): mw is Middleware => typeof mw === 'function');
+
+        const middlewareToRun = [...globalMiddleware, ...resolvedRouteMiddleware];
+
+        let index = 0;
+        const next = async (): Promise<void> => {
+          if (index < middlewareToRun.length) {
+            const mw = middlewareToRun[index++];
+            await mw(req, res, next);
+            return;
+          }
+          await route.handler(req, res);
+        };
+
+        await next();
+      });
     } catch (error) {
       Logger.error('Kernel error:', error as Error);
-      res.setStatus(500).json({ error: 'Internal Server Error' });
+      if (!isWritableEnded(res)) {
+        res
+          .setStatus(500)
+          .json(ErrorResponse.internalServerError('Internal server error', context.requestId));
+      }
     } finally {
       terminate(req, res);
     }

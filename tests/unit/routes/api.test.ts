@@ -50,6 +50,8 @@ describe('Routes API', () => {
 
     expect(Router.match(router, 'GET', '/')).not.toBeNull();
     expect(Router.match(router, 'GET', '/health')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/health/live')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/health/ready')).not.toBeNull();
     expect(Router.match(router, 'POST', '/api/v1/auth/login')).not.toBeNull();
     expect(Router.match(router, 'GET', '/admin/dashboard')).not.toBeNull();
   });
@@ -185,6 +187,82 @@ describe('Routes API', () => {
       } else {
         process.env['NODE_ENV'] = previousNodeEnv;
       }
+    });
+
+    it('should handle liveness check', async () => {
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const liveMatch = Router.match(router, 'GET', '/health/live');
+      if (liveMatch === null)
+        throw new Error('Expected /health/live route handler to be registered');
+
+      const res = {
+        json: vi.fn(),
+      } as unknown as { json: Mock };
+
+      await liveMatch.handler({} as any, res as any);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'alive',
+        })
+      );
+    });
+
+    it('should handle readiness check success', async () => {
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const readyMatch = Router.match(router, 'GET', '/health/ready');
+      if (readyMatch === null)
+        throw new Error('Expected /health/ready route handler to be registered');
+
+      const res = {
+        json: vi.fn(),
+      } as unknown as { json: Mock };
+
+      await readyMatch.handler({} as any, res as any);
+
+      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1');
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'ready',
+          dependencies: expect.objectContaining({
+            database: expect.objectContaining({
+              status: 'ready',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should handle readiness check failure', async () => {
+      const error = new Error('DB Error');
+      mockDb.query.mockRejectedValue(error);
+
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const readyMatch = Router.match(router, 'GET', '/health/ready');
+      if (readyMatch === null)
+        throw new Error('Expected /health/ready route handler to be registered');
+
+      const res = {
+        setStatus: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as { setStatus: Mock; json: Mock };
+
+      await readyMatch.handler({} as any, res as any);
+
+      expect(Logger.error).toHaveBeenCalledWith('Readiness check failed:', error);
+      expect(res.setStatus).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'not_ready',
+          error: 'DB Error',
+        })
+      );
     });
   });
 

@@ -3,7 +3,7 @@
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
-import { Env } from '@config/env';
+import { appConfig } from '@config/app';
 
 interface ILogger {
   debug(message: string, data?: unknown, category?: string): void;
@@ -13,8 +13,8 @@ interface ILogger {
   fatal(message: string, error?: unknown, category?: string): void;
 }
 
-const isDevelopment = Env.NODE_ENV === 'development' || Env.NODE_ENV === undefined;
-const isProduction = Env.NODE_ENV === 'production';
+const isDevelopment = appConfig.isDevelopment();
+const isProduction = appConfig.isProduction();
 
 /**
  * Helper to extract error message from unknown error type

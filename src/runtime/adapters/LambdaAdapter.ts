@@ -147,10 +147,15 @@ async function handleLambdaRequest(
     return response.toResponse();
   } catch (error) {
     Logger.error('Lambda handler error', error as Error);
+
+    const nodeEnv =
+      typeof Env.NODE_ENV === 'string' && Env.NODE_ENV !== '' ? Env.NODE_ENV : 'development';
+    const includeDetails = nodeEnv === 'development' || nodeEnv === 'dev';
+
     const errorResponse = ErrorResponse.create(
       500,
       'Internal Server Error',
-      Env.NODE_ENV === 'development' ? { message: (error as Error).message } : undefined
+      includeDetails ? { message: (error as Error).message } : undefined
     );
     return errorResponse.toResponse();
   }
