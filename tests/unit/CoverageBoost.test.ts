@@ -223,14 +223,13 @@ describe('Application & Server', () => {
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
-    const expectedHtmlPath = path.join(
-      process.cwd(),
-      'docs-website/public',
-      'doc',
-      'clean-url.html'
-    );
+    const docPath = path.join(process.cwd(), 'docs-website/public', 'doc');
+    const expectedHtmlPath = path.join(docPath, 'clean-url.html');
 
-    vi.spyOn(fs, 'existsSync').mockImplementation((p) => String(p) === expectedHtmlPath);
+    vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
+      const pathStr = String(p);
+      return pathStr === expectedHtmlPath || pathStr === docPath;
+    });
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
 
     const mockReq = { url: '/doc/clean-url', method: 'GET', headers: {}, on: vi.fn() } as any;

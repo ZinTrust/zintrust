@@ -114,7 +114,7 @@ describe('StartCommand', () => {
       return false;
     });
 
-    readFileSync.mockReturnValue(JSON.stringify({ name: 'zintrust', scripts: {} }));
+    readFileSync.mockReturnValue(JSON.stringify({ name: '@zintrust/core', scripts: {} }));
     spawnAndWait.mockResolvedValue(0);
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);

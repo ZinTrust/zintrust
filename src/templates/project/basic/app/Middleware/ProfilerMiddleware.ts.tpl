@@ -5,8 +5,7 @@
  */
 
 import { Logger } from '@config/logger';
-import { Middleware } from '@middleware/MiddlewareStack';
-import { RequestProfiler } from '@profiling/RequestProfiler';
+import { type Middleware, RequestProfiler } from '@zintrust/core';
 
 /**
  * ProfilerMiddleware wraps request execution with performance profiling

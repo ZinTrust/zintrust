@@ -20,7 +20,9 @@ export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 export { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 export { Database, resetDatabase, useDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
+export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
+export type { IRelationship } from '@orm/Relationships';
 export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 
@@ -49,6 +51,9 @@ export { Encryptor } from '@security/Encryptor';
 export { JwtManager } from '@security/JwtManager';
 export type { JwtOptions, JwtPayload } from '@security/JwtManager';
 export { XssProtection } from '@security/XssProtection';
+
+// Exceptions
+export { ErrorFactory } from '@exceptions/ZintrustError';
 
 // Version
 export const version = '0.1.0';

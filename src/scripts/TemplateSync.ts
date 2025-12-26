@@ -101,56 +101,6 @@ const listFilesRecursive = (baseDirAbs: string): WalkFile[] => {
   return out;
 };
 
-const isSensitiveEnvKey = (key: string): boolean => {
-  const k = key.toUpperCase();
-  return (
-    k.endsWith('_SECRET') ||
-    k.endsWith('_TOKEN') ||
-    k.endsWith('_PASSWORD') ||
-    k.endsWith('_PRIVATE_KEY') ||
-    k.endsWith('_ACCESS_KEY') ||
-    k.endsWith('_API_KEY') ||
-    k === 'APP_KEY' ||
-    k === 'JWT_SECRET' ||
-    k === 'SONAR_TOKEN' ||
-    k === 'SNYK_TOKEN' ||
-    k === 'STRIPE_SECRET_KEY'
-  );
-};
-
-const sanitizeEnvFile = (content: string): string => {
-  const lines = content.split(/\r?\n/);
-  const out: string[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) {
-      out.push(line);
-      continue;
-    }
-
-    const eqIdx = line.indexOf('=');
-    if (eqIdx <= 0) {
-      out.push(line);
-      continue;
-    }
-
-    const key = line.slice(0, eqIdx).trim();
-    if (key === '') {
-      out.push(line);
-      continue;
-    }
-
-    if (isSensitiveEnvKey(key)) {
-      out.push(`${key}=`);
-      continue;
-    }
-
-    out.push(line);
-  }
-
-  return out.join('\n');
-};
-
 const syncProjectTemplateDir = (params: {
   checksums: ChecksumRecord;
   baseDirRel: string;
@@ -202,34 +152,6 @@ const syncProjectTemplateDir = (params: {
   }
 
   return { updated, skipped, total: files.length };
-};
-
-const syncProjectEnv = (checksums: ChecksumRecord): { updated: number; skipped: number } => {
-  const baseRel = fs.existsSync(path.join(ROOT_DIR, '.env')) ? '.env' : '.env.example';
-  const baseAbs = path.join(ROOT_DIR, baseRel);
-  const outRel = 'src/templates/project/basic/.env.tpl';
-  const outAbs = path.join(ROOT_DIR, outRel);
-
-  if (!fs.existsSync(baseAbs)) {
-    Logger.warn(`⚠️  Base file not found: ${baseRel}`);
-    return { updated: 0, skipped: 0 };
-  }
-
-  const baseKey = baseRel;
-  const currentHash = hashFile(baseAbs);
-  const storedHash = checksums[baseKey];
-  if (currentHash === storedHash && fs.existsSync(outAbs)) {
-    Logger.info('✓ Starter project .env (in sync)');
-    return { updated: 0, skipped: 1 };
-  }
-
-  const raw = fs.readFileSync(baseAbs, 'utf8');
-  const sanitized = sanitizeEnvFile(raw);
-  ensureDir(path.dirname(outAbs));
-  fs.writeFileSync(outAbs, sanitized, 'utf8');
-  checksums[baseKey] = currentHash;
-  Logger.info('✓ Updated: Starter project .env');
-  return { updated: 1, skipped: 0 };
 };
 
 /**
@@ -342,7 +264,7 @@ async function syncTemplates(): Promise<void> {
     description: 'Starter project routes/*',
   });
 
-  const s5 = syncProjectEnv(checksums);
+  const s5 = { updated: 0, skipped: 0 };
 
   updated += s1.updated + s2.updated + s3.updated + s4.updated + s5.updated;
   skipped += s1.skipped + s2.skipped + s3.skipped + s4.skipped + s5.skipped;
@@ -354,7 +276,7 @@ async function syncTemplates(): Promise<void> {
   Logger.info(`\n📦 Template sync complete`);
   Logger.info(`   Updated: ${updated}`);
   Logger.info(`   Skipped: ${skipped}`);
-  Logger.info(`   Total: ${mappings.length + s1.total + s2.total + s3.total + s4.total + 1}\n`);
+  Logger.info(`   Total: ${mappings.length + s1.total + s2.total + s3.total + s4.total}\n`);
 }
 
 // Run sync

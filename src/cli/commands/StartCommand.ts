@@ -121,7 +121,7 @@ const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string
 };
 
 const isFrameworkRepo = (packageJson: { name?: unknown }): boolean =>
-  packageJson.name === 'zintrust';
+  packageJson.name === '@zintrust/core';
 
 const hasDevScript = (packageJson: { scripts?: Record<string, unknown> }): boolean => {
   const scripts = packageJson.scripts;
@@ -180,7 +180,7 @@ const resolveNodeDevCommand = (
   }
 
   throw ErrorFactory.createCliError(
-    "Error: No Zintrust app found. Run 'zin new <project>' or ensure package.json exists."
+    "Error: No entry point found. Expected 'src/index.ts' or 'src/boot/bootstrap.ts'. Ensure your project is correctly scaffolded."
   );
 };
 

@@ -71,7 +71,7 @@ export const Env = Object.freeze({
   DB_CONNECTION: get('DB_CONNECTION', 'sqlite'),
   DB_HOST: get('DB_HOST', 'localhost'),
   DB_PORT: getInt('DB_PORT', 5432),
-  DB_DATABASE: get('DB_DATABASE', 'zintrust'),
+  DB_DATABASE: get('DB_DATABASE', '@zintrust/core'),
   DB_USERNAME: get('DB_USERNAME', 'postgres'),
   DB_PASSWORD: get('DB_PASSWORD', ''),
   DB_READ_HOSTS: get('DB_READ_HOSTS', ''),

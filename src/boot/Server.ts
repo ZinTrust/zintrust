@@ -56,13 +56,11 @@ const getFrameworkPublicRoots = (): string[] => {
   const thisDir = path.dirname(thisFile);
   const packageRoot = findPackageRoot(thisDir);
 
-  // Primary: framework ships built docs assets under dist/public (including /doc)
-  const roots: string[] = [path.join(packageRoot, 'dist/public')];
-
-  // Secondary: when running framework from source tree
-  roots.push(path.join(packageRoot, 'docs-website/public'));
-
-  return roots;
+  return [
+    path.join(packageRoot, 'dist/public'),
+    path.join(packageRoot, 'docs-website/public'),
+    path.join(packageRoot, 'public'), // Fallback for shipped package
+  ];
 };
 
 const getDocsPublicRoot = (): string => {
@@ -70,7 +68,7 @@ const getDocsPublicRoot = (): string => {
 
   // First try app-local roots (developer app override), then fall back to framework-shipped assets.
   const appRoots = isProduction
-    ? [path.join(process.cwd(), 'dist/public')]
+    ? [path.join(process.cwd(), 'public')]
     : [path.join(process.cwd(), 'docs-website/public')];
 
   const candidates = [...appRoots, ...getFrameworkPublicRoots()];
@@ -79,8 +77,7 @@ const getDocsPublicRoot = (): string => {
     if (fs.existsSync(candidate)) return candidate;
   }
 
-  // Fallback: preserve previous behavior even if missing on disk.
-  return appRoots[0] ?? path.join(process.cwd(), 'dist/public');
+  return appRoots[0];
 };
 
 const stripLeadingSlashes = (value: string): string => value.replace(/^\/+/, '');
@@ -91,40 +88,16 @@ const stripLeadingSlashes = (value: string): string => value.replace(/^\/+/, '')
 const mapStaticPath = (urlPath: string): string => {
   const publicRoot = getDocsPublicRoot();
 
-  if (urlPath === '/' || urlPath === '/index.html') {
-    return path.join(publicRoot, 'index.html');
-  }
-
   if (urlPath.startsWith('/doc')) {
     const rest = stripLeadingSlashes(urlPath.slice('/doc'.length));
-    // /doc -> <publicRoot>/doc, /doc/foo -> <publicRoot>/doc/foo
-    return rest === '' ? path.join(publicRoot, 'doc') : path.join(publicRoot, 'doc', rest);
-  }
+    const docPath = path.join(publicRoot, 'doc');
 
-  if (urlPath.startsWith('/assets')) {
-    const rest = stripLeadingSlashes(urlPath.slice('/assets'.length));
-    // /assets -> <publicRoot>/assets, /assets/foo -> <publicRoot>/assets/foo
-    return rest === '' ? path.join(publicRoot, 'assets') : path.join(publicRoot, 'assets', rest);
-  }
-
-  if (urlPath.startsWith('/vp-icons.css')) {
-    // /vp-icons.css -> <publicRoot>/vp-icons.css
-    return path.join(publicRoot, 'vp-icons.css');
-  }
-
-  if (urlPath.startsWith('/hashmap.json')) {
-    // hashmap.json -> <publicRoot>hashmap.json
-    return path.join(publicRoot, 'hashmap.json');
-  }
-
-  // Allow serving a small set of root docs assets.
-  if (
-    urlPath === '/404.html' ||
-    urlPath === '/_headers' ||
-    urlPath === '/zintrust.svg' ||
-    urlPath.startsWith('/brand/')
-  ) {
-    return path.join(publicRoot, stripLeadingSlashes(urlPath));
+    // If a 'doc' folder exists inside publicRoot, use it.
+    // Otherwise, assume publicRoot contains the docs directly.
+    if (fs.existsSync(docPath)) {
+      return rest === '' ? docPath : path.join(docPath, rest);
+    }
+    return rest === '' ? publicRoot : path.join(publicRoot, rest);
   }
 
   return '';

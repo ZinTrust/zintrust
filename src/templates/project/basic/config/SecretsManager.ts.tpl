@@ -5,7 +5,7 @@
  */
 
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory } from '@zintrust/core';
 
 export interface CloudflareKV {
   get(key: string): Promise<string | null>;

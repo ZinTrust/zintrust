@@ -29,5 +29,5 @@
   "src/database/seeders/.gitkeep": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
   "routes/api.ts": "c6f2fa54f9f4956f643efcf155fa0058905e8f7a",
   ".env.example": "44c2a139c9e042b75fe57db2db4dd0c7ca9a664f",
-  ".env": "642264082a56207b25c84de38475b81a37a3cf4a"
+  ".env": "2b1a4e23559578ef9eab9ab140523723ff1d4dc0"
 }

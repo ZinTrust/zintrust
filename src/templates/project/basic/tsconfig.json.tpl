@@ -8,10 +8,13 @@
     "strict": true,
     "skipLibCheck": true,
     "paths": {
+      "@/*": ["./src/*"],
       "@app/*": ["./app/*"],
-      "@routes/*": ["./routes/*"]
+      "@config/*": ["./config/*"],
+      "@routes/*": ["./routes/*"],
+      "@database/*": ["./database/*"]
     }
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*", "config/**/*"],
   "exclude": ["node_modules", "dist"]
 }

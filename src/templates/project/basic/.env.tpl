@@ -12,9 +12,20 @@ NODE_ENV=development
 
 # Server Configuration
 HOST=127.0.0.1
-APP_PORT=3000
-APP_NAME=ZinTrust
+APP_PORT=7777
+APP_NAME={{projectName}}
 APP_KEY=
+
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Log Level: debug | info | warn | error
+LOG_LEVEL=debug
+DISABLE_LOGGING=true
+LOG_CHANNEL=file
+
 
 # ============================================================================
 # DATABASE
@@ -107,23 +118,21 @@ ENVIRONMENT=development
 REQUEST_TIMEOUT=30000
 MAX_BODY_SIZE=10485760
 
-# ============================================================================
-# LOGGING
-# ============================================================================
-
-# Log Level: debug | info | warn | error
-LOG_LEVEL=debug
-DISABLE_LOGGING=false
-LOG_CHANNEL=all
 
 # ============================================================================
 # EXTERNAL SERVICES & CREDENTIALS
 # ============================================================================
 
-# SonarQube / SonarCloud
-SONAR_HOST_URL=http://localhost:9000
+SONAR_ORGANIZATION="zintrust"
+SONAR_PROJECT_ID="ZinTrust_ZinTrust"
+SONAR_HOST_URL="https://sonarcloud.io"
 SONAR_TOKEN=
-SONAR_ORGANIZATION=
+
+# Cloudflare Workspace-Specific Credentials
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_ACCOUNT_ID=""
+
+CODECOV_TOKEN=
 
 # Security Scanning
 SNYK_TOKEN=

@@ -47,7 +47,9 @@ const coerceDependencies = (value: unknown): Record<string, unknown> => {
 
 const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
   const name =
-    typeof rootPkg.name === 'string' && rootPkg.name.trim() !== '' ? rootPkg.name : 'zintrust';
+    typeof rootPkg.name === 'string' && rootPkg.name.trim() !== ''
+      ? rootPkg.name
+      : '@zintrust/core';
   const version =
     typeof rootPkg.version === 'string' && rootPkg.version.trim() !== ''
       ? rootPkg.version

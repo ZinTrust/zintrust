@@ -3,7 +3,7 @@
  */
 
 import { Post } from '@app/Models/Post';
-import { IModel, Model } from '@orm/Model';
+import { type IModel, Model } from '@zintrust/core';
 
 /**
  * User Model Definition

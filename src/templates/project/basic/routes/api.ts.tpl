@@ -6,8 +6,7 @@
 import { UserController } from '@app/Controllers/UserController';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { useDatabase } from '@orm/Database';
-import { type IRouter, Router } from '@routing/Router';
+import { useDatabase, type IRouter, Router } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   const userController = UserController.create();

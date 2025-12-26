@@ -35,8 +35,8 @@ export interface FeatureScaffoldResult {
  */
 const FEATURE_TEMPLATES: Record<FeatureType, () => string> = {
   auth: () => generateAuthFeature(),
-  payments: () => generatePaymentsFeature(),
   logging: () => generateLoggingFeature(),
+  payments: () => generatePaymentsFeature(),
   'api-docs': () => generateApiDocsFeature(),
   email: () => generateEmailFeature(),
   cache: () => generateCacheFeature(),
@@ -76,7 +76,7 @@ export function getAvailableFeatures(): FeatureType[] {
 /**
  * Add feature to service
  */
-export async function addFeature(options: FeatureOptions): Promise<FeatureScaffoldResult> {
+export function addFeature(options: FeatureOptions): FeatureScaffoldResult {
   try {
     const validation = validateOptions(options);
     if (validation.valid === false) {

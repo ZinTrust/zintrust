@@ -6,7 +6,7 @@
 
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory } from '@zintrust/core';
 
 /**
  * Helper to warn about missing secrets
@@ -44,7 +44,7 @@ const securityConfigObj = {
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',
     expiresIn: Env.get('JWT_EXPIRES_IN', '1h'),
     refreshExpiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '7d'),
-    issuer: Env.get('JWT_ISSUER', 'zintrust'),
+    issuer: Env.get('JWT_ISSUER', '@zintrust/core'),
     audience: Env.get('JWT_AUDIENCE', 'zintrust-api'),
   },
 

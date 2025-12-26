@@ -8,7 +8,7 @@
 ## Installation
 
 \`\`\`bash
-npm install -g zintrust
+npm install -g @zintrust/core
 \`\`\`
 
 ## First Project

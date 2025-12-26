@@ -6,7 +6,7 @@ Welcome to Zintrust, a production-grade TypeScript backend framework with proven
 
 ```bash
 # Install Zintrust CLI
-npm install -g zintrust
+npm install -g @zintrust/core
 
 # Create a new project
 zin new my-app
@@ -66,7 +66,7 @@ Zintrust is a **zero-dependency** backend framework built on:
 ### From npm (Recommended)
 
 ```bash
-npm install -g zintrust
+npm install -g @zintrust/core
 zin new my-app
 ```
 

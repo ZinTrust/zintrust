@@ -22,7 +22,10 @@ export const getGlobalStatsMemoized = Memoize.create(getGlobalStats, { ttl: 60_0
 Zintrust supports lazy loading for heavy dependencies to improve startup time.
 
 ```typescript
-const bcrypt = await LazyLoader.load('bcrypt');
+import { LazyLoader } from '@performance/Optimizer';
+
+const loader = LazyLoader.create();
+const bcrypt = await loader.load('bcrypt');
 ```
 
 ## Parallel Execution
@@ -30,9 +33,9 @@ const bcrypt = await LazyLoader.load('bcrypt');
 When performing multiple independent operations, use `ParallelGenerator` to run them concurrently.
 
 ```typescript
-import { Parallel } from '@performance/Optimizer';
+import { ParallelGenerator } from '@performance/Optimizer';
 
-await Parallel.run([() => fetchUser(), () => fetchPosts(), () => fetchSettings()]);
+await ParallelGenerator.runAll([() => fetchUser(), () => fetchPosts(), () => fetchSettings()]);
 ```
 
 ## Database Optimization

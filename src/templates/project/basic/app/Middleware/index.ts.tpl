@@ -1,16 +1,22 @@
-import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
-import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
+import {
+  type CsrfTokenManagerType,
+  type ICsrfTokenManager,
+  type IJwtManager,
+  type JwtAlgorithm,
+  type JwtManagerType,
+  type IRequest,
+  type IResponse,
+  XssProtection,
+  type ISchema,
+  type SchemaType,
+  Validator,
+} from '@zintrust/core';
 /**
  * Example Middleware
  * Common middleware patterns for Zintrust
  */
 
 import { Logger } from '@config/logger';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { XssProtection } from '@security/XssProtection';
-import type { ISchema, SchemaType } from '@validation/Validator';
-import { Validator } from '@validation/Validator';
 
 type JwtManagerInput = IJwtManager | JwtManagerType;
 type CsrfManagerInput = ICsrfTokenManager | CsrfTokenManagerType;

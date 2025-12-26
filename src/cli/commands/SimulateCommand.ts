@@ -26,7 +26,7 @@ const rewriteSimulatedAppDependencyToDist = (appPath: string, distPath: string):
   };
 
   const dependencies: Record<string, string> = { ...pkg.dependencies };
-  dependencies['zintrust'] = `file:${distPath}`;
+  dependencies['@zintrust/core'] = `file:${distPath}`;
 
   const nextPkg = {
     ...pkg,
