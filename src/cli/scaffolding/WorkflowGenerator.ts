@@ -5,8 +5,8 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 export interface WorkflowOptions {
   name: string;
@@ -215,7 +215,7 @@ function buildDenoJob(): string {
 /**
  * WorkflowGenerator object for backward compatibility
  */
-export const WorkflowGenerator = {
+export const WorkflowGenerator = Object.freeze({
   generate: generateWorkflow,
   getTemplate: getWorkflowTemplate,
-};
+});

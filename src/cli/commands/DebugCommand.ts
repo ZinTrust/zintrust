@@ -3,48 +3,68 @@
  * Launch debug mode with profiling and monitoring
  */
 
-import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
+import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Dashboard } from '@cli/debug/Dashboard';
-import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 
-export class DebugCommand extends BaseCommand {
-  private dashboard?: Dashboard;
+type DashboardHandle = {
+  start(): void;
+  stop(): void;
+};
 
-  constructor() {
-    super();
-    this.name = 'debug';
-    this.description = 'Launch debug mode with real-time monitoring dashboard';
+type IDebugCommand = IBaseCommand & {
+  dashboard: DashboardHandle | undefined;
+};
+
+const addOptions = (command: Command): void => {
+  command
+    .option('--port <number>', 'Debug server port', '3000')
+    .option('--enable-profiling', 'Enable memory profiling')
+    .option('--enable-tracing', 'Enable request tracing');
+};
+
+const executeDebug = (cmd: IDebugCommand, options: CommandOptions): void => {
+  cmd.info(`Debug command executed with options: ${JSON.stringify(options)}`);
+  try {
+    cmd.dashboard = Dashboard.create() as unknown as DashboardHandle;
+    cmd.dashboard.start();
+
+    process.on('SIGINT', () => {
+      cmd.dashboard?.stop();
+      process.exit(0);
+    });
+  } catch (error) {
+    cmd.dashboard?.stop();
+    throw ErrorFactory.createTryCatchError(`Debug failed: ${(error as Error).message}`, error);
   }
+};
 
-  protected addOptions(command: Command): void {
-    command
-      .option('--port <number>', 'Debug server port', '3000')
-      .option('--enable-profiling', 'Enable memory profiling')
-      .option('--enable-tracing', 'Enable request tracing');
-  }
+/**
+ * Debug Command
+ * Launch debug mode with profiling and monitoring
+ */
 
-  async execute(options: CommandOptions): Promise<void> {
-    this.debug(`Debug command executed with options: ${JSON.stringify(options)}`);
+const create = (): IBaseCommand => {
+  const ext = (options: CommandOptions): void => executeDebug(cmd, options);
+  const cmd = BaseCommand.create({
+    name: 'debug',
+    description: 'Launch debug mode with real-time monitoring dashboard',
+    addOptions,
+    execute: ext,
+  }) as IDebugCommand;
 
-    try {
-      this.dashboard = new Dashboard();
-      this.dashboard.start();
+  cmd.dashboard = undefined;
 
-      // Handle termination
-      process.on('SIGINT', () => {
-        this.dashboard?.stop();
-        process.exit(0);
-      });
+  return cmd;
+};
 
-      // Keep process running
-      await new Promise(() => {
-        // Infinite wait
-      });
-    } catch (error) {
-      Logger.error('Debug command failed', error);
-      this.dashboard?.stop();
-      throw new Error(`Debug failed: ${(error as Error).message}`);
-    }
-  }
-}
+/**
+ * Debug Command Factory
+ */
+export const DebugCommand = Object.freeze({
+  /**
+   * Create a new debug command instance
+   */
+  create,
+});

@@ -1,0 +1,22 @@
+{
+  "name": "{{projectName}}",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "zin s",
+    "build": "tsc && tsc-alias",
+    "start": "zin s --mode production --no-watch",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zintrust/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}

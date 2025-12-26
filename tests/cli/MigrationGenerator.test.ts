@@ -2,11 +2,12 @@
  * MigrationGenerator Tests
  */
 
+/* eslint-disable max-nested-callbacks */
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { MigrationGenerator, type MigrationOptions } from '@cli/scaffolding/MigrationGenerator';
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const testDir = path.join(__dirname, 'test-migrations');

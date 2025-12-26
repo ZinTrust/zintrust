@@ -1,6 +1,11 @@
-import { IncomingMessage, ServerResponse } from 'node:http';
+import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 
 type Tbody = string | Buffer | null;
+
+/**
+ * Request body type for handlers
+ */
+export type IRequestBody = Buffer;
 
 /**
  * HTTP request/response for serverless and edge platforms
@@ -81,7 +86,7 @@ export interface RuntimeAdapter {
 export type ZintrustHandler = (
   req: IncomingMessage,
   res: ServerResponse,
-  body: string | Buffer | null
+  body: Tbody
 ) => Promise<void>;
 
 /**
@@ -102,64 +107,164 @@ export interface AdapterConfig {
 /**
  * Response wrapper for normalizing HTTP responses across platforms
  */
-export class HttpResponse {
-  statusCode: number = 200;
-  headers: Record<string, string | string[]> = {
-    'Content-Type': 'application/json',
-  };
-  body: string | Buffer | null = null;
-  isBase64Encoded: boolean = false;
-
-  setStatus(code: number): this {
-    this.statusCode = code;
-    return this;
-  }
-
-  setHeader(key: string, value: string | string[]): this {
-    this.headers[key] = value;
-    return this;
-  }
-
-  setHeaders(headers: Record<string, string | string[]>): this {
-    this.headers = { ...this.headers, ...headers };
-    return this;
-  }
-
-  setBody(body: string | Buffer | null, isBase64?: boolean): this {
-    this.body = body;
-    this.isBase64Encoded = isBase64 ?? false;
-    return this;
-  }
-
-  setJSON(data: unknown): this {
-    this.setHeader('Content-Type', 'application/json');
-    this.body = JSON.stringify(data);
-    this.isBase64Encoded = false;
-    return this;
-  }
-
-  toResponse(): PlatformResponse {
-    return {
-      statusCode: this.statusCode,
-      headers: this.headers,
-      body: this.body ?? undefined,
-      isBase64Encoded: this.isBase64Encoded,
-    };
-  }
+export interface IHttpResponse {
+  statusCode: number;
+  headers: Record<string, string | string[]>;
+  body: Tbody;
+  isBase64Encoded: boolean;
+  setStatus(code: number): IHttpResponse;
+  setHeader(key: string, value: string | string[]): IHttpResponse;
+  setHeaders(headers: Record<string, string | string[]>): IHttpResponse;
+  setBody(body: Tbody, isBase64?: boolean): IHttpResponse;
+  setJSON(data: unknown): IHttpResponse;
+  toResponse(): PlatformResponse;
 }
+
+export const HttpResponse = Object.freeze({
+  create(): IHttpResponse {
+    const state = {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' } as Record<string, string | string[]>,
+      body: null as Tbody,
+      isBase64Encoded: false,
+    };
+
+    const self: IHttpResponse = {
+      get statusCode() {
+        return state.statusCode;
+      },
+      set statusCode(val: number) {
+        state.statusCode = val;
+      },
+      get headers() {
+        return state.headers;
+      },
+      set headers(val: Record<string, string | string[]>) {
+        state.headers = val;
+      },
+      get body() {
+        return state.body;
+      },
+      set body(val: Tbody) {
+        state.body = val;
+      },
+      get isBase64Encoded() {
+        return state.isBase64Encoded;
+      },
+      set isBase64Encoded(val: boolean) {
+        state.isBase64Encoded = val;
+      },
+
+      setStatus(code: number): IHttpResponse {
+        state.statusCode = code;
+        return self;
+      },
+
+      setHeader(key: string, value: string | string[]): IHttpResponse {
+        state.headers[key] = value;
+        return self;
+      },
+
+      setHeaders(newHeaders: Record<string, string | string[]>): IHttpResponse {
+        state.headers = { ...state.headers, ...newHeaders };
+        return self;
+      },
+
+      setBody(newBody: Tbody, isBase64?: boolean): IHttpResponse {
+        state.body = newBody;
+        state.isBase64Encoded = isBase64 ?? false;
+        return self;
+      },
+
+      setJSON(data: unknown): IHttpResponse {
+        state.headers['Content-Type'] = 'application/json';
+        state.body = JSON.stringify(data);
+        state.isBase64Encoded = false;
+        return self;
+      },
+
+      toResponse(): PlatformResponse {
+        return {
+          statusCode: state.statusCode,
+          headers: state.headers,
+          body: state.body ?? undefined,
+          isBase64Encoded: state.isBase64Encoded,
+        };
+      },
+    };
+
+    return self;
+  },
+});
 
 /**
  * Error response helper
  */
-export class ErrorResponse extends HttpResponse {
-  constructor(statusCode: number, message: string, details?: unknown) {
-    super();
-    this.setStatus(statusCode);
-    this.setJSON({
+export const ErrorResponse = Object.freeze({
+  create(statusCode: number, message: string, details?: unknown): IHttpResponse {
+    const response = HttpResponse.create();
+    response.setStatus(statusCode);
+    response.setJSON({
       error: message,
       statusCode,
       timestamp: new Date().toISOString(),
       ...(details === undefined ? {} : { details }),
     });
-  }
+    return response;
+  },
+});
+
+/**
+ * Create mock Node.js request/response objects for platform compatibility
+ */
+export function createMockHttpObjects(request: PlatformRequest): {
+  req: Record<string, unknown>;
+  res: Record<string, unknown>;
+  responseData: {
+    statusCode: number;
+    headers: Record<string, string | string[]>;
+    body: Tbody;
+  };
+} {
+  const responseData = {
+    statusCode: 200,
+    headers: { 'Content-Type': 'application/json' } as Record<string, string | string[]>,
+    body: null as Tbody,
+  };
+
+  // Create minimal mock objects for compatibility
+  const req = {
+    method: request.method,
+    url: request.path,
+    headers: request.headers,
+    remoteAddress: request.remoteAddr,
+  };
+
+  const res = {
+    statusCode: 200,
+    headers: responseData.headers,
+    writeHead: function (statusCode: number, headers?: Record<string, string | string[]>): object {
+      responseData.statusCode = statusCode;
+      if (headers) {
+        responseData.headers = { ...responseData.headers, ...headers };
+      }
+      return this;
+    },
+    setHeader: function (name: string, value: string): object {
+      responseData.headers[name.toLowerCase()] = value;
+      return this;
+    },
+    end: function (chunk?: string | Buffer): object {
+      if (chunk !== undefined) {
+        responseData.body = chunk;
+      }
+      return this;
+    },
+    write: function (chunk: string | Buffer): boolean {
+      responseData.body = chunk;
+      return true;
+    },
+  };
+
+  return { req, res, responseData };
 }

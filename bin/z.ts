@@ -5,4 +5,4 @@
  * Mirrors bin/zintrust.ts for convenience
  */
 
-import './zintrust.ts';
+import './zintrust';

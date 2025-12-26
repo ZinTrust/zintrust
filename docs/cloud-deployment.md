@@ -4,7 +4,7 @@ Zintrust is designed to run seamlessly on various cloud platforms, from serverle
 
 ## Automated Workflows
 
-The easiest way to set up cloud deployment is using the Zintrust CLI to generate GitHub Actions workflows.
+The easiest way to set up cloud deployment is using the Zintrust CLI (installed via `@zintrust/core`) to generate GitHub Actions workflows.
 
 ```bash
 # Generate a workflow for AWS Lambda
@@ -24,7 +24,13 @@ This will create a `.github/workflows/deploy-cloud.yml` file tailored to your ch
 Zintrust can be deployed to Cloudflare Workers using the `wrangler` CLI.
 
 ```bash
-npm run deploy:cloudflare
+npm run deploy
+```
+
+By default, this deploy targets the `production` Wrangler environment. To deploy to a different environment:
+
+```bash
+WRANGLER_ENV=development npm run deploy
 ```
 
 Ensure you have configured your `wrangler.toml` with the necessary KV namespaces for secrets management.
@@ -34,7 +40,7 @@ Ensure you have configured your `wrangler.toml` with the necessary KV namespaces
 Deploy Zintrust as a serverless function on AWS Lambda using the `LambdaAdapter`.
 
 ```typescript
-import { LambdaAdapter } from '@adapters/LambdaAdapter';
+import { LambdaAdapter } from '@zintrust/core';
 import { app } from './app';
 
 export const handler = LambdaAdapter.create(app);

@@ -9,7 +9,7 @@ The `zin add` command uses these generators under the hood:
 - `model`: Generates a new ORM model.
 - `controller`: Generates a new HTTP controller.
 - `migration`: Generates a new database migration.
-- `middleware`: Generates a new middleware class.
+- `middleware`: Generates a new middleware function.
 - `service`: Generates a new microservice structure.
 - `routes`: Generates a new route file.
 - `feature`: Generates a new feature module.

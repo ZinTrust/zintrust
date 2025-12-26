@@ -3,18 +3,19 @@
  * Mitigates SSRF (SonarQube S5144)
  */
 
-import { ValidationError } from '@/exceptions/ZintrustError';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
+import { ErrorFactory, type IZintrustError } from '@exceptions/ZintrustError';
+
+export interface IUrlValidator {
+  validate(url: string, allowedDomains?: string[]): void;
+  validateUrl(url: string, allowedDomains?: string[]): void;
+}
 
 /**
  * Validate URL for SSRF protection
  * Ensures URL is either internal or matches allowed domains
  */
-export function validateUrl(
-  url: string,
-  allowedDomains: string[] = ['localhost', '127.0.0.1']
-): void {
+const validate = (url: string, allowedDomains: string[] = ['localhost', '127.0.0.1']): void => {
   try {
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname;
@@ -26,13 +27,33 @@ export function validateUrl(
     );
 
     if (!isAllowed && Env.NODE_ENV === 'production') {
-      throw new ValidationError(`URL hostname '${hostname}' is not allowed (SSRF Protection)`);
+      throw ErrorFactory.createValidationError(
+        `URL hostname '${hostname}' is not allowed (SSRF Protection)`,
+        { hostname }
+      );
     }
   } catch (error) {
-    if (error instanceof ValidationError) {
+    const maybeZinError = error as Partial<IZintrustError>;
+    if (maybeZinError.code === 'VALIDATION_ERROR') {
       throw error;
     }
-    Logger.error('URL validation failed', error);
-    throw new ValidationError(`Invalid URL: ${url}`);
+
+    throw ErrorFactory.createValidationError(`Invalid URL: ${url}`, { cause: error });
   }
-}
+};
+
+const validateUrl = (url: string, allowedDomains?: string[]): void => {
+  return validate(url, allowedDomains);
+};
+
+/**
+ * UrlValidator handles URL validation for SSRF protection
+ * Sealed namespace for immutability
+ */
+export const UrlValidator: IUrlValidator = Object.freeze({
+  validate,
+  validateUrl,
+});
+
+// Re-export for backward compatibility
+export { validate, validateUrl };

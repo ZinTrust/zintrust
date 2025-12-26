@@ -96,26 +96,26 @@ describe('Cache', () => {
 
   it('uses KV driver when Env.CACHE_DRIVER=kv', async () => {
     cacheDriverName = 'kv';
-    const cache = await import('@cache/Cache');
+    const mod = await import('@cache/Cache');
 
-    await cache.set('k', 'v', 1);
+    await mod.Cache.set('k', 'v', 1);
     expect(kvImpl.set).toHaveBeenCalledWith('k', 'v', 1);
 
-    const value = await cache.get<string>('k');
+    const value = await mod.Cache.get<string>('k');
     expect(value).toBe('value');
     expect(kvImpl.get).toHaveBeenCalledWith('k');
 
-    await cache.del('k');
+    await mod.Cache.delete('k');
     expect(kvImpl.delete).toHaveBeenCalledWith('k');
 
-    await cache.clear();
+    await mod.Cache.clear();
     expect(kvImpl.clear).toHaveBeenCalledTimes(1);
 
-    const exists = await cache.has('k');
+    const exists = await mod.Cache.has('k');
     expect(exists).toBe(true);
     expect(kvImpl.has).toHaveBeenCalledWith('k');
 
-    const driver = cache.getDriver();
+    const driver = mod.Cache.getDriver();
     expect(driver).toBe(kvImpl);
 
     expect(kvConstructed).toBe(1);
@@ -126,9 +126,9 @@ describe('Cache', () => {
 
   it('uses Redis driver when Env.CACHE_DRIVER=redis', async () => {
     cacheDriverName = 'redis';
-    const cache = await import('@cache/Cache');
+    const mod = await import('@cache/Cache');
 
-    await cache.get('k');
+    await mod.Cache.get('k');
 
     expect(redisConstructed).toBe(1);
     expect(kvConstructed).toBe(0);
@@ -138,9 +138,9 @@ describe('Cache', () => {
 
   it('uses Mongo driver when Env.CACHE_DRIVER=mongodb', async () => {
     cacheDriverName = 'mongodb';
-    const cache = await import('@cache/Cache');
+    const mod = await import('@cache/Cache');
 
-    await cache.get('k');
+    await mod.Cache.get('k');
 
     expect(mongoConstructed).toBe(1);
     expect(kvConstructed).toBe(0);
@@ -150,9 +150,9 @@ describe('Cache', () => {
 
   it('uses Memory driver when Env.CACHE_DRIVER=memory', async () => {
     cacheDriverName = 'memory';
-    const cache = await import('@cache/Cache');
+    const mod = await import('@cache/Cache');
 
-    await cache.get('k');
+    await mod.Cache.get('k');
 
     expect(memoryConstructed).toBe(1);
     expect(kvConstructed).toBe(0);
@@ -162,23 +162,23 @@ describe('Cache', () => {
 
   it('defaults to Memory driver when Env.CACHE_DRIVER is unknown', async () => {
     cacheDriverName = 'nope';
-    const cache = await import('@cache/Cache');
+    const mod = await import('@cache/Cache');
 
-    await cache.get('k');
+    await mod.Cache.get('k');
 
     expect(memoryConstructed).toBe(1);
   });
 
   it('reuses the same driver instance (singleton)', async () => {
     cacheDriverName = 'redis';
-    const cache = await import('@cache/Cache');
+    const mod = await import('@cache/Cache');
 
-    await cache.get('a');
-    await cache.get('b');
+    await mod.Cache.get('a');
+    await mod.Cache.get('b');
     expect(redisConstructed).toBe(1);
 
     cacheDriverName = 'kv';
-    await cache.get('c');
+    await mod.Cache.get('c');
     expect(redisConstructed).toBe(1);
     expect(kvConstructed).toBe(0);
   });

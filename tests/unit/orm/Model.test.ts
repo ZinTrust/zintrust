@@ -1,192 +1,333 @@
-import { Model } from '@orm/Model';
-import { QueryBuilder } from '@orm/QueryBuilder';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock QueryBuilder
-vi.mock('@orm/QueryBuilder', () => {
-  const MockQueryBuilder = vi.fn(function () {
-    return {
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      first: vi.fn(),
-      get: vi.fn(),
-      getParameters: vi.fn().mockReturnValue([]),
-      toSQL: vi.fn().mockReturnValue('SELECT * FROM table'),
-    };
-  });
-  return { QueryBuilder: MockQueryBuilder };
+import { Model, type IModel, type ModelConfig, type ModelStatic } from '@orm/Model';
+
+const fakePass = 'pdd';
+vi.mock('@orm/Database', () => {
+  let db: unknown = {};
+  return {
+    useDatabase: vi.fn(() => db),
+    __setDb: (next: unknown): void => {
+      db = next;
+    },
+  };
 });
 
-class TestModel extends Model {
-  protected table = 'test_models';
+type MockBuilder = {
+  where: ReturnType<typeof vi.fn>;
+  limit: ReturnType<typeof vi.fn>;
+  join: ReturnType<typeof vi.fn>;
+  first: ReturnType<typeof vi.fn>;
+  get: ReturnType<typeof vi.fn>;
+  table: string;
+};
 
-  public setFillable(fillable: string[]): void {
-    this.fillable = fillable;
-  }
-  public setHidden(hidden: string[]): void {
-    this.hidden = hidden;
-  }
-  public setCasts(casts: Record<string, string>): void {
-    this.casts = casts;
-  }
-  public setTimestamps(timestamps: boolean): void {
-    this.timestamps = timestamps;
-  }
-}
+vi.mock('@orm/QueryBuilder', () => {
+  let lastBuilder: MockBuilder | undefined;
 
-describe('Model Basic Tests', () => {
-  let user: TestModel;
+  const QueryBuilder = {
+    create: vi.fn((table: string) => {
+      const builder: MockBuilder = {
+        table,
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        join: vi.fn().mockReturnThis(),
+        first: vi.fn(async () => null),
+        get: vi.fn(async () => []),
+      };
+      lastBuilder = builder;
+      return builder;
+    }),
+  };
 
-  beforeEach(() => {
+  return {
+    QueryBuilder,
+    __getLastBuilder: (): MockBuilder | undefined => lastBuilder,
+  };
+});
+
+const baseConfig: ModelConfig = {
+  table: 'test_models',
+  fillable: ['name', 'email', 'active', 'age', 'score', 'born', 'seenAt', 'meta', 'password'],
+  hidden: ['password'],
+  timestamps: true,
+  casts: {
+    active: 'boolean',
+    age: 'integer',
+    score: 'float',
+    born: 'date',
+    seenAt: 'datetime',
+    meta: 'json',
+  },
+};
+
+describe('Model', () => {
+  beforeEach(async (): Promise<void> => {
     vi.clearAllMocks();
-    user = new TestModel({
-      id: 1,
-      name: 'John Doe',
+    vi.resetModules();
+    const dbMod = (await import('@orm/Database')) as unknown as {
+      __setDb: (next: unknown) => void;
+    };
+    dbMod.__setDb({});
+  });
+
+  it('fills attributes, applies casts, respects fillable and hidden', async (): Promise<void> => {
+    const TestModel = Model.define(baseConfig);
+    const m = TestModel.create({
+      name: 'John',
       email: 'john@example.com',
+      password: fakePass,
+      active: '1',
+      age: '42',
+      score: '1.5',
+      born: '2025-01-02T03:04:05.000Z',
+      seenAt: '2025-01-02T03:04:05.000Z',
+      meta: '{"a":1}',
     });
-  });
 
-  it('should fill attributes', () => {
-    expect(user.getAttribute('name')).toBe('John Doe');
-    expect(user.getAttribute('email')).toBe('john@example.com');
-  });
+    expect(m.getAttribute('active')).toBe(true);
+    expect(m.getAttribute('age')).toBe(42);
+    expect(m.getAttribute('score')).toBe(1.5);
+    expect(m.getAttribute('born')).toBe('2025-01-02');
+    expect(m.getAttribute('seenAt')).toBe('2025-01-02T03:04:05.000Z');
+    expect(m.getAttribute('meta')).toEqual({ a: 1 });
 
-  it('should set and get attributes', () => {
-    user.setAttribute('phone', '123-456-7890');
-    expect(user.getAttribute('phone')).toBe('123-456-7890');
-  });
-
-  it('should convert to JSON', () => {
-    const json = user.toJSON();
-    expect(json).toEqual({
-      id: 1,
-      name: 'John Doe',
-      email: 'john@example.com',
-    });
-  });
-
-  it('should hide attributes from JSON', () => {
-    user.setFillable(['id', 'name', 'password']);
-    user.setHidden(['password']);
-    user.setAttribute('password', 'secret');
-
-    const json = user.toJSON();
+    const json = m.toJSON();
+    expect(json['name']).toBe('John');
     expect(json['password']).toBeUndefined();
   });
-});
 
-describe('Model Advanced Tests', () => {
-  let user: TestModel;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    user = new TestModel({
-      id: 1,
-      name: 'John Doe',
-      email: 'john@example.com',
-    });
-  });
-
-  it('should track dirty attributes', () => {
-    expect(user.isDirty()).toBe(false);
-
-    user.setAttribute('name', 'Jane Doe');
-    expect(user.isDirty()).toBe(true);
-    expect(user.isDirty('name')).toBe(true);
-    expect(user.isDirty('email')).toBe(false);
-  });
-
-  it('should cast attributes', () => {
-    const model = new TestModel();
-    model.setCasts({
-      is_active: 'boolean',
-      age: 'integer',
-      score: 'float',
-      metadata: 'json',
+  it('fillable list filters unknown keys; empty fillable allows all', async (): Promise<void> => {
+    const Limited = Model.define({
+      ...baseConfig,
+      fillable: ['name'],
+      casts: {},
     });
 
-    model.setAttribute('is_active', 1);
-    expect(model.getAttribute('is_active')).toBe(true);
+    const m1 = Limited.create({ name: 'A', email: 'nope' });
+    expect(m1.getAttribute('name')).toBe('A');
+    expect(m1.getAttribute('email')).toBeUndefined();
 
-    model.setAttribute('age', '25');
-    expect(model.getAttribute('age')).toBe(25);
+    m1.fill({ email: 'still-nope' });
+    expect(m1.getAttribute('email')).toBeUndefined();
 
-    model.setAttribute('score', '98.5');
-    expect(model.getAttribute('score')).toBe(98.5);
+    const Open = Model.define({
+      ...baseConfig,
+      fillable: [],
+      casts: {},
+    });
 
-    model.setAttribute('metadata', '{"key": "value"}');
-    expect(model.getAttribute('metadata')).toEqual({ key: 'value' });
+    const m2 = Open.create({ name: 'B', email: 'yes' });
+    expect(m2.getAttribute('email')).toBe('yes');
   });
 
-  it('should manage timestamps', async () => {
-    const model = new TestModel();
-    model.setTimestamps(true);
+  it('tracks dirty state and existence', async (): Promise<void> => {
+    const TestModel = Model.define({ ...baseConfig, casts: {} });
+    const m = TestModel.create({ name: 'A' });
 
-    // Mock save to avoid DB connection
-    model.save = async (): Promise<boolean> => {
-      const now = new Date().toISOString();
-      model.setAttribute('created_at', now);
-      model.setAttribute('updated_at', now);
-      return true;
+    expect(m.isDirty()).toBe(false);
+    expect(m.isDirty('name')).toBe(false);
+
+    m.setAttribute('name', 'B');
+    expect(m.isDirty()).toBe(true);
+    expect(m.isDirty('name')).toBe(true);
+
+    expect(m.exists()).toBe(false);
+    m.setExists(true);
+    expect(m.exists()).toBe(true);
+  });
+
+  it('save throws when DB not initialized; save sets timestamps when enabled', async (): Promise<void> => {
+    const dbMod = (await import('@orm/Database')) as unknown as {
+      __setDb: (next: unknown) => void;
     };
 
-    await model.save();
+    const TestModel = Model.define({ ...baseConfig, casts: {} });
 
-    expect(model.getAttribute('created_at')).toBeDefined();
-    expect(model.getAttribute('updated_at')).toBeDefined();
+    dbMod.__setDb(undefined);
+    const noDbModel = TestModel.create({ name: 'A' });
+    await expect(noDbModel.save()).rejects.toMatchObject({ code: 'DATABASE_ERROR' });
+
+    dbMod.__setDb({});
+    const m = TestModel.create({ name: 'A' });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+
+    await expect(m.save()).resolves.toBe(true);
+    expect(m.getAttribute('created_at')).toBe('2025-01-01T00:00:00.000Z');
+    expect(m.getAttribute('updated_at')).toBe('2025-01-01T00:00:00.000Z');
+
+    vi.useRealTimers();
   });
 
-  it('should find model by id', async () => {
-    const mockFirst = vi.fn().mockResolvedValue({ id: 1, name: 'Found' });
-    (QueryBuilder as any).mockImplementation(function () {
-      return {
-        where: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        first: mockFirst,
-      };
+  it('delete returns false when not exists; true when exists and db present', async (): Promise<void> => {
+    const TestModel = Model.define({ ...baseConfig, casts: {} });
+    const m = TestModel.create({ name: 'A' });
+
+    await expect(m.delete()).resolves.toBe(false);
+
+    m.setExists(true);
+    await expect(m.delete()).resolves.toBe(true);
+  });
+
+  it('find returns null when missing, otherwise returns an existing model', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const builderMod = await import('@orm/QueryBuilder');
+    // first call returns null
+    await expect(Model.find(config, 1)).resolves.toBeNull();
+
+    const last1 = qb.__getLastBuilder();
+    expect(last1?.where).toHaveBeenCalledWith('id', '=', '1');
+    expect(last1?.limit).toHaveBeenCalledWith(1);
+
+    // second call returns a row
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => ({ id: 2, name: 'X' })),
+      get: vi.fn(async () => []),
+    } satisfies MockBuilder);
+
+    const found = await Model.find(config, 2);
+    expect(found).not.toBeNull();
+    expect(found?.exists()).toBe(true);
+    expect(found?.getAttribute('name')).toBe('X');
+  });
+
+  it('all maps rows to existing models', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      get: vi.fn(async () => [{ id: 1 }, { id: 2 }]),
+    } satisfies MockBuilder);
+
+    const all = await Model.all(config);
+    expect(all).toHaveLength(2);
+    expect(all[0].exists()).toBe(true);
+    expect(all[1].exists()).toBe(true);
+  });
+
+  it('define attaches custom methods', async (): Promise<void> => {
+    const Test = Model.define(
+      { ...baseConfig, casts: {}, timestamps: false },
+      {
+        greet: (m: IModel, prefix: unknown): string =>
+          `${String(prefix)} ${String(m.getAttribute('name'))}`,
+      }
+    );
+
+    const m = Test.create({ name: 'Zin' });
+    expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Zin');
+  });
+
+  it('define plan function creates bound methods', async (): Promise<void> => {
+    const Test = Model.define({ ...baseConfig, casts: {}, timestamps: false }, (m) => ({
+      greet: (prefix: string): string => `${prefix} ${String(m.getAttribute('name'))}`,
+    }));
+
+    const m = Test.create({ name: 'Plan' });
+    expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Plan');
+  });
+
+  it('define methods are available on find() and all() results', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    const Test = Model.define(config, {
+      greet: (m: IModel): string => `hi ${String(m.getAttribute('name'))}`,
     });
 
-    const result = await TestModel.find(1);
+    // find() path
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => ({ id: 2, name: 'Found' })),
+      get: vi.fn(async () => []),
+    } satisfies MockBuilder);
 
-    expect(result).toBeInstanceOf(TestModel);
-    expect(result?.getAttribute('name')).toBe('Found');
-    expect(mockFirst).toHaveBeenCalled();
+    const found = await Test.find(2);
+    expect(found).not.toBeNull();
+    expect((found as IModel & { greet: () => string }).greet()).toBe('hi Found');
+
+    // all() path
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      get: vi.fn(async () => [
+        { id: 1, name: 'A' },
+        { id: 2, name: 'B' },
+      ]),
+    } satisfies MockBuilder);
+
+    const allRows = await Test.all();
+    expect(allRows).toHaveLength(2);
+    expect((allRows[0] as IModel & { greet: () => string }).greet()).toBe('hi A');
   });
 
-  it('should return null if model not found', async () => {
-    const mockFirst = vi.fn().mockResolvedValue(null);
-    (QueryBuilder as any).mockImplementation(function () {
-      return {
-        where: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        first: mockFirst,
-      };
-    });
+  it('relationship defaults route through related query builder', async (): Promise<void> => {
+    const config: ModelConfig = {
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      fillable: ['id', 'user_id'],
+      hidden: [],
+    };
+    const Test = Model.define(config);
 
-    const result = await TestModel.find(999);
+    const relatedBuilder = {
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => ({ ok: true })),
+      get: vi.fn(async () => [{ ok: true }]),
+    };
 
-    expect(result).toBeNull();
-  });
+    const Related = {
+      name: 'User',
+      getTable: (): string => 'users',
+      query: (): unknown => relatedBuilder,
+    };
 
-  it('should get all models', async () => {
-    const mockGet = vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]);
-    (QueryBuilder as any).mockImplementation(function () {
-      return {
-        get: mockGet,
-      };
-    });
+    const m = Test.create({ id: '5', user_id: '9' });
 
-    const results = await TestModel.all();
+    const relatedModel = Related as unknown as ModelStatic;
 
-    expect(results).toHaveLength(2);
-    expect(results[0]).toBeInstanceOf(TestModel);
-    expect(results[1]).toBeInstanceOf(TestModel);
-    expect(mockGet).toHaveBeenCalled();
-  });
+    await m.hasOne(relatedModel).get(m);
+    expect(relatedBuilder.where).toHaveBeenCalledWith('test_model_id', '=', '5');
 
-  it('should create model', () => {
-    const model = TestModel.create({ name: 'New' });
-    expect(model).toBeInstanceOf(TestModel);
-    expect(model.getAttribute('name')).toBe('New');
+    await m.belongsTo(relatedModel).get(m);
+    expect(relatedBuilder.where).toHaveBeenCalledWith('id', '=', '9');
+
+    await m.belongsToMany(relatedModel).get(m);
+    expect(relatedBuilder.join).toHaveBeenCalledWith(
+      'test_models_users',
+      'users.id = test_models_users.user_id'
+    );
+    expect(relatedBuilder.where).toHaveBeenCalledWith('test_models_users.test_model_id', '5');
   });
 });

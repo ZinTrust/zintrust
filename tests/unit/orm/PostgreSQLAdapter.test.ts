@@ -11,7 +11,7 @@ describe('PostgreSQLAdapter', () => {
     username: 'user',
     password: 'password', // NOSONAR
   };
-  const adapter = new PostgreSQLAdapter(config);
+  const adapter = PostgreSQLAdapter.create(config);
 
   it('should connect successfully', async () => {
     await adapter.connect();
@@ -55,22 +55,26 @@ describe('PostgreSQLAdapter', () => {
       adapter.transaction(async () => {
         throw error;
       })
-    ).rejects.toThrow('Transaction failed');
+    ).rejects.toMatchObject({
+      code: 'TRY_CATCH_ERROR',
+      message: 'PostgreSQL transaction failed',
+      details: error,
+    });
   });
 
   it('should get parameter placeholder', () => {
-    const placeholder = (adapter as any).getParameterPlaceholder(1);
+    const placeholder = adapter.getPlaceholder(1);
     expect(placeholder).toBe('$1');
   });
 
   it('should get parameter placeholder for different indices', () => {
-    expect((adapter as any).getParameterPlaceholder(0)).toBe('$0');
-    expect((adapter as any).getParameterPlaceholder(5)).toBe('$5');
+    expect(adapter.getPlaceholder(0)).toBe('$0');
+    expect(adapter.getPlaceholder(5)).toBe('$5');
   });
 
   it('should handle connection error', async () => {
     const errorConfig: DatabaseConfig = { ...config, host: 'error' };
-    const errorAdapter = new PostgreSQLAdapter(errorConfig);
+    const errorAdapter = PostgreSQLAdapter.create(errorConfig);
     await expect(errorAdapter.connect()).rejects.toThrow(
       'Failed to connect to PostgreSQL: Connection failed'
     );
@@ -78,14 +82,14 @@ describe('PostgreSQLAdapter', () => {
 
   it('should handle config with custom port', async () => {
     const customConfig: DatabaseConfig = { ...config, port: 5433 };
-    const customAdapter = new PostgreSQLAdapter(customConfig);
+    const customAdapter = PostgreSQLAdapter.create(customConfig);
     await customAdapter.connect();
     expect(customAdapter.isConnected()).toBe(true);
   });
 
   it('should handle config without port (default port)', async () => {
     const { port: _, ...configWithoutPort } = config;
-    const defaultAdapter = new PostgreSQLAdapter(configWithoutPort as DatabaseConfig);
+    const defaultAdapter = PostgreSQLAdapter.create(configWithoutPort as DatabaseConfig);
     await defaultAdapter.connect();
     expect(defaultAdapter.isConnected()).toBe(true);
   });

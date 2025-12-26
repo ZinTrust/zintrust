@@ -210,9 +210,11 @@ describe('app/Middleware/index.ts', () => {
     await rateLimitMiddleware(reqUnknownIp as any, createRes() as any, next);
 
     // Now call enough times to exceed maxRequests (100)
+    /* eslint-disable no-await-in-loop */
     for (let i = 0; i < 98; i += 1) {
       await rateLimitMiddleware(reqUnknownIp as any, createRes() as any, next);
     }
+    /* eslint-enable no-await-in-loop */
 
     const resBlocked = createRes();
     const nextBlocked = vi.fn().mockResolvedValue(undefined);
@@ -412,7 +414,8 @@ describe('app/Middleware/index.ts', () => {
   it('validationMiddleware: skips GET/DELETE, validates ok, and handles ValidationError vs other error', async () => {
     const { validationMiddleware } = await import('@app/Middleware/index');
 
-    const handler = validationMiddleware({} as any);
+    const schema = { getRules: vi.fn(() => ({})) };
+    const handler = validationMiddleware(schema as any);
 
     const nextSkip = vi.fn().mockResolvedValue(undefined);
     await handler(

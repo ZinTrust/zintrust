@@ -29,8 +29,8 @@ To contribute to Zintrust, ensure you have the following installed:
 ### Initial Setup
 
 ```bash
-git clone https://github.com/ZinTrust/zintrust.git
-cd zintrust
+git clone https://github.com/ZinTrust/ZinTrust.git
+cd ZinTrust
 npm install
 npx husky init
 ```
@@ -94,7 +94,7 @@ When contributing to or creating a microservice:
 
 - **NEVER** use raw string concatenation for SQL queries.
 - **ALWAYS** use the `QueryBuilder` ([src/orm/QueryBuilder.ts](src/orm/QueryBuilder.ts)) or parameterized queries.
-- **Validation**: All user input must be validated using the `Validator` class before reaching the database layer.
+- **Validation**: All user input must be validated using the `Validator` utilities before reaching the database layer.
 
 ### Vulnerability Reporting
 
@@ -127,7 +127,7 @@ If you find a security vulnerability, please do **not** open a public issue. Ema
 
 ## Documentation Standards
 
-- **JSDoc**: All public methods and classes must have JSDoc comments.
+- **JSDoc**: All public APIs must have JSDoc comments.
 - **Markdown**: New features must include an updated `.md` file in the `docs/` directory.
 - **Website**: Ensure changes are reflected in the `docs-website/` by running `npm run dbl`.
 

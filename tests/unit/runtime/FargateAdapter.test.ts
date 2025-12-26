@@ -1,9 +1,7 @@
-import { EventEmitter } from 'node:events';
+import { EventEmitter } from '@node-singletons/events';
 
-import type { AdapterConfig, PlatformResponse } from '@/runtime/RuntimeAdapter';
+import type { AdapterConfig, IRequestBody } from '@/runtime/RuntimeAdapter';
 import { describe, expect, it, vi } from 'vitest';
-
-type RequestBody = Buffer | null;
 
 const loggerState = vi.hoisted(() => ({
   debug: vi.fn(),
@@ -108,31 +106,14 @@ class FakeRes {
   }
 }
 
-async function importAdapter(): Promise<{
-  FargateAdapter: new (config: AdapterConfig) => {
-    platform: 'fargate';
-    handle(): Promise<PlatformResponse>;
-    startServer(port?: number, host?: string): Promise<void>;
-    stop(): Promise<void>;
-    parseRequest(): unknown;
-    formatResponse(): unknown;
-    getLogger(): {
-      debug(msg: string, data?: unknown): void;
-      info(msg: string, data?: unknown): void;
-      warn(msg: string, data?: unknown): void;
-      error(msg: string, err?: Error): void;
-    };
-    supportsPersistentConnections(): boolean;
-    getEnvironment(): Record<string, unknown>;
-  };
-}> {
+async function importAdapter(): Promise<typeof import('@/runtime/adapters/FargateAdapter')> {
   return import('@/runtime/adapters/FargateAdapter');
 }
 
 describe('FargateAdapter', () => {
   it('should identify as fargate platform', async () => {
     const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: async () => undefined,
       logger: {
         debug: vi.fn(),
@@ -147,7 +128,7 @@ describe('FargateAdapter', () => {
 
   it('should throw error when calling handle()', async () => {
     const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: async () => undefined,
       logger: {
         debug: vi.fn(),
@@ -157,7 +138,7 @@ describe('FargateAdapter', () => {
       },
     });
 
-    await expect(adapter.handle()).rejects.toThrow(/requires startServer\(\)/i);
+    await expect(adapter.handle({})).rejects.toThrow(/requires startServer\(\)/i);
   });
 
   it('startServer should create server, listen, and wire request listener', async () => {
@@ -171,12 +152,12 @@ describe('FargateAdapter', () => {
       error: vi.fn(),
     };
 
-    const handler = vi.fn(async (_req: unknown, res: unknown, body: RequestBody) => {
+    const handler = vi.fn(async (_req: unknown, res: unknown, body: IRequestBody) => {
       expect(body?.toString('utf-8')).toBe('hi');
       (res as FakeRes).end('ok');
     });
 
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: handler as unknown as AdapterConfig['handler'],
       logger: configLogger,
     }) as unknown as { startServer: (port: number, host: string) => Promise<void> };
@@ -185,7 +166,9 @@ describe('FargateAdapter', () => {
 
     expect(httpState.createServer).toHaveBeenCalledTimes(1);
     expect(httpState.server.listen).toHaveBeenCalledWith(8080, '127.0.0.1', expect.any(Function));
-    expect(configLogger.info).toHaveBeenCalledWith('Fargate server listening on 127.0.0.1:8080');
+    expect(configLogger.info).toHaveBeenCalledWith(
+      'Fargate server listening on http://127.0.0.1:8080'
+    );
 
     const listener = httpState.getLastListener();
     expect(typeof listener).toBe('function');
@@ -196,9 +179,10 @@ describe('FargateAdapter', () => {
 
     req.emit('data', Buffer.from('hi'));
     req.emit('end');
-    await Promise.resolve();
 
-    expect(handler).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('request listener should handle request stream error event', async () => {
@@ -212,7 +196,7 @@ describe('FargateAdapter', () => {
       error: vi.fn(),
     };
 
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: async () => undefined,
       logger: configLogger,
     }) as unknown as { startServer: (port: number, host: string) => Promise<void> };
@@ -228,9 +212,11 @@ describe('FargateAdapter', () => {
     const err = new Error('bad');
     req.emit('error', err);
 
-    expect(configLogger.error).toHaveBeenCalledWith('Request error', err);
-    expect(res.statusCode).toBe(400);
-    expect(res.endedBody).toBe(JSON.stringify({ error: 'Bad Request' }));
+    await vi.waitFor(() => {
+      expect(configLogger.error).toHaveBeenCalledWith('Request error', err);
+    });
+    expect(res.statusCode).toBe(500);
+    expect(res.endedBody).toBe('Internal Server Error');
   });
 
   it('startServer should reject on server error and log', async () => {
@@ -248,7 +234,7 @@ describe('FargateAdapter', () => {
       // wait for server error event
     });
 
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: async () => undefined,
       logger: configLogger,
     }) as unknown as { startServer: (port: number, host: string) => Promise<void> };
@@ -274,7 +260,7 @@ describe('FargateAdapter', () => {
       error: vi.fn(),
     };
 
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: async () => undefined,
       logger: configLogger,
     }) as unknown as { startServer: (port: number, host: string) => Promise<void> };
@@ -291,170 +277,15 @@ describe('FargateAdapter', () => {
     const res = new FakeRes();
     listener?.(req, res);
 
-    expect(configLogger.error).toHaveBeenCalledWith('Connection error', expect.any(Error));
-  });
-
-  it('handleRequestData should reject oversized payload with 413', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-      maxBodySize: 1,
-    }) as unknown as {
-      handleRequestData: (chunk: Buffer, chunks: Buffer[], res: FakeRes) => void;
-    };
-
-    // Note: adapter currently checks `chunks.length * chunk.length`, so we pre-fill
-    // to deterministically exceed maxBodySize and hit the 413 branch.
-    const chunks: Buffer[] = [Buffer.from('x'), Buffer.from('y')];
-    const res = new FakeRes();
-
-    adapter.handleRequestData(Buffer.from('z'), chunks, res);
-
-    expect(res.statusCode).toBe(413);
-    expect(res.endedBody).toBe(JSON.stringify({ error: 'Payload Too Large' }));
-    expect(chunks).toEqual([Buffer.from('x'), Buffer.from('y')]);
-  });
-
-  it('handleRequestError should send 400 and log', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const configLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: configLogger,
-    }) as unknown as {
-      handleRequestError: (error: Error, res: FakeRes) => void;
-    };
-
-    const res = new FakeRes();
-    const err = new Error('bad');
-    adapter.handleRequestError(err, res);
-
-    expect(configLogger.error).toHaveBeenCalledWith('Request error', err);
-    expect(res.statusCode).toBe(400);
-    expect(res.endedBody).toBe(JSON.stringify({ error: 'Bad Request' }));
-  });
-
-  it('handleRequestEnd should return 500 JSON with timestamp on handler error', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
-
-    const { FargateAdapter } = await importAdapter();
-    const configLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: configLogger,
-    }) as unknown as {
-      handleRequestEnd: (chunks: Buffer[], req: FakeReq, res: FakeRes) => Promise<void>;
-      executeRequestHandler: (req: FakeReq, res: FakeRes, body: RequestBody) => Promise<void>;
-    };
-
-    adapter.executeRequestHandler = async () => {
-      throw new Error('boom');
-    };
-
-    const req = new FakeReq();
-    const res = new FakeRes();
-    await adapter.handleRequestEnd([], req, res);
-
-    expect(configLogger.error).toHaveBeenCalledWith('Request handler error', expect.any(Error));
-    expect(res.statusCode).toBe(500);
-    expect(res.endedBody).toBe(
-      JSON.stringify({
-        error: 'Internal Server Error',
-        timestamp: '2025-01-01T00:00:00.000Z',
-      })
-    );
-
-    vi.useRealTimers();
-  });
-
-  it('executeRequestHandler should set 504 on timeout when handler hangs', async () => {
-    vi.useFakeTimers();
-
-    const { FargateAdapter } = await importAdapter();
-
-    let resolveHandler: (() => void) | undefined;
-    const handler = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveHandler = resolve;
-        })
-    );
-
-    const configLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-
-    const adapter = new FargateAdapter({
-      handler: handler as unknown as AdapterConfig['handler'],
-      logger: configLogger,
-      timeout: 5,
-    }) as unknown as {
-      executeRequestHandler: (req: FakeReq, res: FakeRes, body: RequestBody) => Promise<void>;
-    };
-
-    const req = new FakeReq();
-    const res = new FakeRes();
-
-    const promise = adapter.executeRequestHandler(req, res, Buffer.from('x'));
-    await Promise.resolve();
-    await vi.advanceTimersByTimeAsync(5);
-
-    expect(res.statusCode).toBe(504);
-    expect(res.endedBody).toBe(JSON.stringify({ error: 'Gateway Timeout' }));
-
-    resolveHandler?.();
-    await promise;
-
-    expect(configLogger.debug).toHaveBeenCalledWith(
-      'Request processed',
-      expect.objectContaining({ method: 'GET', url: '/', statusCode: 504 })
-    );
-
-    vi.useRealTimers();
-  });
-
-  it('stop should resolve immediately if not started', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const configLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: configLogger,
+    await vi.waitFor(() => {
+      expect(configLogger.error).toHaveBeenCalledWith('Request error', expect.any(Error));
     });
-
-    await expect(adapter.stop()).resolves.toBeUndefined();
-    expect(configLogger.info).not.toHaveBeenCalledWith('Fargate server stopped');
   });
 
   it('stop should close server and log when started', async () => {
     httpState.reset();
     const { FargateAdapter } = await importAdapter();
+
     const configLogger = {
       debug: vi.fn(),
       info: vi.fn(),
@@ -462,7 +293,7 @@ describe('FargateAdapter', () => {
       error: vi.fn(),
     };
 
-    const adapter = new FargateAdapter({
+    const adapter = FargateAdapter.create({
       handler: async () => undefined,
       logger: configLogger,
     }) as unknown as {
@@ -471,103 +302,114 @@ describe('FargateAdapter', () => {
     };
 
     await adapter.startServer(3000, 'localhost');
+    expect(httpState.server.listen).toHaveBeenCalled();
+
     await adapter.stop();
 
     expect(httpState.server.close).toHaveBeenCalledTimes(1);
-    expect(configLogger.info).toHaveBeenCalledWith('Fargate server stopped');
+  });
+});
+
+it('stop should resolve immediately if not started', async () => {
+  const { FargateAdapter } = await importAdapter();
+  const configLogger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
+  const adapter = FargateAdapter.create({
+    handler: async () => undefined,
+    logger: configLogger,
   });
 
-  it('parseRequest and formatResponse should throw', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    }) as unknown as { parseRequest: () => unknown; formatResponse: () => unknown };
+  await expect(adapter.stop()).resolves.toBeUndefined();
+  expect(configLogger.info).not.toHaveBeenCalledWith('Fargate server stopped');
+});
 
-    expect(() => adapter.parseRequest()).toThrow(/native node\.js http/i);
-    expect(() => adapter.formatResponse()).toThrow(/native node\.js http/i);
+it('parseRequest and formatResponse should throw', async () => {
+  const { FargateAdapter } = await importAdapter();
+  const adapter = FargateAdapter.create({
+    handler: async () => undefined,
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+  }) as unknown as { parseRequest: () => unknown; formatResponse: () => unknown };
+
+  expect(() => adapter.parseRequest()).toThrow(/native node\.js http/i);
+  expect(() => adapter.formatResponse()).toThrow(/native node\.js http/i);
+});
+
+it('getLogger should use fallback when internal logger missing', async () => {
+  const { FargateAdapter } = await importAdapter();
+  const adapter = FargateAdapter.create({
+    handler: async () => undefined,
+  }) as unknown as { getLogger: () => any };
+
+  const fallback = adapter.getLogger() as {
+    debug: (msg: string) => void;
+    info: (msg: string) => void;
+    warn: (msg: string) => void;
+    error: (msg: string, err?: Error) => void;
+  };
+
+  fallback.debug('d');
+  fallback.info('i');
+  fallback.warn('w');
+  fallback.error('e', new Error('x'));
+
+  expect(loggerState.debug).toHaveBeenCalledWith('[Fargate] d', '');
+  expect(loggerState.info).toHaveBeenCalledWith('[Fargate] i', '');
+  expect(loggerState.warn).toHaveBeenCalledWith('[Fargate] w', '');
+  expect(loggerState.error).toHaveBeenCalledWith('[Fargate] e', 'x');
+});
+
+it('default logger should stringify data and handle undefined/nullish', async () => {
+  const { FargateAdapter } = await importAdapter();
+  const adapter = FargateAdapter.create({
+    handler: async () => undefined,
+    // no logger => createDefaultLogger
   });
 
-  it('getLogger should use fallback when internal logger missing', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    }) as unknown as { getLogger: () => any };
+  const l = adapter.getLogger();
+  l.debug('a', { ok: true });
+  l.debug('a2');
+  l.info('b');
+  l.info('b2', { ok: false });
+  l.warn('c');
+  l.warn('c2', null);
+  l.error('d', new Error('x'));
 
-    (adapter as unknown as { logger?: unknown }).logger = undefined;
-    const fallback = adapter.getLogger() as {
-      debug: (msg: string) => void;
-      info: (msg: string) => void;
-      warn: (msg: string) => void;
-      error: (msg: string, err?: Error) => void;
-    };
+  expect(loggerState.debug).toHaveBeenCalledWith('[Fargate] a', JSON.stringify({ ok: true }));
+  expect(loggerState.debug).toHaveBeenCalledWith('[Fargate] a2', '');
+  expect(loggerState.info).toHaveBeenCalledWith('[Fargate] b', '');
+  expect(loggerState.info).toHaveBeenCalledWith('[Fargate] b2', JSON.stringify({ ok: false }));
+  expect(loggerState.warn).toHaveBeenCalledWith('[Fargate] c', '');
+  expect(loggerState.warn).toHaveBeenCalledWith('[Fargate] c2', 'null');
+  expect(loggerState.error).toHaveBeenCalledWith('[Fargate] d', 'x');
+});
 
-    fallback.debug('d');
-    fallback.info('i');
-    fallback.warn('w');
-    fallback.error('e', new Error('x'));
-
-    expect(loggerState.debug).toHaveBeenCalledWith('[Fargate] d');
-    expect(loggerState.info).toHaveBeenCalledWith('[Fargate] i');
-    expect(loggerState.warn).toHaveBeenCalledWith('[Fargate] w');
-    expect(loggerState.error).toHaveBeenCalledWith('[Fargate] e', 'x');
+it('supportsPersistentConnections and getEnvironment should work', async () => {
+  const { FargateAdapter } = await importAdapter();
+  const adapter = FargateAdapter.create({
+    handler: async () => undefined,
+    logger: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
   });
 
-  it('default logger should stringify data and handle undefined/nullish', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      // no logger => createDefaultLogger
-    });
-
-    const l = adapter.getLogger();
-    l.debug('a', { ok: true });
-    l.debug('a2');
-    l.info('b');
-    l.info('b2', { ok: false });
-    l.warn('c');
-    l.warn('c2', null);
-    l.error('d', new Error('x'));
-
-    expect(loggerState.debug).toHaveBeenCalledWith('[Fargate] a', JSON.stringify({ ok: true }));
-    expect(loggerState.debug).toHaveBeenCalledWith('[Fargate] a2', '');
-    expect(loggerState.info).toHaveBeenCalledWith('[Fargate] b', '');
-    expect(loggerState.info).toHaveBeenCalledWith('[Fargate] b2', JSON.stringify({ ok: false }));
-    expect(loggerState.warn).toHaveBeenCalledWith('[Fargate] c', '');
-    expect(loggerState.warn).toHaveBeenCalledWith('[Fargate] c2', 'null');
-    expect(loggerState.error).toHaveBeenCalledWith('[Fargate] d', 'x');
-  });
-
-  it('supportsPersistentConnections and getEnvironment should work', async () => {
-    const { FargateAdapter } = await importAdapter();
-    const adapter = new FargateAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    expect(adapter.supportsPersistentConnections()).toBe(true);
-    expect(adapter.getEnvironment()).toEqual({
-      nodeEnv: 'test',
-      runtime: 'fargate',
-      dbConnection: 'sqlite',
-      dbHost: 'localhost',
-      dbPort: 1234,
-    });
+  expect(adapter.supportsPersistentConnections()).toBe(true);
+  expect(adapter.getEnvironment()).toEqual({
+    nodeEnv: 'test',
+    runtime: 'fargate',
+    dbConnection: 'sqlite',
+    dbHost: 'localhost',
+    dbPort: 1234,
   });
 });

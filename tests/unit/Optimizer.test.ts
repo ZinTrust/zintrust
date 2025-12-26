@@ -47,7 +47,7 @@ describe('GenerationCache', () => {
     readFileSync.mockReturnValue('{"code":"hello","timestamp":123}');
 
     const { GenerationCache } = await loadOptimizer('cache-load');
-    const cache = new GenerationCache('/cache-dir', 999999);
+    const cache = GenerationCache.create('/cache-dir', 999999);
 
     const stats = cache.getStats();
     expect(stats.entries).toBe(1);
@@ -62,7 +62,7 @@ describe('GenerationCache', () => {
     });
 
     const { GenerationCache } = await loadOptimizer('cache-load-error');
-    const cache = new GenerationCache('/cache-dir', 999999);
+    const cache = GenerationCache.create('/cache-dir', 999999);
     expect(cache).toBeDefined();
     expect(loggerError).toHaveBeenCalledWith('Failed to load cache from disk: oops');
 
@@ -74,7 +74,7 @@ describe('GenerationCache', () => {
     });
 
     const { GenerationCache: GenerationCache2 } = await loadOptimizer('cache-load-non-error');
-    const cache2 = new GenerationCache2('/cache-dir', 999999);
+    const cache2 = GenerationCache2.create('/cache-dir', 999999);
     expect(cache2).toBeDefined();
     expect(loggerError).toHaveBeenCalledWith('Failed to load cache from disk: bad');
   });
@@ -83,7 +83,7 @@ describe('GenerationCache', () => {
     existsSync.mockReturnValue(false);
 
     const { GenerationCache } = await loadOptimizer('cache-get');
-    const cache = new GenerationCache('/cache-dir', 10);
+    const cache = GenerationCache.create('/cache-dir', 10);
 
     expect(cache.get('t', { a: 1 })).toBeNull();
 
@@ -105,7 +105,7 @@ describe('GenerationCache', () => {
     existsSync.mockReturnValue(false);
 
     const { GenerationCache } = await loadOptimizer('cache-save');
-    const cache = new GenerationCache('/cache-dir', 999999);
+    const cache = GenerationCache.create('/cache-dir', 999999);
 
     vi.spyOn(Date, 'now').mockReturnValue(123);
     cache.set('t', { x: 1 }, 'code');
@@ -124,7 +124,7 @@ describe('GenerationCache', () => {
     existsSync.mockReturnValueOnce(false);
 
     const { GenerationCache } = await loadOptimizer('cache-save-existing');
-    const cache = new GenerationCache('/cache-dir', 999999);
+    const cache = GenerationCache.create('/cache-dir', 999999);
 
     vi.spyOn(Date, 'now').mockReturnValue(123);
     cache.set('t', { x: 1 }, 'code');
@@ -141,7 +141,7 @@ describe('GenerationCache', () => {
     // For constructor loadFromDisk
     existsSync.mockReturnValue(false);
     const { GenerationCache } = await loadOptimizer('cache-clear');
-    const cache = new GenerationCache('/cache-dir', 999999);
+    const cache = GenerationCache.create('/cache-dir', 999999);
 
     // clear branch when dir exists
     existsSync.mockReturnValue(true);
@@ -168,7 +168,7 @@ describe('GenerationCache', () => {
 describe('LazyLoader', () => {
   it('loads a module, caches it, clears cache, and logs on failure (Error + non-Error)', async () => {
     const { LazyLoader } = await loadOptimizer('lazy');
-    const loader = new LazyLoader();
+    const loader = LazyLoader.create();
 
     const m1 = await loader.load('node:path');
     const m2 = await loader.load('node:path');
@@ -188,16 +188,16 @@ describe('LazyLoader', () => {
 
     const dataUrl = 'data:text/javascript,throw%20%22boom%22';
     await expect(loader.load(dataUrl)).rejects.toThrow(`Failed to load module: ${dataUrl}`);
-    expect(loggerError).toHaveBeenCalledWith(
-      `Failed to load module: ${dataUrl}`,
-      expect.any(Error)
-    );
+    expect(loggerError).toHaveBeenCalledWith(`Failed to load module: ${dataUrl}`, 'boom');
   });
 
   it('preloads multiple modules', async () => {
     const { LazyLoader } = await loadOptimizer('lazy-preload');
-    const loader = new LazyLoader();
+    const loader = LazyLoader.create();
     await loader.preload(['node:os', 'node:path']);
+
+    const osMod = await loader.load('node:os');
+    expect(osMod).toBeDefined();
   });
 });
 
@@ -289,75 +289,48 @@ describe('PerformanceOptimizer', () => {
     existsSync.mockReturnValue(false);
     const { PerformanceOptimizer } = await loadOptimizer('opt-initial');
 
-    const optimizer = new PerformanceOptimizer();
-
-    const priv = optimizer as unknown as {
-      cache: {
-        getStats: () => { size: number; keys: string[] };
-        save: () => void;
-        clear: () => void;
-      };
-      lazyLoader: { clear: () => void };
-    };
-    vi.spyOn(priv.cache, 'getStats').mockReturnValue({ size: 0, keys: [] });
+    const optimizer = PerformanceOptimizer.create();
 
     const stats = optimizer.getStats();
     expect(stats.hitRate).toBe('0.0%');
-    expect(stats.cacheStatus).toEqual({ size: 0, keys: [] });
 
-    const saveSpy = vi.spyOn(priv.cache, 'save');
+    // cacheStatus shape comes from GenerationCache.getStats(); when fs.existsSync is false,
+    // disk usage should be 0 and cache should be empty.
+    expect(stats.cacheStatus.size).toBe(0);
+    expect(stats.cacheStatus.keys).toEqual([]);
+
     optimizer.saveCache();
-    expect(saveSpy).toHaveBeenCalledTimes(1);
+    // save should attempt to create the cache directory when missing
+    expect(mkdirSync).toHaveBeenCalled();
 
-    const cacheClearSpy = vi.spyOn(priv.cache, 'clear');
-    const lazyClearSpy = vi.spyOn(priv.lazyLoader, 'clear');
     optimizer.clear();
-    expect(cacheClearSpy).toHaveBeenCalledTimes(1);
-    expect(lazyClearSpy).toHaveBeenCalledTimes(1);
     expect(optimizer.getStats().hitRate).toBe('0.0%');
   });
 
   it('generateWithCache hits cache and skips generator', async () => {
     existsSync.mockReturnValue(false);
     const { PerformanceOptimizer } = await loadOptimizer('opt-hit');
-    const optimizer = new PerformanceOptimizer();
+    const optimizer = PerformanceOptimizer.create();
 
-    const priv = optimizer as unknown as {
-      cache: {
-        get: (t: string, p: Record<string, unknown>) => string | null;
-        set: (t: string, p: Record<string, unknown>, code: string) => void;
-        getStats: () => { size: number; keys: string[] };
-      };
-    };
+    // First call populates cache
+    const gen1 = vi.fn(async () => ({ ok: true }));
+    const first = await optimizer.generateWithCache('t', { a: 1 }, gen1);
+    expect(first).toEqual({ ok: true });
+    expect(gen1).toHaveBeenCalledTimes(1);
 
-    vi.spyOn(priv.cache, 'get').mockReturnValue('{"ok":true}');
-    vi.spyOn(priv.cache, 'getStats').mockReturnValue({ size: 0, keys: [] });
+    // Second call should hit cache and not call generator
+    const gen2 = vi.fn(async () => ({ ok: false }));
+    const second = await optimizer.generateWithCache('t', { a: 1 }, gen2);
+    expect(second).toEqual({ ok: true });
+    expect(gen2).not.toHaveBeenCalled();
 
-    const gen = vi.fn(async () => ({ ok: false }));
-    const result = await optimizer.generateWithCache('t', { a: 1 }, gen);
-    expect(result).toEqual({ ok: true });
-    expect(gen).not.toHaveBeenCalled();
-
-    expect(optimizer.getStats().hitRate).toBe('100.0%');
+    expect(optimizer.getStats().hitRate).toBe('50.0%');
   });
 
   it('generateWithCache misses, measures duration, caches result, and generateInParallel branches', async () => {
     existsSync.mockReturnValue(false);
-    const { PerformanceOptimizer, ParallelGenerator } = await loadOptimizer('opt-miss');
-    const optimizer = new PerformanceOptimizer();
-
-    const priv = optimizer as unknown as {
-      cache: {
-        get: (t: string, p: Record<string, unknown>) => string | null;
-        set: (t: string, p: Record<string, unknown>, code: string) => void;
-        getStats: () => { size: number; keys: string[] };
-      };
-      lazyLoader: { preload: (paths: string[]) => Promise<void> };
-    };
-
-    vi.spyOn(priv.cache, 'get').mockReturnValue(null);
-    const setSpy = vi.spyOn(priv.cache, 'set');
-    vi.spyOn(priv.cache, 'getStats').mockReturnValue({ size: 0, keys: [] });
+    const { PerformanceOptimizer } = await loadOptimizer('opt-miss');
+    const optimizer = PerformanceOptimizer.create();
 
     const nowSpy = vi
       .spyOn(performance, 'now')
@@ -366,7 +339,6 @@ describe('PerformanceOptimizer', () => {
 
     const result = await optimizer.generateWithCache('t', { a: 1 }, async () => ({ n: 1 }));
     expect(result).toEqual({ n: 1 });
-    expect(setSpy).toHaveBeenCalledWith('t', { a: 1 }, '{"n":1}');
     expect(optimizer.getStats().estimatedSavedTime).toBe('5.00ms');
 
     nowSpy.mockRestore();
@@ -376,17 +348,13 @@ describe('PerformanceOptimizer', () => {
     expect(all).toEqual([1, 2]);
 
     // generateInParallel: runBatch path
-    const batchSpy = vi.spyOn(ParallelGenerator, 'runBatch');
     const batched = await optimizer.generateInParallel(
       [async () => 1, async () => 2, async () => 3],
       2
     );
     expect(batched).toEqual([1, 2, 3]);
-    expect(batchSpy).toHaveBeenCalledTimes(1);
 
-    // preloadModules
-    const preloadSpy = vi.spyOn(priv.lazyLoader, 'preload').mockResolvedValue(undefined);
-    await optimizer.preloadModules(['node:os']);
-    expect(preloadSpy).toHaveBeenCalledWith(['node:os']);
+    // preloadModules should resolve (loads modules lazily)
+    await expect(optimizer.preloadModules(['node:os'])).resolves.toBeUndefined();
   });
 });

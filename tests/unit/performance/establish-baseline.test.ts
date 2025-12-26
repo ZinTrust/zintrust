@@ -1,4 +1,5 @@
-import * as path from 'node:path';
+/* eslint-disable prefer-arrow-callback */
+import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const benchmarkRunAll = vi.fn<() => Promise<void>>();

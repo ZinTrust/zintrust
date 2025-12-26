@@ -4,27 +4,23 @@ const cursorTo = vi.fn();
 const rlClose = vi.fn();
 const createInterface = vi.fn(() => ({ close: rlClose }));
 
-vi.mock('node:readline', async () => {
-  const actual = await vi.importActual<typeof import('node:readline')>('node:readline');
-  return {
-    ...actual,
-    createInterface,
-    cursorTo,
-  };
-});
+vi.mock('@node-singletons/readline', () => ({
+  createInterface,
+  cursorTo,
+}));
 
 const totalmem = vi.fn(() => 10 * 1024 * 1024);
 const freemem = vi.fn(() => 5 * 1024 * 1024);
 const loadavg = vi.fn(() => [0.5, 0.25, 0.1]);
 
-vi.mock('node:os', () => ({
+vi.mock('@node-singletons/os', () => ({
   totalmem,
   freemem,
   loadavg,
 }));
 
 const randomInt = vi.fn();
-vi.mock('node:crypto', () => ({
+vi.mock('@node-singletons/crypto', () => ({
   randomInt,
 }));
 

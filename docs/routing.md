@@ -7,7 +7,7 @@ Zintrust provides a simple and expressive routing system to map URLs to controll
 Routes are defined in `routes/api.ts`.
 
 ```typescript
-import { router } from '@http/Router';
+import { router } from '@zintrust/core';
 
 router.get('/', async (req, res) => {
   return res.json({ message: 'Welcome to Zintrust' });

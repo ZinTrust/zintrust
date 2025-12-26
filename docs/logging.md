@@ -4,10 +4,10 @@ Zintrust features a robust, file-based logging system that helps you monitor you
 
 ## Basic Usage
 
-Use the `Logger` class to record information:
+Use the `Logger` namespace to record information:
 
 ```typescript
-import { Logger } from '@config/logger';
+import { Logger } from '@zintrust/core';
 
 Logger.info('User logged in', { userId: 1 });
 Logger.error('Database connection failed', { error: err.message });
@@ -42,7 +42,7 @@ LOG_LEVEL=error    # Captures: error only
 The logger is initialized in the Application constructor with the environment setting:
 
 ```typescript
-// In src/Application.ts
+// In src/boot/Application.ts
 if (!Env.DISABLE_LOGGING) {
   Logger.initialize(undefined, undefined, undefined, Env.LOG_LEVEL);
 }
@@ -115,7 +115,7 @@ The ESLint rule `no-restricted-syntax` enforces that every catch block includes 
 ```typescript
 // ❌ INVALID - ESLint Error
 try {
-  const User = require('@app/Models/User');
+  const { User } = await import('@app/Models/User');
   await User.query().get();
 } catch (error) {
   // Missing Logger.error() call!
@@ -124,7 +124,7 @@ try {
 
 // ✅ VALID - Compliant with safety rule
 try {
-  const User = require('@app/Models/User');
+  const { User } = await import('@app/Models/User');
   await User.query().get();
 } catch (error) {
   Logger.error('Database query failed', error);

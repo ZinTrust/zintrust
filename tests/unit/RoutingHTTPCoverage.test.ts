@@ -3,6 +3,7 @@
  * Tests for conditional logic in Router, Request, Response, and Middleware
  */
 
+/* eslint-disable max-nested-callbacks */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Routing and HTTP Module Coverage', () => {

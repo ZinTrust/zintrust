@@ -4,9 +4,9 @@
  */
 
 import { FactoryField, FactoryGenerator, FactoryOptions } from '@cli/scaffolding/FactoryGenerator';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -156,7 +156,8 @@ describe('FactoryGenerator Class Structure', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('export class PostFactory');
+    expect(content).toContain('Object.freeze({');
+    expect(content).toContain('export const PostFactory');
   });
 
   it('should include Faker import', async () => {
@@ -240,7 +241,7 @@ describe('FactoryGenerator Methods', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('make(): Partial<User>');
+    expect(content).toContain('make = () => ({');
   });
 
   it('should include count method', async () => {
@@ -253,7 +254,7 @@ describe('FactoryGenerator Methods', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('count(n: number)');
+    expect(content).toContain('count(n: number) {');
   });
 
   it('should include state method', async () => {
@@ -345,7 +346,7 @@ describe('FactoryGenerator Default Models', () => {
     const result = await FactoryGenerator.generateFactory(options);
 
     const content = await fs.readFile(result.filePath ?? '', 'utf-8');
-    expect(content).toContain('create(): Partial<User>');
+    expect(content).toContain('create() {');
   });
 
   it('should handle User factory defaults', async () => {
@@ -536,15 +537,17 @@ describe('FactoryGenerator Advanced Fields', () => {
       { name: 'ProductFactory', model: 'Product' },
     ];
 
-    for (const factory of factories) {
-      const result = await FactoryGenerator.generateFactory({
-        factoryName: factory.name,
-        modelName: factory.model,
-        factoriesPath: testDir,
-      });
+    const results = await Promise.all(
+      factories.map(async (factory) =>
+        FactoryGenerator.generateFactory({
+          factoryName: factory.name,
+          modelName: factory.model,
+          factoriesPath: testDir,
+        })
+      )
+    );
 
-      expect(result.success).toBe(true);
-    }
+    results.forEach((result) => expect(result.success).toBe(true));
 
     const files = await fs.readdir(testDir);
     expect(files.length).toBe(3);

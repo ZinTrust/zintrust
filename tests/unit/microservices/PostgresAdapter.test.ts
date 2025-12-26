@@ -1,530 +1,362 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/config/logger');
+const fakePass = 'pdd';
 
-const monkpass = 'testpass';
+vi.mock('@config/logger', () => {
+  const Logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    scope: vi.fn(),
+  };
+  return { Logger };
+});
+
+type MockQueryResult = { rows: unknown[]; rowCount?: number };
+
+type ListenerMap = Record<string, ((...args: unknown[]) => void) | undefined>;
+
+class MockClient {
+  public readonly query = vi.fn(
+    async (_sql: string, _params?: unknown[]): Promise<MockQueryResult> => {
+      return { rows: [] };
+    }
+  );
+
+  public readonly release = vi.fn((): void => undefined);
+}
+
+class MockPool {
+  public readonly options: Record<string, unknown>;
+  public readonly listeners: ListenerMap = {};
+
+  public totalCount = 1;
+  public idleCount = 1;
+  public waitingCount = 0;
+
+  public readonly end = vi.fn(async (): Promise<void> => undefined);
+
+  public readonly query = vi.fn(
+    async (_sql: string, _params?: unknown[]): Promise<MockQueryResult> => {
+      return { rows: [{ ok: true }], rowCount: 1 };
+    }
+  );
+
+  public readonly connect = vi.fn(async (): Promise<MockClient> => new MockClient());
+
+  public readonly on = vi.fn((event: string, listener: (...args: unknown[]) => void): this => {
+    this.listeners[event] = listener;
+    return this;
+  });
+
+  public constructor(options: Record<string, unknown>) {
+    this.options = options;
+  }
+}
+
+let lastPool: MockPool | undefined;
+let nextConnectError: Error | undefined;
+
+vi.mock('pg', () => {
+  lastPool = undefined;
+  nextConnectError = undefined;
+
+  class Pool {
+    public readonly _isMock = true;
+
+    public constructor(options: Record<string, unknown>) {
+      lastPool = new MockPool(options);
+
+      if (nextConnectError !== undefined) {
+        lastPool.connect.mockRejectedValueOnce(nextConnectError);
+        nextConnectError = undefined;
+      }
+
+      return lastPool as unknown as Pool; // NOSONAR
+    }
+  }
+
+  return {
+    Pool,
+    __getLastPool: (): MockPool | undefined => lastPool,
+    __setNextConnectError: (err: Error): void => {
+      nextConnectError = err;
+    },
+  };
+});
+
 describe('PostgresAdapter', () => {
-  let PostgresAdapter: any;
-
-  beforeEach(async () => {
-    const module = await import('@/microservices/PostgresAdapter');
-    PostgresAdapter = module.default;
-  });
-
-  afterEach(() => {
+  beforeEach((): void => {
     vi.clearAllMocks();
+    vi.resetModules();
   });
 
-  describe('Constructor', () => {
-    it('should create instance with shared mode config', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
+  it('computes pool key for shared vs isolated', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
 
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
+    const shared = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+      isolation: 'shared',
     });
 
-    it('should create instance with isolated mode config', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'isolated' as const,
-        serviceName: 'auth-service',
-      };
+    expect(shared.getPoolKey()).toBe('localhost:5432/db');
 
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
+    const isolated = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+      isolation: 'isolated',
+      serviceName: 'orders',
     });
 
-    it('should create instance with pool size config', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'shared' as const,
-        max: 20,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-
-    it('should create instance with idle timeout config', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'shared' as const,
-        idleTimeoutMillis: 30000,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-
-    it('should create instance with connection timeout config', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'shared' as const,
-        connectionTimeoutMillis: 5000,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
+    expect(isolated.getPoolKey()).toBe('localhost:5432/orders');
   });
 
-  describe('Pool Key Generation', () => {
-    it('should generate key for shared mode', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'shared-db',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
+  it('getPool throws before connect', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
 
-      const adapter = new PostgresAdapter(config);
-      const key = adapter.getPoolKey();
-
-      expect(key).toBe('localhost:5432/shared-db');
+    const adapter = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
     });
 
-    it('should generate key for isolated mode with service name', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'isolated' as const,
-        serviceName: 'user-service',
-      };
+    expect(() => adapter.getPool()).toThrow(/Call connect\(\) first/);
+  });
 
-      const adapter = new PostgresAdapter(config);
-      const key = adapter.getPoolKey();
+  it('connect initializes pool, registers error listener, and reuses on second call', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
+    const { Logger } = await import('@config/logger');
+    // @ts-ignore
+    const pg = (await import('pg')) as unknown as {
+      __getLastPool: () => MockPool | undefined;
+    };
 
-      expect(key).toBe('localhost:5432/user-service');
+    const adapter = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
     });
 
-    it('should generate key for isolated mode without service name', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'isolated' as const,
-      };
+    await adapter.connect();
 
-      const adapter = new PostgresAdapter(config);
-      const key = adapter.getPoolKey();
+    const pool = pg.__getLastPool();
+    expect(pool).toBeDefined();
+    expect(pool?.on).toHaveBeenCalledWith('error', expect.any(Function));
 
-      expect(key).toBe('localhost:5432/testdb');
+    pool?.listeners['error']?.(new Error('boom'));
+    expect(Logger.error).toHaveBeenCalled();
+
+    await adapter.connect();
+    expect(Logger.info).toHaveBeenCalledWith(
+      expect.stringContaining('Reusing existing connection pool')
+    );
+  });
+
+  it('connect throws wrapped error when pg connect fails', async (): Promise<void> => {
+    // @ts-ignore
+    const pg = (await import('pg')) as unknown as {
+      __setNextConnectError: (err: Error) => void;
+    };
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
+
+    pg.__setNextConnectError(new Error('pg down'));
+
+    const adapter = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
     });
 
-    it('should handle different host and port', () => {
-      const config = {
-        host: 'db.example.com',
-        port: 5433,
-        database: 'mydb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
+    await expect(adapter.connect()).rejects.toThrow(
+      'Failed to initialize PostgreSQL pool: pg down'
+    );
+  });
 
-      const adapter = new PostgresAdapter(config);
-      const key = adapter.getPoolKey();
+  it('query/execute return rows and handle rowCount default', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
+    // @ts-ignore
+    const pg = (await import('pg')) as unknown as {
+      __getLastPool: () => MockPool | undefined;
+    };
 
-      expect(key).toBe('db.example.com:5433/mydb');
+    const adapter = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+    });
+
+    await adapter.connect();
+    const pool = pg.__getLastPool();
+    expect(pool).toBeDefined();
+
+    pool?.query.mockResolvedValueOnce({ rows: [{ id: 1 }], rowCount: 1 });
+    await expect(adapter.query<{ id: number }>('SELECT 1')).resolves.toEqual([{ id: 1 }]);
+
+    pool?.query.mockResolvedValueOnce({ rows: [{ id: 2 }] });
+    await expect(adapter.execute<{ id: number }>('SELECT 2')).resolves.toEqual({
+      rows: [{ id: 2 }],
+      rowCount: 0,
     });
   });
 
-  describe('Global Instance Management', () => {
-    let module: any;
+  it('transaction commits on success and rolls back on failure', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
+    // @ts-ignore
+    const pg = (await import('pg')) as unknown as {
+      __getLastPool: () => MockPool | undefined;
+    };
 
-    beforeEach(async () => {
-      module = await import('@/microservices/PostgresAdapter');
+    const adapter = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
     });
 
-    it('should get or create instance with default key', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
+    await adapter.connect();
 
-      const instance1 = module.getInstance(config);
-      const instance2 = module.getInstance(config);
+    const pool = pg.__getLastPool();
+    const client = new MockClient();
+    pool?.connect.mockResolvedValueOnce(client);
 
-      expect(instance1).toBe(instance2);
-    });
+    await expect(
+      adapter.transaction(async (c) => {
+        await c.query('SELECT 42');
+        return 'ok';
+      })
+    ).resolves.toBe('ok');
 
-    it('should get or create instance with custom key', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
+    expect(client.query).toHaveBeenCalledWith('BEGIN');
+    expect(client.query).toHaveBeenCalledWith('COMMIT');
+    expect(client.release).toHaveBeenCalledTimes(1);
 
-      const instance1 = module.getInstance(config, 'auth-service');
-      const instance2 = module.getInstance(config, 'auth-service');
+    const failingClient = new MockClient();
+    pool?.connect.mockResolvedValueOnce(failingClient);
 
-      expect(instance1).toBe(instance2);
-    });
+    await expect(
+      adapter.transaction(async () => {
+        throw new Error('fail');
+      })
+    ).rejects.toThrow('fail');
 
-    it('should create separate instances with different keys', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
-
-      const instance1 = module.getInstance(config, 'auth-service');
-      const instance2 = module.getInstance(config, 'user-service');
-
-      expect(instance1).not.toBe(instance2);
-    });
-
-    it('should get all instances', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
-
-      const before = module.getAllInstances().length;
-      module.getInstance(config, 'service1');
-      module.getInstance(config, 'service2');
-
-      const after = module.getAllInstances().length;
-
-      expect(after).toBeGreaterThanOrEqual(before + 2);
-    });
-
-    it('should access through PostgresAdapterManager', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
-
-      const manager = module.PostgresAdapterManager;
-      const instance = manager.getInstance(config, 'manager-test');
-
-      expect(instance).toBeDefined();
-      expect(manager.getAllInstances()).toBeDefined();
-    });
+    expect(failingClient.query).toHaveBeenCalledWith('BEGIN');
+    expect(failingClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(failingClient.release).toHaveBeenCalledTimes(1);
   });
 
-  describe('Instance Methods', () => {
-    let adapter: any;
+  it('createServiceSchema skips in shared mode and attempts create in isolated mode', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
+    const { Logger } = await import('@config/logger');
 
-    beforeEach(() => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
-
-      adapter = new PostgresAdapter(config);
+    const shared = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+      isolation: 'shared',
     });
 
-    it('should have connect method', () => {
-      expect(typeof adapter.connect).toBe('function');
+    const sharedQuerySpy = vi.spyOn(shared, 'query');
+    await shared.createServiceSchema('svc');
+    expect(sharedQuerySpy).not.toHaveBeenCalled();
+    expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('skipping schema creation'));
+
+    const isolated = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+      isolation: 'isolated',
     });
 
-    it('should have query method', () => {
-      expect(typeof adapter.query).toBe('function');
-    });
+    const isolatedQuerySpy = vi.spyOn(isolated, 'query').mockResolvedValueOnce([] as unknown[]);
+    await isolated.createServiceSchema('svc');
+    expect(isolatedQuerySpy).toHaveBeenCalledWith('CREATE SCHEMA IF NOT EXISTS "svc"');
 
-    it('should have execute method', () => {
-      expect(typeof adapter.execute).toBe('function');
-    });
-
-    it('should have transaction method', () => {
-      expect(typeof adapter.transaction).toBe('function');
-    });
-
-    it('should have getPoolStats method', () => {
-      expect(typeof adapter.getPoolStats).toBe('function');
-    });
-
-    it('should have getPool method', () => {
-      expect(typeof adapter.getPool).toBe('function');
-    });
-
-    it('should have disconnect method', () => {
-      expect(typeof adapter.disconnect).toBe('function');
-    });
-
-    it('should have disconnectAll method', () => {
-      expect(typeof adapter.disconnectAll).toBe('function');
-    });
-
-    it('should have createServiceSchema method', () => {
-      expect(typeof adapter.createServiceSchema).toBe('function');
-    });
-
-    it('should have runMigrations method', () => {
-      expect(typeof adapter.runMigrations).toBe('function');
-    });
-
-    it('should have healthCheck method', () => {
-      expect(typeof adapter.healthCheck).toBe('function');
-    });
+    isolatedQuerySpy.mockRejectedValueOnce(new Error('nope'));
+    await isolated.createServiceSchema('svc');
+    expect(Logger.error).toHaveBeenCalled();
   });
 
-  describe('Pool Statistics without Connection', () => {
-    let adapter: any;
+  it('runMigrations releases client and healthCheck returns boolean', async (): Promise<void> => {
+    const { PostgresAdapter } = await import('@/microservices/PostgresAdapter');
+    // @ts-ignore
+    const pg = (await import('pg')) as unknown as {
+      __getLastPool: () => MockPool | undefined;
+    };
 
-    beforeEach(() => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'testuser',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
-
-      adapter = new PostgresAdapter(config);
+    const adapter = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
     });
 
-    it('should throw error when getting stats without connection', () => {
-      expect(() => {
-        adapter.getPoolStats();
-      }).toThrow('Connection pool not initialized');
-    });
+    await adapter.connect();
+
+    const pool = pg.__getLastPool();
+    const client = new MockClient();
+    pool?.connect.mockResolvedValueOnce(client);
+
+    const m1 = { up: vi.fn(async (_c: unknown) => undefined) };
+    const m2 = { up: vi.fn(async (_c: unknown) => undefined) };
+
+    await adapter.runMigrations([m1, m2]);
+    expect(m1.up).toHaveBeenCalledTimes(1);
+    expect(m2.up).toHaveBeenCalledTimes(1);
+    expect(client.release).toHaveBeenCalledTimes(1);
+
+    pool?.query.mockResolvedValueOnce({ rows: [{ ok: 1 }] });
+    await expect(adapter.healthCheck()).resolves.toBe(true);
+
+    pool?.query.mockRejectedValueOnce(new Error('down'));
+    await expect(adapter.healthCheck()).resolves.toBe(false);
   });
 
-  describe('Shared vs Isolated Mode', () => {
-    it('should handle shared mode configuration', () => {
-      const sharedAdapter = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'shared-db',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared',
-      });
+  it('disconnect/disconnectAll are safe and adapter manager caches instances', async (): Promise<void> => {
+    const mod = await import('@/microservices/PostgresAdapter');
 
-      const key = sharedAdapter.getPoolKey();
-      expect(key).toContain('shared-db');
-    });
+    const cfg = {
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+    };
 
-    it('should handle isolated mode with service name', () => {
-      const isolatedAdapter = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'isolated',
-        serviceName: 'auth-service',
-      });
+    const a1 = mod.getInstance(cfg, 'k');
+    const a2 = mod.getInstance(cfg, 'k');
+    expect(a1).toBe(a2);
 
-      const key = isolatedAdapter.getPoolKey();
-      expect(key).toContain('auth-service');
-      expect(key).not.toContain('testdb');
-    });
+    expect(mod.getAllInstances().length).toBeGreaterThanOrEqual(1);
 
-    it('should generate different keys for different services', () => {
-      const auth = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'isolated',
-        serviceName: 'auth-service',
-      });
+    const spy = vi.spyOn(a1, 'disconnectAll');
+    await mod.disconnectAll();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(mod.getAllInstances()).toEqual([]);
 
-      const user = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'isolated',
-        serviceName: 'user-service',
-      });
-
-      const authKey = auth.getPoolKey();
-      const userKey = user.getPoolKey();
-
-      expect(authKey).not.toBe(userKey);
-    });
-
-    it('should generate same key for same shared configuration', () => {
-      const adapter1 = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'shared-db',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared',
-      });
-
-      const adapter2 = new PostgresAdapter({
-        host: 'localhost',
-        port: 5432,
-        database: 'shared-db',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared',
-      });
-
-      const key1 = adapter1.getPoolKey();
-      const key2 = adapter2.getPoolKey();
-
-      expect(key1).toBe(key2);
-    });
-  });
-
-  describe('Configuration Options', () => {
-    it('should handle all configuration options', () => {
-      const config = {
-        host: 'db.example.com',
-        port: 5433,
-        database: 'mydb',
-        user: 'myuser',
-        password: monkpass,
-        isolation: 'isolated' as const,
-        serviceName: 'my-service',
-        max: 30,
-        idleTimeoutMillis: 20000,
-        connectionTimeoutMillis: 10000,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-
-    it('should handle minimal configuration', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-
-    it('should accept optional max pool size', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-        max: 50,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-
-    it('should accept optional idle timeout', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-        idleTimeoutMillis: 25000,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-
-    it('should accept optional connection timeout', () => {
-      const config = {
-        host: 'localhost',
-        port: 5432,
-        database: 'testdb',
-        user: 'user',
-        password: monkpass,
-        isolation: 'shared' as const,
-        connectionTimeoutMillis: 3000,
-      };
-
-      const adapter = new PostgresAdapter(config);
-      expect(adapter).toBeDefined();
-    });
-  });
-
-  describe('Export Functions', () => {
-    let module: any;
-
-    beforeEach(async () => {
-      module = await import('@/microservices/PostgresAdapter');
-    });
-
-    it('should export getInstance function', () => {
-      expect(typeof module.getInstance).toBe('function');
-    });
-
-    it('should export getAllInstances function', () => {
-      expect(typeof module.getAllInstances).toBe('function');
-    });
-
-    it('should export disconnectAll function', () => {
-      expect(typeof module.disconnectAll).toBe('function');
-    });
-
-    it('should export PostgresAdapterManager', () => {
-      expect(module.PostgresAdapterManager).toBeDefined();
-      expect(typeof module.PostgresAdapterManager.getInstance).toBe('function');
-      expect(typeof module.PostgresAdapterManager.getAllInstances).toBe('function');
-      expect(typeof module.PostgresAdapterManager.disconnectAll).toBe('function');
-    });
-
-    it('should export default as PostgresAdapter', () => {
-      expect(typeof module.default).toBe('function');
-    });
+    const adapter = mod.PostgresAdapter.create(cfg);
+    await expect(adapter.disconnect()).resolves.toBeUndefined();
+    await expect(adapter.disconnectAll()).resolves.toBeUndefined();
   });
 });

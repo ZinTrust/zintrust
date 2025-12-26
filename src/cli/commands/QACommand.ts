@@ -3,13 +3,18 @@
  * Runs linting, type-checking, tests, and SonarQube
  */
 
-import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
+import { resolveNpmPath } from '@/common';
+import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import { execFileSync } from '@node-singletons/child-process';
+import { existsSync } from '@node-singletons/fs';
+import { resolve } from '@node-singletons/path';
 import { Command } from 'commander';
-import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 
+/**
+ * QA Result interface
+ */
 interface QAResult {
   status: 'pending' | 'passed' | 'failed' | 'skipped';
   output: string;
@@ -22,377 +27,533 @@ interface QAResults {
   sonar: QAResult;
 }
 
-type ExecOutput = Buffer | string | null | undefined;
-
-interface SonarMeasure {
-  metric: string;
-  value: string;
+const QA_REPORT_CSS = `
+:root {
+  --qa-bg: #f8fafc;
+  --qa-panel: #ffffff;
+  --qa-text: #0f172a;
+  --qa-muted: #64748b;
+  --qa-border: #e2e8f0;
+  --qa-accent: #667eea;
+  --qa-success: #16a34a;
+  --qa-danger: #dc2626;
+  --qa-warn: #f59e0b;
 }
 
-interface SonarComponent {
-  path: string;
-  measures: SonarMeasure[];
+body.qa-body {
+  margin: 0;
+  color: var(--qa-text);
+  background: var(--qa-bg);
 }
 
-interface SonarReport {
-  components: SonarComponent[];
+.qa-shell {
+  max-width: 980px;
+  margin: 48px auto;
+  padding: 0 20px;
 }
 
-export class QACommand extends BaseCommand {
-  protected name = 'qa';
-  protected description = 'Run full Quality Assurance suite (Lint, Type-check, Test, Sonar)';
+.qa-panel {
+  border: 1px solid var(--qa-border);
+  border-radius: 14px;
+  background: var(--qa-panel);
+  overflow: hidden;
+}
 
-  protected addOptions(command: Command): void {
-    command.option('--no-sonar', 'Skip SonarQube analysis');
-    command.option('--report', 'Generate and open HTML report', true);
+.qa-hero {
+  padding: 28px 28px 18px;
+  border-bottom: 1px solid var(--qa-border);
+  background: linear-gradient(180deg, rgba(102, 126, 234, 0.10), rgba(255, 255, 255, 0));
+}
+
+.qa-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.qa-subtitle {
+  margin: 8px 0 0;
+  color: var(--qa-muted);
+  font-size: 14px;
+}
+
+.qa-meta {
+  margin-top: 12px;
+  color: var(--qa-muted);
+  font-size: 12px;
+}
+
+.qa-content {
+  padding: 22px 28px 28px;
+}
+
+.qa-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--qa-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 800px) {
+  .qa-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
 
-  public async execute(options: CommandOptions): Promise<void> {
-    this.info('Starting Zintrust QA Suite...');
+.qa-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
 
-    const results: QAResults = {
-      lint: { status: 'pending', output: '' },
-      typeCheck: { status: 'pending', output: '' },
-      tests: { status: 'pending', output: '' },
-      sonar: { status: 'pending', output: '' },
-    };
+.qa-summary-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--qa-accent);
+  line-height: 1;
+  margin-bottom: 6px;
+}
 
-    try {
-      await this.runLint(results.lint);
-      await this.runTypeCheck(results.typeCheck);
-      await this.runTests(results.tests);
-      await this.runSonar(results.sonar, options);
+.qa-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--qa-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 
-      if (options['report'] === true) {
-        this.generateReport(results);
-      }
+.qa-scan-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 12px;
+}
 
-      const allPassed = Object.values(results).every(
-        (r) => r.status === 'passed' || r.status === 'skipped'
-      );
-      if (allPassed) {
-        this.success('QA Suite passed successfully!');
-      } else {
-        this.warn('QA Suite completed with some failures. Check the report.');
-      }
-    } catch (error) {
-      Logger.error('QA Command critical failure', error);
-      this.debug(`QA Command Error: ${(error as Error).message}`);
-      throw error;
-    }
+.qa-scan-item {
+  border: 1px solid var(--qa-border);
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.qa-scan-item.passed { border-left: 4px solid var(--qa-success); }
+.qa-scan-item.failed { border-left: 4px solid var(--qa-danger); }
+.qa-scan-item.skipped { border-left: 4px solid var(--qa-warn); }
+.qa-scan-item.pending { border-left: 4px solid var(--qa-border); }
+
+.qa-scan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 10px;
+}
+
+.qa-scan-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.qa-status-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.qa-status-icon.passed { background: var(--qa-success); }
+.qa-status-icon.failed { background: var(--qa-danger); }
+.qa-status-icon.skipped { background: var(--qa-warn); }
+.qa-status-icon.pending { background: #94a3b8; }
+
+.qa-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.qa-status-badge.passed { background: #dcfce7; color: #14532d; }
+.qa-status-badge.failed { background: #fee2e2; color: #7f1d1d; }
+.qa-status-badge.skipped { background: #fef3c7; color: #78350f; }
+.qa-status-badge.pending { background: #e2e8f0; color: #334155; }
+
+.qa-scan-details {
+  padding: 0 14px 14px;
+  color: var(--qa-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.qa-actions {
+  margin-top: 10px;
+}
+
+.qa-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--qa-accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.qa-link:hover {
+  text-decoration: none;
+  filter: brightness(0.98);
+}
+
+.qa-footer {
+  border-top: 1px solid var(--qa-border);
+  padding: 14px 28px;
+  color: var(--qa-muted);
+  font-size: 12px;
+  background: #fff;
+}
+`;
+
+const createEmptyResult = (): QAResult => ({ status: 'pending', output: '' });
+
+const createResults = (): QAResults => ({
+  lint: createEmptyResult(),
+  typeCheck: createEmptyResult(),
+  tests: createEmptyResult(),
+  sonar: createEmptyResult(),
+});
+
+const errorToMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return 'Unknown error';
+};
+
+const runNpmScript = (name: string, script: string, result: QAResult): boolean => {
+  try {
+    Logger.info(`Running npm run ${script}...`);
+
+    const npmPath = resolveNpmPath();
+    const output = execFileSync(npmPath, ['run', script], { stdio: 'inherit' });
+    result.status = 'passed';
+    result.output = output?.toString() ?? '';
+    return true;
+  } catch (error) {
+    result.status = 'failed';
+    result.output = errorToMessage(error);
+    ErrorFactory.createTryCatchError(`${name} failed`, error);
+    Logger.warn(`${name} failed`);
+    return false;
   }
+};
 
-  private async runLint(result: QAResult): Promise<void> {
-    this.info('Step 1/4: Running ESLint...');
-    try {
-      this.runNpmScript('lint');
-      result.status = 'passed';
-    } catch (e: unknown) {
-      const error = e as {
-        stdout?: ExecOutput;
-        stderr?: ExecOutput;
-        message: string;
-      };
-      result.status = 'failed';
-      result.output = this.formatExecErrorOutput(error);
-      Logger.error('QA Suite: Linting failed', error);
-    }
+const runSonarIfEnabled = (result: QAResult, options: CommandOptions): boolean => {
+  if (options['sonar'] === false) {
+    result.status = 'skipped';
+    result.output = '';
+    return true;
   }
+  return runNpmScript('Sonar', 'sonarqube', result);
+};
 
-  private async runTypeCheck(result: QAResult): Promise<void> {
-    this.info('Step 2/4: Running Type-check...');
-    try {
-      this.runNpmScript('type-check');
-      result.status = 'passed';
-    } catch (e: unknown) {
-      const error = e as {
-        stdout?: ExecOutput;
-        stderr?: ExecOutput;
-        message: string;
-      };
-      result.status = 'failed';
-      result.output = this.formatExecErrorOutput(error);
-      Logger.error('QA Suite: Type-check failed', error);
-    }
+const allStepsPassed = (results: QAResults): boolean => {
+  return (
+    results.lint.status !== 'failed' &&
+    results.typeCheck.status !== 'failed' &&
+    results.tests.status !== 'failed' &&
+    results.sonar.status !== 'failed'
+  );
+};
+
+const getStatusIcon = (status: string): string => {
+  switch (status) {
+    case 'passed':
+      return '✓';
+    case 'failed':
+      return '✗';
+    case 'skipped':
+      return '⊘';
+    default:
+      return '○';
   }
+};
 
-  private async runTests(result: QAResult): Promise<void> {
-    this.info('Step 3/4: Running Tests & Coverage...');
-    try {
-      this.runNpmScript('test:coverage');
-      result.status = 'passed';
-    } catch (e: unknown) {
-      const error = e as {
-        stdout?: ExecOutput;
-        stderr?: ExecOutput;
-        message: string;
-      };
-      result.status = 'failed';
-      result.output = this.formatExecErrorOutput(error);
-      Logger.error('QA Suite: Tests failed', error);
-    }
-  }
+const getScanItemHTML = (
+  name: string,
+  result: QAResult,
+  description: string,
+  extra: string = ''
+): string => {
+  return `
+        <div class="qa-scan-item ${result.status}">
+          <div class="qa-scan-header">
+            <div class="qa-scan-title">
+              <div class="qa-status-icon ${result.status}">${getStatusIcon(result.status)}</div>
+              <span>${name}</span>
+            </div>
+            <span class="qa-status-badge ${result.status}">${result.status}</span>
+          </div>
+          <div class="qa-scan-details">
+            ${description}
+            ${extra}
+          </div>
+        </div>`;
+};
 
-  private async runSonar(result: QAResult, options: CommandOptions): Promise<void> {
-    if (options['sonar'] === false) {
-      result.status = 'skipped';
-      return;
-    }
+const getSummaryItemHTML = (label: string, status: string): string => {
+  const icon = getStatusIcon(status);
+  return `
+        <div class="qa-summary-item">
+          <div class="qa-summary-value">${icon}</div>
+          <div class="qa-summary-label">${label}</div>
+        </div>`;
+};
 
-    this.info('Step 4/4: Running SonarQube Analysis...');
+const getScanDescription = (type: keyof QAResults, status: string): string => {
+  const descriptions: Record<string, Record<string, string>> = {
+    lint: {
+      passed: 'No code style issues found.',
+      failed: 'Code style issues detected. Check output for details.',
+      skipped: 'Linting scan skipped.',
+    },
+    typeCheck: {
+      passed: 'All type checks passed successfully.',
+      failed: 'Type errors detected. Check output for details.',
+      skipped: 'Type check scan skipped.',
+    },
+    tests: {
+      passed: 'All unit tests passed with coverage report generated.',
+      failed: 'Some unit tests failed. Check output for details.',
+      skipped: 'Unit tests scan skipped.',
+    },
+    sonar: {
+      passed: 'Code quality analysis completed.',
+      failed: 'Code quality issues detected. Check SonarQube dashboard for details.',
+      skipped: 'SonarQube analysis skipped (use --no-sonar to disable).',
+    },
+  };
 
-    try {
-      this.runNpmScript('sonarqube');
-      result.status = 'passed';
-    } catch (e: unknown) {
-      const error = e as {
-        stdout?: ExecOutput;
-        stderr?: ExecOutput;
-        message: string;
-      };
-      result.status = 'failed';
-      result.output = this.formatExecErrorOutput(error);
-      Logger.error('QA Suite: SonarQube failed', error);
-    } finally {
-      try {
-        this.runUncoveredScript();
-      } catch (error) {
-        Logger.error('Failed to fetch uncovered files report', error);
-      }
-    }
-  }
+  return descriptions[type]?.[status] || 'Scan pending or unknown status.';
+};
 
-  private generateReport(results: QAResults): void {
-    const reportDir = path.join(process.cwd(), 'coverage');
-    if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
+/**
+ * Generate QA report HTML
+ */
+const generateQAReport = (results: QAResults): string => {
+  const timestamp = new Date().toLocaleString();
 
-    const reportPath = path.join(reportDir, 'qa-report.html');
-    const html = this.getReportHtml(results);
+  const lintDesc = getScanDescription('lint', results.lint.status);
+  const typeDesc = getScanDescription('typeCheck', results.typeCheck.status);
+  const testDesc = getScanDescription('tests', results.tests.status);
+  const sonarDesc = getScanDescription('sonar', results.sonar.status);
 
-    try {
-      fs.writeFileSync(reportPath, html);
-      this.info(`QA Report generated at: ${reportPath}`);
-
-      this.openReport(reportPath);
-    } catch (error) {
-      Logger.error('Failed to generate or open QA report', error);
-      this.warn('Could not automatically open the report.');
-    }
-  }
-
-  private getReportHtml(results: QAResults): string {
-    return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zintrust QA Report</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body { background-color: #0f172a; color: #e2e8f0; }
-        .card { background-color: #1e293b; border: 1px solid #334155; }
-        .status-passed { color: #10b981; }
-        .status-failed { color: #ef4444; }
-        .status-skipped { color: #94a3b8; }
-    </style>
+    <link rel="stylesheet" href="base.css">
+    <link rel="stylesheet" href="qa-report.css">
 </head>
-<body class="p-8">
-    <div class="max-w-4xl mx-auto">
-        <header class="mb-8 flex justify-between items-center">
-            <h1 class="text-3xl font-bold text-white">Zintrust QA Dashboard</h1>
-            <span class="text-sm text-slate-400">Generated: ${new Date().toLocaleString()}</span>
+<body class="qa-body">
+    <main class="qa-shell">
+      <section class="qa-panel">
+        <header class="qa-hero">
+          <h1 class="qa-title">Zintrust QA Report</h1>
+          <p class="qa-subtitle">Quality Assurance Suite Results</p>
+          <div class="qa-meta">Generated on ${timestamp}</div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            ${Object.entries(results)
-              .map(
-                ([key, data]: [string, QAResult]) => `
-                <div class="card p-6 rounded-lg shadow-xl">
-                    <h2 class="text-xl font-semibold capitalize mb-2">${key}</h2>
-                    <div class="flex items-center">
-                        <span class="text-lg font-bold status-${data.status}">${data.status.toUpperCase()}</span>
-                    </div>
-                    ${data.output ? `<pre class="mt-4 p-3 bg-black rounded text-xs overflow-x-auto text-red-400">${data.output}</pre>` : ''}
-                </div>
-            `
-              )
-              .join('')}
+        <div class="qa-content">
+          <div class="qa-summary">
+            ${getSummaryItemHTML('Lint', results.lint.status)}
+            ${getSummaryItemHTML('Type Check', results.typeCheck.status)}
+            ${getSummaryItemHTML('Tests', results.tests.status)}
+            ${getSummaryItemHTML('Sonar', results.sonar.status)}
+          </div>
+
+          <div class="qa-scan-list">
+            ${getScanItemHTML('ESLint (Linting)', results.lint, lintDesc)}
+            ${getScanItemHTML('TypeScript Compiler (Type Check)', results.typeCheck, typeDesc)}
+            ${getScanItemHTML(
+              'Vitest (Unit Tests)',
+              results.tests,
+              testDesc,
+              '<div class="qa-actions"><a href="index.html" class="qa-link">View Coverage Report</a></div>'
+            )}
+            ${getScanItemHTML('SonarQube (Code Quality)', results.sonar, sonarDesc)}
+          </div>
         </div>
 
-        ${this.getUncoveredHtml()}
-
-        <footer class="text-center text-slate-500 text-sm">
-            &copy; ${new Date().getFullYear()} Zintrust Framework. All rights reserved.
-        </footer>
-    </div>
+        <footer class="qa-footer">Zintrust Framework QA Suite | Generated automatically</footer>
+      </section>
+    </main>
 </body>
-</html>
-    `;
-  }
+</html>`;
+};
 
-  private getUncoveredHtml(): string {
-    const reportPath = path.join(process.cwd(), 'reports', 'sonarcloud-uncovered.json');
-    if (!fs.existsSync(reportPath)) return '';
-
-    try {
-      const data = JSON.parse(fs.readFileSync(reportPath, 'utf-8')) as SonarReport | null;
-      if (!data || !Array.isArray(data.components)) return '';
-
-      const components = data.components
-        .filter((c: SonarComponent) => {
-          const coverage = c.measures.find((m: SonarMeasure) => m.metric === 'coverage');
-          return coverage !== undefined && Number.parseFloat(coverage.value) < 80;
-        })
-        .map((c: SonarComponent) => {
-          const coverage =
-            c.measures.find((m: SonarMeasure) => m.metric === 'coverage')?.value ?? '0';
-          const uncoveredLines =
-            c.measures.find((m: SonarMeasure) => m.metric === 'uncovered_lines')?.value ?? '0';
-          return { path: c.path, coverage, uncoveredLines };
-        })
-        .sort(
-          (a: { coverage: string }, b: { coverage: string }) =>
-            Number.parseFloat(a.coverage) - Number.parseFloat(b.coverage)
-        );
-
-      if (components.length === 0) return '';
-
-      return this.renderUncoveredTable(components);
-    } catch (error) {
-      Logger.error('Failed to read uncovered report', error);
-      return '';
-    }
-  }
-
-  private renderUncoveredTable(
-    components: Array<{ path: string; coverage: string; uncoveredLines: string }>
-  ): string {
-    return `
-        <div class="card p-6 rounded-lg shadow-xl mb-8">
-            <h2 class="text-xl font-semibold mb-4">Uncovered Files (< 80%)</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm text-slate-300">
-                    <thead class="bg-slate-800 text-xs uppercase font-medium text-slate-400">
-                        <tr>
-                            <th class="px-4 py-3 rounded-l-lg">File</th>
-                            <th class="px-4 py-3">Coverage</th>
-                            <th class="px-4 py-3 rounded-r-lg">Uncovered Lines</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-700">
-                        ${components
-                          .map(
-                            (c) => `
-                            <tr class="hover:bg-slate-800/50 transition-colors">
-                                <td class="px-4 py-3 font-mono text-blue-400">${c.path}</td>
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center gap-2">
-                                        <span class="${
-                                          Number(c.coverage) < 50
-                                            ? 'text-red-400'
-                                            : 'text-yellow-400'
-                                        }">${c.coverage}%</span>
-                                        <div class="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                            <div class="h-full ${
-                                              Number(c.coverage) < 50
-                                                ? 'bg-red-500'
-                                                : 'bg-yellow-500'
-                                            }" style="width: ${c.coverage}%"></div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-4 py-3 text-slate-400">${c.uncoveredLines}</td>
-                            </tr>
-                        `
-                          )
-                          .join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-      `;
-  }
-
-  private openReport(reportPath: string): void {
-    // Try to open the report with a fixed, non-user-controlled binary path.
-    if (process.platform === 'win32') {
-      execFileSync(String.raw`C:\Windows\System32\cmd.exe`, ['/c', 'start', '', reportPath], {
-        stdio: 'ignore',
-        env: this.getSafeEnv(),
-      });
+/**
+ * Open HTML file in default browser
+ */
+const openInBrowser = (filePath: string): void => {
+  try {
+    const absolutePath = resolve(filePath);
+    if (!existsSync(absolutePath)) {
+      Logger.warn(`File not found: ${filePath}`);
       return;
     }
 
-    const commandPath = process.platform === 'darwin' ? '/usr/bin/open' : '/usr/bin/xdg-open';
-    execFileSync(commandPath, [reportPath], { stdio: 'ignore', env: this.getSafeEnv() });
-  }
+    const fileUrl = `file://${absolutePath}`;
 
-  private runUncoveredScript(): void {
-    const npxPath = this.resolveBinPath('npx');
-    execFileSync(npxPath, ['tsx', 'dev/sonarcloud-issues.ts', '--uncovered'], {
-      stdio: 'inherit',
-      env: this.getSafeEnv(),
-    });
-  }
-
-  private runNpmScript(scriptName: string): void {
-    const npmPath = this.resolveBinPath('npm');
-
-    // Run npm directly (absolute path, no PATH lookup).
-    // Provide a fixed PATH comprised of system directories + Node bin (Sonar S4036).
-    // Use stdio=inherit to avoid maxBuffer failures and to show progress output.
-    execFileSync(npmPath, ['run', scriptName], {
-      stdio: 'inherit',
-      env: this.getSafeEnv(),
-    });
-  }
-
-  private resolveBinPath(binName: string): string {
-    const nodeBinDir = path.dirname(process.execPath);
-
-    const candidates =
-      process.platform === 'win32'
-        ? [path.join(nodeBinDir, `${binName}.cmd`), path.join(nodeBinDir, `${binName}.exe`)]
-        : [path.join(nodeBinDir, binName)];
-
-    for (const candidate of candidates) {
-      if (fs.existsSync(candidate)) return candidate;
+    // macOS
+    if (process.platform === 'darwin') {
+      execFileSync('open', [fileUrl]); //NOSONAR
+    }
+    // Linux
+    else if (process.platform === 'linux') {
+      execFileSync('xdg-open', [fileUrl]); //NOSONAR
+    }
+    // Windows
+    else if (process.platform === 'win32') {
+      execFileSync('cmd', ['/c', 'start', '""', fileUrl]); //NOSONAR
     }
 
-    throw new Error(
-      `Unable to locate ${binName} executable. Ensure Node.js is installed in the standard location.`
-    );
+    Logger.info(`Opened: ${filePath}`);
+  } catch (error) {
+    ErrorFactory.createTryCatchError('Could not open browser', error);
   }
+};
 
-  private getSafeEnv(): NodeJS.ProcessEnv {
-    // Build a fixed, unwriteable PATH that includes Node's directory (Sonar S4036).
-    // Node is typically installed in a read-only system location (e.g., /opt/homebrew/bin on macOS).
-    const nodeBinDir = path.dirname(process.execPath);
-    const safePath =
-      process.platform === 'win32'
-        ? [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, nodeBinDir].join(';')
-        : ['/usr/bin', '/bin', '/usr/sbin', '/sbin', nodeBinDir].join(':');
-
-    return {
-      ...process.env,
-      PATH: safePath,
-      // Ensure npm can run JS bin scripts with `#!/usr/bin/env node` even when PATH is hardened.
-      npm_config_scripts_prepend_node_path: 'true',
-    };
-  }
-
-  private formatExecErrorOutput(error: {
-    stdout?: ExecOutput;
-    stderr?: ExecOutput;
-    message: string;
-  }): string {
-    if (typeof error.stdout === 'string' && error.stdout !== '') return error.stdout;
-    if (Buffer.isBuffer(error.stdout) && error.stdout.length > 0) return error.stdout.toString();
-
-    if (typeof error.stderr === 'string' && error.stderr !== '') return error.stderr;
-    if (Buffer.isBuffer(error.stderr) && error.stderr.length > 0) return error.stderr.toString();
-
-    return error.message;
-  }
+interface IQACommand extends IBaseCommand {
+  addOptions(command: Command): void;
+  runLint(result: QAResult): Promise<void>;
+  runTypeCheck(result: QAResult): Promise<void>;
+  runTests(result: QAResult): Promise<void>;
+  runSonar(result: QAResult, options: CommandOptions): void;
+  generateReport(results: QAResults): Promise<void>;
 }
+
+const runLint = async (result: QAResult): Promise<void> => {
+  await runNpmScript('Lint', 'lint', result); // NOSONAR await needed for proper async handling when plugin used
+};
+
+const runTypeCheck = async (result: QAResult): Promise<void> => {
+  await runNpmScript('Type Check', 'type-check', result); // NOSONAR
+};
+
+const runTests = async (result: QAResult): Promise<void> => {
+  await runNpmScript('Tests', 'test:coverage', result); // NOSONAR
+};
+
+const runSonar = (result: QAResult, options: CommandOptions): void => {
+  runSonarIfEnabled(result, options);
+};
+
+const generateReport = async (results: QAResults): Promise<void> => {
+  Logger.info('Generating QA report...');
+
+  // Generate HTML report with QA results and coverage
+  const htmlContent = generateQAReport(results);
+  const reportPath = 'coverage/qa-report.html';
+  const reportCssPath = 'coverage/qa-report.css';
+
+  try {
+    const fs = await import('node:fs/promises');
+    await fs.writeFile(reportPath, htmlContent);
+    await fs.writeFile(reportCssPath, QA_REPORT_CSS);
+    Logger.info(`QA report generated: ${reportPath}`);
+  } catch (error) {
+    ErrorFactory.createTryCatchError('Failed to generate QA report', error);
+  }
+};
+
+const addOptions = (command: Command): void => {
+  command.option('--no-sonar', 'Skip SonarQube analysis');
+  command.option('--report', 'Generate QA report (with coverage)');
+  command.option('--no-open', 'Do not open coverage report in browser');
+};
+
+const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void> => {
+  try {
+    qa.info('Starting Zintrust QA Suite...');
+    const results = createResults();
+
+    await qa.runLint(results.lint);
+    await qa.runTypeCheck(results.typeCheck);
+
+    // Run tests with coverage report
+    qa.info('Generating test coverage report...');
+    await qa.runTests(results.tests);
+
+    qa.runSonar(results.sonar, options);
+
+    // Always generate report to show QA suite results
+    await qa.generateReport(results);
+
+    if (allStepsPassed(results)) {
+      qa.success('QA Suite passed successfully!');
+    } else {
+      qa.warn('QA Suite completed with some failures.');
+    }
+
+    // Open QA report in browser by default (unless --no-open is set)
+    if (options['open'] !== false) {
+      const reportPath = 'coverage/qa-report.html';
+      if (existsSync(reportPath)) {
+        qa.info('Opening QA report...');
+        openInBrowser(reportPath);
+      }
+    }
+  } catch (error) {
+    ErrorFactory.createTryCatchError('QA Suite execution failed', error);
+    qa.debug(error);
+    throw error;
+  }
+};
+
+/**
+ * QA Command Factory - Create a new QA command instance
+ */
+export const QACommand = (): IQACommand => {
+  const cmd = BaseCommand.create({
+    name: 'qa',
+    description: 'Run full Quality Assurance suite',
+    addOptions,
+    execute: async (options) => executeQA(qa, options),
+  });
+
+  const qa = {
+    ...cmd,
+    addOptions,
+    runLint,
+    runTypeCheck,
+    runTests,
+    runSonar,
+    generateReport,
+  };
+
+  return qa;
+};

@@ -3,6 +3,7 @@
  * Target: Low-coverage files under 75%
  */
 
+/* eslint-disable max-nested-callbacks */
 import { describe, expect, it, vi } from 'vitest';
 
 describe('Coverage Final Push - Low Coverage Files', () => {
@@ -185,7 +186,7 @@ describe('Coverage Final Push - Low Coverage Files', () => {
   });
 
   describe('Function Coverage', () => {
-    it('should handle various function signatures', () => {
+    it('should handle various function signatures', async () => {
       const fn1 = () => 'result';
       const fn2 = (a: number) => a * 2;
       const fn3 = (a: number, b: number) => a + b;
@@ -194,7 +195,7 @@ describe('Coverage Final Push - Low Coverage Files', () => {
       expect(fn1()).toBe('result');
       expect(fn2(5)).toBe(10);
       expect(fn3(2, 3)).toBe(5);
-      expect(fn4()).resolves.toBe('async');
+      await expect(fn4()).resolves.toBe('async');
     });
 
     it('should handle function callbacks', () => {

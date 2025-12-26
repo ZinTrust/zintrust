@@ -23,29 +23,14 @@ vi.mock('@config/env', () => ({
   Env: envState,
 }));
 
-async function importAdapter(): Promise<{
-  LambdaAdapter: new (config: AdapterConfig) => {
-    platform: 'lambda';
-    handle(event: unknown, context?: unknown): Promise<PlatformResponse>;
-    parseRequest(event: unknown): PlatformRequest;
-    formatResponse(response: PlatformResponse): unknown;
-    getLogger(): {
-      debug(msg: string, data?: unknown): void;
-      info(msg: string, data?: unknown): void;
-      warn(msg: string, data?: unknown): void;
-      error(msg: string, err?: Error): void;
-    };
-    supportsPersistentConnections(): boolean;
-    getEnvironment(): Record<string, unknown>;
-  };
-}> {
+async function importAdapter(): Promise<typeof import('@/runtime/adapters/LambdaAdapter')> {
   return import('@/runtime/adapters/LambdaAdapter');
 }
 
 describe('LambdaAdapter', () => {
   it('should identify as lambda platform', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       handler: async () => undefined,
       logger: {
         debug: vi.fn(),
@@ -66,7 +51,7 @@ describe('LambdaAdapter', () => {
       warn: vi.fn(),
       error: vi.fn(),
     };
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       handler: async () => undefined,
       logger: configLogger,
     });
@@ -79,7 +64,7 @@ describe('LambdaAdapter', () => {
 
   it('getLogger should fall back when internal logger missing', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       handler: async () => undefined,
       logger: {
         debug: vi.fn(),
@@ -110,7 +95,7 @@ describe('LambdaAdapter', () => {
 
   it('default logger should stringify data and handle undefined', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       handler: async () => undefined,
       // no logger => createDefaultLogger
     });
@@ -135,7 +120,7 @@ describe('LambdaAdapter', () => {
 
   it('supportsPersistentConnections and getEnvironment should work', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       handler: async () => undefined,
       logger: {
         debug: vi.fn(),
@@ -157,7 +142,7 @@ describe('LambdaAdapter', () => {
 
   it('parseRequest should support API Gateway v1 and normalize headers + remoteAddr', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({ handler: async () => undefined });
+    const adapter = LambdaAdapter.create({ handler: async () => undefined });
 
     const v1 = {
       httpMethod: 'get',
@@ -178,7 +163,7 @@ describe('LambdaAdapter', () => {
 
   it('parseRequest should support API Gateway v2 remoteAddr fallbacks', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({ handler: async () => undefined });
+    const adapter = LambdaAdapter.create({ handler: async () => undefined });
 
     const v2a = {
       requestContext: { http: { method: 'POST', sourceIp: '127.0.0.1' } },
@@ -219,7 +204,7 @@ describe('LambdaAdapter', () => {
 
   it('parseRequest should support ALB remoteAddr fallbacks', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({ handler: async () => undefined });
+    const adapter = LambdaAdapter.create({ handler: async () => undefined });
 
     const albForwarded = {
       httpMethod: 'GET',
@@ -255,7 +240,7 @@ describe('LambdaAdapter', () => {
 
   it('parseRequest should allow v1 events with missing headers', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({ handler: async () => undefined });
+    const adapter = LambdaAdapter.create({ handler: async () => undefined });
 
     const v1NoHeaders = {
       httpMethod: 'GET',
@@ -270,7 +255,7 @@ describe('LambdaAdapter', () => {
 
   it('formatResponse should convert body and default isBase64Encoded', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({ handler: async () => undefined });
+    const adapter = LambdaAdapter.create({ handler: async () => undefined });
 
     expect(
       adapter.formatResponse({
@@ -308,17 +293,16 @@ describe('LambdaAdapter', () => {
       error: vi.fn(),
     };
 
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       logger: configLogger,
-      handler: async (_req, res, body) => {
-        expect(body?.toString('utf-8')).toBe('hello');
-        (
-          res as unknown as { writeHead: (code: number, headers?: Record<string, string>) => void }
-        ).writeHead(201, { 'X-Test': '1' });
-        (res as unknown as { write: (chunk: string | Buffer) => boolean }).write(
-          Buffer.from('buf', 'utf-8')
+      handler: async (_req: unknown, res: unknown, body: unknown) => {
+        expect(body?.toString()).toBe('hello');
+        (res as { writeHead: (code: number, headers?: Record<string, string>) => void }).writeHead(
+          201,
+          { 'X-Test': '1' }
         );
-        (res as unknown as { end: (chunk?: unknown) => void }).end();
+        (res as { write: (chunk: string | Buffer) => boolean }).write(Buffer.from('buf', 'utf-8'));
+        (res as { end: (chunk?: unknown) => void }).end();
       },
     });
 
@@ -379,12 +363,15 @@ describe('LambdaAdapter', () => {
       return text;
     });
 
-    const adapter = new LambdaAdapter({ handler: handler as unknown as AdapterConfig['handler'] });
+    const adapter = LambdaAdapter.create({
+      handler: handler as unknown as AdapterConfig['handler'],
+    });
 
-    for (const c of bodies) {
+    await bodies.reduce(async (prev, c) => {
+      await prev;
       const response = await adapter.handle(c.event);
       expect(response.statusCode).toBe(200);
-    }
+    }, Promise.resolve());
 
     expect(handler).toHaveBeenCalledTimes(3);
     expect((handler.mock.calls[0]?.[2] as Buffer).toString('utf-8')).toBe('test');
@@ -404,7 +391,7 @@ describe('LambdaAdapter', () => {
         })
     );
 
-    const adapter = new LambdaAdapter({
+    const adapter = LambdaAdapter.create({
       handler: handler as unknown as AdapterConfig['handler'],
       timeout: 5,
       logger: {
@@ -440,7 +427,7 @@ describe('LambdaAdapter', () => {
     const { LambdaAdapter } = await importAdapter();
 
     envState.NODE_ENV = 'development';
-    const dev = new LambdaAdapter({
+    const dev = LambdaAdapter.create({
       handler: async () => {
         throw new Error('boom');
       },
@@ -456,7 +443,7 @@ describe('LambdaAdapter', () => {
     expect(JSON.parse(String(devResp.body)).details).toEqual({ message: 'boom' });
 
     envState.NODE_ENV = 'production';
-    const prod = new LambdaAdapter({
+    const prod = LambdaAdapter.create({
       handler: async () => {
         throw new Error('boom');
       },
@@ -474,7 +461,7 @@ describe('LambdaAdapter', () => {
 
   it('createMockHttpObjects should cover writeHead/end branches', async () => {
     const { LambdaAdapter } = await importAdapter();
-    const adapter = new LambdaAdapter({ handler: async () => undefined }) as unknown as {
+    const adapter = LambdaAdapter.create({ handler: async () => undefined }) as unknown as {
       createMockHttpObjects: (req: PlatformRequest) => {
         req: unknown;
         res: {

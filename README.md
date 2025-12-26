@@ -6,19 +6,19 @@
 [![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml)
 [![Known Vulnerabilities](https://snyk.io/test/github/ZinTrust/ZinTrust/badge.svg)](https://snyk.io/test/github/ZinTrust/ZinTrust)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![npm version](https://img.shields.io/npm/v/zintrust.svg)](https://www.npmjs.com/package/zintrust)
+[![npm version](https://img.shields.io/npm/v/@zintrust/core.svg)](https://www.npmjs.com/package/@zintrust/core)
 
 Production-grade TypeScript backend framework with zero external dependencies for core logic. Visit [zintrust.com](https://zintrust.com) for more information.
 
 ## Status
 
-| Check        | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Build**    | [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Quality**  | [![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml) |
-| **Security** | [![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml) [![Known Vulnerabilities](https://snyk.io/test/github/ZinTrust/ZinTrust/badge.svg)](https://snyk.io/test/github/ZinTrust/ZinTrust)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Docker**   | [![Publish Docker Image](https://github.com/ZinTrust/ZinTrust/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/docker-publish.yml) [![Docker Image](https://img.shields.io/badge/image-ghcr.io%2FZinTrust%2FZinTrust-blue)](https://github.com/ZinTrust/ZinTrust/pkgs/container/zintrust)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Tests**    | ![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Check        | Status                                                                                                                                                                                                                                                                                                                                           |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Build**    | [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)                                                                                                                                                                                      |
+| **Quality**  | [![SonarQube Analysis](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/sonarqube.yml)                                                                                                                                                                    |
+| **Security** | [![Security Scan](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/security.yml) [![Known Vulnerabilities](https://snyk.io/test/github/ZinTrust/ZinTrust/badge.svg)](https://snyk.io/test/github/ZinTrust/ZinTrust)                                        |
+| **Docker**   | [![Publish Docker Image](https://github.com/ZinTrust/ZinTrust/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/docker-publish.yml) [![Docker Image](https://img.shields.io/badge/image-ghcr.io%2FZinTrust%2FZinTrust-blue)](https://github.com/ZinTrust/ZinTrust/pkgs/container/zintrust) |
+| **Tests**    | ![Tests Passing](https://img.shields.io/badge/tests-passing-brightgreen)                                                                                                                                                                                                                                                                         |
 
 ## Features
 
@@ -36,6 +36,26 @@ Production-grade TypeScript backend framework with zero external dependencies fo
 ## Quick Start
 
 ```bash
+# Install @zintrust/core (Zintrust CLI) globally
+npm install -g @zintrust/core
+
+# Create a new project
+zin new my-app
+cd my-app
+
+# Start development server
+npm run dev
+```
+
+## Development
+
+If you want to contribute to the framework:
+
+```bash
+# Clone the repository
+git clone https://github.com/ZinTrust/ZinTrust.git
+cd ZinTrust
+
 # Install dependencies
 npm install
 

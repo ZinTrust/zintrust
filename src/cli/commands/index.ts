@@ -7,3 +7,5 @@ export { ConfigCommand } from '@cli/commands/ConfigCommand';
 export { DebugCommand } from '@cli/commands/DebugCommand';
 export { MigrateCommand } from '@cli/commands/MigrateCommand';
 export { NewCommand } from '@cli/commands/NewCommand';
+export { PrepareCommand } from '@cli/commands/PrepareCommand';
+export { StartCommand } from '@cli/commands/StartCommand';

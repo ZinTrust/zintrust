@@ -22,6 +22,7 @@ describe('ErrorHandler', () => {
   });
 
   afterEach(() => {
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -42,20 +43,26 @@ describe('ErrorHandler', () => {
     expect(exitSpy).toHaveBeenCalledWith(5);
   });
 
+  it('should not log when log parameter is false', () => {
+    ErrorHandler.handle('Silent error', 1, false);
+    expect(Logger.error).not.toHaveBeenCalled();
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
   it('should handle usage error and exit with code 2', () => {
     ErrorHandler.usageError('Invalid argument');
-    expect(Logger.warn).toHaveBeenCalledWith(expect.stringContaining('Invalid argument'));
+    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Invalid argument'));
     expect(exitSpy).toHaveBeenCalledWith(2);
   });
 
   it('should include command hint in usage error', () => {
     ErrorHandler.usageError('Invalid argument', 'generate');
-    expect(Logger.warn).toHaveBeenCalledWith(expect.stringContaining('Run: zin generate --help'));
+    expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Run: zin generate --help'));
   });
 
   it('should not include command hint when command is empty string', () => {
     ErrorHandler.usageError('Invalid argument', '');
-    expect(Logger.warn).toHaveBeenCalledWith(expect.not.stringContaining('Run: zin'));
+    expect(Logger.error).toHaveBeenCalledWith(expect.not.stringContaining('Run: zin'));
   });
 
   it('should display info', () => {

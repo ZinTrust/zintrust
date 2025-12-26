@@ -5,8 +5,8 @@ Welcome to Zintrust, a production-grade TypeScript backend framework with proven
 ## Quick Start (2 minutes)
 
 ```bash
-# Install Zintrust CLI
-npm install -g zintrust
+# Install @zintrust/core (Zintrust CLI)
+npm install -g @zintrust/core
 
 # Create a new project
 zin new my-app
@@ -60,14 +60,32 @@ Zintrust is a **zero-dependency** backend framework built on:
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- npm (recommended)
+- Node.js >= 20.0.0
+- Any npm-compatible package manager (npm, yarn, pnpm, bun)
 
 ### From npm (Recommended)
 
+Zintrust is distributed on npm as `@zintrust/core`.
+
 ```bash
-npm install -g zintrust
+npm install -g @zintrust/core
 zin new my-app
+```
+
+You can install it with any npm-compatible package manager:
+
+```bash
+# npm
+npm install -g @zintrust/core
+
+# yarn
+yarn global add @zintrust/core
+
+# pnpm
+pnpm add -g @zintrust/core
+
+# bun
+bun add -g @zintrust/core
 ```
 
 ### From source
@@ -85,24 +103,24 @@ npm run build
 
 ```typescript
 // app/Models/User.ts
-import { Model } from '@orm/Model';
+import { Model } from '@zintrust/core';
 
-export class User extends Model {
-  protected table = 'users';
-  protected fillable = ['name', 'email', 'password'];
-  protected hidden = ['password'];
-  protected timestamps = true;
-  protected casts = {
+export const User = Model.define({
+  table: 'users',
+  fillable: ['name', 'email', 'password'],
+  hidden: ['password'],
+  timestamps: true,
+  casts: {
     is_admin: 'boolean',
-  };
-}
+  },
+});
 ```
 
 ### 2. Create a Route
 
 ```typescript
 // routes/api.ts
-import { Application } from '@';
+import { Application } from '@zintrust/core';
 import { User } from '@app/Models/User';
 
 export function registerRoutes(app: Application): void {
@@ -151,11 +169,11 @@ curl -X POST http://localhost:3000/api/users \
 
 ## Next Steps
 
-- 📖 [Models & ORM](./models.md) - Database patterns and relationships
-- 🛣️ [Routing](./routing.md) - HTTP routing and middleware
-- 🏗️ [Microservices](./microservices.md) - Build distributed systems
-- ⚙️ [CLI Commands](./cli-reference.md) - Code generation and management
-- 📝 [API Reference](./api-reference.md) - Complete API documentation
+- 📖 [Models & ORM](https://zintrust.com/doc/models) - Database patterns and relationships
+- 🛣️ [Routing](https://zintrust.com/doc/routing) - HTTP routing and middleware
+- 🏗️ [Microservices](https://zintrust.com/doc/microservices) - Build distributed systems
+- ⚙️ [CLI Commands](https://zintrust.com/doc/cli-reference) - Code generation and management
+- 📝 [API Reference](https://zintrust.com/doc/api-reference) - Complete API documentation
 
 ## Architecture Overview
 

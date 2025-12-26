@@ -29,12 +29,23 @@ describe('Security Config', () => {
     expect(securityConfig.session).toBeDefined();
   });
 
-  it('should throw when JWT_SECRET is missing', async () => {
-    delete process.env['JWT_SECRET'];
+  it('should fall back to dev secret when JWT_SECRET is missing in development', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('JWT_ENABLED', 'true');
+    vi.stubEnv('JWT_SECRET', '');
     vi.resetModules();
 
-    await expect(import('@/config/security')).rejects.toThrow(
-      'Missing required secret: JWT_SECRET'
-    );
+    const { securityConfig } = await import('@/config/security');
+    expect(securityConfig.jwt.secret).toBe('dev-unsafe-jwt-secret');
+  });
+
+  it('should throw when JWT_SECRET is missing in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_ENABLED', 'true');
+    vi.stubEnv('JWT_SECRET', '');
+    vi.resetModules();
+
+    const { securityConfig } = await import('@/config/security');
+    expect(() => securityConfig.jwt.secret).toThrow('Missing required secret: JWT_SECRET');
   });
 });

@@ -4,8 +4,9 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export type MigrationType = 'create' | 'alter' | 'drop';
 
@@ -49,19 +50,18 @@ export function validateOptions(options: MigrationOptions): { valid: boolean; er
 /**
  * Generate migration file
  */
-export async function generateMigration(
-  options: MigrationOptions
-): Promise<MigrationScaffoldResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateMigration(options: MigrationOptions): Promise<MigrationScaffoldResult> {
   try {
     // Validate options
     const validation = validateOptions(options);
     if (!validation.valid) {
-      return {
+      return Promise.resolve({
         success: false,
         migrationName: options.name,
         filePath: '',
         message: `Validation failed: ${validation.errors.join(', ')}`,
-      };
+      });
     }
 
     // Generate migration filename with timestamp
@@ -74,12 +74,12 @@ export async function generateMigration(
 
     // Check if migration already exists
     if (FileGenerator.fileExists(filePath)) {
-      return {
+      return Promise.resolve({
         success: false,
         migrationName: options.name,
         filePath,
         message: `Migration file already exists: ${filePath}`,
-      };
+      });
     }
 
     // Generate migration content based on type
@@ -91,21 +91,21 @@ export async function generateMigration(
 
     Logger.info(`✅ Created migration: ${filename}`);
 
-    return {
+    return Promise.resolve({
       success: true,
       migrationName: options.name,
       filePath,
       message: `Migration '${options.name}' created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Migration generation error:', error);
     const errorMsg = error instanceof Error ? error.message : String(error);
-    return {
+    return Promise.resolve({
       success: false,
       migrationName: options.name,
       filePath: '',
       message: `Failed to create migration: ${errorMsg}`,
-    };
+    });
   }
 }
 
@@ -122,7 +122,7 @@ function detectType(name: string): 'create' | 'alter' | 'drop' {
  * Generate migration file content
  */
 function generateMigrationContent(name: string, type: 'create' | 'alter' | 'drop'): string {
-  const className = toPascalCase(name);
+  const className = CommonUtils.toPascalCase(name);
 
   if (type === 'create') {
     return generateCreateMigration(className);
@@ -254,7 +254,7 @@ export const migration: Migration = {
 }
 
 /**
- * Convert class name to table name
+ * Convert name to table name
  */
 function getTableNameFromClass(className: string): string {
   // Remove prefixes
@@ -289,19 +289,9 @@ function getTableNameFromClass(className: string): string {
 }
 
 /**
- * Convert snake_case to PascalCase
- */
-function toPascalCase(name: string): string {
-  return name
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
-}
-
-/**
  * MigrationGenerator creates database migration files
  */
-export const MigrationGenerator = {
+export const MigrationGenerator = Object.freeze({
   validateOptions,
   generateMigration,
-};
+});

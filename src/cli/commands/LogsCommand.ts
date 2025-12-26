@@ -3,230 +3,230 @@
  * Commands: zin logs, zin logs --follow, zin logs --level error, zin logs --clear
  */
 
+import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { Logger as FileLogger, LogEntry, LogLevel, LoggerInstance } from '@cli/logger/Logger';
 import { Logger } from '@config/logger';
-import * as chalk from 'chalk';
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import fs from '@node-singletons/fs';
+import chalk from 'chalk';
 import { Command } from 'commander';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 interface LogsOptions {
   level: string;
   clear: boolean;
   follow: boolean;
-  lines: string;
+  lines: number;
   category: string;
 }
 
-/**
- * Get color for log level
- */
-function getLevelColor(level: string): (text: string) => string {
+const normalizeLogsOptions = (options: CommandOptions): LogsOptions => {
+  const level = typeof options['level'] === 'string' ? options['level'] : 'info';
+  const clear = options['clear'] === true;
+  const follow = options['follow'] === true;
+  const linesRaw = typeof options['lines'] === 'string' ? options['lines'] : '50';
+  const linesParsed = Number.parseInt(linesRaw, 10);
+  const lines = Number.isFinite(linesParsed) ? linesParsed : 50;
+  const category = typeof options['category'] === 'string' ? options['category'] : 'app';
+  return { level, clear, follow, lines, category };
+};
+
+const getLevelColor = (level: string): ((text: string) => string) => {
   switch (level.toLowerCase()) {
     case 'debug':
-      return chalk.default.gray;
+      return chalk.gray;
     case 'info':
-      return chalk.default.blue;
+      return chalk.blue;
     case 'warn':
-      return chalk.default.yellow;
+      return chalk.yellow;
     case 'error':
-      return chalk.default.red;
+      return chalk.red;
     default:
-      return chalk.default.white;
+      return chalk.white;
   }
-}
+};
 
-/**
- * Print a single log entry with formatting
- */
-function printLogEntry(log: LogEntry): void {
-  const timestamp = chalk.default.gray(log.timestamp);
+const printLogEntry = (log: LogEntry): void => {
+  const timestamp = chalk.gray(log.timestamp);
   const levelColor = getLevelColor(log.level);
   const level = levelColor(`[${log.level.toUpperCase()}]`);
 
   let output = `${timestamp} ${level} ${log.message}`;
 
   if (log.data !== undefined && Object.keys(log.data).length > 0) {
-    output += ` ${chalk.default.cyan(JSON.stringify(log.data))}`;
+    output += ` ${chalk.cyan(JSON.stringify(log.data))}`;
   }
 
   Logger.info(output);
-}
+};
 
-/**
- * Process a single log line
- */
-function processLogLine(line: string, loggerInstance: LoggerInstance): void {
-  try {
-    const entry = (
-      loggerInstance as unknown as { parseLogEntry: (line: string) => LogEntry }
-    ).parseLogEntry(line);
-    printLogEntry(entry);
-  } catch (error) {
-    Logger.error('Failed to process log line', error);
-    // Malformed line, skip
+const parseLogEntry = (loggerInstance: LoggerInstance, line: string): LogEntry => {
+  const maybe = loggerInstance as unknown as { parseLogEntry?: (l: string) => LogEntry };
+  if (typeof maybe.parseLogEntry !== 'function') {
+    throw ErrorFactory.createGeneralError('LoggerInstance does not support parseLogEntry');
   }
-}
+  return maybe.parseLogEntry(line);
+};
 
-/**
- * Process a chunk of log data
- */
-function processLogChunk(chunk: string | Buffer, loggerInstance: LoggerInstance): void {
+const processLogChunk = (chunk: string | Buffer, loggerInstance: LoggerInstance): void => {
   const chunkStr = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
   const lines = chunkStr.split('\n').filter((line) => line.trim() !== '');
-
   for (const line of lines) {
-    processLogLine(line, loggerInstance);
+    try {
+      const entry = parseLogEntry(loggerInstance, line);
+      printLogEntry(entry);
+    } catch (error) {
+      ErrorFactory.createTryCatchError('Failed to process log line', error);
+    }
   }
-}
+};
 
-/**
- * Display recent logs
- */
-function displayLogs(
+const displayLogs = (
   loggerInstance: LoggerInstance,
   level: string,
-  lines: string,
+  lines: number,
   category: string
-): void {
-  const numLines = Number.parseInt(lines, 10);
-  const logs = loggerInstance.getLogs(category, numLines);
-
+): void => {
+  const logs = loggerInstance.getLogs(category, lines);
   if (logs.length === 0) {
-    Logger.info(chalk.default.yellow('ℹ  No logs found'));
+    Logger.info(chalk.yellow('ℹ  No logs found'));
     return;
   }
 
-  // Filter by level if specified
   let filtered = logs;
-  if (level !== undefined && level !== '' && level !== 'all') {
+  if (level !== '' && level !== 'all') {
     filtered = loggerInstance.filterByLevel(logs, level as LogLevel);
   }
 
   if (filtered.length === 0) {
-    Logger.info(chalk.default.yellow(`ℹ  No logs found with level: ${level}`));
+    Logger.info(chalk.yellow(`ℹ  No logs found with level: ${level}`));
     return;
   }
 
-  Logger.info(chalk.default.blue(`📋 Last ${filtered.length} log entries (${category}):\n`));
-
+  Logger.info(chalk.blue(`📋 Last ${filtered.length} log entries (${category}):\n`));
   for (const log of [...filtered].reverse()) {
     printLogEntry(log);
   }
-}
+};
 
-/**
- * Follow logs in real-time
- */
-function followLogs(category: string): void {
+const followLogs = (category: string): void => {
   const loggerInstance = FileLogger.getInstance();
   const logsDir = loggerInstance.getLogsDirectory();
   const categoryDir = path.join(logsDir, category);
 
   if (!fs.existsSync(categoryDir)) {
-    Logger.info(chalk.default.red(`✗ Log category directory not found: ${categoryDir}`));
+    Logger.info(chalk.red(`✗ Log category directory not found: ${categoryDir}`));
     return;
   }
 
-  // Get today's log file
   const today = new Date().toISOString().split('T')[0];
   const logFile = path.join(categoryDir, `${today}.log`);
 
-  Logger.info(chalk.default.blue(`👀 Following logs: ${logFile}\n`));
-  Logger.info(chalk.default.gray('Press Ctrl+C to stop...\n'));
+  Logger.info(chalk.blue(`👀 Following logs: ${logFile}\n`));
+  Logger.info(chalk.gray('Press Ctrl+C to stop...\n'));
 
   let lastSize = 0;
 
-  // Check for new lines periodically
   const interval = setInterval(() => {
-    if (!fs.existsSync(logFile)) {
-      return;
-    }
-
+    if (!fs.existsSync(logFile)) return;
     const stats = fs.statSync(logFile);
-    if (stats.size > lastSize) {
-      // Read new lines
-      const stream = fs.createReadStream(logFile, {
-        start: lastSize,
-        encoding: 'utf-8',
-      });
+    if (stats.size <= lastSize) return;
 
-      stream.on('data', (chunk: string | Buffer) => {
-        processLogChunk(chunk, loggerInstance);
-      });
+    const stream = fs.createReadStream(logFile, {
+      start: lastSize,
+      encoding: 'utf-8',
+    });
 
-      lastSize = stats.size;
-    }
+    stream.on('data', (chunk: string | Buffer) => {
+      processLogChunk(chunk, loggerInstance);
+    });
+
+    lastSize = stats.size;
   }, 1000);
 
-  // Handle Ctrl+C
   process.on('SIGINT', () => {
     clearInterval(interval);
-    Logger.info(chalk.default.yellow('\n\nLog following stopped'));
+    Logger.info(chalk.yellow('\n\nLog following stopped'));
     process.exit(0);
   });
-}
+};
 
-/**
- * Clear logs for a category
- */
-function clearLogs(loggerInstance: LoggerInstance, category: string): void {
-  const confirmed = true; // In real CLI, would prompt for confirmation
-
-  if (!confirmed) {
-    Logger.info(chalk.default.yellow('Clearing logs cancelled'));
-    return;
-  }
-
+const clearLogs = (loggerInstance: LoggerInstance, category: string): void => {
   const success = loggerInstance.clearLogs(category);
-
   if (success === true) {
-    Logger.info(chalk.default.green(`✓ Cleared logs for category: ${category}`));
+    Logger.info(chalk.green(`✓ Cleared logs for category: ${category}`));
   } else {
-    Logger.info(chalk.default.red(`✗ Failed to clear logs for category: ${category}`));
+    Logger.info(chalk.red(`✗ Failed to clear logs for category: ${category}`));
   }
-}
+};
 
-/**
- * Handle logs command
- */
-async function handleLogs(options: LogsOptions): Promise<void> {
+const executeLogs = (options: CommandOptions): void => {
+  const normalized = normalizeLogsOptions(options);
   const loggerInstance = FileLogger.getInstance();
 
-  // Clear logs
-  if (options.clear === true) {
-    clearLogs(loggerInstance, options.category);
+  if (options['lines'] !== undefined && Number.isNaN(Number(options['lines']))) {
+    throw ErrorFactory.createGeneralError('Lines must be a number');
+  }
+
+  if (normalized.clear) {
+    clearLogs(loggerInstance, normalized.category);
     return;
   }
 
-  // Follow logs in real-time
-  if (options.follow === true) {
-    followLogs(options.category);
+  if (normalized.follow) {
+    followLogs(normalized.category);
     return;
   }
 
-  // Display recent logs
-  displayLogs(loggerInstance, options.level, options.lines, options.category);
-}
+  displayLogs(loggerInstance, normalized.level, normalized.lines, normalized.category);
+};
 
-/**
- * LogsCommand - CLI command for viewing and managing logs
- */
-export const LogsCommand = {
+export const LogsCommand = Object.freeze({
+  /**
+   * Create a new logs command instance
+   */
+  create(): IBaseCommand {
+    const addOptions = (command: Command): void => {
+      command
+        .option('-l, --level <level>', 'Filter by log level (debug, info, warn, error)', 'info')
+        .option('-c, --clear', 'Clear all logs')
+        .option('-f, --follow', 'Follow logs in real-time (like tail -f)')
+        .option('-n, --lines <number>', 'Number of lines to show', '50')
+        .option(
+          '--category <category>',
+          'Log category (app, cli, errors, migrations, debug)',
+          'app'
+        );
+    };
+
+    const cmd: IBaseCommand = BaseCommand.create({
+      name: 'logs',
+      description: 'View and manage application logs',
+      addOptions,
+      execute: (options: CommandOptions): void => executeLogs(options),
+    });
+
+    return cmd;
+  },
+
   /**
    * Register the command with Commander
+   * @deprecated Use create() instead
    */
   register(program: Command): void {
-    program
-      .command('logs')
-      .description('View and manage application logs')
+    const cmd = program.command('logs');
+    cmd.description('View and manage application logs');
+    cmd
       .option('-l, --level <level>', 'Filter by log level (debug, info, warn, error)', 'info')
       .option('-c, --clear', 'Clear all logs')
       .option('-f, --follow', 'Follow logs in real-time (like tail -f)')
       .option('-n, --lines <number>', 'Number of lines to show', '50')
-      .option('--category <category>', 'Log category (app, cli, errors, migrations, debug)', 'app')
-      .action((options: LogsOptions) => handleLogs(options));
+      .option('--category <category>', 'Log category (app, cli, errors, migrations, debug)', 'app');
+
+    cmd.action((options: unknown) => {
+      executeLogs(options as CommandOptions);
+    });
   },
-};
+});
 
 export default LogsCommand;

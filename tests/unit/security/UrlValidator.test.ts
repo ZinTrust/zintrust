@@ -1,10 +1,25 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// Mock Env to allow NODE_ENV manipulation for testing
+vi.mock('@config/env', () => ({
+  Env: {
+    get: vi.fn((_key: string, defaultValue?: string) => defaultValue || ''),
+    getInt: vi.fn((_key: string, defaultValue?: number) => defaultValue || 0),
+    getBool: vi.fn((_key: string, defaultValue?: boolean) => defaultValue || false),
+    NODE_ENV: 'development',
+    PORT: 3000,
+  },
+}));
+
+// Import mocked Env after vi.mock
 import { validateUrl } from '@/security/UrlValidator';
 import { Env } from '@config/env';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('UrlValidator', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    // Reset NODE_ENV after each test
+    (Env as any).NODE_ENV = 'development';
   });
 
   it('should allow localhost by default', () => {
@@ -24,36 +39,24 @@ describe('UrlValidator', () => {
 
   it('should throw error for disallowed domains in production', () => {
     // Mock Env.NODE_ENV to 'production'
-    // Since Env is an object with properties, we can spy on it or just modify it if it's mutable.
-    // Looking at Env.ts, it exports const Env = { ... }. It's a plain object.
-    // However, it's better to use vi.spyOn if possible, or just modify the property and restore it.
-
-    // Since Env.NODE_ENV is a property, we can't spy on it directly like a method.
-    // But we can modify the value.
-    const originalEnv = Env.NODE_ENV;
-    // @ts-ignore - bypassing readonly for testing
-    Env.NODE_ENV = 'production';
+    (Env as any).NODE_ENV = 'production';
 
     try {
       expect(() => validateUrl('https://evil.com')).toThrow(
         /URL hostname 'evil.com' is not allowed/
       );
     } finally {
-      // @ts-ignore
-      Env.NODE_ENV = originalEnv;
+      // Reset in afterEach
     }
   });
 
   it('should NOT throw error for disallowed domains in development', () => {
-    const originalEnv = Env.NODE_ENV;
-    // @ts-ignore
-    Env.NODE_ENV = 'development';
+    (Env as any).NODE_ENV = 'development';
 
     try {
       expect(() => validateUrl('https://evil.com')).not.toThrow();
     } finally {
-      // @ts-ignore
-      Env.NODE_ENV = originalEnv;
+      // Reset in afterEach
     }
   });
 

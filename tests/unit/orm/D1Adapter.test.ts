@@ -1,9 +1,9 @@
 import { D1Adapter } from '@/orm/adapters/D1Adapter';
-import { DatabaseConfig } from '@/orm/DatabaseAdapter';
+import { DatabaseConfig, IDatabaseAdapter } from '@/orm/DatabaseAdapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('D1Adapter', () => {
-  let adapter: D1Adapter;
+  let adapter: IDatabaseAdapter;
   const mockConfig: DatabaseConfig = {
     driver: 'd1',
     host: 'localhost',
@@ -21,7 +21,7 @@ describe('D1Adapter', () => {
     (globalThis as any).env = {
       DB: mockD1,
     };
-    adapter = new D1Adapter(mockConfig);
+    adapter = D1Adapter.create(mockConfig);
   });
 
   afterEach(() => {
@@ -35,6 +35,7 @@ describe('D1Adapter', () => {
   });
 
   it('should execute query', async () => {
+    await adapter.connect();
     const mockBind = vi.fn().mockReturnThis();
     const mockAll = vi.fn().mockResolvedValue({ results: [{ id: 1 }] });
 
@@ -51,6 +52,7 @@ describe('D1Adapter', () => {
   });
 
   it('should execute queryOne', async () => {
+    await adapter.connect();
     const mockBind = vi.fn().mockReturnThis();
     const mockFirst = vi.fn().mockResolvedValue({ id: 1 });
 
@@ -65,16 +67,19 @@ describe('D1Adapter', () => {
   });
 
   it('should handle query errors', async () => {
+    await adapter.connect();
     mockD1.prepare.mockImplementation(() => {
       throw new Error('D1 Error');
     });
 
-    await expect(adapter.query('SELECT * FROM users', [])).rejects.toThrow('D1 Error');
+    await expect(adapter.query('SELECT * FROM users', [])).rejects.toThrow(
+      'D1 query failed: SELECT * FROM users'
+    );
   });
 
   it('should warn if DB binding is missing', async () => {
     delete (globalThis as any).env.DB;
-    const noDbAdapter = new D1Adapter(mockConfig);
+    const noDbAdapter = D1Adapter.create(mockConfig);
 
     // It logs a warning but doesn't throw on connect
     await noDbAdapter.connect();
@@ -88,7 +93,8 @@ describe('D1Adapter', () => {
 
   it('should throw if queryOne called without DB binding', async () => {
     delete (globalThis as any).env.DB;
-    const noDbAdapter = new D1Adapter(mockConfig);
+    const noDbAdapter = D1Adapter.create(mockConfig);
+    await noDbAdapter.connect();
 
     await expect(noDbAdapter.queryOne('SELECT * FROM users LIMIT 1', [])).rejects.toThrow(
       'D1 database binding not found'
@@ -96,16 +102,18 @@ describe('D1Adapter', () => {
   });
 
   it('should handle queryOne errors', async () => {
+    await adapter.connect();
     mockD1.prepare.mockImplementation(() => {
       throw new Error('QueryOne failed');
     });
 
     await expect(adapter.queryOne('SELECT * FROM users LIMIT 1', [])).rejects.toThrow(
-      'QueryOne failed'
+      'D1 queryOne failed: SELECT * FROM users LIMIT 1'
     );
   });
 
   it('should handle transaction callback', async () => {
+    await adapter.connect();
     const mockBind = vi.fn().mockReturnThis();
     const mockAll = vi.fn().mockResolvedValue({ results: [{ id: 1 }] });
 
@@ -114,7 +122,7 @@ describe('D1Adapter', () => {
       all: mockAll,
     });
 
-    const result = await adapter.transaction(async (trx) => {
+    const result = await adapter.transaction(async (trx: IDatabaseAdapter) => {
       return await trx.query('INSERT INTO users', []);
     });
 
@@ -122,7 +130,7 @@ describe('D1Adapter', () => {
   });
 
   it('should return correct parameter placeholder', () => {
-    const placeholder = (adapter as any).getParameterPlaceholder(0);
+    const placeholder = adapter.getPlaceholder(0);
     expect(placeholder).toBe('?');
   });
 

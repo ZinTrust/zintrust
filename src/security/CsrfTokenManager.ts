@@ -3,6 +3,7 @@
  * Generate, validate, and bind CSRF tokens to sessions
  */
 
+import { Env } from '@config/env';
 import { randomBytes } from 'node:crypto';
 
 export interface CsrfTokenData {
@@ -12,126 +13,90 @@ export interface CsrfTokenData {
   expiresAt: Date;
 }
 
-/**
- * CsrfTokenManager handles CSRF token lifecycle
- */
-export class CsrfTokenManager {
-  private readonly tokens: Map<string, CsrfTokenData> = new Map();
-  private readonly tokenLength: number = 32; // 256 bits
-  private readonly tokenTtl: number = 3600000; // 1 hour in milliseconds
-
-  /**
-   * Generate a new CSRF token bound to session
-   */
-  public generateToken(sessionId: string): string {
-    // Invalidate any existing token for this session
-    this.tokens.delete(sessionId);
-
-    const token = randomBytes(this.tokenLength).toString('hex');
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + this.tokenTtl);
-
-    const tokenData: CsrfTokenData = {
-      token,
-      sessionId,
-      createdAt: now,
-      expiresAt,
-    };
-
-    this.tokens.set(sessionId, tokenData);
-    return token;
-  }
-
-  /**
-   * Validate CSRF token for session
-   */
-  public validateToken(sessionId: string, token: string): boolean {
-    const tokenData = this.tokens.get(sessionId);
-
-    if (!tokenData) {
-      return false;
-    }
-
-    const isValid = tokenData.token === token;
-    const isExpired = new Date() > tokenData.expiresAt;
-
-    if (isExpired) {
-      this.tokens.delete(sessionId);
-      return false;
-    }
-
-    if (!isValid) {
-      return false;
-    }
-
-    // Token is valid, can be single-use or reusable
-    // For production, consider single-use tokens
-    return true;
-  }
-
-  /**
-   * Invalidate token (single-use model)
-   */
-  public invalidateToken(sessionId: string): void {
-    this.tokens.delete(sessionId);
-  }
-
-  /**
-   * Get token data for session
-   */
-  public getTokenData(sessionId: string): CsrfTokenData | null {
-    return this.tokens.get(sessionId) ?? null;
-  }
-
-  /**
-   * Refresh token (extend TTL)
-   */
-  public refreshToken(sessionId: string): string | null {
-    const tokenData = this.tokens.get(sessionId);
-
-    if (!tokenData) {
-      return null;
-    }
-
-    const isExpired = new Date() > tokenData.expiresAt;
-    if (isExpired) {
-      this.tokens.delete(sessionId);
-      return null;
-    }
-
-    // Extend expiration
-    tokenData.expiresAt = new Date(Date.now() + this.tokenTtl);
-    return tokenData.token;
-  }
-
-  /**
-   * Clean up expired tokens
-   */
-  public cleanup(): number {
-    let removed = 0;
-    const now = new Date();
-
-    for (const [sessionId, tokenData] of this.tokens.entries()) {
-      if (now > tokenData.expiresAt) {
-        this.tokens.delete(sessionId);
-        removed++;
-      }
-    }
-
-    return removed;
-  }
-
-  /**
-   * Clear all tokens (for testing)
-   */
-  public clear(): void {
-    this.tokens.clear();
-  }
-
-  /**
-   * Get active token count
-   */
-  public getTokenCount(): number {
-    return this.tokens.size;
-  }
+export interface ICsrfTokenManager {
+  generateToken(sessionId: string): string;
+  validateToken(sessionId: string, token: string): boolean;
+  invalidateToken(sessionId: string): void;
+  getTokenData(sessionId: string): CsrfTokenData | null;
+  refreshToken(sessionId: string): string | null;
+  cleanup(): number;
+  clear(): void;
+  getTokenCount(): number;
 }
+
+export interface CsrfTokenManagerType {
+  create(): ICsrfTokenManager;
+}
+
+/**
+ * Create a new CSRF token manager instance
+ */
+const create = (): ICsrfTokenManager => {
+  const tokens: Map<string, CsrfTokenData> = new Map();
+  const tokenLength = Env.TOKEN_LENGTH; // 256 bits
+  const tokenTtl = Env.TOKEN_TTL; // 1 hour in milliseconds
+
+  return {
+    generateToken(sessionId: string): string {
+      tokens.delete(sessionId);
+      const token = randomBytes(tokenLength).toString('hex');
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + tokenTtl);
+      const tokenData: CsrfTokenData = { token, sessionId, createdAt: now, expiresAt };
+      tokens.set(sessionId, tokenData);
+      return token;
+    },
+    validateToken(sessionId: string, token: string): boolean {
+      const tokenData = tokens.get(sessionId);
+      if (!tokenData) return false;
+      const isValid = tokenData.token === token;
+      const isExpired = new Date() > tokenData.expiresAt;
+      if (isExpired) {
+        tokens.delete(sessionId);
+        return false;
+      }
+      return isValid;
+    },
+    invalidateToken(sessionId: string): void {
+      tokens.delete(sessionId);
+    },
+    getTokenData(sessionId: string): CsrfTokenData | null {
+      return tokens.get(sessionId) ?? null;
+    },
+    refreshToken(sessionId: string): string | null {
+      const tokenData = tokens.get(sessionId);
+      if (!tokenData) return null;
+      const isExpired = new Date() > tokenData.expiresAt;
+      if (isExpired) {
+        tokens.delete(sessionId);
+        return null;
+      }
+      tokenData.expiresAt = new Date(Date.now() + tokenTtl);
+      return tokenData.token;
+    },
+    cleanup(): number {
+      let removed = 0;
+      const now = new Date();
+      for (const [sessionId, tokenData] of tokens.entries()) {
+        if (now > tokenData.expiresAt) {
+          tokens.delete(sessionId);
+          removed++;
+        }
+      }
+      return removed;
+    },
+    clear(): void {
+      tokens.clear();
+    },
+    getTokenCount(): number {
+      return tokens.size;
+    },
+  };
+};
+
+/**
+ * CsrfTokenManager namespace - sealed for immutability
+ */
+export const CsrfTokenManager: CsrfTokenManagerType = Object.freeze({
+  create,
+});

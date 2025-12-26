@@ -4,8 +4,8 @@
 
 import { ConfigManager } from '@cli/config/ConfigManager';
 import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const TEST_CONFIG_PATH = path.join(process.cwd(), 'tests/tmp/test-config-manager.json');
@@ -30,7 +30,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should load default config when file does not exist', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     const config = await manager.load();
 
     expect(config).toBeDefined();
@@ -39,7 +39,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should save config to file', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     const config = await manager.load();
 
     config.name = 'test-app';
@@ -56,7 +56,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should get config value', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     const port = manager.get('server.port');
@@ -64,7 +64,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should set config value', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     manager.set('server.port', 3001);
@@ -72,7 +72,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should set nested config values', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     manager.set('database.host', 'localhost');
@@ -100,7 +100,7 @@ describe('ConfigManager Advanced Operations', () => {
   });
 
   it('should merge partial config', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     manager.merge({
@@ -120,7 +120,7 @@ describe('ConfigManager Advanced Operations', () => {
   });
 
   it('should reset to default config', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     const config = await manager.load();
 
     config.name = 'changed-app';
@@ -151,7 +151,7 @@ describe('ConfigManager Persistence', () => {
   });
 
   it('should create default config', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.create({ name: 'initial-app' });
 
     const exists = await manager.exists();
@@ -162,14 +162,14 @@ describe('ConfigManager Persistence', () => {
   });
 
   it('should persist changes across save and load', async () => {
-    let manager = new ConfigManager(TEST_CONFIG_PATH);
+    let manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     manager.set('server.port', 5000);
     await manager.save();
 
     // Create new manager instance and load
-    manager = new ConfigManager(TEST_CONFIG_PATH);
+    manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     expect(manager.get('server.port')).toBe(5000);
@@ -196,7 +196,7 @@ describe('ConfigManager Export and Keys', () => {
   });
 
   it('should export config as JSON', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     const json = manager.export();
@@ -209,7 +209,7 @@ describe('ConfigManager Export and Keys', () => {
   });
 
   it('should get all config keys', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     const keys = manager.getAllKeys();
@@ -221,7 +221,7 @@ describe('ConfigManager Export and Keys', () => {
   });
 
   it('should get undefined for non-existent key', async () => {
-    const manager = new ConfigManager(TEST_CONFIG_PATH);
+    const manager = ConfigManager.create(TEST_CONFIG_PATH);
     await manager.load();
 
     const value = manager.get('non.existent.key');

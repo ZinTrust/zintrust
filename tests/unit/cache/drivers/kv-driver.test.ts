@@ -28,7 +28,7 @@ describe('KVDriver', () => {
     delete (globalThis as unknown as Record<string, unknown>)['env'];
 
     const { KVDriver } = await import('@cache/drivers/KVDriver');
-    const driver = new KVDriver();
+    const driver = KVDriver.create();
 
     await expect(driver.get('k')).resolves.toBeNull();
     await driver.set('k', 'v');
@@ -48,7 +48,7 @@ describe('KVDriver', () => {
     (globalThis as unknown as Record<string, unknown>)['env'] = { CACHE: kv };
 
     const { KVDriver } = await import('@cache/drivers/KVDriver');
-    const driver = new KVDriver();
+    const driver = KVDriver.create();
 
     await expect(driver.get<{ ok: boolean }>('k')).resolves.toEqual({ ok: true });
     expect(kv.get).toHaveBeenCalledWith('k', { type: 'json' });
@@ -76,7 +76,7 @@ describe('KVDriver', () => {
     (globalThis as unknown as Record<string, unknown>)['env'] = { CACHE: kv };
 
     const { KVDriver } = await import('@cache/drivers/KVDriver');
-    const driver = new KVDriver();
+    const driver = KVDriver.create();
 
     await driver.set('k', 'v', 30);
     expect(kv.put).toHaveBeenCalledWith('k', JSON.stringify('v'), { expirationTtl: 60 });
@@ -87,7 +87,7 @@ describe('KVDriver', () => {
 
   it('warns that clear is not implemented', async () => {
     const { KVDriver } = await import('@cache/drivers/KVDriver');
-    const driver = new KVDriver();
+    const driver = KVDriver.create();
 
     await driver.clear();
 

@@ -1,10 +1,10 @@
-import { Database } from '@orm/Database';
+import type { IDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('QueryBuilder', () => {
   it('should build a simple SELECT query', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.select('id', 'name', 'email');
 
     const sql = builder.toSQL();
@@ -12,7 +12,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with WHERE clause', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.select('*').where('active', '=', true);
 
     const sql = builder.toSQL();
@@ -21,7 +21,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with multiple WHERE clauses', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('active', '=', true).where('role', '=', 'admin');
 
     const sql = builder.toSQL();
@@ -30,7 +30,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with andWhere', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('active', '=', true).andWhere('role', '=', 'admin');
 
     const sql = builder.toSQL();
@@ -39,7 +39,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with orWhere', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('active', '=', true).orWhere('role', '=', 'admin');
 
     // Note: Current implementation of orWhere just calls where (AND), so this test reflects current behavior
@@ -50,7 +50,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with LIMIT', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.limit(10);
 
     const sql = builder.toSQL();
@@ -58,7 +58,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with OFFSET', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.limit(10).offset(20);
 
     const sql = builder.toSQL();
@@ -67,7 +67,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should build query with ORDER BY', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.orderBy('name', 'DESC');
 
     const sql = builder.toSQL();
@@ -75,21 +75,21 @@ describe('QueryBuilder', () => {
   });
 
   it('should support shorthand where syntax', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.where('id', 123);
 
     expect(builder.getParameters()).toEqual([123]);
   });
 
   it('should add joins', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.join('posts', 'users.id = posts.user_id');
 
     expect(builder.getJoins()).toEqual([{ table: 'posts', on: 'users.id = posts.user_id' }]);
   });
 
   it('should add left joins', () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     builder.leftJoin('posts', 'users.id = posts.user_id');
 
     expect(builder.getJoins()).toEqual([{ table: 'posts', on: 'users.id = posts.user_id' }]);
@@ -98,9 +98,9 @@ describe('QueryBuilder', () => {
   it('should execute get()', async () => {
     const mockDb = {
       query: vi.fn().mockResolvedValue([{ id: 1 }]),
-    } as unknown as Database;
+    } as unknown as IDatabase;
 
-    const builder = new QueryBuilder('users', mockDb);
+    const builder = QueryBuilder.create('users', mockDb as any);
     const result = await builder.get();
 
     expect(mockDb.query).toHaveBeenCalled();
@@ -110,9 +110,9 @@ describe('QueryBuilder', () => {
   it('should execute first()', async () => {
     const mockDb = {
       query: vi.fn().mockResolvedValue([{ id: 1 }]),
-    } as unknown as Database;
+    } as unknown as IDatabase;
 
-    const builder = new QueryBuilder('users', mockDb);
+    const builder = QueryBuilder.create('users', mockDb as any);
     const result = await builder.first();
 
     expect(mockDb.query).toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('QueryBuilder', () => {
   });
 
   it('should throw error if db is not provided for execution', async () => {
-    const builder = new QueryBuilder('users');
+    const builder = QueryBuilder.create('users');
     await expect(builder.get()).rejects.toThrow('Database instance not provided');
   });
 });

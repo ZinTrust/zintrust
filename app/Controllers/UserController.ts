@@ -5,121 +5,152 @@
 
 import { User } from '@app/Models/User';
 import { Logger } from '@config/logger';
-import { Controller } from '@http/Controller';
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
 
-export class UserController extends Controller {
+/**
+ * User Controller Interface
+ */
+export interface IUserController {
+  index(req: IRequest, res: IResponse): Promise<void>;
+  show(req: IRequest, res: IResponse): Promise<void>;
+  create(req: IRequest, res: IResponse): Promise<void>;
+  store(req: IRequest, res: IResponse): Promise<void>;
+  edit(req: IRequest, res: IResponse): Promise<void>;
+  update(req: IRequest, res: IResponse): Promise<void>;
+  destroy(req: IRequest, res: IResponse): Promise<void>;
+}
+
+/**
+ * User Controller Methods
+ */
+const userControllerMethods: IUserController = {
   /**
    * List all users
    * GET /users
    */
-  public async index(_req: Request, res: Response): Promise<void> {
+  async index(_req: IRequest, res: IResponse): Promise<void> {
     try {
-      // In production: const users = await User.all();
-      const users: unknown[] = [];
+      const users = await User.all();
       res.json({ data: users });
     } catch (error) {
       Logger.error('Error fetching users:', error);
-      res.setStatus(500).json({ error: 'Failed to fetch users' });
+      res.status(500).json({ error: 'Failed to fetch users' });
     }
-  }
-
-  /**
-   * Show create form
-   * GET /users/create
-   */
-  public async create(_req: Request, res: Response): Promise<void> {
-    res.json({ form: 'Create User Form' });
-  }
-
-  /**
-   * Store a new user
-   * POST /users
-   */
-  public async store(req: Request, res: Response): Promise<void> {
-    try {
-      const body = req.getBody() as Record<string, unknown>;
-
-      // Validation would go here
-      if (
-        body['name'] === undefined ||
-        body['name'] === null ||
-        body['email'] === undefined ||
-        body['email'] === null
-      ) {
-        res.setStatus(422).json({ error: 'Validation failed' });
-        return;
-      }
-
-      // Create user: const user = await User.create(body);
-      res.setStatus(201).json({ message: 'User created', user: body });
-    } catch (error) {
-      Logger.error('Error creating user:', error);
-      res.setStatus(500).json({ error: 'Failed to create user' });
-    }
-  }
+  },
 
   /**
    * Show a specific user
    * GET /users/:id
    */
-  public async show(req: Request, res: Response): Promise<void> {
+  async show(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const id = req.getParam('id');
-      res.json({ data: { id } });
+      const id = req.params['id'];
+      const user = await User.find(id);
+      if (user === null) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      res.json({ data: user });
     } catch (error) {
       Logger.error('Error fetching user:', error);
-      res.setStatus(500).json({ error: 'Failed to fetch user' });
+      res.status(500).json({ error: 'Failed to fetch user' });
     }
-  }
+  },
+
+  /**
+   * Show create form
+   * GET /users/create
+   */
+  async create(_req: IRequest, res: IResponse): Promise<void> {
+    res.json({ form: 'Create User Form' });
+  },
+
+  /**
+   * Store a new user
+   * POST /users
+   */
+  async store(req: IRequest, res: IResponse): Promise<void> {
+    try {
+      const body = req.body;
+      if (typeof body['name'] !== 'string' || !body['name']) {
+        res.status(422).json({ error: 'Name is required' });
+        return;
+      }
+      const user = User.create(body);
+      res.status(201).json({ message: 'User created', user });
+    } catch (error) {
+      Logger.error('Error creating user:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  },
 
   /**
    * Show edit form
    * GET /users/:id/edit
    */
-  public async edit(req: Request, res: Response): Promise<void> {
+  async edit(_req: IRequest, res: IResponse): Promise<void> {
     try {
-      const id = req.getParam('id');
-      res.json({ form: `Edit User ${id}` });
+      res.json({ form: 'Edit User Form' });
     } catch (error) {
       Logger.error('Error loading edit form:', error);
-      res.setStatus(500).json({ error: 'Failed to load edit form' });
+      res.status(500).json({ error: 'Failed to load edit form' });
     }
-  }
+  },
 
   /**
    * Update a user
    * PUT /users/:id
    */
-  public async update(req: Request, res: Response): Promise<void> {
+  async update(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const id = req.getParam('id');
-      const body = req.getBody() as Record<string, unknown>;
-
-      // In production:
-      // const user = await User.find(id);
-      // await user.fill(body).save();
-      res.json({ message: 'User updated', user: { id, ...body } });
+      const id = req.params['id'];
+      const user = await User.find(id);
+      if (user === null) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      const body = req.body;
+      user.fill(body);
+      await user.save();
+      res.json({ message: 'User updated', user });
     } catch (error) {
       Logger.error('Error updating user:', error);
-      res.setStatus(500).json({ error: 'Failed to update user' });
+      res.status(500).json({ error: 'Failed to update user' });
     }
-  }
+  },
 
   /**
    * Delete a user
    * DELETE /users/:id
    */
-  public async destroy(req: Request, res: Response): Promise<void> {
+  async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const id = req.getParam('id');
+      const id = req.params['id'];
       const user = await User.find(id);
-      await user?.delete();
+      if (user === null) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      await user.delete();
       res.json({ message: 'User deleted' });
     } catch (error) {
       Logger.error('Error deleting user:', error);
-      res.setStatus(500).json({ error: 'Failed to delete user' });
+      res.status(500).json({ error: 'Failed to delete user' });
     }
-  }
-}
+  },
+};
+
+/**
+ * User Controller Factory
+ */
+export const UserController = {
+  /**
+   * Create a new user controller instance
+   */
+  create(): IUserController {
+    return userControllerMethods;
+  },
+};
+
+export default UserController;

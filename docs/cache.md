@@ -18,7 +18,7 @@ MONGO_URI=your_mongo_uri
 You can use the `cache` helper to interact with the configured cache driver.
 
 ```typescript
-import { cache } from '@cache/Cache';
+import { cache } from '@zintrust/core';
 
 // Store an item (TTL in seconds)
 await cache.set('user:1', { id: 1, name: 'John' }, 3600);

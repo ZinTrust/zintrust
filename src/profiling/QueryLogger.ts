@@ -5,53 +5,124 @@
 
 import { QueryLogEntry } from '@profiling/types';
 
-let instance: QueryLoggerInstance | undefined;
+/**
+ * QueryLogger tracks all database queries executed during a request context
+ * Provides N+1 detection heuristic by flagging identical queries executed 5+ times
+ */
+export type QueryLoggerInstance = IQueryLogger;
 
-export interface QueryLoggerInstance {
+export interface IQueryLogger {
+  /**
+   * Set current request context ID
+   */
   setContext(context: string): void;
+
+  /**
+   * Get current request context ID
+   */
   getContext(): string;
-  logQuery(sql: string, params: unknown[], duration: number, context?: string): void;
-  getQueryLog(context?: string): QueryLogEntry[];
-  getQuerySummary(context?: string): Map<string, QueryLogEntry & { executionCount: number }>;
-  getN1Suspects(context?: string, threshold?: number): QueryLogEntry[];
-  clear(context?: string): void;
-  getAllLogs(): Map<string, QueryLogEntry[]>;
-  getQueryCount(context?: string): number;
-  getTotalDuration(context?: string): number;
-}
-
-class QueryLoggerImpl implements QueryLoggerInstance {
-  private readonly logs: Map<string, QueryLogEntry[]> = new Map();
-  private currentContext: string = 'default';
-
-  /**
-   * Set the current execution context (e.g., request ID)
-   */
-  public setContext(context: string): void {
-    this.currentContext = context;
-    if (!this.logs.has(context)) {
-      this.logs.set(context, []);
-    }
-  }
-
-  /**
-   * Get current context
-   */
-  public getContext(): string {
-    return this.currentContext;
-  }
 
   /**
    * Log a query execution
    */
-  public logQuery(
+  logQuery(sql: string, params: unknown[], duration: number, context?: string): void;
+
+  /**
+   * Get query log for a context
+   */
+  getQueryLog(context?: string): QueryLogEntry[];
+
+  /**
+   * Get query summary (grouped by SQL) for a context
+   */
+  getQuerySummary(context?: string): Map<string, QueryLogEntry & { executionCount: number }>;
+
+  /**
+   * Get N+1 suspects (queries executed 5+ times in same context)
+   */
+  getN1Suspects(context?: string, threshold?: number): QueryLogEntry[];
+
+  /**
+   * Clear logs for a context
+   */
+  clear(context?: string): void;
+
+  /**
+   * Get all logs
+   */
+  getAllLogs(): Map<string, QueryLogEntry[]>;
+
+  /**
+   * Get total query count for a context
+   */
+  getQueryCount(context?: string): number;
+
+  /**
+   * Get total duration for all queries in a context
+   */
+  getTotalDuration(context?: string): number;
+}
+
+// Private state (exposed on QueryLogger for targeted unit-test coverage)
+const logs = new Map<string, QueryLogEntry[] | undefined>();
+let currentContext = 'default';
+
+const MAX_CONTEXTS = 1000;
+const MAX_QUERIES_PER_CONTEXT = 500;
+
+/**
+ * QueryLogger tracks all database queries executed during a request context
+ * Provides N+1 detection heuristic by flagging identical queries executed 5+ times
+ * Sealed namespace for immutability
+ */
+export const QueryLogger = Object.freeze({
+  // Exposed for rare-branch tests that deliberately corrupt the map.
+  logs,
+  getInstance(): IQueryLogger {
+    return this;
+  },
+  /**
+   * Set current request context ID
+   */
+  setContext(context: string): void {
+    currentContext = context;
+    if (!logs.has(context)) {
+      // Prevent unbounded growth of contexts
+      if (logs.size >= MAX_CONTEXTS) {
+        const firstKey = logs.keys().next().value;
+        if (firstKey !== undefined) {
+          logs.delete(firstKey);
+        }
+      }
+      logs.set(context, []);
+    }
+  },
+
+  /**
+   * Get current request context ID
+   */
+  getContext(): string {
+    return currentContext;
+  },
+
+  /**
+   * Log a query execution
+   */
+  logQuery(
     sql: string,
     params: unknown[],
     duration: number,
-    context: string = this.currentContext
+    context: string = currentContext
   ): void {
-    if (!this.logs.has(context)) {
-      this.logs.set(context, []);
+    if (!logs.has(context)) {
+      // Prevent unbounded growth of contexts
+      if (logs.size >= MAX_CONTEXTS) {
+        const firstKey = logs.keys().next().value;
+        if (firstKey !== undefined) {
+          logs.delete(firstKey);
+        }
+      }
+      logs.set(context, []);
     }
 
     const entry: QueryLogEntry = {
@@ -62,29 +133,35 @@ class QueryLoggerImpl implements QueryLoggerInstance {
       context,
     };
 
-    const contextLogs = this.logs.get(context);
-    if (contextLogs !== undefined) {
+    const contextLogs = logs.get(context);
+    if (Array.isArray(contextLogs)) {
       contextLogs.push(entry);
+
+      // Prevent unbounded growth of queries per context
+      if (contextLogs.length > MAX_QUERIES_PER_CONTEXT) {
+        contextLogs.shift();
+      }
     }
-  }
+  },
 
   /**
-   * Get all logged queries for a context
+   * Get query log for a context
    */
-  public getQueryLog(context: string = this.currentContext): QueryLogEntry[] {
-    return this.logs.get(context) ?? [];
-  }
+  getQueryLog(context: string = currentContext): QueryLogEntry[] {
+    const contextLogs = logs.get(context);
+    return Array.isArray(contextLogs) ? contextLogs : [];
+  },
 
   /**
-   * Get query summary with execution counts
+   * Get query summary (grouped by SQL) for a context
    */
-  public getQuerySummary(
-    context: string = this.currentContext
+  getQuerySummary(
+    context: string = currentContext
   ): Map<string, QueryLogEntry & { executionCount: number }> {
-    const logs = this.getQueryLog(context);
+    const queryLogs = this.getQueryLog(context);
     const summary = new Map<string, QueryLogEntry & { executionCount: number }>();
 
-    for (const log of logs) {
+    for (const log of queryLogs) {
       if (!summary.has(log.sql)) {
         summary.set(log.sql, { ...log, executionCount: 0 });
       }
@@ -95,16 +172,13 @@ class QueryLoggerImpl implements QueryLoggerInstance {
     }
 
     return summary;
-  }
+  },
 
   /**
    * Get N+1 suspects (queries executed 5+ times in same context)
    * Simple heuristic: identical queries executed many times suggests N+1
    */
-  public getN1Suspects(
-    context: string = this.currentContext,
-    threshold: number = 5
-  ): QueryLogEntry[] {
+  getN1Suspects(context: string = currentContext, threshold: number = 5): QueryLogEntry[] {
     const summary = this.getQuerySummary(context);
     const suspects: QueryLogEntry[] = [];
 
@@ -115,90 +189,45 @@ class QueryLoggerImpl implements QueryLoggerInstance {
     }
 
     return suspects;
-  }
+  },
 
   /**
    * Clear logs for a context
    */
-  public clear(context?: string): void {
+  clear(context?: string): void {
     if (context === undefined) {
-      this.logs.clear();
-      this.currentContext = 'default';
+      logs.clear();
+      currentContext = 'default';
     } else {
-      this.logs.delete(context);
+      logs.delete(context);
     }
-  }
+  },
 
   /**
    * Get all logs
    */
-  public getAllLogs(): Map<string, QueryLogEntry[]> {
-    return new Map(this.logs);
-  }
+  getAllLogs(): Map<string, QueryLogEntry[]> {
+    const copy = new Map<string, QueryLogEntry[]>();
+    for (const [key, value] of logs.entries()) {
+      if (Array.isArray(value)) {
+        copy.set(key, value);
+      }
+    }
+    return copy;
+  },
 
   /**
    * Get total query count for a context
    */
-  public getQueryCount(context: string = this.currentContext): number {
+  getQueryCount(context: string = currentContext): number {
     return this.getQueryLog(context).length;
-  }
+  },
 
   /**
    * Get total duration for all queries in a context
    */
-  public getTotalDuration(context: string = this.currentContext): number {
-    const logs = this.getQueryLog(context);
-    return logs.reduce((total, log) => total + log.duration, 0);
-  }
-}
-
-/**
- * QueryLogger tracks all database queries executed during a request context
- * Provides N+1 detection heuristic by flagging identical queries executed 5+ times
- */
-export const QueryLogger = {
-  getInstance(): QueryLoggerInstance {
-    instance ??= new QueryLoggerImpl();
-    return instance;
+  getTotalDuration(context: string = currentContext): number {
+    const queryLogs = this.getQueryLog(context);
+    return queryLogs.reduce((total, log) => total + log.duration, 0);
   },
-
-  setContext(context: string): void {
-    this.getInstance().setContext(context);
-  },
-
-  getContext(): string {
-    return this.getInstance().getContext();
-  },
-
-  logQuery(sql: string, params: unknown[], duration: number, context?: string): void {
-    this.getInstance().logQuery(sql, params, duration, context);
-  },
-
-  getQueryLog(context?: string): QueryLogEntry[] {
-    return this.getInstance().getQueryLog(context);
-  },
-
-  getQuerySummary(context?: string): Map<string, QueryLogEntry & { executionCount: number }> {
-    return this.getInstance().getQuerySummary(context);
-  },
-
-  getN1Suspects(context?: string, threshold?: number): QueryLogEntry[] {
-    return this.getInstance().getN1Suspects(context, threshold);
-  },
-
-  clear(context?: string): void {
-    this.getInstance().clear(context);
-  },
-
-  getAllLogs(): Map<string, QueryLogEntry[]> {
-    return this.getInstance().getAllLogs();
-  },
-
-  getQueryCount(context?: string): number {
-    return this.getInstance().getQueryCount(context);
-  },
-
-  getTotalDuration(context?: string): number {
-    return this.getInstance().getTotalDuration(context);
-  },
-};
+});

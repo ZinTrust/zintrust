@@ -4,8 +4,8 @@
 
 import { FeatureScaffolder, type FeatureOptions } from '@cli/scaffolding/FeatureScaffolder';
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const testDir = path.join(__dirname, 'test-features');
@@ -284,18 +284,20 @@ describe('FeatureScaffolder Feature Types', () => {
   it('should add all feature types', async () => {
     const features = FeatureScaffolder.getAvailableFeatures();
 
-    for (const feature of features) {
-      const options: FeatureOptions = {
-        name: feature,
-        servicePath: path.join(testDir, `service-${feature}`),
-      };
+    await Promise.all(
+      features.map(async (feature) => {
+        const options: FeatureOptions = {
+          name: feature,
+          servicePath: path.join(testDir, `service-${feature}`),
+        };
 
-      // Create service dir for each feature
-      fs.mkdirSync(path.join(options.servicePath, 'src', 'features'), { recursive: true });
+        // Create service dir for each feature
+        fs.mkdirSync(path.join(options.servicePath, 'src', 'features'), { recursive: true });
 
-      const result = await FeatureScaffolder.addFeature(options);
-      expect(result.success).toBe(true);
-    }
+        const result = await FeatureScaffolder.addFeature(options);
+        expect(result.success).toBe(true);
+      })
+    );
   });
 
   it('should include feature content in generated file', async () => {

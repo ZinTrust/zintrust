@@ -40,21 +40,21 @@ zin add controller TaskController
 Implement the `index` and `store` methods:
 
 ```typescript
-import { Controller } from '@http/Controller';
-import { Task } from '@models/Task';
+import { Task } from '@app/Models/Task';
+import { Controller, type IRequest, type IResponse } from '@zintrust/core';
 
-export class TaskController extends Controller {
-  async index() {
+export const TaskController = {
+  async index(_req: IRequest, res: IResponse): Promise<void> {
     const tasks = await Task.query().get();
-    return this.json(tasks);
-  }
+    Controller.json(res, { data: tasks });
+  },
 
-  async store(req) {
-    const task = new Task(req.body);
+  async store(req: IRequest, res: IResponse): Promise<void> {
+    const task = Task.create(req.getBody() as Record<string, unknown>);
     await task.save();
-    return this.json(task, 201);
-  }
-}
+    Controller.json(res, { data: task }, 201);
+  },
+};
 ```
 
 ## 3. Register the Routes
@@ -62,8 +62,13 @@ export class TaskController extends Controller {
 Add the routes to `routes/api.ts`:
 
 ```typescript
-router.get('/tasks', 'TaskController@index');
-router.post('/tasks', 'TaskController@store');
+import { Router, type IRouter } from '@zintrust/core';
+import { TaskController } from '@app/Controllers/TaskController';
+
+export function registerRoutes(router: IRouter): void {
+  Router.get(router, '/tasks', TaskController.index);
+  Router.post(router, '/tasks', TaskController.store);
+}
 ```
 
 ## 4. Test Your API

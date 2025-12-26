@@ -1,12 +1,14 @@
 /**
  * Factory Generator
- * Generates test data factory classes for models
+ * Generates test data factory modules for models
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 export type FieldType =
   | 'string'
@@ -49,20 +51,22 @@ export interface FactoryGeneratorResult {
  */
 export async function validateOptions(options: FactoryOptions): Promise<void> {
   if (options.factoryName === '') {
-    throw new Error('Factory name is required');
+    throw ErrorFactory.createCliError('Factory name is required');
   }
 
   if (options.modelName === '') {
-    throw new Error('Model name is required');
+    throw ErrorFactory.createCliError('Model name is required');
   }
 
   if (options.factoriesPath === '') {
-    throw new Error('Factories path is required');
+    throw ErrorFactory.createCliError('Factories path is required');
   }
 
   // Validate naming convention (must end with Factory)
   if (options.factoryName.endsWith('Factory') === false) {
-    throw new Error(`Factory name must end with 'Factory' (e.g., UserFactory, PostFactory)`);
+    throw ErrorFactory.createCliError(
+      `Factory name must end with 'Factory' (e.g., UserFactory, PostFactory)`
+    );
   }
 
   // Validate path exists
@@ -72,7 +76,7 @@ export async function validateOptions(options: FactoryOptions): Promise<void> {
     .catch(() => false);
 
   if (pathExists === false) {
-    throw new Error(`Factories path does not exist: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(`Factories path does not exist: ${options.factoriesPath}`);
   }
 }
 
@@ -97,7 +101,7 @@ export async function generateFactory(options: FactoryOptions): Promise<FactoryG
       factoryName: options.factoryName,
     };
   } catch (error) {
-    Logger.error('Factory generation failed', error);
+    ErrorFactory.createCliError('Factory generation failed', error);
     const message = `Failed to generate factory: ${(error as Error).message}`;
     return {
       success: false,
@@ -126,128 +130,89 @@ function buildFactoryCode(options: FactoryOptions): string {
  * ${factoryName}
  * Factory for generating test ${modelName} instances
  */
-export class ${factoryName} {
-${buildFactoryClassBody(factoryName, modelName, fakerFields, statePatterns, relationshipMethods)}
-}
+export const ${factoryName} = Object.freeze({
+${buildFactoryObjectBody(modelName, fakerFields, statePatterns, relationshipMethods)}
+});
 `;
 }
 
 /**
- * Build factory class body
+ * Build factory object body
  */
-function buildFactoryClassBody(
-  factoryName: string,
-  modelName: string,
+function buildFactoryObjectBody(
+  _modelName: string,
   fakerFields: string,
   statePatterns: string,
   relationshipMethods: string
 ): string {
-  return `  private data: Record<string, unknown> = {};
-  private states: Set<string> = new Set();
-
-${buildFactoryCoreMethods(factoryName, modelName, fakerFields)}
-
-${buildFactoryStateMethods(modelName)}
-
-${statePatterns}
-
-${relationshipMethods}
-
-  /**
-   * Create and return merged result
-   */
-  create(): Partial<${modelName}> {
-    return this.getData();
-  }
-`;
-}
-
-/**
- * Build factory core methods
- */
-function buildFactoryCoreMethods(
-  factoryName: string,
-  modelName: string,
-  fakerFields: string
-): string {
   return `  /**
    * Create a new factory instance
    */
-  static new(): ${factoryName} {
-    return new ${factoryName}();
-  }
+  new() {
+    let customData: Record<string, unknown> = {};
+    const states = new Set<string>();
 
-  /**
-   * Create and return instance
-   */
-  make(): Partial<${modelName}> {
-    return {
+    const make = () => ({
 ${fakerFields}
-    };
-  }
+    });
 
-  /**
-   * Create multiple instances
-   */
-  count(n: number): Partial<${modelName}>[] {
-    return Array.from({ length: n }, () => this.make());
-  }
+    const factory = {
+      /**
+       * Set custom data
+       */
+      data(data: Record<string, unknown>) {
+        customData = { ...customData, ...data };
+        return factory;
+      },
 
-  /**
-   * Set custom data
-   */
-  data(data: Record<string, unknown>): this {
-    this.data = { ...this.data, ...data };
-    return this;
-  }
+      /**
+       * Set attribute value
+       */
+      set(key: string, value: unknown) {
+        customData[key] = value;
+        return factory;
+      },
 
-  /**
-   * Set attribute value
-   */
-  set(key: string, value: unknown): this {
-    this.data[key] = value;
-    return this;
-  }
+      /**
+       * Apply state
+       */
+      state(name: string) {
+        states.add(name);
+        return factory;
+      },
 
-  /**
-   * Apply state
-   */
-  state(name: string): this {
-    this.states.add(name);
-    return this;
-  }
-`;
-}
+      /**
+       * Create multiple instances
+       */
+      count(n: number) {
+        return Array.from({ length: n }, () => factory.create());
+      },
 
-/**
- * Build factory state methods
- */
-function buildFactoryStateMethods(modelName: string): string {
-  return `  /**
-   * Get final data with states applied
-   */
-  private getData(): Partial<${modelName}> {
-    let result = this.make();
+${relationshipMethods}
 
-    // Apply custom data
-    result = { ...result, ...this.data };
+${statePatterns}
 
-    // Apply states
-    if (this.states.has('active') === true) {
-      result = { ...result, ...this.getActiveState() };
-    }
+      /**
+       * Create and return merged result
+       */
+      create() {
+        let result = { ...make(), ...customData };
 
-    if (this.states.has('inactive') === true) {
-      result = { ...result, ...this.getInactiveState() };
-    }
+        // Apply states
+        if (states.has('active')) {
+          result = { ...result, ...factory.getActiveState() };
+        }
+        if (states.has('inactive')) {
+          result = { ...result, ...factory.getInactiveState() };
+        }
+        if (states.has('deleted')) {
+          result = { ...result, ...factory.getDeletedState() };
+        }
 
-    if (this.states.has('deleted') === true) {
-      result = { ...result, ...this.getDeletedState() };
-    }
-
-    return result;
-  }
-`;
+        return result;
+      }
+    return factory;
+  }`;
 }
 
 /**
@@ -346,34 +311,34 @@ function getFakerValueByType(type: FieldType): string {
 /**
  * Build state pattern methods
  */
-function buildStatePatterns(modelName: string): string {
-  return `  /**
-   * State: Active
-   */
-  private getActiveState(): Partial<${modelName}> {
-    return {
-      active: true,
-      deleted_at: null,
-    };
-  }
+function buildStatePatterns(_modelName: string): string {
+  return `      /**
+       * State: Active
+       */
+      getActiveState() {
+        return {
+          active: true,
+          deleted_at: null,
+        };
+      },
 
-  /**
-   * State: Inactive
-   */
-  private getInactiveState(): Partial<${modelName}> {
-    return {
-      active: false,
-    };
-  }
+      /**
+       * State: Inactive
+       */
+      getInactiveState() {
+        return {
+          active: false,
+        };
+      },
 
-  /**
-   * State: Deleted (soft delete)
-   */
-  private getDeletedState(): Partial<${modelName}> {
-    return {
-      deleted_at: faker.date.past().toISOString(),
-    };
-  }`;
+      /**
+       * State: Deleted (soft delete)
+       */
+      getDeletedState() {
+        return {
+          deleted_at: faker.date.past().toISOString(),
+        };
+      },`;
 }
 
 /**
@@ -387,16 +352,16 @@ function buildRelationshipMethods(relationships: string[]): string {
   return relationships
     .map((rel) => {
       const factoryName = `${rel}Factory`;
-      const relField = camelCase(rel) + '_id';
-      return `  /**
-   * Associate ${rel}
-   */
-  with${rel}(id?: number): this {
-    this.data.${relField} = id || ${factoryName}.new().create().id;
-    return this;
-  }`;
+      const relField = CommonUtils.camelCase(rel) + '_id';
+      return `      /**
+       * Associate ${rel}
+       */
+      with${rel}(id?: number) {
+        customData.${relField} = id || ${factoryName}.new().create().id;
+        return factory;
+      },`;
     })
-    .join('\n\n  ');
+    .join('\n\n');
 }
 
 /**
@@ -447,13 +412,6 @@ function getDefaultFields(modelName: string): FactoryField[] {
 }
 
 /**
- * Convert PascalCase to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
-}
-
-/**
  * Get available types
  */
 export function getAvailableTypes(): string[] {
@@ -463,8 +421,8 @@ export function getAvailableTypes(): string[] {
 /**
  * Factory Generator - Generates test data factories
  */
-export const FactoryGenerator = {
+export const FactoryGenerator = Object.freeze({
   validateOptions,
   generateFactory,
   getAvailableTypes,
-};
+});

@@ -5,7 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from 'node:path';
 
 export type RouteMethod = 'get' | 'post' | 'put' | 'patch' | 'delete' | 'resource';
 
@@ -63,15 +63,16 @@ export function validateOptions(options: RouteOptions): { valid: boolean; errors
 /**
  * Generate route file
  */
-export async function generateRoutes(options: RouteOptions): Promise<RouteGeneratorResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateRoutes(options: RouteOptions): Promise<RouteGeneratorResult> {
   const validation = validateOptions(options);
   if (!validation.valid) {
-    return {
+    return Promise.resolve({
       success: false,
       routeFile: '',
       routeCount: 0,
       message: `Validation failed: ${validation.errors.join(', ')}`,
-    };
+    });
   }
 
   try {
@@ -81,30 +82,30 @@ export async function generateRoutes(options: RouteOptions): Promise<RouteGenera
 
     const created = FileGenerator.writeFile(routeFile, routeContent);
     if (!created) {
-      return {
+      return Promise.resolve({
         success: false,
         routeFile,
         routeCount: 0,
         message: `Failed to create route file`,
-      };
+      });
     }
 
     Logger.info(`✅ Generated routes: ${routeFile} (${options.routes.length} routes)`);
 
-    return {
+    return Promise.resolve({
       success: true,
       routeFile,
       routeCount: options.routes.length,
       message: `Routes created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Route generation failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       routeFile: '',
       routeCount: 0,
       message: `Error: ${(error as Error).message}`,
-    };
+    });
   }
 }
 
@@ -202,7 +203,7 @@ function buildRouteCode(route: RouteDefinition, router: string): string {
  */
 function buildMethodRoute(route: RouteDefinition, router: string): string {
   const method = route.method;
-  const path = route.path;
+  const routePath = route.path;
   const controller = route.controller;
   const action = route.action ?? 'handle';
   const middleware =
@@ -213,14 +214,14 @@ function buildMethodRoute(route: RouteDefinition, router: string): string {
           return `, { middleware: [${middlewareList}] }`;
         })();
 
-  return `    ${router}.${method}('${path}', [${controller}, '${action}']${middleware});\n`;
+  return `    ${router}.${method}('${routePath}', [${controller}, '${action}']${middleware});\n`;
 }
 
 /**
  * Build resource route (RESTful CRUD)
  */
 function buildResourceRoute(route: RouteDefinition, router: string): string {
-  const path = route.path;
+  const routePath = route.path;
   const controller = route.controller;
   const middleware =
     route.middleware === undefined
@@ -230,7 +231,7 @@ function buildResourceRoute(route: RouteDefinition, router: string): string {
           return `, { middleware: [${middlewareList}] }`;
         })();
 
-  return `    ${router}.resource('${path}', ${controller}${middleware});\n`;
+  return `    ${router}.resource('${routePath}', ${controller}${middleware});\n`;
 }
 
 /**
@@ -356,11 +357,11 @@ export function getCommonMethods(): RouteMethod[] {
 /**
  * RouteGenerator creates route definitions
  */
-export const RouteGenerator = {
+export const RouteGenerator = Object.freeze({
   validateOptions,
   generateRoutes,
   getUserApiRoutes,
   getAuthRoutes,
   getAdminRoutes,
   getCommonMethods,
-};
+});

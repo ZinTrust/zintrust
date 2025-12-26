@@ -1,10 +1,11 @@
+/* eslint-disable max-nested-callbacks */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@cli/config/ConfigManager');
 vi.mock('@cli/config/ConfigValidator');
 vi.mock('@cli/ErrorHandler');
 vi.mock('@cli/PromptHelper');
-vi.mock('@/config/logger', () => ({
+vi.mock('@config/logger', () => ({
   Logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -22,17 +23,18 @@ vi.mock('chalk', () => ({
   },
 }));
 
-import { BaseCommand } from '@/cli/BaseCommand';
 import { ConfigCommand } from '@/cli/commands/ConfigCommand';
 import { ConfigManager } from '@/cli/config/ConfigManager';
 import { ConfigValidator } from '@/cli/config/ConfigValidator';
 import { PromptHelper } from '@/cli/PromptHelper';
 
+const describeValidationError = (error: any) => error?.message ?? String(error);
+
 describe('ConfigCommand', () => {
-  let command: ConfigCommand;
+  let command: any;
 
   beforeEach(() => {
-    command = new ConfigCommand();
+    command = ConfigCommand.create();
     vi.clearAllMocks();
   });
 
@@ -43,11 +45,10 @@ describe('ConfigCommand', () => {
   describe('Class Structure', () => {
     it('should create ConfigCommand instance', () => {
       expect(command).toBeDefined();
-      expect(command).toBeInstanceOf(ConfigCommand);
     });
 
     it('should inherit from BaseCommand', () => {
-      expect(command).toBeInstanceOf(BaseCommand);
+      expect(typeof (command as any).getCommand).toBe('function');
     });
 
     it('should have name property (protected)', () => {
@@ -123,6 +124,24 @@ describe('ConfigCommand', () => {
       expect(typeof getConfigManager).toBe('function');
     });
 
+    it('should call displayValidationStatus', () => {
+      const spy = vi.spyOn(command, 'info');
+      (command as any).displayValidationStatus({} as any);
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should call displayConfigurationKeys', () => {
+      const spy = vi.spyOn(command, 'info');
+      (command as any).displayConfigurationKeys(['key1']);
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should call displayConfigurationValues', () => {
+      const spy = vi.spyOn(command, 'info');
+      (command as any).displayConfigurationValues({ key1: 'val1' } as any);
+      expect(spy).toHaveBeenCalled();
+    });
+
     it('should have handleAction private method', () => {
       const handleAction = (command as any).handleAction;
       expect(typeof handleAction).toBe('function');
@@ -186,12 +205,12 @@ describe('ConfigCommand', () => {
 
   describe('Constructor Initialization', () => {
     it('should set name to "config" in constructor', () => {
-      const newCommand = new ConfigCommand();
+      const newCommand = ConfigCommand.create();
       expect((newCommand as any).name).toBe('config');
     });
 
     it('should set description in constructor', () => {
-      const newCommand = new ConfigCommand();
+      const newCommand = ConfigCommand.create();
       const description = (newCommand as any).description;
       expect(description).toBeDefined();
       expect(description.length).toBeGreaterThan(0);
@@ -245,7 +264,7 @@ describe('ConfigCommand', () => {
       const mockManager = {};
       (command as any).getConfigManager.mockResolvedValue(mockManager);
 
-      const options = {};
+      const options = { args: [] };
       await command.execute(options);
 
       expect((command as any).handleAction).toHaveBeenCalledWith(
@@ -253,7 +272,70 @@ describe('ConfigCommand', () => {
         mockManager,
         undefined,
         undefined,
-        {}
+        expect.any(Object)
+      );
+    });
+
+    it('should handle execute when options.args is not an array', async () => {
+      const mockManager = {};
+      (command as any).getConfigManager.mockResolvedValue(mockManager);
+
+      await command.execute({ args: 'not-an-array' } as any);
+      expect((command as any).handleAction).toHaveBeenCalled();
+    });
+
+    it('should handle execute when command.opts returns an array', async () => {
+      const mockCmd = {
+        args: ['list'],
+        opts: () => ['not', 'a', 'record'],
+      };
+      (command as any).getCommand = vi.fn().mockReturnValue(mockCmd);
+      const mockManager = {};
+      (command as any).getConfigManager.mockResolvedValue(mockManager);
+
+      await command.execute({ args: [] });
+      expect((command as any).handleAction).toHaveBeenCalled();
+    });
+
+    it('should handle execute when command.opts is not a function', async () => {
+      const mockCmd = {
+        args: ['list'],
+        opts: 'not-a-function',
+      };
+      (command as any).getCommand = vi.fn().mockReturnValue(mockCmd);
+      const mockManager = {};
+      (command as any).getConfigManager.mockResolvedValue(mockManager);
+
+      await command.execute({ args: [] });
+      expect((command as any).handleAction).toHaveBeenCalled();
+    });
+
+    it('should handle execute when command.opts returns null', async () => {
+      const mockCmd = {
+        args: ['list'],
+        opts: () => null,
+      };
+      (command as any).getCommand = vi.fn().mockReturnValue(mockCmd);
+      const mockManager = {};
+      (command as any).getConfigManager.mockResolvedValue(mockManager);
+
+      await command.execute({ args: [] });
+      expect((command as any).handleAction).toHaveBeenCalled();
+    });
+
+    it('should execute with action from options.args', async () => {
+      const mockManager = {};
+      (command as any).getConfigManager.mockResolvedValue(mockManager);
+
+      const options = { args: ['get', 'key'] };
+      await command.execute(options);
+
+      expect((command as any).handleAction).toHaveBeenCalledWith(
+        'get',
+        mockManager,
+        'key',
+        undefined,
+        expect.any(Object)
       );
     });
 
@@ -275,7 +357,7 @@ describe('ConfigCommand', () => {
         mockManager,
         'database.host',
         undefined,
-        {}
+        expect.any(Object)
       );
     });
 
@@ -297,7 +379,7 @@ describe('ConfigCommand', () => {
         mockManager,
         'database.host',
         'localhost',
-        {}
+        expect.any(Object)
       );
     });
 
@@ -496,12 +578,17 @@ describe('ConfigCommand', () => {
       } catch {
         // Error should be caught and handled
       }
+
+      expect((command as any).getConfigManager).toHaveBeenCalled();
+      expect((command as any).handleAction).not.toHaveBeenCalled();
     });
 
     it('should support multiple config keys in get action', async () => {
       const keys = ['database.host', 'database.port', 'app.name', 'server.timeout'];
 
-      for (const key of keys) {
+      await keys.reduce(async (prev, key) => {
+        await prev;
+
         const mockCmd = {
           args: ['get', key],
           opts: () => ({}),
@@ -521,13 +608,15 @@ describe('ConfigCommand', () => {
           undefined,
           {}
         );
-      }
+      }, Promise.resolve());
     });
 
     it('should support setting various config value types', async () => {
       const values = ['localhost', '3000', 'true', 'false', 'production'];
 
-      for (const value of values) {
+      await values.reduce(async (prev, value) => {
+        await prev;
+
         const mockCmd = {
           args: ['set', 'key', value],
           opts: () => ({}),
@@ -547,7 +636,7 @@ describe('ConfigCommand', () => {
           value,
           {}
         );
-      }
+      }, Promise.resolve());
     });
   });
 
@@ -587,6 +676,14 @@ describe('ConfigCommand', () => {
         expect((command as any).warn).toHaveBeenCalled();
       });
 
+      it('should warn when manager does not support get', async () => {
+        const mockManager = {};
+        await (command as any).handleGet(mockManager, 'key');
+        expect((command as any).warn).toHaveBeenCalledWith(
+          'Configuration manager does not support "get"'
+        );
+      });
+
       it('should call ErrorHandler.usageError when key not provided', async () => {
         const mockErrorHandler = { usageError: vi.fn() };
         const { ErrorHandler } = await import('@cli/ErrorHandler');
@@ -619,6 +716,35 @@ describe('ConfigCommand', () => {
         await (command as any).handleSet(mockManager, 'test.key', 'test-value');
         expect(mockManager.set).toHaveBeenCalled();
         expect(mockManager.save).toHaveBeenCalled();
+      });
+
+      it('should handle set when manager does not support save', async () => {
+        const mockManager = {
+          set: vi.fn(),
+        };
+        vi.mocked(ConfigValidator.validateValue).mockReturnValue(null);
+        await (command as any).handleSet(mockManager, 'test.key', 'test-value');
+        expect(mockManager.set).toHaveBeenCalled();
+      });
+
+      it('should warn when manager does not support set', async () => {
+        const mockManager = {};
+        await (command as any).handleSet(mockManager, 'key', 'value');
+        expect((command as any).warn).toHaveBeenCalledWith(
+          'Configuration manager does not support "set"'
+        );
+      });
+
+      it('should warn when validation fails', async () => {
+        const mockManager = { set: vi.fn() };
+        vi.mocked(ConfigValidator.validateValue).mockReturnValue({
+          message: 'Invalid value',
+        } as any);
+        await (command as any).handleSet(mockManager, 'key', 'value');
+        expect((command as any).warn).toHaveBeenCalledWith(
+          'Validation error for "key": Invalid value'
+        );
+        expect(mockManager.set).not.toHaveBeenCalled();
       });
 
       it('should handle ErrorHandler for missing key', async () => {
@@ -662,12 +788,40 @@ describe('ConfigCommand', () => {
 
       it('should handle list action', async () => {
         const mockManager = {
-          getConfig: vi.fn().mockReturnValue({}),
+          getConfig: vi.fn().mockReturnValue({ key1: 'val1', key2: 'val2' }),
           getAllKeys: vi.fn().mockReturnValue(['key1', 'key2']),
           get: vi.fn().mockReturnValue('value'),
         };
         await (command as any).handleList(mockManager, {});
         expect((command as any).info).toHaveBeenCalled();
+        expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('key1'));
+        expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('key2'));
+      });
+
+      it('should handle list with missing getConfig', async () => {
+        const mockManager = {};
+        await (command as any).handleList(mockManager, {});
+        expect((command as any).info).toHaveBeenCalledWith(
+          expect.stringContaining('Current Configuration')
+        );
+      });
+
+      it('should display validation errors in list', async () => {
+        const mockManager = {
+          getConfig: vi.fn().mockReturnValue({ key: 'value' }),
+        };
+        vi.mocked(ConfigValidator.validate).mockReturnValue({
+          valid: false,
+          errors: [{ message: 'Error 1' }, { message: 'Error 2' }] as any,
+        });
+        vi.mocked(ConfigValidator.getDescription).mockImplementation(describeValidationError);
+
+        await (command as any).handleList(mockManager, {});
+        expect((command as any).info).toHaveBeenCalledWith(
+          expect.stringContaining('Configuration has 2 errors')
+        );
+        expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('Error 1'));
+        expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('Error 2'));
       });
 
       it('should handle list with json option', async () => {
@@ -703,6 +857,13 @@ describe('ConfigCommand', () => {
         expect((command as any).success).toHaveBeenCalled();
       });
 
+      it('should handle reset when manager does not support it', async () => {
+        const mockManager = {};
+        vi.mocked(PromptHelper.confirm).mockResolvedValue(true);
+        await (command as any).handleReset(mockManager);
+        expect((command as any).success).toHaveBeenCalledWith('Configuration reset to defaults');
+      });
+
       it('should cancel reset when not confirmed', async () => {
         const mockManager = {
           reset: vi.fn(),
@@ -725,16 +886,88 @@ describe('ConfigCommand', () => {
         expect((command as any).success).toHaveBeenCalled();
       });
 
+      it('should loop in handleEdit until (Done) is selected', async () => {
+        const mockManager = {
+          getConfig: vi.fn().mockReturnValue({ key1: 'val1' }),
+          get: vi.fn().mockReturnValue('val1'),
+          set: vi.fn(),
+          save: vi.fn().mockResolvedValue(undefined),
+        };
+        vi.mocked(PromptHelper.chooseFrom)
+          .mockResolvedValueOnce('key1')
+          .mockResolvedValueOnce('(Done)');
+        vi.mocked(PromptHelper.textInput).mockResolvedValue('new-val');
+        vi.mocked(ConfigValidator.validateValue).mockReturnValue(null);
+
+        await (command as any).handleEdit(mockManager);
+
+        expect(mockManager.set).toHaveBeenCalledWith('key1', 'new-val');
+        expect(PromptHelper.chooseFrom).toHaveBeenCalledTimes(2);
+      });
+
+      it('should handle edit mode with getConfig returning keys', async () => {
+        const mockManager = {
+          getConfig: vi.fn().mockReturnValue({ key1: 'val1' }),
+          save: vi.fn().mockResolvedValue(undefined),
+        };
+        vi.mocked(PromptHelper.chooseFrom).mockResolvedValue('(Done)');
+        await (command as any).handleEdit(mockManager);
+        expect(mockManager.getConfig).toHaveBeenCalled();
+      });
+
+      it('should warn when no keys found in edit mode', async () => {
+        const mockManager = {
+          getConfig: vi.fn().mockReturnValue({}),
+          getAllKeys: vi.fn().mockReturnValue([]),
+        };
+        await (command as any).handleEdit(mockManager);
+        expect((command as any).warn).toHaveBeenCalledWith('No configuration keys found');
+      });
+
+      it('should break loop when selectedKey is empty', async () => {
+        const mockManager = {
+          getConfig: vi.fn().mockReturnValue({ key1: 'val1' }),
+        };
+        vi.mocked(PromptHelper.chooseFrom).mockResolvedValue('');
+        await (command as any).handleEdit(mockManager);
+        expect(PromptHelper.chooseFrom).toHaveBeenCalledTimes(1);
+      });
+
       it('should edit single config', async () => {
         const mockManager = {
-          get: vi.fn().mockReturnValue('old-value'),
+          get: vi.fn().mockReturnValue({ a: 1 }),
           set: vi.fn(),
+          save: vi.fn().mockResolvedValue(undefined),
         };
+        vi.mocked(PromptHelper.textInput).mockResolvedValue('{"a":2}');
+        vi.mocked(ConfigValidator.validateValue).mockReturnValue(null);
+        await (command as any).editSingleConfig(mockManager, 'test.key');
+        expect(mockManager.set).toHaveBeenCalledWith('test.key', { a: 2 });
+        expect(mockManager.save).toHaveBeenCalled();
+        expect((command as any).success).toHaveBeenCalled();
+      });
+
+      it('should handle editSingleConfig when manager does not support get/set/save', async () => {
+        const mockManager = {};
         vi.mocked(PromptHelper.textInput).mockResolvedValue('new-value');
         vi.mocked(ConfigValidator.validateValue).mockReturnValue(null);
         await (command as any).editSingleConfig(mockManager, 'test.key');
-        expect(mockManager.set).toHaveBeenCalled();
         expect((command as any).success).toHaveBeenCalled();
+      });
+
+      it('should handle undefined newValue in editSingleConfig', async () => {
+        const mockManager = { get: vi.fn() };
+        vi.mocked(PromptHelper.textInput).mockResolvedValue(undefined as unknown as string);
+        await (command as any).editSingleConfig(mockManager, 'key');
+        expect(mockManager.get).toHaveBeenCalled();
+      });
+
+      it('should warn when validation fails in editSingleConfig', async () => {
+        const mockManager = { get: vi.fn() };
+        vi.mocked(PromptHelper.textInput).mockResolvedValue('new-val');
+        vi.mocked(ConfigValidator.validateValue).mockReturnValue({ message: 'Error' } as any);
+        await (command as any).editSingleConfig(mockManager, 'key');
+        expect((command as any).warn).toHaveBeenCalledWith('Validation error: Error');
       });
     });
 
@@ -746,6 +979,12 @@ describe('ConfigCommand', () => {
         await (command as any).handleExport(mockManager);
         expect(mockManager.export).toHaveBeenCalled();
         expect((command as any).info).toHaveBeenCalled();
+      });
+
+      it('should handle export when manager does not support it', async () => {
+        const mockManager = {};
+        await (command as any).handleExport(mockManager);
+        expect((command as any).info).toHaveBeenCalledWith('{}');
       });
     });
 
@@ -775,6 +1014,16 @@ describe('ConfigCommand', () => {
       it('should parse JSON arrays', () => {
         const result = (command as any).parseConfigValue('[1,2,3]');
         expect(Array.isArray(result)).toBe(true);
+      });
+
+      it('should parse null string as null', () => {
+        const result = (command as any).parseConfigValue('null');
+        expect(result).toBeNull();
+      });
+
+      it('should handle invalid JSON by returning original string', () => {
+        const result = (command as any).parseConfigValue('{"invalid": json');
+        expect(result).toBe('{"invalid": json');
       });
 
       it('should keep unparseable strings as strings', () => {
@@ -861,8 +1110,16 @@ describe('ConfigCommand', () => {
 
       it('should dispatch to handleList', async () => {
         (command as any).handleList = vi.fn().mockResolvedValue(undefined);
-        await (command as any).handleAction('list', mockManager);
-        expect((command as any).handleList).toHaveBeenCalled();
+        await (command as any).handleAction('list', mockManager, undefined, undefined, {
+          json: true,
+        });
+        expect((command as any).handleList).toHaveBeenCalledWith(mockManager, { json: true });
+      });
+
+      it('should dispatch to handleList with default options', async () => {
+        (command as any).handleList = vi.fn().mockResolvedValue(undefined);
+        await (command as any).handleAction('list', mockManager, undefined, undefined, undefined);
+        expect((command as any).handleList).toHaveBeenCalledWith(mockManager, {});
       });
 
       it('should dispatch to handleReset', async () => {
@@ -884,9 +1141,12 @@ describe('ConfigCommand', () => {
       });
 
       it('should handle unknown action', async () => {
+        const mockErrorHandler = { usageError: vi.fn() };
+        const { ErrorHandler } = await import('@cli/ErrorHandler');
+        (ErrorHandler as any).usageError = mockErrorHandler.usageError;
+
         await (command as any).handleAction('unknown', mockManager);
-        // Should not throw, but handle gracefully
-        expect(true).toBe(true);
+        expect(mockErrorHandler.usageError).toHaveBeenCalledWith('Unknown action: unknown');
       });
     });
 

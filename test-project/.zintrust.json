@@ -1,0 +1,9 @@
+{
+  "name": "test-project",
+  "database": {
+    "connection": "sqlite"
+  },
+  "server": {
+    "port": 3003
+  }
+}

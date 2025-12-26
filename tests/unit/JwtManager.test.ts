@@ -1,12 +1,12 @@
-import { JwtManager, JwtPayload } from '@security/JwtManager';
+import { IJwtManager, JwtManager, JwtPayload } from '@security/JwtManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JwtManager Basic Tests', () => {
-  let manager: JwtManager;
+  let manager: IJwtManager;
   const secret = 'test-secret-key-for-hmac-256'; // NOSONAR
 
   beforeEach(() => {
-    manager = new JwtManager();
+    manager = JwtManager.create();
     manager.setHmacSecret(secret);
   });
 
@@ -46,11 +46,11 @@ describe('JwtManager Basic Tests', () => {
 });
 
 describe('JwtManager Claims', () => {
-  let manager: JwtManager;
+  let manager: IJwtManager;
   const secret = 'test-secret-key-for-hmac-256';
 
   beforeEach(() => {
-    manager = new JwtManager();
+    manager = JwtManager.create();
     manager.setHmacSecret(secret);
   });
 
@@ -99,11 +99,11 @@ describe('JwtManager Claims', () => {
 });
 
 describe('JwtManager Algorithms and Payloads', () => {
-  let manager: JwtManager;
+  let manager: IJwtManager;
   const secret = 'test-secret-key-for-hmac-256';
 
   beforeEach(() => {
-    manager = new JwtManager();
+    manager = JwtManager.create();
     manager.setHmacSecret(secret);
   });
 

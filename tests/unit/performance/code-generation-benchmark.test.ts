@@ -1,12 +1,16 @@
-import path from 'node:path';
+/* eslint-disable max-nested-callbacks */
+/* eslint-disable prefer-arrow-callback */
+import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loggerInfo = vi.fn();
+const loggerWarn = vi.fn();
 const loggerError = vi.fn();
 
 vi.mock('@config/logger', () => ({
   Logger: {
     info: loggerInfo,
+    warn: loggerWarn,
     error: loggerError,
   },
 }));
@@ -97,7 +101,7 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.useFakeTimers();
 
-    const bench = new CodeGenerationBenchmark();
+    const bench = CodeGenerationBenchmark();
     const runPromise = bench.runAll();
 
     await vi.runAllTimersAsync();
@@ -128,7 +132,7 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.useFakeTimers();
 
-    const bench = new CodeGenerationBenchmark();
+    const bench = CodeGenerationBenchmark();
     const runPromise = bench.runAll();
 
     await vi.runAllTimersAsync();
@@ -145,7 +149,7 @@ describe('CodeGenerationBenchmark', () => {
       '@performance/CodeGenerationBenchmark' + '?v=export'
     );
 
-    const bench = new CodeGenerationBenchmark();
+    const bench = CodeGenerationBenchmark();
     const testPath = 'benchmark-results.json';
     bench.exportResults(testPath);
 

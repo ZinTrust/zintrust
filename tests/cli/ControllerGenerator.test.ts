@@ -2,10 +2,12 @@
  * ControllerGenerator Tests
  * Tests for HTTP controller generation
  */
-
-import { ControllerGenerator, type ControllerOptions } from '@cli/scaffolding/ControllerGenerator';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+/* eslint-disable max-nested-callbacks */ import {
+  ControllerGenerator,
+  type ControllerOptions,
+} from '@cli/scaffolding/ControllerGenerator';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('ControllerGenerator Validation', () => {
@@ -153,7 +155,8 @@ describe('ControllerGenerator CRUD and Resource', () => {
     const controllerFile = path.join(testControllersDir, 'PostController.ts');
     const content = await fs.readFile(controllerFile, 'utf-8');
 
-    expect(content).toContain('class PostController');
+    expect(content).toContain('Object.freeze({');
+    expect(content).toContain('export const PostController');
     expect(content).toContain('index(');
     expect(content).toContain('show(');
     expect(content).toContain('store(');
@@ -397,16 +400,17 @@ describe('ControllerGenerator Batch Operations', () => {
   it('should generate multiple controllers in same directory', async () => {
     const controllers = ['UserController', 'PostController', 'AdminController'];
 
-    for (const name of controllers) {
-      const options: ControllerOptions = {
-        name,
-        controllerPath: testControllersDir,
-        type: 'crud',
-      };
-
-      const result = await ControllerGenerator.generateController(options);
-      expect(result.success).toBe(true);
-    }
+    const results = await Promise.all(
+      controllers.map(async (name) => {
+        const options: ControllerOptions = {
+          name,
+          controllerPath: testControllersDir,
+          type: 'crud',
+        };
+        return ControllerGenerator.generateController(options);
+      })
+    );
+    results.forEach((result) => expect(result.success).toBe(true));
 
     // Verify all files were created
     const files = await fs.readdir(testControllersDir);

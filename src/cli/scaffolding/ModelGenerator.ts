@@ -1,11 +1,12 @@
 /**
  * ModelGenerator - Generate ORM model files
- * Creates type-safe model classes with relationships and validation
+ * Creates type-safe model modules with relationships and validation
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from 'node:path';
 
 export type FieldType =
   | 'string'
@@ -88,15 +89,16 @@ export function validateOptions(options: ModelOptions): { valid: boolean; errors
 /**
  * Generate model file
  */
-export async function generateModel(options: ModelOptions): Promise<ModelGeneratorResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateModel(options: ModelOptions): Promise<ModelGeneratorResult> {
   const validation = validateOptions(options);
   if (validation.valid === false) {
-    return {
+    return Promise.resolve({
       success: false,
       modelName: options.name,
       modelFile: '',
       message: `Validation failed: ${validation.errors.join(', ')}`,
-    };
+    });
   }
 
   try {
@@ -105,30 +107,30 @@ export async function generateModel(options: ModelOptions): Promise<ModelGenerat
 
     const created = FileGenerator.writeFile(modelFile, modelContent);
     if (created === false) {
-      return {
+      return Promise.resolve({
         success: false,
         modelName: options.name,
         modelFile,
         message: `Failed to create model file`,
-      };
+      });
     }
 
     Logger.info(`✅ Generated model: ${options.name}`);
 
-    return {
+    return Promise.resolve({
       success: true,
       modelName: options.name,
       modelFile,
       message: `Model ${options.name} created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Model generation failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       modelName: options.name,
       modelFile: '',
       message: `Error: ${(error as Error).message}`,
-    };
+    });
   }
 }
 
@@ -136,7 +138,7 @@ export async function generateModel(options: ModelOptions): Promise<ModelGenerat
  * Build model TypeScript code
  */
 function buildModelCode(options: ModelOptions): string {
-  const table = options.table ?? toSnakeCase(options.name) + 's';
+  const table = options.table ?? CommonUtils.toSnakeCase(options.name) + 's';
   const fillable = options.fillable ?? (options.fields ? options.fields.map((f) => f.name) : []);
   const hidden = options.hidden ?? [];
 
@@ -145,22 +147,23 @@ function buildModelCode(options: ModelOptions): string {
  * Auto-generated model file
  */
 
-import { Model } from '@orm/Model';
+import { Model, IModel } from '@orm/Model';
 
-export class ${options.name} extends Model {
-  protected table = '${table}';
-  protected fillable = [${fillable.map((f) => `'${f}'`).join(', ')}];
-  protected hidden = [${hidden.map((f) => `'${f}'`).join(', ')}];
-  protected timestamps = ${options.timestamps !== false};
-  protected casts = {
+export const ${options.name} = Object.freeze(
+  Model.define({
+  table: '${table}',
+  fillable: [${fillable.map((f) => `'${f}'`).join(', ')}],
+  hidden: [${hidden.map((f) => `'${f}'`).join(', ')}],
+  timestamps: ${options.timestamps !== false},
+  casts: {
 `;
 
   // Add field casts
   code += buildCasts(options.fields);
 
   code += `
-  };
-
+  },
+}, {
 `;
 
   // Add relationships
@@ -169,7 +172,8 @@ export class ${options.name} extends Model {
   // Add soft delete if enabled
   code += buildSoftDelete(options.softDelete);
 
-  code += `}
+  code += `})
+);
 `;
 
   return code;
@@ -203,16 +207,16 @@ function buildRelationships(relationships?: ModelRelationship[]): string {
 
   let code = '';
   for (const rel of relationships) {
-    const foreignKey = rel.foreignKey ?? `${toSnakeCase(rel.model)}_id`;
-    const method = toCamelCase(rel.model);
+    const foreignKey = rel.foreignKey ?? `${CommonUtils.toSnakeCase(rel.model)}_id`;
+    const method = CommonUtils.camelCase(rel.model);
 
     if (rel.type === 'hasOne') {
       code += `  /**
    * Get associated ${rel.model}
    */
-  public async ${method}() {
-    return this.hasOne(${rel.model}, '${foreignKey}');
-  }
+  async ${method}(model: IModel) {
+    return model.hasOne(${rel.model}, '${foreignKey}');
+  },
 
 `;
     } else if (rel.type === 'hasMany') {
@@ -220,18 +224,18 @@ function buildRelationships(relationships?: ModelRelationship[]): string {
       code += `  /**
    * Get associated ${rel.model} records
    */
-  public async ${plural}() {
-    return this.hasMany(${rel.model}, '${foreignKey}');
-  }
+  async ${plural}(model: IModel) {
+    return model.hasMany(${rel.model}, '${foreignKey}');
+  },
 
 `;
     } else if (rel.type === 'belongsTo') {
       code += `  /**
    * Get parent ${rel.model}
    */
-  public async ${method}() {
-    return this.belongsTo(${rel.model}, '${foreignKey}');
-  }
+  async ${method}(model: IModel) {
+    return model.belongsTo(${rel.model}, '${foreignKey}');
+  },
 
 `;
     }
@@ -246,45 +250,13 @@ function buildSoftDelete(softDelete?: boolean): string {
   if (softDelete !== true) return '';
 
   return `  /**
-   * Scope: Active records (not soft deleted)
-   */
-  public static active() {
-    return this.query().whereNull('deleted_at');
-  }
-
-  /**
-   * Scope: Only soft deleted records
-   */
-  public static onlyTrashed() {
-    return this.query().whereNotNull('deleted_at');
-  }
-
-  /**
    * Soft delete this model
    */
-  public async softDelete(): Promise<void> {
-    this.setAttribute('deleted_at', new Date().toISOString());
-    await this.save();
-  }
-
+  async softDelete(model: IModel): Promise<void> {
+    model.setAttribute('deleted_at', new Date().toISOString());
+    await model.save();
+  },
 `;
-}
-
-/**
- * Convert camelCase to snake_case
- */
-function toSnakeCase(str: string): string {
-  return str
-    .replaceAll(/([A-Z])/g, '_$1')
-    .toLowerCase()
-    .replace(/^_/, '');
-}
-
-/**
- * Convert snake_case to camelCase
- */
-function toCamelCase(str: string): string {
-  return str.replaceAll(/_([a-z])/g, (g) => g[1].toUpperCase());
 }
 
 /**
@@ -343,11 +315,11 @@ export function getOrderFields(): ModelField[] {
 /**
  * ModelGenerator creates type-safe ORM models
  */
-export const ModelGenerator = {
+export const ModelGenerator = Object.freeze({
   validateOptions,
   generateModel,
   getCommonFieldTypes,
   getUserFields,
   getPostFields,
   getOrderFields,
-};
+});

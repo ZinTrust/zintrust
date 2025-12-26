@@ -5,8 +5,9 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 export interface RequestField {
   name: string;
@@ -40,36 +41,42 @@ export interface RequestFactoryGeneratorResult {
  */
 export async function validateOptions(options: RequestFactoryOptions): Promise<void> {
   if (options.factoryName.trim() === '') {
-    throw new Error('Request factory name is required');
+    throw ErrorFactory.createCliError('Request factory name is required');
   }
 
   if (!options.factoryName.endsWith('RequestFactory')) {
-    throw new Error(
+    throw ErrorFactory.createCliError(
       'Request factory name must end with "RequestFactory" (e.g., CreateUserRequestFactory)'
     );
   }
 
   if (!/^[A-Z][a-zA-Z\d]*RequestFactory$/.test(options.factoryName)) {
-    throw new Error('Request factory name must be PascalCase ending with "RequestFactory"');
+    throw ErrorFactory.createCliError(
+      'Request factory name must be PascalCase ending with "RequestFactory"'
+    );
   }
 
   if (options.requestName.trim() === '') {
-    throw new Error('Request name is required');
+    throw ErrorFactory.createCliError('Request name is required');
   }
 
   if (!/^[A-Z][a-zA-Z\d]*Request$/.test(options.requestName)) {
-    throw new Error('Request name must be PascalCase ending with "Request"');
+    throw ErrorFactory.createCliError('Request name must be PascalCase ending with "Request"');
   }
 
   // Verify factories path exists
   const pathStat = await fs.stat(options.factoriesPath).catch(() => null);
 
   if (pathStat === null) {
-    throw new Error(`Request factories path does not exist: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(
+      `Request factories path does not exist: ${options.factoriesPath}`
+    );
   }
 
   if (!pathStat.isDirectory()) {
-    throw new Error(`Request factories path is not a directory: ${options.factoriesPath}`);
+    throw ErrorFactory.createCliError(
+      `Request factories path is not a directory: ${options.factoriesPath}`
+    );
   }
 }
 
@@ -110,7 +117,7 @@ export async function generateRequestFactory(
 
     return result;
   } catch (error) {
-    Logger.error('Request factory generation failed', error);
+    ErrorFactory.createTryCatchError('Request factory generation failed', error);
     return {
       success: false,
       factoryPath: '',
@@ -135,294 +142,223 @@ function buildFactoryCode(options: RequestFactoryOptions): string {
 import { faker } from '@faker-js/faker';
 import { ${options.requestName} } from '@app/Requests/${options.requestName}';
 
-export class ${options.factoryName} {
-  ${buildFactoryClassBody(options, fields, fieldDefinitions)}
-
-  ${buildStateManagementMethods(fields)}
-
-  /**
-   * Get required field names
-   */
-  private getRequiredFields(): string[] {
-    return this.getAllFields().filter(f => f.required !== false).map(f => f.name);
-  }
-}
+export const ${options.factoryName} = Object.freeze({
+  ${buildFactoryObjectBody(options, fields, fieldDefinitions)}
+});
 
 ${buildRequestDtoClass(options, fields, validationRules)}
 `;
 }
 
 /**
- * Build state management methods
+ * Build factory methods (count, state, make, get)
  */
-function buildStateManagementMethods(fields: RequestField[]): string {
-  return `/**
-   * Apply state modifications
-   */
-  private applyStates(data: Record<string, unknown>): void {
-    if (this.states.has('invalid')) {
-      this.applyInvalidState(data);
-    }
+function buildFactoryMethods(options: RequestFactoryOptions, fieldDefinitions: string): string {
+  return `      /**
+       * Set record count
+       */
+      count(n: number) {
+        recordCount = Math.max(1, Math.min(n, 1000));
+        return factory;
+      },
 
-    if (this.states.has('empty')) {
-      this.applyEmptyState(data);
-    }
+      /**
+       * Apply a state to the factory
+       */
+      state(name: string) {
+        states.add(name);
+        return factory;
+      },
 
-    if (this.states.has('minimal')) {
-      this.applyMinimalState(data);
-    }
-  }
+      /**
+       * Make a single request instance
+       */
+      make(overrides?: Record<string, unknown>) {
+        const data: Record<string, unknown> = {};
 
-  /**
-   * Apply invalid state
-   */
-  private applyInvalidState(data: Record<string, unknown>): void {
-    // Remove required fields to trigger validation errors
-    ${buildStateModifications(fields)}
-  }
+        // Generate all fields
+${fieldDefinitions}
 
-  /**
-   * Apply empty state
-   */
-  private applyEmptyState(data: Record<string, unknown>): void {
-    Object.keys(data).forEach(key => {
-      data[key] = null;
-    });
-  }
+        // Apply state modifications
+        if (states.has('invalid')) factory.applyInvalidState(data);
+        if (states.has('empty')) factory.applyEmptyState(data);
+        if (states.has('minimal')) factory.applyMinimalState(data);
 
-  /**
-   * Apply minimal state
-   */
-  private applyMinimalState(data: Record<string, unknown>): void {
-    const required = this.getRequiredFields();
-    Object.keys(data).forEach(key => {
-      if (!required.includes(key)) {
-        delete data[key];
-      }
-    });
-  }`;
+        // Apply overrides
+        if (overrides !== undefined && overrides !== null) {
+          Object.assign(data, overrides);
+        }
+
+        return ${options.requestName}.create(data);
+      },
+
+      /**
+       * Make multiple instances
+       */
+      get() {
+        return Array.from({ length: recordCount }, () => factory.make());
+      },`;
 }
 
 /**
- * Build factory class body
+ * Build generateField method
  */
-function buildFactoryClassBody(
+function buildGenerateField(fields: RequestField[]): string {
+  return `      /**
+       * Generate field value
+       */
+      generateField(fieldName: string): unknown {
+        const fields = ${JSON.stringify(fields, null, 4)};
+        const field = fields.find(f => f.name === fieldName);
+        if (!field) return null;
+
+        const fakerMap: Record<string, () => unknown> = {
+          string: () => faker.lorem.word(),
+          email: () => faker.internet.email(),
+          phone: () => faker.phone.number('+1 (###) ###-####'),
+          number: () => faker.number.int({ min: field.min || 1, max: field.max || 100 }),
+          boolean: () => faker.datatype.boolean(),
+          date: () => faker.date.future().toISOString().split('T')[0],
+          uuid: () => faker.string.uuid(),
+          url: () => faker.internet.url(),
+          json: () => ({ data: faker.lorem.word() }),
+        };
+
+        return fakerMap[field.type]?.() ?? faker.lorem.word();
+      },`;
+}
+
+/**
+ * Build state modification methods
+ */
+function buildStateMethods(fields: RequestField[]): string {
+  return `      /**
+       * Apply invalid state
+       */
+      applyInvalidState(data: Record<string, unknown>) {
+        ${buildStateModifications(fields)}
+      },
+
+      /**
+       * Apply empty state
+       */
+      applyEmptyState(data: Record<string, unknown>) {
+        Object.keys(data).forEach(key => {
+          data[key] = null;
+        });
+      },
+
+      /**
+       * Apply minimal state
+       */
+      applyMinimalState(data: Record<string, unknown>) {
+        const required = ${JSON.stringify(fields.filter((f) => f.required !== false).map((f) => f.name))};
+        Object.keys(data).forEach(key => {
+          if (!required.includes(key)) {
+            delete data[key];
+          }
+        });
+      }`;
+}
+
+/**
+ * Build factory object body
+ */
+function buildFactoryObjectBody(
   options: RequestFactoryOptions,
   fields: RequestField[],
   fieldDefinitions: string
 ): string {
-  return `private data: Record<string, unknown> = {};
-  private count = 1;
-  private states: Set<string> = new Set();
-
-${buildFactoryStaticMethods(options)}
-
-${buildFactoryStateManagement()}
-
-${buildFactoryGenerationMethods(options, fieldDefinitions)}
-
-${buildFactoryHelperMethods(fields)}`;
-}
-
-/**
- * Build factory static methods
- */
-function buildFactoryStaticMethods(options: RequestFactoryOptions): string {
   return `  /**
-   * Create a single request instance
+   * Create a new factory instance
    */
-  static create(overrides?: Partial<${options.requestName}>): ${options.requestName} {
-    return new this().make(overrides);
-  }
+  new() {
+    let recordCount = 1;
+    const states = new Set<string>();
 
-  /**
-   * Create multiple request instances
-   */
-  static times(count: number): ${options.factoryName} {
-    return new this().count(count);
-  }
+    const factory = {
+${buildFactoryMethods(options, fieldDefinitions)}
 
-  /**
-   * Set record count
-   */
-  count(n: number): this {
-    this.count = Math.max(1, Math.min(n, 1000));
-    return this;
-  }
-`;
-}
+${buildGenerateField(fields)}
 
-/**
- * Build factory state management methods
- */
-function buildFactoryStateManagement(): string {
-  return `  /**
-   * Apply a state to the factory
-   */
-  state(name: string): this {
-    this.states.add(name);
-    return this;
-  }
-
-  /**
-   * Apply state modifications
-   */
-  private applyStates(data: Record<string, unknown>): void {
-    this.states.forEach(state => {
-      const methodName = \`apply\${state.charAt(0).toUpperCase() + state.slice(1)}State\`;
-      if (typeof (this as any)[methodName] === 'function') {
-        (this as any)[methodName](data);
-      }
-    });
-  }
-`;
-}
-
-/**
- * Build factory generation methods
- */
-function buildFactoryGenerationMethods(
-  options: RequestFactoryOptions,
-  fieldDefinitions: string
-): string {
-  return `  /**
-   * Make a single request instance
-   */
-  make(overrides?: Partial<${options.requestName}>): ${options.requestName} {
-    const data: Record<string, unknown> = {};
-
-    // Generate all fields
-${fieldDefinitions}
-
-    // Apply state modifications
-    this.applyStates(data);
-
-    // Apply overrides
-    if (overrides !== undefined && overrides !== null) {
-      Object.assign(data, overrides);
-    }
-
-    return new ${options.requestName}(data);
-  }
-
-  /**
-   * Make multiple instances
-   */
-  makeMany(): ${options.requestName}[] {
-    const instances: ${options.requestName}[] = [];
-    for (let i = 0; i < this.count; i++) {
-      instances.push(this.make());
-    }
-    return instances;
-  }
-
-  /**
-   * Get records (alias for makeMany)
-   */
-  get(): ${options.requestName}[] {
-    return this.makeMany();
-  }
-`;
-}
-
-/**
- * Build factory helper methods
- */
-function buildFactoryHelperMethods(fields: RequestField[]): string {
-  return `  /**
-   * Generate field value
-   */
-  private generateField(fieldName: string): unknown {
-    const field = this.findField(fieldName);
-    if (field === undefined || field === null) return null;
-
-    return this.getFakerValue(field);
-  }
-
-  ${buildFakerValueMethod()}
-
-  /**
-   * Find field definition
-   */
-  private findField(fieldName: string): RequestField | undefined {
-    const fields = this.getAllFields();
-    return fields.find(f => f.name === fieldName);
-  }
-
-  /**
-   * Get all field definitions
-   */
-  private getAllFields(): RequestField[] {
-    return ${JSON.stringify(fields, null, 4)};
-  }
-`;
-}
-
-/**
- * Build faker value method
- */
-function buildFakerValueMethod(): string {
-  return `/**
-   * Get faker value for field
-   */
-  private getFakerValue(field: RequestField): unknown {
-    const fakerMap: Record<string, () => unknown> = {
-      string: () => faker.lorem.word(),
-      email: () => faker.internet.email(),
-      phone: () => faker.phone.number('+1 (###) ###-####'),
-      number: () => faker.number.int({ min: field.min || 1, max: field.max || 100 }),
-      boolean: () => faker.datatype.boolean(),
-      date: () => faker.date.future().toISOString().split('T')[0],
-      uuid: () => faker.string.uuid(),
-      url: () => faker.internet.url(),
-      json: () => ({ data: faker.lorem.word() }),
+${buildStateMethods(fields)}
     };
 
-    return fakerMap[field.type]?.() ?? faker.lorem.word();
+    return factory;
   }`;
 }
 
 /**
- * Build request DTO class
+ * Build factory state management methods
  */
 function buildRequestDtoClass(
   options: RequestFactoryOptions,
   fields: RequestField[],
   validationRules: string
 ): string {
-  return `/**
- * Request DTO class with built-in validation
+  return String.raw`/**
+ * Request DTO factory with built-in validation
  */
-export class ${options.requestName} {
-${fields.map((f) => `  ${f.name}${f.required === false ? '?' : ''}: ${tsType(f.type)};`).join('\n')}
+export const ${options.requestName} = Object.freeze({
+  create(data: Record<string, unknown> = {}) {
+    const request = {
+      ...data,
 
-  constructor(data: Record<string, unknown> = {}) {
-    Object.assign(this, data);
-  }
-
-  /**
-   * Validate request data
-   */
-  validate(): { valid: boolean; errors: Record<string, string> } {
-    const errors: Record<string, string> = {};
+      /**
+       * Validate request data
+       */
+      validate() {
+        const errors: Record<string, string> = {};
+        const data = request as any;
 
 ${validationRules}
 
-    return {
-      valid: Object.keys(errors).length === 0,
-      errors,
-    };
-  }
+        return {
+          valid: Object.keys(errors).length === 0,
+          errors,
+        };
+      },
 
-  /**
-   * Convert to plain object
-   */
-  toJSON(): Record<string, unknown> {
-    return {
-${fields.map((f) => `      ${f.name}: this.${f.name}`).join(',\n')}
+      /**
+       * Convert to plain object
+       */
+      toJSON() {
+        const data = request as any;
+        return {
+${fields.map((f) => `          ${f.name}: data.${f.name}`).join(',\n')}
+        };
+      },
+
+      /**
+       * Helper: Validate email
+       */
+      isValidEmail(email: string): boolean {
+        return /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email);
+      },
+
+      /**
+       * Helper: Validate phone
+       */
+      isValidPhone(phone: string): boolean {
+        return /^\+?[1-9]\d{1,14}$/.test(phone);
+      },
+
+      /**
+       * Helper: Validate URL
+       */
+      isValidUrl(url: string): boolean {
+        try {
+          new URL(url);
+          return true;
+        } catch {
+          return false;
+        }
+      },
     };
+
+    return request;
   }
-}`;
+};`;
 }
 
 /**
@@ -601,24 +537,6 @@ function getDefaultFields(requestName: string): RequestField[] {
 }
 
 /**
- * Map RequestField type to TypeScript type
- */
-function tsType(type: string): string {
-  const typeMap: Record<string, string> = {
-    string: 'string',
-    number: 'number',
-    boolean: 'boolean',
-    email: 'string',
-    phone: 'string',
-    date: 'string',
-    json: 'Record<string, unknown>',
-    uuid: 'string',
-    url: 'string',
-  };
-  return typeMap[type] || 'string';
-}
-
-/**
  * Get available options
  */
 export function getAvailableOptions(): string[] {
@@ -636,8 +554,8 @@ export function getAvailableOptions(): string[] {
  * Request Factory Generator - Creates request/input DTO factories with validation
  * Generates both the request factory (for testing) and the DTO class (for request handling)
  */
-export const RequestFactoryGenerator = {
+export const RequestFactoryGenerator = Object.freeze({
   validateOptions,
   generateRequestFactory,
   getAvailableOptions,
-};
+});

@@ -5,9 +5,11 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 export interface SeederField {
   name: string;
@@ -41,38 +43,38 @@ export interface SeederGeneratorResult {
  */
 export async function validateOptions(options: SeederOptions): Promise<void> {
   if (options.seederName === undefined || options.seederName.trim() === '') {
-    throw new Error('Seeder name is required');
+    throw ErrorFactory.createCliError('Seeder name is required');
   }
 
   if (!options.seederName.endsWith('Seeder')) {
-    throw new Error('Seeder name must end with "Seeder" (e.g., UserSeeder)');
+    throw ErrorFactory.createCliError('Seeder name must end with "Seeder" (e.g., UserSeeder)');
   }
 
   if (!/^[A-Z][a-zA-Z\d]*Seeder$/.test(options.seederName)) {
-    throw new Error('Seeder name must be PascalCase ending with "Seeder"');
+    throw ErrorFactory.createCliError('Seeder name must be PascalCase ending with "Seeder"');
   }
 
   if (options.modelName === undefined || options.modelName.trim() === '') {
-    throw new Error('Model name is required');
+    throw ErrorFactory.createCliError('Model name is required');
   }
 
   if (!/^[A-Z][a-zA-Z\d]*$/.test(options.modelName)) {
-    throw new Error('Model name must be PascalCase (e.g., User, Post)');
+    throw ErrorFactory.createCliError('Model name must be PascalCase (e.g., User, Post)');
   }
 
   if (options.count !== undefined && (options.count < 1 || options.count > 100000)) {
-    throw new Error('Count must be between 1 and 100000');
+    throw ErrorFactory.createCliError('Count must be between 1 and 100000');
   }
 
   // Verify seeders path exists
   const pathStat = await fs.stat(options.seedersPath).catch(() => null);
 
   if (pathStat === null) {
-    throw new Error(`Seeders path does not exist: ${options.seedersPath}`);
+    throw ErrorFactory.createCliError(`Seeders path does not exist: ${options.seedersPath}`);
   }
 
   if (!pathStat.isDirectory()) {
-    throw new Error(`Seeders path is not a directory: ${options.seedersPath}`);
+    throw ErrorFactory.createCliError(`Seeders path is not a directory: ${options.seedersPath}`);
   }
 }
 
@@ -123,16 +125,16 @@ function buildSeederCode(options: SeederOptions): string {
 
 ${imports}
 
-export class ${className} {
-${buildSeederClassBody(options, count, truncate, relationshipMethods)}
-}
+export const ${className} = Object.freeze({
+${buildSeederObjectBody(options, count, truncate, relationshipMethods)}
+});
 `;
 }
 
 /**
- * Build seeder class body
+ * Build seeder object body
  */
-function buildSeederClassBody(
+function buildSeederObjectBody(
   options: SeederOptions,
   count: number,
   truncate: string,
@@ -141,13 +143,13 @@ function buildSeederClassBody(
   const factoryName = getFactoryName(options);
   const modelLower = options.modelName.toLowerCase();
 
-  return `${buildSeederRunMethod(options, count, truncate, factoryName, modelLower)}
+  return `${buildSeederRunMethod(options, count, truncate, factoryName, modelLower)},
 
-${buildSeederGetRecordsMethod(factoryName)}
+${buildSeederGetRecordsMethod(factoryName)},
 
-${buildSeederWithStatesMethod(options, count, factoryName, modelLower)}
+${buildSeederWithStatesMethod(options, count, factoryName, modelLower)},
 
-${buildSeederWithRelationshipsMethod(options, count, factoryName, modelLower, relationshipMethods)}
+${buildSeederWithRelationshipsMethod(options, count, factoryName, modelLower, relationshipMethods)},
 
 ${buildSeederResetMethod(options)}`;
 }
@@ -169,7 +171,7 @@ function buildSeederRunMethod(
    */
   async run(): Promise<void> {
     const count = ${count};
-    const factory = new ${factoryName}();
+    const factory = ${factoryName}.new();
 
     // Optionally truncate the table before seeding
     if (${truncate}) {
@@ -178,7 +180,7 @@ function buildSeederRunMethod(
     }
 
     // Generate and create records
-    const records = factory.count(count).get();
+    const records = factory.count(count);
 
     for (const record of records) {
       // Insert using Query Builder (recommended)
@@ -197,8 +199,8 @@ function buildSeederGetRecordsMethod(factoryName: string): string {
    * Get records from this seeder
    */
   async getRecords(count: number): Promise<Record<string, unknown>[]> {
-    const factory = new ${factoryName}();
-    return factory.count(count).get();
+    const factory = ${factoryName}.new();
+    return factory.count(count);
   }`;
 }
 
@@ -215,22 +217,22 @@ function buildSeederWithStatesMethod(
    * Seed with specific states
    */
   async seedWithStates(): Promise<void> {
-    const factory = new ${factoryName}();
+    const factory = ${factoryName}.new();
 
     // Create active records (50%)
-    const active = factory.count(Math.ceil(${count} * 0.5)).state('active').get();
+    const active = factory.state('active').count(Math.ceil(${count} * 0.5));
     for (const record of active) {
       // await ${options.modelName}.create(record);
     }
 
     // Create inactive records (30%)
-    const inactive = factory.count(Math.ceil(${count} * 0.3)).state('inactive').get();
+    const inactive = factory.state('inactive').count(Math.ceil(${count} * 0.3));
     for (const record of inactive) {
       // await ${options.modelName}.create(record);
     }
 
     // Create deleted records (20%)
-    const deleted = factory.count(Math.ceil(${count} * 0.2)).state('deleted').get();
+    const deleted = factory.state('deleted').count(Math.ceil(${count} * 0.2));
     for (const record of deleted) {
       // await ${options.modelName}.create(record);
     }
@@ -253,7 +255,7 @@ function buildSeederWithRelationshipsMethod(
    * Seed with relationships
    */
   async seedWithRelationships(): Promise<void> {
-    const factory = new ${factoryName}();
+    const factory = ${factoryName}.new();
 
 ${relationshipMethods}
 
@@ -292,7 +294,7 @@ import { ${options.modelName} } from '@app/Models/${options.modelName}';`;
 function buildRelationshipMethods(options: SeederOptions): string {
   if (options.relationships === undefined || options.relationships.length === 0) {
     return `    const factory = new ${getFactoryName(options)}();
-    const records = factory.count(${options.count ?? 10}).get();
+    const records = factory.count(${options.count ?? 10});
 
     // Create records with relationships (implement as needed)
     for (const record of records) {
@@ -302,18 +304,18 @@ function buildRelationshipMethods(options: SeederOptions): string {
 
   const relationshipCode = options.relationships
     .map((rel) => {
-      const relId = `${camelCase(rel)}Id`;
+      const relId = `${CommonUtils.camelCase(rel)}Id`;
 
       return `    // Seed with ${rel} relationships
-    const ${camelCase(rel)}s = await ${rel}.all();
-    if (${camelCase(rel)}s.length > 0) {
+    const ${CommonUtils.camelCase(rel)}s = await ${rel}.all();
+    if (${CommonUtils.camelCase(rel)}s.length > 0) {
       const factory = new ${getFactoryName(options)}();
       const records = factory
-        .count(Math.min(${options.count ?? 10}, ${camelCase(rel)}s.length))
+        .count(Math.min(${options.count ?? 10}, ${CommonUtils.camelCase(rel)}s.length))
         .get();
 
       for (let i = 0; i < records.length; i++) {
-        records[i].${relId} = ${camelCase(rel)}s[i].id;
+        records[i].${relId} = ${CommonUtils.camelCase(rel)}s[i].id;
         // await ${options.modelName}.create(records[i]);
       }
     }`;
@@ -344,13 +346,6 @@ function getTableName(modelName: string): string {
 }
 
 /**
- * Convert string to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
-}
-
-/**
  * Get available seeder options
  */
 export function getAvailableOptions(): string[] {
@@ -363,10 +358,10 @@ export function getAvailableOptions(): string[] {
   ];
 }
 
-export const SeederGenerator = {
+export const SeederGenerator = Object.freeze({
   validateOptions,
   generateSeeder,
   getAvailableOptions,
-};
+});
 
 export default SeederGenerator;

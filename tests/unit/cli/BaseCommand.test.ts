@@ -13,99 +13,100 @@ vi.mock('@cli/ErrorHandler', () => ({
   },
 }));
 
-class TestCommand extends BaseCommand {
-  constructor() {
-    super();
-    this.name = 'test';
-    this.description = 'Test command';
-  }
-
-  public executeMock = vi.fn();
-
-  async execute(options: CommandOptions): Promise<void> {
-    await this.executeMock(options);
-  }
-
-  // Expose protected methods for testing
-  public callDebug(msg: string) {
-    this.debug(msg);
-  }
-  public callInfo(msg: string) {
-    this.info(msg);
-  }
-  public callSuccess(msg: string) {
-    this.success(msg);
-  }
-  public callWarn(msg: string) {
-    this.warn(msg);
-  }
-}
-
 describe('BaseCommand', () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
   it('should configure command correctly', () => {
-    const cmd = new TestCommand();
-    const commanderCmd = cmd.getCommand();
+    const executeMock = vi.fn();
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: executeMock,
+    });
 
-    expect(commanderCmd.name()).toBe('test');
-    expect(commanderCmd.description()).toBe('Test command');
-    expect(commanderCmd.options.some((o) => o.flags.includes('--verbose'))).toBe(true);
+    expect(cmd.name).toBe('test');
+    expect(cmd.description).toBe('Test command');
+    expect(cmd.getCommand()).toBeDefined();
   });
 
-  it('should execute command action', async () => {
-    const cmd = new TestCommand();
-    const commanderCmd = cmd.getCommand();
+  it('should execute command logic', async () => {
+    const executeMock = vi.fn();
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: executeMock,
+    });
 
-    // Simulate action call
-    // Commander action receives: arg1, arg2, ..., options, command
-    // const options = { verbose: true };
-    // const commandObj = {};
+    const options: CommandOptions = { verbose: true };
+    await cmd.execute(options);
 
-    // We need to trigger the action handler.
-    // Since we can't easily trigger commander's parse, we can manually call the action handler if we could access it.
-    // But getCommand returns the command object. We can parse arguments.
-
-    await commanderCmd.parseAsync(['node', 'test', '--verbose']);
-
-    expect(cmd.executeMock).toHaveBeenCalled();
-    const calledOptions = cmd.executeMock.mock.calls[0][0];
-    expect(calledOptions.verbose).toBe(true);
+    expect(executeMock).toHaveBeenCalledWith(options);
   });
 
-  it('should handle execution errors', async () => {
-    const cmd = new TestCommand();
-    const error = new Error('Execution failed');
-    cmd.executeMock.mockRejectedValue(error);
+  it('should handle errors during execution', async () => {
+    const error = new Error('Test error');
+    const executeMock = vi.fn().mockRejectedValue(error);
+
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: executeMock,
+    });
 
     const commanderCmd = cmd.getCommand();
+    await commanderCmd.parseAsync([], { from: 'user' });
 
-    // Prevent process.exit from killing the test runner
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
-    await commanderCmd.parseAsync(['node', 'test']);
-
-    expect(ErrorHandler.handle).toHaveBeenCalledWith(error);
-
-    exitSpy.mockRestore();
+    expect(executeMock).toHaveBeenCalled();
+    expect(ErrorHandler.handle).toHaveBeenCalledWith(error, undefined, false);
   });
 
-  it('should delegate logging to ErrorHandler', () => {
-    const cmd = new TestCommand();
+  it('should handle non-error objects during execution', async () => {
+    const error = 'String error';
+    const executeMock = vi.fn().mockRejectedValue(error);
 
-    cmd.callInfo('info');
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: executeMock,
+    });
+
+    const commanderCmd = cmd.getCommand();
+    await commanderCmd.parseAsync([], { from: 'user' });
+
+    expect(executeMock).toHaveBeenCalled();
+    expect(ErrorHandler.handle).toHaveBeenCalled();
+  });
+
+  it('should call ErrorHandler methods', () => {
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      execute: vi.fn(),
+    });
+
+    cmd.info('info');
+    cmd.success('success');
+    cmd.warn('warn');
+    cmd.debug('debug');
+
     expect(ErrorHandler.info).toHaveBeenCalledWith('info');
-
-    cmd.callSuccess('success');
     expect(ErrorHandler.success).toHaveBeenCalledWith('success');
-
-    cmd.callWarn('warn');
     expect(ErrorHandler.warn).toHaveBeenCalledWith('warn');
+    expect(ErrorHandler.debug).toHaveBeenCalledWith('debug', true);
+  });
 
-    // Debug requires verbose flag, but BaseCommand.debug calls ErrorHandler.debug passing this.verbose
-    cmd.callDebug('debug');
-    expect(ErrorHandler.debug).toHaveBeenCalledWith('debug', false); // Default verbose is false
+  it('should call addOptions if provided', () => {
+    const addOptionsMock = vi.fn();
+    const cmd = BaseCommand.create({
+      name: 'test',
+      description: 'Test command',
+      addOptions: addOptionsMock,
+      execute: vi.fn(),
+    });
+
+    cmd.getCommand();
+    expect(addOptionsMock).toHaveBeenCalled();
   });
 });

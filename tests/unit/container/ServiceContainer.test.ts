@@ -1,11 +1,11 @@
-import { ServiceContainer } from '@/container/ServiceContainer';
+import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('ServiceContainer', () => {
-  let container: ServiceContainer;
+  let container: IServiceContainer;
 
   beforeEach(() => {
-    container = new ServiceContainer();
+    container = ServiceContainer.create();
   });
 
   it('should bind and resolve a service', () => {

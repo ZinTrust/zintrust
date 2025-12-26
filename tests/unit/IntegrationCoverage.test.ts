@@ -4,8 +4,28 @@
  */
 
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock Logger module to track method calls
+vi.mock('@config/logger', () => ({
+  Logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    scope: vi.fn().mockReturnValue({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      fatal: vi.fn(),
+    }),
+  },
+}));
+
+// Import mocked Logger after vi.mock
+import { Logger } from '@config/logger';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -13,32 +33,24 @@ beforeEach(() => {
 
 describe('Logger Integration', () => {
   it('should log debug messages', () => {
-    const spy = vi.spyOn(Logger, 'debug');
     Logger.debug('Test debug message', { key: 'value' });
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.debug).toHaveBeenCalled();
   });
 
   it('should log info messages', () => {
-    const spy = vi.spyOn(Logger, 'info');
     Logger.info('Test info message');
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.info).toHaveBeenCalled();
   });
 
   it('should log warning messages', () => {
-    const spy = vi.spyOn(Logger, 'warn');
     Logger.warn('Test warning message');
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.warn).toHaveBeenCalled();
   });
 
   it('should log error messages', () => {
-    const spy = vi.spyOn(Logger, 'error');
     const error = new Error('Test error');
     Logger.error('Test error message', error.message);
-    expect(spy).toHaveBeenCalled();
-    spy.mockRestore();
+    expect(Logger.error).toHaveBeenCalled();
   });
 
   it('should handle multiple log levels in sequence', () => {

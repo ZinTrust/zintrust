@@ -1,8 +1,8 @@
 import { MicroserviceBootstrap } from '@/microservices/MicroserviceBootstrap';
 import { getEnabledServices, isMicroservicesEnabled } from '@/microservices/MicroserviceManager';
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs');

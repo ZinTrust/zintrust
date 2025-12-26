@@ -2,16 +2,27 @@
 
 ## Installation
 
+The Zintrust CLI is distributed on npm as `@zintrust/core`.
+
 ```bash
-# Development
+# Install globally from npm
+npm install -g @zintrust/core
+
+# Verify installation
+zin --version
+```
+
+## Development (from source)
+
+If you are working on the framework itself:
+
+```bash
+# Install dependencies
 npm install
 npm run build
 
 # Make available globally
 npm link
-
-# Verify installation
-zin --version
 ```
 
 ## Basic Commands
@@ -62,6 +73,25 @@ zin config get user.email      # Get specific setting
 zin config set user.email user@example.com
 zin config reset               # Reset to defaults
 ```
+
+### Security
+
+```bash
+zin key:generate               # Generate APP_KEY
+zin key:generate --show        # Show key without saving
+```
+
+### Plugin Management
+
+Manage framework extensions and database adapters.
+
+```bash
+zin plugin list                # List available plugins
+zin plugin install a:sqlite    # Install SQLite adapter
+zin p -i a:postgres            # Short syntax for installing Postgres
+```
+
+See [Plugin System](./plugins.md) for more details.
 
 ### Quality Assurance
 
@@ -247,6 +277,30 @@ zin config set user.email user@example.com
 zin config reset
 ```
 
+### zin start
+
+Start the application in development (watch), production, or Wrangler mode.
+
+**Usage**: `zin start [options]`
+
+**Options**:
+
+- `-w, --wrangler` - Start with Wrangler dev mode (Cloudflare Workers)
+- `--watch` - Force watch mode (Node only)
+- `--no-watch` - Disable watch mode (Node only)
+- `--mode <development|production|testing>` - Override app mode
+- `--runtime <nodejs|cloudflare|lambda|deno|auto>` - Set `RUNTIME` for spawned Node process
+- `--port <number>` - Override server port (sets `PORT`)
+
+**Examples**:
+
+```bash
+zin start
+zin start --mode production
+zin start --no-watch --port 3001
+zin start -w
+```
+
 ## Troubleshooting
 
 ### Command not found
@@ -271,6 +325,7 @@ chmod +x bin/zintrust.ts bin/zin.ts bin/z.ts
 ```bash
 # Use different port
 zin debug --port 3001
+zin start --port 3001
 ```
 
 ### Interactive prompts in CI/CD

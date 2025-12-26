@@ -68,7 +68,7 @@ export interface ProjectConfig {
 /**
  * Default configuration values
  */
-export const DEFAULT_CONFIG: ProjectConfig = {
+export const DEFAULT_CONFIG = Object.freeze({
   name: 'zintrust-app',
   version: '1.0.0',
   description: 'A Zintrust application',
@@ -109,7 +109,7 @@ export const DEFAULT_CONFIG: ProjectConfig = {
     webhooks: false,
     monitoring: false,
   },
-};
+} satisfies ProjectConfig);
 
 /**
  * Configuration paths
@@ -117,14 +117,18 @@ export const DEFAULT_CONFIG: ProjectConfig = {
 const HOME_DIR = process.env['HOME'] ?? process.env['USERPROFILE'] ?? '';
 const GLOBAL_DIR = `${HOME_DIR}/.zintrust`;
 
-export const ConfigPaths = {
+/**
+ * Configuration paths
+ * Sealed namespace for immutability
+ */
+export const ConfigPaths = Object.freeze({
   GLOBAL_DIR,
   GLOBAL_CONFIG: `${GLOBAL_DIR}/config.json`,
   PROJECT_CONFIG: '.zintrust.json',
   PROJECT_CONFIG_TS: 'zintrust.config.ts',
   ENV_FILE: '.env',
   ENV_EXAMPLE: '.env.example',
-} as const;
+});
 
 /**
  * Validation rule interface
@@ -143,8 +147,9 @@ export interface ValidationRule {
 
 /**
  * Validation rules for each config section
+ * Sealed namespace for immutability
  */
-export const CONFIG_RULES: Record<string, ValidationRule> = {
+export const CONFIG_RULES = Object.freeze({
   name: {
     type: 'string',
     required: true,
@@ -192,7 +197,7 @@ export const CONFIG_RULES: Record<string, ValidationRule> = {
     enum: ['filesystem', 'consul', 'kubernetes'],
     description: 'Service discovery method',
   },
-};
+});
 
 /**
  * Get default config for a specific key

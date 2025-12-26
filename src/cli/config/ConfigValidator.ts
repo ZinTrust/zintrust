@@ -47,7 +47,7 @@ export function validateConfig(config: ProjectConfig): ValidationResult {
  * Validate a single config value
  */
 export function validateConfigValue(key: string, value: unknown): ValidationError | null {
-  const rule = CONFIG_RULES[key];
+  const rule = (CONFIG_RULES as Record<string, ValidationRule>)[key];
 
   if (rule === undefined) {
     return null; // No rule, allow any value
@@ -234,16 +234,16 @@ export function formatValidationErrors(result: ValidationResult): string {
  * Get validation rule description
  */
 export function getConfigDescription(key: string): string | undefined {
-  const rule = CONFIG_RULES[key];
+  const rule = (CONFIG_RULES as Record<string, ValidationRule>)[key];
   return rule?.description;
 }
 
 /**
- * ConfigValidator namespace for backward compatibility
+ * ConfigValidator namespace - sealed for immutability
  */
-export const ConfigValidator = {
+export const ConfigValidator = Object.freeze({
   validate: validateConfig,
   validateValue: validateConfigValue,
   formatErrors: formatValidationErrors,
   getDescription: getConfigDescription,
-};
+});

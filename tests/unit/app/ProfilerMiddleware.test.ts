@@ -1,3 +1,4 @@
+import { RequestProfiler } from '@profiling/RequestProfiler';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 type CapturedProfile = {
@@ -13,16 +14,14 @@ const generateReport = vi.fn<(profile: unknown) => string>();
 const logQuery =
   vi.fn<(sql: string, params: unknown[], duration: number, source: string) => void>();
 
-const RequestProfilerCtor = vi.fn(function RequestProfiler() {
-  return {
-    getQueryLogger: () => ({ logQuery }),
-    captureRequest,
-    generateReport,
-  };
-});
-
 vi.mock('@profiling/RequestProfiler', () => ({
-  RequestProfiler: RequestProfilerCtor,
+  RequestProfiler: {
+    create: vi.fn(() => ({
+      getQueryLogger: () => ({ logQuery }),
+      captureRequest,
+      generateReport,
+    })),
+  },
 }));
 
 vi.mock('@config/logger', () => ({
@@ -65,7 +64,7 @@ describe('ProfilerMiddleware', () => {
     await ProfilerMiddleware(req as never, res as never, next as never);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(RequestProfilerCtor).not.toHaveBeenCalled();
+    expect(RequestProfiler.create).not.toHaveBeenCalled();
     expect(res.setHeader).not.toHaveBeenCalled();
   });
 
@@ -108,7 +107,7 @@ describe('ProfilerMiddleware', () => {
     await ProfilerMiddleware(req as never, res as never, next as never);
 
     expect(next).toHaveBeenCalledTimes(1);
-    expect(RequestProfilerCtor).toHaveBeenCalledTimes(1);
+    expect(RequestProfiler.create).toHaveBeenCalledTimes(1);
 
     expect(db.onAfterQuery).toHaveBeenCalledTimes(1);
     expect(afterQueryHandlers).toHaveLength(1);

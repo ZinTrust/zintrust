@@ -5,7 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface ServiceOptions {
   name: string; // e.g., 'users', 'orders', 'payments'
@@ -69,7 +69,8 @@ export function getServicePath(projectRoot: string, options: ServiceOptions): st
 /**
  * Generate service structure
  */
-export async function scaffold(
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function scaffold(
   projectRoot: string,
   options: ServiceOptions
 ): Promise<ServiceScaffoldResult> {
@@ -77,47 +78,47 @@ export async function scaffold(
     // Validate options
     const validation = validateOptions(options);
     if (!validation.valid) {
-      return {
+      return Promise.resolve({
         success: false,
         serviceName: options.name,
         servicePath: '',
         filesCreated: [],
         message: `Validation failed: ${validation.errors.join(', ')}`,
-      };
+      });
     }
 
     const servicePath = getServicePath(projectRoot, options);
 
     // Check if service already exists
     if (FileGenerator.directoryExists(servicePath)) {
-      return {
+      return Promise.resolve({
         success: false,
         serviceName: options.name,
         servicePath,
         filesCreated: [],
         message: `Service '${options.name}' already exists at ${servicePath}`,
-      };
+      });
     }
 
     createServiceDirectories(servicePath);
     const filesCreated = createServiceFiles(servicePath, options);
 
-    return {
+    return Promise.resolve({
       success: true,
       serviceName: options.name,
       servicePath,
       filesCreated,
       message: `Service '${options.name}' scaffolded successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Service scaffolding failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       serviceName: options.name,
       servicePath: '',
       filesCreated: [],
       message: (error as Error).message,
-    };
+    });
   }
 }
 
@@ -204,12 +205,12 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { Application } from '@/Application';
-import { Server } from '@/Server';
+import { Application } from '@boot/Application';
+import { Server } from '@boot/Server';
 import { Logger } from '@config/logger';
 import { Env } from '@config/env';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = new Application(path.join(__dirname, '..'));
@@ -253,48 +254,51 @@ function generateExampleController(options: ServiceOptions): string {
  * Example Controller for ${options.name} Service
  */
 
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import { IRequest } from '@http/Request';
+import { IResponse } from '@http/Response';
+import { Controller } from '@http/Controller';
 
-export class ${className} {
+export const ${className} = {
+  ...Controller,
+
   /**
    * List all items
    */
-  public async index(_req: Request, res: Response): Promise<void> {
+  async index(_req: IRequest, res: IResponse): Promise<void> {
     res.json({ data: [] });
-  }
+  },
 
   /**
    * Create new item
    */
-  public async store(_req: Request, res: Response): Promise<void> {
+  async store(_req: IRequest, res: IResponse): Promise<void> {
     res.setStatus(201).json({ created: true });
-  }
+  },
 
   /**
    * Get item by ID
    */
-  public async show(req: Request, res: Response): Promise<void> {
+  async show(req: IRequest, res: IResponse): Promise<void> {
     const { id } = req.getParams();
     res.json({ id });
-  }
+  },
 
   /**
    * Update item
    */
-  public async update(req: Request, res: Response): Promise<void> {
+  async update(req: IRequest, res: IResponse): Promise<void> {
     const { id } = req.getParams();
     res.json({ updated: true, id });
-  }
+  },
 
   /**
    * Delete item
    */
-  public async destroy(req: Request, res: Response): Promise<void> {
+  async destroy(req: IRequest, res: IResponse): Promise<void> {
     const { id } = req.getParams();
     res.json({ deleted: true, id });
-  }
-}
+  },
+};
 `;
 }
 
@@ -308,14 +312,15 @@ function generateExampleModel(options: ServiceOptions): string {
 
 import { Model } from '@orm/Model';
 
-export class Example extends Model {
-  protected table = '${options.name}';
-  protected fillable = ['name', 'description'];
-  protected timestamps = true;
-
+export const Example = Model.define({
+  table: '${options.name}',
+  fillable: ['name', 'description'],
+  timestamps: true,
+  casts: {},
+}, {
   // Define relationships here
-  // public async user() { return this.belongsTo(User); }
-}
+  // async user(model: IModel) { return model.belongsTo(User); }
+});
 `;
 }
 
@@ -333,7 +338,7 @@ DATABASE_CONNECTION=${options.database === 'isolated' ? 'postgresql' : 'shared'}
 ${options.database === 'isolated' ? `${options.name?.toUpperCase()}_DB_HOST=localhost\n${options.name?.toUpperCase()}_DB_DATABASE=${options.name}\n${options.name?.toUpperCase()}_DB_USER=postgres\n${options.name?.toUpperCase()}_DB_PASSWORD=postgres` : ''}
 
 # Authentication
-SERVICE_AUTH_STRATEGY=${options.auth || 'api-key'}
+SERVICE_AUTH_STRATEGY=${options.auth ?? 'api-key'}
 SERVICE_AUTH_KEY=your-auth-key-here
 
 # Tracing
@@ -415,8 +420,8 @@ Uses \`${config.auth}\` authentication strategy.
 `;
 }
 
-export const ServiceScaffolder = {
+export const ServiceScaffolder = Object.freeze({
   validateOptions,
   getServicePath,
   scaffold,
-};
+});

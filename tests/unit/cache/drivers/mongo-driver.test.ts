@@ -24,10 +24,10 @@ vi.mock('@config/env', () => ({
   },
 }));
 
-function createFetchResponse(jsonValue: unknown): Response {
+function createFetchResponse(jsonValue: unknown): any {
   return {
     json: async () => jsonValue,
-  } as unknown as Response;
+  } as unknown as any;
 }
 
 describe('MongoDriver', () => {
@@ -52,7 +52,7 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await expect(driver.get('k')).resolves.toBeNull();
     await expect(driver.has('k')).resolves.toBe(false);
@@ -65,7 +65,7 @@ describe('MongoDriver', () => {
   });
 
   it('fetches and returns a cached value when not expired', async () => {
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
       expect(url).toBe('https://example.com/action/findOne');
       expect(init?.method).toBe('POST');
       return createFetchResponse({ document: { value: 'v', expires: null } });
@@ -74,7 +74,7 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await expect(driver.get<string>('k')).resolves.toBe('v');
 
@@ -105,7 +105,7 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await expect(driver.get<string>('k')).resolves.toBeNull();
 
@@ -125,11 +125,11 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await expect(driver.has('k')).resolves.toBe(false);
 
-    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom');
+    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom', undefined);
   });
 
   it('handles non-Error thrown values in request()', async () => {
@@ -140,10 +140,10 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await expect(driver.get('k')).resolves.toBeNull();
-    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom');
+    expect(loggerError).toHaveBeenCalledWith('MongoDB Cache Error: boom', undefined);
   });
 
   it('sends correct actions for set/delete/clear and has()', async () => {
@@ -153,7 +153,7 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await driver.set('k', { a: 1 });
     await driver.set('k2', { b: 2 }, 2);
@@ -196,7 +196,7 @@ describe('MongoDriver', () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const { MongoDriver } = await import('@cache/drivers/MongoDriver');
-    const driver = new MongoDriver();
+    const driver = MongoDriver.create();
 
     await expect(driver.has('missing')).resolves.toBe(false);
 

@@ -105,22 +105,22 @@ describe('TemplateEngine Rendering Paths and Content', () => {
 
   describe('renderContent', () => {
     it('should render content with variables', () => {
-      const content = 'export class {{ClassName}} {}';
-      const variables = { ClassName: 'User' };
-      const result = TemplateEngine.renderContent(content, variables);
-
-      expect(result).toBe('export class User {}');
-    });
-
-    it('should handle multi-line content', () => {
-      const content = `class {{Name}} {
-  constructor(public name: string) {}
-}`;
+      const content = 'export const {{Name}} = Object.freeze({});';
       const variables = { Name: 'User' };
       const result = TemplateEngine.renderContent(content, variables);
 
-      expect(result).toContain('class User {');
-      expect(result).toContain('constructor(public name: string) {}');
+      expect(result).toBe('export const User = Object.freeze({});');
+    });
+
+    it('should handle multi-line content', () => {
+      const content = `export const {{Name}} = Object.freeze({
+  getName: () => '{{Name}}',
+});`;
+      const variables = { Name: 'User' };
+      const result = TemplateEngine.renderContent(content, variables);
+
+      expect(result).toContain('export const User = Object.freeze({');
+      expect(result).toContain("getName: () => 'User'");
     });
   });
 });
@@ -232,7 +232,10 @@ describe('TemplateEngine Built-in Templates', () => {
 
     it('basic template should have required files', () => {
       const files = BUILT_IN_TEMPLATES['basic'].files;
-      const fileNames = files.map((f: TemplateFile) => f.path);
+      const fileNames: string[] = [];
+      for (const file of files) {
+        fileNames.push((file as TemplateFile).path);
+      }
 
       expect(fileNames).toContain('package.json');
       expect(fileNames).toContain('.env.example');
@@ -253,9 +256,9 @@ describe('TemplateEngine Built-in Templates', () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const file of (template as any).files) {
           expect(file.path).toBeDefined();
-          expect(file.content).toBeDefined();
+          expect(file.source).toBeDefined();
           expect(typeof file.path).toBe('string');
-          expect(typeof file.content).toBe('string');
+          expect(typeof file.source).toBe('string');
         }
       }
     });

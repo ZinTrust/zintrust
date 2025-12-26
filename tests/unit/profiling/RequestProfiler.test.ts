@@ -12,28 +12,32 @@ vi.mock('@/profiling/QueryLogger', () => ({
 }));
 
 vi.mock('@/profiling/N1Detector', () => ({
-  N1Detector: class {
-    detect = vi.fn().mockReturnValue([]);
+  N1Detector: {
+    create: vi.fn(() => ({
+      detect: vi.fn().mockReturnValue([]),
+    })),
   },
 }));
 
 vi.mock('@/profiling/MemoryProfiler', () => ({
-  MemoryProfiler: class {
-    start = vi.fn();
-    end = vi.fn();
-    delta = vi.fn().mockReturnValue({
-      heapUsed: 100,
-      heapTotal: 100,
-      external: 0,
-      rss: 0,
-    });
-    static readonly formatBytes = vi.fn((bytes) => `${bytes} B`);
+  MemoryProfiler: {
+    create: vi.fn(() => ({
+      start: vi.fn(),
+      end: vi.fn(),
+      delta: vi.fn().mockReturnValue({
+        heapUsed: 100,
+        heapTotal: 100,
+        external: 0,
+        rss: 0,
+      }),
+    })),
+    formatBytes: vi.fn((bytes) => `${bytes} B`),
   },
 }));
 
 describe('RequestProfiler', () => {
   it('should capture request metrics', async () => {
-    const profiler = new RequestProfiler();
+    const profiler = RequestProfiler.create();
     const fn = vi.fn().mockResolvedValue(true);
 
     const report = await profiler.captureRequest(fn);
@@ -46,7 +50,7 @@ describe('RequestProfiler', () => {
   });
 
   it('should include N+1 patterns in generated report when detected', async () => {
-    const profiler = new RequestProfiler();
+    const profiler = RequestProfiler.create();
 
     const queryLogger = profiler.getQueryLogger() as unknown as {
       getQueryLog: ReturnType<typeof vi.fn>;
@@ -81,7 +85,7 @@ describe('RequestProfiler', () => {
   });
 
   it('should end profiling even when request throws', async () => {
-    const profiler = new RequestProfiler();
+    const profiler = RequestProfiler.create();
     const memoryProfiler = profiler.getMemoryProfiler() as unknown as {
       start: ReturnType<typeof vi.fn>;
       end: ReturnType<typeof vi.fn>;
@@ -104,7 +108,7 @@ describe('RequestProfiler', () => {
   });
 
   it('should generate report', async () => {
-    const profiler = new RequestProfiler();
+    const profiler = RequestProfiler.create();
     const report = await profiler.captureRequest(async () => {});
     const text = profiler.generateReport(report);
 
@@ -115,7 +119,7 @@ describe('RequestProfiler', () => {
   });
 
   it('should expose internal tools', () => {
-    const profiler = new RequestProfiler();
+    const profiler = RequestProfiler.create();
     expect(profiler.getQueryLogger()).toBeDefined();
     expect(profiler.getN1Detector()).toBeDefined();
     expect(profiler.getMemoryProfiler()).toBeDefined();

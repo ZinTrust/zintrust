@@ -3,48 +3,58 @@
  * Run database migrations
  */
 
-import { BaseCommand, CommandOptions } from '@cli/BaseCommand';
-import { Logger } from '@config/logger';
+import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Command } from 'commander';
 
-export class MigrateCommand extends BaseCommand {
-  constructor() {
-    super();
-    this.name = 'migrate';
-    this.description = 'Run database migrations';
-  }
+/**
+ * Migrate Command Factory
+ */
+export const MigrateCommand = Object.freeze({
+  /**
+   * Create a new migrate command instance
+   */
+  create(): IBaseCommand {
+    const addOptions = (command: Command): void => {
+      command
+        .option('--fresh', 'Drop all tables and re-run migrations')
+        .option('--rollback', 'Rollback last migration batch')
+        .option('--reset', 'Rollback all migrations')
+        .option('--step <number>', 'Number of batches to rollback', '0');
+    };
 
-  protected addOptions(command: Command): void {
-    command
-      .option('--fresh', 'Drop all tables and re-run migrations')
-      .option('--rollback', 'Rollback last migration batch')
-      .option('--reset', 'Rollback all migrations')
-      .option('--step <number>', 'Number of batches to rollback', '0');
-  }
+    const execute = (options: CommandOptions, cmd: IBaseCommand): void => {
+      cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
 
-  async execute(options: CommandOptions): Promise<void> {
-    this.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
+      try {
+        cmd.info('Loading configuration...');
+        // Configuration loading would go here
 
-    try {
-      this.info('Loading configuration...');
-      // Configuration loading would go here
-
-      if (options['fresh'] === true) {
-        this.warn('This will drop all tables and re-run migrations');
-        // Confirmation would go here
-        this.success('Fresh migration completed');
-      } else if (options['rollback'] === true) {
-        this.success('Migrations rolled back');
-      } else if (options['reset'] === true) {
-        this.warn('Resetting all migrations');
-        this.success('All migrations reset');
-      } else {
-        this.info('Running pending migrations...');
-        this.success('Migrations completed successfully');
+        if (options['fresh'] === true) {
+          cmd.warn('This will drop all tables and re-run migrations');
+          // Confirmation would go here
+          cmd.success('Fresh migration completed');
+        } else if (options['rollback'] === true) {
+          cmd.success('Migrations rolled back');
+        } else if (options['reset'] === true) {
+          cmd.warn('Resetting all migrations');
+          cmd.success('All migrations reset');
+        } else {
+          cmd.info('Running pending migrations...');
+          cmd.success('Migrations completed successfully');
+        }
+      } catch (error) {
+        ErrorFactory.createTryCatchError(`Migration failed: ${(error as Error).message}`, error);
       }
-    } catch (error) {
-      Logger.error('Migration command failed', error);
-      throw new Error(`Migration failed: ${(error as Error).message}`);
-    }
-  }
-}
+    };
+
+    const cmd: IBaseCommand = BaseCommand.create({
+      name: 'migrate',
+      description: 'Run database migrations',
+      addOptions,
+      execute: (options: CommandOptions): void => execute(options, cmd),
+    });
+
+    return cmd;
+  },
+});

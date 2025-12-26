@@ -2,24 +2,30 @@
  * Example Post Model
  */
 
+import { IRelationship } from '@/orm/Relationships';
 import { User } from '@app/Models/User';
-import { Model } from '@orm/Model';
-import { BelongsTo } from '@orm/Relationships';
+import { IModel, Model, ModelConfig } from '@orm/Model';
 
-export class Post extends Model {
-  protected table = 'posts';
-  protected fillable = ['title', 'content', 'user_id'];
-  protected hidden = [];
-  protected timestamps = true;
-  protected casts = {
+export const PostConfig: ModelConfig = {
+  table: 'posts',
+  fillable: ['title', 'content', 'user_id'],
+  hidden: [],
+  timestamps: true,
+  casts: {
     published_at: 'datetime',
     is_published: 'boolean',
-  };
+  },
+};
 
+/**
+ * Post Model
+ * Refactored to Functional Object pattern
+ */
+export const Post = Model.define(PostConfig, {
   /**
    * Get post's author
    */
-  public author(): BelongsTo {
-    return this.belongsTo(User);
-  }
-}
+  author(model: IModel): IRelationship {
+    return model.belongsTo(User);
+  },
+});

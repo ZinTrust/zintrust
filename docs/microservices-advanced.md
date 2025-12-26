@@ -26,7 +26,7 @@ All services use same PostgreSQL instance with separate schemas:
 **Usage:**
 
 ```typescript
-import { PostgresAdapter } from '@microservices/PostgresAdapter';
+import { PostgresAdapter } from '@zintrust/core';
 
 const adapter = new PostgresAdapter({
   host: 'postgres',
@@ -42,7 +42,7 @@ await adapter.connect();
 await adapter.createServiceSchema('ecommerce_users');
 
 // Query using QueryBuilder (Recommended)
-const User = require('@app/Models/User');
+const { User } = await import('@app/Models/User');
 const result = await User.query().where('id', 1).first();
 ```
 
@@ -81,7 +81,7 @@ const adapter = new PostgresAdapter({
 await adapter.connect();
 
 // Query using QueryBuilder (Recommended)
-const Payment = require('@app/Models/Payment');
+const { Payment } = await import('@app/Models/Payment');
 const result = await Payment.query().where('id', 1).first();
 ```
 
@@ -108,8 +108,8 @@ const stats = adapter.getPoolStats();
 console.log(`Connections: ${stats.totalConnections}, Idle: ${stats.idleConnections}`);
 
 // Run transaction with QueryBuilder (Recommended)
-const User = require('@app/Models/User');
-const UserProfile = require('@app/Models/UserProfile');
+const { User } = await import('@app/Models/User');
+const { UserProfile } = await import('@app/Models/UserProfile');
 
 await adapter.transaction(async () => {
   const user = await User.query().insert({
@@ -147,22 +147,42 @@ USE_RAW_QRY=true
 
 ### Raw SQL Example
 
-Once enabled, you can access the underlying adapter:
+Once enabled via environment variable, you can execute raw queries:
 
 ```typescript
-// Only works if USE_RAW_QRY=true
-if (process.env.USE_RAW_QRY === 'true') {
-  const result = await adapter.query('SELECT * FROM users WHERE created_at > $1', [
-    new Date('2024-01-01'),
-  ]);
-}
+import { PostgresAdapter, Env } from '@zintrust/core';
+
+const adapter = new PostgresAdapter({
+  host: 'postgres',
+  port: 5432,
+  database: 'zintrust',
+  user: 'postgres',
+  password: 'postgres',
+});
+
+await adapter.connect();
+
+// Raw query available when USE_RAW_QRY=true (checked at app bootstrap)
+const result = await adapter.rawQuery('SELECT * FROM users WHERE created_at > $1', [
+  new Date('2024-01-01'),
+]);
 ```
 
-**Instead, use QueryBuilder:**
+**Per-Adapter Parameter Syntax:**
+
+| Adapter       | Syntax                | Example                                   |
+| ------------- | --------------------- | ----------------------------------------- |
+| PostgreSQL    | `$1, $2, $3...`       | `WHERE id = $1 AND status = $2`           |
+| MySQL         | `?, ?, ?...`          | `WHERE id = ? AND status = ?`             |
+| SQLite        | `$1, $2, $3...`       | `WHERE id = $1 AND status = $2`           |
+| SQL Server    | `@param0, @param1...` | `WHERE id = @param0 AND status = @param1` |
+| Cloudflare D1 | `?, ?, ?...`          | `WHERE id = ? AND status = ?`             |
+
+**Instead, use QueryBuilder (Recommended):**
 
 ```typescript
-// ✅ Recommended approach
-const User = require('@app/Models/User');
+// ✅ Recommended approach - type-safe and secure
+const { User } = await import('@app/Models/User');
 const result = await User.query().where('created_at', '>', new Date('2024-01-01')).get();
 ```
 
@@ -171,7 +191,7 @@ const result = await User.query().where('created_at', '>', new Date('2024-01-01'
 Auto-discover and initialize microservices:
 
 ```typescript
-import { MicroserviceBootstrap } from '@microservices/MicroserviceBootstrap';
+import { MicroserviceBootstrap } from '@zintrust/core';
 
 const bootstrap = MicroserviceBootstrap.getInstance();
 
@@ -221,56 +241,56 @@ npm run test tests/integration/microservices.test.ts
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Microservices Architecture                    │
+│                    Microservices Architecture                   │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │              MicroserviceBootstrap                       │  │
-│  │  - Service Discovery from services/ directory           │  │
-│  │  - Configuration loading from service.config.json       │  │
-│  │  - Service registration with MicroserviceManager        │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│           │                    │                   │             │
-│           ▼                    ▼                   ▼             │
-│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐  │
-│  │ Users Service  │  │ Orders Service │  │Payments Service  │  │
-│  │ :3001          │  │ :3002          │  │ :3003            │  │
-│  │                │  │                │  │                  │  │
-│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │  │
-│  │ │ServiceAuth │ │  │ │ServiceAuth │ │  │ │ServiceAuth   │ │  │
-│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │  │
-│  │ │api-key     │ │  │ │jwt         │ │  │ │none          │ │  │
-│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │  │
-│  │                │  │                │  │                  │  │
-│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │  │
-│  │ │RequestTrace│ │  │ │RequestTrace│ │  │ │RequestTrace  │ │  │
-│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │  │
-│  │ │enabled     │ │  │ │enabled     │ │  │ │disabled      │ │  │
-│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │  │
-│  │                │  │                │  │                  │  │
-│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │  │
-│  │ │Health      │ │  │ │Health      │ │  │ │Health        │ │  │
-│  │ │CheckHandler│ │  │ │CheckHandler│ │  │ │CheckHandler  │ │  │
-│  │ │ /health    │ │  │ │ /health    │ │  │ │ /health      │ │  │
-│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │  │
-│  └────────────────┘  └────────────────┘  └──────────────────┘  │
-│           │                    │                   │             │
-│           └────────────────────┼───────────────────┘             │
-│                                │                                 │
-│                   ┌────────────▼─────────────┐                   │
-│                   │  ServiceHealthMonitor    │                   │
-│                   │  - Continuous monitoring │                   │
-│                   │  - Aggregated health     │                   │
-│                   │  - Dependency checking   │                   │
-│                   └────────────┬─────────────┘                   │
-│                                │                                 │
-│                   ┌────────────▼─────────────────────┐            │
-│                   │  PostgreSQL (Shared or Isolated) │            │
-│                   │  - Connection pooling            │            │
-│                   │  - Schema isolation              │            │
-│                   │  - Transaction support           │            │
-│                   └──────────────────────────────────┘            │
-│                                                                  │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              MicroserviceBootstrap                       │   │
+│  │  - Service Discovery from services/ directory            │   │
+│  │  - Configuration loading from service.config.json          │   │
+│  │  - Service registration with MicroserviceManager         │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│           │                    │                   │            │
+│           ▼                    ▼                   ▼            │
+│  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐   │
+│  │ Users Service  │  │ Orders Service │  │Payments Service  │   │
+│  │ :3001          │  │ :3002          │  │ :3003            │   │
+│  │                │  │                │  │                  │   │
+│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
+│  │ │ServiceAuth │ │  │ │ServiceAuth │ │  │ │ServiceAuth   │ │   │
+│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │   │
+│  │ │api-key     │ │  │ │jwt         │ │  │ │none          │ │   │
+│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │   │
+│  │                │  │                │  │                  │   │
+│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
+│  │ │RequestTrace│ │  │ │RequestTrace│ │  │ │RequestTrace  │ │   │
+│  │ │Middleware  │ │  │ │Middleware  │ │  │ │Middleware    │ │   │
+│  │ │enabled     │ │  │ │enabled     │ │  │ │disabled      │ │   │
+│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │   │
+│  │                │  │                │  │                  │   │
+│  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
+│  │ │Health      │ │  │ │Health      │ │  │ │Health        │ │   │
+│  │ │CheckHandler│ │  │ │CheckHandler│ │  │ │CheckHandler  │ │   │
+│  │ │ /health    │ │  │ │ /health    │ │  │ │ /health      │ │   │
+│  │ └────────────┘ │  │ └────────────┘ │  │ └──────────────┘ │   │
+│  └────────────────┘  └────────────────┘  └──────────────────┘   │
+│           │                    │                   │            │
+│           └────────────────────┼───────────────────┘            │
+│                                │                                │
+│                   ┌────────────▼─────────────┐                  │
+│                   │  ServiceHealthMonitor    │                  │
+│                   │  - Continuous monitoring │                  │
+│                   │  - Aggregated health     │                  │
+│                   │  - Dependency checking   │                  │
+│                   └────────────┬─────────────┘                  │
+│                                │                                │
+│                   ┌────────────▼─────────────────────┐          │
+│                   │  PostgreSQL (Shared or Isolated) │          │
+│                   │  - Connection pooling            │          │
+│                   │  - Schema isolation              │          │
+│                   │  - Transaction support           │          │
+│                   └──────────────────────────────────┘          │
+│                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

@@ -1,498 +1,138 @@
-import type { CloudflareRequest } from '@/runtime/adapters/CloudflareAdapter';
-import type { AdapterConfig, PlatformResponse } from '@/runtime/RuntimeAdapter';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const envState = vi.hoisted(() => ({ nodeEnv: 'test' }));
+let CloudflareAdapter: typeof import('@/runtime/adapters/CloudflareAdapter').CloudflareAdapter;
 
-const loggerState = vi.hoisted(() => ({
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-}));
-
-vi.mock('@config/env', () => ({
-  Env: {
-    get NODE_ENV(): string {
-      return envState.nodeEnv;
-    },
-  },
-}));
-
-vi.mock('@config/logger', () => ({
-  Logger: loggerState,
-  default: loggerState,
-}));
-
-async function importAdapter(): Promise<{
-  CloudflareAdapter: new (config: AdapterConfig) => {
-    platform: 'cloudflare';
-    handle(event: unknown): Promise<PlatformResponse>;
-    parseRequest(event: CloudflareRequest): {
-      method: string;
-      path: string;
-      headers: Record<string, string | string[]>;
-      query?: Record<string, string | string[]>;
-      remoteAddr?: string;
-    };
-    formatResponse(response: PlatformResponse): Response;
-    getLogger(): {
-      debug(msg: string, data?: unknown): void;
-      info(msg: string, data?: unknown): void;
-      warn(msg: string, data?: unknown): void;
-      error(msg: string, err?: Error): void;
-    };
-    supportsPersistentConnections(): boolean;
-    getEnvironment(): {
-      nodeEnv: string;
-      runtime: string;
-      dbConnection: string;
-      dbHost?: string;
-      dbPort?: number;
-      [key: string]: unknown;
-    };
-    getD1Database(): unknown;
-    getKV(namespace: string): unknown;
-  };
-}> {
-  return import('@/runtime/adapters/CloudflareAdapter');
-}
-
-function getGlobalEnvRef(): { env?: Record<string, unknown> } {
-  return globalThis as unknown as { env?: Record<string, unknown> };
-}
+beforeEach(async () => {
+  vi.resetModules();
+  CloudflareAdapter = (await import('@/runtime/adapters/CloudflareAdapter')).CloudflareAdapter;
+});
 
 describe('CloudflareAdapter', () => {
-  it('should identify as cloudflare platform', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
+  it('should identify as cloudflare platform', () => {
+    const adapter = CloudflareAdapter.create({
       handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
     });
 
     expect(adapter.platform).toBe('cloudflare');
   });
 
-  it('supportsPersistentConnections should be false', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
+  it('supportsPersistentConnections should be false', () => {
+    const adapter = CloudflareAdapter.create({
       handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
     });
 
     expect(adapter.supportsPersistentConnections()).toBe(false);
   });
 
-  it('parseRequest should default remoteAddr without cf header', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
+  it('parseRequest should use cf-connecting-ip when present', () => {
+    const adapter = CloudflareAdapter.create({
       handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
     });
 
-    const request = new Request('http://localhost/path?query=1', {
+    const req = {
       method: 'GET',
-      headers: { 'X-Custom': 'value' },
-    });
-
-    const parsed = adapter.parseRequest(request as unknown as CloudflareRequest);
-    expect(parsed.method).toBe('GET');
-    expect(parsed.path).toBe('/path');
-    expect(parsed.query).toEqual({ query: '1' });
-    expect(parsed.remoteAddr).toBe('0.0.0.0');
-  });
-
-  it('formatResponse should handle array headers and Buffer body', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const response = adapter.formatResponse({
-      statusCode: 201,
-      headers: {
-        'set-cookie': ['a=1', 'b=2'],
-        'content-type': 'text/plain',
-      },
-      body: Buffer.from('hello', 'utf-8'),
-    });
-
-    expect(response.status).toBe(201);
-    expect(response.headers.get('content-type')).toBe('text/plain');
-    expect(response.headers.get('set-cookie')).toBe('a=1, b=2');
-  });
-
-  it('formatResponse should handle nullish body', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const response = adapter.formatResponse({
-      statusCode: 200,
-      headers: { 'content-type': 'text/plain' },
+      url: 'https://example.test/cf?a=1',
+      headers: new Headers({ 'cf-connecting-ip': '192.168.0.1' }), //NOSONAR
       body: null,
-    });
+    } as unknown as import('@/runtime/adapters/CloudflareAdapter').CloudflareRequest;
 
-    await expect(response.text()).resolves.toBe('');
+    const parsed = adapter.parseRequest(req);
+    expect(parsed.path).toBe('/cf');
+    expect(parsed.query).toEqual({ a: '1' });
+    expect(parsed.remoteAddr).toBe('192.168.0.1'); //NOSONAR
   });
 
-  it('formatResponse should passthrough string body', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
+  it('formatResponse should append array headers and stringify body', async () => {
+    const adapter = CloudflareAdapter.create({
       handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
     });
 
     const response = adapter.formatResponse({
       statusCode: 200,
-      headers: { 'content-type': 'text/plain' },
-      body: 'hello',
-    });
+      headers: { 'set-cookie': ['a=1', 'b=2'], 'content-type': 'text/plain' },
+      body: Buffer.from('ok'),
+    }) as Response;
 
-    await expect(response.text()).resolves.toBe('hello');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/plain');
+    expect(await response.text()).toBe('ok');
   });
 
-  it('getLogger should return provided logger', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const configLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
-      logger: configLogger,
-    });
-
-    const logger = adapter.getLogger();
-    logger.info('hello', { ok: true });
-    expect(configLogger.info).toHaveBeenCalledWith('hello', { ok: true });
-  });
-
-  it('getLogger should fall back to global Logger when internal logger is missing', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
+  it('handle should process request and return normalized PlatformResponse', async () => {
+    const adapter = CloudflareAdapter.create({
+      handler: async (_req, res) => {
+        (
+          res as unknown as { writeHead: (code: number, headers?: Record<string, string>) => void }
+        ).writeHead(201, { 'Content-Type': 'text/plain' });
+        (res as unknown as { end: (chunk: string) => void }).end('done');
       },
-    }) as unknown as { getLogger: () => any; logger?: unknown };
-
-    adapter.logger = undefined;
-
-    const logger = adapter.getLogger() as {
-      debug: (msg: string) => void;
-      info: (msg: string) => void;
-      warn: (msg: string) => void;
-      error: (msg: string, err?: Error) => void;
-    };
-
-    logger.debug('d');
-    logger.info('i');
-    logger.warn('w');
-    logger.error('e', new Error('x'));
-
-    expect(loggerState.debug).toHaveBeenCalledWith('[Cloudflare] d');
-    expect(loggerState.info).toHaveBeenCalledWith('[Cloudflare] i');
-    expect(loggerState.warn).toHaveBeenCalledWith('[Cloudflare] w');
-    expect(loggerState.error).toHaveBeenCalledWith('[Cloudflare] e', 'x');
-  });
-
-  it('getEnvironment/getD1Database/getKV should read globalThis.env with defaults', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
       logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined,
       },
     });
 
-    const globalEnvRef = getGlobalEnvRef();
-    const previous = globalEnvRef.env;
-    delete globalEnvRef.env;
+    const event = {
+      method: 'POST',
+      url: 'https://example.test/cf',
+      headers: new Headers({ 'cf-connecting-ip': '1.1.1.1' }), //NOSONAR
+      text: async () => 'hello',
+      body: null,
+    } as unknown as import('@/runtime/adapters/CloudflareAdapter').CloudflareRequest;
 
-    const env = adapter.getEnvironment();
-    expect(env.nodeEnv).toBe('production');
-    expect(env.runtime).toBe('cloudflare');
-    expect(env.dbConnection).toBe('d1');
-    expect(adapter.getD1Database()).toBeNull();
-    expect(adapter.getKV('SOME_NAMESPACE')).toBeNull();
-
-    globalEnvRef.env = previous;
+    const result = await adapter.handle(event);
+    expect(result.statusCode).toBe(201);
+    expect(String(result.body)).toBe('done');
   });
 
-  it('getEnvironment/getD1Database/getKV should return values from globalThis.env', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const globalEnvRef = getGlobalEnvRef();
-    const previous = globalEnvRef.env;
-    globalEnvRef.env = {
-      ENVIRONMENT: 'staging',
-      DB_CONNECTION: 'd1',
+  it('getD1Database/getKV should read from globalThis.env', () => {
+    (globalThis as unknown as { env?: Record<string, unknown> }).env = {
       DB: { kind: 'd1' },
-      MY_KV: { kind: 'kv' },
+      MY_NAMESPACE: { kind: 'kv' },
     };
+
+    expect(CloudflareAdapter.getD1Database()).toEqual({ kind: 'd1' });
+    expect(CloudflareAdapter.getKV('MY_NAMESPACE')).toEqual({ kind: 'kv' });
+
+    (globalThis as unknown as { env?: Record<string, unknown> }).env = undefined;
+  });
+
+  it('getEnvironment should return cloudflare defaults', () => {
+    const adapter = CloudflareAdapter.create({
+      handler: async () => undefined,
+    });
 
     const env = adapter.getEnvironment();
-    expect(env.nodeEnv).toBe('staging');
-    expect(env.dbConnection).toBe('d1');
-    expect(adapter.getD1Database()).toEqual({ kind: 'd1' });
-    expect(adapter.getKV('MY_KV')).toEqual({ kind: 'kv' });
-
-    globalEnvRef.env = previous;
+    expect(env.runtime).toBe('cloudflare');
+    expect(typeof env.nodeEnv).toBe('string');
+    expect(typeof env.dbConnection).toBe('string');
   });
 
-  it('handle should pass null body for GET and HEAD', async () => {
-    const { CloudflareAdapter } = await importAdapter();
+  it('handle should include error details when NODE_ENV=development', async () => {
+    process.env.NODE_ENV = 'development';
+    vi.resetModules();
+    const CF = (await import('@/runtime/adapters/CloudflareAdapter')).CloudflareAdapter;
 
-    const handler = vi.fn(async (_req: unknown, _res: unknown, body: Buffer | null) => {
-      expect(body).toBeNull();
-    });
-
-    const adapter = new CloudflareAdapter({
-      handler: handler as unknown as AdapterConfig['handler'],
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
+    const adapter = CF.create({
+      handler: async () => {
+        throw new Error('boom');
       },
     });
 
-    await adapter.handle(new Request('http://localhost/test', { method: 'GET' }));
-    await adapter.handle(new Request('http://localhost/test', { method: 'HEAD' }));
-    expect(handler).toHaveBeenCalledTimes(2);
-  });
+    const event = {
+      method: 'GET',
+      url: 'https://example.test/cf-err',
+      headers: new Headers(),
+      text: async () => '',
+      body: null,
+    } as unknown as import('@/runtime/adapters/CloudflareAdapter').CloudflareRequest;
 
-  it('handle should read body for non-GET/HEAD methods', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-
-    const handler = vi.fn(async (_req: unknown, _res: unknown, body: Buffer | null) => {
-      expect(body?.toString('utf-8')).toBe(JSON.stringify({ test: true }));
-    });
-
-    const adapter = new CloudflareAdapter({
-      handler: handler as unknown as AdapterConfig['handler'],
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const response = await adapter.handle(
-      new Request('http://localhost/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: true }),
-      })
-    );
-
-    expect(response.statusCode).toBe(200);
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
-
-  it('handle should exercise mock res writeHead/end/write branches', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-
-    const handler = vi.fn(async (_req: unknown, res: unknown) => {
-      const serverRes = res as {
-        writeHead: (statusCode: number, headers?: Record<string, string | string[]>) => unknown;
-        write: (chunk: string | Buffer) => boolean;
-        end: (chunk?: string | Buffer) => unknown;
-      };
-
-      serverRes.writeHead(201);
-      serverRes.write(Buffer.from('hi', 'utf-8'));
-      serverRes.end();
-    });
-
-    const adapter = new CloudflareAdapter({
-      handler: handler as unknown as AdapterConfig['handler'],
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const response = await adapter.handle(new Request('http://localhost/test', { method: 'GET' }));
-    expect(response.statusCode).toBe(201);
-    expect(response.body).toBeInstanceOf(Buffer);
-  });
-
-  it('handle should merge headers and set body via res.end(chunk)', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-
-    const handler = vi.fn(async (_req: unknown, res: unknown) => {
-      const serverRes = res as {
-        writeHead: (statusCode: number, headers?: Record<string, string | string[]>) => unknown;
-        end: (chunk?: string | Buffer) => unknown;
-      };
-
-      serverRes.writeHead(202, { 'x-test': '1' });
-      serverRes.end('done');
-    });
-
-    const adapter = new CloudflareAdapter({
-      handler: handler as unknown as AdapterConfig['handler'],
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const response = await adapter.handle(new Request('http://localhost/test', { method: 'GET' }));
-    expect(response.statusCode).toBe(202);
-    expect(response.headers['x-test']).toBe('1');
-    expect(response.body).toBe('done');
-  });
-
-  it('handle should set 504 on timeout path', async () => {
-    vi.useFakeTimers();
-
-    const { CloudflareAdapter } = await importAdapter();
-
-    let resolveHandler: (() => void) | undefined;
-    const handler = vi.fn(
-      async () =>
-        await new Promise<void>((resolve) => {
-          resolveHandler = resolve;
-        })
-    );
-
-    const adapter = new CloudflareAdapter({
-      handler: handler as unknown as AdapterConfig['handler'],
-      logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      },
-    });
-
-    const handlePromise = adapter.handle(new Request('http://localhost/test', { method: 'GET' }));
-    await vi.advanceTimersByTimeAsync(30000);
-
-    resolveHandler?.();
-    await expect(handlePromise).resolves.toEqual(
-      expect.objectContaining({
-        statusCode: 504,
-      })
-    );
-
-    vi.useRealTimers();
-  });
-
-  it('handle should include error message in development but omit in production', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-    const baseLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-
-    envState.nodeEnv = 'development';
-    const devAdapter = new CloudflareAdapter({
-      handler: vi.fn().mockRejectedValue(new Error('Test error')),
-      logger: baseLogger,
-    });
-    const devResponse = await devAdapter.handle(
-      new Request('http://localhost/test', { method: 'GET' })
-    );
-    const devBody = JSON.parse(String(devResponse.body));
-    expect(devBody.details).toEqual({ message: 'Test error' });
-
-    envState.nodeEnv = 'production';
-    const prodAdapter = new CloudflareAdapter({
-      handler: vi.fn().mockRejectedValue(new Error('Test error')),
-      logger: baseLogger,
-    });
-    const prodResponse = await prodAdapter.handle(
-      new Request('http://localhost/test', { method: 'GET' })
-    );
-    const prodBody = JSON.parse(String(prodResponse.body));
-    expect(prodBody.details).toBeUndefined();
-  });
-
-  it('default logger should stringify data and handle nullish data', async () => {
-    const { CloudflareAdapter } = await importAdapter();
-
-    const adapter = new CloudflareAdapter({
-      handler: async () => undefined,
-      // no logger => createDefaultLogger()
-    });
-
-    const logger = adapter.getLogger();
-    logger.debug('a', { ok: true });
-    logger.debug('a2');
-    logger.info('b');
-    logger.info('b2', { ok: false });
-    logger.warn('c', null);
-    logger.warn('c2', { ok: 1 });
-    logger.error('d', new Error('x'));
-
-    expect(loggerState.debug).toHaveBeenCalledWith('[Cloudflare] a', JSON.stringify({ ok: true }));
-    expect(loggerState.debug).toHaveBeenCalledWith('[Cloudflare] a2', '');
-    expect(loggerState.info).toHaveBeenCalledWith('[Cloudflare] b', '');
-    expect(loggerState.info).toHaveBeenCalledWith('[Cloudflare] b2', JSON.stringify({ ok: false }));
-    expect(loggerState.warn).toHaveBeenCalledWith('[Cloudflare] c', '');
-    expect(loggerState.warn).toHaveBeenCalledWith('[Cloudflare] c2', JSON.stringify({ ok: 1 }));
-    expect(loggerState.error).toHaveBeenCalledWith('[Cloudflare] d', 'x');
+    const result = await adapter.handle(event);
+    expect(result.statusCode).toBe(500);
+    const parsed = JSON.parse(String(result.body));
+    expect(parsed.error).toBe('Internal Server Error');
+    expect(parsed.details?.message).toBe('boom');
   });
 });

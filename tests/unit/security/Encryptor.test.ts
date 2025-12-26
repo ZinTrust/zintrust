@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const loggerError = vi.fn();

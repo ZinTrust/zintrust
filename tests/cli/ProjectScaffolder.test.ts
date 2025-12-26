@@ -1,7 +1,7 @@
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { ProjectOptions, ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
-import fs from 'node:fs';
-import path from 'node:path';
+import { default as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const testDir = path.join(__dirname, 'test-projects');
@@ -65,7 +65,7 @@ describe('ProjectScaffolder Validation Basic', () => {
       port: 3000,
     };
 
-    const result = ProjectScaffolder.prototype.validateOptions(options);
+    const result = ProjectScaffolder.validateOptions(options);
 
     expect(result.valid).toBe(true);
     expect(result.errors.length).toBe(0);
@@ -76,7 +76,7 @@ describe('ProjectScaffolder Validation Basic', () => {
       name: '',
     };
 
-    const result = ProjectScaffolder.prototype.validateOptions(options);
+    const result = ProjectScaffolder.validateOptions(options);
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Project name is required');
@@ -87,7 +87,7 @@ describe('ProjectScaffolder Validation Basic', () => {
       name: 'My Project!',
     };
 
-    const result = ProjectScaffolder.prototype.validateOptions(options);
+    const result = ProjectScaffolder.validateOptions(options);
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain(
@@ -116,7 +116,7 @@ describe('ProjectScaffolder Validation Advanced', () => {
       template: 'unknown',
     };
 
-    const result = ProjectScaffolder.prototype.validateOptions(options);
+    const result = ProjectScaffolder.validateOptions(options);
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Template "unknown" not found');
@@ -128,19 +128,19 @@ describe('ProjectScaffolder Validation Advanced', () => {
       port: 99999,
     };
 
-    const result = ProjectScaffolder.prototype.validateOptions(options);
+    const result = ProjectScaffolder.validateOptions(options);
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Port must be a number between 1 and 65535');
   });
 
   it('should accept port 1 and 65535', () => {
-    const result1 = ProjectScaffolder.prototype.validateOptions({
+    const result1 = ProjectScaffolder.validateOptions({
       name: 'app1',
       port: 1,
     });
 
-    const result2 = ProjectScaffolder.prototype.validateOptions({
+    const result2 = ProjectScaffolder.validateOptions({
       name: 'app2',
       port: 65535,
     });
@@ -165,7 +165,7 @@ describe('ProjectScaffolder Context and Preparation Basic', () => {
   });
 
   it('should prepare scaffolding context', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
       author: 'John Doe',
@@ -186,7 +186,7 @@ describe('ProjectScaffolder Context and Preparation Basic', () => {
   });
 
   it('should use defaults for optional fields', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
     };
@@ -215,7 +215,7 @@ describe('ProjectScaffolder Template Loading', () => {
   });
 
   it('should load correct template', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
       template: 'api',
@@ -243,7 +243,7 @@ describe('ProjectScaffolder Context and Preparation Paths', () => {
   });
 
   it('should set project path correctly', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
     };
@@ -253,7 +253,7 @@ describe('ProjectScaffolder Context and Preparation Paths', () => {
   });
 
   it('should return false for non-existing directory', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     scaffolder.prepareContext({ name: 'new-app' });
 
     expect(scaffolder.projectDirectoryExists()).toBe(false);
@@ -263,7 +263,7 @@ describe('ProjectScaffolder Context and Preparation Paths', () => {
     const projectPath = path.join(testDir, 'existing-app');
     FileGenerator.createDirectory(projectPath);
 
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     scaffolder.prepareContext({ name: 'existing-app' });
 
     expect(scaffolder.projectDirectoryExists()).toBe(true);
@@ -285,7 +285,7 @@ describe('ProjectScaffolder Scaffolding Execution', () => {
   });
 
   it('should create project directories', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     scaffolder.prepareContext({ name: 'my-app' });
     FileGenerator.createDirectory(scaffolder.getProjectPath());
 
@@ -299,7 +299,7 @@ describe('ProjectScaffolder Scaffolding Execution', () => {
   });
 
   it('should create project files', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const projectPath = path.join(testDir, 'my-app');
     scaffolder.prepareContext({ name: 'my-app' });
     FileGenerator.createDirectory(projectPath);
@@ -313,7 +313,7 @@ describe('ProjectScaffolder Scaffolding Execution', () => {
   });
 
   it('should render template variables in files', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const projectPath = path.join(testDir, 'my-app');
     scaffolder.prepareContext({ name: 'my-app', author: 'Jane Doe' });
     FileGenerator.createDirectory(projectPath);
@@ -340,7 +340,7 @@ describe('ProjectScaffolder Configuration', () => {
   });
 
   it('should create .zintrust.json', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const projectPath = path.join(testDir, 'my-app');
     scaffolder.prepareContext({ name: 'my-app' });
     FileGenerator.createDirectory(projectPath);
@@ -358,7 +358,7 @@ describe('ProjectScaffolder Configuration', () => {
   });
 
   it('should create .env file', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const projectPath = path.join(testDir, 'my-app');
     scaffolder.prepareContext({ name: 'my-app', port: 3001 });
     FileGenerator.createDirectory(projectPath);
@@ -372,6 +372,8 @@ describe('ProjectScaffolder Configuration', () => {
     const env = FileGenerator.readFile(envPath);
     expect(env).toContain('APP_NAME=my-app');
     expect(env).toContain('APP_PORT=3001');
+    expect(env).toContain('APP_KEY=');
+    expect(env).not.toContain('base64:');
   });
 });
 
@@ -390,7 +392,7 @@ describe('ProjectScaffolder Database Configuration', () => {
   });
 
   it('should create PostgreSQL env for PostgreSQL projects', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const projectPath = path.join(testDir, 'my-app');
     scaffolder.prepareContext({ name: 'my-app', database: 'postgresql' });
     FileGenerator.createDirectory(projectPath);
@@ -404,7 +406,7 @@ describe('ProjectScaffolder Database Configuration', () => {
   });
 
   it('should create SQLite env for SQLite projects', () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const projectPath = path.join(testDir, 'my-app');
     scaffolder.prepareContext({ name: 'my-app', database: 'sqlite' });
     FileGenerator.createDirectory(projectPath);
@@ -432,7 +434,7 @@ describe('ProjectScaffolder Full Scaffolding', () => {
   });
 
   it('should create complete project', async () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
       author: 'John Doe',
@@ -450,7 +452,7 @@ describe('ProjectScaffolder Full Scaffolding', () => {
   });
 
   it('should fail with invalid options', async () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'My Invalid App!',
     };
@@ -458,7 +460,7 @@ describe('ProjectScaffolder Full Scaffolding', () => {
     const result = await scaffolder.scaffold(options);
 
     expect(result.success).toBe(false);
-    expect(result.error || result.message).toBeDefined();
+    expect(result.error ?? result.message).toBeDefined();
   });
 });
 
@@ -480,7 +482,7 @@ describe('ProjectScaffolder Overwrite', () => {
     const projectPath = path.join(testDir, 'existing');
     FileGenerator.createDirectory(projectPath);
 
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'existing',
       overwrite: false,
@@ -497,7 +499,7 @@ describe('ProjectScaffolder Overwrite', () => {
     FileGenerator.createDirectory(projectPath);
     FileGenerator.writeFile(path.join(projectPath, 'old-file.txt'), 'old');
 
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
       overwrite: true,
@@ -524,7 +526,7 @@ describe('ProjectScaffolder Requirements', () => {
   });
 
   it('should create required files and directories', async () => {
-    const scaffolder = new ProjectScaffolder(testDir);
+    const scaffolder = ProjectScaffolder.create(testDir);
     const options: ProjectOptions = {
       name: 'my-app',
       template: 'basic',

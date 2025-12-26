@@ -7,23 +7,48 @@
  * Shortcuts: zin, z
  */
 
-import { CLI } from '@cli/CLI.js';
-import { ErrorHandler } from '@cli/ErrorHandler.js';
-import { Logger } from '@config/logger.js';
-
 async function main(): Promise<void> {
   try {
-    const cli = new CLI();
+    const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+    EnvFileLoader.ensureLoaded();
+
+    const { CLI } = await import('@cli/CLI');
+
+    const cli = CLI.create();
     await cli.run(process.argv.slice(2));
   } catch (error) {
-    Logger.error('CLI execution failed', error);
-    ErrorHandler.handle(error as Error);
+    try {
+      const { Logger } = await import('@config/logger');
+      Logger.error('CLI execution failed', error);
+    } catch {
+      // best-effort logging
+    }
+
+    try {
+      const { ErrorHandler } = await import('@cli/ErrorHandler');
+      ErrorHandler.handle(error as Error);
+    } catch {
+      // best-effort error handling
+    }
     process.exit(1);
   }
 }
 
-await main().catch((error) => {
-  Logger.error('CLI fatal error', error);
-  ErrorHandler.handle(error as Error);
+await main().catch(async (error) => {
+  try {
+    const { Logger } = await import('@config/logger');
+    Logger.error('CLI fatal error', error);
+  } catch {
+    // best-effort logging
+  }
+
+  try {
+    const { ErrorHandler } = await import('@cli/ErrorHandler');
+    ErrorHandler.handle(error as Error);
+  } catch {
+    // best-effort error handling
+  }
+
   process.exit(1);
 });
+export {};

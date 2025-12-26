@@ -3,13 +3,14 @@
  * Tests for ORM model generation
  */
 
+/* eslint-disable max-nested-callbacks */
 import {
   ModelGenerator,
   type ModelField,
   type ModelOptions,
 } from '@cli/scaffolding/ModelGenerator';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { fsPromises as fs } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('ModelGenerator Validation', () => {
@@ -132,9 +133,9 @@ describe('ModelGenerator Basic Generation Basic', () => {
     const modelFile = path.join(testModelsDir, 'User.ts');
     const content = await fs.readFile(modelFile, 'utf-8');
 
-    expect(content).toContain('class User extends Model');
-    expect(content).toContain("protected table = 'users'");
-    expect(content).toContain("protected fillable = ['name', 'email']");
+    expect(content).toContain('Object.freeze(');
+    expect(content).toContain('export const User');
+    expect(content).toContain('Model.define({');
   });
 });
 
@@ -170,7 +171,7 @@ describe('ModelGenerator Basic Generation Timestamps', () => {
     const modelFile = path.join(testModelsDir, 'User.ts');
     const content = await fs.readFile(modelFile, 'utf-8');
 
-    expect(content).toContain('protected timestamps = true');
+    expect(content).toContain('timestamps: true');
   });
 
   it('should generate model without timestamps', async () => {
@@ -187,7 +188,7 @@ describe('ModelGenerator Basic Generation Timestamps', () => {
     const modelFile = path.join(testModelsDir, 'Config.ts');
     const content = await fs.readFile(modelFile, 'utf-8');
 
-    expect(content).toContain('protected timestamps = false');
+    expect(content).toContain('timestamps: false');
   });
 });
 
@@ -250,8 +251,7 @@ describe('ModelGenerator Advanced Generation', () => {
     const content = await fs.readFile(modelFile, 'utf-8');
 
     expect(content).toContain('softDelete');
-    expect(content).toContain('active()');
-    expect(content).toContain('onlyTrashed()');
+    expect(content).toContain('deleted_at');
   });
 });
 
@@ -387,6 +387,6 @@ describe('ModelGenerator Edge Cases', () => {
     const content = await fs.readFile(modelFile, 'utf-8');
 
     // Should generate 'blog_posts' from BlogPost
-    expect(content).toContain("protected table = 'blog_posts'");
+    expect(content).toContain("table: 'blog_posts'");
   });
 });

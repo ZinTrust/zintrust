@@ -1,6 +1,6 @@
 {
-  "name": "zintrust",
-  "version": "0.1.0",
+  "name": "@zintrust/core",
+  "version": "0.1.1",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -11,20 +11,28 @@
     "url": "https://github.com/ZinTrust/ZinTrust/issues"
   },
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "bin": {
     "zintrust": "./bin/zintrust.ts",
     "zin": "./bin/zin.ts",
     "z": "./bin/z.ts",
     "zt": "./bin/zt.ts"
   },
+  "files": [
+    "bin",
+    "src",
+    "index.js",
+    "index.d.ts"
+  ],
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=9.0.0"
   },
   "scripts": {
-    "build": "tsc && tsc-alias",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
+    "pro:build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && npm run dbl && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -32,7 +40,8 @@
     "lint": "eslint .",
     "format": "prettier --write 'src/**/*.ts'",
     "dev": "tsx watch src/index.ts",
-    "deploy": "wrangler types && wrangler deploy",
+    "deploy": "cd docs-website && wrangler types && wrangler deploy --env ${WRANGLER_ENV:-production}",
+    "templates:sync": "tsx src/scripts/TemplateSync.ts",
     "git-reload": "git rm -r --cached .  && git add .",
     "start": "node dist/src/bootstrap.js",
     "type-check": "tsc --noEmit",
@@ -61,17 +70,20 @@
     "microservices:health": "tsx bin/zintrust-microservices.ts health",
     "docs:dev:vue": "cd docs-website/vue && npm run dev",
     "docs:dev": "node scripts/docs-website-dev.mjs --port 7030",
-    "docs:build:vue": "mkdir -p docs-website/vue/public && cp docs-website/zintrust.svg docs-website/vue/public/ && cp docs/*.md docs-website/vue/ && cd docs-website/vue && npm run build && mkdir -p ../public/doc && cp -R .vitepress/dist/* ../public/doc/",
-    "docs:build:portal": "mkdir -p docs-website/public && cp docs-website/index.html docs-website/public/ && cp docs-website/zintrust.svg docs-website/public/ && cp docs-website/_headers docs-website/public/ && cp -R docs-website/brand docs-website/public/ && cp docs-website/vue/.vitepress/dist/404.html docs-website/public/404.html",
+    "docs:build:vue": "mkdir -p docs-website/vue/public && cp docs-website/zintrust.svg docs-website/vue/public/ && cp docs/*.md docs-website/vue/ && cd docs-website/vue && npm run build && cp -R .vitepress/dist/* ../public/",
+    "docs:build:portal": "node scripts/docs-build-portal.mjs",
     "docs:build:all": "rm -rf docs-website/public && npm run docs:build:portal && npm run docs:build:vue",
     "docs:brand:png": "node scripts/convert-brand-svgs-to-png.mjs --input docs-website/brand --max 2048",
     "dbl": "npm run docs:build:all",
+    "zintrust:prepare": "tsx bin/zintrust.ts prepare",
     "ecommerce:up": "cd services/ecommerce && docker-compose up -d",
     "ecommerce:down": "cd services/ecommerce && docker-compose down",
     "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
     "cleanup:github-actions": "bash ./dev/cleanup-github-actions.sh",
     "prepare": "husky",
-    "check-up": "npx npm-check-updates"
+    "postinstall": "node -e \"process.exit(0)\"",
+    "check-up": "npx npm-check-updates",
+    "pub": "npm run pro:build && cd dist && npm publish"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -100,13 +112,20 @@
     "glob": "^11.1.0"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.5.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "inquirer": "^13.1.0",
+    "jsonwebtoken": "^9.0.3",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@codecov/vite-plugin": "^1.9.1",
     "@resvg/resvg-js": "^2.6.2",
+    "@types/bcrypt": "^6.0.0",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.3",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",

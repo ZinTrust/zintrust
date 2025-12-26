@@ -1,12 +1,18 @@
-import { Logger } from '@config/logger';
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock dependencies
-vi.mock('@config/logger');
-vi.mock('@http/Request');
-vi.mock('@http/Response');
+vi.mock('@config/logger', () => {
+  const Logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    scope: vi.fn(),
+  };
+  return { Logger };
+});
+
 vi.mock('@security/UrlValidator', () => ({
   validateUrl: vi.fn(),
 }));
@@ -14,464 +20,296 @@ vi.mock('@security/UrlValidator', () => ({
 import {
   HealthCheckAggregator,
   HealthCheckHandler,
-  HealthCheckResult,
   ServiceHealthMonitor,
+  type AggregatedHealthStatus,
+  type HealthCheckResult,
+  type IServiceHealthMonitor,
 } from '@/microservices/ServiceHealthMonitor';
 
-describe('ServiceHealthMonitor', () => {
-  beforeEach(() => {
+type ResState = { statusCode: number; jsonBody: unknown };
+
+function createFakeRes(options?: { throwFirstJson?: boolean }): {
+  res: IResponse;
+  state: ResState;
+} {
+  const state: ResState = { statusCode: 200, jsonBody: undefined };
+  let jsonCalls = 0;
+
+  const res = {
+    setStatus(code: number): IResponse {
+      state.statusCode = code;
+      return res as unknown as IResponse;
+    },
+    json(data: unknown): void {
+      jsonCalls += 1;
+      if (options?.throwFirstJson === true && jsonCalls === 1) {
+        throw new Error('json failed');
+      }
+      state.jsonBody = data;
+    },
+  } as unknown as IResponse;
+
+  return { res, state };
+}
+
+function createFakeReq(): IRequest {
+  return {} as unknown as IRequest;
+}
+
+const okJsonResponse = (ok: boolean): Response => {
+  return {
+    ok,
+    json: async () => ({ ok: true }),
+  } as unknown as Response;
+};
+
+const delay = async (ms: number): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+};
+
+const fetchOk = async (): Promise<Response> => okJsonResponse(true);
+const dbCheckFails = async (): Promise<boolean> => false;
+const dbCheckThrows = async (): Promise<boolean> => {
+  throw new Error('db down');
+};
+const delayedOkResponse = async (): Promise<Response> => {
+  await delay(1000);
+  return okJsonResponse(true);
+};
+
+const getUnhealthyStatus = (): AggregatedHealthStatus =>
+  ({
+    timestamp: 't',
+    totalServices: 1,
+    healthy: 0,
+    degraded: 0,
+    unhealthy: 1,
+    services: [],
+  }) satisfies AggregatedHealthStatus;
+
+const getDegradedStatus = (): AggregatedHealthStatus =>
+  ({
+    timestamp: 't',
+    totalServices: 2,
+    healthy: 1,
+    degraded: 1,
+    unhealthy: 0,
+    services: [],
+  }) satisfies AggregatedHealthStatus;
+
+const getHealthyStatus = (): AggregatedHealthStatus =>
+  ({
+    timestamp: 't',
+    totalServices: 1,
+    healthy: 1,
+    degraded: 0,
+    unhealthy: 0,
+    services: [],
+  }) satisfies AggregatedHealthStatus;
+
+describe('ServiceHealthMonitor', (): void => {
+  beforeEach((): void => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-01-01T00:00:00.000Z'));
+
+    // Default fetch mock (can be overridden in tests)
+    (globalThis as unknown as { fetch?: unknown }).fetch = vi.fn(fetchOk);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     vi.useRealTimers();
+    delete (globalThis as unknown as { fetch?: unknown }).fetch;
   });
 
-  describe('HealthCheckHandler', () => {
-    let handler: HealthCheckHandler;
-    let mockReq: Request;
-    let mockRes: Response;
+  describe('HealthCheckHandler', (): void => {
+    it('returns 200 for healthy service (no deps, no db check)', async (): Promise<void> => {
+      const handler = HealthCheckHandler.create('test-service', '1.0.0', 3000, 'localhost');
+      const { res, state } = createFakeRes();
 
-    beforeEach(() => {
-      handler = new HealthCheckHandler('test-service', '1.0.0', 3000, 'localhost');
-      mockReq = {} as Request;
-      mockRes = {
-        setStatus: vi.fn().mockReturnThis(),
-        json: vi.fn().mockReturnThis(),
-      } as any;
+      await handler.handle(createFakeReq(), res);
+
+      expect(state.statusCode).toBe(200);
+      const body = state.jsonBody as HealthCheckResult;
+      expect(body.service).toBe('test-service');
+      expect(body.status).toBe('healthy');
+      expect(body.checks.http).toBe(true);
     });
 
-    it('should return 200 status for healthy service', async () => {
-      await handler.handle(mockReq, mockRes);
+    it('returns 202 for degraded service when db fails and dependency is down', async (): Promise<void> => {
+      (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        okJsonResponse(false)
+      );
 
-      expect(mockRes.setStatus).toHaveBeenCalledWith(200);
-      expect(mockRes.json).toHaveBeenCalled();
+      const handler = HealthCheckHandler.create(
+        'test-service',
+        '1.0.0',
+        3000,
+        'localhost',
+        ['dep-a'],
+        dbCheckFails
+      );
+      const { res, state } = createFakeRes();
+
+      await handler.handle(createFakeReq(), res);
+
+      expect(state.statusCode).toBe(202);
+      const body = state.jsonBody as HealthCheckResult;
+      expect(body.status).toBe('degraded');
+      expect(body.checks.database).toBe(false);
+      expect(body.checks.dependencies?.['dep-a']).toBe(false);
+      expect(body.message).toBe('Database connection failed');
+      const { validateUrl } = await import('@security/UrlValidator');
+      expect(validateUrl).toHaveBeenCalled();
     });
 
-    it('should include service metadata in response', async () => {
-      await handler.handle(mockReq, mockRes);
-
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.service).toBe('test-service');
-      expect(call.version).toBe('1.0.0');
-      expect(call.port).toBe(3000);
-      expect(call.domain).toBe('localhost');
-    });
-
-    it('should set http check to true', async () => {
-      await handler.handle(mockReq, mockRes);
-
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.checks.http).toBe(true);
-    });
-
-    it('should include timestamp in response', async () => {
-      await handler.handle(mockReq, mockRes);
-
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.timestamp).toBeDefined();
-      expect(typeof call.timestamp).toBe('string');
-    });
-
-    it('should measure response time', async () => {
-      vi.advanceTimersByTime(100);
-      await handler.handle(mockReq, mockRes);
-
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.responseTime).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should handle database health check when provided', async () => {
-      const checkDb = vi.fn().mockResolvedValue(true);
-      const handlerWithDb = new HealthCheckHandler(
+    it('returns 503 for unhealthy service when db check throws', async (): Promise<void> => {
+      const handler = HealthCheckHandler.create(
         'test-service',
         '1.0.0',
         3000,
         'localhost',
         [],
-        checkDb
+        dbCheckThrows
       );
+      const { res, state } = createFakeRes();
 
-      await handlerWithDb.handle(mockReq, mockRes);
+      await handler.handle(createFakeReq(), res);
 
-      expect(checkDb).toHaveBeenCalled();
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.checks.database).toBe(true);
+      expect(state.statusCode).toBe(503);
+      const body = state.jsonBody as HealthCheckResult;
+      expect(body.status).toBe('unhealthy');
+      expect(body.checks.database).toBe(false);
+      expect(body.message).toBe('Database check error');
     });
 
-    it('should mark as degraded when database check fails', async () => {
-      const checkDb = vi.fn().mockResolvedValue(false);
-      const handlerWithDb = new HealthCheckHandler(
-        'test-service',
-        '1.0.0',
-        3000,
-        'localhost',
-        [],
-        checkDb
-      );
+    it('falls back to 503 unhealthy payload if response serialization throws', async (): Promise<void> => {
+      const handler = HealthCheckHandler.create('test-service', '1.0.0', 3000, 'localhost');
+      const { res, state } = createFakeRes({ throwFirstJson: true });
 
-      await handlerWithDb.handle(mockReq, mockRes);
+      await handler.handle(createFakeReq(), res);
 
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.status).toBe('degraded');
-      expect(call.message).toContain('Database');
-    });
-
-    it('should handle errors gracefully', async () => {
-      const checkDb = vi.fn().mockRejectedValue(new Error('DB connection error'));
-      const handlerWithDb = new HealthCheckHandler(
-        'test-service',
-        '1.0.0',
-        3000,
-        'localhost',
-        [],
-        checkDb
-      );
-
-      await handlerWithDb.handle(mockReq, mockRes);
-
-      expect(mockRes.setStatus).toHaveBeenCalledWith(503);
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.status).toBe('unhealthy');
-    });
-
-    it('should check dependencies when provided', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      const handler = new HealthCheckHandler('test-service', '1.0.0', 3000, 'localhost', [
-        'auth-service',
-        'db-service',
-      ]);
-
-      await handler.handle(mockReq, mockRes);
-
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as HealthCheckResult;
-      expect(call.checks.dependencies).toBeDefined();
-      expect(Object.keys(call.checks.dependencies!)).toContain('auth-service');
-    });
-
-    it('should return 202 for degraded service', async () => {
-      const checkDb = vi.fn().mockResolvedValue(false);
-      const handlerWithDb = new HealthCheckHandler(
-        'test-service',
-        '1.0.0',
-        3000,
-        'localhost',
-        [],
-        checkDb
-      );
-
-      await handlerWithDb.handle(mockReq, mockRes);
-
-      expect(mockRes.setStatus).toHaveBeenCalledWith(202);
-    });
-
-    it('should return 503 for unhealthy service', async () => {
-      const checkDb = vi.fn().mockRejectedValue(new Error('Failed'));
-      const handlerWithDb = new HealthCheckHandler(
-        'test-service',
-        '1.0.0',
-        3000,
-        'localhost',
-        [],
-        checkDb
-      );
-
-      await handlerWithDb.handle(mockReq, mockRes);
-
-      expect(mockRes.setStatus).toHaveBeenCalledWith(503);
+      expect(state.statusCode).toBe(503);
+      const body = state.jsonBody as HealthCheckResult;
+      expect(body.status).toBe('unhealthy');
+      expect(body.checks.http).toBe(false);
+      expect(typeof body.message).toBe('string');
     });
   });
 
-  describe('ServiceHealthMonitor', () => {
-    let monitor: ServiceHealthMonitor;
-    const healthCheckUrls = {
-      'service-1': 'http://localhost:3001/health',
-      'service-2': 'http://localhost:3002/health',
-    };
-
-    beforeEach(() => {
-      monitor = new ServiceHealthMonitor(healthCheckUrls);
-      globalThis.fetch = vi.fn();
-    });
-
-    it('should initialize with health check URLs', () => {
-      expect(monitor).toBeDefined();
-    });
-
-    it('should start monitoring', () => {
-      monitor.start();
-      expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('Starting'));
-      monitor.stop();
-    });
-
-    it('should stop monitoring', () => {
-      monitor.start();
-      monitor.stop();
-      expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('stopped'));
-    });
-
-    it('should not start if already started', () => {
-      monitor.start();
-      monitor.start();
-
-      // Should have one warning call but not another start message
-      expect(Logger.warn).toHaveBeenCalledWith(expect.stringContaining('already started'));
-
-      monitor.stop();
-    });
-
-    it('should check all services', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      const status = await monitor.checkAll();
-
-      expect(status.totalServices).toBe(2);
-      expect(status.services.length).toBe(2);
-    });
-
-    it('should mark service as healthy when fetch succeeds', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      const status = await monitor.checkAll();
-
-      expect(status.healthy).toBe(2);
-      expect(status.unhealthy).toBe(0);
-    });
-
-    it('should mark service as stopped when fetch fails', async () => {
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
-
-      const status = await monitor.checkAll();
-
-      // Verify we got a failure status for all services
-      expect(status.services.length).toBe(2);
-      expect(status.services[0].status).toBe('stopped');
-      expect(status.services[1].status).toBe('stopped');
-      expect(status.healthy).toBe(0);
-    });
-
-    it('should get last known status', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      await monitor.checkAll();
-      const lastStatus = monitor.getLastStatus();
-
-      expect(lastStatus.totalServices).toBe(2);
-      expect(lastStatus.healthy).toBe(2);
-    });
-
-    it('should get specific service status', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      await monitor.checkAll();
-      const serviceStatus = monitor.getServiceStatus('service-1');
-
-      expect(serviceStatus).toBeDefined();
-      expect(serviceStatus?.service).toBe('service-1');
-      expect(serviceStatus?.status).toBe('healthy');
-    });
-
-    it('should return undefined for unknown service', async () => {
-      const serviceStatus = monitor.getServiceStatus('unknown-service');
-      expect(serviceStatus).toBeUndefined();
-    });
-
-    it('should check if all services are healthy', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      await monitor.checkAll();
-      expect(monitor.areAllHealthy()).toBe(true);
-    });
-
-    it('should return false if any service is unhealthy', async () => {
-      globalThis.fetch = vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({}),
-        })
-        .mockRejectedValueOnce(new Error('Failed'));
-
-      await monitor.checkAll();
+  describe('ServiceHealthMonitor', (): void => {
+    it('areAllHealthy is false before any checks when services are configured', (): void => {
+      const monitor = ServiceHealthMonitor.create({ a: 'http://a/health' }, 1000); //NOSONAR
       expect(monitor.areAllHealthy()).toBe(false);
     });
 
-    it('should check if specific service is healthy', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
+    it('checkAll stores results and aggregates status', async (): Promise<void> => {
+      (globalThis.fetch as unknown as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(okJsonResponse(true))
+        .mockRejectedValueOnce(new Error('down'));
 
-      await monitor.checkAll();
-      expect(monitor.isServiceHealthy('service-1')).toBe(true);
-    });
-
-    it('should return false for unhealthy service check', async () => {
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Failed'));
-
-      await monitor.checkAll();
-      expect(monitor.isServiceHealthy('service-1')).toBe(false);
-    });
-
-    it('should log warning for unhealthy services', async () => {
-      const monitor2 = new ServiceHealthMonitor({
-        'service-1': 'http://localhost:3001/health',
-      });
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Failed'));
-
-      await monitor2.checkAll();
-
-      // Should log either warning or error when services fail
-      const logged =
-        vi.mocked(Logger.warn).mock.calls.length > 0 ||
-        vi.mocked(Logger.error).mock.calls.length > 0;
-      expect(logged).toBe(true);
-    });
-
-    it('should log info for all healthy services', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      await monitor.checkAll();
-
-      expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('healthy'));
-    });
-
-    it('should measure response time for each service', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      vi.advanceTimersByTime(100);
-      const status = await monitor.checkAll();
-
-      expect(status.services[0].responseTime).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should handle timeout for slow services', async () => {
-      // This test verifies that AbortSignal.timeout is used correctly
-      // In a real scenario with actual fetch, timeouts would work
-      // For mocking purposes, we just verify the basic behavior
-
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('AbortError'));
+      const monitor = ServiceHealthMonitor.create(
+        { a: 'http://a/health', b: 'http://b/health' }, //NOSONAR
+        1000
+      );
 
       const status = await monitor.checkAll();
-
-      // Services should be marked as stopped due to error
-      expect(status.healthy).toBe(0);
+      expect(status.totalServices).toBe(2);
+      expect(status.healthy).toBe(1);
+      expect(status.degraded).toBe(0);
+      expect(status.unhealthy).toBe(0);
+      expect(monitor.getServiceStatus('a')?.status).toBe('healthy');
+      expect(monitor.getServiceStatus('b')?.status).toBe('stopped');
+      expect(monitor.areAllHealthy()).toBe(false);
     });
 
-    it('should include service domain and port in results', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
+    it('start runs an initial check and schedules interval; start twice warns; stop clears', async (): Promise<void> => {
+      const monitor = ServiceHealthMonitor.create({ a: 'http://a/health' }, 1234); //NOSONAR
+      const checkAllSpy = vi.spyOn(monitor, 'checkAll');
+      const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+      const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
 
-      const status = await monitor.checkAll();
+      monitor.start();
+      expect(checkAllSpy).toHaveBeenCalledTimes(1);
+      expect(setIntervalSpy).toHaveBeenCalledTimes(1);
 
-      expect(status.services[0].domain).toBe('unknown');
-      expect(status.services[0].port).toBe(0);
+      monitor.start();
+      const { Logger } = await import('@config/logger');
+      expect(Logger.warn).toHaveBeenCalled();
+
+      monitor.stop();
+      expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+
+      monitor.stop();
+      expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+    });
+
+    it('does not overlap checks when a previous tick is still running', async (): Promise<void> => {
+      const monitor = ServiceHealthMonitor.create({ a: 'http://a/health' }, 100); //NOSONAR
+      const checkAllSpy = vi.spyOn(monitor, 'checkAll');
+
+      (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        delayedOkResponse
+      );
+
+      monitor.start();
+      expect(checkAllSpy).toHaveBeenCalledTimes(1);
+
+      // Advance time while the first check is still in flight
+      await vi.advanceTimersByTimeAsync(500);
+      expect(checkAllSpy).toHaveBeenCalledTimes(1);
+
+      // Complete the first check
+      await vi.advanceTimersByTimeAsync(600);
+
+      // Next interval tick should trigger another check
+      await vi.advanceTimersByTimeAsync(100);
+      expect(checkAllSpy).toHaveBeenCalledTimes(2);
+
+      monitor.stop();
     });
   });
 
-  describe('HealthCheckAggregator', () => {
-    let aggregator: HealthCheckAggregator;
-    let monitor: ServiceHealthMonitor;
-    let mockReq: Request;
-    let mockRes: Response;
+  describe('HealthCheckAggregator', (): void => {
+    it('returns 503 when any service is unhealthy', async (): Promise<void> => {
+      const monitor = {
+        getLastStatus: getUnhealthyStatus,
+      } as unknown as IServiceHealthMonitor;
 
-    beforeEach(() => {
-      monitor = new ServiceHealthMonitor({
-        'service-1': 'http://localhost:3001/health',
-      });
-      aggregator = new HealthCheckAggregator(monitor);
-      mockReq = {} as Request;
-      mockRes = {
-        setStatus: vi.fn().mockReturnThis(),
-        json: vi.fn().mockReturnThis(),
-      } as any;
+      const agg = HealthCheckAggregator.create(monitor);
+      const { res, state } = createFakeRes();
+
+      await agg.handle(createFakeReq(), res);
+      expect(state.statusCode).toBe(503);
     });
 
-    it('should return 200 when all services healthy', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
+    it('returns 202 when any service is degraded and none unhealthy', async (): Promise<void> => {
+      const monitor = {
+        getLastStatus: getDegradedStatus,
+      } as unknown as IServiceHealthMonitor;
 
-      await monitor.checkAll();
-      await aggregator.handle(mockReq, mockRes);
+      const agg = HealthCheckAggregator.create(monitor);
+      const { res, state } = createFakeRes();
 
-      expect(mockRes.setStatus).toHaveBeenCalledWith(200);
+      await agg.handle(createFakeReq(), res);
+      expect(state.statusCode).toBe(202);
     });
 
-    it('should return 202 when services degraded', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        json: vi.fn().mockResolvedValue({}),
-      });
+    it('returns 200 when all services are healthy', async (): Promise<void> => {
+      const monitor = {
+        getLastStatus: getHealthyStatus,
+      } as unknown as IServiceHealthMonitor;
 
-      await monitor.checkAll();
-      await aggregator.handle(mockReq, mockRes);
+      const agg = HealthCheckAggregator.create(monitor);
+      const { res, state } = createFakeRes();
 
-      // Since ok is false, it will be treated as unhealthy = 503
-      expect(mockRes.setStatus).toHaveBeenCalled();
-    });
-
-    it('should return 503 when services unhealthy', async () => {
-      const aggregator2 = new HealthCheckAggregator(monitor);
-      const mockRes2: Response = {
-        setStatus: vi.fn().mockReturnThis(),
-        json: vi.fn().mockReturnThis(),
-      } as any;
-
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('Failed'));
-
-      await monitor.checkAll();
-      await aggregator2.handle({} as Request, mockRes2);
-
-      // Should return an error status code (202 or 503)
-      const calls = vi.mocked(mockRes2.setStatus).mock.calls;
-      expect(calls.length).toBeGreaterThan(0);
-      const statusCode = calls[0][0];
-      expect([200, 202, 503]).toContain(statusCode);
-    });
-
-    it('should include status in response', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      await monitor.checkAll();
-      await aggregator.handle(mockReq, mockRes);
-
-      expect(mockRes.json).toHaveBeenCalled();
-      const call = vi.mocked(mockRes.json).mock.calls[0][0] as any;
-      expect(call.timestamp).toBeDefined();
-      expect(call.totalServices).toBeGreaterThanOrEqual(0);
+      await agg.handle(createFakeReq(), res);
+      expect(state.statusCode).toBe(200);
     });
   });
 });

@@ -30,7 +30,7 @@ This will create a new directory in `services/orders` with its own models, contr
 Zintrust provides a type-safe way to communicate between services using `ServiceRequestFactory`.
 
 ```typescript
-import { ServiceClient } from '@microservices/ServiceClient';
+import { ServiceClient } from '@zintrust/core';
 
 const userService = ServiceClient.for('user-service');
 const user = await userService.get('/users/1');
@@ -47,3 +47,7 @@ Zintrust automatically propagates an `x-trace-id` header across service boundari
 ## Monitoring
 
 Use the `zin debug` command to see a real-time dashboard of all running services, their health, and resource consumption.
+
+## Docker Integration
+
+Zintrust automatically generates Dockerfiles and Docker Compose configurations for your microservices. See the [Docker Integration Guide](microservices-docker.md) for more details.

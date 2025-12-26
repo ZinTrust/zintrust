@@ -1,12 +1,23 @@
-import { CLI } from '@cli/CLI';
-import { ErrorHandler } from '@cli/ErrorHandler';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ICLI } from '@cli/CLI';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+let CLI: typeof import('@cli/CLI').CLI;
+let ErrorHandler: typeof import('@cli/ErrorHandler').ErrorHandler;
+
+beforeAll(async () => {
+  // CLI imports config which requires JWT_SECRET
+  // CLI imports config which requires JWT_SECRET
+  process.env['JWT_SECRET'] ??= 'test-jwt-secret';
+
+  ({ CLI } = await import('@cli/CLI'));
+  ({ ErrorHandler } = await import('@cli/ErrorHandler'));
+});
 
 describe('CLI Help System', () => {
-  let cli: CLI;
+  let cli: ICLI;
 
   beforeEach(() => {
-    cli = new CLI();
+    cli = CLI.create();
   });
 
   it('should display help when no arguments provided', async () => {
@@ -21,32 +32,38 @@ describe('CLI Help System', () => {
 
   it('should register migrate command', () => {
     const program = cli.getProgram();
-    const commands = program.commands.map((cmd) => cmd.name());
+    const commands = program.commands.map((cmd: any) => cmd.name());
     expect(commands).toContain('migrate');
   });
 
   it('should register debug command', () => {
     const program = cli.getProgram();
-    const commands = program.commands.map((cmd) => cmd.name());
+    const commands = program.commands.map((cmd: any) => cmd.name());
     expect(commands).toContain('debug');
   });
 
   it('should register new command', () => {
     const program = cli.getProgram();
-    const commands = program.commands.map((cmd) => cmd.name());
+    const commands = program.commands.map((cmd: any) => cmd.name());
     expect(commands).toContain('new');
   });
 
   it('should register add command', () => {
     const program = cli.getProgram();
-    const commands = program.commands.map((cmd) => cmd.name());
+    const commands = program.commands.map((cmd: any) => cmd.name());
     expect(commands).toContain('add');
   });
 
   it('should register config command', () => {
     const program = cli.getProgram();
-    const commands = program.commands.map((cmd) => cmd.name());
+    const commands = program.commands.map((cmd: any) => cmd.name());
     expect(commands).toContain('config');
+  });
+
+  it('should register start command', () => {
+    const program = cli.getProgram();
+    const commands = program.commands.map((cmd: any) => cmd.name());
+    expect(commands).toContain('start');
   });
 });
 
@@ -84,18 +101,19 @@ describe('CLI Error Handling', () => {
 });
 
 describe('CLI Command Registration', () => {
-  let cli: CLI;
+  let cli: ICLI;
 
   beforeEach(() => {
-    cli = new CLI();
+    cli = CLI.create();
   });
 
   it('should have all commands registered', () => {
     const program = cli.getProgram();
-    const commands = program.commands.map((cmd) => cmd.name());
+    const commands = program.commands.map((cmd: any) => cmd.name());
 
     expect(commands).toContain('new');
     expect(commands).toContain('add');
+    expect(commands).toContain('start');
     expect(commands).toContain('migrate');
     expect(commands).toContain('debug');
     expect(commands).toContain('config');
@@ -104,7 +122,7 @@ describe('CLI Command Registration', () => {
 
   it('should have help descriptions', () => {
     const program = cli.getProgram();
-    const migrateCmd = program.commands.find((cmd) => cmd.name() === 'migrate');
+    const migrateCmd = program.commands.find((cmd: any) => cmd.name() === 'migrate');
 
     expect(migrateCmd).toBeDefined();
     expect(migrateCmd?.description()).toBe('Run database migrations');

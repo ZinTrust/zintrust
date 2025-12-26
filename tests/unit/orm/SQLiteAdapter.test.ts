@@ -7,7 +7,7 @@ describe('SQLiteAdapter', () => {
     driver: 'sqlite',
     database: ':memory:',
   };
-  const adapter = new SQLiteAdapter(config);
+  const adapter = SQLiteAdapter.create(config);
 
   it('should connect successfully', async () => {
     await adapter.connect();
@@ -23,15 +23,17 @@ describe('SQLiteAdapter', () => {
     await expect(adapter.query('SELECT 1', [])).rejects.toThrow('Database not connected');
   });
 
-  it('should return empty result for query (mock implementation)', async () => {
+  it('should return empty result for query', async () => {
     await adapter.connect();
+    await adapter.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)', []);
     const result = await adapter.query('SELECT * FROM users', []);
     expect(result.rows).toEqual([]);
     expect(result.rowCount).toBe(0);
   });
 
-  it('should return null for queryOne (mock implementation)', async () => {
+  it('should return null for queryOne', async () => {
     await adapter.connect();
+    await adapter.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)', []);
     const result = await adapter.queryOne('SELECT * FROM users LIMIT 1', []);
     expect(result).toBeNull();
   });
@@ -45,13 +47,13 @@ describe('SQLiteAdapter', () => {
   });
 
   it('should get parameter placeholder for index', () => {
-    const placeholder = (adapter as any).getParameterPlaceholder(1);
-    expect(placeholder).toBe('$1');
+    const placeholder = adapter.getPlaceholder(1);
+    expect(placeholder).toBe('?');
   });
 
   it('should get parameter placeholder for different indices', () => {
-    expect((adapter as any).getParameterPlaceholder(0)).toBe('$0');
-    expect((adapter as any).getParameterPlaceholder(5)).toBe('$5');
-    expect((adapter as any).getParameterPlaceholder(10)).toBe('$10');
+    expect(adapter.getPlaceholder(0)).toBe('?');
+    expect(adapter.getPlaceholder(5)).toBe('?');
+    expect(adapter.getPlaceholder(10)).toBe('?');
   });
 });

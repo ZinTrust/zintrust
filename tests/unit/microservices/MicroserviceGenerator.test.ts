@@ -1,6 +1,6 @@
 import { generate } from '@/microservices/MicroserviceGenerator';
 import { Logger } from '@config/logger';
-import fs from 'node:fs';
+import { default as fs } from '@node-singletons/fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs');
@@ -40,6 +40,10 @@ describe('MicroserviceGenerator', () => {
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       expect.stringContaining('package.json'),
+      expect.any(String)
+    );
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining('Dockerfile'),
       expect.any(String)
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(

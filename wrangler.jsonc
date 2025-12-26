@@ -1,33 +1,58 @@
 {
-  "name": "zintrust",
+  "name": "zintrust-api",
+  "main": "./src/functions/cloudflare.ts",
   "compatibility_date": "2025-04-21",
-  "assets": {
-    "directory": "./docs-website/public/",
-    "not_found_handling": "single-page-application",
-  },
-  "workers_dev": false,
-  "minify": true,
+  "workers_dev": true,
+  "minify": false,
   "observability": {
     "enabled": true,
     "head_sampling_rate": 0.1,
   },
-  "routes": [
-    {
-      "pattern": "zintrust.com",
-      "custom_domain": true,
+  // Note: Documentation is deployed separately via docs-website/wrangler.jsonc
+  // This Worker handles the API/application logic only
+  // Production routes (uncomment and adjust for production deployment)
+  // "routes": [
+  //   {
+  //     "pattern": "zintrust.com",
+  //     "custom_domain": true,
+  //   },
+  // ],
+  // Environment variable bindings (auto-injected from .env)
+  "vars": {},
+  // Uncomment to enable D1 database bindings
+  // "d1_databases": [
+  //   {
+  //     "binding": "DB",
+  //     "database_name": "zintrust_db",
+  //     "database_id": "your-d1-id-here",
+  //   },
+  // ],
+  // Uncomment to enable KV cache bindings
+  // "kv_namespaces": [
+  //   {
+  //     "binding": "CACHE",
+  //     "id": "your-kv-id-here",
+  //     "preview_id": "your-kv-preview-id-here",
+  //   },
+  // ],
+  // Local development settings
+  "env": {
+    "development": {
+      "vars": {
+        "ENVIRONMENT": "development",
+      },
     },
-  ],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "zintrust_db",
-      "database_id": "your-d1-id-here",
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production",
+      },
+      "routes": [
+        {
+          "pattern": "api.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+      "minify": true,
     },
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "CACHE",
-      "id": "your-kv-id-here",
-    },
-  ],
+  },
 }

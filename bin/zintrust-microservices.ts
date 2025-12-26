@@ -7,19 +7,36 @@
 
 import { Logger } from '@config/logger';
 import { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
-import { MicroserviceManager, ServiceDiscovery } from '@microservices/MicroserviceManager';
+import { MicroserviceManager } from '@microservices/MicroserviceManager';
 import { ServiceBundler } from '@microservices/ServiceBundler';
+import { readFileSync } from '@node-singletons/fs';
+import { dirname, join } from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 import { program } from 'commander';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+
+type CliOptions = Record<string, unknown>;
+
+const getStringOption = (options: CliOptions, key: string, fallback: string): string => {
+  const value = options[key];
+  return typeof value === 'string' && value.trim() !== '' ? value : fallback;
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Version
-const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf-8'));
-program.version(packageJson.version);
+const packageJsonUnknown: unknown = JSON.parse(
+  readFileSync(join(__dirname, '../package.json'), 'utf-8')
+);
+const packageVersion =
+  typeof packageJsonUnknown === 'object' &&
+  packageJsonUnknown !== null &&
+  'version' in packageJsonUnknown &&
+  typeof (packageJsonUnknown as { version: unknown }).version === 'string'
+    ? (packageJsonUnknown as { version: string }).version
+    : '0.0.0';
+
+program.version(packageVersion);
 
 /**
  * Generate microservices
@@ -29,19 +46,22 @@ program
   .description('Generate microservices scaffold')
   .option('--port <port>', 'Base port for services', '3001')
   .option('--version <version>', 'Service version', '1.0.0')
-  .action(async (domain: string, services: string, options: any) => {
+  .action(async (domain: string, services: string, options: CliOptions) => {
     try {
       const serviceList = services.split(',').map((s) => s.trim());
-      await MicroserviceGenerator.generate({
+      const portRaw = getStringOption(options, 'port', '3001');
+      const version = getStringOption(options, 'version', '1.0.0');
+
+      await MicroserviceGenerator.getInstance().generate({
         domain,
         services: serviceList,
-        basePort: Number.parseInt(options.port),
-        version: options.version,
+        basePort: Number.parseInt(portRaw, 10),
+        version,
       });
-      console.log('✅ Microservices generated successfully!');
+
+      Logger.info('Microservices generated successfully');
     } catch (error) {
       Logger.error('Error generating microservices:', error);
-      console.error('❌ Error:', (error as Error).message);
       process.exit(1);
     }
   });
@@ -54,18 +74,19 @@ program
   .description('Bundle microservices for deployment')
   .option('--output <dir>', 'Output directory', 'dist/services')
   .option('--target-size <mb>', 'Target bundle size in MB', '1')
-  .action(async (domain: string, services: string, options: any) => {
+  .action(async (domain: string, services: string, options: CliOptions) => {
     try {
       const serviceList = services.split(',').map((s) => s.trim());
-      const results = await ServiceBundler.bundleAll(domain, serviceList, options.output);
+      const outputDir = getStringOption(options, 'output', 'dist/services');
 
-      const allOptimized = results.every((r) => r.optimized);
-      if (!allOptimized) {
-        console.warn('\n⚠️  Some services exceed target size. Consider optimizing bundle.');
+      const results = await ServiceBundler.getInstance().bundleAll(domain, serviceList, outputDir);
+
+      const allOptimized = results.every((r: { optimized: boolean }) => r.optimized === true);
+      if (allOptimized === false) {
+        Logger.warn('Some services exceed target size. Consider optimizing bundle.');
       }
     } catch (error) {
       Logger.error('Error bundling microservices:', error);
-      console.error('❌ Error:', (error as Error).message);
       process.exit(1);
     }
   });
@@ -77,20 +98,22 @@ program
   .command('docker <domain> <services>')
   .description('Create Docker images for services')
   .option('--registry <url>', 'Docker registry URL', 'localhost:5000')
-  .action(async (domain: string, services: string, options: any) => {
+  .action(async (domain: string, services: string, options: CliOptions) => {
     try {
       const serviceList = services.split(',').map((s) => s.trim());
+      const registry = getStringOption(options, 'registry', 'localhost:5000');
 
-      for (const service of serviceList) {
-        await ServiceBundler.createServiceImage(service, domain, options.registry);
-      }
+      await Promise.all(
+        serviceList.map((service) =>
+          ServiceBundler.getInstance().createServiceImage(service, domain, registry)
+        )
+      );
 
-      console.log(
-        `\n✅ Docker images ready. Build with:\n  docker-compose -f services/${domain}/docker-compose.yml build`
+      Logger.info(
+        `Docker images ready. Build with:\n  docker-compose -f services/${domain}/docker-compose.yml build`
       );
     } catch (error) {
       Logger.error('Error creating Docker images:', error);
-      console.error('❌ Error:', (error as Error).message);
       process.exit(1);
     }
   });
@@ -103,34 +126,33 @@ program
   .description('Discover available microservices')
   .action(async () => {
     try {
-      const configs = await ServiceDiscovery.discoverServices();
+      const configs = await MicroserviceManager.discoverServices();
 
       if (configs.length === 0) {
-        console.log('No microservices found in services/ folder');
+        Logger.info('No microservices found in services/ folder');
         return;
       }
 
-      console.log(`\n📦 Found ${configs.length} microservice(s):\n`);
+      Logger.info(`Found ${configs.length} microservice(s):`);
 
       for (const config of configs) {
         const version =
           config.version !== undefined && config.version !== null && config.version !== ''
             ? config.version
             : '1.0.0';
-        console.log(`  • ${config.name} (${config.domain}) - v${version}`);
+
+        Logger.info(`  • ${config.name} (${config.domain}) - v${version}`);
+
         if (
           config.dependencies !== undefined &&
           config.dependencies !== null &&
           config.dependencies.length > 0
         ) {
-          console.log(`    Dependencies: ${config.dependencies.join(', ')}`);
+          Logger.info(`    Dependencies: ${config.dependencies.join(', ')}`);
         }
       }
-
-      console.log('');
     } catch (error) {
       Logger.error('Error discovering services:', error);
-      console.error('❌ Error:', (error as Error).message);
       process.exit(1);
     }
   });
@@ -146,11 +168,9 @@ program
       const manager = MicroserviceManager.getInstance();
       const summary = manager.getStatusSummary();
 
-      console.log('\n📊 Microservices Status\n');
-      console.log(JSON.stringify(summary, null, 2));
+      Logger.info(`Microservices Status:\n${JSON.stringify(summary, null, 2)}`);
     } catch (error) {
       Logger.error('Error getting microservices status:', error);
-      console.error('❌ Error: Microservices not initialized');
       process.exit(1);
     }
   });
@@ -166,14 +186,12 @@ program
       const manager = MicroserviceManager.getInstance();
       const results = await manager.healthCheckAll();
 
-      console.log('\n🏥 Health Check Results\n');
+      Logger.info('Health Check Results');
       for (const [service, healthy] of Object.entries(results)) {
-        const status = healthy ? '✅ Healthy' : '❌ Unhealthy';
-        console.log(`  ${service}: ${status}`);
+        Logger.info(`  ${service}: ${healthy ? 'Healthy' : 'Unhealthy'}`);
       }
     } catch (error) {
       Logger.error('Error performing health check:', error);
-      console.error('❌ Error: Microservices not initialized');
       process.exit(1);
     }
   });

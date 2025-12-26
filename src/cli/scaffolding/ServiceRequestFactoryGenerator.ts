@@ -4,8 +4,9 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface ServiceRequestField {
   name: string;
@@ -34,10 +35,6 @@ export interface ServiceRequestFactoryResult {
   factoryFile: string;
   message: string;
 }
-
-/**
- * ServiceRequestFactoryGenerator creates factories for inter-service requests
- */
 
 /**
  * Validate options
@@ -80,9 +77,9 @@ export function validateOptions(options: ServiceRequestOptions): {
 /**
  * Generate request factory file
  */
-export async function generateRequestFactory(
+export function generateRequestFactory(
   options: ServiceRequestOptions
-): Promise<ServiceRequestFactoryResult> {
+): ServiceRequestFactoryResult {
   const validation = validateOptions(options);
   if (!validation.valid) {
     return {
@@ -141,11 +138,11 @@ ${buildInterfaces(interfaceNameRequest, interfaceNameResponse, fields)}
 
 /**
  * ${factoryClassName} - Factory for generating test requests
- * Usage: ${factoryClassName}.make() or ${factoryClassName}.times(5).make()
+ * Usage: ${factoryClassName}.make() or ${factoryClassName}.new().count(5).makeMany()
  */
-export class ${factoryClassName} {
-  ${buildFactoryClassBody(options, factoryClassName, interfaceNameRequest, fakerMethods)}
-}
+export const ${factoryClassName} = {
+${buildFactoryObjectBody(options, interfaceNameRequest, fakerMethods)}
+};
 
 ${buildFactoryHelpers(options, factoryClassName, interfaceNameRequest)}
 `;
@@ -174,190 +171,154 @@ export interface ${response} {
 }
 
 /**
- * Build factory class body
+ * Build factory object body
  */
-function buildFactoryClassBody(
+function buildFactoryObjectBody(
   options: ServiceRequestOptions,
-  factoryClassName: string,
   interfaceNameRequest: string,
   fakerMethods: string
 ): string {
-  return `private _count: number = 1;
-  private _state: 'valid' | 'invalid' | 'minimal' = 'valid';
-  private _overrides: Partial<${interfaceNameRequest}> = {};
-
-${buildFactoryStaticMethods(factoryClassName, interfaceNameRequest)}
-
-${buildFactoryChainMethods(factoryClassName, interfaceNameRequest)}
-
-${buildFactoryGenerationMethods(interfaceNameRequest)}
-
-${buildFactoryStateMethods(options, interfaceNameRequest)}
-
-  /**
-   * Faker helper methods
-   */
-${fakerMethods}`;
-}
-
-/**
- * Build factory static methods
- */
-function buildFactoryStaticMethods(factoryClassName: string, interfaceNameRequest: string): string {
   return `  /**
-   * Create a new factory instance
-   */
-  static make(): ${interfaceNameRequest} {
-    return new ${factoryClassName}().make();
-  }
-
-  /**
-   * Create multiple instances
-   */
-  static times(count: number): ${factoryClassName} {
-    const factory = new ${factoryClassName}();
-    factory._count = count;
-    return factory;
-  }
-
-  /**
-   * Create factory with state
-   */
-  static state(state: 'valid' | 'invalid' | 'minimal'): ${factoryClassName} {
-    const factory = new ${factoryClassName}();
-    factory._state = state;
-    return factory;
-  }
-
-  /**
-   * Override specific fields
-   */
-  static with(overrides: Partial<${interfaceNameRequest}>): ${factoryClassName} {
-    const factory = new ${factoryClassName}();
-    factory._overrides = overrides;
-    return factory;
-  }
-`;
-}
-
-/**
- * Build factory chain methods
- */
-function buildFactoryChainMethods(factoryClassName: string, interfaceNameRequest: string): string {
-  return `  /**
-   * Set count and chain
-   */
-  count(count: number): ${factoryClassName} {
-    this._count = count;
-    return this;
-  }
-
-  /**
-   * Set state and chain
-   */
-  withState(state: 'valid' | 'invalid' | 'minimal'): ${factoryClassName} {
-    this._state = state;
-    return this;
-  }
-
-  /**
-   * Override fields and chain
-   */
-  withOverrides(overrides: Partial<${interfaceNameRequest}>): ${factoryClassName} {
-    this._overrides = overrides;
-    return this;
-  }
-`;
-}
-
-/**
- * Build factory generation methods
- */
-function buildFactoryGenerationMethods(interfaceNameRequest: string): string {
-  return `  /**
-   * Generate count instances
-   */
-  makeMany(): ${interfaceNameRequest}[] {
-    const items: ${interfaceNameRequest}[] = [];
-    for (let i = 0; i < this._count; i++) {
-      items.push(this.generateSingle());
-    }
-    return items;
-  }
-
-  /**
-   * Generate single instance
+   * Create a single instance immediately
    */
   make(): ${interfaceNameRequest} {
-    return this.generateSingle();
-  }
+    return this.new().make();
+  },
 
   /**
-   * Generate multiple and return first
+   * Create multiple instances immediately
    */
-  first(): ${interfaceNameRequest} {
-    return this.make();
-  }
+  times(count: number) {
+    return this.new().count(count);
+  },
 
   /**
-   * Generate multiple and return all
+   * Create a new factory instance for chaining
    */
-  get(): ${interfaceNameRequest}[] {
-    return this.makeMany();
-  }
+  new() {
+    let recordCount = 1;
+    let factoryState: 'valid' | 'invalid' | 'minimal' = 'valid';
+    let factoryOverrides: Partial<${interfaceNameRequest}> = {};
 
-  /**
-   * Generate single instance based on state
-   */
-  private generateSingle(): ${interfaceNameRequest} {
-    let data: ${interfaceNameRequest};
+    const factory = {
+${buildFactoryMethods(interfaceNameRequest, options, fakerMethods)}
+    };
 
-    switch (this._state) {
-      case 'invalid':
-        data = this.buildInvalidState();
-        break;
-      case 'minimal':
-        data = this.buildMinimalState();
-        break;
-      case 'valid':
-      default:
-        data = this.buildValidState();
-    }
-
-    // Apply overrides
-    return { ...data, ...this._overrides };
-  }
-`;
+    return factory;
+  }`;
 }
 
 /**
- * Build factory state methods
+ * Build core factory methods for chaining
  */
-function buildFactoryStateMethods(
+function buildCoreFactoryMethods(interfaceNameRequest: string): string {
+  return `      /**
+       * Set count and chain
+       */
+      count(count: number) {
+        recordCount = count;
+        return factory;
+      },
+
+      /**
+       * Set state and chain
+       */
+      withState(state: 'valid' | 'invalid' | 'minimal') {
+        factoryState = state;
+        return factory;
+      },
+
+      /**
+       * Override fields and chain
+       */
+      withOverrides(overrides: Partial<${interfaceNameRequest}>) {
+        factoryOverrides = overrides;
+        return factory;
+      },
+
+      /**
+       * Generate count instances
+       */
+      makeMany(): ${interfaceNameRequest}[] {
+        return Array.from({ length: recordCount }, () => factory.make());
+      },
+
+      /**
+       * Generate single instance
+       */
+      make(): ${interfaceNameRequest} {
+        let data: ${interfaceNameRequest};
+
+        switch (factoryState) {
+          case 'invalid':
+            data = factory.buildInvalidState();
+            break;
+          case 'minimal':
+            data = factory.buildMinimalState();
+            break;
+          case 'valid':
+          default:
+            data = factory.buildValidState();
+        }
+
+        // Apply overrides
+        return { ...data, ...factoryOverrides };
+      },
+
+      /**
+       * Alias for makeMany()
+       */
+      get(): ${interfaceNameRequest}[] {
+        return factory.makeMany();
+      },`;
+}
+
+/**
+ * Build state factory methods
+ */
+function buildStateFactoryMethods(
   options: ServiceRequestOptions,
   interfaceNameRequest: string
 ): string {
-  return `  /**
-   * Build valid request state
-   */
-  private buildValidState(): ${interfaceNameRequest} {
+  return `      /**
+       * Build valid request state
+       */
+      buildValidState(): ${interfaceNameRequest} {
 ${buildValidStateBody(options)}
-  }
+      },
 
-  /**
-   * Build invalid request state
-   */
-  private buildInvalidState(): ${interfaceNameRequest} {
+      /**
+       * Build invalid request state
+       */
+      buildInvalidState(): ${interfaceNameRequest} {
 ${buildInvalidStateBody(options)}
-  }
+      },
 
-  /**
-   * Build minimal request state (only required fields)
-   */
-  private buildMinimalState(): ${interfaceNameRequest} {
+      /**
+       * Build minimal request state (only required fields)
+       */
+      buildMinimalState(): ${interfaceNameRequest} {
 ${buildMinimalStateBody(options)}
-  }
-`;
+      },`;
+}
+
+/**
+ * Build factory methods for chaining
+ */
+function buildFactoryMethods(
+  interfaceNameRequest: string,
+  options: ServiceRequestOptions,
+  fakerMethods: string
+): string {
+  return `
+${buildCoreFactoryMethods(interfaceNameRequest)}
+
+${buildStateFactoryMethods(options, interfaceNameRequest)}
+
+      /**
+       * Faker helper methods
+       */
+${fakerMethods}`;
 }
 
 /**
@@ -371,7 +332,7 @@ function buildFactoryHelpers(
   return `/**
  * Request factory helpers
  */
-export const ${camelCase(options.name)}Factory = {
+export const ${CommonUtils.camelCase(options.name)}Factory = {
   /**
    * Create single request
    */
@@ -385,17 +346,17 @@ export const ${camelCase(options.name)}Factory = {
   /**
    * Create with invalid data for error testing
    */
-  invalid: () => ${factoryClassName}.state('invalid').make(),
+  invalid: () => ${factoryClassName}.new().withState('invalid').make(),
 
   /**
    * Create with minimal data
    */
-  minimal: () => ${factoryClassName}.state('minimal').make(),
+  minimal: () => ${factoryClassName}.new().withState('minimal').make(),
 
   /**
    * Create with custom overrides
    */
-  with: (overrides: Partial<${interfaceNameRequest}>) => ${factoryClassName}.with(overrides).make(),
+  with: (overrides: Partial<${interfaceNameRequest}>) => ${factoryClassName}.new().withOverrides(overrides).make(),
 };`;
 }
 
@@ -434,9 +395,9 @@ function buildFakerMethod(field: ServiceRequestField): string {
   const fakerCall = getFakerCall(field.type);
   const returnType = getReturnType(field.type);
 
-  return `private ${field.name}(): ${returnType} {
-    return ${fakerCall};
-  }`;
+  return `      ${field.name}(): ${returnType} {
+        return ${fakerCall};
+      },`;
 }
 
 /**
@@ -479,28 +440,28 @@ function getReturnType(type: string): string {
 function buildValidStateBody(options: ServiceRequestOptions): string {
   const requiredFields = options.fields
     .filter((f) => f.required === true)
-    .map((f) => `      ${f.name}: this.${f.name}(),`)
+    .map((f) => `        ${f.name}: factory.${f.name}(),`)
     .join('\n');
 
   const optionalFields = options.fields
     .filter((f) => f.required !== true)
-    .map((f) => `      ${f.name}: this.${f.name}(),`)
+    .map((f) => `        ${f.name}: factory.${f.name}(),`)
     .join('\n');
 
-  return `    return {
+  return `        return {
 ${requiredFields}
 ${optionalFields}
-    };`;
+        };`;
 }
 
 /**
  * Build invalid state body
  */
 function buildInvalidStateBody(_options: ServiceRequestOptions): string {
-  return `    return {
-      // Invalid/empty values for error testing
-      ${_options.fields[0].name}: null,
-    } as unknown as Record<string, unknown>;`;
+  return `        return {
+          // Invalid/empty values for error testing
+          ${_options.fields[0].name}: null,
+        } as unknown as Record<string, unknown> as ${_options.name};`;
 }
 
 /**
@@ -509,23 +470,16 @@ function buildInvalidStateBody(_options: ServiceRequestOptions): string {
 function buildMinimalStateBody(options: ServiceRequestOptions): string {
   const minimalFields = options.fields
     .filter((f) => f.required === true)
-    .map((f) => `      ${f.name}: this.${f.name}(),`)
+    .map((f) => `        ${f.name}: factory.${f.name}(),`)
     .join('\n');
 
-  return `    return {
-      // Only required fields
+  return `        return {
+          // Only required fields
 ${minimalFields}
-    };`;
+        };`;
 }
 
-/**
- * Convert to camelCase
- */
-function camelCase(str: string): string {
-  return str.charAt(0).toLowerCase() + str.slice(1);
-}
-
-export const ServiceRequestFactoryGenerator = {
+export const ServiceRequestFactoryGenerator = Object.freeze({
   validateOptions,
   generateRequestFactory,
-};
+});
