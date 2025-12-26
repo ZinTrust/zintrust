@@ -6,6 +6,7 @@
 import { SeederGenerator, SeederOptions } from '@cli/scaffolding/SeederGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+/* eslint-disable max-nested-callbacks */
 import { fileURLToPath } from '@node-singletons/url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 

@@ -69,7 +69,8 @@ export function getServicePath(projectRoot: string, options: ServiceOptions): st
 /**
  * Generate service structure
  */
-export async function scaffold(
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function scaffold(
   projectRoot: string,
   options: ServiceOptions
 ): Promise<ServiceScaffoldResult> {
@@ -77,47 +78,47 @@ export async function scaffold(
     // Validate options
     const validation = validateOptions(options);
     if (!validation.valid) {
-      return {
+      return Promise.resolve({
         success: false,
         serviceName: options.name,
         servicePath: '',
         filesCreated: [],
         message: `Validation failed: ${validation.errors.join(', ')}`,
-      };
+      });
     }
 
     const servicePath = getServicePath(projectRoot, options);
 
     // Check if service already exists
     if (FileGenerator.directoryExists(servicePath)) {
-      return {
+      return Promise.resolve({
         success: false,
         serviceName: options.name,
         servicePath,
         filesCreated: [],
         message: `Service '${options.name}' already exists at ${servicePath}`,
-      };
+      });
     }
 
     createServiceDirectories(servicePath);
     const filesCreated = createServiceFiles(servicePath, options);
 
-    return {
+    return Promise.resolve({
       success: true,
       serviceName: options.name,
       servicePath,
       filesCreated,
       message: `Service '${options.name}' scaffolded successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Service scaffolding failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       serviceName: options.name,
       servicePath: '',
       filesCreated: [],
       message: (error as Error).message,
-    };
+    });
   }
 }
 

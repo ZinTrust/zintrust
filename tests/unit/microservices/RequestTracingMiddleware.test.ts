@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { middleware, NextFunction } from '@/microservices/RequestTracingMiddleware';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

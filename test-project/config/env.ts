@@ -120,7 +120,7 @@ export const Env = Object.freeze({
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
 
   // Paths (safely constructed for Node.js environments)
-  NODE_BIN_DIR: (() => {
+  NODE_BIN_DIR: ((): string => {
     try {
       const proc = getProcessLike();
       if (proc?.execPath === null || proc?.execPath === undefined) return '';
@@ -130,7 +130,7 @@ export const Env = Object.freeze({
       return '';
     }
   })(),
-  SAFE_PATH: (() => {
+  SAFE_PATH: ((): string => {
     try {
       const proc = getProcessLike();
       if (proc?.execPath === null || proc?.execPath === undefined) return '';

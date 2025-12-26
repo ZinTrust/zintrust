@@ -1,3 +1,4 @@
+/* eslint-disable prefer-arrow-callback */
 import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 

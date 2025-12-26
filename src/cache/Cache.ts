@@ -58,7 +58,8 @@ function getDriverInstance(): CacheDriver {
  * Get an item from the cache
  */
 const get = async <T>(key: string): Promise<T | null> => {
-  return getDriverInstance().get<T>(key);
+  const value = await getDriverInstance().get<T>(key);
+  return value;
 };
 
 /**
@@ -86,7 +87,8 @@ const clear = async (): Promise<void> => {
  * Check if an item exists in the cache
  */
 const has = async (key: string): Promise<boolean> => {
-  return getDriverInstance().has(key);
+  const exists = await getDriverInstance().has(key);
+  return exists;
 };
 
 /**

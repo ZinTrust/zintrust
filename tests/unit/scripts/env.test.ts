@@ -1,5 +1,6 @@
-import { loadEnv, parseEnvLine, stripQuotes } from '@scripts/utils/env';
+/* eslint-disable max-nested-callbacks */
 import { fs } from '@node-singletons';
+import { loadEnv, parseEnvLine, stripQuotes } from '@scripts/utils/env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:fs');

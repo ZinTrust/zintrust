@@ -2,14 +2,14 @@
  * test-project - Zintrust Application Entry Point
  */
 
-import { Application, Server } from '@zintrust/core';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { Application, Server } from '@zintrust/core';
 
 /**
  * Start the application
  */
-async function start() {
+async function start(): Promise<void> {
   try {
     // Create application instance
     const app = Application.create();

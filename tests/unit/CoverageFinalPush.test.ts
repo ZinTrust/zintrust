@@ -3,6 +3,7 @@
  * Target: Low-coverage files under 75%
  */
 
+/* eslint-disable max-nested-callbacks */
 import { describe, expect, it, vi } from 'vitest';
 
 describe('Coverage Final Push - Low Coverage Files', () => {

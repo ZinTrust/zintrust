@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { Env } from '@/config/env';
 import { Logger } from '@/config/logger';
 import {

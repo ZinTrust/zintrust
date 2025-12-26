@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { Database, IDatabase, resetDatabase, useDatabase } from '@orm/Database';
@@ -163,7 +164,7 @@ describe('Database', () => {
     const mockReadQuery2 = vi.fn().mockResolvedValue({ rows: [] });
 
     // Mock SQLiteAdapter to return different instances based on config
-    (SQLiteAdapter.create as any).mockImplementation(function (config: any) {
+    (SQLiteAdapter.create as any).mockImplementation((config: any) => {
       if (config.host === 'read1') {
         return {
           connect: vi.fn(),

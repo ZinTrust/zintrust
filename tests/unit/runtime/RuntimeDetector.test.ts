@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { ApplicationBootstrap, RuntimeDetector } from '@/runtime/RuntimeDetector';
 import { Env } from '@config/env';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';

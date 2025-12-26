@@ -65,7 +65,8 @@ export function validateOptions(options: ServiceIntegrationTestOptions): {
 /**
  * Generate service integration tests
  */
-export async function generateIntegrationTest(
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateIntegrationTest(
   options: ServiceIntegrationTestOptions
 ): Promise<ServiceIntegrationTestResult> {
   try {
@@ -77,18 +78,18 @@ export async function generateIntegrationTest(
 
     Logger.info(`✅ Created service integration test: ${fileName}`);
 
-    return {
+    return Promise.resolve({
       success: true,
       testFile: filePath,
       message: `Service integration test '${options.name}' created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Service integration test generation failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       testFile: '',
       message: (error as Error).message,
-    };
+    });
   }
 }
 

@@ -63,15 +63,16 @@ export function validateOptions(options: RouteOptions): { valid: boolean; errors
 /**
  * Generate route file
  */
-export async function generateRoutes(options: RouteOptions): Promise<RouteGeneratorResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateRoutes(options: RouteOptions): Promise<RouteGeneratorResult> {
   const validation = validateOptions(options);
   if (!validation.valid) {
-    return {
+    return Promise.resolve({
       success: false,
       routeFile: '',
       routeCount: 0,
       message: `Validation failed: ${validation.errors.join(', ')}`,
-    };
+    });
   }
 
   try {
@@ -81,30 +82,30 @@ export async function generateRoutes(options: RouteOptions): Promise<RouteGenera
 
     const created = FileGenerator.writeFile(routeFile, routeContent);
     if (!created) {
-      return {
+      return Promise.resolve({
         success: false,
         routeFile,
         routeCount: 0,
         message: `Failed to create route file`,
-      };
+      });
     }
 
     Logger.info(`✅ Generated routes: ${routeFile} (${options.routes.length} routes)`);
 
-    return {
+    return Promise.resolve({
       success: true,
       routeFile,
       routeCount: options.routes.length,
       message: `Routes created successfully`,
-    };
+    });
   } catch (error) {
     Logger.error('Route generation failed', error);
-    return {
+    return Promise.resolve({
       success: false,
       routeFile: '',
       routeCount: 0,
       message: `Error: ${(error as Error).message}`,
-    };
+    });
   }
 }
 

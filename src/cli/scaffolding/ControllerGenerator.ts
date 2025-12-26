@@ -78,7 +78,8 @@ export function validateOptions(options: ControllerOptions): { valid: boolean; e
 /**
  * Generate controller file
  */
-export async function generateController(options: ControllerOptions): Promise<ControllerGeneratorResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateController(options: ControllerOptions): Promise<ControllerGeneratorResult> {
   const validation = validateOptions(options);
   if (validation.valid === false) {
     return Promise.resolve({

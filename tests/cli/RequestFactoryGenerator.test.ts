@@ -6,6 +6,7 @@
 import {
   RequestFactoryGenerator,
   RequestFactoryOptions,
+  /* eslint-disable max-nested-callbacks */
   RequestField,
 } from '@cli/scaffolding/RequestFactoryGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';

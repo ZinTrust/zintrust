@@ -89,7 +89,8 @@ export function validateOptions(options: ModelOptions): { valid: boolean; errors
 /**
  * Generate model file
  */
-export async function generateModel(options: ModelOptions): Promise<ModelGeneratorResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateModel(options: ModelOptions): Promise<ModelGeneratorResult> {
   const validation = validateOptions(options);
   if (validation.valid === false) {
     return Promise.resolve({

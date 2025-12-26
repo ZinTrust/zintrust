@@ -40,7 +40,7 @@ export interface RuntimeAdapter {
    * Handle platform-specific request event
    * Convert to standard HTTP format, process, and normalize response
    */
-  handle(event: unknown, context?: unknown): PlatformResponse;
+  handle(event: unknown, context?: unknown): Promise<PlatformResponse>;
 
   /**
    * Convert platform event to standard PlatformRequest

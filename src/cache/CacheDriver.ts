@@ -7,27 +7,27 @@ export interface CacheDriver {
   /**
    * Get an item from the cache
    */
-  get<T>(key: string): T | null;
+  get<T>(key: string): Promise<T | null>;
 
   /**
    * Store an item in the cache
    */
-  set<T>(key: string, value: T, ttl?: number): void;
+  set<T>(key: string, value: T, ttl?: number): Promise<void>;
 
   /**
    * Remove an item from the cache
    */
-  delete(key: string): void;
+  delete(key: string): Promise<void>;
 
   /**
    * Clear all items from the cache
    */
-  clear(): void;
+  clear(): Promise<void>;
 
   /**
    * Check if an item exists in the cache
    */
-  has(key: string): boolean;
+  has(key: string): Promise<boolean>;
 }
 
 // Runtime marker to make this type-only module coverable in V8 coverage.

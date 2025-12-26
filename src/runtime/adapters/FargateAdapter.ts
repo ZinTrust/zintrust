@@ -48,7 +48,7 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
   return {
     platform: 'fargate',
 
-    async handle(): Promise<PlatformResponse> {
+    async handle(_event: unknown, _context?: unknown): Promise<PlatformResponse> {
       // Fargate adapter doesn't handle individual requests
       // Instead, use startServer() to run continuous HTTP server
       return Promise.reject(
@@ -58,11 +58,11 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
       );
     },
 
-    parseRequest(): PlatformRequest {
+    parseRequest(_event: unknown): PlatformRequest {
       throw ErrorFactory.createConfigError('Fargate adapter uses native Node.js HTTP server');
     },
 
-    formatResponse(): unknown {
+    formatResponse(_response: PlatformResponse): unknown {
       throw ErrorFactory.createConfigError('Fargate adapter uses native Node.js HTTP server');
     },
 

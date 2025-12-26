@@ -50,7 +50,8 @@ export function validateOptions(options: MigrationOptions): { valid: boolean; er
 /**
  * Generate migration file
  */
-export async function generateMigration(options: MigrationOptions): Promise<MigrationScaffoldResult> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+export function generateMigration(options: MigrationOptions): Promise<MigrationScaffoldResult> {
   try {
     // Validate options
     const validation = validateOptions(options);

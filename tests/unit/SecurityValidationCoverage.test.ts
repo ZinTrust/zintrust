@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakerPass = 'pass123';
 describe('Security and Validation Module Coverage', () => {
+  /* eslint-disable max-nested-callbacks */
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -100,7 +100,7 @@ describe('functions/lambda', () => {
   it('returns 500 response on lambda error', async () => {
     mockHandle.mockRejectedValueOnce(new Error('boom'));
 
-    const mod = await import('../../../src/functions/lambda' + '?v=error');
+    const mod = await import('@functions/lambda' + '?v=error');
     const handler = mod.handler;
 
     const event = { path: '/hello', httpMethod: 'GET' };

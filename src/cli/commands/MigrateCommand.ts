@@ -23,7 +23,7 @@ export const MigrateCommand = Object.freeze({
         .option('--step <number>', 'Number of batches to rollback', '0');
     };
 
-    const execute = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
+    const execute = (options: CommandOptions, cmd: IBaseCommand): void => {
       cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
 
       try {
@@ -43,11 +43,8 @@ export const MigrateCommand = Object.freeze({
           cmd.info('Running pending migrations...');
           cmd.success('Migrations completed successfully');
         }
-        return Promise.resolve();
       } catch (error) {
-        return Promise.reject(
-          ErrorFactory.createTryCatchError(`Migration failed: ${(error as Error).message}`, error)
-        );
+        ErrorFactory.createTryCatchError(`Migration failed: ${(error as Error).message}`, error);
       }
     };
 
@@ -55,7 +52,7 @@ export const MigrateCommand = Object.freeze({
       name: 'migrate',
       description: 'Run database migrations',
       addOptions,
-      execute: async (options: CommandOptions): Promise<void> => execute(options, cmd),
+      execute: (options: CommandOptions): void => execute(options, cmd),
     });
 
     return cmd;

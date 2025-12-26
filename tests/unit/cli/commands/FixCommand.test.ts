@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let appConfig: typeof import('@config/app').appConfig;

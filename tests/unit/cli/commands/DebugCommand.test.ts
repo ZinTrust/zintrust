@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@cli/debug/Dashboard');

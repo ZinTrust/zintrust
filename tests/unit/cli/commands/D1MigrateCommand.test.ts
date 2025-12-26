@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { appConfig } from '@config/app';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

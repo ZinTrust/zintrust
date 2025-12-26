@@ -1,3 +1,4 @@
+/* eslint-disable prefer-arrow-callback */
 import { Model } from '@orm/Model';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

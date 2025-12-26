@@ -3,6 +3,7 @@
  * Import and directly test actual source code modules
  */
 
+/* eslint-disable max-nested-callbacks */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Import actual source modules

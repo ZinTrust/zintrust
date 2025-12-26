@@ -56,7 +56,8 @@ interface BootstrapState {
 /**
  * Discover services from filesystem
  */
-async function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig[]> {
+// eslint-disable-next-line @typescript-eslint/promise-function-async
+function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig[]> {
   if (!isMicroservicesEnabled()) {
     return Promise.resolve([]);
   }

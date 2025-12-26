@@ -14,7 +14,8 @@ const create = (): CacheDriver => {
   const storage = new Map<string, { value: unknown; expires: number | null }>();
 
   return {
-    get<T>(key: string): T | null {
+    async get<T>(key: string): Promise<T | null> {
+      await Promise.resolve();
       const item = storage.get(key);
       if (item === undefined) return null;
 
@@ -26,20 +27,24 @@ const create = (): CacheDriver => {
       return item.value as T;
     },
 
-    set<T>(key: string, value: T, ttl?: number): void {
+    async set<T>(key: string, value: T, ttl?: number): Promise<void> {
       const expires = ttl === undefined ? null : Date.now() + ttl * 1000;
       storage.set(key, { value, expires });
+      await Promise.resolve();
     },
 
-    delete(key: string): void {
+    async delete(key: string): Promise<void> {
       storage.delete(key);
+      await Promise.resolve();
     },
 
-    clear(): void {
+    async clear(): Promise<void> {
       storage.clear();
+      await Promise.resolve();
     },
 
-    has(key: string): boolean {
+    async has(key: string): Promise<boolean> {
+      await Promise.resolve();
       const item = storage.get(key);
       if (item === undefined) return false;
 

@@ -4,6 +4,8 @@
  * Mocks Cloudflare Workers D1 environment
  */
 
+/* eslint-disable max-nested-callbacks */
+
 import { FeatureFlags } from '@config/features';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { IDatabaseAdapter } from '@orm/DatabaseAdapter';

@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import { BaseAdapter } from '@/orm/DatabaseAdapter';
 import { describe, expect, it } from 'vitest';
 

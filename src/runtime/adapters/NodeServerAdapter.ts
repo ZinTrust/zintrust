@@ -28,9 +28,11 @@ export const NodeServerAdapter = Object.freeze({
     return {
       platform: 'nodejs',
 
-      handle(): PlatformResponse {
-        throw ErrorFactory.createConfigError(
-          'Node.js adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
+      async handle(_event: unknown, _context?: unknown): Promise<PlatformResponse> {
+        return Promise.reject(
+          ErrorFactory.createConfigError(
+            'Node.js adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
+          )
         );
       },
 
@@ -48,11 +50,11 @@ export const NodeServerAdapter = Object.freeze({
         return stopNodeServer(state, logger);
       },
 
-      parseRequest(): PlatformRequest {
+      parseRequest(_event: unknown): PlatformRequest {
         throw ErrorFactory.createConfigError('Node.js adapter uses native Node.js HTTP');
       },
 
-      formatResponse(): unknown {
+      formatResponse(_response: PlatformResponse): unknown {
         throw ErrorFactory.createConfigError('Node.js adapter uses native Node.js HTTP');
       },
 
