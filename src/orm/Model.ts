@@ -307,7 +307,7 @@ export function define(
   const attach = (model: IModel): IModel & BoundModelMethods => {
     const methods = isPlan
       ? (methodsOrPlan as (m: IModel) => BoundModelMethods)(model)
-      : bindUnboundMethods(model, (methodsOrPlan as UnboundModelMethods | undefined) ?? {});
+      : bindUnboundMethods(model, methodsOrPlan ?? {});
     return extendModel(model, methods);
   };
 

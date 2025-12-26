@@ -1,0 +1,17 @@
+{
+  "name": "basic",
+  "description": "Basic Zintrust project structure",
+  "directories": [
+    "app/Controllers",
+    "app/Middleware",
+    "app/Models",
+    "config",
+    "database/migrations",
+    "database/seeders",
+    "public",
+    "routes",
+    "src",
+    "tests/unit",
+    "tests/integration"
+  ]
+}

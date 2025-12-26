@@ -372,6 +372,8 @@ describe('ProjectScaffolder Configuration', () => {
     const env = FileGenerator.readFile(envPath);
     expect(env).toContain('APP_NAME=my-app');
     expect(env).toContain('APP_PORT=3001');
+    expect(env).toContain('APP_KEY=');
+    expect(env).not.toContain('base64:');
   });
 });
 

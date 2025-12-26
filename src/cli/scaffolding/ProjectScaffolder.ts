@@ -4,9 +4,9 @@
  */
 
 import { Logger } from '@config/logger';
-import * as crypto from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -131,21 +131,21 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     }
 
     const fullPath = path.join(projectPath, '.env');
+    // If the template already produced an .env, do not overwrite it here.
+    if (fs.existsSync(fullPath)) {
+      return true;
+    }
     const name = String(variables['projectName'] ?? 'zintrust-app');
     const port = Number(variables['port'] ?? 3000);
     const database = String(variables['database'] ?? 'sqlite');
-
-    const appKey = (() => {
-      const raw = crypto.randomBytes(32).toString('base64');
-      return `base64:${raw}`;
-    })();
 
     const baseLines: string[] = [
       'NODE_ENV=development',
       `APP_NAME=${name}`,
       `APP_PORT=${port}`,
       'APP_DEBUG=true',
-      `APP_KEY=${appKey}`,
+      // Placeholders only (no generated secrets during scaffold)
+      'APP_KEY=',
       `DB_CONNECTION=${database}`,
     ];
 
@@ -199,6 +199,104 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
   }
 };
 
+type TemplateJson = {
+  name?: unknown;
+  description?: unknown;
+  directories?: unknown;
+};
+
+const getProjectTemplatesRoot = (): string => {
+  const thisFile = fileURLToPath(import.meta.url);
+  const thisDir = path.dirname(thisFile);
+  // src/cli/scaffolding/ -> src/templates/project/
+  return path.resolve(thisDir, '..', '..', 'templates', 'project');
+};
+
+const listTemplateFilesRecursive = (dirPath: string): string[] => {
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const full = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listTemplateFilesRecursive(full));
+      continue;
+    }
+    if (entry.isFile()) {
+      files.push(full);
+    }
+  }
+
+  return files;
+};
+
+const coerceStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string') out.push(item);
+  }
+  return out;
+};
+
+const readTemplateJson = (templateJsonPath: string): TemplateJson => {
+  try {
+    return JSON.parse(fs.readFileSync(templateJsonPath, 'utf8')) as TemplateJson;
+  } catch {
+    return {};
+  }
+};
+
+const resolveTemplateMetadata = (
+  templateName: string,
+  meta: TemplateJson,
+  fallback?: ProjectTemplate
+): Pick<ProjectTemplate, 'name' | 'description' | 'directories'> => {
+  const name = typeof meta.name === 'string' ? meta.name : (fallback?.name ?? templateName);
+  const description =
+    typeof meta.description === 'string' ? meta.description : (fallback?.description ?? '');
+  const directories = Array.isArray(meta.directories)
+    ? coerceStringArray(meta.directories)
+    : (fallback?.directories ?? []);
+
+  return { name, description, directories };
+};
+
+const loadTemplateFiles = (templateDir: string): Record<string, string> => {
+  const files: Record<string, string> = {};
+  const allFiles = listTemplateFilesRecursive(templateDir);
+
+  for (const absPath of allFiles) {
+    const rel = path.relative(templateDir, absPath);
+    if (rel === 'template.json') continue;
+
+    const content = fs.readFileSync(absPath, 'utf8');
+    const outputRel = rel.endsWith('.tpl') ? rel.slice(0, -'.tpl'.length) : rel;
+    files[outputRel] = content;
+  }
+
+  return files;
+};
+
+const loadTemplateFromDisk = (
+  templateName: string,
+  fallback?: ProjectTemplate
+): ProjectTemplate | undefined => {
+  const root = getProjectTemplatesRoot();
+  const templateDir = path.join(root, templateName);
+  const templateJsonPath = path.join(templateDir, 'template.json');
+
+  if (!fs.existsSync(templateDir) || !fs.existsSync(templateJsonPath)) {
+    return undefined;
+  }
+
+  const meta = readTemplateJson(templateJsonPath);
+  const resolved = resolveTemplateMetadata(templateName, meta, fallback);
+  const files = loadTemplateFiles(templateDir);
+
+  return { ...resolved, files };
+};
+
 /**
  * Project Scaffolder Factory
  */
@@ -218,189 +316,7 @@ const BASIC_TEMPLATE: ProjectTemplate = {
     'tests/unit',
     'tests/integration',
   ],
-  files: {
-    'package.json': `{
-  "name": "{{projectName}}",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "zin s",
-    "build": "tsc && tsc-alias",
-    "start": "zin s --mode production --no-watch",
-    "test": "vitest run",
-    "type-check": "tsc --noEmit"
-  },
-  "dependencies": {
-    "zintrust": "^0.1.0"
-  },
-  "devDependencies": {
-    "tsx": "^4.21.0",
-    "tsc-alias": "^1.8.16",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.16"
-  }
-}
-`,
-    'tsconfig.json': `{
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": "./",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "target": "ES2022",
-    "strict": true,
-    "skipLibCheck": true,
-    "paths": {
-      "@app/*": ["./app/*"],
-      "@routes/*": ["./routes/*"]
-    }
-  },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-`,
-    '.env.example': `NODE_ENV=development
-APP_NAME={{projectName}}
-APP_PORT={{port}}
-APP_DEBUG=true
-APP_KEY=
-
-DB_CONNECTION=sqlite
-DB_DATABASE=./database.sqlite
-
-LOG_LEVEL=debug
-LOG_CHANNEL=file
-
-JWT_SECRET=
-JWT_EXPIRES_IN=1h
-
-CACHE_DRIVER=memory
-CACHE_TTL=300
-QUEUE_DRIVER=sync
-
-MAIL_DRIVER=smtp
-MAIL_HOST=
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM_ADDRESS=
-MAIL_FROM_NAME=
-`,
-    'src/index.ts': `import { Application, Server } from 'zintrust';
-
-const app = Application.create();
-await app.boot();
-
-const server = Server.create(app);
-await server.listen();
-`,
-    'routes/api.ts': `import { Controller, Router } from 'zintrust';
-
-import type { IRequest } from '@http/Request';
-import type { IResponse } from '@http/Response';
-import type { IRouter } from '@routing/Router';
-
-import { TaskController } from '@app/Controllers/TaskController';
-
-export function registerRoutes(router: IRouter): void {
-  Router.get(router, '/health', async (_req: IRequest, res: IResponse): Promise<void> => {
-    Controller.json(res, {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  Router.get(router, '/api/tasks', TaskController.index);
-  Router.post(router, '/api/tasks', TaskController.store);
-}
-`,
-    'app/Controllers/TaskController.ts': `import { Controller } from 'zintrust';
-
-import type { IRequest } from '@http/Request';
-import type { IResponse } from '@http/Response';
-
-import { Task } from '@app/Models/Task';
-
-type TaskControllerHandlers = {
-  index: (_req: IRequest, res: IResponse) => Promise<void>;
-  store: (req: IRequest, res: IResponse) => Promise<void>;
-};
-
-export const TaskController: TaskControllerHandlers = {
-  async index(_req: IRequest, res: IResponse): Promise<void> {
-    const t1 = Task.create({ title: 'First task', completed: false }).setAttribute('id', 1);
-    const t2 = Task.create({ title: 'Second task', completed: true }).setAttribute('id', 2);
-
-    Controller.json(res, {
-      data: [t1.toJSON(), t2.toJSON()],
-    });
-  },
-
-  async store(req: IRequest, res: IResponse): Promise<void> {
-    const body = req.getBody() as Record<string, unknown>;
-    const task = Task.create(body).setAttribute('id', 3);
-
-    Controller.json(
-      res,
-      {
-        data: task.toJSON(),
-      },
-      201
-    );
-  },
-};
-`,
-    'app/Models/Task.ts': `import { Model } from 'zintrust';
-
-const TaskConfig = {
-  table: 'tasks',
-  // Safe default: explicit allow-list for mass-assignment (create/fill)
-  fillable: ['title', 'completed'],
-  hidden: [],
-  // Safe default for fresh scaffolds: off unless your migration creates timestamps
-  timestamps: false,
-  casts: {
-    id: 'integer',
-    completed: 'boolean',
-  },
-};
-
-export const Task = Model.define(TaskConfig, (task) => ({
-  getTitle: (): string => String(task.getAttribute('title') ?? ''),
-  setTitle: (title: string) => task.setAttribute('title', title),
-  isCompleted: (): boolean => task.getAttribute('completed') === true,
-  markCompleted: () => task.setAttribute('completed', true),
-}));
-`,
-    'database/migrations/{{migrationTimestamp}}_create_tasks_table.ts': `/**
- * Migration: CreateTasksTable
- * Creates tasks table
- */
-
-export interface Migration {
-  up(): Promise<void>;
-  down(): Promise<void>;
-}
-
-export const migration: Migration = {
-  async up(): Promise<void> {
-    // Create table
-    // await db.schema.createTable('tasks', (table) => {
-    //   table.increments('id').primary();
-    //   table.string('title').notNullable();
-    //   table.boolean('completed').defaultTo(false);
-    //   table.timestamps();
-    // });
-  },
-
-  async down(): Promise<void> {
-    // Drop table
-    // await db.schema.dropTable('tasks');
-  },
-};
-`,
-  },
+  files: {},
 };
 
 const API_TEMPLATE: ProjectTemplate = {
@@ -456,7 +372,11 @@ export function getAvailableTemplates(): string[] {
 }
 
 export function getTemplate(name: string): ProjectTemplate | undefined {
-  return TEMPLATE_MAP.get(name);
+  const fallback = TEMPLATE_MAP.get(name);
+  if (!fallback) return undefined;
+
+  const disk = loadTemplateFromDisk(name, fallback);
+  return disk ?? fallback;
 }
 
 export function validateOptions(options: ProjectScaffoldOptions): {
@@ -519,9 +439,15 @@ const createFilesForState = (state: ScaffolderState): number => {
   const template = resolveTemplate(state.templateName);
   const variables = state.variables;
 
-  const files: Record<string, string> = {
-    ...template?.files,
-    '.gitignore': `node_modules/
+  const templateFiles = template?.files;
+  const files: Record<string, string> =
+    templateFiles !== undefined && Object.keys(templateFiles).length > 0
+      ? { ...templateFiles }
+      : {};
+
+  // Backward-compatible defaults for templates that don't ship these files yet.
+  if (!Object.prototype.hasOwnProperty.call(files, '.gitignore')) {
+    files['.gitignore'] = `node_modules/
 dist/
 .env
 .env.local
@@ -529,8 +455,11 @@ dist/
 coverage/
 logs/
 *.log
-`,
-    'README.md': `# {{projectName}}
+`;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(files, 'README.md')) {
+    files['README.md'] = `# {{projectName}}
 
 Starter Task API built with Zintrust.
 
@@ -543,8 +472,8 @@ zin s
 
 - Health: http://localhost:{{port}}/health
 - Tasks:  http://localhost:{{port}}/api/tasks
-`,
-  };
+`;
+  }
 
   return createFiles(state.projectPath, files, variables);
 };
@@ -552,6 +481,7 @@ zin s
 const scaffoldWithState = async (
   state: ScaffolderState,
   options: ProjectScaffoldOptions
+  // eslint-disable-next-line @typescript-eslint/require-await
 ): Promise<ProjectScaffoldResult> => {
   try {
     const validation = validateOptions(options);

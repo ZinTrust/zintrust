@@ -230,7 +230,7 @@ interface INewCommand extends IBaseCommand {
     config: NewProjectConfigResult,
     overwrite?: boolean
   ): Promise<unknown>;
-  initializeGit(name: string): Promise<void>;
+  initializeGit(name: string): void;
 }
 
 const addOptions = (command: Command): void => {
@@ -266,7 +266,7 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
     }
 
     if (options['git'] !== false) {
-      await command.initializeGit(projectName);
+      command.initializeGit(projectName);
     }
 
     if (options['install'] !== false) {
@@ -325,8 +325,7 @@ const createNewCommandInstance = (): INewCommand => {
       config: NewProjectConfigResult,
       overwrite?: boolean
     ): Promise<unknown> => {
-      const projectPath = path.resolve(process.cwd(), name);
-      return ProjectScaffolder.scaffold(projectPath, {
+      return ProjectScaffolder.scaffold(process.cwd(), {
         name,
         force: overwrite === true,
         template: config.template,
@@ -336,7 +335,7 @@ const createNewCommandInstance = (): INewCommand => {
         description: config.description,
       });
     },
-    initializeGit: async (name: string): Promise<void> => {
+    initializeGit: (name: string): void => {
       const projectPath = path.resolve(process.cwd(), name);
       if (checkGitInstalled()) {
         initializeGitRepo(projectPath, commandInstance);

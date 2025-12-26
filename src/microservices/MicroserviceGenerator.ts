@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * Microservice generator - auto-creates microservice folder structure
  * Generates boilerplate code for domain-driven microservices
@@ -48,17 +49,17 @@ export const MicroserviceGenerator = Object.freeze(
             Logger.info(`\n🏗️  Generating microservices for domain: ${domain}`);
             Logger.info(`📦 Services: ${services.join(', ')}\n`);
 
-            for (let i = 0; i < services.length; i++) {
-              const serviceName = services[i];
-              const servicePort = basePort + i;
-
-              await generateService({
-                domain,
-                serviceName,
-                port: servicePort,
-                version,
-              });
-            }
+            await Promise.all(
+              services.map(async (serviceName, i) => {
+                const servicePort = basePort + i;
+                return generateService({
+                  domain,
+                  serviceName,
+                  port: servicePort,
+                  version,
+                });
+              })
+            );
 
             // Generate shared utils
             await generateSharedUtils(domain);
