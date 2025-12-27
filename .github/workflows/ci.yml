@@ -46,15 +46,15 @@ jobs:
         run: npm run lint --max-warnings=0
 
       - name: Run tests with coverage (enforce thresholds)
-        if: matrix.node-version == '20.x'
+        if: matrix.node-version == '22.x'
         run: npm run test:coverage
 
       - name: Run tests (no coverage)
-        if: matrix.node-version != '20.x'
+        if: matrix.node-version != '22.x'
         run: npm test
 
       - name: Upload coverage reports to Codecov
-        if: matrix.node-version == '20.x'
+        if: matrix.node-version == '22.x'
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
