@@ -12,5 +12,12 @@
 ### Tests
 
 - Add integration and unit tests for graceful shutdown, plugin hardening, GenerationCache eviction, and repository hygiene checks (no generated-signature and no logging of secret values).
+- Add integration tests for `zin plugin install --package-manager` to cover `pnpm` and `npm` install flows (with mocked package managers).
+
+### Features & Fixes
+
+- Add scheduling subsystem and `log-cleanup` schedule to automatically remove old or excess log files; add `zin logs:cleanup` CLI command to run cleanup on-demand. (PR: TBD)
+- Add `--package-manager` flag to `zin plugin install` and support `pnpm`/`yarn`/`npm` in `PluginManager.install`. (PR: TBD)
+- Fix `BundleOptimizer` concurrency bug when calculating total sizes by avoiding shared mutable state during concurrent file stats. (PR: TBD)
 
 _For details, see `todo/AUDIT-2025-12-27.md`._

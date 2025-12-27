@@ -140,8 +140,10 @@ it('should analyze bundle with multiple files', async () => {
     return [] as any;
   });
 
-  vi.mocked(fs.statSync).mockImplementation((filePath: PathLike) => {
+  // Simulate asynchronous stats to detect shared-mutation concurrency bugs
+  vi.mocked(fs.promises.stat).mockImplementation(async (filePath: PathLike) => {
     const pathStr = filePath.toString();
+    await new Promise((r) => setTimeout(r, 5));
     if (pathStr.includes('file1')) return { size: 1000 } as any;
     if (pathStr.includes('file2')) return { size: 2000 } as any;
     if (pathStr.includes('file3')) return { size: 3000 } as any;

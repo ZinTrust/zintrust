@@ -30,10 +30,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (disable lifecycle scripts in CI)
+        run: npm ci --ignore-scripts
         env:
           HUSKY: 0
+          NPM_CONFIG_IGNORE_SCRIPTS: true
 
       - name: Build project
         run: npm run build

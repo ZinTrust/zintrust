@@ -179,3 +179,35 @@ async function processPayment(userId: number) {
 // $ LOG_LEVEL=info    → Payment errors + info messages appear
 // $ LOG_LEVEL=debug   → All details including debug logs appear
 ```
+
+## Log Cleanup (File retention) 🔧
+
+To prevent logs from growing unbounded on disk, Zintrust includes a scheduled log cleanup job that will delete old or excess log files based on environment-configured retention rules. The job runs in long-running runtimes (Node.js, Fargate) and can also be invoked on-demand via the CLI command `zin logs:cleanup`.
+
+### Environment Variables
+
+- `LOG_CLEANUP_ENABLED` (boolean) — Enable the scheduled cleanup job. Default: `true` when `LOG_TO_FILE` is `true`, otherwise `false`.
+- `LOG_CLEANUP_INTERVAL_MS` (number) — Interval in milliseconds between scheduled cleanup runs. Default: `3600000` (1 hour).
+- `LOG_MAX_TOTAL_SIZE` (number) — Maximum total size in bytes allowed for the `logs/` directory. Files are removed until total size is under this threshold. Default: _unset_ (no size-based removal by default).
+- `LOG_KEEP_FILES` (number) — Minimum number of recent log files to keep regardless of size or age. Default: `0`.
+
+### Usage
+
+- One-off cleanup (useful for CI or maintenance):
+
+```bash
+# Run cleanup and print deleted count
+zin logs:cleanup
+```
+
+- Enable scheduled runs (Node/Fargate):
+
+```bash
+export LOG_TO_FILE=true
+export LOG_CLEANUP_ENABLED=true
+export LOG_CLEANUP_INTERVAL_MS=3600000
+
+npm run start
+```
+
+> Note: On serverless platforms (Cloudflare Workers, Lambda) the scheduler does not start automatically to avoid background timers in ephemeral runtimes.
