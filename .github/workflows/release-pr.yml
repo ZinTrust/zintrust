@@ -1,0 +1,70 @@
+name: Release PR (release -> master)
+
+on:
+  workflow_run:
+    workflows: ['CI/CD Pipeline']
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: true
+
+jobs:
+  release:
+    if: >-
+      ${
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'release' &&
+        !startsWith(github.event.workflow_run.head_commit.message, 'chore(release):')
+      }
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release
+        uses: actions/checkout@v4
+        with:
+          ref: release
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+      - name: Compute/apply version bump (Conventional Commits)
+        id: bump
+        run: node scripts/ci/bump-version.js --apply
+
+      - name: Commit and push version bump
+        if: ${{ steps.bump.outputs.should_bump == 'true' }}
+        run: |
+          git add package.json package-lock.json
+          git commit -m "chore(release): v${{ steps.bump.outputs.new_version }}"
+          git push origin release
+
+      - name: Create or update PR release -> master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('./package.json','utf8')).version")
+          TITLE="Release: release -> master (v${VERSION})"
+          BODY="Automated PR created after release checks passed.\n\n- Version: v${VERSION}\n- Source: release\n- Target: master\n\nPublishing happens on master only if the built version is greater than npm latest."
+
+          EXISTING=$(gh pr list --base master --head release --state open --json number --jq '.[0].number')
+          if [ -n "${EXISTING}" ]; then
+            echo "PR already exists: #${EXISTING}"
+            gh pr edit "${EXISTING}" --title "${TITLE}" --body "${BODY}"
+            exit 0
+          fi
+
+          gh pr create --base master --head release --title "${TITLE}" --body "${BODY}"
