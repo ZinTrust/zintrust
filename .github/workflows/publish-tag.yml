@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run npm publish --dry-run (no publish)'
+        required: false
+        default: 'true'
 
 concurrency:
   group: publish
@@ -34,18 +40,21 @@ jobs:
       - name: Build distribution
         run: npm run pro:build
 
-      - name: Configure npm auth
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+      - name: Verify tag matches dist version
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          node --input-type=module -e "import fs from 'node:fs'; const tag=process.env.GITHUB_REF_NAME; const {version}=JSON.parse(fs.readFileSync('dist/package.json','utf8')); const expected='v'+version; if(tag!==expected){ console.error('Tag does not match dist version:', {tag, expected}); process.exit(1);} console.log('Tag matches dist version:', expected);"
 
       - name: Dry-run publish (optional)
-        if: ${{ github.event.inputs && github.event.inputs.dry_run == 'true' }}
-        run: npm run pub:ci -- --dry-run || true
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run pub:ci -- --dry-run
 
       - name: Publish to npm
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true') }}
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci
 
       - name: Create GitHub Release (optional)

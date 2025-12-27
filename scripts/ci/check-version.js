@@ -1,19 +1,37 @@
 #!/usr/bin/env node
 
-// Checks that the built dist/package.json version is greater than the latest published version
-// Usage: node scripts/ci/check-version.js
+// CI helper: determines whether we should publish.
+// - Reads dist/package.json version (post-build)
+// - Fetches npm published version
+// - Writes an output `should_publish=true|false` when running in GitHub Actions
+// - Exits 0 even when no publish is needed (so master CI stays green)
+//
+// Usage:
+//   node scripts/ci/check-version.js
 
-import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const PKG_NAME = '@zintrust/core';
+
+function setGithubOutput(name, value) {
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (!outputPath) return;
+  try {
+    const line = `${name}=${String(value)}\n`;
+    // Append to preserve any other outputs.
+    execSync(`printf %s ${JSON.stringify(line)} >> ${JSON.stringify(outputPath)}`);
+  } catch {
+    // If writing outputs fails, we still proceed with normal stdout logs.
+  }
+}
 
 function getDistVersion() {
   try {
     const data = readFileSync('./dist/package.json', 'utf-8');
     const pkg = JSON.parse(data);
     return pkg.version;
-  } catch (err) {
+  } catch {
     console.error('Could not read dist/package.json. Did you run the build?');
     process.exit(2);
   }
@@ -22,18 +40,18 @@ function getDistVersion() {
 function getPublishedVersion() {
   try {
     const out = execSync(`npm view ${PKG_NAME} version --json`, { encoding: 'utf-8' }).trim();
-    // npm view may output a JSON string or a bare string
     try {
       return JSON.parse(out);
     } catch {
       return out;
     }
   } catch (err) {
+    const msg = String(err?.message ?? err);
     // If package not found, treat as unpublished
-    if (err.message && err.message.includes('404')) {
+    if (msg.includes('404')) {
       return null;
     }
-    console.error('Failed to query npm registry:', err.message);
+    console.error('Failed to query npm registry:', msg);
     process.exit(3);
   }
 }
@@ -56,9 +74,14 @@ console.log(`Dist version: ${distVersion}`);
 console.log(`Published version: ${publishedVersion ?? 'none'}`);
 
 const cmp = compareVersions(distVersion, publishedVersion);
-if (cmp <= 0) {
-  console.error(`Abort: dist version (${distVersion}) is not greater than published (${publishedVersion ?? 'none'})`);
-  process.exit(1);
+const shouldPublish = cmp > 0;
+
+setGithubOutput('should_publish', shouldPublish);
+setGithubOutput('dist_version', distVersion);
+
+if (!shouldPublish) {
+  console.log('No publish needed (version is not greater).');
+  process.exit(0);
 }
 
 console.log('Version check passed. Proceeding to publish.');
