@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // We'll re-import the module under test in each test after configuring mocks
-const makeReq = (requestId?: string) => ({ context: requestId ? { requestId } : {} } as any);
+const makeReq = (requestId?: string) => ({ context: requestId ? { requestId } : {} }) as any;
 
 describe('ErrorHandlerMiddleware', () => {
   beforeEach(() => {
@@ -14,7 +14,9 @@ describe('ErrorHandlerMiddleware', () => {
     process.env.NODE_ENV = 'development';
     vi.resetModules();
 
-    vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
+    vi.mock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
     const { Logger } = await import('@config/logger');
@@ -51,7 +53,9 @@ describe('ErrorHandlerMiddleware', () => {
   it('does not include stack in production', async () => {
     vi.resetModules();
     vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'production' } }));
-    vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
+    vi.mock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
     const { Env } = await import('@config/env');
@@ -85,7 +89,9 @@ describe('ErrorHandlerMiddleware', () => {
 
   it('skips writing when writableEnded is true', async () => {
     vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'development' } }));
-    vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
+    vi.mock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
 
@@ -112,7 +118,9 @@ describe('ErrorHandlerMiddleware', () => {
 
   it('handles non-object raw values and still writes', async () => {
     vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'development' } }));
-    vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() } }));
+    vi.mock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
 
     const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
 

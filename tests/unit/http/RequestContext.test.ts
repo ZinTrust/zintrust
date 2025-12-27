@@ -1,12 +1,13 @@
-import { describe, expect, it } from 'vitest';
 import { RequestContext } from '@/http/RequestContext';
+import { describe, expect, it } from 'vitest';
 
-const makeReq = (headers: Record<string, string | undefined> = {}) => ({
-  context: {},
-  getHeader: (name: string) => headers[name],
-  getMethod: () => 'GET',
-  getPath: () => '/test',
-} as any);
+const makeReq = (headers: Record<string, string | undefined> = {}) =>
+  ({
+    context: {},
+    getHeader: (name: string) => headers[name],
+    getMethod: () => 'GET',
+    getPath: () => '/test',
+  }) as any;
 
 describe('RequestContext', () => {
   it('create() captures headers and sets requestId when provided', () => {

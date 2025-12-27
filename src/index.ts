@@ -59,6 +59,3 @@ export { ErrorFactory } from '@exceptions/ZintrustError';
 
 // Config
 export { StartupConfigValidator } from '@config/StartupConfigValidator';
-
-// Version
-export const version = '0.1.0';

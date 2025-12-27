@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { TemplateRegistry } from '@/templates/TemplateRegistry';
+import { describe, expect, it } from 'vitest';
 
 describe('TemplateRegistry', () => {
   it('returns mappings and counts', () => {
