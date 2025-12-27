@@ -6,7 +6,7 @@
 // - minor: any feat
 // - patch: any fix
 //
-// Designed for dev -> master flow:
+// Designed for release -> master flow:
 // - compares commits in origin/master..HEAD
 // - ignores merge commits and chore(release) commits
 //
