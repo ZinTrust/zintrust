@@ -35,6 +35,9 @@ jobs:
         env:
           HUSKY: 0
 
+      - name: Rebuild native dependencies (ensure native addons are built for runner Node ABI)
+        run: npm rebuild || true
+
       - name: Build project
         run: npm run build
 
