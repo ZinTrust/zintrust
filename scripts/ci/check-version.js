@@ -10,7 +10,7 @@
 //   node scripts/ci/check-version.js
 
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 
 const PKG_NAME = '@zintrust/core';
 
@@ -20,7 +20,7 @@ function setGithubOutput(name, value) {
   try {
     const line = `${name}=${String(value)}\n`;
     // Append to preserve any other outputs.
-    execSync(`printf %s ${JSON.stringify(line)} >> ${JSON.stringify(outputPath)}`);
+    appendFileSync(outputPath, line, { encoding: 'utf8' });
   } catch {
     // If writing outputs fails, we still proceed with normal stdout logs.
   }
