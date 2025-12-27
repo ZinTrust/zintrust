@@ -1,0 +1,56 @@
+name: Publish to npm (on version bump)
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests, lint and type-check
+        run: npm run test:coverage && npm run lint --max-warnings=0 && npm run type-check
+
+      - name: Build distribution
+        run: npm run pro:build
+
+      - name: Verify version bump
+        run: node scripts/ci/check-version.js
+
+      - name: Dry-run publish
+        run: npm run pub:ci -- --dry-run || true
+
+      - name: Publish to npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm run pub:ci
+
+      - name: Create tag and release (optional)
+        if: false
+        run: |
+          V=$(node -p "require('./dist/package.json').version")
+          git config user.name 'github-actions'
+          git config user.email 'actions@github.com'
+          git tag v$V
+          git push origin --tags
+          # create release can be added here

@@ -84,6 +84,7 @@
     "postinstall": "node -e \"process.exit(0)\"",
     "check-up": "npx npm-check-updates",
     "pub": "npm run pro:build && cd dist && npm publish",
+    "pub:ci": "cd dist && npm publish --access public",
     "rebuild:bcrypt": "npm rebuild bcrypt",
     "rebuild:native": "npm rebuild bcrypt better-sqlite3"
   },
