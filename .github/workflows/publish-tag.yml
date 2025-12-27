@@ -1,15 +1,12 @@
-name: Publish to npm (tag)
+name: '[DEPRECATED] Publish to npm (tag)'
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Run npm publish --dry-run (no publish)'
+      note:
+        description: 'Deprecated: use Publish to npm (master) workflow'
         required: false
-        default: 'true'
+        default: ''
 
 concurrency:
   group: publish
@@ -17,51 +14,9 @@ concurrency:
 
 jobs:
   publish:
+    if: false
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          registry-url: 'https://registry.npmjs.org/'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests, lint and type-check
-        run: npm run test:coverage && npm run lint --max-warnings=0 && npm run type-check
-
-      - name: Build distribution
-        run: npm run pro:build
-
-      - name: Verify tag matches dist version
-        if: ${{ github.event_name == 'push' }}
-        run: |
-          node --input-type=module -e "import fs from 'node:fs'; const tag=process.env.GITHUB_REF_NAME; const {version}=JSON.parse(fs.readFileSync('dist/package.json','utf8')); const expected='v'+version; if(tag!==expected){ console.error('Tag does not match dist version:', {tag, expected}); process.exit(1);} console.log('Tag matches dist version:', expected);"
-
-      - name: Dry-run publish (optional)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm run pub:ci -- --dry-run
-
-      - name: Publish to npm
-        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true') }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm run pub:ci
-
-      - name: Create GitHub Release (optional)
-        if: false
-        uses: ncipollo/release-action@v1
-        with:
-          tag: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          body: |
-            Automated release created by CI.
+      - name: Deprecated
+        run: echo "This workflow is deprecated. Use the master publish workflow (.github/workflows/publish-version.yml)."
