@@ -85,7 +85,6 @@ function detectBump(messages) {
 
     if (/^fix(\([^)]+\))?:/.test(firstLine)) {
       mark('patch');
-      continue;
     }
   }
 
