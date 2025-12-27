@@ -45,8 +45,13 @@ jobs:
       - name: Lint code
         run: npm run lint --max-warnings=0
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (enforce thresholds)
+        if: matrix.node-version == '20.x'
         run: npm run test:coverage
+
+      - name: Run tests (no coverage)
+        if: matrix.node-version != '20.x'
+        run: npm test
 
       - name: Upload coverage reports to Codecov
         if: matrix.node-version == '20.x'
