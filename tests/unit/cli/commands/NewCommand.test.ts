@@ -552,6 +552,7 @@ describe('NewCommand', () => {
         args: ['pm-project'],
         interactive: false,
         packageManager: 'yarn',
+        install: true,
       };
 
       command.getProjectConfig = vi.fn().mockResolvedValue({

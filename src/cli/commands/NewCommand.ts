@@ -204,14 +204,14 @@ const isFailureResult = (result: unknown): result is { success: false; message?:
 const installDependencies = async (
   projectPath: string,
   log: Pick<IBaseCommand, 'info' | 'warn'>,
-  packageManager?: string
+  packageManager?: string,
+  force: boolean = false
 ): Promise<void> => {
   // Respect CI by default — avoid network installs in CI unless explicitly allowed
   const isCi = Boolean(process.env['CI']);
-  const allowAuto =
-    process.env['ZINTRUST_ALLOW_AUTO_INSTALL'] === '1' || packageManager === 'install';
+  const allowAuto = process.env['ZINTRUST_ALLOW_AUTO_INSTALL'] === '1' || force;
 
-  if (isCi && !allowAuto && process.env['ZINTRUST_ALLOW_AUTO_INSTALL'] !== null) {
+  if (isCi && !allowAuto) {
     log.info('Skipping automatic dependency installation in CI environment.');
     return;
   }
@@ -291,7 +291,8 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
       const pm =
         (options['packageManager'] as string | undefined) ??
         (options['package-manager'] as string | undefined);
-      await installDependencies(projectPath, command, pm);
+      const force = options['install'] === true;
+      await installDependencies(projectPath, command, pm, force);
     }
 
     command.success(`\n✨ Project ${projectName} created successfully!`);
