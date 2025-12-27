@@ -1,16 +1,32 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = process.cwd();
 
 function walk(dir: string): string[] {
-  const entries = readdirSync(dir);
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return [];
+  }
+
   const out: string[] = [];
   for (const e of entries) {
     if (e === 'node_modules' || e === '.git' || e === 'dist' || e === 'coverage') continue;
     const abs = join(dir, e);
-    const st = statSync(abs);
+
+    let st: ReturnType<typeof lstatSync>;
+    try {
+      st = lstatSync(abs);
+    } catch {
+      continue;
+    }
+
+    // Avoid following broken symlinks during repository scans
+    if (st.isSymbolicLink()) continue;
+
     if (st.isDirectory()) {
       out.push(...walk(abs));
     } else if (st.isFile()) {
@@ -31,6 +47,7 @@ describe('No logging of secret values', () => {
       if (f.endsWith('.test.ts')) continue; // tests may intentionally reference env
       try {
         const text = readFileSync(f, 'utf8');
+        re.lastIndex = 0;
         if (re.test(text)) forbiddenMatches.push(f);
       } catch {
         // ignore unreadable files
