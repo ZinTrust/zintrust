@@ -38,7 +38,10 @@ interface SecretsManagerInstance {
   clearCache(key?: string): void;
 }
 
-function pruneCache(cache: Map<string, { value: string; expiresAt: number }>, maxEntries: number) {
+function pruneCache(
+  cache: Map<string, { value: string; expiresAt: number }>,
+  maxEntries: number
+): void {
   if (cache.size <= maxEntries) return;
 
   const now = Date.now();

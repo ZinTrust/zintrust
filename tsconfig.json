@@ -74,6 +74,7 @@
     ".DS_Store",
     "wrangler.jsonc",
     "dev",
-    "simulate"
+    "simulate",
+    "test-project"
   ]
 }
