@@ -261,13 +261,28 @@ const createLoggerScope = (scope: string): ILogger => {
   };
 };
 
-// Sealed namespace with all logger functionality
+// Expose log cleanup API and sealed namespace with all logger functionality
+export const cleanLogsOnce = async (): Promise<string[]> => {
+  if (!shouldLogToFile()) return [];
+
+  try {
+    const mod = await import('@config/FileLogWriter');
+    const deleted = mod.cleanOnce();
+    logInfo('Log cleanup executed', { deletedCount: deleted.length });
+    return deleted;
+  } catch (err: unknown) {
+    logError('Log cleanup failed', err as Error);
+    return [];
+  }
+};
+
 export const Logger = Object.freeze({
   debug: logDebug,
   info: logInfo,
   warn: logWarn,
   error: logError,
   fatal: logFatal,
+  cleanLogsOnce,
   scope: createLoggerScope,
 });
 

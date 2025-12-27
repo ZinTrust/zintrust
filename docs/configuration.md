@@ -59,15 +59,20 @@ If validation fails, boot throws a structured `ConfigError`.
 
 ## Logging
 
-| Variable            | Type   | Default               | Notes                                                                   |
-| ------------------- | ------ | --------------------- | ----------------------------------------------------------------------- |
-| `LOG_LEVEL`         | string | depends on `NODE_ENV` | prod defaults to `info`, testing defaults to `error`, otherwise `debug` |
-| `LOG_FORMAT`        | string | `text`                | `text` or `json`                                                        |
-| `DISABLE_LOGGING`   | bool   | `false`               | Disables log output                                                     |
-| `LOG_HTTP_REQUEST`  | bool   | `false`               | Enables HTTP request logging middleware                                 |
-| `LOG_TO_FILE`       | bool   | `false`               | Enables Node-only file logging                                          |
-| `LOG_ROTATION_SIZE` | int    | `10485760`            | Max bytes before rotating (Node-only)                                   |
-| `LOG_ROTATION_DAYS` | int    | `7`                   | Retention window in days (Node-only)                                    |
+| Variable                       | Type   | Default                  | Notes                                                                   |
+| ------------------------------ | ------ | ------------------------ | ----------------------------------------------------------------------- |
+| `LOG_LEVEL`                    | string | depends on `NODE_ENV`    | prod defaults to `info`, testing defaults to `error`, otherwise `debug` |
+| `LOG_FORMAT`                   | string | `text`                   | `text` or `json`                                                        |
+| `DISABLE_LOGGING`              | bool   | `false`                  | Disables log output                                                     |
+| `LOG_HTTP_REQUEST`             | bool   | `false`                  | Enables HTTP request logging middleware                                 |
+| `LOG_TO_FILE`                  | bool   | `false`                  | Enables Node-only file logging                                          |
+| `LOG_ROTATION_SIZE`            | int    | `10485760`               | Max bytes before rotating (Node-only)                                   |
+| `LOG_ROTATION_DAYS`            | int    | `7`                      | Retention window in days (Node-only)                                    |
+| `LOG_CLEANUP_ENABLED`          | bool   | depends on `LOG_TO_FILE` | Enables scheduled cleanup; defaults to `true` when `LOG_TO_FILE=true`   |
+| `LOG_CLEANUP_INTERVAL_MS`      | int    | `3600000`                | Cleanup schedule interval in ms (Node/Fargate only)                     |
+| `LOG_MAX_TOTAL_SIZE`           | int    | unset                    | Optional max total bytes for `logs/` before deleting old files          |
+| `LOG_KEEP_FILES`               | int    | `0`                      | Minimum number of recent log files to keep                              |
+| `SCHEDULE_SHUTDOWN_TIMEOUT_MS` | int    | `30000`                  | Max time to wait for schedules to stop during shutdown                  |
 
 ## Database
 

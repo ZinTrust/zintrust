@@ -90,6 +90,120 @@ const cleanupOldLogs = (logsDir: string, keepDays: number): void => {
   }
 };
 
+type CleanOnceOptions = {
+  logsDir?: string;
+  keepDays?: number;
+  maxTotalSize?: number;
+  keepFiles?: number;
+};
+
+const listAppLogFiles = (
+  logsDir: string,
+  order: 'newest-first' | 'oldest-first'
+): Array<{ name: string; path: string }> => {
+  const files = readDirSafe(logsDir)
+    .filter((f) => isAppLogFile(f))
+    .map((f) => ({ name: f, path: path.join(logsDir, f) }));
+
+  return files.sort((a, b) => {
+    if (a.name === b.name) return 0;
+    const newerFirst = a.name < b.name ? 1 : -1;
+    return order === 'newest-first' ? newerFirst : -newerFirst;
+  });
+};
+
+const enforceKeepFilesPolicy = (
+  filesNewestFirst: Array<{ name: string; path: string }>,
+  keepFiles: number | undefined,
+  deleted: string[]
+): void => {
+  if (typeof keepFiles !== 'number' || keepFiles < 0) return;
+  if (filesNewestFirst.length <= keepFiles) return;
+
+  const toDelete = filesNewestFirst.slice(keepFiles);
+  for (const f of toDelete) {
+    safeUnlink(f.path);
+    deleted.push(f.path);
+  }
+};
+
+const getFileSizesTotal = (
+  filesOldestFirst: Array<{ name: string; path: string }>
+): { total: number; sizes: Array<{ path: string; size: number }> } => {
+  let total = 0;
+  const sizes: Array<{ path: string; size: number }> = [];
+
+  for (const file of filesOldestFirst) {
+    try {
+      const stat = fs.statSync(file.path);
+      sizes.push({ path: file.path, size: stat.size });
+      total += stat.size;
+    } catch {
+      // ignore
+    }
+  }
+
+  return { total, sizes };
+};
+
+const deleteOldestUntilWithinLimit = (
+  sizesOldestFirst: Array<{ path: string; size: number }>,
+  maxTotalSize: number,
+  deleted: string[],
+  initialTotal: number
+): void => {
+  let total = initialTotal;
+
+  let idx = 0;
+  while (total > maxTotalSize && idx < sizesOldestFirst.length) {
+    const del = sizesOldestFirst[idx];
+    safeUnlink(del.path);
+    deleted.push(del.path);
+    total -= del.size;
+    idx++;
+  }
+};
+
+const enforceMaxTotalSizePolicy = (
+  logsDir: string,
+  maxTotalSize: number | undefined,
+  deleted: string[]
+): void => {
+  if (typeof maxTotalSize !== 'number' || maxTotalSize <= 0) return;
+
+  const remainingOldestFirst = listAppLogFiles(logsDir, 'oldest-first');
+  const { total, sizes } = getFileSizesTotal(remainingOldestFirst);
+  deleteOldestUntilWithinLimit(sizes, maxTotalSize, deleted, total);
+};
+
+/**
+ * Clean log files with additional retention policies.
+ * Returns an array of deleted file paths for auditing/tests.
+ */
+export const cleanOnce = (options?: CleanOnceOptions): string[] => {
+  const cwd = getCwdSafe();
+  if (cwd === '') return [];
+
+  const logsDir = options?.logsDir ?? path.join(cwd, 'logs');
+  const keepDays = options?.keepDays ?? Env.LOG_ROTATION_DAYS;
+  const maxTotalSize = options?.maxTotalSize ?? Env.getInt('LOG_MAX_TOTAL_SIZE', 0);
+  const keepFiles = options?.keepFiles ?? Env.getInt('LOG_KEEP_FILES', 0);
+
+  // Step 1: delete by age
+  cleanupOldLogs(logsDir, keepDays);
+
+  const deleted: string[] = [];
+
+  // Step 2: enforce keepFiles (keep newest N files)
+  const filesNewestFirst = listAppLogFiles(logsDir, 'newest-first');
+  enforceKeepFilesPolicy(filesNewestFirst, keepFiles, deleted);
+
+  // Step 3: enforce max total size
+  enforceMaxTotalSizePolicy(logsDir, maxTotalSize, deleted);
+
+  return deleted;
+};
+
 const rotateIfNeeded = (logFile: string, maxSizeBytes: number): void => {
   if (maxSizeBytes <= 0) return;
 

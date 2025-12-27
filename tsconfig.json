@@ -27,6 +27,8 @@
       "@cache/*": ["./src/cache/*"],
       "@config/*": ["./src/config/*"],
       "@common/*": ["./src/common/*"],
+      "@scheduler/*": ["./src/scheduler/*"],
+      "@schedules/*": ["./src/schedules/*"],
       "@exceptions/*": ["./src/exceptions/*"],
       "@functions/*": ["./src/functions/*"],
       "@services/*": ["./src/services/*"],

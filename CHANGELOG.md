@@ -12,7 +12,7 @@
 ### Tests
 
 - Add integration and unit tests for graceful shutdown, plugin hardening, GenerationCache eviction, and repository hygiene checks (no generated-signature and no logging of secret values).
-- Add integration tests for `zin plugin install --package-manager` to cover `pnpm` and `npm` install flows (mocked in CI-friendly way).
+- Add integration tests for `zin plugin install --package-manager` to cover `pnpm` and `npm` install flows (with mocked package managers).
 
 ### Features & Fixes
 

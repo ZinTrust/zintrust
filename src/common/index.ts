@@ -2,6 +2,17 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from 'node:path';
 
+// Mutable FileChecker used to abstract FS checks for easier testing/mocking
+export const FileChecker = {
+  exists(filePath: string): boolean {
+    try {
+      return fs.existsSync(filePath);
+    } catch {
+      return false;
+    }
+  },
+};
+
 /**
  * Common utilities - Sealed namespace for immutability
  */
@@ -80,11 +91,7 @@ export const CommonUtils = Object.freeze({
    * Check if file exists
    */
   fileExists(filePath: string): boolean {
-    try {
-      return fs.existsSync(filePath);
-    } catch {
-      return false;
-    }
+    return FileChecker.exists(filePath);
   },
 
   /**
@@ -238,7 +245,49 @@ export const CommonUtils = Object.freeze({
     }
     return value as Record<string, unknown>;
   },
+
+  /**
+   * Resolve preferred package manager.
+   * If `preferred` is provided, the first value is returned. Otherwise we detect by lock files.
+   */
+  resolvePackageManager(preferred?: string[]): string {
+    if (Array.isArray(preferred) && preferred.length > 0) {
+      return preferred[0];
+    }
+
+    try {
+      if (this.fileExists('pnpm-lock.yaml')) return 'pnpm';
+      if (this.fileExists('yarn.lock')) return 'yarn';
+      if (this.fileExists('package-lock.json')) return 'npm';
+    } catch {
+      // ignore FS errors and fall through to default
+    }
+
+    // Default to npm
+    return 'npm';
+  },
 });
 
 // Re-export for backward compatibility
 export const resolveNpmPath = (): string => CommonUtils.resolveNpmPath();
+
+export const resolvePackageManager = (preferred?: string[]): string => {
+  if (Array.isArray(preferred) && preferred.length > 0) return preferred[0];
+
+  try {
+    if (fileExists('pnpm-lock.yaml')) return 'pnpm';
+    if (fileExists('yarn.lock')) return 'yarn';
+    if (fileExists('package-lock.json')) return 'npm';
+  } catch {
+    // ignore FS errors and fall through to default
+  }
+
+  return 'npm';
+};
+
+// Convenience named exports to make specific helpers testable and import-friendly
+export const fileExists = (filePath: string): boolean => CommonUtils.fileExists(filePath);
+export const ensureDir = (dirPath: string): void => CommonUtils.ensureDir(dirPath);
+export const readFile = (filePath: string): string => CommonUtils.readFile(filePath);
+export const writeFile = (filePath: string, content: string, createDir = true): void =>
+  CommonUtils.writeFile(filePath, content, createDir);

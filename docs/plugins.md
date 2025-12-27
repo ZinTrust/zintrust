@@ -38,9 +38,15 @@ zin plugin install adapter:sqlite
 
 # Short syntax
 zin p -i a:sqlite
+
+# Choose a package manager explicitly (optional)
+zin plugin install adapter:sqlite --package-manager pnpm
 ```
 
 **What happens during installation?**
+
+> You can control which package manager is used to install the plugin's dependencies with `--package-manager`.
+> If not specified, Zintrust will attempt to detect the project package manager by looking for lockfiles (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`) and default to `npm` if none are found. Supported values: `npm`, `yarn`, `pnpm`.
 
 1.  **Dependencies**: The CLI runs `npm install` in your current project directory (updates `package.json` and your lockfile).
 2.  **Code Generation**: The CLI copies pre-configured, production-ready TypeScript files (e.g., `src/orm/adapters/SQLiteAdapter.ts`) into your project.

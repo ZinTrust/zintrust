@@ -190,6 +190,7 @@ declare namespace NodeJS {
     LOG_TO_FILE?: string | undefined;
     LOG_ROTATION_SIZE?: string | undefined;
     LOG_ROTATION_DAYS?: string | undefined;
+    LOG_CLEANUP_INTERVAL_MS: string | undefined;
 
     USE_RAW_QRY: string | undefined;
     SERVICE_API_KEY: string;

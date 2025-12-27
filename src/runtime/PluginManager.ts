@@ -5,6 +5,8 @@
  * Handles installation and removal of framework plugins.
  */
 
+import { SpawnUtil } from '@cli/utils/spawn';
+import { resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execSync } from '@node-singletons/child-process';
@@ -98,20 +100,54 @@ function getPluginOrThrow(pluginId: string): { resolvedId: string; plugin: Plugi
   return { resolvedId, plugin: PluginRegistry[resolvedId] };
 }
 
-function npmInstall(packages: string[], options: { dev: boolean; label: string }): void {
+async function npmInstall(
+  packages: string[],
+  options: { dev: boolean; label: string; packageManager?: string; projectRoot?: string }
+): Promise<void> {
   if (packages.length === 0) return;
 
   Logger.info(`Installing ${options.label}: ${packages.join(', ')}...`);
-  const devFlag = options.dev ? '-D ' : '';
 
-  const projectRoot = resolveProjectRoot();
+  const projectRoot = options.projectRoot ?? resolveProjectRoot();
+  const pm = options.packageManager ?? resolvePackageManager();
+
+  let cmd: string;
+  let args: string[] = [];
+
+  switch (pm) {
+    case 'pnpm':
+      cmd = 'pnpm';
+      args = ['add', ...packages, ...(options.dev ? ['-D'] : [])];
+      break;
+    case 'yarn':
+      cmd = 'yarn';
+      args = ['add', ...packages, ...(options.dev ? ['--dev'] : [])];
+      break;
+    case 'npm':
+    default:
+      cmd = 'npm';
+      args = ['install', ...(options.dev ? ['--save-dev'] : []), ...packages];
+      break;
+  }
 
   try {
-    const cmd = `npm install ${devFlag}${packages.join(' ')}`; // NOSONAR
-    execSync(cmd, {
-      stdio: 'inherit',
-      cwd: projectRoot,
-    });
+    if (pm === 'npm') {
+      // Preserve legacy execSync behavior for npm so integration tests and simple CLI usage behave identically
+      const cmdStr = options.dev
+        ? `npm install -D ${packages.join(' ')}`
+        : `npm install ${packages.join(' ')}`; // NOSONAR
+      execSync(cmdStr, { stdio: 'inherit', cwd: projectRoot });
+    } else {
+      const exit = await SpawnUtil.spawnAndWait({ command: cmd, args, cwd: projectRoot });
+      if (exit !== 0) {
+        throw ErrorFactory.createCliError(
+          `Package manager ${pm} failed to install ${options.label}`,
+          {
+            exit,
+          }
+        );
+      }
+    }
   } catch (error: unknown) {
     ErrorFactory.createCliError(`Failed to install ${options.label}`, { error });
     throw error;
@@ -254,19 +290,28 @@ export const PluginManager = Object.freeze({
   /**
    * Install a plugin
    */
-  async install(pluginId: string): Promise<void> {
+  async install(pluginId: string, options?: { packageManager?: string }): Promise<void> {
     const { plugin } = getPluginOrThrow(pluginId);
 
     Logger.info(`Installing plugin: ${plugin.name}...`);
 
-    // 1. Install dependencies
-    npmInstall(plugin.dependencies, { dev: false, label: 'dependencies' });
-    npmInstall(plugin.devDependencies, { dev: true, label: 'dev dependencies' });
+    // 1. Install dependencies (use SpawnUtil and support multiple package managers)
+    await npmInstall(plugin.dependencies, {
+      dev: false,
+      label: 'dependencies',
+      packageManager: options?.packageManager,
+    });
+
+    await npmInstall(plugin.devDependencies, {
+      dev: true,
+      label: 'dev dependencies',
+      packageManager: options?.packageManager,
+    });
 
     // 2. Copy templates
     await copyPluginTemplates(plugin);
 
-    // 3. Post-Install
+    // 3. Post-Install (still executed via execSync - opt-in)
     runPostInstall(plugin);
 
     Logger.info(`✓ Plugin ${plugin.name} installed successfully`);

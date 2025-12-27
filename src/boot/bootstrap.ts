@@ -93,6 +93,41 @@ const BootstrapFunctions = Object.freeze({
       await server.listen();
 
       Logger.info(`Server running at http://${host}:${port}`);
+
+      // Start schedules for long-running runtimes (Node.js / Fargate)
+      try {
+        const runtime = (await import('@/runtime/RuntimeDetector')).RuntimeDetector.detectRuntime();
+        if (runtime === 'nodejs' || runtime === 'fargate') {
+          const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
+          const schedules = await import('@/schedules');
+          const runner = createScheduleRunner();
+
+          for (const schedule of Object.values(schedules)) {
+            // Each schedule is expected to export a default ISchedule
+
+            // @ts-ignore
+            runner.register(schedule);
+          }
+
+          runner.start();
+
+          // Add shutdown hook to stop schedules gracefully
+          const shutdownManager = app.getContainer().get('shutdownManager');
+          if (
+            (typeof shutdownManager === 'object' || typeof shutdownManager === 'function') &&
+            shutdownManager !== null &&
+            'add' in shutdownManager &&
+            typeof (shutdownManager as { add?: unknown }).add === 'function'
+          ) {
+            (shutdownManager as { add: (fn: () => Promise<void> | void) => void }).add(async () => {
+              const scheduleTimeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
+              await runner.stop(scheduleTimeoutMs);
+            });
+          }
+        }
+      } catch (err) {
+        Logger.warn('Failed to start schedules:', err as Error);
+      }
     } catch (error) {
       Logger.error('Failed to bootstrap application:', error as Error);
       ErrorFactory.createTryCatchError('Failed to bootstrap application:', error);

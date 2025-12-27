@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/common', () => ({
   resolveNpmPath: () => 'npm',
+  resolvePackageManager: () => 'npm',
 }));
 
 vi.mock('@cli/PromptHelper');
@@ -17,6 +18,9 @@ vi.mock('@config/logger', () => ({
 }));
 vi.mock('@node-singletons/child-process', () => ({
   execFileSync: vi.fn(),
+}));
+vi.mock('@cli/utils/spawn', () => ({
+  SpawnUtil: { spawnAndWait: vi.fn() },
 }));
 vi.mock('@node-singletons/path', () => ({
   resolve: vi.fn((...args) => args.join('/')),
@@ -543,6 +547,65 @@ describe('NewCommand', () => {
       expect(command.initializeGit).toHaveBeenCalledWith('my-project');
     });
 
+    it('uses provided package manager to install dependencies', async () => {
+      const options = {
+        args: ['pm-project'],
+        interactive: false,
+        packageManager: 'yarn',
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+      await command.execute(options);
+
+      expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith({
+        command: 'yarn',
+        args: ['install'],
+        cwd: expect.any(String),
+      });
+    });
+
+    it('skips auto-install in CI by default', async () => {
+      const options = {
+        args: ['ci-project'],
+        interactive: false,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+
+      process.env['CI'] = '1';
+      delete process.env['ZINTRUST_ALLOW_AUTO_INSTALL'];
+
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+
+      await command.execute(options);
+
+      expect(SpawnUtil.spawnAndWait).not.toHaveBeenCalled();
+
+      delete process.env['CI'];
+    });
+
     it('should log info messages on success', async () => {
       const options = {
         args: ['my-project'],
@@ -611,11 +674,8 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(execFileSync).not.toHaveBeenCalledWith(
-        expect.stringContaining('npm'),
-        ['install'],
-        expect.any(Object)
-      );
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      expect(SpawnUtil.spawnAndWait).not.toHaveBeenCalled();
     });
   });
 
@@ -920,13 +980,16 @@ describe('NewCommand', () => {
 
       vi.mocked(path.resolve).mockReturnValue('/mock/path/install-project');
 
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
       await command.execute(options);
 
-      expect(execFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('npm'),
-        ['install'],
-        expect.any(Object)
-      );
+      expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith({
+        command: 'npm',
+        args: ['install'],
+        cwd: '/mock/path/install-project',
+      });
     });
 
     it('should handle dependency installation failure', async () => {
@@ -941,10 +1004,8 @@ describe('NewCommand', () => {
       command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
       command.initializeGit = vi.fn();
 
-      vi.mocked(execFileSync).mockImplementation((file: string) => {
-        if (file.includes('npm')) throw new Error('npm not found');
-        return '';
-      });
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockRejectedValue(new Error('spawn failed'));
 
       await command.execute(options);
 

@@ -13,6 +13,10 @@ import { IMiddlewareStack, Middleware, MiddlewareStack } from '@middleware/Middl
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { IRouter, Router } from '@routing/Router';
 
+import { create as createScheduleRunner } from '@/scheduler/ScheduleRunner';
+import type { ISchedule, IScheduleKernel } from '@/scheduler/types';
+import { Env } from '@config/env';
+
 export interface IKernel {
   handle(req: IncomingMessage, res: ServerResponse): Promise<void>;
   handleRequest(req: IRequest, res: IResponse): Promise<void>;
@@ -22,6 +26,12 @@ export interface IKernel {
   getRouter(): IRouter;
   getContainer(): IServiceContainer;
   getMiddlewareStack(): IMiddlewareStack;
+
+  // Scheduling API
+  registerSchedule(schedule: ISchedule): void;
+  startSchedules(): void;
+  stopSchedules(): Promise<void>;
+  runScheduleOnce(name: string): Promise<void>;
 }
 
 /**
@@ -39,33 +49,29 @@ const isWritableEnded = (res: IResponse): boolean => {
   return Boolean((raw as unknown as { writableEnded?: boolean }).writableEnded);
 };
 
-/**
- * HTTP Kernel Factory
- */
-const create = (router: IRouter, container: IServiceContainer): IKernel => {
-  const globalMiddleware: Middleware[] = <Middleware[]>[];
-  const routeMiddleware: Record<string, Middleware> = {};
-  const middlewareStack = MiddlewareStack.create();
+const resolveMiddlewareForRoute = (
+  route: unknown,
+  globalMiddleware: Middleware[],
+  routeMiddleware: Record<string, Middleware>
+): Middleware[] => {
+  const routeAny = route as { middleware?: unknown };
+  const routeMiddlewareNames = Array.isArray(routeAny.middleware)
+    ? routeAny.middleware.filter((m): m is string => typeof m === 'string')
+    : [];
 
-  // Register default middleware config
-  globalMiddleware.push(...middlewareConfig.global);
-  for (const [name, mw] of Object.entries(middlewareConfig.route)) {
-    routeMiddleware[name] = mw;
-  }
+  const resolvedRouteMiddleware = routeMiddlewareNames
+    .map((name) => routeMiddleware[name])
+    .filter((mw): mw is Middleware => typeof mw === 'function');
 
-  /**
-   * Handle incoming HTTP request (Node.js entry point)
-   */
-  const handle = async (nodeReq: IncomingMessage, nodeRes: ServerResponse): Promise<void> => {
-    const req = Request.create(nodeReq);
-    const res = Response.create(nodeRes);
-    await handleRequest(req, res);
-  };
+  return [...globalMiddleware, ...resolvedRouteMiddleware];
+};
 
-  /**
-   * Handle wrapped request/response
-   */
-  const handleRequest = async (req: IRequest, res: IResponse): Promise<void> => {
+const createHandleRequest = (
+  router: IRouter,
+  globalMiddleware: Middleware[],
+  routeMiddleware: Record<string, Middleware>
+): ((req: IRequest, res: IResponse) => Promise<void>) => {
+  return async (req: IRequest, res: IResponse): Promise<void> => {
     const context = RequestContext.create(req);
     try {
       await RequestContext.run(context, async () => {
@@ -81,16 +87,7 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
 
         req.setParams(route.params);
 
-        const routeAny = route as unknown as { middleware?: unknown };
-        const routeMiddlewareNames = Array.isArray(routeAny.middleware)
-          ? routeAny.middleware.filter((m): m is string => typeof m === 'string')
-          : [];
-
-        const resolvedRouteMiddleware = routeMiddlewareNames
-          .map((name) => routeMiddleware[name])
-          .filter((mw): mw is Middleware => typeof mw === 'function');
-
-        const middlewareToRun = [...globalMiddleware, ...resolvedRouteMiddleware];
+        const middlewareToRun = resolveMiddlewareForRoute(route, globalMiddleware, routeMiddleware);
 
         let index = 0;
         const next = async (): Promise<void> => {
@@ -115,6 +112,40 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
       terminate(req, res);
     }
   };
+};
+
+const createHandle =
+  (handleRequest: (req: IRequest, res: IResponse) => Promise<void>) =>
+  async (nodeReq: IncomingMessage, nodeRes: ServerResponse): Promise<void> => {
+    const req = Request.create(nodeReq);
+    const res = Response.create(nodeRes);
+    await handleRequest(req, res);
+  };
+
+/**
+ * HTTP Kernel Factory
+ */
+const create = (router: IRouter, container: IServiceContainer): IKernel => {
+  const globalMiddleware: Middleware[] = <Middleware[]>[];
+  const routeMiddleware: Record<string, Middleware> = {};
+  const middlewareStack = MiddlewareStack.create();
+
+  // Scheduling runner (for long-running runtimes)
+  const scheduleRunner = createScheduleRunner();
+
+  const scheduleKernel: IScheduleKernel = Object.freeze({
+    getContainer: () => container,
+    getRouter: () => router,
+  });
+
+  // Register default middleware config
+  globalMiddleware.push(...middlewareConfig.global);
+  for (const [name, mw] of Object.entries(middlewareConfig.route)) {
+    routeMiddleware[name] = mw;
+  }
+
+  const handleRequest = createHandleRequest(router, globalMiddleware, routeMiddleware);
+  const handle = createHandle(handleRequest);
 
   return {
     handle,
@@ -129,6 +160,26 @@ const create = (router: IRouter, container: IServiceContainer): IKernel => {
     getRouter: (): IRouter => router,
     getContainer: (): IServiceContainer => container,
     getMiddlewareStack: (): IMiddlewareStack => middlewareStack,
+
+    // Scheduling API
+    registerSchedule(schedule: ISchedule): void {
+      scheduleRunner.register(schedule);
+    },
+
+    startSchedules(): void {
+      // Delegated to the internal ScheduleRunner. Kernel will call startSchedules
+      // during boot for long-running runtimes (Node / Fargate).
+      scheduleRunner.start(scheduleKernel);
+    },
+
+    async stopSchedules(): Promise<void> {
+      const timeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
+      await scheduleRunner.stop(timeoutMs);
+    },
+
+    async runScheduleOnce(name: string): Promise<void> {
+      await scheduleRunner.runOnce(name, scheduleKernel);
+    },
   };
 };
 
