@@ -1,4 +1,4 @@
-import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // This test ensures the fallback storage path is used when 'node:async_hooks' import fails
 vi.resetModules();
@@ -20,10 +20,18 @@ describe('RequestContext fallback storage', () => {
     const { RequestContext } = await import('@/http/RequestContext');
 
     let captured: any;
-    await RequestContext.run({ requestId: 'x' }, async () => {
-      const cur = await RequestContext.current();
-      captured = cur;
-    });
+    await RequestContext.run(
+      {
+        requestId: 'x',
+        startTime: 0,
+        method: '',
+        path: '',
+      },
+      async () => {
+        const cur = await RequestContext.current();
+        captured = cur;
+      }
+    );
 
     expect(captured).toBeDefined();
     expect(captured?.requestId).toBe('x');

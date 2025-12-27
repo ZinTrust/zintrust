@@ -1,7 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { Logger } from '@/cli/logger/Logger';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { Logger } from '@/cli/logger/Logger';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 const tmpDir = join(process.cwd(), 'tmp-test-logs');
 

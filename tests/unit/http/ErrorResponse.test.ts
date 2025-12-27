@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { ErrorResponse } from '@/http/ErrorResponse';
+import { describe, expect, it } from 'vitest';
 
 describe('ErrorResponse', () => {
   it('creates error objects with and without stack', () => {
