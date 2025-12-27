@@ -25,7 +25,11 @@ vi.mock('@app/Controllers/UserController', () => {
 });
 vi.mock('@config/env', () => ({
   Env: {
+    get: vi.fn((_key: string, defaultVal?: string) => defaultVal ?? ''),
+    getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+    getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
     NODE_ENV: 'test',
+    PORT: 3000,
   },
 }));
 vi.mock('@config/logger');

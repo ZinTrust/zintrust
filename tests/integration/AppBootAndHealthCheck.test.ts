@@ -41,7 +41,7 @@ describe.sequential('Application Boot and Health Check Integration', () => {
     });
 
     it('should detect environment correctly', () => {
-      expect(['test', 'testing']).toContain(app.getEnvironment());
+      expect(['testing']).toContain(app.getEnvironment());
       expect(app.isTesting()).toBe(true);
     });
 

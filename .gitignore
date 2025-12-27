@@ -46,3 +46,4 @@ lint-report.txt
 eslint.config.mjs.broken
 simulate/
 test-project/
+todo/

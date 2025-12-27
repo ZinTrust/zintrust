@@ -79,7 +79,7 @@ const normalizeMode = (): StartMode => {
       : readEnvString('NODE_ENV', 'development')
   ) as Environment;
   if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
-  if (value === 'testing') return 'testing';
+  if (value === 'testing' || value === 'test') return 'testing';
   return 'development';
 };
 

@@ -3,11 +3,9 @@
  * Mitigates SSRF (SonarQube S5144)
  */
 
-import { appConfig } from '@/config';
 import { ErrorFactory, type IZintrustError } from '@exceptions/ZintrustError';
 
 export interface IUrlValidator {
-  validate(url: string, allowedDomains?: string[]): void;
   validateUrl(url: string, allowedDomains?: string[]): void;
 }
 
@@ -26,7 +24,7 @@ const validate = (url: string, allowedDomains: string[] = ['localhost', '127.0.0
       (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
     );
 
-    if (!isAllowed && appConfig.isProduction()) {
+    if (!isAllowed) {
       throw ErrorFactory.createValidationError(
         `URL hostname '${hostname}' is not allowed (SSRF Protection)`,
         { hostname }

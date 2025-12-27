@@ -55,11 +55,13 @@ describe('UrlValidator', () => {
     }
   });
 
-  it('should NOT throw error for disallowed domains in development', () => {
+  it('should throw error for disallowed domains in development', () => {
     mockIsProduction = false;
 
     try {
-      expect(() => validateUrl('https://evil.com')).not.toThrow();
+      expect(() => validateUrl('https://evil.com')).toThrow(
+        /URL hostname 'evil.com' is not allowed/
+      );
     } finally {
       // Reset in afterEach
     }

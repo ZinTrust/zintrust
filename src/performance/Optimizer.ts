@@ -35,6 +35,38 @@ function isUnrefableTimer(value: unknown): value is UnrefableTimer {
   return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
 }
 
+function deleteFileNonBlocking(filePath: string): void {
+  try {
+    const anyFs = fs as unknown as {
+      promises?: { unlink?: (p: string) => Promise<void> };
+      unlink?: (p: string, cb: (err: NodeJS.ErrnoException | null) => void) => void;
+    };
+
+    if (typeof anyFs.promises?.unlink === 'function') {
+      void anyFs.promises.unlink(filePath).catch((err: unknown) => {
+        const maybeErr = err as Partial<NodeJS.ErrnoException>;
+        if (maybeErr.code === 'ENOENT') return;
+        Logger.error(
+          `Failed to delete cache file: ${filePath} (${err instanceof Error ? err.message : String(err)})`
+        );
+      });
+      return;
+    }
+
+    if (typeof anyFs.unlink === 'function') {
+      anyFs.unlink(filePath, (err) => {
+        if (err && err.code !== 'ENOENT') {
+          Logger.error(`Failed to delete cache file: ${filePath} (${err.message})`);
+        }
+      });
+    }
+  } catch (err) {
+    Logger.error(
+      `Failed to schedule cache file deletion: ${filePath} (${err instanceof Error ? err.message : String(err)})`
+    );
+  }
+}
+
 /**
  * Generation Cache - Cache generated code to avoid re-generating identical code
  * Sealed namespace for immutability
@@ -64,9 +96,7 @@ export const GenerationCache = Object.freeze({
           state.cache.delete(key);
           // Also try to delete from disk
           const file = path.join(state.cacheDir, `${key}.json`);
-          if (fs.existsSync(file)) {
-            fs.unlinkSync(file);
-          }
+          deleteFileNonBlocking(file);
         }
       }
     }, 600000);
