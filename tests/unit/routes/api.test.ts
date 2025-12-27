@@ -275,6 +275,52 @@ describe('Routes API', () => {
         })
       );
     });
+
+    it('should report not_ready when CACHE_DRIVER=kv but binding is missing', async () => {
+      // Make DB healthy
+      mockDb.query.mockResolvedValue([]);
+
+      // Force kv driver for this test
+      const previousGet = Env.get;
+
+      // Helper to avoid deep nested callbacks inside inline mock
+      const cacheDriverMock = (prev: typeof previousGet) => (k: string, def?: string) =>
+        k === 'CACHE_DRIVER'
+          ? 'kv'
+          : (prev as unknown as (k: string, def?: string) => string)(k, def);
+
+      (Env as unknown as { get: unknown }).get = vi.fn(cacheDriverMock(previousGet));
+
+      const previousEnv = (globalThis as unknown as { env?: unknown }).env;
+      delete (globalThis as unknown as { env?: unknown }).env;
+
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const readyMatch = Router.match(router, 'GET', '/health/ready');
+      if (readyMatch === null)
+        throw new Error('Expected /health/ready route handler to be registered');
+
+      const res = {
+        setStatus: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as { setStatus: Mock; json: Mock };
+
+      await readyMatch.handler({} as any, res as any);
+
+      expect(res.setStatus).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'not_ready',
+          dependencies: expect.objectContaining({
+            cache: expect.any(Object),
+          }),
+        })
+      );
+
+      (globalThis as unknown as { env?: unknown }).env = previousEnv;
+      (Env as unknown as { get: unknown }).get = previousGet;
+    });
   });
 
   describe('API V1 Routes', () => {

@@ -42,21 +42,22 @@ zin p -i a:sqlite
 
 **What happens during installation?**
 
-1.  **Dependencies**: The CLI installs necessary npm packages (e.g., `better-sqlite3`, `@types/better-sqlite3`) into your `package.json`.
-2.  **Code Generation**: The CLI copies a pre-configured, production-ready TypeScript file (e.g., `src/orm/adapters/SQLiteAdapter.ts`) into your project.
-3.  **Configuration**: You are ready to go! The framework automatically detects the new adapter.
+1.  **Dependencies**: The CLI runs `npm install` in your current project directory (updates `package.json` and your lockfile).
+2.  **Code Generation**: The CLI copies pre-configured, production-ready TypeScript files (e.g., `src/orm/adapters/SQLiteAdapter.ts`) into your project.
+3.  **Post-install commands**: Some plugins include an optional `postInstall.command` (for setup tasks). For safety, the framework will **not** execute these commands by default; you must opt-in by setting `ZINTRUST_ALLOW_POSTINSTALL=1` in your environment. Review any post-install commands before enabling them.
+4.  **Configuration**: You are ready to go! The framework automatically detects the new adapter.
 
-### Uninstalling a Plugin
-
-```bash
 # Standard syntax
+
 zin plugin uninstall adapter:sqlite
 
 # Short syntax
+
 zin p -u a:sqlite
+
 ```
 
-_Note: Currently, uninstalling does not automatically remove the generated code or npm dependencies to prevent accidental data loss. You will need to manually revert the file changes if desired._
+_Note: Uninstall is currently **non-destructive** and does not roll back generated files or remove npm dependencies. If you want to revert, do it manually (e.g., restore from git)._
 
 ## Available Plugins
 
@@ -80,3 +81,4 @@ _Note: Currently, uninstalling does not automatically remove the generated code 
 
 (Coming Soon)
 Future versions of Zintrust will allow you to define your own local plugins to standardize components across your organization.
+```

@@ -5,8 +5,10 @@
 
 import { appConfig } from '@/config';
 import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
+import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
@@ -182,6 +184,9 @@ const createLifecycle = (params: {
 
     StartupConfigValidator.assertValid();
 
+    FeatureFlags.initialize();
+    await StartupHealthChecks.assertHealthy();
+
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerRoutes(params.resolvedBasePath, params.router);
 
@@ -229,6 +234,17 @@ export const Application = Object.freeze({
 
     registerCorePaths(container, resolvedBasePath, joinFromBase);
     registerCoreInstances({ container, environment, router, middlewareStack, shutdownManager });
+
+    // Register framework-level shutdown hooks for long-lived resources
+    // ConnectionManager may not be initialized; shutdownIfInitialized is safe
+    // Use dynamic import without top-level await to avoid transforming the module into an async module
+    import('@orm/ConnectionManager')
+      .then(({ ConnectionManager }) => {
+        shutdownManager.add(async () => ConnectionManager.shutdownIfInitialized());
+      })
+      .catch(() => {
+        /* ignore import failures in restrictive runtimes */
+      });
 
     const { boot, shutdown } = createLifecycle({
       environment,

@@ -4,6 +4,7 @@
  */
 
 import { appConfig } from '@/config';
+import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { useDatabase } from '@orm/Database';
@@ -69,11 +70,17 @@ function registerHealthReadyRoute(router: IRouter): void {
     const startTime = Date.now();
     const environment = appConfig.environment;
 
+    let databaseResponseTime: number | null = null;
+    let cacheResponseTime: number | null = null;
+
     try {
       const db = useDatabase();
       await QueryBuilder.ping(db);
 
-      const responseTime = Date.now() - startTime;
+      databaseResponseTime = Date.now() - startTime;
+
+      // Only probe KV at runtime when explicitly configured.
+      cacheResponseTime = await RuntimeHealthProbes.pingKvCache(2000);
 
       res.json({
         status: 'ready',
@@ -82,8 +89,16 @@ function registerHealthReadyRoute(router: IRouter): void {
         dependencies: {
           database: {
             status: 'ready',
-            responseTime,
+            responseTime: databaseResponseTime,
           },
+          ...(cacheResponseTime === null
+            ? {}
+            : {
+                cache: {
+                  status: 'ready',
+                  responseTime: cacheResponseTime,
+                },
+              }),
         },
       });
     } catch (error) {
@@ -93,16 +108,25 @@ function registerHealthReadyRoute(router: IRouter): void {
 
       const responseTime = Date.now() - startTime;
 
+      const dependencies: Record<string, unknown> = {
+        database: {
+          status: databaseResponseTime === null ? 'unavailable' : 'ready',
+          responseTime: databaseResponseTime ?? responseTime,
+        },
+      };
+
+      if (RuntimeHealthProbes.getCacheDriverName() === 'kv') {
+        dependencies['cache'] = {
+          status: 'unavailable',
+          responseTime: cacheResponseTime ?? responseTime,
+        };
+      }
+
       res.setStatus(503).json({
         status: 'not_ready',
         timestamp: new Date().toISOString(),
         environment,
-        dependencies: {
-          database: {
-            status: 'unavailable',
-            responseTime,
-          },
-        },
+        dependencies,
         error: isProd ? 'Service unavailable' : (error as Error).message,
       });
     }

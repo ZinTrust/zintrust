@@ -2,6 +2,21 @@
 
 Zintrust is optimized for Cloudflare Workers, providing native support for D1 databases and KV storage.
 
+## How Workers bindings are accessed
+
+In Cloudflare Workers, bindings are provided to the `fetch()` handler as the `_env` argument.
+
+Zintrust makes these bindings available to framework code by copying the Worker env object onto a global:
+
+- The Cloudflare entrypoint sets `globalThis.env = _env`
+- Framework components (database/cache) read bindings from `globalThis.env`
+
+To keep runtime-specific global access centralized, Zintrust provides a small helper module:
+
+- `src/config/cloudflare.ts`
+
+This module is used by adapters/drivers to resolve bindings without duplicating Workers-specific logic.
+
 ## D1 Database
 
 Cloudflare D1 is a native serverless SQL database. Zintrust provides a dedicated adapter to use D1 as your primary ORM database.
@@ -27,6 +42,8 @@ In your `.env` or `Env` class, set the connection driver:
 ```env
 DB_CONNECTION=d1
 ```
+
+The D1 adapter expects the D1 binding name to be `DB` (as shown in the Wrangler config above).
 
 ### Migrations
 
@@ -64,6 +81,8 @@ Set the cache driver to `kv`:
 ```env
 CACHE_DRIVER=kv
 ```
+
+The KV driver expects the KV namespace binding name to be `CACHE` (as shown in the Wrangler config above).
 
 ## Deployment
 

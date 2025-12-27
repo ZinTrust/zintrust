@@ -47,6 +47,10 @@ export const PostgreSQLAdapter = Object.freeze({
         return result.rows[0] ?? null;
       },
 
+      async ping(): Promise<void> {
+        await this.query('SELECT 1', []);
+      },
+
       async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
         try {

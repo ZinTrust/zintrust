@@ -4,38 +4,25 @@
  */
 
 import { CacheDriver } from '@cache/CacheDriver';
+import { Cloudflare } from '@config/cloudflare';
 import { Logger } from '@config/logger';
-
-interface KVNamespace {
-  get(
-    key: string,
-    options?: { type: 'text' | 'json' | 'arrayBuffer' | 'stream' }
-  ): Promise<unknown>;
-  put(
-    key: string,
-    value: string | ReadableStream | ArrayBuffer | FormData,
-    options?: { expiration?: number; expirationTtl?: number; metadata?: unknown }
-  ): Promise<void>;
-  delete(key: string): Promise<void>;
-}
 
 /**
  * Create a new KV driver instance
  */
 const create = (): CacheDriver => {
   // In Cloudflare Workers, the KV namespace is usually bound to a variable in the environment
-  const env = (globalThis as Record<string, unknown>)['env'] as Record<string, unknown> | undefined;
-  const kv = env === undefined ? undefined : (env['CACHE'] as KVNamespace);
+  const kv = Cloudflare.getKVBinding('CACHE');
 
   return {
     async get<T>(key: string): Promise<T | null> {
-      if (kv === undefined) return null;
+      if (kv === null) return null;
       const value = await kv.get(key, { type: 'json' });
       return (value as T | null) ?? null;
     },
 
     async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-      if (kv === undefined) {
+      if (kv === null) {
         Logger.warn('KV binding "CACHE" not found. Cache set ignored.');
         return;
       }
@@ -50,7 +37,7 @@ const create = (): CacheDriver => {
     },
 
     async delete(key: string): Promise<void> {
-      if (kv === undefined) return;
+      if (kv === null) return;
       await kv.delete(key);
     },
 
@@ -61,7 +48,7 @@ const create = (): CacheDriver => {
     },
 
     async has(key: string): Promise<boolean> {
-      if (kv === undefined) return false;
+      if (kv === null) return false;
       const value = await kv.get(key);
       return value !== null;
     },

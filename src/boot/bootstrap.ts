@@ -10,6 +10,61 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+let appInstance: ReturnType<typeof Application.create> | undefined;
+let serverInstance: ReturnType<typeof Server.create> | undefined;
+let isShuttingDown = false;
+
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> => {
+  if (timeoutMs <= 0) return promise;
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = globalThis.setTimeout(() => {
+        reject(ErrorFactory.createGeneralError(label, { timeoutMs }));
+      }, timeoutMs);
+    });
+
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
+  }
+};
+
+const gracefulShutdown = async (signal: string): Promise<void> => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  const timeoutMs = Number(Env.SHUTDOWN_TIMEOUT);
+  Logger.info(`${signal} received, shutting down gracefully...`);
+
+  try {
+    await withTimeout(
+      (async () => {
+        if (serverInstance !== undefined) {
+          await serverInstance.close();
+        }
+
+        if (appInstance !== undefined) {
+          await appInstance.shutdown();
+        }
+      })(),
+      timeoutMs,
+      'Graceful shutdown timed out'
+    );
+
+    process.exit(0);
+  } catch (error: unknown) {
+    Logger.error('Graceful shutdown failed:', error as Error);
+    process.exit(1);
+  }
+};
+
 /**
  * Bootstrap implementation
  */
@@ -21,6 +76,7 @@ const BootstrapFunctions = Object.freeze({
     try {
       // Create application instance
       const app = Application.create();
+      appInstance = app;
 
       // Boot application
       await app.boot();
@@ -31,6 +87,7 @@ const BootstrapFunctions = Object.freeze({
 
       // Create and start server
       const server = Server.create(app, port, host);
+      serverInstance = server;
 
       // Start listening
       await server.listen();
@@ -47,14 +104,12 @@ const BootstrapFunctions = Object.freeze({
    * Handle graceful shutdown
    */
   setupShutdownHandler(): void {
-    process.on('SIGTERM', () => {
-      Logger.info('SIGTERM received, shutting down gracefully...');
-      process.exit(0);
+    process.on('SIGTERM', async () => {
+      await gracefulShutdown('SIGTERM');
     });
 
-    process.on('SIGINT', () => {
-      Logger.info('SIGINT received, shutting down gracefully...');
-      process.exit(0);
+    process.on('SIGINT', async () => {
+      await gracefulShutdown('SIGINT');
     });
   },
 });

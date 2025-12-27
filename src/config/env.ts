@@ -114,6 +114,7 @@ export const Env = Object.freeze({
   ENVIRONMENT: get('ENVIRONMENT', 'development'),
   REQUEST_TIMEOUT: getInt('REQUEST_TIMEOUT', 30000),
   MAX_BODY_SIZE: getInt('MAX_BODY_SIZE', 10485760),
+  SHUTDOWN_TIMEOUT: getInt('SHUTDOWN_TIMEOUT', 10000),
 
   // Logging
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',

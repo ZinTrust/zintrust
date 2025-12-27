@@ -23,6 +23,7 @@ vi.mock('@config/env', () => ({
     HOST: 'localhost',
     NODE_ENV: 'test',
     DB_CONNECTION: 'sqlite',
+    SHUTDOWN_TIMEOUT: 10_000,
     get: vi.fn((key: string, defaultValue: unknown) => {
       String(key);
       return defaultValue;
@@ -54,11 +55,16 @@ vi.mock('@config/logger', () => ({
 
 describe('Bootstrap', () => {
   type SignalName = 'SIGTERM' | 'SIGINT';
-  type SignalHandler = () => void;
+  type SignalHandler = () => void | Promise<void>;
   type ListenFn = () => Promise<void>;
+  type CloseFn = () => Promise<void>;
+  type ShutdownFn = () => Promise<void>;
 
-  let mockServer: { listen: ReturnType<typeof vi.fn<ListenFn>> };
-  let mockApp: { getRouter: Mock; boot: Mock };
+  let mockServer: {
+    listen: ReturnType<typeof vi.fn<ListenFn>>;
+    close: ReturnType<typeof vi.fn<CloseFn>>;
+  };
+  let mockApp: { getRouter: Mock; boot: Mock; shutdown: ReturnType<typeof vi.fn<ShutdownFn>> };
   let signalHandlers: Partial<Record<SignalName, SignalHandler>>;
 
   beforeEach(() => {
@@ -85,11 +91,13 @@ describe('Bootstrap', () => {
     mockApp = {
       getRouter: vi.fn().mockReturnValue({}),
       boot: vi.fn().mockResolvedValue(undefined),
+      shutdown: vi.fn().mockResolvedValue(undefined),
     };
     (Application.create as unknown as Mock).mockReturnValue(mockApp);
 
     mockServer = {
       listen: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
     };
     (Server.create as unknown as Mock).mockReturnValue(mockServer);
   });
@@ -110,8 +118,10 @@ describe('Bootstrap', () => {
     expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
     expect(typeof signalHandlers.SIGTERM).toBe('function');
 
-    signalHandlers.SIGTERM?.();
+    await signalHandlers.SIGTERM?.();
     expect(Logger.info).toHaveBeenCalledWith('SIGTERM received, shutting down gracefully...');
+    expect(mockServer.close).toHaveBeenCalled();
+    expect(mockApp.shutdown).toHaveBeenCalled();
     expect(process.exit).toHaveBeenCalledWith(0);
   });
 

@@ -1,5 +1,6 @@
 import { Env } from '@config/env';
 import Logger from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdapterConfig, RuntimeAdapter, ZintrustHandler } from '@runtime/RuntimeAdapter';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import { DenoAdapter } from '@runtime/adapters/DenoAdapter';
@@ -162,6 +163,36 @@ export const RuntimeDetector = Object.freeze({
   getRuntimeInfo,
 });
 
+const runtimeState: {
+  adapter?: RuntimeAdapter;
+  runtime?: string;
+  isShuttingDown: boolean;
+} = {
+  isShuttingDown: false,
+};
+
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> => {
+  if (timeoutMs <= 0) return promise;
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = globalThis.setTimeout(() => {
+        reject(ErrorFactory.createGeneralError(label, { timeoutMs }));
+      }, timeoutMs);
+    });
+
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
+  }
+};
+
 /**
  * Application bootstrap factory
  * Creates and configures runtime-appropriate HTTP handler
@@ -180,6 +211,8 @@ const initialize = async (handler: ZintrustHandler): Promise<void> => {
 
   const runtime = detectRuntime();
   const adapter = createAdapterForRuntime(runtime, config);
+  runtimeState.adapter = adapter;
+  runtimeState.runtime = runtime;
 
   const logger = adapter.getLogger();
   const runtimeInfo = getRuntimeInfo();
@@ -230,9 +263,32 @@ const shutdown = async (signal: string = 'SIGTERM'): Promise<void> => {
   const logger = createDefaultLogger();
   logger.info(`Received ${signal}, gracefully shutting down...`);
 
-  // Perform cleanup tasks
-  process.exit(0);
-  return Promise.resolve();
+  if (runtimeState.isShuttingDown) {
+    process.exit(0);
+    return;
+  }
+
+  runtimeState.isShuttingDown = true;
+
+  const timeoutMs = Number(Env.SHUTDOWN_TIMEOUT);
+
+  try {
+    const adapter = runtimeState.adapter as
+      | (RuntimeAdapter & { stop?: () => Promise<void> })
+      | undefined;
+
+    if (typeof adapter?.stop === 'function') {
+      await withTimeout(adapter.stop(), timeoutMs, 'Runtime adapter shutdown timed out');
+    }
+
+    process.exit(0);
+  } catch (error: unknown) {
+    logger.error('Graceful shutdown failed', error as Error);
+    process.exit(1);
+  } finally {
+    // In real runtimes `process.exit(...)` ends execution, but in tests it's mocked.
+    runtimeState.isShuttingDown = false;
+  }
 };
 
 /**

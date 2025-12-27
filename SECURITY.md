@@ -34,3 +34,24 @@ This repo runs a `Security Scan` GitHub Actions workflow that checks dependencie
 
 - CodeQL results are generated as SARIF artifacts (download from the workflow run).
 - Publishing SARIF to GitHub Code Scanning requires GitHub Advanced Security to be enabled for the repository.
+
+## Running Security Scans Locally
+
+You can run a quick dependency audit locally and save the results to `reports/`:
+
+```bash
+# Save npm audit JSON to a file
+npm audit --json > reports/dependency-audit-$(date +%F).json || true
+```
+
+To run the same checks as CI locally:
+
+- Snyk: `npx snyk test` (requires `SNYK_TOKEN`)
+- Trivy (fs): `trivy fs --severity CRITICAL,HIGH .`
+- CodeQL: follow GitHub CodeQL local analysis docs
+
+CI lessons:
+
+- CI will run `npm audit`, `Snyk`, `Trivy`, CodeQL and static analysis; review their workflow logs when a scan fails and prioritize CVEs by severity.
+
+Reports from the last run are available in the `reports/` directory in the repository (e.g., `reports/dependency-audit-2025-12-27.json`).

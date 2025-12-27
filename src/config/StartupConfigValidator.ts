@@ -120,6 +120,9 @@ export const StartupConfigValidator = Object.freeze({
     const logRotationDays = getEnvInt('LOG_ROTATION_DAYS', 7);
     validatePositiveInt(errors, 'LOG_ROTATION_DAYS', logRotationDays);
 
+    const startupHealthTimeoutMs = getEnvInt('STARTUP_HEALTH_TIMEOUT_MS', 2500);
+    validatePositiveInt(errors, 'STARTUP_HEALTH_TIMEOUT_MS', startupHealthTimeoutMs);
+
     if (appConfig.isProduction()) {
       const appKey = getEnvString('APP_KEY', '');
       if (appKey.trim().length < 16) {

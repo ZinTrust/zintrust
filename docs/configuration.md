@@ -326,10 +326,26 @@ Temp files / uploads / backups:
 
 ## Cloudflare
 
-From `Env`:
+Zintrust’s Cloudflare support is configured primarily via your Workers bindings (Wrangler `binding` names) plus a small set of runtime env flags.
+
+Runtime flags:
+
+- `DB_CONNECTION=d1` (use the D1 adapter)
+- `CACHE_DRIVER=kv` (use the KV cache driver)
+
+Workers binding names (expected defaults):
+
+- D1 binding name: `DB`
+- KV binding name: `CACHE`
+
+Legacy/optional env keys:
 
 - `D1_DATABASE_ID`
 - `KV_NAMESPACE_ID`
+
+These are not required for runtime access in Workers; Zintrust resolves D1/KV via bindings.
+
+See `docs/cloudflare.md` for the full setup.
 
 ## AWS (Runtime)
 

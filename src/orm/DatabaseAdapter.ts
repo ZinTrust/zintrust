@@ -56,6 +56,13 @@ export interface IDatabaseAdapter {
   queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null>;
 
   /**
+   * Lightweight connection probe.
+   *
+   * This should be safe to call from health/readiness endpoints.
+   */
+  ping(): Promise<void>;
+
+  /**
    * Execute multiple queries in transaction
    */
   transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;

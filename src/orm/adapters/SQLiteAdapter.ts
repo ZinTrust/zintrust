@@ -157,6 +157,10 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
       return result.rows[0] ?? null;
     },
 
+    async ping(): Promise<void> {
+      await adapter.query('SELECT 1', []);
+    },
+
     async transaction<T>(
       callback: (adapter: IDatabaseAdapter, db: Database.Database) => Promise<T>
     ): Promise<T> {

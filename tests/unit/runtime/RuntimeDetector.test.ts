@@ -67,6 +67,7 @@ vi.mock('@config/env', () => ({
     NODE_ENV: 'test',
     REQUEST_TIMEOUT: 30_000,
     MAX_BODY_SIZE: 1_000_000,
+    SHUTDOWN_TIMEOUT: 10_000,
     PORT: 3333,
     HOST: '127.0.0.1',
   },

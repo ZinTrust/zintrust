@@ -21,6 +21,7 @@ declare namespace NodeJS {
     ENVIRONMENT?: string | undefined;
     REQUEST_TIMEOUT?: string | undefined;
     MAX_BODY_SIZE?: string | undefined;
+    SHUTDOWN_TIMEOUT?: string | undefined;
 
     // Database
     DB_CONNECTION?: string | undefined;
@@ -141,6 +142,14 @@ declare namespace NodeJS {
     TOKEN_TTL?: string | undefined;
     TOKEN_LENGTH?: string | undefined;
     ENABLE_PROFILER?: string | undefined;
+
+    // Startup
+    STARTUP_HEALTH_CHECKS?: string | undefined;
+    STARTUP_VALIDATE_SECRETS?: string | undefined;
+    STARTUP_CHECK_DB?: string | undefined;
+    STARTUP_CHECK_CACHE?: string | undefined;
+    STARTUP_HEALTH_TIMEOUT_MS?: string | undefined;
+    STARTUP_CONTINUE_ON_FAILURE?: string | undefined;
 
     // Security
     JWT_ENABLED?: string | undefined;
