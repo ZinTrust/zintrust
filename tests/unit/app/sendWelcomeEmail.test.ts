@@ -1,6 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FakeStorage from '@storage/testing';
+
+function sendGridMockFactory() {
+  return {
+    SendGridDriver: {
+      send: vi.fn(async (_config: any, message: any) => ({
+        ok: true,
+        provider: 'sendgrid',
+        message,
+      })),
+    },
+  };
+}
 
 describe('sendWelcomeEmail toolkit', () => {
   beforeEach(() => {
@@ -15,17 +27,7 @@ describe('sendWelcomeEmail toolkit', () => {
     process.env.SENDGRID_API_KEY = 'test-key';
     process.env.MAIL_FROM_ADDRESS = 'noreply@example.com';
 
-    vi.mock('@mail/drivers/SendGrid', () => {
-      return {
-        SendGridDriver: {
-          send: vi.fn(async (_config: any, message: any) => ({
-            ok: true,
-            provider: 'sendgrid',
-            message,
-          })),
-        },
-      };
-    });
+    vi.mock('@mail/drivers/SendGrid', sendGridMockFactory);
 
     const { sendWelcomeEmail } = await import('@app/Toolkit/Mail/sendWelcomeEmail');
     const { SendGridDriver } = await import('@mail/drivers/SendGrid');

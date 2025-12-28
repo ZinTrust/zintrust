@@ -15,8 +15,8 @@ type IRedisClient = {
 };
 
 const getRedisUrl = (): string | null => {
-  const url = process.env['REDIS_URL'] ?? null;
-  return url;
+  const url = (process.env['REDIS_URL'] ?? '').trim();
+  return url.length > 0 ? url : null;
 };
 
 export const RedisQueue = (() => {
@@ -24,9 +24,9 @@ export const RedisQueue = (() => {
   let connected = false;
 
   const ensureClient = async (): Promise<IRedisClient> => {
-    if (client && connected) return client;
+    if (connected && client !== null) return client;
     const url = getRedisUrl();
-    if (!url) throw ErrorFactory.createConfigError('Redis queue driver requires REDIS_URL');
+    if (url === null) throw ErrorFactory.createConfigError('Redis queue driver requires REDIS_URL');
 
     // Import lazily so package is optional for environments that don't use Redis
     // Prefer real 'redis' package when available, otherwise allow tests to inject a fake client
@@ -58,17 +58,18 @@ export const RedisQueue = (() => {
     } catch {
       const globalFake = (globalThis as unknown as { __fakeRedisClient?: IRedisClient })
         .__fakeRedisClient;
-      if (globalFake) {
-        client = globalFake;
-        connected = true;
-      } else {
+      if (globalFake === undefined) {
         throw ErrorFactory.createConfigError(
           "Redis queue driver requires the 'redis' package or a test fake client set in globalThis.__fakeRedisClient"
         );
       }
+
+      client = globalFake;
+      connected = true;
     }
 
-    if (!client) throw ErrorFactory.createConfigError('Redis client could not be initialized');
+    if (client === null)
+      throw ErrorFactory.createConfigError('Redis client could not be initialized');
     return client;
   };
 
@@ -84,7 +85,7 @@ export const RedisQueue = (() => {
     async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
       const cli = await ensureClient();
       const raw = await cli.lPop(queue);
-      if (!raw) return undefined;
+      if (raw === null) return undefined;
       try {
         const parsed = JSON.parse(raw) as QueueMessage<T>;
         return parsed;
@@ -96,7 +97,7 @@ export const RedisQueue = (() => {
     async ack(_queue: string, _id: string): Promise<void> {
       // Simple list-based queue removes on dequeue, so ack is a no-op here.
       // For visibility timeout or retry semantics, implement BRPOPLPUSH and a processing list.
-      return;
+      return Promise.resolve();
     },
 
     async length(queue: string): Promise<number> {

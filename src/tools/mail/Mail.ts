@@ -1,6 +1,7 @@
 import { mailConfig } from '@config/mail';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+import { MailgunDriver } from '@mail/drivers/Mailgun';
 import { SendGridDriver, type MailAddress } from '@mail/drivers/SendGrid';
 import { SesDriver } from '@mail/drivers/Ses';
 import { SmtpDriver } from '@mail/drivers/Smtp';
@@ -22,7 +23,7 @@ export type SendMailInput = {
 
 export type SendMailResult = {
   ok: boolean;
-  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses';
+  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun';
   messageId?: string;
 };
 
@@ -90,7 +91,7 @@ const createStorageWrapper = (): StorageWrapper => ({
   async get(disk: string, path: string) {
     const d = getDiskSafe(disk);
     const result = await Promise.resolve(d.driver.get(d.config, path));
-    return result as Buffer;
+    return result;
   },
   async exists(disk: string, path: string) {
     const d = getDiskSafe(disk);
@@ -115,6 +116,14 @@ const sendWithDriver = async (
   if (driver.driver === 'sendgrid') {
     const result = await SendGridDriver.send({ apiKey: driver.apiKey }, message);
     return { ok: result.ok, driver: 'sendgrid', messageId: result.messageId };
+  }
+
+  if (driver.driver === 'mailgun') {
+    const result = await MailgunDriver.send(
+      { apiKey: driver.apiKey, domain: driver.domain, baseUrl: driver.baseUrl },
+      message
+    );
+    return { ok: result.ok, driver: 'mailgun', messageId: result.messageId };
   }
 
   if (driver.driver === 'smtp') {

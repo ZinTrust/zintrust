@@ -14,10 +14,10 @@ interface ILogger {
   fatal(message: string, error?: unknown, category?: string): void;
 }
 
-const isDevelopment = appConfig.isDevelopment();
-const isProduction = appConfig.isProduction();
+const isDevelopment = (): boolean => appConfig.isDevelopment();
+const isProduction = (): boolean => appConfig.isProduction();
 
-const LOG_FORMAT = Env.LOG_FORMAT;
+const getLogFormat = (): string => Env.get('LOG_FORMAT', 'text');
 const isJsonFormat = (value: unknown): value is 'json' => value === 'json';
 
 const SENSITIVE_FIELDS = new Set<string>([
@@ -110,7 +110,7 @@ const buildFileLine = (params: {
   data?: unknown;
   errorMessage?: string;
 }): string => {
-  if (isJsonFormat(LOG_FORMAT)) return params.formatted;
+  if (isJsonFormat(getLogFormat())) return params.formatted;
 
   let line = params.formatted;
   if (typeof params.errorMessage === 'string' && params.errorMessage.length > 0) {
@@ -140,7 +140,7 @@ const formatLogMessage = (params: {
   category?: string;
   errorMessage?: string;
 }): string => {
-  if (isJsonFormat(LOG_FORMAT)) {
+  if (isJsonFormat(getLogFormat())) {
     return safeStringify({
       timestamp: new Date().toISOString(),
       level: params.level,
@@ -168,45 +168,112 @@ const getErrorMessage = (error?: unknown): string => {
   return String(error);
 };
 
+type CloudLogEvent = {
+  timestamp: string;
+  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  message: string;
+  category?: string;
+  data?: unknown;
+  error?: string;
+};
+
+const emitCloudLogs = (event: CloudLogEvent): void => {
+  // Lazy-load to avoid cycles and avoid cost when disabled.
+  void (async (): Promise<void> => {
+    try {
+      if (event.level === 'error' || event.level === 'fatal') {
+        const mod = await import('@config/logging/KvLogger');
+        void mod.KvLogger.enqueue(event);
+      }
+    } catch {
+      // best-effort
+    }
+
+    try {
+      if (event.level === 'warn' || event.level === 'error' || event.level === 'fatal') {
+        const mod = await import('@config/logging/SlackLogger');
+        void mod.SlackLogger.enqueue(event);
+      }
+    } catch {
+      // best-effort
+    }
+
+    try {
+      const mod = await import('@config/logging/HttpLogger');
+      void mod.HttpLogger.enqueue(event);
+    } catch {
+      // best-effort
+    }
+  })();
+};
+
 // Private helper functions
 const logDebug = (message: string, data?: unknown, category?: string): void => {
   String(category);
-  if (isDevelopment) {
+  if (isDevelopment()) {
+    const timestamp = new Date().toISOString();
     const out = formatLogMessage({ level: 'debug', message, data, category });
     writeToFile(buildFileLine({ formatted: out, data }));
-    if (isJsonFormat(LOG_FORMAT)) {
+    if (isJsonFormat(getLogFormat())) {
       console.debug(out); // eslint-disable-line no-console
       return;
     }
     console.debug(out, data ?? ''); // eslint-disable-line no-console
+
+    emitCloudLogs({
+      timestamp,
+      level: 'debug',
+      message,
+      category,
+      data: redactSensitiveData(data),
+    });
   }
 };
 
 const logInfo = (message: string, data?: unknown, category?: string): void => {
   String(category);
+  const timestamp = new Date().toISOString();
   const out = formatLogMessage({ level: 'info', message, data, category });
   writeToFile(buildFileLine({ formatted: out, data }));
-  if (isJsonFormat(LOG_FORMAT)) {
+  if (isJsonFormat(getLogFormat())) {
     console.log(out); // eslint-disable-line no-console
-    return;
+  } else {
+    console.log(out, data ?? ''); // eslint-disable-line no-console
   }
-  console.log(out, data ?? ''); // eslint-disable-line no-console
+
+  emitCloudLogs({
+    timestamp,
+    level: 'info',
+    message,
+    category,
+    data: redactSensitiveData(data),
+  });
 };
 
 const logWarn = (message: string, data?: unknown, category?: string): void => {
   String(category);
+  const timestamp = new Date().toISOString();
   const out = formatLogMessage({ level: 'warn', message, data, category });
   writeToFile(buildFileLine({ formatted: out, data }));
-  if (isJsonFormat(LOG_FORMAT)) {
+  if (isJsonFormat(getLogFormat())) {
     console.warn(out); // eslint-disable-line no-console
-    return;
+  } else {
+    console.warn(out, data ?? ''); // eslint-disable-line no-console
   }
-  console.warn(out, data ?? ''); // eslint-disable-line no-console
+
+  emitCloudLogs({
+    timestamp,
+    level: 'warn',
+    message,
+    category,
+    data: redactSensitiveData(data),
+  });
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
   const errorMessage = getErrorMessage(error);
   String(category);
+  const timestamp = new Date().toISOString();
   const out = formatLogMessage({
     level: 'error',
     message,
@@ -214,16 +281,25 @@ const logError = (message: string, error?: unknown, category?: string): void => 
     errorMessage,
   });
   writeToFile(buildFileLine({ formatted: out, errorMessage }));
-  if (isJsonFormat(LOG_FORMAT)) {
+  if (isJsonFormat(getLogFormat())) {
     console.error(out); // eslint-disable-line no-console
-    return;
+  } else {
+    console.error(out, errorMessage); // eslint-disable-line no-console
   }
-  console.error(out, errorMessage); // eslint-disable-line no-console
+
+  emitCloudLogs({
+    timestamp,
+    level: 'error',
+    message,
+    category,
+    error: errorMessage,
+  });
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
   const errorMessage = getErrorMessage(error);
   String(category);
+  const timestamp = new Date().toISOString();
   const out = formatLogMessage({
     level: 'fatal',
     message,
@@ -231,12 +307,21 @@ const logFatal = (message: string, error?: unknown, category?: string): void => 
     errorMessage,
   });
   writeToFile(buildFileLine({ formatted: out, errorMessage }));
-  if (isJsonFormat(LOG_FORMAT)) {
+  if (isJsonFormat(getLogFormat())) {
     console.error(out); // eslint-disable-line no-console
   } else {
     console.error(out, errorMessage); // eslint-disable-line no-console
   }
-  if (isProduction && typeof process !== 'undefined') {
+
+  emitCloudLogs({
+    timestamp,
+    level: 'fatal',
+    message,
+    category,
+    error: errorMessage,
+  });
+
+  if (isProduction() && typeof process !== 'undefined') {
     process.exit(1);
   }
 };

@@ -9,6 +9,8 @@ import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
+import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
+import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
@@ -17,6 +19,7 @@ import { QACommand } from '@cli/commands/QACommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
+import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -88,6 +91,9 @@ const registerCommands = (program: Command): void => {
     FixCommand.create(),
     KeyGenerateCommand.create(),
     SimulateCommand,
+    TemplatesCommand,
+    MakeMailTemplateCommand.create(),
+    MakeNotificationTemplateCommand.create(),
   ];
 
   for (const command of commands) {

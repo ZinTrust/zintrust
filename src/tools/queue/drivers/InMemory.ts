@@ -15,6 +15,7 @@ export const InMemoryQueue = (() => {
 
   return {
     async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
+      await Promise.resolve();
       ensure(queue);
       const id = generateId();
       const msg: InternalMessage = {
@@ -33,6 +34,7 @@ export const InMemoryQueue = (() => {
     },
 
     async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
+      await Promise.resolve();
       ensure(queue);
       const arr = store.get(queue);
       if (arr && arr.length > 0) {
@@ -44,16 +46,18 @@ export const InMemoryQueue = (() => {
 
     async ack(_queue: string, _id: string): Promise<void> {
       // in-memory dequeue already removed the message; ack is a no-op
-      return;
+      await Promise.resolve();
     },
 
     async length(queue: string): Promise<number> {
+      await Promise.resolve();
       ensure(queue);
       const arr = store.get(queue);
       return arr ? arr.length : 0;
     },
 
     async drain(queue: string): Promise<void> {
+      await Promise.resolve();
       ensure(queue);
       store.set(queue, []);
     },

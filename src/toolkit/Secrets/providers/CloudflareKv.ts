@@ -76,9 +76,16 @@ export const CloudflareKv = Object.freeze({
 
   doctorEnv(): string[] {
     const missing: string[] = [];
-    if (!process.env['CLOUDFLARE_ACCOUNT_ID']) missing.push('CLOUDFLARE_ACCOUNT_ID');
-    if (!process.env['CLOUDFLARE_API_TOKEN']) missing.push('CLOUDFLARE_API_TOKEN');
-    if (!process.env['CLOUDFLARE_KV_NAMESPACE_ID']) missing.push('CLOUDFLARE_KV_NAMESPACE_ID');
+
+    const accountId = (process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '').trim();
+    if (accountId === '') missing.push('CLOUDFLARE_ACCOUNT_ID');
+
+    const apiToken = (process.env['CLOUDFLARE_API_TOKEN'] ?? '').trim();
+    if (apiToken === '') missing.push('CLOUDFLARE_API_TOKEN');
+
+    const namespaceId = (process.env['CLOUDFLARE_KV_NAMESPACE_ID'] ?? '').trim();
+    if (namespaceId === '') missing.push('CLOUDFLARE_KV_NAMESPACE_ID');
+
     return missing;
   },
 });

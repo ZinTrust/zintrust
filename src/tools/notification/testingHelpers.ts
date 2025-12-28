@@ -16,7 +16,7 @@ export const useFakeDriver = (
     previous = undefined;
   }
 
-  const fakeDriver = fake as unknown as DriverLike;
+  const fakeDriver = fake as DriverLike;
   NotificationRegistry.register(name, fakeDriver);
   const prevEnv = process.env['NOTIFICATION_DRIVER'];
   process.env['NOTIFICATION_DRIVER'] = name;
@@ -28,7 +28,7 @@ export const useFakeDriver = (
       if (previous === undefined) {
         NotificationRegistry.register(name, NotificationFake as unknown as DriverLike);
       } else {
-        NotificationRegistry.register(name, previous as DriverLike);
+        NotificationRegistry.register(name, previous);
       }
 
       if (prevEnv === undefined) delete process.env['NOTIFICATION_DRIVER'];

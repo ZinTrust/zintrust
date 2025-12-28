@@ -56,8 +56,22 @@ export const LocalDriver = Object.freeze({
   },
 
   url(config: LocalConfig, key: string): string | undefined {
-    if (!config.url || config.url.trim() === '') return undefined;
+    if (config?.url === undefined || config.url.trim() === '') return undefined;
     return `${config.url.replace(/\/$/, '')}/${key}`;
+  },
+
+  tempUrl(
+    config: LocalConfig,
+    key: string,
+    _options?: { expiresIn?: number; method?: 'GET' | 'PUT' }
+  ): string {
+    const url = LocalDriver.url(config, key);
+    if (url === undefined) {
+      throw ErrorFactory.createConfigError(
+        'Local storage: url is not configured (set STORAGE_URL)'
+      );
+    }
+    return url;
   },
 });
 

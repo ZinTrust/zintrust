@@ -57,8 +57,9 @@ const buildAuthorization = (params: {
     'x-amz-target': params.target,
   };
 
-  if (params.credentials.sessionToken) {
-    headers['x-amz-security-token'] = params.credentials.sessionToken;
+  const sessionToken = params.credentials.sessionToken;
+  if (typeof sessionToken === 'string' && sessionToken.trim() !== '') {
+    headers['x-amz-security-token'] = sessionToken;
   }
 
   const sortedHeaderKeys = Object.keys(headers).sort((a, b) => a.localeCompare(b));
@@ -140,7 +141,10 @@ const requestAwsSecretsManager = async <T>(
     Authorization: authorization,
   };
 
-  if (credentials.sessionToken) headers['x-amz-security-token'] = credentials.sessionToken;
+  const sessionToken = credentials.sessionToken;
+  if (typeof sessionToken === 'string' && sessionToken.trim() !== '') {
+    headers['x-amz-security-token'] = sessionToken;
+  }
 
   const res = await fetch(url, {
     method: 'POST',
@@ -191,8 +195,10 @@ export const AwsSecretsManager = Object.freeze({
       if (jsonKey === undefined) return data.SecretString;
 
       const parsed = parseMaybeJson(data.SecretString);
-      if (parsed && typeof parsed === 'object' && jsonKey in (parsed as Record<string, unknown>)) {
-        const v = (parsed as Record<string, unknown>)[jsonKey];
+      if (typeof parsed === 'object' && parsed !== null) {
+        const obj = parsed as Record<string, unknown>;
+        if (!(jsonKey in obj)) return null;
+        const v = obj[jsonKey];
         if (typeof v === 'string') return v;
         return JSON.stringify(v);
       }
@@ -217,10 +223,16 @@ export const AwsSecretsManager = Object.freeze({
 
   doctorEnv(): string[] {
     const missing: string[] = [];
-    const region = process.env['AWS_REGION'] ?? process.env['AWS_DEFAULT_REGION'];
-    if (!region) missing.push('AWS_REGION');
-    if (!process.env['AWS_ACCESS_KEY_ID']) missing.push('AWS_ACCESS_KEY_ID');
-    if (!process.env['AWS_SECRET_ACCESS_KEY']) missing.push('AWS_SECRET_ACCESS_KEY');
+
+    const region = (process.env['AWS_REGION'] ?? process.env['AWS_DEFAULT_REGION'] ?? '').trim();
+    if (region === '') missing.push('AWS_REGION');
+
+    const accessKeyId = (process.env['AWS_ACCESS_KEY_ID'] ?? '').trim();
+    if (accessKeyId === '') missing.push('AWS_ACCESS_KEY_ID');
+
+    const secretAccessKey = (process.env['AWS_SECRET_ACCESS_KEY'] ?? '').trim();
+    if (secretAccessKey === '') missing.push('AWS_SECRET_ACCESS_KEY');
+
     return missing;
   },
 });

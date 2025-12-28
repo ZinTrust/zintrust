@@ -3,8 +3,8 @@
  * Tests for fluent HTTP request builder and response handling
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HttpClient } from '@httpClient/Http';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Http Client', () => {
   beforeEach(() => {
@@ -170,7 +170,9 @@ describe('Http Client', () => {
 
       vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
 
-      await HttpClient.get('https://api.example.com/users').withAuth('my-secret-token', 'Bearer').send();
+      await HttpClient.get('https://api.example.com/users')
+        .withAuth('my-secret-token', 'Bearer')
+        .send();
 
       const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
       expect(init?.headers).toHaveProperty('Authorization', 'Bearer my-secret-token');
@@ -186,7 +188,9 @@ describe('Http Client', () => {
 
       vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
 
-      await HttpClient.get('https://api.example.com/users').withBasicAuth('user', 'password').send();
+      await HttpClient.get('https://api.example.com/users')
+        .withBasicAuth('user', 'password')
+        .send();
 
       const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
       const expectedAuth = Buffer.from('user:password').toString('base64');
@@ -267,7 +271,15 @@ describe('Http Client', () => {
 
       const response = await HttpClient.get('https://api.example.com/users').send();
 
-      expect(() => response.json()).toThrow('Failed to parse JSON response');
+      let thrown: unknown;
+      try {
+        response.json();
+      } catch (err) {
+        thrown = err;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      expect((thrown as Error).message).toContain('Failed to parse JSON response');
     });
   });
 

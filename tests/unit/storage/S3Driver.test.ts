@@ -100,4 +100,40 @@ describe('S3Driver', () => {
       )
     ).rejects.toThrow();
   });
+
+  it('tempUrl returns a presigned url with required query params', () => {
+    const url = S3Driver.tempUrl(
+      { bucket: 'mybucket', region: 'us-east-1', accessKeyId: 'AK', secretAccessKey: 'SK' },
+      'path/file.txt',
+      { expiresIn: 60, method: 'GET' }
+    );
+
+    const u = new URL(url);
+    expect(u.hostname).toBe('mybucket.s3.us-east-1.amazonaws.com');
+    expect(u.pathname).toBe('/path/file.txt');
+    expect(u.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
+    expect(u.searchParams.get('X-Amz-Credential')).toContain('AK/');
+    expect(u.searchParams.get('X-Amz-Date')).toMatch(/^\d{8}T\d{6}Z$/);
+    expect(u.searchParams.get('X-Amz-Expires')).toBe('60');
+    expect(u.searchParams.get('X-Amz-SignedHeaders')).toBe('host');
+    expect(u.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('tempUrl throws for invalid expiresIn', () => {
+    expect(() =>
+      S3Driver.tempUrl(
+        { bucket: 'b', region: 'us-east-1', accessKeyId: 'AK', secretAccessKey: 'SK' },
+        'k',
+        { expiresIn: 0 }
+      )
+    ).toThrow();
+
+    expect(() =>
+      S3Driver.tempUrl(
+        { bucket: 'b', region: 'us-east-1', accessKeyId: 'AK', secretAccessKey: 'SK' },
+        'k',
+        { expiresIn: 604801 }
+      )
+    ).toThrow();
+  });
 });

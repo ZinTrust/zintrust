@@ -1,5 +1,5 @@
-import { S3Driver, type S3Config } from '@storage/drivers/S3';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { S3Driver, type S3Config } from '@storage/drivers/S3';
 
 export type R2Config = {
   bucket: string;
@@ -68,10 +68,31 @@ export const R2Driver = Object.freeze({
   },
 
   url(config: R2Config, key: string): string {
-    if (config.endpoint && config.endpoint.trim() !== '') {
+    if (config.endpoint !== undefined && config.endpoint.trim() !== '') {
       return `${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${key}`;
     }
     return `https://${config.bucket}.r2.cloudflarestorage.com/${key}`;
+  },
+
+  tempUrl(
+    config: R2Config,
+    key: string,
+    options?: { expiresIn?: number; method?: 'GET' | 'PUT' }
+  ): string {
+    if (typeof config.endpoint !== 'string' || config.endpoint.trim() === '') {
+      throw ErrorFactory.createConfigError('R2: missing endpoint');
+    }
+
+    const s3Config: S3Config & { usePathStyle?: boolean } = {
+      bucket: config.bucket,
+      region: config.region ?? 'auto',
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+      endpoint: config.endpoint,
+      usePathStyle: true,
+    };
+
+    return S3Driver.tempUrl(s3Config, key, options);
   },
 });
 

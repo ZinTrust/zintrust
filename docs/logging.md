@@ -211,3 +211,50 @@ npm run start
 ```
 
 > Note: On serverless platforms (Cloudflare Workers, Lambda) the scheduler does not start automatically to avoid background timers in ephemeral runtimes.
+
+## Cloud Logging Backends
+
+Zintrust can optionally forward logs to cloud backends in addition to console/file output. These backends are **best-effort** and designed to be non-blocking.
+
+### KV Logger (Cloudflare KV)
+
+Writes batched `error`/`fatal` events into a KV namespace. This is useful in Cloudflare Workers where file logging is not available.
+
+Environment variables:
+
+```env
+KV_LOG_ENABLED=false
+KV_NAMESPACE=CACHE
+KV_LOG_RETENTION_DAYS=30
+```
+
+Notes:
+
+- `KV_NAMESPACE` should match the Workers binding name you configured.
+- Retention is applied via KV expiration (TTL).
+
+### Slack Notification Logger
+
+Sends `warn`/`error`/`fatal` events to a Slack incoming webhook (batched to avoid spamming).
+
+Environment variables:
+
+```env
+SLACK_LOG_ENABLED=false
+SLACK_LOG_WEBHOOK_URL=
+SLACK_LOG_LEVELS=warn,error,fatal
+SLACK_LOG_BATCH_WINDOW_MS=5000
+```
+
+### HTTP Endpoint Logger
+
+Sends logs to an external HTTP endpoint (for Loggly/Datadog/custom ingestion).
+
+Environment variables:
+
+```env
+HTTP_LOG_ENABLED=false
+HTTP_LOG_ENDPOINT_URL=
+HTTP_LOG_BATCH_SIZE=50
+HTTP_LOG_AUTH_TOKEN=
+```

@@ -56,6 +56,8 @@ describe('Routes API', () => {
     expect(Router.match(router, 'GET', '/health')).not.toBeNull();
     expect(Router.match(router, 'GET', '/health/live')).not.toBeNull();
     expect(Router.match(router, 'GET', '/health/ready')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/broadcast/health')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/broadcast/send')).not.toBeNull();
     expect(Router.match(router, 'POST', '/api/v1/auth/login')).not.toBeNull();
     expect(Router.match(router, 'GET', '/admin/dashboard')).not.toBeNull();
   });

@@ -10,6 +10,12 @@ export type S3Config = {
   usePathStyle?: boolean;
 };
 
+export type GS3Cred = {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken: string | undefined;
+};
+
 const sha256Hex = (data: string | Uint8Array): string =>
   createHash('sha256').update(data).digest('hex');
 const hmac = (key: Uint8Array | string, data: string): Uint8Array =>
@@ -117,15 +123,58 @@ const buildHostAndPath = (
   return { host, path, url };
 };
 
+const awsEncodeURIComponent = (value: string): string =>
+  encodeURIComponent(value).replaceAll(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+
+const encodePathSegments = (key: string): string =>
+  key
+    .split('/')
+    .map((seg) => awsEncodeURIComponent(seg))
+    .join('/');
+
+const buildCanonicalQueryString = (params: Record<string, string>): string => {
+  const entries = Object.entries(params)
+    .filter(([, v]) => v !== '')
+    .map(([k, v]) => [awsEncodeURIComponent(k), awsEncodeURIComponent(v)] as const)
+    .sort((a, b) => {
+      const keyCmp = a[0].localeCompare(b[0]);
+      if (keyCmp !== 0) return keyCmp;
+      return a[1].localeCompare(b[1]);
+    });
+
+  return entries.map(([k, v]) => `${k}=${v}`).join('&');
+};
+
+const getCredentials = (config: S3Config): GS3Cred => {
+  const accessKeyId = config.accessKeyId ?? process.env['AWS_ACCESS_KEY_ID'] ?? '';
+  const secretAccessKey = config.secretAccessKey ?? process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
+  const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
+
+  if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
+    throw ErrorFactory.createConfigError('S3: missing AWS credentials');
+  }
+  return { accessKeyId, secretAccessKey, sessionToken };
+};
+
+const validateExpiresIn = (expiresIn: number): void => {
+  if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
+    throw ErrorFactory.createValidationError('S3: expiresIn must be a positive number', {
+      expiresIn,
+    });
+  }
+  if (expiresIn > 604800) {
+    throw ErrorFactory.createValidationError('S3: expiresIn exceeds maximum (604800 seconds)', {
+      expiresIn,
+    });
+  }
+};
+
 export const S3Driver = Object.freeze({
   async put(config: S3Config, key: string, content: string | Buffer): Promise<string> {
-    const accessKeyId = config.accessKeyId ?? process.env['AWS_ACCESS_KEY_ID'] ?? '';
-    const secretAccessKey = config.secretAccessKey ?? process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-    const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
-
-    if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
-      throw ErrorFactory.createConfigError('S3: missing AWS credentials');
-    }
+    const { accessKeyId, secretAccessKey, sessionToken } = getCredentials(config);
 
     const { host, path, url } = buildHostAndPath(config, key);
 
@@ -171,13 +220,7 @@ export const S3Driver = Object.freeze({
   },
 
   async get(config: S3Config, key: string): Promise<Buffer> {
-    const accessKeyId = config.accessKeyId ?? process.env['AWS_ACCESS_KEY_ID'] ?? '';
-    const secretAccessKey = config.secretAccessKey ?? process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-    const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
-
-    if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
-      throw ErrorFactory.createConfigError('S3: missing AWS credentials');
-    }
+    const { accessKeyId, secretAccessKey, sessionToken } = getCredentials(config);
 
     const { host, path } = buildHostAndPath(config, key);
 
@@ -220,13 +263,7 @@ export const S3Driver = Object.freeze({
 
   async exists(config: S3Config, key: string): Promise<boolean> {
     try {
-      const accessKeyId = config.accessKeyId ?? process.env['AWS_ACCESS_KEY_ID'] ?? '';
-      const secretAccessKey = config.secretAccessKey ?? process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-      const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
-
-      if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
-        throw ErrorFactory.createConfigError('S3: missing AWS credentials');
-      }
+      const { accessKeyId, secretAccessKey, sessionToken } = getCredentials(config);
 
       const { host, path } = buildHostAndPath(config, key);
       const now = new Date();
@@ -259,13 +296,7 @@ export const S3Driver = Object.freeze({
   },
 
   async delete(config: S3Config, key: string): Promise<void> {
-    const accessKeyId = config.accessKeyId ?? process.env['AWS_ACCESS_KEY_ID'] ?? '';
-    const secretAccessKey = config.secretAccessKey ?? process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-    const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
-
-    if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
-      throw ErrorFactory.createConfigError('S3: missing AWS credentials');
-    }
+    const { accessKeyId, secretAccessKey, sessionToken } = getCredentials(config);
 
     const { host, path } = buildHostAndPath(config, key);
     const now = new Date();
@@ -304,6 +335,59 @@ export const S3Driver = Object.freeze({
     const endpoint = config.endpoint?.trim() ?? '';
     if (endpoint !== '') return `${endpoint.replace(/\/$/, '')}/${config.bucket}/${key}`;
     return `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`;
+  },
+
+  tempUrl(
+    config: S3Config,
+    key: string,
+    options?: { expiresIn?: number; method?: 'GET' | 'PUT' }
+  ): string {
+    const { accessKeyId, secretAccessKey, sessionToken } = getCredentials(config);
+
+    const expiresIn = options?.expiresIn ?? 900;
+    validateExpiresIn(expiresIn);
+
+    const method = options?.method ?? 'GET';
+
+    const encodedKey = encodePathSegments(key);
+    const { host, path } = buildHostAndPath(config, encodedKey);
+
+    const now = new Date();
+    const { amzDate, dateStamp } = toAmzDate(now);
+
+    const algorithm = 'AWS4-HMAC-SHA256';
+    const credentialScope = `${dateStamp}/${config.region}/s3/aws4_request`;
+    const credential = `${accessKeyId}/${credentialScope}`;
+
+    const queryParams: Record<string, string> = {
+      'X-Amz-Algorithm': algorithm,
+      'X-Amz-Credential': credential,
+      'X-Amz-Date': amzDate,
+      'X-Amz-Expires': String(Math.floor(expiresIn)),
+      'X-Amz-SignedHeaders': 'host',
+    };
+    if (sessionToken !== undefined) queryParams['X-Amz-Security-Token'] = sessionToken;
+
+    const canonicalQueryString = buildCanonicalQueryString(queryParams);
+
+    const canonicalRequest = [
+      method,
+      path,
+      canonicalQueryString,
+      `host:${host}\n`,
+      'host',
+      'UNSIGNED-PAYLOAD',
+    ].join('\n');
+
+    const stringToSign = [algorithm, amzDate, credentialScope, sha256Hex(canonicalRequest)].join(
+      '\n'
+    );
+
+    const signingKey = deriveSigningKey(secretAccessKey, dateStamp, config.region);
+    const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
+
+    const baseUrl = `https://${host}${path}`;
+    return `${baseUrl}?${canonicalQueryString}&X-Amz-Signature=${signature}`;
   },
 });
 

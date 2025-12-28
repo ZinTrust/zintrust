@@ -156,3 +156,4 @@ DB_SYNCHRONIZE=
 
 # Database Logging
 DB_LOGGING=
+

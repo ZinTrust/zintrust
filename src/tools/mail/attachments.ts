@@ -19,14 +19,12 @@ export async function resolveAttachments(
   if (!attachments || attachments.length === 0) return [];
 
   const storage = options.storage;
-  const resolved: ResolvedAttachment[] = [];
 
-  for (const att of attachments) {
+  const resolveOne = async (att: AttachmentInput): Promise<ResolvedAttachment> => {
     if ('content' in (att as InlineAttachment)) {
       const a = att as InlineAttachment;
       const content = typeof a.content === 'string' ? Buffer.from(a.content) : a.content;
-      resolved.push({ filename: a.filename, content });
-      continue;
+      return { filename: a.filename, content };
     }
 
     // Disk-based attachment
@@ -35,14 +33,15 @@ export async function resolveAttachments(
       throw ErrorFactory.createValidationError('Storage is required to resolve disk attachments');
     }
 
-    const exists = storage.exists ? await storage.exists(d.disk, d.path) : true;
-    if (!exists)
+    const exists = storage.exists ? await Promise.resolve(storage.exists(d.disk, d.path)) : true;
+    if (!exists) {
       throw ErrorFactory.createNotFoundError(`Attachment not found: ${d.disk}:${d.path}`);
+    }
 
-    const content = await storage.get(d.disk, d.path);
+    const content = await Promise.resolve(storage.get(d.disk, d.path));
     const filename = d.filename ?? d.path.split('/').pop() ?? 'attachment';
-    resolved.push({ filename, content });
-  }
+    return { filename, content };
+  };
 
-  return resolved;
+  return Promise.all(attachments.map(resolveOne));
 }

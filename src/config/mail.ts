@@ -6,7 +6,7 @@
 
 import { Env } from '@config/env';
 
-export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses';
+export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses' | 'mailgun';
 
 export type DisabledMailDriverConfig = {
   driver: 'disabled';
@@ -15,6 +15,13 @@ export type DisabledMailDriverConfig = {
 export type SendGridMailDriverConfig = {
   driver: 'sendgrid';
   apiKey: string;
+};
+
+export type MailgunMailDriverConfig = {
+  driver: 'mailgun';
+  apiKey: string;
+  domain: string;
+  baseUrl: string;
 };
 
 // Placeholders for future drivers (kept config-first)
@@ -35,12 +42,14 @@ export type SesMailDriverConfig = {
 export type MailDriverConfig =
   | DisabledMailDriverConfig
   | SendGridMailDriverConfig
+  | MailgunMailDriverConfig
   | SmtpMailDriverConfig
   | SesMailDriverConfig;
 
 type MailDrivers = {
   disabled: DisabledMailDriverConfig;
   sendgrid: SendGridMailDriverConfig;
+  mailgun: MailgunMailDriverConfig;
   smtp: SmtpMailDriverConfig;
   ses: SesMailDriverConfig;
 };
@@ -90,6 +99,13 @@ const mailConfigObj = {
     sendgrid: {
       driver: 'sendgrid' as const,
       apiKey: Env.get('SENDGRID_API_KEY', ''),
+    },
+
+    mailgun: {
+      driver: 'mailgun' as const,
+      apiKey: Env.get('MAILGUN_API_KEY', ''),
+      domain: Env.get('MAILGUN_DOMAIN', ''),
+      baseUrl: Env.get('MAILGUN_BASE_URL', 'https://api.mailgun.net').trim(),
     },
 
     smtp: {

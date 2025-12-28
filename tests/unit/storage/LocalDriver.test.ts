@@ -28,4 +28,16 @@ describe('LocalDriver', () => {
     const exists2 = await LocalDriver.exists({ root: tmpDir }, key);
     expect(exists2).toBe(false);
   });
+
+  it('tempUrl returns url when configured', () => {
+    const url = LocalDriver.tempUrl({ root: '/tmp', url: '/storage' }, 'a/b.txt', {
+      expiresIn: 60,
+      method: 'GET',
+    });
+    expect(url).toBe('/storage/a/b.txt');
+  });
+
+  it('tempUrl throws when url is missing', () => {
+    expect(() => LocalDriver.tempUrl({ root: '/tmp' }, 'a.txt')).toThrow();
+  });
 });

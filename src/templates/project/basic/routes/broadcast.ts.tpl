@@ -18,6 +18,13 @@ export function registerBroadcastRoutes(router: IRouter): void {
     const event = typeof body['event'] === 'string' ? body['event'] : '';
     const data = body['data'];
 
+    if (!channel || !event) {
+      res
+        .setStatus(400)
+        .json({ ok: false, error: 'Invalid payload: channel and event are required' });
+      return;
+    }
+
     const { Broadcast } = await import('@broadcast/Broadcast');
     const result = await Broadcast.send(channel, event, data);
     res.json({ ok: true, result });
