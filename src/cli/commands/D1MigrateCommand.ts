@@ -16,6 +16,7 @@ type ID1MigrateCommand = IBaseCommand & {
   runWrangler: (args: string[]) => Promise<string>;
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> => {
   const npmPath = resolveNpmPath();
   cmd.debug(`Executing: npm exec --yes -- wrangler ${args.join(' ')}`);
@@ -25,7 +26,7 @@ const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> =
     encoding: 'utf8',
     env: appConfig.getSafeEnv(),
   });
-  return Promise.resolve(result);
+  return result;
 };
 
 const executeD1Migrate = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
@@ -75,12 +76,12 @@ export const D1MigrateCommand = Object.freeze({
         .option('--database <name>', 'D1 database name', 'zintrust_db');
     };
 
-    const cmd = BaseCommand.create({
+    const cmd = BaseCommand.create<ID1MigrateCommand>({
       name: 'd1:migrate',
       description: 'Run Cloudflare D1 migrations',
       addOptions,
       execute: async (options: CommandOptions): Promise<void> => executeD1Migrate(cmd, options),
-    }) as ID1MigrateCommand;
+    });
 
     cmd.resolveNpmPath = (): string => resolveNpmPath();
     cmd.getSafeEnv = (): NodeJS.ProcessEnv => appConfig.getSafeEnv();

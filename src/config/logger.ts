@@ -165,7 +165,18 @@ const getErrorMessage = (error?: unknown): string => {
   if (error instanceof Error) {
     return error.message;
   }
-  return String(error);
+
+  if (typeof error === 'string') return error;
+  if (typeof error === 'number' || typeof error === 'bigint') return error.toString();
+  if (typeof error === 'boolean') return error ? 'true' : 'false';
+  if (typeof error === 'symbol') return error.toString();
+  if (typeof error === 'function') return '[Function]';
+
+  try {
+    return safeStringify(error);
+  } catch {
+    return '[Unserializable error]';
+  }
 };
 
 type CloudLogEvent = {

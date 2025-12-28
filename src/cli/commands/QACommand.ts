@@ -538,22 +538,18 @@ const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void>
  * QA Command Factory - Create a new QA command instance
  */
 export const QACommand = (): IQACommand => {
-  const cmd = BaseCommand.create({
+  const qa = BaseCommand.create<IQACommand>({
     name: 'qa',
     description: 'Run full Quality Assurance suite',
     addOptions,
-    execute: async (options) => executeQA(qa, options),
+    execute: async (options: CommandOptions): Promise<void> => executeQA(qa, options),
   });
 
-  const qa = {
-    ...cmd,
-    addOptions,
-    runLint,
-    runTypeCheck,
-    runTests,
-    runSonar,
-    generateReport,
-  };
+  qa.runLint = runLint;
+  qa.runTypeCheck = runTypeCheck;
+  qa.runTests = runTests;
+  qa.runSonar = runSonar;
+  qa.generateReport = generateReport;
 
   return qa;
 };

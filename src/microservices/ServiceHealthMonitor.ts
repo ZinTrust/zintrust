@@ -465,6 +465,7 @@ export const HealthCheckAggregator = Object.freeze({
       /**
        * Handle aggregated health check request
        */
+      // eslint-disable-next-line @typescript-eslint/require-await
       async handle(_req: IRequest, res: IResponse): Promise<void> {
         const status = monitor.getLastStatus();
 
@@ -478,7 +479,6 @@ export const HealthCheckAggregator = Object.freeze({
         }
 
         res.setStatus(statusCode).json(status);
-        return Promise.resolve();
       },
     };
   },

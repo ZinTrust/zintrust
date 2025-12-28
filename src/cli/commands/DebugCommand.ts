@@ -47,12 +47,12 @@ const executeDebug = (cmd: IDebugCommand, options: CommandOptions): void => {
 
 const create = (): IBaseCommand => {
   const ext = (options: CommandOptions): void => executeDebug(cmd, options);
-  const cmd = BaseCommand.create({
+  const cmd = BaseCommand.create<IDebugCommand>({
     name: 'debug',
     description: 'Launch debug mode with real-time monitoring dashboard',
     addOptions,
     execute: ext,
-  }) as IDebugCommand;
+  });
 
   cmd.dashboard = undefined;
 

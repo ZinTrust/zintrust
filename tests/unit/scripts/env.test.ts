@@ -87,7 +87,7 @@ describe('Environment Utils', () => {
     it('should do nothing if .env file does not exist', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
       loadEnv();
-      // No changes to env
+      expect(fs.readFileSync).not.toHaveBeenCalled();
     });
 
     it('should load variables from .env file', () => {

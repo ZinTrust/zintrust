@@ -246,6 +246,7 @@ export default ${factoryName};
 /**
  * Generate response DTO code
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function generateResponseDTO(options: ResponseFactoryOptions): Promise<string> {
   if (options.responsesPath === undefined) {
     throw ErrorFactory.createCliError('Responses path is required');
@@ -305,7 +306,7 @@ export default ${options.responseName};
   FileGenerator.writeFile(dtoPath, dtoCode);
   Logger.info(`✅ Generated response DTO: ${options.responseName}`);
 
-  return Promise.resolve(dtoPath);
+  return dtoPath;
 }
 
 /**

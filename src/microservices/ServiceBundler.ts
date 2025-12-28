@@ -112,6 +112,7 @@ export const ServiceBundler = Object.freeze((): IServiceBundlerManager => {
 /**
  * Run bundle for a single service
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function runBundleService(config: BundleConfig): Promise<BundleResult> {
   const { serviceName, domain, outputDir, targetSize = 1 } = config;
 
@@ -129,14 +130,14 @@ async function runBundleService(config: BundleConfig): Promise<BundleResult> {
 
   logBundleSummary(totalSize, fileCount, targetSize);
 
-  return Promise.resolve({
+  return {
     serviceName,
     sizeBytes: totalSize,
     sizeMB: Number.parseFloat((totalSize / (1024 * 1024)).toFixed(2)),
     files: fileCount,
     location: bundleDir,
     optimized: totalSize < targetSize * 1024 * 1024,
-  });
+  };
 }
 
 /**
@@ -175,6 +176,7 @@ async function runBundleAll(
 /**
  * Run create service image
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function runCreateServiceImage(
   serviceName: string,
   domain: string,
@@ -193,7 +195,7 @@ async function runCreateServiceImage(
   Logger.info(`  ✓ Dockerfile created at ${serviceDir}/Dockerfile`);
   Logger.info(`  To build: docker build -t ${imageTag} ${serviceDir}`);
 
-  return Promise.resolve(imageTag);
+  return imageTag;
 }
 
 /**

@@ -44,7 +44,7 @@ const runNpmScript = (cmd: IBaseCommand, args: string[]): void => {
   });
 };
 
-const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
+const executeFix = (cmd: IBaseCommand, options: CommandOptions): void => {
   cmd.info('Starting automated code fixes...');
 
   try {
@@ -71,8 +71,6 @@ const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
     ErrorFactory.createCliError('Fix command failed', error);
     cmd.warn('Some fixes could not be applied automatically.');
   }
-
-  return Promise.resolve();
 };
 
 /**
@@ -87,12 +85,12 @@ export const FixCommand = Object.freeze({
       command.option('--dry-run', 'Show what would be fixed without applying changes');
     };
 
-    const cmd = BaseCommand.create({
+    const cmd = BaseCommand.create<IFixCommand>({
       name: 'fix',
       description: 'Run automated code fixes',
       addOptions,
-      execute: async (options: CommandOptions): Promise<void> => executeFix(cmd, options),
-    }) as IFixCommand;
+      execute: (options: CommandOptions): void => executeFix(cmd, options),
+    });
 
     cmd.resolveNpmPath = (): string => resolveNpmPath();
     cmd.getSafeEnv = (): NodeJS.ProcessEnv => appConfig.getSafeEnv();

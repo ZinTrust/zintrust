@@ -35,12 +35,12 @@ export const BaseCommand = Object.freeze({
   /**
    * Create a command instance with common logic
    */
-  create(config: {
+  create<T extends IBaseCommand = IBaseCommand>(config: {
     name: string;
     description: string;
     addOptions?: (command: Command) => void;
     execute: (options: CommandOptions) => void | Promise<void>;
-  }): IBaseCommand {
+  }): T {
     const getCommand = (): Command => {
       const command = new Command(config.name);
       command.description(config.description);
@@ -74,7 +74,7 @@ export const BaseCommand = Object.freeze({
       return command;
     };
 
-    return {
+    const base: IBaseCommand = {
       name: config.name,
       description: config.description,
       verbose: false,
@@ -86,5 +86,7 @@ export const BaseCommand = Object.freeze({
       warn: (msg: string) => ErrorHandler.warn(msg),
       debug: (msg: string) => ErrorHandler.debug(msg, true),
     };
+
+    return base as T;
   },
 });

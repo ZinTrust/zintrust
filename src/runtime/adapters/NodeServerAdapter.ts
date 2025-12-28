@@ -28,11 +28,10 @@ export const NodeServerAdapter = Object.freeze({
     return {
       platform: 'nodejs',
 
+      // eslint-disable-next-line @typescript-eslint/require-await
       async handle(_event: unknown, _context?: unknown): Promise<PlatformResponse> {
-        return Promise.reject(
-          ErrorFactory.createConfigError(
-            'Node.js adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
-          )
+        throw ErrorFactory.createConfigError(
+          'Node.js adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
         );
       },
 

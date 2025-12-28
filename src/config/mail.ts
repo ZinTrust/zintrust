@@ -66,7 +66,7 @@ type MailConfigInput = {
 const getMailDriver = (config: MailConfigInput): MailDriverConfig => {
   const defaultDriver = config.default;
 
-  if (Object.prototype.hasOwnProperty.call(config.drivers, defaultDriver)) {
+  if (Object.hasOwn(config.drivers, defaultDriver)) {
     const driverName = defaultDriver as keyof MailDrivers;
     return config.drivers[driverName];
   }

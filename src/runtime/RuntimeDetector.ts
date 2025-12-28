@@ -232,7 +232,7 @@ const initialize = async (handler: ZintrustHandler): Promise<void> => {
       if (serverAdapter.startServer !== undefined) {
         await serverAdapter.startServer(port, host);
       }
-      break;
+      return;
     }
 
     case 'deno': {
@@ -245,14 +245,14 @@ const initialize = async (handler: ZintrustHandler): Promise<void> => {
       if (serverAdapter.startServer !== undefined) {
         await serverAdapter.startServer(port, host);
       }
-      break;
+      return;
     }
 
     case 'lambda':
     case 'cloudflare':
       // These platforms handle request routing externally
       logger.info('Adapter initialized, ready for events');
-      break;
+      return;
   }
 };
 

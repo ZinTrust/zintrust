@@ -65,12 +65,31 @@ const getGlobalConfigManager = async (): Promise<IConfigManager> => ConfigManage
 const getProjectConfigManager = async (): Promise<IConfigManager> =>
   ConfigManager.getProjectConfig();
 
+const toDisplayString = (value: unknown): string => {
+  if (value === undefined || value === null) return 'null';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint') return value.toString();
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  if (typeof value === 'symbol') return value.toString();
+  if (typeof value === 'function') return '[Function]';
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '[Unserializable]';
+  }
+};
+
 const formatConfigValue = (value: unknown): string => {
   if (value === undefined || value === null) return chalk.gray('null');
   if (typeof value === 'object') return JSON.stringify(value, null, 2);
   if (typeof value === 'boolean') return value ? chalk.green('true') : chalk.red('false');
   if (typeof value === 'number') return chalk.yellow(value.toString());
-  return String(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'bigint') return chalk.yellow(value.toString());
+  if (typeof value === 'symbol') return chalk.gray(value.toString());
+  if (typeof value === 'function') return chalk.gray('[Function]');
+  return chalk.gray(toDisplayString(value));
 };
 
 const parseConfigValue = (value?: string): unknown => {
@@ -109,8 +128,8 @@ const displayValidationStatus = (cmd: IBaseCommand, config: ProjectConfig): void
   for (const error of errors) {
     const message =
       error !== null && typeof error === 'object' && 'message' in error
-        ? String((error as { message: unknown }).message)
-        : String(error);
+        ? toDisplayString((error as { message: unknown }).message)
+        : toDisplayString(error);
     cmd.info(chalk.red(`     - ${message}`));
   }
 };
@@ -227,7 +246,9 @@ const editSingleConfig = async (
   let defaultValue = '';
   if (currentValue !== undefined) {
     defaultValue =
-      typeof currentValue === 'object' ? JSON.stringify(currentValue) : String(currentValue);
+      typeof currentValue === 'object'
+        ? JSON.stringify(currentValue)
+        : toDisplayString(currentValue);
   }
 
   const newValue = await PromptHelper.textInput(
@@ -327,12 +348,12 @@ export const ConfigCommand = Object.freeze({
    * Create a new config command instance
    */
   create(): IBaseCommand {
-    const cmd = BaseCommand.create({
+    const cmd = BaseCommand.create<IConfigCommand>({
       name: 'config',
       description: 'Manage application configuration',
       addOptions,
       execute: async (options: CommandOptions): Promise<void> => executeConfig(cmd, options),
-    }) as IConfigCommand;
+    });
 
     cmd.getConfigManager = async (isGlobal: boolean): Promise<IConfigManager> =>
       isGlobal ? getGlobalConfigManager() : getProjectConfigManager();

@@ -173,34 +173,36 @@ const registerService = (config: MicroserviceConfig): MicroserviceConfig => {
   return serviceConfig;
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const startService = async (name: string, _handler?: unknown): Promise<boolean> => {
   const service = services.get(name);
   if (service === undefined) {
-    return Promise.reject(ErrorFactory.createNotFoundError('Service not found', { name }));
+    throw ErrorFactory.createNotFoundError('Service not found', { name });
   }
 
   service.status = 'running';
   Logger.info(`Service started: ${name}`);
-  return Promise.resolve(true);
+  return true;
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const stopService = async (name: string): Promise<boolean> => {
   const service = services.get(name);
   if (service === undefined) {
-    return Promise.resolve(false);
+    return false;
   }
 
   service.status = 'stopped';
   Logger.info(`Service stopped: ${name}`);
-  return Promise.resolve(true);
+  return true;
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const stopAllServices = async (): Promise<void> => {
   Logger.info('Stopping all microservices...');
   for (const service of services.values()) {
     service.status = 'stopped';
   }
-  return Promise.resolve();
 };
 
 const getService = (domain: string, name: string): MicroserviceConfig | undefined => {
@@ -332,8 +334,9 @@ const getStatusSummary = (): Record<string, unknown> => {
   };
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const discoverServices = async (): Promise<MicroserviceConfig[]> => {
-  return Promise.resolve(Array.from(services.values()));
+  return Array.from(services.values());
 };
 
 const getMicroserviceManager = (): IMicroserviceManagerFactory & IMicroserviceManager =>
