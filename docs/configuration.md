@@ -101,19 +101,18 @@ Additional database tuning (from `src/config/database.ts`):
 
 ## Cache
 
-| Variable            | Type   | Default     | Notes                                        |
-| ------------------- | ------ | ----------- | -------------------------------------------- |
-| `CACHE_DRIVER`      | string | `memory`    | `memory`, `redis`, `memcached`, `file`, etc. |
-| `CACHE_DEFAULT_TTL` | int    | `3600`      | Seconds                                      |
-| `CACHE_KEY_PREFIX`  | string | `zintrust:` | Prefix for namespacing                       |
+| Variable            | Type   | Default     | Notes                              |
+| ------------------- | ------ | ----------- | ---------------------------------- |
+| `CACHE_DRIVER`      | string | `memory`    | `memory`, `redis`, `mongodb`, `kv` |
+| `CACHE_DEFAULT_TTL` | int    | `3600`      | Seconds                            |
+| `CACHE_KEY_PREFIX`  | string | `zintrust:` | Prefix for namespacing             |
 
 Driver-specific keys (from `src/config/cache.ts`):
 
 - Memory: `CACHE_MEMORY_TTL` (seconds)
-- Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`, `CACHE_REDIS_TTL`
-- Memcached: `MEMCACHED_SERVERS`, `CACHE_MEMCACHED_TTL`
-- File: `CACHE_FILE_PATH`, `CACHE_FILE_TTL`
-- Mongo: `MONGO_URI`, `MONGO_DB`
+- Redis: `REDIS_HOST`, `REDIS_PORT`, `CACHE_REDIS_TTL`
+- MongoDB: `MONGO_URI`, `MONGO_DB`, `CACHE_MONGO_TTL`
+- KV (Cloudflare Workers): `CACHE_KV_TTL` (requires a KV binding named `CACHE`)
 
 ## Queue
 

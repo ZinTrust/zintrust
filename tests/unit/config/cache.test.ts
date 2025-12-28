@@ -9,8 +9,8 @@ describe('Cache Config', () => {
   it('should have driver definitions', () => {
     expect(cacheConfig.drivers.memory).toBeDefined();
     expect(cacheConfig.drivers.redis).toBeDefined();
-    expect(cacheConfig.drivers.memcached).toBeDefined();
-    expect(cacheConfig.drivers.file).toBeDefined();
+    expect(cacheConfig.drivers.mongodb).toBeDefined();
+    expect(cacheConfig.drivers.kv).toBeDefined();
   });
 
   it('should get current driver', () => {

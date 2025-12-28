@@ -1,4 +1,5 @@
 import { loadTemplate } from '@mail/templates/markdown';
+import { validateTemplateMeta } from '@mail/templates/markdown/validator';
 import { readdirSync, statSync } from '@node-singletons/fs';
 import { join, relative } from '@node-singletons/path';
 import { MarkdownRenderer } from '@templates';
@@ -27,8 +28,6 @@ const walkDir = (dir: string, base = dir): string[] => {
 export const listTemplates = (): string[] => {
   return walkDir(BASE);
 };
-
-import { validateTemplateMeta } from '@mail/templates/markdown/validator';
 
 export const renderTemplate = (
   name: string,

@@ -1,29 +1,26 @@
-/**
- * Middleware Configuration
- * Define global and named (route) middleware for your application.
- */
-
-import type { Middleware } from '@zintrust/core';
-import {
-  authMiddleware,
-  corsMiddleware,
-  jsonMiddleware,
-  loggingMiddleware,
-} from '@app/Middleware';
+import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
+import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
+import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
+import type { Middleware } from '@middleware/MiddlewareStack';
+import { RateLimiter } from '@middleware/RateLimiter';
+import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 
 export type MiddlewareConfig = {
   global: Middleware[];
   route: Record<string, Middleware>;
 };
 
-const middlewareConfigObj: MiddlewareConfig = {
-  // Global middleware runs on every request.
-  global: [corsMiddleware, jsonMiddleware, loggingMiddleware],
+const shared = Object.freeze({
+  log: LoggingMiddleware.create(),
+  error: ErrorHandlerMiddleware.create(),
+  security: SecurityMiddleware.create(),
+  rateLimit: RateLimiter.create(),
+  csrf: CsrfMiddleware.create(),
+} satisfies Record<string, Middleware>);
 
-  // Route middleware can be referenced by name (e.g. { middleware: ['auth'] }).
-  route: {
-    auth: authMiddleware,
-  },
+const middlewareConfigObj: MiddlewareConfig = {
+  global: [shared.log, shared.error, shared.security, shared.rateLimit, shared.csrf],
+  route: shared,
 };
 
 export const middlewareConfig = Object.freeze(middlewareConfigObj);

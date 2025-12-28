@@ -6,6 +6,7 @@ export const loadTemplate = (
 ): { subject?: string; preheader?: string; variables?: string[]; content: string } => {
   // name e.g. 'auth/welcome'
   const parts = name.split('/');
+  const metaRx = /^<!--\s*([^:]+):\s*(.*?)\s*-->$/;
   const dir = join(
     process.cwd(),
     'src',
@@ -15,8 +16,8 @@ export const loadTemplate = (
     'markdown',
     ...parts.slice(0, -1)
   );
-  const filePath =
-    parts.length > 1 ? join(dir, parts[parts.length - 1] + '.md') : join(dir, parts[0] + '.md');
+  const leaf = parts.at(-1) ?? '';
+  const filePath = join(dir, `${leaf}.md`);
   const raw = readFileSync(filePath, 'utf-8');
 
   const meta: { subject?: string; preheader?: string; variables?: string[] } = {};
@@ -25,13 +26,18 @@ export const loadTemplate = (
   const lines = raw.split(/\r?\n/);
   let i = 0;
   for (; i < lines.length; i++) {
-    const m = lines[i].match(new RegExp('^<!--\\s*([^:]+):\\s*(.*?)\\s*-->$'));
+    const m = metaRx.exec(lines[i]);
     if (!m) break;
     const key = m[1].trim().toLowerCase();
     const val = m[2].trim();
     if (key === 'subject') meta.subject = val;
     if (key === 'preheader') meta.preheader = val;
-    if (key === 'variables') meta.variables = val.split(',').map((s) => s.trim());
+    if (key === 'variables') {
+      meta.variables = val
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
   }
 
   const content = lines.slice(i).join('\n').trim();

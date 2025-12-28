@@ -60,8 +60,8 @@ const getSafeEnv = (): NodeJS.ProcessEnv => {
     USE_RAW_QRY: baseEnv.USE_RAW_QRY ?? (readEnvString('USE_RAW_QRY', '') || undefined),
     SERVICE_API_KEY: baseEnv.SERVICE_API_KEY ?? readEnvString('SERVICE_API_KEY', ''),
     SERVICE_JWT_SECRET: baseEnv.SERVICE_JWT_SECRET ?? readEnvString('SERVICE_JWT_SECRET', ''),
-    BASE_URL: baseEnv.BASE_URL ?? readEnvString('BASE_URL', ''),
-    MODE: baseEnv.MODE ?? readEnvString('MODE', ''),
+    BASE_URL: baseEnv['BASE_URL'] ?? readEnvString('BASE_URL', ''),
+    MODE: baseEnv['MODE'] ?? readEnvString('MODE', ''),
 
     // Hardening for child-process usage
     PATH:

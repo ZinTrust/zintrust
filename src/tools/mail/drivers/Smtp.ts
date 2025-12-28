@@ -329,12 +329,16 @@ const buildRfc2822Message = (msg: MailMessage): string => {
     'MIME-Version: 1.0',
   ];
 
-  const attachParts = (attachments: MailAttachment[], innerBody: string) => {
+  const attachParts = (attachments: MailAttachment[], innerBody: string): string => {
     const mixedBoundary = `mixed_${Math.random().toString(16).slice(2)}`;
     const lines: string[] = [];
 
-    lines.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`);
-    lines.push('', `--${mixedBoundary}`, innerBody);
+    lines.push(
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      '',
+      `--${mixedBoundary}`,
+      innerBody
+    );
 
     // attachments
     for (const a of attachments) {

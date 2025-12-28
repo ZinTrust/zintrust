@@ -56,7 +56,6 @@ export const InMemoryQueue = (() => {
     async drain(queue: string): Promise<void> {
       ensure(queue);
       store.set(queue, []);
-      return;
     },
   } as const;
 })();

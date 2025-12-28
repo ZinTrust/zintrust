@@ -47,6 +47,10 @@ export const SQLServerAdapter = Object.freeze({
         return result.rows[0] ?? null;
       },
 
+      async ping(): Promise<void> {
+        await this.query('SELECT 1', []);
+      },
+
       async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
         try {
           return await callback(this);

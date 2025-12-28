@@ -212,8 +212,7 @@ export const SesDriver = Object.freeze({
     if (res.ok) {
       try {
         const json = (await res.json()) as Record<string, unknown>;
-        const messageId =
-          typeof json?.['MessageId'] === 'string' ? (json['MessageId'] as string) : undefined;
+        const messageId = typeof json?.['MessageId'] === 'string' ? json['MessageId'] : undefined;
         return { ok: true, provider: 'ses', messageId };
       } catch {
         return { ok: true, provider: 'ses' };

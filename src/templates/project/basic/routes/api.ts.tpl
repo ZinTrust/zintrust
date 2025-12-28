@@ -5,8 +5,9 @@
 
 import { UserController } from '@app/Controllers/UserController';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
-import { QueryBuilder, useDatabase, type IRouter, Router } from '@zintrust/core';
+import { registerBroadcastRoutes } from '@routes/broadcast';
+import { registerHealthRoutes } from '@routes/health';
+import { type IRouter, Router } from '@routing/Router';
 
 export function registerRoutes(router: IRouter): void {
   const userController = UserController.create();
@@ -19,6 +20,12 @@ export function registerRoutes(router: IRouter): void {
  * Register public routes
  */
 function registerPublicRoutes(router: IRouter): void {
+  registerRootRoute(router);
+  registerHealthRoutes(router);
+  registerBroadcastRoutes(router);
+}
+
+function registerRootRoute(router: IRouter): void {
   Router.get(router, '/', async (_req, res) => {
     res.json({
       framework: 'Zintrust Framework',
@@ -27,41 +34,6 @@ function registerPublicRoutes(router: IRouter): void {
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
     });
-  });
-
-  Router.get(router, '/health', async (_req, res) => {
-    try {
-      const db = useDatabase();
-      await QueryBuilder.ping(db);
-
-      const uptime =
-        typeof process !== 'undefined' && typeof process.uptime === 'function'
-          ? process.uptime()
-          : 0;
-
-      res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime,
-        database: 'connected',
-        environment: Env.NODE_ENV ?? 'development',
-      });
-    } catch (error) {
-      Logger.error('Health check failed:', error);
-
-      const isProd =
-        typeof process !== 'undefined' &&
-        typeof process.env === 'object' &&
-        process.env !== null &&
-        process.env['NODE_ENV'] === 'production';
-
-      res.setStatus(503).json({
-        status: 'unhealthy',
-        timestamp: new Date().toISOString(),
-        database: 'disconnected',
-        error: isProd ? 'Service unavailable' : (error as Error).message,
-      });
-    }
   });
 }
 

@@ -14,7 +14,7 @@ export const validateTemplateMeta = (
   }
 
   const placeholders = new Set<string>();
-  const rx = /{{\s*([a-zA-Z0-9_]+)\s*}}/g;
+  const rx = /{{\s*([a-zA-Z0-9_.-]+)\s*}}/g;
   let m: RegExpExecArray | null;
   while ((m = rx.exec(tpl.content)) !== null) {
     placeholders.add(m[1]);

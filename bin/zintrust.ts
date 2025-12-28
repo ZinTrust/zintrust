@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     // args to start at the command name, so we strip a leading script path if present.
     const rawArgs = process.argv.slice(2);
 
-    if (process.env.ZINTRUST_CLI_DEBUG_ARGS === '1') {
+    if (process.env['ZINTRUST_CLI_DEBUG_ARGS'] === '1') {
       try {
         process.stderr.write(`[zintrust-cli] process.argv=${JSON.stringify(process.argv)}\n`);
         process.stderr.write(`[zintrust-cli] rawArgs=${JSON.stringify(rawArgs)}\n`);

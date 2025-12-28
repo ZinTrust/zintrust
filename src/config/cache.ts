@@ -15,34 +15,32 @@ type RedisCacheDriverConfig = {
   driver: 'redis';
   host: string;
   port: number;
-  password: string | undefined;
-  database: number;
   ttl: number;
 };
 
-type MemcachedCacheDriverConfig = {
-  driver: 'memcached';
-  servers: string[];
+type MongoCacheDriverConfig = {
+  driver: 'mongodb';
+  uri: string;
+  db: string;
   ttl: number;
 };
 
-type FileCacheDriverConfig = {
-  driver: 'file';
-  path: string;
+type KvCacheDriverConfig = {
+  driver: 'kv';
   ttl: number;
 };
 
 type CacheDriverConfig =
   | MemoryCacheDriverConfig
   | RedisCacheDriverConfig
-  | MemcachedCacheDriverConfig
-  | FileCacheDriverConfig;
+  | MongoCacheDriverConfig
+  | KvCacheDriverConfig;
 
 type CacheDrivers = {
   memory: MemoryCacheDriverConfig;
   redis: RedisCacheDriverConfig;
-  memcached: MemcachedCacheDriverConfig;
-  file: FileCacheDriverConfig;
+  mongodb: MongoCacheDriverConfig;
+  kv: KvCacheDriverConfig;
 };
 
 type CacheConfigInput = {
@@ -79,19 +77,17 @@ const cacheConfigObj = {
       driver: 'redis' as const,
       host: Env.get('REDIS_HOST', 'localhost'),
       port: Env.getInt('REDIS_PORT', 6379),
-      password: Env.get('REDIS_PASSWORD'),
-      database: Env.getInt('REDIS_DB', 0),
       ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
     },
-    memcached: {
-      driver: 'memcached' as const,
-      servers: Env.get('MEMCACHED_SERVERS', 'localhost:11211').split(','),
-      ttl: Env.getInt('CACHE_MEMCACHED_TTL', 3600),
+    mongodb: {
+      driver: 'mongodb' as const,
+      uri: Env.get('MONGO_URI'),
+      db: Env.get('MONGO_DB', 'zintrust_cache'),
+      ttl: Env.getInt('CACHE_MONGO_TTL', 3600),
     },
-    file: {
-      driver: 'file' as const,
-      path: Env.get('CACHE_FILE_PATH', 'storage/cache'),
-      ttl: Env.getInt('CACHE_FILE_TTL', 3600),
+    kv: {
+      driver: 'kv' as const,
+      ttl: Env.getInt('CACHE_KV_TTL', 3600),
     },
   },
 

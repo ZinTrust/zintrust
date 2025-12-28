@@ -12,7 +12,7 @@ jobs:
     # Only run when a secret with a Redis connection is available
     env:
       INTEGRATION_REDIS_URL: ${{ secrets.INTEGRATION_REDIS_URL }}
-    if: ${{ env.INTEGRATION_REDIS_URL != '' }}
+    if: ${{ secrets.INTEGRATION_REDIS_URL != '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,7 +24,7 @@ jobs:
           node-version: '20'
 
       - name: Install deps
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run Redis integration tests
         env:
