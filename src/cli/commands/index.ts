@@ -9,4 +9,6 @@ export { LogsCleanupCommand } from '@cli/commands/LogsCleanupCommand';
 export { MigrateCommand } from '@cli/commands/MigrateCommand';
 export { NewCommand } from '@cli/commands/NewCommand';
 export { PrepareCommand } from '@cli/commands/PrepareCommand';
+export { SecretsCommand } from '@cli/commands/SecretsCommand';
 export { StartCommand } from '@cli/commands/StartCommand';
+export { TemplatesCommand } from '@cli/commands/TemplatesCommand';

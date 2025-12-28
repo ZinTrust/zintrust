@@ -14,6 +14,7 @@ import { NewCommand } from '@cli/commands/NewCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { QACommand } from '@cli/commands/QACommand';
+import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
@@ -80,6 +81,7 @@ const registerCommands = (program: Command): void => {
     MigrateCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
+    SecretsCommand.create(),
     ConfigCommand.create(),
     PluginCommand.create(),
     QACommand(),

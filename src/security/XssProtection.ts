@@ -131,6 +131,11 @@ const isSafeUrl = (url: string): boolean => {
     return true;
   }
 
+  // Allow common safe schemes
+  if (trimmed.startsWith('mailto:') || trimmed.startsWith('tel:')) {
+    return true;
+  }
+
   // Block dangerous protocols
   if (/^\w+:/.test(trimmed)) {
     return false;

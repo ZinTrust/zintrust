@@ -9,8 +9,8 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as crypto from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { fileURLToPath } from '@node-singletons/url';
-import * as path from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -42,6 +42,7 @@
     "dev": "tsx watch src/index.ts",
     "deploy": "cd docs-website && wrangler types && wrangler deploy --env ${WRANGLER_ENV:-production}",
     "templates:sync": "tsx src/scripts/TemplateSync.ts",
+    "env:generate": "tsx src/scripts/GenerateEnvArtifacts.ts",
     "git-reload": "git rm -r --cached .  && git add .",
     "start": "node dist/src/bootstrap.js",
     "type-check": "tsc --noEmit",

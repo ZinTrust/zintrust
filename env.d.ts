@@ -72,6 +72,17 @@ declare namespace NodeJS {
     FAILED_JOBS_DB_CONNECTION?: string | undefined;
     FAILED_JOBS_TABLE?: string | undefined;
 
+    // Mail
+    MAIL_DRIVER?: string | undefined;
+    MAIL_HOST?: string | undefined;
+    MAIL_PORT?: string | undefined;
+    MAIL_USERNAME?: string | undefined;
+    MAIL_PASSWORD?: string | undefined;
+    MAIL_SECURE?: string | undefined;
+    MAIL_FROM_ADDRESS?: string | undefined;
+    MAIL_FROM_NAME?: string | undefined;
+    SENDGRID_API_KEY?: string | undefined;
+
     // AWS
     AWS_REGION?: string | undefined;
     AWS_ACCESS_KEY_ID?: string | undefined;

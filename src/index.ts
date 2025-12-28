@@ -58,4 +58,13 @@ export { XssProtection } from '@security/XssProtection';
 export { ErrorFactory } from '@exceptions/ZintrustError';
 
 // Config
+export { mailConfig } from '@config/mail';
+export type { MailConfig, MailDriverConfig, MailDriverName } from '@config/mail';
 export { StartupConfigValidator } from '@config/StartupConfigValidator';
+
+// Mail
+export { Mail } from '@mail/Mail';
+export type { SendMailInput, SendMailResult } from '@mail/Mail';
+
+export { SmtpDriver } from '@mail/drivers/Smtp';
+export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';

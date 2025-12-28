@@ -60,6 +60,12 @@ describe('CLI Help System', () => {
     expect(commands).toContain('config');
   });
 
+  it('should register secrets command', () => {
+    const program = cli.getProgram();
+    const commands = program.commands.map((cmd: any) => cmd.name());
+    expect(commands).toContain('secrets');
+  });
+
   it('should register start command', () => {
     const program = cli.getProgram();
     const commands = program.commands.map((cmd: any) => cmd.name());
@@ -116,6 +122,7 @@ describe('CLI Command Registration', () => {
     expect(commands).toContain('start');
     expect(commands).toContain('migrate');
     expect(commands).toContain('debug');
+    expect(commands).toContain('secrets');
     expect(commands).toContain('config');
     expect(commands).toContain('help');
   });

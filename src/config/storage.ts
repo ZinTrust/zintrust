@@ -49,7 +49,10 @@ type StorageConfigRuntime = {
   drivers: StorageDrivers;
 };
 
-const isStorageDriverName = (value: string, drivers: StorageDrivers): value is StorageDriverName => {
+const isStorageDriverName = (
+  value: string,
+  drivers: StorageDrivers
+): value is StorageDriverName => {
   return value in drivers;
 };
 
@@ -88,6 +91,15 @@ const storageConfigObj = {
       url: Env.get('AWS_S3_URL'),
       endpoint: Env.get('AWS_S3_ENDPOINT'),
       usePathStyleUrl: Env.getBool('AWS_S3_USE_PATH_STYLE_URL', false),
+    },
+    r2: {
+      driver: 'r2' as const,
+      key: Env.get('R2_ACCESS_KEY_ID'),
+      secret: Env.get('R2_SECRET_ACCESS_KEY'),
+      region: Env.get('R2_REGION', ''),
+      bucket: Env.get('R2_BUCKET'),
+      endpoint: Env.get('R2_ENDPOINT', ''),
+      url: Env.get('R2_URL', ''),
     },
     gcs: {
       driver: 'gcs' as const,

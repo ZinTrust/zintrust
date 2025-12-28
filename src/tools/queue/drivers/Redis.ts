@@ -1,0 +1,114 @@
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import { QueueMessage } from '@queue/Queue';
+
+const generateId = (): string => {
+  if (typeof globalThis?.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+};
+
+type IRedisClient = {
+  connect?: () => Promise<void>;
+  rPush(queue: string, value: string): Promise<number>;
+  lPop(queue: string): Promise<string | null>;
+  lLen(queue: string): Promise<number>;
+  del(queue: string): Promise<number>;
+};
+
+const getRedisUrl = (): string | null => {
+  const url = process.env['REDIS_URL'] ?? null;
+  return url;
+};
+
+export const RedisQueue = (() => {
+  let client: IRedisClient | null = null;
+  let connected = false;
+
+  const ensureClient = async (): Promise<IRedisClient> => {
+    if (client && connected) return client;
+    const url = getRedisUrl();
+    if (!url) throw ErrorFactory.createConfigError('Redis queue driver requires REDIS_URL');
+
+    // Import lazily so package is optional for environments that don't use Redis
+    // Prefer real 'redis' package when available, otherwise allow tests to inject a fake client
+    try {
+      // Dynamically import the redis package if available (optional dependency)
+      // Tests can inject a fake client on `globalThis.__fakeRedisClient` if the package is absent.
+      // Dynamically import the redis package if available (optional dependency)
+      const mod = (await import('redis')) as unknown as {
+        createClient: (opts: { url: string }) => IRedisClient;
+      };
+      const createClient = mod.createClient;
+      client = createClient({ url });
+
+      if (typeof client.connect === 'function') {
+        try {
+          // Await connect to ensure readiness; network errors will be surfaced
+
+          await client.connect();
+          connected = true;
+        } catch (connectionError) {
+          connected = false;
+          // log non-fatally — operations will surface errors as needed
+          // eslint-disable-next-line no-console
+          console.warn('Redis client connect failed:', String(connectionError));
+        }
+      } else {
+        connected = true;
+      }
+    } catch {
+      const globalFake = (globalThis as unknown as { __fakeRedisClient?: IRedisClient })
+        .__fakeRedisClient;
+      if (globalFake) {
+        client = globalFake;
+        connected = true;
+      } else {
+        throw ErrorFactory.createConfigError(
+          "Redis queue driver requires the 'redis' package or a test fake client set in globalThis.__fakeRedisClient"
+        );
+      }
+    }
+
+    if (!client) throw ErrorFactory.createConfigError('Redis client could not be initialized');
+    return client;
+  };
+
+  return {
+    async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
+      const cli = await ensureClient();
+      const id = generateId();
+      const msg = JSON.stringify({ id, payload, attempts: 0 });
+      await cli.rPush(queue, msg);
+      return id;
+    },
+
+    async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
+      const cli = await ensureClient();
+      const raw = await cli.lPop(queue);
+      if (!raw) return undefined;
+      try {
+        const parsed = JSON.parse(raw) as QueueMessage<T>;
+        return parsed;
+      } catch (err) {
+        throw ErrorFactory.createTryCatchError('Failed to parse queue message', err as Error);
+      }
+    },
+
+    async ack(_queue: string, _id: string): Promise<void> {
+      // Simple list-based queue removes on dequeue, so ack is a no-op here.
+      // For visibility timeout or retry semantics, implement BRPOPLPUSH and a processing list.
+      return;
+    },
+
+    async length(queue: string): Promise<number> {
+      const cli = await ensureClient();
+      return cli.lLen(queue);
+    },
+
+    async drain(queue: string): Promise<void> {
+      const cli = await ensureClient();
+      await cli.del(queue);
+    },
+  } as const;
+})();
+
+export default RedisQueue;
