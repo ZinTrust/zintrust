@@ -69,16 +69,19 @@ const flushNow = async (): Promise<void> => {
   if (toSend.length === 0) return;
 
   const maxRetries = 3;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+
+  const attemptPost = async (attempt: number): Promise<void> => {
     try {
       await postBatch(toSend);
-      return;
     } catch {
-      if (attempt === maxRetries) return;
+      if (attempt >= maxRetries) return;
       const backoffMs = 100 * 2 ** attempt;
       await sleep(backoffMs);
+      await attemptPost(attempt + 1);
     }
-  }
+  };
+
+  await attemptPost(0);
 };
 
 const scheduleFlush = async (): Promise<void> => {

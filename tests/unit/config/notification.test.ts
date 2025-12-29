@@ -1,4 +1,5 @@
 import notificationConfig from '@config/notification';
+import { describe, expect, test } from 'vitest';
 
 describe('notification config', () => {
   test('default driver name from Env.get', () => {

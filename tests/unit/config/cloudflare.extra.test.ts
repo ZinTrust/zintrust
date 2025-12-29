@@ -1,4 +1,4 @@
-import { Cloudflare } from '@/config/cloudflare';
+import { Cloudflare } from '@config/cloudflare';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Cloudflare helpers (extra)', () => {

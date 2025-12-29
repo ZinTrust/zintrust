@@ -51,7 +51,7 @@ type CacheConfigInput = {
 const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
   const defaultDriver = config.default;
 
-  if (Object.prototype.hasOwnProperty.call(config.drivers, defaultDriver)) {
+  if (Object.hasOwn(config.drivers, defaultDriver)) {
     const driverName = defaultDriver as keyof CacheDrivers;
     return config.drivers[driverName];
   }

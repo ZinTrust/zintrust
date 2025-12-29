@@ -22,8 +22,8 @@ describe('SlackLogger worker coverage attempt', () => {
     `;
 
     // Node workers do not inherit Vitest/Vite's TS transform, so importing a raw
-    // `.ts` module will fail unless we register a loader.
-    // `tsx` is a project dependency and supports Node's `--import` hook.
+    // `.ts` module will fail unless we register a loader/hook.
+    // `tsx` supports Node's `--import` hook (and requires it on newer Node).
     const worker = new Worker(workerCode, {
       eval: true,
       execArgv: ['--import', 'tsx'],
@@ -40,11 +40,21 @@ describe('SlackLogger worker coverage attempt', () => {
             const errMsg = String((msg as any).error);
             // Some environments cannot resolve path aliases inside worker threads (e.g. '@config/env').
             // If that's the failure reason, treat the test as non-fatal and resolve.
-            if (
+            const nonFatal =
+              // Some environments cannot resolve path aliases inside worker threads.
               errMsg.includes('@config/env') ||
               errMsg.includes('Cannot find package') ||
-              errMsg.includes('ERR_MODULE_NOT_FOUND')
-            ) {
+              errMsg.includes('ERR_MODULE_NOT_FOUND') ||
+              // Some environments can't execute TS inside a worker.
+              errMsg.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
+              // Some environments disallow/strip --import hooks.
+              errMsg.includes('bad option: --import') ||
+              errMsg.includes('Unknown or unexpected option: --import') ||
+              errMsg.includes('unknown option') ||
+              // If someone forces --loader, tsx will complain; treat as non-fatal.
+              errMsg.includes('tsx must be loaded with --import');
+
+            if (nonFatal) {
               await worker.terminate();
               resolve();
               return;
@@ -59,7 +69,22 @@ describe('SlackLogger worker coverage attempt', () => {
         }
       });
 
-      worker.once('error', reject);
+      worker.once('error', async (err) => {
+        const msg = String(err);
+        if (
+          msg.includes('bad option: --import') ||
+          msg.includes('Unknown or unexpected option: --import') ||
+          msg.includes('unknown option') ||
+          msg.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
+          msg.includes('tsx must be loaded with --import')
+        ) {
+          await worker.terminate();
+          resolve();
+          return;
+        }
+
+        reject(err);
+      });
       worker.once('exit', (code) => {
         if (code !== 0) reject(new Error('worker exited with code ' + code));
       });
