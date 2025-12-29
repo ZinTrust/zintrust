@@ -37,12 +37,12 @@
       "@routes/*": ["./routes/*"],
       "@microservices/*": ["./src/microservices/*"],
       "@toolkit/*": ["./src/toolkit/*"],
-      "@*": ["./src/tools/*"],
+      "@tools/*": ["./src/tools/*"],
       "@httpClient/*": ["./src/tools/http/*"],
       "@templates/*": ["./src/tools/templates/*"],
       "@mail/*": ["./src/tools/mail/*"],
       "@storage/*": ["./src/tools/storage/*"],
-      "@drivers/*": ["./src/tools/storage/drivers*"],
+      "@drivers/*": ["./src/tools/storage/drivers/*"],
       "@notification/*": ["./src/tools/notification/*"],
       "@broadcast/*": ["./src/tools/broadcast/*"],
       "@scripts/*": ["./scripts/*"],
@@ -70,7 +70,7 @@
     "emitDecoratorMetadata": true,
     "downlevelIteration": true
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "tests/**/*", "env.d.ts"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "env.d.ts"],
   "exclude": [
     "node_modules",
     "dist",

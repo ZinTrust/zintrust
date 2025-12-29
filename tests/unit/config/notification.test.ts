@@ -3,13 +3,13 @@ import notificationConfig from '@config/notification';
 describe('notification config', () => {
   test('default driver name from Env.get', () => {
     // default should be 'console' when not set
-    const prev = process.env.NOTIFICATION_DRIVER;
-    delete process.env.NOTIFICATION_DRIVER;
+    const prev = process.env['NOTIFICATION_DRIVER'];
+    delete process.env['NOTIFICATION_DRIVER'];
     expect(notificationConfig.getDriverName()).toBe('console');
-    process.env.NOTIFICATION_DRIVER = 'Slack';
+    process.env['NOTIFICATION_DRIVER'] = 'Slack';
     expect(notificationConfig.getDriverName()).toBe('slack');
-    if (prev === undefined) delete process.env.NOTIFICATION_DRIVER;
-    else process.env.NOTIFICATION_DRIVER = prev;
+    if (prev === undefined) delete process.env['NOTIFICATION_DRIVER'];
+    else process.env['NOTIFICATION_DRIVER'] = prev;
   });
 
   test('providers shape', () => {

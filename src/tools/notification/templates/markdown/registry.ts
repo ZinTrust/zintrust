@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from '@node-singletons/fs';
 import { join, relative } from '@node-singletons/path';
 import { loadTemplate } from '@notification/templates/markdown';
-import { MarkdownRenderer } from '@templates';
+import { MarkdownRenderer } from '@tools/templates';
 
 const BASE = join(process.cwd(), 'src', 'tools', 'notification', 'templates', 'markdown');
 

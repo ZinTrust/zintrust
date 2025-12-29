@@ -7,7 +7,7 @@ import { SesDriver } from '@mail/drivers/Ses';
 import { SmtpDriver } from '@mail/drivers/Smtp';
 
 import { resolveAttachments, type AttachmentInput } from '@mail/attachments';
-import { Storage } from '@storage';
+import { Storage } from '@tools/storage';
 
 export type SendMailInput = {
   to: string | string[];

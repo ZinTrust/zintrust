@@ -24,7 +24,7 @@ describe('Cloudflare helpers (extra)', () => {
     (globalThis as any).env = { FOO: 'bar' };
     const ev = Cloudflare.getWorkersEnv();
     expect(ev).not.toBeNull();
-    expect(ev?.FOO).toBe('bar');
+    expect(ev?.['FOO']).toBe('bar');
   });
 
   it('getD1Binding falls back to globalThis.DB when workers env missing', () => {
