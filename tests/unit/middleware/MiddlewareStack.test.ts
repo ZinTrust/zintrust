@@ -53,4 +53,20 @@ describe('MiddlewareStack', () => {
     await stack.execute(mockReq, mockRes);
     expect(order).toEqual(['first']);
   });
+
+  it('executes only filtered middleware when passing only names', async () => {
+    const order: string[] = [];
+    stack = MiddlewareStack.create();
+    stack.register('one', async (_req, _res, next) => {
+      order.push('one');
+      await next();
+    });
+    stack.register('two', async (_req, _res, next) => {
+      order.push('two');
+      await next();
+    });
+
+    await stack.execute(mockReq, mockRes, ['two']);
+    expect(order).toEqual(['two']);
+  });
 });

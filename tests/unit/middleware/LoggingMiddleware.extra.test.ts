@@ -56,4 +56,41 @@ describe('LoggingMiddleware additional branches', () => {
     const last = (console.log as unknown as Mock).mock.calls[1][0] as string;
     expect(last).toContain('404');
   });
+
+  it('honors Env.LOG_HTTP_REQUEST when options omitted', async () => {
+    const mw = LoggingMiddleware.create();
+    const req: any = {
+      getMethod: () => 'GET',
+      getPath: () => '/auto',
+      context: { requestId: 'auto-rid' },
+    };
+    const res: any = { statusCode: 200 };
+
+    await mw(req, res, async () => {});
+
+    // Behavior depends on Env.LOG_HTTP_REQUEST (set at import-time) — assert accordingly
+    // Importing Env here to read current test environment value
+    const { Env } = await import('@config/env');
+    if (Env.LOG_HTTP_REQUEST) {
+      expect(console.log).toHaveBeenCalledTimes(2);
+    } else {
+      expect(console.log).not.toHaveBeenCalled();
+    }
+  });
+
+  it('logs default 200 when no status method or code present', async () => {
+    const mw = LoggingMiddleware.create({ enabled: true });
+    const req: any = {
+      getMethod: () => 'GET',
+      getPath: () => '/default',
+      context: { requestId: 'rid-default' },
+    };
+    const res: any = {};
+
+    await mw(req, res, async () => {});
+
+    expect(console.log).toHaveBeenCalledTimes(2);
+    const last = (console.log as unknown as Mock).mock.calls[1][0] as string;
+    expect(last).toContain('200');
+  });
 });

@@ -320,6 +320,26 @@ describe('NewCommand', () => {
       expect(command.initializeGit).not.toHaveBeenCalled();
     });
 
+    it('should invoke underlying execute when run via commander action', async () => {
+      const cmd = command.getCommand();
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'postgresql',
+        port: 3000,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue(undefined);
+      command.initializeGit = vi.fn().mockResolvedValue(undefined);
+
+      // Simulate invoking the command via commander
+      await cmd.parseAsync(['node', 'test', 'my-project', '--no-interactive']);
+
+      expect(command.getProjectConfig).toHaveBeenCalled();
+    });
+
     it('should use default options when not provided', async () => {
       const options = {
         args: ['my-project'],

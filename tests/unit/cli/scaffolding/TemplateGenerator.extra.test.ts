@@ -65,6 +65,37 @@ describe('TemplateGenerator extra tests', () => {
     expect(res.success).toBe(true);
   });
 
+  it('scaffoldNotificationMarkdownTemplate handles empty channels/variables and default smsVariant', () => {
+    (FileGenerator.writeFile as any).mockReturnValue(true);
+    const res = TemplateGenerator.scaffoldNotificationMarkdownTemplate({
+      name: 'alert-empty',
+      channels: [],
+      variables: [],
+      copyright: 'x',
+      projectRoot: '/tmp',
+      overwrite: false,
+    });
+    expect(res.success).toBe(true);
+    expect(res.filePath).toContain('src/notification/markdown/alert-empty.md');
+  });
+
+  it('scaffoldNotificationMarkdownTemplate returns skipped when writeFile returns false', () => {
+    (FileGenerator.writeFile as any).mockReturnValue(false);
+
+    const res = TemplateGenerator.scaffoldNotificationMarkdownTemplate({
+      name: 'alert-skipped',
+      channels: ['mail'],
+      variables: [],
+      copyright: 'x',
+      projectRoot: '/tmp',
+      overwrite: false,
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.message).toContain('Template already exists (skipped)');
+    expect(res.filePath).toContain('src/notification/markdown/alert-skipped.md');
+  });
+
   it('ensureDirectories logs and rethrows when createDirectories fails', () => {
     (FileGenerator.createDirectories as any).mockImplementation(() => {
       throw new Error('boom');

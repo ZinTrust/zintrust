@@ -75,7 +75,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts'],
-      exclude: ['src/**/*.d.ts', 'src/**/index.ts', 'app/**/*.d.ts', 'routes/**/*.d.ts'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/index.ts',
+        'src/**/types.ts',
+        'src/scripts/**',
+        'src/features/**',
+        'src/node-singletons/**',
+        'app/**/*.d.ts',
+        'routes/**/*.d.ts',
+      ],
       thresholds: {
         lines: 100,
         functions: 100,

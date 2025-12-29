@@ -55,4 +55,18 @@ describe('Cloudflare config', () => {
 
     delete (globalThis as unknown as Record<string, unknown>)['DB'];
   });
+
+  it('falls back to globalThis.DB when env exists but has no DB binding', async () => {
+    (globalThis as unknown as Record<string, unknown>)['env'] = {};
+
+    const globalDb = { prepare: () => undefined };
+    (globalThis as unknown as Record<string, unknown>)['DB'] = globalDb;
+
+    const { Cloudflare } = await import('@config/cloudflare');
+
+    expect(Cloudflare.getD1Binding({ driver: 'd1' } as any)).toBe(globalDb);
+
+    delete (globalThis as unknown as Record<string, unknown>)['DB'];
+    delete (globalThis as unknown as Record<string, unknown>)['env'];
+  });
 });

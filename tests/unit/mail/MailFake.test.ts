@@ -35,4 +35,9 @@ describe('MailFake', () => {
     expect(() => MailFake.assertSent((r) => r.to.includes('x@y.com'))).not.toThrow();
     expect(() => MailFake.assertNotSent((r) => r.to.includes('x@y.com'))).toThrow();
   });
+
+  it('assertSent throws when predicate does not match any sent mail', async () => {
+    await MailFake.send({ to: 'a@b.com', subject: 's', text: 't' });
+    expect(() => MailFake.assertSent((r) => r.to.includes('nope@x.com'))).toThrow();
+  });
 });

@@ -31,4 +31,15 @@ describe('resolveAttachments', () => {
     await FakeStorage.put('d', 'p', Buffer.from('x'));
     await expect(resolveAttachments([{ disk: 'd', path: 'p' }])).rejects.toThrow();
   });
+
+  it('throws not found when storage.exists returns false', async () => {
+    const storage = {
+      get: async () => Buffer.from('x'),
+      exists: async () => false,
+    };
+
+    await expect(
+      resolveAttachments([{ disk: 'd', path: 'p' }], { storage: storage as any })
+    ).rejects.toThrow(/Attachment not found/);
+  });
 });

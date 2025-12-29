@@ -20,4 +20,11 @@ describe('log-cleanup schedule', () => {
 
     expect(spy).toHaveBeenCalled();
   });
+
+  it('logs error when handler throws (does not rethrow)', async () => {
+    vi.spyOn(LoggerModule, 'cleanLogsOnce').mockRejectedValue(new Error('boom'));
+
+    // Ensure the handler swallows the error and resolves
+    await expect(LogCleanupSchedule.handler()).resolves.toBeUndefined();
+  });
 });

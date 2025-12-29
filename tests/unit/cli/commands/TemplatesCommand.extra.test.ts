@@ -39,6 +39,19 @@ describe('TemplatesCommand - extra branches', () => {
     expect(calls.some((c) => c.includes('zeta'))).toBe(true);
   });
 
+  it('lists notification templates when scope=notification', () => {
+    (MailTpl.listTemplates as unknown as Mock).mockReturnValue(['mail1']);
+    (NotifTpl.listTemplates as unknown as Mock).mockReturnValue(['notif-a', 'notif-b']);
+
+    TemplatesCommand.execute({ args: ['list', 'notification'] });
+
+    const calls = (console.log as unknown as Mock).mock.calls.map((c) =>
+      String(c[0] ?? c[1] ?? '')
+    );
+    expect(calls.some((c) => c.includes('notif-a'))).toBe(true);
+    expect(calls.some((c) => c.includes('notif-b'))).toBe(true);
+  });
+
   it('renders mail template when scope=mail', () => {
     (MailTpl.renderTemplate as unknown as Mock).mockReturnValue({ html: '<p>mail</p>' });
 

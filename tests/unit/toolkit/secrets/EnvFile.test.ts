@@ -36,6 +36,15 @@ describe('EnvFile', () => {
     expect(out).toEqual({});
   });
 
+  it('ignores invalid keys when reading', async () => {
+    const content = `BAD-KEY=oops\nVALID=ok\n`;
+    vi.mocked(fs.readFile).mockResolvedValue(content as any);
+
+    const out = await EnvFile.read({ cwd: '/tmp', path: '.env' });
+    expect(out['VALID']).toBe('ok');
+    expect(out['BAD-KEY']).toBeUndefined();
+  });
+
   it('write throws when invalid key is provided', async () => {
     await expect(
       EnvFile.write({ cwd: '/tmp', path: '.env', values: { 'bad-key': 'x' }, mode: 'overwrite' })
