@@ -47,7 +47,10 @@ export default defineConfig({
       '@queue': path.resolve(__dirname, './src/tools/queue'),
       '@queue/*': path.resolve(__dirname, './src/tools/queue/*'),
       '@broadcast': path.resolve(__dirname, './src/tools/broadcast'),
+      // NOTE: Scoped-looking aliases like "@storage/drivers/Gcs" have been flaky to resolve
+      // on some runners unless the "/"-suffixed prefix alias is present.
       '@storage': path.resolve(__dirname, './src/tools/storage'),
+      '@storage/': path.resolve(__dirname, './src/tools/storage/'),
       '@routes': path.resolve(__dirname, './routes'),
       '@scripts': path.resolve(__dirname, './scripts'),
       '@node-singletons': path.resolve(__dirname, './src/node-singletons'),
