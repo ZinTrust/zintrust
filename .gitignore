@@ -49,7 +49,7 @@ eslint.config.mjs.broken
 simulate/
 test-project/
 todo/
-storage/
+/storage/
 scripts/find-missing-coverage.cjs
 scripts/find-missing-coverage.js
 tmp/missing-coverage-statements.json

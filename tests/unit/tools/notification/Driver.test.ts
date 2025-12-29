@@ -1,4 +1,4 @@
-import NotificationDriver from '@tools/notification/Driver';
+import NotificationDriver from '@notification/Driver';
 import { describe, expect, it } from 'vitest';
 
 describe('Notification Driver placeholder', () => {
