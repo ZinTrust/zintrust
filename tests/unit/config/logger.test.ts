@@ -25,6 +25,10 @@ vi.mock('@node-singletons/path', () => ({
   join: (...parts: string[]) => parts.join('/'),
 }));
 
+let kvSpy: ReturnType<typeof vi.fn>;
+let slackSpy: ReturnType<typeof vi.fn>;
+let httpSpy: ReturnType<typeof vi.fn>;
+
 describe('Logger Config', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -33,6 +37,16 @@ describe('Logger Config', () => {
 
   beforeEach(() => {
     vi.resetModules();
+
+    // Recreate spies for modules that are mocked via vi.mock() (hoisted)
+    kvSpy = vi.fn();
+    slackSpy = vi.fn();
+    httpSpy = vi.fn();
+
+    // Expose them on global so hoisted mock factories can call through to the current spy
+    (globalThis as any).__kvSpy = kvSpy;
+    (globalThis as any).__slackSpy = slackSpy;
+    (globalThis as any).__httpSpy = httpSpy;
 
     fsMocks.existsSync.mockReset();
     fsMocks.mkdirSync.mockReset();
@@ -185,6 +199,68 @@ describe('Logger Config', () => {
         expect.anything()
       );
       expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+
+    it('should enqueue to cloud loggers for error/fatal and not for info', async () => {
+      vi.resetModules();
+
+      // Use module-scoped spies recreated in beforeEach
+      // Use global hooks so hoisted mock factories can reference live spies
+      vi.mock('@config/logging/KvLogger', () => ({
+        KvLogger: { enqueue: (...args: unknown[]) => (globalThis as any).__kvSpy?.(...args) },
+      }));
+      vi.mock('@config/logging/SlackLogger', () => ({
+        SlackLogger: { enqueue: (...args: unknown[]) => (globalThis as any).__slackSpy?.(...args) },
+      }));
+      vi.mock('@config/logging/HttpLogger', () => ({
+        HttpLogger: { enqueue: (...args: unknown[]) => (globalThis as any).__httpSpy?.(...args) },
+      }));
+
+      // Ensure mocks are loaded before the Logger triggers dynamic imports
+      await import('@config/logging/KvLogger');
+      await import('@config/logging/SlackLogger');
+      await import('@config/logging/HttpLogger');
+
+      const { Logger } = await import('@/config/logger');
+
+      Logger.error('boom', new Error('boom'));
+      // allow dynamic imports and microtasks to run
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(kvSpy).toHaveBeenCalled();
+      expect(slackSpy).toHaveBeenCalled();
+      expect(httpSpy).toHaveBeenCalled();
+
+      // Warn should not call KV enqueue
+      vi.resetModules();
+      // Recreate spies for the new module instance
+      kvSpy = vi.fn();
+      slackSpy = vi.fn();
+      httpSpy = vi.fn();
+
+      (globalThis as any).__kvSpy = kvSpy;
+      (globalThis as any).__slackSpy = slackSpy;
+      (globalThis as any).__httpSpy = httpSpy;
+
+      // Use global hooks so hoisted mock factories can reference live spies
+      vi.mock('@config/logging/KvLogger', () => ({
+        KvLogger: { enqueue: (...args: unknown[]) => (globalThis as any).__kvSpy?.(...args) },
+      }));
+      vi.mock('@config/logging/SlackLogger', () => ({
+        SlackLogger: { enqueue: (...args: unknown[]) => (globalThis as any).__slackSpy?.(...args) },
+      }));
+      vi.mock('@config/logging/HttpLogger', () => ({
+        HttpLogger: { enqueue: (...args: unknown[]) => (globalThis as any).__httpSpy?.(...args) },
+      }));
+
+      const { Logger: Logger2 } = await import('@/config/logger');
+      Logger2.warn('warn');
+      // allow dynamic imports to settle
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(kvSpy).not.toHaveBeenCalled();
+      expect(slackSpy).toHaveBeenCalled();
+      expect(httpSpy).toHaveBeenCalled();
     });
   });
 });

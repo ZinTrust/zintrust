@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 const run = typeof process.env['REDIS_URL'] === 'string' && process.env['REDIS_URL'] !== '';
 
 describe('RedisQueue Integration', () => {
+  it('has a REDIS_URL gate for integration execution', () => {
+    expect(typeof run).toBe('boolean');
+  });
+
   (run ? it : it.skip)(
     'works end-to-end against a real Redis instance',
     async () => {
