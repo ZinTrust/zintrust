@@ -44,6 +44,11 @@ describe('XssProtection', () => {
       expect(XssProtection.sanitize(input)).toBe('<a>Link</a>');
     });
 
+    it('should remove non-allowlisted URL schemes', () => {
+      const input = '<a href="ftp://example.com">Link</a>';
+      expect(XssProtection.sanitize(input)).toBe('<a>Link</a>');
+    });
+
     it('should remove iframe tags', () => {
       const input = '<div><iframe src="http://evil.com"></iframe></div>';
       expect(XssProtection.sanitize(input)).toBe('<div></div>');
