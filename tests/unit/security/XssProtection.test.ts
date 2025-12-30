@@ -41,7 +41,7 @@ describe('XssProtection', () => {
 
     it('should remove javascript: URIs', () => {
       const input = '<a href="javascript:alert(1)">Link</a>'; // nosonar
-      expect(XssProtection.sanitize(input)).toBe('<a >Link</a>');
+      expect(XssProtection.sanitize(input)).toBe('<a>Link</a>');
     });
 
     it('should remove iframe tags', () => {
