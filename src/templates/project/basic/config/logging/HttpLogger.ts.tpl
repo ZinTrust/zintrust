@@ -9,6 +9,7 @@
  *  - HTTP_LOG_AUTH_TOKEN (optional)
  */
 
+import { delay } from '@common/index';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { HttpClient } from '@httpClient/Http';
@@ -23,17 +24,6 @@ export type HttpLogEvent = {
 };
 
 const isEnabled = (): boolean => Env.getBool('HTTP_LOG_ENABLED', false);
-
-const sleep = async (ms: number): Promise<void> => {
-  if (ms <= 0) return;
-  await new Promise<void>((resolve) => {
-    if (typeof globalThis.setTimeout !== 'function') {
-      resolve();
-      return;
-    }
-    globalThis.setTimeout(() => resolve(), ms);
-  });
-};
 
 let buffer: HttpLogEvent[] = [];
 let flushPromise: Promise<void> | undefined;
@@ -76,7 +66,7 @@ const flushNow = async (): Promise<void> => {
     } catch {
       if (attempt >= maxRetries) return;
       const backoffMs = 100 * 2 ** attempt;
-      await sleep(backoffMs);
+      await delay(backoffMs);
       await attemptPost(attempt + 1);
     }
   };
@@ -115,7 +105,7 @@ const scheduleFlush = async (): Promise<void> => {
 
 export const HttpLogger = Object.freeze({
   async enqueue(event: HttpLogEvent): Promise<void> {
-    if (!isEnabled()) return Promise.resolve();
+    if (!isEnabled()) return Promise.resolve(); // NOSONAR
 
     buffer.push(event);
 

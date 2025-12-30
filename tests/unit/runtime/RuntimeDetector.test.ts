@@ -13,6 +13,15 @@ const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
+  fatal: vi.fn(),
+  cleanLogsOnce: vi.fn(async () => []),
+  scope: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+  })),
 }));
 
 const adapterState = vi.hoisted(() => {
@@ -75,6 +84,8 @@ vi.mock('@config/env', () => ({
 
 // Mock framework Logger used by createDefaultLogger()
 vi.mock('@config/logger', () => ({
+  Logger: mockLogger,
+  cleanLogsOnce: mockLogger.cleanLogsOnce,
   default: mockLogger,
 }));
 
