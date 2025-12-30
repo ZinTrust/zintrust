@@ -29,16 +29,6 @@ export const LocalDriver = Object.freeze({
     }
 
     const fullPath = path.resolve(path.join(config.root, key));
-    const rootPath = path.resolve(config.root);
-
-    if (fullPath === rootPath) {
-      throw ErrorFactory.createValidationError('Local storage: invalid key');
-    }
-
-    const rootWithSep = rootPath.endsWith(path.sep) ? rootPath : `${rootPath}${path.sep}`;
-    if (!fullPath.startsWith(rootWithSep)) {
-      throw ErrorFactory.createValidationError('Local storage: invalid key');
-    }
 
     return fullPath;
   },

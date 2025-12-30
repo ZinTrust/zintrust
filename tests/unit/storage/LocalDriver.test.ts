@@ -38,6 +38,24 @@ describe('LocalDriver', () => {
     expect(url.startsWith('/storage/download?token=')).toBe(true);
   });
 
+  it('resolveKey rejects invalid keys', () => {
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, ' ')).toThrow();
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, '/abs.txt')).toThrow();
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, '../traverse.txt')).toThrow();
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, './dot.txt')).toThrow();
+  });
+
+  it('tempUrl throws when method is PUT', () => {
+    expect(() =>
+      LocalDriver.tempUrl({ root: '/tmp', url: '/storage' }, 'a.txt', { method: 'PUT' })
+    ).toThrow();
+  });
+
+  it('tempUrl throws when APP_KEY is missing', () => {
+    delete process.env['APP_KEY'];
+    expect(() => LocalDriver.tempUrl({ root: '/tmp', url: '/storage' }, 'a.txt')).toThrow();
+  });
+
   it('tempUrl throws when url is missing', () => {
     expect(() => LocalDriver.tempUrl({ root: '/tmp' }, 'a.txt')).toThrow();
   });
