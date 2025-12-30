@@ -311,6 +311,7 @@ jobs:
     timeout-minutes: 5
     needs: [dependency-check, secret-scanning, code-scanning, sast-scanning, license-compliance]
     if: always()
+    permissions: {}
 
     steps:
       - name: Create security report
