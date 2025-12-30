@@ -75,6 +75,7 @@ exclude:
   - todo/**
 
   - storage/**
+  - tests/**
 
   - scripts/find-missing-coverage.cjs
   - scripts/find-missing-coverage.js

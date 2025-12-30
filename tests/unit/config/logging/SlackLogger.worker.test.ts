@@ -58,6 +58,7 @@ describe('SlackLogger worker coverage attempt', () => {
     let workerStdout = '';
     let workerStderr = '';
     let receivedMessage = false;
+    let settled = false;
 
     worker.stdout?.on('data', (chunk) => {
       workerStdout += String(chunk);
@@ -73,6 +74,7 @@ describe('SlackLogger worker coverage attempt', () => {
         try {
           if (msg === 'ok') {
             expect(msg).toBe('ok');
+            settled = true;
             await worker.terminate();
             resolve();
             return;
@@ -81,32 +83,52 @@ describe('SlackLogger worker coverage attempt', () => {
           const errMsg = msg && (msg as any).error ? String((msg as any).error) : '';
           if (errMsg) {
             if (isNonFatalWorkerError(errMsg)) {
+              settled = true;
               await worker.terminate();
               resolve();
               return;
             }
 
+            settled = true;
+            try {
+              await worker.terminate();
+            } catch {
+              // ignore
+            }
             reject(new Error(errMsg));
             return;
           }
 
+          settled = true;
+          try {
+            await worker.terminate();
+          } catch {
+            // ignore
+          }
           reject(new Error('unexpected worker message'));
         } catch (err) {
+          settled = true;
           reject(err);
         }
       });
 
       worker.once('error', async (err) => {
+        if (settled) return;
         const msg = String(err);
         if (isNonFatalWorkerError(msg)) {
+          settled = true;
           await worker.terminate();
           resolve();
           return;
         }
 
+        settled = true;
         reject(err);
       });
       worker.once('exit', async (code) => {
+        // If we already handled a message/error and are terminating the worker,
+        // Node may still emit a non-zero exit code. Don't treat that as a failure.
+        if (settled) return;
         if (code === 0) return;
 
         // If the worker exited before we received any message, include stderr to help debugging.
@@ -127,6 +149,7 @@ describe('SlackLogger worker coverage attempt', () => {
 
         if (!receivedMessage && nonFatal) {
           try {
+            settled = true;
             await worker.terminate();
           } finally {
             resolve();
@@ -135,6 +158,7 @@ describe('SlackLogger worker coverage attempt', () => {
         }
 
         const details = combined.length > 0 ? `\nworker output:\n${combined}` : '';
+        settled = true;
         reject(new Error('worker exited with code ' + code + details));
       });
     });

@@ -32,6 +32,7 @@ jobs:
         with:
           ref: release
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PR_TOKEN != '' && secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
@@ -57,7 +58,7 @@ jobs:
 
       - name: Create or update PR release -> master
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN != '' && secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "JSON.parse(require('fs').readFileSync('./package.json','utf8')).version")
           TITLE="Release: release -> master (v${VERSION})"
