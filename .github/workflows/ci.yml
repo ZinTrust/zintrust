@@ -36,6 +36,11 @@ jobs:
           HUSKY: 0
           NPM_CONFIG_IGNORE_SCRIPTS: true
 
+      - name: Build native dependencies
+        run: npm rebuild bcrypt better-sqlite3
+        env:
+          HUSKY: 0
+
       - name: Build project
         run: npm run build
 

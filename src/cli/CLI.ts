@@ -21,15 +21,14 @@ import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
+import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { readFileSync } from '@node-singletons/fs';
-import { dirname, join } from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
+import { join } from '@node-singletons/path';
 import { Command } from 'commander';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = esmDirname(import.meta.url);
 
 export interface ICLI {
   run(args: string[]): Promise<void>;

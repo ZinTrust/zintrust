@@ -6,6 +6,7 @@
  */
 
 import { Cache } from '@cache/Cache';
+import { generateUuid } from '@common/uuid';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { startupConfig } from '@config/startup';
@@ -107,7 +108,7 @@ export const StartupHealthChecks = Object.freeze({
 
   async checkCache(): Promise<StartupHealthCheck> {
     const startedAt = Date.now();
-    const key = `__startup_health__:${crypto.randomUUID()}`;
+    const key = `__startup_health__:${generateUuid()}`;
 
     try {
       await StartupHealthChecks.withTimeout('startup.cache.probe', async () => {

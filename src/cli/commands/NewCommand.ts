@@ -2,11 +2,11 @@
  * New Command - Project scaffolding CLI command
  * Handles creation of new Zintrust projects
  */
-import { resolvePackageManager } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { extractErrorMessage, resolvePackageManager } from '@common/index';
 import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
@@ -36,12 +36,6 @@ interface NewProjectConfigResult {
 }
 
 type InquirerQuestion = Record<string, unknown>;
-
-const errorToMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return 'Unknown error';
-};
 
 const getGitBinary = (): string => 'git';
 
@@ -298,7 +292,10 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
     command.success(`\n✨ Project ${projectName} created successfully!`);
     command.info(`\nNext steps:\n  cd ${projectName}\n  npm run dev\n`);
   } catch (error) {
-    throw ErrorFactory.createCliError(`Project creation failed: ${errorToMessage(error)}`, error);
+    throw ErrorFactory.createCliError(
+      `Project creation failed: ${extractErrorMessage(error)}`,
+      error
+    );
   }
 };
 

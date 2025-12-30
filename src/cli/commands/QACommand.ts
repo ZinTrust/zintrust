@@ -3,8 +3,8 @@
  * Runs linting, type-checking, tests, and SonarQube
  */
 
-import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { extractErrorMessageStrict, resolveNpmPath } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
@@ -246,11 +246,6 @@ const createResults = (): QAResults => ({
   sonar: createEmptyResult(),
 });
 
-const errorToMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  return 'Unknown error';
-};
-
 const runNpmScript = (name: string, script: string, result: QAResult): boolean => {
   try {
     Logger.info(`Running npm run ${script}...`);
@@ -262,7 +257,7 @@ const runNpmScript = (name: string, script: string, result: QAResult): boolean =
     return true;
   } catch (error) {
     result.status = 'failed';
-    result.output = errorToMessage(error);
+    result.output = extractErrorMessageStrict(error);
     ErrorFactory.createTryCatchError(`${name} failed`, error);
     Logger.warn(`${name} failed`);
     return false;
@@ -481,9 +476,9 @@ const generateReport = async (results: QAResults): Promise<void> => {
   const reportCssPath = 'coverage/qa-report.css';
 
   try {
-    const fs = await import('node:fs/promises');
-    await fs.writeFile(reportPath, htmlContent);
-    await fs.writeFile(reportCssPath, QA_REPORT_CSS);
+    const { fsPromises } = await import('@node-singletons/fs');
+    await fsPromises.writeFile(reportPath, htmlContent);
+    await fsPromises.writeFile(reportCssPath, QA_REPORT_CSS);
     Logger.info(`QA report generated: ${reportPath}`);
   } catch (error) {
     ErrorFactory.createTryCatchError('Failed to generate QA report', error);

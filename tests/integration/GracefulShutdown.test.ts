@@ -1,8 +1,8 @@
 import { Application } from '@boot/Application';
+import { mkdtemp, rm } from '@node-singletons/fs';
+import { tmpdir } from '@node-singletons/os';
+import { join } from '@node-singletons/path';
 import { ConnectionManager } from '@orm/ConnectionManager';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 describe.sequential('Graceful shutdown integration', () => {

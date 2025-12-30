@@ -6,7 +6,7 @@
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { fs } from '@node-singletons';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 const GENERATION_CACHE_STATE_SYMBOL = Symbol.for('zintrust:GenerationCacheState');
 

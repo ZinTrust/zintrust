@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type PathLike = string | Buffer | URL;
 
-vi.mock('node:fs', () => ({
+vi.mock('@node-singletons/fs', () => ({
   default: {
     existsSync: vi.fn(),
     readdirSync: vi.fn(),
@@ -41,9 +41,9 @@ vi.mock('node:fs', () => ({
     writeFile: vi.fn(),
   },
 }));
-vi.mock('node:path');
+vi.mock('@node-singletons/path');
 vi.mock('@config/logger');
-vi.mock('node:process', () => ({
+vi.mock('@node-singletons/process', () => ({
   process: { argv: ['node', 'script.js', 'lambda', '5000'] },
 }));
 

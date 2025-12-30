@@ -5,7 +5,7 @@
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { Logger } from '@config/logger';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export type FeatureType =
   | 'auth'
@@ -263,7 +263,7 @@ const PAYMENTS_TEMPLATE = `/**
  * Handles payment processing and transactions
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes } from '@node-singletons/crypto';
 
 export interface PaymentConfig {
   provider: 'stripe' | 'paypal' | 'square';
@@ -487,7 +487,7 @@ const EMAIL_TEMPLATE = `/**
  * Handles email sending
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes } from '@node-singletons/crypto';
 
 export interface EmailConfig {
   provider: 'sendgrid' | 'mailgun' | 'nodemailer';
@@ -607,7 +607,7 @@ const QUEUE_TEMPLATE = `/**
  * Job queue processing
  */
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes } from '@node-singletons/crypto';
 
 export interface Job {
   id: string;

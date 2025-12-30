@@ -27,8 +27,8 @@ vi.mock('@cli/utils/spawn', async () => {
 const existsSync = vi.fn();
 const readFileSync = vi.fn();
 
-vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs')>();
+vi.mock('@node-singletons/fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@node-singletons/fs')>();
   return {
     ...actual,
     existsSync,

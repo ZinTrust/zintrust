@@ -1,5 +1,5 @@
+import { AwsSigV4 } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { createHash, createHmac } from '@node-singletons/crypto';
 
 export type AwsCredentials = {
   accessKeyId: string;
@@ -7,35 +7,7 @@ export type AwsCredentials = {
   sessionToken?: string;
 };
 
-const sha256Hex = (data: string | Uint8Array): string =>
-  createHash('sha256').update(data).digest('hex');
-
-const hmac = (key: Uint8Array | string, data: string): Uint8Array =>
-  createHmac('sha256', key).update(data).digest();
-
-const toAmzDate = (date: Date): { amzDate: string; dateStamp: string } => {
-  const yyyy = String(date.getUTCFullYear());
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(date.getUTCDate()).padStart(2, '0');
-  const hh = String(date.getUTCHours()).padStart(2, '0');
-  const mi = String(date.getUTCMinutes()).padStart(2, '0');
-  const ss = String(date.getUTCSeconds()).padStart(2, '0');
-
-  const dateStamp = `${yyyy}${mm}${dd}`;
-  const amzDate = `${dateStamp}T${hh}${mi}${ss}Z`;
-  return { amzDate, dateStamp };
-};
-
-const deriveSigningKey = (
-  secretAccessKey: string,
-  dateStamp: string,
-  region: string
-): Uint8Array => {
-  const kDate = hmac(`AWS4${secretAccessKey}`, dateStamp);
-  const kRegion = hmac(kDate, region);
-  const kService = hmac(kRegion, 'secretsmanager');
-  return hmac(kService, 'aws4_request');
-};
+const sha256Hex = (data: string | Uint8Array): string => AwsSigV4.sha256Hex(data);
 
 const buildAuthorization = (params: {
   method: string;
@@ -62,44 +34,20 @@ const buildAuthorization = (params: {
     headers['x-amz-security-token'] = sessionToken;
   }
 
-  const sortedHeaderKeys = Object.keys(headers).sort((a, b) => a.localeCompare(b));
-  const canonicalHeaders = sortedHeaderKeys
-    .map((k) => `${k}:${String(headers[k]).trim().replaceAll(/\s+/g, ' ')}`)
-    .join('\n');
-  const signedHeaders = sortedHeaderKeys.join(';');
-
   const payloadHash = sha256Hex(params.body);
 
-  const canonicalRequest = [
-    params.method,
+  return AwsSigV4.buildAuthorization({
+    method: params.method,
     canonicalUri,
     canonicalQueryString,
-    `${canonicalHeaders}\n`,
-    signedHeaders,
+    headers,
     payloadHash,
-  ].join('\n');
-
-  const algorithm = 'AWS4-HMAC-SHA256';
-  const credentialScope = `${params.dateStamp}/${params.region}/secretsmanager/aws4_request`;
-  const stringToSign = [
-    algorithm,
-    params.amzDate,
-    credentialScope,
-    sha256Hex(canonicalRequest),
-  ].join('\n');
-
-  const signingKey = deriveSigningKey(
-    params.credentials.secretAccessKey,
-    params.dateStamp,
-    params.region
-  );
-  const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
-
-  const authorization =
-    `${algorithm} Credential=${params.credentials.accessKeyId}/${credentialScope}, ` +
-    `SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  return { authorization, signedHeaders };
+    region: params.region,
+    service: 'secretsmanager',
+    amzDate: params.amzDate,
+    dateStamp: params.dateStamp,
+    credentials: params.credentials,
+  });
 };
 
 const parseMaybeJson = (value: string): unknown => {
@@ -120,7 +68,7 @@ const requestAwsSecretsManager = async <T>(
   const url = `https://${host}/`;
 
   const now = new Date();
-  const { amzDate, dateStamp } = toAmzDate(now);
+  const { amzDate, dateStamp } = AwsSigV4.toAmzDate(now);
   const bodyJson = JSON.stringify(body);
 
   const { authorization } = buildAuthorization({

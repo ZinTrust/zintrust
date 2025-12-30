@@ -1,10 +1,6 @@
+import { generateUuid } from '@common/uuid';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { QueueMessage } from '@tools/queue/Queue';
-
-const generateId = (): string => {
-  if (typeof globalThis?.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-};
 
 type IRedisClient = {
   connect?: () => Promise<void>;
@@ -76,7 +72,7 @@ export const RedisQueue = (() => {
   return {
     async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
       const cli = await ensureClient();
-      const id = generateId();
+      const id = generateUuid();
       const msg = JSON.stringify({ id, payload, attempts: 0 });
       await cli.rPush(queue, msg);
       return id;
@@ -97,7 +93,7 @@ export const RedisQueue = (() => {
     async ack(_queue: string, _id: string): Promise<void> {
       // Simple list-based queue removes on dequeue, so ack is a no-op here.
       // For visibility timeout or retry semantics, implement BRPOPLPUSH and a processing list.
-      return Promise.resolve();
+      return Promise.resolve(); // NOSONAR
     },
 
     async length(queue: string): Promise<number> {

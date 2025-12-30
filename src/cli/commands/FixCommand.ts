@@ -5,33 +5,15 @@
 
 import { appConfig } from '@/config';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { resolveNpmPath } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
-import fs from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
 import { Command } from 'commander';
 
 type IFixCommand = IBaseCommand & {
   resolveNpmPath: () => string;
   getSafeEnv: () => NodeJS.ProcessEnv;
   runNpmExec: (args: string[]) => void;
-};
-
-const resolveNpmPath = (): string => {
-  const nodeBinDir = path.dirname(process.execPath);
-
-  const candidates =
-    process.platform === 'win32'
-      ? [path.join(nodeBinDir, 'npm.cmd'), path.join(nodeBinDir, 'npm.exe')]
-      : [path.join(nodeBinDir, 'npm')];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  throw ErrorFactory.createCliError(
-    'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
-  );
 };
 
 const runNpmScript = (cmd: IBaseCommand, args: string[]): void => {

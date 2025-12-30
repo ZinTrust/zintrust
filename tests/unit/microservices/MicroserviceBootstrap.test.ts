@@ -5,8 +5,8 @@ import { default as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs');
-vi.mock('node:path');
+vi.mock('@node-singletons/fs');
+vi.mock('@node-singletons/path');
 vi.mock('@config/logger');
 vi.mock('@/config/env');
 vi.mock('@/microservices/MicroserviceManager');

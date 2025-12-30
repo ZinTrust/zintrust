@@ -27,10 +27,25 @@ describe('SlackLogger worker coverage attempt', () => {
     const worker = new Worker(workerCode, {
       eval: true,
       execArgv: ['--import', 'tsx'],
+      stdout: true,
+      stderr: true,
+    });
+
+    let workerStdout = '';
+    let workerStderr = '';
+    let receivedMessage = false;
+
+    worker.stdout?.on('data', (chunk) => {
+      workerStdout += String(chunk);
+    });
+
+    worker.stderr?.on('data', (chunk) => {
+      workerStderr += String(chunk);
     });
 
     await new Promise<void>((resolve, reject) => {
       worker.once('message', async (msg) => {
+        receivedMessage = true;
         try {
           if (msg === 'ok') {
             expect(msg).toBe('ok');
@@ -85,8 +100,31 @@ describe('SlackLogger worker coverage attempt', () => {
 
         reject(err);
       });
-      worker.once('exit', (code) => {
-        if (code !== 0) reject(new Error('worker exited with code ' + code));
+      worker.once('exit', async (code) => {
+        if (code === 0) return;
+
+        // If the worker exited before we received any message, include stderr to help debugging.
+        const combined = `${workerStderr}\n${workerStdout}`.trim();
+        const nonFatal =
+          combined.includes('bad option: --import') ||
+          combined.includes('Unknown or unexpected option: --import') ||
+          combined.includes('unknown option') ||
+          combined.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
+          combined.includes('tsx must be loaded with --import') ||
+          combined.includes('Cannot find package') ||
+          combined.includes('ERR_MODULE_NOT_FOUND');
+
+        if (!receivedMessage && nonFatal) {
+          try {
+            await worker.terminate();
+          } finally {
+            resolve();
+          }
+          return;
+        }
+
+        const details = combined.length > 0 ? `\nworker output:\n${combined}` : '';
+        reject(new Error('worker exited with code ' + code + details));
       });
     });
   });

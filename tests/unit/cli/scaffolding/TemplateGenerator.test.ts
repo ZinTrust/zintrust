@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:path');
+vi.mock('@node-singletons/path');
 vi.mock('@/cli/scaffolding/FileGenerator');
 vi.mock('@/config/logger');
 
 import { FileGenerator } from '@/cli/scaffolding/FileGenerator';
 import { TemplateGenerator } from '@/cli/scaffolding/TemplateGenerator';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 describe('TemplateGenerator', () => {
   beforeEach(() => {

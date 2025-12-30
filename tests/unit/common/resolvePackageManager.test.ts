@@ -1,4 +1,4 @@
-import * as Common from '@/common';
+import * as Common from '@common/index';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('resolvePackageManager', () => {

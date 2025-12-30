@@ -1,9 +1,9 @@
 import { SpawnUtil } from '@cli/utils/spawn';
+import { mkdtemp, rm } from '@node-singletons/fs';
+import { tmpdir } from '@node-singletons/os';
+import { join } from '@node-singletons/path';
 import { PluginManager } from '@runtime/PluginManager';
 import { PluginRegistry } from '@runtime/PluginRegistry';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // Mock spawn util and execSync
@@ -27,7 +27,7 @@ describe('PluginManager package manager support', () => {
     originalCwd = process.cwd();
     tmp = await mkdtemp(join(tmpdir(), 'plugin-pm-'));
     await (
-      await import('node:fs/promises')
+      await import('@node-singletons/fs')
     ).writeFile(join(tmp, 'package.json'), JSON.stringify({ name: 'p' }), 'utf8');
     process.chdir(tmp);
   });

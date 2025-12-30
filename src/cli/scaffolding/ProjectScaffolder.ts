@@ -3,10 +3,10 @@
  * Handles directory structure and boilerplate file creation
  */
 
+import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import fs from '@node-singletons/fs';
-import { fileURLToPath } from '@node-singletons/url';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -230,8 +230,7 @@ type TemplateJson = {
 };
 
 const getProjectTemplatesRoot = (): string => {
-  const thisFile = fileURLToPath(import.meta.url);
-  const thisDir = path.dirname(thisFile);
+  const thisDir = esmDirname(import.meta.url);
   // src/cli/scaffolding/ -> src/templates/project/
   return path.resolve(thisDir, '..', '..', 'templates', 'project');
 };

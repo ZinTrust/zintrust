@@ -9,8 +9,8 @@ import { fs } from '@node-singletons';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs');
-vi.mock('node:path');
+vi.mock('@node-singletons/fs');
+vi.mock('@node-singletons/path');
 vi.mock('@/config/logger');
 
 import { Logger } from '@/config/logger';

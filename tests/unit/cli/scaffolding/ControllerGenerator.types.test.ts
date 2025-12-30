@@ -1,6 +1,6 @@
 import { generateController } from '@cli/scaffolding/ControllerGenerator';
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
+import { fsPromises } from '@node-singletons/fs';
+import path from '@node-singletons/path';
 import { describe, expect, it } from 'vitest';
 
 describe('ControllerGenerator type outputs', () => {

@@ -5,7 +5,6 @@ export const loadTemplate = (
   name: string
 ): { subject?: string; content: string; variables?: string[] } => {
   const parts = name.split('/');
-  const metaRx = /^<!--\s*([^:]+):\s*(.*?)\s*-->$/;
   const dir = join(
     process.cwd(),
     'src',
@@ -23,10 +22,15 @@ export const loadTemplate = (
   const lines = raw.split(/\r?\n/);
   let i = 0;
   for (; i < lines.length; i++) {
-    const m = metaRx.exec(lines[i]);
-    if (!m) break;
-    const key = m[1].trim().toLowerCase();
-    const val = m[2].trim();
+    const line = lines[i].trim();
+    // Fast path: must look like an HTML comment and contain a colon separator.
+    if (!line.startsWith('<!--') || !line.endsWith('-->')) break;
+    const inner = line.slice(4, -3).trim();
+    const colonIndex = inner.indexOf(':');
+    if (colonIndex === -1) break;
+    const key = inner.slice(0, colonIndex).trim().toLowerCase();
+    const val = inner.slice(colonIndex + 1).trim();
+    if (!key) break;
     if (key === 'subject') meta.subject = val;
     if (key === 'variables') {
       meta.variables = val

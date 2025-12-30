@@ -1,7 +1,7 @@
 import { cleanOnce } from '@config/FileLogWriter';
-import * as fs from 'node:fs';
-import os from 'node:os';
-import * as path from 'node:path';
+import * as fs from '@node-singletons/fs';
+import os from '@node-singletons/os';
+import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const tmpRoot = path.join(os.tmpdir(), 'zintrust-filelog-test');

@@ -15,6 +15,7 @@ export {
   appendFileSync,
   copyFileSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -23,12 +24,13 @@ export {
   rmSync,
   statSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 
 export type { Stats } from 'node:fs';
 
-export { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+export { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 
 // Default export for compatibility
 export default fs;

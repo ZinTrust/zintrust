@@ -5,15 +5,14 @@
  */
 
 import { TemplateRegistry } from '@/templates/TemplateRegistry.js';
+import { ensureDir, esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as crypto from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = esmDirname(import.meta.url);
 const ROOT_DIR = path.resolve(__dirname, '../../');
 
 interface ChecksumRecord {
@@ -55,15 +54,6 @@ function extractTemplateContent(filePath: string): string {
   } catch (error) {
     Logger.error(`Error extracting template from ${filePath}`, error);
     throw ErrorFactory.createTryCatchError(`Failed to extract template from: ${filePath}`, error);
-  }
-}
-
-/**
- * Ensure directory exists, create if needed
- */
-function ensureDir(dirPath: string): void {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 

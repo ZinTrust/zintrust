@@ -46,25 +46,85 @@ const uniq = <T>(arr: T[]): T[] => Array.from(new Set(arr));
 const parseEnvUsages = (content: string): EnvUsage[] => {
   const out: EnvUsage[] = [];
 
-  // Env.get('KEY', 'default')
-  const rxGet = /Env\.get\(\s*['"]([A-Z0-9_]+)['"]\s*(?:,\s*([^)]+?))?\)/g;
-  // Env.getInt('KEY', 123)
-  const rxGetInt = /Env\.getInt\(\s*['"]([A-Z0-9_]+)['"]\s*(?:,\s*([^)]+?))?\)/g;
-  // Env.getBool('KEY', true)
-  const rxGetBool = /Env\.getBool\(\s*['"]([A-Z0-9_]+)['"]\s*(?:,\s*([^)]+?))?\)/g;
+  // Avoid catastrophic backtracking by not using complex regexes to parse arbitrary JS.
+  // Instead scan for Env.<method>(...), handle quotes/escapes and balanced parentheses in linear time.
+  const extractArgs = (parenIdx: number): { args: string; endIdx: number } => {
+    let i = parenIdx;
+    if (content[i] !== '(') return { args: '', endIdx: i + 1 };
+    i++; // move past '('
+    const start = i;
+    let depth = 1;
 
-  const collect = (rx: RegExp): void => {
-    let m: RegExpExecArray | null;
-    while ((m = rx.exec(content)) !== null) {
-      const key = m[1];
-      const rawDefault = m[2]?.trim();
-      out.push({ key, defaultValue: rawDefault });
+    // Skip a quoted string starting at idx (idx points at the opening quote).
+    const skipQuoted = (idx: number): number => {
+      let newIdx = idx;
+      const quote = content[newIdx];
+      newIdx++;
+      while (newIdx < content.length) {
+        if (content[newIdx] === '\\') {
+          newIdx += 2;
+          continue;
+        }
+        if (content[newIdx] === quote) {
+          return newIdx + 1;
+        }
+        newIdx++;
+      }
+      return newIdx;
+    };
+
+    while (i < content.length && depth > 0) {
+      const ch = content[i];
+
+      if (ch === "'" || ch === '"') {
+        i = skipQuoted(i);
+        continue;
+      }
+
+      if (ch === '(') {
+        depth++;
+        i++;
+        continue;
+      }
+
+      if (ch === ')') {
+        depth--;
+        if (depth === 0) {
+          return { args: content.slice(start, i), endIdx: i + 1 };
+        }
+        i++;
+        continue;
+      }
+
+      i++;
     }
+
+    // unbalanced or EOF: return what we have
+    return { args: content.slice(start, i), endIdx: i };
   };
 
-  collect(rxGet);
-  collect(rxGetInt);
-  collect(rxGetBool);
+  const methods = ['get', 'getInt', 'getBool'];
+  for (const method of methods) {
+    const token = `Env.${method}(`;
+    let idx = content.indexOf(token, 0);
+
+    while (idx !== -1) {
+      const parenIdx = idx + token.length - 1; // position of '('
+      const { args, endIdx } = extractArgs(parenIdx);
+
+      // args looks like: ['KEY'[, defaultVal]]
+      const keyMatch = /^\s*['"]([A-Z0-9_]+)['"]/.exec(args);
+      if (keyMatch) {
+        const key = keyMatch[1];
+        const rest = args.slice(keyMatch[0].length);
+        const restTrimmed = rest.replace(/^\s*,\s*/, '').trim();
+        const defaultValue = restTrimmed.length > 0 ? restTrimmed : undefined;
+        out.push({ key, defaultValue });
+      }
+
+      idx = content.indexOf(token, endIdx);
+    }
+  }
 
   return out;
 };

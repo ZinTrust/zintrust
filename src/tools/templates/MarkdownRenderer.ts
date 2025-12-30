@@ -42,11 +42,51 @@ const renderInline = (text: string): string => {
   // Inline code
   out = out.replaceAll(/`([^`]+?)`/g, (_m: string, code: string) => `<code>${code}</code>`);
 
-  // Links [text](url)
-  out = out.replaceAll(/\[([^\]]+?)\]\(([^)]+?)\)/g, (_m: string, txt: string, url: string) => {
-    const safeHref = sanitizeHref(url);
-    return `<a href="${safeHref}" rel="noopener noreferrer" target="_blank">${txt}</a>`;
-  });
+  // Links [text](url) - use a linear parser to avoid regex backtracking (prevents ReDoS)
+  out = ((): string => {
+    const s = out;
+    let res = '';
+    let i = 0;
+
+    while (i < s.length) {
+      const open = s.indexOf('[', i);
+      if (open === -1) {
+        res += s.slice(i);
+        break;
+      }
+
+      const close = s.indexOf(']', open + 1);
+      if (close === -1) {
+        res += s.slice(i);
+        break;
+      }
+
+      // only treat as link if '(' immediately follows ']'
+      if (s[close + 1] !== '(') {
+        res += s.slice(i, close + 1);
+        i = close + 1;
+        continue;
+      }
+
+      const paren = close + 1;
+      const end = s.indexOf(')', paren + 1);
+      if (end === -1) {
+        res += s.slice(i);
+        break;
+      }
+
+      const txt = s.slice(open + 1, close);
+      const url = s.slice(paren + 1, end);
+      const safeHref = sanitizeHref(url);
+
+      res +=
+        s.slice(i, open) +
+        `<a href="${safeHref}" rel="noopener noreferrer" target="_blank">${txt}</a>`;
+      i = end + 1;
+    }
+
+    return res;
+  })();
 
   // Bold **text**
   out = out.replaceAll(/\*\*([^*]+?)\*\*/g, (_m: string, t: string) => `<strong>${t}</strong>`);
@@ -60,12 +100,62 @@ const renderInline = (text: string): string => {
 
 // Top-level helpers to keep parseMarkdown small
 function handleHeading(line: string, out: string[]): boolean {
-  const headingMatch = new RegExp(/^(#{1,6})\s+(.*)$/).exec(line);
-  if (!headingMatch) return false;
-  const level = headingMatch[1].length;
-  const content = renderInline(headingMatch[2].trim());
+  // Parse headings without regex to avoid any possibility of super-linear backtracking (ReDoS).
+  if (line.length === 0 || !line.startsWith('#')) return false;
+
+  let level = 0;
+  while (level < line.length && level < 6 && line[level] === '#') level++;
+
+  // Not a heading if there are more than 6 leading hashes (e.g., ####### ...)
+  if (level === 0) return false;
+  if (level < line.length && line[level] === '#') return false;
+
+  // Require at least one whitespace after the hashes (Markdown-style "# Heading")
+  if (level >= line.length) return false;
+  if (line[level] !== ' ' && line[level] !== '\t') return false;
+
+  let i = level;
+  while (i < line.length && (line[i] === ' ' || line[i] === '\t')) i++;
+
+  const content = renderInline(line.slice(i).trimEnd());
   out.push(`<h${level}>${content}</h${level}>`);
   return true;
+}
+
+function parseUnorderedListItemContent(line: string): string | null {
+  // Parse without regex to guarantee linear runtime and avoid ReDoS/backtracking issues (sonarqube:S5852).
+  let i = 0;
+  while (i < line.length && (line[i] === ' ' || line[i] === '\t')) i++;
+
+  if (i >= line.length) return null;
+
+  const bullet = line[i];
+  if (bullet !== '-' && bullet !== '+' && bullet !== '*') return null;
+
+  i++; // after bullet
+  if (i >= line.length) return null;
+
+  // Require whitespace after bullet
+  if (line[i] !== ' ' && line[i] !== '\t') return null;
+  while (i < line.length && (line[i] === ' ' || line[i] === '\t')) i++;
+
+  const content = line.slice(i);
+  if (content.length === 0) return null;
+
+  return content;
+}
+
+function ensureUnorderedListOpen(state: { inUl: boolean; inOl: boolean }, out: string[]): void {
+  if (state.inUl) return;
+
+  // close other lists
+  if (state.inOl) {
+    out.push('</ol>');
+    state.inOl = false;
+  }
+
+  state.inUl = true;
+  out.push('<ul>');
 }
 
 function handleUnordered(
@@ -73,19 +163,47 @@ function handleUnordered(
   state: { inUl: boolean; inOl: boolean },
   out: string[]
 ): boolean {
-  const ulMatch = new RegExp(/^\s*[-+*]\s+(.*)$/).exec(line);
-  if (!ulMatch) return false;
-  if (!state.inUl) {
-    // close other lists
-    if (state.inOl) {
-      out.push('</ol>');
-      state.inOl = false;
-    }
-    state.inUl = true;
-    out.push('<ul>');
-  }
-  out.push(`<li>${renderInline(ulMatch[1].trim())}</li>`);
+  const content = parseUnorderedListItemContent(line);
+  if (content === null) return false;
+
+  ensureUnorderedListOpen(state, out);
+  out.push(`<li>${renderInline(content.trim())}</li>`);
   return true;
+}
+
+function skipSpacesAndTabs(line: string, start: number): number {
+  let i = start;
+  while (i < line.length && (line[i] === ' ' || line[i] === '\t')) i++;
+  return i;
+}
+
+function readAsciiDigitsEnd(line: string, start: number): number {
+  let i = start;
+  while (i < line.length) {
+    const c = line.codePointAt(i) ?? 0;
+    if (c < 48 || c > 57) break;
+    i++;
+  }
+  return i;
+}
+
+function parseOrderedListItemContent(line: string): string | null {
+  // Parse without regex to guarantee linear runtime and avoid ReDoS/backtracking issues (sonarqube:S5852).
+  let i = skipSpacesAndTabs(line, 0);
+
+  const digitsEnd = readAsciiDigitsEnd(line, i);
+  if (digitsEnd === i) return null; // no digits
+  i = digitsEnd;
+
+  if (i >= line.length || line[i] !== '.') return null;
+  i++; // after '.'
+
+  // Require whitespace after "1."
+  if (i >= line.length || (line[i] !== ' ' && line[i] !== '\t')) return null;
+  i = skipSpacesAndTabs(line, i);
+
+  const content = line.slice(i);
+  return content.length === 0 ? null : content;
 }
 
 function handleOrdered(
@@ -93,8 +211,9 @@ function handleOrdered(
   state: { inUl: boolean; inOl: boolean },
   out: string[]
 ): boolean {
-  const olMatch = new RegExp(/^\s*\d+\.\s+(.*)$/).exec(line);
-  if (!olMatch) return false;
+  const content = parseOrderedListItemContent(line);
+  if (content === null) return false;
+
   if (!state.inOl) {
     if (state.inUl) {
       out.push('</ul>');
@@ -103,7 +222,8 @@ function handleOrdered(
     state.inOl = true;
     out.push('<ol>');
   }
-  out.push(`<li>${renderInline(olMatch[1].trim())}</li>`);
+
+  out.push(`<li>${renderInline(content.trim())}</li>`);
   return true;
 }
 
@@ -149,7 +269,8 @@ function parseMarkdown(markdown: string): string {
   };
 
   function handleCodeFence(line: string): boolean {
-    const m = new RegExp(/^```\s*([a-zA-Z0-9_-]*)$/).exec(line);
+    // Limit the length of the optional language identifier to avoid pathological inputs
+    const m = /^```\s*([a-zA-Z0-9_-]{0,20})$/.exec(line);
     if (!m) return false;
 
     if (state.inCodeBlock) {

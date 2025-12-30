@@ -1,8 +1,8 @@
+import { mkdtemp, rm, writeFile } from '@node-singletons/fs';
+import { tmpdir } from '@node-singletons/os';
+import { join } from '@node-singletons/path';
 import { PluginManager } from '@runtime/PluginManager';
 import { PluginRegistry } from '@runtime/PluginRegistry';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const execMock = vi.hoisted(() => ({ execSync: vi.fn() }));

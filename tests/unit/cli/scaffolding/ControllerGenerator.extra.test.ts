@@ -1,8 +1,7 @@
 /* eslint-disable no-empty */
-import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
+import fs, { fsPromises } from '@node-singletons/fs';
+import os from '@node-singletons/os';
+import path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {

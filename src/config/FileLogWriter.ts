@@ -5,6 +5,7 @@
  * This module imports Node built-ins and should be loaded only in Node environments.
  */
 
+import { ensureDirSafe } from '@common/index';
 import { Env } from '@config/env';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -15,16 +16,6 @@ const getCwdSafe = (): string => {
     return process.cwd();
   } catch {
     return '';
-  }
-};
-
-const ensureDir = (dirPath: string): void => {
-  try {
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
-    }
-  } catch {
-    // best-effort
   }
 };
 
@@ -228,7 +219,7 @@ export const FileLogWriter = Object.freeze({
     if (cwd === '') return;
 
     const logsDir = path.join(cwd, 'logs');
-    ensureDir(logsDir);
+    ensureDirSafe(logsDir);
 
     const dateStr = getDateStr(new Date());
     const logFile = path.join(logsDir, `app-${dateStr}.log`);

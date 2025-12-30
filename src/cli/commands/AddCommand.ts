@@ -21,9 +21,9 @@ import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
-import * as path from 'node:path';
 
 type PlatformDeploy = 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all';
 

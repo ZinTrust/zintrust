@@ -9,7 +9,7 @@
 
 import { Logger } from '@config/logger';
 import fs from '@node-singletons/fs';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface OptimizationOptions {
   platform: 'lambda' | 'cloudflare' | 'deno' | 'fargate';

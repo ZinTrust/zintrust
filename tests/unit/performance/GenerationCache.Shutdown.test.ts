@@ -1,7 +1,7 @@
+import { mkdtemp, rm } from '@node-singletons/fs';
+import { tmpdir } from '@node-singletons/os';
+import { join } from '@node-singletons/path';
 import { GenerationCache } from '@performance/Optimizer';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const STATE_SYMBOL = Symbol.for('zintrust:GenerationCacheState');

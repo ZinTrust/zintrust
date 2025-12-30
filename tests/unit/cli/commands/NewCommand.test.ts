@@ -1,9 +1,17 @@
 import { appConfig } from '@config/app';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/common', () => ({
+vi.mock('@common/index', () => ({
   resolveNpmPath: () => 'npm',
   resolvePackageManager: () => 'npm',
+  extractErrorMessage: (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    if (error !== undefined && error !== null && typeof error === 'object' && 'message' in error) {
+      return String((error as { message: unknown }).message);
+    }
+    return 'Unknown error occurred';
+  },
 }));
 
 vi.mock('@cli/PromptHelper');

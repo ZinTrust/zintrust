@@ -5,7 +5,7 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { pbkdf2Sync, randomBytes } from 'node:crypto';
+import { pbkdf2Sync, randomBytes } from '@node-singletons/crypto';
 
 /**
  * Hash algorithm selector

@@ -1,3 +1,4 @@
+import { generateUuid } from '@common/uuid';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 import * as net from '@node-singletons/net';
@@ -330,7 +331,7 @@ const buildRfc2822Message = (msg: MailMessage): string => {
   ];
 
   const attachParts = (attachments: MailAttachment[], innerBody: string): string => {
-    const mixedBoundary = `mixed_${Math.random().toString(16).slice(2)}`;
+    const mixedBoundary = `mixed_${generateUuid().replaceAll('-', '')}`;
     const lines: string[] = [];
 
     lines.push(
@@ -362,7 +363,7 @@ const buildRfc2822Message = (msg: MailMessage): string => {
   };
 
   if (typeof msg.html === 'string' && msg.html !== '') {
-    const boundary = `zintrust_${Math.random().toString(16).slice(2)}`;
+    const boundary = `zintrust_${generateUuid().replaceAll('-', '')}`;
     headers.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
 
     const parts = [

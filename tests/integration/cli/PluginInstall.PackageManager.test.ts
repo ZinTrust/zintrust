@@ -1,9 +1,8 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { mkdtemp, rm, writeFile } from '@node-singletons/fs';
+import { tmpdir } from '@node-singletons/os';
+import { join } from '@node-singletons/path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { writeFile } from '@/node-singletons/fs';
 import { CLI } from '@cli/CLI';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { PluginRegistry } from '@runtime/PluginRegistry';

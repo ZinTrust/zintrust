@@ -19,10 +19,12 @@
  */
 
 // Safe for all runtimes
+export * from '@node-singletons/async_hooks';
 export * from '@node-singletons/crypto';
 export * from '@node-singletons/events';
 export * from '@node-singletons/http';
 export * from '@node-singletons/perf-hooks';
+export * as process from '@node-singletons/process';
 
 // CLI-only (should not be imported in API code)
 export * as childProcess from '@node-singletons/child-process';

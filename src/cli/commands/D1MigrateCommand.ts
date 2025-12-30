@@ -2,11 +2,11 @@
  * D1 Migrate Command
  * Run Cloudflare D1 migrations using Wrangler
  */
-import { resolveNpmPath } from '@/common';
-import { ErrorFactory } from '@/exceptions/ZintrustError';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { resolveNpmPath } from '@common/index';
 import { appConfig } from '@config/app';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import { Command } from 'commander';
 

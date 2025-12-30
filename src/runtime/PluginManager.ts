@@ -6,16 +6,15 @@
  */
 
 import { SpawnUtil } from '@cli/utils/spawn';
-import { resolvePackageManager } from '@common/index';
+import { esmDirname, resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execSync } from '@node-singletons/child-process';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
 import { PluginDefinition, PluginRegistry } from '@runtime/PluginRegistry';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = esmDirname(import.meta.url);
 
 const MAX_PACKAGE_ROOT_SEARCH_DEPTH = 20;
 

@@ -1,11 +1,11 @@
-import { resolveNpmPath } from '@/common';
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { resolveNpmPath } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, readFileSync } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { Command } from 'commander';
-import * as path from 'node:path';
 
 type StartMode = 'development' | 'production' | 'testing';
 

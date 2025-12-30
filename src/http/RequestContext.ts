@@ -1,3 +1,4 @@
+import { generateUuid } from '@common/uuid';
 import type { IRequest } from '@http/Request';
 
 export interface IRequestContext {
@@ -37,7 +38,7 @@ const createFallbackStorage = (): StoreApi => {
 
 const resolveStorage = async (): Promise<StoreApi> => {
   try {
-    const mod = (await import('node:async_hooks')) as unknown as {
+    const mod = (await import('@node-singletons/async_hooks')) as unknown as {
       AsyncLocalStorage: new () => StoreApi;
     };
     return new mod.AsyncLocalStorage();
@@ -49,15 +50,6 @@ const resolveStorage = async (): Promise<StoreApi> => {
 const getHeaderString = (req: IRequest, name: string): string | undefined => {
   const value = req.getHeader(name);
   return typeof value === 'string' ? value : undefined;
-};
-
-const generateRequestId = (): string => {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-
-  const id = crypto.randomUUID();
-  return `req_${id}`;
 };
 
 const STORAGE_PROMISE: Promise<StoreApi> = resolveStorage();
@@ -77,7 +69,7 @@ export const RequestContext = Object.freeze({
     req.context ??= {};
 
     const requestIdFromHeader = getHeaderString(req, 'x-request-id');
-    const requestId = requestIdFromHeader ?? generateRequestId();
+    const requestId = requestIdFromHeader ?? generateUuid();
 
     const ctx: IRequestContext = {
       requestId,

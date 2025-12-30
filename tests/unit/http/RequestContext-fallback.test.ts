@@ -6,13 +6,13 @@ vi.resetModules();
 describe('RequestContext fallback storage', () => {
   beforeEach(() => {
     // mock the import to throw when required
-    vi.mock('node:async_hooks', () => {
+    vi.mock('@node-singletons/async_hooks', () => {
       throw new Error('no async hooks');
     });
   });
 
   afterEach(() => {
-    vi.unmock('node:async_hooks');
+    vi.unmock('@node-singletons/async_hooks');
   });
 
   it('uses fallback storage when async_hooks is unavailable', async () => {

@@ -1,7 +1,7 @@
-import { resolveNpmPath } from '@/common';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { DistPackager } from '@cli/utils/DistPackager';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { resolveNpmPath } from '@common/index';
 import { Logger } from '@config/logger';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -24,7 +24,7 @@ vi.mock('@config/logger', () => ({
   },
 }));
 
-vi.mock('@/common', () => ({
+vi.mock('@common/index', () => ({
   resolveNpmPath: vi.fn(),
 }));
 

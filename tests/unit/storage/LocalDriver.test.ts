@@ -1,6 +1,6 @@
 import { fsPromises as fs } from '@node-singletons/fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
+import * as os from '@node-singletons/os';
+import * as path from '@node-singletons/path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { LocalDriver } from '@storage/drivers/Local';

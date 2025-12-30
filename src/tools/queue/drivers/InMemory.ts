@@ -1,8 +1,5 @@
+import { generateUuid } from '@common/uuid';
 import { QueueMessage } from '@tools/queue/Queue';
-const generateId = (): string => {
-  if (typeof globalThis?.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-};
 
 type InternalMessage = QueueMessage & { enqueuedAt: number };
 
@@ -17,7 +14,7 @@ export const InMemoryQueue = (() => {
     async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
       await Promise.resolve();
       ensure(queue);
-      const id = generateId();
+      const id = generateUuid();
       const msg: InternalMessage = {
         id,
         payload: payload,

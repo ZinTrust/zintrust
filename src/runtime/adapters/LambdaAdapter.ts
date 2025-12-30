@@ -4,6 +4,13 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import {
+  IncomingMessage,
+  OutgoingHttpHeader,
+  OutgoingHttpHeaders,
+  ServerResponse,
+} from '@node-singletons/http';
+import { Socket } from '@node-singletons/net';
+import {
   AdapterConfig,
   ErrorResponse,
   HttpResponse,
@@ -11,13 +18,6 @@ import {
   PlatformResponse,
   RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
-import {
-  IncomingMessage,
-  OutgoingHttpHeader,
-  OutgoingHttpHeaders,
-  ServerResponse,
-} from 'node:http';
-import { Socket } from 'node:net';
 
 /**
  * AWS Lambda adapter for API Gateway and ALB events

@@ -4,6 +4,7 @@
  */
 
 import { IApplication } from '@boot/Application';
+import { esmDirname } from '@common/index';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { Logger } from '@config/logger';
@@ -13,7 +14,6 @@ import { IResponse, Response } from '@http/Response';
 import * as fs from '@node-singletons/fs';
 import * as http from '@node-singletons/http';
 import * as path from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
 import { Router } from '@routing/Router';
 
 export interface IServer {
@@ -52,8 +52,7 @@ const findPackageRoot = (startDir: string): string => {
 };
 
 const getFrameworkPublicRoots = (): string[] => {
-  const thisFile = fileURLToPath(import.meta.url);
-  const thisDir = path.dirname(thisFile);
+  const thisDir = esmDirname(import.meta.url);
   const packageRoot = findPackageRoot(thisDir);
 
   return [

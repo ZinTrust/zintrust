@@ -1,5 +1,5 @@
-import { lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { lstatSync, readdirSync, readFileSync } from '@node-singletons/fs';
+import { join } from '@node-singletons/path';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = process.cwd();

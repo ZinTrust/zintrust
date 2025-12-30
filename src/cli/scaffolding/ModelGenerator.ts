@@ -6,7 +6,7 @@
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { CommonUtils } from '@common/index';
 import { Logger } from '@config/logger';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export type FieldType =
   | 'string'

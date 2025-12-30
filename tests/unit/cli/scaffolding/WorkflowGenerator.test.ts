@@ -2,9 +2,8 @@ import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs/promises');
-vi.mock('node:path');
-vi.mock('node:fs');
+vi.mock('@node-singletons/fs');
+vi.mock('@node-singletons/path');
 vi.mock('@/cli/scaffolding/FileGenerator');
 vi.mock('@/config/logger');
 
