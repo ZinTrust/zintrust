@@ -3,11 +3,14 @@
  * Handles application lifecycle, booting, and environment
  */
 
+import { appConfig } from '@/config';
 import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
+import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
-import { Env } from '@config/env';
+import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
+import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 
@@ -135,6 +138,37 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
   }
 };
 
+const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<void> => {
+  if (resolvedBasePath === '') return;
+  if (typeof process === 'undefined') return;
+
+  let nodeFs:
+    | {
+        existsSync: (path: string) => boolean;
+        mkdirSync: (path: string, options?: { recursive?: boolean }) => void;
+      }
+    | undefined;
+
+  try {
+    nodeFs = await import('@node-singletons/fs');
+  } catch {
+    return;
+  }
+
+  const dirs = ['logs', 'storage', 'tmp'];
+  for (const dir of dirs) {
+    const fullPath = path.join(resolvedBasePath, dir);
+    try {
+      if (!nodeFs.existsSync(fullPath)) {
+        nodeFs.mkdirSync(fullPath, { recursive: true });
+        Logger.info(`✓ Created directory: ${dir}`);
+      }
+    } catch (error: unknown) {
+      Logger.warn(`Failed to create ${dir} directory`, error as Error);
+    }
+  }
+};
+
 const createLifecycle = (params: {
   environment: string;
   resolvedBasePath: string;
@@ -147,6 +181,13 @@ const createLifecycle = (params: {
     if (params.getBooted()) return;
 
     Logger.info(`🚀 Booting Zintrust Application in ${params.environment} mode...`);
+
+    StartupConfigValidator.assertValid();
+
+    FeatureFlags.initialize();
+    await StartupHealthChecks.assertHealthy();
+
+    await initializeArtifactDirectories(params.resolvedBasePath);
     await registerRoutes(params.resolvedBasePath, params.router);
 
     // Register service providers
@@ -183,7 +224,7 @@ export const Application = Object.freeze({
     const resolvedBasePath = resolveBasePath(basePath);
     const joinFromBase = makeJoinFromBase(resolvedBasePath);
 
-    const environment = Env.get('NODE_ENV', 'development');
+    const environment = appConfig.environment;
     const container = ServiceContainer.create();
     const router = Router.createRouter();
     const middlewareStack = MiddlewareStack.create();
@@ -193,6 +234,17 @@ export const Application = Object.freeze({
 
     registerCorePaths(container, resolvedBasePath, joinFromBase);
     registerCoreInstances({ container, environment, router, middlewareStack, shutdownManager });
+
+    // Register framework-level shutdown hooks for long-lived resources
+    // ConnectionManager may not be initialized; shutdownIfInitialized is safe
+    // Use dynamic import without top-level await to avoid transforming the module into an async module
+    import('@orm/ConnectionManager')
+      .then(({ ConnectionManager }) => {
+        shutdownManager.add(async () => ConnectionManager.shutdownIfInitialized());
+      })
+      .catch(() => {
+        /* ignore import failures in restrictive runtimes */
+      });
 
     const { boot, shutdown } = createLifecycle({
       environment,
@@ -211,7 +263,7 @@ export const Application = Object.freeze({
       isBooted: (): boolean => booted,
       isDevelopment: (): boolean => environment === 'development',
       isProduction: (): boolean => environment === 'production',
-      isTesting: (): boolean => environment === 'testing' || environment === 'test',
+      isTesting: (): boolean => environment === 'testing',
       getEnvironment: (): string => environment,
       getRouter: (): IRouter => router,
       getContainer: (): IServiceContainer => container,

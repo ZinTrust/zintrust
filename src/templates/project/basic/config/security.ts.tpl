@@ -4,9 +4,10 @@
  * Sealed namespace for immutability
  */
 
+import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@zintrust/core';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
  * Helper to warn about missing secrets
@@ -14,9 +15,7 @@ import { ErrorFactory } from '@zintrust/core';
 function warnMissingSecret(secretName: string): string {
   Logger.error(`❌ CRITICAL: ${secretName} environment variable is not set!`);
   Logger.error('⚠️  Application may not function correctly. Set this in production immediately.');
-
-  const nodeEnv = Env.get('NODE_ENV', 'development');
-  if (nodeEnv === 'production') {
+  if (appConfig.isProduction()) {
     throw ErrorFactory.createConfigError(`Missing required secret: ${secretName}`, { secretName });
   }
 
@@ -44,7 +43,7 @@ const securityConfigObj = {
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',
     expiresIn: Env.get('JWT_EXPIRES_IN', '1h'),
     refreshExpiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '7d'),
-    issuer: Env.get('JWT_ISSUER', '@zintrust/core'),
+    issuer: Env.get('JWT_ISSUER', 'zintrust'),
     audience: Env.get('JWT_AUDIENCE', 'zintrust-api'),
   },
 

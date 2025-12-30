@@ -2,10 +2,11 @@
  * New Command - Project scaffolding CLI command
  * Handles creation of new Zintrust projects
  */
-import { resolveNpmPath } from '@/common';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
+import { SpawnUtil } from '@cli/utils/spawn';
+import { extractErrorMessage, resolvePackageManager } from '@common/index';
 import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
@@ -35,12 +36,6 @@ interface NewProjectConfigResult {
 }
 
 type InquirerQuestion = Record<string, unknown>;
-
-const errorToMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return 'Unknown error';
-};
 
 const getGitBinary = (): string => 'git';
 
@@ -200,22 +195,36 @@ const isFailureResult = (result: unknown): result is { success: false; message?:
   return maybe.success === false;
 };
 
-const installDependencies = (
+const installDependencies = async (
   projectPath: string,
-  log: Pick<IBaseCommand, 'info' | 'warn'>
-): void => {
+  log: Pick<IBaseCommand, 'info' | 'warn'>,
+  packageManager?: string,
+  force: boolean = false
+): Promise<void> => {
+  // Respect CI by default — avoid network installs in CI unless explicitly allowed
+  const isCi = Boolean(process.env['CI']);
+  const allowAuto = process.env['ZINTRUST_ALLOW_AUTO_INSTALL'] === '1' || force;
+
+  if (isCi && !allowAuto) {
+    log.info('Skipping automatic dependency installation in CI environment.');
+    return;
+  }
+
   log.info('📦 Installing dependencies (this may take a minute)...');
+
+  const pm = packageManager ?? resolvePackageManager();
+  const args = ['install'];
+
   try {
-    const npmPath = resolveNpmPath();
-    execFileSync(npmPath, ['install'], {
-      cwd: projectPath,
-      stdio: 'inherit',
-      env: appConfig.getSafeEnv(),
-    });
+    const exitCode = await SpawnUtil.spawnAndWait({ command: pm, args, cwd: projectPath });
+    if (exitCode !== 0) {
+      throw ErrorFactory.createCliError(`'${pm} install' failed with exit code ${exitCode}`);
+    }
+
     log.info('✅ Dependencies installed successfully');
   } catch (error) {
     ErrorFactory.createCliError('Dependency installation failed', error);
-    log.warn('Please run "npm install" manually in the project directory');
+    log.warn(`Please run "${pm} install" manually in the project directory`);
   }
 };
 
@@ -244,6 +253,8 @@ const addOptions = (command: Command): void => {
   command.option('--no-interactive', 'Disable interactive mode');
   command.option('--no-git', 'Skip git initialization');
   command.option('--no-install', 'Skip dependency installation');
+  command.option('--install', 'Force dependency installation (useful to override CI defaults)');
+  command.option('--package-manager <manager>', 'Package manager to use (npm, yarn, pnpm)');
   command.option('--force', 'Overwrite existing directory');
   command.option('--overwrite', 'Overwrite existing directory');
 };
@@ -271,23 +282,37 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
 
     if (options['install'] !== false) {
       const projectPath = path.resolve(process.cwd(), projectName);
-      installDependencies(projectPath, command);
+      const pm =
+        (options['packageManager'] as string | undefined) ??
+        (options['package-manager'] as string | undefined);
+      const force = options['install'] === true;
+      await installDependencies(projectPath, command, pm, force);
     }
 
     command.success(`\n✨ Project ${projectName} created successfully!`);
     command.info(`\nNext steps:\n  cd ${projectName}\n  npm run dev\n`);
   } catch (error) {
-    throw ErrorFactory.createCliError(`Project creation failed: ${errorToMessage(error)}`, error);
+    throw ErrorFactory.createCliError(
+      `Project creation failed: ${extractErrorMessage(error)}`,
+      error
+    );
   }
 };
 
 const createNewCommandInstance = (): INewCommand => {
+  // BaseCommand.getCommand() closes over the execute callback passed at creation time.
+  // NewCommand needs its final implementation (which depends on the constructed instance),
+  // so we use a mutable indirection.
+  let executeImpl: (options: CommandOptions) => Promise<void> | void = async () => {
+    // replaced below with NewCommand-aware execute implementation
+  };
+
   const base = BaseCommand.create({
     name: 'new',
     description: 'Create a new Zintrust project',
     addOptions,
-    execute: async (_options: CommandOptions): Promise<void> => {
-      // replaced below with NewCommand-aware execute implementation
+    execute: async (options: CommandOptions): Promise<void> => {
+      await executeImpl(options);
     },
   });
 
@@ -345,6 +370,8 @@ const createNewCommandInstance = (): INewCommand => {
       await executeNewCommand(options, commandInstance);
     },
   };
+
+  executeImpl = commandInstance.execute;
 
   return commandInstance;
 };

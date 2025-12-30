@@ -5,9 +5,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master, dev, release]
   pull_request:
-    branches: [master, dev]
+    branches: [master, dev, release]
   workflow_dispatch:
 
 jobs:
@@ -30,13 +30,19 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (disable lifecycle scripts in CI)
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+          NPM_CONFIG_IGNORE_SCRIPTS: true
+
+      - name: Build native dependencies
+        run: npm rebuild bcrypt better-sqlite3
         env:
           HUSKY: 0
 
       - name: Build project
-        run: npm run build
+        run: npm run build:ci
 
       - name: Type checking
         run: npm run type-check

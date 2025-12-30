@@ -4,10 +4,9 @@
  * Exported from node:readline built-in
  */
 
-import * as readlineModule from 'node:readline';
+import * as readline from 'node:readline';
 
-export { createInterface, cursorTo } from 'node:readline';
+export const { createInterface, cursorTo } = readline;
 export type { Interface } from 'node:readline';
 
-// Also export the full module for compatibility
-export default readlineModule;
+export default readline;

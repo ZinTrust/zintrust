@@ -4,10 +4,10 @@
  * Usage: zintrust prepare
  */
 
-import { resolveNpmPath } from '@/common';
 import { IBaseCommand } from '@cli/BaseCommand';
 import { DistPackager } from '@cli/utils/DistPackager';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { resolveNpmPath } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';

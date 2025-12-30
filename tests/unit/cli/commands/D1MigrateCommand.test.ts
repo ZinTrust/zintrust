@@ -10,9 +10,9 @@ vi.mock('@/config/logger', () => ({
     error: vi.fn(),
   },
 }));
-vi.mock('node:child_process');
-vi.mock('node:fs');
-vi.mock('node:path');
+vi.mock('@node-singletons/child-process');
+vi.mock('@node-singletons/fs');
+vi.mock('@node-singletons/path');
 
 import { D1MigrateCommand } from '@/cli/commands/D1MigrateCommand';
 import { Logger } from '@/config/logger';

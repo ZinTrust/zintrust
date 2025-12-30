@@ -15,8 +15,8 @@ import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
 import { Logger } from '@config/logger';
+import { EventEmitter } from '@node-singletons/events';
 import fs from '@node-singletons/fs';
-import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@cli/PromptHelper');

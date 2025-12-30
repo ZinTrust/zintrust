@@ -9,23 +9,26 @@ import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
+import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
+import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { QACommand } from '@cli/commands/QACommand';
+import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
+import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
+import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { readFileSync } from '@node-singletons/fs';
-import { dirname, join } from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
+import { join } from '@node-singletons/path';
 import { Command } from 'commander';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = esmDirname(import.meta.url);
 
 export interface ICLI {
   run(args: string[]): Promise<void>;
@@ -80,12 +83,16 @@ const registerCommands = (program: Command): void => {
     MigrateCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
+    SecretsCommand.create(),
     ConfigCommand.create(),
     PluginCommand.create(),
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
     SimulateCommand,
+    TemplatesCommand,
+    MakeMailTemplateCommand.create(),
+    MakeNotificationTemplateCommand.create(),
   ];
 
   for (const command of commands) {

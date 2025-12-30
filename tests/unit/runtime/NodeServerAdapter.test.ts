@@ -14,7 +14,7 @@ type FakeServer = {
 // eslint-disable-next-line no-var
 var lastServer: FakeServer | undefined;
 
-vi.mock('node:http', () => {
+vi.mock('@node-singletons/http', () => {
   const listeners = new Map<string, Listener>();
   let requestHandler: ((req: unknown, res: unknown) => void) | undefined;
 

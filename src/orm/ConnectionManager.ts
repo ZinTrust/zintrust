@@ -10,7 +10,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 export interface ConnectionConfig {
-  adapter: 'postgresql' | 'mysql' | 'sqlserver' | 'd1' | 'aurora-data-api';
+  adapter: 'postgresql' | 'mysql' | 'sqlite' | 'sqlserver' | 'd1' | 'aurora-data-api';
   host?: string;
   port?: number;
   database: string;
@@ -441,6 +441,20 @@ export const ConnectionManager = Object.freeze({
       );
     }
     return instance;
+  },
+
+  /**
+   * Shutdown connection manager if it has been initialized
+   * Safe to call even if no instance exists
+   */
+  async shutdownIfInitialized(): Promise<void> {
+    if (instance !== undefined) {
+      try {
+        await instance.closeAll();
+      } catch (err) {
+        Logger.error('Error while shutting down ConnectionManager:', err as Error);
+      }
+    }
   },
 
   /**

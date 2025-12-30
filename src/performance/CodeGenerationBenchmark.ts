@@ -3,12 +3,12 @@
  * Measure performance of all code generators
  */
 
+import { esmFilePath } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { fs } from '@node-singletons';
-import { fileURLToPath } from '@node-singletons/url';
+import * as path from '@node-singletons/path';
 import { Benchmark, IBenchmark, IMemoryMonitor, MemoryMonitor } from '@performance/Benchmark';
-import * as path from 'node:path';
 
 export interface ICodeGenerationBenchmark {
   runAll(): Promise<void>;
@@ -308,7 +308,7 @@ const isMain = ((): boolean => {
     const entrypoint = process.argv[1];
     if (typeof entrypoint !== 'string') return false;
 
-    const currentFilePath = fileURLToPath(new URL(import.meta.url));
+    const currentFilePath = esmFilePath(import.meta.url);
 
     // Use realpathSync to handle symlinks (common on macOS /var -> /private/var)
     if (!('realpathSync' in fs)) {

@@ -1,7 +1,5 @@
-# ============================================================================
 # Zintrust Framework - Environment Configuration
-# Generated from src/config/env.ts - All available configuration keys
-# ============================================================================
+# Copy this file to .env and configure for your environment
 
 # ============================================================================
 # APPLICATION
@@ -11,21 +9,8 @@
 NODE_ENV=development
 
 # Server Configuration
-HOST=127.0.0.1
-APP_PORT=7777
-APP_NAME={{projectName}}
-APP_KEY=
-
-
-# ============================================================================
-# LOGGING
-# ============================================================================
-
-# Log Level: debug | info | warn | error
-LOG_LEVEL=debug
-DISABLE_LOGGING=true
-LOG_CHANNEL=file
-
+HOST=
+PORT=
 
 # ============================================================================
 # DATABASE
@@ -33,132 +18,142 @@ LOG_CHANNEL=file
 
 # Database Connection Driver
 # Options: sqlite | postgresql | mysql | sqlserver | d1
-DB_CONNECTION=sqlite
+DB_CONNECTION=
 
-# SQLite Configuration
-DB_PATH=./storage/db.sqlite
+# SQLite (default for development)
+DB_PATH=
 
-# PostgreSQL Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_DATABASE=zintrust
-DB_USERNAME=postgres
-DB_PASSWORD=
-DB_READ_HOSTS=
+# PostgreSQL
+# DB_HOST=localhost
+# DB_PORT=5432
+# DB_DATABASE=zintrust
+# DB_USERNAME=postgres
+# DB_PASSWORD=postgres
+
+# MySQL
+# DB_HOST=localhost
+# DB_PORT=3306
+# DB_DATABASE=zintrust
+# DB_USERNAME=root
+# DB_PASSWORD=password
+
+# SQL Server
+# DB_HOST=localhost
+# DB_PORT=1433
+# DB_DATABASE=zintrust
+# DB_USERNAME=sa
+# DB_PASSWORD=Password123
 
 # ============================================================================
-# CLOUDFLARE
+# ADVANCED DATABASE FEATURES
 # ============================================================================
 
-D1_DATABASE_ID=
-KV_NAMESPACE_ID=
+# Raw SQL Query Support
+# WARNING: Only enable in development. Bypasses QueryBuilder safety.
+# This is checked once at application bootstrap, cached in memory.
+# Feature flag is initialized at startup - no runtime changes possible.
+USE_RAW_QRY=
 
 # ============================================================================
 # CACHE
 # ============================================================================
 
-# Cache Driver: memory | redis | memcached
-CACHE_DRIVER=memory
+# Cache Driver: memory | redis | mongodb | kv
+# - kv: Cloudflare Workers only (requires a KV binding named "CACHE")
+CACHE_DRIVER=
 
-# Redis Configuration
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
+# Redis Configuration (if using Redis)
+# REDIS_HOST=localhost
+# REDIS_PORT=6379
 
-# MongoDB Cache Configuration
-MONGO_URI=
-MONGO_DB=zintrust_cache
-
-# ============================================================================
-# AWS
-# ============================================================================
-
-AWS_REGION=us-east-1
-AWS_LAMBDA_FUNCTION_NAME=
-AWS_LAMBDA_FUNCTION_VERSION=
-AWS_EXECUTION_ENV=
-LAMBDA_TASK_ROOT=
+# MongoDB Cache (if using mongodb)
+# Uses MongoDB Atlas Data API (HTTPS)
+# MONGO_URI=https://data.mongodb-api.com/app/<app-id>/endpoint/data/v1
+# MONGO_DB=zintrust_cache
 
 # ============================================================================
-# MICROSERVICES
+# LOGGING
 # ============================================================================
 
-MICROSERVICES=
-SERVICES=
-MICROSERVICES_TRACING=false
-MICROSERVICES_TRACING_RATE=1.0
-DATABASE_ISOLATION=shared
-SERVICE_API_KEY=
-SERVICE_JWT_SECRET=
+# Log Level: debug | info | warn | error
+LOG_LEVEL=
+
+# Log Channel: console | file | all
+LOG_CHANNEL=
 
 # ============================================================================
 # SECURITY
 # ============================================================================
 
-DEBUG=false
-ENABLE_MICROSERVICES=false
-TOKEN_TTL=3600000
-TOKEN_LENGTH=32
-
 # JWT Secret for authentication
 JWT_SECRET=
 
 # Session Configuration
-SESSION_DRIVER=cookie
-SESSION_LIFETIME=7200
+SESSION_DRIVER=
+SESSION_LIFETIME=
 
 # CORS Configuration
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+CORS_ORIGINS=
 
 # ============================================================================
-# DEPLOYMENT
+# MICROSERVICES
 # ============================================================================
 
-ENVIRONMENT=development
-REQUEST_TIMEOUT=30000
-MAX_BODY_SIZE=10485760
+# Enable Microservices
+MICROSERVICES=
 
+# Comma-separated list of services to load
+SERVICES=
+
+# Service Discovery
+SERVICE_DISCOVERY=
+
+# Request Tracing
+MICROSERVICES_TRACING=
+MICROSERVICES_TRACING_RATE=
 
 # ============================================================================
-# EXTERNAL SERVICES & CREDENTIALS
+# SONARQUBE / SONARCLOUD
 # ============================================================================
 
-SONAR_ORGANIZATION="zintrust"
-SONAR_PROJECT_ID="ZinTrust_ZinTrust"
-SONAR_HOST_URL="https://sonarcloud.io"
-SONAR_TOKEN=
+# SonarQube Server
+SONAR_HOST_URL=
 
-# Cloudflare Workspace-Specific Credentials
-CLOUDFLARE_API_TOKEN=
-CLOUDFLARE_ACCOUNT_ID=""
+# SonarCloud
+# SONAR_HOST_URL=https://sonarcloud.io
+# SONAR_TOKEN=your_token
+# SONAR_ORGANIZATION=your-organization
 
-CODECOV_TOKEN=
+# ============================================================================
+# EXTERNAL SERVICES
+# ============================================================================
 
-# Security Scanning
-SNYK_TOKEN=
+# Snyk Security Token
+# SNYK_TOKEN=your_token
 
-# Email (SendGrid)
-SENDGRID_API_KEY=
+# SendGrid (Email)
+# SENDGRID_API_KEY=your_api_key
 
-# Payments (Stripe)
-STRIPE_SECRET_KEY=
-STRIPE_PUBLIC_KEY=
+# Stripe (Payments)
+# STRIPE_SECRET_KEY=your_secret_key
+# STRIPE_PUBLIC_KEY=your_public_key
 
-# Cloud Storage (AWS S3)
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_BUCKET=
+# AWS S3 (File Storage)
+# AWS_ACCESS_KEY_ID=your_access_key
+# AWS_SECRET_ACCESS_KEY=your_secret_key
+# AWS_REGION=us-east-1
+# AWS_BUCKET=your_bucket_name
 
 # ============================================================================
 # DEVELOPMENT
 # ============================================================================
 
+# Debug Mode
+DEBUG=
+
 # Database Synchronization (auto-migrate on startup)
-DB_SYNCHRONIZE=true
+DB_SYNCHRONIZE=
 
 # Database Logging
-DB_LOGGING=false
+DB_LOGGING=
 
-# Raw SQL Query Support (development only)
-# WARNING: Only enable in development. Bypasses QueryBuilder safety.
-USE_RAW_QRY=false

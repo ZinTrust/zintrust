@@ -2,6 +2,7 @@
  * Cloudflare D1 Database Adapter
  */
 
+import { Cloudflare } from '@config/cloudflare';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -11,18 +12,7 @@ import { DatabaseConfig, ID1Database, IDatabaseAdapter, QueryResult } from '@orm
  * Get D1 binding from config or global environment
  */
 function getD1Binding(_config: DatabaseConfig): ID1Database | null {
-  // 1. Check config
-  if (_config.d1 !== undefined && _config.d1 !== null) return _config.d1;
-
-  // 2. Check global env (Cloudflare Workers)
-  const globalEnv = (globalThis as unknown as { env?: { DB?: ID1Database } }).env;
-  if (globalEnv?.DB !== undefined) return globalEnv.DB;
-
-  // 3. Check global scope
-  const globalDB = (globalThis as unknown as { DB?: ID1Database }).DB;
-  if (globalDB !== undefined) return globalDB;
-
-  return null;
+  return Cloudflare.getD1Binding(_config);
 }
 
 /**
@@ -84,6 +74,22 @@ export const D1Adapter = Object.freeze({
           return result ?? null;
         } catch (error) {
           throw ErrorFactory.createTryCatchError(`D1 queryOne failed: ${sql}`, error);
+        }
+      },
+
+      async ping(): Promise<void> {
+        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
+
+        const db = getD1Binding(_config);
+        if (db === null) {
+          throw ErrorFactory.createConfigError('D1 database binding not found');
+        }
+
+        try {
+          // Use a minimal, side-effect-free query.
+          await db.prepare('SELECT 1').bind().first();
+        } catch (error) {
+          throw ErrorFactory.createTryCatchError('D1 ping failed', error);
         }
       },
 

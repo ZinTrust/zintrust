@@ -42,6 +42,7 @@ export default defineConfig(
       'check_vi.ts',
       'dev/**',
       'simulate/**',
+      'test-project/**',
     ],
   },
   eslint.configs.recommended,

@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type PathLike = string | Buffer | URL;
 
-vi.mock('node:fs', () => ({
+vi.mock('@node-singletons/fs', () => ({
   default: {
     existsSync: vi.fn(),
     readdirSync: vi.fn(),
@@ -41,9 +41,9 @@ vi.mock('node:fs', () => ({
     writeFile: vi.fn(),
   },
 }));
-vi.mock('node:path');
+vi.mock('@node-singletons/path');
 vi.mock('@config/logger');
-vi.mock('node:process', () => ({
+vi.mock('@node-singletons/process', () => ({
   process: { argv: ['node', 'script.js', 'lambda', '5000'] },
 }));
 
@@ -140,8 +140,10 @@ it('should analyze bundle with multiple files', async () => {
     return [] as any;
   });
 
-  vi.mocked(fs.statSync).mockImplementation((filePath: PathLike) => {
+  // Simulate asynchronous stats to detect shared-mutation concurrency bugs
+  vi.mocked(fs.promises.stat).mockImplementation(async (filePath: PathLike) => {
     const pathStr = filePath.toString();
+    await new Promise((r) => setTimeout(r, 5));
     if (pathStr.includes('file1')) return { size: 1000 } as any;
     if (pathStr.includes('file2')) return { size: 2000 } as any;
     if (pathStr.includes('file3')) return { size: 3000 } as any;

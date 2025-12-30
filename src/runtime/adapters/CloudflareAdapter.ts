@@ -1,7 +1,7 @@
 /**
  * Runtime adapter for Cloudflare Workers
  */
-import { Env } from '@config/env';
+import { appConfig } from '@/config';
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import {
@@ -154,7 +154,7 @@ async function handleCloudflareRequest(
     const errorResponse = ErrorResponse.create(
       500,
       'Internal Server Error',
-      Env.NODE_ENV === 'development' ? { message: (error as Error).message } : undefined
+      appConfig.isDevelopment() ? { message: (error as Error).message } : undefined
     );
     return errorResponse.toResponse();
   }

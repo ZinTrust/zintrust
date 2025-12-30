@@ -28,22 +28,49 @@ async function start() {
     await server.listen();
 
     Logger.info(`Server running at http://${host}:${port}`);
+
+    const shutdown = async (signal: string): Promise<void> => {
+      Logger.info(`${signal} received, shutting down gracefully...`);
+
+      const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 10000);
+      const withTimeout = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
+        if (ms <= 0) return promise;
+        return new Promise<T>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new globalThis.Error('Shutdown timed out')), ms);
+          promise
+            .then((value) => {
+              clearTimeout(timer);
+              resolve(value);
+            })
+            .catch((err) => {
+              clearTimeout(timer);
+              reject(err);
+            });
+        });
+      };
+
+      try {
+        await withTimeout(
+          (async () => {
+            await server.close();
+            await app.shutdown();
+          })(),
+          timeoutMs
+        );
+        process.exit(0);
+      } catch (error) {
+        Logger.error('Graceful shutdown failed:', error);
+        process.exit(1);
+      }
+    };
+
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
   } catch (error) {
     Logger.error('Failed to start application:', error);
     process.exit(1);
   }
 }
-
-// Handle graceful shutdown
-process.on('SIGTERM', () => {
-  Logger.info('SIGTERM received, shutting down gracefully...');
-  process.exit(0);
-});
-
-process.on('SIGINT', () => {
-  Logger.info('SIGINT received, shutting down gracefully...');
-  process.exit(0);
-});
 
 // Run start
 await start();

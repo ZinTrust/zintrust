@@ -81,3 +81,4 @@ export { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 export type { ServiceOptions, ServiceScaffoldResult } from '@cli/scaffolding/ServiceScaffolder';
 export { BUILT_IN_TEMPLATES, TemplateEngine } from '@cli/scaffolding/TemplateEngine';
 export type { Template, TemplateFile, TemplateVariables } from '@cli/scaffolding/TemplateEngine';
+export { TemplateGenerator } from '@cli/scaffolding/TemplateGenerator';

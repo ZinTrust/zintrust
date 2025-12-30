@@ -1,0 +1,22 @@
+name: '[DEPRECATED] Publish to npm (tag)'
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: 'Deprecated: use Publish to npm (master) workflow'
+        required: false
+        default: ''
+
+concurrency:
+  group: publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deprecated
+        run: echo "This workflow is deprecated. Use the master publish workflow (.github/workflows/publish-version.yml)."

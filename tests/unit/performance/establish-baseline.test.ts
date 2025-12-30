@@ -34,7 +34,7 @@ describe('performance/establish-baseline', () => {
     delete (globalThis as unknown as { __ZINTRUST_ESTABLISH_BASELINE_MAIN__?: boolean })
       .__ZINTRUST_ESTABLISH_BASELINE_MAIN__;
 
-    vi.doUnmock('node:url');
+    vi.doUnmock('@node-singletons/url');
   });
 
   it('runs benchmarks and exports results', async () => {
@@ -113,7 +113,7 @@ describe('performance/establish-baseline', () => {
   it('falls back to not-main if ESM main detection throws', async () => {
     benchmarkRunAll.mockResolvedValueOnce(undefined);
 
-    vi.doMock('node:url', () => ({
+    vi.doMock('@node-singletons/url', () => ({
       pathToFileURL: () => {
         throw new Error('nope');
       },

@@ -2,7 +2,7 @@ import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { spawn } from '@node-singletons/child-process';
 import { existsSync } from '@node-singletons/fs';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface SpawnAndWaitInput {
   command: string;

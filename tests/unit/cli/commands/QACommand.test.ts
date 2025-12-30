@@ -1,20 +1,21 @@
 /* eslint-disable max-nested-callbacks */
-import { QACommand } from '@/cli/commands/QACommand';
+import { QACommand } from '@cli/commands/QACommand';
 import { Logger } from '@config/logger';
-import { fs } from '@node-singletons';
 import * as child_process from '@node-singletons/child-process';
-import * as fsPromises from 'node:fs/promises';
+import { fs, fsPromises } from '@node-singletons/fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs/promises', () => ({
-  writeFile: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('@node-singletons/child-process', () => ({
-  execFileSync: vi.fn(),
-  execSync: vi.fn(),
-  spawn: vi.fn(),
-}));
+vi.mock('@node-singletons/child-process', () => {
+  const mockChildProcess = {
+    execFileSync: vi.fn(),
+    execSync: vi.fn(),
+    spawn: vi.fn(),
+  };
+  return {
+    ...mockChildProcess,
+    default: mockChildProcess,
+  };
+});
 
 vi.mock('@node-singletons/fs', () => {
   const mockFs = {
@@ -26,6 +27,12 @@ vi.mock('@node-singletons/fs', () => {
   };
   return {
     ...mockFs,
+    fs: mockFs,
+    fsPromises: {
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockResolvedValue(''),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+    },
     default: mockFs,
   };
 });

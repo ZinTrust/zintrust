@@ -38,6 +38,25 @@ interface SecretsManagerInstance {
   clearCache(key?: string): void;
 }
 
+function pruneCache(
+  cache: Map<string, { value: string; expiresAt: number }>,
+  maxEntries: number
+): void {
+  if (cache.size <= maxEntries) return;
+
+  const now = Date.now();
+  for (const [key, entry] of cache.entries()) {
+    if (entry.expiresAt <= now) cache.delete(key);
+  }
+
+  // If still large, drop oldest entries (Map preserves insertion order)
+  while (cache.size > maxEntries) {
+    const next = cache.keys().next();
+    if (next.done === true) break;
+    cache.delete(next.value);
+  }
+}
+
 /**
  * Get secret value from appropriate backend
  */
@@ -52,6 +71,9 @@ async function runGetSecret(
   if (cached !== undefined && cached.expiresAt > Date.now()) {
     return cached.value;
   }
+
+  // Opportunistic cleanup if cache has grown
+  pruneCache(cache, 500);
 
   let value: string;
 
@@ -76,6 +98,8 @@ async function runGetSecret(
     value,
     expiresAt: Date.now() + ttl,
   });
+
+  pruneCache(cache, 500);
 
   return value;
 }
@@ -169,14 +193,13 @@ const SecretsManagerImpl = {
       /**
        * Rotate secret (trigger new secret generation)
        */
+      // eslint-disable-next-line @typescript-eslint/require-await
       async rotateSecret(_key: string): Promise<void> {
         if (config.platform === 'aws') {
           // AWS Secrets Manager supports automatic rotation
-          return Promise.reject(ErrorFactory.createConfigError('Secret rotation not implemented'));
+          throw ErrorFactory.createConfigError('Secret rotation not implemented');
         }
-        return Promise.reject(
-          ErrorFactory.createConfigError('Secret rotation not supported on this platform')
-        );
+        throw ErrorFactory.createConfigError('Secret rotation not supported on this platform');
       },
 
       /**
@@ -191,7 +214,7 @@ const SecretsManagerImpl = {
           case 'deno':
           case 'local':
           default:
-            return Promise.resolve([]);
+            return [];
         }
       },
 
@@ -212,41 +235,39 @@ const SecretsManagerImpl = {
 /**
  * AWS Secrets Manager integration
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function getFromAWSSecretsManager(key: string): Promise<string> {
   try {
     Logger.debug(`[AWS] Getting secret: ${key}`);
     throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
   } catch (error) {
-    return Promise.reject(
-      ErrorFactory.createTryCatchError(
-        `Failed to retrieve secret from AWS: ${(error as Error).message}`,
-        error
-      )
+    throw ErrorFactory.createTryCatchError(
+      `Failed to retrieve secret from AWS: ${(error as Error).message}`,
+      error
     );
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await
 async function setInAWSSecretsManager(
   key: string,
   _value: string,
   _options?: SetSecretOptions
 ): Promise<void> {
   Logger.info(`[AWS] Setting secret: ${key}`);
-  return Promise.reject(
-    ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module')
-  );
+  throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await
 async function deleteFromAWSSecretsManager(key: string): Promise<void> {
   Logger.info(`[AWS] Deleting secret: ${key}`);
-  return Promise.reject(
-    ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module')
-  );
+  throw ErrorFactory.createConfigError('AWS SDK not available in core - use wrapper module');
 }
 
+// eslint-disable-next-line @typescript-eslint/require-await
 async function listFromAWSSecretsManager(pattern?: string): Promise<string[]> {
   Logger.info(`[AWS] Listing secrets with pattern: ${pattern ?? '*'}`);
-  return Promise.resolve([]);
+  return [];
 }
 
 /**
@@ -294,25 +315,27 @@ async function listFromCloudflareKV(config: SecretConfig, pattern?: string): Pro
 /**
  * Deno environment integration
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function getFromDenoEnv(key: string): Promise<string> {
   const value = (
     globalThis as unknown as Record<string, { env?: { get?: (key: string) => string } }>
   )['Deno']?.env?.get?.(key);
   if (value === undefined || value === null || value === '') {
-    return Promise.reject(ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key }));
+    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
   }
-  return Promise.resolve(value);
+  return value;
 }
 
 /**
  * Local environment variables (Node.js)
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function getFromEnv(key: string): Promise<string> {
   const value = process.env[key];
   if (value === undefined || value === null || value === '') {
-    return Promise.reject(ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key }));
+    throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
   }
-  return Promise.resolve(value);
+  return value;
 }
 
 /**
