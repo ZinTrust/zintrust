@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish:
@@ -28,6 +28,8 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          # Use PAT with write access for tags/releases.
+          token: ${{ secrets.RELEASE_PR_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
@@ -65,11 +67,15 @@ jobs:
         run: npm run pub:ci
 
       - name: Create tag and release (optional)
-        if: false
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
         run: |
           V=$(node -p "require('./dist/package.json').version")
           git config user.name 'github-actions'
           git config user.email 'actions@github.com'
           git tag v$V
           git push origin --tags
-          # create release can be added here
+
+          # Create/update GitHub release (best-effort).
+          gh release view v$V >/dev/null 2>&1 || gh release create v$V --title "v$V" --generate-notes

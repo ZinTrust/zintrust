@@ -60,12 +60,47 @@ Notes:
 
 - disabled — no sends
 - sendgrid — HTTP API (encodes attachments base64)
+- mailgun — HTTP API (multipart form upload)
 - smtp — Node.js SMTP implementation (supports STARTTLS / SMTPS, and attachments via multipart/mixed)
 - ses — AWS SES (SigV4 signed)
 
 Driver selection is via `MAIL_DRIVER` (see env vars below).
 
 ---
+
+## Templates (code + Markdown) 🧩
+
+Zintrust includes two lightweight templating options:
+
+1. Code templates (plain strings)
+
+```ts
+import { MailTemplates, MailTemplateRenderer } from '@mail/templates';
+
+const tpl = MailTemplates.auth.welcome;
+const rendered = MailTemplateRenderer.render(tpl, { name: 'Jane' });
+```
+
+2. Markdown templates (stored as `.md` files)
+
+Templates live in `src/tools/mail/templates/markdown/` and can be listed/rendered:
+
+```ts
+import { listTemplates, renderTemplate } from '@mail/templates/markdown';
+
+const names = listTemplates();
+const { html, meta } = renderTemplate('auth/welcome', { name: 'Jane' });
+```
+
+Markdown templates can include top-of-file metadata:
+
+```text
+<!-- Subject: Welcome, {{name}}! -->
+<!-- Preheader: Getting started -->
+<!-- Variables: name -->
+```
+
+You can pass the resulting `html` into `Mail.send({ html, ... })`, and use `meta.subject` as your message subject.
 
 ## Testing (fakes) 🧪
 
@@ -85,10 +120,13 @@ For integration tests that involve attachments, combine `FakeStorage` + `MailFak
 
 ## Environment variables (important) ⚙️
 
-- MAIL_DRIVER (disabled | sendgrid | smtp | ses) — default: `disabled`
+- MAIL_DRIVER (disabled | sendgrid | mailgun | smtp | ses) — default: `disabled`
 - MAIL_FROM_ADDRESS — default: `` (required for sends)
 - MAIL_FROM_NAME — display name
 - SENDGRID_API_KEY — required when `MAIL_DRIVER=sendgrid`
+- MAILGUN_API_KEY — required when `MAIL_DRIVER=mailgun`
+- MAILGUN_DOMAIN — required when `MAIL_DRIVER=mailgun`
+- MAILGUN_BASE_URL — optional (default: `https://api.mailgun.net`)
 - MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_SECURE — SMTP credentials
 - AWS_REGION — used by SES driver
 

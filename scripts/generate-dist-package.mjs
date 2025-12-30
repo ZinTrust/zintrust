@@ -77,6 +77,8 @@ const distPackage = {
   type: 'module',
   main: 'src/index.js',
   types: 'src/index.d.ts',
+  dependencies: rootPackage.dependencies,
+  overrides: rootPackage.overrides,
   bin: {
     zintrust: 'bin/zintrust.js',
     zin: 'bin/zin.js',

@@ -1,11 +1,11 @@
 ---
 title: HTTP Client
-description: Laravel-style HTTP client for making authenticated requests
+description: HTTP client for making authenticated requests
 ---
 
 # HTTP Client
 
-Zintrust provides a fluent, Laravel-inspired HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
+Zintrust provides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
 
 ## Features
 

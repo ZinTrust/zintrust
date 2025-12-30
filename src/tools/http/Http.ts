@@ -1,6 +1,5 @@
 /**
  * Http Client - Fluent HTTP request builder
- * Laravel-style HTTP client for making authenticated requests
  *
  * Usage:
  *   await HttpClient.get('https://api.example.com/users').withAuth(token).send();
@@ -173,7 +172,6 @@ const createRequestBuilder = (
 
 /**
  * HTTP Client - Sealed namespace for making HTTP requests
- * Provides Laravel-style fluent API
  */
 export const HttpClient = Object.freeze({
   /**
