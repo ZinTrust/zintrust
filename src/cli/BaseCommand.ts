@@ -44,7 +44,7 @@ export const BaseCommand = Object.freeze({
     const getCommand = (): Command => {
       const command = new Command(config.name);
       command.description(config.description);
-      command.option('-v, --verbose', 'Enable verbose output');
+      command.option('--verbose', 'Enable verbose output');
 
       // Add custom options
       if (config.addOptions) {

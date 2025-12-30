@@ -39,7 +39,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "coverage:diff": "tsx dev/coverage-diff.ts",
-    "coverage:patch": "sh dev/coverage-patch.sh",
+    "coverage:patch": "sh scripts/coverage-patch.sh",
     "lint": "eslint .",
     "format": "prettier --write 'src/**/*.ts'",
     "dev": "tsx watch src/index.ts",
