@@ -12,7 +12,13 @@ const base64UrlEncode = (value: string | Buffer): string => {
   const base64 = Buffer.isBuffer(value)
     ? value.toString('base64')
     : Buffer.from(value).toString('base64');
-  return base64.replaceAll('+', '-').replaceAll('/', '_').replaceAll(/=+$/g, '');
+  // replace characters used in regular base64 and remove any trailing '=' padding
+  let result = base64.replaceAll('+', '-').replaceAll('/', '_');
+  // Remove trailing '=' characters without using a regex to avoid potential super-linear backtracking.
+  while (result.endsWith('=')) {
+    result = result.slice(0, -1);
+  }
+  return result;
 };
 
 const base64UrlDecodeToString = (value: string): string => {
