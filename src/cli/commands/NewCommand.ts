@@ -14,7 +14,7 @@ import * as path from '@node-singletons/path';
 import chalk from 'chalk';
 import { Command } from 'commander';
 
-type TemplateType = 'basic' | 'api' | 'microservice';
+type TemplateType = 'basic' | 'api' | 'microservice' | 'fullstack';
 type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb';
 
 interface NewProjectConfig {
@@ -102,19 +102,20 @@ const toConfigResult = (config: NewProjectConfig): NewProjectConfigResult => ({
 const getQuestions = (name: string, defaults: NewProjectConfig): InquirerQuestion[] => {
   return [
     {
-      type: 'list',
+      type: 'rawlist',
       name: 'template',
       message: 'Project template:',
-      choices: ['basic', 'api', 'microservice'],
+      choices: ['basic', 'api', 'microservice', 'fullstack'],
       default: defaults.template,
     },
     {
-      type: 'list',
+      type: 'rawlist',
       name: 'database',
       message: 'Database driver:',
       choices: ['sqlite', 'mysql', 'postgresql', 'mongodb'],
       default: defaults.database,
     },
+
     {
       type: 'input',
       name: 'port',
@@ -195,6 +196,29 @@ const isFailureResult = (result: unknown): result is { success: false; message?:
   return maybe.success === false;
 };
 
+const promptForPackageManager = async (defaultPm: string): Promise<string | null> => {
+  const choices = [
+    { name: 'npm', value: 'npm' },
+    { name: 'yarn', value: 'yarn' },
+    { name: 'pnpm', value: 'pnpm' },
+    { name: 'bun', value: 'bun' },
+    { name: 'Skip installation', value: null },
+  ];
+
+  const answer = await PromptHelper.prompt([
+    {
+      type: 'rawlist',
+      name: 'packageManager',
+      message: 'Select package manager for dependency installation:',
+      choices,
+      default: defaultPm,
+    },
+  ]);
+
+  if (typeof answer !== 'object' || answer === null) return null;
+  return (answer['packageManager'] as string | null) ?? null;
+};
+
 const installDependencies = async (
   projectPath: string,
   log: Pick<IBaseCommand, 'info' | 'warn'>,
@@ -207,6 +231,11 @@ const installDependencies = async (
 
   if (isCi && !allowAuto) {
     log.info('Skipping automatic dependency installation in CI environment.');
+    return;
+  }
+
+  if (packageManager === null) {
+    log.info('⏭️  Skipping dependency installation (not selected).');
     return;
   }
 
@@ -240,11 +269,16 @@ interface INewCommand extends IBaseCommand {
     overwrite?: boolean
   ): Promise<unknown>;
   initializeGit(name: string): void;
+  promptForPackageManager(defaultPm: string): Promise<string | null>;
 }
 
 const addOptions = (command: Command): void => {
   command.argument('<name>', 'Project name');
-  command.option('--template <type>', 'Project template (basic, api, microservice)', 'basic');
+  command.option(
+    '--template <type>',
+    'Project template (basic, api, microservice, fullstack)',
+    'basic'
+  );
   command.option('--database <type>', 'Database driver (sqlite, mysql, postgresql)', 'sqlite');
   command.option('--port <number>', 'Default port number', '3003');
   command.option('--author <name>', 'Project author');
@@ -259,38 +293,94 @@ const addOptions = (command: Command): void => {
   command.option('--overwrite', 'Overwrite existing directory');
 };
 
+const resolveProjectName = async (options: CommandOptions): Promise<string> => {
+  const argName = options.args?.[0];
+  const projectName = argName ?? (await PromptHelper.projectName('my-zintrust-app', true));
+  if (!projectName) throw ErrorFactory.createCliError('Project name is required');
+  return projectName;
+};
+
+const createProject = async (
+  projectName: string,
+  options: CommandOptions,
+  command: INewCommand
+): Promise<void> => {
+  const config = await command.getProjectConfig(projectName, options);
+  command.info(chalk.bold(`\n🚀 Creating new Zintrust project in ${projectName}...\n`));
+
+  const overwrite = options['overwrite'] === true || options['force'] === true ? true : undefined;
+  const result = await command.runScaffolding(projectName, config, overwrite);
+
+  if (isFailureResult(result)) {
+    throw ErrorFactory.createCliError(result.message ?? 'Project scaffolding failed', result);
+  }
+};
+
+const maybeInitializeGit = (
+  options: CommandOptions,
+  command: INewCommand,
+  projectName: string
+): void => {
+  if (options['git'] !== false) {
+    command.initializeGit(projectName);
+  }
+};
+
+const maybeInstallDependencies = async (
+  options: CommandOptions,
+  command: INewCommand,
+  projectName: string
+): Promise<string | undefined> => {
+  if (options['install'] === false) return;
+
+  const projectPath = path.resolve(process.cwd(), projectName);
+  let pm =
+    (options['packageManager'] as string | undefined) ??
+    (options['package-manager'] as string | undefined);
+
+  // If no package manager specified and not in non-interactive mode, prompt user
+  if (pm === undefined && options['interactive'] !== false && options['no-interactive'] !== true) {
+    const defaultPm = resolvePackageManager();
+    const selectedPm = await command.promptForPackageManager(defaultPm);
+    if (selectedPm === null) {
+      command.info('⏭️  Skipping dependency installation.');
+      pm = '__skip__'; // Signal to skip installation
+    } else {
+      pm = selectedPm;
+    }
+  }
+
+  const force = options['install'] === true;
+  if (pm === '__skip__') return;
+
+  const effectivePm = pm ?? resolvePackageManager();
+  await installDependencies(projectPath, command, pm, force);
+  return effectivePm;
+};
+
 const executeNewCommand = async (options: CommandOptions, command: INewCommand): Promise<void> => {
   try {
-    const argName = options.args?.[0];
-    const projectName = argName ?? (await PromptHelper.projectName('my-zintrust-app', true));
-    if (!projectName) throw ErrorFactory.createCliError('Project name is required');
+    const projectName = await resolveProjectName(options);
 
-    const config = await command.getProjectConfig(projectName, options);
+    await createProject(projectName, options, command);
 
-    command.info(chalk.bold(`\n🚀 Creating new Zintrust project in ${projectName}...\n`));
+    maybeInitializeGit(options, command, projectName);
 
-    const overwrite = options['overwrite'] === true || options['force'] === true ? true : undefined;
-    const result = await command.runScaffolding(projectName, config, overwrite);
-
-    if (isFailureResult(result)) {
-      throw ErrorFactory.createCliError(result.message ?? 'Project scaffolding failed', result);
-    }
-
-    if (options['git'] !== false) {
-      command.initializeGit(projectName);
-    }
-
-    if (options['install'] !== false) {
-      const projectPath = path.resolve(process.cwd(), projectName);
-      const pm =
-        (options['packageManager'] as string | undefined) ??
-        (options['package-manager'] as string | undefined);
-      const force = options['install'] === true;
-      await installDependencies(projectPath, command, pm, force);
-    }
+    const installedWithPm = await maybeInstallDependencies(options, command, projectName);
 
     command.success(`\n✨ Project ${projectName} created successfully!`);
-    command.info(`\nNext steps:\n  cd ${projectName}\n  npm run dev\n`);
+
+    const optPm =
+      (options['packageManager'] as string | undefined) ??
+      (options['package-manager'] as string | undefined);
+    const effectivePm = installedWithPm ?? optPm ?? resolvePackageManager();
+
+    const runDevCmd =
+      effectivePm === 'yarn' || effectivePm === 'pnpm'
+        ? `${effectivePm} dev`
+        : `${effectivePm} run dev`;
+
+    command.info(`\nNext steps:\n  cd ${projectName}\n  ${runDevCmd}\n`);
   } catch (error) {
     throw ErrorFactory.createCliError(
       `Project creation failed: ${extractErrorMessage(error)}`,
@@ -365,6 +455,9 @@ const createNewCommandInstance = (): INewCommand => {
       if (checkGitInstalled()) {
         initializeGitRepo(projectPath, commandInstance);
       }
+    },
+    promptForPackageManager: async (defaultPm: string): Promise<string | null> => {
+      return promptForPackageManager(defaultPm);
     },
     execute: async (options: CommandOptions): Promise<void> => {
       await executeNewCommand(options, commandInstance);

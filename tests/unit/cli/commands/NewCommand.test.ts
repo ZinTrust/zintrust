@@ -217,10 +217,11 @@ describe('NewCommand', () => {
       expect(helpText).toContain('<name>');
     });
 
-    it('getCommand should have template option configured', () => {
+    it('getCommand should have template option configured with fullstack', () => {
       const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--template');
+      expect(helpText).toContain('fullstack');
     });
 
     it('getCommand should have database option configured', () => {
@@ -421,8 +422,8 @@ describe('NewCommand', () => {
       expect(command.getProjectConfig).toHaveBeenCalled();
     });
 
-    it('should handle template options', async () => {
-      const templates = ['basic', 'api'];
+    it('should handle template options including fullstack', async () => {
+      const templates = ['basic', 'api', 'microservice', 'fullstack'];
 
       for (const template of templates) {
         const options = {
@@ -606,6 +607,62 @@ describe('NewCommand', () => {
       });
     });
 
+    it('shows next steps with provided package manager (yarn)', async () => {
+      const options = {
+        args: ['pm-project'],
+        interactive: false,
+        packageManager: 'yarn',
+        install: true,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+      command.info = vi.fn();
+
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+      await command.execute(options);
+
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('yarn dev'));
+    });
+
+    it('shows next steps with provided package manager (npm)', async () => {
+      const options = {
+        args: ['pm-project'],
+        interactive: false,
+        packageManager: 'npm',
+        install: true,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+      command.info = vi.fn();
+
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+      await command.execute(options);
+
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('npm run dev'));
+    });
+
     it('skips auto-install in CI by default', async () => {
       const options = {
         args: ['ci-project'],
@@ -764,7 +821,7 @@ describe('NewCommand', () => {
       expect(questions.length).toBeGreaterThan(0);
     });
 
-    it('should include template question', () => {
+    it('should include template question with radio type and all 4 options', () => {
       const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
@@ -775,7 +832,36 @@ describe('NewCommand', () => {
 
       const template = findQuestionByName(questions, 'template');
       expect(template).toBeDefined();
-      expect(template?.type).toBe('list');
+      expect(template?.type).toBe('rawlist');
+      expect(template?.choices).toEqual(['basic', 'api', 'microservice', 'fullstack']);
+      expect(template?.message).toBe('Project template:');
+    });
+
+    it('should include fullstack as a valid template choice', () => {
+      const questions = command.getQuestions('test', {
+        template: 'fullstack',
+        database: 'postgresql',
+        port: 3000,
+        author: '',
+        description: '',
+      });
+
+      const template = findQuestionByName(questions, 'template');
+      expect(template?.choices).toContain('fullstack');
+      expect(template?.default).toBe('fullstack');
+    });
+
+    it('should set default template to provided value', () => {
+      const questions = command.getQuestions('test', {
+        template: 'api',
+        database: 'postgresql',
+        port: 3000,
+        author: '',
+        description: '',
+      });
+
+      const template = findQuestionByName(questions, 'template');
+      expect(template?.default).toBe('api');
     });
 
     it('should include database question with options', () => {
@@ -789,7 +875,7 @@ describe('NewCommand', () => {
 
       const database = findQuestionByName(questions, 'database');
       expect(database).toBeDefined();
-      expect(database?.type).toBe('list');
+      expect(database?.type).toBe('rawlist');
       expect(database?.choices).toContain('postgresql');
     });
 
