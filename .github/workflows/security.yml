@@ -13,10 +13,15 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   dependency-check:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -67,6 +72,7 @@ jobs:
   secret-scanning:
     name: Secret Detection
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -96,6 +102,7 @@ jobs:
   code-scanning:
     name: CodeQL Security Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       actions: write
@@ -129,7 +136,7 @@ jobs:
           HUSKY: 0
 
       - name: Build project
-        run: npm run build
+        run: npm run build:ci
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@df409f7d9260372bd5f19e5b04e83cb3c43714ae # v3.27.9
@@ -139,7 +146,7 @@ jobs:
           output: codeql-results
 
       - name: Upload CodeQL SARIF artifacts
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: codeql-sarif
@@ -150,6 +157,7 @@ jobs:
   sast-scanning:
     name: SAST - Static Code Analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: write
@@ -176,7 +184,7 @@ jobs:
           npm run type-check 2>&1 | tee typecheck-report.txt || true
 
       - name: Upload SAST reports
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: sast-reports
@@ -187,6 +195,7 @@ jobs:
   license-compliance:
     name: License Compliance Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       actions: write
@@ -213,7 +222,7 @@ jobs:
           npx license-checker --summary
 
       - name: Upload license report
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: license-report
@@ -222,6 +231,7 @@ jobs:
   security-headers:
     name: Security Headers Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
 
@@ -262,6 +272,7 @@ jobs:
   dependency-graph:
     name: Dependency Graph Update
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: github.event_name == 'push'
     permissions:
       contents: read
@@ -288,7 +299,7 @@ jobs:
           echo "✅ SBOM generated: sbom.json"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4.4.3 # v4.4.3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         if: always()
         with:
           name: sbom-reports
@@ -297,6 +308,7 @@ jobs:
   security-report:
     name: Security Report Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [dependency-check, secret-scanning, code-scanning, sast-scanning, license-compliance]
     if: always()
 

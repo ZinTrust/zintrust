@@ -7,6 +7,7 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { DatabaseConfig, ID1Database, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 /**
  * Get D1 binding from config or global environment
@@ -87,7 +88,7 @@ export const D1Adapter = Object.freeze({
 
         try {
           // Use a minimal, side-effect-free query.
-          await db.prepare('SELECT 1').bind().first();
+          await db.prepare(QueryBuilder.create('').select('1').toSQL()).bind().first();
         } catch (error) {
           throw ErrorFactory.createTryCatchError('D1 ping failed', error);
         }
