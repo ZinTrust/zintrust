@@ -8,8 +8,8 @@ vi.mock('@/Application');
 vi.mock('@/http/Request');
 vi.mock('@/http/Response');
 vi.mock('@/config/logger');
-vi.mock('node:http');
-vi.mock('node:fs');
+vi.mock('@node-singletons/http');
+vi.mock('@node-singletons/fs');
 
 describe('Server', () => {
   const mockApp = {

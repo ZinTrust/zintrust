@@ -179,3 +179,82 @@ async function processPayment(userId: number) {
 // $ LOG_LEVEL=info    → Payment errors + info messages appear
 // $ LOG_LEVEL=debug   → All details including debug logs appear
 ```
+
+## Log Cleanup (File retention) 🔧
+
+To prevent logs from growing unbounded on disk, Zintrust includes a scheduled log cleanup job that will delete old or excess log files based on environment-configured retention rules. The job runs in long-running runtimes (Node.js, Fargate) and can also be invoked on-demand via the CLI command `zin logs:cleanup`.
+
+### Environment Variables
+
+- `LOG_CLEANUP_ENABLED` (boolean) — Enable the scheduled cleanup job. Default: `true` when `LOG_TO_FILE` is `true`, otherwise `false`.
+- `LOG_CLEANUP_INTERVAL_MS` (number) — Interval in milliseconds between scheduled cleanup runs. Default: `3600000` (1 hour).
+- `LOG_MAX_TOTAL_SIZE` (number) — Maximum total size in bytes allowed for the `logs/` directory. Files are removed until total size is under this threshold. Default: _unset_ (no size-based removal by default).
+- `LOG_KEEP_FILES` (number) — Minimum number of recent log files to keep regardless of size or age. Default: `0`.
+
+### Usage
+
+- One-off cleanup (useful for CI or maintenance):
+
+```bash
+# Run cleanup and print deleted count
+zin logs:cleanup
+```
+
+- Enable scheduled runs (Node/Fargate):
+
+```bash
+export LOG_TO_FILE=true
+export LOG_CLEANUP_ENABLED=true
+export LOG_CLEANUP_INTERVAL_MS=3600000
+
+npm run start
+```
+
+> Note: On serverless platforms (Cloudflare Workers, Lambda) the scheduler does not start automatically to avoid background timers in ephemeral runtimes.
+
+## Cloud Logging Backends
+
+Zintrust can optionally forward logs to cloud backends in addition to console/file output. These backends are **best-effort** and designed to be non-blocking.
+
+### KV Logger (Cloudflare KV)
+
+Writes batched `error`/`fatal` events into a KV namespace. This is useful in Cloudflare Workers where file logging is not available.
+
+Environment variables:
+
+```env
+KV_LOG_ENABLED=false
+KV_NAMESPACE=CACHE
+KV_LOG_RETENTION_DAYS=30
+```
+
+Notes:
+
+- `KV_NAMESPACE` should match the Workers binding name you configured.
+- Retention is applied via KV expiration (TTL).
+
+### Slack Notification Logger
+
+Sends `warn`/`error`/`fatal` events to a Slack incoming webhook (batched to avoid spamming).
+
+Environment variables:
+
+```env
+SLACK_LOG_ENABLED=false
+SLACK_LOG_WEBHOOK_URL=
+SLACK_LOG_LEVELS=warn,error,fatal
+SLACK_LOG_BATCH_WINDOW_MS=5000
+```
+
+### HTTP Endpoint Logger
+
+Sends logs to an external HTTP endpoint (for Loggly/Datadog/custom ingestion).
+
+Environment variables:
+
+```env
+HTTP_LOG_ENABLED=false
+HTTP_LOG_ENDPOINT_URL=
+HTTP_LOG_BATCH_SIZE=50
+HTTP_LOG_AUTH_TOKEN=
+```

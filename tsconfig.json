@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "lib": ["es2023"],
+    "baseUrl": ".",
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
@@ -27,12 +28,26 @@
       "@cache/*": ["./src/cache/*"],
       "@config/*": ["./src/config/*"],
       "@common/*": ["./src/common/*"],
+      "@scheduler/*": ["./src/scheduler/*"],
+      "@schedules/*": ["./src/schedules/*"],
       "@exceptions/*": ["./src/exceptions/*"],
       "@functions/*": ["./src/functions/*"],
       "@services/*": ["./src/services/*"],
       "@app/*": ["./app/*"],
       "@routes/*": ["./routes/*"],
       "@microservices/*": ["./src/microservices/*"],
+      "@toolkit/*": ["./src/toolkit/*"],
+      "@tools/*": ["./src/tools/*"],
+      "@httpClient/*": ["./src/tools/http/*"],
+      "@templates": ["./src/tools/templates/index.ts"],
+      "@templates/*": ["./src/tools/templates/*"],
+      "@mail/*": ["./src/tools/mail/*"],
+      "@storage": ["./src/tools/storage/index.ts"],
+      "@storage/*": ["./src/tools/storage/*"],
+      "@drivers/*": ["./src/tools/storage/drivers/*"],
+      "@notification/*": ["./src/tools/notification/*"],
+      "@broadcast/*": ["./src/tools/broadcast/*"],
+      "@queue/*": ["./src/tools/queue/*"],
       "@scripts/*": ["./scripts/*"],
       "@node-singletons/*": ["./src/node-singletons/*"],
       "@node-singletons": ["./src/node-singletons/index.ts"]
@@ -58,7 +73,7 @@
     "emitDecoratorMetadata": true,
     "downlevelIteration": true
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "tests/**/*", "env.d.ts"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "env.d.ts"],
   "exclude": [
     "node_modules",
     "dist",
@@ -74,6 +89,7 @@
     ".DS_Store",
     "wrangler.jsonc",
     "dev",
-    "simulate"
+    "simulate",
+    "test-project"
   ]
 }

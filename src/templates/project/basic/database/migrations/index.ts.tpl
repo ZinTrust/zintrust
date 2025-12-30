@@ -1,2 +1,2 @@
 // Placeholder for migrations
-export {};
+export const migrations = Object.freeze([] as const);

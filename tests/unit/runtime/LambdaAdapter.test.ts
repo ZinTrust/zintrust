@@ -13,6 +13,18 @@ const envState = vi.hoisted(() => ({
   DB_CONNECTION: 'sqlite',
   DB_HOST: 'localhost',
   DB_PORT: 1234,
+  get: vi.fn((key: string, defaultValue: string = '') => {
+    String(key);
+    return defaultValue;
+  }),
+  getInt: vi.fn((key: string, defaultValue: number = 0) => {
+    String(key);
+    return defaultValue;
+  }),
+  getBool: vi.fn((key: string, defaultValue: boolean = false) => {
+    String(key);
+    return defaultValue;
+  }),
 }));
 
 vi.mock('@config/logger', () => ({

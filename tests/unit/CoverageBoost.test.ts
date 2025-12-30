@@ -20,7 +20,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 let httpRequestHandler: ((req: unknown, res: unknown) => void | Promise<void>) | undefined;
 
 // Mock node:fs for Application/Server/Logger
-vi.mock('node:fs', () => ({
+vi.mock('@node-singletons/fs', () => ({
   readFileSync: vi.fn().mockReturnValue('{}'),
   existsSync: vi.fn().mockReturnValue(true),
   mkdirSync: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('node:fs', () => ({
 }));
 
 // Mock node:http
-vi.mock('node:http', () => ({
+vi.mock('@node-singletons/http', () => ({
   createServer: vi.fn((handler) => {
     httpRequestHandler = handler as unknown as (req: unknown, res: unknown) => void | Promise<void>;
     return {

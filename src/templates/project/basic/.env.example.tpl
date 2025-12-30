@@ -9,6 +9,25 @@ DB_DATABASE=./database.sqlite
 
 LOG_LEVEL=debug
 LOG_CHANNEL=file
+LOG_FORMAT=text
+
+# Cloud logging backends (optional)
+# KV logger (Cloudflare Workers KV)
+KV_LOG_ENABLED=false
+KV_NAMESPACE=CACHE
+KV_LOG_RETENTION_DAYS=30
+
+# Slack logger (Slack incoming webhook)
+SLACK_LOG_ENABLED=false
+SLACK_LOG_WEBHOOK_URL=
+SLACK_LOG_LEVELS=warn,error,fatal
+SLACK_LOG_BATCH_WINDOW_MS=5000
+
+# HTTP endpoint logger
+HTTP_LOG_ENABLED=false
+HTTP_LOG_ENDPOINT_URL=
+HTTP_LOG_BATCH_SIZE=50
+HTTP_LOG_AUTH_TOKEN=
 
 JWT_SECRET=
 JWT_EXPIRES_IN=1h
@@ -24,3 +43,32 @@ MAIL_USERNAME=
 MAIL_PASSWORD=
 MAIL_FROM_ADDRESS=
 MAIL_FROM_NAME=
+
+# Storage
+STORAGE_DRIVER=local
+STORAGE_PATH=storage
+STORAGE_URL=/storage
+STORAGE_VISIBILITY=private
+
+# AWS S3
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=
+AWS_S3_URL=
+AWS_S3_ENDPOINT=
+AWS_S3_USE_PATH_STYLE_URL=false
+
+# Cloudflare R2
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_REGION=
+R2_BUCKET=
+R2_ENDPOINT=
+R2_URL=
+
+# Google Cloud Storage (requires optional dependency @google-cloud/storage)
+GCS_PROJECT_ID=
+GCS_KEY_FILE=
+GCS_BUCKET=
+GCS_URL=

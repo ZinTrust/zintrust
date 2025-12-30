@@ -4,8 +4,8 @@
  * Exported from node:os built-in
  */
 
-export { arch, cpus, freemem, loadavg, platform, tmpdir, totalmem, type } from 'node:os';
+import * as os from 'node:os';
 
-// Also export the full module for compatibility
-import * as osModule from 'node:os';
-export default osModule;
+export const { arch, cpus, freemem, loadavg, platform, tmpdir, totalmem, type } = os;
+
+export default os;

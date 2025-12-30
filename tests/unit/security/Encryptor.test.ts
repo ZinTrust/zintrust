@@ -17,7 +17,7 @@ async function loadEncryptor(tag: string): Promise<typeof import('@/security/Enc
 }
 
 function mockCryptoDeterministic(): void {
-  vi.doMock('node:crypto', () => ({
+  vi.doMock('@node-singletons/crypto', () => ({
     pbkdf2Sync: vi.fn(
       (
         password: string,
@@ -110,7 +110,7 @@ describe('Encryptor', () => {
   });
 
   it('returns false and logs when PBKDF2 verification throws', async () => {
-    vi.doMock('node:crypto', () => ({
+    vi.doMock('@node-singletons/crypto', () => ({
       pbkdf2Sync: vi.fn(() => {
         throw new Error('boom');
       }),

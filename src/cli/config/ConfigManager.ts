@@ -13,7 +13,7 @@ import {
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { fsPromises as fs } from '@node-singletons/fs';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface IConfigManager {
   load(): Promise<ProjectConfig>;

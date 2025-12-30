@@ -3,7 +3,7 @@ import { fs } from '@node-singletons';
 import { loadEnv, parseEnvLine, stripQuotes } from '@scripts/utils/env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs');
+vi.mock('@node-singletons/fs');
 
 describe('Environment Utils', () => {
   describe('stripQuotes', () => {
@@ -87,7 +87,7 @@ describe('Environment Utils', () => {
     it('should do nothing if .env file does not exist', () => {
       vi.mocked(fs.existsSync).mockReturnValue(false);
       loadEnv();
-      // No changes to env
+      expect(fs.readFileSync).not.toHaveBeenCalled();
     });
 
     it('should load variables from .env file', () => {

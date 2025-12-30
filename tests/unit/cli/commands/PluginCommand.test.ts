@@ -54,7 +54,9 @@ describe('PluginCommand', () => {
 
     await command.execute({ install: 'test-plugin' });
 
-    expect(PluginManager.install).toHaveBeenCalledWith('test-plugin');
+    expect(PluginManager.install).toHaveBeenCalledWith('test-plugin', {
+      packageManager: undefined,
+    });
   });
 
   it('should uninstall plugin when --uninstall is provided', async () => {
@@ -104,6 +106,7 @@ describe('PluginCommand', () => {
       command: vi.fn().mockReturnValue({
         alias: vi.fn().mockReturnThis(),
         description: vi.fn().mockReturnThis(),
+        option: vi.fn().mockReturnThis(),
         action: vi.fn().mockReturnThis(),
       }),
     } as any;
@@ -136,7 +139,26 @@ describe('PluginCommand', () => {
     vi.mocked(PluginManager.install).mockResolvedValue(undefined);
 
     await command.parseAsync(['node', 'test', 'install', 'test-plugin']);
-    expect(PluginManager.install).toHaveBeenCalledWith('test-plugin');
+    expect(PluginManager.install).toHaveBeenCalledWith('test-plugin', {
+      packageManager: undefined,
+    });
+  });
+
+  it('should forward --package-manager to PluginManager.install', async () => {
+    const command = PluginCommand.create().getCommand();
+    command.exitOverride();
+    vi.mocked(PluginManager.install).mockResolvedValue(undefined);
+
+    await command.parseAsync([
+      'node',
+      'test',
+      'install',
+      'test-plugin',
+      '--package-manager',
+      'pnpm',
+    ]);
+
+    expect(PluginManager.install).toHaveBeenCalledWith('test-plugin', { packageManager: 'pnpm' });
   });
 
   it('should handle uninstall subcommand', async () => {

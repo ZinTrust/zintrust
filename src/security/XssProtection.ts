@@ -88,24 +88,106 @@ const encodeUri = (uri: string): string => {
 /**
  * Encode URI for use in href attribute
  */
+const decodeHtmlEntitiesForProtocolCheck = (input: string): string => {
+  // Decode numeric HTML entities so obfuscations like "jav&#x61;script:" are caught.
+  // This is intentionally minimal and only used for protocol detection (not output rendering).
+  const decodeCodePoint = (codePoint: number): string => {
+    if (!Number.isFinite(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+      return '';
+    }
+    try {
+      return String.fromCodePoint(codePoint);
+    } catch {
+      return '';
+    }
+  };
+
+  return input
+    .replaceAll(/&#(\d+);?/g, (_m: string, dec: string) => {
+      const decStr = typeof dec === 'string' ? dec : String(dec);
+      return decodeCodePoint(Number.parseInt(decStr, 10)) || _m;
+    })
+    .replaceAll(/&#x([0-9a-f]+);?/gi, (_m: string, hex: string) => {
+      const hexStr = typeof hex === 'string' ? hex : String(hex);
+      return decodeCodePoint(Number.parseInt(hexStr, 16)) || _m;
+    });
+};
+
+const tryDecodePercentEncoding = (input: string, rounds = 2): string => {
+  let out = input;
+  for (let i = 0; i < rounds; i += 1) {
+    try {
+      const decoded = decodeURIComponent(out);
+      if (decoded === out) {
+        break;
+      }
+      out = decoded;
+    } catch {
+      break;
+    }
+  }
+  return out;
+};
+
+const normalizeHrefForProtocolCheck = (href: string): string => {
+  // Decode common obfuscations before protocol checks.
+  const entityDecoded = decodeHtmlEntitiesForProtocolCheck(href);
+  const percentDecoded = tryDecodePercentEncoding(entityDecoded, 2);
+
+  // Remove control characters and whitespace to prevent "java\nscript:" bypasses.
+  // eslint-disable-next-line no-control-regex
+  return percentDecoded.replaceAll(/[\x00-\x20\x7f\u00a0]/g, '').toLowerCase();
+};
+
 const encodeHref = (href: string): string => {
   if (typeof href !== 'string') {
     return '';
   }
 
-  // Prevent javascript: protocol (including obfuscated versions)
-  // We remove control characters and whitespace for the check
-  // eslint-disable-next-line no-control-regex
-  const protocolCheck = href.replaceAll(/[\x00-\x20]/g, '').toLowerCase();
-  const jsProtocol = 'javascript:'; // NOSONAR: S1523 - We are explicitly blocking javascript: protocol to prevent XSS
-  if (protocolCheck.startsWith(jsProtocol)) {
+  const protocolCheck = normalizeHrefForProtocolCheck(href);
+
+  // Allow relative URLs and fragments.
+  if (
+    protocolCheck.startsWith('/') ||
+    protocolCheck.startsWith('#') ||
+    protocolCheck.startsWith('./') ||
+    protocolCheck.startsWith('../') ||
+    protocolCheck.startsWith('//')
+  ) {
+    return escapeHtml(href);
+  }
+
+  // Explicitly block common dangerous protocols (including obfuscated versions).
+  // Allow-list a narrow set of data:image/* URLs for common raster formats.
+  if (protocolCheck.startsWith('data:')) {
+    const allowedDataImagePrefixes = [
+      'data:image/png',
+      'data:image/jpeg',
+      'data:image/jpg',
+      'data:image/gif',
+      'data:image/webp',
+      'data:image/avif',
+    ];
+
+    if (allowedDataImagePrefixes.some((p) => protocolCheck.startsWith(p))) {
+      return escapeHtml(href);
+    }
     return '';
   }
 
-  // Prevent data: protocol (unless explicitly allowed)
-  if (protocolCheck.startsWith('data:text/html')) {
-    // NOSONAR: S1523 - We are explicitly blocking data: protocol to prevent XSS
+  const blockedProtocols = ['javascript:', 'vbscript:']; // NOSONAR: S1523 - Explicit protocol blocking to prevent XSS
+  if (blockedProtocols.some((p) => protocolCheck.startsWith(p))) {
     return '';
+  }
+
+  // If a scheme is present, allowlist it.
+  const schemeMatch = new RegExp(/^([a-z][a-z0-9+.-]*):/i).exec(protocolCheck);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase();
+    const allowedSchemes = new Set(['http', 'https', 'mailto', 'tel']);
+    if (!allowedSchemes.has(scheme)) {
+      return '';
+    }
   }
 
   return escapeHtml(href);
@@ -128,6 +210,11 @@ const isSafeUrl = (url: string): boolean => {
 
   // Allow http and https
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return true;
+  }
+
+  // Allow common safe schemes
+  if (trimmed.startsWith('mailto:') || trimmed.startsWith('tel:')) {
     return true;
   }
 

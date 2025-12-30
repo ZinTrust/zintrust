@@ -1,6 +1,6 @@
-import { resolveNpmPath } from '@/common';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { resolveNpmPath } from '@common/index';
 import * as fs from '@node-singletons/fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +25,7 @@ vi.mock('@config/logger', () => ({
   },
 }));
 
-vi.mock('@/common', () => ({
+vi.mock('@common/index', () => ({
   resolveNpmPath: vi.fn(),
 }));
 

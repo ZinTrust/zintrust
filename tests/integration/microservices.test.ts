@@ -16,7 +16,7 @@ import { RequestTracingMiddleware } from '@microservices/RequestTracingMiddlewar
 import { ApiKeyAuth, JwtAuth, ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
 import { HealthCheckHandler, ServiceHealthMonitor } from '@microservices/ServiceHealthMonitor';
 import { IncomingMessage, ServerResponse } from '@node-singletons/http';
-import { Socket } from 'node:net';
+import { Socket } from '@node-singletons/net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 describe('Microservices Service Discovery', () => {

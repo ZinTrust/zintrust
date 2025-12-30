@@ -4,4 +4,8 @@
  * Exported from node:perf_hooks built-in
  */
 
-export { performance } from 'node:perf_hooks';
+import * as perf_hooks from 'node:perf_hooks';
+
+export const { performance } = perf_hooks;
+
+export default perf_hooks;

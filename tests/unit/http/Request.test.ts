@@ -1,6 +1,6 @@
 import { Request } from '@http/Request';
 import { IncomingMessage } from '@node-singletons/http';
-import { Socket } from 'node:net';
+import { Socket } from '@node-singletons/net';
 import { describe, expect, it } from 'vitest';
 
 describe('Request', () => {

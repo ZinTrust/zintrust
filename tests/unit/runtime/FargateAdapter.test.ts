@@ -71,7 +71,7 @@ vi.mock('@config/logger', () => ({
 
 vi.mock('@config/env', () => envState);
 
-vi.mock('node:http', () => ({
+vi.mock('@node-singletons/http', () => ({
   createServer: httpState.createServer,
   IncomingMessage: class IncomingMessage {
     public _mock = true;

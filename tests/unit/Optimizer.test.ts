@@ -19,7 +19,7 @@ const writeFileSync = vi.fn<(p: string, data: string) => void>();
 const rmSync = vi.fn<(p: string, opts: unknown) => void>();
 const statSync = vi.fn<(p: string) => { size: number }>();
 
-vi.mock('node:fs', () => ({
+vi.mock('@node-singletons/fs', () => ({
   existsSync,
   readdirSync,
   readFileSync,
@@ -170,12 +170,12 @@ describe('LazyLoader', () => {
     const { LazyLoader } = await loadOptimizer('lazy');
     const loader = LazyLoader.create();
 
-    const m1 = await loader.load('node:path');
-    const m2 = await loader.load('node:path');
+    const m1 = await loader.load('@node-singletons/path');
+    const m2 = await loader.load('@node-singletons/path');
     expect(m1).toBe(m2);
 
     loader.clear();
-    const m3 = await loader.load('node:path');
+    const m3 = await loader.load('@node-singletons/path');
     expect(m3).toBeDefined();
 
     await expect(loader.load('this-module-does-not-exist-xyz')).rejects.toThrow(
@@ -194,9 +194,9 @@ describe('LazyLoader', () => {
   it('preloads multiple modules', async () => {
     const { LazyLoader } = await loadOptimizer('lazy-preload');
     const loader = LazyLoader.create();
-    await loader.preload(['node:os', 'node:path']);
+    await loader.preload(['@node-singletons/os', '@node-singletons/path']);
 
-    const osMod = await loader.load('node:os');
+    const osMod = await loader.load('@node-singletons/os');
     expect(osMod).toBeDefined();
   });
 });
@@ -355,6 +355,6 @@ describe('PerformanceOptimizer', () => {
     expect(batched).toEqual([1, 2, 3]);
 
     // preloadModules should resolve (loads modules lazily)
-    await expect(optimizer.preloadModules(['node:os'])).resolves.toBeUndefined();
+    await expect(optimizer.preloadModules(['@node-singletons/os'])).resolves.toBeUndefined();
   });
 });

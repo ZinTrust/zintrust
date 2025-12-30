@@ -48,13 +48,12 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
   return {
     platform: 'fargate',
 
+    // eslint-disable-next-line @typescript-eslint/require-await
     async handle(_event: unknown, _context?: unknown): Promise<PlatformResponse> {
       // Fargate adapter doesn't handle individual requests
       // Instead, use startServer() to run continuous HTTP server
-      return Promise.reject(
-        ErrorFactory.createConfigError(
-          'Fargate adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
-        )
+      throw ErrorFactory.createConfigError(
+        'Fargate adapter requires startServer() method. Use RuntimeDetector for automatic initialization.'
       );
     },
 

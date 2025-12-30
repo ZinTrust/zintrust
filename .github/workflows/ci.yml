@@ -5,16 +5,25 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [master, dev]
+    branches: [master, dev, release]
   pull_request:
-    branches: [master, dev]
+    branches: [master, dev, release]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality-checks:
     name: Quality Assurance
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         node-version: [20.x, 22.x]
 
@@ -30,13 +39,19 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (disable lifecycle scripts in CI)
+        run: npm ci --ignore-scripts
+        env:
+          HUSKY: 0
+          NPM_CONFIG_IGNORE_SCRIPTS: true
+
+      - name: Build native dependencies
+        run: npm rebuild bcrypt better-sqlite3
         env:
           HUSKY: 0
 
       - name: Build project
-        run: npm run build
+        run: npm run build:ci
 
       - name: Type checking
         run: npm run type-check

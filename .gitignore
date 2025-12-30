@@ -3,6 +3,9 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.pull
+.env.*
+!.env.example
 *.log
 npm-debug.log*
 .DS_Store
@@ -41,7 +44,12 @@ test-sonar-token.sh
 start.sh
 tmp_delete_test.txt
 eslint.config.mjs.bak
-.gitignore
 lint-report.txt
 eslint.config.mjs.broken
 simulate/
+test-project/
+todo/
+/storage/
+scripts/find-missing-coverage.cjs
+scripts/find-missing-coverage.js
+tmp/missing-coverage-statements.json

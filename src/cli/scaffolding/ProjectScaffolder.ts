@@ -3,10 +3,10 @@
  * Handles directory structure and boilerplate file creation
  */
 
+import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import fs from '@node-singletons/fs';
-import { fileURLToPath } from '@node-singletons/url';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -81,14 +81,37 @@ const createFiles = (
   files: Record<string, string>,
   variables: Record<string, unknown>
 ): number => {
+  const renderPathVar = (value: unknown): string => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'bigint') return value.toString();
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    return '';
+  };
+
+  const renderContentVar = (value: unknown): string => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'bigint') return value.toString();
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (typeof value === 'symbol') return value.toString();
+    if (typeof value === 'function') return '[Function]';
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return '';
+    }
+  };
+
   let count = 0;
   for (const [file, content] of Object.entries(files)) {
     const renderedPath = file.replaceAll(/\{\{\s*(\w+)\s*\}\}/g, (_m, key) =>
-      String(variables[key] ?? '')
+      renderPathVar(variables[key])
     );
     const fullPath = path.join(projectPath, renderedPath);
     const rendered = content.replaceAll(/\{\{\s*(\w+)\s*\}\}/g, (_m, key) =>
-      String(variables[key] ?? '')
+      renderContentVar(variables[key])
     );
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
     fs.writeFileSync(fullPath, rendered);
@@ -135,9 +158,10 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     if (fs.existsSync(fullPath)) {
       return true;
     }
-    const name = String(variables['projectName'] ?? 'zintrust-app');
+    const name =
+      typeof variables['projectName'] === 'string' ? variables['projectName'] : 'zintrust-app';
     const port = Number(variables['port'] ?? 3000);
-    const database = String(variables['database'] ?? 'sqlite');
+    const database = typeof variables['database'] === 'string' ? variables['database'] : 'sqlite';
 
     const baseLines: string[] = [
       'NODE_ENV=development',
@@ -206,8 +230,7 @@ type TemplateJson = {
 };
 
 const getProjectTemplatesRoot = (): string => {
-  const thisFile = fileURLToPath(import.meta.url);
-  const thisDir = path.dirname(thisFile);
+  const thisDir = esmDirname(import.meta.url);
   // src/cli/scaffolding/ -> src/templates/project/
   return path.resolve(thisDir, '..', '..', 'templates', 'project');
 };
@@ -310,6 +333,9 @@ const BASIC_TEMPLATE: ProjectTemplate = {
     'config',
     'database/migrations',
     'database/seeders',
+    'logs',
+    'storage',
+    'tmp',
     'public',
     'routes',
     'src',
@@ -322,7 +348,16 @@ const BASIC_TEMPLATE: ProjectTemplate = {
 const API_TEMPLATE: ProjectTemplate = {
   name: 'api',
   description: 'API-focused Zintrust project structure',
-  directories: ['app/Controllers', 'app/Middleware', 'app/Models', 'routes', 'tests'],
+  directories: [
+    'app/Controllers',
+    'app/Middleware',
+    'app/Models',
+    'logs',
+    'storage',
+    'tmp',
+    'routes',
+    'tests',
+  ],
   files: {},
 };
 
@@ -333,6 +368,9 @@ const MICROSERVICE_TEMPLATE: ProjectTemplate = {
     'app/Controllers',
     'app/Middleware',
     'app/Models',
+    'logs',
+    'storage',
+    'tmp',
     'routes',
     'tests',
     'src/services',
@@ -351,6 +389,9 @@ const FULLSTACK_TEMPLATE: ProjectTemplate = {
     'config',
     'database/migrations',
     'database/seeders',
+    'logs',
+    'storage',
+    'tmp',
     'public',
     'routes',
     'src',
@@ -446,7 +487,7 @@ const createFilesForState = (state: ScaffolderState): number => {
       : {};
 
   // Backward-compatible defaults for templates that don't ship these files yet.
-  if (!Object.prototype.hasOwnProperty.call(files, '.gitignore')) {
+  if (!Object.hasOwn(files, '.gitignore')) {
     files['.gitignore'] = `node_modules/
 dist/
 .env
@@ -454,11 +495,13 @@ dist/
 .DS_Store
 coverage/
 logs/
+storage/
+tmp/
 *.log
 `;
   }
 
-  if (!Object.prototype.hasOwnProperty.call(files, 'README.md')) {
+  if (!Object.hasOwn(files, 'README.md')) {
     files['README.md'] = `# {{projectName}}
 
 Starter Task API built with Zintrust.

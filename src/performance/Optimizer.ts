@@ -6,7 +6,9 @@
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { fs } from '@node-singletons';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
+
+const GENERATION_CACHE_STATE_SYMBOL = Symbol.for('zintrust:GenerationCacheState');
 
 export interface IGenerationCache {
   get(type: string, params: Record<string, unknown>): string | null;
@@ -28,6 +30,45 @@ interface CacheState {
   cleanupInterval?: NodeJS.Timeout;
 }
 
+type UnrefableTimer = { unref: () => void };
+
+function isUnrefableTimer(value: unknown): value is UnrefableTimer {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+}
+
+function deleteFileNonBlocking(filePath: string): void {
+  try {
+    const anyFs = fs as unknown as {
+      promises?: { unlink?: (p: string) => Promise<void> };
+      unlink?: (p: string, cb: (err: NodeJS.ErrnoException | null) => void) => void;
+    };
+
+    if (typeof anyFs.promises?.unlink === 'function') {
+      void anyFs.promises.unlink(filePath).catch((err: unknown) => {
+        const maybeErr = err as Partial<NodeJS.ErrnoException>;
+        if (maybeErr.code === 'ENOENT') return;
+        Logger.error(
+          `Failed to delete cache file: ${filePath} (${err instanceof Error ? err.message : String(err)})`
+        );
+      });
+      return;
+    }
+
+    if (typeof anyFs.unlink === 'function') {
+      anyFs.unlink(filePath, (err) => {
+        if (err && err.code !== 'ENOENT') {
+          Logger.error(`Failed to delete cache file: ${filePath} (${err.message})`);
+        }
+      });
+    }
+  } catch (err) {
+    Logger.error(
+      `Failed to schedule cache file deletion: ${filePath} (${err instanceof Error ? err.message : String(err)})`
+    );
+  }
+}
+
 /**
  * Generation Cache - Cache generated code to avoid re-generating identical code
  * Sealed namespace for immutability
@@ -38,97 +79,153 @@ export const GenerationCache = Object.freeze({
    */
   create(
     cacheDir: string = path.join(process.cwd(), '.gen-cache'),
-    ttlMs: number = 3600000
+    ttlMs: number = 3600000,
+    maxEntries: number = 1000
   ): IGenerationCache {
-    const state: CacheState = {
-      cache: new Map(),
-      cacheDir,
-      ttlMs,
-    };
+    const state = createCacheState(cacheDir, ttlMs, maxEntries);
+    initializeCacheState(state);
+    startCacheCleanup(state);
 
-    // Initialize
-    loadFromDisk(state);
+    const instance = createCacheInstance(state);
+    attachCacheStateForTests(instance, state);
 
-    // Active cleanup every 10 minutes
-    state.cleanupInterval = setInterval(() => {
-      const now = Date.now();
-      for (const [key, entry] of state.cache.entries()) {
-        if (now - entry.timestamp > state.ttlMs) {
-          state.cache.delete(key);
-          // Also try to delete from disk
-          const file = path.join(state.cacheDir, `${key}.json`);
-          if (fs.existsSync(file)) {
-            fs.unlinkSync(file);
-          }
-        }
-      }
-    }, 600000);
-
-    return {
-      /**
-       * Get from cache
-       */
-      get(type: string, params: Record<string, unknown>): string | null {
-        const key = getCacheKey(type, params);
-        const entry = state.cache.get(key);
-
-        if (entry === undefined) return null;
-
-        // Check TTL
-        if (Date.now() - entry.timestamp > state.ttlMs) {
-          state.cache.delete(key);
-          const file = path.join(state.cacheDir, `${key}.json`);
-          if (fs.existsSync(file)) {
-            fs.unlinkSync(file);
-          }
-          return null;
-        }
-
-        return entry.code;
-      },
-
-      /**
-       * Set in cache
-       */
-      set(type: string, params: Record<string, unknown>, code: string): void {
-        const key = getCacheKey(type, params);
-        state.cache.set(key, {
-          code,
-          timestamp: Date.now(),
-        });
-      },
-
-      /**
-       * Save cache to disk
-       */
-      save(): void {
-        saveCacheToDisk(state);
-      },
-
-      /**
-       * Clear cache
-       */
-      clear(): void {
-        if (state.cleanupInterval) {
-          clearInterval(state.cleanupInterval);
-        }
-        clearCache(state);
-      },
-
-      /**
-       * Get cache statistics
-       */
-      getStats(): {
-        size: number;
-        entries: number;
-        diskUsage: string;
-        keys: string[];
-      } {
-        return getCacheStats(state);
-      },
-    };
+    return instance;
   },
 });
+
+function createCacheState(
+  cacheDir: string,
+  ttlMs: number,
+  maxEntries: number
+): CacheState & { maxEntries?: number } {
+  return {
+    cache: new Map(),
+    cacheDir,
+    ttlMs,
+    maxEntries,
+  };
+}
+
+function initializeCacheState(state: CacheState): void {
+  loadFromDisk(state);
+}
+
+function startCacheCleanup(state: CacheState & { maxEntries?: number }): void {
+  // Active cleanup every 10 minutes
+  state.cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of state.cache.entries()) {
+      if (now - entry.timestamp > state.ttlMs) {
+        state.cache.delete(key);
+        const file = path.join(state.cacheDir, `${key}.json`);
+        deleteFileNonBlocking(file);
+      }
+    }
+
+    // Enforce maxEntries by evicting oldest keys
+    if (state.maxEntries !== undefined) {
+      while (state.cache.size > state.maxEntries) {
+        const oldestKey = state.cache.keys().next().value;
+        if (oldestKey === undefined) break;
+        state.cache.delete(oldestKey);
+        const file = path.join(state.cacheDir, `${oldestKey}.json`);
+        deleteFileNonBlocking(file);
+      }
+    }
+  }, 600000);
+
+  // Node: allow process to exit; other runtimes may not support unref()
+  if (isUnrefableTimer(state.cleanupInterval)) {
+    state.cleanupInterval.unref();
+  }
+}
+
+function createCacheInstance(state: CacheState & { maxEntries?: number }): IGenerationCache {
+  return {
+    /**
+     * Get from cache
+     */
+    get(type: string, params: Record<string, unknown>): string | null {
+      const key = getCacheKey(type, params);
+      const entry = state.cache.get(key);
+
+      if (entry === undefined) return null;
+
+      // Check TTL
+      if (Date.now() - entry.timestamp > state.ttlMs) {
+        state.cache.delete(key);
+        const file = path.join(state.cacheDir, `${key}.json`);
+        deleteFileNonBlocking(file);
+        return null;
+      }
+
+      return entry.code;
+    },
+
+    /**
+     * Set in cache
+     */
+    set(type: string, params: Record<string, unknown>, code: string): void {
+      const key = getCacheKey(type, params);
+
+      // If key already exists, delete first so insertion order updates for LRU
+      if (state.cache.has(key)) state.cache.delete(key);
+
+      state.cache.set(key, {
+        code,
+        timestamp: Date.now(),
+      });
+
+      // Enforce maxEntries immediately
+      if (state.maxEntries !== undefined) {
+        while (state.cache.size > state.maxEntries) {
+          const oldest = state.cache.keys().next().value;
+          if (oldest === undefined) break;
+          state.cache.delete(oldest);
+          const file = path.join(state.cacheDir, `${oldest}.json`);
+          deleteFileNonBlocking(file);
+        }
+      }
+    },
+
+    /**
+     * Save cache to disk
+     */
+    save(): void {
+      saveCacheToDisk(state);
+    },
+
+    /**
+     * Clear cache
+     */
+    clear(): void {
+      if (state.cleanupInterval) {
+        clearInterval(state.cleanupInterval);
+        state.cleanupInterval = undefined;
+      }
+      clearCache(state);
+    },
+
+    /**
+     * Get cache statistics
+     */
+    getStats(): {
+      size: number;
+      entries: number;
+      diskUsage: string;
+      keys: string[];
+    } {
+      return getCacheStats(state);
+    },
+  };
+}
+
+function attachCacheStateForTests(instance: IGenerationCache, state: CacheState): void {
+  Object.defineProperty(instance, GENERATION_CACHE_STATE_SYMBOL, {
+    value: state as unknown,
+    enumerable: false,
+  });
+}
 
 /**
  * Save cache to disk

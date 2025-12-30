@@ -19,7 +19,7 @@ const existsSync = vi.fn();
 const mkdirSync = vi.fn();
 const rmSync = vi.fn();
 
-vi.mock('node:fs', () => ({
+vi.mock('@node-singletons/fs', () => ({
   existsSync,
   mkdirSync,
   rmSync,
@@ -209,7 +209,7 @@ describe('CodeGenerationBenchmark', () => {
 
     (globalThis as any).__ZINTRUST_CODEGEN_BENCHMARK_MAIN__ = 'nope';
 
-    vi.doMock('node:url', () => ({
+    vi.doMock('@node-singletons/url', () => ({
       fileURLToPath: () => {
         throw new Error('boom');
       },
@@ -218,7 +218,7 @@ describe('CodeGenerationBenchmark', () => {
     try {
       await import('@performance/CodeGenerationBenchmark' + '?v=main-catch');
     } finally {
-      vi.doUnmock('node:url');
+      vi.doUnmock('@node-singletons/url');
     }
 
     expect(loggerError).toHaveBeenCalledWith('❌ Baseline failed:', expect.any(Error));
@@ -244,7 +244,7 @@ describe('CodeGenerationBenchmark', () => {
       MemoryMonitor: MemoryMonitorCtor,
     }));
 
-    vi.doMock('node:fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       existsSync,
       mkdirSync,
       rmSync,
@@ -273,7 +273,7 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.doUnmock('@config/logger');
     vi.doUnmock('@performance/Benchmark');
-    vi.doUnmock('node:fs');
+    vi.doUnmock('@node-singletons/fs');
   });
 
   it('main-module path: runs successfully when forced main', async () => {
@@ -296,7 +296,7 @@ describe('CodeGenerationBenchmark', () => {
       MemoryMonitor: MemoryMonitorCtor,
     }));
 
-    vi.doMock('node:fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       existsSync,
       mkdirSync,
       rmSync,
@@ -332,7 +332,7 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.doUnmock('@config/logger');
     vi.doUnmock('@performance/Benchmark');
-    vi.doUnmock('node:fs');
+    vi.doUnmock('@node-singletons/fs');
   });
 
   it('main-module path: logs and exits on failure', async () => {
@@ -355,7 +355,7 @@ describe('CodeGenerationBenchmark', () => {
       MemoryMonitor: MemoryMonitorCtor,
     }));
 
-    vi.doMock('node:fs', () => ({
+    vi.doMock('@node-singletons/fs', () => ({
       existsSync,
       mkdirSync,
       rmSync,
@@ -378,6 +378,6 @@ describe('CodeGenerationBenchmark', () => {
 
     vi.doUnmock('@config/logger');
     vi.doUnmock('@performance/Benchmark');
-    vi.doUnmock('node:fs');
+    vi.doUnmock('@node-singletons/fs');
   });
 });

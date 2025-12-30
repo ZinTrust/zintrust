@@ -4,8 +4,8 @@
  * Uses CsrfTokenManager for token generation and validation
  */
 
+import { generateSecureJobId } from '@/common/uuid';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
 import { Middleware } from '@middleware/MiddlewareStack';
@@ -67,7 +67,9 @@ export const CsrfMiddleware = Object.freeze({
 
         // Better approach: Generate a session ID if missing (Double Submit Cookie foundation)
         // IMPORTANT: use a cryptographically secure generator (Sonar S2245).
-        sessionId = generateSecureId();
+        sessionId = await generateSecureJobId(
+          'CSRF Middleware: secure crypto API not available to generate a session id'
+        );
         // We would need to set this session cookie, but we can't easily do that without a SessionManager.
         // We'll assume the SessionMiddleware handles session creation.
       }
@@ -132,26 +134,4 @@ type UnrefableTimer = { unref: () => void };
 function isUnrefableTimer(value: unknown): value is UnrefableTimer {
   if (typeof value !== 'object' || value === null) return false;
   return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
-}
-
-function generateSecureId(): string {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-
-  if (typeof globalThis.crypto?.getRandomValues === 'function') {
-    const bytes = new Uint8Array(32);
-    globalThis.crypto.getRandomValues(bytes);
-    return bytesToHex(bytes);
-  }
-
-  throw ErrorFactory.createSecurityError(
-    'CSRF Middleware: secure crypto API not available to generate a session id.'
-  );
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  let out = '';
-  for (const b of bytes) out += b.toString(16).padStart(2, '0');
-  return out;
 }

@@ -77,4 +77,11 @@ describe('Response', () => {
   it('should get raw response object', () => {
     expect(response.getRaw()).toBe(mockRes);
   });
+
+  it('should set status using the chained status() method', () => {
+    response.status(204);
+    expect(response.getStatus()).toBe(204);
+    expect(response.statusCode).toBe(204);
+    expect(mockRes.statusCode).toBe(204);
+  });
 });

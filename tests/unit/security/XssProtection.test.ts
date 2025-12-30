@@ -1,5 +1,5 @@
-import { XssProtection } from '@/security/XssProtection';
-import { describe, expect, it } from 'vitest';
+import { XssProtection } from '@security/XssProtection';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('XssProtection', () => {
   describe('escapeHtml', () => {
@@ -77,7 +77,10 @@ describe('XssProtection', () => {
       };
 
       try {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined as any);
+
         expect(XssProtection.encodeUri('ok')).toBe('');
+        expect(spy).toHaveBeenCalled();
       } finally {
         (
           globalThis as unknown as { encodeURIComponent: (value: string) => string }
@@ -142,6 +145,11 @@ describe('XssProtection', () => {
       expect(XssProtection.isSafeUrl('ftp://example.com')).toBe(false);
       // @ts-ignore
       expect(XssProtection.isSafeUrl(null)).toBe(false);
+    });
+
+    it('should allow mailto and tel links', () => {
+      expect(XssProtection.isSafeUrl('mailto:user@example.com')).toBe(true);
+      expect(XssProtection.isSafeUrl('tel:+123456789')).toBe(true);
     });
   });
 
