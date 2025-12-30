@@ -248,7 +248,7 @@ SLACK_LOG_BATCH_WINDOW_MS=5000
 
 ### HTTP Endpoint Logger
 
-Sends logs to an external HTTP endpoint (for Loggly/Datadog/custom ingestion).
+Sends logs to an external HTTP endpoint (for Loggly/Papertrail/Datadog/custom ingestion). This is the supported integration path when you don’t have a dedicated provider-specific driver.
 
 Environment variables:
 

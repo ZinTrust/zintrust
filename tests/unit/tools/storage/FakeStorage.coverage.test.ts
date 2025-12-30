@@ -33,10 +33,12 @@ describe('FakeStorage coverage', () => {
     expect(FakeStorage.getPuts()).toHaveLength(0);
   });
 
-  it('tempUrl uses defaults when options omitted', () => {
+  it('tempUrl uses defaults when options omitted', async () => {
     FakeStorage.reset();
 
-    expect(FakeStorage.tempUrl('disk', 'x.txt')).toBe('fake://disk/x.txt?expiresIn=900&method=GET');
+    await expect(FakeStorage.tempUrl('disk', 'x.txt')).resolves.toBe(
+      'fake://disk/x.txt?expiresIn=900&method=GET'
+    );
   });
 
   it('url builds a fake:// URL', () => {

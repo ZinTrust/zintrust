@@ -41,7 +41,11 @@ export const FakeStorage = Object.freeze({
   },
 
   // tempUrl builder is a convenience: matches the real API shape
-  tempUrl(disk: string, path: string, options?: { expiresIn?: number; method?: 'GET' | 'PUT' }) {
+  async tempUrl(
+    disk: string,
+    path: string,
+    options?: { expiresIn?: number; method?: 'GET' | 'PUT' }
+  ) {
     const expiresIn = options?.expiresIn ?? 900;
     const method = options?.method ?? 'GET';
     return `fake://${disk}/${path}?expiresIn=${expiresIn}&method=${method}`;

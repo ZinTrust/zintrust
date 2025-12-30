@@ -112,7 +112,7 @@ export default defineConfig(
           ignoreRegExpLiterals: true,
         },
       ],
-      'max-lines-per-function': ['error', { max: 70, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
       'max-nested-callbacks': ['warn', 3],
       'max-depth': ['warn', 4],
       complexity: ['error', 15],

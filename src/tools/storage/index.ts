@@ -1,7 +1,6 @@
+import { GcsDriver } from '@/tools/storage/drivers/Gcs';
 import { storageConfig } from '@config/storage';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-// import { GcsDriver } from '@storage/drivers/Gcs';
-import { GcsDriver } from '@/tools/storage/drivers/Gcs';
 import { LocalDriver } from '@storage/drivers/Local';
 import { R2Driver } from '@storage/drivers/R2';
 import { S3Driver } from '@storage/drivers/S3';
@@ -56,7 +55,7 @@ export const Storage = Object.freeze({
     const diskName = name ?? storageConfig.default;
     // disk is config object; dispatch based on requested name
     const drivers = storageConfig.drivers as Record<string, { driver: string }>;
-    const config = drivers[diskName as string] as unknown as Record<string, unknown> | undefined;
+    const config = drivers[diskName] as unknown as Record<string, unknown> | undefined;
     if (config === undefined)
       throw ErrorFactory.createValidationError('Storage: unknown disk', { disk: diskName });
 
@@ -92,7 +91,7 @@ export const Storage = Object.freeze({
     if (typeof driver.get !== 'function') {
       throw ErrorFactory.createConfigError('Storage: driver is missing get()');
     }
-    return Promise.resolve(driver.get(d.config, path));
+    return driver.get(d.config, path);
   },
 
   async exists(disk: string | undefined, path: string): Promise<boolean> {
@@ -125,15 +124,19 @@ export const Storage = Object.freeze({
     return url;
   },
 
-  tempUrl(disk: string | undefined, path: string, options?: TempUrlOptions): string {
+  async tempUrl(disk: string | undefined, path: string, options?: TempUrlOptions): Promise<string> {
     const d = Storage.getDisk(disk);
     const driver = d.driver as unknown as {
-      tempUrl?: (config: unknown, key: string, options?: TempUrlOptions) => string;
+      tempUrl?: (
+        config: unknown,
+        key: string,
+        options?: TempUrlOptions
+      ) => string | Promise<string>;
       url?: (config: unknown, key: string) => string | undefined;
     };
 
     if (typeof driver.tempUrl === 'function') {
-      return driver.tempUrl(d.config, path, options);
+      return Promise.resolve(driver.tempUrl(d.config, path, options));
     }
 
     const url = typeof driver.url === 'function' ? driver.url(d.config, path) : undefined;

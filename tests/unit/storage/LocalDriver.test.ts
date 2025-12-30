@@ -9,6 +9,7 @@ describe('LocalDriver', () => {
   let tmpDir: string;
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zintrust-test-'));
+    process.env['APP_KEY'] = 'test-app-key';
   });
 
   it('puts, gets, checks existence and deletes a file', async () => {
@@ -34,7 +35,25 @@ describe('LocalDriver', () => {
       expiresIn: 60,
       method: 'GET',
     });
-    expect(url).toBe('/storage/a/b.txt');
+    expect(url.startsWith('/storage/download?token=')).toBe(true);
+  });
+
+  it('resolveKey rejects invalid keys', () => {
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, ' ')).toThrow();
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, '/abs.txt')).toThrow();
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, '../traverse.txt')).toThrow();
+    expect(() => LocalDriver.resolveKey({ root: '/tmp' }, './dot.txt')).toThrow();
+  });
+
+  it('tempUrl throws when method is PUT', () => {
+    expect(() =>
+      LocalDriver.tempUrl({ root: '/tmp', url: '/storage' }, 'a.txt', { method: 'PUT' })
+    ).toThrow();
+  });
+
+  it('tempUrl throws when APP_KEY is missing', () => {
+    delete process.env['APP_KEY'];
+    expect(() => LocalDriver.tempUrl({ root: '/tmp', url: '/storage' }, 'a.txt')).toThrow();
   });
 
   it('tempUrl throws when url is missing', () => {
