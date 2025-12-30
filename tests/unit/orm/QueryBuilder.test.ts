@@ -124,4 +124,99 @@ describe('QueryBuilder', () => {
     const builder = QueryBuilder.create('users');
     await expect(builder.get()).rejects.toThrow('Database instance not provided');
   });
+
+  it('should reject empty select identifier', () => {
+    const builder = QueryBuilder.create('users');
+    builder.select(' ');
+
+    expect(() => builder.toSQL()).toThrow(/Empty SQL identifier/i);
+  });
+
+  it('should reject unsafe select identifier', () => {
+    const builder = QueryBuilder.create('users');
+    builder.select('id; DROP TABLE users');
+
+    expect(() => builder.toSQL()).toThrow(/Unsafe SQL identifier/i);
+  });
+
+  it('should reject unsafe WHERE column identifier', () => {
+    const builder = QueryBuilder.create('users');
+
+    expect(() => builder.where('user id', '=', 1)).toThrow(/Unsafe SQL identifier/i);
+  });
+
+  it('should reject unsafe SQL operator', () => {
+    const builder = QueryBuilder.create('users');
+
+    expect(() => builder.where('id', 'DROP' as any, 1)).toThrow(/Unsafe SQL operator/i);
+  });
+
+  it('should reject non-string operator when value provided', () => {
+    const builder = QueryBuilder.create('users');
+
+    expect(() => builder.where('id', 1 as any, 2)).toThrow(/Unsafe SQL operator/i);
+  });
+
+  it('should build IN clause with parameters and reject empty IN array', () => {
+    const ok = QueryBuilder.create('users');
+    ok.where('id', 'IN', [1, 2]);
+    expect(ok.toSQL()).toContain('WHERE "id" IN (?, ?)');
+    expect(ok.getParameters()).toEqual([1, 2]);
+
+    const bad = QueryBuilder.create('users');
+    bad.where('id', 'IN', []);
+    expect(() => bad.toSQL()).toThrow(/IN operator requires a non-empty array/i);
+  });
+
+  it('should build BETWEEN clause and reject invalid ranges', () => {
+    const ok = QueryBuilder.create('users');
+    ok.where('age', 'BETWEEN', [18, 65]);
+    expect(ok.toSQL()).toContain('WHERE "age" BETWEEN ? AND ?');
+    expect(ok.getParameters()).toEqual([18, 65]);
+
+    const bad = QueryBuilder.create('users');
+    bad.where('age', 'BETWEEN', [18]);
+    expect(() => bad.toSQL()).toThrow(/BETWEEN operator requires a 2-item array/i);
+  });
+
+  it('should support IS NULL and IS NOT NULL', () => {
+    const isNull = QueryBuilder.create('users');
+    isNull.where('deleted_at', 'IS', null);
+    expect(isNull.toSQL()).toContain('WHERE "deleted_at" IS NULL');
+    expect(isNull.getParameters()).toEqual([]);
+
+    const isNotNull = QueryBuilder.create('users');
+    isNotNull.where('deleted_at', 'IS NOT', null);
+    expect(isNotNull.toSQL()).toContain('WHERE "deleted_at" IS NOT NULL');
+    expect(isNotNull.getParameters()).toEqual([]);
+  });
+
+  it('should parameterize IS / IS NOT when value is non-null', () => {
+    const isValue = QueryBuilder.create('users');
+    isValue.where('status', 'IS', 'active');
+    expect(isValue.toSQL()).toContain('WHERE "status" IS ?');
+    expect(isValue.getParameters()).toEqual(['active']);
+
+    const isNotValue = QueryBuilder.create('users');
+    isNotValue.where('status', 'IS NOT', 'disabled');
+    expect(isNotValue.toSQL()).toContain('WHERE "status" IS NOT ?');
+    expect(isNotValue.getParameters()).toEqual(['disabled']);
+  });
+
+  it('should default ORDER BY direction to ASC and reject unsafe direction', () => {
+    const defaultsToAsc = QueryBuilder.create('users');
+    defaultsToAsc.orderBy('name', '' as any);
+    expect(defaultsToAsc.toSQL()).toContain('ORDER BY name ASC');
+
+    const bad = QueryBuilder.create('users');
+    expect(() => bad.orderBy('name', 'DESC; DROP TABLE users' as any)).toThrow(
+      /Unsafe ORDER BY direction/i
+    );
+  });
+
+  it('should reject unsafe limit/offset values', () => {
+    const builder = QueryBuilder.create('users');
+    expect(() => builder.limit(-1)).toThrow(/Unsafe LIMIT value/i);
+    expect(() => builder.offset(-1)).toThrow(/Unsafe OFFSET value/i);
+  });
 });
