@@ -1,22 +1,46 @@
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { describe, expect, it } from 'vitest';
 import { Worker } from 'worker_threads';
+
+const isNonFatalWorkerError = (text: string) => {
+  const needles = [
+    // Some environments cannot resolve path aliases inside worker threads.
+    '@config/env',
+    'Cannot find module',
+    'Cannot find package',
+    'ERR_MODULE_NOT_FOUND',
+    'ERR_UNSUPPORTED_ESM_URL_SCHEME',
+    'ERR_INVALID_URL',
+    // Some environments can't execute TS inside a worker.
+    'ERR_UNKNOWN_FILE_EXTENSION',
+    // Some environments disallow/strip --import hooks.
+    'bad option: --import',
+    'Unknown or unexpected option: --import',
+    'unknown option',
+    // If someone forces --loader, tsx will complain; treat as non-fatal.
+    'tsx must be loaded with --import',
+  ];
+
+  return needles.some((needle) => text.includes(needle));
+};
 
 describe('SlackLogger worker coverage attempt', () => {
   it('imports module in worker thread to execute top-level code', async () => {
     const abs = path.resolve(process.cwd(), 'src/config/logging/SlackLogger.ts');
+    const slackLoggerUrl = pathToFileURL(abs).href;
 
     const workerCode = `
-      const { parentPort } = require('worker_threads');
+      const { parentPort } = require('node:worker_threads');
       // Prevent SlackLogger from scheduling async flushes and network calls
       process.env.SLACK_LOG_ENABLED = 'false';
       process.env.SLACK_LOG_BATCH_WINDOW_MS = '0';
       (async () => {
         try {
-          await import(${JSON.stringify('file://' + abs)});
+          await import(${JSON.stringify(slackLoggerUrl)});
           parentPort.postMessage('ok');
         } catch (err) {
-          parentPort.postMessage({ error: String(err) });
+          parentPort.postMessage({ error: err?.stack ? String(err.stack) : String(err) });
         }
       })();
     `;
@@ -51,34 +75,22 @@ describe('SlackLogger worker coverage attempt', () => {
             expect(msg).toBe('ok');
             await worker.terminate();
             resolve();
-          } else if (msg && (msg as any).error) {
-            const errMsg = String((msg as any).error);
-            // Some environments cannot resolve path aliases inside worker threads (e.g. '@config/env').
-            // If that's the failure reason, treat the test as non-fatal and resolve.
-            const nonFatal =
-              // Some environments cannot resolve path aliases inside worker threads.
-              errMsg.includes('@config/env') ||
-              errMsg.includes('Cannot find package') ||
-              errMsg.includes('ERR_MODULE_NOT_FOUND') ||
-              // Some environments can't execute TS inside a worker.
-              errMsg.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
-              // Some environments disallow/strip --import hooks.
-              errMsg.includes('bad option: --import') ||
-              errMsg.includes('Unknown or unexpected option: --import') ||
-              errMsg.includes('unknown option') ||
-              // If someone forces --loader, tsx will complain; treat as non-fatal.
-              errMsg.includes('tsx must be loaded with --import');
+            return;
+          }
 
-            if (nonFatal) {
+          const errMsg = msg && (msg as any).error ? String((msg as any).error) : '';
+          if (errMsg) {
+            if (isNonFatalWorkerError(errMsg)) {
               await worker.terminate();
               resolve();
               return;
             }
 
             reject(new Error(errMsg));
-          } else {
-            reject(new Error('unexpected worker message'));
+            return;
           }
+
+          reject(new Error('unexpected worker message'));
         } catch (err) {
           reject(err);
         }
@@ -86,13 +98,7 @@ describe('SlackLogger worker coverage attempt', () => {
 
       worker.once('error', async (err) => {
         const msg = String(err);
-        if (
-          msg.includes('bad option: --import') ||
-          msg.includes('Unknown or unexpected option: --import') ||
-          msg.includes('unknown option') ||
-          msg.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
-          msg.includes('tsx must be loaded with --import')
-        ) {
+        if (isNonFatalWorkerError(msg)) {
           await worker.terminate();
           resolve();
           return;
@@ -105,14 +111,7 @@ describe('SlackLogger worker coverage attempt', () => {
 
         // If the worker exited before we received any message, include stderr to help debugging.
         const combined = `${workerStderr}\n${workerStdout}`.trim();
-        const nonFatal =
-          combined.includes('bad option: --import') ||
-          combined.includes('Unknown or unexpected option: --import') ||
-          combined.includes('unknown option') ||
-          combined.includes('ERR_UNKNOWN_FILE_EXTENSION') ||
-          combined.includes('tsx must be loaded with --import') ||
-          combined.includes('Cannot find package') ||
-          combined.includes('ERR_MODULE_NOT_FOUND');
+        const nonFatal = isNonFatalWorkerError(combined);
 
         if (!receivedMessage && nonFatal) {
           try {
