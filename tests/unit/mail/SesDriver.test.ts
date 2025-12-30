@@ -25,6 +25,40 @@ describe('SesDriver', () => {
     ).rejects.toThrow();
   });
 
+  it('throws when region is missing or blank', async () => {
+    process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
+    process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
+
+    await expect(
+      SesDriver.send(
+        { region: '   ' },
+        {
+          to: 'user@example.com',
+          from: { email: 'no-reply@example.com' },
+          subject: 'Hello',
+          text: 'Plain',
+        }
+      )
+    ).rejects.toThrow(/missing region/i);
+  });
+
+  it('throws when region is not a string', async () => {
+    process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
+    process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
+
+    await expect(
+      SesDriver.send(
+        { region: null as any },
+        {
+          to: 'user@example.com',
+          from: { email: 'no-reply@example.com' },
+          subject: 'Hello',
+          text: 'Plain',
+        }
+      )
+    ).rejects.toThrow(/missing region/i);
+  });
+
   it('sends with fetch and returns messageId on success', async () => {
     process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
     process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
@@ -62,6 +96,35 @@ describe('SesDriver', () => {
     expect(hdrs['Authorization']).toMatch(/AWS4-HMAC-SHA256/);
   });
 
+  it('returns ok without messageId when success response has no MessageId', async () => {
+    process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
+    process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
+
+    const fakeRes = {
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    } as unknown as Response;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => fakeRes)
+    );
+
+    const result = await SesDriver.send(
+      { region: 'us-east-1' },
+      {
+        to: ['user@example.com'],
+        from: { email: 'no-reply@example.com' },
+        subject: 'Hello',
+        text: 'Plain',
+        html: '<p>Hello</p>',
+      }
+    );
+
+    expect(result).toEqual({ ok: true, provider: 'ses', messageId: undefined });
+  });
+
   it('throws connection error when fetch returns not ok', async () => {
     process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
     process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
@@ -88,5 +151,35 @@ describe('SesDriver', () => {
         }
       )
     ).rejects.toThrow();
+  });
+
+  it('returns ok when response is ok but JSON parsing fails', async () => {
+    process.env['AWS_ACCESS_KEY_ID'] = 'AKIA';
+    process.env['AWS_SECRET_ACCESS_KEY'] = 'SECRET';
+
+    const fakeRes = {
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error('bad json');
+      },
+    } as unknown as Response;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => fakeRes)
+    );
+
+    await expect(
+      SesDriver.send(
+        { region: 'us-east-1' },
+        {
+          to: 'user@example.com',
+          from: { email: 'no-reply@example.com' },
+          subject: 'Hello',
+          text: 'Plain',
+        }
+      )
+    ).resolves.toEqual({ ok: true, provider: 'ses' });
   });
 });

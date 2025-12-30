@@ -19,4 +19,30 @@ describe('Notification Service', () => {
 
     delete process.env['NOTIFICATION_DRIVER'];
   });
+
+  it('validates recipient and message', async () => {
+    await expect(NotificationService.send('' as any, 'hi')).rejects.toHaveProperty(
+      'message',
+      'Recipient required'
+    );
+    await expect(NotificationService.send(null as any, 'hi')).rejects.toHaveProperty(
+      'message',
+      'Recipient required'
+    );
+
+    await expect(NotificationService.send('user', '' as any)).rejects.toHaveProperty(
+      'message',
+      'Message required'
+    );
+    await expect(NotificationService.send('user', 123 as any)).rejects.toHaveProperty(
+      'message',
+      'Message required'
+    );
+  });
+
+  it('lists registered drivers', () => {
+    const drivers = NotificationService.listDrivers();
+    expect(Array.isArray(drivers)).toBe(true);
+    expect(drivers.length).toBeGreaterThan(0);
+  });
 });

@@ -94,6 +94,76 @@ beforeEach(() => {
 });
 
 describe('SmtpDriver', () => {
+  it('throws when not running in a Node.js runtime', async () => {
+    const msg = {
+      to: 'a@b.com',
+      from: { email: 'from@ex.com' },
+      subject: 's',
+      text: 't',
+    } as any;
+
+    const originalProcess = (globalThis as any).process;
+    (globalThis as any).process = undefined;
+    const promise = SmtpDriver.send({ host: 'localhost', port: 25, secure: false }, msg);
+    (globalThis as any).process = originalProcess;
+
+    await expect(promise).rejects.toMatchObject({
+      message: expect.stringContaining('SMTP driver requires Node.js runtime'),
+    });
+  });
+
+  it('throws when MAIL_HOST is missing/blank', async () => {
+    const msg = {
+      to: 'a@b.com',
+      from: { email: 'from@ex.com' },
+      subject: 's',
+      text: 't',
+    } as any;
+
+    await expect(
+      SmtpDriver.send({ host: '  ', port: 25, secure: false }, msg)
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('SMTP: missing MAIL_HOST'),
+    });
+  });
+
+  it('throws when MAIL_PORT is invalid', async () => {
+    const msg = {
+      to: 'a@b.com',
+      from: { email: 'from@ex.com' },
+      subject: 's',
+      text: 't',
+    } as any;
+
+    await expect(
+      SmtpDriver.send({ host: 'localhost', port: 0 as any, secure: false }, msg)
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('SMTP: invalid MAIL_PORT'),
+    });
+  });
+
+  it('throws a connection error when socket emits error during connect', async () => {
+    const socket: any = {
+      once: (ev: string, h: (...args: unknown[]) => void) => {
+        if (ev === 'error') h(new Error('connect boom'));
+      },
+    };
+
+    // @ts-ignore
+    vi.mocked(netConnect).mockReturnValue(socket);
+
+    await expect(
+      SmtpDriver.send({ host: 'localhost', port: 25, secure: false }, {
+        to: 'a@b.com',
+        from: { email: 'from@ex.com' },
+        subject: 's',
+        text: 't',
+      } as any)
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('SMTP connection failed'),
+    });
+  });
+
   it('sends message successfully', async () => {
     // prepare sequence of server responses: greeting, EHLO, MAIL FROM, RCPT, DATA(354), queued, QUIT
     const responses = [
@@ -164,6 +234,7 @@ describe('SmtpDriver', () => {
     const firstSocketResponses = [
       '220 welcome',
       '250-STARTTLS',
+      '250-PIPELINING',
       '250 OK',
       '220 Ready to start TLS',
     ];
@@ -185,6 +256,42 @@ describe('SmtpDriver', () => {
     } as any);
 
     expect(res.ok).toBe(true);
+  });
+
+  it('throws when STARTTLS upgrade fails (TLS socket error)', async () => {
+    const firstSocketResponses = [
+      '220 welcome',
+      '250-STARTTLS',
+      '250 OK',
+      '220 Ready to start TLS',
+    ];
+    const firstSocket = createMockSocket(firstSocketResponses);
+
+    const failingTlsSocket: any = {
+      once: (ev: string, h: (...args: unknown[]) => void) => {
+        if (ev === 'error') h(new Error('tls boom'));
+      },
+      on: () => {},
+      off: () => {},
+      write: (_data: string, cb?: (err?: Error | null) => void) => {
+        if (cb) cb();
+      },
+      end: () => {},
+    };
+
+    // @ts-ignore
+    vi.mocked(netConnect).mockReturnValue(firstSocket);
+    // @ts-ignore
+    vi.mocked(tlsConnect).mockReturnValue(failingTlsSocket);
+
+    await expect(
+      SmtpDriver.send({ host: 'localhost', port: 587, secure: 'starttls' }, {
+        to: 'a@b.com',
+        from: { email: 'from@ex.com' },
+        subject: 's',
+        text: 't',
+      } as any)
+    ).rejects.toBeDefined();
   });
 
   it('throws when auth config incomplete', async () => {
@@ -334,6 +441,56 @@ describe('SmtpDriver', () => {
       subject: 's',
       text: 't',
       html: '<p>hello</p>',
+      attachments: [{ filename: 'a.txt', content: Buffer.from('hello') }],
+    } as any);
+
+    expect(res.ok).toBe(true);
+  });
+
+  it('sends message with html (no attachments)', async () => {
+    const responses = [
+      '220 welcome',
+      '250 OK',
+      '250 OK',
+      '250 OK',
+      '354 Continue',
+      '250 Queued',
+      '221 Bye',
+    ];
+    const socket = createMockSocket(responses);
+    // @ts-ignore
+    vi.mocked(netConnect).mockReturnValue(socket);
+
+    const res = await SmtpDriver.send({ host: 'localhost', port: 25, secure: false }, {
+      to: 'a@b.com',
+      from: { email: 'from@ex.com' },
+      subject: 's',
+      text: 't',
+      html: '<p>hello</p>',
+    } as any);
+
+    expect(res.ok).toBe(true);
+  });
+
+  it('sends message with attachments (no html)', async () => {
+    const responses = [
+      '220 welcome',
+      '250 OK',
+      '250 OK',
+      '250 OK',
+      '354 Continue',
+      '250 Queued',
+      '221 Bye',
+    ];
+    const socket = createMockSocket(responses);
+    // @ts-ignore
+    vi.mocked(netConnect).mockReturnValue(socket);
+
+    const res = await SmtpDriver.send({ host: 'localhost', port: 25, secure: false }, {
+      to: 'a@b.com',
+      from: { email: 'from@ex.com' },
+      subject: 's',
+      text: 't',
       attachments: [{ filename: 'a.txt', content: Buffer.from('hello') }],
     } as any);
 

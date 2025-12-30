@@ -51,7 +51,7 @@ export const LocalDriver = Object.freeze({
       await fs.unlink(fullPath);
     } catch (err: unknown) {
       // ignore not found
-      void err;
+      void err; // NOSONAR
     }
   },
 
