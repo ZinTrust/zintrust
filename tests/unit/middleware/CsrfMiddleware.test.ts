@@ -1,7 +1,12 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { IRequest } from '@/http/Request';
 import { IResponse } from '@/http/Response';
 import { CsrfMiddleware } from '@/middleware/CsrfMiddleware';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/common/uuid', () => ({
+  generateSecureJobId: vi.fn(async () => 'secure-session-id'),
+}));
 
 describe('CsrfMiddleware', () => {
   let req: IRequest;
@@ -46,6 +51,22 @@ describe('CsrfMiddleware', () => {
     expect(res.setHeader).toHaveBeenCalledWith(
       'Set-Cookie',
       expect.stringContaining('XSRF-TOKEN=')
+    );
+    expect(res.locals['csrfToken']).toBeDefined();
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('should generate a secure session id when missing', async () => {
+    const { generateSecureJobId } = await import('@/common/uuid');
+    const middleware = CsrfMiddleware.create();
+
+    // No cookie + no req.context.sessionId
+    (req.context as any).sessionId = undefined;
+
+    await middleware(req, res, next);
+
+    expect(generateSecureJobId).toHaveBeenCalledWith(
+      'CSRF Middleware: secure crypto API not available to generate a session id'
     );
     expect(res.locals['csrfToken']).toBeDefined();
     expect(next).toHaveBeenCalled();

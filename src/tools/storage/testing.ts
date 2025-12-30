@@ -12,7 +12,7 @@ export const FakeStorage = Object.freeze({
   async put(disk: string, path: string, contents: Buffer) {
     this._puts.push({ disk, path, contents });
     // emulate async write
-    return Promise.resolve();
+    return Promise.resolve(); // NOSONAR
   },
 
   get(disk: string, path: string) {
@@ -32,7 +32,7 @@ export const FakeStorage = Object.freeze({
       this._puts.length,
       ...this._puts.filter((p) => !(p.disk === disk && p.path === path))
     );
-    return Promise.resolve();
+    return Promise.resolve(); // NOSONAR
   },
 
   // url builder is a convenience: returns a pseudo-url for testing

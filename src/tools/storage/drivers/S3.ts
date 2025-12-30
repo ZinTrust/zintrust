@@ -90,11 +90,7 @@ const buildCanonicalQueryString = (params: Record<string, string>): string => {
   const entries = Object.entries(params)
     .filter(([, v]) => v !== '')
     .map(([k, v]) => [awsEncodeURIComponent(k), awsEncodeURIComponent(v)] as const)
-    .sort((a, b) => {
-      const keyCmp = a[0].localeCompare(b[0]);
-      if (keyCmp !== 0) return keyCmp;
-      return a[1].localeCompare(b[1]);
-    });
+    .sort((a, b) => a[0].localeCompare(b[0]));
 
   return entries.map(([k, v]) => `${k}=${v}`).join('&');
 };

@@ -88,7 +88,8 @@
     "pub": "npm run pro:build && cd dist && npm publish",
     "pub:ci": "cd dist && npm publish --access public",
     "rebuild:bcrypt": "npm rebuild bcrypt",
-    "rebuild:native": "npm rebuild bcrypt better-sqlite3"
+    "rebuild:native": "npm rebuild bcrypt better-sqlite3",
+    "b:push": "npm run sonarcloud:check && npm run lint --max-warnings=0"
   },
   "lint-staged": {
     "src/**/*.ts": [

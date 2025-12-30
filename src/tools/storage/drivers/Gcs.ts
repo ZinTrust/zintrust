@@ -23,6 +23,11 @@ type GcsClientLike = {
 
 let cachedRealClient: GcsClientLike | undefined;
 
+const getInjectedStorageModule = (): unknown => {
+  return (globalThis as unknown as { __fakeGoogleCloudStorageModule?: unknown })
+    .__fakeGoogleCloudStorageModule;
+};
+
 const getInjectedFakeClient = (): GcsClientLike | undefined => {
   const v = (globalThis as unknown as { __fakeGcsClient?: unknown }).__fakeGcsClient;
   return v as GcsClientLike | undefined;
@@ -31,32 +36,41 @@ const getInjectedFakeClient = (): GcsClientLike | undefined => {
 const loadRealClient = async (config: GcsConfig): Promise<GcsClientLike> => {
   if (cachedRealClient !== undefined) return cachedRealClient;
 
+  // Avoid a string-literal import so TypeScript doesn't require the module at build time.
+  const specifier = '@google-cloud/storage';
+  const injected = getInjectedStorageModule();
+
+  let mod: { Storage?: new (opts?: Record<string, unknown>) => GcsClientLike };
   try {
-    // Avoid a string-literal import so TypeScript doesn't require the module at build time.
-    const specifier = '@google-cloud/storage';
-    const mod = (await import(specifier)) as unknown as {
+    mod = (injected ?? (await import(specifier))) as unknown as {
       Storage?: new (opts?: Record<string, unknown>) => GcsClientLike;
     };
-
-    if (typeof mod.Storage !== 'function') {
-      throw ErrorFactory.createConfigError('GCS: @google-cloud/storage did not export Storage');
-    }
-
-    const opts: Record<string, unknown> = {};
-    if (typeof config.projectId === 'string' && config.projectId.trim() !== '') {
-      opts['projectId'] = config.projectId;
-    }
-    if (typeof config.keyFile === 'string' && config.keyFile.trim() !== '') {
-      opts['keyFilename'] = config.keyFile;
-    }
-
-    cachedRealClient = new mod.Storage(opts);
-    return cachedRealClient;
   } catch (err: unknown) {
     throw ErrorFactory.createConfigError(
       'GCS: missing optional dependency @google-cloud/storage (install it or inject globalThis.__fakeGcsClient for tests)',
       { error: err }
     );
+  }
+
+  if (typeof mod.Storage !== 'function') {
+    throw ErrorFactory.createConfigError('GCS: @google-cloud/storage did not export Storage');
+  }
+
+  const opts: Record<string, unknown> = {};
+  if (typeof config.projectId === 'string' && config.projectId.trim() !== '') {
+    opts['projectId'] = config.projectId;
+  }
+  if (typeof config.keyFile === 'string' && config.keyFile.trim() !== '') {
+    opts['keyFilename'] = config.keyFile;
+  }
+
+  try {
+    cachedRealClient = new mod.Storage(opts);
+    return cachedRealClient;
+  } catch (err: unknown) {
+    throw ErrorFactory.createConfigError('GCS: failed to initialize Storage client', {
+      error: err,
+    });
   }
 };
 
@@ -148,7 +162,7 @@ export const GcsDriver = Object.freeze({
       // google-cloud-storage supports ignoreNotFound, but keep it flexible for fakes
       await file.delete({ ignoreNotFound: true });
     } catch (err: unknown) {
-      void err;
+      void err; // NOSONAR
     }
   },
 

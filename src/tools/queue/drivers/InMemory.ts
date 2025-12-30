@@ -50,7 +50,7 @@ export const InMemoryQueue = (() => {
       await Promise.resolve();
       ensure(queue);
       const arr = store.get(queue);
-      return arr ? arr.length : 0;
+      return Array.isArray(arr) ? arr.length : 0;
     },
 
     async drain(queue: string): Promise<void> {
