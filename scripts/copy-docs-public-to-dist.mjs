@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 const projectRoot = process.cwd();
-const sourceFile = path.join(projectRoot, 'docs-website', 'index.html');
+const sourceFile = path.join(projectRoot, 'public', 'index.html');
 const targetDir = path.join(projectRoot, 'dist', 'public');
 const targetFile = path.join(targetDir, 'index.html');
 
