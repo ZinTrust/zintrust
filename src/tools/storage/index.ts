@@ -1,7 +1,6 @@
+import { GcsDriver } from '@/tools/storage/drivers/Gcs';
 import { storageConfig } from '@config/storage';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-// import { GcsDriver } from '@storage/drivers/Gcs';
-import { GcsDriver } from '@/tools/storage/drivers/Gcs';
 import { LocalDriver } from '@storage/drivers/Local';
 import { R2Driver } from '@storage/drivers/R2';
 import { S3Driver } from '@storage/drivers/S3';
@@ -56,7 +55,7 @@ export const Storage = Object.freeze({
     const diskName = name ?? storageConfig.default;
     // disk is config object; dispatch based on requested name
     const drivers = storageConfig.drivers as Record<string, { driver: string }>;
-    const config = drivers[diskName as string] as unknown as Record<string, unknown> | undefined;
+    const config = drivers[diskName] as unknown as Record<string, unknown> | undefined;
     if (config === undefined)
       throw ErrorFactory.createValidationError('Storage: unknown disk', { disk: diskName });
 
