@@ -1,6 +1,8 @@
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { LocalSignedUrl } from '@storage/LocalSignedUrl';
 
 export type LocalConfig = {
   root: string;
@@ -8,13 +10,41 @@ export type LocalConfig = {
 };
 
 export const LocalDriver = Object.freeze({
-  async put(config: LocalConfig, key: string, content: string | Buffer): Promise<string> {
-    const root = config.root;
-    if (!root || root.trim() === '') {
+  resolveKey(config: LocalConfig, key: string): string {
+    if (!config.root || config.root.trim() === '') {
       throw ErrorFactory.createConfigError('Local storage root is not configured');
     }
 
-    const fullPath = path.join(root, key);
+    if (key.trim() === '') {
+      throw ErrorFactory.createValidationError('Local storage: key is required');
+    }
+
+    if (key.startsWith('/') || key.startsWith('\\')) {
+      throw ErrorFactory.createValidationError('Local storage: key must be relative');
+    }
+
+    const segments = key.split(/[/\\]+/g);
+    if (segments.some((s) => s === '..' || s === '.')) {
+      throw ErrorFactory.createValidationError('Local storage: invalid key');
+    }
+
+    const fullPath = path.resolve(path.join(config.root, key));
+    const rootPath = path.resolve(config.root);
+
+    if (fullPath === rootPath) {
+      throw ErrorFactory.createValidationError('Local storage: invalid key');
+    }
+
+    const rootWithSep = rootPath.endsWith(path.sep) ? rootPath : `${rootPath}${path.sep}`;
+    if (!fullPath.startsWith(rootWithSep)) {
+      throw ErrorFactory.createValidationError('Local storage: invalid key');
+    }
+
+    return fullPath;
+  },
+
+  async put(config: LocalConfig, key: string, content: string | Buffer): Promise<string> {
+    const fullPath = LocalDriver.resolveKey(config, key);
     const dir = path.dirname(fullPath);
     await fs.mkdir(dir, { recursive: true });
     if (typeof content === 'string') {
@@ -27,7 +57,7 @@ export const LocalDriver = Object.freeze({
   },
 
   async get(config: LocalConfig, key: string): Promise<Buffer> {
-    const fullPath = path.join(config.root, key);
+    const fullPath = LocalDriver.resolveKey(config, key);
     try {
       return await fs.readFile(fullPath);
     } catch (err: unknown) {
@@ -36,7 +66,7 @@ export const LocalDriver = Object.freeze({
   },
 
   async exists(config: LocalConfig, key: string): Promise<boolean> {
-    const fullPath = path.join(config.root, key);
+    const fullPath = LocalDriver.resolveKey(config, key);
     try {
       await fs.access(fullPath);
       return true;
@@ -46,12 +76,11 @@ export const LocalDriver = Object.freeze({
   },
 
   async delete(config: LocalConfig, key: string): Promise<void> {
-    const fullPath = path.join(config.root, key);
+    const fullPath = LocalDriver.resolveKey(config, key);
     try {
       await fs.unlink(fullPath);
-    } catch (err: unknown) {
+    } catch {
       // ignore not found
-      void err; // NOSONAR
     }
   },
 
@@ -63,15 +92,34 @@ export const LocalDriver = Object.freeze({
   tempUrl(
     config: LocalConfig,
     key: string,
-    _options?: { expiresIn?: number; method?: 'GET' | 'PUT' }
+    options?: { expiresIn?: number; method?: 'GET' | 'PUT' }
   ): string {
-    const url = LocalDriver.url(config, key);
-    if (url === undefined) {
+    if (options?.method === 'PUT') {
+      throw ErrorFactory.createValidationError('Local storage: tempUrl does not support PUT');
+    }
+
+    if (config?.url === undefined || config.url.trim() === '') {
       throw ErrorFactory.createConfigError(
         'Local storage: url is not configured (set STORAGE_URL)'
       );
     }
-    return url;
+
+    const appKey = Env.get('APP_KEY', '');
+    if (appKey.trim() === '') {
+      throw ErrorFactory.createConfigError(
+        'Local storage: APP_KEY is required for signed tempUrl()'
+      );
+    }
+
+    // Ensure key is safe before embedding in a signed token.
+    LocalDriver.resolveKey(config, key);
+
+    const expiresInMs = Math.max(1, options?.expiresIn ?? 60_000);
+    const exp = Date.now() + expiresInMs;
+    const token = LocalSignedUrl.createToken({ disk: 'local', key, exp, method: 'GET' }, appKey);
+
+    const baseUrl = config.url.replace(/\/$/, '');
+    return `${baseUrl}/download?token=${encodeURIComponent(token)}`;
   },
 });
 

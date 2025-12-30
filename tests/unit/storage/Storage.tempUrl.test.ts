@@ -9,15 +9,17 @@ describe('Storage.tempUrl', () => {
     delete process.env['AWS_ACCESS_KEY_ID'];
     delete process.env['AWS_SECRET_ACCESS_KEY'];
     delete process.env['AWS_SESSION_TOKEN'];
+    delete process.env['APP_KEY'];
   });
 
   it('defaults to local and returns a url', async () => {
     process.env['STORAGE_DRIVER'] = 'local';
     process.env['STORAGE_URL'] = '/storage';
+    process.env['APP_KEY'] = 'test-app-key';
 
     const { Storage } = await import('@storage');
-    const url = Storage.tempUrl(undefined, 'a/b.txt', { expiresIn: 60 });
-    expect(url).toBe('/storage/a/b.txt');
+    const url = await Storage.tempUrl(undefined, 'a/b.txt', { expiresIn: 60 });
+    expect(url.startsWith('/storage/download?token=')).toBe(true);
   });
 
   it('normalizes S3 driver config from env and returns a presigned url', async () => {
@@ -34,7 +36,7 @@ describe('Storage.tempUrl', () => {
     expect(cfg['accessKeyId']).toBe('AK');
     expect(cfg['secretAccessKey']).toBe('SK');
 
-    const presigned = Storage.tempUrl('s3', 'path/file.txt', { expiresIn: 60 });
+    const presigned = await Storage.tempUrl('s3', 'path/file.txt', { expiresIn: 60 });
     const u = new URL(presigned);
     expect(u.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256');
     expect(u.searchParams.get('X-Amz-Signature')).toMatch(/^[0-9a-f]{64}$/);

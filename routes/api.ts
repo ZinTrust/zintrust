@@ -7,6 +7,7 @@ import { UserController } from '@app/Controllers/UserController';
 import { Env } from '@config/env';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
+import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
 
 export function registerRoutes(router: IRouter): void {
@@ -23,6 +24,7 @@ function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerHealthRoutes(router);
   registerBroadcastRoutes(router);
+  registerStorageRoutes(router);
 }
 
 function registerRootRoute(router: IRouter): void {

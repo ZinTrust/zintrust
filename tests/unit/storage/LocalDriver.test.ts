@@ -9,6 +9,7 @@ describe('LocalDriver', () => {
   let tmpDir: string;
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zintrust-test-'));
+    process.env['APP_KEY'] = 'test-app-key';
   });
 
   it('puts, gets, checks existence and deletes a file', async () => {
@@ -34,7 +35,7 @@ describe('LocalDriver', () => {
       expiresIn: 60,
       method: 'GET',
     });
-    expect(url).toBe('/storage/a/b.txt');
+    expect(url.startsWith('/storage/download?token=')).toBe(true);
   });
 
   it('tempUrl throws when url is missing', () => {

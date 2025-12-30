@@ -50,12 +50,11 @@ await TermiiDriver.send('+1234567890', 'Your code is 1234');
 
 ### Available drivers (adapters)
 
-The repo also contains low-level drivers for:
+The repo also contains low-level drivers for Slack (webhooks) and Twilio (SMS). These are **not** registered by default in `NotificationRegistry`.
 
-- Slack webhook: `src/tools/notification/drivers/Slack.ts`
-- Twilio SMS: `src/tools/notification/drivers/Twilio.ts`
+If you want to use them through `Notification.send(...)`, register an adapter that matches the driver interface:
 
-These are not registered by default in `NotificationRegistry`. If you want to use them through `Notification.send(...)`, register an adapter that matches the notification driver interface (`send(recipient, message, options)`):
+- `send(recipient, message, options?)`
 
 Environment variables (from `src/config/notification.ts`):
 
@@ -95,7 +94,16 @@ await sendSlackWebhook(
 );
 ```
 
-Slack example (recipient is optional/driver-specific):
+### Slack (Webhook)
+
+Use Slack Incoming Webhooks. The “recipient” argument to `Notification.send(recipient, message)` is not used for Slack (the webhook decides channel/target), but you can still keep it as a placeholder (e.g. `'slack'`).
+
+Environment variables:
+
+NOTIFICATION_DRIVER=slack
+SLACK_WEBHOOK_URL=...
+
+Register an adapter during app startup:
 
     import notificationConfig from '@config/notification';
     import { NotificationRegistry } from '@notification/Registry';
@@ -108,7 +116,18 @@ Slack example (recipient is optional/driver-specific):
       },
     });
 
-Twilio example:
+### Twilio (SMS)
+
+Use Twilio SMS (API v2010). Here the “recipient” argument is the destination phone number.
+
+Environment variables:
+
+    NOTIFICATION_DRIVER=twilio
+    TWILIO_ACCOUNT_SID=...
+    TWILIO_AUTH_TOKEN=...
+    TWILIO_FROM_NUMBER=...
+
+Register an adapter during app startup:
 
     import notificationConfig from '@config/notification';
     import { NotificationRegistry } from '@notification/Registry';

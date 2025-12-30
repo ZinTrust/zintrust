@@ -35,13 +35,13 @@ Zintrust exposes a convenience API for expiring URLs:
 import { Storage } from '@storage';
 
 // Typical usage: give a browser a time-limited URL
-const url = Storage.tempUrl('s3', 'exports/report.csv', { expiresIn: 60 * 10 });
+const url = await Storage.tempUrl('s3', 'exports/report.csv', { expiresIn: 60 * 10 });
 ```
 
 Notes:
 
 - S3/R2/GCS drivers support signed URLs.
-- Local driver currently returns `url()` (requires `STORAGE_URL`) and does not cryptographically sign yet.
+- Local driver generates a signed URL pointing to `/storage/download?token=...` (requires `STORAGE_URL` and `APP_KEY`).
 
 ---
 
@@ -57,6 +57,7 @@ Local:
 
 - STORAGE_PATH — default path for files (default: `storage`)
 - STORAGE_URL — optional base URL
+- APP_KEY — required for local signed `tempUrl()`
 
 S3:
 
@@ -70,7 +71,22 @@ S3:
 
 ### S3-compatible providers
 
-The `s3` driver supports custom endpoints and (optionally) path-style URLs, which is the common setup for S3-compatible storage (not just AWS). Examples include MinIO, DigitalOcean Spaces, Wasabi, and other S3-compatible services.
+The `s3` driver supports custom endpoints and (optionally) path-style URLs, which is the common setup for **S3-compatible** object storage (not just AWS).
+
+In practice, the `s3` driver should work with most providers that expose an S3 API and accept **SigV4** signed requests/URLs.
+
+Examples of “S3-type” storage providers (non-exhaustive):
+
+- AWS S3
+- MinIO
+- DigitalOcean Spaces
+- Wasabi
+- Backblaze B2 (S3 API)
+- Ceph RGW (S3 API)
+- Linode Object Storage
+- Vultr Object Storage
+
+Cloudflare R2 is also S3-compatible, but Zintrust exposes it as a dedicated `r2` driver (which wraps S3-style behavior).
 
 To use an S3-compatible provider, you typically set:
 

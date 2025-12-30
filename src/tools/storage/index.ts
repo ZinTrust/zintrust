@@ -91,7 +91,7 @@ export const Storage = Object.freeze({
     if (typeof driver.get !== 'function') {
       throw ErrorFactory.createConfigError('Storage: driver is missing get()');
     }
-    return Promise.resolve(driver.get(d.config, path));
+    return driver.get(d.config, path);
   },
 
   async exists(disk: string | undefined, path: string): Promise<boolean> {
@@ -124,15 +124,19 @@ export const Storage = Object.freeze({
     return url;
   },
 
-  tempUrl(disk: string | undefined, path: string, options?: TempUrlOptions): string {
+  async tempUrl(disk: string | undefined, path: string, options?: TempUrlOptions): Promise<string> {
     const d = Storage.getDisk(disk);
     const driver = d.driver as unknown as {
-      tempUrl?: (config: unknown, key: string, options?: TempUrlOptions) => string;
+      tempUrl?: (
+        config: unknown,
+        key: string,
+        options?: TempUrlOptions
+      ) => string | Promise<string>;
       url?: (config: unknown, key: string) => string | undefined;
     };
 
     if (typeof driver.tempUrl === 'function') {
-      return driver.tempUrl(d.config, path, options);
+      return Promise.resolve(driver.tempUrl(d.config, path, options));
     }
 
     const url = typeof driver.url === 'function' ? driver.url(d.config, path) : undefined;

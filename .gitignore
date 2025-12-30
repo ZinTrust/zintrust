@@ -4,7 +4,6 @@ dist/
 .env.local
 .env.*.local
 .env.pull
-.env.*
 !.env.example
 *.log
 npm-debug.log*
@@ -53,3 +52,5 @@ todo/
 scripts/find-missing-coverage.cjs
 scripts/find-missing-coverage.js
 tmp/missing-coverage-statements.json
+coverage_cli.txt
+COVERAGE_SUMMARY.txt
