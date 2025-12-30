@@ -44,8 +44,17 @@ const sanitizeHtml = (html: string): string => {
   sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[\s\S]*?>/gi, '');
   sanitized = sanitized.replaceAll(/<\/(?:iframe|object|embed|base)>/gi, '');
 
-  // Remove event handlers (on*)
-  sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi, '');
+  // Remove event handlers (on*) - apply repeatedly to avoid incomplete multi-character sanitization
+  {
+    let previousSanitized: string;
+    do {
+      previousSanitized = sanitized;
+      sanitized = sanitized.replaceAll(
+        /\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi,
+        ''
+      );
+    } while (sanitized !== previousSanitized);
+  }
 
   // Remove javascript: and data: URIs in attributes
   sanitized = sanitized.replaceAll(
