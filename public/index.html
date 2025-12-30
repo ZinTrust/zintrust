@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZinTrust Documentation</title>
+    <link rel="icon" type="image/svg+xml" href="https://zintrust.com/zintrust.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Plus Jakarta Sans', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              primary: '#0ea5e9',
+              secondary: '#10b981',
+              ink: '#0b1220',
+            },
+            keyframes: {
+              floaty: {
+                '0%, 100%': { transform: 'translateY(0px)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '0% 50%' },
+                '100%': { backgroundPosition: '100% 50%' },
+              },
+              cardIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0px)' },
+              },
+            },
+            animation: {
+              floaty: 'floaty 7s ease-in-out infinite',
+              shimmer: 'shimmer 8s ease-in-out infinite',
+              cardIn: 'cardIn 700ms ease-out forwards',
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      html.dark {
+        color-scheme: dark;
+      }
+      .mesh {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background:
+          radial-gradient(1000px 500px at 10% 10%, rgba(14, 165, 233, 0.18), transparent 55%),
+          radial-gradient(900px 500px at 90% 20%, rgba(16, 185, 129, 0.16), transparent 55%),
+          radial-gradient(900px 600px at 70% 90%, rgba(14, 165, 233, 0.1), transparent 60%),
+          radial-gradient(900px 600px at 0% 90%, rgba(16, 185, 129, 0.1), transparent 60%);
+      }
+      .glass {
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+      }
+      .noise {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        opacity: 0.06;
+        mix-blend-mode: overlay;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter><rect width="160" height="160" filter="url(%23n)" opacity="0.5"/></svg>');
+      }
+      .lang-card {
+        transform-style: preserve-3d;
+      }
+      .lang-card:hover .lang-card-inner {
+        transform: translateY(-6px) rotateX(2deg) rotateY(-2deg);
+      }
+      .lang-card-inner {
+        transition:
+          transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1),
+          box-shadow 450ms;
+      }
+      .glow-primary:hover {
+        box-shadow: 0 0 42px rgba(14, 165, 233, 0.22);
+      }
+      .glow-secondary:hover {
+        box-shadow: 0 0 42px rgba(16, 185, 129, 0.2);
+      }
+      .caret {
+        display: inline-block;
+        width: 8px;
+        height: 1.1em;
+        transform: translateY(2px);
+        background: rgba(148, 163, 184, 0.9);
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .tab-active {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+      html:not(.dark) .tab-active {
+        background: rgba(2, 6, 23, 0.06);
+        border-color: rgba(2, 6, 23, 0.12);
+      }
+    </style>
+  </head>
+  <body class="antialiased font-sans">
+    <div class="mesh"></div>
+    <div class="noise"></div>
+
+    <main
+      class="min-h-screen px-6 py-10 md:py-14 bg-white text-slate-900 dark:bg-ink dark:text-slate-100"
+    >
+      <div class="mx-auto max-w-6xl">
+        <header class="flex items-center justify-between gap-4">
+          <a href="https://zintrust.com/doc" class="flex items-center gap-3">
+            <span
+              class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-black/10 bg-black/5 dark:border-white/10 dark:bg-white/5"
+            >
+              <img src="https://zintrust.com/zintrust.svg" alt="ZinTrust Logo" class="h-6 w-6" />
+            </span>
+            <div>
+              <div class="text-sm font-semibold">ZinTrust</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400">Documentation</div>
+            </div>
+          </a>
+
+          <div class="flex items-center gap-3">
+            <a
+              href="https://github.com/ZinTrust/ZinTrust"
+              class="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white"
+              target="_blank"
+            >
+              GitHub
+            </a>
+            <button
+              id="themeBtn"
+              class="inline-flex items-center gap-2 rounded-2xl border border-black/10 bg-black/5 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-black/10 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+              type="button"
+            >
+              <span id="themeIcon">☾</span>
+              <span class="hidden sm:inline">Theme</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center">
+          <div>
+            <div
+              class="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-4 py-2 text-xs font-bold tracking-widest text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+            >
+              <span class="h-2 w-2 rounded-full bg-secondary animate-floaty"></span>
+              ZERO-DEPENDENCY • TYPESAFE • PRODUCTION-READY
+            </div>
+
+            <h1 class="mt-6 text-5xl md:text-6xl font-extrabold tracking-tight">
+              Build fast backends with
+              <span
+                class="bg-clip-text text-transparent bg-[linear-gradient(90deg,#10b981,#0ea5e9,#10b981)] bg-size-[200%_200%] animate-shimmer"
+                >ZinTrust</span
+              >
+            </h1>
+
+            <p class="mt-5 text-lg leading-relaxed text-slate-600 dark:text-slate-300">
+              A zero-dependency TypeScript framework built for high-performance APIs, clean
+              architecture, and microservices. Read the docs and ship.
+            </p>
+
+            <div class="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div
+                class="rounded-2xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5"
+              >
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400">Runtime</div>
+                <div class="mt-1 font-semibold">Node http</div>
+              </div>
+              <div
+                class="rounded-2xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5"
+              >
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400">Core</div>
+                <div class="mt-1 font-semibold">Zero deps</div>
+              </div>
+              <div
+                class="rounded-2xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5"
+              >
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400">DX</div>
+                <div class="mt-1 font-semibold">ZinTrust CLI</div>
+              </div>
+            </div>
+
+            <div class="mt-10 flex flex-wrap gap-4">
+              <a
+                href="https://zintrust.com/doc/getting-started"
+                class="px-8 py-4 rounded-2xl bg-primary text-white font-bold text-lg hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+              >
+                Start Reading
+              </a>
+              <a
+                href="https://github.com/ZinTrust/ZinTrust"
+                class="px-8 py-4 rounded-2xl border border-black/10 bg-black/5 dark:border-white/10 dark:bg-white/5 font-bold text-lg hover:bg-black/10 dark:hover:bg-white/10 transition-all"
+                target="_blank"
+              >
+                GitHub
+              </a>
+            </div>
+
+            <div class="mt-12">
+              <a href="https://zintrust.com/doc/getting-started" class="lang-card group block">
+                <div
+                  class="lang-card-inner glow-primary rounded-3xl border border-black/10 bg-white/60 p-8 shadow-sm dark:border-white/10 dark:bg-white/5 glass"
+                >
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div
+                        class="text-xs font-bold tracking-widest text-slate-500 dark:text-slate-400"
+                      >
+                        DOCUMENTATION
+                      </div>
+                      <div class="mt-2 text-3xl font-bold">Start Reading</div>
+                      <div class="mt-2 text-base text-slate-600 dark:text-slate-300">
+                        Explore the zero-dependency TypeScript framework.
+                      </div>
+                    </div>
+                    <div
+                      class="h-16 w-16 rounded-2xl border border-primary/25 bg-primary/10 flex items-center justify-center text-primary"
+                    >
+                      <img
+                        src="https://zintrust.com/zintrust.svg"
+                        alt="ZinTrust Logo"
+                        class="h-10 w-10"
+                      />
+                    </div>
+                  </div>
+                  <div class="mt-8 flex items-center gap-2 text-primary text-lg font-bold">
+                    Open Documentation
+                    <span class="transition-transform group-hover:translate-x-2">→</span>
+                  </div>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <div class="relative">
+            <div
+              class="rounded-3xl border border-black/10 bg-white/60 shadow-sm dark:border-white/10 dark:bg-white/5 glass overflow-hidden"
+            >
+              <div
+                class="flex items-center justify-between px-5 py-4 border-b border-black/10 dark:border-white/10"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="h-3 w-3 rounded-full bg-red-500/60"></span>
+                  <span class="h-3 w-3 rounded-full bg-amber-500/60"></span>
+                  <span class="h-3 w-3 rounded-full bg-emerald-500/60"></span>
+                </div>
+                <div
+                  class="text-[10px] font-mono font-bold tracking-widest text-slate-500 dark:text-slate-400"
+                  id="terminalTitle"
+                >
+                  TERMINAL — QUICKSTART
+                </div>
+                <button
+                  id="copyBtn"
+                  type="button"
+                  class="rounded-xl border border-black/10 bg-black/5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-black/10 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  Copy
+                </button>
+              </div>
+
+              <div class="px-5 pt-4 pb-2 flex gap-2">
+                <button
+                  class="tab px-3 py-1.5 rounded-xl border border-black/10 bg-black/5 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  data-script="quickstart"
+                  type="button"
+                >
+                  Setup
+                </button>
+                <button
+                  class="tab px-3 py-1.5 rounded-xl border border-black/10 bg-black/5 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  data-script="deploy"
+                  type="button"
+                >
+                  Deploy (Docker)
+                </button>
+              </div>
+
+              <div class="p-5 font-mono text-sm leading-relaxed">
+                <div class="text-slate-500 dark:text-slate-400">
+                  $ <span id="typed"></span><span class="caret"></span>
+                </div>
+                <div class="mt-4 text-xs text-slate-500 dark:text-slate-400" id="hint"></div>
+              </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div
+                class="rounded-2xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5"
+              >
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400">Health</div>
+                <div class="mt-2 font-mono text-sm text-slate-700 dark:text-slate-200">
+                  GET /health
+                </div>
+              </div>
+              <div
+                class="rounded-2xl border border-black/10 bg-black/5 p-4 dark:border-white/10 dark:bg-white/5"
+              >
+                <div class="text-xs font-bold text-slate-500 dark:text-slate-400">Debug</div>
+                <div class="mt-2 font-mono text-sm text-slate-700 dark:text-slate-200">
+                  zin debug
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer
+          class="mt-14 flex flex-col md:flex-row items-center justify-between gap-4 border-t border-black/10 pt-8 text-sm text-slate-500 dark:border-white/10 dark:text-slate-400"
+        >
+          <div>© <span id="year"></span> Zintrust Framework. All rights reserved.</div>
+          <div class="flex flex-wrap justify-center gap-x-5 gap-y-2 font-semibold">
+            <a
+              class="hover:text-slate-900 dark:hover:text-white"
+              href="https://zintrust.com/doc/getting-started"
+              >Docs</a
+            >
+            <a
+              class="hover:text-slate-900 dark:hover:text-white"
+              href="https://github.com/ZinTrust/ZinTrust"
+              target="_blank"
+              >GitHub</a
+            >
+            <a
+              class="hover:text-slate-900 dark:hover:text-white"
+              href="https://x.com/zintrust"
+              target="_blank"
+              >X</a
+            >
+            <a
+              class="hover:text-slate-900 dark:hover:text-white"
+              href="https://discord.gg/zintrust"
+              target="_blank"
+              >Discord</a
+            >
+            <a
+              class="hover:text-slate-900 dark:hover:text-white"
+              href="https://slack.zintrust.com"
+              target="_blank"
+              >Slack</a
+            >
+            <a
+              class="hover:text-slate-900 dark:hover:text-white"
+              href="https://linkedin.com/company/zintrust"
+              target="_blank"
+              >LinkedIn</a
+            >
+          </div>
+          <div class="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800 text-center">
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              &copy; 2025 Zintrust Framework. All rights reserved.
+            </p>
+          </div>
+        </footer>
+      </div>
+    </main>
+
+    <script>
+      const STORAGE_KEY = 'ZinTrust-docs-theme';
+      const themeBtn = document.getElementById('themeBtn');
+      const themeIcon = document.getElementById('themeIcon');
+      const htmlEl = document.documentElement;
+
+      function applyTheme(theme) {
+        const useDark = theme === 'dark';
+        htmlEl.classList.toggle('dark', useDark);
+        themeIcon.textContent = useDark ? '☀' : '☾';
+      }
+
+      function getPreferredTheme() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved === 'dark' || saved === 'light') return saved;
+        return globalThis.matchMedia &&
+          globalThis.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+      }
+
+      function toggleTheme() {
+        const next = htmlEl.classList.contains('dark') ? 'light' : 'dark';
+        localStorage.setItem(STORAGE_KEY, next);
+        applyTheme(next);
+      }
+
+      applyTheme(getPreferredTheme());
+      themeBtn.addEventListener('click', toggleTheme);
+
+      document.getElementById('year').textContent = String(new Date().getFullYear());
+
+      const scripts = {
+        quickstart: {
+          title: 'TERMINAL — QUICKSTART',
+          hint: 'Tip: run the health check to verify your service is up.',
+          lines: [
+            'npm install',
+            'npm run build',
+            'npm link',
+            'zin --version',
+            'zin new my-api',
+            'cd my-api',
+            'npm run dev',
+            'curl http://localhost:3000/health',
+            'zin debug',
+          ],
+        },
+        deploy: {
+          title: 'TERMINAL — DEPLOY',
+          hint: 'Tip: bake an image, run it, then hit /health for confidence.',
+          lines: [
+            'docker build -t my-api:latest .',
+            'docker run --rm -p 3000:3000 my-api:latest',
+            'curl http://localhost:3000/health',
+          ],
+        },
+      };
+
+      const typedEl = document.getElementById('typed');
+      const hintEl = document.getElementById('hint');
+      const terminalTitleEl = document.getElementById('terminalTitle');
+      const tabs = Array.from(document.querySelectorAll('.tab'));
+      const copyBtn = document.getElementById('copyBtn');
+
+      let activeKey = 'quickstart';
+      let lineIndex = 0;
+      let charIndex = 0;
+      let isDeleting = false;
+      let timerId = null;
+
+      function stopTyping() {
+        if (timerId !== null) {
+          globalThis.clearTimeout(timerId);
+          timerId = null;
+        }
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard && globalThis.isSecureContext === true) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const ok = document.execCommand('copy');
+        textarea.remove();
+        if (!ok) throw new Error('copy failed');
+      }
+
+      function setActiveTab(key) {
+        stopTyping();
+        activeKey = key;
+        lineIndex = 0;
+        charIndex = 0;
+        isDeleting = false;
+        typedEl.textContent = '';
+        terminalTitleEl.textContent = scripts[key].title;
+        hintEl.textContent = scripts[key].hint;
+        tabs.forEach((t) => t.classList.toggle('tab-active', t.dataset.script === key));
+
+        step();
+      }
+
+      function step() {
+        const { lines } = scripts[activeKey];
+        const full = lines[lineIndex % lines.length];
+
+        const targetLen = isDeleting ? charIndex - 1 : charIndex + 1;
+        charIndex = Math.max(0, Math.min(full.length, targetLen));
+        typedEl.textContent = full.slice(0, charIndex);
+
+        let delay = isDeleting ? 18 : 28;
+
+        if (!isDeleting && charIndex === full.length) {
+          delay = 850;
+          isDeleting = true;
+        } else if (isDeleting && charIndex === 0) {
+          isDeleting = false;
+          lineIndex++;
+          delay = 260;
+        }
+
+        timerId = globalThis.setTimeout(step, delay);
+      }
+
+      tabs.forEach((t) =>
+        t.addEventListener('click', () => {
+          const key = t.dataset.script;
+          if (!key || !(key in scripts) || key === activeKey) return;
+          setActiveTab(key);
+        })
+      );
+
+      copyBtn.addEventListener('click', async () => {
+        const text = scripts[activeKey].lines.join('\n');
+        try {
+          await copyText(text);
+          copyBtn.textContent = 'Copied';
+          globalThis.setTimeout(() => (copyBtn.textContent = 'Copy'), 900);
+        } catch {
+          copyBtn.textContent = 'Copy failed';
+          globalThis.setTimeout(() => (copyBtn.textContent = 'Copy'), 1100);
+        }
+      });
+
+      setActiveTab('quickstart');
+    </script>
+  </body>
+</html>
