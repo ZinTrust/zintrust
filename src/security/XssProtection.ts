@@ -44,26 +44,71 @@ const sanitizeHtml = (html: string): string => {
   sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[\s\S]*?>/gi, '');
   sanitized = sanitized.replaceAll(/<\/(?:iframe|object|embed|base)>/gi, '');
 
-  // Remove event handlers (on*) - apply repeatedly to avoid incomplete multi-character sanitization
-  {
-    let previousSanitized: string;
-    do {
-      previousSanitized = sanitized;
-      sanitized = sanitized.replaceAll(
-        /\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi,
-        ''
-      );
-    } while (sanitized !== previousSanitized);
-  }
+  // Remove event handlers (on*)
+  sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[^\s>]*)/gi, '');
 
-  // Remove javascript: and data: URIs in attributes
+  // Remove dangerous protocols in URL-bearing attributes.
+  // This uses the same protocol normalization logic as encodeHref to prevent obfuscations like:
+  //   href="jav&#x61;script:..." or href="java\nscript:..." or href="%6a%61..."
   sanitized = sanitized.replaceAll(
-    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*['"]\s*(?:javascript|data):[\s\S]*?['"]/gi, // NOSONAR: S1523 - We are removing javascript: and data: protocols to prevent XSS
-    ''
-  );
-  sanitized = sanitized.replaceAll(
-    /\b(?:href|src|action|formaction|xlink:href)\s*=\s*(?:javascript|data):[^\s>]*?(\s|>|$)/gi, // NOSONAR: S1523 - We are removing javascript: and data: protocols to prevent XSS
-    ''
+    /(\s)(href|src|action|formaction|xlink:href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+    (
+      match: string,
+      _leadingWhitespace: string,
+      _attributeName: string,
+      doubleQuotedValue: string | undefined,
+      singleQuotedValue: string | undefined,
+      unquotedValue: string | undefined
+    ): string => {
+      const rawValue = doubleQuotedValue ?? singleQuotedValue ?? unquotedValue ?? '';
+      const protocolCheck = normalizeHrefForProtocolCheck(rawValue);
+
+      // Allow relative URLs and fragments.
+      if (
+        protocolCheck.startsWith('/') ||
+        protocolCheck.startsWith('#') ||
+        protocolCheck.startsWith('./') ||
+        protocolCheck.startsWith('../') ||
+        protocolCheck.startsWith('//')
+      ) {
+        return match;
+      }
+
+      // Allow-list a narrow set of data:image/* URLs for common raster formats.
+      if (protocolCheck.startsWith('data:')) {
+        const allowedDataImagePrefixes = [
+          'data:image/png',
+          'data:image/jpeg',
+          'data:image/jpg',
+          'data:image/gif',
+          'data:image/webp',
+          'data:image/avif',
+        ];
+
+        if (allowedDataImagePrefixes.some((p) => protocolCheck.startsWith(p))) {
+          return match;
+        }
+        return '';
+      }
+
+      const blockedProtocols = ['javascript:', 'vbscript:']; // NOSONAR: S1523 - Explicit protocol blocking to prevent XSS
+      if (blockedProtocols.some((p) => protocolCheck.startsWith(p))) {
+        return '';
+      }
+
+      // If a scheme is present, allowlist it.
+      const schemeMatch = new RegExp(/^([a-z][a-z0-9+.-]*):/i).exec(protocolCheck);
+      if (schemeMatch) {
+        const scheme = schemeMatch[1].toLowerCase();
+        const allowedSchemes = new Set(['http', 'https', 'mailto', 'tel']);
+        if (!allowedSchemes.has(scheme)) {
+          return '';
+        }
+      }
+
+      // Otherwise, keep the attribute (e.g. relative-like values without a scheme).
+      return match;
+    }
   );
 
   // Remove style tags and style attributes with potentially dangerous content
@@ -101,7 +146,7 @@ const encodeUri = (uri: string): string => {
 /**
  * Encode URI for use in href attribute
  */
-const decodeHtmlEntitiesForProtocolCheck = (input: string): string => {
+function decodeHtmlEntitiesForProtocolCheck(input: string): string {
   // Decode numeric HTML entities so obfuscations like "jav&#x61;script:" are caught.
   // This is intentionally minimal and only used for protocol detection (not output rendering).
   const decodeCodePoint = (codePoint: number): string => {
@@ -115,7 +160,17 @@ const decodeHtmlEntitiesForProtocolCheck = (input: string): string => {
     }
   };
 
-  return input
+  // Decode a small set of named entities commonly used for obfuscation.
+  const namedDecoded = input.replaceAll(/&([a-z]+);?/gi, (m: string, name: string) => {
+    const key = String(name).toLowerCase();
+    if (key === 'colon') return ':';
+    if (key === 'tab') return '\t';
+    if (key === 'newline') return '\n';
+    if (key === 'nbsp') return ' ';
+    return m;
+  });
+
+  return namedDecoded
     .replaceAll(/&#(\d+);?/g, (_m: string, dec: string) => {
       const decStr = typeof dec === 'string' ? dec : String(dec);
       return decodeCodePoint(Number.parseInt(decStr, 10)) || _m;
@@ -124,9 +179,9 @@ const decodeHtmlEntitiesForProtocolCheck = (input: string): string => {
       const hexStr = typeof hex === 'string' ? hex : String(hex);
       return decodeCodePoint(Number.parseInt(hexStr, 16)) || _m;
     });
-};
+}
 
-const tryDecodePercentEncoding = (input: string, rounds = 2): string => {
+function tryDecodePercentEncoding(input: string, rounds = 2): string {
   let out = input;
   for (let i = 0; i < rounds; i += 1) {
     try {
@@ -140,9 +195,9 @@ const tryDecodePercentEncoding = (input: string, rounds = 2): string => {
     }
   }
   return out;
-};
+}
 
-const normalizeHrefForProtocolCheck = (href: string): string => {
+function normalizeHrefForProtocolCheck(href: string): string {
   // Decode common obfuscations before protocol checks.
   const entityDecoded = decodeHtmlEntitiesForProtocolCheck(href);
   const percentDecoded = tryDecodePercentEncoding(entityDecoded, 2);
@@ -150,7 +205,7 @@ const normalizeHrefForProtocolCheck = (href: string): string => {
   // Remove control characters and whitespace to prevent "java\nscript:" bypasses.
   // eslint-disable-next-line no-control-regex
   return percentDecoded.replaceAll(/[\x00-\x20\x7f\u00a0]/g, '').toLowerCase();
-};
+}
 
 const encodeHref = (href: string): string => {
   if (typeof href !== 'string') {
