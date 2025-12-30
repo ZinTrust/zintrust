@@ -191,8 +191,8 @@ describe('FixCommand', () => {
       let ret: any;
       try {
         ret = execute({});
-        returnsThenable = !!ret && typeof (ret as any).then === 'function';
-      } catch (e) {
+        returnsThenable = Boolean(ret) && typeof (ret as any).then === 'function';
+      } catch {
         // Implementation may throw synchronously — treat as acceptable for this test
         threwSync = true;
       }

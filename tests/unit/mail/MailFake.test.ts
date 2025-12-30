@@ -1,4 +1,4 @@
-import { MailFake } from '@/tools/mail/testing';
+import { MailFake } from '@tools/mail/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 beforeEach(() => {
@@ -32,12 +32,33 @@ describe('MailFake', () => {
   it('assertSent passes and assertNotSent throws appropriately', async () => {
     await MailFake.send({ to: 'x@y.com', subject: 's', text: 't' });
 
-    expect(() => MailFake.assertSent((r) => r.to.includes('x@y.com'))).not.toThrow();
-    expect(() => MailFake.assertNotSent((r) => r.to.includes('x@y.com'))).toThrow();
+    const predicate = (r: { to: string | string[] }) =>
+      (Array.isArray(r.to) ? r.to : [r.to]).includes('x@y.com');
+
+    // If assertSent throws, the test will fail naturally.
+    MailFake.assertSent(predicate);
+
+    interface ISentMailRecord {
+      to: string[];
+    }
+
+    type MailRecordPredicate = (r: ISentMailRecord) => boolean;
+
+    const predicate2: MailRecordPredicate = (r) => r.to.includes('x@y.com');
+
+    let didThrow = false;
+    try {
+      MailFake.assertNotSent(predicate2);
+    } catch {
+      didThrow = true;
+    }
+    expect(didThrow).toBe(true);
   });
 
   it('assertSent throws when predicate does not match any sent mail', async () => {
     await MailFake.send({ to: 'a@b.com', subject: 's', text: 't' });
-    expect(() => MailFake.assertSent((r) => r.to.includes('nope@x.com'))).toThrow();
+    expect(() =>
+      MailFake.assertSent((r: { to: string | string[] }) => r.to.includes('nope@x.com'))
+    ).toThrow();
   });
 });

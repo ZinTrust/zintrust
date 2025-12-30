@@ -2,14 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@templates', async () => ({ MarkdownRenderer: { render: vi.fn() } }));
 
+const BLANK_SUBJECT_TEMPLATE = '<!-- subject:   -->\n\nHello!';
+const joinPath = (...args: string[]) => args.join('/');
+
 describe('Notification render failure', () => {
   it('throws validation error when subject is missing', async () => {
     vi.resetModules();
     vi.doMock('@node-singletons/fs', () => ({
-      readFileSync: vi.fn(() => '<!-- subject:   -->\n\nHello!'),
+      readFileSync: vi.fn().mockReturnValue(BLANK_SUBJECT_TEMPLATE),
     }));
     vi.doMock('@node-singletons/path', () => ({
-      join: (...args: string[]) => args.join('/'),
+      join: joinPath,
     }));
 
     const { renderTemplate } = await import('@notification/templates/markdown');

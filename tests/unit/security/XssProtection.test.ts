@@ -1,5 +1,5 @@
-import { XssProtection } from '@/security/XssProtection';
-import { describe, expect, it } from 'vitest';
+import { XssProtection } from '@security/XssProtection';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('XssProtection', () => {
   describe('escapeHtml', () => {

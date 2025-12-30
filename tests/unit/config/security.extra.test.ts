@@ -1,5 +1,5 @@
-import { securityConfig } from '@/config/security';
-import { describe, expect, it, vi } from 'vitest';
+import { securityConfig } from '@config/security';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('securityConfig jwt secret caching', () => {
   afterEach(() => {
