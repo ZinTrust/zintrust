@@ -140,7 +140,6 @@ describe('SlackLogger worker coverage attempt', () => {
         // best-effort coverage attempt, so treat a silent failure as non-fatal.
         if (!receivedMessage && combined.length === 0) {
           try {
-            settled = true;
             await worker.terminate();
           } finally {
             resolve();
