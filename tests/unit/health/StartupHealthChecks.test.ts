@@ -49,7 +49,7 @@ describe('StartupHealthChecks', () => {
     const mockDb = {
       connect: vi.fn(async () => undefined),
       disconnect: vi.fn(async () => undefined),
-      queryOne: vi.fn(async () => ({ ok: 1 })),
+      query: vi.fn(async () => [{ ok: 1 }]),
     };
 
     vi.doMock('@orm/Database', () => ({
@@ -73,7 +73,7 @@ describe('StartupHealthChecks', () => {
     expect(report.checks.some((c) => c.name === 'startup.database' && c.ok === true)).toBe(true);
     expect(report.checks.some((c) => c.name === 'startup.cache' && c.ok === true)).toBe(true);
     expect(mockDb.connect).toHaveBeenCalledTimes(1);
-    expect(mockDb.queryOne).toHaveBeenCalledWith('SELECT 1 as ok', []);
+    expect(mockDb.query).toHaveBeenCalledWith('SELECT 1', [], true);
     expect(mockDb.disconnect).toHaveBeenCalledTimes(1);
   });
 
@@ -99,7 +99,7 @@ describe('StartupHealthChecks', () => {
         create: () => ({
           connect: vi.fn(() => sleep(50)),
           disconnect: vi.fn(async () => undefined),
-          queryOne: vi.fn(async () => ({ ok: 1 })),
+          query: vi.fn(async () => [{ ok: 1 }]),
         }),
       },
     }));

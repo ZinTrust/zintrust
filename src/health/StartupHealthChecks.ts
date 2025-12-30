@@ -13,6 +13,7 @@ import { startupConfig } from '@config/startup';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Database } from '@orm/Database';
 import type { DatabaseConfig } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 import { StartupSecretValidation } from '@security/StartupSecretValidation';
 
 export type StartupHealthCheck = {
@@ -88,7 +89,7 @@ export const StartupHealthChecks = Object.freeze({
         const db = Database.create(config);
         await db.connect();
         try {
-          await db.queryOne('SELECT 1 as ok', []);
+          await QueryBuilder.ping(db);
         } finally {
           await db.disconnect();
         }

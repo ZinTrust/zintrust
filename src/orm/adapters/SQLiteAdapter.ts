@@ -10,6 +10,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { performance } from '@node-singletons/perf-hooks';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 import Database from 'better-sqlite3';
 
 function normalizeFilename(database: string | null | undefined): string {
@@ -158,7 +159,7 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
     },
 
     async ping(): Promise<void> {
-      await adapter.query('SELECT 1', []);
+      await adapter.query(QueryBuilder.create('').select('1').toSQL(), []);
     },
 
     async transaction<T>(

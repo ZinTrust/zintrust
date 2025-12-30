@@ -1,0 +1,81 @@
+# Snyk policy file
+#
+# This file mirrors common workspace exclusions (based on .gitignore) so Snyk
+# Code/IaC scans don’t waste time on build artifacts, logs, reports, etc.
+#
+# Note: .gitignore negation rules (e.g. "!.env.example") are not supported by
+# Snyk's `exclude:` list.
+
+version: v1.25.0
+
+exclude:
+  - node_modules/**
+  - dist/**
+
+  - .env
+  - .env.local
+  - .env.*.local
+  - .env.pull
+  - .env.*
+
+  - '*.log'
+  - npm-debug.log*
+  - .DS_Store
+
+  - .vscode/**
+  - .idea/**
+
+  - '*.swp'
+  - '*.swo'
+  - '*~'
+
+  - coverage/**
+  - .nyc_output/**
+  - .cache/**
+
+  - reports/**
+  - logs/**
+  - build/**
+
+  - .turbo/**
+  - .next/**
+  - out/**
+
+  - .pnp
+  - .pnp.js
+  - '*.tsbuildinfo'
+
+  - .sonarlint/**
+  - .scannerwork/**
+
+  - .github/copilot-instructions.md
+  - .github/copilot-instructions-todo.md
+
+  - md/**
+  - docs-website/**
+  - plans/**
+
+  - coverage_output.txt
+  - UNCOVERED_LINES.md
+
+  - dev/**
+  - note.log
+  - benchmark-results.json
+  - check_vi.ts
+  - SONARQUBE_STATUS.txt
+  - test-sonar-token.sh
+  - start.sh
+  - tmp_delete_test.txt
+  - eslint.config.mjs.bak
+  - lint-report.txt
+  - eslint.config.mjs.broken
+
+  - simulate/**
+  - test-project/**
+  - todo/**
+
+  - storage/**
+
+  - scripts/find-missing-coverage.cjs
+  - scripts/find-missing-coverage.js
+  - tmp/missing-coverage-statements.json

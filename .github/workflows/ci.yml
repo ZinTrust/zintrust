@@ -5,16 +5,25 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [master, dev, release]
+    branches: [master, dev]
   pull_request:
     branches: [master, dev, release]
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality-checks:
     name: Quality Assurance
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
         node-version: [20.x, 22.x]
 
