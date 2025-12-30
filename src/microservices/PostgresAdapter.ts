@@ -1,5 +1,6 @@
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 /**
  * Minimal interfaces for PostgreSQL to avoid direct dependency on 'pg' types
@@ -406,7 +407,8 @@ async function runMigrations(
  */
 async function runHealthCheck(pool: PostgresPool): Promise<boolean> {
   try {
-    const result = await pool.query('SELECT 1');
+    const pingSql = QueryBuilder.create('').select('1').toSQL();
+    const result = await pool.query(pingSql);
     return result.rows.length > 0;
   } catch (error) {
     Logger.error('PostgreSQL health check failed', error as Error);
