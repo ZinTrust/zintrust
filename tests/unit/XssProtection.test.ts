@@ -109,6 +109,30 @@ describe('XssProtection Sanitize Advanced', () => {
 
     expect(output).toContain('<p>Hello <b>World</b></p>');
   });
+
+  it('should remove javascript: href (including obfuscated variants)', () => {
+    const direct = '<a href="javascript:alert(1)">x</a>'; // NOSONAR: S1523 - test case for blocking javascript: protocol
+    const directOut = XssProtection.sanitize(direct);
+    expect(directOut).not.toContain('href');
+
+    const entityObfuscated = '<a href="jav&#x61;script:alert(1)">x</a>'; // NOSONAR: obfuscated javascript:
+    const entityOut = XssProtection.sanitize(entityObfuscated);
+    expect(entityOut).not.toContain('href');
+
+    const whitespaceObfuscated = '<a href="java\nscript:alert(1)">x</a>'; // NOSONAR: obfuscated javascript:
+    const whitespaceOut = XssProtection.sanitize(whitespaceObfuscated);
+    expect(whitespaceOut).not.toContain('href');
+  });
+
+  it('should remove unsafe data: URL attributes but allow data:image/*', () => {
+    const unsafe = '<img src="data:text/html,<script>alert(1)</script>" />';
+    const unsafeOut = XssProtection.sanitize(unsafe);
+    expect(unsafeOut).not.toContain('src=');
+
+    const safe = '<img src="data:image/png;base64,AAAA" />';
+    const safeOut = XssProtection.sanitize(safe);
+    expect(safeOut).toContain('src="data:image/png;base64,AAAA"');
+  });
 });
 
 describe('XssProtection URI and URL Validation', () => {
