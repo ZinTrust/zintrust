@@ -52,7 +52,7 @@ class FakeSocket {
 
 const connectMock = vi.fn();
 
-vi.mock('node:net', () => ({
+vi.mock('@node-singletons/net', () => ({
   connect: connectMock,
 }));
 

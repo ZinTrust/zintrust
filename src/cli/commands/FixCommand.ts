@@ -5,33 +5,15 @@
 
 import { appConfig } from '@/config';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { resolveNpmPath } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
-import fs from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
 import { Command } from 'commander';
 
 type IFixCommand = IBaseCommand & {
   resolveNpmPath: () => string;
   getSafeEnv: () => NodeJS.ProcessEnv;
   runNpmExec: (args: string[]) => void;
-};
-
-const resolveNpmPath = (): string => {
-  const nodeBinDir = path.dirname(process.execPath);
-
-  const candidates =
-    process.platform === 'win32'
-      ? [path.join(nodeBinDir, 'npm.cmd'), path.join(nodeBinDir, 'npm.exe')]
-      : [path.join(nodeBinDir, 'npm')];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  throw ErrorFactory.createCliError(
-    'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
-  );
 };
 
 const runNpmScript = (cmd: IBaseCommand, args: string[]): void => {
@@ -44,7 +26,7 @@ const runNpmScript = (cmd: IBaseCommand, args: string[]): void => {
   });
 };
 
-const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
+const executeFix = (cmd: IBaseCommand, options: CommandOptions): void => {
   cmd.info('Starting automated code fixes...');
 
   try {
@@ -71,8 +53,6 @@ const executeFix = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
     ErrorFactory.createCliError('Fix command failed', error);
     cmd.warn('Some fixes could not be applied automatically.');
   }
-
-  return Promise.resolve();
 };
 
 /**
@@ -87,12 +67,12 @@ export const FixCommand = Object.freeze({
       command.option('--dry-run', 'Show what would be fixed without applying changes');
     };
 
-    const cmd = BaseCommand.create({
+    const cmd = BaseCommand.create<IFixCommand>({
       name: 'fix',
       description: 'Run automated code fixes',
       addOptions,
-      execute: async (options: CommandOptions): Promise<void> => executeFix(cmd, options),
-    }) as IFixCommand;
+      execute: (options: CommandOptions): void => executeFix(cmd, options),
+    });
 
     cmd.resolveNpmPath = (): string => resolveNpmPath();
     cmd.getSafeEnv = (): NodeJS.ProcessEnv => appConfig.getSafeEnv();

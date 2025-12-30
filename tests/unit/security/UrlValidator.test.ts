@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+let mockIsProduction = false;
+
 // Mock Env to allow NODE_ENV manipulation for testing
 vi.mock('@config/env', () => ({
   Env: {
@@ -11,19 +13,23 @@ vi.mock('@config/env', () => ({
   },
 }));
 
+vi.mock('@/config', () => ({
+  appConfig: {
+    isProduction: () => mockIsProduction,
+  },
+}));
+
 // Import mocked Env after vi.mock
 import { validateUrl } from '@/security/UrlValidator';
-import { Env } from '@config/env';
 
 describe('UrlValidator', () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    // Reset NODE_ENV after each test
-    (Env as any).NODE_ENV = 'development';
+    mockIsProduction = false;
   });
 
   it('should allow localhost by default', () => {
-    expect(() => validateUrl('http://localhost:3000/api')).not.toThrow();
+    expect(() => validateUrl('http://localhost:7777/api')).not.toThrow();
     expect(() => validateUrl('http://127.0.0.1:8080')).not.toThrow();
   });
 
@@ -38,8 +44,7 @@ describe('UrlValidator', () => {
   });
 
   it('should throw error for disallowed domains in production', () => {
-    // Mock Env.NODE_ENV to 'production'
-    (Env as any).NODE_ENV = 'production';
+    mockIsProduction = true;
 
     try {
       expect(() => validateUrl('https://evil.com')).toThrow(
@@ -50,11 +55,13 @@ describe('UrlValidator', () => {
     }
   });
 
-  it('should NOT throw error for disallowed domains in development', () => {
-    (Env as any).NODE_ENV = 'development';
+  it('should throw error for disallowed domains in development', () => {
+    mockIsProduction = false;
 
     try {
-      expect(() => validateUrl('https://evil.com')).not.toThrow();
+      expect(() => validateUrl('https://evil.com')).toThrow(
+        /URL hostname 'evil.com' is not allowed/
+      );
     } finally {
       // Reset in afterEach
     }

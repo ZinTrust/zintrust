@@ -4,4 +4,8 @@
  * Exported from node:url built-in
  */
 
-export { fileURLToPath, pathToFileURL } from 'node:url';
+import * as url from 'node:url';
+
+export const { fileURLToPath, pathToFileURL } = url;
+
+export default url;

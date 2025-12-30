@@ -3,7 +3,7 @@ import { Logger } from '@config/logger';
 import { default as fs } from '@node-singletons/fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs');
+vi.mock('@node-singletons/fs');
 vi.mock('@config/logger');
 
 describe('MicroserviceGenerator', () => {

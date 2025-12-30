@@ -25,7 +25,11 @@ vi.mock('@app/Controllers/UserController', () => {
 });
 vi.mock('@config/env', () => ({
   Env: {
+    get: vi.fn((_key: string, defaultVal?: string) => defaultVal ?? ''),
+    getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+    getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
     NODE_ENV: 'test',
+    PORT: 3000,
   },
 }));
 vi.mock('@config/logger');
@@ -50,6 +54,10 @@ describe('Routes API', () => {
 
     expect(Router.match(router, 'GET', '/')).not.toBeNull();
     expect(Router.match(router, 'GET', '/health')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/health/live')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/health/ready')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/broadcast/health')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/broadcast/send')).not.toBeNull();
     expect(Router.match(router, 'POST', '/api/v1/auth/login')).not.toBeNull();
     expect(Router.match(router, 'GET', '/admin/dashboard')).not.toBeNull();
   });
@@ -69,12 +77,14 @@ describe('Routes API', () => {
 
       await rootMatch.handler(req as any, res as any);
 
-      expect(res.json).toHaveBeenCalledWith({
-        framework: 'Zintrust Framework',
-        version: '0.1.0',
-        env: 'test',
-        database: 'sqlite',
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          framework: 'Zintrust Framework',
+          version: '0.1.0',
+          env: 'test',
+          database: 'sqlite',
+        })
+      );
     });
 
     it('should handle health check success', async () => {
@@ -90,7 +100,7 @@ describe('Routes API', () => {
 
       await healthMatch.handler(req as any, res as any);
 
-      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1');
+      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1', [], true);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           status: 'healthy',
@@ -160,6 +170,9 @@ describe('Routes API', () => {
       const previousNodeEnv = process.env['NODE_ENV'];
       process.env['NODE_ENV'] = 'production';
 
+      const previousEnvNodeEnv = Env.NODE_ENV;
+      (Env as unknown as { NODE_ENV?: string }).NODE_ENV = 'production';
+
       const router = Router.createRouter();
       registerRoutes(router);
       const healthMatch = Router.match(router, 'GET', '/health');
@@ -185,6 +198,130 @@ describe('Routes API', () => {
       } else {
         process.env['NODE_ENV'] = previousNodeEnv;
       }
+
+      (Env as unknown as { NODE_ENV?: string }).NODE_ENV = previousEnvNodeEnv;
+    });
+
+    it('should handle liveness check', async () => {
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const liveMatch = Router.match(router, 'GET', '/health/live');
+      if (liveMatch === null)
+        throw new Error('Expected /health/live route handler to be registered');
+
+      const res = {
+        json: vi.fn(),
+      } as unknown as { json: Mock };
+
+      await liveMatch.handler({} as any, res as any);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'alive',
+        })
+      );
+    });
+
+    it('should handle readiness check success', async () => {
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const readyMatch = Router.match(router, 'GET', '/health/ready');
+      if (readyMatch === null)
+        throw new Error('Expected /health/ready route handler to be registered');
+
+      const res = {
+        json: vi.fn(),
+      } as unknown as { json: Mock };
+
+      await readyMatch.handler({} as any, res as any);
+
+      expect(mockDb.query).toHaveBeenCalledWith('SELECT 1', [], true);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'ready',
+          dependencies: expect.objectContaining({
+            database: expect.objectContaining({
+              status: 'ready',
+            }),
+          }),
+        })
+      );
+    });
+
+    it('should handle readiness check failure', async () => {
+      const error = new Error('DB Error');
+      mockDb.query.mockRejectedValue(error);
+
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const readyMatch = Router.match(router, 'GET', '/health/ready');
+      if (readyMatch === null)
+        throw new Error('Expected /health/ready route handler to be registered');
+
+      const res = {
+        setStatus: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as { setStatus: Mock; json: Mock };
+
+      await readyMatch.handler({} as any, res as any);
+
+      expect(Logger.error).toHaveBeenCalledWith('Readiness check failed:', error);
+      expect(res.setStatus).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'not_ready',
+          error: 'DB Error',
+        })
+      );
+    });
+
+    it('should report not_ready when CACHE_DRIVER=kv but binding is missing', async () => {
+      // Make DB healthy
+      mockDb.query.mockResolvedValue([]);
+
+      // Force kv driver for this test
+      const previousGet = Env.get;
+
+      // Helper to avoid deep nested callbacks inside inline mock
+      const cacheDriverMock = (prev: typeof previousGet) => (k: string, def?: string) =>
+        k === 'CACHE_DRIVER'
+          ? 'kv'
+          : (prev as unknown as (k: string, def?: string) => string)(k, def);
+
+      (Env as unknown as { get: unknown }).get = vi.fn(cacheDriverMock(previousGet));
+
+      const previousEnv = (globalThis as unknown as { env?: unknown }).env;
+      delete (globalThis as unknown as { env?: unknown }).env;
+
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const readyMatch = Router.match(router, 'GET', '/health/ready');
+      if (readyMatch === null)
+        throw new Error('Expected /health/ready route handler to be registered');
+
+      const res = {
+        setStatus: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as unknown as { setStatus: Mock; json: Mock };
+
+      await readyMatch.handler({} as any, res as any);
+
+      expect(res.setStatus).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'not_ready',
+          dependencies: expect.objectContaining({
+            cache: expect.any(Object),
+          }),
+        })
+      );
+
+      (globalThis as unknown as { env?: unknown }).env = previousEnv;
+      (Env as unknown as { get: unknown }).get = previousGet;
     });
   });
 

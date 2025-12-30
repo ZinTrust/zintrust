@@ -79,4 +79,4 @@ Start the development server:
 npm run dev
 ```
 
-You can now send a POST request to `http://localhost:3000/tasks` to create a task, and a GET request to see all tasks.
+You can now send a POST request to `http://localhost:7777/tasks` to create a task, and a GET request to see all tasks.

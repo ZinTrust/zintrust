@@ -4,7 +4,7 @@
  */
 
 import { Env } from '@config/env';
-import { randomBytes } from 'node:crypto';
+import { randomBytes } from '@node-singletons/crypto';
 
 export interface CsrfTokenData {
   token: string;

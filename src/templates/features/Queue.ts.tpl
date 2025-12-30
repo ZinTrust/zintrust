@@ -1,7 +1,7 @@
 // TEMPLATE_START
 
+import { generateSecureJobId } from '@common/uuid';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export interface QueueJob {
   id: string;
@@ -44,32 +44,4 @@ export const Queue = Object.freeze({
   },
 });
 
-async function generateSecureJobId(): Promise<string> {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
-  }
-
-  if (typeof globalThis.crypto?.getRandomValues === 'function') {
-    const bytes = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(bytes);
-    return bytesToHex(bytes);
-  }
-
-  // Node fallback for environments without Web Crypto
-  try {
-    const nodeCrypto = await import('node:crypto');
-    return nodeCrypto.randomBytes(16).toString('hex');
-  } catch (error) {
-    throw ErrorFactory.createTryCatchError(
-      'Secure crypto API not available to generate a job id.',
-      error
-    );
-  }
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  let out = '';
-  for (const b of bytes) out += b.toString(16).padStart(2, '0');
-  return out;
-}
 // TEMPLATE_END

@@ -1,6 +1,20 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import fs from '@node-singletons/fs';
-import * as path from 'node:path';
+import * as fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
+
+export { AwsSigV4 } from '@common/AwsSigV4';
+
+// Mutable FileChecker used to abstract FS checks for easier testing/mocking
+export const FileChecker = {
+  exists(filePath: string): boolean {
+    try {
+      return fs.existsSync(filePath);
+    } catch {
+      return false;
+    }
+  },
+};
 
 /**
  * Common utilities - Sealed namespace for immutability
@@ -23,6 +37,38 @@ export const CommonUtils = Object.freeze({
     throw ErrorFactory.createGeneralError(
       'Unable to locate npm executable. Ensure Node.js (with npm) is installed in the standard location.'
     );
+  },
+
+  /**
+   * RUNTIME UTILITIES
+   */
+
+  /**
+   * Async delay helper. No-ops when timers are unavailable.
+   */
+  async delay(ms: number): Promise<void> {
+    if (ms <= 0) return;
+    await new Promise<void>((resolve) => {
+      if (typeof globalThis.setTimeout !== 'function') {
+        resolve();
+        return;
+      }
+      globalThis.setTimeout(() => resolve(), ms);
+    });
+  },
+
+  /**
+   * Resolve an ESM `import.meta.url` to a filesystem path.
+   */
+  esmFilePath(metaUrl: string | URL): string {
+    return fileURLToPath(metaUrl);
+  },
+
+  /**
+   * Resolve an ESM `import.meta.url` to a filesystem directory.
+   */
+  esmDirname(metaUrl: string | URL): string {
+    return path.dirname(this.esmFilePath(metaUrl));
   },
 
   /**
@@ -80,11 +126,7 @@ export const CommonUtils = Object.freeze({
    * Check if file exists
    */
   fileExists(filePath: string): boolean {
-    try {
-      return fs.existsSync(filePath);
-    } catch {
-      return false;
-    }
+    return FileChecker.exists(filePath);
   },
 
   /**
@@ -93,6 +135,17 @@ export const CommonUtils = Object.freeze({
   ensureDir(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
+    }
+  },
+
+  /**
+   * Best-effort variant of ensureDir() that never throws.
+   */
+  ensureDirSafe(dirPath: string): void {
+    try {
+      this.ensureDir(dirPath);
+    } catch {
+      // best-effort
     }
   },
 
@@ -238,7 +291,58 @@ export const CommonUtils = Object.freeze({
     }
     return value as Record<string, unknown>;
   },
+
+  /**
+   * Resolve preferred package manager.
+   * If `preferred` is provided, the first value is returned. Otherwise we detect by lock files.
+   */
+  resolvePackageManager(preferred?: string[]): string {
+    if (Array.isArray(preferred) && preferred.length > 0) {
+      return preferred[0];
+    }
+
+    try {
+      if (this.fileExists('pnpm-lock.yaml')) return 'pnpm';
+      if (this.fileExists('yarn.lock')) return 'yarn';
+      if (this.fileExists('package-lock.json')) return 'npm';
+    } catch {
+      // ignore FS errors and fall through to default
+    }
+
+    // Default to npm
+    return 'npm';
+  },
 });
 
 // Re-export for backward compatibility
 export const resolveNpmPath = (): string => CommonUtils.resolveNpmPath();
+
+export const delay = async (ms: number): Promise<void> => CommonUtils.delay(ms);
+
+export const esmFilePath = (metaUrl: string | URL): string => CommonUtils.esmFilePath(metaUrl);
+export const esmDirname = (metaUrl: string | URL): string => CommonUtils.esmDirname(metaUrl);
+
+export const resolvePackageManager = (preferred?: string[]): string => {
+  return CommonUtils.resolvePackageManager(preferred);
+};
+
+export const extractErrorMessage = (error: unknown): string =>
+  CommonUtils.extractErrorMessage(error);
+
+// Some call sites historically treated non-Error throws (e.g. string) as unknown.
+// Keep that behavior available as a shared helper.
+export const extractErrorMessageStrict = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (error !== undefined && error !== null && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return 'Unknown error';
+};
+
+// Convenience named exports to make specific helpers testable and import-friendly
+export const fileExists = (filePath: string): boolean => CommonUtils.fileExists(filePath);
+export const ensureDir = (dirPath: string): void => CommonUtils.ensureDir(dirPath);
+export const ensureDirSafe = (dirPath: string): void => CommonUtils.ensureDirSafe(dirPath);
+export const readFile = (filePath: string): string => CommonUtils.readFile(filePath);
+export const writeFile = (filePath: string, content: string, createDir = true): void =>
+  CommonUtils.writeFile(filePath, content, createDir);

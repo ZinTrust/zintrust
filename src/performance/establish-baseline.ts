@@ -3,11 +3,11 @@
  * Run all code generator benchmarks and save baseline metrics
  */
 
+import { esmFilePath } from '@common/index';
 import { Logger } from '@config/logger';
 import { fs } from '@node-singletons';
-import { fileURLToPath } from '@node-singletons/url';
+import * as path from '@node-singletons/path';
 import { CodeGenerationBenchmark } from '@performance/CodeGenerationBenchmark';
-import * as path from 'node:path';
 
 /**
  * Run baseline and save results
@@ -36,7 +36,7 @@ function isMainModuleEsm(): boolean {
     const entry = process.argv[1];
     if (entry === undefined || entry === '') return false;
 
-    const currentFilePath = fileURLToPath(new URL(import.meta.url));
+    const currentFilePath = esmFilePath(import.meta.url);
 
     // Use realpathSync to handle symlinks (common on macOS /var -> /private/var)
     if (!('realpathSync' in fs)) {

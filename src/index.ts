@@ -48,12 +48,23 @@ export { Schema, Validator } from '@validation/Validator';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type { CsrfTokenData } from '@security/CsrfTokenManager';
 export { Encryptor } from '@security/Encryptor';
+export { Hash } from '@security/Hash';
 export { JwtManager } from '@security/JwtManager';
 export type { JwtOptions, JwtPayload } from '@security/JwtManager';
+export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
 
-// Version
-export const version = '0.1.0';
+// Config
+export { mailConfig } from '@config/mail';
+export type { MailConfig, MailDriverConfig, MailDriverName } from '@config/mail';
+export { StartupConfigValidator } from '@config/StartupConfigValidator';
+
+// Mail
+export { Mail } from '@mail/Mail';
+export type { SendMailInput, SendMailResult } from '@mail/Mail';
+
+export { SmtpDriver } from '@mail/drivers/Smtp';
+export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';

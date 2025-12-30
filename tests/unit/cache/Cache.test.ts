@@ -63,6 +63,21 @@ vi.mock('@config/env', () => ({
     get CACHE_DRIVER() {
       return cacheDriverName;
     },
+
+    get: vi.fn((key: string, defaultValue: string = '') => {
+      String(key);
+      return defaultValue;
+    }),
+
+    getInt: vi.fn((key: string, defaultValue: number = 0) => {
+      String(key);
+      return defaultValue;
+    }),
+
+    getBool: vi.fn((key: string, defaultValue: boolean = false) => {
+      String(key);
+      return defaultValue;
+    }),
   },
 }));
 

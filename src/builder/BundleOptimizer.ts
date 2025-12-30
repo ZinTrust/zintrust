@@ -9,7 +9,7 @@
 
 import { Logger } from '@config/logger';
 import fs from '@node-singletons/fs';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
 export interface OptimizationOptions {
   platform: 'lambda' | 'cloudflare' | 'deno' | 'fargate';
@@ -179,13 +179,13 @@ function printAnalysis(analysis: BundleAnalysis): void {
  */
 async function analyze(distDir: string, options: OptimizationOptions): Promise<BundleAnalysis> {
   const files = await getFilesRecursive(distDir);
-  let totalSize = 0;
 
+  // Collect sizes concurrently but avoid shared mutable state by computing sizes
+  // and then reducing the total afterwards to avoid race conditions.
   const fileAnalysis = await Promise.all(
     files.map(async (file) => {
       const stats = await fs.promises.stat(file);
       const size = stats.size;
-      totalSize += size;
 
       return {
         path: path.relative(distDir, file),
@@ -194,6 +194,9 @@ async function analyze(distDir: string, options: OptimizationOptions): Promise<B
       };
     })
   );
+
+  // Compute total size in a single pass (no shared mutation)
+  const totalSize = fileAnalysis.reduce((acc, f) => acc + f.size, 0);
 
   // Calculate percentages
   fileAnalysis.forEach((f) => {
@@ -274,12 +277,12 @@ async function removeDevDependencies(distDir: string, options: OptimizationOptio
 /**
  * Minify JavaScript files
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 async function minifyJavaScript(_aggressive: boolean = false): Promise<void> {
   Logger.info('  → Minifying JavaScript...');
   // In production, would use esbuild or terser
   // This is a placeholder showing the pattern
   Logger.info('  ✓ JavaScript minified');
-  return Promise.resolve();
 }
 
 /**

@@ -33,8 +33,9 @@ export const PluginCommand = Object.freeze({
           .command('install <pluginId>')
           .alias('i')
           .description('Install a plugin')
-          .action(async (pluginId: string) => {
-            await installPlugin(pluginId);
+          .option('--package-manager <pm>', 'Specify package manager to use (npm|yarn|pnpm)')
+          .action(async (pluginId: string, options: Record<string, unknown>) => {
+            await installPlugin(pluginId, options);
           });
 
         command
@@ -87,9 +88,13 @@ async function listPlugins(): Promise<void> {
   }
 }
 
-async function installPlugin(pluginId: string): Promise<void> {
+async function installPlugin(pluginId: string, options?: Record<string, unknown>): Promise<void> {
   try {
-    await PluginManager.install(pluginId);
+    const pm =
+      typeof options?.['packageManager'] === 'string'
+        ? String(options?.['packageManager'])
+        : undefined;
+    await PluginManager.install(pluginId, { packageManager: pm });
   } catch (error) {
     Logger.error(`Failed to install plugin ${pluginId}`, error);
     process.exit(1);

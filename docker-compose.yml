@@ -26,7 +26,7 @@ services:
       - /app/dist
     command: npm run dev
     healthcheck:
-      test: ['GET', 'http://localhost:3000/health']
+      test: ['GET', 'http://localhost:7777/health']
       interval: 30s
       timeout: 10s
       retries: 3

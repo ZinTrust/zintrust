@@ -71,7 +71,7 @@ export const Env = Object.freeze({
   DB_CONNECTION: get('DB_CONNECTION', 'sqlite'),
   DB_HOST: get('DB_HOST', 'localhost'),
   DB_PORT: getInt('DB_PORT', 5432),
-  DB_DATABASE: get('DB_DATABASE', '@zintrust/core'),
+  DB_DATABASE: get('DB_DATABASE', 'zintrust'),
   DB_USERNAME: get('DB_USERNAME', 'postgres'),
   DB_PASSWORD: get('DB_PASSWORD', ''),
   DB_READ_HOSTS: get('DB_READ_HOSTS', ''),
@@ -114,10 +114,16 @@ export const Env = Object.freeze({
   ENVIRONMENT: get('ENVIRONMENT', 'development'),
   REQUEST_TIMEOUT: getInt('REQUEST_TIMEOUT', 30000),
   MAX_BODY_SIZE: getInt('MAX_BODY_SIZE', 10485760),
+  SHUTDOWN_TIMEOUT: getInt('SHUTDOWN_TIMEOUT', 10000),
 
   // Logging
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
+  LOG_FORMAT: get('LOG_FORMAT', 'text'),
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
+  LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
+  LOG_TO_FILE: getBool('LOG_TO_FILE', false),
+  LOG_ROTATION_SIZE: getInt('LOG_ROTATION_SIZE', 10485760),
+  LOG_ROTATION_DAYS: getInt('LOG_ROTATION_DAYS', 7),
 
   // Paths (safely constructed for Node.js environments)
   NODE_BIN_DIR: (() => {

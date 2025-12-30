@@ -135,4 +135,11 @@ describe('SQLServerAdapter', () => {
     ).rejects.toThrow('Transaction failed');
     expect(Logger.error).toHaveBeenCalled();
   });
+
+  it('ping should call query when connected', async () => {
+    await adapter.connect();
+    const spy = vi.spyOn(adapter as any, 'query');
+    await adapter.ping();
+    expect(spy).toHaveBeenCalledWith('SELECT 1', []);
+  });
 });

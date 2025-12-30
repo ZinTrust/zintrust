@@ -8,9 +8,9 @@ import { Logger as FileLogger, LogEntry, LogLevel, LoggerInstance } from '@cli/l
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import chalk from 'chalk';
 import { Command } from 'commander';
-import * as path from 'node:path';
 
 interface LogsOptions {
   level: string;

@@ -9,13 +9,25 @@ describe('Cache Config', () => {
   it('should have driver definitions', () => {
     expect(cacheConfig.drivers.memory).toBeDefined();
     expect(cacheConfig.drivers.redis).toBeDefined();
-    expect(cacheConfig.drivers.memcached).toBeDefined();
-    expect(cacheConfig.drivers.file).toBeDefined();
+    expect(cacheConfig.drivers.mongodb).toBeDefined();
+    expect(cacheConfig.drivers.kv).toBeDefined();
   });
 
   it('should get current driver', () => {
     const driver = cacheConfig.getDriver();
     expect(driver).toBeDefined();
     expect(driver.driver).toBeDefined();
+  });
+
+  it('falls back to memory when default driver is unknown', () => {
+    const fakeConfig: any = { default: 'nope', drivers: cacheConfig.drivers };
+    const driver = cacheConfig.getDriver.call(fakeConfig as any);
+    expect(driver.driver).toBe('memory');
+  });
+
+  it('resolves redis driver when default set to redis', () => {
+    const fakeConfig: any = { default: 'redis', drivers: cacheConfig.drivers };
+    const driver = cacheConfig.getDriver.call(fakeConfig as any);
+    expect(driver.driver).toBe('redis');
   });
 });

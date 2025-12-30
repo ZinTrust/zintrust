@@ -8,6 +8,7 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 /**
  * PostgreSQL adapter implementation
@@ -45,6 +46,10 @@ export const PostgreSQLAdapter = Object.freeze({
       async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
         const result = await this.query(sql, parameters);
         return result.rows[0] ?? null;
+      },
+
+      async ping(): Promise<void> {
+        await this.query(QueryBuilder.create('').select('1').toSQL(), []);
       },
 
       async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {

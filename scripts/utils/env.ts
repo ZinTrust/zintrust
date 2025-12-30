@@ -1,4 +1,4 @@
-import { fs } from '@node-singletons';
+import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 /**

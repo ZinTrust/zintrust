@@ -6,7 +6,7 @@
 import { CacheDriver } from '@cache/CacheDriver';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import * as net from 'node:net';
+import * as net from '@node-singletons/net';
 
 /**
  * Create a new Redis driver instance

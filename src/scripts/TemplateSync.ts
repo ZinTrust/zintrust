@@ -5,15 +5,14 @@
  */
 
 import { TemplateRegistry } from '@/templates/TemplateRegistry.js';
+import { ensureDir, esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as crypto from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
-import { fileURLToPath } from '@node-singletons/url';
-import * as path from 'node:path';
+import * as path from '@node-singletons/path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = esmDirname(import.meta.url);
 const ROOT_DIR = path.resolve(__dirname, '../../');
 
 interface ChecksumRecord {
@@ -55,15 +54,6 @@ function extractTemplateContent(filePath: string): string {
   } catch (error) {
     Logger.error(`Error extracting template from ${filePath}`, error);
     throw ErrorFactory.createTryCatchError(`Failed to extract template from: ${filePath}`, error);
-  }
-}
-
-/**
- * Ensure directory exists, create if needed
- */
-function ensureDir(dirPath: string): void {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
   }
 }
 
@@ -154,6 +144,136 @@ const syncProjectTemplateDir = (params: {
   return { updated, skipped, total: files.length };
 };
 
+const syncRegistryMappings = (params: {
+  checksums: ChecksumRecord;
+  mappings: Array<{ basePath: string; templatePath: string; description: string }>;
+}): { updated: number; skipped: number } => {
+  let updated = 0;
+  let skipped = 0;
+
+  for (const mapping of params.mappings) {
+    const basePath = path.join(ROOT_DIR, mapping.basePath);
+    const templatePath = path.join(ROOT_DIR, mapping.templatePath);
+
+    if (!fs.existsSync(basePath)) {
+      Logger.warn(`⚠️  Base file not found: ${mapping.basePath}`);
+      continue;
+    }
+
+    const currentHash = hashFile(basePath);
+    const storedHash = params.checksums[mapping.basePath];
+
+    if (currentHash === storedHash && fs.existsSync(templatePath)) {
+      Logger.info(`✓ ${mapping.description} (in sync)`);
+      skipped++;
+      continue;
+    }
+
+    try {
+      const templateContent = extractTemplateContent(basePath);
+      ensureDir(path.dirname(templatePath));
+      fs.writeFileSync(templatePath, templateContent, 'utf8');
+      params.checksums[mapping.basePath] = currentHash;
+      Logger.info(`✓ Updated: ${mapping.description}`);
+      updated++;
+    } catch (error) {
+      Logger.error(`❌ Failed to sync ${mapping.basePath}:`, error);
+      process.exit(1);
+    }
+  }
+
+  return { updated, skipped };
+};
+
+const syncStarterEnvTemplate = (params: {
+  checksums: ChecksumRecord;
+  projectRoot: string;
+}): { updated: number; skipped: number; total: number } => {
+  const envExampleAbs = fs.existsSync(path.join(ROOT_DIR, '.env.example'))
+    ? path.join(ROOT_DIR, '.env.example')
+    : path.join(ROOT_DIR, '.env.example.generated');
+
+  const envTemplateAbs = path.join(ROOT_DIR, params.projectRoot, '.env.tpl');
+  const envChecksumKey = 'starter/.env';
+
+  if (!fs.existsSync(envExampleAbs)) {
+    Logger.warn('⚠️  .env.example not found; skipping starter .env template generation');
+    return { updated: 0, skipped: 0, total: 1 };
+  }
+
+  const currentHash = hashFile(envExampleAbs);
+  const storedHash = params.checksums[envChecksumKey];
+
+  if (currentHash === storedHash && fs.existsSync(envTemplateAbs)) {
+    return { updated: 0, skipped: 1, total: 1 };
+  }
+
+  const raw = fs.readFileSync(envExampleAbs, 'utf8');
+  const lines = raw.split(/\r?\n/);
+  const rendered =
+    lines
+      .map((line) => {
+        if (line.trim() === '' || line.startsWith('#')) return line;
+        const eq = line.indexOf('=');
+        if (eq === -1) return line;
+        const key = line.slice(0, eq).trim();
+        if (key === '') return line;
+        if (key === 'NODE_ENV') return 'NODE_ENV=development';
+        return `${key}=`;
+      })
+      .join('\n') + '\n';
+
+  ensureDir(path.dirname(envTemplateAbs));
+  fs.writeFileSync(envTemplateAbs, rendered, 'utf8');
+  params.checksums[envChecksumKey] = currentHash;
+  Logger.info('✓ Starter project .env (generated)');
+  return { updated: 1, skipped: 0, total: 1 };
+};
+
+const syncStarterProjectTemplates = (params: {
+  checksums: ChecksumRecord;
+  projectRoot: string;
+}): { updated: number; skipped: number; total: number } => {
+  const s1 = syncProjectTemplateDir({
+    checksums: params.checksums,
+    baseDirRel: 'app',
+    templateDirRel: `${params.projectRoot}/app`,
+    description: 'Starter project app/*',
+  });
+
+  const s2 = syncProjectTemplateDir({
+    checksums: params.checksums,
+    baseDirRel: 'src/config',
+    templateDirRel: `${params.projectRoot}/config`,
+    description: 'Starter project config/* (from src/config/*)',
+  });
+
+  const s3 = syncProjectTemplateDir({
+    checksums: params.checksums,
+    baseDirRel: 'src/database',
+    templateDirRel: `${params.projectRoot}/database`,
+    description: 'Starter project database/* (from src/database/*)',
+  });
+
+  const s4 = syncProjectTemplateDir({
+    checksums: params.checksums,
+    baseDirRel: 'routes',
+    templateDirRel: `${params.projectRoot}/routes`,
+    description: 'Starter project routes/*',
+  });
+
+  const s5 = syncStarterEnvTemplate({
+    checksums: params.checksums,
+    projectRoot: params.projectRoot,
+  });
+
+  return {
+    updated: s1.updated + s2.updated + s3.updated + s4.updated + s5.updated,
+    skipped: s1.skipped + s2.skipped + s3.skipped + s4.skipped + s5.skipped,
+    total: s1.total + s2.total + s3.total + s4.total + s5.total,
+  };
+};
+
 /**
  * Load existing checksums from JSON file
  */
@@ -188,46 +308,7 @@ async function syncTemplates(): Promise<void> {
 
   const checksums = loadChecksums();
   const mappings = TemplateRegistry.getMappings();
-  let updated = 0;
-  let skipped = 0;
-
-  for (const mapping of mappings) {
-    const basePath = path.join(ROOT_DIR, mapping.basePath);
-    const templatePath = path.join(ROOT_DIR, mapping.templatePath);
-
-    // Check if base file exists
-    if (!fs.existsSync(basePath)) {
-      Logger.warn(`⚠️  Base file not found: ${mapping.basePath}`);
-      continue;
-    }
-
-    // Calculate current hash
-    const currentHash = hashFile(basePath);
-    const storedHash = checksums[mapping.basePath];
-
-    // Check if update is needed
-    if (currentHash === storedHash && fs.existsSync(templatePath)) {
-      Logger.info(`✓ ${mapping.description} (in sync)`);
-      skipped++;
-      continue;
-    }
-
-    // Extract and write template
-    try {
-      const templateContent = extractTemplateContent(basePath);
-      ensureDir(path.dirname(templatePath));
-      fs.writeFileSync(templatePath, templateContent, 'utf8');
-
-      // Update checksum
-      checksums[mapping.basePath] = currentHash;
-
-      Logger.info(`✓ Updated: ${mapping.description}`);
-      updated++;
-    } catch (error) {
-      Logger.error(`❌ Failed to sync ${mapping.basePath}:`, error);
-      process.exit(1);
-    }
-  }
+  const registry = syncRegistryMappings({ checksums, mappings });
 
   // Sync starter project templates (basic) from base framework folders.
   // Spec: app/* -> app/*, src/config/* -> config/*, src/database/* -> database/*, routes/* -> routes/*
@@ -236,47 +317,18 @@ async function syncTemplates(): Promise<void> {
   Logger.info('🔄 Syncing starter project templates (basic)...');
 
   const projectRoot = 'src/templates/project/basic';
-  const s1 = syncProjectTemplateDir({
-    checksums,
-    baseDirRel: 'app',
-    templateDirRel: `${projectRoot}/app`,
-    description: 'Starter project app/*',
-  });
-
-  const s2 = syncProjectTemplateDir({
-    checksums,
-    baseDirRel: 'src/config',
-    templateDirRel: `${projectRoot}/config`,
-    description: 'Starter project config/* (from src/config/*)',
-  });
-
-  const s3 = syncProjectTemplateDir({
-    checksums,
-    baseDirRel: 'src/database',
-    templateDirRel: `${projectRoot}/database`,
-    description: 'Starter project database/* (from src/database/*)',
-  });
-
-  const s4 = syncProjectTemplateDir({
-    checksums,
-    baseDirRel: 'routes',
-    templateDirRel: `${projectRoot}/routes`,
-    description: 'Starter project routes/*',
-  });
-
-  const s5 = { updated: 0, skipped: 0 };
-
-  updated += s1.updated + s2.updated + s3.updated + s4.updated + s5.updated;
-  skipped += s1.skipped + s2.skipped + s3.skipped + s4.skipped + s5.skipped;
+  const starter = syncStarterProjectTemplates({ checksums, projectRoot });
 
   // Save updated checksums
   saveChecksums(checksums);
 
   // Summary
+  const updated = registry.updated + starter.updated;
+  const skipped = registry.skipped + starter.skipped;
   Logger.info(`\n📦 Template sync complete`);
   Logger.info(`   Updated: ${updated}`);
   Logger.info(`   Skipped: ${skipped}`);
-  Logger.info(`   Total: ${mappings.length + s1.total + s2.total + s3.total + s4.total}\n`);
+  Logger.info(`   Total: ${mappings.length + starter.total}\n`);
 }
 
 // Run sync

@@ -5,16 +5,61 @@
  * Handles installation and removal of framework plugins.
  */
 
+import { SpawnUtil } from '@cli/utils/spawn';
+import { esmDirname, resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execSync } from '@node-singletons/child-process';
-import { fsPromises as fs } from '@node-singletons/fs';
+import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
 import { PluginDefinition, PluginRegistry } from '@runtime/PluginRegistry';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, '../../');
+const __dirname = esmDirname(import.meta.url);
+
+const MAX_PACKAGE_ROOT_SEARCH_DEPTH = 20;
+
+function findPackageRoot(startDir: string): string {
+  let current = startDir;
+
+  for (let i = 0; i < MAX_PACKAGE_ROOT_SEARCH_DEPTH; i++) {
+    if (existsSync(path.join(current, 'package.json'))) return current;
+
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  // Fallback to a reasonable default if package.json isn't found.
+  return path.resolve(startDir, '../..');
+}
+
+function resolveProjectRoot(): string {
+  const fromEnv = process.env['ZINTRUST_PROJECT_ROOT'];
+  if (fromEnv !== undefined && fromEnv.trim().length > 0) return fromEnv.trim();
+  return process.cwd();
+}
+
+function resolveTemplateRootOrThrow(): string {
+  const packageRoot = findPackageRoot(__dirname);
+
+  const candidates = [
+    // Monorepo/dev layout
+    path.join(packageRoot, 'src', 'templates'),
+    // Packed layout (if templates are shipped without src)
+    path.join(packageRoot, 'templates'),
+    // Common build output layout
+    path.join(packageRoot, 'dist', 'templates'),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  throw ErrorFactory.createNotFoundError('Plugin templates directory not found', {
+    candidates,
+    packageRoot,
+  });
+}
 
 type PackageJsonDeps = Readonly<{
   dependencies?: Record<string, string>;
@@ -54,18 +99,54 @@ function getPluginOrThrow(pluginId: string): { resolvedId: string; plugin: Plugi
   return { resolvedId, plugin: PluginRegistry[resolvedId] };
 }
 
-function npmInstall(packages: string[], options: { dev: boolean; label: string }): void {
+async function npmInstall(
+  packages: string[],
+  options: { dev: boolean; label: string; packageManager?: string; projectRoot?: string }
+): Promise<void> {
   if (packages.length === 0) return;
 
   Logger.info(`Installing ${options.label}: ${packages.join(', ')}...`);
-  const devFlag = options.dev ? '-D ' : '';
+
+  const projectRoot = options.projectRoot ?? resolveProjectRoot();
+  const pm = options.packageManager ?? resolvePackageManager();
+
+  let cmd: string;
+  let args: string[] = [];
+
+  switch (pm) {
+    case 'pnpm':
+      cmd = 'pnpm';
+      args = ['add', ...packages, ...(options.dev ? ['-D'] : [])];
+      break;
+    case 'yarn':
+      cmd = 'yarn';
+      args = ['add', ...packages, ...(options.dev ? ['--dev'] : [])];
+      break;
+    case 'npm':
+    default:
+      cmd = 'npm';
+      args = ['install', ...(options.dev ? ['--save-dev'] : []), ...packages];
+      break;
+  }
 
   try {
-    const cmd = `npm install ${devFlag}${packages.join(' ')}`; // NOSONAR
-    execSync(cmd, {
-      stdio: 'inherit',
-      cwd: PROJECT_ROOT,
-    });
+    if (pm === 'npm') {
+      // Preserve legacy execSync behavior for npm so integration tests and simple CLI usage behave identically
+      const cmdStr = options.dev
+        ? `npm install -D ${packages.join(' ')}`
+        : `npm install ${packages.join(' ')}`; // NOSONAR
+      execSync(cmdStr, { stdio: 'inherit', cwd: projectRoot });
+    } else {
+      const exit = await SpawnUtil.spawnAndWait({ command: cmd, args, cwd: projectRoot });
+      if (exit !== 0) {
+        throw ErrorFactory.createCliError(
+          `Package manager ${pm} failed to install ${options.label}`,
+          {
+            exit,
+          }
+        );
+      }
+    }
   } catch (error: unknown) {
     ErrorFactory.createCliError(`Failed to install ${options.label}`, { error });
     throw error;
@@ -73,9 +154,26 @@ function npmInstall(packages: string[], options: { dev: boolean; label: string }
 }
 
 async function copyPluginTemplates(plugin: PluginDefinition): Promise<void> {
+  const templateRoot = resolveTemplateRootOrThrow();
+  const projectRoot = resolveProjectRoot();
+
   for (const template of plugin.templates) {
-    const sourcePath = path.join(PROJECT_ROOT, 'src/templates', template.source);
-    const destPath = path.join(PROJECT_ROOT, template.destination);
+    const sourcePath = path.join(templateRoot, template.source);
+    const destPath = path.join(projectRoot, template.destination);
+
+    // Prevent path traversal: resolved destination must be within project root
+    const resolvedDest = path.resolve(destPath);
+    const resolvedProjectRoot = path.resolve(projectRoot);
+    if (
+      !(
+        resolvedDest === resolvedProjectRoot ||
+        resolvedDest.startsWith(resolvedProjectRoot + path.sep)
+      )
+    ) {
+      throw ErrorFactory.createCliError(`Invalid template destination: ${template.destination}`, {
+        destination: template.destination,
+      });
+    }
 
     Logger.info(`Copying ${template.source} to ${template.destination}...`);
 
@@ -96,15 +194,26 @@ async function copyPluginTemplates(plugin: PluginDefinition): Promise<void> {
 function runPostInstall(plugin: PluginDefinition): void {
   if (!plugin.postInstall) return;
 
+  const projectRoot = resolveProjectRoot();
+
   if (plugin.postInstall.command !== undefined) {
-    Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
-    try {
-      execSync(plugin.postInstall.command, {
-        stdio: 'inherit',
-        cwd: PROJECT_ROOT,
-      });
-    } catch (error: unknown) {
-      ErrorFactory.createCliError('Post-install command failed', { error });
+    // Post-install command execution is opt-in. To avoid arbitrary command execution
+    // and reduce supply-chain risk, we only execute when ZINTRUST_ALLOW_POSTINSTALL=1
+    const allow = String(process.env['ZINTRUST_ALLOW_POSTINSTALL'] ?? '').trim() === '1';
+    if (allow) {
+      Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
+      try {
+        execSync(plugin.postInstall.command, {
+          stdio: 'inherit',
+          cwd: projectRoot,
+        });
+      } catch (error: unknown) {
+        ErrorFactory.createCliError('Post-install command failed', { error });
+      }
+    } else {
+      Logger.info(
+        `Post-install command available but not executed (ZINTRUST_ALLOW_POSTINSTALL!=1): ${plugin.postInstall.command}`
+      );
     }
   }
 
@@ -147,16 +256,17 @@ export const PluginManager = Object.freeze({
     }
 
     const plugin = PluginRegistry[resolvedId];
+    const projectRoot = resolveProjectRoot();
 
     // Check if the main template file exists in the destination
     // We assume if the first template exists, the plugin is "installed"
     if (plugin.templates.length > 0) {
-      const destPath = path.join(PROJECT_ROOT, plugin.templates[0].destination);
+      const destPath = path.join(projectRoot, plugin.templates[0].destination);
       try {
         await fs.access(destPath);
 
         // Also check if dependencies are in package.json
-        const packageJsonPath = path.join(PROJECT_ROOT, 'package.json');
+        const packageJsonPath = path.join(projectRoot, 'package.json');
         const packageJsonText = await fs.readFile(packageJsonPath, 'utf-8');
         const packageJson = parsePackageJsonDeps(packageJsonText);
 
@@ -179,19 +289,28 @@ export const PluginManager = Object.freeze({
   /**
    * Install a plugin
    */
-  async install(pluginId: string): Promise<void> {
+  async install(pluginId: string, options?: { packageManager?: string }): Promise<void> {
     const { plugin } = getPluginOrThrow(pluginId);
 
     Logger.info(`Installing plugin: ${plugin.name}...`);
 
-    // 1. Install dependencies
-    npmInstall(plugin.dependencies, { dev: false, label: 'dependencies' });
-    npmInstall(plugin.devDependencies, { dev: true, label: 'dev dependencies' });
+    // 1. Install dependencies (use SpawnUtil and support multiple package managers)
+    await npmInstall(plugin.dependencies, {
+      dev: false,
+      label: 'dependencies',
+      packageManager: options?.packageManager,
+    });
+
+    await npmInstall(plugin.devDependencies, {
+      dev: true,
+      label: 'dev dependencies',
+      packageManager: options?.packageManager,
+    });
 
     // 2. Copy templates
     await copyPluginTemplates(plugin);
 
-    // 3. Post-Install
+    // 3. Post-Install (still executed via execSync - opt-in)
     runPostInstall(plugin);
 
     Logger.info(`✓ Plugin ${plugin.name} installed successfully`);

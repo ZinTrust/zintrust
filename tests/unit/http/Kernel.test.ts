@@ -83,11 +83,18 @@ describe('Kernel', () => {
       getMethod: vi.fn().mockReturnValue('GET'),
       getPath: vi.fn().mockReturnValue('/test'),
       setParams: vi.fn(),
+      getHeader: vi.fn().mockReturnValue(undefined),
+      getRaw: vi.fn().mockReturnValue({ socket: { remoteAddress: '127.0.0.1' } }),
+      getBody: vi.fn().mockReturnValue({}),
+      context: { sessionId: 'test-session' },
     } as unknown as IRequest;
 
     mockResponse = {
       setStatus: vi.fn().mockReturnThis(),
+      getStatus: vi.fn().mockReturnValue(200),
+      setHeader: vi.fn().mockReturnThis(),
       json: vi.fn(),
+      getRaw: vi.fn().mockReturnValue(mockRes),
       locals: {},
     } as unknown as IResponse;
 
@@ -148,7 +155,12 @@ describe('Kernel', () => {
     await kernel.handleRequest(mockRequest, mockResponse);
 
     expect(responseStatusSpy(mockResponse)).toHaveBeenCalledWith(404);
-    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Not Found' });
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 404,
+        code: 'NOT_FOUND',
+      })
+    );
   });
 
   it('should handle internal server error', async () => {
@@ -161,7 +173,12 @@ describe('Kernel', () => {
 
     expect(Logger.error).toHaveBeenCalledWith('Kernel error:', error);
     expect(responseStatusSpy(mockResponse)).toHaveBeenCalledWith(500);
-    expect(mockResponse.json).toHaveBeenCalledWith({ error: 'Internal Server Error' });
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 500,
+        code: 'INTERNAL_SERVER_ERROR',
+      })
+    );
   });
 
   it('should handle Node request/response via handle()', async () => {

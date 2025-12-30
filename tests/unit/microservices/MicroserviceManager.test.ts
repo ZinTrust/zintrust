@@ -573,6 +573,9 @@ describe('MicroserviceManager', () => {
 
       service1.status = 'running';
       service2.status = 'running';
+
+      const summary = getStatusSummary();
+      expect(summary['runningServices']).toBe(2);
     });
 
     it('should include service details in summary', async () => {

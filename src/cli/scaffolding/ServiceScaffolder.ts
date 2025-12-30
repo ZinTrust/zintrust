@@ -209,10 +209,10 @@ import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { Logger } from '@config/logger';
 import { Env } from '@config/env';
+import { esmDirname } from '@common/index';
 import * as path from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = esmDirname(import.meta.url);
 const app = new Application(path.join(__dirname, '..'));
 const port = Env.getInt('${options.name?.toUpperCase()}_PORT', ${options.port ?? 3001});
 

@@ -46,7 +46,10 @@ The default driver for local development. It stores data in a simple JavaScript 
 
 ### Cloudflare KV Driver (`kv`)
 
-Designed for Cloudflare Workers. It uses the native `KV` binding (expected binding name: `CACHE`).
+Designed for Cloudflare Workers.
+
+- Expected Workers binding name: `CACHE`
+- The Workers environment is exposed to framework code via `globalThis.env` (set by the Cloudflare `fetch()` entrypoint)
 
 ### Redis Driver (`redis`)
 

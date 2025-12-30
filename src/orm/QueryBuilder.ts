@@ -51,11 +51,24 @@ interface QueryState {
  */
 const escapeIdentifier = (id: string): string => `"${id.replaceAll('"', '""')}"`;
 
+const isNumericLiteral = (value: string): boolean => {
+  // Strict, injection-resistant numeric literal allow-list.
+  // Allows: 0, 1, 1.5, 0001
+  // Disallows: 1e3, 1;DROP, 1 as ok
+  return /^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value);
+};
+
 /**
  * Build SELECT clause
  */
 const buildSelectClause = (columns: string[]): string =>
-  columns.map((c) => (c === '*' ? c : escapeIdentifier(c))).join(', ');
+  columns
+    .map((c) => {
+      if (c === '*') return c;
+      if (isNumericLiteral(c)) return c;
+      return escapeIdentifier(c);
+    })
+    .join(', ');
 
 /**
  * Build WHERE clause
@@ -157,13 +170,11 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
     isReadOperation: () => true,
     toSQL: () => {
       const columns = buildSelectClause(state.selectColumns);
-      const tableEscaped = escapeIdentifier(state.tableName);
-      return `SELECT ${columns} FROM ${tableEscaped}${buildWhereClause(
-        state.whereConditions
-      )}${buildOrderByClause(state.orderByClause)}${buildLimitOffsetClause(
-        state.limitValue,
-        state.offsetValue
-      )}`;
+      const fromClause =
+        state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName)}` : '';
+      return `SELECT ${columns}${fromClause}${buildWhereClause(state.whereConditions)}${buildOrderByClause(
+        state.orderByClause
+      )}${buildLimitOffsetClause(state.limitValue, state.offsetValue)}`;
     },
     getParameters: () => state.whereConditions.map((clause) => clause.value),
     first: async <T>() => executeFirst<T>(builder, db),
@@ -192,5 +203,16 @@ export const QueryBuilder = Object.freeze({
     };
 
     return createBuilder(state, db);
+  },
+
+  /**
+   * Ping the database connection.
+   *
+   * This is intentionally a tiny, dependency-free check that can be reused by
+   * health/readiness endpoints without embedding SQL in route handlers.
+   */
+  async ping(db: IDatabase): Promise<void> {
+    // Use the QueryBuilder itself to avoid embedding raw SQL at call sites.
+    await QueryBuilder.create('', db).select('1').get();
   },
 });

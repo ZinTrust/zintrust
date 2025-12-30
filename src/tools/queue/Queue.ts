@@ -1,0 +1,59 @@
+import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
+
+interface IQueueDriver {
+  enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
+  dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
+  ack(queue: string, id: string): Promise<void>;
+  length(queue: string): Promise<number>;
+  drain(queue: string): Promise<void>;
+}
+
+const drivers = new Map<string, IQueueDriver>();
+
+export const Queue = Object.freeze({
+  register(name: string, driver: IQueueDriver) {
+    drivers.set(name.toLowerCase(), driver);
+  },
+
+  get(name?: string): IQueueDriver {
+    const driverName = (name ?? process.env['QUEUE_DRIVER'] ?? 'inmemory')
+      .toString()
+      .trim()
+      .toLowerCase();
+    const driver = drivers.get(driverName);
+    if (!driver) throw ErrorFactory.createConfigError(`Queue driver not registered: ${driverName}`);
+    return driver;
+  },
+
+  async enqueue<T = unknown>(queue: string, payload: T, driverName?: string): Promise<string> {
+    const driver = Queue.get(driverName);
+    return driver.enqueue(queue, payload);
+  },
+
+  async dequeue<T = unknown>(
+    queue: string,
+    driverName?: string
+  ): Promise<QueueMessage<T> | undefined> {
+    const driver = Queue.get(driverName);
+    return driver.dequeue(queue);
+  },
+
+  async ack(queue: string, id: string, driverName?: string): Promise<void> {
+    const driver = Queue.get(driverName);
+    return driver.ack(queue, id);
+  },
+
+  async length(queue: string, driverName?: string): Promise<number> {
+    const driver = Queue.get(driverName);
+    return driver.length(queue);
+  },
+
+  async drain(queue: string, driverName?: string): Promise<void> {
+    const driver = Queue.get(driverName);
+    return driver.drain(queue);
+  },
+});
+
+export default Queue;
