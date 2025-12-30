@@ -67,7 +67,11 @@ const sanitizeHtml = (html: string): string => {
   );
 
   // Remove style tags and style attributes with potentially dangerous content
-  sanitized = sanitized.replaceAll(/<style\b[\s\S]*?<\/style>/gi, '');
+  let prevSanitized: string;
+  do {
+    prevSanitized = sanitized;
+    sanitized = sanitized.replaceAll(/<style\b[\s\S]*?<\/style>/gi, '');
+  } while (sanitized !== prevSanitized);
   sanitized = sanitized.replaceAll(/\bstyle\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi, '');
 
   // Remove form elements
