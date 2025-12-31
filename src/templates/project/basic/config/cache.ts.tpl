@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 type MemoryCacheDriverConfig = {
   driver: 'memory';

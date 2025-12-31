@@ -2,10 +2,10 @@
   "name": "basic",
   "description": "Basic Zintrust project structure",
   "directories": [
+    "config",
     "app/Controllers",
     "app/Middleware",
     "app/Models",
-    "config",
     "database/migrations",
     "database/seeders",
     "logs",

@@ -1,19 +1,15 @@
 /**
  * Environment Configuration
- * Type-safe access to environment variables
- *
- * Sealed namespace pattern - all exports through Env namespace
- * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
+ * Re-exports core Env and adds any project-specific environment helpers
+ * Safe for both Node.js and serverless runtimes
  */
+
+export { Env } from '@zintrust/core';
 
 type ProcessLike = {
   env?: Record<string, string | undefined>;
   execPath?: string;
   platform?: string;
-};
-
-const getProcessLike = (): ProcessLike | undefined => {
-  return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
 };
 
 const dirnameFromExecPath = (execPath: string, platform?: string): string => {

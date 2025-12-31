@@ -1,4 +1,4 @@
-import { sendSlackWebhook } from '@notification/drivers/Slack';
+import { sendSlackWebhook } from '@zintrust/core';
 
 export async function sendSlackNotification(
   webhookUrl: string,

@@ -4,8 +4,9 @@
  */
 
 import { User } from '@app/Models/User';
-import { Logger } from '@config/logger';
-import { type IRequest, type IResponse } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
+import { IRequest } from '@zintrust/core';
+import { IResponse } from '@zintrust/core';
 
 /**
  * User Controller Interface

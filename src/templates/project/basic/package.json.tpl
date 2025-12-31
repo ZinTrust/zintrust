@@ -11,9 +11,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@zintrust/core": "^0.1.4"
+    "@zintrust/core": "^{{coreVersion}}"
   },
   "devDependencies": {
+    "@types/node": "^25.0.3",
     "tsx": "^4.21.0",
     "tsc-alias": "^1.8.16",
     "typescript": "^5.9.3",

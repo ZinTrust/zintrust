@@ -206,7 +206,7 @@ const hasAuth = response.hasHeader('authorization');
 
 ```typescript
 import { HttpClient } from '@httpClient/Http';
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 async function fetchGithubUser(username: string) {
   const response = await HttpClient.get(`https://api.github.com/users/${username}`)
@@ -243,7 +243,7 @@ async function logToSlack(message: string, level: 'info' | 'error') {
 
 ```typescript
 import { HttpClient } from '@httpClient/Http';
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 async function callUserService(action: string, data: unknown) {
   const response = await HttpClient.post(`${Env.get('USER_SERVICE_URL')}/api/${action}`, data)
@@ -263,7 +263,7 @@ async function callUserService(action: string, data: unknown) {
 
 ```typescript
 import { HttpClient } from '@httpClient/Http';
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 async function publishEvent(channel: string, event: string, data: unknown) {
   const response = await HttpClient.post(Env.get('REDIS_HTTPS_ENDPOINT'), {

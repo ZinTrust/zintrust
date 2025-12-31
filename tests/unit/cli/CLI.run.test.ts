@@ -49,16 +49,16 @@ describe('CLI.run', () => {
     vi.restoreAllMocks();
   });
 
-  it('should print version (no banner) when -v is provided', async () => {
+  it('should print version banner when -v is provided', async () => {
     await cli.run(['-v']);
-    expect(ErrorHandler.banner).not.toHaveBeenCalled();
-    expect(program.parseAsync).toHaveBeenCalledWith(['node', 'zintrust', '-v']);
+    expect(ErrorHandler.banner).toHaveBeenCalledWith(expect.any(String));
+    expect(program.parseAsync).not.toHaveBeenCalled();
   });
 
-  it('should print version (no banner) when --version is provided', async () => {
+  it('should print version banner when --version is provided', async () => {
     await cli.run(['--version']);
-    expect(ErrorHandler.banner).not.toHaveBeenCalled();
-    expect(program.parseAsync).toHaveBeenCalledWith(['node', 'zintrust', '--version']);
+    expect(ErrorHandler.banner).toHaveBeenCalledWith(expect.any(String));
+    expect(program.parseAsync).not.toHaveBeenCalled();
   });
 
   it('should show help when no arguments provided', async () => {

@@ -5,48 +5,7 @@
  */
 
 import { Env } from '@config/env';
-
-type MemoryCacheDriverConfig = {
-  driver: 'memory';
-  ttl: number;
-};
-
-type RedisCacheDriverConfig = {
-  driver: 'redis';
-  host: string;
-  port: number;
-  ttl: number;
-};
-
-type MongoCacheDriverConfig = {
-  driver: 'mongodb';
-  uri: string;
-  db: string;
-  ttl: number;
-};
-
-type KvCacheDriverConfig = {
-  driver: 'kv';
-  ttl: number;
-};
-
-type CacheDriverConfig =
-  | MemoryCacheDriverConfig
-  | RedisCacheDriverConfig
-  | MongoCacheDriverConfig
-  | KvCacheDriverConfig;
-
-type CacheDrivers = {
-  memory: MemoryCacheDriverConfig;
-  redis: RedisCacheDriverConfig;
-  mongodb: MongoCacheDriverConfig;
-  kv: KvCacheDriverConfig;
-};
-
-type CacheConfigInput = {
-  default: string;
-  drivers: CacheDrivers;
-};
+import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from '@config/type';
 
 const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
   const defaultDriver = config.default;

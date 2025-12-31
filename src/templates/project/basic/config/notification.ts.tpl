@@ -5,7 +5,7 @@
  * Keeps runtime driver selection in one place and uses Env for safe access.
  */
 
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 export type KnownNotificationDriverName = 'console' | 'termii' | 'twilio' | 'slack';
 

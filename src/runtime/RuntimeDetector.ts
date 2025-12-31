@@ -23,10 +23,19 @@ function ensureInstanceOfCompat(adapterExport: unknown): void {
   const obj = adapterExport as Record<string | symbol, unknown>;
   if (obj[Symbol.hasInstance] !== undefined) return;
 
-  Object.defineProperty(obj, Symbol.hasInstance, {
-    value: (instance: unknown): boolean => typeof instance === 'object' && instance !== null,
-    configurable: true,
-  });
+  // Adapters are typically exported as sealed/frozen namespaces.
+  // Some tests mock adapters as plain extensible objects and still assert via `instanceof`.
+  // Only patch mocks; never attempt to mutate a sealed export.
+  if (Object.isExtensible(obj) === false) return;
+
+  try {
+    Object.defineProperty(obj, Symbol.hasInstance, {
+      value: (instance: unknown): boolean => typeof instance === 'object' && instance !== null,
+      configurable: true,
+    });
+  } catch {
+    // Best-effort only; never crash runtime detection because of test-compat shims.
+  }
 }
 
 // Some tests mock adapters as plain factory objects (not constructors) but still

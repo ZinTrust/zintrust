@@ -42,6 +42,7 @@ vi.mock('@node-singletons/http', () => ({
     return {
       listen: vi.fn((_port, _host, cb) => cb?.()),
       close: vi.fn((cb) => cb?.()),
+      on: vi.fn(),
     };
   }),
 }));
@@ -223,7 +224,7 @@ describe('Application & Server', () => {
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
-    const docPath = path.join(process.cwd(), 'docs-website/public', 'doc');
+    const docPath = path.join(process.cwd(), 'public');
     const expectedHtmlPath = path.join(docPath, 'clean-url.html');
 
     vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
@@ -232,7 +233,7 @@ describe('Application & Server', () => {
     });
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
 
-    const mockReq = { url: '/doc/clean-url', method: 'GET', headers: {}, on: vi.fn() } as any;
+    const mockReq = { url: '/clean-url', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),
       writeHead: vi.fn(),
@@ -267,13 +268,7 @@ describe('Application & Server', () => {
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
-    const expectedIndexPath = path.join(
-      process.cwd(),
-      'docs-website/public',
-      'doc',
-      'dir',
-      'index.html'
-    );
+    const expectedIndexPath = path.join(process.cwd(), 'public', 'index.html');
 
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     vi.spyOn(fs, 'statSync').mockReturnValue({
@@ -283,7 +278,7 @@ describe('Application & Server', () => {
     } as any);
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
 
-    const mockReq = { url: '/doc/dir', method: 'GET', headers: {}, on: vi.fn() } as any;
+    const mockReq = { url: '/doc', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),
       writeHead: vi.fn(),

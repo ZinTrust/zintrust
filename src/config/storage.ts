@@ -5,60 +5,12 @@
  */
 
 import { Env } from '@config/env';
-
-type EnvGetValue = ReturnType<typeof Env.get>;
-type EnvGetBoolValue = ReturnType<typeof Env.getBool>;
-
-type LocalStorageDriverConfig = {
-  driver: 'local';
-  root: EnvGetValue;
-  url: EnvGetValue;
-  visibility: EnvGetValue;
-};
-
-type S3StorageDriverConfig = {
-  driver: 's3';
-  accessKeyId: EnvGetValue;
-  secretAccessKey: EnvGetValue;
-  region: typeof Env.AWS_REGION;
-  bucket: EnvGetValue;
-  url: EnvGetValue;
-  endpoint: EnvGetValue;
-  usePathStyleUrl: EnvGetBoolValue;
-};
-
-type R2StorageDriverConfig = {
-  driver: 'r2';
-  accessKeyId: EnvGetValue;
-  secretAccessKey: EnvGetValue;
-  region: EnvGetValue;
-  bucket: EnvGetValue;
-  endpoint: EnvGetValue;
-  url: EnvGetValue;
-};
-
-type GcsStorageDriverConfig = {
-  driver: 'gcs';
-  projectId: EnvGetValue;
-  keyFile: EnvGetValue;
-  bucket: EnvGetValue;
-  url: EnvGetValue;
-};
-
-type StorageDrivers = {
-  local: LocalStorageDriverConfig;
-  s3: S3StorageDriverConfig;
-  r2: R2StorageDriverConfig;
-  gcs: GcsStorageDriverConfig;
-};
-
-type StorageDriverName = keyof StorageDrivers;
-type StorageDriverConfig = StorageDrivers[StorageDriverName];
-
-type StorageConfigRuntime = {
-  readonly default: string;
-  readonly drivers: StorageDrivers;
-};
+import type {
+  StorageConfigRuntime,
+  StorageDriverConfig,
+  StorageDriverName,
+  StorageDrivers,
+} from '@config/type';
 
 const isStorageDriverName = (
   value: string,

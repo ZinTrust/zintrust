@@ -4,11 +4,10 @@
  * Exported from node:http built-in
  */
 
-export {
-  createServer,
-  IncomingMessage,
+export { createServer, IncomingMessage, ServerResponse } from 'node:http';
+export type {
+  IncomingHttpHeaders,
   OutgoingHttpHeader,
   OutgoingHttpHeaders,
-  ServerResponse,
+  Server,
 } from 'node:http';
-export type { IncomingHttpHeaders, Server } from 'node:http';

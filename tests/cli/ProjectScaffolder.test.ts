@@ -66,10 +66,21 @@ describe('ProjectScaffolder Templates', () => {
     expect(apiRoutes).toContain("'@zintrust/core'");
     expect(apiRoutes).not.toContain("'@routing/Router'");
 
-    const httpLogger = template?.files['config/logging/HttpLogger.ts'] ?? '';
-    expect(httpLogger).toContain("'@zintrust/core'");
-    expect(httpLogger).not.toContain("'@httpClient/Http'");
-    expect(httpLogger).not.toContain("'@exceptions/ZintrustError'");
+    // Config internals are core-owned and should not be scaffolded.
+    expect(template?.files['config/logging/HttpLogger.ts']).toBeUndefined();
+
+    // App-level config modules are scaffolded for developer customization.
+    expect(template?.files['config/database.ts']).toBeDefined();
+    expect(template?.files['config/cache.ts']).toBeDefined();
+    expect(template?.files['config/queue.ts']).toBeDefined();
+    expect(template?.files['config/storage.ts']).toBeDefined();
+    expect(template?.files['config/mail.ts']).toBeDefined();
+    expect(template?.files['config/notification.ts']).toBeDefined();
+    expect(template?.files['config/broadcast.ts']).toBeDefined();
+
+    const userController = template?.files['app/Controllers/UserController.ts'] ?? '';
+    expect(userController).toContain("'@zintrust/core'");
+    expect(userController).not.toContain("'@config/logger'");
   });
 });
 
@@ -401,8 +412,8 @@ describe('ProjectScaffolder Configuration', () => {
     const env = FileGenerator.readFile(envPath);
     expect(env).toContain('APP_NAME=my-app');
     expect(env).toContain('APP_PORT=3001');
-    expect(env).toContain('APP_KEY=');
-    expect(env).not.toContain('base64:');
+    // APP_KEY should be auto-generated as base64 (32 bytes = 256-bit key)
+    expect(env).toMatch(/APP_KEY=[A-Za-z0-9+/]{43,44}={0,2}/); // base64 pattern for 32 bytes
   });
 });
 
@@ -568,7 +579,7 @@ describe('ProjectScaffolder Requirements', () => {
     expect(FileGenerator.fileExists(path.join(projectPath, 'package.json'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.env'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.zintrust.json'))).toBe(true);
-    expect(FileGenerator.fileExists(path.join(projectPath, 'config', 'middleware.ts'))).toBe(true);
+    expect(FileGenerator.directoryExists(path.join(projectPath, 'config'))).toBe(true);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'src'))).toBe(true);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'logs'))).toBe(true);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'storage'))).toBe(true);

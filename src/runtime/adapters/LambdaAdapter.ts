@@ -5,8 +5,8 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import {
   IncomingMessage,
-  OutgoingHttpHeader,
-  OutgoingHttpHeaders,
+  type OutgoingHttpHeader,
+  type OutgoingHttpHeaders,
   ServerResponse,
 } from '@node-singletons/http';
 import { Socket } from '@node-singletons/net';

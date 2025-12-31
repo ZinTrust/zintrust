@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootPackagePath = path.join(__dirname, '../package.json');
@@ -13,7 +13,7 @@ const rootPackage = JSON.parse(fs.readFileSync(rootPackagePath, 'utf-8'));
 function incrementPatch(version) {
   const parts = version.split('.');
   if (parts.length !== 3) return version;
-  return `${parts[0]}.${parts[1]}.${parseInt(parts[2], 10) + 1}`;
+  return `${parts[0]}.${parts[1]}.${Number.parseInt(parts[2], 10) + 1}`;
 }
 
 /**
@@ -34,17 +34,18 @@ function isGreater(v1, v2) {
  */
 function getLatestNpmVersion(packageName) {
   try {
-    return execSync(`npm view ${packageName} version`, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch (error) {
+    const cmd = `npm view ${packageName} version`;
+    return execSync(cmd, { encoding: 'utf8', ctdio: ['ignore', 'pipe', 'ignore'] }).trim(); // NOSONAR
+  } catch {
     return null;
   }
 }
 
 // 1. Determine next version
-const latestPublished = getLatestNpmVersion(rootPackage.name);
+const skipNpmVersionCheck =
+  process.env.DIST_SKIP_NPM_VERSION_CHECK === 'true' || process.env.CI === 'true';
+
+const latestPublished = skipNpmVersionCheck ? null : getLatestNpmVersion(rootPackage.name);
 let finalVersion = rootPackage.version;
 
 if (latestPublished) {
@@ -59,8 +60,8 @@ console.log(`📦 Local version:  ${rootPackage.version}`);
 console.log(`🌐 NPM version:    ${latestPublished || 'not published'}`);
 console.log(`🚀 Final version:  ${finalVersion}`);
 
-// 2. Update root package.json if version changed
-if (finalVersion !== rootPackage.version) {
+// 2. Update root package.json if version changed (skip in CI / when requested)
+if (!skipNpmVersionCheck && finalVersion !== rootPackage.version) {
   rootPackage.version = finalVersion;
   fs.writeFileSync(rootPackagePath, JSON.stringify(rootPackage, null, 2) + '\n');
   console.log('✅ Root package.json updated');
@@ -77,6 +78,17 @@ const distPackage = {
   type: 'module',
   main: 'src/index.js',
   types: 'src/index.d.ts',
+  exports: {
+    '.': {
+      types: './src/index.d.ts',
+      import: './src/index.js',
+    },
+    './node': {
+      types: './src/node.d.ts',
+      import: './src/node.js',
+    },
+    './package.json': './package.json',
+  },
   dependencies: rootPackage.dependencies,
   overrides: rootPackage.overrides,
   bin: {

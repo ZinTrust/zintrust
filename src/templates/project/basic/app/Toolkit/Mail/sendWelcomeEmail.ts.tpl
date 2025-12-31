@@ -1,4 +1,4 @@
-import { Mail } from '@mail/Mail';
+import { Mail } from '@zintrust/core';
 
 export async function sendWelcomeEmail(
   to: string,

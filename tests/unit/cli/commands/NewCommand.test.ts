@@ -608,7 +608,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -639,7 +639,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -667,7 +667,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -693,7 +693,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -745,7 +745,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -774,7 +774,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -806,7 +806,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -853,7 +853,7 @@ describe('NewCommand', () => {
       const result = await command.getProjectConfig('my-app', {
         template: 'basic',
         database: 'sqlite',
-        port: '3003',
+        port: '7777',
         description: '',
         interactive: false,
       });
@@ -970,7 +970,7 @@ describe('NewCommand', () => {
       const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1067,7 +1067,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1097,7 +1097,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1111,7 +1111,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1125,7 +1125,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1142,7 +1142,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1168,7 +1168,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 3003,
+        port: 7777,
         author: '',
         description: '',
       });
@@ -1285,7 +1285,7 @@ describe('NewCommand', () => {
 
       expect(config.template).toBe('basic');
       expect(config.database).toBe('sqlite');
-      expect(config.port).toBe(3003);
+      expect(config.port).toBe(7777);
     });
 
     it('should handle numeric port in prompt answers', async () => {
@@ -1301,13 +1301,13 @@ describe('NewCommand', () => {
         port: NaN,
       });
       config = await command.promptForConfig('port-project', options);
-      expect(config.port).toBe(3003);
+      expect(config.port).toBe(7777);
 
       vi.mocked(PromptHelper.prompt).mockResolvedValue({
         port: 'invalid',
       });
       config = await command.promptForConfig('port-project', options);
-      expect(config.port).toBe(3003);
+      expect(config.port).toBe(7777);
     });
 
     it('should call ProjectScaffolder.scaffold in runScaffolding', async () => {
@@ -1325,7 +1325,7 @@ describe('NewCommand', () => {
         {
           template: 'basic',
           database: 'sqlite',
-          port: 3003,
+          port: 7777,
           author: '',
           description: '',
         },

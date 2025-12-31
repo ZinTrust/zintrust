@@ -10,25 +10,13 @@
     "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/*"],
+      "@config/*": ["./config/*"],
       "@app/*": ["./app/*"],
       "@toolkit/*": ["./app/Toolkit/*"],
-      "@config/*": ["./config/*"],
       "@routes/*": ["./routes/*"],
-      "@database/*": ["./database/*"],
-
-      "@tools/*": ["./src/tools/*"],
-      "@httpClient/*": ["./src/tools/http/*"],
-      "@templates": ["./src/tools/templates/index.ts"],
-      "@templates/*": ["./src/tools/templates/*"],
-      "@mail/*": ["./src/tools/mail/*"],
-      "@storage": ["./src/tools/storage/index.ts"],
-      "@storage/*": ["./src/tools/storage/*"],
-      "@drivers/*": ["./src/tools/storage/drivers/*"],
-      "@notification/*": ["./src/tools/notification/*"],
-      "@broadcast/*": ["./src/tools/broadcast/*"],
-      "@queue/*": ["./src/tools/queue/*"]
+      "@database/*": ["./database/*"]
     }
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*", "config/**/*"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*"],
   "exclude": ["node_modules", "dist"]
 }

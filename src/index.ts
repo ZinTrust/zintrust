@@ -12,8 +12,13 @@ export { Request } from '@http/Request';
 export type { IRequest } from '@http/Request';
 export { Response } from '@http/Response';
 export type { IResponse } from '@http/Response';
+export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
+export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
+export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
 export { MiddlewareStack } from '@middleware/MiddlewareStack';
 export type { Middleware } from '@middleware/MiddlewareStack';
+export { RateLimiter } from '@middleware/RateLimiter';
+export { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 export { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -78,9 +83,47 @@ export { XssProtection } from '@security/XssProtection';
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
 
-// Config
+// Config (core-owned)
+export { Env } from '@config/env';
+export { Logger } from '@config/logger';
+
+export { appConfig } from '@config/app';
+export type { AppConfig } from '@config/app';
+
+export { cacheConfig } from '@config/cache';
+export type { CacheConfig } from '@config/cache';
+
+export { databaseConfig } from '@config/database';
+export type { DatabaseConfig as DatabaseRuntimeConfig } from '@config/database';
+
+export { microservicesConfig } from '@config/microservices';
+export type { MicroservicesConfig } from '@config/microservices';
+
+export { middlewareConfig } from '@config/middleware';
+export type { MiddlewareConfigType } from '@config/type';
+
+export { queueConfig } from '@config/queue';
+export type { QueueConfig } from '@config/queue';
+
+export { securityConfig } from '@config/security';
+
 export { mailConfig } from '@config/mail';
-export type { MailConfig, MailDriverConfig, MailDriverName } from '@config/mail';
+export type { MailConfig } from '@config/mail';
+
+export { storageConfig } from '@config/storage';
+export type { StorageConfig } from '@config/storage';
+
+export { startupConfig } from '@config/startup';
+export type { StartupConfig } from '@config/startup';
+
+export { Constants, DEFAULTS, ENV_KEYS, HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+export { FeatureFlags } from '@config/features';
+
+export { Cloudflare } from '@config/cloudflare';
+export { SecretsManager } from '@config/SecretsManager';
+export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type';
+
+// Config (validation)
 export { StartupConfigValidator } from '@config/StartupConfigValidator';
 
 // Mail
@@ -89,3 +132,20 @@ export type { SendMailInput, SendMailResult } from '@mail/Mail';
 
 export { SmtpDriver } from '@mail/drivers/Smtp';
 export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';
+
+// Notifications
+export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
+export { sendSms } from '@tools/notification/drivers/Twilio';
+
+// Health & Runtime (for scaffolded routes and health checks)
+export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
+
+// Broadcast (for real-time features)
+export { Broadcast } from '@tools/broadcast/Broadcast';
+
+// Storage (for file management and signed URLs)
+export { Storage } from '@tools/storage/index';
+export { LocalSignedUrl } from '@tools/storage/LocalSignedUrl';
+
+// NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
+// exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

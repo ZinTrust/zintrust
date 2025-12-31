@@ -133,6 +133,7 @@ function createServiceDirectories(servicePath: string): void {
     'src/middleware',
     'src/migrations',
     'src/factories',
+    'routes',
   ];
 
   for (const dir of dirs) {
@@ -149,7 +150,7 @@ function createServiceFiles(servicePath: string, options: ServiceOptions): strin
   const files: Array<{ path: string; content: string }> = [
     { path: 'service.config.json', content: generateServiceConfig(options) },
     { path: 'src/index.ts', content: generateServiceIndex(options) },
-    { path: 'src/routes.ts', content: generateServiceRoutes(options) },
+    { path: 'routes/api.ts', content: generateServiceRoutes(options) },
     { path: 'src/controllers/ExampleController.ts', content: generateExampleController(options) },
     { path: 'src/models/Example.ts', content: generateExampleModel(options) },
     { path: '.env', content: generateServiceEnv(options) },
@@ -205,24 +206,26 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { Application } from '@boot/Application';
-import { Server } from '@boot/Server';
+import { Application, Server } from '@zintrust/core';
 import { Logger } from '@config/logger';
 import { Env } from '@config/env';
 import { esmDirname } from '@common/index';
 import * as path from '@node-singletons/path';
 
 const __dirname = esmDirname(import.meta.url);
-const app = new Application(path.join(__dirname, '..'));
 const port = Env.getInt('${options.name?.toUpperCase()}_PORT', ${options.port ?? 3001});
 
-// Start server
-const server = new Server(app, port);
-server.start().then(() => {
-  Logger.info(\`${options.name} service running on port \${port}\`);
-});
+async function start(): Promise<void> {
+  const app = Application.create(path.join(__dirname, '..'));
+  await app.boot();
 
-export default app;
+  const server = Server.create(app, port);
+  await server.listen();
+
+  Logger.info(\`${options.name} service running on port \${port}\`);
+}
+
+await start();
 `;
 }
 
@@ -234,11 +237,11 @@ function generateServiceRoutes(options: ServiceOptions): string {
  * ${options.name} Service Routes
  */
 
-import { Router } from '@routing/Router';
+import { Router, type IRouter } from '@zintrust/core';
 
-export function registerRoutes(router: Router): void {
+export function registerRoutes(router: IRouter): void {
   // Example route
-  router.get('/', (req, res) => {
+  Router.get(router, '/', (_req, res) => {
     res.json({ message: '${options.name} service' });
   });
 }
@@ -254,9 +257,7 @@ function generateExampleController(options: ServiceOptions): string {
  * Example Controller for ${options.name} Service
  */
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { Controller } from '@http/Controller';
+import { type IRequest, type IResponse, Controller } from '@zintrust/core';
 
 export const ${className} = {
   ...Controller,
@@ -310,7 +311,7 @@ function generateExampleModel(options: ServiceOptions): string {
  * Example Model for ${options.name} Service
  */
 
-import { Model } from '@orm/Model';
+import { Model } from '@zintrust/core';
 
 export const Example = Model.define({
   table: '${options.name}',

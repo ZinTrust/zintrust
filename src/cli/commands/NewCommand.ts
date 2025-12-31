@@ -88,7 +88,7 @@ const getBooleanOption = (options: CommandOptions, key: string, fallback: boolea
 const getProjectDefaults = (name: string, options: CommandOptions): NewProjectConfig => {
   const template = getStringOption(options, 'template', 'basic') as TemplateType;
   const database = getStringOption(options, 'database', 'sqlite') as DatabaseType;
-  const portRaw = getStringOption(options, 'port', '3003');
+  const portRaw = getStringOption(options, 'port', '7777');
   const portParsed = Number.parseInt(portRaw, 10);
   const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 3000;
 
@@ -289,7 +289,7 @@ const addOptions = (command: Command): void => {
     'basic'
   );
   command.option('--database <type>', 'Database driver (sqlite, mysql, postgresql)', 'sqlite');
-  command.option('--port <number>', 'Default port number', '3003');
+  command.option('--port <number>', 'Default port number', '7777');
   command.option('--author <name>', 'Project author');
   command.option('--description <text>', 'Project description');
   command.option('--interactive', 'Run in interactive mode', true);

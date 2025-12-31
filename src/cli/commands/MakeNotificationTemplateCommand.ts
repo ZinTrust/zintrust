@@ -123,6 +123,7 @@ export const MakeNotificationTemplateCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'make:notification-template',
+      aliases: 'make:notification',
       description: 'Scaffold a notification markdown template into src/notification/markdown',
       addOptions,
       execute: async (options: MakeNotificationTemplateOptions) => {

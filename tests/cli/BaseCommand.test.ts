@@ -32,4 +32,20 @@ describe('BaseCommand', () => {
     const hasVerbose = options.some((opt: any) => opt.long === '--verbose');
     expect(hasVerbose).toBe(true);
   });
+
+  it('registers aliases when aliases is an array', (): void => {
+    const command = BaseCommand.create({
+      name: 'test-aliases',
+      description: 'Test command with aliases array',
+      aliases: ['make:mail', 'make:notification'],
+      execute: async () => {
+        // Empty implementation
+      },
+    });
+
+    const cmd = command.getCommand();
+    // Commander stores aliases on the command instance
+    expect(cmd.aliases()).toContain('make:mail');
+    expect(cmd.aliases()).toContain('make:notification');
+  });
 });

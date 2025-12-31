@@ -19,7 +19,7 @@ const withTimeout = async <T>(
   timeoutMs: number,
   label: string
 ): Promise<T> => {
-  if (timeoutMs <= 0) return promise;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -40,10 +40,18 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  const timeoutMs = Number(Env.SHUTDOWN_TIMEOUT);
+  const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
+  const forceExitMs = Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 2500);
   Logger.info(`${signal} received, shutting down gracefully...`);
 
   try {
+    const forceExitTimer = globalThis.setTimeout(() => {
+      process.exit(0);
+    }, forceExitMs);
+
+    // Best-effort: don't keep the process alive just for this timer
+    (forceExitTimer as unknown as { unref?: () => void }).unref?.();
+
     await withTimeout(
       (async () => {
         if (serverInstance !== undefined) {
@@ -57,6 +65,8 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
       timeoutMs,
       'Graceful shutdown timed out'
     );
+
+    globalThis.clearTimeout(forceExitTimer);
 
     process.exit(0);
   } catch (error: unknown) {
@@ -93,6 +103,7 @@ const BootstrapFunctions = Object.freeze({
       await server.listen();
 
       Logger.info(`Server running at http://${host}:${port}`);
+      Logger.info(`Zintrust documentation at http://${host}:${port}/doc`);
 
       // Start schedules for long-running runtimes (Node.js / Fargate)
       try {

@@ -6,11 +6,7 @@
  * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
  */
 
-type ProcessLike = {
-  env?: Record<string, string | undefined>;
-  execPath?: string;
-  platform?: string;
-};
+import { ProcessLike } from '@config/type';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
@@ -35,6 +31,7 @@ const getInt = (key: string, defaultValue?: number): number => {
   const env = proc?.env ?? {};
   const value = env[key];
   if (value === undefined || value === null) return defaultValue ?? 0;
+  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
   return Number.parseInt(value, 10);
 };
 
@@ -62,7 +59,8 @@ export const Env = Object.freeze({
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development'),
-  PORT: getInt('APP_PORT', 3000),
+  // Prefer PORT, fallback to APP_PORT for compatibility
+  PORT: getInt('PORT', getInt('APP_PORT', 3000)),
   HOST: get('HOST', 'localhost'),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
   APP_KEY: get('APP_KEY', ''),
@@ -71,7 +69,8 @@ export const Env = Object.freeze({
   DB_CONNECTION: get('DB_CONNECTION', 'sqlite'),
   DB_HOST: get('DB_HOST', 'localhost'),
   DB_PORT: getInt('DB_PORT', 5432),
-  DB_DATABASE: get('DB_DATABASE', 'zintrust'),
+  // Accept DB_PATH as an alias for sqlite file path (many env templates use it).
+  DB_DATABASE: get('DB_DATABASE', get('DB_PATH', 'zintrust')),
   DB_USERNAME: get('DB_USERNAME', 'postgres'),
   DB_PASSWORD: get('DB_PASSWORD', ''),
   DB_READ_HOSTS: get('DB_READ_HOSTS', ''),
