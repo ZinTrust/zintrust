@@ -306,9 +306,9 @@ const syncStarterProjectTemplates = (params: {
   });
 
   return {
-    updated: s1.updated + s2.updated + s3.updated + s4.updated + s5.updated,
-    skipped: s1.skipped + s2.skipped + s3.skipped + s4.skipped + s5.skipped,
-    total: s1.total + s2.total + s3.total + s4.total + s5.total,
+    updated: s1.updated + s3.updated + s4.updated + s5.updated,
+    skipped: s1.skipped + s3.skipped + s4.skipped + s5.skipped,
+    total: s1.total + s3.total + s4.total + s5.total,
   };
 };
 

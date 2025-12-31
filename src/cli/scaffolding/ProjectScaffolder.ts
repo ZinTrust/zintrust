@@ -313,7 +313,6 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
     'config/broadcast.ts',
     'config/cache.ts',
     'config/database.ts',
-    'config/logging/HttpLogger.ts',
     'config/mail.ts',
     'config/notification.ts',
     'config/queue.ts',
