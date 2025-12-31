@@ -13,14 +13,6 @@ function isDir(p) {
   }
 }
 
-function isFile(p) {
-  try {
-    return fs.statSync(p).isFile();
-  } catch {
-    return false;
-  }
-}
-
 function listTsFilesRecursive(dir) {
   /** @type {string[]} */
   const out = [];

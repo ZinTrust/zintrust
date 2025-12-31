@@ -14,13 +14,16 @@ RUN npm ci
 
 # Copy source code
 COPY tsconfig.json ./
+COPY env.d.ts ./
+COPY scripts ./scripts
+COPY public ./public
 COPY src ./src
 COPY app ./app
 COPY routes ./routes
 COPY bin ./bin
 
-# Build TypeScript to JavaScript
-RUN npm run build
+# Build TypeScript to JavaScript (CI build skips tests)
+RUN npm run build:ci
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
