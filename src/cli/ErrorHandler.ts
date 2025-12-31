@@ -61,28 +61,31 @@ const displayBanner = (version: string): void => {
   const env = Env.NODE_ENV || 'development';
   const db = Env.DB_CONNECTION || 'sqlite';
 
-  console.log(chalk.cyan('┌' + '─'.repeat(bannerWidth) + '┐'));
+  const border = chalk.cyanBright;
+  const label = chalk.bold.white;
+  const frameworkValue = chalk.bold.cyanBright;
+  const versionValue = chalk.bold.greenBright;
+  const envValue = chalk.bold.yellowBright;
+  const dbValue = chalk.bold.magentaBright;
+
+  console.log(border('┌' + '─'.repeat(bannerWidth) + '┐'));
   console.log(
-    `${chalk.cyan('│')} ${chalk.bold.white('Framework: ')}${chalk.bold.cyan(
+    `${border('│')} ${label('Framework: ')}${frameworkValue(
       framework.padEnd(bannerWidth - 12)
-    )} ${chalk.cyan('│')}`
+    )} ${border('│')}`
   );
   console.log(
-    `${chalk.cyan('│')} ${chalk.bold.white('Version:   ')}${chalk.bold.green(
+    `${border('│')} ${label('Version:   ')}${versionValue(
       version.padEnd(bannerWidth - 12)
-    )} ${chalk.cyan('│')}`
+    )} ${border('│')}`
   );
   console.log(
-    `${chalk.cyan('│')} ${chalk.bold.white('Env:       ')}${chalk.bold.yellow(
-      env.padEnd(bannerWidth - 12)
-    )} ${chalk.cyan('│')}`
+    `${border('│')} ${label('Env:       ')}${envValue(env.padEnd(bannerWidth - 12))} ${border('│')}`
   );
   console.log(
-    `${chalk.cyan('│')} ${chalk.bold.white('Database:  ')}${chalk.bold.magenta(
-      db.padEnd(bannerWidth - 12)
-    )} ${chalk.cyan('│')}`
+    `${border('│')} ${label('Database:  ')}${dbValue(db.padEnd(bannerWidth - 12))} ${border('│')}`
   );
-  console.log(chalk.cyan('└' + '─'.repeat(bannerWidth) + '┘'));
+  console.log(border('└' + '─'.repeat(bannerWidth) + '┘'));
   console.log();
   /* eslint-enable no-console */
 };

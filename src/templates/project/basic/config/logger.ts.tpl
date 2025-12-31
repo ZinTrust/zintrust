@@ -3,8 +3,8 @@
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
+import { Env } from '@zintrust/core';
 import { appConfig } from '@config/app';
-import { Env } from '@config/env';
 
 interface ILogger {
   debug(message: string, data?: unknown, category?: string): void;

@@ -8,9 +8,17 @@
 # Environment: development | staging | production
 NODE_ENV=development
 
+# Application Name
+APP_NAME=Zintrust App
+
 # Server Configuration
 HOST=
 PORT=
+
+# Application Encryption Key (base64 required for production)
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+# Used for: encryption, CSRF tokens, session tokens, API keys
+APP_KEY=
 
 # ============================================================================
 # DATABASE
@@ -156,4 +164,3 @@ DB_SYNCHRONIZE=
 
 # Database Logging
 DB_LOGGING=
-

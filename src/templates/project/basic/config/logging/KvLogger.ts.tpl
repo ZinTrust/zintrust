@@ -9,7 +9,7 @@
  */
 
 import { Cloudflare } from '@config/cloudflare';
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 export type KvLogEvent = {
   timestamp: string;
