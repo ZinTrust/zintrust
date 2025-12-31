@@ -639,7 +639,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 7777,
+        port: 3003,
         author: '',
         description: '',
       });
@@ -667,7 +667,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 7777,
+        port: 3003,
         author: '',
         description: '',
       });
@@ -774,7 +774,7 @@ describe('NewCommand', () => {
       command.getProjectConfig = vi.fn().mockResolvedValue({
         template: 'basic',
         database: 'sqlite',
-        port: 7777,
+        port: 3003,
         author: '',
         description: '',
       });
