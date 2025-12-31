@@ -2,13 +2,12 @@
 
 /**
  * Zintrust CLI - Main Entry Point
- * Command-line interface for Zintrust framework
- * Usage: zintrust [command] [options]
- * Shortcuts: zin, z
+ *
+ * This bin script is a thin wrapper around the hashbang-free implementation in
+ * bin/zintrust-main.ts. Keeping the implementation hashbang-free allows other
+ * shortcuts (zin/z/zt) to import it without parse issues.
  */
 
 import { run } from './zintrust-main';
 
 await run();
-
-export {};

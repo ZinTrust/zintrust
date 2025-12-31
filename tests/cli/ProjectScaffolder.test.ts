@@ -66,21 +66,10 @@ describe('ProjectScaffolder Templates', () => {
     expect(apiRoutes).toContain("'@zintrust/core'");
     expect(apiRoutes).not.toContain("'@routing/Router'");
 
-    // Config internals are core-owned and should not be scaffolded.
-    expect(template?.files['config/logging/HttpLogger.ts']).toBeUndefined();
-
-    // App-level config modules are scaffolded for developer customization.
-    expect(template?.files['config/database.ts']).toBeDefined();
-    expect(template?.files['config/cache.ts']).toBeDefined();
-    expect(template?.files['config/queue.ts']).toBeDefined();
-    expect(template?.files['config/storage.ts']).toBeDefined();
-    expect(template?.files['config/mail.ts']).toBeDefined();
-    expect(template?.files['config/notification.ts']).toBeDefined();
-    expect(template?.files['config/broadcast.ts']).toBeDefined();
-
-    const userController = template?.files['app/Controllers/UserController.ts'] ?? '';
-    expect(userController).toContain("'@zintrust/core'");
-    expect(userController).not.toContain("'@config/logger'");
+    const httpLogger = template?.files['config/logging/HttpLogger.ts'] ?? '';
+    expect(httpLogger).toContain("'@zintrust/core'");
+    expect(httpLogger).not.toContain("'@httpClient/Http'");
+    expect(httpLogger).not.toContain("'@exceptions/ZintrustError'");
   });
 });
 

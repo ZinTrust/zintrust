@@ -48,15 +48,6 @@ export const BaseCommand = Object.freeze({
       command.description(config.description);
       command.option('--verbose', 'Enable verbose output');
 
-      // Register aliases if provided
-      if (config.aliases !== undefined) {
-        if (Array.isArray(config.aliases)) {
-          command.aliases(config.aliases);
-        } else {
-          command.alias(config.aliases);
-        }
-      }
-
       // Add custom options
       if (config.addOptions) {
         config.addOptions(command);

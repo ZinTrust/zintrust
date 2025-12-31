@@ -3,10 +3,10 @@
  * Provides health, liveness, and readiness endpoints.
  */
 
-import { appConfig } from '@zintrust/core';
-import { RuntimeHealthProbes } from '@zintrust/core';
-import { Env } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
+import { appConfig } from '@/config';
+import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
+import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import { useDatabase } from '@zintrust/core';
 import { QueryBuilder } from '@zintrust/core';
 import { type IRouter, Router } from '@zintrust/core';

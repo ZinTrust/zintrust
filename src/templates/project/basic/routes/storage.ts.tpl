@@ -1,8 +1,8 @@
-import { HTTP_HEADERS } from '@zintrust/core';
-import { Env } from '@zintrust/core';
+import { HTTP_HEADERS } from '@config/constants';
+import { Env } from '@config/env';
 import { type IRouter, Router } from '@zintrust/core';
-import { LocalSignedUrl } from '@zintrust/core';
-import { Storage } from '@zintrust/core';
+import { LocalSignedUrl } from '@storage/LocalSignedUrl';
+import { Storage } from '@storage/index';
 
 export function registerStorageRoutes(router: IRouter): void {
   Router.get(router, '/storage/download', async (req, res) => {

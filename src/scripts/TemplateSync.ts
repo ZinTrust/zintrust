@@ -156,54 +156,24 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
 
   // Starter templates should import framework APIs from the public package surface,
   // not from internal path-alias modules that only exist in the framework repo.
-  //
-  // Most internal aliases can be collapsed to '@zintrust/core' because the public
-  // root entrypoint intentionally re-exports these symbols.
-  //
-  // Node-only APIs must come from '@zintrust/core/node'.
-  let out = content
-    .replaceAll("'@node-singletons/process'", "'@zintrust/core/node'")
-    .replaceAll('"@node-singletons/process"', '"@zintrust/core/node"');
-
-  const escapeForRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-  const collapsePrefixesToCore = [
-    '@boot/',
-    '@container/',
-    '@http/',
-    '@middleware/',
-    '@orm/',
-    '@routing/',
-    '@profiling/',
-    '@validation/',
-    '@security/',
-    '@exceptions/',
-    '@common/',
-    '@config/',
-    '@httpClient/',
-    '@mail/',
-    '@broadcast/',
-    '@notification/',
-    '@storage/',
-    '@tools/',
-  ];
-
-  for (const prefix of collapsePrefixesToCore) {
-    const re = new RegExp(`(['"])${escapeForRegExp(prefix)}[^'\\"]*\\1`, 'g');
-    out = out.replace(re, '$1@zintrust/core$1');
-  }
-
-  // Some synced files use the internal '@/' alias for framework internals.
-  // Only rewrite the ones used by starter templates.
-  out = out
-    .replaceAll("'@/config'", "'@zintrust/core'")
-    .replaceAll('"@/config"', '"@zintrust/core"')
-    .replaceAll("'@/health/RuntimeHealthProbes'", "'@zintrust/core'")
-    .replaceAll('"@/health/RuntimeHealthProbes"', '"@zintrust/core"')
-    .replaceAll("'@/orm/Relationships'", "'@zintrust/core'")
-    .replaceAll('"@/orm/Relationships"', '"@zintrust/core"');
-
-  return out;
+  return (
+    content
+      .replaceAll("'@routing/Router'", "'@zintrust/core'")
+      .replaceAll("'@orm/Database'", "'@zintrust/core'")
+      .replaceAll("'@orm/QueryBuilder'", "'@zintrust/core'")
+      .replaceAll("'@orm/DatabaseAdapter'", "'@zintrust/core'")
+      .replaceAll("'@exceptions/ZintrustError'", "'@zintrust/core'")
+      .replaceAll("'@common/index'", "'@zintrust/core'")
+      .replaceAll("'@httpClient/Http'", "'@zintrust/core'")
+      // Handle double-quoted module specifiers too
+      .replaceAll('"@routing/Router"', '"@zintrust/core"')
+      .replaceAll('"@orm/Database"', '"@zintrust/core"')
+      .replaceAll('"@orm/QueryBuilder"', '"@zintrust/core"')
+      .replaceAll('"@orm/DatabaseAdapter"', '"@zintrust/core"')
+      .replaceAll('"@exceptions/ZintrustError"', '"@zintrust/core"')
+      .replaceAll('"@common/index"', '"@zintrust/core"')
+      .replaceAll('"@httpClient/Http"', '"@zintrust/core"')
+  );
 };
 
 const syncRegistryMappings = (params: {
@@ -301,8 +271,15 @@ const syncStarterProjectTemplates = (params: {
     baseDirRel: 'app',
     templateDirRel: `${params.projectRoot}/app`,
     description: 'Starter project app/*',
+  });
+
+  const s2 = syncProjectTemplateDir({
+    checksums: params.checksums,
+    baseDirRel: 'src/config',
+    templateDirRel: `${params.projectRoot}/config`,
+    description: 'Starter project config/* (from src/config/*)',
     transformContent: rewriteStarterTemplateImports,
-    checksumSalt: 'starter-imports-v3',
+    checksumSalt: 'starter-imports-v1',
   });
 
   const s3 = syncProjectTemplateDir({
@@ -320,7 +297,7 @@ const syncStarterProjectTemplates = (params: {
     templateDirRel: `${params.projectRoot}/routes`,
     description: 'Starter project routes/*',
     transformContent: rewriteStarterTemplateImports,
-    checksumSalt: 'starter-imports-v3',
+    checksumSalt: 'starter-imports-v1',
   });
 
   const s5 = syncStarterEnvTemplate({
@@ -329,9 +306,9 @@ const syncStarterProjectTemplates = (params: {
   });
 
   return {
-    updated: s1.updated + s3.updated + s4.updated + s5.updated,
-    skipped: s1.skipped + s3.skipped + s4.skipped + s5.skipped,
-    total: s1.total + s3.total + s4.total + s5.total,
+    updated: s1.updated + s2.updated + s3.updated + s4.updated + s5.updated,
+    skipped: s1.skipped + s2.skipped + s3.skipped + s4.skipped + s5.skipped,
+    total: s1.total + s2.total + s3.total + s4.total + s5.total,
   };
 };
 

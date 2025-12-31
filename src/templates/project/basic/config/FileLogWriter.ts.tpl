@@ -3,7 +3,10 @@
  * Re-exports core FileLogWriter for optional use
  */
 
-export { FileLogWriter } from '@zintrust/core';
+import { ensureDirSafe } from '@zintrust/core';
+import { Env } from '@config/env';
+import * as fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 
 const getCwdSafe = (): string => {
   try {
