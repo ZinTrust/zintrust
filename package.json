@@ -31,9 +31,9 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
-    "build:ci": "npm run clean && tsc && tsc-alias",
-    "pro:build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
+    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
+    "build:ci": "npm run clean && tsc && tsc-alias && node scripts/fix-dist-esm-imports.mjs",
+    "pro:build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
     "watch": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -92,7 +92,7 @@
     "rebuild:bcrypt": "npm rebuild bcrypt",
     "rebuild:native": "npm rebuild bcrypt better-sqlite3",
     "b:push": "npm run sonarcloud:check && npm run lint --max-warnings=0",
-    "bg": "npm install -g dist"
+    "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -126,8 +126,7 @@
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "inquirer": "^13.1.0",
-    "jsonwebtoken": "^9.0.3",
-    "tsx": "^4.21.0"
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "^1.9.1",
@@ -146,6 +145,7 @@
     "prettier": "^3.7.4",
     "sonarqube-scanner": "^4.3.2",
     "tsc-alias": "^1.8.16",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.50.0",
     "vitest": "^4.0.16"
