@@ -43,6 +43,8 @@ export default defineConfig(
       'dev/**',
       'simulate/**',
       'test-project/**',
+      // Local scratch app generated during manual CLI testing.
+      'test-app/**',
     ],
   },
   eslint.configs.recommended,

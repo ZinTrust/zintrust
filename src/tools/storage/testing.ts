@@ -48,6 +48,7 @@ export const FakeStorage = Object.freeze({
   ) {
     const expiresIn = options?.expiresIn ?? 900;
     const method = options?.method ?? 'GET';
+    await Promise.resolve();
     return `fake://${disk}/${path}?expiresIn=${expiresIn}&method=${method}`;
   },
 
