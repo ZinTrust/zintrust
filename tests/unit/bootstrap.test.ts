@@ -53,6 +53,30 @@ vi.mock('@config/logger', () => ({
   },
 }));
 
+vi.mock('@/runtime/RuntimeDetector', () => ({
+  RuntimeDetector: {
+    detectRuntime: vi.fn(() => 'unknown'),
+  },
+}));
+
+vi.mock('@/scheduler/ScheduleRunner', () => ({
+  create: vi.fn(() => ({
+    register: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(async () => undefined),
+  })),
+}));
+
+vi.mock('@/schedules', () => ({
+  logCleanup: {
+    name: 'log-cleanup',
+    intervalMs: 0,
+    runOnStart: false,
+    enabled: true,
+    handler: vi.fn(async () => undefined),
+  },
+}));
+
 describe('Bootstrap', () => {
   type SignalName = 'SIGTERM' | 'SIGINT';
   type SignalHandler = () => void | Promise<void>;
@@ -152,5 +176,88 @@ describe('Bootstrap', () => {
 
     expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', internalError);
     expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  it('should log startup config errors + health report when bootstrap fails with details', async () => {
+    const error = Object.assign(new Error('Bootstrap failed'), {
+      details: {
+        errors: [{ path: 'APP_KEY', message: 'Missing APP_KEY' }],
+        report: { checks: [{ name: 'jwt-secret', ok: false }] },
+      },
+    });
+
+    (Server.create as unknown as Mock).mockImplementation(() => {
+      throw error;
+    });
+
+    await import('../../src/boot/bootstrap' + '?v=details-error');
+
+    expect(Logger.error).toHaveBeenCalledWith('Failed to bootstrap application:', error);
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Startup configuration errors:',
+      expect.arrayContaining([expect.objectContaining({ path: 'APP_KEY' })])
+    );
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Startup health report:',
+      expect.objectContaining({ checks: expect.any(Array) })
+    );
+    expect(process.exit).toHaveBeenCalledWith(1);
+  });
+
+  it('should stop schedules via shutdown manager hook', async () => {
+    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
+    (RuntimeDetector.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
+
+    const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
+    const runner = {
+      register: vi.fn(),
+      start: vi.fn(),
+      stop: vi.fn(async () => undefined),
+    };
+    (createScheduleRunner as unknown as Mock).mockReturnValue(runner);
+
+    let shutdownHook: (() => Promise<void> | void) | undefined;
+    const shutdownManager = {
+      add: vi.fn((fn: () => Promise<void> | void) => {
+        shutdownHook = fn;
+      }),
+    };
+
+    const appWithShutdownManager = {
+      ...mockApp,
+      getContainer: vi.fn().mockReturnValue({
+        get: vi.fn((key: string) => (key === 'shutdownManager' ? shutdownManager : undefined)),
+      }),
+    };
+    (Application.create as unknown as Mock).mockReturnValue(appWithShutdownManager);
+
+    const { Env } = await import('@config/env');
+    (Env.getInt as unknown as Mock).mockImplementation((key: string, defaultValue: number) => {
+      if (key === 'SCHEDULE_SHUTDOWN_TIMEOUT_MS') return 1234;
+      return defaultValue;
+    });
+
+    await import('../../src/boot/bootstrap' + '?v=schedule-shutdown-hook');
+
+    expect(shutdownManager.add).toHaveBeenCalledTimes(1);
+    expect(typeof shutdownHook).toBe('function');
+
+    await shutdownHook?.();
+    expect(runner.stop).toHaveBeenCalledWith(1234);
+  });
+
+  it('should warn when schedules fail to start', async () => {
+    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
+    (RuntimeDetector.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
+
+    const boom = new Error('schedule boom');
+    const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
+    (createScheduleRunner as unknown as Mock).mockImplementation(() => {
+      throw boom;
+    });
+
+    await import('../../src/boot/bootstrap' + '?v=schedule-start-failure');
+
+    expect(Logger.warn).toHaveBeenCalledWith('Failed to start schedules:', boom);
   });
 });

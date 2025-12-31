@@ -84,7 +84,7 @@ const securityConfigObj = {
    * API Key Authentication
    */
   apiKey: {
-    enabled: Env.getBool('API_KEY_ENABLED', true),
+    enabled: Env.getBool('API_KEY_ENABLED', false),
     headerName: Env.get('API_KEY_HEADER', 'x-api-key'),
     secret: Env.get('API_KEY_SECRET'),
   },
