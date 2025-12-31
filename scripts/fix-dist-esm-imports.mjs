@@ -5,6 +5,9 @@ const DEFAULT_ROOT = process.cwd();
 const DEFAULT_TARGETS = [
   path.join(DEFAULT_ROOT, 'dist', 'src'),
   path.join(DEFAULT_ROOT, 'dist', 'bin'),
+  // Compiled framework app/ + routes/ are runtime-loaded by Node and must be valid ESM.
+  path.join(DEFAULT_ROOT, 'dist', 'app'),
+  path.join(DEFAULT_ROOT, 'dist', 'routes'),
 ];
 
 const KNOWN_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json', '.node'];

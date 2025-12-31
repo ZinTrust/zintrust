@@ -71,5 +71,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 3000
 
-# Start application
-CMD ["npx", "tsx", "dist/src/bootstrap.js"]
+# Start application (compiled JS; no tsx needed in runtime)
+CMD ["node", "dist/src/boot/bootstrap.js"]

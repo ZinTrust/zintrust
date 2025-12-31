@@ -11,3 +11,4 @@
 import { run } from './zintrust-main';
 
 await run();
+export {};
