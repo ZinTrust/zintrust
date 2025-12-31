@@ -108,7 +108,7 @@ export type { QueueConfig } from '@config/queue';
 export { securityConfig } from '@config/security';
 
 export { mailConfig } from '@config/mail';
-export type { MailConfig, MailDriverConfig, MailDriverName } from '@config/mail';
+export type { MailConfig } from '@config/mail';
 
 export { storageConfig } from '@config/storage';
 export type { StorageConfig } from '@config/storage';
@@ -120,8 +120,8 @@ export { Constants, DEFAULTS, ENV_KEYS, HTTP_HEADERS, MIME_TYPES } from '@config
 export { FeatureFlags } from '@config/features';
 
 export { Cloudflare } from '@config/cloudflare';
-export type { WorkersEnv } from '@config/cloudflare';
 export { SecretsManager } from '@config/SecretsManager';
+export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type';
 
 // Config (validation)
 export { StartupConfigValidator } from '@config/StartupConfigValidator';

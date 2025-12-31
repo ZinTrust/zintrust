@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "paths": {
       "@/*": ["./src/*"],
+      "@config/*": ["./config/*"],
       "@app/*": ["./app/*"],
       "@toolkit/*": ["./app/Toolkit/*"],
       "@routes/*": ["./routes/*"],

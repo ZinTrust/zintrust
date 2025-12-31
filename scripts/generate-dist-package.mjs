@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { execSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootPackagePath = path.join(__dirname, '../package.json');
@@ -13,7 +13,7 @@ const rootPackage = JSON.parse(fs.readFileSync(rootPackagePath, 'utf-8'));
 function incrementPatch(version) {
   const parts = version.split('.');
   if (parts.length !== 3) return version;
-  return `${parts[0]}.${parts[1]}.${parseInt(parts[2], 10) + 1}`;
+  return `${parts[0]}.${parts[1]}.${Number.parseInt(parts[2], 10) + 1}`;
 }
 
 /**
@@ -34,11 +34,12 @@ function isGreater(v1, v2) {
  */
 function getLatestNpmVersion(packageName) {
   try {
-    return execSync(`npm view ${packageName} version`, {
+    const cmd = `npm view ${packageName} version`;
+    return execSync(cmd, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
-  } catch (error) {
+  } catch {
     return null;
   }
 }

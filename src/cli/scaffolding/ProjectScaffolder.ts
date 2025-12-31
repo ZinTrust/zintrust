@@ -309,13 +309,27 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
   const files: Record<string, string> = {};
   const allFiles = listTemplateFilesRecursive(templateDir);
 
+  const allowedConfigFiles = new Set<string>([
+    'config/broadcast.ts',
+    'config/cache.ts',
+    'config/database.ts',
+    'config/mail.ts',
+    'config/notification.ts',
+    'config/queue.ts',
+    'config/storage.ts',
+  ]);
+
   for (const absPath of allFiles) {
     const rel = path.relative(templateDir, absPath);
     if (rel === 'template.json') continue;
-    // Starter apps should not embed framework config internals.
-    // Keep the on-disk templates for framework/dev usage, but skip generating them.
+
+    // Starter apps should only ship app-level config modules.
+    // Core/framework config internals (e.g. config/logging/*) remain core-owned.
     const relNormalized = rel.replaceAll('\\', '/');
-    if (relNormalized === 'config' || relNormalized.startsWith('config/')) continue;
+    if (relNormalized.startsWith('config/')) {
+      const outputRel = rel.endsWith('.tpl') ? rel.slice(0, -'.tpl'.length) : rel;
+      if (!allowedConfigFiles.has(outputRel.replaceAll('\\', '/'))) continue;
+    }
 
     let content: string;
     try {
@@ -367,6 +381,7 @@ const BASIC_TEMPLATE: ProjectTemplate = {
   name: 'basic',
   description: 'Basic Zintrust project structure',
   directories: [
+    'config',
     'app/Controllers',
     'app/Middleware',
     'app/Models',

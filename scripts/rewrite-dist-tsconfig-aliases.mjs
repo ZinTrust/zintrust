@@ -62,6 +62,60 @@ function hasKnownExtension(specifier) {
 }
 
 /**
+ * Match a key split by '*' against a specifier without using regex backtracking.
+ * Returns an array with captured wildcard substrings (in order) or null if no match.
+ *
+ * Examples:
+ *  parts = ['@foo/', '/bar']  matches '@foo/x/bar' -> ['x']
+ *  parts = ['', '']           matches 'anything' -> ['anything']
+ */
+function matchWildcard(parts, specifier) {
+  let idx = 0;
+  /** @type {string[]} */
+  const values = [];
+
+  // Special-case: if pattern is just '*' (parts ['','']), capture entire specifier.
+  if (parts.length === 2 && parts[0] === '' && parts[1] === '') {
+    return [specifier];
+  }
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (part === '') {
+      // Leading, trailing or consecutive '*' => handled implicitly by captures between parts.
+      continue;
+    }
+
+    const pos = specifier.indexOf(part, idx);
+    if (pos === -1) return null;
+
+    if (i === 0 && pos !== 0) {
+      // If the first literal part doesn't start at the beginning, no match.
+      return null;
+    }
+
+    if (i > 0) {
+      // Capture content between the previous index and the found part position.
+      values.push(specifier.slice(idx, pos));
+    }
+
+    idx = pos + part.length;
+  }
+
+  const lastPart = parts[parts.length - 1];
+  if (lastPart === '') {
+    // Pattern ends with '*' -> capture remaining substring.
+    values.push(specifier.slice(idx));
+  } else {
+    // Pattern does not end with '*' -> ensure the specifier ended exactly with the last part.
+    if (!specifier.endsWith(lastPart)) return null;
+    // No trailing capture in this case.
+  }
+
+  return values;
+}
+
+/**
  * @typedef {{ key: string; target: string; kind: 'exact' | 'wildcard'; regex?: RegExp }} Alias
  */
 
@@ -83,10 +137,9 @@ function buildAliasesFromTsconfig(tsconfigPath) {
     const first = String(values[0]);
 
     if (key.includes('*')) {
-      // Convert '@foo/*' -> '^@foo/(.+)$'
-      const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '(.+)');
-      const regex = new RegExp(`^${escaped}$`);
-      aliases.push({ key, target: first, kind: 'wildcard', regex });
+      // For safety, split the pattern into literal parts and match without using backtracking-prone regexes.
+      const parts = key.split('*').map(String);
+      aliases.push({ key, target: first, kind: 'wildcard', parts });
     } else {
       aliases.push({ key, target: first, kind: 'exact' });
     }
@@ -107,10 +160,11 @@ function resolveAliasToDistFile({ outDir, alias, specifier }) {
     if (specifier !== alias.key) return null;
     targetPath = alias.target;
   } else {
-    const match = alias.regex?.exec(specifier);
-    if (!match) return null;
-    const wildcardValue = match[1] ?? '';
-    targetPath = alias.target.replace('*', wildcardValue);
+    const values = matchWildcard(alias.parts, specifier);
+    if (!values) return null;
+    // Replace '*' placeholders in the target sequentially with captured values.
+    let i = 0;
+    targetPath = alias.target.replace(/\*/g, () => values[i++] ?? '');
   }
 
   // Example targetPath: './src/common/index.ts'
@@ -183,7 +237,7 @@ function patchFile({ file, outDir, aliases }) {
    * - export { x } from '...'
    * - import '...'
    */
-  next = next.replace(
+  next = next.replaceAll(
     /(\b(?:import|export)\b[\s\S]*?\bfrom\s*|\bimport\s*)(['"])([^'"\n]+?)\2/g,
     (match, prefix, quote, specifier) => {
       const rewritten = rewriteSpecifier({ filePath: file, specifier, outDir, aliases });
@@ -192,9 +246,8 @@ function patchFile({ file, outDir, aliases }) {
       return `${prefix}${quote}${rewritten}${quote}`;
     }
   );
-
   // Dynamic import('...')
-  next = next.replace(
+  next = next.replaceAll(
     /(\bimport\s*\(\s*)(['"])([^'"\n]+?)\2(\s*\))/g,
     (match, prefix, quote, specifier, suffix) => {
       const rewritten = rewriteSpecifier({ filePath: file, specifier, outDir, aliases });
