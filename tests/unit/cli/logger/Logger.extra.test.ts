@@ -31,8 +31,7 @@ describe('Logger extra branches', () => {
   });
 
   it('handles various error types in Logger.error', async () => {
-    vi.unmock('@config/logger');
-    const { Logger } = await import('@config/logger');
+    const { Logger } = await vi.importActual<typeof import('@config/logger')>('@config/logger');
 
     Logger.error('err-str', 'simple');
     Logger.error('err-num', 123);
@@ -58,8 +57,7 @@ describe('Logger extra branches', () => {
 
   it('uses JSON log format when requested', async () => {
     process.env['LOG_FORMAT'] = 'json';
-    vi.unmock('@config/logger');
-    const { Logger } = await import('@config/logger');
+    const { Logger } = await vi.importActual<typeof import('@config/logger')>('@config/logger');
 
     Logger.info('hello-json', { a: 1 });
 
@@ -77,9 +75,6 @@ describe('Logger extra branches', () => {
     vi.resetModules();
     process.env.LOG_TO_FILE = 'true';
 
-    // Ensure we import the real logger even if other suites mocked it
-    vi.unmock('@config/logger');
-
     // Provide a virtual mock for the file writer
     vi.mock('@config/FileLogWriter', () => ({
       FileLogWriter: { write: vi.fn(), cleanOnce: vi.fn().mockReturnValue([]) },
@@ -87,7 +82,7 @@ describe('Logger extra branches', () => {
 
     // Preload the mocked module so the logger's dynamic import resolves immediately
     const mod = await import('@config/FileLogWriter');
-    const { Logger } = await import('@config/logger');
+    const { Logger } = await vi.importActual<typeof import('@config/logger')>('@config/logger');
 
     Logger.info('to-file', { b: 2 });
 
