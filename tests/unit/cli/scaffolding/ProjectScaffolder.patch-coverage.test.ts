@@ -13,13 +13,22 @@ describe('ProjectScaffolder patch coverage', () => {
   it('getTemplate returns the in-memory fallback when disk template is unavailable', async () => {
     vi.resetModules();
 
+    const existsSync = vi.fn();
+    existsSync.mockReturnValue(false);
+    const readFileSync = vi.fn();
+    readFileSync.mockReturnValue('');
+    const readdirSync = vi.fn();
+    readdirSync.mockReturnValue([]);
+    const statSync = vi.fn();
+    statSync.mockReturnValue({ isDirectory: () => false, isFile: () => false });
+
     // Force `loadTemplateFromDisk()` to return undefined by making existsSync fail.
     vi.doMock('@node-singletons/fs', () => ({
       default: {
-        existsSync: vi.fn(() => false),
-        readFileSync: vi.fn(() => ''),
-        readdirSync: vi.fn(() => []),
-        statSync: vi.fn(() => ({ isDirectory: () => false, isFile: () => false })),
+        existsSync,
+        readFileSync,
+        readdirSync,
+        statSync,
       },
     }));
 

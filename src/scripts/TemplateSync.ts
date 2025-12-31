@@ -112,9 +112,11 @@ const syncProjectTemplateDir = (params: {
   let skipped = 0;
 
   for (const file of files) {
-    const baseKey = `${params.baseDirRel}/${file.relPath}${
-      params.checksumSalt ? `|${params.checksumSalt}` : ''
-    }`;
+    const checksumSaltPart =
+      typeof params.checksumSalt === 'string' && params.checksumSalt.length > 0
+        ? `|${params.checksumSalt}`
+        : '';
+    const baseKey = `${params.baseDirRel}/${file.relPath}${checksumSaltPart}`;
     const currentHash = hashFile(file.absPath);
     const storedHash = params.checksums[baseKey];
 
