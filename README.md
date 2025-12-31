@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/@zintrust/core.svg)](https://www.npmjs.com/package/@zintrust/core)
 
-Production-grade TypeScript backend framework with zero external dependencies for core logic. Visit [zintrust.com](https://zintrust.com) for more information.
+Production-grade TypeScript backend framework with a “minimal core” (no Express/Fastify) and a batteries-included CLI + developer experience. Visit [zintrust.com](https://zintrust.com) for more information.
 
 ## Status
 
@@ -56,6 +56,23 @@ cd my-app
 # Start development server
 npm run dev
 ```
+
+## Core Package Dependencies (CLI + DX)
+
+The npm package `@zintrust/core` includes a small set of runtime dependencies primarily to power the CLI and developer experience.
+
+- `commander` - command parsing and `--help` UX for the `zin` CLI
+- `inquirer` - interactive prompts (project scaffolding, generators)
+- `chalk` - terminal colors for readable CLI output
+- `tsx` - runs TypeScript-based CLI entrypoints without requiring a separate build step during development
+
+Some dependencies are used by built-in features/adapters:
+
+- `better-sqlite3` - SQLite database driver (local development / SQLite adapter)
+- `bcrypt` - password hashing helpers
+- `jsonwebtoken` - JWT token signing/verification utilities
+
+Note: `better-sqlite3` (and some other native modules) may require build tools on certain platforms.
 
 ## Development
 
@@ -163,7 +180,7 @@ Zintrust is built on proven architectural patterns for modern backend developmen
 - **Type safety**: Full TypeScript with strict mode enabled
 - **Testing focus**: Vitest integration with fast, isolated tests
 - **Performance by default**: N+1 detection, memory profiling built-in
-- **Zero-dependency core**: Framework logic uses only Node.js built-ins
+- **Minimal core**: Core HTTP/routing logic avoids external web frameworks; the published package still includes CLI/DX dependencies listed above
 
 ## Development
 

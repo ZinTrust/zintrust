@@ -186,13 +186,14 @@ const handleExecutionError = (error: unknown, version: string, log: boolean = tr
  */
 const runCLI = async (program: Command, version: string, args: string[]): Promise<void> => {
   try {
-    // Always show banner
-    ErrorHandler.banner(version);
-
-    // If version is requested, we've already shown the banner which includes the version.
+    // If version is requested, let Commander print it (no banner, fast/clean output).
     if (args.includes('-v') || args.includes('--version')) {
+      await program.parseAsync(['node', 'zintrust', ...args]);
       return;
     }
+
+    // Always show banner for normal commands
+    ErrorHandler.banner(version);
 
     // Show help if no arguments provided
     if (args.length === 0) {

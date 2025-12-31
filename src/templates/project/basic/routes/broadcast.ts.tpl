@@ -5,7 +5,7 @@
  * Provider setup and secret provisioning remain CLI-only.
  */
 
-import { type IRouter, Router } from '@routing/Router';
+import { type IRouter, Router } from '@zintrust/core';
 
 export function registerBroadcastRoutes(router: IRouter): void {
   Router.get(router, '/broadcast/health', async (_req, res) => {

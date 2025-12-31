@@ -1,5 +1,5 @@
 import { appConfig } from '@config/app';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory } from '@zintrust/core';
 
 export type StartupConfigValidationError = {
   key: string;

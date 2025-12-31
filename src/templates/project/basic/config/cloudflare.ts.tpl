@@ -5,7 +5,7 @@
  * This keeps runtime-specific globals out of adapters/drivers.
  */
 
-import type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, ID1Database } from '@zintrust/core';
 
 export type WorkersEnv = Record<string, unknown>;
 

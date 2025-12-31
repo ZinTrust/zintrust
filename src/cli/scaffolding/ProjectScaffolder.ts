@@ -417,7 +417,23 @@ export function getTemplate(name: string): ProjectTemplate | undefined {
   if (!fallback) return undefined;
 
   const disk = loadTemplateFromDisk(name, fallback);
-  return disk ?? fallback;
+  if (disk) return disk;
+
+  // If we don't have a dedicated disk template yet (e.g. fullstack/api/microservice),
+  // fall back to the starter project's file set so generated projects are runnable.
+  if (name !== 'basic') {
+    const basicFallback = TEMPLATE_MAP.get('basic');
+    const basicDisk = basicFallback ? loadTemplateFromDisk('basic', basicFallback) : undefined;
+
+    if (basicDisk) {
+      return {
+        ...fallback,
+        files: basicDisk.files,
+      };
+    }
+  }
+
+  return fallback;
 }
 
 export function validateOptions(options: ProjectScaffoldOptions): {

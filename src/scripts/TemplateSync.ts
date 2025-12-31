@@ -97,6 +97,7 @@ const syncProjectTemplateDir = (params: {
   templateDirRel: string;
   description: string;
   transformContent?: (relPath: string, content: string) => string;
+  checksumSalt?: string;
 }): { updated: number; skipped: number; total: number } => {
   const baseDirAbs = path.join(ROOT_DIR, params.baseDirRel);
   const templateDirAbs = path.join(ROOT_DIR, params.templateDirRel);
@@ -111,7 +112,11 @@ const syncProjectTemplateDir = (params: {
   let skipped = 0;
 
   for (const file of files) {
-    const baseKey = `${params.baseDirRel}/${file.relPath}`;
+    const checksumSaltPart =
+      typeof params.checksumSalt === 'string' && params.checksumSalt.length > 0
+        ? `|${params.checksumSalt}`
+        : '';
+    const baseKey = `${params.baseDirRel}/${file.relPath}${checksumSaltPart}`;
     const currentHash = hashFile(file.absPath);
     const storedHash = params.checksums[baseKey];
 
@@ -142,6 +147,33 @@ const syncProjectTemplateDir = (params: {
   }
 
   return { updated, skipped, total: files.length };
+};
+
+const rewriteStarterTemplateImports = (relPath: string, content: string): string => {
+  if (!relPath.endsWith('.ts') && !relPath.endsWith('.tsx') && !relPath.endsWith('.mts')) {
+    return content;
+  }
+
+  // Starter templates should import framework APIs from the public package surface,
+  // not from internal path-alias modules that only exist in the framework repo.
+  return (
+    content
+      .replaceAll("'@routing/Router'", "'@zintrust/core'")
+      .replaceAll("'@orm/Database'", "'@zintrust/core'")
+      .replaceAll("'@orm/QueryBuilder'", "'@zintrust/core'")
+      .replaceAll("'@orm/DatabaseAdapter'", "'@zintrust/core'")
+      .replaceAll("'@exceptions/ZintrustError'", "'@zintrust/core'")
+      .replaceAll("'@common/index'", "'@zintrust/core'")
+      .replaceAll("'@httpClient/Http'", "'@zintrust/core'")
+      // Handle double-quoted module specifiers too
+      .replaceAll('"@routing/Router"', '"@zintrust/core"')
+      .replaceAll('"@orm/Database"', '"@zintrust/core"')
+      .replaceAll('"@orm/QueryBuilder"', '"@zintrust/core"')
+      .replaceAll('"@orm/DatabaseAdapter"', '"@zintrust/core"')
+      .replaceAll('"@exceptions/ZintrustError"', '"@zintrust/core"')
+      .replaceAll('"@common/index"', '"@zintrust/core"')
+      .replaceAll('"@httpClient/Http"', '"@zintrust/core"')
+  );
 };
 
 const syncRegistryMappings = (params: {
@@ -246,6 +278,8 @@ const syncStarterProjectTemplates = (params: {
     baseDirRel: 'src/config',
     templateDirRel: `${params.projectRoot}/config`,
     description: 'Starter project config/* (from src/config/*)',
+    transformContent: rewriteStarterTemplateImports,
+    checksumSalt: 'starter-imports-v1',
   });
 
   const s3 = syncProjectTemplateDir({
@@ -260,6 +294,8 @@ const syncStarterProjectTemplates = (params: {
     baseDirRel: 'routes',
     templateDirRel: `${params.projectRoot}/routes`,
     description: 'Starter project routes/*',
+    transformContent: rewriteStarterTemplateImports,
+    checksumSalt: 'starter-imports-v1',
   });
 
   const s5 = syncStarterEnvTemplate({

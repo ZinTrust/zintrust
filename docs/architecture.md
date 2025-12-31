@@ -1,10 +1,11 @@
 # Architecture & Design
 
-Zintrust is built on a zero-dependency core, focusing on performance and type safety.
+Zintrust is built on a minimal core (no Express/Fastify), focusing on performance and type safety. The published npm package also includes a small set of runtime dependencies for the CLI and developer experience.
 
 ## Core Principles
 
 - Zero external dependencies for core logic
+- (CLI/DX note) The `@zintrust/core` npm package includes dependencies for the CLI and scaffolding UX
 - Strict TypeScript enforcement
 - Microservices-first architecture
 - Native Node.js performance

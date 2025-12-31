@@ -7,7 +7,7 @@
 import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory } from '@zintrust/core';
 
 /**
  * Helper to warn about missing secrets
