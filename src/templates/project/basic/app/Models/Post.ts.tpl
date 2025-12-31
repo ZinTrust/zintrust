@@ -2,8 +2,9 @@
  * Example Post Model
  */
 
+import { IRelationship } from '@zintrust/core';
 import { User } from '@app/Models/User';
-import { type IModel, Model, type ModelConfig, type IRelationship } from '@zintrust/core';
+import { IModel, Model, ModelConfig } from '@zintrust/core';
 
 export const PostConfig: ModelConfig = {
   table: 'posts',

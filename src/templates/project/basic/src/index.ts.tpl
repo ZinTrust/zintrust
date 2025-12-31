@@ -1,10 +1,53 @@
 /**
- * {{projectName}} - Zintrust Application Entry Point
+ * test-app - Zintrust Application Entry Point
  */
 
-import { Application, Server } from '@zintrust/core';
-import { Env } from '@config/env';
-import { Logger } from '@config/logger';
+import { Application, Env, Logger, Server } from '@zintrust/core';
+import process from '@zintrust/core/node';
+
+type AppInstance = ReturnType<typeof Application.create>;
+type ServerInstance = ReturnType<typeof Server.create>;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage = 'Shutdown timed out'): Promise<T> {
+  if (!Number.isFinite(ms) || ms <= 0) return promise;
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new globalThis.Error(timeoutMessage)), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  }) as Promise<T>;
+}
+
+async function stopServices(server: ServerInstance, app: AppInstance): Promise<void> {
+  await server.close();
+  await app.shutdown();
+}
+
+async function shutdownGracefully(signal: string, server: ServerInstance, app: AppInstance): Promise<void> {
+  Logger.info(`${signal} received, shutting down gracefully...`);
+
+  const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
+  const forceExitMs = Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 2500);
+
+  const forceExitTimer = globalThis.setTimeout(() => {
+    process.exit(0);
+  }, forceExitMs);
+
+  (forceExitTimer as unknown as { unref?: () => void }).unref?.();
+
+  try {
+    await withTimeout(stopServices(server, app), timeoutMs);
+    globalThis.clearTimeout(forceExitTimer);
+    process.exit(0);
+  } catch (error) {
+    Logger.error('Graceful shutdown failed:', error);
+    process.exit(1);
+  }
+}
 
 /**
  * Start the application
@@ -29,43 +72,8 @@ async function start() {
 
     Logger.info(`Server running at http://${host}:${port}`);
 
-    const shutdown = async (signal: string): Promise<void> => {
-      Logger.info(`${signal} received, shutting down gracefully...`);
-
-      const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 10000);
-      const withTimeout = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
-        if (ms <= 0) return promise;
-        return new Promise<T>((resolve, reject) => {
-          const timer = setTimeout(() => reject(new globalThis.Error('Shutdown timed out')), ms);
-          promise
-            .then((value) => {
-              clearTimeout(timer);
-              resolve(value);
-            })
-            .catch((err) => {
-              clearTimeout(timer);
-              reject(err);
-            });
-        });
-      };
-
-      try {
-        await withTimeout(
-          (async () => {
-            await server.close();
-            await app.shutdown();
-          })(),
-          timeoutMs
-        );
-        process.exit(0);
-      } catch (error) {
-        Logger.error('Graceful shutdown failed:', error);
-        process.exit(1);
-      }
-    };
-
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
-    process.on('SIGINT', () => void shutdown('SIGINT'));
+    process.on('SIGTERM', () => void shutdownGracefully('SIGTERM', server, app));
+    process.on('SIGINT', () => void shutdownGracefully('SIGINT', server, app));
   } catch (error) {
     Logger.error('Failed to start application:', error);
     process.exit(1);

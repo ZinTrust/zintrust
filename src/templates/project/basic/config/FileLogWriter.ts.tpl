@@ -1,8 +1,6 @@
 /**
  * FileLogWriter (Node.js only)
- *
- * Provides best-effort file logging with daily + size-based rotation.
- * This module imports Node built-ins and should be loaded only in Node environments.
+ * Re-exports core FileLogWriter for optional use
  */
 
 import { ensureDirSafe } from '@zintrust/core';

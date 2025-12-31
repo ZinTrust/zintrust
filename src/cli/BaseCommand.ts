@@ -38,6 +38,8 @@ export const BaseCommand = Object.freeze({
   create<T extends IBaseCommand = IBaseCommand>(config: {
     name: string;
     description: string;
+    /** Optional alias or aliases for the command (e.g. 'make:mail') */
+    aliases?: string | string[];
     addOptions?: (command: Command) => void;
     execute: (options: CommandOptions) => void | Promise<void>;
   }): T {

@@ -65,6 +65,55 @@ describe('Bootstrap additional branches', () => {
     vi.useFakeTimers();
   });
 
+  it('force-exit timer calls process.exit(0) when shutdown hangs/fails', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+
+    // Make the force-exit timer fire quickly
+    process.env['SHUTDOWN_FORCE_EXIT_MS'] = '10';
+    // Ensure withTimeout doesn't short-circuit before timer can fire
+    process.env['SHUTDOWN_TIMEOUT'] = '1000';
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    }));
+
+    // Make shutdown fail quickly so gracefulShutdown returns and timer is not cleared
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {
+            throw new Error('shutdown fail');
+          },
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    // Trigger shutdown; handler is async but process.emit does not await it
+    process.emit('SIGTERM');
+
+    // Let async shutdown start
+    await Promise.resolve();
+
+    // Advance timers to trigger the force-exit callback
+    vi.advanceTimersByTime(10);
+
+    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
+
+    process.removeAllListeners('SIGTERM');
+    process.removeAllListeners('SIGINT');
+    vi.useRealTimers();
+    delete process.env['SHUTDOWN_FORCE_EXIT_MS'];
+  });
+
   it('starts schedules when runtime is nodejs and registers shutdown hook', async () => {
     vi.resetModules();
 

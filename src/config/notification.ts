@@ -6,42 +6,7 @@
  */
 
 import { Env } from '@config/env';
-
-export type KnownNotificationDriverName = 'console' | 'termii' | 'twilio' | 'slack';
-
-export type ConsoleNotificationDriverConfig = { driver: 'console' };
-
-export type TermiiNotificationDriverConfig = {
-  driver: 'termii';
-  apiKey: string;
-  sender: string;
-  endpoint: string;
-};
-
-export type TwilioNotificationDriverConfig = {
-  driver: 'twilio';
-  accountSid: string;
-  authToken: string;
-  fromNumber: string;
-};
-
-export type SlackNotificationDriverConfig = {
-  driver: 'slack';
-  webhookUrl: string;
-};
-
-export type KnownNotificationDriverConfig =
-  | ConsoleNotificationDriverConfig
-  | TermiiNotificationDriverConfig
-  | TwilioNotificationDriverConfig
-  | SlackNotificationDriverConfig;
-
-type NotificationProviders = {
-  console: ConsoleNotificationDriverConfig;
-  termii: TermiiNotificationDriverConfig;
-  twilio: TwilioNotificationDriverConfig;
-  slack: SlackNotificationDriverConfig;
-};
+import type { NotificationProviders } from '@config/type';
 
 const notificationConfigObj = {
   /**

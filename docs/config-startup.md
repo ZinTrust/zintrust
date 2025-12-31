@@ -1,0 +1,82 @@
+# startup config
+
+- Source: `src/config/startup.ts`
+
+## Usage
+
+Import from the framework:
+
+```ts
+import { startup } from '@zintrust/core';
+
+// Example (if supported by the module):
+// startup.*
+```
+
+## Snapshot (top)
+
+```ts
+/**
+ * Startup Configuration
+ *
+ * Startup-only controls (evaluated during Application.boot()).
+ */
+
+import { Env } from '@zintrust/core';
+
+export type StartupConfig = {
+  healthChecksEnabled: boolean;
+  validateSecrets: boolean;
+  requireEnv: boolean;
+  checkDatabase: boolean;
+  checkCache: boolean;
+  timeoutMs: number;
+  continueOnFailure: boolean;
+};
+
+export const startupConfig = Object.freeze({
+  healthChecksEnabled: Env.getBool('STARTUP_HEALTH_CHECKS', true),
+  validateSecrets: Env.getBool('STARTUP_VALIDATE_SECRETS', true),
+  requireEnv: Env.getBool('STARTUP_REQUIRE_ENV', false),
+  checkDatabase: Env.getBool('STARTUP_CHECK_DB', false),
+  checkCache: Env.getBool('STARTUP_CHECK_CACHE', false),
+  timeoutMs: Env.getInt('STARTUP_HEALTH_TIMEOUT_MS', 2500),
+  continueOnFailure: Env.getBool('STARTUP_CONTINUE_ON_FAILURE', false),
+} satisfies StartupConfig);
+
+export default startupConfig;
+```
+
+## Snapshot (bottom)
+
+```ts
+/**
+ * Startup Configuration
+ *
+ * Startup-only controls (evaluated during Application.boot()).
+ */
+
+import { Env } from '@zintrust/core';
+
+export type StartupConfig = {
+  healthChecksEnabled: boolean;
+  validateSecrets: boolean;
+  requireEnv: boolean;
+  checkDatabase: boolean;
+  checkCache: boolean;
+  timeoutMs: number;
+  continueOnFailure: boolean;
+};
+
+export const startupConfig = Object.freeze({
+  healthChecksEnabled: Env.getBool('STARTUP_HEALTH_CHECKS', true),
+  validateSecrets: Env.getBool('STARTUP_VALIDATE_SECRETS', true),
+  requireEnv: Env.getBool('STARTUP_REQUIRE_ENV', false),
+  checkDatabase: Env.getBool('STARTUP_CHECK_DB', false),
+  checkCache: Env.getBool('STARTUP_CHECK_CACHE', false),
+  timeoutMs: Env.getInt('STARTUP_HEALTH_TIMEOUT_MS', 2500),
+  continueOnFailure: Env.getBool('STARTUP_CONTINUE_ON_FAILURE', false),
+} satisfies StartupConfig);
+
+export default startupConfig;
+```

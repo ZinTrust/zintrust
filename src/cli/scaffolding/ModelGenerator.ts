@@ -147,7 +147,7 @@ function buildModelCode(options: ModelOptions): string {
  * Auto-generated model file
  */
 
-import { Model, IModel } from '@orm/Model';
+import { type IModel, Model } from '@zintrust/core';
 
 export const ${options.name} = Object.freeze(
   Model.define({

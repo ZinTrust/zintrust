@@ -254,7 +254,7 @@ npm run test tests/integration/microservices.test.ts
 │           ▼                    ▼                   ▼            │
 │  ┌────────────────┐  ┌────────────────┐  ┌──────────────────┐   │
 │  │ Users Service  │  │ Orders Service │  │Payments Service  │   │
-│  │ :3001          │  │ :3002          │  │ :3003            │   │
+│  │ :3001          │  │ :3002          │  │ :7777            │   │
 │  │                │  │                │  │                  │   │
 │  │ ┌────────────┐ │  │ ┌────────────┐ │  │ ┌──────────────┐ │   │
 │  │ │ServiceAuth │ │  │ │ServiceAuth │ │  │ │ServiceAuth   │ │   │

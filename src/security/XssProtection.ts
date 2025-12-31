@@ -37,8 +37,13 @@ const sanitizeHtml = (html: string): string => {
     return '';
   }
 
-  // Remove script tags and content
-  let sanitized = html.replaceAll(/<script\b[\s\S]*?<\/script>/gi, '');
+  // Remove script tags and content (loop until stable to avoid incomplete multi-character sanitization)
+  let sanitized = html;
+  let prevScriptSanitized: string;
+  do {
+    prevScriptSanitized = sanitized;
+    sanitized = sanitized.replaceAll(/<script\b[\s\S]*?<\/script[^<]*?>/gi, '');
+  } while (sanitized !== prevScriptSanitized);
 
   // Remove iframe, object, embed, and base tags
   sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[\s\S]*?>/gi, '');
@@ -48,10 +53,7 @@ const sanitizeHtml = (html: string): string => {
   let previousSanitized: string;
   do {
     previousSanitized = sanitized;
-    sanitized = sanitized.replaceAll(
-      /\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[^\s>]*)/gi,
-      ''
-    );
+    sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[^\s>]*)/gi, '');
   } while (sanitized !== previousSanitized);
 
   // Remove dangerous protocols in URL-bearing attributes.

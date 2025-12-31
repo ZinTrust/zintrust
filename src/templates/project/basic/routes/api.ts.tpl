@@ -4,7 +4,7 @@
  */
 
 import { UserController } from '@app/Controllers/UserController';
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerStorageRoutes } from '@routes/storage';

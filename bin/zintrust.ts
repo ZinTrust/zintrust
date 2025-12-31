@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env -S node --import tsx
 
 /**
  * Zintrust CLI - Main Entry Point
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
     EnvFileLoader.ensureLoaded();
 
-    const { CLI } = await import('@cli/CLI');
+await run();
 
     const cli = CLI.create();
 

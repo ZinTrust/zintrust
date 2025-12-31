@@ -155,10 +155,13 @@ function generateCrudController(options?: ControllerOptions): string {
  * Auto-generated CRUD controller
  */
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { Controller } from '@http/Controller';
+import { type IRequest, type IResponse, Controller } from '@zintrust/core';
 import { ${modelName} } from '@app/Models/${modelName}';
+
+function handleError(res: IResponse, error: unknown): void {
+  const message = error instanceof Error ? error.message : 'Internal server error';
+  res.setStatus(500).json({ error: message });
+}
 
 export const ${className} = Object.freeze({
   ...Controller,
@@ -171,8 +174,6 @@ ${buildStoreMethod(modelName)},
 ${buildUpdateMethod(modelName)},
 
 ${buildDestroyMethod(modelName)},
-
-${buildHandleErrorMethod()},
 });
 `;
 }
@@ -304,19 +305,6 @@ function buildDestroyMethod(modelName: string): string {
 }
 
 /**
- * Build handle error method
- */
-function buildHandleErrorMethod(): string {
-  return `  /**
-   * Handle controller errors
-   */
-   handleError(res: IResponse, error: unknown): void {
-    const message = error instanceof Error ? error.message : 'Internal server error';
-    res.setStatus(500).json({ error: message });
-  }`;
-}
-
-/**
  * Generate Resource controller (alias for CRUD)
  */
 function generateResourceController(options?: ControllerOptions): string {
@@ -334,12 +322,15 @@ function generateApiController(options?: ControllerOptions): string {
  * Auto-generated API controller
  */
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { Controller } from '@http/Controller';
+import { type IRequest, type IResponse, Controller } from '@zintrust/core';
+
+function handleError(res: IResponse, error: unknown): void {
+  const message = error instanceof Error ? error.message : 'Internal server error';
+  res.setStatus(500).json({ error: message });
+}
 
 export const ${className} = {\n  ...Controller,
-${buildApiControllerBody()},
+${buildApiControllerBody(className)},
 };
 `;
 }
@@ -347,18 +338,17 @@ ${buildApiControllerBody()},
 /**
  * Build API controller body
  */
-function buildApiControllerBody(): string {
-  return `${buildApiMainHandler()},
+function buildApiControllerBody(className: string): string {
+  return `${buildApiMainHandler(className)},
 
 ${buildApiMethodHandlers()},
-
-${buildHandleErrorMethod()}`;
+`;
 }
 
 /**
  * Build API main handler
  */
-function buildApiMainHandler(): string {
+function buildApiMainHandler(className: string): string {
   return `  /**
    * API endpoint template
    */
@@ -368,13 +358,13 @@ function buildApiMainHandler(): string {
 
       // Route to appropriate handler
       if (method === 'GET') {
-        await handleGet(req, res);
+        await ${className}.handleGet(req, res);
       } else if (method === 'POST') {
-        await handlePost(req, res);
+        await ${className}.handlePost(req, res);
       } else if (method === 'PUT') {
-        await handlePut(req, res);
+        await ${className}.handlePut(req, res);
       } else if (method === 'DELETE') {
-        await handleDelete(req, res);
+        await ${className}.handleDelete(req, res);
       } else {
         res.setStatus(405).json({ error: 'Method not allowed' });
       }
@@ -428,9 +418,12 @@ function generateGraphQLController(options?: ControllerOptions): string {
  * Auto-generated GraphQL controller
  */
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { Controller } from '@http/Controller';
+import { type IRequest, type IResponse, Controller } from '@zintrust/core';
+
+function handleError(res: IResponse, error: unknown): void {
+  const message = error instanceof Error ? error.message : 'GraphQL error';
+  res.setStatus(500).json({ errors: [{ message }] });
+}
 
 export const ${className} = {\n  ...Controller,
   /**
@@ -439,14 +432,15 @@ export const ${className} = {\n  ...Controller,
   async handle(req: IRequest, res: IResponse): Promise<void> {
     try {
       if (req.getMethod() !== 'POST') {
-        return res.setStatus(405).json({ error: 'Method not allowed' });
+        res.setStatus(405).json({ error: 'Method not allowed' });
+        return;
       }
 
       const body = req.getBody() as Record<string, unknown>;
       const query = body.query as string;
 
       // TODO: Execute GraphQL query
-      const result = await executeQuery(query);
+      const result = await ${className}.executeQuery(query);
 
       res.json(result);
     } catch (error) {
@@ -460,14 +454,6 @@ export const ${className} = {\n  ...Controller,
   async executeQuery(query: string): Promise<Record<string, unknown>> {
     // TODO: Implement GraphQL execution
     return { data: null };
-  },
-
-  /**
-   * Handle controller errors
-   */
-   handleError(res: IResponse, error: unknown): void {
-    const message = error instanceof Error ? error.message : 'GraphQL error';
-    res.setStatus(500).json({ errors: [{ message }] });
   },
 };
 `;
@@ -523,13 +509,16 @@ function generateWebhookController(options?: ControllerOptions): string {
  * Auto-generated Webhook controller
  */
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { Controller } from '@http/Controller';
+import { type IRequest, type IResponse, Controller } from '@zintrust/core';
 import { Logger } from '@config/logger';
 
+function handleError(res: IResponse, error: unknown): void {
+  const message = error instanceof Error ? error.message : 'Webhook error';
+  res.setStatus(500).json({ error: message });
+}
+
 export const ${className} = {\n  ...Controller,
-${buildWebhookControllerBody()},
+${buildWebhookControllerBody(className)},
 };
 `;
 }
@@ -537,7 +526,7 @@ ${buildWebhookControllerBody()},
 /**
  * Build Webhook controller body
  */
-function buildWebhookControllerBody(): string {
+function buildWebhookControllerBody(className: string): string {
   return `  /**
    * Handle incoming webhook
    */
@@ -545,12 +534,13 @@ function buildWebhookControllerBody(): string {
     try {
       // Verify webhook signature
       const signature = req.getHeader('x-webhook-signature');
-      if (verifySignature(req, signature as string) === false) {
-        return res.setStatus(401).json({ error: 'Invalid signature' });
+      if (${className}.verifySignature(req, signature as string) === false) {
+        res.setStatus(401).json({ error: 'Invalid signature' });
+        return;
       }
 
       const body = req.getBody();
-      await processWebhook(body);
+      await ${className}.processWebhook(body);
 
       res.json({ success: true });
     } catch (error) {
@@ -573,14 +563,7 @@ function buildWebhookControllerBody(): string {
     // TODO: Implement webhook processing
     Logger.info('Processing webhook:', { payload });
   },
-
-  /**
-   * Handle controller errors
-   */
-   handleError(res: IResponse, error: unknown): void {
-    const message = error instanceof Error ? error.message : 'Webhook error';
-    res.setStatus(500).json({ error: message });
-  }`;
+`;
 }
 
 /**

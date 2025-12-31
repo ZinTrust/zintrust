@@ -5,7 +5,7 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 export type KnownBroadcastDriverName = 'inmemory' | 'pusher' | 'redis' | 'redishttps';
 

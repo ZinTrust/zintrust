@@ -13,6 +13,8 @@
       "@app/*": ["./app/*"],
       "@toolkit/*": ["./app/Toolkit/*"],
       "@config/*": ["./config/*"],
+      "@app/*": ["./app/*"],
+      "@toolkit/*": ["./app/Toolkit/*"],
       "@routes/*": ["./routes/*"],
       "@database/*": ["./database/*"],
 
@@ -29,6 +31,6 @@
       "@queue/*": ["./src/tools/queue/*"]
     }
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*", "config/**/*"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*"],
   "exclude": ["node_modules", "dist"]
 }

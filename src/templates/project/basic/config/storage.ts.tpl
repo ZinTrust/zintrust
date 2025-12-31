@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 
 type EnvGetValue = ReturnType<typeof Env.get>;
 type EnvGetBoolValue = ReturnType<typeof Env.getBool>;

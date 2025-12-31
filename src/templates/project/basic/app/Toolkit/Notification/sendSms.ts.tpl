@@ -1,4 +1,4 @@
-import { sendSms } from '@notification/drivers/Twilio';
+import { sendSms } from '@zintrust/core';
 
 export async function sendSmsNotification(
   accountSid: string,

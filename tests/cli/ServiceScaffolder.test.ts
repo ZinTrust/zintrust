@@ -189,16 +189,17 @@ describe('ServiceScaffolder Scaffolding Files Index and Routes', () => {
       }
     });
 
-    it('should create service routes.ts', async () => {
+    it('should create service routes/api.ts', async () => {
       const options: ServiceOptions = { name: 'orders' };
       const result = await ServiceScaffolder.scaffold(testDir, options);
 
-      const routesPath = result.filesCreated.find((f: string) => f.includes('routes.ts'));
+      const routesPath = result.filesCreated.find((f: string) => f.includes('routes/api.ts'));
       expect(routesPath).toBeDefined();
 
       if (typeof routesPath === 'string' && routesPath !== '') {
         const content = fs.readFileSync(routesPath, 'utf-8');
-        expect(content).toContain('router');
+        expect(content).toContain('registerRoutes');
+        expect(content).toContain('Router.get');
       }
     });
   });

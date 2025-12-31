@@ -48,7 +48,7 @@ describe('ProjectScaffolder extra tests', () => {
     const templateRoot = path.join(__dirname, '../../../../src/templates/project', templateName);
 
     // create a file with templated path and content inside the existing 'basic' template
-    const tplPath = path.join(templateRoot, 'config', '{{projectName}}.json.tpl');
+    const tplPath = path.join(templateRoot, 'src', '{{projectName}}.json.tpl');
     await fsPromises.mkdir(path.dirname(tplPath), { recursive: true });
     const content =
       '{"port": {{port}}, "author": "{{author}}", "flag": "{{flag}}", "obj": {{obj}}, "fun": "{{fun}}", "sym": "{{sym}}"}';
@@ -82,11 +82,7 @@ describe('ProjectScaffolder extra tests', () => {
     const filesCreated = scaffolder.createFiles();
     expect(filesCreated).toBeGreaterThan(0);
 
-    const generated = path.join(
-      scaffolder.getProjectPath(),
-      'config',
-      `${vars['projectName']}.json`
-    );
+    const generated = path.join(scaffolder.getProjectPath(), 'src', `${vars['projectName']}.json`);
     expect(fs.existsSync(generated)).toBe(true);
     const txt = await fsPromises.readFile(generated, 'utf8');
     expect(txt).toContain('"port": 4321');

@@ -5,22 +5,8 @@
  * This keeps runtime-specific globals out of adapters/drivers.
  */
 
+import { KVNamespace, WorkersEnv } from '@config/type';
 import type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
-
-export type WorkersEnv = Record<string, unknown>;
-
-type KVNamespace = {
-  get(
-    key: string,
-    options?: { type: 'text' | 'json' | 'arrayBuffer' | 'stream' }
-  ): Promise<unknown>;
-  put(
-    key: string,
-    value: string | ReadableStream | ArrayBuffer | FormData,
-    options?: { expiration?: number; expirationTtl?: number; metadata?: unknown }
-  ): Promise<void>;
-  delete(key: string): Promise<void>;
-};
 
 const getWorkersEnv = (): WorkersEnv | null => {
   const env = (globalThis as unknown as { env?: unknown }).env;

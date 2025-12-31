@@ -3,10 +3,11 @@
  * Handles directory structure and boilerplate file creation
  */
 
-import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
+import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -59,6 +60,16 @@ interface ScaffolderState {
   projectPath: string;
   templateName: string;
 }
+
+const loadCoreVersion = (): string => {
+  try {
+    const packageUrl = new URL('../../../package.json', import.meta.url);
+    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
+    return typeof packageJson.version === 'string' ? packageJson.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+};
 
 const createDirectories = (projectPath: string, directories: string[]): number => {
   let count = 0;
@@ -163,13 +174,20 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     const port = Number(variables['port'] ?? 3000);
     const database = typeof variables['database'] === 'string' ? variables['database'] : 'sqlite';
 
+    // Generate a secure APP_KEY (32 bytes = 256-bit, base64 encoded)
+    const appKeyBytes = randomBytes(32);
+    const appKey = appKeyBytes.toString('base64');
+
     const baseLines: string[] = [
       'NODE_ENV=development',
+      'STARTUP_REQUIRE_ENV=true',
       `APP_NAME=${name}`,
+      'HOST=localhost',
+      `PORT=${port}`,
       `APP_PORT=${port}`,
       'APP_DEBUG=true',
-      // Placeholders only (no generated secrets during scaffold)
-      'APP_KEY=',
+      // Auto-generated secure key for storage signing and encryption
+      `APP_KEY=${appKey}`,
       `DB_CONNECTION=${database}`,
     ];
 
@@ -184,7 +202,8 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
         ];
       }
       if (database === 'sqlite') {
-        return ['DB_DATABASE=./database.sqlite'];
+        // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
+        return ['DB_DATABASE=./database.sqlite', 'DB_PATH=./database.sqlite'];
       }
       return [];
     })();
@@ -193,7 +212,8 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       '',
       '# Logging',
       'LOG_LEVEL=debug',
-      'LOG_CHANNEL=file',
+      'LOG_CHANNEL=console',
+      'LOG_FORMAT=json',
       '',
       '# Auth / Security',
       'JWT_SECRET=',
@@ -230,9 +250,9 @@ type TemplateJson = {
 };
 
 const getProjectTemplatesRoot = (): string => {
-  const thisDir = esmDirname(import.meta.url);
   // src/cli/scaffolding/ -> src/templates/project/
-  return path.resolve(thisDir, '..', '..', 'templates', 'project');
+  const templatesUrl = new URL('../../templates/project', import.meta.url);
+  return fileURLToPath(templatesUrl);
 };
 
 const listTemplateFilesRecursive = (dirPath: string): string[] => {
@@ -289,12 +309,59 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
   const files: Record<string, string> = {};
   const allFiles = listTemplateFilesRecursive(templateDir);
 
+  const allowedConfigFiles = new Set<string>([
+    'config/broadcast.ts',
+    'config/cache.ts',
+    'config/database.ts',
+    'config/mail.ts',
+    'config/notification.ts',
+    'config/queue.ts',
+    'config/storage.ts',
+  ]);
+
+  const isENOENT = (error: unknown): boolean =>
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (error as any).code === 'ENOENT';
+
+  const normalizeRelPath = (relPath: string): string => relPath.replaceAll('\\', '/');
+
+  const getOutputRelPath = (relPath: string): string =>
+    relPath.endsWith('.tpl') ? relPath.slice(0, -'.tpl'.length) : relPath;
+
+  const shouldIncludeTemplateFile = (relPath: string): boolean => {
+    if (relPath === 'template.json') return false;
+
+    const normalized = normalizeRelPath(relPath);
+    if (!normalized.startsWith('config/')) return true;
+
+    // Starter apps should only ship app-level config modules.
+    // Core/framework config internals (e.g. config/logging/*) remain core-owned.
+    const outputRel = normalizeRelPath(getOutputRelPath(relPath));
+    return allowedConfigFiles.has(outputRel);
+  };
+
+  const readUtf8FileOrUndefined = (absPath: string): string | undefined => {
+    try {
+      return fs.readFileSync(absPath, 'utf8');
+    } catch (error: unknown) {
+      // Some tests temporarily create/delete template files in parallel; if a file
+      // disappears between directory listing and read, skip it.
+      if (isENOENT(error)) return undefined;
+      throw error;
+    }
+  };
+
   for (const absPath of allFiles) {
     const rel = path.relative(templateDir, absPath);
-    if (rel === 'template.json') continue;
+    if (!shouldIncludeTemplateFile(rel)) continue;
 
-    const content = fs.readFileSync(absPath, 'utf8');
-    const outputRel = rel.endsWith('.tpl') ? rel.slice(0, -'.tpl'.length) : rel;
+    const content = readUtf8FileOrUndefined(absPath);
+    if (content === undefined) continue;
+
+    const outputRel = getOutputRelPath(rel);
     files[outputRel] = content;
   }
 
@@ -327,10 +394,10 @@ const BASIC_TEMPLATE: ProjectTemplate = {
   name: 'basic',
   description: 'Basic Zintrust project structure',
   directories: [
+    'config',
     'app/Controllers',
     'app/Middleware',
     'app/Models',
-    'config',
     'database/migrations',
     'database/seeders',
     'logs',
@@ -386,7 +453,7 @@ const FULLSTACK_TEMPLATE: ProjectTemplate = {
     'app/Controllers',
     'app/Middleware',
     'app/Models',
-    'config',
+    // Starter projects should not include framework config internals.
     'database/migrations',
     'database/seeders',
     'logs',
@@ -484,6 +551,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     database: options.database ?? 'sqlite',
     template: state.templateName,
     migrationTimestamp,
+    coreVersion: loadCoreVersion(),
   };
 };
 
@@ -507,6 +575,7 @@ const createFilesForState = (state: ScaffolderState): number => {
     files['.gitignore'] = `node_modules/
 dist/
 .env
+.env.*
 .env.local
 .DS_Store
 coverage/

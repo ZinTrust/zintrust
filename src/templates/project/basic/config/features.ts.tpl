@@ -1,4 +1,4 @@
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 import { Logger } from '@config/logger';
 
 /**

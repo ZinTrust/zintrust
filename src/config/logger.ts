@@ -100,7 +100,9 @@ const getFileWriter = (): void => {
 
 const shouldLogToFile = (): boolean => {
   // Prefer dynamic lookup so late-bound env (tests, some runtimes) is respected.
-  if (!Env.getBool('LOG_TO_FILE', false)) return false;
+  const channel = Env.get('LOG_CHANNEL', '').trim().toLowerCase();
+  const channelWantsFile = channel === 'file' || channel === 'all';
+  if (!Env.getBool('LOG_TO_FILE', false) && !channelWantsFile) return false;
   if (typeof process === 'undefined') return false;
   return true;
 };
