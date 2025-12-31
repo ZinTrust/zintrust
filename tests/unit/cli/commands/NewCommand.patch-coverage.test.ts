@@ -96,7 +96,9 @@ describe('NewCommand patch coverage', () => {
       interactive: false,
     } as any);
 
-    expect(command.info).toHaveBeenCalledWith('⏭️  Skipping dependency installation (not selected).');
+    expect(command.info).toHaveBeenCalledWith(
+      '⏭️  Skipping dependency installation (not selected).'
+    );
     expect(SpawnUtil.spawnAndWait).not.toHaveBeenCalled();
   });
 
