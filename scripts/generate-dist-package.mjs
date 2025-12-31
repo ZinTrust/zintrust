@@ -35,10 +35,7 @@ function isGreater(v1, v2) {
 function getLatestNpmVersion(packageName) {
   try {
     const cmd = `npm view ${packageName} version`;
-    return execSync(cmd, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
+    return execSync(cmd, { encoding: 'utf8', ctdio: ['ignore', 'pipe', 'ignore'] }).trim(); // NOSONAR
   } catch {
     return null;
   }

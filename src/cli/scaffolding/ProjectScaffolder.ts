@@ -319,36 +319,49 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
     'config/storage.ts',
   ]);
 
-  for (const absPath of allFiles) {
-    const rel = path.relative(templateDir, absPath);
-    if (rel === 'template.json') continue;
+  const isENOENT = (error: unknown): boolean =>
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (error as any).code === 'ENOENT';
+
+  const normalizeRelPath = (relPath: string): string => relPath.replaceAll('\\', '/');
+
+  const getOutputRelPath = (relPath: string): string =>
+    relPath.endsWith('.tpl') ? relPath.slice(0, -'.tpl'.length) : relPath;
+
+  const shouldIncludeTemplateFile = (relPath: string): boolean => {
+    if (relPath === 'template.json') return false;
+
+    const normalized = normalizeRelPath(relPath);
+    if (!normalized.startsWith('config/')) return true;
 
     // Starter apps should only ship app-level config modules.
     // Core/framework config internals (e.g. config/logging/*) remain core-owned.
-    const relNormalized = rel.replaceAll('\\', '/');
-    if (relNormalized.startsWith('config/')) {
-      const outputRel = rel.endsWith('.tpl') ? rel.slice(0, -'.tpl'.length) : rel;
-      if (!allowedConfigFiles.has(outputRel.replaceAll('\\', '/'))) continue;
-    }
+    const outputRel = normalizeRelPath(getOutputRelPath(relPath));
+    return allowedConfigFiles.has(outputRel);
+  };
 
-    let content: string;
+  const readUtf8FileOrUndefined = (absPath: string): string | undefined => {
     try {
-      content = fs.readFileSync(absPath, 'utf8');
+      return fs.readFileSync(absPath, 'utf8');
     } catch (error: unknown) {
       // Some tests temporarily create/delete template files in parallel; if a file
       // disappears between directory listing and read, skip it.
-      if (
-        error !== null &&
-        typeof error === 'object' &&
-        'code' in error &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (error as any).code === 'ENOENT'
-      ) {
-        continue;
-      }
+      if (isENOENT(error)) return undefined;
       throw error;
     }
-    const outputRel = rel.endsWith('.tpl') ? rel.slice(0, -'.tpl'.length) : rel;
+  };
+
+  for (const absPath of allFiles) {
+    const rel = path.relative(templateDir, absPath);
+    if (!shouldIncludeTemplateFile(rel)) continue;
+
+    const content = readUtf8FileOrUndefined(absPath);
+    if (content === undefined) continue;
+
+    const outputRel = getOutputRelPath(rel);
     files[outputRel] = content;
   }
 

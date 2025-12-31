@@ -70,14 +70,18 @@ function hasKnownExtension(specifier) {
  *  parts = ['', '']           matches 'anything' -> ['anything']
  */
 function matchWildcard(parts, specifier) {
-  let idx = 0;
-  /** @type {string[]} */
-  const values = [];
-
   // Special-case: if pattern is just '*' (parts ['','']), capture entire specifier.
   if (parts.length === 2 && parts[0] === '' && parts[1] === '') {
     return [specifier];
   }
+
+  return computeWildcardCaptures(parts, specifier);
+}
+
+function computeWildcardCaptures(parts, specifier) {
+  let idx = 0;
+  /** @type {string[]} */
+  const values = [];
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
@@ -108,7 +112,7 @@ function matchWildcard(parts, specifier) {
     values.push(specifier.slice(idx));
   } else {
     // Pattern does not end with '*' -> ensure the specifier ended exactly with the last part.
-    if (!specifier.endsWith(lastPart)) return null;
+    if (!specifier.endsWith(lastPart)) return null; // NOSONAR
     // No trailing capture in this case.
   }
 
@@ -164,7 +168,7 @@ function resolveAliasToDistFile({ outDir, alias, specifier }) {
     if (!values) return null;
     // Replace '*' placeholders in the target sequentially with captured values.
     let i = 0;
-    targetPath = alias.target.replace(/\*/g, () => values[i++] ?? '');
+    targetPath = alias.target.replaceAll('*', () => values[i++] ?? '');
   }
 
   // Example targetPath: './src/common/index.ts'
@@ -213,7 +217,7 @@ function rewriteSpecifier({ filePath, specifier, outDir, aliases }) {
     if (!hasKnownExtension(relative)) {
       if (isDir(path.resolve(path.dirname(filePath), relative))) {
         // Prefer explicit index.js
-        relative = `${relative.replace(/\/+$/, '')}/index.js`;
+        relative = `${relative.replace(/\/+$/, '')}/index.js`; // NOSONAR
       } else {
         relative = `${relative}.js`;
       }

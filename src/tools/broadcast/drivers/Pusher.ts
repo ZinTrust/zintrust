@@ -1,4 +1,4 @@
-import type { PusherBroadcastDriverConfig } from '@config/broadcast';
+import type { PusherBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHash, createHmac } from '@node-singletons/crypto';
 
