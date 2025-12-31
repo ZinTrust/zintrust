@@ -39,6 +39,7 @@ export const MakeMailTemplateCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'make:mail-template',
+      aliases: 'make:mail',
       description: 'Scaffold a mail markdown template into src/mail/markdown',
       addOptions,
       execute: async (options: MakeMailTemplateOptions) => {

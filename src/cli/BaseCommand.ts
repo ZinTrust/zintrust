@@ -38,6 +38,8 @@ export const BaseCommand = Object.freeze({
   create<T extends IBaseCommand = IBaseCommand>(config: {
     name: string;
     description: string;
+    /** Optional alias or aliases for the command (e.g. 'make:mail') */
+    aliases?: string | string[];
     addOptions?: (command: Command) => void;
     execute: (options: CommandOptions) => void | Promise<void>;
   }): T {
@@ -45,6 +47,15 @@ export const BaseCommand = Object.freeze({
       const command = new Command(config.name);
       command.description(config.description);
       command.option('--verbose', 'Enable verbose output');
+
+      // Register aliases if provided
+      if (config.aliases !== undefined) {
+        if (Array.isArray(config.aliases)) {
+          command.aliases(config.aliases);
+        } else {
+          command.alias(config.aliases);
+        }
+      }
 
       // Add custom options
       if (config.addOptions) {
