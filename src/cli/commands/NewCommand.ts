@@ -37,6 +37,14 @@ interface NewProjectConfigResult {
 
 type InquirerQuestion = Record<string, unknown>;
 
+type ResolvedProjectTarget = {
+  basePath: string;
+  name: string;
+  projectPath: string;
+  display: string;
+  cdPath: string;
+};
+
 const getGitBinary = (): string => 'git';
 
 const checkGitInstalled = (): boolean => {
@@ -264,11 +272,12 @@ interface INewCommand extends IBaseCommand {
   getSafeEnv(): NodeJS.ProcessEnv;
   getGitBinary(): string;
   runScaffolding(
+    basePath: string,
     name: string,
     config: NewProjectConfigResult,
     overwrite?: boolean
   ): Promise<unknown>;
-  initializeGit(name: string): void;
+  initializeGit(projectPath: string): void;
   promptForPackageManager(defaultPm: string): Promise<string | null>;
 }
 
@@ -300,16 +309,44 @@ const resolveProjectName = async (options: CommandOptions): Promise<string> => {
   return projectName;
 };
 
+const resolveProjectTarget = async (options: CommandOptions): Promise<ResolvedProjectTarget> => {
+  const input = await resolveProjectName(options);
+
+  const isPathLike = input.includes('/') || input.includes('\\');
+  if (!isPathLike) {
+    return {
+      basePath: process.cwd(),
+      name: input,
+      projectPath: path.resolve(process.cwd(), input),
+      display: input,
+      cdPath: input,
+    };
+  }
+
+  const projectPath = path.resolve(process.cwd(), input);
+  const name = path.basename(projectPath);
+  const basePath = path.dirname(projectPath);
+  const cdPath = input.startsWith('/') ? projectPath : input;
+
+  return {
+    basePath,
+    name,
+    projectPath,
+    display: input,
+    cdPath,
+  };
+};
+
 const createProject = async (
-  projectName: string,
+  target: ResolvedProjectTarget,
   options: CommandOptions,
   command: INewCommand
 ): Promise<void> => {
-  const config = await command.getProjectConfig(projectName, options);
-  command.info(chalk.bold(`\n🚀 Creating new Zintrust project in ${projectName}...\n`));
+  const config = await command.getProjectConfig(target.name, options);
+  command.info(chalk.bold(`\n🚀 Creating new Zintrust project in ${target.display}...\n`));
 
   const overwrite = options['overwrite'] === true || options['force'] === true ? true : undefined;
-  const result = await command.runScaffolding(projectName, config, overwrite);
+  const result = await command.runScaffolding(target.basePath, target.name, config, overwrite);
 
   if (isFailureResult(result)) {
     throw ErrorFactory.createCliError(result.message ?? 'Project scaffolding failed', result);
@@ -319,21 +356,21 @@ const createProject = async (
 const maybeInitializeGit = (
   options: CommandOptions,
   command: INewCommand,
-  projectName: string
+  target: ResolvedProjectTarget
 ): void => {
   if (options['git'] !== false) {
-    command.initializeGit(projectName);
+    command.initializeGit(target.projectPath);
   }
 };
 
 const maybeInstallDependencies = async (
   options: CommandOptions,
   command: INewCommand,
-  projectName: string
+  target: ResolvedProjectTarget
 ): Promise<string | undefined> => {
   if (options['install'] === false) return;
 
-  const projectPath = path.resolve(process.cwd(), projectName);
+  const projectPath = target.projectPath;
   let pm =
     (options['packageManager'] as string | undefined) ??
     (options['package-manager'] as string | undefined);
@@ -360,15 +397,15 @@ const maybeInstallDependencies = async (
 
 const executeNewCommand = async (options: CommandOptions, command: INewCommand): Promise<void> => {
   try {
-    const projectName = await resolveProjectName(options);
+    const target = await resolveProjectTarget(options);
 
-    await createProject(projectName, options, command);
+    await createProject(target, options, command);
 
-    maybeInitializeGit(options, command, projectName);
+    maybeInitializeGit(options, command, target);
 
-    const installedWithPm = await maybeInstallDependencies(options, command, projectName);
+    const installedWithPm = await maybeInstallDependencies(options, command, target);
 
-    command.success(`\n✨ Project ${projectName} created successfully!`);
+    command.success(`\n✨ Project ${target.name} created successfully!`);
 
     const optPm =
       (options['packageManager'] as string | undefined) ??
@@ -380,7 +417,7 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
         ? `${effectivePm} dev`
         : `${effectivePm} run dev`;
 
-    command.info(`\nNext steps:\n  cd ${projectName}\n  ${runDevCmd}\n`);
+    command.info(`\nNext steps:\n  cd ${target.cdPath}\n  ${runDevCmd}\n`);
   } catch (error) {
     throw ErrorFactory.createCliError(
       `Project creation failed: ${extractErrorMessage(error)}`,
@@ -436,11 +473,12 @@ const createNewCommandInstance = (): INewCommand => {
       return commandInstance.promptForConfig(name, options);
     },
     runScaffolding: async (
+      basePath: string,
       name: string,
       config: NewProjectConfigResult,
       overwrite?: boolean
     ): Promise<unknown> => {
-      return ProjectScaffolder.scaffold(process.cwd(), {
+      return ProjectScaffolder.scaffold(basePath, {
         name,
         force: overwrite === true,
         template: config.template,
@@ -450,8 +488,7 @@ const createNewCommandInstance = (): INewCommand => {
         description: config.description,
       });
     },
-    initializeGit: (name: string): void => {
-      const projectPath = path.resolve(process.cwd(), name);
+    initializeGit: (projectPath: string): void => {
       if (checkGitInstalled()) {
         initializeGitRepo(projectPath, commandInstance);
       }

@@ -33,6 +33,21 @@ vi.mock('@cli/utils/spawn', () => ({
 vi.mock('@node-singletons/path', () => ({
   resolve: vi.fn((...args) => args.join('/')),
   join: vi.fn((...args) => args.join('/')),
+  basename: vi.fn((value: string) => {
+    const parts = String(value)
+      .split(/[/\\]+/)
+      .filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : '';
+  }),
+  dirname: vi.fn((value: string) => {
+    const str = String(value);
+    const parts = str.split(/[/\\]+/);
+    if (parts.length <= 1) return '';
+    parts.pop();
+    const joined = parts.join('/');
+    // Preserve leading slash for absolute POSIX paths in a best-effort way.
+    return str.startsWith('/') && !joined.startsWith('/') ? `/${joined}` : joined;
+  }),
 }));
 
 import { NewCommand } from '@/cli/commands/NewCommand';
@@ -516,7 +531,12 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.runScaffolding).toHaveBeenCalledWith('my-project', expect.any(Object), true);
+      expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.any(String),
+        'my-project',
+        expect.any(Object),
+        true
+      );
     });
 
     it('should call scaffolding with correct parameters', async () => {
@@ -542,6 +562,7 @@ describe('NewCommand', () => {
       await command.execute(options);
 
       expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.any(String),
         'test-project',
         {
           template: 'api',
@@ -573,7 +594,7 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.initializeGit).toHaveBeenCalledWith('my-project');
+      expect(command.initializeGit).toHaveBeenCalledWith(expect.stringContaining('my-project'));
     });
 
     it('uses provided package manager to install dependencies', async () => {
@@ -735,9 +756,43 @@ describe('NewCommand', () => {
       await command.execute(options);
 
       expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.any(String),
         'force-project',
         expect.any(Object),
         true
+      );
+    });
+
+    it('accepts a path-like project target and scaffolds into that directory', async () => {
+      const options = {
+        args: ['./tmp/path-project/my-app'],
+        interactive: false,
+        install: false,
+        git: false,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+
+      await command.execute(options);
+
+      expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.stringMatching(/tmp\/path-project$/),
+        'my-app',
+        expect.any(Object),
+        undefined
+      );
+
+      expect(command.info).toHaveBeenCalledWith(
+        expect.stringContaining('cd ./tmp/path-project/my-app')
       );
     });
 
@@ -1023,6 +1078,7 @@ describe('NewCommand', () => {
 
       expect(PromptHelper.projectName).toHaveBeenCalled();
       expect(command.runScaffolding).toHaveBeenCalledWith(
+        process.cwd(),
         'prompted-project',
         expect.any(Object),
         undefined
@@ -1078,7 +1134,7 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.initializeGit).toHaveBeenCalledWith('git-project');
+      expect(command.initializeGit).toHaveBeenCalledWith(`${process.cwd()}/git-project`);
     });
 
     it('should install dependencies if install option is true', async () => {
@@ -1136,7 +1192,7 @@ describe('NewCommand', () => {
         }
       );
 
-      command.initializeGit('git-fail');
+      command.initializeGit('/mock/path/git-fail');
       expect(command.warn).toHaveBeenCalledWith(
         expect.stringContaining('Could not initialize git')
       );
@@ -1150,18 +1206,17 @@ describe('NewCommand', () => {
         }
       );
 
-      command.initializeGit('no-git-installed');
+      command.initializeGit('/mock/path/no-git-installed');
 
       expect(execFileSync).not.toHaveBeenCalledWith('git', ['init'], expect.any(Object));
     });
 
     it('should initialize git repo with init/add/commit when git is installed', () => {
-      vi.mocked(path.resolve).mockReturnValue('/mock/path/git-ok');
       vi.mocked(execFileSync).mockImplementation(
         (_file: string, _args?: readonly string[], _options?: unknown): string => ''
       );
 
-      command.initializeGit('git-ok');
+      command.initializeGit('/mock/path/git-ok');
 
       expect(execFileSync).toHaveBeenCalledWith(
         'git',
@@ -1265,6 +1320,7 @@ describe('NewCommand', () => {
       });
 
       await command.runScaffolding(
+        '/base/path',
         'scaffold-test',
         {
           template: 'basic',
@@ -1277,7 +1333,7 @@ describe('NewCommand', () => {
       );
 
       expect(ProjectScaffolder.scaffold).toHaveBeenCalledWith(
-        expect.any(String),
+        '/base/path',
         expect.objectContaining({
           name: 'scaffold-test',
           force: true,

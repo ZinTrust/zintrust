@@ -26,6 +26,16 @@ export type { IRelationship } from '@orm/Relationships';
 export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 
+// Common
+export { delay, ensureDirSafe } from '@common/index';
+
+// HTTP Client
+export { HttpClient } from '@httpClient/Http';
+export type { IHttpRequest, IHttpResponse } from '@httpClient/Http';
+
+// Database adapter types
+export type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
+
 // Profiling
 export { MemoryProfiler } from '@profiling/MemoryProfiler';
 export { N1Detector } from '@profiling/N1Detector';
@@ -43,14 +53,25 @@ export type {
 export { ValidationError } from '@validation/ValidationError';
 export type { FieldError } from '@validation/ValidationError';
 export { Schema, Validator } from '@validation/Validator';
+export type { ISchema, SchemaType } from '@validation/Validator';
 
 // Security
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
-export type { CsrfTokenData } from '@security/CsrfTokenManager';
+export type {
+  CsrfTokenData,
+  CsrfTokenManagerType,
+  ICsrfTokenManager,
+} from '@security/CsrfTokenManager';
 export { Encryptor } from '@security/Encryptor';
 export { Hash } from '@security/Hash';
 export { JwtManager } from '@security/JwtManager';
-export type { JwtOptions, JwtPayload } from '@security/JwtManager';
+export type {
+  IJwtManager,
+  JwtAlgorithm,
+  JwtManagerType,
+  JwtOptions,
+  JwtPayload,
+} from '@security/JwtManager';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 

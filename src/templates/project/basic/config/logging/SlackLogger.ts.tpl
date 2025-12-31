@@ -10,8 +10,8 @@
  */
 
 import { Env } from '@config/env';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { HttpClient } from '@httpClient/Http';
+import { ErrorFactory } from '@zintrust/core';
+import { HttpClient } from '@zintrust/core';
 
 export type SlackLogEvent = {
   timestamp: string;
