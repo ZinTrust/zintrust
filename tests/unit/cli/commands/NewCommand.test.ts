@@ -33,6 +33,21 @@ vi.mock('@cli/utils/spawn', () => ({
 vi.mock('@node-singletons/path', () => ({
   resolve: vi.fn((...args) => args.join('/')),
   join: vi.fn((...args) => args.join('/')),
+  basename: vi.fn((value: string) => {
+    const parts = String(value)
+      .split(/[/\\]+/)
+      .filter(Boolean);
+    return parts.length > 0 ? parts[parts.length - 1] : '';
+  }),
+  dirname: vi.fn((value: string) => {
+    const str = String(value);
+    const parts = str.split(/[/\\]+/);
+    if (parts.length <= 1) return '';
+    parts.pop();
+    const joined = parts.join('/');
+    // Preserve leading slash for absolute POSIX paths in a best-effort way.
+    return str.startsWith('/') && !joined.startsWith('/') ? `/${joined}` : joined;
+  }),
 }));
 
 import { NewCommand } from '@/cli/commands/NewCommand';
@@ -217,10 +232,11 @@ describe('NewCommand', () => {
       expect(helpText).toContain('<name>');
     });
 
-    it('getCommand should have template option configured', () => {
+    it('getCommand should have template option configured with fullstack', () => {
       const cmd = command.getCommand();
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--template');
+      expect(helpText).toContain('fullstack');
     });
 
     it('getCommand should have database option configured', () => {
@@ -421,8 +437,8 @@ describe('NewCommand', () => {
       expect(command.getProjectConfig).toHaveBeenCalled();
     });
 
-    it('should handle template options', async () => {
-      const templates = ['basic', 'api'];
+    it('should handle template options including fullstack', async () => {
+      const templates = ['basic', 'api', 'microservice', 'fullstack'];
 
       for (const template of templates) {
         const options = {
@@ -515,7 +531,12 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.runScaffolding).toHaveBeenCalledWith('my-project', expect.any(Object), true);
+      expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.any(String),
+        'my-project',
+        expect.any(Object),
+        true
+      );
     });
 
     it('should call scaffolding with correct parameters', async () => {
@@ -541,6 +562,7 @@ describe('NewCommand', () => {
       await command.execute(options);
 
       expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.any(String),
         'test-project',
         {
           template: 'api',
@@ -572,7 +594,7 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.initializeGit).toHaveBeenCalledWith('my-project');
+      expect(command.initializeGit).toHaveBeenCalledWith(expect.stringContaining('my-project'));
     });
 
     it('uses provided package manager to install dependencies', async () => {
@@ -604,6 +626,62 @@ describe('NewCommand', () => {
         args: ['install'],
         cwd: expect.any(String),
       });
+    });
+
+    it('shows next steps with provided package manager (yarn)', async () => {
+      const options = {
+        args: ['pm-project'],
+        interactive: false,
+        packageManager: 'yarn',
+        install: true,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+      command.info = vi.fn();
+
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+      await command.execute(options);
+
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('yarn dev'));
+    });
+
+    it('shows next steps with provided package manager (npm)', async () => {
+      const options = {
+        args: ['pm-project'],
+        interactive: false,
+        packageManager: 'npm',
+        install: true,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+      command.info = vi.fn();
+
+      const { SpawnUtil } = await import('@cli/utils/spawn');
+      vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+      await command.execute(options);
+
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('npm run dev'));
     });
 
     it('skips auto-install in CI by default', async () => {
@@ -678,9 +756,43 @@ describe('NewCommand', () => {
       await command.execute(options);
 
       expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.any(String),
         'force-project',
         expect.any(Object),
         true
+      );
+    });
+
+    it('accepts a path-like project target and scaffolds into that directory', async () => {
+      const options = {
+        args: ['./tmp/path-project/my-app'],
+        interactive: false,
+        install: false,
+        git: false,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 3003,
+        author: '',
+        description: '',
+      });
+
+      command.runScaffolding = vi.fn().mockResolvedValue({ success: true });
+      command.initializeGit = vi.fn();
+
+      await command.execute(options);
+
+      expect(command.runScaffolding).toHaveBeenCalledWith(
+        expect.stringMatching(/tmp\/path-project$/),
+        'my-app',
+        expect.any(Object),
+        undefined
+      );
+
+      expect(command.info).toHaveBeenCalledWith(
+        expect.stringContaining('cd ./tmp/path-project/my-app')
       );
     });
 
@@ -764,7 +876,7 @@ describe('NewCommand', () => {
       expect(questions.length).toBeGreaterThan(0);
     });
 
-    it('should include template question', () => {
+    it('should include template question with radio type and all 4 options', () => {
       const questions = command.getQuestions('test', {
         template: 'basic',
         database: 'postgresql',
@@ -775,7 +887,36 @@ describe('NewCommand', () => {
 
       const template = findQuestionByName(questions, 'template');
       expect(template).toBeDefined();
-      expect(template?.type).toBe('list');
+      expect(template?.type).toBe('rawlist');
+      expect(template?.choices).toEqual(['basic', 'api', 'microservice', 'fullstack']);
+      expect(template?.message).toBe('Project template:');
+    });
+
+    it('should include fullstack as a valid template choice', () => {
+      const questions = command.getQuestions('test', {
+        template: 'fullstack',
+        database: 'postgresql',
+        port: 3000,
+        author: '',
+        description: '',
+      });
+
+      const template = findQuestionByName(questions, 'template');
+      expect(template?.choices).toContain('fullstack');
+      expect(template?.default).toBe('fullstack');
+    });
+
+    it('should set default template to provided value', () => {
+      const questions = command.getQuestions('test', {
+        template: 'api',
+        database: 'postgresql',
+        port: 3000,
+        author: '',
+        description: '',
+      });
+
+      const template = findQuestionByName(questions, 'template');
+      expect(template?.default).toBe('api');
     });
 
     it('should include database question with options', () => {
@@ -789,7 +930,7 @@ describe('NewCommand', () => {
 
       const database = findQuestionByName(questions, 'database');
       expect(database).toBeDefined();
-      expect(database?.type).toBe('list');
+      expect(database?.type).toBe('rawlist');
       expect(database?.choices).toContain('postgresql');
     });
 
@@ -937,6 +1078,7 @@ describe('NewCommand', () => {
 
       expect(PromptHelper.projectName).toHaveBeenCalled();
       expect(command.runScaffolding).toHaveBeenCalledWith(
+        process.cwd(),
         'prompted-project',
         expect.any(Object),
         undefined
@@ -992,7 +1134,7 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.initializeGit).toHaveBeenCalledWith('git-project');
+      expect(command.initializeGit).toHaveBeenCalledWith(`${process.cwd()}/git-project`);
     });
 
     it('should install dependencies if install option is true', async () => {
@@ -1050,7 +1192,7 @@ describe('NewCommand', () => {
         }
       );
 
-      command.initializeGit('git-fail');
+      command.initializeGit('/mock/path/git-fail');
       expect(command.warn).toHaveBeenCalledWith(
         expect.stringContaining('Could not initialize git')
       );
@@ -1064,18 +1206,17 @@ describe('NewCommand', () => {
         }
       );
 
-      command.initializeGit('no-git-installed');
+      command.initializeGit('/mock/path/no-git-installed');
 
       expect(execFileSync).not.toHaveBeenCalledWith('git', ['init'], expect.any(Object));
     });
 
     it('should initialize git repo with init/add/commit when git is installed', () => {
-      vi.mocked(path.resolve).mockReturnValue('/mock/path/git-ok');
       vi.mocked(execFileSync).mockImplementation(
         (_file: string, _args?: readonly string[], _options?: unknown): string => ''
       );
 
-      command.initializeGit('git-ok');
+      command.initializeGit('/mock/path/git-ok');
 
       expect(execFileSync).toHaveBeenCalledWith(
         'git',
@@ -1179,6 +1320,7 @@ describe('NewCommand', () => {
       });
 
       await command.runScaffolding(
+        '/base/path',
         'scaffold-test',
         {
           template: 'basic',
@@ -1191,7 +1333,7 @@ describe('NewCommand', () => {
       );
 
       expect(ProjectScaffolder.scaffold).toHaveBeenCalledWith(
-        expect.any(String),
+        '/base/path',
         expect.objectContaining({
           name: 'scaffold-test',
           force: true,

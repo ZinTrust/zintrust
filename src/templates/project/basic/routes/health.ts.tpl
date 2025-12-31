@@ -7,9 +7,9 @@ import { appConfig } from '@/config';
 import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { useDatabase } from '@orm/Database';
-import { QueryBuilder } from '@orm/QueryBuilder';
-import { type IRouter, Router } from '@routing/Router';
+import { useDatabase } from '@zintrust/core';
+import { QueryBuilder } from '@zintrust/core';
+import { type IRouter, Router } from '@zintrust/core';
 
 export function registerHealthRoutes(router: IRouter): void {
   registerHealthRoute(router);

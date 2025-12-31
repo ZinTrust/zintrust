@@ -5,7 +5,7 @@
  * This module imports Node built-ins and should be loaded only in Node environments.
  */
 
-import { ensureDirSafe } from '@common/index';
+import { ensureDirSafe } from '@zintrust/core';
 import { Env } from '@config/env';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';

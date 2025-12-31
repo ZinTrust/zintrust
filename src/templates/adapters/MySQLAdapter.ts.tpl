@@ -8,6 +8,7 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 /**
  * MySQL adapter implementation
@@ -48,7 +49,7 @@ export const MySQLAdapter = Object.freeze({
       },
 
       async ping(): Promise<void> {
-        await this.query('SELECT 1', []);
+        await this.query(QueryBuilder.create('').select('1').toSQL(), []);
       },
 
       async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {

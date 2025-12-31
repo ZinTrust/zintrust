@@ -42,6 +42,35 @@ describe('ProjectScaffolder Templates', () => {
     const template = ProjectScaffolder.getTemplate('unknown');
     expect(template).toBeUndefined();
   });
+
+  it('fullstack template should include starter files from basic disk template', () => {
+    const template = ProjectScaffolder.getTemplate('fullstack');
+
+    expect(template).toBeDefined();
+    expect(template?.name).toBe('fullstack');
+
+    // Dedicated fullstack disk templates may not exist yet; we still want a runnable scaffold.
+    expect(template?.files).toBeDefined();
+    expect(Object.keys(template?.files ?? {}).length).toBeGreaterThan(0);
+
+    expect(template?.files['package.json']).toBeDefined();
+    expect(template?.files['tsconfig.json']).toBeDefined();
+    expect(template?.files['routes/api.ts']).toBeDefined();
+  });
+
+  it('starter template files should import framework APIs from @zintrust/core', () => {
+    const template = ProjectScaffolder.getTemplate('basic');
+    expect(template).toBeDefined();
+
+    const apiRoutes = template?.files['routes/api.ts'] ?? '';
+    expect(apiRoutes).toContain("'@zintrust/core'");
+    expect(apiRoutes).not.toContain("'@routing/Router'");
+
+    const httpLogger = template?.files['config/logging/HttpLogger.ts'] ?? '';
+    expect(httpLogger).toContain("'@zintrust/core'");
+    expect(httpLogger).not.toContain("'@httpClient/Http'");
+    expect(httpLogger).not.toContain("'@exceptions/ZintrustError'");
+  });
 });
 
 describe('ProjectScaffolder Validation Basic', () => {

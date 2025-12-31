@@ -1,6 +1,6 @@
 # Getting Started with Zintrust
 
-Welcome to Zintrust, a production-grade TypeScript backend framework with proven architectural patterns and zero external dependencies.
+Welcome to Zintrust, a production-grade TypeScript backend framework with proven architectural patterns and a minimal core (no Express/Fastify). The published npm package also includes a few runtime dependencies for the CLI and developer experience.
 
 ## Quick Start (2 minutes)
 
@@ -20,7 +20,7 @@ Your API is now running at `http://localhost:7777`
 
 ## What is Zintrust?
 
-Zintrust is a **zero-dependency** backend framework built on:
+Zintrust is a **minimal-core** backend framework built on:
 
 - ✅ **Pure Node.js** - No Express, Fastify, or external HTTP libraries
 - ✅ **Type-Safe** - Strict TypeScript with 100% type coverage
