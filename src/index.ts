@@ -95,6 +95,9 @@ export type { SendMailInput, SendMailResult } from '@mail/Mail';
 export { SmtpDriver } from '@mail/drivers/Smtp';
 export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';
 
+// Notifications
+export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
+
 // Health & Runtime (for scaffolded routes and health checks)
 export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 

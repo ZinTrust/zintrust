@@ -539,6 +539,7 @@ const createFilesForState = (state: ScaffolderState): number => {
     files['.gitignore'] = `node_modules/
 dist/
 .env
+.env.*
 .env.local
 .DS_Store
 coverage/

@@ -56,19 +56,13 @@ const getFrameworkPublicRoots = (): string[] => {
   const packageRoot = findPackageRoot(thisDir);
 
   return [
-    path.join(packageRoot, 'dist/public'),
-    path.join(packageRoot, 'docs-website/public'),
     path.join(packageRoot, 'public'), // Fallback for shipped package
   ];
 };
 
 const getDocsPublicRoot = (): string => {
-  const isProduction = appConfig.isProduction();
-
   // First try app-local roots (developer app override), then fall back to framework-shipped assets.
-  const appRoots = isProduction
-    ? [path.join(process.cwd(), 'public')]
-    : [path.join(process.cwd(), 'docs-website/public')];
+  const appRoots = [path.join(process.cwd(), 'public')];
 
   const candidates = [...appRoots, ...getFrameworkPublicRoots()];
 
@@ -79,8 +73,6 @@ const getDocsPublicRoot = (): string => {
   return appRoots[0];
 };
 
-const stripLeadingSlashes = (value: string): string => value.replace(/^\/+/, '');
-
 /**
  * Map URL path to physical file path
  */
@@ -88,15 +80,7 @@ const mapStaticPath = (urlPath: string): string => {
   const publicRoot = getDocsPublicRoot();
 
   if (urlPath.startsWith('/doc')) {
-    const rest = stripLeadingSlashes(urlPath.slice('/doc'.length));
-    const docPath = path.join(publicRoot, 'doc');
-
-    // If a 'doc' folder exists inside publicRoot, use it.
-    // Otherwise, assume publicRoot contains the docs directly.
-    if (fs.existsSync(docPath)) {
-      return rest === '' ? docPath : path.join(docPath, rest);
-    }
-    return rest === '' ? publicRoot : path.join(publicRoot, rest);
+    return publicRoot;
   }
 
   return '';
