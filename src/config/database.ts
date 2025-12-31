@@ -5,57 +5,11 @@
  */
 
 import { Env } from '@config/env';
-
-type SqliteConnectionConfig = {
-  driver: 'sqlite';
-  database: string;
-  migrations: string;
-};
-
-type PostgresqlConnectionConfig = {
-  driver: 'postgresql';
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-  ssl: boolean;
-  pooling: {
-    enabled: boolean;
-    min: number;
-    max: number;
-    idleTimeout: number;
-    connectionTimeout: number;
-  };
-};
-
-type MysqlConnectionConfig = {
-  driver: 'mysql';
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-  pooling: {
-    enabled: boolean;
-    min: number;
-    max: number;
-  };
-};
-
-type DatabaseConnections = {
-  sqlite: SqliteConnectionConfig;
-  postgresql: PostgresqlConnectionConfig;
-  mysql: MysqlConnectionConfig;
-};
-
-type DatabaseConnectionName = keyof DatabaseConnections;
-type DatabaseConnectionConfig = DatabaseConnections[DatabaseConnectionName];
-
-type DatabaseConfigShape = {
-  default: DatabaseConnectionName;
-  connections: DatabaseConnections;
-};
+import {
+  DatabaseConfigShape,
+  DatabaseConnectionConfig,
+  DatabaseConnectionName,
+} from '@config/type';
 
 const isDatabaseConnectionName = (value: string): value is DatabaseConnectionName => {
   return value === 'sqlite' || value === 'postgresql' || value === 'mysql';

@@ -180,7 +180,10 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
 
     const baseLines: string[] = [
       'NODE_ENV=development',
+      'STARTUP_REQUIRE_ENV=true',
       `APP_NAME=${name}`,
+      'HOST=localhost',
+      `PORT=${port}`,
       `APP_PORT=${port}`,
       'APP_DEBUG=true',
       // Auto-generated secure key for storage signing and encryption
@@ -199,7 +202,8 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
         ];
       }
       if (database === 'sqlite') {
-        return ['DB_DATABASE=./database.sqlite'];
+        // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
+        return ['DB_DATABASE=./database.sqlite', 'DB_PATH=./database.sqlite'];
       }
       return [];
     })();
@@ -208,7 +212,8 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       '',
       '# Logging',
       'LOG_LEVEL=debug',
-      'LOG_CHANNEL=file',
+      'LOG_CHANNEL=console',
+      'LOG_FORMAT=json',
       '',
       '# Auth / Security',
       'JWT_SECRET=',

@@ -100,7 +100,7 @@ export { microservicesConfig } from '@config/microservices';
 export type { MicroservicesConfig } from '@config/microservices';
 
 export { middlewareConfig } from '@config/middleware';
-export type { MiddlewareConfig } from '@config/middleware';
+export type { MiddlewareConfigType } from '@config/type';
 
 export { queueConfig } from '@config/queue';
 export type { QueueConfig } from '@config/queue';

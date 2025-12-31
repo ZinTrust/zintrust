@@ -9,6 +9,7 @@ import { Env } from '@config/env';
 export type StartupConfig = {
   healthChecksEnabled: boolean;
   validateSecrets: boolean;
+  requireEnv: boolean;
   checkDatabase: boolean;
   checkCache: boolean;
   timeoutMs: number;
@@ -18,6 +19,7 @@ export type StartupConfig = {
 export const startupConfig = Object.freeze({
   healthChecksEnabled: Env.getBool('STARTUP_HEALTH_CHECKS', true),
   validateSecrets: Env.getBool('STARTUP_VALIDATE_SECRETS', true),
+  requireEnv: Env.getBool('STARTUP_REQUIRE_ENV', false),
   checkDatabase: Env.getBool('STARTUP_CHECK_DB', false),
   checkCache: Env.getBool('STARTUP_CHECK_CACHE', false),
   timeoutMs: Env.getInt('STARTUP_HEALTH_TIMEOUT_MS', 2500),

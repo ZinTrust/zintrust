@@ -6,55 +6,7 @@
 
 import { Env } from '@config/env';
 
-type QueueDriverName = 'sync' | 'database' | 'redis' | 'rabbitmq' | 'sqs';
-
-type SyncQueueDriverConfig = {
-  driver: 'sync';
-};
-
-type DatabaseQueueDriverConfig = {
-  driver: 'database';
-  table: string;
-  connection: string;
-};
-
-type RedisQueueDriverConfig = {
-  driver: 'redis';
-  host: string;
-  port: number;
-  password?: string;
-  database: number;
-};
-
-type RabbitMqQueueDriverConfig = {
-  driver: 'rabbitmq';
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  vhost: string;
-};
-
-type SqsQueueDriverConfig = {
-  driver: 'sqs';
-  key?: string;
-  secret?: string;
-  region: string;
-  queueUrl?: string;
-};
-
-type QueueDriversConfig = {
-  sync: SyncQueueDriverConfig;
-  database: DatabaseQueueDriverConfig;
-  redis: RedisQueueDriverConfig;
-  rabbitmq: RabbitMqQueueDriverConfig;
-  sqs: SqsQueueDriverConfig;
-};
-
-type QueueConfigWithDrivers = {
-  default: QueueDriverName;
-  drivers: QueueDriversConfig;
-};
+import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
 
 const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
   const driverName = config.default;

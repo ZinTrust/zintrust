@@ -252,8 +252,6 @@ export const Server = Object.freeze({
       async listen(): Promise<void> {
         return new Promise((resolve) => {
           httpServer.listen(serverPort, serverHost, () => {
-            Logger.info(`Zintrust server running at http://${serverHost}:${serverPort}`);
-            Logger.info(`Zintrust documentation at http://${serverHost}:${serverPort}/doc`);
             resolve();
           });
         });

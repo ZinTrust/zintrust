@@ -5,11 +5,7 @@
  */
 
 import { Env } from '@config/env';
-
-type ProcessLike = { env?: Record<string, string | undefined> };
-
-type Environment = 'development' | 'dev' | 'production' | 'prod' | 'pro' | 'testing' | 'test';
-type StartMode = 'development' | 'production' | 'testing';
+import type { Environment, ProcessLike, StartMode } from '@config/type';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);

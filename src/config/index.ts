@@ -16,7 +16,7 @@ export { appConfig, type AppConfig } from '@config/app';
 export { cacheConfig, type CacheConfig } from '@config/cache';
 export { databaseConfig, type DatabaseConfig } from '@config/database';
 export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
-export { middlewareConfig, type MiddlewareConfig } from '@config/middleware';
+export { middlewareConfig } from '@config/middleware';
 export { queueConfig, type QueueConfig } from '@config/queue';
 export { securityConfig } from '@config/security';
 export { storageConfig, type StorageConfig } from '@config/storage';
