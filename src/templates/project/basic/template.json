@@ -5,7 +5,6 @@
     "app/Controllers",
     "app/Middleware",
     "app/Models",
-    "config",
     "database/migrations",
     "database/seeders",
     "logs",

@@ -66,10 +66,12 @@ describe('ProjectScaffolder Templates', () => {
     expect(apiRoutes).toContain("'@zintrust/core'");
     expect(apiRoutes).not.toContain("'@routing/Router'");
 
-    const httpLogger = template?.files['config/logging/HttpLogger.ts'] ?? '';
-    expect(httpLogger).toContain("'@zintrust/core'");
-    expect(httpLogger).not.toContain("'@httpClient/Http'");
-    expect(httpLogger).not.toContain("'@exceptions/ZintrustError'");
+    // Config internals are core-owned and should not be scaffolded.
+    expect(template?.files['config/logging/HttpLogger.ts']).toBeUndefined();
+
+    const userController = template?.files['app/Controllers/UserController.ts'] ?? '';
+    expect(userController).toContain("'@zintrust/core'");
+    expect(userController).not.toContain("'@config/logger'");
   });
 });
 
@@ -568,7 +570,7 @@ describe('ProjectScaffolder Requirements', () => {
     expect(FileGenerator.fileExists(path.join(projectPath, 'package.json'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.env'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.zintrust.json'))).toBe(true);
-    expect(FileGenerator.fileExists(path.join(projectPath, 'config', 'middleware.ts'))).toBe(true);
+    expect(FileGenerator.directoryExists(path.join(projectPath, 'config'))).toBe(false);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'src'))).toBe(true);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'logs'))).toBe(true);
     expect(FileGenerator.directoryExists(path.join(projectPath, 'storage'))).toBe(true);

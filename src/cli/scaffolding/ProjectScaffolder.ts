@@ -307,6 +307,10 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
   for (const absPath of allFiles) {
     const rel = path.relative(templateDir, absPath);
     if (rel === 'template.json') continue;
+    // Starter apps should not embed framework config internals.
+    // Keep the on-disk templates for framework/dev usage, but skip generating them.
+    const relNormalized = rel.replaceAll('\\', '/');
+    if (relNormalized === 'config' || relNormalized.startsWith('config/')) continue;
 
     let content: string;
     try {
@@ -361,7 +365,6 @@ const BASIC_TEMPLATE: ProjectTemplate = {
     'app/Controllers',
     'app/Middleware',
     'app/Models',
-    'config',
     'database/migrations',
     'database/seeders',
     'logs',
@@ -417,7 +420,7 @@ const FULLSTACK_TEMPLATE: ProjectTemplate = {
     'app/Controllers',
     'app/Middleware',
     'app/Models',
-    'config',
+    // Starter projects should not include framework config internals.
     'database/migrations',
     'database/seeders',
     'logs',

@@ -42,6 +42,7 @@ vi.mock('@node-singletons/http', () => ({
     return {
       listen: vi.fn((_port, _host, cb) => cb?.()),
       close: vi.fn((cb) => cb?.()),
+      on: vi.fn(),
     };
   }),
 }));

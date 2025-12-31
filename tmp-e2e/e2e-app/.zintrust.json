@@ -1,0 +1,9 @@
+{
+  "name": "e2e-app",
+  "database": {
+    "connection": "sqlite"
+  },
+  "server": {
+    "port": 7777
+  }
+}

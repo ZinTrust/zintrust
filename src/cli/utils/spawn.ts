@@ -51,13 +51,29 @@ export const SpawnUtil = Object.freeze({
       stdio: 'inherit',
     });
 
-    const forwardSignals = input.forwardSignals !== false;
+    // In interactive shells, the foreground process group already receives SIGINT
+    // (and often SIGTERM) so forwarding can cause duplicates. `tsx watch` is
+    // especially sensitive here and can print "Previous process hasn't exited yet. Force killing...".
+    const forwardSignals =
+      typeof input.forwardSignals === 'boolean' ? input.forwardSignals : !process.stdin.isTTY;
 
     const forwardSignal = (signal: NodeJS.Signals): void => {
       try {
         child.kill(signal);
       } catch (error) {
-        throw ErrorFactory.createTryCatchError('Failed to forward signal to child process', error);
+        const wrapped = ErrorFactory.createTryCatchError(
+          'Failed to forward signal to child process',
+          error
+        );
+
+        // Best-effort logging; then rethrow (tests/assertions rely on this behavior).
+        try {
+          process.stderr.write(`${String(wrapped.message)}\n`);
+        } catch {
+          // ignore
+        }
+
+        throw wrapped;
       }
     };
 

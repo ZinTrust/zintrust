@@ -19,7 +19,7 @@ describe('Server', () => {
   } as unknown as IApplication;
 
   it('should create http server', () => {
-    (http.createServer as Mock).mockReturnValue({});
+    (http.createServer as Mock).mockReturnValue({ on: vi.fn() });
     const server = Server.create(mockApp);
     expect(http.createServer).toHaveBeenCalled();
     expect(server.getHttpServer()).toBeDefined();
@@ -29,6 +29,7 @@ describe('Server', () => {
     const mockHttpServer = {
       listen: vi.fn((_port, _host, cb) => cb()),
       close: vi.fn(),
+      on: vi.fn(),
     };
     (http.createServer as Mock).mockReturnValue(mockHttpServer);
 
@@ -42,6 +43,7 @@ describe('Server', () => {
     const mockHttpServer = {
       listen: vi.fn(),
       close: vi.fn((cb) => cb()),
+      on: vi.fn(),
     };
     (http.createServer as Mock).mockReturnValue(mockHttpServer);
 
@@ -63,7 +65,7 @@ describe('Server', () => {
     let requestHandler: ((req: http.IncomingMessage, res: http.ServerResponse) => void) | undefined;
     (http.createServer as Mock).mockImplementation((handler) => {
       requestHandler = handler;
-      return { listen: vi.fn() };
+      return { listen: vi.fn(), on: vi.fn() };
     });
 
     const server = Server.create(mockApp);

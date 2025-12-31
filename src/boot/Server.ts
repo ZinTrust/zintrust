@@ -13,6 +13,7 @@ import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
 import * as fs from '@node-singletons/fs';
 import * as http from '@node-singletons/http';
+import type { Socket } from '@node-singletons/net';
 import * as path from '@node-singletons/path';
 import { Router } from '@routing/Router';
 
@@ -54,8 +55,8 @@ const findPackageRoot = (startDir: string): string => {
 const getFrameworkPublicRoots = (): string[] => {
   const thisDir = esmDirname(import.meta.url);
   const packageRoot = findPackageRoot(thisDir);
-
   return [
+    path.join(packageRoot, 'dist/public'),
     path.join(packageRoot, 'public'), // Fallback for shipped package
   ];
 };
@@ -63,14 +64,20 @@ const getFrameworkPublicRoots = (): string[] => {
 const getDocsPublicRoot = (): string => {
   // First try app-local roots (developer app override), then fall back to framework-shipped assets.
   const appRoots = [path.join(process.cwd(), 'public')];
-
   const candidates = [...appRoots, ...getFrameworkPublicRoots()];
-
+  const hasDocsEntrypoint = (root: string): boolean => {
+    const directIndex = path.join(root, 'index.html');
+    return fs.existsSync(directIndex);
+  };
+  // Prefer a root that actually contains docs assets.
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && hasDocsEntrypoint(candidate)) return candidate;
+  }
+  // Fall back to the first existing directory.
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
-
-  return appRoots[0];
+  return candidates[0];
 };
 
 /**
@@ -79,11 +86,15 @@ const getDocsPublicRoot = (): string => {
 const mapStaticPath = (urlPath: string): string => {
   const publicRoot = getDocsPublicRoot();
 
-  if (urlPath.startsWith('/doc')) {
-    return publicRoot;
-  }
+  const normalize = (p: string): string => (p.startsWith('/') ? p.slice(1) : p);
 
-  return '';
+  // /doc acts as a mount for the docs/static site.
+  if (urlPath === '/doc' || urlPath === '/doc/') return publicRoot;
+  if (urlPath.startsWith('/doc/'))
+    return path.join(publicRoot, normalize(urlPath.slice('/doc/'.length)));
+
+  // Also serve app-local static files from the same public root.
+  return path.join(publicRoot, normalize(urlPath));
 };
 
 /**
@@ -105,14 +116,6 @@ const sendStaticFile = (filePath: string, response: IResponse): void => {
 // eslint-disable-next-line @typescript-eslint/require-await
 const serveStatic = async (request: IRequest, response: IResponse): Promise<boolean> => {
   const urlPath = request.getPath();
-
-  // Canonicalize docs base path (VitePress expects trailing slash for correct relative resolution)
-  if (urlPath === '/doc') {
-    response.setStatus(302);
-    response.setHeader('Location', '/doc/');
-    response.send('');
-    return true;
-  }
 
   let filePath = mapStaticPath(urlPath);
 
@@ -161,8 +164,8 @@ const getContentSecurityPolicyForPath = (requestPath: string): string => {
 
   return (
     "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-    "script-src-elem 'self' 'unsafe-inline'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; " +
+    "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "img-src 'self' data: https:; " +
@@ -239,11 +242,18 @@ export const Server = Object.freeze({
       async (req: http.IncomingMessage, res: http.ServerResponse) => handleRequest(app, req, res)
     );
 
+    const sockets = new Set<Socket>();
+    httpServer.on('connection', (socket: Socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+    });
+
     return {
       async listen(): Promise<void> {
         return new Promise((resolve) => {
           httpServer.listen(serverPort, serverHost, () => {
             Logger.info(`Zintrust server running at http://${serverHost}:${serverPort}`);
+            Logger.info(`Zintrust documentation at http://${serverHost}:${serverPort}/doc`);
             resolve();
           });
         });
@@ -254,6 +264,15 @@ export const Server = Object.freeze({
             Logger.info('Zintrust server stopped');
             resolve();
           });
+
+          // Ensure keep-alive / hanging connections don't block shutdown
+          for (const socket of sockets) {
+            try {
+              socket.destroy();
+            } catch {
+              // best-effort
+            }
+          }
         });
       },
       getHttpServer(): http.Server {

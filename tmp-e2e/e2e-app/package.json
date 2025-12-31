@@ -1,0 +1,23 @@
+{
+  "name": "e2e-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "zin s",
+    "build": "tsc && tsc-alias",
+    "start": "zin s --mode production --no-watch",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zintrust/core": "file:../../dist"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "tsc-alias": "^1.8.16",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}

@@ -77,6 +77,17 @@ const distPackage = {
   type: 'module',
   main: 'src/index.js',
   types: 'src/index.d.ts',
+  exports: {
+    '.': {
+      types: './src/index.d.ts',
+      import: './src/index.js',
+    },
+    './node': {
+      types: './src/node.d.ts',
+      import: './src/node.js',
+    },
+    './package.json': './package.json',
+  },
   dependencies: rootPackage.dependencies,
   overrides: rootPackage.overrides,
   bin: {
