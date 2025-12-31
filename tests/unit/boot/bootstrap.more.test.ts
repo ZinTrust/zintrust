@@ -242,11 +242,6 @@ describe('Bootstrap additional branches', () => {
       Logger: { info: vi.fn(), warn: vi.fn(), error: errorSpy },
     }));
 
-    const createTryCatchSpy = vi.fn();
-    vi.doMock('@/exceptions/ZintrustError', () => ({
-      ErrorFactory: { createTryCatchError: createTryCatchSpy },
-    }));
-
     vi.doMock('@boot/Application', () => ({
       Application: {
         create: () => ({
@@ -265,7 +260,6 @@ describe('Bootstrap additional branches', () => {
     await Promise.resolve();
 
     expect(errorSpy).toHaveBeenCalled();
-    expect(createTryCatchSpy).toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(1);
 
     exitSpy.mockRestore();

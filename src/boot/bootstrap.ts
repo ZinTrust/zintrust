@@ -14,6 +14,71 @@ let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
 let isShuttingDown = false;
 
+const logBootstrapErrorDetails = (error: unknown): void => {
+  // Best-effort: surface startup config validation details (already redacted)
+  // so container runs show which env vars are missing/misconfigured.
+  try {
+    const details = (error as { details?: unknown } | undefined)?.details as
+      | { errors?: unknown }
+      | undefined;
+    if (details?.errors !== undefined) {
+      Logger.error('Startup configuration errors:', details.errors);
+    }
+  } catch {
+    // best-effort logging
+  }
+
+  // Best-effort: surface startup health-check report details.
+  try {
+    const details = (error as { details?: unknown } | undefined)?.details as
+      | { report?: unknown }
+      | undefined;
+    if (details?.report !== undefined) {
+      Logger.error('Startup health report:', details.report);
+    }
+  } catch {
+    // best-effort logging
+  }
+};
+
+const startSchedulesIfNeeded = async (
+  app: ReturnType<typeof Application.create>
+): Promise<void> => {
+  try {
+    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
+    const runtime = RuntimeDetector.detectRuntime();
+    if (runtime !== 'nodejs' && runtime !== 'fargate') return;
+
+    const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
+    const schedules = await import('@/schedules');
+    const runner = createScheduleRunner();
+
+    for (const schedule of Object.values(schedules)) {
+      // Each schedule is expected to export a default ISchedule
+      // @ts-ignore
+      runner.register(schedule);
+    }
+
+    runner.start();
+
+    // Add shutdown hook to stop schedules gracefully
+    const shutdownManager = app.getContainer().get('shutdownManager');
+    if (
+      (typeof shutdownManager === 'object' || typeof shutdownManager === 'function') &&
+      shutdownManager !== null &&
+      'add' in shutdownManager &&
+      typeof (shutdownManager as { add?: unknown }).add === 'function'
+    ) {
+      (shutdownManager as { add: (fn: () => Promise<void> | void) => void }).add(async () => {
+        const scheduleTimeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
+        await runner.stop(scheduleTimeoutMs);
+      });
+    }
+  } catch (err) {
+    Logger.warn('Failed to start schedules:', err as Error);
+  }
+};
+
 const withTimeout = async <T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -106,42 +171,12 @@ const BootstrapFunctions = Object.freeze({
       Logger.info(`Zintrust documentation at http://${host}:${port}/doc`);
 
       // Start schedules for long-running runtimes (Node.js / Fargate)
-      try {
-        const runtime = (await import('@/runtime/RuntimeDetector')).RuntimeDetector.detectRuntime();
-        if (runtime === 'nodejs' || runtime === 'fargate') {
-          const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
-          const schedules = await import('@/schedules');
-          const runner = createScheduleRunner();
-
-          for (const schedule of Object.values(schedules)) {
-            // Each schedule is expected to export a default ISchedule
-
-            // @ts-ignore
-            runner.register(schedule);
-          }
-
-          runner.start();
-
-          // Add shutdown hook to stop schedules gracefully
-          const shutdownManager = app.getContainer().get('shutdownManager');
-          if (
-            (typeof shutdownManager === 'object' || typeof shutdownManager === 'function') &&
-            shutdownManager !== null &&
-            'add' in shutdownManager &&
-            typeof (shutdownManager as { add?: unknown }).add === 'function'
-          ) {
-            (shutdownManager as { add: (fn: () => Promise<void> | void) => void }).add(async () => {
-              const scheduleTimeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
-              await runner.stop(scheduleTimeoutMs);
-            });
-          }
-        }
-      } catch (err) {
-        Logger.warn('Failed to start schedules:', err as Error);
-      }
+      await startSchedulesIfNeeded(app);
     } catch (error) {
       Logger.error('Failed to bootstrap application:', error as Error);
-      ErrorFactory.createTryCatchError('Failed to bootstrap application:', error);
+
+      logBootstrapErrorDetails(error);
+
       process.exit(1);
     }
   },
