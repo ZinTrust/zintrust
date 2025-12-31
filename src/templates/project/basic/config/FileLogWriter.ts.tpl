@@ -7,8 +7,8 @@
 
 import { ensureDirSafe } from '@zintrust/core';
 import { Env } from '@config/env';
-import * as fs from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const getCwdSafe = (): string => {
   try {

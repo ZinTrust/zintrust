@@ -98,7 +98,7 @@ services:
     container_name: zintrust-payments-service
     environment:
       SERVICE_NAME: payments
-      SERVICE_PORT: 3003
+      SERVICE_PORT: 7777
       MICROSERVICES: 'true'
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-zintrust_payments}
@@ -109,14 +109,14 @@ services:
       MICROSERVICES_TRACING: 'false'
       SERVICE_DEPENDENCIES: orders
     ports:
-      - '3003:3003'
+      - '7777:7777'
     depends_on:
       postgres:
         condition: service_healthy
       orders:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3003/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:7777/health']
       interval: 10s
       timeout: 5s
       retries: 3

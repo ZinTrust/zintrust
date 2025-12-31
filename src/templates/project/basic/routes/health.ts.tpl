@@ -3,13 +3,12 @@
  * Provides health, liveness, and readiness endpoints.
  */
 
-import { appConfig } from '@/config';
-import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
+import { RuntimeHealthProbes } from '@health/RuntimeHealthProbes';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { useDatabase } from '@zintrust/core';
-import { QueryBuilder } from '@zintrust/core';
-import { type IRouter, Router } from '@zintrust/core';
+import { useDatabase ,QueryBuilder, Router} from '@zintrust/core';
+import type {  IRouter  } from '@zintrust/core';
+import { appConfig } from '@config/app';
 
 export function registerHealthRoutes(router: IRouter): void {
   registerHealthRoute(router);

@@ -186,9 +186,10 @@ const handleExecutionError = (error: unknown, version: string, log: boolean = tr
  */
 const runCLI = async (program: Command, version: string, args: string[]): Promise<void> => {
   try {
-    // If version is requested, let Commander print it (no banner, fast/clean output).
+    // If version is requested, show the framework banner (fancy output) and exit.
+    // This matches historical behavior and is consistent across bin shortcuts.
     if (args.includes('-v') || args.includes('--version')) {
-      await program.parseAsync(['node', 'zintrust', ...args]);
+      ErrorHandler.banner(version);
       return;
     }
 

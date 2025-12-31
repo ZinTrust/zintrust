@@ -1,7 +1,7 @@
 {
   "name": "payments",
   "version": "1.0.0",
-  "port": 3003,
+  "port": 7777,
   "domain": "ecommerce",
   "description": "Payment processing microservice",
   "dependencies": ["orders"],

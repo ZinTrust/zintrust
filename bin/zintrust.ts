@@ -1,4 +1,4 @@
-#!/usr/bin/env -S npx tsx
+#!/usr/bin/env -S node --import tsx
 
 /**
  * Zintrust CLI - Main Entry Point
@@ -39,6 +39,30 @@ const isVersionRequest = (args: string[]): boolean => {
   return args.includes('-v') || args.includes('--version');
 };
 
+const printFancyVersion = (version: string): void => {
+  const framework = 'Zintrust Framework';
+  const bannerWidth = 46;
+  const env = (process.env['NODE_ENV'] ?? 'development').toString();
+  const db = (process.env['DB_CONNECTION'] ?? 'sqlite').toString();
+
+  // Keep this dependency-free and fast; version flags should return instantly.
+  // (No logger, no config boot, no CLI registration.)
+
+  console.log('┌' + '─'.repeat(bannerWidth) + '┐');
+
+  console.log(`│ Framework: ${framework.padEnd(bannerWidth - 11)}│`);
+
+  console.log(`│ Version:   ${version.padEnd(bannerWidth - 11)}│`);
+
+  console.log(`│ Env:       ${env.padEnd(bannerWidth - 11)}│`);
+
+  console.log(`│ Database:  ${db.padEnd(bannerWidth - 11)}│`);
+
+  console.log('└' + '─'.repeat(bannerWidth) + '┘');
+
+  console.log();
+};
+
 const shouldDebugArgs = (rawArgs: string[]): boolean => {
   return process.env['ZINTRUST_CLI_DEBUG_ARGS'] === '1' && rawArgs.includes('--verbose');
 };
@@ -67,7 +91,7 @@ async function main(): Promise<void> {
     // This keeps `zin -v` / `zin --version` snappy and avoids any debug output.
     const { rawArgs: _rawArgs0, args: args0 } = getArgsFromProcess();
     if (isVersionRequest(args0)) {
-      process.stdout.write(`${loadPackageVersionFast()}\n`);
+      printFancyVersion(loadPackageVersionFast());
       return;
     }
 

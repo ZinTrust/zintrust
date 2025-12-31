@@ -381,7 +381,7 @@ describe('Microservices Health Checks', () => {
       const healthCheckUrls = {
         users: 'http://localhost:3001/health',
         orders: 'http://localhost:3002/health',
-        payments: 'http://localhost:3003/health',
+        payments: 'http://localhost:7777/health',
       };
 
       const monitor = ServiceHealthMonitor.create(healthCheckUrls);

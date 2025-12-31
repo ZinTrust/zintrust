@@ -51,7 +51,7 @@ describe('EnvFileLoader', () => {
 
   it('.env overrides existing OS env (overrideExisting=true)', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=dev', 'APP_PORT=3003', 'FOO=from_env'].join('\n'),
+      '.env': ['APP_MODE=dev', 'APP_PORT=7777', 'FOO=from_env'].join('\n'),
     });
 
     delete process.env['NODE_ENV'];
@@ -65,8 +65,8 @@ describe('EnvFileLoader', () => {
 
     expect(state.mode).toBe('dev');
     expect(process.env['FOO']).toBe('from_env');
-    expect(process.env['APP_PORT']).toBe('3003');
-    expect(process.env['PORT']).toBe('3003');
+    expect(process.env['APP_PORT']).toBe('7777');
+    expect(process.env['PORT']).toBe('7777');
     expect(process.env['NODE_ENV']).toBe('development');
 
     await project.dispose();
@@ -136,7 +136,7 @@ describe('EnvFileLoader', () => {
 
   it('CLI overrides win over .env (port, NODE_ENV, runtime)', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=dev', 'APP_PORT=3003', 'FOO=from_env'].join('\n'),
+      '.env': ['APP_MODE=dev', 'APP_PORT=7777', 'FOO=from_env'].join('\n'),
     });
 
     process.env['FOO'] = 'from_os';

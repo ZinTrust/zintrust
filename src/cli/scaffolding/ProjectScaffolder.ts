@@ -3,10 +3,10 @@
  * Handles directory structure and boilerplate file creation
  */
 
-import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 export interface ProjectScaffoldOptions {
   name: string;
@@ -59,6 +59,16 @@ interface ScaffolderState {
   projectPath: string;
   templateName: string;
 }
+
+const loadCoreVersion = (): string => {
+  try {
+    const packageUrl = new URL('../../../package.json', import.meta.url);
+    const packageJson = JSON.parse(fs.readFileSync(packageUrl, 'utf-8')) as { version?: string };
+    return typeof packageJson.version === 'string' ? packageJson.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+};
 
 const createDirectories = (projectPath: string, directories: string[]): number => {
   let count = 0;
@@ -230,9 +240,9 @@ type TemplateJson = {
 };
 
 const getProjectTemplatesRoot = (): string => {
-  const thisDir = esmDirname(import.meta.url);
   // src/cli/scaffolding/ -> src/templates/project/
-  return path.resolve(thisDir, '..', '..', 'templates', 'project');
+  const templatesUrl = new URL('../../templates/project', import.meta.url);
+  return fileURLToPath(templatesUrl);
 };
 
 const listTemplateFilesRecursive = (dirPath: string): string[] => {
@@ -293,7 +303,23 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
     const rel = path.relative(templateDir, absPath);
     if (rel === 'template.json') continue;
 
-    const content = fs.readFileSync(absPath, 'utf8');
+    let content: string;
+    try {
+      content = fs.readFileSync(absPath, 'utf8');
+    } catch (error: unknown) {
+      // Some tests temporarily create/delete template files in parallel; if a file
+      // disappears between directory listing and read, skip it.
+      if (
+        error !== null &&
+        typeof error === 'object' &&
+        'code' in error &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (error as any).code === 'ENOENT'
+      ) {
+        continue;
+      }
+      throw error;
+    }
     const outputRel = rel.endsWith('.tpl') ? rel.slice(0, -'.tpl'.length) : rel;
     files[outputRel] = content;
   }
@@ -484,6 +510,7 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     database: options.database ?? 'sqlite',
     template: state.templateName,
     migrationTimestamp,
+    coreVersion: loadCoreVersion(),
   };
 };
 
