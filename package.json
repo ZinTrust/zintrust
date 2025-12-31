@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -91,7 +91,8 @@
     "pub:ci": "cd dist && npm publish --access public",
     "rebuild:bcrypt": "npm rebuild bcrypt",
     "rebuild:native": "npm rebuild bcrypt better-sqlite3",
-    "b:push": "npm run sonarcloud:check && npm run lint --max-warnings=0"
+    "b:push": "npm run sonarcloud:check && npm run lint --max-warnings=0",
+    "bg": "npm install -g dist"
   },
   "lint-staged": {
     "src/**/*.ts": [

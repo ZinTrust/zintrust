@@ -70,7 +70,7 @@
   "src/config/middleware.ts|starter-imports-v1": "cba1123161dd06a8da8cf8f61849c88cd4ac3c13",
   "src/config/notification.ts|starter-imports-v1": "ab25db424ded384529cbd1c573c550945fc30312",
   "src/config/queue.ts|starter-imports-v1": "ecb124bedb1912096a1178a21a06c27fc7155999",
-  "src/config/security.ts|starter-imports-v1": "55699b87cab7fa69ffef71d8881d76c0297130a8",
+  "src/config/security.ts|starter-imports-v1": "03cc07eb07086ac029b8e37a12a7adf97b140fd0",
   "src/config/startup.ts|starter-imports-v1": "2386d1674ac87e1752a34ca77ffa43ce789562d4",
   "src/config/storage.ts|starter-imports-v1": "0a261c99e0d49fa0e2cd5d40f798289b303c4d1d",
   "routes/api.ts|starter-imports-v1": "1f1937bf30fb1b16c686ec60569eccd26e33398b",

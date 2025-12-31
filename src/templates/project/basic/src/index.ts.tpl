@@ -5,7 +5,7 @@
 import { Application, Server } from '@zintrust/core';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import process from 'node:process';
+import process from '@node-singletons/process';
 
 type AppInstance = ReturnType<typeof Application.create>;
 type ServerInstance = ReturnType<typeof Server.create>;

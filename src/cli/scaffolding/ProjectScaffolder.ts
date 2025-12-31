@@ -4,6 +4,7 @@
  */
 
 import { Logger } from '@config/logger';
+import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { fileURLToPath } from '@node-singletons/url';
@@ -173,13 +174,17 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     const port = Number(variables['port'] ?? 3000);
     const database = typeof variables['database'] === 'string' ? variables['database'] : 'sqlite';
 
+    // Generate a secure APP_KEY (32 bytes = 256-bit, base64 encoded)
+    const appKeyBytes = randomBytes(32);
+    const appKey = appKeyBytes.toString('base64');
+
     const baseLines: string[] = [
       'NODE_ENV=development',
       `APP_NAME=${name}`,
       `APP_PORT=${port}`,
       'APP_DEBUG=true',
-      // Placeholders only (no generated secrets during scaffold)
-      'APP_KEY=',
+      // Auto-generated secure key for storage signing and encryption
+      `APP_KEY=${appKey}`,
       `DB_CONNECTION=${database}`,
     ];
 

@@ -94,3 +94,13 @@ export type { SendMailInput, SendMailResult } from '@mail/Mail';
 
 export { SmtpDriver } from '@mail/drivers/Smtp';
 export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';
+
+// Health & Runtime (for scaffolded routes and health checks)
+export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
+
+// Broadcast (for real-time features)
+export { Broadcast } from '@tools/broadcast/Broadcast';
+
+// Storage (for file management and signed URLs)
+export { Storage } from '@tools/storage/index';
+export { LocalSignedUrl } from '@tools/storage/LocalSignedUrl';

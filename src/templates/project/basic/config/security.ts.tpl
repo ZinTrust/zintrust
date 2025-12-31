@@ -2,6 +2,18 @@
  * Security Configuration
  * JWT, CSRF, encryption and other security settings
  * Sealed namespace for immutability
+ *
+ * APP_KEY: Primary encryption key for storage signing and app-level encryption.
+ *          Set automatically during project scaffolding.
+ *
+ * Security keys can be configured per domain:
+ * - APP_KEY: Default encryption key for all operations (auto-generated)
+ * - API_KEY_SECRET: Optional API key authentication (if API_KEY_ENABLED=true)
+ * - ENCRYPTION_KEY: Optional separate encryption key (overrides APP_KEY if set)
+ * - JWT_SECRET: JWT token signing key
+ *
+ * Developers can use a single APP_KEY or configure separate keys for different
+ * security domains (e.g., different keys for different microservices).
  */
 
 import { appConfig } from '@config/app';

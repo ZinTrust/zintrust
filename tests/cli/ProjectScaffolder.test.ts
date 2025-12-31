@@ -401,8 +401,8 @@ describe('ProjectScaffolder Configuration', () => {
     const env = FileGenerator.readFile(envPath);
     expect(env).toContain('APP_NAME=my-app');
     expect(env).toContain('APP_PORT=3001');
-    expect(env).toContain('APP_KEY=');
-    expect(env).not.toContain('base64:');
+    // APP_KEY should be auto-generated as base64 (32 bytes = 256-bit key)
+    expect(env).toMatch(/APP_KEY=[A-Za-z0-9+/]{43,44}={0,2}/); // base64 pattern for 32 bytes
   });
 });
 

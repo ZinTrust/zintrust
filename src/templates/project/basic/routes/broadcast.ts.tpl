@@ -25,7 +25,7 @@ export function registerBroadcastRoutes(router: IRouter): void {
       return;
     }
 
-    const { Broadcast } = await import('@broadcast/Broadcast');
+    const { Broadcast } = await import('@zintrust/core');
     const result = await Broadcast.send(channel, event, data);
     res.json({ ok: true, result });
   });
