@@ -42,8 +42,8 @@ function getLatestNpmVersion(packageName) {
 }
 
 // 1. Determine next version
-const skipNpmVersionCheck =
-  process.env.DIST_SKIP_NPM_VERSION_CHECK === 'true' || process.env.CI === 'true';
+const isCi = process.env.CI === 'true' || process.env.CI === '1';
+const skipNpmVersionCheck = process.env.DIST_SKIP_NPM_VERSION_CHECK === 'true';
 
 const latestPublished = skipNpmVersionCheck ? null : getLatestNpmVersion(rootPackage.name);
 let finalVersion = rootPackage.version;
@@ -61,7 +61,7 @@ console.log(`🌐 NPM version:    ${latestPublished || 'not published'}`);
 console.log(`🚀 Final version:  ${finalVersion}`);
 
 // 2. Update root package.json if version changed (skip in CI / when requested)
-if (!skipNpmVersionCheck && finalVersion !== rootPackage.version) {
+if (!isCi && !skipNpmVersionCheck && finalVersion !== rootPackage.version) {
   rootPackage.version = finalVersion;
   fs.writeFileSync(rootPackagePath, JSON.stringify(rootPackage, null, 2) + '\n');
   console.log('✅ Root package.json updated');
