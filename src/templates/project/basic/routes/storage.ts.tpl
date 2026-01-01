@@ -1,5 +1,5 @@
 import { HTTP_HEADERS } from '@config/constants';
-import { Env } from '@config/env';
+import { Env } from '@zintrust/core';
 import { type IRouter, Router } from '@zintrust/core';
 import { LocalSignedUrl } from '@storage/LocalSignedUrl';
 import { Storage } from '@storage/index';
