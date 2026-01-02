@@ -4,6 +4,10 @@ import * as fs from '@node-singletons/fs';
 import inquirer from 'inquirer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@runtime/PluginManager', () => ({
+  PluginManager: { install: vi.fn() },
+}));
+
 // Mock all generators
 vi.mock('@cli/scaffolding/ServiceScaffolder', () => ({
   ServiceScaffolder: { scaffold: vi.fn() },
@@ -66,6 +70,7 @@ import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
+import { PluginManager } from '@runtime/PluginManager';
 
 const findQuestion = (questions: any[], name: string) => {
   for (const q of questions) {
@@ -84,6 +89,28 @@ describe('AddCommand', () => {
   });
 
   describe('execute', () => {
+    it('should delegate db:* syntax to PluginManager.install', async () => {
+      vi.mocked(PluginManager.install).mockResolvedValue(undefined);
+
+      await command.execute({ args: ['db:sqlite'] });
+
+      expect(PluginManager.install).toHaveBeenCalledWith('db:sqlite');
+    });
+
+    it('should pass --package-manager through when delegating db:* syntax', async () => {
+      vi.mocked(PluginManager.install).mockResolvedValue(undefined);
+
+      await command.execute({ args: ['db:sqlite'], packageManager: 'pnpm' });
+
+      expect(PluginManager.install).toHaveBeenCalledWith('db:sqlite', { packageManager: 'pnpm' });
+    });
+
+    it('should fail when a name argument is provided for plugin-style types', async () => {
+      await expect(command.execute({ args: ['db:sqlite', 'extra'] })).rejects.toThrow(
+        /looks like a plugin id/i
+      );
+    });
+
     it('should handle service creation', async () => {
       vi.mocked(ServiceScaffolder.scaffold).mockResolvedValue({
         success: true,

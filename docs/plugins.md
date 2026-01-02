@@ -39,6 +39,9 @@ zin plugin install adapter:sqlite
 # Short syntax
 zin p -i a:sqlite
 
+# Shortcut syntax (delegates to plugin installer)
+zin add db:sqlite
+
 # Choose a package manager explicitly (optional)
 zin plugin install adapter:sqlite --package-manager pnpm
 ```
@@ -53,14 +56,14 @@ zin plugin install adapter:sqlite --package-manager pnpm
 3.  **Post-install commands**: Some plugins include an optional `postInstall.command` (for setup tasks). For safety, the framework will **not** execute these commands by default; you must opt-in by setting `ZINTRUST_ALLOW_POSTINSTALL=1` in your environment. Review any post-install commands before enabling them.
 4.  **Configuration**: You are ready to go! The framework automatically detects the new adapter.
 
-# Standard syntax
+### Uninstalling a Plugin
 
+```bash
+# Standard syntax
 zin plugin uninstall adapter:sqlite
 
 # Short syntax
-
 zin p -u a:sqlite
-
 ```
 
 _Note: Uninstall is currently **non-destructive** and does not roll back generated files or remove npm dependencies. If you want to revert, do it manually (e.g., restore from git)._
@@ -69,12 +72,19 @@ _Note: Uninstall is currently **non-destructive** and does not roll back generat
 
 ### Database Adapters
 
-| Plugin ID          | Aliases              | Description                           | Dependencies      |
-| :----------------- | :------------------- | :------------------------------------ | :---------------- |
-| `adapter:postgres` | `a:postgres`, `pg`   | PostgreSQL adapter using `pg`         | `pg`, `@types/pg` |
-| `adapter:mysql`    | `a:mysql`, `mysql`   | MySQL adapter using `mysql2`          | `mysql2`          |
-| `adapter:sqlite`   | `a:sqlite`, `sqlite` | SQLite adapter using `better-sqlite3` | `better-sqlite3`  |
-| `adapter:mssql`    | `a:mssql`, `mssql`   | SQL Server adapter using `mssql`      | `mssql`           |
+| Plugin ID          | Aliases                                            | Description                           | Dependencies      |
+| :----------------- | :------------------------------------------------- | :------------------------------------ | :---------------- |
+| `adapter:postgres` | `a:postgres`, `pg`, `db:postgres`, `db:postgresql` | PostgreSQL adapter using `pg`         | `pg`, `@types/pg` |
+| `adapter:mysql`    | `a:mysql`, `mysql`, `db:mysql`                     | MySQL adapter using `mysql2`          | `mysql2`          |
+| `adapter:sqlite`   | `a:sqlite`, `sqlite`, `db:sqlite`                  | SQLite adapter using `better-sqlite3` | `better-sqlite3`  |
+| `adapter:mssql`    | `a:mssql`, `mssql`, `db:mssql`                     | SQL Server adapter using `mssql`      | `mssql`           |
+
+### Drivers
+
+| Plugin ID                | Aliases           | Description                                           | Dependencies |
+| :----------------------- | :---------------- | :---------------------------------------------------- | :----------- |
+| `driver:queue-redis`     | `queue:redis`     | Redis-backed queue driver (installs redis client)     | `redis`      |
+| `driver:broadcast-redis` | `broadcast:redis` | Redis-backed broadcast driver (installs redis client) | `redis`      |
 
 ### Features
 
@@ -87,4 +97,5 @@ _Note: Uninstall is currently **non-destructive** and does not roll back generat
 
 (Coming Soon)
 Future versions of Zintrust will allow you to define your own local plugins to standardize components across your organization.
-```
+
+<!-- end -->

@@ -258,6 +258,27 @@ export const PluginManager = Object.freeze({
     const plugin = PluginRegistry[resolvedId];
     const projectRoot = resolveProjectRoot();
 
+    // Dependency-only plugins (no templates): consider installed when required deps are present.
+    if (plugin.templates.length === 0) {
+      try {
+        const packageJsonPath = path.join(projectRoot, 'package.json');
+        const packageJsonText = await fs.readFile(packageJsonPath, 'utf-8');
+        const packageJson = parsePackageJsonDeps(packageJsonText);
+
+        const hasDeps = plugin.dependencies.every(
+          (dep) => packageJson.dependencies?.[dep] ?? packageJson.devDependencies?.[dep] ?? ''
+        );
+
+        const hasDevDeps = plugin.devDependencies.every(
+          (dep) => packageJson.devDependencies?.[dep] ?? packageJson.dependencies?.[dep] ?? ''
+        );
+
+        return hasDeps && hasDevDeps;
+      } catch {
+        return false;
+      }
+    }
+
     // Check if the main template file exists in the destination
     // We assume if the first template exists, the plugin is "installed"
     if (plugin.templates.length > 0) {

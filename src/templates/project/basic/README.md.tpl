@@ -6,6 +6,10 @@ Starter Task API built with Zintrust.
 
 ```bash
 npm install
+
+# Install optional runtime drivers on-demand (example: SQLite)
+zin add db:sqlite
+
 zin s
 ```
 

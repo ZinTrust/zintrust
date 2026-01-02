@@ -10,7 +10,51 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { performance } from '@node-singletons/perf-hooks';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
-import Database from 'better-sqlite3';
+
+type SqliteRunInfo = { changes: number };
+type SqliteStatement = {
+  all: (params?: readonly unknown[]) => unknown[];
+  run: (params?: readonly unknown[]) => SqliteRunInfo;
+};
+type SqliteDatabase = {
+  prepare: (sql: string) => SqliteStatement;
+  pragma: (value: string) => void;
+  close: () => void;
+};
+
+function isMissingEsmPackage(error: unknown, packageName: string): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const maybe = error as { code?: unknown; message?: unknown };
+  const code = typeof maybe.code === 'string' ? maybe.code : '';
+  const message = typeof maybe.message === 'string' ? maybe.message : '';
+  if (code === 'ERR_MODULE_NOT_FOUND' && message.includes(`'${packageName}'`)) return true;
+  if (message.includes(`Cannot find package '${packageName}'`)) return true;
+  return false;
+}
+
+async function importSqliteDatabaseConstructor(): Promise<
+  new (filename: string) => SqliteDatabase
+> {
+  try {
+    const mod = (await import('better-sqlite3')) as unknown as {
+      default?: new (filename: string) => SqliteDatabase;
+    };
+
+    const ctor = (mod as unknown as { default?: unknown }).default;
+    if (typeof ctor === 'function') return ctor as new (filename: string) => SqliteDatabase;
+
+    // Some CJS packages may not present a `default` export under certain loaders.
+    return mod as unknown as new (filename: string) => SqliteDatabase;
+  } catch (error) {
+    if (isMissingEsmPackage(error, 'better-sqlite3')) {
+      throw ErrorFactory.createConfigError(
+        "SQLite adapter requires the 'better-sqlite3' package (run `zin add db:sqlite` or `zin plugin install db:sqlite`)."
+      );
+    }
+
+    throw ErrorFactory.createTryCatchError('Failed to load SQLite driver', { cause: error });
+  }
+}
 
 function normalizeFilename(database: string | null | undefined): string {
   const value = (database ?? '').trim();
@@ -21,13 +65,13 @@ function isSelectQuery(sql: string): boolean {
   return sql.trimStart().toLowerCase().startsWith('select');
 }
 
-function requireDb(db: Database.Database | null): Database.Database {
+function requireDb(db: SqliteDatabase | null): SqliteDatabase {
   if (db === null) throw ErrorFactory.createConnectionError('Database not connected');
   return db;
 }
 
 function executeQuery(
-  db: Database.Database,
+  db: SqliteDatabase,
   sql: string,
   parameters: readonly unknown[]
 ): QueryResult {
@@ -45,11 +89,7 @@ function executeQuery(
   return { rows: [], rowCount: info.changes };
 }
 
-function executeRawQuery<T>(
-  db: Database.Database,
-  sql: string,
-  parameters: readonly unknown[]
-): T[] {
+function executeRawQuery<T>(db: SqliteDatabase, sql: string, parameters: readonly unknown[]): T[] {
   const stmt = db.prepare(sql);
   if (isSelectQuery(sql)) return stmt.all(parameters) as T[];
   stmt.run(parameters);
@@ -57,7 +97,7 @@ function executeRawQuery<T>(
 }
 
 type SQLiteAdapterState = {
-  db: Database.Database | null;
+  db: SqliteDatabase | null;
   config: DatabaseConfig;
 };
 
@@ -65,7 +105,9 @@ async function connectSQLite(state: SQLiteAdapterState): Promise<void> {
   if (state.db !== null) return;
 
   const filename = normalizeFilename(state.config.database);
-  state.db = new Database(filename);
+
+  const SqliteDatabaseCtor = await importSqliteDatabaseConstructor();
+  state.db = new SqliteDatabaseCtor(filename);
 
   // Enable WAL mode for better concurrency
   state.db.pragma('journal_mode = WAL');
@@ -118,7 +160,7 @@ async function rawQuerySQLite<T>(
 async function transactionSQLite<T>(
   state: SQLiteAdapterState,
   adapter: IDatabaseAdapter,
-  callback: (adapter: IDatabaseAdapter, db: Database.Database) => Promise<T>
+  callback: (adapter: IDatabaseAdapter, db: SqliteDatabase) => Promise<T>
 ): Promise<T> {
   const currentDb = requireDb(state.db);
 
@@ -162,7 +204,7 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
     },
 
     async transaction<T>(
-      callback: (adapter: IDatabaseAdapter, db: Database.Database) => Promise<T>
+      callback: (adapter: IDatabaseAdapter, db: SqliteDatabase) => Promise<T>
     ): Promise<T> {
       return transactionSQLite(state, adapter, callback);
     },

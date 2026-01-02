@@ -6,7 +6,7 @@
 export interface PluginDefinition {
   name: string;
   description: string;
-  type: 'database-adapter' | 'feature';
+  type: 'database-adapter' | 'feature' | 'driver';
   aliases: string[];
   dependencies: string[];
   devDependencies: string[];
@@ -52,11 +52,29 @@ export const PluginRegistry: Record<string, PluginDefinition> = {
       },
     ],
   },
+  'driver:queue-redis': {
+    name: 'Redis Queue Driver',
+    description: 'Redis-backed queue driver (installs redis client dependency)',
+    type: 'driver',
+    aliases: ['queue:redis'],
+    dependencies: ['redis'],
+    devDependencies: [],
+    templates: [],
+  },
+  'driver:broadcast-redis': {
+    name: 'Redis Broadcast Driver',
+    description: 'Redis-backed broadcast driver (installs redis client dependency)',
+    type: 'driver',
+    aliases: ['broadcast:redis'],
+    dependencies: ['redis'],
+    devDependencies: [],
+    templates: [],
+  },
   'adapter:postgres': {
     name: 'PostgreSQL Adapter',
     description: 'Production-ready PostgreSQL database adapter using pg',
     type: 'database-adapter',
-    aliases: ['a:postgres', 'pg'],
+    aliases: ['a:postgres', 'pg', 'db:postgres', 'postgresql', 'db:postgresql'],
     dependencies: ['pg'],
     devDependencies: ['@types/pg'],
     templates: [
@@ -70,7 +88,7 @@ export const PluginRegistry: Record<string, PluginDefinition> = {
     name: 'MySQL Adapter',
     description: 'Production-ready MySQL database adapter using mysql2',
     type: 'database-adapter',
-    aliases: ['a:mysql', 'mysql'],
+    aliases: ['a:mysql', 'mysql', 'db:mysql'],
     dependencies: ['mysql2'],
     devDependencies: [],
     templates: [
@@ -84,7 +102,7 @@ export const PluginRegistry: Record<string, PluginDefinition> = {
     name: 'SQL Server Adapter',
     description: 'Production-ready SQL Server database adapter using mssql',
     type: 'database-adapter',
-    aliases: ['a:mssql', 'mssql'],
+    aliases: ['a:mssql', 'mssql', 'db:mssql'],
     dependencies: ['mssql'],
     devDependencies: [],
     templates: [
@@ -98,7 +116,7 @@ export const PluginRegistry: Record<string, PluginDefinition> = {
     name: 'SQLite Adapter',
     description: 'Production-ready SQLite database adapter using better-sqlite3',
     type: 'database-adapter',
-    aliases: ['a:sqlite', 'sqlite'],
+    aliases: ['a:sqlite', 'sqlite', 'db:sqlite'],
     dependencies: ['better-sqlite3'],
     devDependencies: ['@types/better-sqlite3'],
     templates: [
