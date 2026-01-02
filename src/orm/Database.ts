@@ -11,6 +11,7 @@ import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
 
 export interface IDatabase {
@@ -38,6 +39,11 @@ export interface IDatabase {
  * Create appropriate adapter based on driver
  */
 const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
+  const registered = DatabaseAdapterRegistry.get(cfg.driver);
+  if (registered !== undefined) {
+    return registered(cfg);
+  }
+
   switch (cfg.driver) {
     case 'postgresql':
       return PostgreSQLAdapter.create(cfg);

@@ -5,38 +5,15 @@
  */
 
 import { Logger } from '@config/logger';
+import type {
+  GetSecretOptions,
+  SecretConfig,
+  SecretsManagerInstance,
+  SetSecretOptions,
+} from '@config/type';
 import { ErrorFactory } from '@zintrust/core';
 
-export interface CloudflareKV {
-  get(key: string): Promise<string | null>;
-  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
-  delete(key: string): Promise<void>;
-  list(options?: { prefix?: string }): Promise<{ keys: { name: string }[] }>;
-}
-
-export interface SecretConfig {
-  platform: 'aws' | 'cloudflare' | 'deno' | 'local';
-  region?: string;
-  kv?: CloudflareKV; // Cloudflare KV namespace
-}
-
-export interface SecretValue {
-  key: string;
-  value: string;
-  expiresAt?: number;
-  rotationEnabled?: boolean;
-}
-
 let instance: SecretsManagerInstance | undefined;
-
-interface SecretsManagerInstance {
-  getSecret(key: string, options?: GetSecretOptions): Promise<string>;
-  setSecret(key: string, value: string, options?: SetSecretOptions): Promise<void>;
-  deleteSecret(key: string): Promise<void>;
-  rotateSecret(key: string): Promise<void>;
-  listSecrets(pattern?: string): Promise<string[]>;
-  clearCache(key?: string): void;
-}
 
 function pruneCache(
   cache: Map<string, { value: string; expiresAt: number }>,
@@ -432,16 +409,6 @@ export const SECRETS = Object.freeze({
   SESSION_SECRET: 'session/secret',
   CSRF_SECRET: 'csrf/secret',
 } as const);
-
-export interface GetSecretOptions {
-  cacheTtl?: number; // Cache time-to-live in milliseconds
-  throwIfMissing?: boolean;
-}
-
-export interface SetSecretOptions {
-  expirationTtl?: number; // Expiration time-to-live in seconds
-  metadata?: Record<string, unknown>;
-}
 
 /**
  * Helper to get database credentials using secrets manager

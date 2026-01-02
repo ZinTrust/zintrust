@@ -3,8 +3,8 @@
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
-import { Env } from '@zintrust/core';
 import { appConfig } from '@config/app';
+import { Env } from '@config/env';
 
 interface ILogger {
   debug(message: string, data?: unknown, category?: string): void;
@@ -100,7 +100,9 @@ const getFileWriter = (): void => {
 
 const shouldLogToFile = (): boolean => {
   // Prefer dynamic lookup so late-bound env (tests, some runtimes) is respected.
-  if (!Env.getBool('LOG_TO_FILE', false)) return false;
+  const channel = Env.get('LOG_CHANNEL', '').trim().toLowerCase();
+  const channelWantsFile = channel === 'file' || channel === 'all';
+  if (!Env.getBool('LOG_TO_FILE', false) && !channelWantsFile) return false;
   if (typeof process === 'undefined') return false;
   return true;
 };

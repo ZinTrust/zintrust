@@ -4,64 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@zintrust/core';
-
-export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses' | 'mailgun';
-
-export type DisabledMailDriverConfig = {
-  driver: 'disabled';
-};
-
-export type SendGridMailDriverConfig = {
-  driver: 'sendgrid';
-  apiKey: string;
-};
-
-export type MailgunMailDriverConfig = {
-  driver: 'mailgun';
-  apiKey: string;
-  domain: string;
-  baseUrl: string;
-};
-
-// Placeholders for future drivers (kept config-first)
-export type SmtpMailDriverConfig = {
-  driver: 'smtp';
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  secure: boolean | 'starttls';
-};
-
-export type SesMailDriverConfig = {
-  driver: 'ses';
-  region: string;
-};
-
-export type MailDriverConfig =
-  | DisabledMailDriverConfig
-  | SendGridMailDriverConfig
-  | MailgunMailDriverConfig
-  | SmtpMailDriverConfig
-  | SesMailDriverConfig;
-
-type MailDrivers = {
-  disabled: DisabledMailDriverConfig;
-  sendgrid: SendGridMailDriverConfig;
-  mailgun: MailgunMailDriverConfig;
-  smtp: SmtpMailDriverConfig;
-  ses: SesMailDriverConfig;
-};
-
-type MailConfigInput = {
-  default: MailDriverName;
-  from: {
-    address: string;
-    name: string;
-  };
-  drivers: MailDrivers;
-};
+import { Env } from '@config/env';
+import type { MailConfigInput, MailDriverConfig, MailDriverName, MailDrivers } from '@config/type';
 
 const getMailDriver = (config: MailConfigInput): MailDriverConfig => {
   const defaultDriver = config.default;

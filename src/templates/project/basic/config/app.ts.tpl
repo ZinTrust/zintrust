@@ -4,12 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@zintrust/core';
-
-type ProcessLike = { env?: Record<string, string | undefined> };
-
-type Environment = 'development' | 'dev' | 'production' | 'prod' | 'pro' | 'testing' | 'test';
-type StartMode = 'development' | 'production' | 'testing';
+import { Env } from '@config/env';
+import type { Environment, ProcessLike, StartMode } from '@config/type';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);

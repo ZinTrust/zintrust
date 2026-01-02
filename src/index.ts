@@ -28,6 +28,9 @@ export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
+
+// Adapter registry (for external adapter packages)
+export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 

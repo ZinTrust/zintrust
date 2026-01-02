@@ -5,43 +5,13 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
-import { Env } from '@zintrust/core';
-
-export type KnownBroadcastDriverName = 'inmemory' | 'pusher' | 'redis' | 'redishttps';
-
-export type InMemoryBroadcastDriverConfig = {
-  driver: 'inmemory';
-};
-
-export type PusherBroadcastDriverConfig = {
-  driver: 'pusher';
-  appId: string;
-  key: string;
-  secret: string;
-  cluster: string;
-  useTLS: boolean;
-};
-
-export type RedisBroadcastDriverConfig = {
-  driver: 'redis';
-  host: string;
-  port: number;
-  password: string;
-  channelPrefix: string;
-};
-
-export type RedisHttpsBroadcastDriverConfig = {
-  driver: 'redishttps';
-  endpoint: string;
-  token: string;
-  channelPrefix: string;
-};
-
-export type KnownBroadcastDriverConfig =
-  | InMemoryBroadcastDriverConfig
-  | PusherBroadcastDriverConfig
-  | RedisBroadcastDriverConfig
-  | RedisHttpsBroadcastDriverConfig;
+import { Env } from '@config/env';
+import {
+  KnownBroadcastDriverConfig,
+  PusherBroadcastDriverConfig,
+  RedisBroadcastDriverConfig,
+  RedisHttpsBroadcastDriverConfig,
+} from '@config/type';
 
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
 

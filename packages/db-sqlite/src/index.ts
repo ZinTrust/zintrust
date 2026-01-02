@@ -1,21 +1,42 @@
-/* eslint-disable @typescript-eslint/require-await */
-/**
- * SQLite Database Adapter
- * Production Implementation
- */
+import { ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
 
-import { FeatureFlags } from '@config/features';
-import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { performance } from '@node-singletons/perf-hooks';
-import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
-import { QueryBuilder } from '@orm/QueryBuilder';
+export type DatabaseConfig = {
+  driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
+  database?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  synchronize?: boolean;
+  logging?: boolean;
+  readHosts?: string[];
+};
+
+export type QueryResult = {
+  rows: Record<string, unknown>[];
+  rowCount: number;
+};
+
+export interface IDatabaseAdapter {
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  query(sql: string, parameters: unknown[]): Promise<QueryResult>;
+  queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null>;
+  ping(): Promise<void>;
+  transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;
+  rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]>;
+  getType(): string;
+  isConnected(): boolean;
+  getPlaceholder(index: number): string;
+}
 
 type SqliteRunInfo = { changes: number };
+
 type SqliteStatement = {
   all: (params?: readonly unknown[]) => unknown[];
   run: (params?: readonly unknown[]) => SqliteRunInfo;
 };
+
 type SqliteDatabase = {
   prepare: (sql: string) => SqliteStatement;
   pragma: (value: string) => void;
@@ -29,6 +50,7 @@ function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   const message = typeof maybe.message === 'string' ? maybe.message : '';
   if (code === 'ERR_MODULE_NOT_FOUND' && message.includes(`'${packageName}'`)) return true;
   if (message.includes(`Cannot find package '${packageName}'`)) return true;
+  if (message.includes(`Cannot find module '${packageName}'`)) return true;
   return false;
 }
 
@@ -105,19 +127,15 @@ async function connectSQLite(state: SQLiteAdapterState): Promise<void> {
   if (state.db !== null) return;
 
   const filename = normalizeFilename(state.config.database);
-
   const SqliteDatabaseCtor = await importSqliteDatabaseConstructor();
   state.db = new SqliteDatabaseCtor(filename);
 
-  // Enable WAL mode for better concurrency
   state.db.pragma('journal_mode = WAL');
-
   Logger.info(`✓ SQLite connected (${filename})`);
 }
 
 async function disconnectSQLite(state: SQLiteAdapterState): Promise<void> {
   if (state.db === null) return;
-
   state.db.close();
   state.db = null;
   Logger.info('✓ SQLite disconnected');
@@ -147,7 +165,6 @@ async function rawQuerySQLite<T>(
   }
 
   const currentDb = requireDb(state.db);
-
   Logger.warn(`Raw SQL Query executed: ${sql}`);
 
   try {
@@ -160,13 +177,13 @@ async function rawQuerySQLite<T>(
 async function transactionSQLite<T>(
   state: SQLiteAdapterState,
   adapter: IDatabaseAdapter,
-  callback: (adapter: IDatabaseAdapter, db: SqliteDatabase) => Promise<T>
+  callback: (adapter: IDatabaseAdapter) => Promise<T>
 ): Promise<T> {
-  const currentDb = requireDb(state.db);
+  requireDb(state.db);
 
   await adapter.query('BEGIN', []);
   try {
-    const result = await callback(adapter, currentDb);
+    const result = await callback(adapter);
     await adapter.query('COMMIT', []);
     return result;
   } catch (error: unknown) {
@@ -179,51 +196,21 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
   const state: SQLiteAdapterState = { db: null, config };
 
   const adapter: IDatabaseAdapter = {
-    async connect(): Promise<void> {
-      await connectSQLite(state);
-    },
-
-    async disconnect(): Promise<void> {
-      await disconnectSQLite(state);
-    },
-
-    async query(sql: string, parameters: unknown[] = []): Promise<QueryResult> {
-      return querySQLite(state, sql, parameters);
-    },
-
-    async queryOne(
-      sql: string,
-      parameters: unknown[] = []
-    ): Promise<Record<string, unknown> | null> {
+    connect: async () => connectSQLite(state),
+    disconnect: async () => disconnectSQLite(state),
+    query: async (sql, parameters = []) => querySQLite(state, sql, parameters),
+    queryOne: async (sql, parameters = []) => {
       const result = await adapter.query(sql, parameters);
       return result.rows[0] ?? null;
     },
-
-    async ping(): Promise<void> {
+    ping: async () => {
       await adapter.query(QueryBuilder.create('').select('1').toSQL(), []);
     },
-
-    async transaction<T>(
-      callback: (adapter: IDatabaseAdapter, db: SqliteDatabase) => Promise<T>
-    ): Promise<T> {
-      return transactionSQLite(state, adapter, callback);
-    },
-
-    async rawQuery<T = unknown>(sql: string, parameters: unknown[] = []): Promise<T[]> {
-      return rawQuerySQLite<T>(state, sql, parameters);
-    },
-
-    getType(): string {
-      return 'sqlite';
-    },
-
-    isConnected(): boolean {
-      return Boolean(state.db);
-    },
-
-    getPlaceholder(_index: number): string {
-      return '?';
-    },
+    transaction: async (callback) => transactionSQLite(state, adapter, callback),
+    rawQuery: async (sql, parameters) => rawQuerySQLite(state, sql, parameters ?? []),
+    getType: () => 'sqlite',
+    isConnected: () => Boolean(state.db),
+    getPlaceholder: (_index) => '?',
   };
 
   return adapter;
@@ -232,3 +219,5 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
 export const SQLiteAdapter = Object.freeze({
   create: createSQLiteAdapter,
 });
+
+export default SQLiteAdapter;
