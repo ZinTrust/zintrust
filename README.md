@@ -33,7 +33,7 @@ If you want PR-specific “New Code” numbers in GitHub, rely on the SonarCloud
 ## Features
 
 ✅ **Type-Safe ORM & Query Builder** – No raw SQL, chainable queries
-✅ **Multi-Database Support** – SQLite (primary), PostgreSQL, MySQL, SQL Server ready
+✅ **Multi-Database Support** – SQLite, PostgreSQL, MySQL, SQL Server via adapters
 ✅ **Declarative Routing** – Groups, resources, nested routes
 ✅ **Service Container** – Dependency injection out of the box
 ✅ **Migrations & Seeding** – Schema versioning, factory-based test data
@@ -53,9 +53,26 @@ npm install -g @zintrust/core
 zin new my-app
 cd my-app
 
+# Install adapters as needed (example: SQLite)
+zin add db:sqlite
+
 # Start development server
 npm run dev
 ```
+
+## Adapters (on-demand installs)
+
+Zintrust ships a minimal core. Database/cache/etc. integrations are installed explicitly via adapter packages.
+
+```bash
+# Database adapters
+zin add db:sqlite    # installs @zintrust/db-sqlite
+zin add db:postgres  # installs @zintrust/db-postgres
+zin add db:mysql     # installs @zintrust/db-mysql
+zin add db:mssql     # installs @zintrust/db-sqlserver
+```
+
+The canonical CLI is `zin`. `z` is a documented shorthand alias.
 
 ## Core Package Dependencies (CLI + DX)
 
@@ -68,11 +85,11 @@ The npm package `@zintrust/core` includes a small set of runtime dependencies pr
 
 Some dependencies are used by built-in features/adapters:
 
-- `better-sqlite3` - SQLite database driver (local development / SQLite adapter)
 - `bcrypt` - password hashing helpers
 - `jsonwebtoken` - JWT token signing/verification utilities
 
-Note: `better-sqlite3` (and some other native modules) may require build tools on certain platforms.
+Database drivers are provided by adapter packages (for example, `@zintrust/db-sqlite` depends on `better-sqlite3`).
+Note: native modules like `better-sqlite3` may require build tools on certain platforms.
 
 ## Development
 

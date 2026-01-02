@@ -31,6 +31,10 @@ zin add db:sqlite
 # Install Redis client dependency for queue/broadcast drivers
 zin add queue:redis
 zin add broadcast:redis
+
+# Install cache/mail drivers on-demand
+zin add cache:redis
+zin add mail:nodemailer
 ```
 
 Note: some drivers (e.g. `better-sqlite3`) are native modules and may require build tools on some platforms.

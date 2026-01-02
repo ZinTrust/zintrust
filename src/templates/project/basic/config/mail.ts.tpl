@@ -67,6 +67,21 @@ const mailConfigObj = {
       })(),
     },
 
+    nodemailer: {
+      driver: 'nodemailer' as const,
+      host: Env.get('MAIL_HOST', ''),
+      port: Env.getInt('MAIL_PORT', 587),
+      username: Env.get('MAIL_USERNAME', ''),
+      password: Env.get('MAIL_PASSWORD', ''),
+      secure: (() => {
+        const raw = Env.get('MAIL_SECURE', '').trim().toLowerCase();
+        if (raw === 'starttls') return 'starttls' as const;
+        if (raw === 'tls' || raw === 'ssl' || raw === 'smtps' || raw === 'implicit') return true;
+        if (raw === 'none' || raw === 'off' || raw === 'false' || raw === '0') return false;
+        return Env.getBool('MAIL_SECURE', false);
+      })(),
+    },
+
     ses: {
       driver: 'ses' as const,
       region: Env.get('AWS_REGION', 'us-east-1'),

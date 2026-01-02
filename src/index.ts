@@ -96,6 +96,9 @@ export type { AppConfig } from '@config/app';
 export { cacheConfig } from '@config/cache';
 export type { CacheConfig } from '@config/cache';
 
+// Cache driver registry (for external driver packages)
+export { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
+
 export { databaseConfig } from '@config/database';
 export type { DatabaseConfig as DatabaseRuntimeConfig } from '@config/database';
 
@@ -132,6 +135,9 @@ export { StartupConfigValidator } from '@config/StartupConfigValidator';
 // Mail
 export { Mail } from '@mail/Mail';
 export type { SendMailInput, SendMailResult } from '@mail/Mail';
+
+// Mail driver registry (for external driver packages)
+export { MailDriverRegistry } from '@mail/MailDriverRegistry';
 
 export { SmtpDriver } from '@mail/drivers/Smtp';
 export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';

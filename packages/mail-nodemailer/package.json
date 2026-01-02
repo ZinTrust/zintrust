@@ -1,5 +1,5 @@
 {
-  "name": "@zintrust/db-sqlite",
+  "name": "@zintrust/mail-nodemailer",
   "version": "0.1.8",
   "private": false,
   "type": "module",
@@ -28,7 +28,7 @@
     "access": "public"
   },
   "dependencies": {
-    "better-sqlite3": "^12.5.0"
+    "nodemailer": "^6.10.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

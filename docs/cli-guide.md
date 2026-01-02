@@ -95,6 +95,8 @@ zin add db:sqlite
 zin add db:postgres
 zin add queue:redis
 zin add broadcast:redis
+zin add cache:redis
+zin add mail:nodemailer
 
 # Choose a package manager explicitly (optional)
 zin add db:sqlite --package-manager pnpm

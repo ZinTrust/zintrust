@@ -4,7 +4,7 @@ The Zintrust Framework uses a "Zero-Config" plugin system to manage optional com
 
 ## Overview
 
-Plugins in Zintrust are more than just npm packages. They are **templates** that inject production-ready code directly into your project structure. This gives you full control over the implementation—you can modify the installed adapter code to fit your specific needs without fighting against a black-box library.
+Plugins in Zintrust are a mix of **npm dependencies** and (optionally) **templates** that scaffold code into your project. For modular adapters/drivers, the key step is activation: the CLI updates `src/zintrust.plugins.ts` with side-effect imports (for example `@zintrust/db-postgres/register`) so the adapter/driver registers itself at runtime.
 
 ## Managing Plugins
 
@@ -51,10 +51,10 @@ zin plugin install adapter:sqlite --package-manager pnpm
 > You can control which package manager is used to install the plugin's dependencies with `--package-manager`.
 > If not specified, Zintrust will attempt to detect the project package manager by looking for lockfiles (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`) and default to `npm` if none are found. Supported values: `npm`, `yarn`, `pnpm`.
 
-1.  **Dependencies**: The CLI runs `npm install` in your current project directory (updates `package.json` and your lockfile).
-2.  **Code Generation**: The CLI copies pre-configured, production-ready TypeScript files (e.g., `src/orm/adapters/SQLiteAdapter.ts`) into your project.
-3.  **Post-install commands**: Some plugins include an optional `postInstall.command` (for setup tasks). For safety, the framework will **not** execute these commands by default; you must opt-in by setting `ZINTRUST_ALLOW_POSTINSTALL=1` in your environment. Review any post-install commands before enabling them.
-4.  **Configuration**: You are ready to go! The framework automatically detects the new adapter.
+1.  **Dependencies**: The CLI runs your chosen package manager in your project directory (updates `package.json` and your lockfile).
+2.  **Templates (optional)**: Some plugins scaffold files into your project (features, helpers, etc.).
+3.  **Activation**: For modular adapters/drivers, the CLI adds imports to `src/zintrust.plugins.ts` so registrations are active at runtime.
+4.  **Post-install commands (opt-in)**: Some plugins include a `postInstall.command`. For safety, the framework will **not** execute these commands by default; you must opt-in by setting `ZINTRUST_ALLOW_POSTINSTALL=1`.
 
 ### Uninstalling a Plugin
 
@@ -72,19 +72,21 @@ _Note: Uninstall is currently **non-destructive** and does not roll back generat
 
 ### Database Adapters
 
-| Plugin ID          | Aliases                                            | Description                           | Dependencies      |
-| :----------------- | :------------------------------------------------- | :------------------------------------ | :---------------- |
-| `adapter:postgres` | `a:postgres`, `pg`, `db:postgres`, `db:postgresql` | PostgreSQL adapter using `pg`         | `pg`, `@types/pg` |
-| `adapter:mysql`    | `a:mysql`, `mysql`, `db:mysql`                     | MySQL adapter using `mysql2`          | `mysql2`          |
-| `adapter:sqlite`   | `a:sqlite`, `sqlite`, `db:sqlite`                  | SQLite adapter using `better-sqlite3` | `better-sqlite3`  |
-| `adapter:mssql`    | `a:mssql`, `mssql`, `db:mssql`                     | SQL Server adapter using `mssql`      | `mssql`           |
+| Plugin ID          | Aliases                                            | Description                                    | Dependencies             |
+| :----------------- | :------------------------------------------------- | :--------------------------------------------- | :----------------------- |
+| `adapter:postgres` | `a:postgres`, `pg`, `db:postgres`, `db:postgresql` | PostgreSQL adapter (registers via plugin hook) | `@zintrust/db-postgres`  |
+| `adapter:mysql`    | `a:mysql`, `mysql`, `db:mysql`                     | MySQL adapter (registers via plugin hook)      | `@zintrust/db-mysql`     |
+| `adapter:sqlite`   | `a:sqlite`, `sqlite`, `db:sqlite`                  | SQLite adapter (registers via plugin hook)     | `@zintrust/db-sqlite`    |
+| `adapter:mssql`    | `a:mssql`, `mssql`, `db:mssql`                     | SQL Server adapter (registers via plugin hook) | `@zintrust/db-sqlserver` |
 
 ### Drivers
 
-| Plugin ID                | Aliases           | Description                                           | Dependencies |
-| :----------------------- | :---------------- | :---------------------------------------------------- | :----------- |
-| `driver:queue-redis`     | `queue:redis`     | Redis-backed queue driver (installs redis client)     | `redis`      |
-| `driver:broadcast-redis` | `broadcast:redis` | Redis-backed broadcast driver (installs redis client) | `redis`      |
+| Plugin ID                | Aliases           | Description                                           | Dependencies                |
+| :----------------------- | :---------------- | :---------------------------------------------------- | :-------------------------- |
+| `driver:queue-redis`     | `queue:redis`     | Redis-backed queue driver (installs redis client)     | `redis`                     |
+| `driver:broadcast-redis` | `broadcast:redis` | Redis-backed broadcast driver (installs redis client) | `redis`                     |
+| `driver:cache-redis`     | `cache:redis`     | Redis cache driver (registers via plugin hook)        | `@zintrust/cache-redis`     |
+| `driver:mail-nodemailer` | `mail:nodemailer` | Nodemailer mail driver (registers via plugin hook)    | `@zintrust/mail-nodemailer` |
 
 ### Features
 

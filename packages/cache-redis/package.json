@@ -1,5 +1,5 @@
 {
-  "name": "@zintrust/db-sqlite",
+  "name": "@zintrust/cache-redis",
   "version": "0.1.8",
   "private": false,
   "type": "module",
@@ -28,7 +28,7 @@
     "access": "public"
   },
   "dependencies": {
-    "better-sqlite3": "^12.5.0"
+    "redis": "^4.7.1"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

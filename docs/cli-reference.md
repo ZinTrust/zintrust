@@ -38,6 +38,10 @@ zin add db:postgres
 zin add queue:redis
 zin add broadcast:redis
 
+# Cache + mail drivers
+zin add cache:redis
+zin add mail:nodemailer
+
 # Choose a package manager explicitly (optional)
 zin add db:sqlite --package-manager pnpm
 ```
