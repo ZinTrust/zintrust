@@ -5,8 +5,8 @@
  * Keeps runtime driver selection in one place and uses Env for safe access.
  */
 
-import { Env } from '@config/env';
-import type { NotificationProviders } from '@config/type';
+import { Env } from './env';
+import type { NotificationProviders } from './type';
 
 const notificationConfigObj = {
   /**

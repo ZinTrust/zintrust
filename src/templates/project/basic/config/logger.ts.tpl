@@ -3,8 +3,10 @@
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
-import { appConfig } from '@config/app';
-import { Env } from '@config/env';
+import { Logger } from '@zintrust/core';
+
+import { appConfig } from './app';
+import { Env } from './env';
 
 interface ILogger {
   debug(message: string, data?: unknown, category?: string): void;
@@ -87,7 +89,7 @@ let fileWriter: FileWriterModule['FileLogWriter'] | undefined;
 const getFileWriter = (): void => {
   if (fileWriter !== undefined) return;
   if (fileWriterPromise !== undefined) return;
-  fileWriterPromise = import('@config/FileLogWriter')
+  fileWriterPromise = import('./FileLogWriter')
     .then((mod) => {
       fileWriter = mod.FileLogWriter;
       return mod;
@@ -195,7 +197,7 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
   void (async (): Promise<void> => {
     try {
       if (event.level === 'error' || event.level === 'fatal') {
-        const mod = await import('@config/logging/KvLogger');
+        const mod = await import('./logging/KvLogger');
         void mod.KvLogger.enqueue(event);
       }
     } catch {
@@ -204,7 +206,7 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
 
     try {
       if (event.level === 'warn' || event.level === 'error' || event.level === 'fatal') {
-        const mod = await import('@config/logging/SlackLogger');
+        const mod = await import('./logging/SlackLogger');
         void mod.SlackLogger.enqueue(event);
       }
     } catch {
@@ -212,7 +214,7 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
     }
 
     try {
-      const mod = await import('@config/logging/HttpLogger');
+      const mod = await import('./logging/HttpLogger');
       void mod.HttpLogger.enqueue(event);
     } catch {
       // best-effort
@@ -364,7 +366,7 @@ export const cleanLogsOnce = async (): Promise<string[]> => {
   if (!shouldLogToFile()) return [];
 
   try {
-    const mod = await import('@config/FileLogWriter');
+    const mod = await import('./FileLogWriter');
     const deleted = mod.cleanOnce();
     logInfo('Log cleanup executed', { deletedCount: deleted.length });
     return deleted;

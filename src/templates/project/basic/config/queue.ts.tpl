@@ -4,9 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
+import { Env } from './env';
 
-import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
+import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from './type';
 
 const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
   const driverName = config.default;

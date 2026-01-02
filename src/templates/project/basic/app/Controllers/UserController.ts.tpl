@@ -3,7 +3,7 @@
  * Example controller demonstrating request handling
  */
 
-import { User } from '@app/Models/User';
+import { User } from '../Models/User';
 import { Logger } from '@zintrust/core';
 import { IRequest } from '@zintrust/core';
 import { IResponse } from '@zintrust/core';

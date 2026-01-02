@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
-import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from '@config/type';
+import { Env } from './env';
+import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from './type';
 
 const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
   const defaultDriver = config.default;

@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
-import type { MailConfigInput, MailDriverConfig, MailDriverName, MailDrivers } from '@config/type';
+import { Env } from './env';
+import type { MailConfigInput, MailDriverConfig, MailDriverName, MailDrivers } from './type';
 
 const getMailDriver = (config: MailConfigInput): MailDriverConfig => {
   const defaultDriver = config.default;

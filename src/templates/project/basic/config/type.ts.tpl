@@ -1,5 +1,6 @@
-import { Env } from '@config/env';
-import type { Middleware as MiddlewareFn } from '@middleware/MiddlewareStack';
+import type { Middleware } from '@zintrust/core';
+
+import { Env } from './env';
 
 export type Environment =
   | 'development'
@@ -202,8 +203,8 @@ export type NotificationProviders = {
 };
 
 export type MiddlewareConfigType = {
-  global: MiddlewareFn[];
-  route: Record<string, MiddlewareFn>;
+  global: Middleware[];
+  route: Record<string, Middleware>;
 };
 
 export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';

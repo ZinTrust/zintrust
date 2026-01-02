@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
-import type { Environment, ProcessLike, StartMode } from '@config/type';
+import { Env } from './env';
+import type { Environment, ProcessLike, StartMode } from './type';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);

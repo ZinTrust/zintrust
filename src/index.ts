@@ -36,6 +36,7 @@ export type { IRouter } from '@routing/Router';
 
 // Common
 export { delay, ensureDirSafe } from '@common/index';
+export { generateSecureJobId, generateUuid } from '@common/uuid';
 
 // HTTP Client
 export { HttpClient } from '@httpClient/Http';

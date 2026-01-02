@@ -20,7 +20,7 @@ export async function generateSecureJobId(
 
   // Node fallback for environments without Web Crypto
   try {
-    const nodeCrypto = await import('@node-singletons/crypto');
+    const nodeCrypto = await import('node:crypto');
     return nodeCrypto.randomBytes(16).toString('hex');
   } catch (error) {
     throw ErrorFactory.createTryCatchError(

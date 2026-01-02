@@ -1,10 +1,13 @@
-import { MiddlewareConfigType } from '@config/type';
-import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
-import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
-import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
-import type { Middleware } from '@middleware/MiddlewareStack';
-import { RateLimiter } from '@middleware/RateLimiter';
-import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
+import {
+  CsrfMiddleware,
+  ErrorHandlerMiddleware,
+  LoggingMiddleware,
+  RateLimiter,
+  SecurityMiddleware,
+  type Middleware,
+} from '@zintrust/core';
+
+import { MiddlewareConfigType } from './type';
 
 const shared = Object.freeze({
   log: LoggingMiddleware.create(),

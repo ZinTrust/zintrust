@@ -4,13 +4,13 @@
  * Supports: AWS Secrets Manager, Parameter Store, Cloudflare KV, Deno env
  */
 
-import { Logger } from '@config/logger';
+import { Logger } from '@zintrust/core';
 import type {
   GetSecretOptions,
   SecretConfig,
   SecretsManagerInstance,
   SetSecretOptions,
-} from '@config/type';
+} from './type';
 import { ErrorFactory } from '@zintrust/core';
 
 let instance: SecretsManagerInstance | undefined;

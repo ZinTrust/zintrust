@@ -4,12 +4,12 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
+import { Env } from './env';
 import {
   DatabaseConfigShape,
   DatabaseConnectionConfig,
   DatabaseConnectionName,
-} from '@config/type';
+} from './type';
 
 const isDatabaseConnectionName = (value: string): value is DatabaseConnectionName => {
   return value === 'sqlite' || value === 'postgresql' || value === 'mysql';

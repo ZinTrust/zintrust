@@ -4,12 +4,17 @@
  * Production Implementation
  */
 
-import { FeatureFlags } from '@config/features';
-import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { performance } from '@node-singletons/perf-hooks';
-import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
-import { QueryBuilder } from '@orm/QueryBuilder';
+import { performance } from 'node:perf_hooks';
+
+import {
+  ErrorFactory,
+  FeatureFlags,
+  Logger,
+  QueryBuilder,
+  type DatabaseConfig,
+  type IDatabaseAdapter,
+  type QueryResult,
+} from '@zintrust/core';
 
 type SqliteRunInfo = { changes: number };
 type SqliteStatement = {
@@ -27,6 +32,8 @@ function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   const maybe = error as { code?: unknown; message?: unknown };
   const code = typeof maybe.code === 'string' ? maybe.code : '';
   const message = typeof maybe.message === 'string' ? maybe.message : '';
+  // Some runners/wrappers preserve `code` but sanitize/omit the message.
+  if (code === 'ERR_MODULE_NOT_FOUND' && message.length === 0) return true;
   if (code === 'ERR_MODULE_NOT_FOUND' && message.includes(`'${packageName}'`)) return true;
   if (message.includes(`Cannot find package '${packageName}'`)) return true;
   return false;

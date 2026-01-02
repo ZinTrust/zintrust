@@ -5,13 +5,13 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
-import { Env } from '@config/env';
+import { Env } from './env';
 import {
   KnownBroadcastDriverConfig,
   PusherBroadcastDriverConfig,
   RedisBroadcastDriverConfig,
   RedisHttpsBroadcastDriverConfig,
-} from '@config/type';
+} from './type';
 
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
 

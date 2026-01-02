@@ -4,7 +4,7 @@
  * Startup-only controls (evaluated during Application.boot()).
  */
 
-import { Env } from '@config/env';
+import { Env } from './env';
 
 export type StartupConfig = {
   healthChecksEnabled: boolean;

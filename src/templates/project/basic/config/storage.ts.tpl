@@ -4,13 +4,13 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
+import { Env } from './env';
 import type {
   StorageConfigRuntime,
   StorageDriverConfig,
   StorageDriverName,
   StorageDrivers,
-} from '@config/type';
+} from './type';
 
 const isStorageDriverName = (
   value: string,
