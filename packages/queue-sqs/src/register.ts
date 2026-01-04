@@ -8,7 +8,11 @@ const importCore = async (): Promise<unknown> => {
   try {
     return await import('@/index');
   } catch {
-    return await import('@zintrust/core');
+    try {
+      return await import('@zintrust/core');
+    } catch {
+      return {};
+    }
   }
 };
 

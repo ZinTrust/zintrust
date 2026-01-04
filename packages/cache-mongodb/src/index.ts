@@ -1,4 +1,4 @@
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {
@@ -24,7 +24,7 @@ export const MongoCacheDriver = Object.freeze({
 
     const request = async (action: string, body: Record<string, unknown>): Promise<unknown> => {
       if (uri === '') {
-        Logger.warn('MONGO_URI not configured. MongoDB Cache request ignored.');
+        Logger.warn('MongoDB cache driver missing uri. Request ignored.');
         return null;
       }
 
@@ -46,7 +46,7 @@ export const MongoCacheDriver = Object.freeze({
         return await response.json();
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        void ErrorFactory.createTryCatchError(`MongoDB Cache Error: ${message}`);
+        Logger.warn('MongoDB cache request failed', { message, action });
         return null;
       }
     };

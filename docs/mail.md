@@ -66,6 +66,15 @@ Notes:
 
 Driver selection is via `MAIL_DRIVER` (see env vars below).
 
+## Install drivers
+
+```bash
+zin add mail:smtp
+zin add mail:sendgrid
+zin add mail:mailgun
+zin add mail:nodemailer
+```
+
 ---
 
 ## Templates (code + Markdown) 🧩

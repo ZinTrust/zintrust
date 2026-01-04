@@ -29,6 +29,131 @@ export type SqsQueueConfig = {
   visibilityTimeout?: number;
 };
 
+type SqsState = {
+  receipts: Map<string, string>;
+  client?: SqsClient;
+  mod?: SqsModule;
+};
+
+function resolveRegion(config?: SqsQueueConfig): string {
+  const region = (config?.region ?? process.env['AWS_REGION'] ?? '').toString().trim();
+  if (region === '') throw ErrorFactory.createConfigError('SQS: missing AWS_REGION');
+  return region;
+}
+
+function resolveQueueUrl(config?: SqsQueueConfig): string {
+  const queueUrl = (config?.queueUrl ?? process.env['SQS_QUEUE_URL'] ?? '').toString().trim();
+  if (queueUrl === '') throw ErrorFactory.createConfigError('SQS: missing SQS_QUEUE_URL');
+  return queueUrl;
+}
+
+async function ensure(
+  state: SqsState,
+  config?: SqsQueueConfig
+): Promise<{ client: SqsClient; mod: SqsModule }> {
+  if (state.client !== undefined && state.mod !== undefined)
+    return { client: state.client, mod: state.mod };
+  state.mod = await importSqs();
+  state.client = new state.mod.SQSClient({ region: resolveRegion(config) });
+  return { client: state.client, mod: state.mod };
+}
+
+function resolveUrl(_queue: string, config?: SqsQueueConfig): string {
+  return resolveQueueUrl(config);
+}
+
+function createSqsQueueDriver(config?: SqsQueueConfig): {
+  enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
+  dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
+  ack(queue: string, id: string): Promise<void>;
+  length(queue: string): Promise<number>;
+  drain(queue: string): Promise<void>;
+} {
+  const waitTimeSeconds = config?.waitTimeSeconds ?? 0;
+  const visibilityTimeout = config?.visibilityTimeout;
+  const state: SqsState = { receipts: new Map() };
+
+  return {
+    async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
+      const id = generateUuid();
+      const { client, mod } = await ensure(state, config);
+
+      const body = JSON.stringify({ id, payload, attempts: 0 });
+      await client.send(
+        new mod.SendMessageCommand({
+          QueueUrl: resolveUrl(queue, config),
+          MessageBody: body,
+        })
+      );
+
+      return id;
+    },
+
+    async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
+      const { client, mod } = await ensure(state, config);
+
+      const resp = (await client.send(
+        new mod.ReceiveMessageCommand({
+          QueueUrl: resolveUrl(queue, config),
+          MaxNumberOfMessages: 1,
+          WaitTimeSeconds: waitTimeSeconds,
+          VisibilityTimeout: visibilityTimeout,
+        })
+      )) as {
+        Messages?: Array<{ Body?: string; ReceiptHandle?: string }>;
+      };
+
+      const msg = resp.Messages?.[0];
+      if (msg?.Body === undefined) return undefined;
+
+      try {
+        const parsed = JSON.parse(msg.Body) as QueueMessage<T>;
+        if (msg.ReceiptHandle && typeof parsed?.id === 'string' && parsed.id.trim() !== '') {
+          state.receipts.set(parsed.id, msg.ReceiptHandle);
+        }
+        return parsed;
+      } catch (err) {
+        throw ErrorFactory.createTryCatchError('Failed to parse queue message', err as Error);
+      }
+    },
+
+    async ack(queue: string, id: string): Promise<void> {
+      const receipt = state.receipts.get(id);
+      if (receipt === undefined) return;
+      state.receipts.delete(id);
+
+      const { client, mod } = await ensure(state, config);
+      await client.send(
+        new mod.DeleteMessageCommand({
+          QueueUrl: resolveUrl(queue, config),
+          ReceiptHandle: receipt,
+        })
+      );
+    },
+
+    async length(queue: string): Promise<number> {
+      const { client, mod } = await ensure(state, config);
+      const resp = (await client.send(
+        new mod.GetQueueAttributesCommand({
+          QueueUrl: resolveUrl(queue, config),
+          AttributeNames: ['ApproximateNumberOfMessages'],
+        })
+      )) as {
+        Attributes?: Record<string, string>;
+      };
+
+      const raw = resp.Attributes?.['ApproximateNumberOfMessages'] ?? '0';
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : 0;
+    },
+
+    async drain(queue: string): Promise<void> {
+      const { client, mod } = await ensure(state, config);
+      await client.send(new mod.PurgeQueueCommand({ QueueUrl: resolveUrl(queue, config) }));
+    },
+  };
+}
+
 export const SqsQueue = Object.freeze({
   create(config?: SqsQueueConfig): {
     enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
@@ -37,116 +162,7 @@ export const SqsQueue = Object.freeze({
     length(queue: string): Promise<number>;
     drain(queue: string): Promise<void>;
   } {
-    const waitTimeSeconds = config?.waitTimeSeconds ?? 0;
-    const visibilityTimeout = config?.visibilityTimeout;
-    const receipts = new Map<string, string>();
-
-    let client: SqsClient | undefined;
-    let mod: SqsModule | undefined;
-
-    const resolveRegion = (): string => {
-      const region = (config?.region ?? process.env['AWS_REGION'] ?? '').toString().trim();
-      if (region === '') throw ErrorFactory.createConfigError('SQS: missing AWS_REGION');
-      return region;
-    };
-
-    const resolveQueueUrl = (): string => {
-      const queueUrl = (config?.queueUrl ?? process.env['SQS_QUEUE_URL'] ?? '').toString().trim();
-      if (queueUrl === '') throw ErrorFactory.createConfigError('SQS: missing SQS_QUEUE_URL');
-      return queueUrl;
-    };
-
-    const ensure = async (): Promise<{ client: SqsClient; mod: SqsModule }> => {
-      if (client !== undefined && mod !== undefined) return { client, mod };
-      mod = await importSqs();
-      client = new mod.SQSClient({ region: resolveRegion() });
-      return { client, mod };
-    };
-
-    const resolveUrl = (queue: string): string => {
-      void queue;
-      return resolveQueueUrl();
-    };
-
-    return {
-      async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
-        const id = generateUuid();
-        const { client, mod } = await ensure();
-
-        const body = JSON.stringify({ id, payload, attempts: 0 });
-        await client.send(
-          new mod.SendMessageCommand({
-            QueueUrl: resolveUrl(queue),
-            MessageBody: body,
-          })
-        );
-
-        return id;
-      },
-
-      async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
-        const { client, mod } = await ensure();
-
-        const resp = (await client.send(
-          new mod.ReceiveMessageCommand({
-            QueueUrl: resolveUrl(queue),
-            MaxNumberOfMessages: 1,
-            WaitTimeSeconds: waitTimeSeconds,
-            VisibilityTimeout: visibilityTimeout,
-          })
-        )) as {
-          Messages?: Array<{ Body?: string; ReceiptHandle?: string }>;
-        };
-
-        const msg = resp.Messages?.[0];
-        if (msg?.Body === undefined) return undefined;
-
-        try {
-          const parsed = JSON.parse(msg.Body) as QueueMessage<T>;
-          if (msg.ReceiptHandle && typeof parsed?.id === 'string' && parsed.id.trim() !== '') {
-            receipts.set(parsed.id, msg.ReceiptHandle);
-          }
-          return parsed;
-        } catch (err) {
-          throw ErrorFactory.createTryCatchError('Failed to parse queue message', err as Error);
-        }
-      },
-
-      async ack(queue: string, id: string): Promise<void> {
-        const receipt = receipts.get(id);
-        if (receipt === undefined) return;
-        receipts.delete(id);
-
-        const { client, mod } = await ensure();
-        await client.send(
-          new mod.DeleteMessageCommand({
-            QueueUrl: resolveUrl(queue),
-            ReceiptHandle: receipt,
-          })
-        );
-      },
-
-      async length(queue: string): Promise<number> {
-        const { client, mod } = await ensure();
-        const resp = (await client.send(
-          new mod.GetQueueAttributesCommand({
-            QueueUrl: resolveUrl(queue),
-            AttributeNames: ['ApproximateNumberOfMessages'],
-          })
-        )) as {
-          Attributes?: Record<string, string>;
-        };
-
-        const raw = resp.Attributes?.['ApproximateNumberOfMessages'] ?? '0';
-        const n = Number(raw);
-        return Number.isFinite(n) ? n : 0;
-      },
-
-      async drain(queue: string): Promise<void> {
-        const { client, mod } = await ensure();
-        await client.send(new mod.PurgeQueueCommand({ QueueUrl: resolveUrl(queue) }));
-      },
-    };
+    return createSqsQueueDriver(config);
   },
 });
 

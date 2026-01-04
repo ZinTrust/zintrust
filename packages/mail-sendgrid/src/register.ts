@@ -9,7 +9,11 @@ const importCore = async (): Promise<unknown> => {
   try {
     return await import('@/index');
   } catch {
-    return await import('@zintrust/core');
+    try {
+      return await import('@zintrust/core');
+    } catch {
+      return {};
+    }
   }
 };
 
@@ -20,6 +24,6 @@ const core = (await importCore()) as unknown as {
 
 if (core.MailDriverRegistry !== undefined && core.SendGridDriver !== undefined) {
   core.MailDriverRegistry.register('sendgrid', (config, message) =>
-    core.SendGridDriver!.send(config, message)
+    core.SendGridDriver.send(config, message)
   );
 }
