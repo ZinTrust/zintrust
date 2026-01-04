@@ -1,1 +1,4 @@
-npm run type-check && npm run lint --max-warnings=0
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+npm run -s type-check && npm run -s lint --max-warnings=0
