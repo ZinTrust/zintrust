@@ -7,7 +7,7 @@
 Import from the framework:
 
 ```ts
-import { FileLogWriter } from '@zintrust/core';
+import { FileLogWriter } from '@zintrust/core/node';
 
 // Example (if supported by the module):
 // FileLogWriter.*
@@ -23,10 +23,10 @@ import { FileLogWriter } from '@zintrust/core';
  * This module imports Node built-ins and should be loaded only in Node environments.
  */
 
-import { ensureDirSafe } from '@common/index';
+import { ensureDirSafe } from '@zintrust/core';
 import { Env } from '@zintrust/core';
-import * as fs from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const getCwdSafe = (): string => {
   try {

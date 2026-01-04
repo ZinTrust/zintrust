@@ -17,7 +17,7 @@ import { type } from '@zintrust/core';
 
 ```ts
 import { Env } from '@zintrust/core';
-import type { Middleware as MiddlewareFn } from '@middleware/MiddlewareStack';
+import type { Middleware as MiddlewareFn } from '@zintrust/core';
 
 export type Environment =
   | 'development'

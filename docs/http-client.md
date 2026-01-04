@@ -23,7 +23,7 @@ Zintrust provides a fluent, HTTP client for making authenticated requests to ext
 HTTP client is built into Zintrust. No additional packages needed.
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 ```
 
 ## Basic Usage
@@ -31,7 +31,7 @@ import { HttpClient } from '@httpClient/Http';
 ### GET Request
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 
 const response = await HttpClient.get('https://api.example.com/users/1').send();
 
@@ -205,7 +205,7 @@ const hasAuth = response.hasHeader('authorization');
 ### External API with API Key
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 import { Env } from '@zintrust/core';
 
 async function fetchGithubUser(username: string) {
@@ -221,8 +221,7 @@ async function fetchGithubUser(username: string) {
 ### Cloud Logging to Slack
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
-import { Logger } from '@config/logger';
+import { Env, HttpClient, Logger } from '@zintrust/core';
 
 async function logToSlack(message: string, level: 'info' | 'error') {
   try {
@@ -242,7 +241,7 @@ async function logToSlack(message: string, level: 'info' | 'error') {
 ### Inter-Service Communication
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 import { Env } from '@zintrust/core';
 
 async function callUserService(action: string, data: unknown) {
@@ -262,7 +261,7 @@ async function callUserService(action: string, data: unknown) {
 ### Redis HTTPS Proxy (Serverless)
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 import { Env } from '@zintrust/core';
 
 async function publishEvent(channel: string, event: string, data: unknown) {
@@ -282,7 +281,7 @@ async function publishEvent(channel: string, event: string, data: unknown) {
 ### GraphQL Query
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 
 async function queryGraphQL(query: string, variables: unknown) {
   const response = await HttpClient.post('https://api.example.com/graphql', {
@@ -325,8 +324,7 @@ REDIS_HTTPS_RETRIES=2
 HTTP client errors are thrown as `CatchError` or `ConnectionError`:
 
 ```typescript
-import { HttpClient } from '@httpClient/Http';
-import { Logger } from '@config/logger';
+import { HttpClient, Logger } from '@zintrust/core';
 
 try {
   const response = await HttpClient.get('https://api.example.com/data').withTimeout(5000).send();
@@ -376,7 +374,7 @@ Mock `Http` requests in tests:
 
 ```typescript
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 
 describe('My API Client', () => {
   beforeEach(() => {
@@ -478,7 +476,7 @@ https.get('https://api.example.com/data', (res) => {
 });
 
 // ✅ New way
-import { HttpClient } from '@httpClient/Http';
+import { HttpClient } from '@zintrust/core';
 
 const response = await HttpClient.get('https://api.example.com/data').send();
 console.log(response.json());

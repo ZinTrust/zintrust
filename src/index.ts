@@ -11,7 +11,6 @@ const ZintrustApplication = Application;
 const ZintrustAwsSigV4 = AwsSigV4;
 const ZintrustSignedRequest = SignedRequest;
 
-export { ZintrustApplication as Application };
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
 export { Controller } from '@http/Controller';
@@ -36,6 +35,7 @@ export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
+export { ZintrustApplication as Application };
 
 // Adapter registry (for external adapter packages)
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
@@ -43,9 +43,9 @@ export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 
 // Common
-export { ZintrustAwsSigV4 as AwsSigV4 };
 export { delay, ensureDirSafe } from '@common/index';
 export { generateSecureJobId, generateUuid } from '@common/uuid';
+export { ZintrustAwsSigV4 as AwsSigV4 };
 
 // HTTP Client
 export { HttpClient } from '@httpClient/Http';
@@ -90,9 +90,9 @@ export type {
   JwtOptions,
   JwtPayload,
 } from '@security/JwtManager';
-export { ZintrustSignedRequest as SignedRequest };
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
+export { ZintrustSignedRequest as SignedRequest };
 
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
@@ -122,6 +122,9 @@ export type { MiddlewareConfigType } from '@config/type';
 export { queueConfig } from '@config/queue';
 export type { QueueConfig } from '@config/queue';
 
+export { default as broadcastConfig } from '@config/broadcast';
+export { default as notificationConfig } from '@config/notification';
+
 export { securityConfig } from '@config/security';
 
 export { mailConfig } from '@config/mail';
@@ -147,6 +150,9 @@ export { StartupConfigValidator } from '@config/StartupConfigValidator';
 export { Mail } from '@mail/Mail';
 export type { SendMailInput, SendMailResult } from '@mail/Mail';
 
+export { MailTemplateRenderer, MailTemplates } from '@mail/templates';
+export type { MailTemplate, MailTemplateRegistry } from '@mail/templates';
+
 // Mail driver registry (for external driver packages)
 export { MailDriverRegistry } from '@mail/MailDriverRegistry';
 
@@ -171,7 +177,13 @@ export type {
 
 // Notifications
 export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
+export { TermiiDriver } from '@tools/notification/drivers/Termii';
 export { sendSms } from '@tools/notification/drivers/Twilio';
+export { Notification } from '@tools/notification/Notification';
+export { NotificationRegistry } from '@tools/notification/Registry';
+
+// Templates
+export { MarkdownRenderer } from '@tools/templates';
 
 // Health & Runtime (for scaffolded routes and health checks)
 export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';

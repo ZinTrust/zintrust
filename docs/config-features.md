@@ -17,7 +17,7 @@ import { features } from '@zintrust/core';
 
 ```ts
 import { Env } from '@zintrust/core';
-import { Logger } from '@config/logger';
+import { Logger } from '@zintrust/core';
 
 /**
  * Feature Flags State
@@ -79,7 +79,7 @@ export default FeatureFlags;
 
 ```ts
 import { Env } from '@zintrust/core';
-import { Logger } from '@config/logger';
+import { Logger } from '@zintrust/core';
 
 /**
  * Feature Flags State

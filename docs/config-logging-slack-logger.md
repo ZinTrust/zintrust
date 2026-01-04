@@ -28,8 +28,7 @@ import { SlackLogger } from '@zintrust/core';
  */
 
 import { Env } from '@zintrust/core';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { HttpClient } from '@httpClient/Http';
+import { ErrorFactory, HttpClient } from '@zintrust/core';
 
 export type SlackLogEvent = {
   timestamp: string;

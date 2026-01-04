@@ -26,7 +26,7 @@ import { KvLogger } from '@zintrust/core';
  *  - KV_LOG_RETENTION_DAYS (default: 30)
  */
 
-import { Cloudflare } from '@config/cloudflare';
+import { Cloudflare } from '@zintrust/core';
 import { Env } from '@zintrust/core';
 
 export type KvLogEvent = {

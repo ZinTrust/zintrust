@@ -27,10 +27,7 @@ import { HttpLogger } from '@zintrust/core';
  *  - HTTP_LOG_AUTH_TOKEN (optional)
  */
 
-import { delay } from '@common/index';
-import { Env } from '@zintrust/core';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { HttpClient } from '@httpClient/Http';
+import { delay, Env, ErrorFactory, HttpClient } from '@zintrust/core';
 
 export type HttpLogEvent = {
   timestamp: string;

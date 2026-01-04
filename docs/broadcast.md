@@ -8,7 +8,7 @@ The main entrypoint is `Broadcast.send(channel, event, data)`.
 
 Example:
 
-    	import { Broadcast } from '@broadcast/Broadcast';
+    	import { Broadcast } from '@zintrust/core';
 
     	await Broadcast.send('notifications', 'user.created', {
     		id: 'user_123',

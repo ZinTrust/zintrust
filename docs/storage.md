@@ -26,7 +26,7 @@ zin add storage:gcs
 Put and get files via the driver registry:
 
 ```ts
-import { Storage } from '@storage';
+import { Storage } from '@zintrust/core';
 
 const disk = Storage.getDisk('local');
 await disk.driver.put(disk.config as any, 'path/to/file.txt', Buffer.from('hello'));
@@ -40,7 +40,7 @@ In most app code you should use helper-by-abstraction provided by toolkits or he
 Zintrust exposes a convenience API for expiring URLs:
 
 ```ts
-import { Storage } from '@storage';
+import { Storage } from '@zintrust/core';
 
 // Typical usage: give a browser a time-limited URL
 const url = await Storage.tempUrl('s3', 'exports/report.csv', { expiresIn: 60 * 10 });
@@ -129,7 +129,7 @@ GCS (Google Cloud Storage):
 Use `FakeStorage` for tests — it captures `put` operations in-memory and exposes assertion helpers:
 
 ```ts
-import FakeStorage from '@storage/testing';
+import { FakeStorage } from '@zintrust/core/node';
 
 FakeStorage.reset();
 await FakeStorage.put('local', 'a.txt', Buffer.from('x'));
