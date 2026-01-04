@@ -24,7 +24,10 @@ vi.mock('@storage', () => ({ Storage: { getDisk: vi.fn() } }));
 
 import { Mail } from '@/tools/mail/Mail';
 import { mailConfig } from '@config/mail';
+import { MailgunDriver } from '@mail/drivers/Mailgun';
 import { SendGridDriver } from '@mail/drivers/SendGrid';
+import { SesDriver } from '@mail/drivers/Ses';
+import { SmtpDriver } from '@mail/drivers/Smtp';
 import { Storage } from '@storage';
 
 beforeEach(() => vi.clearAllMocks());
@@ -109,5 +112,87 @@ describe('Mail', () => {
     const msg = vi.mocked(SendGridDriver.send).mock.calls[0][1] as any;
     expect(Array.isArray(msg.attachments)).toBe(true);
     expect(msg.attachments[0].filename).toBe('file.txt');
+  });
+
+  it('sends via smtp driver', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'smtp', host: 'h', port: 587 });
+
+    const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
+    expect(res.ok).toBe(true);
+    expect(res.driver).toBe('smtp');
+    expect(vi.mocked(SmtpDriver.send)).toHaveBeenCalled();
+  });
+
+  it('sends via mailgun driver', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({
+      driver: 'mailgun',
+      apiKey: 'k',
+      domain: 'd',
+    });
+
+    const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
+    expect(res.ok).toBe(true);
+    expect(res.driver).toBe('mailgun');
+    expect(vi.mocked(MailgunDriver.send)).toHaveBeenCalled();
+  });
+
+  it('sends via ses driver', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'ses', region: 'us-east-1' });
+
+    const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
+    expect(res.ok).toBe(true);
+    expect(res.driver).toBe('ses');
+    expect(vi.mocked(SesDriver.send)).toHaveBeenCalled();
+  });
+
+  it('uses provided from address and name', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
+
+    const res = await Mail.send({
+      to: 'a@b.com',
+      subject: 's',
+      text: 't',
+      from: { address: 'custom@example.com', name: 'Custom Name' },
+    });
+    expect(res.ok).toBe(true);
+
+    const msg = vi.mocked(SendGridDriver.send).mock.calls[0][1] as any;
+    expect(msg.from).toEqual({ email: 'custom@example.com', name: 'Custom Name' });
+  });
+
+  it('trims name when empty or whitespace', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
+
+    const res = await Mail.send({
+      to: 'a@b.com',
+      subject: 's',
+      text: 't',
+      from: { address: 'custom@example.com', name: '  ' },
+    });
+    expect(res.ok).toBe(true);
+
+    const msg = vi.mocked(SendGridDriver.send).mock.calls[0][1] as any;
+    expect(msg.from).toEqual({ email: 'custom@example.com' });
+  });
+
+  it('includes html when provided', async () => {
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
+
+    const res = await Mail.send({
+      to: 'a@b.com',
+      subject: 's',
+      text: 't',
+      html: '<p>html content</p>',
+    });
+    expect(res.ok).toBe(true);
+
+    const msg = vi.mocked(SendGridDriver.send).mock.calls[0][1] as any;
+    expect(msg.html).toBe('<p>html content</p>');
   });
 });

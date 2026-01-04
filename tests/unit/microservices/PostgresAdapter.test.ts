@@ -117,6 +117,18 @@ describe('PostgresAdapter', () => {
     });
 
     expect(isolated.getPoolKey()).toBe('localhost:5432/orders');
+
+    // Test isolated without serviceName (should fall back to database)
+    const isolatedNoService = PostgresAdapter.create({
+      host: 'localhost',
+      port: 5432,
+      database: 'db',
+      user: 'u',
+      password: fakePass,
+      isolation: 'isolated',
+    });
+
+    expect(isolatedNoService.getPoolKey()).toBe('localhost:5432/db');
   });
 
   it('getPool throws before connect', async (): Promise<void> => {
