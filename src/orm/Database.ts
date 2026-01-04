@@ -6,6 +6,7 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
+import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -53,6 +54,8 @@ const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
       return SQLServerAdapter.create(cfg);
     case 'd1':
       return D1Adapter.create(cfg);
+    case 'd1-remote':
+      return D1RemoteAdapter.create(cfg);
     case 'sqlite':
     default:
       return SQLiteAdapter.create(cfg);

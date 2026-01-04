@@ -35,7 +35,7 @@ export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 
 // Common
-export { delay, ensureDirSafe } from '@common/index';
+export { AwsSigV4, delay, ensureDirSafe } from '@common/index';
 export { generateSecureJobId, generateUuid } from '@common/uuid';
 
 // HTTP Client
@@ -81,6 +81,7 @@ export type {
   JwtOptions,
   JwtPayload,
 } from '@security/JwtManager';
+export { SignedRequest } from '@security/SignedRequest';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 
@@ -143,6 +144,22 @@ export { MailDriverRegistry } from '@mail/MailDriverRegistry';
 export { SmtpDriver } from '@mail/drivers/Smtp';
 export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';
 
+export { SendGridDriver } from '@mail/drivers/SendGrid';
+export type {
+  SendGridConfig,
+  MailAddress as SendGridMailAddress,
+  MailAttachment as SendGridMailAttachment,
+  MailMessage as SendGridMailMessage,
+  SendResult as SendGridSendResult,
+} from '@mail/drivers/SendGrid';
+
+export { MailgunDriver } from '@mail/drivers/Mailgun';
+export type {
+  MailgunConfig,
+  MailMessage as MailgunMessage,
+  SendResult as MailgunResult,
+} from '@mail/drivers/Mailgun';
+
 // Notifications
 export { sendSlackWebhook } from '@tools/notification/drivers/Slack';
 export { sendSms } from '@tools/notification/drivers/Twilio';
@@ -156,6 +173,20 @@ export { Broadcast } from '@tools/broadcast/Broadcast';
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';
 export { LocalSignedUrl } from '@tools/storage/LocalSignedUrl';
+export { StorageDriverRegistry } from '@tools/storage/StorageDriverRegistry';
+
+export { S3Driver } from '@tools/storage/drivers/S3';
+export type { S3Config } from '@tools/storage/drivers/S3';
+
+export { R2Driver } from '@tools/storage/drivers/R2';
+export type { R2Config } from '@tools/storage/drivers/R2';
+
+export { GcsDriver } from '@tools/storage/drivers/Gcs';
+export type { GcsConfig } from '@tools/storage/drivers/Gcs';
+
+// Queue drivers (for external registration packages)
+export { RedisQueue } from '@tools/queue/drivers/Redis';
+export { Queue } from '@tools/queue/Queue';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

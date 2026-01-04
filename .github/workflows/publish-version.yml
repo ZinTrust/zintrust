@@ -56,22 +56,34 @@ jobs:
         id: changed_packages
         run: node scripts/ci/changed-packages.mjs --base "${{ github.event.before }}"
 
-      - name: Sync package versions from core
-        if: ${{ steps.changed_packages.outputs.packages_changed == 'true' }}
+      - name: Detect src changes
+        id: src_changes
+        shell: bash
         run: |
-          if [ -n "${{ steps.changed_packages.outputs.changed_package_dirs }}" ]; then
-            npm run release:sync-versions -- --only "${{ steps.changed_packages.outputs.changed_package_dirs }}"
-          else
-            npm run release:sync-versions
+          set -euo pipefail
+          BASE="${{ steps.changed_packages.outputs.diff_base }}"
+          if [ -z "${BASE}" ]; then
+            echo "src_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          COUNT=$(git diff --name-only "${BASE}...HEAD" -- src/ | wc -l | tr -d ' ')
+          if [ "${COUNT}" -gt 0 ]; then
+            echo "src_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "src_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync package versions from core
+        run: |
+          npm run release:sync-versions
 
       - name: Detect publishable packages
         id: publishable_packages
-        if: ${{ steps.changed_packages.outputs.packages_changed == 'true' }}
-        run: node scripts/ci/publishable-packages.mjs --only "${{ steps.changed_packages.outputs.changed_package_dirs }}"
+        run: node scripts/ci/publishable-packages.mjs --changed "${{ steps.changed_packages.outputs.changed_package_dirs }}"
 
       - name: Dry-run publish
-        if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci -- --dry-run
@@ -88,7 +100,7 @@ jobs:
           fi
 
       - name: Publish to npm
-        if: ${{ steps.version_check.outputs.should_publish == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci
@@ -105,7 +117,7 @@ jobs:
           fi
 
       - name: Create tag and release (optional)
-        if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'push' }}
+        if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PR_TOKEN }}
         run: |

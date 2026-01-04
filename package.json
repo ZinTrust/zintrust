@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.8",
+  "version": "0.1.12",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -32,6 +32,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
+    "core:link-dist": "rm -rf node_modules/@zintrust/core && ln -s ../../dist node_modules/@zintrust/core && ls -la node_modules/@zintrust/core && cat node_modules/@zintrust/core/package.json | head -n 8",
     "build": "npm run clean && npm test && npm run templates:check && npm run templates:sync && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs",
     "build:ci": "export CI=true && npm run clean && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs",
     "pro:build": "npm run clean && npm test && npm run templates:check && npm run templates:sync && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",

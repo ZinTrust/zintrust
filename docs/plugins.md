@@ -81,12 +81,21 @@ _Note: Uninstall is currently **non-destructive** and does not roll back generat
 
 ### Drivers
 
-| Plugin ID                | Aliases           | Description                                           | Dependencies                |
-| :----------------------- | :---------------- | :---------------------------------------------------- | :-------------------------- |
-| `driver:queue-redis`     | `queue:redis`     | Redis-backed queue driver (installs redis client)     | `redis`                     |
-| `driver:broadcast-redis` | `broadcast:redis` | Redis-backed broadcast driver (installs redis client) | `redis`                     |
-| `driver:cache-redis`     | `cache:redis`     | Redis cache driver (registers via plugin hook)        | `@zintrust/cache-redis`     |
-| `driver:mail-nodemailer` | `mail:nodemailer` | Nodemailer mail driver (registers via plugin hook)    | `@zintrust/mail-nodemailer` |
+| Plugin ID                | Aliases           | Description                                                     | Dependencies                                     |
+| :----------------------- | :---------------- | :-------------------------------------------------------------- | :----------------------------------------------- |
+| `driver:queue-redis`     | `queue:redis`     | Redis-backed queue driver (installs @zintrust/queue-redis)      | `@zintrust/queue-redis`                          |
+| `driver:queue-rabbitmq`  | `queue:rabbitmq`  | RabbitMQ-backed queue driver (registers via plugin hook)        | `@zintrust/queue-rabbitmq`, `amqplib`            |
+| `driver:queue-sqs`       | `queue:sqs`       | AWS SQS-backed queue driver (registers via plugin hook)         | `@zintrust/queue-sqs`, `@aws-sdk/client-sqs`     |
+| `driver:broadcast-redis` | `broadcast:redis` | Redis-backed broadcast driver (installs redis client)           | `redis`                                          |
+| `driver:cache-redis`     | `cache:redis`     | Redis cache driver (registers via plugin hook)                  | `@zintrust/cache-redis`                          |
+| `driver:cache-mongodb`   | `cache:mongodb`   | MongoDB Atlas Data API cache driver (registers via plugin hook) | `@zintrust/cache-mongodb`                        |
+| `driver:mail-nodemailer` | `mail:nodemailer` | Nodemailer mail driver (registers via plugin hook)              | `@zintrust/mail-nodemailer`                      |
+| `driver:mail-smtp`       | `mail:smtp`       | SMTP mail driver (registers via plugin hook)                    | `@zintrust/mail-smtp`                            |
+| `driver:mail-sendgrid`   | `mail:sendgrid`   | SendGrid mail driver (registers via plugin hook)                | `@zintrust/mail-sendgrid`                        |
+| `driver:mail-mailgun`    | `mail:mailgun`    | Mailgun mail driver (registers via plugin hook)                 | `@zintrust/mail-mailgun`                         |
+| `driver:storage-s3`      | `storage:s3`      | S3 storage driver (registers via plugin hook)                   | `@zintrust/storage-s3`                           |
+| `driver:storage-r2`      | `storage:r2`      | Cloudflare R2 storage driver (registers via plugin hook)        | `@zintrust/storage-r2`                           |
+| `driver:storage-gcs`     | `storage:gcs`     | Google Cloud Storage driver (registers via plugin hook)         | `@zintrust/storage-gcs`, `@google-cloud/storage` |
 
 ### Features
 

@@ -11,6 +11,14 @@ Supported drivers:
 - `r2` — Cloudflare R2 (wrapper around S3-style behavior)
 - `gcs` — Google Cloud Storage (`GcsDriver`)
 
+## Install drivers
+
+```bash
+zin add storage:s3
+zin add storage:r2
+zin add storage:gcs
+```
+
 ---
 
 ## Quick start 🔧

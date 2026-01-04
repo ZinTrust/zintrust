@@ -18,7 +18,7 @@ export interface ID1Database {
 
 export interface DatabaseConfig {
   d1?: ID1Database;
-  driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
+  driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1' | 'd1-remote';
   database?: string;
   host?: string;
   port?: number;

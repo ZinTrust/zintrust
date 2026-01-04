@@ -25,6 +25,13 @@ describe('Mail (SendGrid)', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { SendGridDriver } = await import('@mail/drivers/SendGrid');
+    MailDriverRegistry.register('sendgrid', async (cfg, message) => {
+      const apiKey = (cfg as any)?.apiKey;
+      return SendGridDriver.send({ apiKey } as any, message as any);
+    });
+
     const { Mail } = await import('@mail/Mail');
 
     const result = await Mail.send({
@@ -59,6 +66,13 @@ describe('Mail (SendGrid)', () => {
 
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
+
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { SendGridDriver } = await import('@mail/drivers/SendGrid');
+    MailDriverRegistry.register('sendgrid', async (cfg, message) => {
+      const apiKey = (cfg as any)?.apiKey;
+      return SendGridDriver.send({ apiKey } as any, message as any);
+    });
 
     const { Mail } = await import('@mail/Mail');
 

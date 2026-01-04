@@ -25,6 +25,15 @@ describe('Mail (Mailgun)', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { MailgunDriver } = await import('@mail/drivers/Mailgun');
+    MailDriverRegistry.register('mailgun', async (cfg, message) => {
+      const apiKey = (cfg as any)?.apiKey;
+      const domain = (cfg as any)?.domain;
+      const baseUrl = (cfg as any)?.baseUrl;
+      return MailgunDriver.send({ apiKey, domain, baseUrl } as any, message as any);
+    });
+
     const { Mail } = await import('@mail/Mail');
 
     const result = await Mail.send({
@@ -65,6 +74,15 @@ describe('Mail (Mailgun)', () => {
 
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
+
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { MailgunDriver } = await import('@mail/drivers/Mailgun');
+    MailDriverRegistry.register('mailgun', async (cfg, message) => {
+      const apiKey = (cfg as any)?.apiKey;
+      const domain = (cfg as any)?.domain;
+      const baseUrl = (cfg as any)?.baseUrl;
+      return MailgunDriver.send({ apiKey, domain, baseUrl } as any, message as any);
+    });
 
     const { Mail } = await import('@mail/Mail');
 

@@ -69,6 +69,7 @@ function compareVersions(a, b) {
 
 const distVersion = getDistVersion();
 const publishedVersion = getPublishedVersion();
+const isUnpublished = publishedVersion == null;
 
 console.log(`Dist version: ${distVersion}`);
 console.log(`Published version: ${publishedVersion ?? 'none'}`);
@@ -78,6 +79,8 @@ const shouldPublish = cmp > 0;
 
 setGithubOutput('should_publish', shouldPublish);
 setGithubOutput('dist_version', distVersion);
+setGithubOutput('published_version', publishedVersion ?? '');
+setGithubOutput('is_unpublished', isUnpublished ? 'true' : 'false');
 
 if (!shouldPublish) {
   console.log('No publish needed (version is not greater).');

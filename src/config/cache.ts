@@ -48,6 +48,10 @@ const cacheConfigObj = {
       driver: 'kv' as const,
       ttl: Env.getInt('CACHE_KV_TTL', 3600),
     },
+    'kv-remote': {
+      driver: 'kv-remote' as const,
+      ttl: Env.getInt('CACHE_KV_TTL', 3600),
+    },
   },
 
   /**

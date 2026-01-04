@@ -79,6 +79,21 @@ export const Env = Object.freeze({
   D1_DATABASE_ID: get('D1_DATABASE_ID'),
   KV_NAMESPACE_ID: get('KV_NAMESPACE_ID'),
 
+  // Cloudflare proxy services (D1/KV outside Cloudflare)
+  D1_REMOTE_URL: get('D1_REMOTE_URL', ''),
+  D1_REMOTE_KEY_ID: get('D1_REMOTE_KEY_ID', ''),
+  D1_REMOTE_SECRET: get('D1_REMOTE_SECRET', ''),
+  D1_REMOTE_MODE: get('D1_REMOTE_MODE', 'registry'),
+
+  KV_REMOTE_URL: get('KV_REMOTE_URL', ''),
+  KV_REMOTE_KEY_ID: get('KV_REMOTE_KEY_ID', ''),
+  KV_REMOTE_SECRET: get('KV_REMOTE_SECRET', ''),
+  KV_REMOTE_NAMESPACE: get('KV_REMOTE_NAMESPACE', ''),
+
+  // Proxy client tuning
+  ZT_PROXY_SIGNING_WINDOW_MS: getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000),
+  ZT_PROXY_TIMEOUT_MS: getInt('ZT_PROXY_TIMEOUT_MS', 30000),
+
   // Cache
   CACHE_DRIVER: get('CACHE_DRIVER', 'memory'),
   REDIS_HOST: get('REDIS_HOST', 'localhost'),

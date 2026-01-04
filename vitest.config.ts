@@ -13,6 +13,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@': path.resolve(__dirname, './src'),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@boot': path.resolve(__dirname, './src/boot'),

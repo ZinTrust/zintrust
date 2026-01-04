@@ -31,6 +31,28 @@ Notes:
 - Configure via `REDIS_URL` (e.g., `redis://:password@host:6379`).
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
 
+### Install Redis driver
+
+```bash
+zin add queue:redis
+```
+
+## RabbitMQ Driver
+
+Install:
+
+```bash
+zin add queue:rabbitmq
+```
+
+## AWS SQS Driver
+
+Install:
+
+```bash
+zin add queue:sqs
+```
+
 Note: This driver uses `rPush`/`lPop` semantics; `ack()` is a no-op for this simple implementation. For visibility timeouts and retry mechanics, implement a processing list (BRPOPLPUSH) and message requeueing.
 
 ## CI integration

@@ -17,10 +17,14 @@ let redisImpl: DriverImpl;
 let mongoImpl: DriverImpl;
 let memoryImpl: DriverImpl;
 
+let kvRemoteImpl: DriverImpl;
+
 let kvConstructed = 0;
 let redisConstructed = 0;
 let mongoConstructed = 0;
 let memoryConstructed = 0;
+
+let kvRemoteConstructed = 0;
 
 const KVDriver = function (this: any) {
   kvConstructed += 1;
@@ -42,6 +46,13 @@ const MemoryDriver = function (this: any) {
   return memoryImpl;
 } as any;
 
+const KVRemoteDriver = {
+  create: () => {
+    kvRemoteConstructed += 1;
+    return kvRemoteImpl;
+  },
+} as any;
+
 vi.mock('@cache/drivers/KVDriver', () => ({
   KVDriver,
 }));
@@ -56,6 +67,10 @@ vi.mock('@cache/drivers/MongoDriver', () => ({
 
 vi.mock('@cache/drivers/MemoryDriver', () => ({
   MemoryDriver,
+}));
+
+vi.mock('@cache/drivers/KVRemoteDriver', () => ({
+  KVRemoteDriver,
 }));
 
 vi.mock('@config/env', () => ({
@@ -102,11 +117,13 @@ describe('Cache', () => {
     redisConstructed = 0;
     mongoConstructed = 0;
     memoryConstructed = 0;
+    kvRemoteConstructed = 0;
 
     kvImpl = createDriverImpl();
     redisImpl = createDriverImpl();
     mongoImpl = createDriverImpl();
     memoryImpl = createDriverImpl();
+    kvRemoteImpl = createDriverImpl();
   });
 
   it('uses KV driver when Env.CACHE_DRIVER=kv', async () => {
@@ -147,6 +164,19 @@ describe('Cache', () => {
 
     expect(redisConstructed).toBe(1);
     expect(kvConstructed).toBe(0);
+    expect(mongoConstructed).toBe(0);
+    expect(memoryConstructed).toBe(0);
+  });
+
+  it('uses KVRemote driver when Env.CACHE_DRIVER=kv-remote', async () => {
+    cacheDriverName = 'kv-remote';
+    const mod = await import('@cache/Cache');
+
+    await mod.Cache.get('k');
+
+    expect(kvRemoteConstructed).toBe(1);
+    expect(kvConstructed).toBe(0);
+    expect(redisConstructed).toBe(0);
     expect(mongoConstructed).toBe(0);
     expect(memoryConstructed).toBe(0);
   });

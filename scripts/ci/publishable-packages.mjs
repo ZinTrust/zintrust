@@ -25,6 +25,41 @@ const onlyDirs = onlyDirsRaw
     )
   : undefined;
 
+const changedDirsRaw = getArgValue('--changed');
+const changedDirs =
+  changedDirsRaw === undefined
+    ? undefined
+    : new Set(
+        changedDirsRaw
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      );
+
+function isDirSelected(dirName) {
+  if (!onlyDirs || onlyDirs.size === 0) return true;
+  return onlyDirs.has(dirName);
+}
+
+function shouldConsiderChangedDirs() {
+  return changedDirs !== undefined;
+}
+
+function isDirChanged(dirName) {
+  if (!changedDirs) return false;
+  return changedDirs.has(dirName);
+}
+
+function isPublishableFromNpmState(dirName, localVersion, publishedVersion) {
+  // Always allow first-time publishes, even if no files changed.
+  if (publishedVersion === null) return true;
+
+  // If change info is provided, do not republish unchanged packages.
+  if (shouldConsiderChangedDirs() && !isDirChanged(dirName)) return false;
+
+  return compareVersions(localVersion, publishedVersion) > 0;
+}
+
 function setGithubOutput(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT;
   if (!outputPath) {
@@ -80,13 +115,11 @@ function npmViewVersion(pkgName) {
 
 async function main() {
   const entries = await fs.readdir(packagesDir, { withFileTypes: true });
-  let packageDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-
-  if (onlyDirs && onlyDirs.size > 0) {
-    packageDirs = packageDirs.filter((d) => onlyDirs.has(d));
-  }
-
-  packageDirs.sort();
+  const packageDirs = entries
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .filter(isDirSelected)
+    .sort();
 
   const publishableDirs = [];
 
@@ -105,9 +138,8 @@ async function main() {
     if (pkg.private === true) continue;
 
     const publishedVersion = npmViewVersion(pkg.name);
-    const cmp = compareVersions(pkg.version, publishedVersion);
 
-    if (cmp > 0) {
+    if (isPublishableFromNpmState(dirName, pkg.version, publishedVersion)) {
       publishableDirs.push(dirName);
     }
   }

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "composite": false,
+    "baseUrl": "../..",
+    "lib": ["ES2023", "WebWorker"],
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts", "../../worker-configuration.d.ts"]
+}

@@ -65,6 +65,12 @@ zin add cache:redis
 
 Uses the MongoDB Atlas Data API (HTTPS) for zero-dependency integration, making it ideal for serverless environments where TCP connections are limited.
 
+Install the modular driver package:
+
+```bash
+zin add cache:mongodb
+```
+
 ## Automatic Serialization
 
 The cache system automatically handles JSON serialization and deserialization for complex objects, so you can store arrays and objects directly.
