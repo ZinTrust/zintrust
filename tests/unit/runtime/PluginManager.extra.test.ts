@@ -51,7 +51,7 @@ describe('PluginManager extra tests', () => {
 
   it('detects installed dependency-only plugin when deps exist', async () => {
     const packageJson = {
-      dependencies: { redis: '^1.0.0' },
+      dependencies: { '@zintrust/queue-redis': '^1.0.0' },
     };
 
     await fs.writeFile(path.join(tmpDirRoot, 'package.json'), JSON.stringify(packageJson));
