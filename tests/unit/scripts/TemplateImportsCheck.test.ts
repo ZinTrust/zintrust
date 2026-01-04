@@ -1,8 +1,4 @@
-import { join } from '@node-singletons/path';
 import { describe, expect, it } from 'vitest';
-
-// Module under test - we'll import the functions via dynamic import to test them
-const SCRIPT_PATH = join(process.cwd(), 'src/scripts/TemplateImportsCheck.ts');
 
 // Since the script is a CLI script, we'll test its functions by re-implementing them
 // based on the source code and testing their behavior
