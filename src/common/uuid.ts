@@ -6,9 +6,9 @@ export const generateUuid = (): string => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; // NOSONAR
 };
 
-export async function generateSecureJobId(
+export function generateSecureJobId(
   errMsg: string = 'Secure crypto API not available to generate a job id.'
-): Promise<string> {
+): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }

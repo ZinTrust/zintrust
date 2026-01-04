@@ -1,4 +1,4 @@
-import { AwsSecretsManager } from '@toolkit/secrets/providers/AwsSecretsManager';
+import { AwsSecretsManager } from '@/toolkit/Secrets/providers/AwsSecretsManager';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('AwsSecretsManager extra', () => {

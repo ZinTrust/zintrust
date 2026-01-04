@@ -64,7 +64,7 @@ describe('uuid helpers', () => {
 
     const { generateSecureJobId } = await import('@/common/uuid');
 
-    await expect(generateSecureJobId()).resolves.toBe('uuid-2');
+    expect(generateSecureJobId()).toBe('uuid-2');
   });
 
   it('generateSecureJobId uses crypto.getRandomValues when available', async () => {
@@ -77,7 +77,7 @@ describe('uuid helpers', () => {
 
     const { generateSecureJobId } = await import('@/common/uuid');
 
-    await expect(generateSecureJobId()).resolves.toBe('000102030405060708090a0b0c0d0e0f');
+    expect(generateSecureJobId()).toBe('000102030405060708090a0b0c0d0e0f');
   });
 
   it('generateSecureJobId falls back to node crypto when Web Crypto is unavailable', async () => {
@@ -92,7 +92,7 @@ describe('uuid helpers', () => {
 
     const { generateSecureJobId } = await import('@/common/uuid');
 
-    await expect(generateSecureJobId()).resolves.toBe('0102030405060708090a0b0c0d0e0f10');
+    expect(generateSecureJobId()).toBe('0102030405060708090a0b0c0d0e0f10');
   });
 
   it('generateSecureJobId throws a wrapped error when node crypto fails', async () => {
@@ -104,6 +104,6 @@ describe('uuid helpers', () => {
 
     const { generateSecureJobId } = await import('@/common/uuid');
 
-    await expect(generateSecureJobId('')).rejects.toBeDefined();
+    expect(() => generateSecureJobId()).toThrow();
   });
 });
