@@ -29,8 +29,15 @@ describe('sendWelcomeEmail toolkit', () => {
 
     vi.mock('@mail/drivers/SendGrid', sendGridMockFactory);
 
-    const { sendWelcomeEmail } = await import('@app/Toolkit/Mail/sendWelcomeEmail');
+    // Register SendGrid handler (Mail is registry-first)
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
     const { SendGridDriver } = await import('@mail/drivers/SendGrid');
+    MailDriverRegistry.register('sendgrid', async (cfg, message) => {
+      const apiKey = (cfg as any)?.apiKey;
+      return SendGridDriver.send({ apiKey } as any, message as any);
+    });
+
+    const { sendWelcomeEmail } = await import('@app/Toolkit/Mail/sendWelcomeEmail');
 
     // Use actual Local storage path
     const fs = await import('fs/promises');

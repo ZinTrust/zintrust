@@ -1,5 +1,6 @@
 import { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
+import { StorageDriverRegistry } from '@storage/StorageDriverRegistry';
 import { MailDriverRegistry } from '@tools/mail/MailDriverRegistry';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -38,5 +39,15 @@ describe('Driver registries', () => {
     expect(MailDriverRegistry.has('test-driver')).toBe(true);
     expect(MailDriverRegistry.list()).toContain('test-driver');
     expect(MailDriverRegistry.get('test-driver')).toBe(handler);
+  });
+
+  it('StorageDriverRegistry supports register/has/list/get', () => {
+    const entry = { driver: { put: vi.fn() } } as any;
+
+    StorageDriverRegistry.register('s3', entry);
+
+    expect(StorageDriverRegistry.has('s3')).toBe(true);
+    expect(StorageDriverRegistry.list()).toContain('s3');
+    expect(StorageDriverRegistry.get('s3')).toBe(entry);
   });
 });

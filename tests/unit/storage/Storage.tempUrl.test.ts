@@ -29,6 +29,10 @@ describe('Storage.tempUrl', () => {
     process.env['AWS_ACCESS_KEY_ID'] = 'AK';
     process.env['AWS_SECRET_ACCESS_KEY'] = 'SK';
 
+    const { StorageDriverRegistry } = await import('@storage/StorageDriverRegistry');
+    const { S3Driver } = await import('@storage/drivers/S3');
+    StorageDriverRegistry.register('s3', { driver: S3Driver });
+
     const { Storage } = await import('@storage');
 
     const disk = Storage.getDisk('s3');

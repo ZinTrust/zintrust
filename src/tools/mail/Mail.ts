@@ -1,10 +1,8 @@
 import { mailConfig } from '@config/mail';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
-import { MailgunDriver } from '@mail/drivers/Mailgun';
-import { SendGridDriver, type MailAddress } from '@mail/drivers/SendGrid';
+import type { MailAddress } from '@mail/drivers/SendGrid';
 import { SesDriver } from '@mail/drivers/Ses';
-import { SmtpDriver } from '@mail/drivers/Smtp';
 
 import { resolveAttachments, type AttachmentInput } from '@mail/attachments';
 import { MailDriverRegistry } from '@mail/MailDriverRegistry';
@@ -114,40 +112,12 @@ const sendWithDriver = async (
   driver: ReturnType<typeof mailConfig.getDriver>,
   message: MailMessage
 ): Promise<SendMailResult> => {
-  if (driver.driver === 'sendgrid') {
-    const result = await SendGridDriver.send({ apiKey: driver.apiKey }, message);
-    return { ok: result.ok, driver: 'sendgrid', messageId: result.messageId };
-  }
-
-  if (driver.driver === 'mailgun') {
-    const result = await MailgunDriver.send(
-      { apiKey: driver.apiKey, domain: driver.domain, baseUrl: driver.baseUrl },
-      message
-    );
-    return { ok: result.ok, driver: 'mailgun', messageId: result.messageId };
-  }
-
-  if (driver.driver === 'smtp') {
-    const result = await SmtpDriver.send(
-      {
-        host: driver.host,
-        port: driver.port,
-        username: driver.username,
-        password: driver.password,
-        secure: driver.secure,
-      },
-      message
-    );
-
-    return { ok: result.ok, driver: 'smtp', messageId: result.messageId };
-  }
-
   if (driver.driver === 'ses') {
     const result = await SesDriver.send({ region: driver.region }, message);
     return { ok: result.ok, driver: 'ses', messageId: result.messageId };
   }
 
-  // External drivers can register via MailDriverRegistry (e.g., nodemailer)
+  // Drivers resolve via MailDriverRegistry (external packages)
   const external = MailDriverRegistry.get(driver.driver);
   if (external !== undefined) {
     const result = await external(driver as unknown, message);
@@ -156,6 +126,12 @@ const sendWithDriver = async (
       driver: driver.driver as SendMailResult['driver'],
       messageId: typeof result?.messageId === 'string' ? result.messageId : undefined,
     };
+  }
+
+  if (driver.driver === 'sendgrid' || driver.driver === 'mailgun' || driver.driver === 'smtp') {
+    throw ErrorFactory.createConfigError(
+      `Mail driver not registered: ${driver.driver} (run \`zin add mail:${driver.driver}\` / \`npm i @zintrust/mail-${driver.driver}\`)`
+    );
   }
 
   // Config exists for future drivers, but implementations are intentionally CLI/runtime-safe and added incrementally.

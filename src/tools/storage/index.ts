@@ -1,14 +1,12 @@
-import { GcsDriver } from '@/tools/storage/drivers/Gcs';
 import { storageConfig } from '@config/storage';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { LocalDriver } from '@storage/drivers/Local';
-import { R2Driver } from '@storage/drivers/R2';
-import { S3Driver } from '@storage/drivers/S3';
+import { StorageDriverRegistry } from '@storage/StorageDriverRegistry';
 
 export type DiskName = 'local' | 's3' | 'gcs' | 'r2';
 
 export type StorageDisk = {
-  driver: typeof LocalDriver | typeof S3Driver | typeof R2Driver | typeof GcsDriver;
+  driver: unknown;
   config: unknown;
 };
 
@@ -59,22 +57,38 @@ export const Storage = Object.freeze({
     if (config === undefined)
       throw ErrorFactory.createValidationError('Storage: unknown disk', { disk: diskName });
 
-    const driverName = String(config['driver'] ?? '');
-    if (driverName === 'local')
-      return { driver: LocalDriver, config: normalizeDiskConfig('local', config) };
-    if (driverName === 's3') return { driver: S3Driver, config: normalizeDiskConfig('s3', config) };
-    if (driverName === 'r2') return { driver: R2Driver, config: normalizeDiskConfig('r2', config) };
-    if (driverName === 'gcs')
-      return { driver: GcsDriver, config: normalizeDiskConfig('gcs', config) };
+    const driverName = String(config['driver'] ?? '')
+      .trim()
+      .toLowerCase();
 
-    throw ErrorFactory.createValidationError('Storage: unsupported disk driver', {
-      driver: config['driver'],
-    });
+    if (driverName === 'local') {
+      return { driver: LocalDriver, config: normalizeDiskConfig('local', config) };
+    }
+
+    const entry = StorageDriverRegistry.get(driverName);
+    if (entry === undefined) {
+      if (driverName === 's3' || driverName === 'r2' || driverName === 'gcs') {
+        throw ErrorFactory.createConfigError(
+          `Storage driver not registered: ${driverName} (run \`zin add storage:${driverName}\` / \`npm i @zintrust/storage-${driverName}\`)`
+        );
+      }
+
+      throw ErrorFactory.createValidationError('Storage: unsupported disk driver', {
+        driver: config['driver'],
+      });
+    }
+
+    const normalizedConfig =
+      typeof entry.normalize === 'function'
+        ? entry.normalize(config)
+        : normalizeDiskConfig(driverName, config);
+
+    return { driver: entry.driver, config: normalizedConfig };
   },
 
   async put(disk: string | undefined, path: string, contents: string | Buffer): Promise<string> {
     const d = Storage.getDisk(disk);
-    const driver = d.driver as unknown as {
+    const driver = d.driver as {
       put: (config: unknown, key: string, content: string | Buffer) => Promise<string>;
     };
     if (typeof driver.put !== 'function') {
@@ -85,7 +99,7 @@ export const Storage = Object.freeze({
 
   async get(disk: string | undefined, path: string): Promise<Buffer> {
     const d = Storage.getDisk(disk);
-    const driver = d.driver as unknown as {
+    const driver = d.driver as {
       get: (config: unknown, key: string) => Promise<Buffer> | Buffer;
     };
     if (typeof driver.get !== 'function') {
@@ -96,25 +110,25 @@ export const Storage = Object.freeze({
 
   async exists(disk: string | undefined, path: string): Promise<boolean> {
     const d = Storage.getDisk(disk);
-    const driver = d.driver as unknown as {
+    const driver = d.driver as {
       exists?: (config: unknown, key: string) => Promise<boolean> | boolean;
     };
     if (typeof driver.exists !== 'function') return true;
-    return Boolean(await Promise.resolve(driver.exists(d.config, path)));
+    return Boolean(await driver.exists(d.config, path));
   },
 
   async delete(disk: string | undefined, path: string): Promise<void> {
     const d = Storage.getDisk(disk);
-    const driver = d.driver as unknown as {
+    const driver = d.driver as {
       delete?: (config: unknown, key: string) => Promise<void> | void;
     };
     if (typeof driver.delete !== 'function') return;
-    await Promise.resolve(driver.delete(d.config, path));
+    await driver.delete(d.config, path);
   },
 
   url(disk: string | undefined, path: string): string {
     const d = Storage.getDisk(disk);
-    const driver = d.driver as unknown as {
+    const driver = d.driver as {
       url?: (config: unknown, key: string) => string | undefined;
     };
     const url = typeof driver.url === 'function' ? driver.url(d.config, path) : undefined;
@@ -126,7 +140,7 @@ export const Storage = Object.freeze({
 
   async tempUrl(disk: string | undefined, path: string, options?: TempUrlOptions): Promise<string> {
     const d = Storage.getDisk(disk);
-    const driver = d.driver as unknown as {
+    const driver = d.driver as {
       tempUrl?: (
         config: unknown,
         key: string,
@@ -136,7 +150,7 @@ export const Storage = Object.freeze({
     };
 
     if (typeof driver.tempUrl === 'function') {
-      return Promise.resolve(driver.tempUrl(d.config, path, options));
+      return driver.tempUrl(d.config, path, options);
     }
 
     const url = typeof driver.url === 'function' ? driver.url(d.config, path) : undefined;

@@ -1,6 +1,5 @@
-import type { Middleware } from '@zintrust/core';
-
 import { Env } from './env';
+import type { Middleware as MiddlewareFn } from '../middleware/MiddlewareStack';
 
 export type Environment =
   | 'development'
@@ -203,8 +202,8 @@ export type NotificationProviders = {
 };
 
 export type MiddlewareConfigType = {
-  global: Middleware[];
-  route: Record<string, Middleware>;
+  global: MiddlewareFn[];
+  route: Record<string, MiddlewareFn>;
 };
 
 export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';
@@ -371,17 +370,24 @@ export type KvCacheDriverConfig = {
   ttl: number;
 };
 
+export type KvRemoteCacheDriverConfig = {
+  driver: 'kv-remote';
+  ttl: number;
+};
+
 export type CacheDriverConfig =
   | MemoryCacheDriverConfig
   | RedisCacheDriverConfig
   | MongoCacheDriverConfig
-  | KvCacheDriverConfig;
+  | KvCacheDriverConfig
+  | KvRemoteCacheDriverConfig;
 
 export type CacheDrivers = {
   memory: MemoryCacheDriverConfig;
   redis: RedisCacheDriverConfig;
   mongodb: MongoCacheDriverConfig;
   kv: KvCacheDriverConfig;
+  'kv-remote': KvRemoteCacheDriverConfig;
 };
 
 export type CacheConfigInput = {

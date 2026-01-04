@@ -29,6 +29,37 @@ zin add queue:redis
 zin add broadcast:redis
 ```
 
+## Cache drivers
+
+```bash
+zin add cache:redis
+zin add cache:mongodb
+```
+
+## Queue drivers
+
+```bash
+zin add queue:rabbitmq
+zin add queue:sqs
+```
+
+## Storage drivers
+
+```bash
+zin add storage:s3
+zin add storage:r2
+zin add storage:gcs
+```
+
+## Mail drivers
+
+```bash
+zin add mail:smtp
+zin add mail:sendgrid
+zin add mail:mailgun
+zin add mail:nodemailer
+```
+
 ## Notes
 
 - You can select a package manager explicitly with `--package-manager npm|yarn|pnpm`.

@@ -1,0 +1,32 @@
+{
+  "name": "zintrust-kv-proxy",
+  "main": "./src/index.ts",
+  "compatibility_date": "2025-04-21",
+  "workers_dev": true,
+  "minify": false,
+
+  // Runtime configuration (non-secret)
+  "vars": {
+    "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
+    "ZT_MAX_BODY_BYTES": "131072",
+    "ZT_KV_PREFIX": "zin_",
+    "ZT_KV_LIST_LIMIT": "100",
+  },
+
+  // Required: KV binding used for storage
+  // Replace placeholders with your real KV namespace identifiers.
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "REPLACE_ME",
+      "preview_id": "REPLACE_ME",
+    },
+
+    // Optional (recommended): replay protection nonce store
+    // ,{
+    //   "binding": "ZT_NONCES",
+    //   "id": "REPLACE_ME",
+    //   "preview_id": "REPLACE_ME"
+    // }
+  ],
+}

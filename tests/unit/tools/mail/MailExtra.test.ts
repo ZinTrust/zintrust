@@ -17,8 +17,17 @@ import { Mail } from '@/tools/mail/Mail';
 import { mailConfig } from '@config/mail';
 import { SendGridDriver } from '@mail/drivers/SendGrid';
 import { Storage } from '@storage';
+import { MailDriverRegistry } from '@tools/mail/MailDriverRegistry';
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+
+  // Mail is registry-first for sendgrid/mailgun/smtp
+  MailDriverRegistry.register('sendgrid', async (cfg, message) => {
+    const apiKey = (cfg as any)?.apiKey;
+    return SendGridDriver.send({ apiKey } as any, message as any);
+  });
+});
 
 describe('Mail (extra tests)', () => {
   it('omits from.name when provided as blank', async () => {

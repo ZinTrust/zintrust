@@ -7,6 +7,7 @@
 import { CacheDriver } from '@cache/CacheDriver';
 import { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 import { KVDriver } from '@cache/drivers/KVDriver';
+import { KVRemoteDriver } from '@cache/drivers/KVRemoteDriver';
 import { MemoryDriver } from '@cache/drivers/MemoryDriver';
 import { MongoDriver } from '@cache/drivers/MongoDriver';
 import { RedisDriver } from '@cache/drivers/RedisDriver';
@@ -47,6 +48,8 @@ function resolveDriver(): CacheDriver {
   switch (driverName) {
     case 'kv':
       return buildDriver(KVDriver);
+    case 'kv-remote':
+      return buildDriver(KVRemoteDriver);
     case 'redis':
       return buildDriver(RedisDriver);
     case 'mongodb':

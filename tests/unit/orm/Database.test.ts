@@ -1,4 +1,5 @@
 /* eslint-disable max-nested-callbacks */
+import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { Database, IDatabase, resetDatabase, useDatabase } from '@orm/Database';
@@ -84,6 +85,21 @@ vi.mock('@orm/adapters/D1Adapter', () => ({
   },
 }));
 
+vi.mock('@orm/adapters/D1RemoteAdapter', () => ({
+  D1RemoteAdapter: {
+    create: vi.fn().mockReturnValue({
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      queryOne: vi.fn().mockResolvedValue(null),
+      transaction: vi.fn().mockImplementation((cb) => cb()),
+      getType: vi.fn().mockReturnValue('d1-remote'),
+      getPlaceholder: vi.fn().mockReturnValue('?'),
+      rawQuery: vi.fn().mockResolvedValue([]),
+    }),
+  },
+}));
+
 describe('Database', () => {
   let db: IDatabase;
 
@@ -102,6 +118,12 @@ describe('Database', () => {
     db = Database.create({ driver: 'postgresql', database: 'test' });
     expect(PostgreSQLAdapter.create).toHaveBeenCalled();
     expect(db.getType()).toBe('postgresql');
+  });
+
+  it('should create D1Remote adapter', () => {
+    db = Database.create({ driver: 'd1-remote', database: 'test' } as any);
+    expect(D1RemoteAdapter.create).toHaveBeenCalled();
+    expect(db.getType()).toBe('d1-remote');
   });
 
   it('should connect to database', async () => {
