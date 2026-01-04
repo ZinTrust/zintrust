@@ -14,6 +14,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
+      '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@boot': path.resolve(__dirname, './src/boot'),
       '@orm': path.resolve(__dirname, './src/orm'),
