@@ -5,6 +5,16 @@ type Registry = {
   ) => void;
 };
 
+export async function registerSendGridMailDriver(registry: Registry): Promise<void> {
+  const core = (await importCore()) as unknown as {
+    SendGridDriver?: { send: (config: unknown, message: unknown) => Promise<unknown> };
+  };
+
+  if (core.SendGridDriver === undefined) return;
+
+  registry.register('sendgrid', (config, message) => core.SendGridDriver.send(config, message));
+}
+
 const importCore = async (): Promise<unknown> => {
   try {
     return await import('@/index');
@@ -19,11 +29,8 @@ const importCore = async (): Promise<unknown> => {
 
 const core = (await importCore()) as unknown as {
   MailDriverRegistry?: Registry;
-  SendGridDriver?: { send: (config: unknown, message: unknown) => Promise<unknown> };
 };
 
-if (core.MailDriverRegistry !== undefined && core.SendGridDriver !== undefined) {
-  core.MailDriverRegistry.register('sendgrid', (config, message) =>
-    core.SendGridDriver.send(config, message)
-  );
+if (core.MailDriverRegistry !== undefined) {
+  await registerSendGridMailDriver(core.MailDriverRegistry);
 }

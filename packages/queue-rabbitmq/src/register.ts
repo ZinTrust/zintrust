@@ -2,7 +2,13 @@ type QueueApi = {
   register: (name: string, driver: unknown) => void;
 };
 
-import { RabbitMqQueue } from './index.js';
+export async function registerRabbitMqQueueDriver(queue: QueueApi): Promise<void> {
+  const { RabbitMqQueue } = (await import('./index.js')) as unknown as {
+    RabbitMqQueue: { create: (config?: unknown) => unknown };
+  };
+
+  queue.register('rabbitmq', RabbitMqQueue.create());
+}
 
 const importCore = async (): Promise<unknown> => {
   try {
@@ -21,5 +27,5 @@ const core = (await importCore()) as unknown as {
 };
 
 if (core.Queue !== undefined) {
-  core.Queue.register('rabbitmq', RabbitMqQueue.create());
+  await registerRabbitMqQueueDriver(core.Queue);
 }

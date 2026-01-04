@@ -2,6 +2,16 @@ type Registry = {
   register: (driverName: string, entry: { driver: unknown; normalize?: unknown }) => void;
 };
 
+export async function registerGcsStorageDriver(registry: Registry): Promise<void> {
+  const core = (await importCore()) as unknown as {
+    GcsDriver?: unknown;
+  };
+
+  if (core.GcsDriver === undefined) return;
+
+  registry.register('gcs', { driver: core.GcsDriver });
+}
+
 const importCore = async (): Promise<unknown> => {
   try {
     return await import('@/index');
@@ -16,9 +26,8 @@ const importCore = async (): Promise<unknown> => {
 
 const core = (await importCore()) as unknown as {
   StorageDriverRegistry?: Registry;
-  GcsDriver?: unknown;
 };
 
-if (core.StorageDriverRegistry !== undefined && core.GcsDriver !== undefined) {
-  core.StorageDriverRegistry.register('gcs', { driver: core.GcsDriver });
+if (core.StorageDriverRegistry !== undefined) {
+  await registerGcsStorageDriver(core.StorageDriverRegistry);
 }

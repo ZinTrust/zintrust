@@ -2,7 +2,13 @@ type QueueApi = {
   register: (name: string, driver: unknown) => void;
 };
 
-import { SqsQueue } from './index.js';
+export async function registerSqsQueueDriver(queue: QueueApi): Promise<void> {
+  const { SqsQueue } = (await import('./index.js')) as unknown as {
+    SqsQueue: { create: (config?: unknown) => unknown };
+  };
+
+  queue.register('sqs', SqsQueue.create());
+}
 
 const importCore = async (): Promise<unknown> => {
   try {
@@ -21,5 +27,5 @@ const core = (await importCore()) as unknown as {
 };
 
 if (core.Queue !== undefined) {
-  core.Queue.register('sqs', SqsQueue.create());
+  await registerSqsQueueDriver(core.Queue);
 }

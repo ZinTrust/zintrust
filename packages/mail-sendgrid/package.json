@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-sendgrid",
-  "version": "0.1.8",
+  "version": "0.1.12",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.1.8"
+    "@zintrust/core": "^0.1.12"
   },
   "publishConfig": {
     "access": "public"
