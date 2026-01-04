@@ -82,7 +82,27 @@ export default defineConfig({
       include: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts'],
       exclude: [
         'src/**/*.d.ts',
-        'src/**/index.ts',
+        // Avoid pulling all barrel files into coverage (noise), but keep the
+        // root entrypoint + Storage entrypoint included since they are part of
+        // patch/diff coverage gates and may change.
+        'src/cli/commands/index.ts',
+        'src/cli/config/index.ts',
+        'src/cli/index.ts',
+        'src/cli/scaffolding/index.ts',
+        'src/common/index.ts',
+        'src/config/index.ts',
+        'src/database/migrations/index.ts',
+        'src/middleware/index.ts',
+        'src/node-singletons/index.ts',
+        'src/scheduler/index.ts',
+        'src/schedules/index.ts',
+        'src/toolkit/Secrets/index.ts',
+        'src/tools/broadcast/index.ts',
+        'src/tools/http/index.ts',
+        'src/tools/mail/templates/index.ts',
+        'src/tools/mail/templates/markdown/index.ts',
+        'src/tools/notification/templates/markdown/index.ts',
+        'src/tools/templates/index.ts',
         'src/**/types.ts',
         'src/scripts/**',
         'src/features/**',

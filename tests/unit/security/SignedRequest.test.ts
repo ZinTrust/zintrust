@@ -294,8 +294,8 @@ describe('SignedRequest', () => {
       // Force the fallback nonce path.
       (globalThis.crypto as any).randomUUID = undefined;
 
-      const { SignedRequest } = await import('@/security/SignedRequest');
-      const out = await SignedRequest.createHeaders({
+      const { SignedRequest: SignedRequestApi } = await import('@/security/SignedRequest');
+      const out = await SignedRequestApi.createHeaders({
         method: 'POST',
         url: 'https://example.test/a',
         body: JSON.stringify({ ok: true }),
