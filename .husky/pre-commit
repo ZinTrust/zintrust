@@ -1,3 +1,4 @@
 npx lint-staged
+npm run -s duplication:check
 npm run -s type-check && npm run -s lint --max-warnings=0
 npm run templates:check
