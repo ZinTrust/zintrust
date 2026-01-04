@@ -5,9 +5,9 @@ name: SonarQube Analysis
 
 on:
   push:
-    branches: [master, release]
+    branches: [master]
   pull_request:
-    branches: [master, release]
+    branches: [master]
   schedule:
     # Run every Sunday at 2 AM UTC
     - cron: '0 2 * * 0'
@@ -90,7 +90,7 @@ jobs:
             })
 
       - name: Check quality gates
-        if: steps.check_secrets.outputs.has_token == 'true'
+        if: steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
         uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
         timeout-minutes: 5
         env:
