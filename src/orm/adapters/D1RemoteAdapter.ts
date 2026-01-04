@@ -4,6 +4,7 @@
  * Calls a Zintrust Cloudflare Worker proxy over HTTPS.
  */
 
+import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
@@ -36,23 +37,34 @@ type D1RemoteSettings = {
   mode: D1RemoteMode;
 };
 
-const joinUrl = (baseUrl: string, path: string): URL => {
-  const u = new URL(baseUrl);
-  const basePath = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
-  const next = path.startsWith('/') ? path : `/${path}`;
-  u.pathname = `${basePath}${next}`;
-  u.search = '';
-  return u;
-};
+const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSettings } => {
+  const settings: D1RemoteSettings = {
+    baseUrl: Env.get('D1_REMOTE_URL'),
+    keyId: Env.get('D1_REMOTE_KEY_ID'),
+    secret: Env.get('D1_REMOTE_SECRET'),
+    mode: (Env.get('D1_REMOTE_MODE', 'registry') as D1RemoteMode) ?? 'registry',
+    timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
+  };
 
-const asJson = async (resp: Response): Promise<unknown> => {
-  const text = await resp.text();
-  if (text.trim() === '') return null;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return { message: text };
-  }
+  const remote: RemoteSignedJsonSettings = {
+    baseUrl: settings.baseUrl,
+    keyId: settings.keyId,
+    secret: settings.secret,
+    timeoutMs: settings.timeoutMs,
+    missingUrlMessage: 'D1 remote proxy URL is missing (D1_REMOTE_URL)',
+    missingCredentialsMessage:
+      'D1 remote signing credentials are missing (D1_REMOTE_KEY_ID / D1_REMOTE_SECRET)',
+    messages: {
+      unauthorized: 'D1 remote proxy unauthorized',
+      forbidden: 'D1 remote proxy forbidden',
+      rateLimited: 'D1 remote proxy rate limited',
+      rejected: 'D1 remote proxy rejected request',
+      error: 'D1 remote proxy error',
+      timedOut: 'D1 remote proxy request timed out',
+    },
+  };
+
+  return { mode: settings.mode, remote };
 };
 
 const isMutatingSql = (sql: string): boolean => {
@@ -66,81 +78,6 @@ const isMutatingSql = (sql: string): boolean => {
     s.startsWith('alter') ||
     s.startsWith('replace')
   );
-};
-
-const requireConfigured = (settings: D1RemoteSettings): void => {
-  if (settings.baseUrl.trim() === '') {
-    throw ErrorFactory.createConfigError('D1 remote proxy URL is missing (D1_REMOTE_URL)');
-  }
-  if (settings.keyId.trim() === '' || settings.secret.trim() === '') {
-    throw ErrorFactory.createConfigError(
-      'D1 remote signing credentials are missing (D1_REMOTE_KEY_ID / D1_REMOTE_SECRET)'
-    );
-  }
-};
-
-const createTimeoutSignal = (timeoutMs: number): AbortSignal | undefined => {
-  if (timeoutMs <= 0) return undefined;
-  const timeout = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout;
-  return typeof timeout === 'function' ? timeout(timeoutMs) : undefined;
-};
-
-const requestJson = async <T>(
-  settings: D1RemoteSettings,
-  path: string,
-  payload: Record<string, unknown>
-): Promise<T> => {
-  requireConfigured(settings);
-
-  const url = joinUrl(settings.baseUrl, path);
-  const body = JSON.stringify(payload);
-  const signed = await SignedRequest.createHeaders({
-    method: 'POST',
-    url,
-    body,
-    keyId: settings.keyId,
-    secret: settings.secret,
-  });
-
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...signed },
-      body,
-      signal: createTimeoutSignal(settings.timeoutMs),
-    });
-
-    if (!resp.ok) {
-      const details = await asJson(resp);
-
-      if (resp.status === 401) {
-        throw ErrorFactory.createUnauthorizedError('D1 remote proxy unauthorized', details);
-      }
-      if (resp.status === 403) {
-        throw ErrorFactory.createForbiddenError('D1 remote proxy forbidden', details);
-      }
-      if (resp.status === 429) {
-        throw ErrorFactory.createSecurityError('D1 remote proxy rate limited', details);
-      }
-      if (resp.status >= 400 && resp.status < 500) {
-        throw ErrorFactory.createValidationError('D1 remote proxy rejected request', details);
-      }
-
-      throw ErrorFactory.createConnectionError('D1 remote proxy error', {
-        status: resp.status,
-        details,
-      });
-    }
-
-    return (await asJson(resp)) as T;
-  } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw ErrorFactory.createConnectionError('D1 remote proxy request timed out', {
-        timeoutMs: settings.timeoutMs,
-      });
-    }
-    throw error;
-  }
 };
 
 const createStatementPayload = async (
@@ -171,12 +108,16 @@ const getExecChanges = (value: unknown): number => {
 };
 
 const queryRegistry = async (
-  settings: D1RemoteSettings,
+  settings: RemoteSignedJsonSettings,
   sql: string,
   parameters: unknown[]
 ): Promise<QueryResult> => {
   const payload = await createStatementPayload(sql, parameters);
-  const out = await requestJson<D1StatementResponse>(settings, '/zin/d1/statement', payload);
+  const out = await RemoteSignedJson.request<D1StatementResponse>(
+    settings,
+    '/zin/d1/statement',
+    payload
+  );
 
   if (isQueryResponse(out)) {
     return { rows: out.rows, rowCount: out.rowCount };
@@ -190,19 +131,19 @@ const queryRegistry = async (
 };
 
 const querySqlMode = async (
-  settings: D1RemoteSettings,
+  settings: RemoteSignedJsonSettings,
   sql: string,
   parameters: unknown[]
 ): Promise<QueryResult> => {
   if (isMutatingSql(sql)) {
-    const out = await requestJson<D1ExecResponse>(settings, '/zin/d1/exec', {
+    const out = await RemoteSignedJson.request<D1ExecResponse>(settings, '/zin/d1/exec', {
       sql,
       params: parameters,
     });
     return { rows: [], rowCount: getExecChanges(out) };
   }
 
-  const out = await requestJson<D1QueryResponse>(settings, '/zin/d1/query', {
+  const out = await RemoteSignedJson.request<D1QueryResponse>(settings, '/zin/d1/query', {
     sql,
     params: parameters,
   });
@@ -213,13 +154,7 @@ export const D1RemoteAdapter = Object.freeze({
   create(_config: DatabaseConfig): IDatabaseAdapter {
     let connected = false;
 
-    const settings: D1RemoteSettings = {
-      baseUrl: Env.get('D1_REMOTE_URL'),
-      keyId: Env.get('D1_REMOTE_KEY_ID'),
-      secret: Env.get('D1_REMOTE_SECRET'),
-      mode: (Env.get('D1_REMOTE_MODE', 'registry') as D1RemoteMode) ?? 'registry',
-      timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
-    };
+    const { mode, remote } = createRemoteConfig();
 
     return {
       // eslint-disable-next-line @typescript-eslint/require-await
@@ -235,20 +170,20 @@ export const D1RemoteAdapter = Object.freeze({
       async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
-        if (settings.mode === 'registry') {
-          return queryRegistry(settings, sql, parameters);
+        if (mode === 'registry') {
+          return queryRegistry(remote, sql, parameters);
         }
 
-        return querySqlMode(settings, sql, parameters);
+        return querySqlMode(remote, sql, parameters);
       },
 
       async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
 
-        if (settings.mode === 'registry') {
+        if (mode === 'registry') {
           const payload = await createStatementPayload(sql, parameters);
-          const out = await requestJson<D1StatementResponse>(
-            settings,
+          const out = await RemoteSignedJson.request<D1StatementResponse>(
+            remote,
             '/zin/d1/statement',
             payload
           );
@@ -257,7 +192,7 @@ export const D1RemoteAdapter = Object.freeze({
           return null;
         }
 
-        const out = await requestJson<D1QueryOneResponse>(settings, '/zin/d1/queryOne', {
+        const out = await RemoteSignedJson.request<D1QueryOneResponse>(remote, '/zin/d1/queryOne', {
           sql,
           params: parameters,
         });
