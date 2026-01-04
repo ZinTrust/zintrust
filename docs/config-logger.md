@@ -21,8 +21,8 @@ import { logger } from '@zintrust/core';
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
-import { appConfig } from '@config/app';
 import { Env } from '@zintrust/core';
+import { appConfig } from '@zintrust/core';
 
 interface ILogger {
   debug(message: string, data?: unknown, category?: string): void;
@@ -129,7 +129,7 @@ export const cleanLogsOnce = async (): Promise<string[]> => {
   if (!shouldLogToFile()) return [];
 
   try {
-    const mod = await import('@config/FileLogWriter');
+    const mod = await import('@zintrust/core/node');
     const deleted = mod.cleanOnce();
     logInfo('Log cleanup executed', { deletedCount: deleted.length });
     return deleted;

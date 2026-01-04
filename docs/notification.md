@@ -6,7 +6,7 @@ Zintrust includes a small notification toolkit with pluggable drivers and a buil
 
 Send a notification:
 
-    import { Notification } from '@notification/Notification';
+    import { Notification } from '@zintrust/core';
 
     await Notification.send('+15551234567', 'Hello from Zintrust');
 
@@ -43,7 +43,7 @@ Notes:
 If you want to bypass the registry and call the driver directly:
 
 ```ts
-import { TermiiDriver } from '@notification/drivers/Termii';
+import { TermiiDriver } from '@zintrust/core';
 
 await TermiiDriver.send('+1234567890', 'Your code is 1234');
 ```
@@ -71,7 +71,7 @@ TWILIO_FROM_NUMBER=...
 #### Direct Twilio usage
 
 ```ts
-import { sendSms } from '@notification/drivers/Twilio';
+import { sendSms } from '@zintrust/core';
 
 await sendSms(
   {
@@ -86,7 +86,7 @@ await sendSms(
 #### Direct Slack usage
 
 ```ts
-import { sendSlackWebhook } from '@notification/drivers/Slack';
+import { sendSlackWebhook } from '@zintrust/core';
 
 await sendSlackWebhook(
   { webhookUrl: process.env.SLACK_WEBHOOK_URL ?? '' },
@@ -105,9 +105,7 @@ SLACK_WEBHOOK_URL=...
 
 Register an adapter during app startup:
 
-    import notificationConfig from '@config/notification';
-    import { NotificationRegistry } from '@notification/Registry';
-    import { sendSlackWebhook } from '@notification/drivers/Slack';
+    import { notificationConfig, NotificationRegistry, sendSlackWebhook } from '@zintrust/core';
 
     NotificationRegistry.register('slack', {
       async send(_recipient, message, options = {}) {
@@ -129,9 +127,7 @@ Environment variables:
 
 Register an adapter during app startup:
 
-    import notificationConfig from '@config/notification';
-    import { NotificationRegistry } from '@notification/Registry';
-    import { sendSms } from '@notification/drivers/Twilio';
+    import { notificationConfig, NotificationRegistry, sendSms } from '@zintrust/core';
 
     NotificationRegistry.register('twilio', {
       async send(recipient, message) {
@@ -178,10 +174,10 @@ Notification templates live in:
 
 You can list and render templates:
 
-    import { listTemplates, renderTemplate } from '@notification/templates/markdown';
+    import { listNotificationTemplates, renderNotificationTemplate } from '@zintrust/core/node';
 
-    const names = listTemplates();
-    const { html, meta } = renderTemplate('notifications/new-follow', {
+    const names = listNotificationTemplates();
+    const { html, meta } = renderNotificationTemplate('notifications/new-follow', {
       name: 'Jane',
       follower: 'Sam',
     });

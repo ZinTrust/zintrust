@@ -34,10 +34,8 @@ import { security } from '@zintrust/core';
  * security domains (e.g., different keys for different microservices).
  */
 
-import { appConfig } from '@config/app';
 import { Env } from '@zintrust/core';
-import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { appConfig, ErrorFactory, Logger } from '@zintrust/core';
 
 /**
  * Helper to warn about missing secrets

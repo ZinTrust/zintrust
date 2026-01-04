@@ -13,7 +13,7 @@ This module provides a lightweight registry and loader for mail templates writte
 ## Example
 
 ```ts
-import { renderTemplate, listTemplates } from '@mail/templates/markdown';
+import { renderTemplate, listTemplates } from '@zintrust/core/node';
 
 const templates = listTemplates();
 const { html, meta } = renderTemplate('auth/welcome', {
