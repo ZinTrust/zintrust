@@ -25,6 +25,27 @@ The `add` command is the primary way to scaffold new components.
 zin add <type> [name] [options]
 ```
 
+### Plugin-style installs
+
+Some integrations are installed via the plugin system. As a convenience, `zin add <domain>:<driver>` delegates to `zin plugin install`.
+
+```bash
+# Database adapters
+zin add db:sqlite
+zin add db:postgres
+
+# Redis drivers
+zin add queue:redis
+zin add broadcast:redis
+
+# Cache + mail drivers
+zin add cache:redis
+zin add mail:nodemailer
+
+# Choose a package manager explicitly (optional)
+zin add db:sqlite --package-manager pnpm
+```
+
 ### Available Types
 
 | Type              | Description                                |

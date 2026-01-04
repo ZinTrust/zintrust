@@ -78,4 +78,24 @@ describe('PusherDriver branches', () => {
       PusherDriver.send({ appId: '', key: '', secret: '', cluster: '' } as any, 'c', 'e', { x: 1 })
     ).rejects.toHaveProperty('code', 'CONFIG_ERROR');
   });
+
+  it('throws CONFIG_ERROR when key is missing', async () => {
+    const { PusherDriver } = await import('@broadcast/drivers/Pusher');
+
+    await expect(
+      PusherDriver.send({ appId: '1', key: '', secret: 's', cluster: '' } as any, 'c', 'e', {
+        x: 1,
+      })
+    ).rejects.toHaveProperty('code', 'CONFIG_ERROR');
+  });
+
+  it('throws CONFIG_ERROR when secret is missing', async () => {
+    const { PusherDriver } = await import('@broadcast/drivers/Pusher');
+
+    await expect(
+      PusherDriver.send({ appId: '1', key: 'k', secret: '', cluster: '' } as any, 'c', 'e', {
+        x: 1,
+      })
+    ).rejects.toHaveProperty('code', 'CONFIG_ERROR');
+  });
 });

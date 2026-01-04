@@ -12,11 +12,28 @@ npm install -g @zintrust/core
 zin new my-app
 cd my-app
 
+# Install adapters as needed (example: SQLite)
+zin add db:sqlite
+
 # Start development
 npm run dev
 ```
 
 Your API is now running at `http://localhost:7777`
+
+The canonical CLI is `zin`. `z` is a shorthand alias.
+
+## Install adapters (database/cache/etc.)
+
+Zintrust keeps the core package minimal. Integrations like database drivers are installed explicitly via adapter packages.
+
+```bash
+# Database adapters
+zin add db:sqlite    # @zintrust/db-sqlite
+zin add db:postgres  # @zintrust/db-postgres
+zin add db:mysql     # @zintrust/db-mysql
+zin add db:mssql     # @zintrust/db-sqlserver
+```
 
 ## What is Zintrust?
 

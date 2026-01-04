@@ -2,14 +2,14 @@
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - npm (recommended)
 
 ## Installation
 
-\`\`\`bash
+```bash
 npm install -g @zintrust/core
-\`\`\`
+```
 
 ## Core Package Dependencies (CLI + DX)
 
@@ -20,18 +20,33 @@ The published npm package `@zintrust/core` includes runtime dependencies primari
 - `chalk` - colored terminal output
 - `tsx` - runs TypeScript-based CLI entrypoints
 
-It also ships with some built-in feature/adapters dependencies:
+Optional integrations (database drivers, Redis client, etc.) are installed on-demand using plugins.
 
-- `better-sqlite3` - SQLite database driver
-- `bcrypt` - password hashing
-- `jsonwebtoken` - JWT utilities
+For example:
 
-Note: `better-sqlite3` is a native module and may require build tools on some platforms.
+```bash
+# Install the SQLite adapter dependencies + templates
+zin add db:sqlite
+
+# Install Redis client dependency for queue/broadcast drivers
+zin add queue:redis
+zin add broadcast:redis
+
+# Install cache/mail drivers on-demand
+zin add cache:redis
+zin add mail:nodemailer
+```
+
+Note: some drivers (e.g. `better-sqlite3`) are native modules and may require build tools on some platforms.
 
 ## First Project
 
-\`\`\`bash
+```bash
 zin new my-app
 cd my-app
+
+# Install database driver dependencies on-demand (example: SQLite)
+zin add db:sqlite
+
 npm run dev
-\`\`\`
+```

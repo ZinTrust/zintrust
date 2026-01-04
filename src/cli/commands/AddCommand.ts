@@ -22,6 +22,7 @@ import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { PluginManager } from '@runtime/PluginManager';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 
@@ -29,6 +30,7 @@ type PlatformDeploy = 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all';
 
 interface AddOptions extends CommandOptions {
   type?: string;
+  packageManager?: string;
   database?: 'shared' | 'isolated';
   auth?: 'api-key' | 'jwt' | 'none' | 'custom';
   port?: string;
@@ -126,6 +128,10 @@ const addOptions = (command: Command): void => {
     .argument(
       '[name]',
       'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory/workflow'
+    )
+    .option(
+      '--package-manager <pm>',
+      'Specify package manager to use when installing plugins (npm|yarn|pnpm)'
     )
     .option('--database <type>', 'Database (shared|isolated) - for services')
     .option('--auth <strategy>', 'Auth strategy (api-key|jwt|none|custom) - for services')
@@ -1100,7 +1106,27 @@ const executeAdd = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
       );
     }
 
-    await handleType(cmd, type.toLowerCase(), name, addOpts);
+    // Planned modular adapter syntax: `zin add db:sqlite` (delegate to plugin installer)
+    const normalizedType = type.toLowerCase();
+    if (normalizedType.includes(':')) {
+      if (name !== undefined && name.length > 0) {
+        throw ErrorFactory.createCliError(
+          `"${type}" looks like a plugin id. Run: zin add ${type} (without a name argument).`
+        );
+      }
+
+      cmd.info(`Installing plugin: ${normalizedType}...`);
+      const pm = typeof addOpts.packageManager === 'string' ? addOpts.packageManager : undefined;
+      if (pm === undefined) {
+        await PluginManager.install(normalizedType);
+      } else {
+        await PluginManager.install(normalizedType, { packageManager: pm });
+      }
+      cmd.success(`Plugin '${normalizedType}' installed successfully!`);
+      return;
+    }
+
+    await handleType(cmd, normalizedType, name, addOpts);
   } catch (error) {
     ErrorFactory.createCliError('Add command failed', error);
     cmd.warn(`Failed: ${(error as Error).message}`);

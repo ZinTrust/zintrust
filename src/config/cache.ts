@@ -22,7 +22,7 @@ const cacheConfigObj = {
   /**
    * Default cache driver
    */
-  default: Env.get('CACHE_DRIVER', 'memory'),
+  default: Env.CACHE_DRIVER,
 
   /**
    * Cache drivers

@@ -7,6 +7,7 @@ import { SesDriver } from '@mail/drivers/Ses';
 import { SmtpDriver } from '@mail/drivers/Smtp';
 
 import { resolveAttachments, type AttachmentInput } from '@mail/attachments';
+import { MailDriverRegistry } from '@mail/MailDriverRegistry';
 import { Storage } from '@tools/storage';
 
 export type SendMailInput = {
@@ -23,7 +24,7 @@ export type SendMailInput = {
 
 export type SendMailResult = {
   ok: boolean;
-  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun';
+  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';
   messageId?: string;
 };
 
@@ -144,6 +145,17 @@ const sendWithDriver = async (
   if (driver.driver === 'ses') {
     const result = await SesDriver.send({ region: driver.region }, message);
     return { ok: result.ok, driver: 'ses', messageId: result.messageId };
+  }
+
+  // External drivers can register via MailDriverRegistry (e.g., nodemailer)
+  const external = MailDriverRegistry.get(driver.driver);
+  if (external !== undefined) {
+    const result = await external(driver as unknown, message);
+    return {
+      ok: Boolean(result?.ok),
+      driver: driver.driver as SendMailResult['driver'],
+      messageId: typeof result?.messageId === 'string' ? result.messageId : undefined,
+    };
   }
 
   // Config exists for future drivers, but implementations are intentionally CLI/runtime-safe and added incrementally.

@@ -89,6 +89,17 @@ Manage framework extensions and database adapters.
 zin plugin list                # List available plugins
 zin plugin install a:sqlite    # Install SQLite adapter
 zin p -i a:postgres            # Short syntax for installing Postgres
+
+# Modular adapter/driver shortcut (delegates to plugin installer)
+zin add db:sqlite
+zin add db:postgres
+zin add queue:redis
+zin add broadcast:redis
+zin add cache:redis
+zin add mail:nodemailer
+
+# Choose a package manager explicitly (optional)
+zin add db:sqlite --package-manager pnpm
 ```
 
 See [Plugin System](./plugins.md) for more details.
@@ -199,19 +210,24 @@ zin new my-app --no-interactive --no-git
 
 ### zin add
 
-Add feature module to existing project
+Add components (generators) and install plugins
 
-**Usage**: `zin add <feature>`
+**Usage**: `zin add <type> [name] [options]`
 
 **Arguments**:
 
-- `<feature>` - Feature name (auth, payments, notifications, webhooks, analytics)
+- `<type>` - Generator type (model, controller, migration, service, workflow, etc) OR plugin id/alias (`db:sqlite`, `queue:redis`, ...)
+- `[name]` - Name for generators that require it (omit for plugin ids like `db:sqlite`)
 
 **Examples**:
 
 ```bash
 zin add auth
 zin add payments
+
+# Plugin-style installs via `zin add <domain>:<driver>`
+zin add db:sqlite
+zin add queue:redis --package-manager pnpm
 ```
 
 ### zin migrate

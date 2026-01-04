@@ -4,9 +4,10 @@
  */
 
 import { ensureDirSafe } from '@zintrust/core';
-import { Env } from '@zintrust/core';
-import * as fs from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+import { Env } from './env';
 
 const getCwdSafe = (): string => {
   try {

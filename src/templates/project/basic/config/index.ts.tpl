@@ -3,23 +3,23 @@
  * Central export point for all configuration
  */
 
-import { appConfig } from '@config/app';
-import { cacheConfig } from '@config/cache';
-import { databaseConfig } from '@config/database';
-import { microservicesConfig } from '@config/microservices';
-import { middlewareConfig } from '@config/middleware';
-import { queueConfig } from '@config/queue';
-import { securityConfig } from '@config/security';
-import { storageConfig } from '@config/storage';
+import { appConfig } from './app';
+import { cacheConfig } from './cache';
+import { databaseConfig } from './database';
+import { microservicesConfig } from './microservices';
+import { middlewareConfig } from './middleware';
+import { queueConfig } from './queue';
+import { securityConfig } from './security';
+import { storageConfig } from './storage';
 
-export { appConfig, type AppConfig } from '@config/app';
-export { cacheConfig, type CacheConfig } from '@config/cache';
-export { databaseConfig, type DatabaseConfig } from '@config/database';
-export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
-export { middlewareConfig, type MiddlewareConfig } from '@config/middleware';
-export { queueConfig, type QueueConfig } from '@config/queue';
-export { securityConfig } from '@config/security';
-export { storageConfig, type StorageConfig } from '@config/storage';
+export { appConfig, type AppConfig } from './app';
+export { cacheConfig, type CacheConfig } from './cache';
+export { databaseConfig, type DatabaseConfig } from './database';
+export { microservicesConfig, type MicroservicesConfig } from './microservices';
+export { middlewareConfig } from './middleware';
+export { queueConfig, type QueueConfig } from './queue';
+export { securityConfig } from './security';
+export { storageConfig, type StorageConfig } from './storage';
 
 /**
  * Combined configuration object

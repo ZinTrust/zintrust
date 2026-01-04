@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.4",
+  "version": "0.1.8",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -32,9 +32,9 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs",
-    "build:ci": "export CI=true && npm run clean && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs",
-    "pro:build": "npm run clean && npm test && npm run templates:sync && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
+    "build": "npm run clean && npm test && npm run templates:check && npm run templates:sync && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs",
+    "build:ci": "export CI=true && npm run clean && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs",
+    "pro:build": "npm run clean && npm test && npm run templates:check && npm run templates:sync && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs",
     "watch": "tsc --watch --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -46,6 +46,7 @@
     "dev": "./bin/z.ts s",
     "deploy": "cd docs-website && wrangler types && wrangler deploy --env ${WRANGLER_ENV:-production}",
     "templates:sync": "tsx src/scripts/TemplateSync.ts",
+    "templates:check": "tsx src/scripts/TemplateImportsCheck.ts",
     "env:generate": "tsx src/scripts/GenerateEnvArtifacts.ts",
     "git-reload": "git rm -r --cached .  && git add .",
     "start": "node dist/src/bootstrap.js",
@@ -66,7 +67,6 @@
     "docker:shell": "docker-compose run --rm app sh",
     "docker:test": "docker-compose exec app npm test",
     "docker:migrate": "docker-compose exec app node dist/bootstrap.js migrate",
-    "docker:seed": "docker-compose exec app node dist/bootstrap.js seed",
     "microservices:generate": "tsx bin/zintrust-microservices.ts generate",
     "microservices:bundle": "tsx bin/zintrust-microservices.ts bundle",
     "microservices:docker": "tsx bin/zintrust-microservices.ts docker",
@@ -93,7 +93,10 @@
     "rebuild:bcrypt": "npm rebuild bcrypt",
     "rebuild:native": "npm rebuild bcrypt better-sqlite3",
     "b:push": "npm run sonarcloud:check && npm run lint --max-warnings=0",
-    "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist"
+    "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist",
+    "release:sync-versions": "node scripts/release/sync-package-versions.mjs",
+    "release:publish-packages": "node scripts/release/publish-packages.mjs",
+    "release:publish-all": "npm run release:sync-versions && npm run release:publish-packages"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -123,7 +126,6 @@
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "better-sqlite3": "^12.5.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "inquirer": "^13.1.0",
@@ -136,6 +138,7 @@
     "@types/better-sqlite3": "7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.3",
+    "better-sqlite3": "^12.5.0",
     "@typescript-eslint/eslint-plugin": "^8.50.0",
     "@typescript-eslint/parser": "^8.50.0",
     "@vitest/coverage-v8": "^4.0.16",

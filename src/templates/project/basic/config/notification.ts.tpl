@@ -5,43 +5,8 @@
  * Keeps runtime driver selection in one place and uses Env for safe access.
  */
 
-import { Env } from '@zintrust/core';
-
-export type KnownNotificationDriverName = 'console' | 'termii' | 'twilio' | 'slack';
-
-export type ConsoleNotificationDriverConfig = { driver: 'console' };
-
-export type TermiiNotificationDriverConfig = {
-  driver: 'termii';
-  apiKey: string;
-  sender: string;
-  endpoint: string;
-};
-
-export type TwilioNotificationDriverConfig = {
-  driver: 'twilio';
-  accountSid: string;
-  authToken: string;
-  fromNumber: string;
-};
-
-export type SlackNotificationDriverConfig = {
-  driver: 'slack';
-  webhookUrl: string;
-};
-
-export type KnownNotificationDriverConfig =
-  | ConsoleNotificationDriverConfig
-  | TermiiNotificationDriverConfig
-  | TwilioNotificationDriverConfig
-  | SlackNotificationDriverConfig;
-
-type NotificationProviders = {
-  console: ConsoleNotificationDriverConfig;
-  termii: TermiiNotificationDriverConfig;
-  twilio: TwilioNotificationDriverConfig;
-  slack: SlackNotificationDriverConfig;
-};
+import { Env } from './env';
+import type { NotificationProviders } from './type';
 
 const notificationConfigObj = {
   /**

@@ -5,11 +5,12 @@
  */
 
 import { CacheDriver } from '@cache/CacheDriver';
+import { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 import { KVDriver } from '@cache/drivers/KVDriver';
 import { MemoryDriver } from '@cache/drivers/MemoryDriver';
 import { MongoDriver } from '@cache/drivers/MongoDriver';
 import { RedisDriver } from '@cache/drivers/RedisDriver';
-import { Env } from '@config/env';
+import { cacheConfig } from '@config/cache';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 let instance: CacheDriver | undefined;
@@ -34,7 +35,14 @@ function buildDriver(driver: unknown): CacheDriver {
 }
 
 function resolveDriver(): CacheDriver {
-  const driverName = Env.CACHE_DRIVER;
+  const driverConfig = cacheConfig.getDriver();
+
+  const externalFactory = CacheDriverRegistry.get(driverConfig.driver);
+  if (externalFactory !== undefined) {
+    return externalFactory(driverConfig);
+  }
+
+  const driverName = driverConfig.driver;
 
   switch (driverName) {
     case 'kv':

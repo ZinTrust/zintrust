@@ -56,7 +56,7 @@ export const RedisQueue = (() => {
         .__fakeRedisClient;
       if (globalFake === undefined) {
         throw ErrorFactory.createConfigError(
-          "Redis queue driver requires the 'redis' package or a test fake client set in globalThis.__fakeRedisClient"
+          "Redis queue driver requires the 'redis' package (run `zin add queue:redis` / `zin plugin install queue:redis`, or `npm install redis`) or a test fake client set in globalThis.__fakeRedisClient"
         );
       }
 

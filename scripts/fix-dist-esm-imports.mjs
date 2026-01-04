@@ -12,6 +12,12 @@ const DEFAULT_TARGETS = [
 
 const KNOWN_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json', '.node'];
 
+function trimTrailingSlashes(value) {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return end === value.length ? value : value.slice(0, end);
+}
+
 function isFile(p) {
   try {
     return fs.statSync(p).isFile();
@@ -74,7 +80,7 @@ function rewriteSpecifier({ filePath, specifier }) {
   // If it already points to a directory, prefer explicit index.js.
   if (isDir(resolved)) {
     const indexJs = path.join(resolved, 'index.js');
-    if (isFile(indexJs)) return `${specifier.replace(/\/+$/, '')}/index.js`;
+    if (isFile(indexJs)) return `${trimTrailingSlashes(specifier)}/index.js`;
   }
 
   // Most TS outputs are emitted as .js.
@@ -85,6 +91,323 @@ function rewriteSpecifier({ filePath, specifier }) {
 
   // Could be a missing emit or a non-standard extension; leave unchanged.
   return null;
+}
+
+function isWordChar(ch) {
+  return (
+    (ch >= 'a' && ch <= 'z') ||
+    (ch >= 'A' && ch <= 'Z') ||
+    (ch >= '0' && ch <= '9') ||
+    ch === '_' ||
+    ch === '$'
+  );
+}
+
+function isKeywordAt(text, i, kw) {
+  if (text.startsWith(kw, i) !== true) return false;
+  const before = i > 0 ? text[i - 1] : '';
+  const after = i + kw.length < text.length ? text[i + kw.length] : '';
+  if (before && isWordChar(before)) return false;
+  if (after && isWordChar(after)) return false;
+  return true;
+}
+
+function skipWs(text, i) {
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === ' ' || ch === '\t' || ch === '\r' || ch === '\n') {
+      i += 1;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+function readQuotedLiteral(text, startQuoteIndex) {
+  const quote = text[startQuoteIndex];
+  if (quote !== "'" && quote !== '"' && quote !== '`') return null;
+
+  let i = startQuoteIndex + 1;
+  let value = '';
+  let sawTemplateExpr = false;
+
+  while (i < text.length) {
+    const ch = text[i];
+
+    if (quote === '`' && ch === '$' && text[i + 1] === '{') {
+      sawTemplateExpr = true;
+    }
+
+    if (ch === '\\') {
+      // Preserve escapes as literal content for specifier evaluation.
+      if (i + 1 < text.length) {
+        value += text.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      value += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === quote) {
+      return {
+        quote,
+        value,
+        endIndex: i + 1,
+        sawTemplateExpr,
+      };
+    }
+
+    value += ch;
+    i += 1;
+  }
+
+  return null;
+}
+
+function createScanState() {
+  return {
+    inLineComment: false,
+    inBlockComment: false,
+    inSingle: false,
+    inDouble: false,
+    inTemplate: false,
+  };
+}
+
+function advance(ctx, n) {
+  ctx.i += n;
+}
+
+function consumeInLineComment(ctx, ch) {
+  if (ch === '\n') ctx.state.inLineComment = false;
+  advance(ctx, 1);
+}
+
+function consumeInBlockComment(ctx, ch, next) {
+  if (ch === '*' && next === '/') {
+    ctx.state.inBlockComment = false;
+    advance(ctx, 2);
+    return;
+  }
+  advance(ctx, 1);
+}
+
+function consumeInQuoted(ctx, ch, endChar, flagName) {
+  if (ch === '\\') {
+    advance(ctx, 2);
+    return;
+  }
+  if (ch === endChar) ctx.state[flagName] = false;
+  advance(ctx, 1);
+}
+
+function consumeStringOrComment(ctx) {
+  const { text, state } = ctx;
+  const ch = text[ctx.i];
+  const next = ctx.i + 1 < text.length ? text[ctx.i + 1] : '';
+
+  if (state.inLineComment) {
+    consumeInLineComment(ctx, ch);
+    return true;
+  }
+  if (state.inBlockComment) {
+    consumeInBlockComment(ctx, ch, next);
+    return true;
+  }
+  if (state.inSingle) {
+    consumeInQuoted(ctx, ch, "'", 'inSingle');
+    return true;
+  }
+  if (state.inDouble) {
+    consumeInQuoted(ctx, ch, '"', 'inDouble');
+    return true;
+  }
+  if (state.inTemplate) {
+    consumeInQuoted(ctx, ch, '`', 'inTemplate');
+    return true;
+  }
+
+  /** @type {{ cond: boolean, run: () => void }[]} */
+  const starters = [
+    {
+      cond: ch === '/' && next === '/',
+      run: () => {
+        state.inLineComment = true;
+        advance(ctx, 2);
+      },
+    },
+    {
+      cond: ch === '/' && next === '*',
+      run: () => {
+        state.inBlockComment = true;
+        advance(ctx, 2);
+      },
+    },
+    {
+      cond: ch === "'",
+      run: () => {
+        state.inSingle = true;
+        advance(ctx, 1);
+      },
+    },
+    {
+      cond: ch === '"',
+      run: () => {
+        state.inDouble = true;
+        advance(ctx, 1);
+      },
+    },
+    {
+      cond: ch === '`',
+      run: () => {
+        state.inTemplate = true;
+        advance(ctx, 1);
+      },
+    },
+  ];
+
+  for (const s of starters) {
+    if (s.cond) {
+      s.run();
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function applyRewrite(ctx, quoteIndex, literal, rewritten) {
+  ctx.out += ctx.text.slice(ctx.lastFlush, quoteIndex + 1);
+  ctx.out += rewritten;
+  ctx.out += ctx.text.slice(literal.endIndex - 1, literal.endIndex);
+  ctx.lastFlush = literal.endIndex;
+  ctx.replacements += 1;
+}
+
+function scanForFromSpecifier(ctx, startIndex) {
+  // Scan until ';' or newline, then look for: from <ws> ('|"|`)
+  const { text } = ctx;
+  let scan = startIndex;
+  while (scan < text.length) {
+    if (text[scan] === ';' || text[scan] === '\n') return null;
+    if (isKeywordAt(text, scan, 'from')) {
+      const quoteIndex = skipWs(text, scan + 4);
+      const q = text[quoteIndex];
+      if (q === "'" || q === '"' || q === '`') {
+        return { quoteIndex, literal: readQuotedLiteral(text, quoteIndex) };
+      }
+    }
+    scan += 1;
+  }
+  return null;
+}
+
+function handleDynamicImport(ctx, afterImportIndex) {
+  const { text, filePath } = ctx;
+  if (text[afterImportIndex] !== '(') return false;
+
+  const quoteIndex = skipWs(text, afterImportIndex + 1);
+  const literal = readQuotedLiteral(text, quoteIndex);
+  if (!literal || literal.sawTemplateExpr) return true;
+
+  const rewritten = rewriteSpecifier({ filePath, specifier: literal.value });
+  if (rewritten) applyRewrite(ctx, quoteIndex, literal, rewritten);
+  return true;
+}
+
+function handleSideEffectImport(ctx, afterImportIndex) {
+  const { text, filePath } = ctx;
+  const q = text[afterImportIndex];
+  if (q !== "'" && q !== '"' && q !== '`') return false;
+
+  const literal = readQuotedLiteral(text, afterImportIndex);
+  if (!literal || literal.sawTemplateExpr) return true;
+
+  const rewritten = rewriteSpecifier({ filePath, specifier: literal.value });
+  if (rewritten) applyRewrite(ctx, afterImportIndex, literal, rewritten);
+  return true;
+}
+
+function handleStaticImportFrom(ctx, afterImportIndex) {
+  const { filePath } = ctx;
+  const found = scanForFromSpecifier(ctx, afterImportIndex);
+  if (!found) return false;
+  if (!found.literal || found.literal.sawTemplateExpr) return true;
+
+  const rewritten = rewriteSpecifier({ filePath, specifier: found.literal.value });
+  if (rewritten) applyRewrite(ctx, found.quoteIndex, found.literal, rewritten);
+  return true;
+}
+
+function tryHandleImport(ctx) {
+  const { text } = ctx;
+  if (!isKeywordAt(text, ctx.i, 'import')) return false;
+
+  let j = ctx.i + 'import'.length;
+  j = skipWs(text, j);
+
+  // Dynamic import(...)
+  if (handleDynamicImport(ctx, j)) {
+    ctx.i += 1;
+    return true;
+  }
+
+  // Side-effect import '...'
+  if (handleSideEffectImport(ctx, j)) {
+    ctx.i += 1;
+    return true;
+  }
+
+  // Static import ... from '...'
+  handleStaticImportFrom(ctx, j);
+
+  ctx.i += 1;
+  return true;
+}
+
+function tryHandleExport(ctx) {
+  const { text, filePath } = ctx;
+  if (!isKeywordAt(text, ctx.i, 'export')) return false;
+
+  let j = ctx.i + 'export'.length;
+  j = skipWs(text, j);
+
+  const found = scanForFromSpecifier(ctx, j);
+  if (found?.literal && !found.literal.sawTemplateExpr) {
+    const rewritten = rewriteSpecifier({ filePath, specifier: found.literal.value });
+    if (rewritten) applyRewrite(ctx, found.quoteIndex, found.literal, rewritten);
+  }
+
+  ctx.i += 1;
+  return true;
+}
+
+function rewriteImportsInText({ filePath, text }) {
+  /** @type {{ filePath: string, text: string, i: number, out: string, lastFlush: number, replacements: number, state: ReturnType<typeof createScanState> }} */
+  const ctx = {
+    filePath,
+    text,
+    i: 0,
+    out: '',
+    lastFlush: 0,
+    replacements: 0,
+    state: createScanState(),
+  };
+
+  while (ctx.i < text.length) {
+    if (consumeStringOrComment(ctx)) continue;
+    if (tryHandleImport(ctx)) continue;
+    if (tryHandleExport(ctx)) continue;
+    ctx.i += 1;
+  }
+
+  if (ctx.replacements === 0) return { text, replacements: 0 };
+
+  ctx.out += text.slice(ctx.lastFlush);
+  return { text: ctx.out, replacements: ctx.replacements };
 }
 
 function patchFile(file) {
@@ -102,33 +425,10 @@ function patchFile(file) {
     );
   }
 
-  /**
-   * Static imports/exports + bare imports.
-   * - import x from './foo'
-   * - export * from './foo'
-   * - export { x } from './foo'
-   * - import './foo'
-   */
-  next = next.replace(
-    /(\b(?:import|export)\b[\s\S]*?\bfrom\s*|\bimport\s*)(['"])(\.{1,2}\/[^'"\n]+?)\2/g,
-    (match, prefix, quote, specifier) => {
-      const rewritten = rewriteSpecifier({ filePath: file, specifier });
-      if (!rewritten) return match;
-      replacements += 1;
-      return `${prefix}${quote}${rewritten}${quote}`;
-    }
-  );
-
-  // Dynamic import('...')
-  next = next.replace(
-    /(\bimport\s*\(\s*)(['"])(\.{1,2}\/[^'"\n]+?)\2(\s*\))/g,
-    (match, prefix, quote, specifier, suffix) => {
-      const rewritten = rewriteSpecifier({ filePath: file, specifier });
-      if (!rewritten) return match;
-      replacements += 1;
-      return `${prefix}${quote}${rewritten}${quote}${suffix}`;
-    }
-  );
+  // Rewrite ESM relative import/export specifiers in a safe, linear-time way.
+  const rewritten = rewriteImportsInText({ filePath: file, text: next });
+  next = rewritten.text;
+  replacements += rewritten.replacements;
 
   if (next === original) return { changed: false, replacements: 0 };
 

@@ -76,6 +76,10 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return true;
 }
 
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string');
+}
+
 function parsePackageJsonDeps(text: string): PackageJsonDeps {
   const parsed: unknown = JSON.parse(text);
   if (typeof parsed !== 'object' || parsed === null) return {};
@@ -191,6 +195,59 @@ async function copyPluginTemplates(plugin: PluginDefinition): Promise<void> {
   }
 }
 
+async function ensurePluginAutoImports(plugin: PluginDefinition): Promise<void> {
+  const rawImports: unknown = plugin.autoImports;
+  if (!isStringArray(rawImports) || rawImports.length === 0) return;
+  const imports = rawImports;
+
+  const projectRoot = resolveProjectRoot();
+  const pluginFile = path.join(projectRoot, 'src', 'zintrust.plugins.ts');
+
+  await fs.mkdir(path.dirname(pluginFile), { recursive: true });
+
+  const header =
+    '/**\n' +
+    ' * Zintrust plugin auto-imports\n' +
+    ' *\n' +
+    ' * This file is managed by `zin plugin install` and contains side-effect\n' +
+    ' * imports that register optional adapters/drivers into core registries.\n' +
+    ' */\n\n';
+
+  let current = '';
+  try {
+    current = await fs.readFile(pluginFile, 'utf-8');
+  } catch {
+    current = '';
+  }
+
+  const lines: string[] = [];
+  if (current.trim().length === 0) {
+    lines.push(header.trimEnd());
+  } else {
+    lines.push(current.trimEnd());
+  }
+
+  const existing = new Set<string>();
+  for (const line of lines.join('\n').split(/\r?\n/)) {
+    const m = new RegExp(/^\s*import\s+['"]([^'"]+)['"];\s*$/).exec(line);
+    if (m) existing.add(m[1]);
+  }
+
+  let appended = 0;
+  for (const spec of imports) {
+    if (typeof spec !== 'string' || spec.trim() === '') continue;
+    if (existing.has(spec)) continue;
+    lines.push(`import '${spec}';`);
+    existing.add(spec);
+    appended += 1;
+  }
+
+  if (appended === 0) return;
+
+  const next = lines.join('\n') + '\n';
+  await fs.writeFile(pluginFile, next, 'utf-8');
+}
+
 function runPostInstall(plugin: PluginDefinition): void {
   if (!plugin.postInstall) return;
 
@@ -258,6 +315,27 @@ export const PluginManager = Object.freeze({
     const plugin = PluginRegistry[resolvedId];
     const projectRoot = resolveProjectRoot();
 
+    // Dependency-only plugins (no templates): consider installed when required deps are present.
+    if (plugin.templates.length === 0) {
+      try {
+        const packageJsonPath = path.join(projectRoot, 'package.json');
+        const packageJsonText = await fs.readFile(packageJsonPath, 'utf-8');
+        const packageJson = parsePackageJsonDeps(packageJsonText);
+
+        const hasDeps = plugin.dependencies.every(
+          (dep) => packageJson.dependencies?.[dep] ?? packageJson.devDependencies?.[dep] ?? ''
+        );
+
+        const hasDevDeps = plugin.devDependencies.every(
+          (dep) => packageJson.devDependencies?.[dep] ?? packageJson.dependencies?.[dep] ?? ''
+        );
+
+        return hasDeps && hasDevDeps;
+      } catch {
+        return false;
+      }
+    }
+
     // Check if the main template file exists in the destination
     // We assume if the first template exists, the plugin is "installed"
     if (plugin.templates.length > 0) {
@@ -309,6 +387,9 @@ export const PluginManager = Object.freeze({
 
     // 2. Copy templates
     await copyPluginTemplates(plugin);
+
+    // 2b. Ensure plugin-side effects are imported by the project
+    await ensurePluginAutoImports(plugin);
 
     // 3. Post-Install (still executed via execSync - opt-in)
     runPostInstall(plugin);
