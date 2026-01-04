@@ -44,6 +44,7 @@ describe('PluginManager.isInstalled dependency-only plugins', () => {
 
     await expect(PluginManager.isInstalled(id)).resolves.toBe(false);
 
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete (PluginRegistry as any)[id];
   });
 
@@ -65,6 +66,7 @@ describe('PluginManager.isInstalled dependency-only plugins', () => {
 
     await expect(PluginManager.isInstalled(id)).resolves.toBe(false);
 
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete (PluginRegistry as any)[id];
   });
 });
