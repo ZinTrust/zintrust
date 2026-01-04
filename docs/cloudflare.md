@@ -84,6 +84,15 @@ CACHE_DRIVER=kv
 
 The KV driver expects the KV namespace binding name to be `CACHE` (as shown in the Wrangler config above).
 
+## Using D1/KV outside Cloudflare (Proxy Services)
+
+D1 and KV are Cloudflare Workers bindings (there is no standard direct TCP connection string like Postgres/Redis).
+
+If your Zintrust app runs outside Cloudflare but you still want to use D1 and/or KV, deploy the Zintrust proxy services in Cloudflare and connect over HTTPS:
+
+- D1 remote: `docs/cloudflare-d1-remote.md`
+- KV remote: `docs/cloudflare-kv-remote.md`
+
 ## Deployment
 
 To deploy your Zintrust application to Cloudflare Workers:

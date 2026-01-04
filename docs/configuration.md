@@ -335,7 +335,21 @@ Zintrust’s Cloudflare support is configured primarily via your Workers binding
 Runtime flags:
 
 - `DB_CONNECTION=d1` (use the D1 adapter)
+- `DB_CONNECTION=d1-remote` (use D1 via the HTTPS proxy service)
 - `CACHE_DRIVER=kv` (use the KV cache driver)
+- `CACHE_DRIVER=kv-remote` (use KV via the HTTPS proxy service)
+
+Remote driver configuration:
+
+- `D1_REMOTE_URL`
+- `D1_REMOTE_KEY_ID`
+- `D1_REMOTE_SECRET`
+- `D1_REMOTE_MODE` (default `registry`; `registry` or `sql`)
+
+- `KV_REMOTE_URL`
+- `KV_REMOTE_KEY_ID`
+- `KV_REMOTE_SECRET`
+- `KV_REMOTE_NAMESPACE`
 
 Workers binding names (expected defaults):
 
@@ -350,6 +364,11 @@ Legacy/optional env keys:
 These are not required for runtime access in Workers; Zintrust resolves D1/KV via bindings.
 
 See `docs/cloudflare.md` for the full setup.
+
+Remote proxy docs:
+
+- `docs/cloudflare-d1-remote.md`
+- `docs/cloudflare-kv-remote.md`
 
 ## AWS (Runtime)
 
