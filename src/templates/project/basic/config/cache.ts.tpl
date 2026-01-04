@@ -4,49 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@zintrust/core';
-
-type MemoryCacheDriverConfig = {
-  driver: 'memory';
-  ttl: number;
-};
-
-type RedisCacheDriverConfig = {
-  driver: 'redis';
-  host: string;
-  port: number;
-  ttl: number;
-};
-
-type MongoCacheDriverConfig = {
-  driver: 'mongodb';
-  uri: string;
-  db: string;
-  ttl: number;
-};
-
-type KvCacheDriverConfig = {
-  driver: 'kv';
-  ttl: number;
-};
-
-type CacheDriverConfig =
-  | MemoryCacheDriverConfig
-  | RedisCacheDriverConfig
-  | MongoCacheDriverConfig
-  | KvCacheDriverConfig;
-
-type CacheDrivers = {
-  memory: MemoryCacheDriverConfig;
-  redis: RedisCacheDriverConfig;
-  mongodb: MongoCacheDriverConfig;
-  kv: KvCacheDriverConfig;
-};
-
-type CacheConfigInput = {
-  default: string;
-  drivers: CacheDrivers;
-};
+import { Env } from './env';
+import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from './type';
 
 const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
   const defaultDriver = config.default;
@@ -63,7 +22,7 @@ const cacheConfigObj = {
   /**
    * Default cache driver
    */
-  default: Env.get('CACHE_DRIVER', 'memory'),
+  default: Env.CACHE_DRIVER,
 
   /**
    * Cache drivers

@@ -1,13 +1,14 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { randomBytes } from '@node-singletons/crypto';
 
 export const generateUuid = (): string => {
   if (typeof globalThis?.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; // NOSONAR
 };
 
-export async function generateSecureJobId(
+export function generateSecureJobId(
   errMsg: string = 'Secure crypto API not available to generate a job id.'
-): Promise<string> {
+): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
@@ -20,8 +21,7 @@ export async function generateSecureJobId(
 
   // Node fallback for environments without Web Crypto
   try {
-    const nodeCrypto = await import('@node-singletons/crypto');
-    return nodeCrypto.randomBytes(16).toString('hex');
+    return randomBytes(16).toString('hex');
   } catch (error) {
     throw ErrorFactory.createTryCatchError(
       errMsg || 'Secure crypto API not available to generate a job id.',

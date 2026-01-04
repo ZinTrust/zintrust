@@ -348,4 +348,75 @@ describe('NodeServerAdapter', () => {
     expect(state.statusCode).toBe(400);
     expect(state.body).toContain('Bad Request');
   });
+
+  it('handle() throws config error advising startServer usage', async () => {
+    const adapter = NodeServerAdapter.create({ handler: async () => undefined });
+    await expect(adapter.handle({}, {})).rejects.toThrow(/requires startServer/);
+  });
+
+  it('server error is reported to provided logger', async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const adapter = NodeServerAdapter.create({ handler: async () => undefined, logger });
+
+    await adapter.startServer(0, '127.0.0.1');
+    lastServer?.emit('error', new Error('boom'));
+
+    expect(logger.error).toHaveBeenCalledWith('Server error', expect.any(Error));
+  });
+
+  it('clientError ECONNRESET or non-writable socket is ignored', async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const adapter = NodeServerAdapter.create({ handler: async () => undefined, logger });
+
+    await adapter.startServer(0, '127.0.0.1');
+
+    // ECONNRESET is ignored
+    lastServer?.emit(
+      'clientError',
+      { code: 'ECONNRESET' } as NodeJS.ErrnoException,
+      { writable: true } as any
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+
+    // non-writable socket is ignored
+    lastServer?.emit('clientError', new Error('boom'), { writable: false } as any);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('clientError with writable socket logs a warning', async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const adapter = NodeServerAdapter.create({ handler: async () => undefined, logger });
+
+    await adapter.startServer(0, '127.0.0.1');
+
+    lastServer?.emit('clientError', new Error('boom'), { writable: true } as any);
+    expect(logger.warn).toHaveBeenCalledWith('Client error: boom');
+  });
+
+  it('default getLogger proxies to global Logger with Node.js prefix', async () => {
+    // Re-import a fresh module with a mocked '@config/logger' to avoid spying on frozen exports
+    vi.resetModules();
+    const mockLogger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    vi.doMock('@config/logger', () => ({ default: mockLogger }));
+
+    const { NodeServerAdapter: FreshNodeServerAdapter } =
+      await import('@/runtime/adapters/NodeServerAdapter');
+    const adapter = FreshNodeServerAdapter.create({ handler: async () => undefined });
+    const g = adapter.getLogger();
+
+    g.debug('x', { a: 1 });
+    expect(mockLogger.debug).toHaveBeenCalledWith('[Node.js] x', JSON.stringify({ a: 1 }));
+
+    g.info('y');
+    expect(mockLogger.info).toHaveBeenCalledWith('[Node.js] y', '');
+
+    g.warn('z');
+    expect(mockLogger.warn).toHaveBeenCalledWith('[Node.js] z', '');
+
+    g.error('oopsy', new Error('fail'));
+    expect(mockLogger.error).toHaveBeenCalledWith('[Node.js] oopsy', 'fail');
+
+    // restore module state for subsequent tests
+    vi.doMock('@node-singletons/http', () => undefined);
+  });
 });

@@ -3,12 +3,12 @@
  * Demonstrates routing patterns
  */
 
-import { UserController } from '@app/Controllers/UserController';
-import { Env } from '@zintrust/core';
-import { registerBroadcastRoutes } from '@routes/broadcast';
-import { registerHealthRoutes } from '@routes/health';
-import { registerStorageRoutes } from '@routes/storage';
-import { type IRouter, Router } from '@zintrust/core';
+import { Env, type IRouter, Router } from '@zintrust/core';
+
+import { UserController } from '../app/Controllers/UserController';
+import { registerBroadcastRoutes } from './broadcast';
+import { registerHealthRoutes } from './health';
+import { registerStorageRoutes } from './storage';
 
 export function registerRoutes(router: IRouter): void {
   const userController = UserController.create();

@@ -55,6 +55,12 @@ Designed for Cloudflare Workers.
 
 A zero-dependency implementation that communicates with Redis over TCP using the RESP protocol.
 
+If you prefer using the official Redis client in Node.js, install the modular driver:
+
+```bash
+zin add cache:redis
+```
+
 ### MongoDB Driver (`mongodb`)
 
 Uses the MongoDB Atlas Data API (HTTPS) for zero-dependency integration, making it ideal for serverless environments where TCP connections are limited.

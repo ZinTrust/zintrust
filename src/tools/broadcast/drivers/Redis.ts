@@ -63,7 +63,7 @@ export const RedisDriver = (() => {
         .__fakeRedisClient;
       if (globalFake === undefined) {
         throw ErrorFactory.createConfigError(
-          "Redis broadcast driver requires the 'redis' package or a test fake client set in globalThis.__fakeRedisClient"
+          "Redis broadcast driver requires the 'redis' package (run `zin add broadcast:redis` / `zin plugin install broadcast:redis`, or `npm install redis`) or a test fake client set in globalThis.__fakeRedisClient"
         );
       }
 

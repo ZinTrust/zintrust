@@ -52,9 +52,23 @@ jobs:
         id: version_check
         run: node scripts/ci/check-version.js
 
-      - name: Skip publish (no version bump)
-        if: ${{ steps.version_check.outputs.should_publish != 'true' }}
-        run: echo "No publish needed for this master merge."
+      - name: Detect changed packages
+        id: changed_packages
+        run: node scripts/ci/changed-packages.mjs --base "${{ github.event.before }}"
+
+      - name: Sync package versions from core
+        if: ${{ steps.changed_packages.outputs.packages_changed == 'true' }}
+        run: |
+          if [ -n "${{ steps.changed_packages.outputs.changed_package_dirs }}" ]; then
+            npm run release:sync-versions -- --only "${{ steps.changed_packages.outputs.changed_package_dirs }}"
+          else
+            npm run release:sync-versions
+          fi
+
+      - name: Detect publishable packages
+        id: publishable_packages
+        if: ${{ steps.changed_packages.outputs.packages_changed == 'true' }}
+        run: node scripts/ci/publishable-packages.mjs --only "${{ steps.changed_packages.outputs.changed_package_dirs }}"
 
       - name: Dry-run publish
         if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
@@ -62,11 +76,33 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci -- --dry-run
 
+      - name: Dry-run publish packages
+        if: ${{ steps.publishable_packages.outputs.packages_should_publish == 'true' && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
+            npm run release:publish-packages -- --dry-run --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
+          else
+            npm run release:publish-packages -- --dry-run
+          fi
+
       - name: Publish to npm
         if: ${{ steps.version_check.outputs.should_publish == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm run pub:ci
+
+      - name: Publish packages to npm
+        if: ${{ steps.publishable_packages.outputs.packages_should_publish == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
+            npm run release:publish-packages -- --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
+          else
+            npm run release:publish-packages
+          fi
 
       - name: Create tag and release (optional)
         if: ${{ steps.version_check.outputs.should_publish == 'true' && github.event_name == 'push' }}

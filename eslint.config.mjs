@@ -20,6 +20,7 @@ export default defineConfig(
     ignores: [
       'node_modules/**',
       'dist/**',
+      '**/dist/**',
       'build/**',
       'coverage/**',
       '.next/**',
@@ -69,6 +70,34 @@ export default defineConfig(
         project: './tsconfig.json',
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  // Workspace packages can use local relative imports.
+  {
+    files: ['packages/**/*.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
+    },
+  },
+  // Tests can use vitest globals and local relative imports.
+  {
+    files: ['tests/**/*.ts'],
+    languageOptions: {
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
+    rules: {
+      'no-restricted-imports': 'off',
+      'no-empty': 'off',
     },
   },
   {
@@ -291,6 +320,17 @@ export default defineConfig(
         // This avoids "file was not found in any of the provided project(s)" parsing errors.
         project: false,
       },
+      globals: {
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+      },
     },
     linterOptions: {
       reportUnusedDisableDirectives: false,
@@ -313,6 +353,8 @@ export default defineConfig(
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       'max-lines-per-function': 'off',
+      'no-empty': 'off',
+      'no-restricted-imports': 'off',
     },
   },
   {
@@ -471,7 +513,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['src/**/*.ts', 'tests/**/*.ts'],
+    files: ['src/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -484,6 +526,12 @@ export default defineConfig(
           ],
         },
       ],
+    },
+  },
+  {
+    files: ['packages/**/*.ts'],
+    rules: {
+      'no-restricted-imports': 'off',
     },
   },
   {

@@ -249,6 +249,18 @@ async function runDisconnectAll(pools: Map<string, PostgresPool>): Promise<void>
   Logger.info('🔌 All PostgreSQL pools disconnected');
 }
 
+function isMissingEsmPackage(error: unknown, packageName: string): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const maybe = error as { code?: unknown; message?: unknown };
+  const code = typeof maybe.code === 'string' ? maybe.code : '';
+  const message = typeof maybe.message === 'string' ? maybe.message : '';
+  // Some runners/wrappers preserve `code` but sanitize/omit the message.
+  if (code === 'ERR_MODULE_NOT_FOUND' && message.length === 0) return true;
+  if (code === 'ERR_MODULE_NOT_FOUND' && message.includes(`'${packageName}'`)) return true;
+  if (message.includes(`Cannot find package '${packageName}'`)) return true;
+  return false;
+}
+
 /**
  * Internal function to connect to PostgreSQL
  */
@@ -292,6 +304,11 @@ async function runConnect(
     pools.set(poolKey, pool);
     Logger.info(`🐘 PostgreSQL pool initialized: ${poolKey}`);
   } catch (error) {
+    if (isMissingEsmPackage(error, 'pg')) {
+      throw ErrorFactory.createConfigError(
+        "PostgreSQL pool requires the 'pg' package (run `zin add db:postgres` or `zin plugin install db:postgres`)."
+      );
+    }
     throw ErrorFactory.createTryCatchError(
       `Failed to initialize PostgreSQL pool: ${(error as Error).message}`,
       error

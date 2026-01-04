@@ -1,7 +1,6 @@
 // TEMPLATE_START
 
-import { generateSecureJobId } from '@common/uuid';
-import { Logger } from '@config/logger';
+import { generateSecureJobId, Logger } from '@zintrust/core';
 
 export interface QueueJob {
   id: string;

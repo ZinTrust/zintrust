@@ -4,64 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@zintrust/core';
-
-export type MailDriverName = 'disabled' | 'sendgrid' | 'smtp' | 'ses' | 'mailgun';
-
-export type DisabledMailDriverConfig = {
-  driver: 'disabled';
-};
-
-export type SendGridMailDriverConfig = {
-  driver: 'sendgrid';
-  apiKey: string;
-};
-
-export type MailgunMailDriverConfig = {
-  driver: 'mailgun';
-  apiKey: string;
-  domain: string;
-  baseUrl: string;
-};
-
-// Placeholders for future drivers (kept config-first)
-export type SmtpMailDriverConfig = {
-  driver: 'smtp';
-  host: string;
-  port: number;
-  username: string;
-  password: string;
-  secure: boolean | 'starttls';
-};
-
-export type SesMailDriverConfig = {
-  driver: 'ses';
-  region: string;
-};
-
-export type MailDriverConfig =
-  | DisabledMailDriverConfig
-  | SendGridMailDriverConfig
-  | MailgunMailDriverConfig
-  | SmtpMailDriverConfig
-  | SesMailDriverConfig;
-
-type MailDrivers = {
-  disabled: DisabledMailDriverConfig;
-  sendgrid: SendGridMailDriverConfig;
-  mailgun: MailgunMailDriverConfig;
-  smtp: SmtpMailDriverConfig;
-  ses: SesMailDriverConfig;
-};
-
-type MailConfigInput = {
-  default: MailDriverName;
-  from: {
-    address: string;
-    name: string;
-  };
-  drivers: MailDrivers;
-};
+import { Env } from './env';
+import type { MailConfigInput, MailDriverConfig, MailDriverName, MailDrivers } from './type';
 
 const getMailDriver = (config: MailConfigInput): MailDriverConfig => {
   const defaultDriver = config.default;
@@ -110,6 +54,21 @@ const mailConfigObj = {
 
     smtp: {
       driver: 'smtp' as const,
+      host: Env.get('MAIL_HOST', ''),
+      port: Env.getInt('MAIL_PORT', 587),
+      username: Env.get('MAIL_USERNAME', ''),
+      password: Env.get('MAIL_PASSWORD', ''),
+      secure: (() => {
+        const raw = Env.get('MAIL_SECURE', '').trim().toLowerCase();
+        if (raw === 'starttls') return 'starttls' as const;
+        if (raw === 'tls' || raw === 'ssl' || raw === 'smtps' || raw === 'implicit') return true;
+        if (raw === 'none' || raw === 'off' || raw === 'false' || raw === '0') return false;
+        return Env.getBool('MAIL_SECURE', false);
+      })(),
+    },
+
+    nodemailer: {
+      driver: 'nodemailer' as const,
       host: Env.get('MAIL_HOST', ''),
       port: Env.getInt('MAIL_PORT', 587),
       username: Env.get('MAIL_USERNAME', ''),

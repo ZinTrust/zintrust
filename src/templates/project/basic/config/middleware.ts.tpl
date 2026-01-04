@@ -2,15 +2,12 @@ import {
   CsrfMiddleware,
   ErrorHandlerMiddleware,
   LoggingMiddleware,
-  type Middleware,
   RateLimiter,
   SecurityMiddleware,
+  type Middleware,
 } from '@zintrust/core';
 
-export type MiddlewareConfig = {
-  global: Middleware[];
-  route: Record<string, Middleware>;
-};
+import { MiddlewareConfigType } from './type';
 
 const shared = Object.freeze({
   log: LoggingMiddleware.create(),
@@ -20,7 +17,7 @@ const shared = Object.freeze({
   csrf: CsrfMiddleware.create(),
 } satisfies Record<string, Middleware>);
 
-const middlewareConfigObj: MiddlewareConfig = {
+const middlewareConfigObj: MiddlewareConfigType = {
   global: [shared.log, shared.error, shared.security, shared.rateLimit, shared.csrf],
   route: shared,
 };

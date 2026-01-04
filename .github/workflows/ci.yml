@@ -57,7 +57,7 @@ jobs:
         run: npm run type-check
 
       - name: Lint code
-        run: npm run lint --max-warnings=10
+        run: npm run lint --max-warnings=0
 
       - name: Run tests with coverage
         run: npm run test:coverage

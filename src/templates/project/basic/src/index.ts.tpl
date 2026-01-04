@@ -4,6 +4,8 @@
 
 import { Application, Env, Logger, Server } from '@zintrust/core';
 import process from '@zintrust/core/node';
+// Optional adapters/drivers registered via `zin plugin install`
+import './zintrust.plugins.js';
 
 type AppInstance = ReturnType<typeof Application.create>;
 type ServerInstance = ReturnType<typeof Server.create>;

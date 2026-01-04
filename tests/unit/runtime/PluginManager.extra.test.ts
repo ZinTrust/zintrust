@@ -23,6 +23,8 @@ describe('PluginManager extra tests', () => {
   it('resolves aliases and returns null for unknown ids', () => {
     expect(PluginManager.resolveId('auth')).toBe('feature:auth');
     expect(PluginManager.resolveId('a:postgres')).toBe('adapter:postgres');
+    expect(PluginManager.resolveId('queue:redis')).toBe('driver:queue-redis');
+    expect(PluginManager.resolveId('broadcast:redis')).toBe('driver:broadcast-redis');
     expect(PluginManager.resolveId('nope')).toBeNull();
   });
 
@@ -44,6 +46,22 @@ describe('PluginManager extra tests', () => {
     // missing file or deps should return false
     await fs.rm(path.join(projectSrc, 'Auth.ts'));
     const missing = await PluginManager.isInstalled('auth');
+    expect(missing).toBe(false);
+  });
+
+  it('detects installed dependency-only plugin when deps exist', async () => {
+    const packageJson = {
+      dependencies: { redis: '^1.0.0' },
+    };
+
+    await fs.writeFile(path.join(tmpDirRoot, 'package.json'), JSON.stringify(packageJson));
+
+    const installed = await PluginManager.isInstalled('queue:redis');
+    expect(installed).toBe(true);
+
+    // missing deps should return false
+    await fs.writeFile(path.join(tmpDirRoot, 'package.json'), JSON.stringify({ dependencies: {} }));
+    const missing = await PluginManager.isInstalled('queue:redis');
     expect(missing).toBe(false);
   });
 });
