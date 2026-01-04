@@ -370,17 +370,24 @@ export type KvCacheDriverConfig = {
   ttl: number;
 };
 
+export type KvRemoteCacheDriverConfig = {
+  driver: 'kv-remote';
+  ttl: number;
+};
+
 export type CacheDriverConfig =
   | MemoryCacheDriverConfig
   | RedisCacheDriverConfig
   | MongoCacheDriverConfig
-  | KvCacheDriverConfig;
+  | KvCacheDriverConfig
+  | KvRemoteCacheDriverConfig;
 
 export type CacheDrivers = {
   memory: MemoryCacheDriverConfig;
   redis: RedisCacheDriverConfig;
   mongodb: MongoCacheDriverConfig;
   kv: KvCacheDriverConfig;
+  'kv-remote': KvRemoteCacheDriverConfig;
 };
 
 export type CacheConfigInput = {

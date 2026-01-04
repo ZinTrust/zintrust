@@ -1,0 +1,22 @@
+{
+  "name": "@zintrust/cloudflare-kv-proxy",
+  "version": "0.1.12",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@zintrust/core": "workspace:*"
+  }
+}

@@ -81,6 +81,7 @@ export type {
   JwtOptions,
   JwtPayload,
 } from '@security/JwtManager';
+export { SignedRequest } from '@security/SignedRequest';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 

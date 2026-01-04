@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from './env';
-import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from './type';
+import { Env } from '@config/env';
+import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from '@config/type';
 
 const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
   const defaultDriver = config.default;
@@ -46,6 +46,10 @@ const cacheConfigObj = {
     },
     kv: {
       driver: 'kv' as const,
+      ttl: Env.getInt('CACHE_KV_TTL', 3600),
+    },
+    'kv-remote': {
+      driver: 'kv-remote' as const,
       ttl: Env.getInt('CACHE_KV_TTL', 3600),
     },
   },
