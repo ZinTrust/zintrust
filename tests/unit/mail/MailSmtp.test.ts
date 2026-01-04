@@ -28,6 +28,13 @@ describe('Mail (SMTP)', () => {
       default: { send },
     }));
 
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { SmtpDriver } = await import('@mail/drivers/Smtp');
+    MailDriverRegistry.register('smtp', async (cfg, message) => {
+      const { driver: _d, ...rest } = (cfg as any) ?? {};
+      return SmtpDriver.send(rest as any, message as any);
+    });
+
     const { Mail } = await import('@mail/Mail');
     await Mail.send({ to: 'user@example.com', subject: 'Hello', text: 'Plain text' });
 
@@ -49,6 +56,13 @@ describe('Mail (SMTP)', () => {
       default: { send },
     }));
 
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { SmtpDriver } = await import('@mail/drivers/Smtp');
+    MailDriverRegistry.register('smtp', async (cfg, message) => {
+      const { driver: _d, ...rest } = (cfg as any) ?? {};
+      return SmtpDriver.send(rest as any, message as any);
+    });
+
     const { Mail } = await import('@mail/Mail');
     await Mail.send({ to: 'user@example.com', subject: 'Hello', text: 'Plain text' });
 
@@ -69,6 +83,13 @@ describe('Mail (SMTP)', () => {
       SmtpDriver: { send },
       default: { send },
     }));
+
+    const { MailDriverRegistry } = await import('@mail/MailDriverRegistry');
+    const { SmtpDriver } = await import('@mail/drivers/Smtp');
+    MailDriverRegistry.register('smtp', async (cfg, message) => {
+      const { driver: _d, ...rest } = (cfg as any) ?? {};
+      return SmtpDriver.send(rest as any, message as any);
+    });
 
     const { Mail } = await import('@mail/Mail');
     await Mail.send({ to: 'user@example.com', subject: 'Hello', text: 'Plain text' });

@@ -156,6 +156,7 @@ export { Broadcast } from '@tools/broadcast/Broadcast';
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';
 export { LocalSignedUrl } from '@tools/storage/LocalSignedUrl';
+export { StorageDriverRegistry } from '@tools/storage/StorageDriverRegistry';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.
