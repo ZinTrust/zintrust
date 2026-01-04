@@ -12,7 +12,7 @@ import { SignedRequest } from '@security/SignedRequest';
 
 type KvValueType = 'text' | 'json' | 'arrayBuffer';
 
-type KvGetResponse = { value: unknown | null };
+type KvGetResponse = { value: unknown };
 type KvPutResponse = { ok: true };
 type KvDeleteResponse = { ok: true };
 

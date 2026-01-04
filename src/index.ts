@@ -3,7 +3,15 @@
  * Built for performance, type safety, and exceptional developer experience
  */
 
-export { Application } from '@boot/Application';
+import { Application } from '@boot/Application';
+import { AwsSigV4 } from '@common/index';
+import { SignedRequest } from '@security/SignedRequest';
+
+const ZintrustApplication = Application;
+const ZintrustAwsSigV4 = AwsSigV4;
+const ZintrustSignedRequest = SignedRequest;
+
+export { ZintrustApplication as Application };
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
 export { Controller } from '@http/Controller';
@@ -35,7 +43,8 @@ export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 
 // Common
-export { AwsSigV4, delay, ensureDirSafe } from '@common/index';
+export { ZintrustAwsSigV4 as AwsSigV4 };
+export { delay, ensureDirSafe } from '@common/index';
 export { generateSecureJobId, generateUuid } from '@common/uuid';
 
 // HTTP Client
@@ -81,7 +90,7 @@ export type {
   JwtOptions,
   JwtPayload,
 } from '@security/JwtManager';
-export { SignedRequest } from '@security/SignedRequest';
+export { ZintrustSignedRequest as SignedRequest };
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 

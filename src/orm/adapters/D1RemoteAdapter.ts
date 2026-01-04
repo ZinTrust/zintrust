@@ -23,7 +23,7 @@ type D1QueryOneResponse = {
 
 type D1ExecResponse = {
   ok: boolean;
-  meta?: { changes?: number; lastRowId?: number; durationMs?: number } | unknown;
+  meta?: { changes?: number; lastRowId?: number; durationMs?: number };
 };
 
 type D1StatementResponse = D1QueryResponse | D1QueryOneResponse | D1ExecResponse;
