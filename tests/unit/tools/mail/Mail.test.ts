@@ -45,6 +45,28 @@ describe('Mail', () => {
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toBeDefined();
   });
 
+  it('throws when driver is configured but not implemented', async () => {
+    // No registry handler for nodemailer in this test file
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'nodemailer' });
+    const { Mail } = await import('@/tools/mail/Mail');
+    await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
+      /Mail driver not implemented/i
+    );
+  });
+
+  it('throws when a known driver is configured but not registered', async () => {
+    // Force registry lookup to return undefined for sendgrid so we hit the explicit config-error branch.
+    MailDriverRegistry.register('sendgrid', undefined as any);
+    // @ts-ignore
+    vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
+
+    const { Mail } = await import('@/tools/mail/Mail');
+    await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
+      /Mail driver not registered: sendgrid/i
+    );
+  });
+
   it('throws when from address missing', async () => {
     const originalFrom = mailConfig.from;
 
