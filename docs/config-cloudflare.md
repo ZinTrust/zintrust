@@ -24,7 +24,7 @@ import { cloudflare } from '@zintrust/core';
  */
 
 import { KVNamespace, WorkersEnv } from '@zintrust/core';
-import type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, ID1Database } from '@zintrust/core';
 
 const getWorkersEnv = (): WorkersEnv | null => {
   const env = (globalThis as unknown as { env?: unknown }).env;
@@ -72,7 +72,7 @@ export const Cloudflare = Object.freeze({
  */
 
 import { KVNamespace, WorkersEnv } from '@zintrust/core';
-import type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, ID1Database } from '@zintrust/core';
 
 const getWorkersEnv = (): WorkersEnv | null => {
   const env = (globalThis as unknown as { env?: unknown }).env;

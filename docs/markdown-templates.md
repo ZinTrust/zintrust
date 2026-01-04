@@ -17,7 +17,7 @@ It covers:
 ## Import
 
 ```typescript
-import { MarkdownRenderer } from '@templates/MarkdownRenderer';
+import { MarkdownRenderer } from '@zintrust/core';
 ```
 
 ## Usage
@@ -41,7 +41,7 @@ Zintrust includes lightweight registries that load `.md` templates from the fram
 ### Mail templates
 
 ```ts
-import { listTemplates, renderTemplate } from '@mail/templates/markdown';
+import { listTemplates, renderTemplate } from '@zintrust/core/node';
 
 const names = listTemplates();
 const { html, meta } = renderTemplate('auth/welcome', {
@@ -56,10 +56,10 @@ const { html, meta } = renderTemplate('auth/welcome', {
 ### Notification templates
 
 ```ts
-import { listTemplates, renderTemplate } from '@notification/templates/markdown';
+import { listNotificationTemplates, renderNotificationTemplate } from '@zintrust/core/node';
 
-const names = listTemplates();
-const { html, meta } = renderTemplate('notifications/new-follow', {
+const names = listNotificationTemplates();
+const { html, meta } = renderNotificationTemplate('notifications/new-follow', {
   name: 'Alice',
   follower: 'Bob',
 });

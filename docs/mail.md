@@ -12,7 +12,7 @@ All runtime mail configuration is **config-first** and accessed via `Env` & `src
 Send a basic email:
 
 ```ts
-import { Mail } from '@mail/Mail';
+import { Mail } from '@zintrust/core';
 
 await Mail.send({
   to: 'user@example.com',
@@ -84,7 +84,7 @@ Zintrust includes two lightweight templating options:
 1. Code templates (plain strings)
 
 ```ts
-import { MailTemplates, MailTemplateRenderer } from '@mail/templates';
+import { MailTemplates, MailTemplateRenderer } from '@zintrust/core';
 
 const tpl = MailTemplates.auth.welcome;
 const rendered = MailTemplateRenderer.render(tpl, { name: 'Jane' });
@@ -95,7 +95,7 @@ const rendered = MailTemplateRenderer.render(tpl, { name: 'Jane' });
 Templates live in `src/tools/mail/templates/markdown/` and can be listed/rendered:
 
 ```ts
-import { listTemplates, renderTemplate } from '@mail/templates/markdown';
+import { listTemplates, renderTemplate } from '@zintrust/core/node';
 
 const names = listTemplates();
 const { html, meta } = renderTemplate('auth/welcome', { name: 'Jane' });
@@ -116,7 +116,7 @@ You can pass the resulting `html` into `Mail.send({ html, ... })`, and use `meta
 Use the `MailFake` to assert sends without performing I/O:
 
 ```ts
-import MailFake from '@mail/testing';
+import { MailFake } from '@zintrust/core/node';
 
 MailFake.reset();
 await MailFake.send({ to: 'u@x.com', subject: 'x', text: 't' });

@@ -21,23 +21,26 @@ import { index } from '@zintrust/core';
  * Central export point for all configuration
  */
 
-import { appConfig } from '@config/app';
-import { cacheConfig } from '@config/cache';
-import { databaseConfig } from '@config/database';
-import { microservicesConfig } from '@config/microservices';
-import { middlewareConfig } from '@config/middleware';
-import { queueConfig } from '@config/queue';
-import { securityConfig } from '@config/security';
-import { storageConfig } from '@config/storage';
+import {
+  appConfig,
+  cacheConfig,
+  databaseConfig,
+  microservicesConfig,
+  middlewareConfig,
+  queueConfig,
+  securityConfig,
+  storageConfig,
+} from '@zintrust/core';
 
-export { appConfig, type AppConfig } from '@config/app';
-export { cacheConfig, type CacheConfig } from '@config/cache';
-export { databaseConfig, type DatabaseConfig } from '@config/database';
-export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
-export { middlewareConfig } from '@config/middleware';
-export { queueConfig, type QueueConfig } from '@config/queue';
-export { securityConfig } from '@config/security';
-export { storageConfig, type StorageConfig } from '@config/storage';
+export { appConfig, type AppConfig } from '@zintrust/core';
+export { cacheConfig, type CacheConfig } from '@zintrust/core';
+export { databaseConfig } from '@zintrust/core';
+export type { DatabaseRuntimeConfig as DatabaseConfig } from '@zintrust/core';
+export { microservicesConfig, type MicroservicesConfig } from '@zintrust/core';
+export { middlewareConfig } from '@zintrust/core';
+export { queueConfig, type QueueConfig } from '@zintrust/core';
+export { securityConfig } from '@zintrust/core';
+export { storageConfig, type StorageConfig } from '@zintrust/core';
 
 /**
  * Combined configuration object
@@ -55,7 +58,6 @@ export const config = Object.freeze({
 } as const);
 
 export type Config = typeof config;
-
 ```
 
 ## Snapshot (bottom)
@@ -66,23 +68,26 @@ export type Config = typeof config;
  * Central export point for all configuration
  */
 
-import { appConfig } from '@config/app';
-import { cacheConfig } from '@config/cache';
-import { databaseConfig } from '@config/database';
-import { microservicesConfig } from '@config/microservices';
-import { middlewareConfig } from '@config/middleware';
-import { queueConfig } from '@config/queue';
-import { securityConfig } from '@config/security';
-import { storageConfig } from '@config/storage';
+import {
+  appConfig,
+  cacheConfig,
+  databaseConfig,
+  microservicesConfig,
+  middlewareConfig,
+  queueConfig,
+  securityConfig,
+  storageConfig,
+} from '@zintrust/core';
 
-export { appConfig, type AppConfig } from '@config/app';
-export { cacheConfig, type CacheConfig } from '@config/cache';
-export { databaseConfig, type DatabaseConfig } from '@config/database';
-export { microservicesConfig, type MicroservicesConfig } from '@config/microservices';
-export { middlewareConfig } from '@config/middleware';
-export { queueConfig, type QueueConfig } from '@config/queue';
-export { securityConfig } from '@config/security';
-export { storageConfig, type StorageConfig } from '@config/storage';
+export { appConfig, type AppConfig } from '@zintrust/core';
+export { cacheConfig, type CacheConfig } from '@zintrust/core';
+export { databaseConfig } from '@zintrust/core';
+export type { DatabaseRuntimeConfig as DatabaseConfig } from '@zintrust/core';
+export { microservicesConfig, type MicroservicesConfig } from '@zintrust/core';
+export { middlewareConfig } from '@zintrust/core';
+export { queueConfig, type QueueConfig } from '@zintrust/core';
+export { securityConfig } from '@zintrust/core';
+export { storageConfig, type StorageConfig } from '@zintrust/core';
 
 /**
  * Combined configuration object
@@ -100,5 +105,4 @@ export const config = Object.freeze({
 } as const);
 
 export type Config = typeof config;
-
 ```

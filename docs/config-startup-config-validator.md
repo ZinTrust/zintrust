@@ -16,9 +16,9 @@ import { StartupConfigValidator } from '@zintrust/core';
 ## Snapshot (top)
 
 ```ts
-import { appConfig } from '@config/app';
+import { appConfig } from '@zintrust/core';
 import type { StartupConfigValidationError, StartupConfigValidationResult } from '@zintrust/core';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory } from '@zintrust/core';
 
 const isSensitiveKey = (key: string): boolean => {
   const normalized = key.toLowerCase();

@@ -22,14 +22,14 @@ import { SecretsManager } from '@zintrust/core';
  * Supports: AWS Secrets Manager, Parameter Store, Cloudflare KV, Deno env
  */
 
-import { Logger } from '@config/logger';
+import { Logger } from '@zintrust/core';
 import type {
   GetSecretOptions,
   SecretConfig,
   SecretsManagerInstance,
   SetSecretOptions,
 } from '@zintrust/core';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory } from '@zintrust/core';
 
 let instance: SecretsManagerInstance | undefined;
 

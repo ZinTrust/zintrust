@@ -17,12 +17,14 @@ import { middleware } from '@zintrust/core';
 
 ```ts
 import { MiddlewareConfigType } from '@zintrust/core';
-import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
-import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
-import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
-import type { Middleware } from '@middleware/MiddlewareStack';
-import { RateLimiter } from '@middleware/RateLimiter';
-import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
+import {
+  CsrfMiddleware,
+  ErrorHandlerMiddleware,
+  LoggingMiddleware,
+  type Middleware,
+  RateLimiter,
+  SecurityMiddleware,
+} from '@zintrust/core';
 
 const shared = Object.freeze({
   log: LoggingMiddleware.create(),
@@ -45,12 +47,14 @@ export default middlewareConfig;
 
 ```ts
 import { MiddlewareConfigType } from '@zintrust/core';
-import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
-import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
-import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
-import type { Middleware } from '@middleware/MiddlewareStack';
-import { RateLimiter } from '@middleware/RateLimiter';
-import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
+import {
+  CsrfMiddleware,
+  ErrorHandlerMiddleware,
+  LoggingMiddleware,
+  type Middleware,
+  RateLimiter,
+  SecurityMiddleware,
+} from '@zintrust/core';
 
 const shared = Object.freeze({
   log: LoggingMiddleware.create(),
