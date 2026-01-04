@@ -1,5 +1,5 @@
-import { Env } from '@config/env';
-import type { Middleware as MiddlewareFn } from '@middleware/MiddlewareStack';
+import { Env } from './env';
+import type { Middleware as MiddlewareFn } from '../middleware/MiddlewareStack';
 
 export type Environment =
   | 'development'
