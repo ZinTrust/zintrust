@@ -17,7 +17,7 @@ export async function registerSendGridMailDriver(registry: Registry): Promise<vo
 
 const importCore = async (): Promise<unknown> => {
   try {
-    return await import('@/index');
+    return await import('@zintrust/core');
   } catch {
     try {
       return await import('@zintrust/core');

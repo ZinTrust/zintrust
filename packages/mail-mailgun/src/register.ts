@@ -17,7 +17,7 @@ export async function registerMailgunMailDriver(registry: Registry): Promise<voi
 
 const importCore = async (): Promise<unknown> => {
   try {
-    return await import('@/index');
+    return await import('@zintrust/core');
   } catch {
     try {
       return await import('@zintrust/core');
