@@ -1,7 +1,13 @@
+import { resetDatabase, useDatabase } from '@orm/Database';
 import { Model } from '@orm/Model';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('Model Branch Logic', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+    useDatabase({ driver: 'sqlite', database: ':memory:' });
+  });
+
   it('should handle model instantiation with attributes', () => {
     const TestModel = Model.define({
       table: 'test_models',

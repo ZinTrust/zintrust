@@ -10,13 +10,9 @@ export function registerMongoCacheDriver(registry: Registry): void {
 
 const importCore = async (): Promise<unknown> => {
   try {
-    return await import('@/index');
+    return await import('@zintrust/core');
   } catch {
-    try {
-      return await import('@zintrust/core');
-    } catch {
-      return {};
-    }
+    return {};
   }
 };
 

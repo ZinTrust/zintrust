@@ -24,6 +24,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('Broadcast', () => {
   it('uses InMemory driver when configured', async () => {
     (broadcastConfig.getDriverName as any).mockReturnValue('inmemory');
+    (broadcastConfig.getDriverConfig as any).mockReturnValue({ driver: 'inmemory' });
     (InMemoryDriver.send as any).mockResolvedValue({ ok: true, provider: 'inmemory' });
 
     const res = await Broadcast.send('chan', 'evt', { a: 1 });
@@ -31,11 +32,15 @@ describe('Broadcast', () => {
     expect(InMemoryDriver.send).toHaveBeenCalled();
   });
 
-  it('throws config error when pusher config mismatch', async () => {
+  it('routes by config.driver even if name differs', async () => {
     (broadcastConfig.getDriverName as any).mockReturnValue('pusher');
     (broadcastConfig.getDriverConfig as any).mockReturnValue({ driver: 'redis' });
 
-    await expect(Broadcast.send('c', 'e', {})).rejects.toBeDefined();
+    (RedisDriver.send as any).mockResolvedValue({ ok: true, provider: 'redis' });
+
+    const res = await Broadcast.send('c', 'e', {});
+    expect(RedisDriver.send).toHaveBeenCalled();
+    expect(res).toEqual({ ok: true, provider: 'redis' });
   });
 
   it('calls Pusher driver when configured properly', async () => {
@@ -50,6 +55,7 @@ describe('Broadcast', () => {
 
   it('throws on unknown driver', async () => {
     (broadcastConfig.getDriverName as any).mockReturnValue('unknown');
+    (broadcastConfig.getDriverConfig as any).mockReturnValue({ driver: 'customdriver' });
     await expect(Broadcast.send('c', 'e', {})).rejects.toBeDefined();
   });
 

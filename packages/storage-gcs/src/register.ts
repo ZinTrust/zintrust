@@ -14,7 +14,7 @@ export async function registerGcsStorageDriver(registry: Registry): Promise<void
 
 const importCore = async (): Promise<unknown> => {
   try {
-    return await import('@/index');
+    return await import('@zintrust/core');
   } catch {
     try {
       return await import('@zintrust/core');

@@ -107,11 +107,14 @@ export type { AppConfig } from '@config/app';
 export { cacheConfig } from '@config/cache';
 export type { CacheConfig } from '@config/cache';
 
+export { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
+
 // Cache driver registry (for external driver packages)
 export { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 
 export { databaseConfig } from '@config/database';
 export type { DatabaseConfig as DatabaseRuntimeConfig } from '@config/database';
+export { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 
 export { microservicesConfig } from '@config/microservices';
 export type { MicroservicesConfig } from '@config/microservices';
@@ -155,6 +158,7 @@ export type { MailTemplate, MailTemplateRegistry } from '@mail/templates';
 
 // Mail driver registry (for external driver packages)
 export { MailDriverRegistry } from '@mail/MailDriverRegistry';
+export { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
 
 export { SmtpDriver } from '@mail/drivers/Smtp';
 export type { SmtpConfig as SmtpDriverConfig } from '@mail/drivers/Smtp';
@@ -190,6 +194,8 @@ export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 
 // Broadcast (for real-time features)
 export { Broadcast } from '@tools/broadcast/Broadcast';
+export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
+export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';

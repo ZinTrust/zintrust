@@ -196,6 +196,13 @@ const databaseInstances: Map<string, IDatabase> = new Map();
 
 export function useDatabase(config?: DatabaseConfig, connection = 'default'): IDatabase {
   if (databaseInstances.has(connection) === false) {
+    if (config === undefined) {
+      throw ErrorFactory.createConfigError(
+        `Database connection '${connection}' is not registered. ` +
+          `Call useDatabase(config, '${connection}') during startup to register it.`
+      );
+    }
+
     databaseInstances.set(connection, Database.create(config));
   }
   const instance = databaseInstances.get(connection);

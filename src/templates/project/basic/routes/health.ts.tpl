@@ -3,17 +3,13 @@
  * Provides health, liveness, and readiness endpoints.
  */
 
-import {
-  Env,
-  Logger,
-  QueryBuilder,
-  RuntimeHealthProbes,
-  type IRouter,
-  Router,
-  useDatabase,
-} from '@zintrust/core';
-
-import { appConfig } from '../config';
+import { appConfig } from '../config/app';
+import { Env } from '../config/env';
+import { Logger } from '../config/logger';
+import { RuntimeHealthProbes } from '@zintrust/core';
+import { useDatabase } from '@zintrust/core';
+import { QueryBuilder } from '@zintrust/core';
+import { type IRouter, Router } from '@zintrust/core';
 
 export function registerHealthRoutes(router: IRouter): void {
   registerHealthRoute(router);
@@ -27,6 +23,13 @@ function registerHealthRoute(router: IRouter): void {
 
     try {
       const db = useDatabase();
+      const maybeIsConnected = (db as unknown as { isConnected?: unknown }).isConnected;
+      const maybeConnect = (db as unknown as { connect?: unknown }).connect;
+      if (typeof maybeIsConnected === 'function' && maybeIsConnected.call(db) === false) {
+        if (typeof maybeConnect === 'function') {
+          await maybeConnect.call(db);
+        }
+      }
       await QueryBuilder.ping(db);
 
       const uptime =
@@ -79,6 +82,13 @@ function registerHealthReadyRoute(router: IRouter): void {
 
     try {
       const db = useDatabase();
+      const maybeIsConnected = (db as unknown as { isConnected?: unknown }).isConnected;
+      const maybeConnect = (db as unknown as { connect?: unknown }).connect;
+      if (typeof maybeIsConnected === 'function' && maybeIsConnected.call(db) === false) {
+        if (typeof maybeConnect === 'function') {
+          await maybeConnect.call(db);
+        }
+      }
       await QueryBuilder.ping(db);
 
       databaseResponseTime = Date.now() - startTime;

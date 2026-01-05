@@ -146,9 +146,13 @@ describe('Database', () => {
   });
 
   it('should use singleton instance', () => {
-    const db1 = useDatabase();
+    const db1 = useDatabase({ driver: 'sqlite', database: ':memory:' });
     const db2 = useDatabase();
     expect(db1).toBe(db2);
+  });
+
+  it('throws when using an unregistered connection without config', () => {
+    expect(() => useDatabase(undefined, 'missing')).toThrow(/not registered/i);
   });
 
   it('should create table builder', () => {

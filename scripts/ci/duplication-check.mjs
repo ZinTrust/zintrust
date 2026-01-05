@@ -19,7 +19,9 @@ function isRelevantPath(filePath) {
     filePath.startsWith('coverage/') ||
     filePath.startsWith('tmp/') ||
     filePath.startsWith('tmp-test-logs/') ||
-    filePath.startsWith('docs-website/public/')
+    filePath.startsWith('docs-website/public/') ||
+    // Exclude package registration files as they are boilerplate
+    filePath.match(/^packages\/.*\/src\/register\.ts$/)
   ) {
     return false;
   }

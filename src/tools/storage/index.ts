@@ -1,6 +1,7 @@
 import { storageConfig } from '@config/storage';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { LocalDriver } from '@storage/drivers/Local';
+import { StorageDiskRegistry } from '@storage/StorageDiskRegistry';
 import { StorageDriverRegistry } from '@storage/StorageDriverRegistry';
 
 export type DiskName = 'local' | 's3' | 'gcs' | 'r2';
@@ -48,14 +49,64 @@ const normalizeDiskConfig = (
   return normalizers[driverName]?.(raw) ?? raw;
 };
 
+const resolveDiskConfigFromRegistry = (name?: string): Record<string, unknown> | undefined => {
+  const selected = String(name ?? '').trim();
+  const hasSelection = name !== undefined && selected.length > 0;
+
+  const registryKey = hasSelection ? selected : 'default';
+  if (!StorageDiskRegistry.has(registryKey)) return undefined;
+
+  return StorageDiskRegistry.get(registryKey) as Record<string, unknown>;
+};
+
+const resolveDiskConfigFromStorageConfig = (name?: string): Record<string, unknown> | undefined => {
+  const maybeGetDriverConfig = (storageConfig as unknown as { getDriverConfig?: unknown })
+    .getDriverConfig;
+
+  if (typeof maybeGetDriverConfig !== 'function') return undefined;
+
+  // Important: call as a method to preserve `this` binding.
+  return (storageConfig as unknown as { getDriverConfig: (n?: string) => unknown }).getDriverConfig(
+    name
+  ) as Record<string, unknown>;
+};
+
+const resolveDiskConfigFromLegacyConfig = (name?: string): Record<string, unknown> | undefined => {
+  const selected = String(name ?? '').trim();
+  const hasSelection = name !== undefined && selected.length > 0;
+
+  const drivers = (storageConfig as unknown as { drivers?: Record<string, unknown> }).drivers ?? {};
+  const defaultName = String(
+    (storageConfig as unknown as { default?: unknown }).default ?? 'local'
+  ).trim();
+
+  const requestedName = hasSelection ? selected : defaultName;
+  const diskName = requestedName === 'default' ? defaultName : requestedName;
+
+  if (diskName !== '' && Object.prototype.hasOwnProperty.call(drivers, diskName)) {
+    return drivers[diskName] as Record<string, unknown>;
+  }
+
+  if (hasSelection && selected !== 'default') {
+    throw ErrorFactory.createConfigError(`Storage disk not configured: ${diskName}`);
+  }
+
+  return (
+    (drivers['local'] as Record<string, unknown> | undefined) ??
+    (Object.values(drivers)[0] as Record<string, unknown> | undefined)
+  );
+};
+
 export const Storage = Object.freeze({
   getDisk(name?: string): StorageDisk {
-    const diskName = name ?? storageConfig.default;
-    // disk is config object; dispatch based on requested name
-    const drivers = storageConfig.drivers as Record<string, { driver: string }>;
-    const config = drivers[diskName] as unknown as Record<string, unknown> | undefined;
-    if (config === undefined)
-      throw ErrorFactory.createValidationError('Storage: unknown disk', { disk: diskName });
+    const config =
+      resolveDiskConfigFromRegistry(name) ??
+      resolveDiskConfigFromStorageConfig(name) ??
+      resolveDiskConfigFromLegacyConfig(name);
+
+    if (config === undefined) {
+      throw ErrorFactory.createConfigError('Storage: no disks are configured');
+    }
 
     const driverName = String(config['driver'] ?? '')
       .trim()
@@ -162,3 +213,5 @@ export const Storage = Object.freeze({
 });
 
 export default Storage;
+
+export { StorageDiskRegistry } from '@storage/StorageDiskRegistry';

@@ -1,4 +1,4 @@
-import process from '@node-singletons/process';
+export { default, default as process } from '@node-singletons/process';
 
 export { cleanOnce, FileLogWriter } from '@config/FileLogWriter';
 
@@ -12,6 +12,3 @@ export {
   loadTemplate as loadNotificationTemplate,
   renderTemplate as renderNotificationTemplate,
 } from '@notification/templates/markdown';
-
-export { process };
-export default process;

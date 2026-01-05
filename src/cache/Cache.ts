@@ -14,7 +14,7 @@ import { RedisDriver } from '@cache/drivers/RedisDriver';
 import { cacheConfig } from '@config/cache';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
-let instance: CacheDriver | undefined;
+const instances: Map<string, CacheDriver> = new Map();
 
 type DriverWithCreate = {
   create: () => CacheDriver;
@@ -35,8 +35,8 @@ function buildDriver(driver: unknown): CacheDriver {
   throw ErrorFactory.createGeneralError('Invalid cache driver export');
 }
 
-function resolveDriver(): CacheDriver {
-  const driverConfig = cacheConfig.getDriver();
+function resolveDriver(storeName?: string): CacheDriver {
+  const driverConfig = cacheConfig.getDriver(storeName);
 
   const externalFactory = CacheDriverRegistry.get(driverConfig.driver);
   if (externalFactory !== undefined) {
@@ -60,9 +60,19 @@ function resolveDriver(): CacheDriver {
   }
 }
 
-function getDriverInstance(): CacheDriver {
-  instance ??= resolveDriver();
-  return instance;
+function getDriverInstance(storeName?: string): CacheDriver {
+  const normalizedSelection = String(storeName ?? '')
+    .trim()
+    .toLowerCase();
+  const resolvedKey = normalizedSelection.length > 0 ? normalizedSelection : 'default';
+
+  const existing = instances.get(resolvedKey);
+  if (existing !== undefined) return existing;
+
+  const selector = resolvedKey === 'default' ? undefined : resolvedKey;
+  const created = resolveDriver(selector);
+  instances.set(resolvedKey, created);
+  return created;
 }
 
 /**
@@ -109,6 +119,54 @@ const getDriver = (): CacheDriver => {
   return getDriverInstance();
 };
 
+type CacheStore = Readonly<{
+  get: <T>(key: string) => Promise<T | null>;
+  set: <T>(key: string, value: T, ttl?: number) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+  clear: () => Promise<void>;
+  has: (key: string) => Promise<boolean>;
+  getDriver: () => CacheDriver;
+}>;
+
+const store = (name?: string): CacheStore => {
+  const getFromStore = async <T>(key: string): Promise<T | null> => {
+    return getDriverInstance(name).get<T>(key);
+  };
+
+  const setInStore = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
+    await getDriverInstance(name).set(key, value, ttl);
+  };
+
+  const delFromStore = async (key: string): Promise<void> => {
+    await getDriverInstance(name).delete(key);
+  };
+
+  const clearStore = async (): Promise<void> => {
+    await getDriverInstance(name).clear();
+  };
+
+  const hasInStore = async (key: string): Promise<boolean> => {
+    return getDriverInstance(name).has(key);
+  };
+
+  const getStoreDriver = (): CacheDriver => {
+    return getDriverInstance(name);
+  };
+
+  return Object.freeze({
+    get: getFromStore,
+    set: setInStore,
+    delete: delFromStore,
+    clear: clearStore,
+    has: hasInStore,
+    getDriver: getStoreDriver,
+  });
+};
+
+const reset = (): void => {
+  instances.clear();
+};
+
 // Sealed namespace with cache functionality
 export const Cache = Object.freeze({
   get,
@@ -117,6 +175,8 @@ export const Cache = Object.freeze({
   clear,
   has,
   getDriver,
+  store,
+  reset,
 });
 
 /**

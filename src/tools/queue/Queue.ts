@@ -17,6 +17,10 @@ export const Queue = Object.freeze({
     drivers.set(name.toLowerCase(), driver);
   },
 
+  reset(): void {
+    drivers.clear();
+  },
+
   get(name?: string): IQueueDriver {
     const driverName = (name ?? process.env['QUEUE_DRIVER'] ?? 'inmemory')
       .toString()

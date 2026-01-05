@@ -23,6 +23,13 @@ function registerHealthRoute(router: IRouter): void {
 
     try {
       const db = useDatabase();
+      const maybeIsConnected = (db as unknown as { isConnected?: unknown }).isConnected;
+      const maybeConnect = (db as unknown as { connect?: unknown }).connect;
+      if (typeof maybeIsConnected === 'function' && maybeIsConnected.call(db) === false) {
+        if (typeof maybeConnect === 'function') {
+          await maybeConnect.call(db);
+        }
+      }
       await QueryBuilder.ping(db);
 
       const uptime =
@@ -75,6 +82,13 @@ function registerHealthReadyRoute(router: IRouter): void {
 
     try {
       const db = useDatabase();
+      const maybeIsConnected = (db as unknown as { isConnected?: unknown }).isConnected;
+      const maybeConnect = (db as unknown as { connect?: unknown }).connect;
+      if (typeof maybeIsConnected === 'function' && maybeIsConnected.call(db) === false) {
+        if (typeof maybeConnect === 'function') {
+          await maybeConnect.call(db);
+        }
+      }
       await QueryBuilder.ping(db);
 
       databaseResponseTime = Date.now() - startTime;

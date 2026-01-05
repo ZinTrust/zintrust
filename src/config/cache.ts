@@ -5,17 +5,29 @@
  */
 
 import { Env } from '@config/env';
-import { CacheConfigInput, CacheDriverConfig, CacheDrivers } from '@config/type';
+import { CacheConfigInput, CacheDriverConfig } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
-const getCacheDriver = (config: CacheConfigInput): CacheDriverConfig => {
-  const defaultDriver = config.default;
+const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverConfig => {
+  const selected = String(name ?? config.default).trim();
+  const storeName = selected === 'default' ? String(config.default).trim() : selected;
+  const isExplicitSelection =
+    name !== undefined && String(name).trim().length > 0 && String(name).trim() !== 'default';
 
-  if (Object.hasOwn(config.drivers, defaultDriver)) {
-    const driverName = defaultDriver as keyof CacheDrivers;
-    return config.drivers[driverName];
+  if (storeName.length > 0 && Object.hasOwn(config.drivers, storeName)) {
+    const resolved = (config.drivers as Record<string, CacheDriverConfig>)[storeName];
+    if (resolved !== undefined) return resolved;
   }
 
-  return config.drivers.memory;
+  if (isExplicitSelection) {
+    throw ErrorFactory.createConfigError(`Cache store not configured: ${storeName}`);
+  }
+
+  // Backwards-compatible fallback.
+  const fallback = config.drivers['memory'] ?? Object.values(config.drivers)[0];
+  if (fallback !== undefined) return fallback;
+
+  throw ErrorFactory.createConfigError('No cache stores are configured');
 };
 
 const cacheConfigObj = {
@@ -57,8 +69,8 @@ const cacheConfigObj = {
   /**
    * Get cache driver config
    */
-  getDriver(): CacheDriverConfig {
-    return getCacheDriver(this);
+  getDriver(name?: string): CacheDriverConfig {
+    return getCacheDriver(this, name);
   },
 
   /**

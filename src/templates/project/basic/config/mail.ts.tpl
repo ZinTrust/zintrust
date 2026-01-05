@@ -5,24 +5,37 @@
  */
 
 import { Env } from './env';
-import type { MailConfigInput, MailDriverConfig, MailDriverName, MailDrivers } from './type';
+import type { MailConfigInput, MailDriverConfig } from './type';
+import { ErrorFactory } from '@zintrust/core';
 
-const getMailDriver = (config: MailConfigInput): MailDriverConfig => {
-  const defaultDriver = config.default;
-
-  if (Object.hasOwn(config.drivers, defaultDriver)) {
-    const driverName = defaultDriver as keyof MailDrivers;
-    return config.drivers[driverName];
+const getMailDriver = (config: MailConfigInput, name?: string): MailDriverConfig => {
+  const selected = (name ?? config.default).toString().trim();
+  if (selected.length === 0) {
+    const disabled = config.drivers['disabled'];
+    if (disabled !== undefined) return disabled;
+    throw ErrorFactory.createConfigError('Mail driver not configured: disabled');
   }
 
-  return config.drivers.disabled;
+  if (Object.hasOwn(config.drivers, selected)) {
+    const resolved = config.drivers[selected];
+    if (resolved !== undefined) return resolved;
+  }
+
+  // Backward-compatible fallback: if the default is misconfigured, treat mail as disabled.
+  if (name === undefined) {
+    const disabled = config.drivers['disabled'];
+    if (disabled !== undefined) return disabled;
+    throw ErrorFactory.createConfigError('Mail driver not configured: disabled');
+  }
+
+  throw ErrorFactory.createConfigError(`Mail driver not configured: ${selected}`);
 };
 
 const mailConfigObj = {
   /**
    * Default mail driver
    */
-  default: (Env.get('MAIL_DRIVER', 'disabled') as MailDriverName) ?? 'disabled',
+  default: Env.get('MAIL_DRIVER', 'disabled').trim().toLowerCase() || 'disabled',
 
   /**
    * Default "From" identity
@@ -91,8 +104,8 @@ const mailConfigObj = {
   /**
    * Get selected driver config
    */
-  getDriver(): MailDriverConfig {
-    return getMailDriver(this);
+  getDriver(name?: string): MailDriverConfig {
+    return getMailDriver(this, name);
   },
 } as const;
 

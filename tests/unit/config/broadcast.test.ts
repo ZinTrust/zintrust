@@ -13,4 +13,16 @@ describe('broadcast config', () => {
     expect(broadcastConfig.getDriverConfig().driver).toBe('redis');
     delete process.env['BROADCAST_DRIVER'];
   });
+
+  it('throws when explicitly selecting an unknown broadcaster', () => {
+    expect(() => broadcastConfig.getDriverConfig('nope' as any)).toThrow(
+      /Broadcast driver not configured/
+    );
+  });
+
+  it("treats 'default' as an alias of the configured default", () => {
+    const resolved = broadcastConfig.getDriverConfig();
+    const defaultAlias = broadcastConfig.getDriverConfig('default');
+    expect(defaultAlias.driver).toBe(resolved.driver);
+  });
 });

@@ -53,32 +53,39 @@ describe('ModelConnectionRouting', () => {
     expect(useDatabase).toHaveBeenCalledWith(undefined, 'connB');
   });
 
-  it('routes find/all to useDatabase(config.connection)', async () => {
-    const { find, all } = await import('@orm/Model');
+  it('routes DefinedModel.query() to useDatabase(config.connection)', async () => {
+    const { Model } = await import('@orm/Model');
     const { useDatabase } = await import('@orm/Database');
 
-    await find(
-      {
-        table: 'users',
-        fillable: [],
-        hidden: [],
-        timestamps: false,
-        casts: {},
-        connection: 'connC',
-      },
-      1
-    );
-
-    await all({
+    const User = Model.define({
       table: 'users',
       fillable: [],
       hidden: [],
       timestamps: false,
       casts: {},
-      connection: 'connD',
+      connection: 'auth',
     });
 
-    expect(useDatabase).toHaveBeenCalledWith(undefined, 'connC');
-    expect(useDatabase).toHaveBeenCalledWith(undefined, 'connD');
+    User.query();
+
+    expect(useDatabase).toHaveBeenCalledWith(undefined, 'auth');
+  });
+
+  it('allows overriding connection via DefinedModel.db(name)', async () => {
+    const { Model } = await import('@orm/Model');
+    const { useDatabase } = await import('@orm/Database');
+
+    const User = Model.define({
+      table: 'users',
+      fillable: [],
+      hidden: [],
+      timestamps: false,
+      casts: {},
+      connection: 'auth',
+    });
+
+    User.db('reg').query();
+
+    expect(useDatabase).toHaveBeenCalledWith(undefined, 'reg');
   });
 });

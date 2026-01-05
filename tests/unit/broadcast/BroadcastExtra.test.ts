@@ -12,22 +12,23 @@ vi.mock('@config/broadcast', () => {
 
 import broadcastConfig from '@config/broadcast';
 import Broadcast from '@tools/broadcast/Broadcast';
-vi.mock('@tools/broadcast/drivers/InMemory', () => ({
+vi.mock('@broadcast/drivers/InMemory', () => ({
   InMemoryDriver: { send: vi.fn() },
 }));
-vi.mock('@tools/broadcast/drivers/Pusher', () => ({
+vi.mock('@broadcast/drivers/Pusher', () => ({
   PusherDriver: { send: vi.fn() },
 }));
-vi.mock('@tools/broadcast/drivers/Redis', () => ({
+vi.mock('@broadcast/drivers/Redis', () => ({
   RedisDriver: { send: vi.fn() },
 }));
-vi.mock('@tools/broadcast/drivers/RedisHttps', () => ({
+vi.mock('@broadcast/drivers/RedisHttps', () => ({
   RedisHttpsDriver: { send: vi.fn() },
 }));
 
+import { InMemoryDriver } from '@broadcast/drivers/InMemory';
+import { PusherDriver } from '@broadcast/drivers/Pusher';
+import { RedisDriver } from '@broadcast/drivers/Redis';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { InMemoryDriver } from '@tools/broadcast/drivers/InMemory';
-import { PusherDriver } from '@tools/broadcast/drivers/Pusher';
 
 describe('Broadcast dispatcher', () => {
   beforeEach(() => {
@@ -36,6 +37,7 @@ describe('Broadcast dispatcher', () => {
 
   it('delegates to InMemoryDriver when driver is inmemory', async () => {
     (broadcastConfig as any).getDriverName.mockReturnValue('inmemory');
+    (broadcastConfig as any).getDriverConfig.mockReturnValue({ driver: 'inmemory' } as any);
     (InMemoryDriver.send as vi.Mock).mockResolvedValue({ ok: true });
 
     const res = await Broadcast.send('ch', 'ev', { a: 1 });
@@ -43,13 +45,15 @@ describe('Broadcast dispatcher', () => {
     expect(res).toEqual({ ok: true });
   });
 
-  it('throws CONFIG_ERROR when pusher config mismatch', async () => {
+  it('routes by config.driver when name differs', async () => {
     (broadcastConfig as any).getDriverName.mockReturnValue('pusher');
     (broadcastConfig as any).getDriverConfig.mockReturnValue({ driver: 'redis' } as any);
 
-    await expect(Broadcast.send('ch', 'ev', {})).rejects.toEqual(
-      ErrorFactory.createConfigError('Broadcast driver config mismatch: expected pusher')
-    );
+    (RedisDriver.send as vi.Mock).mockResolvedValue({ ok: true, provider: 'redis' } as any);
+
+    const res = await Broadcast.send('ch', 'ev', {});
+    expect(RedisDriver.send).toHaveBeenCalled();
+    expect(res).toEqual({ ok: true, provider: 'redis' });
   });
 
   it('delegates to PusherDriver when config matches', async () => {
@@ -63,26 +67,9 @@ describe('Broadcast dispatcher', () => {
     expect(res).toEqual({ ok: true, sent: 'yes' });
   });
 
-  it('throws CONFIG_ERROR when redis config mismatch', async () => {
-    (broadcastConfig as any).getDriverName.mockReturnValue('redis');
-    (broadcastConfig as any).getDriverConfig.mockReturnValue({ driver: 'pusher' } as any);
-
-    await expect(Broadcast.send('ch', 'ev', {})).rejects.toEqual(
-      ErrorFactory.createConfigError('Broadcast driver config mismatch: expected redis')
-    );
-  });
-
-  it('throws CONFIG_ERROR when redishttps config mismatch', async () => {
-    (broadcastConfig as any).getDriverName.mockReturnValue('redishttps');
-    (broadcastConfig as any).getDriverConfig.mockReturnValue({ driver: 'redis' } as any);
-
-    await expect(Broadcast.send('ch', 'ev', {})).rejects.toEqual(
-      ErrorFactory.createConfigError('Broadcast driver config mismatch: expected redishttps')
-    );
-  });
-
   it('throws CONFIG_ERROR when driver not implemented', async () => {
     (broadcastConfig as any).getDriverName.mockReturnValue('customdriver');
+    (broadcastConfig as any).getDriverConfig.mockReturnValue({ driver: 'customdriver' } as any);
 
     await expect(Broadcast.send('ch', 'ev', {})).rejects.toEqual(
       ErrorFactory.createConfigError('Broadcast driver not implemented: customdriver')

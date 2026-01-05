@@ -7,148 +7,24 @@
 Import from the framework:
 
 ```ts
-import { mail } from '@zintrust/core';
+import { Mail, mailConfig } from '@zintrust/core';
 
-// Example (if supported by the module):
-// mail.*
+// Default mailer (from `mailConfig.default`)
+await Mail.send({ to: { email: 'a@example.com' }, subject: 'Hi', text: 'Hello' });
+
+// Named mailer
+await Mail.mailer('smtp').send({ to: { email: 'a@example.com' }, subject: 'Hi', text: 'Hello' });
+
+// Config lookup
+const defaultCfg = mailConfig.getDriver();
+const smtpCfg = mailConfig.getDriver('smtp');
+
+// Strict behavior: explicit unknown mailer throws a ConfigError
+// mailConfig.getDriver('missing');
 ```
 
-## Snapshot (top)
+## Notes
 
-```ts
-/**
- * Mail Configuration
- * Runtime mail drivers and settings
- * Sealed namespace for immutability
- */
-
-import { Env } from '@zintrust/core';
-import type { MailConfigInput, MailDriverConfig, MailDriverName, MailDrivers } from '@zintrust/core';
-
-const getMailDriver = (config: MailConfigInput): MailDriverConfig => {
-  const defaultDriver = config.default;
-
-  if (Object.hasOwn(config.drivers, defaultDriver)) {
-    const driverName = defaultDriver as keyof MailDrivers;
-    return config.drivers[driverName];
-  }
-
-  return config.drivers.disabled;
-};
-
-const mailConfigObj = {
-  /**
-   * Default mail driver
-   */
-  default: (Env.get('MAIL_DRIVER', 'disabled') as MailDriverName) ?? 'disabled',
-
-  /**
-   * Default "From" identity
-   */
-  from: {
-    address: Env.get('MAIL_FROM_ADDRESS', ''),
-    name: Env.get('MAIL_FROM_NAME', ''),
-  },
-
-  /**
-   * Driver configs
-   */
-  drivers: {
-    disabled: {
-      driver: 'disabled' as const,
-    },
-
-    sendgrid: {
-      driver: 'sendgrid' as const,
-      apiKey: Env.get('SENDGRID_API_KEY', ''),
-    },
-
-    mailgun: {
-      driver: 'mailgun' as const,
-      apiKey: Env.get('MAILGUN_API_KEY', ''),
-      domain: Env.get('MAILGUN_DOMAIN', ''),
-      baseUrl: Env.get('MAILGUN_BASE_URL', 'https://api.mailgun.net').trim(),
-    },
-
-    smtp: {
-      driver: 'smtp' as const,
-      host: Env.get('MAIL_HOST', ''),
-      port: Env.getInt('MAIL_PORT', 587),
-      username: Env.get('MAIL_USERNAME', ''),
-      password: Env.get('MAIL_PASSWORD', ''),
-      secure: (() => {
-        const raw = Env.get('MAIL_SECURE', '').trim().toLowerCase();
-        if (raw === 'starttls') return 'starttls' as const;
-        if (raw === 'tls' || raw === 'ssl' || raw === 'smtps' || raw === 'implicit') return true;
-        if (raw === 'none' || raw === 'off' || raw === 'false' || raw === '0') return false;
-        return Env.getBool('MAIL_SECURE', false);
-      })(),
-    },
-
-    ses: {
-```
-
-## Snapshot (bottom)
-
-```ts
-  /**
-   * Default "From" identity
-   */
-  from: {
-    address: Env.get('MAIL_FROM_ADDRESS', ''),
-    name: Env.get('MAIL_FROM_NAME', ''),
-  },
-
-  /**
-   * Driver configs
-   */
-  drivers: {
-    disabled: {
-      driver: 'disabled' as const,
-    },
-
-    sendgrid: {
-      driver: 'sendgrid' as const,
-      apiKey: Env.get('SENDGRID_API_KEY', ''),
-    },
-
-    mailgun: {
-      driver: 'mailgun' as const,
-      apiKey: Env.get('MAILGUN_API_KEY', ''),
-      domain: Env.get('MAILGUN_DOMAIN', ''),
-      baseUrl: Env.get('MAILGUN_BASE_URL', 'https://api.mailgun.net').trim(),
-    },
-
-    smtp: {
-      driver: 'smtp' as const,
-      host: Env.get('MAIL_HOST', ''),
-      port: Env.getInt('MAIL_PORT', 587),
-      username: Env.get('MAIL_USERNAME', ''),
-      password: Env.get('MAIL_PASSWORD', ''),
-      secure: (() => {
-        const raw = Env.get('MAIL_SECURE', '').trim().toLowerCase();
-        if (raw === 'starttls') return 'starttls' as const;
-        if (raw === 'tls' || raw === 'ssl' || raw === 'smtps' || raw === 'implicit') return true;
-        if (raw === 'none' || raw === 'off' || raw === 'false' || raw === '0') return false;
-        return Env.getBool('MAIL_SECURE', false);
-      })(),
-    },
-
-    ses: {
-      driver: 'ses' as const,
-      region: Env.get('AWS_REGION', 'us-east-1'),
-    },
-  },
-
-  /**
-   * Get selected driver config
-   */
-  getDriver(): MailDriverConfig {
-    return getMailDriver(this);
-  },
-} as const;
-
-export const mailConfig = Object.freeze(mailConfigObj);
-export type MailConfig = typeof mailConfig;
-
-```
+- Mail supports named mailers via `mailConfig.drivers`.
+- `mailConfig.getDriver(name?)` supports the reserved alias `default`.
+- If you explicitly select a mailer name that is not configured, it throws a `ConfigError`.

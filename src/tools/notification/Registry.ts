@@ -1,6 +1,8 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ConsoleDriver } from '@notification/drivers/Console';
+import { SlackNotificationDriver } from '@notification/drivers/SlackNotification';
 import { TermiiDriver } from '@notification/drivers/Termii';
+import { TwilioNotificationDriver } from '@notification/drivers/TwilioNotification';
 
 type DriverLike = {
   send(recipient: string, message: string, options?: Record<string, unknown>): Promise<unknown>;
@@ -10,6 +12,8 @@ const drivers = new Map<string, DriverLike>();
 
 drivers.set('termii', TermiiDriver);
 drivers.set('console', ConsoleDriver);
+drivers.set('slack', SlackNotificationDriver);
+drivers.set('twilio', TwilioNotificationDriver);
 
 export const NotificationRegistry = Object.freeze({
   register(name: string, driver: DriverLike) {
