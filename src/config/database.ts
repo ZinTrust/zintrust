@@ -5,71 +5,88 @@
  */
 
 import { Env } from '@config/env';
-import {
-  DatabaseConfigShape,
-  DatabaseConnectionConfig,
-  DatabaseConnectionName,
-} from '@config/type';
+import { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
-const isDatabaseConnectionName = (value: string): value is DatabaseConnectionName => {
-  return value === 'sqlite' || value === 'postgresql' || value === 'mysql';
+const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
+  return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
-const getDefaultConnection = (): DatabaseConnectionName => {
-  const value = Env.DB_CONNECTION;
-  return isDatabaseConnectionName(value) ? value : 'sqlite';
+const getDefaultConnection = (connections: DatabaseConnections): string => {
+  const value = String(Env.DB_CONNECTION || '').trim();
+
+  if (value.length > 0 && hasOwn(connections, value)) {
+    return value;
+  }
+
+  // Backwards-compatible default.
+  return hasOwn(connections, 'sqlite') ? 'sqlite' : (Object.keys(connections)[0] ?? 'sqlite');
 };
 
 const getDatabaseConnection = (config: DatabaseConfigShape): DatabaseConnectionConfig => {
-  const connName: DatabaseConnectionName = config.default;
-  return config.connections[connName];
+  const connName = config.default;
+  const resolved = config.connections[connName];
+  if (resolved !== undefined) return resolved;
+
+  // Backwards-compatible fallback.
+  const sqliteFallback = config.connections['sqlite'];
+  if (sqliteFallback !== undefined) return sqliteFallback;
+
+  const first = Object.values(config.connections)[0];
+  if (first !== undefined) return first;
+
+  throw ErrorFactory.createConfigError(
+    `No database connections are configured (default='${connName}').`
+  );
 };
+
+const connections = {
+  sqlite: {
+    driver: 'sqlite' as const,
+    database: Env.DB_DATABASE,
+    migrations: 'database/migrations',
+  },
+  postgresql: {
+    driver: 'postgresql' as const,
+    host: Env.DB_HOST,
+    port: Env.DB_PORT,
+    database: Env.DB_DATABASE,
+    username: Env.DB_USERNAME,
+    password: Env.DB_PASSWORD,
+    ssl: Env.getBool('DB_SSL', false),
+    pooling: {
+      enabled: Env.getBool('DB_POOLING', true),
+      min: Env.getInt('DB_POOL_MIN', 5),
+      max: Env.getInt('DB_POOL_MAX', 20),
+      idleTimeout: Env.getInt('DB_IDLE_TIMEOUT', 30000),
+      connectionTimeout: Env.getInt('DB_CONNECTION_TIMEOUT', 10000),
+    },
+  },
+  mysql: {
+    driver: 'mysql' as const,
+    host: Env.DB_HOST,
+    port: Env.DB_PORT,
+    database: Env.DB_DATABASE,
+    username: Env.DB_USERNAME,
+    password: Env.DB_PASSWORD,
+    pooling: {
+      enabled: Env.getBool('DB_POOLING', true),
+      min: Env.getInt('DB_POOL_MIN', 5),
+      max: Env.getInt('DB_POOL_MAX', 20),
+    },
+  },
+} satisfies DatabaseConnections;
 
 const databaseConfigObj = {
   /**
    * Default database connection
    */
-  default: getDefaultConnection(),
+  default: getDefaultConnection(connections),
 
   /**
    * Database connections
    */
-  connections: {
-    sqlite: {
-      driver: 'sqlite' as const,
-      database: Env.DB_DATABASE,
-      migrations: 'database/migrations',
-    },
-    postgresql: {
-      driver: 'postgresql' as const,
-      host: Env.DB_HOST,
-      port: Env.DB_PORT,
-      database: Env.DB_DATABASE,
-      username: Env.DB_USERNAME,
-      password: Env.DB_PASSWORD,
-      ssl: Env.getBool('DB_SSL', false),
-      pooling: {
-        enabled: Env.getBool('DB_POOLING', true),
-        min: Env.getInt('DB_POOL_MIN', 5),
-        max: Env.getInt('DB_POOL_MAX', 20),
-        idleTimeout: Env.getInt('DB_IDLE_TIMEOUT', 30000),
-        connectionTimeout: Env.getInt('DB_CONNECTION_TIMEOUT', 10000),
-      },
-    },
-    mysql: {
-      driver: 'mysql' as const,
-      host: Env.DB_HOST,
-      port: Env.DB_PORT,
-      database: Env.DB_DATABASE,
-      username: Env.DB_USERNAME,
-      password: Env.DB_PASSWORD,
-      pooling: {
-        enabled: Env.getBool('DB_POOLING', true),
-        min: Env.getInt('DB_POOL_MIN', 5),
-        max: Env.getInt('DB_POOL_MAX', 20),
-      },
-    },
-  },
+  connections,
 
   /**
    * Get current connection config

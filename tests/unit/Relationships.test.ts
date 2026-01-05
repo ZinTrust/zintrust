@@ -1,4 +1,5 @@
 /* eslint-disable prefer-arrow-callback */
+import { resetDatabase, useDatabase } from '@orm/Database';
 import { Model } from '@orm/Model';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,7 +18,9 @@ vi.mock('@orm/QueryBuilder', () => {
 });
 
 describe('Relationships', (): void => {
-  beforeEach((): void => {
+  beforeEach(async (): Promise<void> => {
+    await resetDatabase();
+    useDatabase({ driver: 'sqlite', database: ':memory:' });
     vi.clearAllMocks();
   });
 

@@ -112,6 +112,7 @@ export { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 
 export { databaseConfig } from '@config/database';
 export type { DatabaseConfig as DatabaseRuntimeConfig } from '@config/database';
+export { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 
 export { microservicesConfig } from '@config/microservices';
 export type { MicroservicesConfig } from '@config/microservices';

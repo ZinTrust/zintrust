@@ -98,7 +98,7 @@ export const ExternalUser = Model.define({
 
 You can initialize connections in your application bootstrap:
 
-```typescript
+````typescript
 import { useDatabase } from '@zintrust/core';
 
 useDatabase(
@@ -109,7 +109,23 @@ useDatabase(
   },
   'external_db'
 );
-```
+
+### Per-operation override
+
+If you need to run a query against a different connection **without redefining the model**, use the chainable `Model.db(name)` override:
+
+```ts
+// Use the default model connection
+await ExternalUser.query().where('is_active', true).get();
+
+// Temporarily route this operation to a different connection
+await ExternalUser.db('external_db').query().where('is_active', true).get();
+
+// Works for creates too
+await ExternalUser.db('external_db').create({ name: 'Jane', email: 'jane@example.com' }).save();
+````
+
+````
 
 ## Querying
 
@@ -126,7 +142,7 @@ const user = await User.find(1);
 
 // Where clauses
 const activeUsers = await User.query().where('is_active', true).where('age', '>', 18).get();
-```
+````
 
 ### Relationships
 

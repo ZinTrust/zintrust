@@ -23,14 +23,6 @@ export interface ModelConfig {
   hidden: string[];
   timestamps: boolean;
   casts: Record<string, string>;
-}
-
-export interface ModelConfig {
-  table: string;
-  fillable: string[];
-  hidden: string[];
-  timestamps: boolean;
-  casts: Record<string, string>;
   connection?: string;
 }
 
@@ -279,12 +271,13 @@ const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IM
   return extended as IModel & T;
 };
 
-type DefinedModel<T extends BoundModelMethods> = {
-  create: (attributes?: Record<string, unknown>) => IModel & T;
+export type DefinedModel<T extends BoundModelMethods> = {
+  create: (attributes?: Record<string, unknown> | undefined) => IModel & T;
   find: (id: unknown) => Promise<(IModel & T) | null>;
   all: () => Promise<Array<IModel & T>>;
   query: () => IQueryBuilder;
   getTable: () => string;
+  db: (connection: string) => DefinedModel<T>;
 };
 
 /**
@@ -311,20 +304,24 @@ export function define(
     return extendModel(model, methods);
   };
 
-  return {
-    create: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
-      attach(createModel(config, attributes)),
+  const createDefinedModel = (cfg: ModelConfig): DefinedModel<BoundModelMethods> => ({
+    create: (attributes: Record<string, unknown> = {}): (IModel & BoundModelMethods) | never =>
+      attach(createModel(cfg, attributes)),
     find: async (id: unknown): Promise<(IModel & BoundModelMethods) | null> => {
-      const model = await find(config, id);
+      const model = await find(cfg, id);
       return model === null ? null : attach(model);
     },
     all: async (): Promise<Array<IModel & BoundModelMethods>> => {
-      const models = await all(config);
+      const models = await all(cfg);
       return models.map((m) => attach(m));
     },
-    query: (): IQueryBuilder => query(config.table, config.connection),
-    getTable: (): string => config.table,
-  };
+    query: (): IQueryBuilder => query(cfg.table, cfg.connection),
+    getTable: (): string => cfg.table,
+    db: (connection: string): DefinedModel<BoundModelMethods> =>
+      createDefinedModel({ ...cfg, connection }),
+  });
+
+  return createDefinedModel(config);
 }
 
 /**

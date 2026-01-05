@@ -3,7 +3,7 @@
  * Handles application lifecycle, booting, and environment
  */
 
-import { appConfig } from '@/config';
+import { appConfig, databaseConfig } from '@/config';
 import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
@@ -187,6 +187,17 @@ const createLifecycle = (params: {
     FeatureFlags.initialize();
     await StartupHealthChecks.assertHealthy();
 
+    // Register ORM database connections from runtime config.
+    // This makes every `databaseConfig.connections[name]` available via `useDatabase(undefined, name)`.
+    // The configured default is also registered as 'default'.
+    try {
+      const { registerDatabasesFromRuntimeConfig } =
+        await import('@orm/DatabaseRuntimeRegistration');
+      registerDatabasesFromRuntimeConfig(databaseConfig);
+    } catch {
+      // best-effort: ignore in restrictive runtimes
+    }
+
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerRoutes(params.resolvedBasePath, params.router);
 
@@ -241,6 +252,14 @@ export const Application = Object.freeze({
     import('@orm/ConnectionManager')
       .then(({ ConnectionManager }) => {
         shutdownManager.add(async () => ConnectionManager.shutdownIfInitialized());
+      })
+      .catch(() => {
+        /* ignore import failures in restrictive runtimes */
+      });
+
+    import('@orm/Database')
+      .then(({ resetDatabase }) => {
+        shutdownManager.add(async () => resetDatabase());
       })
       .catch(() => {
         /* ignore import failures in restrictive runtimes */

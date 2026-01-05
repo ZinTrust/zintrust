@@ -3,11 +3,16 @@
  * Import actual adapter modules and test all paths
  */
 
+import { resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('ORM Adapters - Direct Coverage', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetDatabase();
     vi.clearAllMocks();
+
+    // Register default DB for Model module direct coverage tests.
+    useDatabase({ driver: 'sqlite', database: ':memory:' });
   });
 
   describe('D1Adapter Coverage', () => {

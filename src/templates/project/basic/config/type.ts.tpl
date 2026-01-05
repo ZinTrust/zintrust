@@ -323,12 +323,21 @@ export type DatabaseConnections = {
   mysql: MysqlConnectionConfig;
 };
 
-export type DatabaseConnectionName = keyof DatabaseConnections;
-export type DatabaseConnectionConfig = DatabaseConnections[DatabaseConnectionName];
+export type DatabaseConnectionConfig =
+  | SqliteConnectionConfig
+  | PostgresqlConnectionConfig
+  | MysqlConnectionConfig;
+
+/**
+ * Named database connection configs.
+ *
+ * Keys represent connection names (e.g. 'default', 'auth', 'tasks', 'db1').
+ */
+export type NamedDatabaseConnections = Record<string, DatabaseConnectionConfig>;
 
 export type DatabaseConfigShape = {
-  default: DatabaseConnectionName;
-  connections: DatabaseConnections;
+  default: string;
+  connections: NamedDatabaseConnections;
 };
 
 export type WorkersEnv = Record<string, unknown>;

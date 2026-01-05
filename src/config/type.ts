@@ -317,17 +317,23 @@ export type MysqlConnectionConfig = {
   };
 };
 
-export type DatabaseConnections = {
-  sqlite: SqliteConnectionConfig;
-  postgresql: PostgresqlConnectionConfig;
-  mysql: MysqlConnectionConfig;
-};
+export type DatabaseConnectionConfig =
+  | SqliteConnectionConfig
+  | PostgresqlConnectionConfig
+  | MysqlConnectionConfig;
 
-export type DatabaseConnectionName = keyof DatabaseConnections;
-export type DatabaseConnectionConfig = DatabaseConnections[DatabaseConnectionName];
+/**
+ * Named database connection configs.
+ *
+ * Keys represent connection names (e.g. 'default', 'auth', 'tasks', 'db1').
+ */
+export type DatabaseConnections = Record<string, DatabaseConnectionConfig>;
 
+/**
+ * Default connection name.
+ */
 export type DatabaseConfigShape = {
-  default: DatabaseConnectionName;
+  default: string;
   connections: DatabaseConnections;
 };
 
