@@ -12,7 +12,10 @@ export async function registerSmtpMailDriver(registry: Registry): Promise<void> 
 
   if (core.SmtpDriver === undefined) return;
 
-  registry.register('smtp', (config, message) => core.SmtpDriver.send(config, message));
+  const driver = core.SmtpDriver;
+  if (driver === undefined) return;
+
+  registry.register('smtp', (config, message) => driver.send(config, message));
 }
 
 const importCore = async (): Promise<unknown> => {
