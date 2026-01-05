@@ -14,6 +14,12 @@ describe('broadcast config', () => {
     delete process.env['BROADCAST_DRIVER'];
   });
 
+  it('throws when BROADCAST_DRIVER selects an unknown name', () => {
+    process.env['BROADCAST_DRIVER'] = 'nope';
+    expect(() => broadcastConfig.getDriverName()).toThrow(/Broadcast driver not configured/);
+    delete process.env['BROADCAST_DRIVER'];
+  });
+
   it('throws when explicitly selecting an unknown broadcaster', () => {
     expect(() => broadcastConfig.getDriverConfig('nope' as any)).toThrow(
       /Broadcast driver not configured/

@@ -10,9 +10,10 @@ export async function registerMailgunMailDriver(registry: Registry): Promise<voi
     MailgunDriver?: { send: (config: unknown, message: unknown) => Promise<unknown> };
   };
 
-  if (core.MailgunDriver === undefined) return;
+  const driver = core.MailgunDriver;
+  if (driver === undefined) return;
 
-  registry.register('mailgun', (config, message) => core.MailgunDriver.send(config, message));
+  registry.register('mailgun', (config, message) => driver.send(config, message));
 }
 
 const importCore = async (): Promise<unknown> => {

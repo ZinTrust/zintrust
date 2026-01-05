@@ -34,8 +34,9 @@ describe('src/config/mail patch coverage', () => {
       },
     };
 
-    const cfg = (mailConfig.getDriver as any).call(fakeConfig, undefined);
-    expect(cfg).toMatchObject({ driver: 'disabled' });
+    expect(() => (mailConfig.getDriver as any).call(fakeConfig, undefined)).toThrow(
+      /Mail driver not configured/i
+    );
   });
 
   it("throws when default is misconfigured and 'disabled' driver is missing", () => {
@@ -44,6 +45,8 @@ describe('src/config/mail patch coverage', () => {
       drivers: {},
     };
 
-    expect(() => (mailConfig.getDriver as any).call(fakeConfig, undefined)).toThrow(/disabled/i);
+    expect(() => (mailConfig.getDriver as any).call(fakeConfig, undefined)).toThrow(
+      /Mail driver not configured/i
+    );
   });
 });

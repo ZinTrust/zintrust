@@ -10,9 +10,10 @@ export async function registerSendGridMailDriver(registry: Registry): Promise<vo
     SendGridDriver?: { send: (config: unknown, message: unknown) => Promise<unknown> };
   };
 
-  if (core.SendGridDriver === undefined) return;
+  const driver = core.SendGridDriver;
+  if (driver === undefined) return;
 
-  registry.register('sendgrid', (config, message) => core.SendGridDriver.send(config, message));
+  registry.register('sendgrid', (config, message) => driver.send(config, message));
 }
 
 const importCore = async (): Promise<unknown> => {

@@ -9,7 +9,7 @@ vi.mock('@config/env', () => ({
 }));
 
 describe('src/config/broadcast patch coverage (extra)', () => {
-  it('falls back to inmemory when BROADCAST_DRIVER is unknown', async () => {
+  it('throws when BROADCAST_DRIVER is unknown (no fallback)', async () => {
     const { Env } = await import('@config/env');
     (Env.get as unknown as Mock).mockImplementation((key: string, defaultVal?: string) => {
       if (key === 'BROADCAST_DRIVER') return 'unknown';
@@ -17,7 +17,7 @@ describe('src/config/broadcast patch coverage (extra)', () => {
     });
 
     const broadcastConfig = (await import('@config/broadcast')).default;
-    expect(broadcastConfig.default).toBe('inmemory');
+    expect(() => broadcastConfig.default).toThrow(/Broadcast driver not configured/i);
   });
 
   it('falls back to inmemory config when selection is missing', async () => {

@@ -1,4 +1,5 @@
 import type { StorageConfigRuntime, StorageDriverConfig } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { StorageDiskRegistry } from '@storage/StorageDiskRegistry';
 
 export type StorageRuntimeConfig = StorageConfigRuntime & {
@@ -11,19 +12,17 @@ export function registerDisksFromRuntimeConfig(config: StorageRuntimeConfig): vo
   }
 
   // Alias reserved name `default` to the configured default.
-  // Prefer config.getDriverConfig() so we preserve its fallback semantics.
-  let resolvedDefault: StorageDriverConfig | undefined;
-
-  if (typeof config.getDriverConfig === 'function') {
-    resolvedDefault = config.getDriverConfig('default');
-  } else {
-    const values = Object.values(config.drivers);
-    resolvedDefault = config.drivers[config.default] ?? values[0];
+  const defaultName = String(config.default ?? '').trim();
+  if (defaultName.length === 0) {
+    throw ErrorFactory.createConfigError('Storage default disk is not configured');
   }
 
-  if (resolvedDefault !== undefined) {
-    StorageDiskRegistry.register('default', resolvedDefault);
+  const resolvedDefault = config.drivers[defaultName];
+  if (resolvedDefault === undefined) {
+    throw ErrorFactory.createConfigError(`Storage default disk not configured: ${defaultName}`);
   }
+
+  StorageDiskRegistry.register('default', resolvedDefault);
 }
 
 export const StorageRuntimeRegistration = Object.freeze({

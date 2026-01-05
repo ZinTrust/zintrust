@@ -32,4 +32,30 @@ describe('Broadcast named broadcasters', () => {
     expect(BroadcastRegistry.has('default')).toBe(true);
     expect(BroadcastRegistry.get('default').driver).toBe('redis');
   });
+
+  it('throws when broadcast default driver is empty', () => {
+    BroadcastRegistry.reset();
+
+    expect(() =>
+      registerBroadcastersFromRuntimeConfig({
+        default: '',
+        drivers: {
+          inmemory: { driver: 'inmemory' } as any,
+        },
+      })
+    ).toThrow(/Broadcast default driver is not configured/i);
+  });
+
+  it('throws when broadcast default driver is not configured', () => {
+    BroadcastRegistry.reset();
+
+    expect(() =>
+      registerBroadcastersFromRuntimeConfig({
+        default: 'redis',
+        drivers: {
+          inmemory: { driver: 'inmemory' } as any,
+        },
+      })
+    ).toThrow(/Broadcast default driver not configured/i);
+  });
 });

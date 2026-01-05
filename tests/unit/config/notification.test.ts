@@ -13,6 +13,14 @@ describe('notification config', () => {
     else process.env['NOTIFICATION_DRIVER'] = prev;
   });
 
+  test('throws when NOTIFICATION_DRIVER selects an unknown name', () => {
+    const prev = process.env['NOTIFICATION_DRIVER'];
+    process.env['NOTIFICATION_DRIVER'] = 'nope';
+    expect(() => notificationConfig.getDriverName()).toThrow(/Notification channel not configured/);
+    if (prev === undefined) delete process.env['NOTIFICATION_DRIVER'];
+    else process.env['NOTIFICATION_DRIVER'] = prev;
+  });
+
   test('providers shape', () => {
     expect(notificationConfig.providers.console.driver).toBe('console');
     expect(notificationConfig.providers.termii.driver).toBe('termii');

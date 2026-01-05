@@ -24,13 +24,15 @@ const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
 };
 
 const getDefaultBroadcaster = (drivers: BroadcastDrivers): string => {
-  const value = normalizeDriverName(Env.get('BROADCAST_DRIVER', 'inmemory'));
+  const envSelectedRaw = Env.get('BROADCAST_CONNECTION', Env.get('BROADCAST_DRIVER', 'inmemory'));
+  const value = normalizeDriverName(envSelectedRaw ?? 'inmemory');
 
-  if (value.length > 0 && hasOwn(drivers, value)) {
-    return value;
+  if (value.length > 0 && hasOwn(drivers, value)) return value;
+
+  if (envSelectedRaw.trim().length > 0) {
+    throw ErrorFactory.createConfigError(`Broadcast driver not configured: ${value}`);
   }
 
-  // Backwards-compatible default.
   return hasOwn(drivers, 'inmemory') ? 'inmemory' : (Object.keys(drivers)[0] ?? 'inmemory');
 };
 

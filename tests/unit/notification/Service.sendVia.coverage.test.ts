@@ -117,15 +117,11 @@ describe('NotificationService.sendVia patch coverage', () => {
       sender: 'Z',
     } as any);
 
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: false,
-        status: 400,
-        text: vi.fn(async () => {
-          throw new Error('boom');
-        }),
-      } as any;
-    }) as any;
+    const text = vi.fn(async () => {
+      throw new Error('boom');
+    });
+
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 400, text }) as any) as any;
 
     await expect(NotificationService.sendVia('termiiChan', 'user', 'hello')).rejects.toMatchObject({
       message: expect.stringContaining('Termii request failed (400)'),
@@ -140,15 +136,11 @@ describe('NotificationService.sendVia patch coverage', () => {
       sender: 'Z',
     } as any);
 
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        status: 200,
-        json: vi.fn(async () => {
-          throw new Error('invalid json');
-        }),
-      } as any;
-    }) as any;
+    const json = vi.fn(async () => {
+      throw new Error('invalid json');
+    });
+
+    globalThis.fetch = vi.fn(async () => ({ ok: true, status: 200, json }) as any) as any;
 
     const res = await NotificationService.sendVia('termiiChan', 'user', 'hello');
     expect(res).toEqual({});

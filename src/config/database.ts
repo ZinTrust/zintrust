@@ -13,13 +13,15 @@ const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
 };
 
 const getDefaultConnection = (connections: DatabaseConnections): string => {
-  const value = String(Env.DB_CONNECTION || '').trim();
+  const envSelectedRaw = Env.get('DB_CONNECTION', '');
+  const value = String(envSelectedRaw ?? '').trim();
 
-  if (value.length > 0 && hasOwn(connections, value)) {
-    return value;
+  if (value.length > 0 && hasOwn(connections, value)) return value;
+
+  if (envSelectedRaw.trim().length > 0) {
+    throw ErrorFactory.createConfigError(`Database connection not configured: ${value}`);
   }
 
-  // Backwards-compatible default.
   return hasOwn(connections, 'sqlite') ? 'sqlite' : (Object.keys(connections)[0] ?? 'sqlite');
 };
 

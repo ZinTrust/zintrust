@@ -15,4 +15,14 @@ describe('QueueRuntimeRegistration', () => {
     // (in templates this is typically "sync").
     expect(() => Queue.get('default')).not.toThrow();
   });
+
+  it('throws when default driver is empty', () => {
+    Queue.reset();
+
+    expect(() =>
+      registerQueuesFromRuntimeConfig({
+        default: '',
+      } as any)
+    ).toThrow(/Queue default driver is not configured/i);
+  });
 });

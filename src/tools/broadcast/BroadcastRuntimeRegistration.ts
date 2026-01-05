@@ -1,4 +1,5 @@
 import type { BroadcastConfigInput } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 import { BroadcastRegistry } from '@broadcast/BroadcastRegistry';
 
@@ -18,9 +19,13 @@ export function registerBroadcastersFromRuntimeConfig(
   }
 
   const defaultName = (config.default ?? '').toString().trim().toLowerCase();
-  if (defaultName.length === 0) return;
-
-  if (BroadcastRegistry.has(defaultName)) {
-    BroadcastRegistry.register('default', BroadcastRegistry.get(defaultName));
+  if (defaultName.length === 0) {
+    throw ErrorFactory.createConfigError('Broadcast default driver is not configured');
   }
+
+  if (!BroadcastRegistry.has(defaultName)) {
+    throw ErrorFactory.createConfigError(`Broadcast default driver not configured: ${defaultName}`);
+  }
+
+  BroadcastRegistry.register('default', BroadcastRegistry.get(defaultName));
 }

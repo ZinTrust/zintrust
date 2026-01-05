@@ -23,18 +23,30 @@ const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverCon
     throw ErrorFactory.createConfigError(`Cache store not configured: ${storeName}`);
   }
 
-  // Backwards-compatible fallback.
-  const fallback = config.drivers['memory'] ?? Object.values(config.drivers)[0];
-  if (fallback !== undefined) return fallback;
+  if (Object.keys(config.drivers ?? {}).length === 0) {
+    throw ErrorFactory.createConfigError('No cache stores are configured');
+  }
 
-  throw ErrorFactory.createConfigError('No cache stores are configured');
+  throw ErrorFactory.createConfigError(
+    `Cache default store not configured: ${storeName || '<empty>'}`
+  );
 };
 
 const cacheConfigObj = {
   /**
    * Default cache driver
    */
-  default: Env.CACHE_DRIVER,
+  default: (() => {
+    const envConnection = Env.get('CACHE_CONNECTION', '').trim();
+
+    const envDriver =
+      typeof (Env as unknown as { CACHE_DRIVER?: unknown }).CACHE_DRIVER === 'string'
+        ? String((Env as unknown as { CACHE_DRIVER?: unknown }).CACHE_DRIVER)
+        : Env.get('CACHE_DRIVER', 'memory');
+
+    const selected = envConnection.length > 0 ? envConnection : String(envDriver ?? 'memory');
+    return selected.trim().toLowerCase();
+  })(),
 
   /**
    * Cache drivers

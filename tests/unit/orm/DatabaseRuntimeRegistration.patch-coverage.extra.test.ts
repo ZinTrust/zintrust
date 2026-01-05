@@ -22,4 +22,17 @@ describe('DatabaseRuntimeRegistration patch coverage (extra)', () => {
 
     expect((useDatabase as unknown as Mock).mock.calls.length).toBeGreaterThan(0);
   });
+
+  it('throws when default connection is not configured', () => {
+    (useDatabase as Mock).mockReturnValue({});
+
+    expect(() =>
+      registerDatabasesFromRuntimeConfig({
+        default: 'missing',
+        connections: {
+          sqlite: { driver: 'sqlite', database: ':memory:' } as any,
+        },
+      } as any)
+    ).toThrow(/Database default connection not configured/i);
+  });
 });
