@@ -5,28 +5,33 @@
  */
 
 import { Env } from '@config/env';
-import type {
-  StorageConfigRuntime,
-  StorageDriverConfig,
-  StorageDriverName,
-  StorageDrivers,
-} from '@config/type';
+import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
-const isStorageDriverName = (
-  value: string,
-  drivers: StorageDrivers
-): value is StorageDriverName => {
-  return value in drivers;
+const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
+  return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
-const getStorageDriver = (config: StorageConfigRuntime): StorageDriverConfig => {
-  const driverName = config.default;
+const getStorageDriver = (config: StorageConfigRuntime, name?: string): StorageDriverConfig => {
+  const selected = String(name ?? config.default).trim();
+  const diskName = selected === 'default' ? String(config.default).trim() : selected;
+  const isExplicitSelection =
+    name !== undefined && String(name).trim().length > 0 && String(name).trim() !== 'default';
 
-  if (isStorageDriverName(driverName, config.drivers)) {
-    return config.drivers[driverName];
+  if (diskName !== '' && hasOwn(config.drivers, diskName)) {
+    const resolved = config.drivers[diskName];
+    if (resolved !== undefined) return resolved;
   }
 
-  return config.drivers.local;
+  if (isExplicitSelection) {
+    throw ErrorFactory.createConfigError(`Storage disk not configured: ${diskName}`);
+  }
+
+  // Backwards-compatible fallback.
+  const fallback = config.drivers['local'] ?? Object.values(config.drivers)[0];
+  if (fallback !== undefined) return fallback;
+
+  throw ErrorFactory.createConfigError('No storage disks are configured');
 };
 
 const getDrivers = (): StorageDrivers => ({
@@ -84,6 +89,17 @@ const storageConfigObj = {
    */
   getDriver(this: StorageConfigRuntime): StorageDriverConfig {
     return getStorageDriver(this);
+  },
+
+  /**
+   * Get a storage disk configuration by name.
+   *
+   * - When `name` is provided and not configured, this throws.
+   * - When `name` is omitted, it resolves the configured default with a backwards-compatible fallback.
+   * - Reserved name `default` aliases the configured default.
+   */
+  getDriverConfig(this: StorageConfigRuntime, name?: string): StorageDriverConfig {
+    return getStorageDriver(this, name);
   },
 
   /**

@@ -105,7 +105,7 @@ describe('Storage (src/tools/storage/index.ts branch coverage)', () => {
 
     const { Storage } = await import('@storage');
 
-    expect(() => Storage.getDisk('missing')).toThrow(/unknown disk/i);
+    expect(() => Storage.getDisk('missing')).toThrow(/disk not configured|unknown disk/i);
     expect(() => Storage.getDisk('default')).toThrow(/unsupported disk driver/i);
   });
 

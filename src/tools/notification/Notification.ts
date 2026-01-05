@@ -8,6 +8,11 @@ import { NotificationService } from '@notification/Service';
 
 export const Notification = Object.freeze({
   send: NotificationService.send,
+  channel: (name: string) =>
+    Object.freeze({
+      send: async (recipient: string, message: string, options?: Record<string, unknown>) =>
+        NotificationService.sendVia(name, recipient, message, options),
+    }),
   listDrivers: NotificationService.listDrivers,
 });
 

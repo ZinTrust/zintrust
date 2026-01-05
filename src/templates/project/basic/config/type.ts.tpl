@@ -1,5 +1,5 @@
 import { Env } from './env';
-import type { Middleware as MiddlewareFn } from '../middleware/MiddlewareStack';
+import type { Middleware as MiddlewareFn } from '@zintrust/core';
 
 export type Environment =
   | 'development'
@@ -50,15 +50,13 @@ export type GcsStorageDriverConfig = {
   url: EnvGetValue;
 };
 
-export type StorageDrivers = {
-  local: LocalStorageDriverConfig;
-  s3: S3StorageDriverConfig;
-  r2: R2StorageDriverConfig;
-  gcs: GcsStorageDriverConfig;
-};
+export type StorageDriverConfig =
+  | LocalStorageDriverConfig
+  | S3StorageDriverConfig
+  | R2StorageDriverConfig
+  | GcsStorageDriverConfig;
 
-export type StorageDriverName = keyof StorageDrivers;
-export type StorageDriverConfig = StorageDrivers[StorageDriverName];
+export type StorageDrivers = Record<string, StorageDriverConfig>;
 
 export type StorageConfigRuntime = {
   readonly default: string;
@@ -194,6 +192,13 @@ export type KnownNotificationDriverConfig =
   | TwilioNotificationDriverConfig
   | SlackNotificationDriverConfig;
 
+export type NotificationDrivers = Record<string, KnownNotificationDriverConfig>;
+
+export type NotificationConfigInput = {
+  default: string;
+  drivers: NotificationDrivers;
+};
+
 export type NotificationProviders = {
   console: ConsoleNotificationDriverConfig;
   termii: TermiiNotificationDriverConfig;
@@ -256,17 +261,16 @@ export type MailDriverConfig =
   | NodemailerMailDriverConfig
   | SesMailDriverConfig;
 
-export type MailDrivers = {
-  disabled: DisabledMailDriverConfig;
-  sendgrid: SendGridMailDriverConfig;
-  mailgun: MailgunMailDriverConfig;
-  smtp: SmtpMailDriverConfig;
-  nodemailer: NodemailerMailDriverConfig;
-  ses: SesMailDriverConfig;
-};
+export type MailDrivers = Record<string, MailDriverConfig>;
 
 export type MailConfigInput = {
-  default: MailDriverName;
+  /**
+   * Default mailer key name.
+   *
+   * This is intentionally a string to support named mailers (e.g. 'transactional', 'marketing').
+   * The underlying driver is selected by the `driver` field within each mailer config.
+   */
+  default: string;
   from: {
     address: string;
     name: string;
@@ -317,12 +321,6 @@ export type MysqlConnectionConfig = {
   };
 };
 
-export type DatabaseConnections = {
-  sqlite: SqliteConnectionConfig;
-  postgresql: PostgresqlConnectionConfig;
-  mysql: MysqlConnectionConfig;
-};
-
 export type DatabaseConnectionConfig =
   | SqliteConnectionConfig
   | PostgresqlConnectionConfig
@@ -333,11 +331,14 @@ export type DatabaseConnectionConfig =
  *
  * Keys represent connection names (e.g. 'default', 'auth', 'tasks', 'db1').
  */
-export type NamedDatabaseConnections = Record<string, DatabaseConnectionConfig>;
+export type DatabaseConnections = Record<string, DatabaseConnectionConfig>;
 
+/**
+ * Default connection name.
+ */
 export type DatabaseConfigShape = {
   default: string;
-  connections: NamedDatabaseConnections;
+  connections: DatabaseConnections;
 };
 
 export type WorkersEnv = Record<string, unknown>;
@@ -391,13 +392,7 @@ export type CacheDriverConfig =
   | KvCacheDriverConfig
   | KvRemoteCacheDriverConfig;
 
-export type CacheDrivers = {
-  memory: MemoryCacheDriverConfig;
-  redis: RedisCacheDriverConfig;
-  mongodb: MongoCacheDriverConfig;
-  kv: KvCacheDriverConfig;
-  'kv-remote': KvRemoteCacheDriverConfig;
-};
+export type CacheDrivers = Record<string, CacheDriverConfig>;
 
 export type CacheConfigInput = {
   default: string;
@@ -439,3 +434,10 @@ export type KnownBroadcastDriverConfig =
   | PusherBroadcastDriverConfig
   | RedisBroadcastDriverConfig
   | RedisHttpsBroadcastDriverConfig;
+
+export type BroadcastDrivers = Record<string, KnownBroadcastDriverConfig>;
+
+export type BroadcastConfigInput = {
+  default: string;
+  drivers: BroadcastDrivers;
+};

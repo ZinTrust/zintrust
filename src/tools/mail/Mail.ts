@@ -143,27 +143,47 @@ const sendWithDriver = async (
   }
 };
 
+const createMailer = (
+  name?: string
+): Readonly<{
+  send: (input: SendMailInput) => Promise<SendMailResult>;
+}> =>
+  Object.freeze({
+    async send(input: SendMailInput): Promise<SendMailResult> {
+      const driver = mailConfig.getDriver(name);
+
+      if (driver.driver === 'disabled') {
+        const err = ErrorFactory.createConfigError('Mail driver is disabled (set MAIL_DRIVER)');
+        throw err;
+      }
+
+      const from = resolveFrom(input.from);
+      const storage = createStorageWrapper();
+      const attachments = await resolveAttachments(input.attachments, { storage });
+
+      return sendWithDriver(driver, {
+        to: input.to,
+        from,
+        subject: input.subject,
+        text: input.text,
+        html: input.html,
+        attachments,
+      });
+    },
+  });
+
 export const Mail = Object.freeze({
+  /**
+   * Select a named mailer (key from mailConfig.drivers).
+   *
+   * Example: `Mail.mailer('transactional').send(...)`
+   */
+  mailer(name: string) {
+    return createMailer(name);
+  },
+
   async send(input: SendMailInput): Promise<SendMailResult> {
-    const driver = mailConfig.getDriver();
-
-    if (driver.driver === 'disabled') {
-      const err = ErrorFactory.createConfigError('Mail driver is disabled (set MAIL_DRIVER)');
-      throw err;
-    }
-
-    const from = resolveFrom(input.from);
-    const storage = createStorageWrapper();
-    const attachments = await resolveAttachments(input.attachments, { storage });
-
-    return sendWithDriver(driver, {
-      to: input.to,
-      from,
-      subject: input.subject,
-      text: input.text,
-      html: input.html,
-      attachments,
-    });
+    return createMailer().send(input);
   },
 });
 

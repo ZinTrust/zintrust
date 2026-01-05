@@ -3,13 +3,15 @@
  * Handles application lifecycle, booting, and environment
  */
 
-import { appConfig, databaseConfig } from '@/config';
+import { appConfig, cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
 import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
+import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
+import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
@@ -94,6 +96,75 @@ const registerCoreInstances = (params: {
   params.container.singleton('middleware', params.middlewareStack);
   params.container.singleton('container', params.container);
   params.container.singleton('shutdownManager', params.shutdownManager);
+};
+
+const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void => {
+  // Register framework-level shutdown hooks for long-lived resources
+  // ConnectionManager may not be initialized; shutdownIfInitialized is safe
+  // Use dynamic import without top-level await to avoid transforming the module into an async module
+  import('@orm/ConnectionManager')
+    .then((mod: { ConnectionManager: { shutdownIfInitialized: () => Promise<void> } }) => {
+      shutdownManager.add(async () => mod.ConnectionManager.shutdownIfInitialized());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@orm/Database')
+    .then((mod: { resetDatabase: () => void }) => {
+      shutdownManager.add(() => mod.resetDatabase());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@cache/Cache')
+    .then((mod: { Cache: { reset: () => void } }) => {
+      shutdownManager.add(() => mod.Cache.reset());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@broadcast/BroadcastRegistry')
+    .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
+      shutdownManager.add(() => mod.BroadcastRegistry.reset());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@storage/StorageDiskRegistry')
+    .then((mod: { StorageDiskRegistry: { reset: () => void } }) => {
+      shutdownManager.add(() => mod.StorageDiskRegistry.reset());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@notification/NotificationChannelRegistry')
+    .then((mod: { NotificationChannelRegistry: { reset: () => void } }) => {
+      shutdownManager.add(() => mod.NotificationChannelRegistry.reset());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@mail/MailDriverRegistry')
+    .then((mod: { MailDriverRegistry: { reset: () => void } }) => {
+      shutdownManager.add(() => mod.MailDriverRegistry.reset());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+
+  import('@tools/queue/Queue')
+    .then((mod: { Queue: { reset: () => void } }) => {
+      shutdownManager.add(() => mod.Queue.reset());
+    })
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
 };
 
 const tryImportRoutesFromAppBase = async (
@@ -198,6 +269,61 @@ const createLifecycle = (params: {
       // best-effort: ignore in restrictive runtimes
     }
 
+    // Register queue drivers from runtime config.
+    // Ensures default drivers like `sync` are available without manual registration.
+    try {
+      const { registerQueuesFromRuntimeConfig } =
+        await import('@tools/queue/QueueRuntimeRegistration');
+      registerQueuesFromRuntimeConfig(queueConfig);
+    } catch {
+      // best-effort: ignore in restrictive runtimes
+    }
+
+    // Register cache driver factories from runtime config.
+    // Ensures built-in drivers are available via the driver registry.
+    try {
+      const { registerCachesFromRuntimeConfig } = await import('@cache/CacheRuntimeRegistration');
+      registerCachesFromRuntimeConfig(cacheConfig);
+    } catch {
+      // best-effort: ignore in restrictive runtimes
+    }
+
+    // Register broadcasters from runtime config.
+    // Ensures named broadcasters are available and unknown names throw when selected.
+    try {
+      const { registerBroadcastersFromRuntimeConfig } =
+        await import('@broadcast/BroadcastRuntimeRegistration');
+      registerBroadcastersFromRuntimeConfig({
+        default: broadcastConfig.default,
+        drivers: broadcastConfig.drivers,
+      });
+    } catch {
+      // best-effort: ignore in restrictive runtimes
+    }
+
+    // Register storage disks from runtime config.
+    // Ensures named disks are available and 'default' is a reserved alias.
+    try {
+      const { registerDisksFromRuntimeConfig } =
+        await import('@storage/StorageRuntimeRegistration');
+      registerDisksFromRuntimeConfig(storageConfig);
+    } catch {
+      // best-effort: ignore in restrictive runtimes
+    }
+
+    // Register notification channels from runtime config.
+    // Enables selecting named channels and reserves the `default` alias.
+    try {
+      const { registerNotificationChannelsFromRuntimeConfig } =
+        await import('@notification/NotificationRuntimeRegistration');
+      registerNotificationChannelsFromRuntimeConfig({
+        default: notificationConfig.default,
+        drivers: notificationConfig.drivers,
+      });
+    } catch {
+      // best-effort: ignore in restrictive runtimes
+    }
+
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerRoutes(params.resolvedBasePath, params.router);
 
@@ -246,24 +372,7 @@ export const Application = Object.freeze({
     registerCorePaths(container, resolvedBasePath, joinFromBase);
     registerCoreInstances({ container, environment, router, middlewareStack, shutdownManager });
 
-    // Register framework-level shutdown hooks for long-lived resources
-    // ConnectionManager may not be initialized; shutdownIfInitialized is safe
-    // Use dynamic import without top-level await to avoid transforming the module into an async module
-    import('@orm/ConnectionManager')
-      .then(({ ConnectionManager }) => {
-        shutdownManager.add(async () => ConnectionManager.shutdownIfInitialized());
-      })
-      .catch(() => {
-        /* ignore import failures in restrictive runtimes */
-      });
-
-    import('@orm/Database')
-      .then(({ resetDatabase }) => {
-        shutdownManager.add(async () => resetDatabase());
-      })
-      .catch(() => {
-        /* ignore import failures in restrictive runtimes */
-      });
+    registerFrameworkShutdownHooks(shutdownManager);
 
     const { boot, shutdown } = createLifecycle({
       environment,

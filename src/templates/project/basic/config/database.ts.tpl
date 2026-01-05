@@ -5,17 +5,14 @@
  */
 
 import { Env } from './env';
-import {
-  DatabaseConfigShape,
-  DatabaseConnectionConfig,
-  NamedDatabaseConnections,
-} from './type';
+import { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } from './type';
+import { ErrorFactory } from '@zintrust/core';
 
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
   return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
-const getDefaultConnection = (connections: NamedDatabaseConnections): string => {
+const getDefaultConnection = (connections: DatabaseConnections): string => {
   const value = String(Env.DB_CONNECTION || '').trim();
 
   if (value.length > 0 && hasOwn(connections, value)) {
@@ -23,12 +20,24 @@ const getDefaultConnection = (connections: NamedDatabaseConnections): string => 
   }
 
   // Backwards-compatible default.
-  return hasOwn(connections, 'sqlite') ? 'sqlite' : Object.keys(connections)[0] ?? 'sqlite';
+  return hasOwn(connections, 'sqlite') ? 'sqlite' : (Object.keys(connections)[0] ?? 'sqlite');
 };
 
 const getDatabaseConnection = (config: DatabaseConfigShape): DatabaseConnectionConfig => {
   const connName = config.default;
-  return config.connections[connName];
+  const resolved = config.connections[connName];
+  if (resolved !== undefined) return resolved;
+
+  // Backwards-compatible fallback.
+  const sqliteFallback = config.connections['sqlite'];
+  if (sqliteFallback !== undefined) return sqliteFallback;
+
+  const first = Object.values(config.connections)[0];
+  if (first !== undefined) return first;
+
+  throw ErrorFactory.createConfigError(
+    `No database connections are configured (default='${connName}').`
+  );
 };
 
 const connections = {
@@ -66,7 +75,7 @@ const connections = {
       max: Env.getInt('DB_POOL_MAX', 20),
     },
   },
-} satisfies NamedDatabaseConnections;
+} satisfies DatabaseConnections;
 
 const databaseConfigObj = {
   /**

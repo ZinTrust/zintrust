@@ -21,9 +21,14 @@ function list(): string[] {
   return Array.from(registry.keys());
 }
 
+function reset(): void {
+  registry.clear();
+}
+
 export const MailDriverRegistry = Object.freeze({
   register,
   get,
   has,
   list,
+  reset,
 });

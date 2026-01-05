@@ -7,120 +7,24 @@
 Import from the framework:
 
 ```ts
-import { notification } from '@zintrust/core';
+import { Notification, notificationConfig } from '@zintrust/core';
 
-// Example (if supported by the module):
-// notification.*
+// Default channel (from `notificationConfig.default`)
+await Notification.send({ to: '+15555555555', message: 'Hello' });
+
+// Named channel
+await Notification.channel('slack').send({ message: 'Deploy done' });
+
+// Config lookup
+const defaultCfg = notificationConfig.getDriverConfig();
+const slackCfg = notificationConfig.getDriverConfig('slack');
+
+// Strict behavior: explicit unknown channel throws a ConfigError
+// notificationConfig.getDriverConfig('missing');
 ```
 
-## Snapshot (top)
+## Notes
 
-```ts
-/**
- * Notification Configuration
- *
- * Config-first mapping of notification providers.
- * Keeps runtime driver selection in one place and uses Env for safe access.
- */
-
-import { Env } from '@zintrust/core';
-import type { NotificationProviders } from '@zintrust/core';
-
-const notificationConfigObj = {
-  /**
-   * Normalized notification driver name.
-   *
-   * NOTE: This intentionally supports custom driver names (e.g. project-specific drivers),
-   * so it returns a string rather than a strict union.
-   */
-  getDriverName(): string {
-    return Env.get('NOTIFICATION_DRIVER', 'console').trim().toLowerCase();
-  },
-
-  /**
-   * Provider configs.
-   */
-  providers: {
-    console: {
-      driver: 'console' as const,
-    },
-
-    termii: {
-      driver: 'termii' as const,
-      apiKey: Env.get('TERMII_API_KEY', ''),
-      sender: Env.get('TERMII_SENDER', 'Zintrust'),
-      endpoint: Env.get('TERMII_ENDPOINT', 'https://api.termii.com/sms/send'),
-    },
-
-    twilio: {
-      driver: 'twilio' as const,
-      accountSid: Env.get('TWILIO_ACCOUNT_SID', ''),
-      authToken: Env.get('TWILIO_AUTH_TOKEN', ''),
-      fromNumber: Env.get('TWILIO_FROM_NUMBER', ''),
-    },
-
-    slack: {
-      driver: 'slack' as const,
-      webhookUrl: Env.get('SLACK_WEBHOOK_URL', ''),
-    },
-  } satisfies NotificationProviders,
-} as const;
-
-export default Object.freeze(notificationConfigObj);
-```
-
-## Snapshot (bottom)
-
-```ts
-/**
- * Notification Configuration
- *
- * Config-first mapping of notification providers.
- * Keeps runtime driver selection in one place and uses Env for safe access.
- */
-
-import { Env } from '@zintrust/core';
-import type { NotificationProviders } from '@zintrust/core';
-
-const notificationConfigObj = {
-  /**
-   * Normalized notification driver name.
-   *
-   * NOTE: This intentionally supports custom driver names (e.g. project-specific drivers),
-   * so it returns a string rather than a strict union.
-   */
-  getDriverName(): string {
-    return Env.get('NOTIFICATION_DRIVER', 'console').trim().toLowerCase();
-  },
-
-  /**
-   * Provider configs.
-   */
-  providers: {
-    console: {
-      driver: 'console' as const,
-    },
-
-    termii: {
-      driver: 'termii' as const,
-      apiKey: Env.get('TERMII_API_KEY', ''),
-      sender: Env.get('TERMII_SENDER', 'Zintrust'),
-      endpoint: Env.get('TERMII_ENDPOINT', 'https://api.termii.com/sms/send'),
-    },
-
-    twilio: {
-      driver: 'twilio' as const,
-      accountSid: Env.get('TWILIO_ACCOUNT_SID', ''),
-      authToken: Env.get('TWILIO_AUTH_TOKEN', ''),
-      fromNumber: Env.get('TWILIO_FROM_NUMBER', ''),
-    },
-
-    slack: {
-      driver: 'slack' as const,
-      webhookUrl: Env.get('SLACK_WEBHOOK_URL', ''),
-    },
-  } satisfies NotificationProviders,
-} as const;
-
-export default Object.freeze(notificationConfigObj);
-```
+- Notification supports named channels via `notificationConfig.drivers`.
+- `notificationConfig.getDriverConfig(name?)` supports the reserved alias `default`.
+- If you explicitly select a channel name that is not configured, it throws a `ConfigError`.

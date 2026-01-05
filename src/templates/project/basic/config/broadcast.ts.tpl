@@ -7,13 +7,32 @@
 
 import { Env } from './env';
 import {
+  BroadcastConfigInput,
+  BroadcastDrivers,
+  InMemoryBroadcastDriverConfig,
   KnownBroadcastDriverConfig,
   PusherBroadcastDriverConfig,
   RedisBroadcastDriverConfig,
   RedisHttpsBroadcastDriverConfig,
 } from './type';
+import { ErrorFactory } from '@zintrust/core';
 
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
+
+const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+};
+
+const getDefaultBroadcaster = (drivers: BroadcastDrivers): string => {
+  const value = normalizeDriverName(Env.get('BROADCAST_DRIVER', 'inmemory'));
+
+  if (value.length > 0 && hasOwn(drivers, value)) {
+    return value;
+  }
+
+  // Backwards-compatible default.
+  return hasOwn(drivers, 'inmemory') ? 'inmemory' : (Object.keys(drivers)[0] ?? 'inmemory');
+};
 
 const getPusherConfig = (): PusherBroadcastDriverConfig => ({
   driver: 'pusher',
@@ -39,28 +58,77 @@ const getRedisHttpsConfig = (): RedisHttpsBroadcastDriverConfig => ({
   channelPrefix: Env.get('BROADCAST_CHANNEL_PREFIX', 'broadcast:'),
 });
 
+const getBroadcastDriver = (
+  config: BroadcastConfigInput,
+  name?: string
+): KnownBroadcastDriverConfig => {
+  const selected = normalizeDriverName(String(name ?? config.default));
+  const broadcasterName = selected === 'default' ? normalizeDriverName(config.default) : selected;
+
+  const isExplicitSelection =
+    name !== undefined &&
+    String(name).trim().length > 0 &&
+    normalizeDriverName(String(name)) !== 'default';
+
+  if (broadcasterName.length > 0 && hasOwn(config.drivers, broadcasterName)) {
+    const resolved = (config.drivers as Record<string, KnownBroadcastDriverConfig>)[
+      broadcasterName
+    ];
+    if (resolved !== undefined) return resolved;
+  }
+
+  if (isExplicitSelection) {
+    throw ErrorFactory.createConfigError(`Broadcast driver not configured: ${broadcasterName}`);
+  }
+
+  const fallback = config.drivers['inmemory'] ?? Object.values(config.drivers)[0];
+  if (fallback !== undefined) return fallback;
+
+  throw ErrorFactory.createConfigError('No broadcast drivers are configured');
+};
+
 const broadcastConfigObj = {
   /**
-   * Normalized broadcast driver name.
+   * Default broadcaster name (normalized).
+   */
+  get default(): string {
+    return getDefaultBroadcaster(this.drivers);
+  },
+
+  /**
+   * Broadcast drivers.
    *
-   * NOTE: Allows custom driver names (project-specific drivers), so returns string.
+   * You may add custom named broadcasters (e.g. `ops`, `billing`) that point to any
+   * known driver config.
+   */
+  drivers: {
+    get inmemory(): InMemoryBroadcastDriverConfig {
+      return { driver: 'inmemory' };
+    },
+    get pusher() {
+      return getPusherConfig();
+    },
+    get redis() {
+      return getRedisConfig();
+    },
+    get redishttps() {
+      return getRedisHttpsConfig();
+    },
+  } satisfies BroadcastDrivers,
+
+  /**
+   * Normalized broadcast driver name for the default broadcaster.
    */
   getDriverName(): string {
-    return normalizeDriverName(Env.get('BROADCAST_DRIVER', 'inmemory'));
+    return normalizeDriverName(this.default);
   },
 
   /**
    * Get a config object for the currently selected driver.
    * Defaults to inmemory for unknown/unsupported names.
    */
-  getDriverConfig(): KnownBroadcastDriverConfig {
-    const driver = this.getDriverName();
-
-    if (driver === 'pusher') return getPusherConfig();
-    if (driver === 'redis') return getRedisConfig();
-    if (driver === 'redishttps') return getRedisHttpsConfig();
-
-    return { driver: 'inmemory' };
+  getDriverConfig(name?: string): KnownBroadcastDriverConfig {
+    return getBroadcastDriver(this, name);
   },
 } as const;
 
