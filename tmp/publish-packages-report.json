@@ -1,0 +1,19 @@
+{
+  "failures": [],
+  "successes": [
+    {
+      "dirName": "mail-mailgun",
+      "name": "@zintrust/mail-mailgun",
+      "version": "0.1.12"
+    }
+  ],
+  "checkIssues": [
+    {
+      "dirName": "mail-mailgun",
+      "name": "@zintrust/mail-mailgun",
+      "version": "0.1.12",
+      "message": "npm view failed for @zintrust/mail-mailgun@0.1.12: "
+    }
+  ],
+  "total": 1
+}

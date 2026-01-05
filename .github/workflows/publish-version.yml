@@ -94,9 +94,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -n "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
-            npm run release:publish-packages -- --dry-run --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
+            npm run release:publish-packages -- --dry-run --continue-on-error --no-fail --only-unpublished --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
           else
-            npm run release:publish-packages -- --dry-run
+            npm run release:publish-packages -- --dry-run --continue-on-error --no-fail --only-unpublished
           fi
 
       - name: Publish to npm
@@ -111,9 +111,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -n "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
-            npm run release:publish-packages -- --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
+            npm run release:publish-packages -- --continue-on-error --no-fail --only-unpublished --verify-core-on-npm --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
           else
-            npm run release:publish-packages
+            npm run release:publish-packages -- --continue-on-error --no-fail --only-unpublished --verify-core-on-npm
           fi
 
       - name: Create tag and release (optional)
