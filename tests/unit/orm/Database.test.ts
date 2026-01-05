@@ -151,6 +151,10 @@ describe('Database', () => {
     expect(db1).toBe(db2);
   });
 
+  it('throws when using an unregistered connection without config', () => {
+    expect(() => useDatabase(undefined, 'missing')).toThrow(/not registered/i);
+  });
+
   it('should create table builder', () => {
     db = Database.create({ driver: 'sqlite', database: ':memory:' });
     const builder = db.table('users');

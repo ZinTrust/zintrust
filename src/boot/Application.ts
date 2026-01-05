@@ -106,65 +106,81 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     .then((mod: { ConnectionManager: { shutdownIfInitialized: () => Promise<void> } }) => {
       shutdownManager.add(async () => mod.ConnectionManager.shutdownIfInitialized());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@orm/Database')
     .then((mod: { resetDatabase: () => void }) => {
       shutdownManager.add(() => mod.resetDatabase());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@cache/Cache')
     .then((mod: { Cache: { reset: () => void } }) => {
       shutdownManager.add(() => mod.Cache.reset());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@broadcast/BroadcastRegistry')
     .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.BroadcastRegistry.reset());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@storage/StorageDiskRegistry')
     .then((mod: { StorageDiskRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.StorageDiskRegistry.reset());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@notification/NotificationChannelRegistry')
     .then((mod: { NotificationChannelRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.NotificationChannelRegistry.reset());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@mail/MailDriverRegistry')
     .then((mod: { MailDriverRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.MailDriverRegistry.reset());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 
   import('@tools/queue/Queue')
     .then((mod: { Queue: { reset: () => void } }) => {
       shutdownManager.add(() => mod.Queue.reset());
     })
+    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+  /* c8 ignore stop */
 };
 
 const tryImportRoutesFromAppBase = async (
