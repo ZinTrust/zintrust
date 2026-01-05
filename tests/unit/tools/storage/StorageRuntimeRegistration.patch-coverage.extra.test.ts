@@ -16,4 +16,17 @@ describe('StorageRuntimeRegistration patch coverage (extra)', () => {
       } as any)
     ).toThrow(/Storage default disk not configured/i);
   });
+
+  it('throws when default disk is empty', () => {
+    StorageDiskRegistry.reset();
+
+    expect(() =>
+      registerDisksFromRuntimeConfig({
+        default: '',
+        drivers: {
+          local: { driver: 'local', root: 'storage' } as any,
+        },
+      } as any)
+    ).toThrow(/Storage default disk is not configured/i);
+  });
 });
