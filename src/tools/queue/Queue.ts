@@ -22,7 +22,12 @@ export const Queue = Object.freeze({
   },
 
   get(name?: string): IQueueDriver {
-    const driverName = (name ?? process.env['QUEUE_DRIVER'] ?? 'inmemory')
+    const driverName = (
+      name ??
+      process.env['QUEUE_CONNECTION'] ??
+      process.env['QUEUE_DRIVER'] ??
+      'inmemory'
+    )
       .toString()
       .trim()
       .toLowerCase();

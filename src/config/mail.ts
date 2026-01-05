@@ -8,24 +8,34 @@ import { Env } from '@config/env';
 import type { MailConfigInput, MailDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+const isMailDriverConfig = (value: unknown): value is MailDriverConfig => {
+  if (typeof value !== 'object' || value === null) return false;
+  if (!('driver' in value)) return false;
+
+  const driver = (value as { driver?: unknown }).driver;
+  return typeof driver === 'string' && driver.trim().length > 0;
+};
+
 const getMailDriver = (config: MailConfigInput, name?: string): MailDriverConfig => {
-  const selected = (name ?? config.default).toString().trim();
+  const drivers = config.drivers as Record<string, unknown>;
+  const envSelectedRaw = Env.get('MAIL_CONNECTION', Env.get('MAIL_DRIVER', '')).trim();
+  const selected = (
+    name ??
+    (envSelectedRaw.length > 0 ? envSelectedRaw : undefined) ??
+    config.default
+  )
+    .toString()
+    .trim();
+
   if (selected.length === 0) {
-    const disabled = config.drivers['disabled'];
-    if (disabled !== undefined) return disabled;
+    const disabled = drivers['disabled'];
+    if (isMailDriverConfig(disabled)) return disabled;
     throw ErrorFactory.createConfigError('Mail driver not configured: disabled');
   }
 
-  if (Object.hasOwn(config.drivers, selected)) {
-    const resolved = config.drivers[selected];
-    if (resolved !== undefined) return resolved;
-  }
-
-  // Backward-compatible fallback: if the default is misconfigured, treat mail as disabled.
-  if (name === undefined) {
-    const disabled = config.drivers['disabled'];
-    if (disabled !== undefined) return disabled;
-    throw ErrorFactory.createConfigError('Mail driver not configured: disabled');
+  if (Object.hasOwn(drivers, selected)) {
+    const resolved = drivers[selected];
+    if (isMailDriverConfig(resolved)) return resolved;
   }
 
   throw ErrorFactory.createConfigError(`Mail driver not configured: ${selected}`);
@@ -35,7 +45,7 @@ const mailConfigObj = {
   /**
    * Default mail driver
    */
-  default: Env.get('MAIL_DRIVER', 'disabled').trim().toLowerCase() || 'disabled',
+  default: Env.get('MAIL_CONNECTION', Env.get('MAIL_DRIVER', 'disabled')).trim().toLowerCase(),
 
   /**
    * Default "From" identity

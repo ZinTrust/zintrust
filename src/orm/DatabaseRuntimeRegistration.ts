@@ -10,6 +10,7 @@ import type {
   DatabaseConnectionConfig,
   DatabaseConnections,
 } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 
@@ -60,7 +61,11 @@ export function registerDatabasesFromRuntimeConfig(config: DatabaseConfigShape):
   registerConnections(config.connections);
 
   const defaultCfg = config.connections[config.default];
-  if (defaultCfg !== undefined) {
-    useDatabase(toOrmConfig(defaultCfg), 'default');
+  if (defaultCfg === undefined) {
+    throw ErrorFactory.createConfigError(
+      `Database default connection not configured: ${String(config.default ?? '')}`
+    );
   }
+
+  useDatabase(toOrmConfig(defaultCfg), 'default');
 }

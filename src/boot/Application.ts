@@ -256,6 +256,58 @@ const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<
   }
 };
 
+const tryImportOptional = async <T>(modulePath: string): Promise<T | undefined> => {
+  try {
+    return (await import(modulePath)) as T;
+  } catch {
+    return undefined;
+  }
+};
+
+const registerFromRuntimeConfig = async (): Promise<void> => {
+  const db = await tryImportOptional<{
+    registerDatabasesFromRuntimeConfig?: (cfg: typeof databaseConfig) => void;
+  }>('@orm/DatabaseRuntimeRegistration');
+  db?.registerDatabasesFromRuntimeConfig?.(databaseConfig);
+
+  const queues = await tryImportOptional<{
+    registerQueuesFromRuntimeConfig?: (cfg: typeof queueConfig) => void;
+  }>('@tools/queue/QueueRuntimeRegistration');
+  queues?.registerQueuesFromRuntimeConfig?.(queueConfig);
+
+  const caches = await tryImportOptional<{
+    registerCachesFromRuntimeConfig?: (cfg: typeof cacheConfig) => void;
+  }>('@cache/CacheRuntimeRegistration');
+  caches?.registerCachesFromRuntimeConfig?.(cacheConfig);
+
+  const broadcasters = await tryImportOptional<{
+    registerBroadcastersFromRuntimeConfig?: (cfg: {
+      default: string;
+      drivers: typeof broadcastConfig.drivers;
+    }) => void;
+  }>('@broadcast/BroadcastRuntimeRegistration');
+  broadcasters?.registerBroadcastersFromRuntimeConfig?.({
+    default: broadcastConfig.default,
+    drivers: broadcastConfig.drivers,
+  });
+
+  const disks = await tryImportOptional<{
+    registerDisksFromRuntimeConfig?: (cfg: typeof storageConfig) => void;
+  }>('@storage/StorageRuntimeRegistration');
+  disks?.registerDisksFromRuntimeConfig?.(storageConfig);
+
+  const notifications = await tryImportOptional<{
+    registerNotificationChannelsFromRuntimeConfig?: (cfg: {
+      default: string;
+      drivers: typeof notificationConfig.drivers;
+    }) => void;
+  }>('@notification/NotificationRuntimeRegistration');
+  notifications?.registerNotificationChannelsFromRuntimeConfig?.({
+    default: notificationConfig.default,
+    drivers: notificationConfig.drivers,
+  });
+};
+
 const createLifecycle = (params: {
   environment: string;
   resolvedBasePath: string;
@@ -274,71 +326,7 @@ const createLifecycle = (params: {
     FeatureFlags.initialize();
     await StartupHealthChecks.assertHealthy();
 
-    // Register ORM database connections from runtime config.
-    // This makes every `databaseConfig.connections[name]` available via `useDatabase(undefined, name)`.
-    // The configured default is also registered as 'default'.
-    try {
-      const { registerDatabasesFromRuntimeConfig } =
-        await import('@orm/DatabaseRuntimeRegistration');
-      registerDatabasesFromRuntimeConfig(databaseConfig);
-    } catch {
-      // best-effort: ignore in restrictive runtimes
-    }
-
-    // Register queue drivers from runtime config.
-    // Ensures default drivers like `sync` are available without manual registration.
-    try {
-      const { registerQueuesFromRuntimeConfig } =
-        await import('@tools/queue/QueueRuntimeRegistration');
-      registerQueuesFromRuntimeConfig(queueConfig);
-    } catch {
-      // best-effort: ignore in restrictive runtimes
-    }
-
-    // Register cache driver factories from runtime config.
-    // Ensures built-in drivers are available via the driver registry.
-    try {
-      const { registerCachesFromRuntimeConfig } = await import('@cache/CacheRuntimeRegistration');
-      registerCachesFromRuntimeConfig(cacheConfig);
-    } catch {
-      // best-effort: ignore in restrictive runtimes
-    }
-
-    // Register broadcasters from runtime config.
-    // Ensures named broadcasters are available and unknown names throw when selected.
-    try {
-      const { registerBroadcastersFromRuntimeConfig } =
-        await import('@broadcast/BroadcastRuntimeRegistration');
-      registerBroadcastersFromRuntimeConfig({
-        default: broadcastConfig.default,
-        drivers: broadcastConfig.drivers,
-      });
-    } catch {
-      // best-effort: ignore in restrictive runtimes
-    }
-
-    // Register storage disks from runtime config.
-    // Ensures named disks are available and 'default' is a reserved alias.
-    try {
-      const { registerDisksFromRuntimeConfig } =
-        await import('@storage/StorageRuntimeRegistration');
-      registerDisksFromRuntimeConfig(storageConfig);
-    } catch {
-      // best-effort: ignore in restrictive runtimes
-    }
-
-    // Register notification channels from runtime config.
-    // Enables selecting named channels and reserves the `default` alias.
-    try {
-      const { registerNotificationChannelsFromRuntimeConfig } =
-        await import('@notification/NotificationRuntimeRegistration');
-      registerNotificationChannelsFromRuntimeConfig({
-        default: notificationConfig.default,
-        drivers: notificationConfig.drivers,
-      });
-    } catch {
-      // best-effort: ignore in restrictive runtimes
-    }
+    await registerFromRuntimeConfig();
 
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerRoutes(params.resolvedBasePath, params.router);

@@ -5,19 +5,22 @@ description: A single happy-path demo that exercises Zintrust features end-to-en
 
 # Demo: Tasks App (A–Z)
 
-This is a single, happy-path demo that exercises Zintrust **end-to-end**:
+This is a single **happy-path** demo that exercises Zintrust end-to-end.
+The goal: touch the real stuff (DBs, adapters, jobs, templates) without turning it into a novel.
 
 - User **register** → **login**
 - Create/list/update/complete **tasks**
 - Multi-database setup (auth DB vs tasks DB; plus a demo-only dual SQLite setup)
 - Mail, storage, queue, cache, notifications, templates, logging, HTTP client
-- Adapter packages under `packages/*`
+- Adapter packages (`@zintrust/*`) and their `register` entrypoints
 - Ecommerce services under `src/services/*` (where runnable)
 
-All framework imports are from:
+All framework imports in this demo are from:
 
 - `@zintrust/core` (runtime/public API)
 - `@zintrust/core/node` (Node-only helpers)
+
+If you catch yourself importing deep paths from inside the monorepo, you’re probably doing it the hard way.
 
 ## 0) Prerequisites
 
@@ -34,6 +37,12 @@ Bring up the repo’s local infra (Postgres + optional Redis profile):
 npm run docker:up
 # Optional: include Redis if you use docker compose profiles
 # docker-compose --profile optional up -d
+```
+
+Quick sanity (optional):
+
+```bash
+npm test
 ```
 
 ## 1) Environment variables (multi DB)
@@ -115,7 +124,7 @@ export async function initDatabases(): Promise<void> {
 
 ✅ Expected:
 
-- App boots with both DB connections established.
+- App boots with all DB connections established.
 - Auth queries go to SQLite; tasks queries go to Postgres.
 
 ## 3) Models (auth DB vs tasks DB)
@@ -222,8 +231,6 @@ USE_RAW_QRY=true
 - Raw queries throw unless `USE_RAW_QRY=true`.
 - Always use parameterized queries to avoid injection.
 
-✅ Expected:
-
 - `/register` creates a user in `auth` DB (and `register` DB).
 - `/login` finds user in `auth` DB (but might miss in `login` DB if not synced).
 
@@ -248,7 +255,7 @@ export function registerRoutes(router: IRouter) {
 ### Tasks Controller
 
 ```ts
-import { Cache, Queue, Storage, Notification, HttpClient, Logger } from '@zintrust/core';
+import { Cache, Queue, Notification, HttpClient, Logger } from '@zintrust/core';
 
 export const TasksController = {
   async index(ctx: any) {
@@ -452,6 +459,12 @@ import { HttpClient, Logger } from '@zintrust/core';
 - Sensitive fields are not logged.
 
 ## 13) Adapter packages checklist (A–Z)
+
+Version note (important, but simple):
+
+- Adapter packages are meant to be **version-aligned** with `@zintrust/core`.
+- In an app, install matching versions (for example `@zintrust/core@0.1.12` with `@zintrust/queue-redis@0.1.12`).
+- In this monorepo, versions are synced from core during release.
 
 This demo should touch each adapter package at least once:
 

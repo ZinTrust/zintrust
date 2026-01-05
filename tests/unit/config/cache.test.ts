@@ -19,10 +19,11 @@ describe('Cache Config', () => {
     expect(driver.driver).toBeDefined();
   });
 
-  it('falls back to memory when default driver is unknown', () => {
+  it('throws when default driver is unknown (no fallback)', () => {
     const fakeConfig: any = { default: 'nope', drivers: cacheConfig.drivers };
-    const driver = cacheConfig.getDriver.call(fakeConfig as any);
-    expect(driver.driver).toBe('memory');
+    expect(() => cacheConfig.getDriver.call(fakeConfig as any)).toThrow(
+      /Cache default store not configured/i
+    );
   });
 
   it('resolves redis driver when default set to redis', () => {

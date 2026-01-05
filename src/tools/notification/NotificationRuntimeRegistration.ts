@@ -1,4 +1,5 @@
 import type { NotificationConfigInput } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { NotificationChannelRegistry } from '@notification/NotificationChannelRegistry';
 
 /**
@@ -15,11 +16,17 @@ export function registerNotificationChannelsFromRuntimeConfig(
   }
 
   const defaultName = (config.default ?? '').toString().trim().toLowerCase();
-  if (defaultName.length === 0) return;
-
-  if (NotificationChannelRegistry.has(defaultName)) {
-    NotificationChannelRegistry.register('default', NotificationChannelRegistry.get(defaultName));
+  if (defaultName.length === 0) {
+    throw ErrorFactory.createConfigError('Notification default channel is not configured');
   }
+
+  if (!NotificationChannelRegistry.has(defaultName)) {
+    throw ErrorFactory.createConfigError(
+      `Notification default channel not configured: ${defaultName}`
+    );
+  }
+
+  NotificationChannelRegistry.register('default', NotificationChannelRegistry.get(defaultName));
 }
 
 export const NotificationRuntimeRegistration = Object.freeze({

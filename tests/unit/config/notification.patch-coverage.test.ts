@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 describe('src/config/notification patch coverage', () => {
-  it('falls back to console when NOTIFICATION_DRIVER is unknown', async () => {
+  it('throws when NOTIFICATION_DRIVER is unknown (no fallback)', async () => {
     vi.resetModules();
     process.env['NOTIFICATION_DRIVER'] = 'does-not-exist';
 
-    const { default: notificationConfig } = await import('@config/notification');
-
-    expect(notificationConfig.default).toBe('console');
+    await expect(async () => {
+      const { default: notificationConfig } = await import('@config/notification');
+      // Access triggers default resolution
+      void notificationConfig.default;
+    }).rejects.toMatchObject({
+      message: expect.stringContaining('Notification channel not configured'),
+    });
 
     delete process.env['NOTIFICATION_DRIVER'];
   });
@@ -27,7 +31,7 @@ describe('src/config/notification patch coverage', () => {
     expect(cfg).toMatchObject({ driver: 'console' });
   });
 
-  it('falls back to console when default channel is misconfigured (legacy behavior)', async () => {
+  it('throws when default channel is misconfigured (no fallback)', async () => {
     const { default: notificationConfig } = await import('@config/notification');
 
     const fakeConfig = {
@@ -37,8 +41,9 @@ describe('src/config/notification patch coverage', () => {
       },
     };
 
-    const cfg = (notificationConfig.getDriverConfig as any).call(fakeConfig, undefined);
-    expect(cfg).toMatchObject({ driver: 'console' });
+    expect(() => (notificationConfig.getDriverConfig as any).call(fakeConfig, undefined)).toThrow(
+      /Notification channel not configured/i
+    );
   });
 
   it('throws when no channels are configured and selection is not explicit', async () => {

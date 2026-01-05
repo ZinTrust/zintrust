@@ -1,4 +1,5 @@
 import type { QueueConfig } from '@config/queue';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 
 import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
 import { RedisQueue } from '@tools/queue/drivers/Redis';
@@ -20,12 +21,10 @@ export function registerQueuesFromRuntimeConfig(config: QueueConfig): void {
   Queue.register('redis', RedisQueue);
 
   const defaultName = (config.default ?? '').toString().trim().toLowerCase();
-  if (defaultName.length === 0) return;
-
-  try {
-    const drv = Queue.get(defaultName);
-    Queue.register('default', drv);
-  } catch {
-    // Best-effort: external drivers may be registered by optional packages.
+  if (defaultName.length === 0) {
+    throw ErrorFactory.createConfigError('Queue default driver is not configured');
   }
+
+  const drv = Queue.get(defaultName);
+  Queue.register('default', drv);
 }

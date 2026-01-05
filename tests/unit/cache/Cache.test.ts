@@ -205,13 +205,15 @@ describe('Cache', () => {
     expect(mongoConstructed).toBe(0);
   });
 
-  it('defaults to Memory driver when Env.CACHE_DRIVER is unknown', async () => {
+  it('throws when Env.CACHE_DRIVER is unknown (no fallback)', async () => {
     cacheDriverName = 'nope';
     const mod = await import('@cache/Cache');
 
-    await mod.Cache.get('k');
+    await expect(mod.Cache.get('k')).rejects.toMatchObject({
+      message: expect.stringContaining('Cache default store not configured'),
+    });
 
-    expect(memoryConstructed).toBe(1);
+    expect(memoryConstructed).toBe(0);
   });
 
   it('reuses the same driver instance (singleton)', async () => {

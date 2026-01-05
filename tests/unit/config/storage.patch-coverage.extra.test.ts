@@ -24,8 +24,9 @@ describe('src/config/storage patch coverage (extra)', () => {
       },
     };
 
-    const cfg = (storageConfig.getDriverConfig as any).call(fakeConfig, undefined);
-    expect(cfg).toMatchObject({ driver: 'local' });
+    expect(() => (storageConfig.getDriverConfig as any).call(fakeConfig, undefined)).toThrow(
+      /Storage default disk not configured/i
+    );
   });
 
   it('throws when no disks are configured', () => {
