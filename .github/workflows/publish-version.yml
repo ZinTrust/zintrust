@@ -93,11 +93,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -n "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
-            npm run release:publish-packages -- --dry-run --continue-on-error --no-fail --only-unpublished --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
-          else
-            npm run release:publish-packages -- --dry-run --continue-on-error --no-fail --only-unpublished
+          if [ -z "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
+            echo "No publishable packages detected."
+            exit 0
           fi
+
+          npm run release:publish-packages -- --dry-run --continue-on-error --no-fail --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
 
       - name: Publish to npm
         if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run != 'true')) }}
@@ -110,11 +111,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -n "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
-            npm run release:publish-packages -- --continue-on-error --no-fail --only-unpublished --verify-core-on-npm --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
-          else
-            npm run release:publish-packages -- --continue-on-error --no-fail --only-unpublished --verify-core-on-npm
+          if [ -z "${{ steps.publishable_packages.outputs.publishable_package_dirs }}" ]; then
+            echo "No publishable packages detected."
+            exit 0
           fi
+
+          npm run release:publish-packages -- --continue-on-error --no-fail --only "${{ steps.publishable_packages.outputs.publishable_package_dirs }}"
 
       - name: Create tag and release (optional)
         if: ${{ steps.version_check.outputs.should_publish == 'true' && (steps.src_changes.outputs.src_changed == 'true' || steps.version_check.outputs.is_unpublished == 'true') && github.event_name == 'push' }}
