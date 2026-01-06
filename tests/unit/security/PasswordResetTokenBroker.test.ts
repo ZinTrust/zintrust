@@ -61,4 +61,46 @@ describe('PasswordResetTokenBroker', () => {
 
     await expect(broker.verifyToken('user@example.com', `  ${token}  `)).resolves.toBe(true);
   });
+
+  it('validates identifier/token inputs', async () => {
+    await expect(broker.createToken('')).rejects.toThrow(/Invalid identifier/i);
+    await expect(broker.verifyToken('user@example.com', '')).rejects.toThrow(/Invalid token/i);
+    await expect(broker.consumeToken(' ', 'token')).rejects.toThrow(/Invalid identifier/i);
+
+    await expect(broker.verifyToken(123 as unknown as string, 'token')).rejects.toThrow(
+      /Invalid identifier/i
+    );
+    await expect(broker.verifyToken('user@example.com', 123 as unknown as string)).rejects.toThrow(
+      /Invalid token/i
+    );
+  });
+
+  it('validates ttlMs and tokenBytes options', async () => {
+    expect(() => PasswordResetTokenBroker.create({ ttlMs: 0 })).toThrow(
+      /Invalid password reset TTL/i
+    );
+    expect(() => PasswordResetTokenBroker.create({ tokenBytes: 0 })).toThrow(
+      /Invalid password reset token bytes/i
+    );
+  });
+
+  it('in-memory store cleanup and clear work', async () => {
+    const store = PasswordResetTokenBroker.createInMemoryStore();
+    const now = new Date('2026-01-01T00:00:00.000Z');
+
+    const custom = PasswordResetTokenBroker.create({
+      store,
+      ttlMs: 10,
+      now: () => now,
+    });
+
+    const token = await custom.createToken('user@example.com');
+    expect(await custom.verifyToken('user@example.com', token)).toBe(true);
+
+    const removed = await store.cleanup?.(new Date(now.getTime() + 1000));
+    expect(removed).toBe(1);
+
+    await store.clear?.();
+    expect(await custom.verifyToken('user@example.com', token)).toBe(false);
+  });
 });

@@ -63,4 +63,84 @@ describe('Collection', () => {
     expect(Collection.isCollection(collect([1]))).toBe(true);
     expect(Collection.isCollection([1, 2, 3])).toBe(false);
   });
+
+  it('Collection.from() supports ArrayLike sources', () => {
+    const arrayLike: ArrayLike<string> = { 0: 'a', 1: 'b', length: 2 };
+    expect(Collection.from(arrayLike).all()).toEqual(['a', 'b']);
+  });
+
+  it('first/last return undefined when predicate does not match', () => {
+    const c = collect([1, 3, 5]);
+    expect(c.first((n) => n % 2 === 0)).toBeUndefined();
+    expect(c.last((n) => n % 2 === 0)).toBeUndefined();
+  });
+
+  it('sortBy() sorts numbers ascending and pushes null/undefined to the end', () => {
+    const c = collect([
+      { k: 2, v: 'b' },
+      { k: null as any, v: 'n' },
+      { k: 1, v: 'a' },
+      { k: undefined as any, v: 'u' },
+    ]).sortBy((x) => x.k);
+
+    expect(c.pluck('v').all()).toEqual(['a', 'b', 'n', 'u']);
+  });
+
+  it('sortBy() uses localeCompare for non-number keys', () => {
+    const c = collect([
+      { k: 'b', v: 2 },
+      { k: 'a', v: 1 },
+    ]).sortBy((x) => x.k);
+
+    expect(c.pluck('v').all()).toEqual([1, 2]);
+  });
+
+  it('Collection.of(), toArray(), reduce(), and keyBy() work', () => {
+    const c = Collection.of({ id: 'a', n: 1 }, { id: 'b', n: 2 });
+
+    expect(c.toArray()).toEqual([
+      { id: 'a', n: 1 },
+      { id: 'b', n: 2 },
+    ]);
+
+    expect(c.reduce((acc, item) => acc + item.n, 0)).toBe(3);
+
+    const byId = c.keyBy((x) => x.id);
+    expect(byId.get('a')).toEqual({ id: 'a', n: 1 });
+    expect(byId.get('b')).toEqual({ id: 'b', n: 2 });
+  });
+
+  it('chunk() returns [] for invalid sizes and chunks items for valid sizes', () => {
+    const c = collect([1, 2, 3, 4, 5]);
+    expect(c.chunk(0).all()).toEqual([]);
+    expect(c.chunk(Number.NaN).all()).toEqual([]);
+    expect(c.chunk(2).all()).toEqual([[1, 2], [3, 4], [5]]);
+  });
+
+  it('take/skip floor and clamp negative values', () => {
+    const c = collect([1, 2, 3, 4]);
+    expect(c.take(2.9).all()).toEqual([1, 2]);
+    expect(c.skip(1.1).all()).toEqual([2, 3, 4]);
+    expect(c.take(-1).all()).toEqual([]);
+    expect(c.skip(-1).all()).toEqual([1, 2, 3, 4]);
+  });
+
+  it('tap passes a copy and returns an equivalent collection', () => {
+    const c = collect([1, 2, 3]);
+    const seen: number[][] = [];
+
+    const out = c.tap((items) => {
+      items.push(999);
+      seen.push(items);
+    });
+
+    expect(seen[0]).toEqual([1, 2, 3, 999]);
+    expect(c.all()).toEqual([1, 2, 3]);
+    expect(out.all()).toEqual([1, 2, 3]);
+  });
+
+  it('Collection instances are iterable', () => {
+    const c = collect([1, 2, 3]);
+    expect([...c]).toEqual([1, 2, 3]);
+  });
 });

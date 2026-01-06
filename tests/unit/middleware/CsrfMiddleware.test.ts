@@ -62,6 +62,29 @@ describe('CsrfMiddleware', () => {
     expect(next).toHaveBeenCalled();
   });
 
+  it('sets Set-Cookie directly when no existing header is present (session cookie already exists)', async () => {
+    const middleware = CsrfMiddleware.create();
+
+    // Provide a session cookie so SessionManager does not set a Set-Cookie header.
+    requestHeaders['cookie'] = 'ZIN_SESSION_ID=existing-session-id';
+
+    await middleware(req, res, next);
+
+    // Should have set a single Set-Cookie string for the CSRF token.
+    expect(responseHeaders['set-cookie']).toEqual(expect.stringContaining('XSRF-TOKEN='));
+  });
+
+  it('appends to Set-Cookie array when Set-Cookie is already an array', async () => {
+    const middleware = CsrfMiddleware.create();
+
+    requestHeaders['cookie'] = 'ZIN_SESSION_ID=existing-session-id';
+    responseHeaders['set-cookie'] = ['a=1'];
+
+    await middleware(req, res, next);
+
+    expect(responseHeaders['set-cookie']).toEqual(['a=1', expect.stringContaining('XSRF-TOKEN=')]);
+  });
+
   it('should generate a secure session id when missing', async () => {
     const { generateSecureJobId } = await import('@common/uuid');
     const middleware = CsrfMiddleware.create();

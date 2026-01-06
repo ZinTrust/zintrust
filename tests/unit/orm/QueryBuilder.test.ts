@@ -239,6 +239,20 @@ describe('QueryBuilder', () => {
     expect(builder.toSQL()).toBe('SELECT * FROM "users"');
   });
 
+  it('soft delete mode setters initialize state when not configured', () => {
+    const include = QueryBuilder.create('users');
+    include.withTrashed();
+    expect(include.toSQL()).toBe('SELECT * FROM "users"');
+
+    const only = QueryBuilder.create('users');
+    only.onlyTrashed();
+    expect(only.toSQL()).toContain('WHERE "deleted_at" IS NOT NULL');
+
+    const exclude = QueryBuilder.create('users');
+    exclude.withoutTrashed();
+    expect(exclude.toSQL()).toContain('WHERE "deleted_at" IS NULL');
+  });
+
   it('should allow only trashed records with onlyTrashed()', () => {
     const builder = QueryBuilder.create('users', undefined as any, {
       softDeleteColumn: 'deleted_at',

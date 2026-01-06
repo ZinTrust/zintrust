@@ -314,6 +314,38 @@ describe('Model', () => {
     expect(last?.where).toHaveBeenCalledWith('active', '=', true);
   });
 
+  it('throws for unknown query scopes', () => {
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      scopes: {},
+    });
+
+    expect(() => Test.scope('missing')).toThrow(/Unknown query scope/i);
+  });
+
+  it('passes soft delete options to QueryBuilder when softDeletes=true', async () => {
+    const builderMod = await import('@orm/QueryBuilder');
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      softDeletes: true,
+    });
+
+    Test.query();
+
+    expect(
+      (builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }).QueryBuilder
+        .create
+    ).toHaveBeenCalledWith(
+      baseConfig.table,
+      expect.anything(),
+      expect.objectContaining({ softDeleteColumn: 'deleted_at', softDeleteMode: 'exclude' })
+    );
+  });
+
   it('define methods are available on find() and all() results', async (): Promise<void> => {
     const config = { ...baseConfig, casts: {}, timestamps: false };
     const builderMod = await import('@orm/QueryBuilder');
