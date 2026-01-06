@@ -22,8 +22,9 @@ vi.mock('@tools/queue/Queue', () => ({
 describe('createQueueWorker (patch coverage)', () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 
+    // Re-setup default implementations
     queueMock.dequeue.mockResolvedValue(undefined);
     queueMock.enqueue.mockResolvedValue('id');
     queueMock.ack.mockResolvedValue(undefined);
@@ -176,5 +177,30 @@ describe('createQueueWorker (patch coverage)', () => {
       .mockResolvedValueOnce(undefined);
 
     await expect(worker.startWorker({ queueName: 'q' })).resolves.toBe(1);
+  });
+
+  it('processOne re-enqueues without processing when timestamp is in future', async () => {
+    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+
+    const handle = vi.fn();
+    const worker = createQueueWorker<{ v: number; timestamp?: number }>({
+      kindLabel: 'job',
+      defaultQueueName: 'q',
+      maxAttempts: 3,
+      getLogFields: (p) => ({ v: p.v }),
+      handle,
+    });
+
+    const future = Date.now() + 10000;
+    const payload = { v: 1, timestamp: future };
+    // attempts=1, but it shouldn't matter as we requeue entirely new message
+    queueMock.dequeue.mockResolvedValueOnce({ id: 'm_future', payload, attempts: 1 });
+
+    await expect(worker.processOne('q')).resolves.toBe(false);
+
+    expect(handle).not.toHaveBeenCalled();
+    // Expect requeue with same payload
+    expect(queueMock.enqueue).toHaveBeenCalledWith('q', payload, undefined);
+    expect(queueMock.ack).toHaveBeenCalledWith('q', 'm_future', undefined);
   });
 });

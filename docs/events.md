@@ -5,7 +5,7 @@ Zintrust includes a small, framework-agnostic Events & Listeners utility you can
 ## Basic Usage
 
 ```ts
-import { EventDispatcher } from '@zintrust/core';
+import { EventDispatcher } from '@events/EventDispatcher';
 
 type AppEvents = {
   'user.created': { userId: string };
@@ -29,7 +29,7 @@ off();
 ## Once Listeners
 
 ```ts
-import { EventDispatcher } from '@zintrust/core';
+import { EventDispatcher } from '@events/EventDispatcher';
 
 type AppEvents = {
   'job.finished': { jobId: string };

@@ -43,6 +43,22 @@ const createProcessOne = <TPayload>(
 
     const baseLogFields = buildBaseLogFields(message, options.getLogFields);
 
+    // Check for delayed execution
+    const payload = message.payload as Record<string, unknown> & { timestamp?: number };
+    const rawTimestamp = payload['timestamp'];
+    const timestamp = typeof rawTimestamp === 'number' ? rawTimestamp : 0;
+
+    if (timestamp > Date.now()) {
+      Logger.info(`${options.kindLabel} not due yet, re-queueing`, {
+        ...baseLogFields,
+        dueAt: new Date(timestamp).toISOString(),
+      });
+      // Re-queue original payload
+      await Queue.enqueue(queueName, message.payload, driverName);
+      await Queue.ack(queueName, message.id, driverName);
+      return false;
+    }
+
     try {
       Logger.info(`Processing queued ${options.kindLabel}`, baseLogFields);
       await options.handle(message.payload);
@@ -50,17 +66,19 @@ const createProcessOne = <TPayload>(
       Logger.info(`${options.kindLabel} processed successfully`, baseLogFields);
       return true;
     } catch (error) {
+      const attempts = (message as QueueMessage<TPayload> & { attempts?: number }).attempts ?? 0;
+
       Logger.error(`Failed to process ${options.kindLabel}`, {
         ...baseLogFields,
         error,
-        attempts: message.attempts,
+        attempts,
       });
 
-      if (message.attempts < options.maxAttempts) {
+      if (attempts < options.maxAttempts) {
         await Queue.enqueue(queueName, message.payload, driverName);
         Logger.info(`${options.kindLabel} re-queued for retry`, {
           ...baseLogFields,
-          attempts: message.attempts + 1,
+          attempts: attempts + 1,
         });
       }
 
