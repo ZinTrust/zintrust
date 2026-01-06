@@ -8,7 +8,7 @@ import { Env } from './env';
 import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from './type';
 import { ErrorFactory } from '@zintrust/core';
 
-const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
+const hasOwn = <T extends object>(obj: T, key: PropertyKey): key is keyof T => {
   return Object.prototype.hasOwnProperty.call(obj, key);
 };
 
@@ -27,11 +27,13 @@ const getStorageDriver = (config: StorageConfigRuntime, name?: string): StorageD
     throw ErrorFactory.createConfigError(`Storage disk not configured: ${diskName}`);
   }
 
-  // Backwards-compatible fallback.
-  const fallback = config.drivers['local'] ?? Object.values(config.drivers)[0];
-  if (fallback !== undefined) return fallback;
+  if (Object.keys(config.drivers ?? {}).length === 0) {
+    throw ErrorFactory.createConfigError('No storage disks are configured');
+  }
 
-  throw ErrorFactory.createConfigError('No storage disks are configured');
+  throw ErrorFactory.createConfigError(
+    `Storage default disk not configured: ${diskName || '<empty>'}`
+  );
 };
 
 const getDrivers = (): StorageDrivers => ({
@@ -74,7 +76,7 @@ const storageConfigObj = {
    * Default storage driver (dynamic; tests may mutate process.env)
    */
   get default(): string {
-    return Env.get('STORAGE_DRIVER', 'local');
+    return Env.get('STORAGE_CONNECTION', Env.get('STORAGE_DRIVER', 'local')).trim().toLowerCase();
   },
 
   /**

@@ -31,6 +31,8 @@
       "@scheduler/*": ["./src/scheduler/*"],
       "@schedules/*": ["./src/schedules/*"],
       "@exceptions/*": ["./src/exceptions/*"],
+      "@events/*": ["./src/events/*"],
+      "@session/*": ["./src/session/*"],
       "@functions/*": ["./src/functions/*"],
       "@services/*": ["./src/services/*"],
       "@app/*": ["./app/*"],

@@ -219,4 +219,44 @@ describe('QueryBuilder', () => {
     expect(() => builder.limit(-1)).toThrow(/Unsafe LIMIT value/i);
     expect(() => builder.offset(-1)).toThrow(/Unsafe OFFSET value/i);
   });
+
+  it('should apply soft delete filtering when configured', () => {
+    const builder = QueryBuilder.create('users', undefined as any, {
+      softDeleteColumn: 'deleted_at',
+    });
+
+    expect(builder.toSQL()).toContain('WHERE "deleted_at" IS NULL');
+    expect(builder.getParameters()).toEqual([]);
+  });
+
+  it('should allow including trashed records with withTrashed()', () => {
+    const builder = QueryBuilder.create('users', undefined as any, {
+      softDeleteColumn: 'deleted_at',
+    });
+
+    builder.withTrashed();
+
+    expect(builder.toSQL()).toBe('SELECT * FROM "users"');
+  });
+
+  it('should allow only trashed records with onlyTrashed()', () => {
+    const builder = QueryBuilder.create('users', undefined as any, {
+      softDeleteColumn: 'deleted_at',
+    });
+
+    builder.onlyTrashed();
+
+    expect(builder.toSQL()).toContain('WHERE "deleted_at" IS NOT NULL');
+    expect(builder.getParameters()).toEqual([]);
+  });
+
+  it('should allow restoring default soft-delete filtering with withoutTrashed()', () => {
+    const builder = QueryBuilder.create('users', undefined as any, {
+      softDeleteColumn: 'deleted_at',
+    });
+
+    builder.withTrashed().withoutTrashed();
+
+    expect(builder.toSQL()).toContain('WHERE "deleted_at" IS NULL');
+  });
 });

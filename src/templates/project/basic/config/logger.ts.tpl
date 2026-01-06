@@ -3,8 +3,6 @@
  * Sealed namespace pattern - all exports through Logger namespace
  * Replaces console.* calls throughout the codebase
  */
-import { Logger } from '@zintrust/core';
-
 import { appConfig } from './app';
 import { Env } from './env';
 

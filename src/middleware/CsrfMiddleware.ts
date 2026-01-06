@@ -4,12 +4,12 @@
  * Uses CsrfTokenManager for token generation and validation
  */
 
-import { generateSecureJobId } from '@/common/uuid';
 import { Logger } from '@config/logger';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
 import { Middleware } from '@middleware/MiddlewareStack';
 import { CsrfTokenManager } from '@security/CsrfTokenManager';
+import { SessionManager } from '@session/SessionManager';
 
 export interface CsrfOptions {
   cookieName?: string;
@@ -32,6 +32,7 @@ export const CsrfMiddleware = Object.freeze({
   create(options: CsrfOptions = {}): Middleware {
     const config = { ...DEFAULT_OPTIONS, ...options };
     const manager = CsrfTokenManager.create();
+    const sessions = SessionManager.create();
 
     // Periodic cleanup to prevent memory leaks
     // Run every hour (matching default token TTL)
@@ -45,34 +46,12 @@ export const CsrfMiddleware = Object.freeze({
     }
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
-      // We need a session ID to bind the token to.
-      // Assuming a session middleware has run before this and populated req.context.sessionId
-      // or we use a cookie for the session ID.
-      // For now, we'll try to get it from a cookie or generate a temporary one if missing (stateless fallback)
+      const cookieHeader = req.getHeader('cookie');
+      const cookies = parseCookies(typeof cookieHeader === 'string' ? cookieHeader : '');
 
-      // Note: In a real scenario, this MUST be tied to the user's authenticated session.
-      // Here we check for a specific session cookie or header.
-      const cookies = parseCookies((req.getHeader('cookie') as string) || '');
-      let sessionId = cookies['ZIN_SESSION_ID'] || (req.context['sessionId'] as string);
-
-      if (!sessionId) {
-        // If no session exists, we can't effectively bind CSRF to a session.
-        // However, for the sake of the middleware functioning in a stateless way (Double Submit Cookie pattern),
-        // we can generate a pseudo-session-id if one doesn't exist, but it's less secure.
-        // Ideally, this middleware should throw if session is missing.
-        // For this implementation, we'll skip if no session is found, but log a warning.
-        // Logger.warn('CSRF Middleware: No session ID found. Skipping CSRF check.');
-        // await next();
-        // return;
-
-        // Better approach: Generate a session ID if missing (Double Submit Cookie foundation)
-        // IMPORTANT: use a cryptographically secure generator (Sonar S2245).
-        sessionId = await generateSecureJobId(
-          'CSRF Middleware: secure crypto API not available to generate a session id'
-        );
-        // We would need to set this session cookie, but we can't easily do that without a SessionManager.
-        // We'll assume the SessionMiddleware handles session creation.
-      }
+      // Guarantee a session id exists and a session cookie is set if missing.
+      // This allows CSRF tokens to be bound to a stable session identifier.
+      const sessionId = await sessions.ensureSessionId(req, res);
 
       const method = req.getMethod();
 
@@ -81,7 +60,7 @@ export const CsrfMiddleware = Object.freeze({
         const token = manager.generateToken(sessionId);
 
         // Set cookie for Double Submit Cookie pattern (readable by frontend)
-        res.setHeader('Set-Cookie', `${config.cookieName}=${token}; Path=/; SameSite=Strict`);
+        appendSetCookie(res, `${config.cookieName}=${token}; Path=/; SameSite=Strict`);
 
         // Also expose in locals for server-side rendering
         res.locals['csrfToken'] = token;
@@ -111,6 +90,22 @@ export const CsrfMiddleware = Object.freeze({
     };
   },
 });
+
+function appendSetCookie(res: IResponse, cookie: string): void {
+  const existing = res.getHeader('Set-Cookie');
+
+  if (existing === undefined) {
+    res.setHeader('Set-Cookie', cookie);
+    return;
+  }
+
+  if (Array.isArray(existing)) {
+    res.setHeader('Set-Cookie', [...existing, cookie]);
+    return;
+  }
+
+  res.setHeader('Set-Cookie', [existing, cookie]);
+}
 
 /**
  * Helper to parse cookies

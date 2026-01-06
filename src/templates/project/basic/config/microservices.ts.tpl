@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@zintrust/core';
+import { Env } from './env';
 
 const microservicesConfigObj = {
   /**

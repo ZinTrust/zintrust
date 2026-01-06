@@ -155,6 +155,7 @@ export const ${options.name} = Object.freeze(
   fillable: [${fillable.map((f) => `'${f}'`).join(', ')}],
   hidden: [${hidden.map((f) => `'${f}'`).join(', ')}],
   timestamps: ${options.timestamps !== false},
+  softDeletes: ${options.softDelete === true},
   casts: {
 `;
 

@@ -26,6 +26,7 @@ export { MiddlewareStack } from '@middleware/MiddlewareStack';
 export type { Middleware } from '@middleware/MiddlewareStack';
 export { RateLimiter } from '@middleware/RateLimiter';
 export { SecurityMiddleware } from '@middleware/SecurityMiddleware';
+export { SessionMiddleware } from '@middleware/SessionMiddleware';
 export { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -46,6 +47,10 @@ export type { IRouter } from '@routing/Router';
 export { delay, ensureDirSafe } from '@common/index';
 export { generateSecureJobId, generateUuid } from '@common/uuid';
 export { ZintrustAwsSigV4 as AwsSigV4 };
+
+// Collections
+export { collect, Collection } from '@/collections/index';
+export type { ICollection, PrimitiveKey } from '@/collections/index';
 
 // HTTP Client
 export { HttpClient } from '@httpClient/Http';
@@ -90,12 +95,33 @@ export type {
   JwtOptions,
   JwtPayload,
 } from '@security/JwtManager';
+export { PasswordResetTokenBroker } from '@security/PasswordResetTokenBroker';
+export type {
+  IPasswordResetTokenBroker,
+  IPasswordResetTokenStore,
+  PasswordResetTokenBrokerOptions,
+  PasswordResetTokenBrokerType,
+  PasswordResetTokenRecord,
+} from '@security/PasswordResetTokenBroker';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 export { ZintrustSignedRequest as SignedRequest };
 
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
+
+// Events
+export { EventDispatcher } from '@events/EventDispatcher';
+export type { EventListener, EventMap, IEventDispatcher } from '@events/EventDispatcher';
+
+// Sessions
+export { SessionManager } from '@session/SessionManager';
+export type {
+  ISession,
+  ISessionManager,
+  SessionData,
+  SessionManagerOptions,
+} from '@session/SessionManager';
 
 // Config (core-owned)
 export { Env } from '@config/env';

@@ -17,8 +17,8 @@ describe('SecurityMiddleware', () => {
     } as unknown as IRequest;
 
     res = {
-      setHeader: vi.fn((name: string, value: string) => {
-        headers[name.toLowerCase()] = value;
+      setHeader: vi.fn((name: string, value: string | string[]) => {
+        headers[name.toLowerCase()] = Array.isArray(value) ? value.join(',') : value;
         return res;
       }),
       setStatus: vi.fn().mockReturnThis(),
