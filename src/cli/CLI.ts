@@ -4,6 +4,7 @@
  */
 
 import { AddCommand } from '@cli/commands/AddCommand';
+import { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
@@ -13,9 +14,11 @@ import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
+import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { QACommand } from '@cli/commands/QACommand';
+import { QueueCommand } from '@cli/commands/QueueCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
@@ -80,6 +83,9 @@ const registerCommands = (program: Command): void => {
     PrepareCommand,
     AddCommand.create(),
     StartCommand.create(),
+    QueueCommand.create(),
+    BroadcastWorkCommand.create(),
+    NotificationWorkCommand.create(),
     MigrateCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),

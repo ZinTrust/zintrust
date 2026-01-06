@@ -219,9 +219,13 @@ export { MarkdownRenderer } from '@tools/templates';
 export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 
 // Broadcast (for real-time features)
+export { BroadcastWorker } from '@/workers/BroadcastWorker';
 export { Broadcast } from '@tools/broadcast/Broadcast';
 export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
 export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
+
+// Notification Workers
+export { NotificationWorker } from '@/workers/NotificationWorker';
 
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';
