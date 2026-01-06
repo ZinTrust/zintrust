@@ -71,6 +71,38 @@ export const Broadcast = Object.freeze({
     return sendWithConfig(config, channel, event, data);
   },
 
+  // Alias for send() - explicit intent for immediate broadcast
+  async broadcastNow(channel: string, event: string, data: unknown) {
+    return this.send(channel, event, data);
+  },
+
+  // Queue broadcast for async processing
+  async BroadcastLater(
+    channel: string,
+    event: string,
+    data: unknown,
+    options: { queueName?: string; timestamp?: number } = {}
+  ) {
+    const { queueName = 'broadcasts', timestamp = Date.now() } = options;
+    const { Queue } = await import('@tools/queue/Queue');
+    const messageId = await Queue.enqueue(queueName, {
+      type: 'broadcast',
+      channel,
+      event,
+      data,
+      timestamp,
+      attempts: 0,
+    });
+    return messageId;
+  },
+
+  queue(queueName: string) {
+    return Object.freeze({
+      BroadcastLater: async (channel: string, event: string, data: unknown, options = {}) =>
+        Broadcast.BroadcastLater(channel, event, data, { ...options, queueName }),
+    });
+  },
+
   broadcaster(name?: string): Broadcaster {
     return Object.freeze({
       send: async (channel: string, event: string, data: unknown): Promise<unknown> => {

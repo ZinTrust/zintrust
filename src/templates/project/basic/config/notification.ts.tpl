@@ -21,8 +21,18 @@ const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
 };
 
 const getDefaultChannel = (drivers: NotificationDrivers): string => {
-  const value = normalizeName(Env.get('NOTIFICATION_DRIVER', 'console'));
+  const envSelectedRaw = Env.get(
+    'NOTIFICATION_CONNECTION',
+    Env.get('NOTIFICATION_DRIVER', 'console')
+  );
+  const value = normalizeName(envSelectedRaw ?? 'console');
+
   if (value.length > 0 && hasOwn(drivers, value)) return value;
+
+  if (envSelectedRaw.trim().length > 0) {
+    throw ErrorFactory.createConfigError(`Notification channel not configured: ${value}`);
+  }
+
   return hasOwn(drivers, 'console') ? 'console' : (Object.keys(drivers)[0] ?? 'console');
 };
 
@@ -34,21 +44,25 @@ const getNotificationDriver = (
   const channelName = selected === 'default' ? normalizeName(config.default) : selected;
 
   const isExplicitSelection =
-    name !== undefined && String(name).trim().length > 0 && normalizeName(String(name)) !== 'default';
+    name !== undefined &&
+    String(name).trim().length > 0 &&
+    normalizeName(String(name)) !== 'default';
 
   if (channelName.length > 0 && hasOwn(config.drivers, channelName)) {
     const resolved = config.drivers[channelName];
     if (resolved !== undefined) return resolved;
   }
 
+  if (Object.keys(config.drivers ?? {}).length === 0) {
+    throw ErrorFactory.createConfigError('No notification channels are configured');
+  }
+
   if (isExplicitSelection) {
     throw ErrorFactory.createConfigError(`Notification channel not configured: ${channelName}`);
   }
 
-  const fallback = config.drivers['console'] ?? Object.values(config.drivers)[0];
-  if (fallback !== undefined) return fallback;
-
-  throw ErrorFactory.createConfigError('No notification channels are configured');
+  // Default selection is strict: if `default` points at an unconfigured channel, throw.
+  throw ErrorFactory.createConfigError(`Notification channel not configured: ${channelName}`);
 };
 
 const getBaseProviders = (): NotificationProviders => {

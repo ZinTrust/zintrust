@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-smtp",
-  "version": "0.1.12",
+  "version": "0.1.15",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.1.12"
+    "@zintrust/core": "^0.1.15"
   },
   "publishConfig": {
     "access": "public"

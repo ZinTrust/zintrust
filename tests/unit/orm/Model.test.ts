@@ -245,6 +245,107 @@ describe('Model', () => {
     expect((m as IModel & { greet: (p: string) => string }).greet('hi')).toBe('hi Plan');
   });
 
+  it('applies mutators on set/fill and accessors on get', async (): Promise<void> => {
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      mutators: {
+        name: (value) => String(value).trim().toUpperCase(),
+      },
+      accessors: {
+        name: (value) => `hello ${String(value)}`,
+      },
+    });
+
+    const m = Test.create({ name: '  zin  ' });
+    expect(m.getAttribute('name')).toBe('hello ZIN');
+
+    m.setAttribute('name', '  trust ');
+    expect(m.getAttribute('name')).toBe('hello TRUST');
+  });
+
+  it('runs observer hooks on save and delete', async (): Promise<void> => {
+    const saving = vi.fn();
+    const creating = vi.fn();
+    const created = vi.fn();
+    const saved = vi.fn();
+    const deleting = vi.fn();
+    const deleted = vi.fn();
+
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      observers: [{ saving, creating, created, saved, deleting, deleted }],
+    });
+
+    const m = Test.create({ name: 'A' });
+
+    await m.save();
+    expect(saving).toHaveBeenCalledTimes(1);
+    expect(creating).toHaveBeenCalledTimes(1);
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(saved).toHaveBeenCalledTimes(1);
+
+    m.setExists(true);
+    await m.delete();
+    expect(deleting).toHaveBeenCalledTimes(1);
+    expect(deleted).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports named query scopes via DefinedModel.scope()', async (): Promise<void> => {
+    const qb = (await import('@orm/QueryBuilder')) as unknown as {
+      __getLastBuilder: () => MockBuilder | undefined;
+    };
+
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      scopes: {
+        active: (builder) => builder.where('active', '=', true),
+      },
+    });
+
+    Test.scope('active');
+
+    const last = qb.__getLastBuilder();
+    expect(last?.where).toHaveBeenCalledWith('active', '=', true);
+  });
+
+  it('throws for unknown query scopes', () => {
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      scopes: {},
+    });
+
+    expect(() => Test.scope('missing')).toThrow(/Unknown query scope/i);
+  });
+
+  it('passes soft delete options to QueryBuilder when softDeletes=true', async () => {
+    const builderMod = await import('@orm/QueryBuilder');
+    const Test = Model.define({
+      ...baseConfig,
+      casts: {},
+      timestamps: false,
+      softDeletes: true,
+    });
+
+    Test.query();
+
+    expect(
+      (builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }).QueryBuilder
+        .create
+    ).toHaveBeenCalledWith(
+      baseConfig.table,
+      expect.anything(),
+      expect.objectContaining({ softDeleteColumn: 'deleted_at', softDeleteMode: 'exclude' })
+    );
+  });
+
   it('define methods are available on find() and all() results', async (): Promise<void> => {
     const config = { ...baseConfig, casts: {}, timestamps: false };
     const builderMod = await import('@orm/QueryBuilder');

@@ -37,6 +37,8 @@ export default defineConfig({
       '@scheduler': path.resolve(__dirname, './src/scheduler'),
       '@schedules': path.resolve(__dirname, './src/schedules'),
       '@exceptions': path.resolve(__dirname, './src/exceptions'),
+      '@events': path.resolve(__dirname, './src/events'),
+      '@session': path.resolve(__dirname, './src/session'),
       '@functions': path.resolve(__dirname, './src/functions'),
       '@services': path.resolve(__dirname, './src/services'),
       '@app': path.resolve(__dirname, './app'),

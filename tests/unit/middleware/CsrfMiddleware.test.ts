@@ -4,7 +4,7 @@ import { IRequest } from '@/http/Request';
 import { IResponse } from '@/http/Response';
 import { CsrfMiddleware } from '@/middleware/CsrfMiddleware';
 
-vi.mock('@/common/uuid', () => ({
+vi.mock('@common/uuid', () => ({
   generateSecureJobId: vi.fn(async () => 'secure-session-id'),
 }));
 
@@ -12,24 +12,27 @@ describe('CsrfMiddleware', () => {
   let req: IRequest;
   let res: IResponse;
   let next: () => Promise<void>;
-  let headers: Record<string, string>;
+  let requestHeaders: Record<string, string>;
+  let responseHeaders: Record<string, string | string[]>;
   let locals: Record<string, any>;
 
   beforeEach(() => {
-    headers = {};
+    requestHeaders = {};
+    responseHeaders = {};
     locals = {};
     req = {
       getMethod: vi.fn(() => 'GET'),
-      getHeader: vi.fn((name: string) => headers[name.toLowerCase()]),
+      getHeader: vi.fn((name: string) => requestHeaders[name.toLowerCase()]),
       getBody: vi.fn(() => ({})),
       context: { sessionId: 'test-session' },
     } as unknown as IRequest;
 
     res = {
-      setHeader: vi.fn((name: string, value: string) => {
-        headers[name.toLowerCase()] = value;
+      setHeader: vi.fn((name: string, value: string | string[]) => {
+        responseHeaders[name.toLowerCase()] = value;
         return res;
       }),
+      getHeader: vi.fn((name: string) => responseHeaders[name.toLowerCase()]),
       setStatus: vi.fn().mockReturnThis(),
       json: vi.fn(),
       locals,
@@ -48,16 +51,42 @@ describe('CsrfMiddleware', () => {
 
     await middleware(req, res, next);
 
-    expect(res.setHeader).toHaveBeenCalledWith(
-      'Set-Cookie',
-      expect.stringContaining('XSRF-TOKEN=')
-    );
+    const setCookieCalls = (res.setHeader as any).mock.calls
+      .filter((c: any[]) => c[0] === 'Set-Cookie')
+      .map((c: any[]) => c[1]) as Array<string | string[]>;
+
+    const flattened = setCookieCalls.flatMap((value) => (Array.isArray(value) ? value : [value]));
+
+    expect(flattened.some((cookie) => cookie.includes('XSRF-TOKEN='))).toBe(true);
     expect(res.locals['csrfToken']).toBeDefined();
     expect(next).toHaveBeenCalled();
   });
 
+  it('sets Set-Cookie directly when no existing header is present (session cookie already exists)', async () => {
+    const middleware = CsrfMiddleware.create();
+
+    // Provide a session cookie so SessionManager does not set a Set-Cookie header.
+    requestHeaders['cookie'] = 'ZIN_SESSION_ID=existing-session-id';
+
+    await middleware(req, res, next);
+
+    // Should have set a single Set-Cookie string for the CSRF token.
+    expect(responseHeaders['set-cookie']).toEqual(expect.stringContaining('XSRF-TOKEN='));
+  });
+
+  it('appends to Set-Cookie array when Set-Cookie is already an array', async () => {
+    const middleware = CsrfMiddleware.create();
+
+    requestHeaders['cookie'] = 'ZIN_SESSION_ID=existing-session-id';
+    responseHeaders['set-cookie'] = ['a=1'];
+
+    await middleware(req, res, next);
+
+    expect(responseHeaders['set-cookie']).toEqual(['a=1', expect.stringContaining('XSRF-TOKEN=')]);
+  });
+
   it('should generate a secure session id when missing', async () => {
-    const { generateSecureJobId } = await import('@/common/uuid');
+    const { generateSecureJobId } = await import('@common/uuid');
     const middleware = CsrfMiddleware.create();
 
     // No cookie + no req.context.sessionId
@@ -66,7 +95,7 @@ describe('CsrfMiddleware', () => {
     await middleware(req, res, next);
 
     expect(generateSecureJobId).toHaveBeenCalledWith(
-      'CSRF Middleware: secure crypto API not available to generate a session id'
+      'SessionManager: secure crypto API not available to generate a session id'
     );
     expect(res.locals['csrfToken']).toBeDefined();
     expect(next).toHaveBeenCalled();

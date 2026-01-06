@@ -58,6 +58,8 @@ export type StorageDriverConfig =
 
 export type StorageDrivers = Record<string, StorageDriverConfig>;
 
+export type StorageDriverName = keyof StorageDrivers;
+
 export type StorageConfigRuntime = {
   readonly default: string;
   readonly drivers: StorageDrivers;

@@ -463,7 +463,7 @@ import { HttpClient, Logger } from '@zintrust/core';
 Version note (important, but simple):
 
 - Adapter packages are meant to be **version-aligned** with `@zintrust/core`.
-- In an app, install matching versions (for example `@zintrust/core@0.1.12` with `@zintrust/queue-redis@0.1.12`).
+- In an app, install matching versions (for example `@zintrust/core@0.1.15` with `@zintrust/queue-redis@0.1.15`).
 - In this monorepo, versions are synced from core during release.
 
 This demo should touch each adapter package at least once:

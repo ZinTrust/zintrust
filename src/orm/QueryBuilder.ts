@@ -12,11 +12,21 @@ export interface WhereClause {
   value: unknown;
 }
 
+export type SoftDeleteMode = 'exclude' | 'include' | 'only';
+
+export interface QueryBuilderOptions {
+  softDeleteColumn?: string;
+  softDeleteMode?: SoftDeleteMode;
+}
+
 export interface IQueryBuilder {
   select(...columns: string[]): IQueryBuilder;
   where(column: string, operator: string | number | boolean | null, value?: unknown): IQueryBuilder;
   andWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
   orWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
+  withTrashed(): IQueryBuilder;
+  onlyTrashed(): IQueryBuilder;
+  withoutTrashed(): IQueryBuilder;
   join(table: string, on: string): IQueryBuilder;
   leftJoin(table: string, on: string): IQueryBuilder;
   orderBy(column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder;
@@ -44,6 +54,7 @@ interface QueryState {
   offsetValue?: number;
   orderByClause?: { column: string; direction: 'ASC' | 'DESC' };
   joins: Array<{ table: string; on: string }>;
+  softDelete?: { column: string; mode: SoftDeleteMode };
 }
 
 /**
@@ -176,6 +187,25 @@ const compileWhere = (
   return { sql: ` WHERE ${clauses.join(' AND ')}`, parameters };
 };
 
+const buildSoftDeleteWhereClause = (column: string, mode: SoftDeleteMode): WhereClause | null => {
+  const col = column.trim();
+  if (col.length === 0) return null;
+  assertSafeIdentifierPath(col, 'soft delete column');
+
+  if (mode === 'include') return null;
+  if (mode === 'only') return { column: col, operator: 'IS NOT', value: null };
+  return { column: col, operator: 'IS', value: null };
+};
+
+const getEffectiveWhereConditions = (state: QueryState): WhereClause[] => {
+  if (state.softDelete === undefined) return state.whereConditions;
+
+  const clause = buildSoftDeleteWhereClause(state.softDelete.column, state.softDelete.mode);
+  if (clause === null) return state.whereConditions;
+
+  return [...state.whereConditions, clause];
+};
+
 /**
  * Build ORDER BY clause
  */
@@ -213,7 +243,7 @@ const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown
 
   const columns = buildSelectClause(state.selectColumns);
   const fromClause = state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName)}` : '';
-  const where = compileWhere(state.whereConditions);
+  const where = compileWhere(getEffectiveWhereConditions(state));
   const sql = `SELECT ${columns}${fromClause}${where.sql}${buildOrderByClause(state.orderByClause)}${buildLimitOffsetClause(
     state.limitValue,
     state.offsetValue
@@ -308,6 +338,30 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
     },
     andWhere: (column, operator, value) => builder.where(column, operator, value),
     orWhere: (column, operator, value) => builder.where(column, operator, value),
+    withTrashed: () => {
+      if (state.softDelete === undefined) {
+        state.softDelete = { column: 'deleted_at', mode: 'include' };
+      } else {
+        state.softDelete.mode = 'include';
+      }
+      return builder;
+    },
+    onlyTrashed: () => {
+      if (state.softDelete === undefined) {
+        state.softDelete = { column: 'deleted_at', mode: 'only' };
+      } else {
+        state.softDelete.mode = 'only';
+      }
+      return builder;
+    },
+    withoutTrashed: () => {
+      if (state.softDelete === undefined) {
+        state.softDelete = { column: 'deleted_at', mode: 'exclude' };
+      } else {
+        state.softDelete.mode = 'exclude';
+      }
+      return builder;
+    },
     join: (tableJoin, on) => {
       state.joins.push({ table: tableJoin, on });
       return builder;
@@ -352,7 +406,11 @@ export const QueryBuilder = Object.freeze({
   /**
    * Create a new query builder instance
    */
-  create(tableOrDb: string | IDatabase, db?: IDatabase): IQueryBuilder {
+  create(
+    tableOrDb: string | IDatabase,
+    db?: IDatabase,
+    options: QueryBuilderOptions = {}
+  ): IQueryBuilder {
     const hasTable = typeof tableOrDb === 'string';
     const tableName = hasTable ? String(tableOrDb).trim() : '';
     const database = hasTable ? db : tableOrDb;
@@ -366,6 +424,13 @@ export const QueryBuilder = Object.freeze({
       selectColumns: ['*'],
       joins: [],
     };
+
+    if (options.softDeleteColumn !== undefined && options.softDeleteColumn.trim().length > 0) {
+      state.softDelete = {
+        column: options.softDeleteColumn.trim(),
+        mode: options.softDeleteMode ?? 'exclude',
+      };
+    }
 
     return createBuilder(state, database);
   },

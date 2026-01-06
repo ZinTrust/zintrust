@@ -4,7 +4,7 @@
  * Supports: AWS Secrets Manager, Parameter Store, Cloudflare KV, Deno env
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger } from './logger';
 import type {
   GetSecretOptions,
   SecretConfig,

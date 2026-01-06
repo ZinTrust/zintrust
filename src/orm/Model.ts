@@ -6,7 +6,7 @@
 import { DEFAULTS } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase } from '@orm/Database';
-import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
+import { IQueryBuilder, QueryBuilder, type QueryBuilderOptions } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne, IRelationship } from '@orm/Relationships';
 
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
@@ -23,6 +23,20 @@ export interface ModelConfig {
   hidden: string[];
   timestamps: boolean;
   casts: Record<string, string>;
+  softDeletes?: boolean;
+  accessors?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
+  mutators?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
+  scopes?: Record<string, (builder: IQueryBuilder, ...args: unknown[]) => IQueryBuilder>;
+  observers?: Array<{
+    saving?: (model: IModel) => void | Promise<void>;
+    saved?: (model: IModel) => void | Promise<void>;
+    creating?: (model: IModel) => void | Promise<void>;
+    created?: (model: IModel) => void | Promise<void>;
+    updating?: (model: IModel) => void | Promise<void>;
+    updated?: (model: IModel) => void | Promise<void>;
+    deleting?: (model: IModel) => void | Promise<void>;
+    deleted?: (model: IModel) => void | Promise<void>;
+  }>;
   connection?: string;
 }
 
@@ -92,7 +106,45 @@ const fillAttributes = (
 ): void => {
   for (const [key, value] of Object.entries(newAttrs)) {
     if (config.fillable.length === 0 || config.fillable.includes(key)) {
-      attrs[key] = castAttribute(config, key, value);
+      const mutator = config.mutators?.[key];
+      const nextValue = mutator ? mutator(value, attrs) : value;
+      attrs[key] = castAttribute(config, key, nextValue);
+    }
+  }
+};
+
+const applyAccessor = (
+  config: ModelConfig,
+  key: string,
+  attrs: Record<string, unknown>
+): unknown => {
+  const raw = attrs[key];
+  const accessor = config.accessors?.[key];
+  return accessor ? accessor(raw, attrs) : raw;
+};
+
+const runObservers = async (
+  config: ModelConfig,
+  hook:
+    | 'saving'
+    | 'saved'
+    | 'creating'
+    | 'created'
+    | 'updating'
+    | 'updated'
+    | 'deleting'
+    | 'deleted',
+  model: IModel
+): Promise<void> => {
+  const observers = config.observers;
+  if (observers === undefined || observers.length === 0) return;
+
+  for (const observer of observers) {
+    const fn = observer[hook];
+    if (typeof fn === 'function') {
+      // Observers intentionally run sequentially.
+      // eslint-disable-next-line no-await-in-loop
+      await fn(model);
     }
   }
 };
@@ -169,29 +221,40 @@ export const createModel = (
       return model;
     },
     setAttribute: (key, value): IModel => {
-      attrs[key] = castAttribute(config, key, value);
+      const mutator = config.mutators?.[key];
+      const nextValue = mutator ? mutator(value, attrs) : value;
+      attrs[key] = castAttribute(config, key, nextValue);
       return model;
     },
-    getAttribute: (key): unknown => attrs[key],
+    getAttribute: (key): unknown => applyAccessor(config, key, attrs),
     getAttributes: (): Record<string, unknown> => ({ ...attrs }),
 
     // remove in production - use saveChanges pattern
-    // eslint-disable-next-line @typescript-eslint/require-await
     async save(): Promise<boolean> {
       if (db === undefined) throw ErrorFactory.createDatabaseError('Database not initialized');
+
+      const isCreate = isExists === false;
+      await runObservers(config, 'saving', model);
+      await runObservers(config, isCreate ? 'creating' : 'updating', model);
+
       if (config.timestamps) {
         attrs['created_at'] = attrs['created_at'] ?? new Date().toISOString();
         attrs['updated_at'] = new Date().toISOString();
       }
       isExists = true;
       original = { ...attrs };
+
+      await runObservers(config, isCreate ? 'created' : 'updated', model);
+      await runObservers(config, 'saved', model);
       return true;
     },
 
     // remove in production - use delete pattern
-    // eslint-disable-next-line @typescript-eslint/require-await
     async delete(): Promise<boolean> {
       if (!isExists || db === undefined) return false;
+
+      await runObservers(config, 'deleting', model);
+      await runObservers(config, 'deleted', model);
       return true;
     },
     toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
@@ -218,11 +281,17 @@ export const query = (table: string, connection?: string): IQueryBuilder => {
   return QueryBuilder.create(table, db);
 };
 
+const buildSoftDeleteOptions = (config: ModelConfig): QueryBuilderOptions | undefined => {
+  if (config.softDeletes !== true) return undefined;
+  return { softDeleteColumn: 'deleted_at', softDeleteMode: 'exclude' };
+};
+
 /**
  * Find a model by ID
  */
 export const find = async (config: ModelConfig, id: unknown): Promise<IModel | null> => {
-  const builder = query(config.table, config.connection);
+  const db = useDatabase(undefined, config.connection ?? DEFAULTS.CONNECTION);
+  const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
   builder.where('id', '=', String(id)).limit(1);
   const result = await builder.first();
   if (result === null) return null;
@@ -236,7 +305,8 @@ export const find = async (config: ModelConfig, id: unknown): Promise<IModel | n
  * Get all records for a model
  */
 export const all = async (config: ModelConfig): Promise<IModel[]> => {
-  const builder = query(config.table, config.connection);
+  const db = useDatabase(undefined, config.connection ?? DEFAULTS.CONNECTION);
+  const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
   const results = await builder.get();
   return results.map((result) => {
     const model = createModel(config, result as Record<string, unknown>);
@@ -276,6 +346,7 @@ export type DefinedModel<T extends BoundModelMethods> = {
   find: (id: unknown) => Promise<(IModel & T) | null>;
   all: () => Promise<Array<IModel & T>>;
   query: () => IQueryBuilder;
+  scope: (name: string, ...args: unknown[]) => IQueryBuilder;
   getTable: () => string;
   db: (connection: string) => DefinedModel<T>;
 };
@@ -315,7 +386,22 @@ export function define(
       const models = await all(cfg);
       return models.map((m) => attach(m));
     },
-    query: (): IQueryBuilder => query(cfg.table, cfg.connection),
+    query: (): IQueryBuilder => {
+      const db = useDatabase(undefined, cfg.connection ?? DEFAULTS.CONNECTION);
+      return QueryBuilder.create(cfg.table, db, buildSoftDeleteOptions(cfg));
+    },
+    scope: (name: string, ...args: unknown[]): IQueryBuilder => {
+      const scopes = cfg.scopes;
+      const fn = scopes?.[name];
+      if (typeof fn !== 'function') {
+        throw ErrorFactory.createConfigError(`Unknown query scope: ${name}`);
+      }
+      const builder = (() => {
+        const db = useDatabase(undefined, cfg.connection ?? DEFAULTS.CONNECTION);
+        return QueryBuilder.create(cfg.table, db, buildSoftDeleteOptions(cfg));
+      })();
+      return fn(builder, ...args);
+    },
     getTable: (): string => cfg.table,
     db: (connection: string): DefinedModel<BoundModelMethods> =>
       createDefinedModel({ ...cfg, connection }),

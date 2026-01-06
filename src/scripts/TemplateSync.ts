@@ -11,6 +11,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as crypto from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import * as nodePath from 'node:path';
 
 const __dirname = esmDirname(import.meta.url);
 const ROOT_DIR = path.resolve(__dirname, '../../');
@@ -154,10 +155,35 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
     return content;
   }
 
+  const rewriteConfigAlias = (aliasSuffix: string): string => {
+    const currentDir = nodePath.posix.dirname(relPath);
+    const from = currentDir === '.' ? '' : currentDir;
+    const target = aliasSuffix;
+    const relative = nodePath.posix.relative(from, target);
+    return relative.startsWith('.') ? relative : `./${relative}`;
+  };
+
   // Starter templates should import framework APIs from the public package surface,
   // not from internal path-alias modules that only exist in the framework repo.
   return (
     content
+      // Node-singletons are internal to this repo; starter templates should use Node built-ins.
+      .replaceAll("'@node-singletons/fs'", "'node:fs'")
+      .replaceAll('"@node-singletons/fs"', '"node:fs"')
+      .replaceAll("'@node-singletons/path'", "'node:path'")
+      .replaceAll('"@node-singletons/path"', '"node:path"')
+
+      // Starter project config/* should reference sibling config modules via relative imports.
+      .replaceAll(/(['"])@config\/([^'"]+)\1/g, (_m, quote: string, suffix: string) => {
+        const rewritten = rewriteConfigAlias(suffix);
+        return `${quote}${rewritten}${quote}`;
+      })
+
+      // Middleware imports are framework APIs; they must come from the public package.
+      .replaceAll(/(['"])@middleware\/[^'"]+\1/g, (_m, quote: string) => {
+        return `${quote}@zintrust/core${quote}`;
+      })
+
       .replaceAll("'@routing/Router'", "'@zintrust/core'")
       .replaceAll("'@orm/Database'", "'@zintrust/core'")
       .replaceAll("'@orm/QueryBuilder'", "'@zintrust/core'")
@@ -279,7 +305,7 @@ const syncStarterProjectTemplates = (params: {
     templateDirRel: `${params.projectRoot}/config`,
     description: 'Starter project config/* (from src/config/*)',
     transformContent: rewriteStarterTemplateImports,
-    checksumSalt: 'starter-imports-v1',
+    checksumSalt: 'starter-imports-v4',
   });
 
   const s3 = syncProjectTemplateDir({

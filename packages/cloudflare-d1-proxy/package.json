@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-d1-proxy",
-  "version": "0.1.12",
+  "version": "0.1.15",
   "type": "module",
   "private": true,
   "exports": {

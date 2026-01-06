@@ -10,6 +10,33 @@ Send a notification:
 
     await Notification.send('+15551234567', 'Hello from Zintrust');
 
+### Explicit “now” vs queued “later”
+
+`Notification.send(...)` already sends immediately. For explicit intent, you can use `NotifyNow(...)`.
+
+```ts
+import { Notification, NotificationWorker } from '@zintrust/core';
+
+// Immediate
+await Notification.send('+15551234567', 'Hello from Zintrust');
+await Notification.NotifyNow('+15551234567', 'Hello from Zintrust');
+
+// Queue for later processing
+await Notification.NotifyLater('+15551234567', 'Your order has been shipped', { orderId: '12345' });
+
+// Schedule for a specific time (timestamp is milliseconds since epoch)
+const scheduleTime = Date.now() + 60 * 60 * 1000;
+await Notification.NotifyLater(
+  '+15551234567',
+  'Reminder: Your appointment is in 1 hour',
+  { appointmentId: 'appt-123' },
+  { timestamp: scheduleTime, queueName: 'reminders' }
+);
+
+// Cron/supervisor-friendly: drain queue once
+await NotificationWorker.processAll('notifications');
+```
+
 At runtime, the driver is selected by `NOTIFICATION_DRIVER`.
 
 ## Drivers
@@ -196,3 +223,138 @@ Rendering uses the shared Markdown renderer and simple `{{variable}}` substituti
 - Driver registry: `src/tools/notification/Registry.ts`
 - Drivers: `src/tools/notification/drivers/`
 - Template registry: `src/tools/notification/templates/markdown/`
+
+## Running queued notifications (cron / supervisor)
+
+`Notification.NotifyLater(...)` enqueues jobs. Nothing will process that queue unless you run a worker.
+
+### CLI (recommended)
+
+Run the worker via the Zintrust CLI (run once, drain up to limits, then exit):
+
+```bash
+# Auto-detect job type from payload
+zin queue notifications --timeout 10 --retry 3 --max-items 1000
+
+# Explicit kind
+zin queue work notification notifications --timeout 10 --retry 3 --max-items 1000
+
+# Convenience alias
+zin notification:work notifications --timeout 10 --retry 3 --max-items 1000
+```
+
+Zintrust exposes a worker helper:
+
+- `NotificationWorker.runOnce({ queueName?, driverName?, maxItems? })` (recommended)
+- `NotificationWorker.startWorker({ queueName?, driverName?, signal? })` (drain-until-empty, then exits)
+
+The recommended production pattern is: **run once, exit**, and let your scheduler/supervisor run it repeatedly.
+
+### Minimal worker script (optional)
+
+If you prefer not to rely on the `zin` CLI being available in your runtime image/host, you can run the worker from a tiny Node script.
+
+In short: use scripts only if you can’t run `zin` inside your container/host.
+
+This is optional — the CLI approach above is the recommended way to run queued notifications.
+
+Create a tiny script in your app repo (example name: `scripts/notification-worker.mjs`) and run it from cron/systemd/k8s.
+
+```js
+import { NotificationWorker } from '@zintrust/core';
+
+const processed = await NotificationWorker.runOnce({ queueName: 'notifications' });
+console.log(`NotificationWorker processed: ${processed}`);
+```
+
+### Cron (Linux/macOS)
+
+Run every minute:
+
+```cron
+* * * * * cd /path/to/your/app && zin notification:work notifications --timeout 50 --retry 3 --max-items 1000 >> /var/log/zintrust-notification-worker.log 2>&1
+```
+
+### systemd (service + timer)
+
+`/etc/systemd/system/zintrust-notification-worker.service`
+
+```ini
+[Unit]
+Description=Zintrust Notification Queue Worker (run once)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/your/app
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/env zin notification:work notifications --timeout 50 --retry 3 --max-items 1000
+```
+
+`/etc/systemd/system/zintrust-notification-worker.timer`
+
+```ini
+[Unit]
+Description=Run Zintrust Notification Queue Worker every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable:
+
+```bash
+sudo systemctl enable --now zintrust-notification-worker.timer
+```
+
+### pm2
+
+pm2 is primarily a **process manager**, not a scheduler. The simplest and most reliable approach is still cron/systemd timers.
+
+If you want pm2 to keep a loop wrapper alive:
+
+```bash
+pm2 start "bash -lc 'while true; do zin notification:work notifications --timeout 50 --retry 3 --max-items 1000; sleep 60; done'" --name zintrust-notification-worker
+```
+
+### Kubernetes
+
+**CronJob (recommended)** — run once per schedule:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: zintrust-notification-worker
+spec:
+  schedule: '*/1 * * * *'
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: worker
+              image: your-app-image:latest
+              command:
+                [
+                  'zin',
+                  'notification:work',
+                  'notifications',
+                  '--timeout',
+                  '50',
+                  '--retry',
+                  '3',
+                  '--max-items',
+                  '1000',
+                ]
+              env:
+                - name: NODE_ENV
+                  value: 'production'
+```
+
+If you need faster-than-cron cadence, use a Deployment with a loop wrapper, but CronJob is preferred when it fits.

@@ -11,8 +11,8 @@ export interface IResponse {
   setStatus(code: number): IResponse;
   getStatus(): number;
   readonly statusCode: number;
-  setHeader(name: string, value: string): IResponse;
-  getHeader(name: string): string | undefined;
+  setHeader(name: string, value: string | string[]): IResponse;
+  getHeader(name: string): string | string[] | undefined;
   json(data: unknown): void;
   text(text: string): void;
   html(html: string): void;
@@ -32,7 +32,7 @@ export const Response = Object.freeze({
    */
   create(res: http.ServerResponse): IResponse {
     let statusCodeValue = 200;
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string | string[]> = {};
     const locals: Record<string, unknown> = {};
 
     const response: IResponse = {
@@ -51,12 +51,12 @@ export const Response = Object.freeze({
       get statusCode(): number {
         return statusCodeValue;
       },
-      setHeader(name: string, value: string): IResponse {
+      setHeader(name: string, value: string | string[]): IResponse {
         headers[name] = value;
         res.setHeader(name, value);
         return this;
       },
-      getHeader(name: string): string | undefined {
+      getHeader(name: string): string | string[] | undefined {
         return headers[name];
       },
       json(data: unknown): void {

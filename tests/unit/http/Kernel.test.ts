@@ -57,6 +57,7 @@ describe('Kernel', () => {
   let mockRes: http.ServerResponse;
   let mockRequest: IRequest;
   let mockResponse: IResponse;
+  let mockResponseHeaders: Record<string, string | string[]>;
 
   beforeEach(() => {
     mockRouter = { routes: [] } as unknown as IRouter;
@@ -89,10 +90,15 @@ describe('Kernel', () => {
       context: { sessionId: 'test-session' },
     } as unknown as IRequest;
 
+    mockResponseHeaders = {};
     mockResponse = {
       setStatus: vi.fn().mockReturnThis(),
       getStatus: vi.fn().mockReturnValue(200),
-      setHeader: vi.fn().mockReturnThis(),
+      setHeader: vi.fn((name: string, value: string | string[]) => {
+        mockResponseHeaders[name] = value;
+        return mockResponse;
+      }),
+      getHeader: vi.fn((name: string) => mockResponseHeaders[name]),
       json: vi.fn(),
       getRaw: vi.fn().mockReturnValue(mockRes),
       locals: {},
