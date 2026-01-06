@@ -45,7 +45,7 @@ const createProcessOne = <TPayload>(
 
     // Check for delayed execution
     const payload = message.payload as Record<string, unknown> & { timestamp?: number };
-    const rawTimestamp = payload['timestamp'];
+    const rawTimestamp = 'timestamp' in payload ? payload['timestamp'] : 0;
     const timestamp = typeof rawTimestamp === 'number' ? rawTimestamp : 0;
 
     if (timestamp > Date.now()) {
