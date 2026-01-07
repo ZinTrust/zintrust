@@ -224,7 +224,7 @@ describe('ProjectScaffolder Context and Preparation Basic', () => {
     const variables = scaffolder.getVariables();
 
     expect(variables['author']).toBe('Your Name');
-    expect(variables['port']).toBe(3000);
+    expect(variables['port']).toBe(7777);
     expect(variables['database']).toBe('sqlite');
   });
 });

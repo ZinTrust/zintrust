@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 describe('ConfigSchema helpers', () => {
   test('getDefaultValue returns nested defaults and undefined for missing', () => {
     expect(getDefaultValue('name')).toBe('zintrust-app');
-    expect(getDefaultValue('server.port')).toBe(3000);
+    expect(getDefaultValue('server.port')).toBe(7777);
     expect(getDefaultValue('features.database')).toBe(true);
     expect(getDefaultValue('non.existing.path')).toBeUndefined();
   });

@@ -90,7 +90,7 @@ const getProjectDefaults = (name: string, options: CommandOptions): NewProjectCo
   const database = getStringOption(options, 'database', 'sqlite') as DatabaseType;
   const portRaw = getStringOption(options, 'port', '7777');
   const portParsed = Number.parseInt(portRaw, 10);
-  const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 3000;
+  const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 7777;
 
   const author = getStringOption(options, 'author', '');
   const description = getStringOption(options, 'description', `A new Zintrust project: ${name}`);
