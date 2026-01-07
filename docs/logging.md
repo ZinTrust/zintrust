@@ -53,7 +53,7 @@ if (!Env.DISABLE_LOGGING) {
 ```bash
 # Development: Capture all logs including debug
 export LOG_LEVEL=debug
-npm run dev
+zin start
 ```
 
 **Production Example:**

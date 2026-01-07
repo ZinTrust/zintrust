@@ -76,7 +76,7 @@ export function registerRoutes(router: IRouter): void {
 Start the development server:
 
 ```bash
-npm run dev
+zin start
 ```
 
 You can now send a POST request to `http://localhost:7777/tasks` to create a task, and a GET request to see all tasks.
