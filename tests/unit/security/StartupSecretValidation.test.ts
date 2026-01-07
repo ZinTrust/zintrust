@@ -131,6 +131,26 @@ describe('StartupSecretValidation', () => {
     expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
   });
 
+  it('fails when APP_KEY base64 decodes to empty in production', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: '====',
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'APP_KEY' && /valid base64/i.test(e.message))).toBe(
+      true
+    );
+  });
+
   it('fails when APP_KEY has wrong byte length in production', async () => {
     vi.resetModules();
     const shortKey = Buffer.from('short', 'utf8').toString('base64');

@@ -148,6 +148,13 @@ describe('EncryptedEnvelope', () => {
     ).toThrow(/invalid.*payload.*json/i);
   });
 
+  it('throws when encrypted payload JSON is not an object', () => {
+    const notObjectPayload = Buffer.from(JSON.stringify(null), 'utf8').toString('base64');
+    expect(() =>
+      EncryptedEnvelope.decryptString(notObjectPayload, { cipher: 'aes-256-cbc', key: keyB64 })
+    ).toThrow(/not an object/i);
+  });
+
   it('throws when encrypted payload is missing iv/value', () => {
     const badPayload = Buffer.from(JSON.stringify({ iv: '' }), 'utf8').toString('base64');
     expect(() =>
@@ -175,6 +182,28 @@ describe('EncryptedEnvelope', () => {
     ).toThrow(/missing.*tag|unable.*decrypt/i);
   });
 
+  it('throws when iv base64 trims to empty', () => {
+    const payload = Buffer.from(
+      JSON.stringify({ iv: '   ', value: 'dGVzdA==', mac: '00' }),
+      'utf8'
+    ).toString('base64');
+
+    expect(() =>
+      EncryptedEnvelope.decryptString(payload, { cipher: 'aes-256-cbc', key: keyB64 })
+    ).toThrow(/invalid base64.*iv|unable.*decrypt/i);
+  });
+
+  it('throws when iv base64 decodes to an empty buffer', () => {
+    const payload = Buffer.from(
+      JSON.stringify({ iv: '====', value: 'dGVzdA==', mac: '00' }),
+      'utf8'
+    ).toString('base64');
+
+    expect(() =>
+      EncryptedEnvelope.decryptString(payload, { cipher: 'aes-256-cbc', key: keyB64 })
+    ).toThrow(/invalid base64.*iv|unable.*decrypt/i);
+  });
+
   it('throws when keyringFromEnv is called without ENCRYPTION_CIPHER', () => {
     const env = { ENCRYPTION_CIPHER: '', APP_KEY: keyB64 };
     expect(() => EncryptedEnvelope.keyringFromEnv(env)).toThrow(/encryption_cipher.*must be set/i);
@@ -189,6 +218,17 @@ describe('EncryptedEnvelope', () => {
 
     const keyring = EncryptedEnvelope.keyringFromEnv(env);
     expect(keyring.previousKeys.length).toBe(1);
+  });
+
+  it('treats invalid JSON APP_PREVIOUS_KEYS as empty', () => {
+    const env = {
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: keyB64,
+      APP_PREVIOUS_KEYS: '[not-valid-json',
+    };
+
+    const keyring = EncryptedEnvelope.keyringFromEnv(env);
+    expect(keyring.previousKeys.length).toBe(0);
   });
 
   it('handles empty APP_PREVIOUS_KEYS gracefully', () => {

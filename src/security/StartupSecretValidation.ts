@@ -56,18 +56,13 @@ const normalizeCipher = (raw: string): 'aes-256-cbc' | 'aes-256-gcm' | null => {
 };
 
 const parseBase64KeyBytes = (rawKey: string): number | null => {
-  const trimmed = rawKey.trim();
-  if (trimmed.length === 0) return null;
+  const base64 = rawKey.startsWith('base64:') ? rawKey.slice('base64:'.length) : rawKey;
 
-  const base64 = trimmed.startsWith('base64:') ? trimmed.slice('base64:'.length) : trimmed;
-
-  try {
-    const decoded = Buffer.from(base64, 'base64');
-    if (decoded.length === 0) return null;
-    return decoded.length;
-  } catch {
+  const decoded = Buffer.from(base64, 'base64');
+  if (decoded.length === 0) {
     return null;
   }
+  return decoded.length;
 };
 
 const validateEncryptionInterop = (): StartupSecretValidationError[] => {

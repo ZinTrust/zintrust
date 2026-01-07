@@ -91,14 +91,13 @@ const decodeBase64 = (input: string, label: string): Buffer => {
   return decoded;
 };
 
-const expectedKeyBytesForCipher = (cipher: EncryptedEnvelopeCipher): number => {
-  // Current supported ciphers are aes-256-*, which require 32-byte keys.
-  if (cipher === 'aes-256-cbc') return 32;
-  if (cipher === 'aes-256-gcm') return 32;
+const CIPHER_KEY_BYTES: Record<EncryptedEnvelopeCipher, number> = Object.freeze({
+  'aes-256-cbc': 32,
+  'aes-256-gcm': 32,
+});
 
-  // Exhaustiveness guard (should never happen)
-  throw ErrorFactory.createValidationError('Unsupported cipher');
-};
+const expectedKeyBytesForCipher = (cipher: EncryptedEnvelopeCipher): number =>
+  CIPHER_KEY_BYTES[cipher];
 
 const parseKey = (key: string, cipher: EncryptedEnvelopeCipher): Uint8Array => {
   const trimmed = key.trim();
