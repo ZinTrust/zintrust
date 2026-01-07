@@ -76,4 +76,115 @@ describe('StartupSecretValidation', () => {
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  it('fails when ENCRYPTION_CIPHER is unsupported in production', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-128-cbc',
+      APP_KEY: validAppKey,
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'ENCRYPTION_CIPHER')).toBe(true);
+  });
+
+  it('fails when APP_KEY is missing in production', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: '',
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
+  });
+
+  it('fails when APP_KEY is not valid base64 in production', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: '!!!invalid',
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
+  });
+
+  it('fails when APP_KEY has wrong byte length in production', async () => {
+    vi.resetModules();
+    const shortKey = Buffer.from('short', 'utf8').toString('base64');
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: shortKey,
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
+  });
+
+  it('fails when APP_PREVIOUS_KEYS is invalid JSON in production', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: validAppKey,
+      APP_PREVIOUS_KEYS: '[not-valid-json',
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'APP_PREVIOUS_KEYS')).toBe(true);
+  });
+
+  it('fails when APP_PREVIOUS_KEYS JSON is not an array of strings in production', async () => {
+    vi.resetModules();
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: 'production',
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: validAppKey,
+      APP_PREVIOUS_KEYS: JSON.stringify([1, 2, 3]),
+      JWT_ENABLED: 'false',
+      API_KEY_ENABLED: 'false',
+    };
+
+    const { StartupSecretValidation } = await import('@security/StartupSecretValidation');
+    const result = StartupSecretValidation.validate();
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.key === 'APP_PREVIOUS_KEYS')).toBe(true);
+  });
 });

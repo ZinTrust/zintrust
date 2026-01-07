@@ -115,4 +115,90 @@ describe('EncryptedEnvelope', () => {
 
     expect(decrypted).toEqual({ a: 1 });
   });
+
+  it('throws when cipher is unsupported', () => {
+    expect(() => EncryptedEnvelope.normalizeCipher('aes-128-cbc' as any)).toThrow(
+      /unsupported.*cipher/i
+    );
+  });
+
+  it('throws when APP_KEY is missing', () => {
+    expect(() =>
+      EncryptedEnvelope.encryptString('test', { cipher: 'aes-256-cbc', key: '' })
+    ).toThrow(/missing.*app_key/i);
+  });
+
+  it('throws when APP_KEY has invalid length', () => {
+    const shortKey = Buffer.from('short', 'utf8').toString('base64');
+    expect(() =>
+      EncryptedEnvelope.encryptString('test', { cipher: 'aes-256-cbc', key: shortKey })
+    ).toThrow(/invalid.*app_key.*length/i);
+  });
+
+  it('throws when base64 is invalid', () => {
+    expect(() =>
+      EncryptedEnvelope.encryptString('test', { cipher: 'aes-256-cbc', key: '!!!invalid' })
+    ).toThrow(/invalid.*base64/i);
+  });
+
+  it('throws when encrypted payload is not valid JSON', () => {
+    const badPayload = Buffer.from('not-json', 'utf8').toString('base64');
+    expect(() =>
+      EncryptedEnvelope.decryptString(badPayload, { cipher: 'aes-256-cbc', key: keyB64 })
+    ).toThrow(/invalid.*payload.*json/i);
+  });
+
+  it('throws when encrypted payload is missing iv/value', () => {
+    const badPayload = Buffer.from(JSON.stringify({ iv: '' }), 'utf8').toString('base64');
+    expect(() =>
+      EncryptedEnvelope.decryptString(badPayload, { cipher: 'aes-256-cbc', key: keyB64 })
+    ).toThrow(/missing.*iv.*value/i);
+  });
+
+  it('throws when aes-256-cbc envelope is missing mac', () => {
+    const noMacPayload = Buffer.from(
+      JSON.stringify({ iv: 'dGVzdA==', value: 'dGVzdA==' }),
+      'utf8'
+    ).toString('base64');
+    expect(() =>
+      EncryptedEnvelope.decryptString(noMacPayload, { cipher: 'aes-256-cbc', key: keyB64 })
+    ).toThrow(/missing.*mac|unable.*decrypt/i);
+  });
+
+  it('throws when aes-256-gcm envelope is missing tag', () => {
+    const noTagPayload = Buffer.from(
+      JSON.stringify({ iv: 'dGVzdA==', value: 'dGVzdA==', mac: '' }),
+      'utf8'
+    ).toString('base64');
+    expect(() =>
+      EncryptedEnvelope.decryptString(noTagPayload, { cipher: 'aes-256-gcm', key: keyB64 })
+    ).toThrow(/missing.*tag|unable.*decrypt/i);
+  });
+
+  it('throws when keyringFromEnv is called without ENCRYPTION_CIPHER', () => {
+    const env = { ENCRYPTION_CIPHER: '', APP_KEY: keyB64 };
+    expect(() => EncryptedEnvelope.keyringFromEnv(env)).toThrow(/encryption_cipher.*must be set/i);
+  });
+
+  it('parses APP_PREVIOUS_KEYS as JSON array', () => {
+    const env = {
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: keyB64,
+      APP_PREVIOUS_KEYS: JSON.stringify([keyB64]),
+    };
+
+    const keyring = EncryptedEnvelope.keyringFromEnv(env);
+    expect(keyring.previousKeys.length).toBe(1);
+  });
+
+  it('handles empty APP_PREVIOUS_KEYS gracefully', () => {
+    const env = {
+      ENCRYPTION_CIPHER: 'aes-256-cbc',
+      APP_KEY: keyB64,
+      APP_PREVIOUS_KEYS: '',
+    };
+
+    const keyring = EncryptedEnvelope.keyringFromEnv(env);
+    expect(keyring.previousKeys.length).toBe(0);
+  });
 });
