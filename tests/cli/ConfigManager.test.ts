@@ -60,7 +60,7 @@ describe('ConfigManager Basic Operations', () => {
     await manager.load();
 
     const port = manager.get('server.port');
-    expect(port).toBe(3000);
+    expect(port).toBe(7777);
   });
 
   it('should set config value', async () => {

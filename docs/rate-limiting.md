@@ -4,7 +4,7 @@ Zintrust includes a built-in, zero-dependency Rate Limiter to protect your appli
 
 ## Overview
 
-The `RateLimiter` middleware uses a Token Bucket algorithm to limit the number of requests a client can make within a specified time window. It stores state in-memory, making it fast and efficient for single-instance deployments.
+The `RateLimiter` middleware uses a simple fixed-window counter to limit the number of requests a client can make within a specified time window.
 
 ## Usage
 
@@ -37,16 +37,59 @@ router.group('/api', (api) => {
 });
 ```
 
+### Generated service API
+
+In addition to middleware, Zintrust exposes a small generated API for programmatic limiting:
+
+```typescript
+import { RateLimiter } from '@zintrust/core';
+
+const key = `login:${ip}`;
+
+if (!(await RateLimiter.attempt(key, 5, 60))) {
+  const retryAfterSeconds = await RateLimiter.till(key);
+  return res.status(429).json({ message: 'Too many attempts', retryAfterSeconds });
+}
+```
+
+Available methods:
+
+- `RateLimiter.attempt(key, maxAttempts, decaySeconds)`
+- `RateLimiter.tooManyAttempts(key, maxAttempts)`
+- `RateLimiter.till(key)`
+- `RateLimiter.clear(key)`
+
+### Store selection
+
+By default, rate limiting uses an in-process memory store.
+
+You can switch the programmatic API store via:
+
+- `RateLimiter.configure({ store: 'memory' | 'redis' | 'kv' | 'db' })`, or
+- env vars: `RATE_LIMIT_STORE` / `RATE_LIMIT_DRIVER`
+
+Notes:
+
+- `db` maps to the built-in `mongodb` cache store.
+- Remote stores rely on TTL for expiration; memory uses lazy cleanup.
+
+You can also select a store per middleware instance:
+
+```typescript
+RateLimiter.create({ store: 'redis', windowMs: 60_000, max: 100 });
+```
+
 ## Configuration
 
-| Option         | Type     | Default                | Description                                       |
-| -------------- | -------- | ---------------------- | ------------------------------------------------- |
-| `windowMs`     | number   | 60000                  | Time window in milliseconds.                      |
-| `max`          | number   | 100                    | Maximum number of requests allowed per window.    |
-| `message`      | string   | "Too many requests..." | Error message sent when limit is exceeded.        |
-| `statusCode`   | number   | 429                    | HTTP status code returned when limit is exceeded. |
-| `headers`      | boolean  | true                   | Whether to send `X-RateLimit-*` headers.          |
-| `keyGenerator` | function | IP-based               | Function to generate a unique key for the client. |
+| Option         | Type     | Default                | Description                                                   |
+| -------------- | -------- | ---------------------- | ------------------------------------------------------------- |
+| `windowMs`     | number   | 60000                  | Time window in milliseconds.                                  |
+| `max`          | number   | 100                    | Maximum number of requests allowed per window.                |
+| `message`      | string   | "Too many requests..." | Error message sent when limit is exceeded.                    |
+| `statusCode`   | number   | 429                    | HTTP status code returned when limit is exceeded.             |
+| `headers`      | boolean  | true                   | Whether to send `X-RateLimit-*` headers.                      |
+| `keyGenerator` | function | IP-based               | Function to generate a unique key for the client.             |
+| `store`        | string   | "memory"               | Store for rate limit state: `memory` / `redis` / `kv` / `db`. |
 
 ## Custom Key Generator
 
@@ -70,5 +113,5 @@ When enabled, the following headers are sent with each response:
 
 ## Performance Considerations
 
-- **Memory Usage**: The rate limiter stores client state in memory. A cleanup process runs every `windowMs` to remove expired entries.
-- **Distributed Systems**: This implementation is in-memory only. For distributed deployments (e.g., multiple server instances), you should use a centralized store like Redis. (Note: The current implementation is zero-dependency and does not support Redis out of the box).
+- **Memory Usage**: With the default memory store, rate limit state is kept in-process and expired entries are removed via lazy cleanup.
+- **Distributed Systems**: For multi-instance deployments, pick a remote store (`redis`, `kv`, or `db`) so all instances share the same limiter state.

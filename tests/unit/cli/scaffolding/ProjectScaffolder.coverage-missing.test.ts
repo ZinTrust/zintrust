@@ -93,8 +93,7 @@ describe('ProjectScaffolder missing-line coverage', () => {
 
     // Exercise file rendering
     // Exercise unknown-db env branch (dbLines default return [])
-    // IMPORTANT: call createEnvFile BEFORE createFiles, because the on-disk template
-    // includes an .env.tpl and createFiles would create .env first.
+    // createEnvFile can run before or after createFiles; templates no longer create `.env`.
     expect(scaffolder.createEnvFile()).toBe(true);
 
     const created = scaffolder.createFiles();
