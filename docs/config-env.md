@@ -13,6 +13,14 @@ import { env } from '@zintrust/core';
 // env.*
 ```
 
+## Encryption interoperability env vars
+
+These env vars enable cross-framework encrypted payload compatibility (used by `EncryptedEnvelope`):
+
+- `ENCRYPTION_CIPHER`: `aes-256-cbc` or `aes-256-gcm` (case-insensitive). Required in production when startup secret validation is enabled.
+- `APP_KEY`: Base64 key (32 bytes). Supports `base64:...` prefix.
+- `APP_PREVIOUS_KEYS`: Optional key rotation list (comma-separated or JSON array).
+
 ## Snapshot (top)
 
 ```ts

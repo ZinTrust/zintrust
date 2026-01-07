@@ -5,6 +5,8 @@
  */
 
 export {
+  createCipheriv,
+  createDecipheriv,
   createHash,
   createHmac,
   createSign,
@@ -13,4 +15,5 @@ export {
   pbkdf2Sync,
   randomBytes,
   randomInt,
+  timingSafeEqual,
 } from 'node:crypto';
