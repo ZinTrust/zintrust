@@ -16,7 +16,7 @@ cd my-app
 zin add db:sqlite
 
 # Start development
-npm run dev
+zin start
 ```
 
 Your API is now running at `http://localhost:7777`
@@ -169,7 +169,7 @@ export function registerRoutes(app: Application): void {
 ### 3. Run Your API
 
 ```bash
-npm run dev
+zin start
 ```
 
 Test it:

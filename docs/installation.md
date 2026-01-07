@@ -48,5 +48,5 @@ cd my-app
 # Install database driver dependencies on-demand (example: SQLite)
 zin add db:sqlite
 
-npm run dev
+zin start
 ```

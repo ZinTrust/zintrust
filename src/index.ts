@@ -85,6 +85,7 @@ export type {
   CsrfTokenManagerType,
   ICsrfTokenManager,
 } from '@security/CsrfTokenManager';
+export { EncryptedEnvelope } from '@security/EncryptedEnvelope';
 export { Encryptor } from '@security/Encryptor';
 export { Hash } from '@security/Hash';
 export { JwtManager } from '@security/JwtManager';

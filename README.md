@@ -251,7 +251,7 @@ Join our community and stay updated:
 - **Dev.to**: [zintrust](https://dev.to/zintrust)
 - **Medium**: [@zintrust](https://medium.com/@zintrust)
 - **Stack Overflow**: [zintrust](https://stackoverflow.com/users/32073668/zintrust)
-- **LinkedIn**: [ZinTrust](https://linkedin.com/company/zintrust)
+- **LinkedIn**: [ZinTrust](https://linkedin.com/company/zintrustjs)
 - **YouTube**: [@zintrust](https://youtube.com/@zintrust)
 
 ## License

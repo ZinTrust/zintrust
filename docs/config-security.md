@@ -13,6 +13,76 @@ import { security } from '@zintrust/core';
 // security.*
 ```
 
+## Encrypted envelope interoperability
+
+Zintrust supports reading/writing **framework-compatible encrypted payloads** (e.g. encrypted DB columns) using the same key material that other ecosystems commonly use.
+
+Required env vars:
+
+- `ENCRYPTION_CIPHER`: Cipher used for encrypted envelopes. Supported values (case-insensitive):
+  - `aes-256-cbc`
+  - `aes-256-gcm`
+- `APP_KEY`: Base64 key material (32 bytes). Supports both `base64:...` and raw base64.
+
+Optional:
+
+- `APP_PREVIOUS_KEYS`: Key rotation fallback (comma-separated keys or JSON array). During decryption, Zintrust will try `APP_KEY` first, then each previous key.
+
+Migration guidance:
+
+- Set `ENCRYPTION_CIPHER` to match your previous framework so you can **decrypt existing DB values without re-encrypting**.
+- Keep `APP_KEY` the same value you already use in production.
+
+### Examples
+
+#### Encrypt/decrypt strings (encrypted envelope)
+
+```ts
+import { EncryptedEnvelope } from '@zintrust/core';
+
+const cipher = 'aes-256-cbc';
+const key = process.env.APP_KEY!; // supports `base64:...` or raw base64
+
+const encrypted = EncryptedEnvelope.encryptString('hello', { cipher, key });
+const plain = EncryptedEnvelope.decryptString(encrypted, { cipher, key });
+```
+
+#### Decrypt with key rotation (`APP_PREVIOUS_KEYS`)
+
+```ts
+import { EncryptedEnvelope } from '@zintrust/core';
+
+const cipher = process.env.ENCRYPTION_CIPHER!;
+const key = process.env.APP_KEY!;
+
+// Example: if you rotated keys, keep the old ones here (comma-separated or JSON array)
+const previousKeys = (process.env.APP_PREVIOUS_KEYS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const plain = EncryptedEnvelope.decryptString('<db_value>', { cipher, key, previousKeys });
+```
+
+#### Encrypt/decrypt structured data (serialized payload envelope)
+
+Zintrust does not assume a specific serialization format. You provide it:
+
+```ts
+import { EncryptedEnvelope } from '@zintrust/core';
+
+const serializer = {
+  serialize: (v: unknown) => JSON.stringify(v),
+  deserialize: (s: string) => JSON.parse(s) as unknown,
+};
+
+const cipher = process.env.ENCRYPTION_CIPHER!;
+const key = process.env.APP_KEY!;
+
+const encrypted = EncryptedEnvelope.encrypt({ a: 1 }, { cipher, key, serializer });
+const decrypted = EncryptedEnvelope.decrypt(encrypted, { cipher, key, serializer });
+```
+
 ## Snapshot (top)
 
 ```ts

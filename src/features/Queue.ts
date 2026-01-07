@@ -19,7 +19,7 @@ export const Queue = Object.freeze({
   /**
    * Add a job to the queue
    */
-  async add<T>(data: T): Promise<string> {
+  add<T>(data: T): string {
     const id = generateSecureJobId();
     const job: QueueJob = {
       id,

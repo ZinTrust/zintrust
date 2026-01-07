@@ -57,3 +57,7 @@ COVERAGE_SUMMARY.txt
 test-app/
 .env copy
 .envcopy
+promotion/
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md
