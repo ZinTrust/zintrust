@@ -1364,7 +1364,7 @@ describe('NewCommand', () => {
         interactive: 'not-a-boolean',
       });
 
-      expect(config.port).toBe(3000);
+      expect(config.port).toBe(7777);
       expect(config.template).toBe('basic');
       expect(config.database).toBe('sqlite');
     });

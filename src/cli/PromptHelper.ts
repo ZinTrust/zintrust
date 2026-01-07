@@ -81,7 +81,7 @@ export const PromptHelper = Object.freeze({
   /**
    * Ask for port number
    */
-  async port(defaultPort: number = 3000, interactive: boolean = true): Promise<number> {
+  async port(defaultPort: number = 7777, interactive: boolean = true): Promise<number> {
     if (!interactive) {
       return defaultPort;
     }

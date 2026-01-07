@@ -81,7 +81,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     logging: false,
   },
   server: {
-    port: 3000,
+    port: 7777,
     host: '0.0.0.0',
     environment: 'development',
     debug: false,

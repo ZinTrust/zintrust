@@ -124,6 +124,48 @@ describe('ProjectScaffolder extra tests', () => {
     await fsPromises.rm(projectPath, { recursive: true, force: true });
   });
 
+  it('createEnvFile backfills HOST/PORT/LOG_LEVEL when missing or empty (without clobbering values)', async () => {
+    const projectPath = path.join(tmpRoot, `env-backfill-project-${Date.now()}`);
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+
+    const scaffolder = createProjectScaffolder(tmpRoot);
+    scaffolder.prepareContext({ name: path.basename(projectPath), port: 8888, database: 'sqlite' });
+
+    await fsPromises.mkdir(scaffolder.getProjectPath(), { recursive: true });
+    const envPath = path.join(scaffolder.getProjectPath(), '.env');
+
+    // Exercise:
+    // - inline comment stripping (space/tab + #)
+    // - leading '#' comment-as-value
+    // - quote handling with # inside quotes
+    // - duplicate keys (seen.has)
+    await fsPromises.writeFile(
+      envPath,
+      [
+        '# existing env',
+        'HOST="local#host"',
+        'PORT=#comment',
+        'LOG_LEVEL=\t#comment',
+        'LOG_LEVEL=info',
+        'CUSTOM=1',
+        '',
+      ].join('\n')
+    );
+
+    expect(scaffolder.createEnvFile()).toBe(true);
+
+    const env = await fsPromises.readFile(envPath, 'utf8');
+    // HOST is non-empty so it should remain as-is (and prevent appending a default HOST line).
+    expect(env).toContain('HOST="local#host"');
+    // Empty values should be backfilled.
+    expect(env).toContain('PORT=8888');
+    expect(env).toContain('LOG_LEVEL=debug');
+    // Duplicate key should be preserved (second occurrence should remain).
+    expect(env).toContain('LOG_LEVEL=info');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+  });
+
   it('createProjectConfigFile writes .zintrust.json with correct values', async () => {
     const projectPath = path.join(tmpRoot, `config-project-${Date.now()}`);
     await fsPromises.rm(projectPath, { recursive: true, force: true });
