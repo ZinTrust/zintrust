@@ -55,6 +55,7 @@ tmp/missing-coverage-statements.json
 coverage_cli.txt
 COVERAGE_SUMMARY.txt
 test-app/
+.env copy
 .envcopy
 promotion/
 
