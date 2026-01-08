@@ -83,6 +83,10 @@ const distPackage = {
       types: './src/index.d.ts',
       import: './src/index.js',
     },
+    './start': {
+      types: './src/start.d.ts',
+      import: './src/start.js',
+    },
     './node': {
       types: './src/node.d.ts',
       import: './src/node.js',

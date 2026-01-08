@@ -1,9 +1,10 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
+import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync, readFileSync } from '@node-singletons/fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { Command } from 'commander';
 
@@ -13,11 +14,16 @@ type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 't
 
 type StartCommandOptions = CommandOptions & {
   wrangler?: boolean;
+  wg?: boolean;
+  deno?: boolean;
+  lambda?: boolean;
   watch?: boolean;
   mode?: string;
   runtime?: string;
   port?: string;
 };
+
+type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
 
 const isValidModeInput = (value: string): value is StartModeInput =>
   value === 'development' ||
@@ -86,6 +92,24 @@ const resolveRuntime = (options: StartCommandOptions): string | undefined => {
   return raw === '' ? undefined : raw;
 };
 
+const resolveStartVariant = (options: StartCommandOptions): StartVariant => {
+  const wantWrangler = options.wrangler === true || options.wg === true;
+  const wantDeno = options.deno === true;
+  const wantLambda = options.lambda === true;
+
+  const enabled = [wantWrangler, wantDeno, wantLambda].filter(Boolean).length;
+  if (enabled > 1) {
+    throw ErrorFactory.createCliError(
+      'Error: Choose only one of --wrangler/--wg, --deno, or --lambda.'
+    );
+  }
+
+  if (wantWrangler) return 'wrangler';
+  if (wantDeno) return 'deno';
+  if (wantLambda) return 'lambda';
+  return 'node';
+};
+
 const hasFlag = (flag: string): boolean => process.argv.includes(flag);
 
 const resolveWatchPreference = (options: StartCommandOptions, mode: StartMode): boolean => {
@@ -139,6 +163,10 @@ const findWranglerConfig = (cwd: string): string | undefined => {
 };
 
 const resolveWranglerEntry = (cwd: string): string | undefined => {
+  const indexEntry = path.join(cwd, 'src/index.ts');
+  if (existsSync(indexEntry)) return 'src/index.ts';
+
+  // Legacy fallback
   const entry = path.join(cwd, 'src/functions/cloudflare.ts');
   return existsSync(entry) ? 'src/functions/cloudflare.ts' : undefined;
 };
@@ -236,6 +264,82 @@ const executeWranglerStart = async (
   process.exit(exitCode);
 };
 
+const ensureTmpRunnerFile = (cwd: string, filename: string, content: string): string => {
+  const tmpDir = path.join(cwd, 'tmp');
+  try {
+    mkdirSync(tmpDir, { recursive: true });
+  } catch (error) {
+    throw ErrorFactory.createTryCatchError('Failed to create tmp directory', error);
+  }
+
+  const fullPath = path.join(tmpDir, filename);
+  try {
+    writeFileSync(fullPath, content, 'utf-8');
+  } catch (error) {
+    throw ErrorFactory.createTryCatchError('Failed to write start runner', error);
+  }
+
+  return fullPath;
+};
+
+const executeDenoStart = async (
+  cmd: IBaseCommand,
+  cwd: string,
+  mode: StartMode,
+  watchEnabled: boolean,
+  _port: number | undefined,
+  runtime: string | undefined
+): Promise<void> => {
+  if (runtime !== undefined) {
+    throw ErrorFactory.createCliError('Error: --runtime cannot be used with --deno.');
+  }
+
+  if (mode === 'testing') {
+    throw ErrorFactory.createCliError(
+      'Error: Cannot start server in testing mode. Use development or production.'
+    );
+  }
+
+  const denoRunner = ensureTmpRunnerFile(cwd, 'zin-start-deno.ts', DENO_RUNNER_SOURCE);
+
+  const args: string[] = [];
+  if (mode === 'development' && watchEnabled) args.push('watch');
+  args.push(denoRunner);
+
+  cmd.info('Starting in Deno adapter mode...');
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+  process.exit(exitCode);
+};
+
+const executeLambdaStart = async (
+  cmd: IBaseCommand,
+  cwd: string,
+  mode: StartMode,
+  watchEnabled: boolean,
+  _port: number | undefined,
+  runtime: string | undefined
+): Promise<void> => {
+  if (runtime !== undefined) {
+    throw ErrorFactory.createCliError('Error: --runtime cannot be used with --lambda.');
+  }
+
+  if (mode === 'testing') {
+    throw ErrorFactory.createCliError(
+      'Error: Cannot start server in testing mode. Use development or production.'
+    );
+  }
+
+  const lambdaRunner = ensureTmpRunnerFile(cwd, 'zin-start-lambda.ts', LAMBDA_RUNNER_SOURCE);
+
+  const args: string[] = [];
+  if (mode === 'development' && watchEnabled) args.push('watch');
+  args.push(lambdaRunner);
+
+  cmd.info('Starting in Lambda adapter mode...');
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+  process.exit(exitCode);
+};
+
 const executeNodeStart = async (
   cmd: IBaseCommand,
   cwd: string,
@@ -277,15 +381,29 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   const mode = resolveMode(options);
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
+  const variant = resolveStartVariant(options);
+  let effectiveRuntime = runtime;
+  if (variant === 'deno') effectiveRuntime = 'deno';
+  if (variant === 'lambda') effectiveRuntime = 'lambda';
 
-  EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime });
+  EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime: effectiveRuntime });
 
-  if (options.wrangler === true) {
+  if (variant === 'wrangler') {
     await executeWranglerStart(cmd, cwd, port, runtime);
     return;
   }
 
   const watchEnabled = resolveWatchPreference(options, mode);
+
+  if (variant === 'deno') {
+    await executeDenoStart(cmd, cwd, mode, watchEnabled, port, runtime);
+    return;
+  }
+
+  if (variant === 'lambda') {
+    await executeLambdaStart(cmd, cwd, mode, watchEnabled, port, runtime);
+    return;
+  }
   await executeNodeStart(cmd, cwd, mode, watchEnabled);
 };
 
@@ -295,6 +413,9 @@ export const StartCommand = Object.freeze({
       command.alias('s');
       command
         .option('-w, --wrangler', 'Start with Wrangler dev mode (Cloudflare Workers)')
+        .option('--wg', 'Alias for --wrangler')
+        .option('--deno', 'Start a local server using the Deno runtime adapter')
+        .option('--lambda', 'Start a local server using the AWS Lambda runtime adapter')
         .option('--watch', 'Force watch mode (Node only)')
         .option('--no-watch', 'Disable watch mode (Node only)')
         .option('--mode <development|production|testing>', 'Override app mode')

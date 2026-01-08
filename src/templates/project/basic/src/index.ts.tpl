@@ -2,87 +2,12 @@
  * Zintrust Application Entry Point
  */
 
-import { Application, Env, Logger, Server } from '@zintrust/core';
-import process from '@zintrust/core/node';
-// Optional adapters/drivers registered via `zin plugin install`
-import './zintrust.plugins.js';
+import { isNodeMain, start } from '@zintrust/core/start';
 
-type AppInstance = ReturnType<typeof Application.create>;
-type ServerInstance = ReturnType<typeof Server.create>;
+// Cloudflare Workers entry.
+export { default } from '@zintrust/core/start';
 
-function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage = 'Shutdown timed out'): Promise<T> {
-  if (!Number.isFinite(ms) || ms <= 0) return promise;
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new globalThis.Error(timeoutMessage)), ms);
-  });
-
-  return Promise.race([promise, timeout]).finally(() => {
-    if (timer) clearTimeout(timer);
-  }) as Promise<T>;
+// Node entry (when executed as `node src/index.ts` / `tsx src/index.ts` etc.).
+if (isNodeMain(import.meta.url)) {
+  await start();
 }
-
-async function stopServices(server: ServerInstance, app: AppInstance): Promise<void> {
-  await server.close();
-  await app.shutdown();
-}
-
-async function shutdownGracefully(signal: string, server: ServerInstance, app: AppInstance): Promise<void> {
-  Logger.info(`${signal} received, shutting down gracefully...`);
-
-  const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
-  const forceExitMs = Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 2500);
-
-  const forceExitTimer = globalThis.setTimeout(() => {
-    process.exit(0);
-  }, forceExitMs);
-
-  (forceExitTimer as unknown as { unref?: () => void }).unref?.();
-
-  try {
-    await withTimeout(stopServices(server, app), timeoutMs);
-    globalThis.clearTimeout(forceExitTimer);
-    process.exit(0);
-  } catch (error) {
-    Logger.error('Graceful shutdown failed:', error);
-    process.exit(1);
-  }
-}
-
-/**
- * Start the application
- */
-async function start() {
-  try {
-    // Create application instance
-    const app = Application.create();
-
-    // Boot application
-    await app.boot();
-
-    // Get port and host from environment
-    const port = Env.getInt('PORT', 3000);
-    const host = Env.get('HOST', 'localhost');
-
-    // Create and start server
-    const server = Server.create(app, port, host);
-
-    // Start listening
-    await server.listen();
-
-    Logger.info(`Server running at http://${host}:${port}`);
-
-    if (typeof process !== 'undefined' && typeof process.on === 'function') {
-      process.on('SIGTERM', () => void shutdownGracefully('SIGTERM', server, app));
-      process.on('SIGINT', () => void shutdownGracefully('SIGINT', server, app));
-    }
-  } catch (error) {
-    Logger.error('Failed to start application:', error);
-    process.exit(1);
-  }
-}
-
-// Run start
-await start();

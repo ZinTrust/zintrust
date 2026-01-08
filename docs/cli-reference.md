@@ -129,6 +129,9 @@ zin start [options]
 **Options**:
 
 - `-w, --wrangler` - Start with Wrangler dev mode (Cloudflare Workers)
+- `--wg` - Alias for `--wrangler`
+- `--deno` - Start a local server using the Deno runtime adapter
+- `--lambda` - Start a local server using the AWS Lambda runtime adapter
 - `--watch` - Force watch mode (Node only)
 - `--no-watch` - Disable watch mode (Node only)
 - `--mode <development|production|testing>` - Override app mode
@@ -141,8 +144,23 @@ zin start [options]
 zin start
 zin start --mode production
 zin start -w
+zin start --wg
+zin start --deno
+zin start --lambda
 zin start --no-watch --port 3001
 ```
+
+**Which start mode should I use?**
+
+- `zin start` - Default **Node.js** dev server. Use for most local development.
+- `zin start --wg` / `zin start -w` - **Cloudflare Workers** via Wrangler dev. Use when deploying to Workers or validating Workers constraints.
+- `zin start --lambda` - **AWS Lambda** adapter mode. Use when deploying to Lambda and validating Lambda request semantics.
+- `zin start --deno` - **Deno** adapter mode. Use when deploying to Deno or checking portability.
+
+**When NOT to use**
+
+- Don’t use Workers mode if your app relies on Node-only APIs or native modules (e.g. filesystem writes or `better-sqlite3`).
+- Don’t use `--lambda`/`--deno` unless you’re targeting those runtimes.
 
 Defaults:
 

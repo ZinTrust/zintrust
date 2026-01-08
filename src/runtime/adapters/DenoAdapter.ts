@@ -139,7 +139,7 @@ async function handleDenoRequest(
         : null;
 
     // Create mock Node.js request/response for compatibility
-    const { res, responseData } = createMockHttpObjects(request);
+    const { req, res, responseData } = createMockHttpObjects(request);
 
     // Set request timeout
     const timeout = config.timeout ?? 30000;
@@ -156,7 +156,7 @@ async function handleDenoRequest(
       // Note: In a real implementation, we'd use the handler from the adapter config
       // For compatibility with the existing code structure
       await config.handler(
-        null as unknown as IncomingMessage,
+        req as unknown as IncomingMessage,
         res as unknown as ServerResponse,
         body === null ? null : Buffer.from(body)
       );

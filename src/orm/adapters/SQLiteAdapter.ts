@@ -38,7 +38,11 @@ async function importSqliteDatabaseConstructor(): Promise<
   new (filename: string) => SqliteDatabase
 > {
   try {
-    const mod = (await import('better-sqlite3')) as unknown as {
+    // Avoid a literal dynamic import so bundlers (e.g. Wrangler/esbuild) don't
+    // try to bundle the native sqlite driver into non-Node targets.
+    const pkg = (globalThis as unknown as { __zintrustSqliteDriver?: string })
+      .__zintrustSqliteDriver;
+    const mod = (await import(pkg ?? 'better-sqlite3')) as unknown as {
       default?: new (filename: string) => SqliteDatabase;
     };
 

@@ -22,6 +22,10 @@ type DistPackageJson = {
       types: './index.d.ts';
       default: './index.js';
     };
+    './start': {
+      types: './start.d.ts';
+      default: './start.js';
+    };
   };
   dependencies: Record<string, unknown>;
 };
@@ -73,6 +77,10 @@ const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
         types: './index.d.ts',
         default: './index.js',
       },
+      './start': {
+        types: './start.d.ts',
+        default: './start.js',
+      },
     },
     dependencies: coerceDependencies(rootPkg.dependencies),
   };
@@ -82,8 +90,20 @@ const writeDistEntrypoints = (distPath: string): void => {
   const distIndexJsPath = path.join(distPath, 'index.js');
   const distIndexDtsPath = path.join(distPath, 'index.d.ts');
 
+  const distStartJsPath = path.join(distPath, 'start.js');
+  const distStartDtsPath = path.join(distPath, 'start.d.ts');
+
   fs.writeFileSync(distIndexJsPath, "export * from './src/index.js';\n");
   fs.writeFileSync(distIndexDtsPath, "export * from './src/index';\n");
+
+  fs.writeFileSync(
+    distStartJsPath,
+    "export * from './src/start.js'; export { default } from './src/start.js';\n"
+  );
+  fs.writeFileSync(
+    distStartDtsPath,
+    "export * from './src/start'; export { default } from './src/start';\n"
+  );
 };
 
 const writeDistPackageJson = (distPath: string, pkg: DistPackageJson): void => {
