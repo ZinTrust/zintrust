@@ -104,6 +104,68 @@ const ensureEnvFileExists = (envPath: string): void => {
   }
 };
 
+const resolveCwd = (cwd?: string): string => {
+  if (typeof cwd === 'string' && cwd.trim() !== '') return cwd;
+  return process.cwd();
+};
+
+const getEnvDefaults = (): Record<string, string> =>
+  Object.freeze({
+    HOST: 'localhost',
+    PORT: '7777',
+    LOG_LEVEL: 'debug',
+  });
+
+const envFileExists = (envPath: string): boolean => {
+  try {
+    readFileSync(envPath, 'utf8');
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const formatBackfillSummary = (result: EnvBackfillResult): string => {
+  const filled = result.filledKeys.join(', ') || '(none)';
+  const appended = result.appendedKeys.join(', ') || '(none)';
+  return `filled=${filled}; appended=${appended}`;
+};
+
+const runDryRun = (envPath: string, defaults: Record<string, string>): void => {
+  const exists = envFileExists(envPath);
+
+  if (exists === false) {
+    ErrorHandler.info(`[dry-run] Would create ${envPath}`);
+    return;
+  }
+
+  const raw = readFileSync(envPath, 'utf8');
+  const tmpPath = `${envPath}.zin-upgrade.tmp`;
+
+  writeFileSync(tmpPath, raw, 'utf8');
+  try {
+    const result = backfillEnvDefaults(tmpPath, defaults);
+
+    if (result.changed === false) {
+      ErrorHandler.success('No changes needed.');
+      return;
+    }
+
+    ErrorHandler.info(`[dry-run] Would backfill .env: ${formatBackfillSummary(result)}`);
+  } finally {
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      // ignore
+    }
+  }
+};
+
+const runUpgrade = (envPath: string, defaults: Record<string, string>): EnvBackfillResult => {
+  ensureEnvFileExists(envPath);
+  return backfillEnvDefaults(envPath, defaults);
+};
+
 export const UpgradeCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
@@ -114,73 +176,23 @@ export const UpgradeCommand = Object.freeze({
         command.option('--dry-run', 'Print planned changes without writing files');
       },
       execute: (options: UpgradeCommandOptions): void => {
-        const cwd =
-          typeof options.cwd === 'string' && options.cwd.trim() !== ''
-            ? options.cwd
-            : process.cwd();
+        const cwd = resolveCwd(options.cwd);
         const envPath = path.resolve(cwd, '.env');
+        const defaults = getEnvDefaults();
 
-        const defaults = Object.freeze({
-          HOST: 'localhost',
-          PORT: '7777',
-          LOG_LEVEL: 'debug',
-        });
-
-        // Ensure there is an env file to upgrade.
         if (options.dryRun === true) {
-          // If missing, we'd create it.
-          let exists = true;
-          try {
-            readFileSync(envPath, 'utf8');
-          } catch {
-            exists = false;
-          }
-
-          if (exists === false) {
-            ErrorHandler.info(`[dry-run] Would create ${envPath}`);
-          }
-
-          // Run backfill logic on a temp in-memory basis by reading raw file.
-          // For dry-run, we approximate by actually running logic only if file exists.
-          if (exists) {
-            const raw = readFileSync(envPath, 'utf8');
-            // Use the real logic but against a throwaway file in memory is annoying; we keep it simple:
-            // write a temp file next to it, then remove it.
-            const tmpPath = `${envPath}.zin-upgrade.tmp`;
-            writeFileSync(tmpPath, raw, 'utf8');
-            const result = backfillEnvDefaults(tmpPath, defaults);
-            if (result.changed === false) {
-              ErrorHandler.success('No changes needed.');
-            } else {
-              ErrorHandler.info(
-                `[dry-run] Would backfill .env: filled=${result.filledKeys.join(', ') || '(none)'}; appended=${
-                  result.appendedKeys.join(', ') || '(none)'
-                }`
-              );
-            }
-            try {
-              unlinkSync(tmpPath);
-            } catch {
-              // ignore
-            }
-          }
-
+          runDryRun(envPath, defaults);
           return;
         }
 
-        ensureEnvFileExists(envPath);
-        const result = backfillEnvDefaults(envPath, defaults);
+        const result = runUpgrade(envPath, defaults);
 
         if (result.changed === false) {
           ErrorHandler.success('No changes needed.');
           return;
         }
 
-        ErrorHandler.success(
-          `Upgraded .env: filled=${result.filledKeys.join(', ') || '(none)'}; appended=${
-            result.appendedKeys.join(', ') || '(none)'
-          }`
-        );
+        ErrorHandler.success(`Upgraded .env: ${formatBackfillSummary(result)}`);
       },
     });
   },
