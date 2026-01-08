@@ -64,6 +64,8 @@ export const Env = Object.freeze({
   HOST: get('HOST', 'localhost'),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
   APP_KEY: get('APP_KEY', ''),
+  // Optional key rotation support (comma-separated or JSON array of keys)
+  APP_PREVIOUS_KEYS: get('APP_PREVIOUS_KEYS', ''),
 
   // Database
   DB_CONNECTION: get('DB_CONNECTION', 'sqlite'),
@@ -123,6 +125,9 @@ export const Env = Object.freeze({
   ENABLE_MICROSERVICES: getBool('ENABLE_MICROSERVICES', false),
   TOKEN_TTL: getInt('TOKEN_TTL', 3600000),
   TOKEN_LENGTH: getInt('TOKEN_LENGTH', 32),
+
+  // Encryption interop
+  ENCRYPTION_CIPHER: get('ENCRYPTION_CIPHER', ''),
 
   // Deployment
   ENVIRONMENT: get('ENVIRONMENT', 'development'),

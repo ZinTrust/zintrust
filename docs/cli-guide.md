@@ -33,6 +33,12 @@ npm link
 zin new my-app
 ```
 
+New projects ship with an `.env` generated during scaffolding. If values are missing/empty, the CLI backfills safe defaults:
+
+- `HOST=localhost`
+- `PORT=7777`
+- `LOG_LEVEL=debug`
+
 ### Database Migrations
 
 ```bash
@@ -155,7 +161,7 @@ zin new my-app
 # Will prompt for:
 # - Project name (if not provided)
 # - Database type (PostgreSQL, MySQL, SQLite)
-# - Server port (default 3000)
+# - Server port (default 7777)
 # - Git initialization (yes/no)
 ```
 
@@ -164,7 +170,7 @@ zin new my-app
 ```bash
 # Skip all prompts, use defaults
 zin new my-app --no-interactive
-zin new my-app --database postgres --port 3000 --no-git
+zin new my-app --database postgres --port 7777 --no-git
 ```
 
 ## Global Options (All Commands)
@@ -195,7 +201,7 @@ Create a new Zintrust project
 **Options**:
 
 - `--database <type>` - Database (postgresql, mysql, sqlite)
-- `--port <number>` - Server port (default: 3000)
+- `--port <number>` - Server port (default: 7777)
 - `--no-interactive` - Skip prompts
 - `--no-git` - Skip git initialization
 - `-v, --verbose` - Verbose output
