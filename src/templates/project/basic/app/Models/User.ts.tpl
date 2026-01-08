@@ -2,7 +2,7 @@
  * User Model
  */
 
-import { Post } from './Post';
+import { Post } from '@app/Models/Post';
 import { IModel, Model } from '@zintrust/core';
 
 /**

@@ -4,9 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from './env';
-import { CacheConfigInput, CacheDriverConfig } from './type';
-import { ErrorFactory } from '@zintrust/core';
+import type { CacheConfigInput, CacheDriverConfig } from '@zintrust/core';
+import { ErrorFactory , Env} from '@zintrust/core';
 
 const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverConfig => {
   const selected = String(name ?? config.default).trim();

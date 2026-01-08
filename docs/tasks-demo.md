@@ -60,6 +60,11 @@ Demo-only (to prove “multiple connections”):
 Example `.env`:
 
 ```env
+# Server defaults (scaffolded)
+HOST=localhost
+PORT=7777
+LOG_LEVEL=debug
+
 # Auth DB (SQLite)
 AUTH_DB_PATH=./tmp/auth.sqlite
 
@@ -458,7 +463,34 @@ import { HttpClient, Logger } from '@zintrust/core';
 - Calls to external services are logged.
 - Sensitive fields are not logged.
 
-## 13) Adapter packages checklist (A–Z)
+## 13) Middleware: security + rate limiting + CSRF
+
+This demo should include the built-in middleware suite (secure defaults, low friction).
+
+```ts
+import {
+  CsrfMiddleware,
+  ErrorHandlerMiddleware,
+  LoggingMiddleware,
+  RateLimiter,
+  SecurityMiddleware,
+} from '@zintrust/core';
+
+// Example: register globally during boot
+app.getMiddlewareStack().register('log', LoggingMiddleware.create());
+app.getMiddlewareStack().register('error', ErrorHandlerMiddleware.create());
+app.getMiddlewareStack().register('security', SecurityMiddleware.create());
+app.getMiddlewareStack().register('rateLimit', RateLimiter.create({ windowMs: 60_000, max: 100 }));
+app.getMiddlewareStack().register('csrf', CsrfMiddleware.create());
+```
+
+✅ Expected:
+
+- Standard security headers are applied.
+- Rate limiting returns `429` when exceeded.
+- CSRF token cookie is issued on safe requests and validated on state-changing requests.
+
+## 14) Adapter packages checklist (A–Z)
 
 Version note (important, but simple):
 
@@ -475,13 +507,13 @@ This demo should touch each adapter package at least once:
 - Storage: `@zintrust/storage-s3`, `@zintrust/storage-r2`, `@zintrust/storage-gcs`
 - Cloudflare proxies: `@zintrust/cloudflare-d1-proxy`, `@zintrust/cloudflare-kv-proxy`
 
-## 14) Services checklist (A–Z)
+## 15) Services checklist (A–Z)
 
-Ecommerce services live under `src/services/ecommerce/*`.
+Ecommerce services live under `services/ecommerce/*`.
 
 Notes:
 
-- The compose file exists under `src/services/ecommerce/docker-compose.yml`.
+- The compose file exists under `services/ecommerce/docker-compose.yml`.
 - Some docker build paths/Dockerfiles referenced by the compose may require syncing/generation.
 
 ### Integration Example

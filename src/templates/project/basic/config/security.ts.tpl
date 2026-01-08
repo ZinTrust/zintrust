@@ -9,16 +9,16 @@
  * Security keys can be configured per domain:
  * - APP_KEY: Default encryption key for all operations (auto-generated)
  * - API_KEY_SECRET: Optional API key authentication (if API_KEY_ENABLED=true)
- * - ENCRYPTION_KEY: Optional separate encryption key (overrides APP_KEY if set)
+ * - ENCRYPTION_CIPHER: Cipher for encrypted envelope interoperability
  * - JWT_SECRET: JWT token signing key
  *
  * Developers can use a single APP_KEY or configure separate keys for different
  * security domains (e.g., different keys for different microservices).
  */
 
-import { appConfig } from './app';
-import { Env } from './env';
-import { Logger } from './logger';
+import { appConfig } from '@zintrust/core';
+import { Env } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
 
 /**
@@ -76,6 +76,16 @@ const securityConfigObj = {
    * Encryption
    */
   encryption: {
+    // Required for framework-compatible encrypted payloads.
+    // Supported values: aes-256-cbc | aes-256-gcm (case-insensitive)
+    cipher: Env.get('ENCRYPTION_CIPHER', ''),
+
+    // Primary key used for encryption interoperability (framework-compatible envelopes).
+    // APP_KEY supports both `base64:...` and raw base64.
+    appKey: Env.get('APP_KEY', ''),
+    appPreviousKeys: Env.get('APP_PREVIOUS_KEYS', ''),
+
+    // Back-compat fields (not used by EncryptedEnvelope)
     algorithm: Env.get('ENCRYPTION_ALGORITHM', 'aes-256-cbc'),
     key: Env.get('ENCRYPTION_KEY', 'your-encryption-key'),
   },

@@ -5,19 +5,18 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
-import { Env } from './env';
 import type {
   KnownNotificationDriverConfig,
   NotificationConfigInput,
   NotificationDrivers,
   NotificationProviders,
-} from './type';
-import { ErrorFactory } from '@zintrust/core';
+} from '@zintrust/core';
+import { ErrorFactory ,Env} from '@zintrust/core';
 
 const normalizeName = (value: string): string => value.trim().toLowerCase();
 
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 };
 
 const getDefaultChannel = (drivers: NotificationDrivers): string => {

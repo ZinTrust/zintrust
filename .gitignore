@@ -45,6 +45,7 @@ tmp_delete_test.txt
 eslint.config.mjs.bak
 lint-report.txt
 eslint.config.mjs.broken
+tmp/
 simulate/
 test-project/
 todo/
@@ -58,6 +59,9 @@ test-app/
 .env copy
 .envcopy
 promotion/
+
+# Local developer workspace (not tracked in this repo)
+zin-tools/
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md

@@ -3,6 +3,7 @@
  * Handles directory structure and boilerplate file creation
  */
 
+import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { Logger } from '@config/logger';
 import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
@@ -158,68 +159,6 @@ const createProjectConfigFile = (
   }
 };
 
-const stripEnvInlineComment = (value: string): string => {
-  let inSingle = false;
-  let inDouble = false;
-
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === "'" && !inDouble) inSingle = !inSingle;
-    if (ch === '"' && !inSingle) inDouble = !inDouble;
-
-    if (!inSingle && !inDouble && ch === '#') {
-      const prev = value[i - 1];
-      if (prev === undefined || prev === ' ' || prev === '\t') {
-        return value.slice(0, i).trimEnd();
-      }
-    }
-  }
-
-  return value;
-};
-
-const backfillEnvDefaults = (envPath: string, defaults: Record<string, string>): void => {
-  const raw = fs.readFileSync(envPath, 'utf8');
-  const lines = raw.split(/\r?\n/);
-
-  const seen = new Set<string>();
-  const filled = new Set<string>();
-
-  const out = lines.map((line) => {
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) return line;
-
-    const withoutExport = trimmed.startsWith('export ') ? trimmed.slice('export '.length) : trimmed;
-    const eq = withoutExport.indexOf('=');
-    if (eq <= 0) return line;
-
-    const key = withoutExport.slice(0, eq).trim();
-    if (key === '') return line;
-    if (!Object.hasOwn(defaults, key)) return line;
-    if (seen.has(key)) return line;
-    seen.add(key);
-
-    const rhs = withoutExport.slice(eq + 1);
-    const withoutComment = stripEnvInlineComment(rhs);
-    const value = withoutComment.trim();
-
-    if (value !== '') return line;
-
-    filled.add(key);
-    return `${key}=${defaults[key]}`;
-  });
-
-  const missingKeys = Object.keys(defaults).filter((k) => !seen.has(k));
-  if (missingKeys.length > 0) {
-    out.push(...missingKeys.map((k) => `${k}=${defaults[k]}`));
-  }
-
-  // Avoid rewriting if nothing changed.
-  if (filled.size === 0 && missingKeys.length === 0) return;
-
-  fs.writeFileSync(envPath, out.join('\n') + (out.at(-1) === '' ? '' : '\n'));
-};
-
 const buildDatabaseEnvLines = (database: string): string[] => {
   if (database === 'postgresql' || database === 'postgres') {
     return [
@@ -230,9 +169,28 @@ const buildDatabaseEnvLines = (database: string): string[] => {
       'DB_PASSWORD=',
     ];
   }
+  if (database === 'mysql') {
+    return [
+      'DB_HOST=localhost',
+      'DB_PORT=3306',
+      'DB_DATABASE=zintrust',
+      'DB_USERNAME=root',
+      'DB_PASSWORD=',
+    ];
+  }
   if (database === 'sqlite') {
     // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
     return ['DB_DATABASE=./database.sqlite', 'DB_PATH=./database.sqlite'];
+  }
+  if (database === 'd1-remote' || database === 'd1-proxy') {
+    return [
+      '# Cloudflare D1 Remote Proxy (HTTPS)',
+      'D1_REMOTE_URL=',
+      'D1_REMOTE_KEY_ID=',
+      'D1_REMOTE_SECRET=',
+      'D1_REMOTE_MODE=registry',
+      'ZT_PROXY_TIMEOUT_MS=15000',
+    ];
   }
   return [];
 };
@@ -248,7 +206,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     // If an .env already exists (e.g., from a template), do not overwrite user values.
     // But we *do* backfill safe defaults for common bootstrap keys when missing/blank.
     if (fs.existsSync(fullPath)) {
-      backfillEnvDefaults(fullPath, {
+      EnvFileBackfill.backfillEnvDefaults(fullPath, {
         HOST: 'localhost',
         PORT: String(Number(variables['port'] ?? 7777)),
         LOG_LEVEL: 'debug',
@@ -271,7 +229,6 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       `APP_NAME=${name}`,
       'HOST=localhost',
       `PORT=${port}`,
-      `APP_PORT=${port}`,
       'APP_DEBUG=true',
       // Auto-generated secure key for storage signing and encryption
       `APP_KEY=${appKey}`,
@@ -301,7 +258,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       '',
       '# Microservices',
       'SERVICE_DISCOVERY_ENABLED=false',
-      'SERVICE_DISCOVERY_DRIVER=local',
+      'SERVICE_DISCOVERY_TYPE=filesystem',
       'SERVICE_NAME=',
       'SERVICE_VERSION=1.0.0',
     ];

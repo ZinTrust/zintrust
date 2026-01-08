@@ -167,6 +167,13 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
   // not from internal path-alias modules that only exist in the framework repo.
   return (
     content
+      // Starter templates should not rely on local config/env wrappers.
+      // Normalize Env imports to come from the public package surface.
+      .replaceAll("from '../env';", "from '@zintrust/core';")
+      .replaceAll('from "../env";', 'from "@zintrust/core";')
+      .replaceAll("from './env';", "from '@zintrust/core';")
+      .replaceAll('from "./env";', 'from "@zintrust/core";')
+
       // Node-singletons are internal to this repo; starter templates should use Node built-ins.
       .replaceAll("'@node-singletons/fs'", "'node:fs'")
       .replaceAll('"@node-singletons/fs"', '"node:fs"')

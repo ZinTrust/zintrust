@@ -33,6 +33,12 @@ npm link
 zin new my-app
 ```
 
+New projects ship with an `.env` generated during scaffolding. If values are missing/empty, the CLI backfills safe defaults:
+
+- `HOST=localhost`
+- `PORT=7777`
+- `LOG_LEVEL=debug`
+
 ### Database Migrations
 
 ```bash
@@ -155,7 +161,7 @@ zin new my-app
 # Will prompt for:
 # - Project name (if not provided)
 # - Database type (PostgreSQL, MySQL, SQLite)
-# - Server port (default 3000)
+# - Server port (default 7777)
 # - Git initialization (yes/no)
 ```
 
@@ -164,7 +170,7 @@ zin new my-app
 ```bash
 # Skip all prompts, use defaults
 zin new my-app --no-interactive
-zin new my-app --database postgres --port 3000 --no-git
+zin new my-app --database postgres --port 7777 --no-git
 ```
 
 ## Global Options (All Commands)
@@ -195,7 +201,7 @@ Create a new Zintrust project
 **Options**:
 
 - `--database <type>` - Database (postgresql, mysql, sqlite)
-- `--port <number>` - Server port (default: 3000)
+- `--port <number>` - Server port (default: 7777)
 - `--no-interactive` - Skip prompts
 - `--no-git` - Skip git initialization
 - `-v, --verbose` - Verbose output
@@ -302,6 +308,9 @@ Start the application in development (watch), production, or Wrangler mode.
 **Options**:
 
 - `-w, --wrangler` - Start with Wrangler dev mode (Cloudflare Workers)
+- `--wg` - Alias for `--wrangler`
+- `--deno` - Start a local server using the Deno runtime adapter
+- `--lambda` - Start a local server using the AWS Lambda runtime adapter
 - `--watch` - Force watch mode (Node only)
 - `--no-watch` - Disable watch mode (Node only)
 - `--mode <development|production|testing>` - Override app mode
@@ -315,7 +324,27 @@ zin start
 zin start --mode production
 zin start --no-watch --port 3001
 zin start -w
+zin start --wg
+zin start --deno
+zin start --lambda
 ```
+
+**Which start mode should I use?**
+
+- `zin start` (default) - Runs the app in **Node.js**. Use this for day-to-day development and local debugging.
+- `zin start --wg` / `zin start -w` - Runs the app in **Cloudflare Workers** via Wrangler dev. Use this when your deployment target is Workers or you want to catch Workers-only constraints early (no native Node addons, limited filesystem, and no disallowed global-scope side effects).
+- `zin start --lambda` - Runs the app using the **AWS Lambda runtime adapter**. Use this when your deployment target is Lambda and you want to validate Lambda-style request handling.
+- `zin start --deno` - Runs the app using the **Deno runtime adapter**. Use this when deploying on Deno or when you want to ensure your code avoids Node-only assumptions.
+
+**When NOT to use**
+
+- Don’t use `--wg/--wrangler` if your request path depends on Node-only features (e.g. local filesystem writes, raw TCP sockets, or native modules like `better-sqlite3`).
+- Don’t use `--lambda` or `--deno` unless you are targeting those runtimes; they exist primarily to catch runtime-specific differences.
+
+Notes:
+
+- `--runtime` affects the spawned **Node** process only; it does not change Wrangler’s runtime.
+- If you see “Address already in use”, pass a different port: `zin start --wg --port 8787`.
 
 ## Troubleshooting
 

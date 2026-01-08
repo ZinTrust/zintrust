@@ -21,6 +21,12 @@ zin start
 
 Your API is now running at `http://localhost:7777`
 
+If you’re targeting a different runtime:
+
+- Cloudflare Workers (Wrangler): `zin start --wg`
+- AWS Lambda adapter mode: `zin start --lambda`
+- Deno adapter mode: `zin start --deno`
+
 The canonical CLI is `zin`. `z` is a shorthand alias.
 
 ## Install adapters (database/cache/etc.)

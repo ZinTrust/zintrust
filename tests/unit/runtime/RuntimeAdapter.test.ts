@@ -99,11 +99,13 @@ describe('RuntimeAdapter helpers', () => {
         remoteAddr: '1.2.3.4', //NOSONAR
       });
 
-      expect(req).toEqual({
+      expect(req).toMatchObject({
         method: 'GET',
         url: '/hello',
         headers: { 'x-a': '1' },
         remoteAddress: '1.2.3.4', //NOSONAR
+        socket: { remoteAddress: '1.2.3.4' }, //NOSONAR
+        connection: { remoteAddress: '1.2.3.4' }, //NOSONAR
       });
 
       // writeHead merges headers
@@ -126,6 +128,47 @@ describe('RuntimeAdapter helpers', () => {
 
       (res as unknown as { write: (chunk: string | Buffer) => boolean }).write(Buffer.from('x'));
       expect(String(responseData.body)).toContain('x');
+    });
+
+    it('should fall back to x-forwarded-for when remoteAddr is empty', () => {
+      const { req } = createMockHttpObjects({
+        method: 'GET',
+        path: '/hello',
+        headers: { 'x-forwarded-for': '8.8.8.8, 1.1.1.1' },
+        remoteAddr: '   ',
+      });
+
+      expect(req).toMatchObject({
+        remoteAddress: '8.8.8.8',
+        socket: { remoteAddress: '8.8.8.8' },
+        connection: { remoteAddress: '8.8.8.8' },
+      });
+    });
+
+    it('should accept x-forwarded-for array and default to 0.0.0.0 when missing', () => {
+      const { req: reqFromArray } = createMockHttpObjects({
+        method: 'GET',
+        path: '/hello',
+        headers: { 'x-forwarded-for': ['9.9.9.9', '1.1.1.1'] },
+      });
+
+      expect(reqFromArray).toMatchObject({
+        remoteAddress: '9.9.9.9',
+        socket: { remoteAddress: '9.9.9.9' },
+        connection: { remoteAddress: '9.9.9.9' },
+      });
+
+      const { req: reqFallback } = createMockHttpObjects({
+        method: 'GET',
+        path: '/hello',
+        headers: { 'x-forwarded-for': '' },
+      });
+
+      expect(reqFallback).toMatchObject({
+        remoteAddress: '0.0.0.0',
+        socket: { remoteAddress: '0.0.0.0' },
+        connection: { remoteAddress: '0.0.0.0' },
+      });
     });
   });
 

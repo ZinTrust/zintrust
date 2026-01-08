@@ -37,7 +37,13 @@ function checkFile(text: string): Array<{ line: number; spec: string; text: stri
 
   const addIfBanned = (lineNo: number, spec: string, lineText: string): void => {
     const trimmed = spec.trim();
-    if (trimmed === '@zintrust/core' || trimmed === '@zintrust/core/node') return;
+    if (
+      trimmed === '@zintrust/core' ||
+      trimmed === '@zintrust/core/node' ||
+      trimmed === '@zintrust/core/start'
+    ) {
+      return;
+    }
     if (trimmed.startsWith('node:')) return;
     if (trimmed.startsWith('./') || trimmed.startsWith('../')) return;
 
@@ -102,7 +108,8 @@ import { util } from '../utils';`;
 
     it('allows @zintrust/core imports', () => {
       const text = `import { core } from '@zintrust/core';
-import { node } from '@zintrust/core/node';`;
+import { node } from '@zintrust/core/node';
+import start from '@zintrust/core/start';`;
       const offenses = checkFile(text);
       expect(offenses).toEqual([]);
     });

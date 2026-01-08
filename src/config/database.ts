@@ -9,7 +9,7 @@ import { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } fr
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 };
 
 const getDefaultConnection = (connections: DatabaseConnections): string => {
@@ -47,6 +47,12 @@ const connections = {
     driver: 'sqlite' as const,
     database: Env.DB_DATABASE,
     migrations: 'database/migrations',
+  },
+  d1: {
+    driver: 'd1' as const,
+  },
+  'd1-remote': {
+    driver: 'd1-remote' as const,
   },
   postgresql: {
     driver: 'postgresql' as const,

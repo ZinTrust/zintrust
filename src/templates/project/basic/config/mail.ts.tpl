@@ -4,9 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from './env';
-import type { MailConfigInput, MailDriverConfig } from './type';
-import { ErrorFactory } from '@zintrust/core';
+import type { MailConfigInput, MailDriverConfig } from '@zintrust/core';
+import { ErrorFactory, Env } from '@zintrust/core';
 
 const isMailDriverConfig = (value: unknown): value is MailDriverConfig => {
   if (typeof value !== 'object' || value === null) return false;

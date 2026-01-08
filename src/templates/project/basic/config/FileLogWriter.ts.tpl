@@ -6,7 +6,7 @@
  */
 
 import { ensureDirSafe } from '@zintrust/core';
-import { Env } from './env';
+import { Env } from '@zintrust/core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 

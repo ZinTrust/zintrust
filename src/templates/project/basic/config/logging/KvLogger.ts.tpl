@@ -8,8 +8,8 @@
  *  - KV_LOG_RETENTION_DAYS (default: 30)
  */
 
-import { Cloudflare } from '../cloudflare';
-import { Env } from '../env';
+import { Cloudflare } from '@zintrust/core';
+import { Env } from '@zintrust/core';
 
 export type KvLogEvent = {
   timestamp: string;

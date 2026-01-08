@@ -5,10 +5,10 @@
 
 import { Env, type IRouter, Router } from '@zintrust/core';
 
-import { UserController } from '../app/Controllers/UserController';
-import { registerBroadcastRoutes } from './broadcast';
-import { registerHealthRoutes } from './health';
-import { registerStorageRoutes } from './storage';
+import { UserController } from '@app/Controllers/UserController';
+import { registerBroadcastRoutes } from '@routes/broadcast';
+import { registerHealthRoutes } from '@routes/health';
+import { registerStorageRoutes } from '@routes/storage';
 
 export function registerRoutes(router: IRouter): void {
   const userController = UserController.create();

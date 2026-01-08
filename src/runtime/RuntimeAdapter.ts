@@ -226,6 +226,21 @@ export function createMockHttpObjects(request: PlatformRequest): {
     body: Tbody;
   };
 } {
+  const coerceFirstForwardedFor = (value: unknown): string | undefined => {
+    if (Array.isArray(value)) {
+      const first = (value as unknown[])[0];
+      return typeof first === 'string' && first.trim() !== '' ? first.trim() : undefined;
+    }
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+    return undefined;
+  };
+
+  const forwardedFor = coerceFirstForwardedFor(request.headers?.['x-forwarded-for']);
+  const remoteAddress =
+    typeof request.remoteAddr === 'string' && request.remoteAddr.trim() !== ''
+      ? request.remoteAddr.trim()
+      : (forwardedFor?.split(',')[0]?.trim() ?? '') || '0.0.0.0';
+
   const responseData = {
     statusCode: 200,
     headers: { 'Content-Type': 'application/json' } as Record<string, string | string[]>,
@@ -237,7 +252,13 @@ export function createMockHttpObjects(request: PlatformRequest): {
     method: request.method,
     url: request.path,
     headers: request.headers,
-    remoteAddress: request.remoteAddr,
+    remoteAddress,
+    socket: {
+      remoteAddress,
+    },
+    connection: {
+      remoteAddress,
+    },
   };
 
   const res = {

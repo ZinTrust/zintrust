@@ -20,7 +20,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
 
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 };
 
 const getDefaultBroadcaster = (drivers: BroadcastDrivers): string => {

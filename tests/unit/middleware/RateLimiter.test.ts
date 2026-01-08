@@ -80,4 +80,34 @@ describe('RateLimiter', () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
     setIntervalSpy.mockRestore();
   });
+
+  it('keyGenerator uses x-forwarded-for first IP (split + trim)', async () => {
+    (req.getHeader as any).mockReturnValue(' 1.2.3.4, 5.6.7.8 ');
+    (req.getRaw as any).mockReturnValue({});
+
+    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    await middleware(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('keyGenerator falls back to raw.connection.remoteAddress', async () => {
+    (req.getHeader as any).mockReturnValue('');
+    (req.getRaw as any).mockReturnValue({ connection: { remoteAddress: '10.0.0.10' } });
+
+    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    await middleware(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('keyGenerator falls back to raw.remoteAddress when socket/connection missing', async () => {
+    (req.getHeader as any).mockReturnValue('');
+    (req.getRaw as any).mockReturnValue({ remoteAddress: '10.0.0.11' });
+
+    const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
+    await middleware(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+  });
 });

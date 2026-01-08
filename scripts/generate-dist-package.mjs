@@ -83,9 +83,17 @@ const distPackage = {
       types: './src/index.d.ts',
       import: './src/index.js',
     },
+    './start': {
+      types: './src/start.d.ts',
+      import: './src/start.js',
+    },
     './node': {
       types: './src/node.d.ts',
       import: './src/node.js',
+    },
+    './routes/*': {
+      types: './routes/*.d.ts',
+      import: './routes/*.js',
     },
     './package.json': './package.json',
   },
@@ -97,7 +105,7 @@ const distPackage = {
     z: 'bin/z.js',
     zt: 'bin/zt.js',
   },
-  files: ['bin', 'src', 'public'],
+  files: ['bin', 'src', 'routes', 'public'],
   engines: rootPackage.engines,
   keywords: rootPackage.keywords,
   author: rootPackage.author,
