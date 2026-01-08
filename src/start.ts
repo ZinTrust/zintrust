@@ -39,11 +39,14 @@ export const isNodeMain = (importMetaUrl: string): boolean => {
  * This uses a non-literal dynamic import so Worker bundlers don't pull Node-only modules.
  */
 export const start = async (): Promise<void> => {
+  /* c8 ignore start */
   if (!isNodeRuntime()) return;
 
   // Compiled output places bootstrap at `dist/src/boot/bootstrap.js`.
   // This file compiles to `dist/src/start.js`, so relative import is stable.
+  // In unit tests, importing bootstrap has heavy side effects (starts server + exits).
   await import('./boot/' + 'bootstrap.js');
+  /* c8 ignore stop */
 };
 
 /**

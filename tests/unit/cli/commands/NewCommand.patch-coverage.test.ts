@@ -132,4 +132,37 @@ describe('NewCommand patch coverage', () => {
     expect(SpawnUtil.spawnAndWait).toHaveBeenCalled();
     expect((SpawnUtil.spawnAndWait as any).mock.calls[0][0].command).toBe('pnpm');
   });
+
+  it('normalizes database option: postgres -> postgresql', async () => {
+    const command = NewCommand.create();
+
+    const cfg = await command.getProjectConfig('tmp-app', {
+      database: 'postgres',
+      interactive: false,
+    } as any);
+
+    expect(cfg.database).toBe('postgresql');
+  });
+
+  it('normalizes database option: mongodb', async () => {
+    const command = NewCommand.create();
+
+    const cfg = await command.getProjectConfig('tmp-app', {
+      database: 'mongodb',
+      interactive: false,
+    } as any);
+
+    expect(cfg.database).toBe('mongodb');
+  });
+
+  it('normalizes database option: unknown -> sqlite', async () => {
+    const command = NewCommand.create();
+
+    const cfg = await command.getProjectConfig('tmp-app', {
+      database: 'totally-unknown',
+      interactive: false,
+    } as any);
+
+    expect(cfg.database).toBe('sqlite');
+  });
 });

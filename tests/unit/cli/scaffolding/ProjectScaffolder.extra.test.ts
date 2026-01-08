@@ -124,6 +124,27 @@ describe('ProjectScaffolder extra tests', () => {
     await fsPromises.rm(projectPath, { recursive: true, force: true });
   });
 
+  it('createEnvFile writes d1-remote database lines', async () => {
+    const projectPath = path.join(tmpRoot, `env-d1-project-${Date.now()}`);
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+
+    const scaffolder = createProjectScaffolder(tmpRoot);
+    scaffolder.prepareContext({
+      name: path.basename(projectPath),
+      port: 7777,
+      database: 'd1-remote',
+    });
+
+    expect(scaffolder.createEnvFile()).toBe(true);
+    const envPath = path.join(scaffolder.getProjectPath(), '.env');
+    const env = await fsPromises.readFile(envPath, 'utf8');
+    expect(env).toContain('D1_REMOTE_URL=');
+    expect(env).toContain('D1_REMOTE_KEY_ID=');
+    expect(env).toContain('D1_REMOTE_SECRET=');
+
+    await fsPromises.rm(projectPath, { recursive: true, force: true });
+  });
+
   it('createEnvFile backfills HOST/PORT/LOG_LEVEL when missing or empty (without clobbering values)', async () => {
     const projectPath = path.join(tmpRoot, `env-backfill-project-${Date.now()}`);
     await fsPromises.rm(projectPath, { recursive: true, force: true });

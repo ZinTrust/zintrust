@@ -37,21 +37,39 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
 
 let cached: MiddlewareConfigType | null = null;
 
+// Proxy target must satisfy JS Proxy invariants.
+// When we lazily create a frozen config object (with non-configurable properties),
+// we mirror its property descriptors onto this target so reflective operations
+// like Object.getOwnPropertyDescriptor() do not throw.
+const proxyTarget: MiddlewareConfigType = {} as MiddlewareConfigType;
+
 function ensureMiddlewareConfig(): MiddlewareConfigType {
   if (cached) return cached;
   cached = createMiddlewareConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort; proxy still functions via `get` trap even if reflection fails
+  }
+
   return cached;
 }
 
-export const middlewareConfig: MiddlewareConfigType = new Proxy({} as MiddlewareConfigType, {
+export const middlewareConfig: MiddlewareConfigType = new Proxy(proxyTarget, {
   get(_target, prop: keyof MiddlewareConfigType) {
     return ensureMiddlewareConfig()[prop];
   },
   ownKeys() {
-    return Reflect.ownKeys(ensureMiddlewareConfig());
+    ensureMiddlewareConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
   },
   getOwnPropertyDescriptor(_target, prop) {
-    return Object.getOwnPropertyDescriptor(ensureMiddlewareConfig(), prop);
+    ensureMiddlewareConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
   },
 });
 
