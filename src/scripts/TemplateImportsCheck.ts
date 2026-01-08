@@ -21,7 +21,6 @@ const bannedPrefixes = [
   '@mail/',
   '@storage/',
   '@node-singletons/',
-  '@app/',
   '@routes/',
   '@common/',
   '@/',

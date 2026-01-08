@@ -403,19 +403,11 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
 
     maybeInitializeGit(options, command, target);
 
-    const installedWithPm = await maybeInstallDependencies(options, command, target);
+    await maybeInstallDependencies(options, command, target);
 
     command.success(`\n✨ Project ${target.name} created successfully!`);
 
-    const optPm =
-      (options['packageManager'] as string | undefined) ??
-      (options['package-manager'] as string | undefined);
-    const effectivePm = installedWithPm ?? optPm ?? resolvePackageManager();
-
-    const runDevCmd =
-      effectivePm === 'yarn' || effectivePm === 'pnpm'
-        ? `${effectivePm} dev`
-        : `${effectivePm} run dev`;
+    const runDevCmd = 'zin start';
 
     command.info(`\nNext steps:\n  cd ${target.cdPath}\n  ${runDevCmd}\n`);
   } catch (error) {

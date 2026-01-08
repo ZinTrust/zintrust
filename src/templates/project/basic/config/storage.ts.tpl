@@ -4,12 +4,11 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from './env';
-import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from './type';
-import { ErrorFactory } from '@zintrust/core';
+import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from '@zintrust/core';
+import { ErrorFactory , Env} from '@zintrust/core';
 
 const hasOwn = <T extends object>(obj: T, key: PropertyKey): key is keyof T => {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 };
 
 const getStorageDriver = (config: StorageConfigRuntime, name?: string): StorageDriverConfig => {

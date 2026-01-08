@@ -1,5 +1,5 @@
 /**
- * test-app - Zintrust Application Entry Point
+ * Zintrust Application Entry Point
  */
 
 import { Application, Env, Logger, Server } from '@zintrust/core';
