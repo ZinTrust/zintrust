@@ -3,6 +3,7 @@
  * Handles directory structure and boilerplate file creation
  */
 
+import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { Logger } from '@config/logger';
 import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
@@ -158,68 +159,6 @@ const createProjectConfigFile = (
   }
 };
 
-const stripEnvInlineComment = (value: string): string => {
-  let inSingle = false;
-  let inDouble = false;
-
-  for (let i = 0; i < value.length; i += 1) {
-    const ch = value[i];
-    if (ch === "'" && !inDouble) inSingle = !inSingle;
-    if (ch === '"' && !inSingle) inDouble = !inDouble;
-
-    if (!inSingle && !inDouble && ch === '#') {
-      const prev = value[i - 1];
-      if (prev === undefined || prev === ' ' || prev === '\t') {
-        return value.slice(0, i).trimEnd();
-      }
-    }
-  }
-
-  return value;
-};
-
-const backfillEnvDefaults = (envPath: string, defaults: Record<string, string>): void => {
-  const raw = fs.readFileSync(envPath, 'utf8');
-  const lines = raw.split(/\r?\n/);
-
-  const seen = new Set<string>();
-  const filled = new Set<string>();
-
-  const out = lines.map((line) => {
-    const trimmed = line.trim();
-    if (trimmed === '' || trimmed.startsWith('#')) return line;
-
-    const withoutExport = trimmed.startsWith('export ') ? trimmed.slice('export '.length) : trimmed;
-    const eq = withoutExport.indexOf('=');
-    if (eq <= 0) return line;
-
-    const key = withoutExport.slice(0, eq).trim();
-    if (key === '') return line;
-    if (!Object.hasOwn(defaults, key)) return line;
-    if (seen.has(key)) return line;
-    seen.add(key);
-
-    const rhs = withoutExport.slice(eq + 1);
-    const withoutComment = stripEnvInlineComment(rhs);
-    const value = withoutComment.trim();
-
-    if (value !== '') return line;
-
-    filled.add(key);
-    return `${key}=${defaults[key]}`;
-  });
-
-  const missingKeys = Object.keys(defaults).filter((k) => !seen.has(k));
-  if (missingKeys.length > 0) {
-    out.push(...missingKeys.map((k) => `${k}=${defaults[k]}`));
-  }
-
-  // Avoid rewriting if nothing changed.
-  if (filled.size === 0 && missingKeys.length === 0) return;
-
-  fs.writeFileSync(envPath, out.join('\n') + (out.at(-1) === '' ? '' : '\n'));
-};
-
 const buildDatabaseEnvLines = (database: string): string[] => {
   if (database === 'postgresql' || database === 'postgres') {
     return [
@@ -267,7 +206,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     // If an .env already exists (e.g., from a template), do not overwrite user values.
     // But we *do* backfill safe defaults for common bootstrap keys when missing/blank.
     if (fs.existsSync(fullPath)) {
-      backfillEnvDefaults(fullPath, {
+      EnvFileBackfill.backfillEnvDefaults(fullPath, {
         HOST: 'localhost',
         PORT: String(Number(variables['port'] ?? 7777)),
         LOG_LEVEL: 'debug',
