@@ -157,7 +157,7 @@ const BootstrapFunctions = Object.freeze({
       await app.boot();
 
       // Get port and host from environment
-      const port = Env.getInt('PORT', 3000);
+      const port = Env.getInt('PORT', 7777);
       const host = Env.get('HOST', 'localhost');
 
       // Create and start server
