@@ -75,6 +75,14 @@ jobs:
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.verbose=true
 
+      - name: Debug Sonar report-task
+        if: steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
+        run: |
+          echo "Scannerwork contents:"
+          ls -la .scannerwork || true
+          echo "\nreport-task.txt:"
+          cat .scannerwork/report-task.txt || true
+
       - name: Comment PR with SonarQube results
         if: github.event_name == 'pull_request' && steps.check_secrets.outputs.has_token == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
@@ -91,8 +99,74 @@ jobs:
 
       - name: Check quality gates
         if: steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
+        id: quality_gate
         uses: SonarSource/sonarqube-quality-gate-action@d304d050d930b02a896b0f85935344f023928496 # v1.1.0
+        continue-on-error: true
         timeout-minutes: 5
         env:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Fetch quality gate details
+        if: always() && steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
+        env:
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          report_file=".scannerwork/report-task.txt"
+          if [ ! -f "$report_file" ]; then
+            echo "No $report_file found; scan likely failed before producing it."
+            exit 1
+          fi
+
+          analysis_id=$(grep -E '^analysisId=' "$report_file" | head -n 1 | cut -d= -f2- || true)
+          ce_task_url=$(grep -E '^ceTaskUrl=' "$report_file" | head -n 1 | cut -d= -f2- || true)
+
+          if [ -n "$analysis_id" ]; then
+            echo "Fetching quality gate status via analysisId=$analysis_id"
+            curl -sS -u "$SONAR_TOKEN:" \
+              "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$analysis_id" \
+              | tee quality-gate.json
+            echo "\n---\n"
+            if command -v jq >/dev/null 2>&1; then
+              jq '.projectStatus | {status, conditions}' quality-gate.json
+            fi
+            exit 0
+          fi
+
+          if [ -n "$ce_task_url" ]; then
+            echo "analysisId missing; attempting to resolve via ceTaskUrl"
+            task_json=$(curl -sS -u "$SONAR_TOKEN:" "$ce_task_url")
+            echo "$task_json" > ce-task.json
+            if command -v jq >/dev/null 2>&1; then
+              resolved=$(jq -r '.task.analysisId // empty' ce-task.json)
+            else
+              resolved=""
+            fi
+            if [ -n "$resolved" ]; then
+              echo "Resolved analysisId=$resolved"
+              curl -sS -u "$SONAR_TOKEN:" \
+                "$SONAR_HOST_URL/api/qualitygates/project_status?analysisId=$resolved" \
+                | tee quality-gate.json
+              echo "\n---\n"
+              if command -v jq >/dev/null 2>&1; then
+                jq '.projectStatus | {status, conditions}' quality-gate.json
+              fi
+              exit 0
+            fi
+          fi
+
+          echo "Unable to resolve analysisId from report-task.txt"
+          exit 1
+
+      - name: Enforce quality gate
+        if: always() && steps.check_secrets.outputs.has_token == 'true' && github.ref != 'refs/heads/release'
+        run: |
+          status="${{ steps.quality_gate.outputs.quality-gate-status }}"
+          echo "Quality gate status: $status"
+          if [ "$status" != "PASSED" ]; then
+            echo "✖ Quality Gate has FAILED."
+            exit 1
+          fi
