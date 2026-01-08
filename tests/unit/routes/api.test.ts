@@ -6,11 +6,12 @@ import { Router } from '@routing/Router';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // Mock dependencies
-vi.mock('@app/Controllers/UserController', () => {
+vi.mock('@app/Controllers/UserQueryBuilderController', () => {
   const createMockUserController = () => ({
     index: vi.fn(),
     create: vi.fn(),
     store: vi.fn(),
+    fill: vi.fn(),
     show: vi.fn(),
     edit: vi.fn(),
     update: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock('@app/Controllers/UserController', () => {
   });
 
   return {
-    UserController: {
+    UserQueryBuilderController: {
       create: () => createMockUserController(),
     },
   };
@@ -60,6 +61,10 @@ describe('Routes API', () => {
     expect(Router.match(router, 'POST', '/broadcast/send')).not.toBeNull();
     expect(Router.match(router, 'POST', '/api/v1/auth/login')).not.toBeNull();
     expect(Router.match(router, 'GET', '/admin/dashboard')).not.toBeNull();
+
+    const fillMatch = Router.match(router, 'POST', '/api/v1/users/fill');
+    expect(fillMatch).not.toBeNull();
+    expect(fillMatch?.middleware).toEqual(['fillRateLimit']);
   });
 
   describe('Public Routes', () => {

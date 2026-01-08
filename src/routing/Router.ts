@@ -8,9 +8,14 @@ import { IResponse } from '@http/Response';
 
 export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
 
+export type RouteOptions = {
+  middleware?: string[];
+};
+
 export interface RouteMatch {
   handler: RouteHandler;
   params: Record<string, string>;
+  middleware?: string[];
 }
 
 export interface Route {
@@ -19,6 +24,7 @@ export interface Route {
   pattern: RegExp;
   handler: RouteHandler;
   paramNames: string[];
+  middleware?: string[];
 }
 
 export type RouteGroupCallback = (router: IRouter) => void;
@@ -30,6 +36,14 @@ export interface ResourceController {
   update?: RouteHandler;
   destroy?: RouteHandler;
 }
+
+export type ResourceOptions = RouteOptions & {
+  index?: RouteOptions;
+  show?: RouteOptions;
+  store?: RouteOptions;
+  update?: RouteOptions;
+  destroy?: RouteOptions;
+};
 
 export type IRouter = {
   routes: Route[];
@@ -71,7 +85,8 @@ const registerRoute = (
   router: IRouter,
   method: string,
   path: string,
-  handler: RouteHandler
+  handler: RouteHandler,
+  options?: RouteOptions
 ): void => {
   const { pattern, paramNames } = pathToRegex(path);
   const route: Route = {
@@ -80,6 +95,7 @@ const registerRoute = (
     pattern,
     handler,
     paramNames,
+    middleware: Array.isArray(options?.middleware) ? options?.middleware : undefined,
   };
 
   router.routes.push(route);
@@ -106,6 +122,7 @@ const getRouteMatch = (route: Route, path: string): RouteMatch | null => {
   return {
     handler: route.handler,
     params,
+    middleware: route.middleware,
   };
 };
 
@@ -189,46 +206,144 @@ const group = (router: IRouter, prefix: string, callback: RouteGroupCallback): v
   callback(scopeRouter(router, prefix));
 };
 
-const resource = (router: IRouter, path: string, controller: ResourceController): void => {
-  const base = joinPaths(router.prefix, path);
+function buildResourcePaths(prefix: string, path: string): { base: string; withId: string } {
+  const base = joinPaths(prefix, path);
   const withId = `${base.endsWith('/') ? base.slice(0, -1) : base}/:id`;
+  return { base, withId };
+}
 
-  if (controller.index) registerRoute(router, 'GET', base, controller.index);
-  if (controller.store) registerRoute(router, 'POST', base, controller.store);
-  if (controller.show) registerRoute(router, 'GET', withId, controller.show);
+function resolveResourceDefaultOptions(options?: ResourceOptions): RouteOptions | undefined {
+  return options?.middleware ? { middleware: options.middleware } : undefined;
+}
 
-  if (controller.update) {
-    registerRoute(router, 'PUT', withId, controller.update);
-    registerRoute(router, 'PATCH', withId, controller.update);
-  }
+function registerResourceIndex(
+  router: IRouter,
+  base: string,
+  controller: ResourceController,
+  options: ResourceOptions | undefined,
+  defaultOptions: RouteOptions | undefined
+): void {
+  if (!controller.index) return;
+  registerRoute(router, 'GET', base, controller.index, options?.index ?? defaultOptions);
+}
 
-  if (controller.destroy) registerRoute(router, 'DELETE', withId, controller.destroy);
+function registerResourceStore(
+  router: IRouter,
+  base: string,
+  controller: ResourceController,
+  options: ResourceOptions | undefined,
+  defaultOptions: RouteOptions | undefined
+): void {
+  if (!controller.store) return;
+  registerRoute(router, 'POST', base, controller.store, options?.store ?? defaultOptions);
+}
+
+function registerResourceShow(
+  router: IRouter,
+  withId: string,
+  controller: ResourceController,
+  options: ResourceOptions | undefined,
+  defaultOptions: RouteOptions | undefined
+): void {
+  if (!controller.show) return;
+  registerRoute(router, 'GET', withId, controller.show, options?.show ?? defaultOptions);
+}
+
+function registerResourceUpdate(
+  router: IRouter,
+  withId: string,
+  controller: ResourceController,
+  options: ResourceOptions | undefined,
+  defaultOptions: RouteOptions | undefined
+): void {
+  if (!controller.update) return;
+
+  const updateOptions = options?.update ?? defaultOptions;
+  registerRoute(router, 'PUT', withId, controller.update, updateOptions);
+  registerRoute(router, 'PATCH', withId, controller.update, updateOptions);
+}
+
+function registerResourceDestroy(
+  router: IRouter,
+  withId: string,
+  controller: ResourceController,
+  options: ResourceOptions | undefined,
+  defaultOptions: RouteOptions | undefined
+): void {
+  if (!controller.destroy) return;
+  registerRoute(router, 'DELETE', withId, controller.destroy, options?.destroy ?? defaultOptions);
+}
+
+const resource = (
+  router: IRouter,
+  path: string,
+  controller: ResourceController,
+  options?: ResourceOptions
+): void => {
+  const { base, withId } = buildResourcePaths(router.prefix, path);
+  const defaultOptions = resolveResourceDefaultOptions(options);
+
+  registerResourceIndex(router, base, controller, options, defaultOptions);
+  registerResourceStore(router, base, controller, options, defaultOptions);
+  registerResourceShow(router, withId, controller, options, defaultOptions);
+  registerResourceUpdate(router, withId, controller, options, defaultOptions);
+  registerResourceDestroy(router, withId, controller, options, defaultOptions);
 };
 
-const get = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router, 'GET', joinPaths(router.prefix, path), handler);
+const get = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  options?: RouteOptions
+): void => {
+  registerRoute(router, 'GET', joinPaths(router.prefix, path), handler, options);
 };
 
-const post = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router, 'POST', joinPaths(router.prefix, path), handler);
+const post = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  options?: RouteOptions
+): void => {
+  registerRoute(router, 'POST', joinPaths(router.prefix, path), handler, options);
 };
 
-const put = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router, 'PUT', joinPaths(router.prefix, path), handler);
+const put = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  options?: RouteOptions
+): void => {
+  registerRoute(router, 'PUT', joinPaths(router.prefix, path), handler, options);
 };
 
-const patch = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router, 'PATCH', joinPaths(router.prefix, path), handler);
+const patch = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  options?: RouteOptions
+): void => {
+  registerRoute(router, 'PATCH', joinPaths(router.prefix, path), handler, options);
 };
 
-const del = (router: IRouter, path: string, handler: RouteHandler): void => {
-  registerRoute(router, 'DELETE', joinPaths(router.prefix, path), handler);
+const del = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  options?: RouteOptions
+): void => {
+  registerRoute(router, 'DELETE', joinPaths(router.prefix, path), handler, options);
 };
 
-const any = (router: IRouter, path: string, handler: RouteHandler): void => {
+const any = (
+  router: IRouter,
+  path: string,
+  handler: RouteHandler,
+  options?: RouteOptions
+): void => {
   const fullPath = joinPaths(router.prefix, path);
   ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].forEach((method) => {
-    registerRoute(router, method, fullPath, handler);
+    registerRoute(router, method, fullPath, handler, options);
   });
 };
 

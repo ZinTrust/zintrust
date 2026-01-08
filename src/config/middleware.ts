@@ -11,6 +11,7 @@ type SharedMiddlewares = {
   error: Middleware;
   security: Middleware;
   rateLimit: Middleware;
+  fillRateLimit: Middleware;
   csrf: Middleware;
 };
 
@@ -20,6 +21,11 @@ function createSharedMiddlewares(): SharedMiddlewares {
     error: ErrorHandlerMiddleware.create(),
     security: SecurityMiddleware.create(),
     rateLimit: RateLimiter.create(),
+    fillRateLimit: RateLimiter.create({
+      windowMs: 60_000,
+      max: 5,
+      message: 'Too many fill requests, please try again later.',
+    }),
     csrf: CsrfMiddleware.create(),
   } satisfies SharedMiddlewares);
 }

@@ -3,7 +3,7 @@
  * Demonstrates routing patterns
  */
 
-import { UserController } from '@app/Controllers/UserController';
+import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
@@ -11,7 +11,7 @@ import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
 
 export function registerRoutes(router: IRouter): void {
-  const userController = UserController.create();
+  const userController = UserQueryBuilderController.create();
   registerPublicRoutes(router);
   registerApiV1Routes(router, userController);
   registerAdminRoutes(router);
@@ -44,7 +44,7 @@ function registerRootRoute(router: IRouter): void {
  */
 function registerApiV1Routes(
   router: IRouter,
-  userController: ReturnType<typeof UserController.create>
+  userController: ReturnType<typeof UserQueryBuilderController.create>
 ): void {
   Router.group(router, '/api/v1', (r) => {
     // Auth routes
@@ -56,7 +56,7 @@ function registerApiV1Routes(
       res.json({ message: 'Register endpoint' });
     });
 
-    // Protected routes (middleware is not modeled in Router.ts yet)
+    // Protected routes (Router supports per-route middleware metadata)
     const pr = r;
 
     // User resource (REST-ish)
@@ -67,6 +67,8 @@ function registerApiV1Routes(
       update: userController.update,
       destroy: userController.destroy,
     });
+
+    Router.post(pr, '/users/fill', userController.fill, { middleware: ['fillRateLimit'] });
 
     // If the controller exposes create/edit, wire them explicitly.
     Router.get(pr, '/users/create', userController.create);

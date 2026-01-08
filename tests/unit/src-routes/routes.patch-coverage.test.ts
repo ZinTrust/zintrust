@@ -74,7 +74,7 @@ vi.mock('@storage/index', () => ({
   },
 }));
 
-vi.mock('@app/Controllers/UserController', () => {
+vi.mock('@app/Controllers/UserQueryBuilderController', () => {
   const controller = {
     index: vi.fn(),
     store: vi.fn(),
@@ -86,7 +86,7 @@ vi.mock('@app/Controllers/UserController', () => {
   };
 
   return {
-    UserController: {
+    UserQueryBuilderController: {
       create: () => controller,
     },
   };

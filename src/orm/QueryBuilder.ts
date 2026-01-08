@@ -154,6 +154,50 @@ type SupportedAggregateFn = 'MAX' | 'MIN' | 'COUNT' | 'SUM' | 'AVG';
 
 const ALLOWED_AGGREGATES = new Set<SupportedAggregateFn>(['MAX', 'MIN', 'COUNT', 'SUM', 'AVG']);
 
+const tryParseAggregateSelectExpr = (
+  raw: string
+): { kind: 'aggregate'; fn: SupportedAggregateFn; arg: string; alias?: string } | null => {
+  // Aggregate functions: MAX(col) [AS alias]
+  // Capture content greedily to avoid ReDoS from overlapping whitespace patterns (S5852)
+  const agg = /^(MAX|MIN|COUNT|SUM|AVG)\(([^)]+)\)(?: AS (\S+))?$/i.exec(raw);
+  if (agg === null) return null;
+
+  const fn = agg[1]?.toUpperCase() as SupportedAggregateFn;
+  const arg = (agg[2] ?? '').trim();
+  const alias = (agg[3] ?? '').trim();
+
+  if (!ALLOWED_AGGREGATES.has(fn)) return null;
+  if (arg !== '*') {
+    assertSafeIdentifierPath(arg, 'aggregate argument');
+  }
+  if (alias.length > 0) {
+    assertSafeIdentifier(alias, 'aggregate alias');
+  }
+
+  return { kind: 'aggregate', fn, arg, alias: alias.length > 0 ? alias : undefined };
+};
+
+const tryParseColumnAliasSelectExpr = (
+  raw: string
+): { kind: 'column'; column: string; alias: string } | null => {
+  // Column alias: col [AS alias]
+  // Avoid catastrophic backtracking by using a linear-time separator scan.
+  const upperRaw = raw.toUpperCase();
+  const asIndex = upperRaw.indexOf(' AS ');
+  if (asIndex === -1) return null;
+
+  const asSeparator = { index: asIndex, 0: raw.slice(asIndex, asIndex + 4) };
+  const col = raw.slice(0, asSeparator.index).trim();
+  const alias = raw.slice(asSeparator.index + asSeparator[0].length).trim();
+
+  // Alias must be a single token (no whitespace).
+  if (col.length === 0 || alias.length === 0 || /\s/.test(alias)) return null;
+
+  assertSafeIdentifierPath(col, 'select column');
+  assertSafeIdentifier(alias, 'select alias');
+  return { kind: 'column', column: col, alias };
+};
+
 const tryParseSelectExpr = (
   expr: string
 ):
@@ -169,34 +213,11 @@ const tryParseSelectExpr = (
   if (raw === '*') return { kind: 'all' };
   if (isNumericLiteral(raw)) return { kind: 'literal', value: raw };
 
-  // Aggregate functions: MAX(col) [AS alias]
-  const agg = /^(MAX|MIN|COUNT|SUM|AVG)\(\s*([^)]+?)\s*\)(?:\s+AS\s+(\S+))?$/i.exec(raw);
-  if (agg !== null) {
-    const fn = agg[1]?.toUpperCase() as SupportedAggregateFn;
-    const arg = (agg[2] ?? '').trim();
-    const alias = (agg[3] ?? '').trim();
+  const aggregate = tryParseAggregateSelectExpr(raw);
+  if (aggregate !== null) return aggregate;
 
-    if (!ALLOWED_AGGREGATES.has(fn)) return null;
-    if (arg !== '*') {
-      assertSafeIdentifierPath(arg, 'aggregate argument');
-    }
-    if (alias.length > 0) {
-      assertSafeIdentifier(alias, 'aggregate alias');
-    }
-
-    return { kind: 'aggregate', fn, arg, alias: alias.length > 0 ? alias : undefined };
-  }
-
-  // Column alias: col [AS alias]
-  const aliased = /^(.+?)\s+AS\s+(\S+)$/.exec(raw);
-  if (aliased !== null) {
-    const col = (aliased[1] ?? '').trim();
-    const alias = (aliased[2] ?? '').trim();
-
-    assertSafeIdentifierPath(col, 'select column');
-    assertSafeIdentifier(alias, 'select alias');
-    return { kind: 'column', column: col, alias };
-  }
+  const aliased = tryParseColumnAliasSelectExpr(raw);
+  if (aliased !== null) return aliased;
 
   // Plain identifier path
   assertSafeIdentifierPath(raw, 'select column');
