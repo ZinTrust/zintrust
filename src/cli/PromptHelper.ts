@@ -67,9 +67,10 @@ export const PromptHelper = Object.freeze({
         name: 'database',
         message: 'Select database:',
         choices: [
-          { name: 'PostgreSQL (recommended)', value: 'postgresql' },
-          { name: 'MySQL', value: 'mysql' },
-          { name: 'SQLite', value: 'sqlite' },
+          { name: 'PostgreSQL — Production-ready relational DB', value: 'postgresql' },
+          { name: 'MySQL — Production-ready relational DB', value: 'mysql' },
+          { name: 'SQLite — Local dev (file-based)', value: 'sqlite' },
+          { name: 'd1-proxy — Cloudflare D1 via HTTPS proxy', value: 'd1-remote' },
         ],
         default: defaultDb,
       },

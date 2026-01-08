@@ -653,7 +653,7 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('yarn dev'));
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('zin start'));
     });
 
     it('shows next steps with provided package manager (npm)', async () => {
@@ -681,7 +681,7 @@ describe('NewCommand', () => {
 
       await command.execute(options);
 
-      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('npm run dev'));
+      expect(command.info).toHaveBeenCalledWith(expect.stringContaining('zin start'));
     });
 
     it('skips auto-install in CI by default', async () => {
@@ -931,7 +931,18 @@ describe('NewCommand', () => {
       const database = findQuestionByName(questions, 'database');
       expect(database).toBeDefined();
       expect(database?.type).toBe('rawlist');
-      expect(database?.choices).toContain('postgresql');
+
+      const choices = (database?.choices ?? []) as Array<unknown>;
+      const values = choices.map((c) => {
+        if (typeof c === 'string') return c;
+        if (typeof c === 'object' && c !== null && 'value' in c) {
+          const v = (c as { value?: unknown }).value;
+          return typeof v === 'string' ? v : '';
+        }
+        return '';
+      });
+
+      expect(values).toContain('postgresql');
     });
 
     it('should include port question', () => {

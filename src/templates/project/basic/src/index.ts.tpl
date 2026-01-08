@@ -63,7 +63,7 @@ async function start() {
     await app.boot();
 
     // Get port and host from environment
-    const port = Env.getInt('APP_PORT', 3000);
+    const port = Env.getInt('PORT', 3000);
     const host = Env.get('HOST', 'localhost');
 
     // Create and start server
@@ -74,8 +74,10 @@ async function start() {
 
     Logger.info(`Server running at http://${host}:${port}`);
 
-    process.on('SIGTERM', () => void shutdownGracefully('SIGTERM', server, app));
-    process.on('SIGINT', () => void shutdownGracefully('SIGINT', server, app));
+    if (typeof process !== 'undefined' && typeof process.on === 'function') {
+      process.on('SIGTERM', () => void shutdownGracefully('SIGTERM', server, app));
+      process.on('SIGINT', () => void shutdownGracefully('SIGINT', server, app));
+    }
   } catch (error) {
     Logger.error('Failed to start application:', error);
     process.exit(1);

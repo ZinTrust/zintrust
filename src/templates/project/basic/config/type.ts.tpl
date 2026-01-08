@@ -1,4 +1,4 @@
-import { Env } from './env';
+import { Env } from '@zintrust/core';
 import type { Middleware as MiddlewareFn } from '@zintrust/core';
 
 export type Environment =
@@ -323,10 +323,20 @@ export type MysqlConnectionConfig = {
   };
 };
 
+export type D1ConnectionConfig = {
+  driver: 'd1';
+};
+
+export type D1RemoteConnectionConfig = {
+  driver: 'd1-remote';
+};
+
 export type DatabaseConnectionConfig =
   | SqliteConnectionConfig
   | PostgresqlConnectionConfig
-  | MysqlConnectionConfig;
+  | MysqlConnectionConfig
+  | D1ConnectionConfig
+  | D1RemoteConnectionConfig;
 
 /**
  * Named database connection configs.

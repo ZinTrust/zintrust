@@ -1,4 +1,4 @@
-import { MiddlewareConfigType } from './type';
+import type { MiddlewareConfigType } from '@zintrust/core';
 import { CsrfMiddleware } from '@zintrust/core';
 import { ErrorHandlerMiddleware } from '@zintrust/core';
 import { LoggingMiddleware } from '@zintrust/core';

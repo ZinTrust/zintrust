@@ -4,7 +4,6 @@ import * as path from 'node:path';
 const TEMPLATES_ROOT = path.resolve(process.cwd(), 'src/templates');
 
 const bannedPrefixes = [
-  '@config/',
   '@exceptions/',
   '@orm/',
   '@routing/',
@@ -21,9 +20,10 @@ const bannedPrefixes = [
   '@mail/',
   '@storage/',
   '@node-singletons/',
-  '@routes/',
   '@common/',
   '@/',
+  './',
+  '../',
 ];
 
 function listFilesRecursive(root: string): string[] {
@@ -54,7 +54,6 @@ function checkFile(filePath: string): Array<{ line: number; spec: string; text: 
     const trimmed = spec.trim();
     if (trimmed === '@zintrust/core' || trimmed === '@zintrust/core/node') return;
     if (trimmed.startsWith('node:')) return;
-    if (trimmed.startsWith('./') || trimmed.startsWith('../')) return;
 
     for (const prefix of bannedPrefixes) {
       if (trimmed.startsWith(prefix)) {
@@ -113,9 +112,7 @@ function main(): void {
       process.stderr.write(`- ${o.file}:${o.line} -> ${o.spec}\n`);
       process.stderr.write(`  ${o.text.trim()}\n`);
     }
-    process.stderr.write(
-      "\nAllowed: '@zintrust/core', '@zintrust/core/node', 'node:*', and relative imports (./, ../).\n"
-    );
+    process.stderr.write("\nAllowed: '@zintrust/core', '@zintrust/core/node', 'node:*'\n");
     process.exit(1);
   }
 

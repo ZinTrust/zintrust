@@ -60,7 +60,11 @@ interface QueryState {
 /**
  * Escape SQL identifier
  */
-const escapeIdentifier = (id: string): string => `"${id.replaceAll('"', '""')}"`;
+const escapeIdentifier = (id: string): string =>
+  id
+    .split('.')
+    .map((part) => `"${part.replaceAll('"', '""')}"`)
+    .join('.');
 
 const SAFE_IDENTIFIER_PATH = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
 
@@ -212,12 +216,15 @@ const getEffectiveWhereConditions = (state: QueryState): WhereClause[] => {
 const buildOrderByClause = (orderBy?: { column: string; direction: 'ASC' | 'DESC' }): string => {
   if (!orderBy) return '';
   const col = orderBy.column.trim();
+  let columnSql = col;
+
   if (!isNumericLiteral(col)) {
     assertSafeIdentifierPath(col, 'order by column');
+    columnSql = escapeIdentifier(col);
   }
+
   const dir = normalizeOrderDirection(orderBy.direction);
-  // Keep output unquoted for backwards compatibility; validation prevents injection.
-  return ` ORDER BY ${col} ${dir}`;
+  return ` ORDER BY ${columnSql} ${dir}`;
 };
 
 /**

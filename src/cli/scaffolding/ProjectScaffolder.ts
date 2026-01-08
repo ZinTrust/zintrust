@@ -230,9 +230,28 @@ const buildDatabaseEnvLines = (database: string): string[] => {
       'DB_PASSWORD=',
     ];
   }
+  if (database === 'mysql') {
+    return [
+      'DB_HOST=localhost',
+      'DB_PORT=3306',
+      'DB_DATABASE=zintrust',
+      'DB_USERNAME=root',
+      'DB_PASSWORD=',
+    ];
+  }
   if (database === 'sqlite') {
     // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
     return ['DB_DATABASE=./database.sqlite', 'DB_PATH=./database.sqlite'];
+  }
+  if (database === 'd1-remote' || database === 'd1-proxy') {
+    return [
+      '# Cloudflare D1 Remote Proxy (HTTPS)',
+      'D1_REMOTE_URL=',
+      'D1_REMOTE_KEY_ID=',
+      'D1_REMOTE_SECRET=',
+      'D1_REMOTE_MODE=registry',
+      'ZT_PROXY_TIMEOUT_MS=15000',
+    ];
   }
   return [];
 };
@@ -271,7 +290,6 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       `APP_NAME=${name}`,
       'HOST=localhost',
       `PORT=${port}`,
-      `APP_PORT=${port}`,
       'APP_DEBUG=true',
       // Auto-generated secure key for storage signing and encryption
       `APP_KEY=${appKey}`,
@@ -301,7 +319,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       '',
       '# Microservices',
       'SERVICE_DISCOVERY_ENABLED=false',
-      'SERVICE_DISCOVERY_DRIVER=local',
+      'SERVICE_DISCOVERY_TYPE=filesystem',
       'SERVICE_NAME=',
       'SERVICE_VERSION=1.0.0',
     ];

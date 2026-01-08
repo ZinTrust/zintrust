@@ -16,9 +16,9 @@
  * security domains (e.g., different keys for different microservices).
  */
 
-import { appConfig } from './app';
-import { Env } from './env';
-import { Logger } from './logger';
+import { appConfig } from '@zintrust/core';
+import { Env } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
 
 /**

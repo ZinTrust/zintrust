@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from './env';
-import type { Environment, ProcessLike, StartMode } from './type';
+import { Env } from '@zintrust/core';
+import type { Environment, ProcessLike, StartMode } from '@zintrust/core';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
@@ -99,7 +99,7 @@ const appConfigObj = {
   port:
     typeof (Env as unknown as { PORT?: unknown }).PORT === 'number'
       ? (Env as unknown as { PORT: number }).PORT
-      : readEnvInt('APP_PORT', 3000),
+      : readEnvInt('PORT', readEnvInt('APP_PORT', 3000)),
 
   /**
    * Application host

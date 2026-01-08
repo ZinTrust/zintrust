@@ -9,7 +9,7 @@
  *  - SLACK_LOG_BATCH_WINDOW_MS (default: 5000)
  */
 
-import { Env } from '../env';
+import { Env } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
 import { HttpClient } from '@zintrust/core';
 

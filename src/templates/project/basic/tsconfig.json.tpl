@@ -13,8 +13,6 @@
       "@app/*": ["./app/*"],
       "@toolkit/*": ["./app/Toolkit/*"],
       "@config/*": ["./config/*"],
-      "@app/*": ["./app/*"],
-      "@toolkit/*": ["./app/Toolkit/*"],
       "@routes/*": ["./routes/*"],
       "@database/*": ["./database/*"],
 

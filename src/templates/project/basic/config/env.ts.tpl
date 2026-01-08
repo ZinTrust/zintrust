@@ -6,7 +6,7 @@
  * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
  */
 
-import { ProcessLike } from './type';
+import type { ProcessLike } from '@zintrust/core';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);

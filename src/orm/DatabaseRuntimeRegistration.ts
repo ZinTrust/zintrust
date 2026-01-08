@@ -18,6 +18,10 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
   switch (cfg.driver) {
     case 'sqlite':
       return { driver: 'sqlite', database: cfg.database };
+    case 'd1':
+      return { driver: 'd1' };
+    case 'd1-remote':
+      return { driver: 'd1-remote' };
     case 'postgresql':
       return {
         driver: 'postgresql',
