@@ -3,9 +3,227 @@
  * Run database migrations
  */
 
+import { Migrator } from '@/migrations/Migrator';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { PromptHelper } from '@cli/PromptHelper';
+import { databaseConfig } from '@config/database';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { Database } from '@orm/Database';
+import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 import { Command } from 'commander';
+
+const addMigrateOptions = (command: Command): void => {
+  command
+    .option('--fresh', 'Drop all tables and re-run migrations')
+    .option('--rollback', 'Rollback last migration batch')
+    .option('--reset', 'Rollback all migrations')
+    .option('--status', 'Show migration status')
+    .option('--service <domain/name>', 'Run global + service-local migrations')
+    .option('--only-service <domain/name>', 'Run only service-local migrations')
+    .option('--step <number>', 'Number of batches to rollback (for --rollback)', '1')
+    .option('--no-interactive', 'Skip interactive prompts');
+};
+
+const getInteractive = (options: CommandOptions): boolean =>
+  options['interactive'] !== false && process.env['CI'] !== 'true';
+
+const getMigrationDirs = (): {
+  globalDir: string;
+  extension: string;
+  separateTracking: boolean;
+} => {
+  const globalDir = Env.get('MIGRATIONS_GLOBAL_DIR', databaseConfig.migrations.directory);
+  const extension = databaseConfig.migrations.extension;
+  const separateTracking = Env.getBool('MIGRATIONS_SEPARATE_TRACKING', false);
+  return { globalDir, extension, separateTracking };
+};
+
+const getServiceArgs = (
+  options: CommandOptions
+): { service: string | undefined; includeGlobal: boolean } => {
+  let serviceArg: string | undefined;
+
+  if (typeof options['onlyService'] === 'string') {
+    serviceArg = String(options['onlyService']);
+  } else if (typeof options['service'] === 'string') {
+    serviceArg = String(options['service']);
+  }
+
+  const includeGlobal = typeof options['onlyService'] !== 'string';
+  return { service: serviceArg, includeGlobal };
+};
+
+const isDestructiveAction = (options: CommandOptions): boolean =>
+  options['fresh'] === true || options['reset'] === true || options['rollback'] === true;
+
+const ensureNonD1Driver = (driver: string): void => {
+  if (driver === 'd1' || driver === 'd1-remote') {
+    throw ErrorFactory.createCliError(
+      'This project is configured for D1. Use `zin d1:migrate --local|--remote` for now.'
+    );
+  }
+};
+
+const mapConnectionToOrmConfig = (
+  conn: ReturnType<typeof databaseConfig.getConnection>
+): OrmDatabaseConfig => {
+  switch (conn.driver) {
+    case 'sqlite':
+      return { driver: 'sqlite', database: conn.database };
+    case 'postgresql':
+      return {
+        driver: 'postgresql',
+        host: conn.host,
+        port: conn.port,
+        database: conn.database,
+        username: conn.username,
+        password: conn.password,
+      };
+    case 'mysql':
+      return {
+        driver: 'mysql',
+        host: conn.host,
+        port: conn.port,
+        database: conn.database,
+        username: conn.username,
+        password: conn.password,
+      };
+    default:
+      return { driver: 'sqlite', database: ':memory:' };
+  }
+};
+
+const confirmProductionRun = async (
+  cmd: IBaseCommand,
+  interactive: boolean,
+  destructive: boolean
+): Promise<boolean> => {
+  if (Env.NODE_ENV !== 'production') return true;
+
+  const confirmed = await PromptHelper.confirm(
+    `NODE_ENV=production. Continue running migrations${destructive ? ' (destructive)' : ''}?`,
+    false,
+    interactive
+  );
+
+  if (!confirmed) {
+    cmd.warn('Cancelled.');
+    return false;
+  }
+
+  return true;
+};
+
+const printStatus = (
+  cmd: IBaseCommand,
+  rows: Array<{ name: string; applied: boolean; batch?: number | null; appliedAt?: string | null }>
+): void => {
+  if (rows.length === 0) {
+    cmd.info('No migrations found.');
+    return;
+  }
+
+  for (const row of rows) {
+    const tag = row.applied ? 'applied' : 'pending';
+    const extra = row.applied ? ` (batch=${row.batch ?? '?'}, at=${row.appliedAt ?? '?'})` : '';
+    cmd.info(`${tag}: ${row.name}${extra}`);
+  }
+};
+
+const parseRollbackSteps = (options: CommandOptions): number => {
+  const stepRaw = typeof options['step'] === 'string' ? options['step'] : '1';
+  return Math.max(1, Number.parseInt(stepRaw, 10) || 1);
+};
+
+const runMigratorActions = async (
+  migrator: ReturnType<typeof Migrator.create>,
+  options: CommandOptions,
+  cmd: IBaseCommand,
+  interactive: boolean
+): Promise<void> => {
+  if (options['status'] === true) {
+    const rows = await migrator.status();
+    printStatus(cmd, rows);
+    return;
+  }
+
+  if (options['fresh'] === true) {
+    cmd.warn('This will drop all tables and re-run migrations.');
+    if (interactive) {
+      const confirmed = await PromptHelper.confirm('Continue?', false, interactive);
+      if (!confirmed) {
+        cmd.warn('Cancelled.');
+        return;
+      }
+    }
+
+    const result = await migrator.fresh();
+    cmd.success(`Fresh migration completed (applied=${result.applied})`);
+    return;
+  }
+
+  if (options['reset'] === true) {
+    cmd.warn('This will rollback ALL migrations.');
+    if (interactive) {
+      const confirmed = await PromptHelper.confirm('Continue?', false, interactive);
+      if (!confirmed) {
+        cmd.warn('Cancelled.');
+        return;
+      }
+    }
+
+    const result = await migrator.resetAll();
+    cmd.success(`All migrations reset (rolledBack=${result.rolledBack})`);
+    return;
+  }
+
+  if (options['rollback'] === true) {
+    const steps = parseRollbackSteps(options);
+    const result = await migrator.rollbackLastBatch(steps);
+    cmd.success(`Migrations rolled back (rolledBack=${result.rolledBack})`);
+    return;
+  }
+
+  cmd.info('Running pending migrations...');
+  const result = await migrator.migrate();
+  cmd.success(`Migrations completed successfully (applied=${result.applied})`);
+};
+
+const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
+  cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
+
+  const interactive = getInteractive(options);
+  const conn = databaseConfig.getConnection();
+
+  ensureNonD1Driver(conn.driver);
+
+  const ormConfig = mapConnectionToOrmConfig(conn);
+  const { globalDir, extension, separateTracking } = getMigrationDirs();
+  const { service, includeGlobal } = getServiceArgs(options);
+  const destructive = isDestructiveAction(options);
+
+  const okToProceed = await confirmProductionRun(cmd, interactive, destructive);
+  if (!okToProceed) return;
+
+  const db = Database.create(ormConfig);
+  await db.connect();
+  try {
+    const migrator = Migrator.create({
+      db,
+      projectRoot: process.cwd(),
+      globalDir,
+      extension,
+      separateTracking,
+      service,
+      includeGlobal,
+    });
+
+    await runMigratorActions(migrator, options, cmd, interactive);
+  } finally {
+    await db.disconnect();
+  }
+};
 
 /**
  * Migrate Command Factory
@@ -15,44 +233,11 @@ export const MigrateCommand = Object.freeze({
    * Create a new migrate command instance
    */
   create(): IBaseCommand {
-    const addOptions = (command: Command): void => {
-      command
-        .option('--fresh', 'Drop all tables and re-run migrations')
-        .option('--rollback', 'Rollback last migration batch')
-        .option('--reset', 'Rollback all migrations')
-        .option('--step <number>', 'Number of batches to rollback', '0');
-    };
-
-    const execute = (options: CommandOptions, cmd: IBaseCommand): void => {
-      cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
-
-      try {
-        cmd.info('Loading configuration...');
-        // Configuration loading would go here
-
-        if (options['fresh'] === true) {
-          cmd.warn('This will drop all tables and re-run migrations');
-          // Confirmation would go here
-          cmd.success('Fresh migration completed');
-        } else if (options['rollback'] === true) {
-          cmd.success('Migrations rolled back');
-        } else if (options['reset'] === true) {
-          cmd.warn('Resetting all migrations');
-          cmd.success('All migrations reset');
-        } else {
-          cmd.info('Running pending migrations...');
-          cmd.success('Migrations completed successfully');
-        }
-      } catch (error) {
-        ErrorFactory.createTryCatchError(`Migration failed: ${(error as Error).message}`, error);
-      }
-    };
-
     const cmd: IBaseCommand = BaseCommand.create({
       name: 'migrate',
       description: 'Run database migrations',
-      addOptions,
-      execute: (options: CommandOptions): void => execute(options, cmd),
+      addOptions: addMigrateOptions,
+      execute: async (options: CommandOptions): Promise<void> => executeMigrate(options, cmd),
     });
 
     return cmd;

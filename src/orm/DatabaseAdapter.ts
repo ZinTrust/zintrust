@@ -74,6 +74,21 @@ export interface IDatabaseAdapter {
   rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]>;
 
   /**
+   * Ensure the migrations tracking table exists.
+   *
+   * This intentionally lives on the adapter so higher-level framework code
+   * doesn't embed DDL SQL.
+   */
+  ensureMigrationsTable?(): Promise<void>;
+
+  /**
+   * Best-effort schema reset for development workflows.
+   *
+   * For SQL databases, this typically means dropping user tables.
+   */
+  resetSchema?(): Promise<void>;
+
+  /**
    * Get database type
    */
   getType(): string;
