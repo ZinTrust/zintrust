@@ -31,10 +31,14 @@ vi.mock('@common/index', () => ({
 
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
+    mkdirSync: vi.fn(),
     readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
   },
 }));
 
@@ -114,6 +118,56 @@ describe('StartCommand', () => {
       expect.objectContaining({
         command: 'wrangler',
         args: ['dev'],
+      })
+    );
+  });
+
+  it('should start in wrangler mode when --wg is provided', async () => {
+    const command = StartCommand.create();
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      if (p.toString().endsWith('wrangler.toml')) return true;
+      return false;
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev'],
+      })
+    );
+  });
+
+  it('should start in deno adapter mode when --deno is provided', async () => {
+    const command = StartCommand.create();
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ deno: true })).rejects.toThrow(/process.exit/);
+
+    expect(fs.mkdirSync).toHaveBeenCalled();
+    expect(fs.writeFileSync).toHaveBeenCalled();
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: expect.arrayContaining([expect.stringContaining('zin-start-deno.ts')]),
+      })
+    );
+  });
+
+  it('should start in lambda adapter mode when --lambda is provided', async () => {
+    const command = StartCommand.create();
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ lambda: true })).rejects.toThrow(/process.exit/);
+
+    expect(fs.mkdirSync).toHaveBeenCalled();
+    expect(fs.writeFileSync).toHaveBeenCalled();
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: expect.arrayContaining([expect.stringContaining('zin-start-lambda.ts')]),
       })
     );
   });

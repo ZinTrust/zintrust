@@ -127,6 +127,7 @@ export type {
 // Config (core-owned)
 export { Env } from '@config/env';
 export { Logger } from '@config/logger';
+export type * from '@config/type';
 
 export { appConfig } from '@config/app';
 export type { AppConfig } from '@config/app';

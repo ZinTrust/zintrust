@@ -1,6 +1,6 @@
 NODE_ENV=development
 APP_NAME={{projectName}}
-APP_PORT={{port}}
+PORT={{port}}
 APP_DEBUG=true
 APP_KEY=
 

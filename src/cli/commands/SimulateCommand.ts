@@ -85,7 +85,7 @@ export const SimulateCommand = {
           Logger.info(`\n${chalk.bold('Next steps:')}`);
           Logger.info(`  cd ${path.relative(process.cwd(), appPath)}`);
           Logger.info('  npm install');
-          Logger.info('  npm run dev');
+          Logger.info('  zin start');
         } catch (error) {
           Logger.error('Failed to create simulated app', error);
           process.exit(1);

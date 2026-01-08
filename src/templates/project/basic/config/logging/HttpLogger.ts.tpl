@@ -10,7 +10,7 @@
  */
 
 import { delay } from '@zintrust/core';
-import { Env } from '../env';
+import { Env } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
 import { HttpClient } from '@zintrust/core';
 

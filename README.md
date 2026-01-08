@@ -57,8 +57,14 @@ cd my-app
 zin add db:sqlite
 
 # Start development server
-npm run dev
+zin start
 ```
+
+New projects include an `.env` with safe defaults (and the generator will backfill them if missing):
+
+- `HOST=localhost`
+- `PORT=7777`
+- `LOG_LEVEL=debug`
 
 ## Adapters (on-demand installs)
 
@@ -104,7 +110,7 @@ cd ZinTrust
 npm install
 
 # Start development server
-npm run dev
+zin start
 
 # Run tests
 npm test
@@ -119,12 +125,13 @@ npm run build
 zintrust/
 ├── app/                    # Application code (Controllers, Models, Middleware)
 ├── bin/                    # CLI tools and commands
+├── packages/                # Optional adapter packages (cache/db/mail/queue/storage)
 ├── routes/                 # Route definitions
+├── services/                # Example microservices (ecommerce)
 ├── src/                    # Framework & services
 │   ├── config/             # Centralized configuration (env, app, database, security, etc.)
 │   ├── database/           # Migrations, seeders, factories
 │   ├── functions/          # Serverless handlers (Lambda, Deno, Cloudflare)
-│   ├── services/           # Microservices (ecommerce domain)
 │   ├── orm/                # Object-Relational Mapping
 │   ├── routing/            # Routing engine
 │   ├── middleware/         # Middleware system
@@ -139,6 +146,7 @@ zintrust/
 │   ├── unit/               # Unit tests
 │   └── integration/        # Integration tests
 ├── docs/                   # Public documentation
+├── docs-website/            # Docs site build output/tools
 └── md/                     # Internal documentation
 ```
 
@@ -153,6 +161,12 @@ See [docs/](docs/) for comprehensive guides on:
 - [Middleware](docs/middleware.md)
 - [Testing](docs/testing.md)
 - [Deployment](docs/deployment.md)
+
+Practical walkthroughs:
+
+- [CLI Guide](docs/cli-guide.md)
+- [CLI Reference](docs/cli-reference.md)
+- [Tasks Demo (A–Z)](docs/tasks-demo.md)
 
 ## Import Patterns
 
@@ -198,28 +212,6 @@ Zintrust is built on proven architectural patterns for modern backend developmen
 - **Testing focus**: Vitest integration with fast, isolated tests
 - **Performance by default**: N+1 detection, memory profiling built-in
 - **Minimal core**: Core HTTP/routing logic avoids external web frameworks; the published package still includes CLI/DX dependencies listed above
-
-## Development
-
-```bash
-# Watch mode with hot reload
-npm run watch
-
-# Format code
-npm run format
-
-# Lint code
-npm run lint
-
-# Type checking
-npm run type-check
-
-# Run tests with coverage
-npm run test:coverage
-
-# SonarQube analysis
-npm run sonarqube
-```
 
 ## Contributing
 

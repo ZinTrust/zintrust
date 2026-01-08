@@ -1,5 +1,5 @@
-import { Env } from './env';
-import { Logger } from './logger';
+import { Env } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 
 /**
  * Feature Flags State

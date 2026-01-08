@@ -23,6 +23,7 @@ import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
+import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
@@ -80,6 +81,7 @@ const setupProgram = (program: Command, version: string): void => {
 const registerCommands = (program: Command): void => {
   const commands = [
     NewCommand.create(),
+    UpgradeCommand.create(),
     PrepareCommand,
     AddCommand.create(),
     StartCommand.create(),

@@ -9,7 +9,7 @@ import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from '
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const hasOwn = <T extends object>(obj: T, key: PropertyKey): key is keyof T => {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 };
 
 const getStorageDriver = (config: StorageConfigRuntime, name?: string): StorageDriverConfig => {

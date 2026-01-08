@@ -15,7 +15,7 @@ import chalk from 'chalk';
 import { Command } from 'commander';
 
 type TemplateType = 'basic' | 'api' | 'microservice' | 'fullstack';
-type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb';
+type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb' | 'd1-remote';
 
 interface NewProjectConfig {
   name: string;
@@ -87,7 +87,18 @@ const getBooleanOption = (options: CommandOptions, key: string, fallback: boolea
 
 const getProjectDefaults = (name: string, options: CommandOptions): NewProjectConfig => {
   const template = getStringOption(options, 'template', 'basic') as TemplateType;
-  const database = getStringOption(options, 'database', 'sqlite') as DatabaseType;
+  const normalizeDatabase = (value: string): DatabaseType => {
+    const v = value.trim();
+    if (v === 'd1-proxy') return 'd1-remote';
+    if (v === 'd1-remote') return 'd1-remote';
+    if (v === 'sqlite') return 'sqlite';
+    if (v === 'mysql') return 'mysql';
+    if (v === 'postgresql' || v === 'postgres') return 'postgresql';
+    if (v === 'mongodb') return 'mongodb';
+    return 'sqlite';
+  };
+
+  const database = normalizeDatabase(getStringOption(options, 'database', 'sqlite'));
   const portRaw = getStringOption(options, 'port', '7777');
   const portParsed = Number.parseInt(portRaw, 10);
   const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 7777;
@@ -120,7 +131,13 @@ const getQuestions = (name: string, defaults: NewProjectConfig): InquirerQuestio
       type: 'rawlist',
       name: 'database',
       message: 'Database driver:',
-      choices: ['sqlite', 'mysql', 'postgresql', 'mongodb'],
+      choices: [
+        { name: 'sqlite — Local dev (file-based)', value: 'sqlite' },
+        { name: 'postgresql — Production-ready relational DB', value: 'postgresql' },
+        { name: 'mysql — Production-ready relational DB', value: 'mysql' },
+        { name: 'd1-proxy — Cloudflare D1 via HTTPS proxy', value: 'd1-remote' },
+        { name: 'mongodb — Document DB (may require additional setup)', value: 'mongodb' },
+      ],
       default: defaults.database,
     },
 
@@ -403,19 +420,11 @@ const executeNewCommand = async (options: CommandOptions, command: INewCommand):
 
     maybeInitializeGit(options, command, target);
 
-    const installedWithPm = await maybeInstallDependencies(options, command, target);
+    await maybeInstallDependencies(options, command, target);
 
     command.success(`\n✨ Project ${target.name} created successfully!`);
 
-    const optPm =
-      (options['packageManager'] as string | undefined) ??
-      (options['package-manager'] as string | undefined);
-    const effectivePm = installedWithPm ?? optPm ?? resolvePackageManager();
-
-    const runDevCmd =
-      effectivePm === 'yarn' || effectivePm === 'pnpm'
-        ? `${effectivePm} dev`
-        : `${effectivePm} run dev`;
+    const runDevCmd = 'zin start';
 
     command.info(`\nNext steps:\n  cd ${target.cdPath}\n  ${runDevCmd}\n`);
   } catch (error) {

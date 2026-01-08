@@ -1,5 +1,5 @@
-import { appConfig } from './app';
-import type { StartupConfigValidationError, StartupConfigValidationResult } from './type';
+import { appConfig } from '@zintrust/core';
+import type { StartupConfigValidationError, StartupConfigValidationResult } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
 
 const isSensitiveKey = (key: string): boolean => {

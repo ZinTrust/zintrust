@@ -152,6 +152,27 @@ const consume = async (params: {
   };
 };
 
+const resolveRemoteAddress = (candidate: unknown): string | undefined => {
+  if (candidate === null || candidate === undefined) return undefined;
+  if (typeof candidate !== 'object') return undefined;
+
+  const record = candidate as Record<string, unknown>;
+  const ip = record['remoteAddress'];
+  return typeof ip === 'string' && ip.length > 0 ? ip : undefined;
+};
+
+const resolveRemoteAddressFromRaw = (raw: unknown): string | undefined => {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== 'object') return undefined;
+
+  const rawRecord = raw as Record<string, unknown>;
+  return (
+    resolveRemoteAddress(rawRecord['socket']) ??
+    resolveRemoteAddress(rawRecord['connection']) ??
+    resolveRemoteAddress(raw)
+  );
+};
+
 const DEFAULT_OPTIONS: RateLimitOptions = {
   windowMs: 60 * 1000, // 1 minute
   max: 100, // 100 requests per minute
@@ -159,9 +180,16 @@ const DEFAULT_OPTIONS: RateLimitOptions = {
   statusCode: 429,
   headers: true,
   keyGenerator: (req: IRequest) => {
-    return (
-      (req.getHeader('x-forwarded-for') as string) ?? req.getRaw().socket.remoteAddress ?? 'unknown'
-    );
+    const forwardedFor = req.getHeader('x-forwarded-for');
+    const forwardedForIp =
+      typeof forwardedFor === 'string' && forwardedFor.length > 0
+        ? forwardedFor.split(',')[0]?.trim()
+        : undefined;
+
+    const raw = req.getRaw() as unknown;
+    const rawIp = resolveRemoteAddressFromRaw(raw);
+
+    return forwardedForIp ?? rawIp ?? 'unknown';
   },
 };
 

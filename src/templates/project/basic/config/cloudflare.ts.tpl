@@ -5,7 +5,7 @@
  * This keeps runtime-specific globals out of adapters/drivers.
  */
 
-import { KVNamespace, WorkersEnv } from './type';
+import type { KVNamespace, WorkersEnv } from '@zintrust/core';
 import type { DatabaseConfig, ID1Database } from '@zintrust/core';
 
 const getWorkersEnv = (): WorkersEnv | null => {

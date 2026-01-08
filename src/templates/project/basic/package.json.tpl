@@ -11,7 +11,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@zintrust/core": "^0.1.4"
+    "@zintrust/core": "^{{coreVersion}}"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

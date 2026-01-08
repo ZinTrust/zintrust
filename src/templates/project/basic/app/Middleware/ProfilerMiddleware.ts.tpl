@@ -4,9 +4,7 @@
  * Enables request profiling when ENABLE_PROFILER environment variable is set
  */
 
-import { Logger } from '@zintrust/core';
-import { Middleware } from '@zintrust/core';
-import { RequestProfiler } from '@zintrust/core';
+import { Middleware, Logger , RequestProfiler} from '@zintrust/core';
 
 /**
  * ProfilerMiddleware wraps request execution with performance profiling

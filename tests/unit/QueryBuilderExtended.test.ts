@@ -50,7 +50,7 @@ describe('QueryBuilder Extended Advanced', () => {
     const sql = builder.toSQL();
     expect(sql).toContain('SELECT "id", "title", "user_id" FROM "posts"');
     expect(sql).toContain('WHERE "published" = ? AND "user_id" = ?');
-    expect(sql).toContain('ORDER BY created_at DESC');
+    expect(sql).toContain('ORDER BY "created_at" DESC');
     expect(sql).toContain('LIMIT 20');
     expect(sql).toContain('OFFSET 10');
   });

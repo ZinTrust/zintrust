@@ -218,7 +218,7 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
       return;
     }
 
-    const { registerRoutes: registerFrameworkRoutes } = await import('../../routes/api');
+    const { registerRoutes: registerFrameworkRoutes } = await import('../routes/api');
     registerFrameworkRoutes(router);
   } catch (error: unknown) {
     Logger.error('Failed to register routes:', error as Error);

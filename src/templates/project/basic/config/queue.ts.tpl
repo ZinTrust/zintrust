@@ -4,9 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from './env';
+import { Env } from '@zintrust/core';
 
-import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from './type';
+import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@zintrust/core';
 
 const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
   const driverName = config.default;

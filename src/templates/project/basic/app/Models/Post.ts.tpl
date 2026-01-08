@@ -2,9 +2,8 @@
  * Example Post Model
  */
 
-import { IRelationship } from '@zintrust/core';
-import { User } from './User';
-import { IModel, Model, ModelConfig } from '@zintrust/core';
+import { User } from '@app/Models/User';
+import { IModel, Model, ModelConfig, IRelationship } from '@zintrust/core';
 
 export const PostConfig: ModelConfig = {
   table: 'posts',

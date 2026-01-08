@@ -5,8 +5,7 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
-import { Env } from './env';
-import {
+import  type{
   BroadcastConfigInput,
   BroadcastDrivers,
   InMemoryBroadcastDriverConfig,
@@ -14,13 +13,13 @@ import {
   PusherBroadcastDriverConfig,
   RedisBroadcastDriverConfig,
   RedisHttpsBroadcastDriverConfig,
-} from './type';
-import { ErrorFactory } from '@zintrust/core';
+} from '@zintrust/core';
+import { ErrorFactory,Env } from '@zintrust/core';
 
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
 
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
-  return Object.prototype.hasOwnProperty.call(obj, key);
+  return Object.hasOwn(obj, key);
 };
 
 const getDefaultBroadcaster = (drivers: BroadcastDrivers): string => {

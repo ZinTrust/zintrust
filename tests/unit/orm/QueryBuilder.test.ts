@@ -71,7 +71,7 @@ describe('QueryBuilder', () => {
     builder.orderBy('name', 'DESC');
 
     const sql = builder.toSQL();
-    expect(sql).toContain('ORDER BY name DESC');
+    expect(sql).toContain('ORDER BY "name" DESC');
   });
 
   it('should support shorthand where syntax', () => {
@@ -206,7 +206,7 @@ describe('QueryBuilder', () => {
   it('should default ORDER BY direction to ASC and reject unsafe direction', () => {
     const defaultsToAsc = QueryBuilder.create('users');
     defaultsToAsc.orderBy('name', '' as any);
-    expect(defaultsToAsc.toSQL()).toContain('ORDER BY name ASC');
+    expect(defaultsToAsc.toSQL()).toContain('ORDER BY "name" ASC');
 
     const bad = QueryBuilder.create('users');
     expect(() => bad.orderBy('name', 'DESC; DROP TABLE users' as any)).toThrow(
