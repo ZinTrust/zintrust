@@ -84,8 +84,10 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 - `zin migrate --rollback`: Rollback the last migration batch
 - `zin migrate --fresh`: Drop all tables and re-run all migrations
 - `zin migrate --reset`: Rollback all migrations
-
-Note: seeding is supported by the framework runtime, but CLI syntax may vary per project template.
+- `zin db:seed`: Run database seeders (see [Seeding Guide](./seeding.md))
+  - `--reset`: Truncate tables before run
+  - `--service <name>`: Include specific service seeders
+  - `--only-service <name>`: Run ONLY specific service seeders
 
 ## Plugin Commands
 

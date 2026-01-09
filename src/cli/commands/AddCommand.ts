@@ -660,6 +660,12 @@ const displaySeederSuccess = (
   );
 };
 
+const displayDatabaseSeederSuccess = (cmd: IBaseCommand, filePath: string): void => {
+  cmd.success(`Seeder 'DatabaseSeeder' created successfully!`);
+  cmd.info(`File: ${path.basename(filePath)}`);
+  cmd.info(`\nNext steps:\n  • Add additional seeders into this directory\n  • Run: zin db:seed`);
+};
+
 const promptSeederConfig = async (): Promise<SeederPromptAnswers> => {
   return inquirer.prompt([
     {
@@ -673,6 +679,7 @@ const promptSeederConfig = async (): Promise<SeederPromptAnswers> => {
       type: 'input',
       name: 'model',
       message: 'Model name (e.g., User, Post):',
+      when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
       validate: (v: string): string | boolean =>
         /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
     },
@@ -681,6 +688,7 @@ const promptSeederConfig = async (): Promise<SeederPromptAnswers> => {
       name: 'count',
       message: 'Number of records to seed (1-100,000):',
       default: '100',
+      when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
       validate: (v: string): string | boolean => {
         const num = Number.parseInt(v, 10);
         return (num >= 1 && num <= 100000) || 'Must be between 1 and 100,000';
@@ -691,18 +699,21 @@ const promptSeederConfig = async (): Promise<SeederPromptAnswers> => {
       name: 'states',
       message: 'Use state distribution (50% active, 30% inactive, 20% deleted)?',
       default: false,
+      when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
     },
     {
       type: 'confirm',
       name: 'relationships',
       message: 'Seed with relationships?',
       default: false,
+      when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
     },
     {
       type: 'confirm',
       name: 'truncate',
       message: 'Truncate table before seeding?',
       default: true,
+      when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
     },
   ]);
 };
@@ -729,12 +740,22 @@ const addSeeder = async (
     throw ErrorFactory.createValidationError('Seeder name is required');
   }
 
+  const seedersPath = path.join(projectRoot, 'database', 'seeders');
+  ensureDirectoryExists(seedersPath);
+
+  if (config.name === 'DatabaseSeeder') {
+    cmd.info('Creating seeder: DatabaseSeeder...');
+
+    const result = await SeederGenerator.generateDatabaseSeeder({ seedersPath });
+    if (result.success === false) throw ErrorFactory.createCliError(result.message);
+
+    displayDatabaseSeederSuccess(cmd, result.filePath);
+    return;
+  }
+
   if (config.modelName === '') {
     throw ErrorFactory.createValidationError('Model name is required for seeder generation');
   }
-
-  const seedersPath = path.join(projectRoot, 'database', 'seeders');
-  ensureDirectoryExists(seedersPath);
   cmd.info(`Creating seeder: ${config.name} for model ${config.modelName}...`);
 
   const result = await SeederGenerator.generateSeeder({

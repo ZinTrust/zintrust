@@ -27,6 +27,10 @@ export interface SeederOptions {
   truncate?: boolean;
 }
 
+export interface DatabaseSeederOptions {
+  seedersPath: string;
+}
+
 export interface SeederGeneratorResult {
   success: boolean;
   filePath: string;
@@ -106,6 +110,72 @@ export async function generateSeeder(options: SeederOptions): Promise<SeederGene
       message: (error as Error).message,
     };
   }
+}
+
+async function validateDatabaseSeederOptions(options: DatabaseSeederOptions): Promise<void> {
+  // Verify seeders path exists
+  const pathStat = await fs.stat(options.seedersPath).catch(() => null);
+
+  if (pathStat === null) {
+    throw ErrorFactory.createCliError(`Seeders path does not exist: ${options.seedersPath}`);
+  }
+
+  if (!pathStat.isDirectory()) {
+    throw ErrorFactory.createCliError(`Seeders path is not a directory: ${options.seedersPath}`);
+  }
+}
+
+export async function generateDatabaseSeeder(
+  options: DatabaseSeederOptions
+): Promise<SeederGeneratorResult> {
+  try {
+    await validateDatabaseSeederOptions(options);
+
+    const seederCode = buildDatabaseSeederCode();
+    const fileName = 'DatabaseSeeder.ts';
+    const filePath = path.join(options.seedersPath, fileName);
+
+    FileGenerator.writeFile(filePath, seederCode, { overwrite: true });
+
+    Logger.info(`✅ Created seeder: ${fileName}`);
+
+    return {
+      success: true,
+      filePath,
+      message: `Seeder '${fileName}' created successfully`,
+    };
+  } catch (error) {
+    Logger.error('DatabaseSeeder generation failed', error);
+    return {
+      success: false,
+      filePath: '',
+      message: (error as Error).message,
+    };
+  }
+}
+
+function buildDatabaseSeederCode(): string {
+  return `import { SeederDiscovery } from '@/seeders/SeederDiscovery';
+import { SeederLoader } from '@/seeders/SeederLoader';
+import { CommonUtils } from '@common/index';
+import type { IDatabase } from '@orm/Database';
+import * as path from '@node-singletons/path';
+
+export const DatabaseSeeder = Object.freeze({
+  async run(db: IDatabase): Promise<void> {
+    const dir = CommonUtils.esmDirname(import.meta.url);
+    const files = SeederDiscovery.listSeederFiles(dir).filter((filePath) => {
+      const base = path.basename(filePath, path.extname(filePath));
+      return base !== 'DatabaseSeeder';
+    });
+
+    for (const filePath of files) {
+      const loaded = await SeederLoader.load(filePath);
+      await loaded.run(db);
+    }
+  },
+});
+`;
 }
 
 /**
@@ -361,6 +431,7 @@ export function getAvailableOptions(): string[] {
 export const SeederGenerator = Object.freeze({
   validateOptions,
   generateSeeder,
+  generateDatabaseSeeder,
   getAvailableOptions,
 });
 

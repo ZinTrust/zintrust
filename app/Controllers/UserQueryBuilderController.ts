@@ -6,6 +6,7 @@
 import { Logger } from '@config/logger';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
+import { randomBytes } from '@node-singletons/crypto';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { Schema, Validator } from '@validation/Validator';
@@ -54,6 +55,12 @@ const randomName = (): string => {
 const randomEmail = (): string => {
   const n = randomInt(10000, 99999);
   return `user${n}@example.com`;
+};
+
+const randomPassword = (): string => {
+  // Not cryptographically perfect UX-wise, but avoids hard-coded credentials.
+  // `base64url` keeps it URL-safe and reasonably short.
+  return randomBytes(12).toString('base64url');
 };
 
 const pickAllowed = (body: JsonRecord, allowed: Set<string>): JsonRecord => {
@@ -222,7 +229,7 @@ const userControllerMethods: IUserController = {
         QueryBuilder.create('users', db).insert({
           name: randomName(),
           email: randomEmail(),
-          password: 'password123', // NOSONAR default password for test users
+          password: randomPassword(),
           created_at: ts,
           updated_at: ts,
         })

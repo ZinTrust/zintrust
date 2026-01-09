@@ -30,10 +30,15 @@ function normalizeHandler(fn: unknown, label: string): MigrationHandler {
 export const MigrationLoader = Object.freeze({
   async load(filePath: string): Promise<LoadedMigration> {
     const url = pathToFileURL(filePath).href;
-    const mod = (await import(url)) as unknown as MigrationModule;
+    const raw = (await import(url)) as unknown;
 
-    const up = mod.migration?.up ?? mod.up;
-    const down = mod.migration?.down ?? mod.down;
+    // Some tooling/transpilation paths wrap exports under `default`.
+    // Prefer direct named exports, but fall back to default export if present.
+    const mod = (raw ?? {}) as MigrationModule & { default?: unknown };
+    const fallback = (mod.default ?? {}) as MigrationModule;
+
+    const up = mod.migration?.up ?? mod.up ?? fallback.migration?.up ?? fallback.up;
+    const down = mod.migration?.down ?? mod.down ?? fallback.migration?.down ?? fallback.down;
 
     if (up === undefined) {
       throw ErrorFactory.createValidationError(`Migration '${filePath}' is missing an 'up' export`);

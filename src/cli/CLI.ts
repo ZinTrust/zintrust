@@ -7,6 +7,7 @@ import { AddCommand } from '@cli/commands/AddCommand';
 import { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
+import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
@@ -89,6 +90,7 @@ const registerCommands = (program: Command): void => {
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     MigrateCommand.create(),
+    DbSeedCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
     SecretsCommand.create(),
