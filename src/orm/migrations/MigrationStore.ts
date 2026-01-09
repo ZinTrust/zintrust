@@ -56,12 +56,20 @@ export const MigrationStore = Object.freeze({
     await ensure();
   },
 
-  async getLastCompletedBatch(db: IDatabase): Promise<number> {
+  async getLastCompletedBatch(
+    db: IDatabase,
+    scope: MigrationScope = 'global',
+    service: string = ''
+  ): Promise<number> {
     assertDbSupportsMigrations(db);
+
+    const normalizedService = toSafeService(service);
 
     const row = await QueryBuilder.create('migrations', db)
       .max('batch', 'max_batch')
       .where('status', '=', 'completed')
+      .andWhere('scope', '=', scope)
+      .andWhere('service', '=', normalizedService)
       .first<{ max_batch?: unknown }>();
 
     const value = row?.max_batch;
@@ -102,10 +110,34 @@ export const MigrationStore = Object.freeze({
   ): Promise<void> {
     assertDbSupportsMigrations(db);
 
+    const normalizedService = toSafeService(params.service);
+
+    const existing = await QueryBuilder.create('migrations', db)
+      .select('id')
+      .where('name', '=', params.name)
+      .andWhere('scope', '=', params.scope)
+      .andWhere('service', '=', normalizedService)
+      .first<{ id?: unknown }>();
+
+    // Allow re-running previously failed/running migrations by updating the existing row.
+    // This avoids tripping the UNIQUE(name, scope, service) constraint.
+    if (existing?.id !== undefined && existing.id !== null) {
+      await QueryBuilder.create('migrations', db)
+        .where('name', '=', params.name)
+        .andWhere('scope', '=', params.scope)
+        .andWhere('service', '=', normalizedService)
+        .update({
+          batch: params.batch,
+          status: 'running',
+          applied_at: null,
+        });
+      return;
+    }
+
     await QueryBuilder.create('migrations', db).insert({
       name: params.name,
       scope: params.scope,
-      service: toSafeService(params.service),
+      service: normalizedService,
       batch: params.batch,
       status: 'running',
       applied_at: null,

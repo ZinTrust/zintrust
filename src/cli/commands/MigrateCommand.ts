@@ -5,10 +5,14 @@
 
 import { Migrator } from '@/migrations/Migrator';
 import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { D1SqlMigrations } from '@cli/d1/D1SqlMigrations';
+import { WranglerConfig } from '@cli/d1/WranglerConfig';
+import { WranglerD1 } from '@cli/d1/WranglerD1';
 import { PromptHelper } from '@cli/PromptHelper';
 import { databaseConfig } from '@config/database';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 import { Command } from 'commander';
@@ -22,6 +26,9 @@ const addMigrateOptions = (command: Command): void => {
     .option('--service <domain/name>', 'Run global + service-local migrations')
     .option('--only-service <domain/name>', 'Run only service-local migrations')
     .option('--step <number>', 'Number of batches to rollback (for --rollback)', '1')
+    .option('--local', 'D1 only: run migrations against local D1 database')
+    .option('--remote', 'D1 only: run migrations against remote D1 database')
+    .option('--database <name>', 'D1 only: D1 database name', 'zintrust_db')
     .option('--no-interactive', 'Skip interactive prompts');
 };
 
@@ -57,13 +64,7 @@ const getServiceArgs = (
 const isDestructiveAction = (options: CommandOptions): boolean =>
   options['fresh'] === true || options['reset'] === true || options['rollback'] === true;
 
-const ensureNonD1Driver = (driver: string): void => {
-  if (driver === 'd1' || driver === 'd1-remote') {
-    throw ErrorFactory.createCliError(
-      'This project is configured for D1. Use `zin d1:migrate --local|--remote` for now.'
-    );
-  }
-};
+const isD1Driver = (driver: string): boolean => driver === 'd1' || driver === 'd1-remote';
 
 const mapConnectionToOrmConfig = (
   conn: ReturnType<typeof databaseConfig.getConnection>
@@ -117,7 +118,13 @@ const confirmProductionRun = async (
 
 const printStatus = (
   cmd: IBaseCommand,
-  rows: Array<{ name: string; applied: boolean; batch?: number | null; appliedAt?: string | null }>
+  rows: Array<{
+    name: string;
+    applied: boolean;
+    batch?: number | null;
+    status?: string | null;
+    appliedAt?: string | null;
+  }>
 ): void => {
   if (rows.length === 0) {
     cmd.info('No migrations found.');
@@ -125,8 +132,16 @@ const printStatus = (
   }
 
   for (const row of rows) {
-    const tag = row.applied ? 'applied' : 'pending';
-    const extra = row.applied ? ` (batch=${row.batch ?? '?'}, at=${row.appliedAt ?? '?'})` : '';
+    const normalizedStatus = typeof row.status === 'string' ? row.status : null;
+    const tag = normalizedStatus ?? (row.applied ? 'applied' : 'pending');
+
+    const hasMeta =
+      normalizedStatus === 'completed' ||
+      normalizedStatus === 'failed' ||
+      normalizedStatus === 'running' ||
+      row.applied;
+    const extra = hasMeta ? ` (batch=${row.batch ?? '?'}, at=${row.appliedAt ?? '?'})` : '';
+
     cmd.info(`${tag}: ${row.name}${extra}`);
   }
 };
@@ -140,9 +155,11 @@ const runMigratorActions = async (
   migrator: ReturnType<typeof Migrator.create>,
   options: CommandOptions,
   cmd: IBaseCommand,
-  interactive: boolean
+  interactive: boolean,
+  driver: string
 ): Promise<void> => {
   if (options['status'] === true) {
+    cmd.info(`Adapter: ${driver}`);
     const rows = await migrator.status();
     printStatus(cmd, rows);
     return;
@@ -190,17 +207,89 @@ const runMigratorActions = async (
   cmd.success(`Migrations completed successfully (applied=${result.applied})`);
 };
 
+const runD1Actions = async (params: {
+  options: CommandOptions;
+  cmd: IBaseCommand;
+  projectRoot: string;
+  globalDir: string;
+  extension: string;
+  separateTracking: boolean;
+  service: string | undefined;
+  includeGlobal: boolean;
+}): Promise<void> => {
+  const {
+    options,
+    cmd,
+    projectRoot,
+    globalDir,
+    extension,
+    separateTracking,
+    service,
+    includeGlobal,
+  } = params;
+
+  if (
+    options['status'] === true ||
+    options['fresh'] === true ||
+    options['reset'] === true ||
+    options['rollback'] === true
+  ) {
+    throw ErrorFactory.createCliError(
+      'This project is configured for D1. Only applying migrations is supported here. Use `zin d1:migrate --local|--remote` (and Wrangler subcommands) for status/rollback/reset.'
+    );
+  }
+
+  if (separateTracking) {
+    cmd.warn('Note: MIGRATIONS_SEPARATE_TRACKING is ignored for D1 (Wrangler owns tracking).');
+  }
+
+  const isLocal = options['local'] === true || options['remote'] !== true;
+  const dbName = typeof options['database'] === 'string' ? options['database'] : 'zintrust_db';
+
+  const migrationsRelDir = WranglerConfig.getD1MigrationsDir(projectRoot, dbName);
+  const outputDir = path.join(projectRoot, migrationsRelDir);
+
+  cmd.info(`Generating D1 SQL migrations into ${migrationsRelDir}...`);
+  const generated = await D1SqlMigrations.compileAndWrite({
+    projectRoot,
+    globalDir,
+    extension,
+    service,
+    includeGlobal,
+    outputDir,
+  });
+  cmd.info(`Generated ${generated.length} SQL migration file(s).`);
+
+  cmd.info(`Running D1 migrations for ${dbName} (${isLocal ? 'local' : 'remote'})...`);
+  const output = await WranglerD1.applyMigrations({ cmd, dbName, isLocal });
+  if (output !== '') cmd.info(output);
+  cmd.success('D1 migrations completed successfully');
+};
+
 const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
   cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
 
   const interactive = getInteractive(options);
   const conn = databaseConfig.getConnection();
 
-  ensureNonD1Driver(conn.driver);
-
-  const ormConfig = mapConnectionToOrmConfig(conn);
   const { globalDir, extension, separateTracking } = getMigrationDirs();
   const { service, includeGlobal } = getServiceArgs(options);
+
+  if (isD1Driver(conn.driver)) {
+    await runD1Actions({
+      options,
+      cmd,
+      projectRoot: process.cwd(),
+      globalDir,
+      extension,
+      separateTracking,
+      service,
+      includeGlobal,
+    });
+    return;
+  }
+
+  const ormConfig = mapConnectionToOrmConfig(conn);
   const destructive = isDestructiveAction(options);
 
   const okToProceed = await confirmProductionRun(cmd, interactive, destructive);
@@ -219,7 +308,7 @@ const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promi
       includeGlobal,
     });
 
-    await runMigratorActions(migrator, options, cmd, interactive);
+    await runMigratorActions(migrator, options, cmd, interactive, conn.driver);
   } finally {
     await db.disconnect();
   }

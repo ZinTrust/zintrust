@@ -8,6 +8,7 @@ import { MigrationLoader } from '@/migrations/MigrationLoader';
 import { MigrationLock } from '@/migrations/MigrationLock';
 import type {
   LoadedMigration,
+  MigrationRecord,
   MigrationScope,
   MigratorOptions,
   MigratorStatusRow,
@@ -36,6 +37,7 @@ type MigratorCtx = {
   separateTracking: boolean;
   includeGlobal: boolean;
   service: string | null;
+  serviceDir: string | null;
 };
 
 function createCtx(options: MigratorOptions): MigratorCtx {
@@ -49,6 +51,14 @@ function createCtx(options: MigratorOptions): MigratorCtx {
   const includeGlobal = options.includeGlobal !== false;
   const lockFile = options.lockFile ?? path.join(projectRoot, '.zintrust', 'migrate.lock');
 
+  const serviceDir =
+    service === null
+      ? null
+      : MigrationDiscovery.resolveDir(
+          projectRoot,
+          path.join('services', service, Env.get('MIGRATIONS_SERVICE_DIR', 'database/migrations'))
+        );
+
   return {
     options,
     projectRoot,
@@ -58,19 +68,43 @@ function createCtx(options: MigratorOptions): MigratorCtx {
     separateTracking,
     includeGlobal,
     service,
+    serviceDir,
   };
 }
 
-function getTrackingScope(ctx: MigratorCtx): MigrationScope {
-  if (ctx.separateTracking) {
-    return ctx.service === null ? 'global' : 'service';
-  }
-  return 'global';
+type TrackingTarget = { scope: MigrationScope; service: string };
+
+function keyForTarget(t: TrackingTarget): string {
+  return `${t.scope}:${t.service}`;
 }
 
-function getTrackingService(ctx: MigratorCtx): string {
-  if (!ctx.separateTracking) return '';
-  return ctx.service ?? '';
+function getTargets(ctx: MigratorCtx): TrackingTarget[] {
+  if (!ctx.separateTracking) return [{ scope: 'global', service: '' }];
+
+  if (ctx.service === null) {
+    return [{ scope: 'global', service: '' }];
+  }
+
+  const targets: TrackingTarget[] = [];
+  // Prefer rolling back service migrations before global ones.
+  targets.push({ scope: 'service', service: ctx.service });
+  if (ctx.includeGlobal) targets.push({ scope: 'global', service: '' });
+  return targets;
+}
+
+function getTargetForMigration(ctx: MigratorCtx, migration: LoadedMigration): TrackingTarget {
+  if (!ctx.separateTracking) return { scope: 'global', service: '' };
+  if (ctx.service === null) return { scope: 'global', service: '' };
+
+  const serviceDir = ctx.serviceDir;
+  if (serviceDir !== null) {
+    const prefix = serviceDir.endsWith(path.sep) ? serviceDir : `${serviceDir}${path.sep}`;
+    if (migration.filePath.startsWith(prefix)) {
+      return { scope: 'service', service: ctx.service };
+    }
+  }
+
+  return { scope: 'global', service: '' };
 }
 
 function getMigrationDirs(ctx: MigratorCtx): string[] {
@@ -80,13 +114,8 @@ function getMigrationDirs(ctx: MigratorCtx): string[] {
     dirs.push(ctx.globalDir);
   }
 
-  if (ctx.service !== null) {
-    const rel = Env.get('MIGRATIONS_SERVICE_DIR', 'database/migrations');
-    const serviceDir = MigrationDiscovery.resolveDir(
-      ctx.projectRoot,
-      path.join('services', ctx.service, rel)
-    );
-    dirs.push(serviceDir);
+  if (ctx.serviceDir !== null) {
+    dirs.push(ctx.serviceDir);
   }
 
   return dirs;
@@ -191,6 +220,68 @@ async function rollbackOneMigration(params: {
   });
 }
 
+async function rollbackTargetBatch(params: {
+  db: MigratorOptions['db'];
+  target: TrackingTarget;
+  migrationMap: Map<string, LoadedMigration>;
+  count: number;
+}): Promise<number> {
+  const { db, target, migrationMap, count } = params;
+  const last = await MigrationStore.getLastCompletedBatch(db, target.scope, target.service);
+  if (last <= 0) return 0;
+
+  const targetMinBatch = Math.max(1, last - count + 1);
+  const rows = await MigrationStore.listCompletedInBatchesGte(db, {
+    scope: target.scope,
+    service: target.service,
+    minBatch: targetMinBatch,
+  });
+
+  const appliedNames = rows.map((r) => r.name);
+  if (appliedNames.length === 0) return 0;
+
+  let rolledBack = 0;
+  await runSerial(appliedNames, async (name) => {
+    await rollbackOneMigration({
+      db,
+      name,
+      migrationMap,
+      scope: target.scope,
+      service: target.service,
+      errorLabel: 'rollback',
+    });
+    rolledBack++;
+  });
+  return rolledBack;
+}
+
+async function resetTarget(params: {
+  db: MigratorOptions['db'];
+  target: TrackingTarget;
+  migrationMap: Map<string, LoadedMigration>;
+}): Promise<number> {
+  const { db, target, migrationMap } = params;
+  const names = await MigrationStore.listAllCompletedNames(db, {
+    scope: target.scope,
+    service: target.service,
+  });
+  if (names.length === 0) return 0;
+
+  let rolledBack = 0;
+  await runSerial(names, async (name) => {
+    await rollbackOneMigration({
+      db,
+      name,
+      migrationMap,
+      scope: target.scope,
+      service: target.service,
+      errorLabel: 'reset',
+    });
+    rolledBack++;
+  });
+  return rolledBack;
+}
+
 function buildStatus(ctx: MigratorCtx): MigratorApi['status'] {
   return async () => {
     const db = ctx.options.db;
@@ -198,12 +289,20 @@ function buildStatus(ctx: MigratorCtx): MigratorApi['status'] {
     await MigrationStore.ensureTable(db);
     const migrations = await discover(ctx);
 
-    const trackingScope = getTrackingScope(ctx);
-    const trackingService = getTrackingService(ctx);
-    const applied = await MigrationStore.getAppliedMap(db, trackingScope, trackingService);
+    const targets = getTargets(ctx);
+    const appliedByTarget = new Map<string, Map<string, MigrationRecord>>();
+    await Promise.all(
+      targets.map(async (t) => {
+        appliedByTarget.set(
+          keyForTarget(t),
+          await MigrationStore.getAppliedMap(db, t.scope, t.service)
+        );
+      })
+    );
 
     return migrations.map((m) => {
-      const row = applied.get(m.name);
+      const target = getTargetForMigration(ctx, m);
+      const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
       return {
         name: m.name,
         applied: row?.status === 'completed',
@@ -224,22 +323,36 @@ function buildMigrate(ctx: MigratorCtx): MigratorApi['migrate'] {
 
       const migrations = await discover(ctx);
 
-      const trackingScope = getTrackingScope(ctx);
-      const trackingService = getTrackingService(ctx);
-      const applied = await MigrationStore.getAppliedMap(db, trackingScope, trackingService);
+      const targets = getTargets(ctx);
+      const appliedByTarget = new Map<string, Map<string, MigrationRecord>>();
+      const batchByTarget = new Map<string, number>();
+      await Promise.all(
+        targets.map(async (t) => {
+          const key = keyForTarget(t);
+          appliedByTarget.set(key, await MigrationStore.getAppliedMap(db, t.scope, t.service));
+          batchByTarget.set(
+            key,
+            (await MigrationStore.getLastCompletedBatch(db, t.scope, t.service)) + 1
+          );
+        })
+      );
 
-      const pending = migrations.filter((m) => applied.get(m.name)?.status !== 'completed');
+      const pending = migrations.filter((m) => {
+        const target = getTargetForMigration(ctx, m);
+        const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
+        return row?.status !== 'completed';
+      });
       if (pending.length === 0) return { applied: 0, pending: 0 };
-
-      const batch = (await MigrationStore.getLastCompletedBatch(db)) + 1;
 
       let appliedCount = 0;
       await runSerial(pending, async (m) => {
+        const target = getTargetForMigration(ctx, m);
+        const batch = batchByTarget.get(keyForTarget(target)) ?? 1;
         await applyOneMigration({
           db,
           migration: m,
-          scope: trackingScope,
-          service: trackingService,
+          scope: target.scope,
+          service: target.service,
           batch,
         });
         appliedCount++;
@@ -257,38 +370,15 @@ function buildRollback(ctx: MigratorCtx): MigratorApi['rollbackLastBatch'] {
     return withLock(ctx, async () => {
       await MigrationStore.ensureTable(db);
 
-      const trackingScope = getTrackingScope(ctx);
-      const trackingService = getTrackingService(ctx);
-
-      const last = await MigrationStore.getLastCompletedBatch(db);
-      if (last <= 0) return { rolledBack: 0 };
-
+      const targets = getTargets(ctx);
       const count = Math.max(1, steps);
-      const targetMinBatch = Math.max(1, last - count + 1);
-
-      const rows = await MigrationStore.listCompletedInBatchesGte(db, {
-        scope: trackingScope,
-        service: trackingService,
-        minBatch: targetMinBatch,
-      });
-
-      const appliedNames = rows.map((r) => r.name);
-      if (appliedNames.length === 0) return { rolledBack: 0 };
 
       const discovered = await discover(ctx);
       const migrationMap = new Map(discovered.map((m) => [m.name, m] as const));
 
       let rolledBack = 0;
-      await runSerial(appliedNames, async (name) => {
-        await rollbackOneMigration({
-          db,
-          name,
-          migrationMap,
-          scope: trackingScope,
-          service: trackingService,
-          errorLabel: 'rollback',
-        });
-        rolledBack++;
+      await runSerial(targets, async (target) => {
+        rolledBack += await rollbackTargetBatch({ db, target, migrationMap, count });
       });
 
       return { rolledBack };
@@ -303,30 +393,13 @@ function buildReset(ctx: MigratorCtx): MigratorApi['resetAll'] {
     return withLock(ctx, async () => {
       await MigrationStore.ensureTable(db);
 
-      const trackingScope = getTrackingScope(ctx);
-      const trackingService = getTrackingService(ctx);
-
-      const names = await MigrationStore.listAllCompletedNames(db, {
-        scope: trackingScope,
-        service: trackingService,
-      });
-
-      if (names.length === 0) return { rolledBack: 0 };
-
+      const targets = getTargets(ctx);
       const discovered = await discover(ctx);
       const migrationMap = new Map(discovered.map((m) => [m.name, m] as const));
 
       let rolledBack = 0;
-      await runSerial(names, async (name) => {
-        await rollbackOneMigration({
-          db,
-          name,
-          migrationMap,
-          scope: trackingScope,
-          service: trackingService,
-          errorLabel: 'reset',
-        });
-        rolledBack++;
+      await runSerial(targets, async (target) => {
+        rolledBack += await resetTarget({ db, target, migrationMap });
       });
 
       return { rolledBack };
@@ -346,22 +419,37 @@ function buildFresh(ctx: MigratorCtx): MigratorApi['fresh'] {
       await MigrationStore.ensureTable(db);
 
       const migrations = await discover(ctx);
-      const trackingScope = getTrackingScope(ctx);
-      const trackingService = getTrackingService(ctx);
-      const applied = await MigrationStore.getAppliedMap(db, trackingScope, trackingService);
 
-      const pending = migrations.filter((m) => applied.get(m.name)?.status !== 'completed');
+      const targets = getTargets(ctx);
+      const appliedByTarget = new Map<string, Map<string, MigrationRecord>>();
+      const batchByTarget = new Map<string, number>();
+      await Promise.all(
+        targets.map(async (t) => {
+          const key = keyForTarget(t);
+          appliedByTarget.set(key, await MigrationStore.getAppliedMap(db, t.scope, t.service));
+          batchByTarget.set(
+            key,
+            (await MigrationStore.getLastCompletedBatch(db, t.scope, t.service)) + 1
+          );
+        })
+      );
+
+      const pending = migrations.filter((m) => {
+        const target = getTargetForMigration(ctx, m);
+        const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
+        return row?.status !== 'completed';
+      });
       if (pending.length === 0) return { applied: 0, pending: 0 };
-
-      const batch = (await MigrationStore.getLastCompletedBatch(db)) + 1;
 
       let appliedCount = 0;
       await runSerial(pending, async (m) => {
+        const target = getTargetForMigration(ctx, m);
+        const batch = batchByTarget.get(keyForTarget(target)) ?? 1;
         await applyOneMigration({
           db,
           migration: m,
-          scope: trackingScope,
-          service: trackingService,
+          scope: target.scope,
+          service: target.service,
           batch,
         });
         appliedCount++;

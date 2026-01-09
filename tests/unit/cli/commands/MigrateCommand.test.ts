@@ -58,7 +58,27 @@ vi.mock('@/migrations/Migrator', () => ({
   },
 }));
 
+vi.mock('@/cli/d1/D1SqlMigrations', () => ({
+  D1SqlMigrations: {
+    compileAndWrite: vi.fn(async () => [{ outputFileName: '0000_test.sql' }]),
+  },
+}));
+
+vi.mock('@/cli/d1/WranglerD1', () => ({
+  WranglerD1: {
+    applyMigrations: vi.fn(async () => ''),
+  },
+}));
+
+vi.mock('@/cli/d1/WranglerConfig', () => ({
+  WranglerConfig: {
+    getD1MigrationsDir: vi.fn(() => 'migrations'),
+  },
+}));
+
 import { MigrateCommand } from '@/cli/commands/MigrateCommand';
+import { D1SqlMigrations } from '@/cli/d1/D1SqlMigrations';
+import { WranglerD1 } from '@/cli/d1/WranglerD1';
 import { databaseConfig } from '@/config/database';
 import { Migrator } from '@/migrations/Migrator';
 import { Database } from '@/orm/Database';
@@ -99,6 +119,9 @@ describe('MigrateCommand', () => {
     expect(helpText).toContain('--service');
     expect(helpText).toContain('--only-service');
     expect(helpText).toContain('--step');
+    expect(helpText).toContain('--local');
+    expect(helpText).toContain('--remote');
+    expect(helpText).toContain('--database');
     expect(helpText).toContain('--no-interactive');
     expect(helpText).toContain('--verbose');
   });
@@ -161,10 +184,25 @@ describe('MigrateCommand', () => {
     expect(command.success).toHaveBeenCalledWith(expect.stringContaining('rolledBack='));
   });
 
-  it('throws a CLI error for D1 configs', async () => {
+  it('runs D1 migrations via compile + wrangler apply', async () => {
     vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
 
-    await expect(command.execute({})).rejects.toBeDefined();
+    await command.execute({});
+
+    expect(D1SqlMigrations.compileAndWrite).toHaveBeenCalled();
+    expect(WranglerD1.applyMigrations).toHaveBeenCalledWith(
+      expect.objectContaining({ dbName: 'zintrust_db', isLocal: true })
+    );
+    expect(command.success).toHaveBeenCalledWith(
+      expect.stringContaining('D1 migrations completed successfully')
+    );
+    expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported D1 actions like --status', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+
+    await expect(command.execute({ status: true })).rejects.toBeDefined();
     expect(Database.create).not.toHaveBeenCalled();
   });
 });
