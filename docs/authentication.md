@@ -58,6 +58,6 @@ For service-to-service communication, you can use API keys:
 
 ```typescript
 router.group({ middleware: ['auth:api-key'] }, (r) => {
-  r.get('/internal/stats', 'StatsController@index');
+  r.get('/stats', 'StatsController@index');
 });
 ```

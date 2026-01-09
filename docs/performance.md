@@ -46,4 +46,4 @@ await ParallelGenerator.runAll([() => fetchUser(), () => fetchPosts(), () => fet
 
 ## Production Mode
 
-Always run Zintrust in production mode (`APP_ENV=production`) to disable debug logging and enable internal optimizations.
+Always run Zintrust in production mode (`APP_ENV=production`) to disable debug logging and enable production optimizations.

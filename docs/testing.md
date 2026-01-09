@@ -78,7 +78,7 @@ describe('User API', () => {
 
 ## Mocking
 
-Zintrust leverages Vitest's powerful mocking capabilities. You can mock external dependencies, database calls, or even internal services.
+Zintrust leverages Vitest's powerful mocking capabilities. You can mock external dependencies, database calls, or services within your app.
 
 ```typescript
 import { vi } from 'vitest';

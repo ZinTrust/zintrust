@@ -17,7 +17,7 @@
 - `zin fix`: Run automated code fixes
 - `zin qa`: Run full Quality Assurance suite
 - `zin secrets`: Pull/push secrets via the Secrets toolkit
-- `zin simulate` (alias: `zin -sim`): [internal] generate a simulated app under `./simulate/`
+- `zin simulate` (alias: `zin -sim`): Generate a simulated app under `./simulate/` (dev utility)
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
 
@@ -81,9 +81,16 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 ## Database Commands
 
 - `zin migrate`: Run all pending migrations
+- `zin migrate --status`: Show migration status
 - `zin migrate --rollback`: Rollback the last migration batch
+- `zin migrate --rollback --step <number>`: Rollback multiple batches
 - `zin migrate --fresh`: Drop all tables and re-run all migrations
 - `zin migrate --reset`: Rollback all migrations
+- `zin migrate --service <domain/name>`: Run global + service-local migrations
+- `zin migrate --only-service <domain/name>`: Run only service-local migrations
+- `zin migrate --force`: Allow running migrations in production without prompts
+- `zin migrate --no-interactive`: Skip interactive prompts
+- `zin migrate --local|--remote --database <name>`: D1 only: compile TS migrations to Wrangler SQL and apply via Wrangler
 - `zin db:seed`: Run database seeders (see [Seeding Guide](./seeding.md))
   - `--reset`: Truncate tables before run
   - `--service <name>`: Include specific service seeders

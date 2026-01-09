@@ -247,14 +247,34 @@ Run database migrations
 - `--fresh` - Drop all tables and re-run migrations
 - `--rollback` - Rollback last migration batch
 - `--reset` - Rollback all migrations
-- `--step <number>` - Number of batches to rollback
+- `--status` - Show migration status
+- `--service <domain/name>` - Run global + service-local migrations
+- `--only-service <domain/name>` - Run only service-local migrations
+- `--step <number>` - Number of batches to rollback (for `--rollback`)
+- `--force` - Allow running migrations in production without prompts
+- `--no-interactive` - Skip interactive prompts
+- `--local` - D1 only: run migrations against local D1 database
+- `--remote` - D1 only: run migrations against remote D1 database
+- `--database <name>` - D1 only: D1 database name
+
+**Notes**:
+
+- If `DB_CONNECTION` is `d1`/`d1-remote`, `zin migrate` supports **apply-only** (it compiles TS migrations to Wrangler SQL and then applies via Wrangler). For rollback/reset/status, use Wrangler subcommands (or `zin d1:migrate` for apply).
 
 **Examples**:
 
 ```bash
 zin migrate
+zin migrate --status
 zin migrate --fresh
 zin migrate --rollback
+zin migrate --rollback --step 2
+
+# D1 (local by default)
+zin migrate --local --database zintrust_db
+
+# CI / non-interactive production deploys
+zin migrate --force --no-interactive
 ```
 
 ### zin debug

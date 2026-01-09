@@ -106,7 +106,6 @@ _Note: Uninstall is currently **non-destructive** and does not roll back generat
 
 ## Creating Custom Plugins
 
-(Coming Soon)
-Future versions of Zintrust will allow you to define your own local plugins to standardize components across your organization.
+Custom/local plugins are not supported yet.
 
 <!-- end -->

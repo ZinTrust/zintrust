@@ -29,6 +29,12 @@ Run the migration:
 zin migrate
 ```
 
+If your project uses Cloudflare D1 (`DB_CONNECTION=d1` or `d1-remote`), use:
+
+```bash
+zin migrate --local --database zintrust_db
+```
+
 ## 2. Create the Controller
 
 Generate a controller for your tasks:

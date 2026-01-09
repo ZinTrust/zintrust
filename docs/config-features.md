@@ -21,7 +21,7 @@ import { Logger } from '@zintrust/core';
 
 /**
  * Feature Flags State
- * Internal state managed by the module
+ * Module state managed by the module
  */
 let _rawQueryEnabled = false;
 
@@ -83,7 +83,7 @@ import { Logger } from '@zintrust/core';
 
 /**
  * Feature Flags State
- * Internal state managed by the module
+ * Module state managed by the module
  */
 let _rawQueryEnabled = false;
 

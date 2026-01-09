@@ -26,6 +26,7 @@ const addMigrateOptions = (command: Command): void => {
     .option('--service <domain/name>', 'Run global + service-local migrations')
     .option('--only-service <domain/name>', 'Run only service-local migrations')
     .option('--step <number>', 'Number of batches to rollback (for --rollback)', '1')
+    .option('--force', 'Allow running migrations in production without prompts')
     .option('--local', 'D1 only: run migrations against local D1 database')
     .option('--remote', 'D1 only: run migrations against remote D1 database')
     .option('--database <name>', 'D1 only: D1 database name', 'zintrust_db')
@@ -98,9 +99,11 @@ const mapConnectionToOrmConfig = (
 const confirmProductionRun = async (
   cmd: IBaseCommand,
   interactive: boolean,
-  destructive: boolean
+  destructive: boolean,
+  force: boolean
 ): Promise<boolean> => {
   if (Env.NODE_ENV !== 'production') return true;
+  if (force) return true;
 
   const confirmed = await PromptHelper.confirm(
     `NODE_ENV=production. Continue running migrations${destructive ? ' (destructive)' : ''}?`,
@@ -261,7 +264,7 @@ const runD1Actions = async (params: {
   cmd.info(`Generated ${generated.length} SQL migration file(s).`);
 
   cmd.info(`Running D1 migrations for ${dbName} (${isLocal ? 'local' : 'remote'})...`);
-  const output = await WranglerD1.applyMigrations({ cmd, dbName, isLocal });
+  const output = WranglerD1.applyMigrations({ cmd, dbName, isLocal });
   if (output !== '') cmd.info(output);
   cmd.success('D1 migrations completed successfully');
 };
@@ -291,8 +294,9 @@ const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promi
 
   const ormConfig = mapConnectionToOrmConfig(conn);
   const destructive = isDestructiveAction(options);
+  const force = options['force'] === true;
 
-  const okToProceed = await confirmProductionRun(cmd, interactive, destructive);
+  const okToProceed = await confirmProductionRun(cmd, interactive, destructive, force);
   if (!okToProceed) return;
 
   const db = Database.create(ormConfig);

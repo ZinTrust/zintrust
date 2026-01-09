@@ -168,7 +168,7 @@ const userControllerMethods: IUserController = {
         .email('email')
         .custom(
           'password',
-          (v) => v === undefined || typeof v === 'string',
+          (v: unknown) => v === undefined || typeof v === 'string',
           'password must be a string'
         )
         .minLength('password', 8);
@@ -208,7 +208,7 @@ const userControllerMethods: IUserController = {
       const schema = Schema.create()
         .custom(
           'count',
-          (v) => v === undefined || (typeof v === 'number' && Number.isFinite(v)),
+          (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v)),
           'count must be a number'
         )
         .min('count', 1)
@@ -289,12 +289,20 @@ const userControllerMethods: IUserController = {
       }
 
       const schema = Schema.create()
-        .custom('name', (v) => v === undefined || typeof v === 'string', 'name must be a string')
+        .custom(
+          'name',
+          (v: unknown) => v === undefined || typeof v === 'string',
+          'name must be a string'
+        )
         .minLength('name', 1)
-        .custom('email', (v) => v === undefined || typeof v === 'string', 'email must be a string')
+        .custom(
+          'email',
+          (v: unknown) => v === undefined || typeof v === 'string',
+          'email must be a string'
+        )
         .custom(
           'password',
-          (v) => v === undefined || typeof v === 'string',
+          (v: unknown) => v === undefined || typeof v === 'string',
           'password must be a string'
         )
         .minLength('password', 8);

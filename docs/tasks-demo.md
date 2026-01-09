@@ -527,7 +527,7 @@ import { HttpClient, Logger } from '@zintrust/core';
 export const EcommerceService = {
   async issueReward(userId: string) {
     try {
-      // Call the internal microservice URL (e.g. via Docker network)
+      // Call the service URL (e.g. via Docker network)
       const response = await HttpClient.post('http://ecommerce-orders:3002/rewards', {
         user_id: userId,
         reason: 'task_completion',

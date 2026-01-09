@@ -29,6 +29,10 @@ export interface ValidationRule {
   message?: string;
 }
 
+export type CustomValidatorFn =
+  | ((value: unknown) => boolean)
+  | ((value: unknown, data: Record<string, unknown>) => boolean);
+
 export interface ISchema {
   required(field: string, message?: string): ISchema;
   string(field: string, message?: string): ISchema;
@@ -43,7 +47,7 @@ export interface ISchema {
   maxLength(field: string, value: number, message?: string): ISchema;
   regex(field: string, pattern: RegExp, message?: string): ISchema;
   in(field: string, values: unknown[], message?: string): ISchema;
-  custom(field: string, validator: (value: unknown) => boolean, message?: string): ISchema;
+  custom(field: string, validator: CustomValidatorFn, message?: string): ISchema;
   getRules(): Map<string, ValidationRule[]>;
 }
 
@@ -120,7 +124,7 @@ const validate = (data: Record<string, unknown>, schema: ISchema): Record<string
     const value = data[field];
 
     for (const rule of fieldRules) {
-      const error = validateRule(field, value, rule);
+      const error = validateRule(field, value, rule, data);
       if (error !== null) {
         errors.push(error);
       }
@@ -147,7 +151,12 @@ const isValid = (data: Record<string, unknown>, schema: ISchema): boolean => {
   }
 };
 
-function validateRule(field: string, value: unknown, rule: ValidationRule): FieldError | null {
+function validateRule(
+  field: string,
+  value: unknown,
+  rule: ValidationRule,
+  data: Record<string, unknown> | undefined
+): FieldError | null {
   const message = (rule?.message ?? '') || getDefaultMessage(field, rule.rule);
 
   const validators: Record<Rule, () => FieldError | null> = {
@@ -164,11 +173,177 @@ function validateRule(field: string, value: unknown, rule: ValidationRule): Fiel
     maxLength: () => validateMaxLength(field, value, rule.value as number, message),
     regex: () => validateRegex(field, value, rule.value as RegExp, message),
     in: () => validateIn(field, value, rule.value as unknown[], message),
-    custom: () => validateCustom(field, value, rule.value as (v: unknown) => boolean, message),
+    custom: () => validateCustom(field, value, rule.value as CustomValidatorFn, message, data),
   };
 
   return validators[rule.rule]?.() ?? null;
 }
+
+type RuleStringInput = string | string[];
+export type RuleStringMap = Record<string, RuleStringInput>;
+
+const splitRuleTokens = (input: RuleStringInput): string[] => {
+  if (Array.isArray(input)) return input.flatMap((v) => splitRuleTokens(v));
+  const trimmed = input.trim();
+  if (trimmed === '') return [];
+  return trimmed
+    .split('|')
+    .map((t) => t.trim())
+    .filter((t) => t !== '');
+};
+
+const parseRegexLiteral = (raw: string): RegExp | null => {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('/') || trimmed.length < 2) return null;
+  const lastSlash = trimmed.lastIndexOf('/');
+  if (lastSlash <= 0) return null;
+
+  const pattern = trimmed.slice(1, lastSlash);
+  const flags = trimmed.slice(lastSlash + 1);
+
+  if (pattern.length === 0) return null;
+  if (pattern.length > 500) return null;
+  if (flags.length > 10) return null;
+
+  try {
+    return new RegExp(pattern, flags);
+  } catch {
+    return null;
+  }
+};
+
+const parseNumberArg = (arg: string | undefined): number | null => {
+  if (arg === undefined) return null;
+  const n = Number.parseFloat(arg);
+  if (Number.isNaN(n)) return null;
+  return n;
+};
+
+const parseInArgs = (arg: string | undefined): string[] => {
+  return (arg ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p !== '');
+};
+
+type RuleStringTokenContext = {
+  schema: ISchema;
+  field: string;
+  tokenSet: Set<string>;
+  name: string;
+  arg: string | undefined;
+};
+
+const ruleStringTokenHandlers: Record<string, (ctx: RuleStringTokenContext) => void> = {
+  required: ({ schema, field }) => {
+    schema.required(field);
+  },
+  string: ({ schema, field }) => {
+    schema.string(field);
+  },
+  number: ({ schema, field }) => {
+    schema.number(field);
+  },
+  integer: ({ schema, field }) => {
+    schema.integer(field);
+  },
+  boolean: ({ schema, field }) => {
+    schema.boolean(field);
+  },
+  array: ({ schema, field }) => {
+    schema.array(field);
+  },
+  email: ({ schema, field }) => {
+    schema.email(field);
+  },
+  min: ({ schema, field, tokenSet, arg }) => {
+    const n = parseNumberArg(arg);
+    if (n === null) return;
+    if (tokenSet.has('string') || tokenSet.has('array')) schema.minLength(field, n);
+    else schema.min(field, n);
+  },
+  max: ({ schema, field, tokenSet, arg }) => {
+    const n = parseNumberArg(arg);
+    if (n === null) return;
+    if (tokenSet.has('string') || tokenSet.has('array')) schema.maxLength(field, n);
+    else schema.max(field, n);
+  },
+  minLength: ({ schema, field, arg }) => {
+    const n = parseNumberArg(arg);
+    if (n === null) return;
+    schema.minLength(field, n);
+  },
+  maxLength: ({ schema, field, arg }) => {
+    const n = parseNumberArg(arg);
+    if (n === null) return;
+    schema.maxLength(field, n);
+  },
+  regex: ({ schema, field, arg }) => {
+    if (arg === undefined) return;
+    const re = parseRegexLiteral(arg);
+    if (re === null) return;
+    schema.regex(field, re);
+  },
+  in: ({ schema, field, arg }) => {
+    schema.in(field, parseInArgs(arg));
+  },
+  confirmed: ({ schema, field }) => {
+    schema.custom(
+      field,
+      (value, data) => value === data[`${field}_confirmation`],
+      `${field} confirmation does not match`
+    );
+  },
+  nullable: () => {
+    // Not needed here; missing/undefined is already allowed unless required.
+  },
+  unique: ({ schema, field }) => {
+    schema.custom(
+      field,
+      () => false,
+      `${field} unique validation is not supported in the core rule-string API yet`
+    );
+  },
+};
+
+const rulesToSchema = (rules: RuleStringMap): ISchema => {
+  const schema = Schema.create();
+
+  for (const [field, input] of Object.entries(rules)) {
+    const tokens = splitRuleTokens(input);
+    const tokenNames = tokens
+      .map((t) => t.split(':', 1)[0]?.trim())
+      .filter((t): t is string => typeof t === 'string' && t !== '');
+    const tokenSet = new Set(tokenNames);
+
+    for (const token of tokens) {
+      const [nameRaw, argRaw] = token.split(':', 2);
+      const name = nameRaw.trim();
+      const arg = typeof argRaw === 'string' ? argRaw.trim() : undefined;
+
+      const handler = ruleStringTokenHandlers[name];
+      if (handler !== undefined) {
+        handler({ schema, field, tokenSet, name, arg });
+        continue;
+      }
+
+      schema.custom(field, () => false, `${field} has unknown rule: ${name}`);
+    }
+  }
+
+  return schema;
+};
+
+const validateRules = (
+  data: Record<string, unknown>,
+  rules: RuleStringMap
+): Record<string, unknown> => {
+  return validate(data, rulesToSchema(rules));
+};
+
+const isValidRules = (data: Record<string, unknown>, rules: RuleStringMap): boolean => {
+  return isValid(data, rulesToSchema(rules));
+};
 
 function validateRequired(field: string, value: unknown, message: string): FieldError | null {
   return value === null || value === undefined || value === ''
@@ -269,10 +444,16 @@ function validateIn(
 function validateCustom(
   field: string,
   value: unknown,
-  validator: (v: unknown) => boolean,
-  message: string
+  validator: CustomValidatorFn,
+  message: string,
+  data: Record<string, unknown> | undefined
 ): FieldError | null {
-  return validator(value) ? null : { field, message, rule: 'custom' };
+  const ok =
+    typeof validator === 'function' && validator.length >= 2 && data !== undefined
+      ? (validator as (v: unknown, d: Record<string, unknown>) => boolean)(value, data)
+      : (validator as (v: unknown) => boolean)(value);
+
+  return ok ? null : { field, message, rule: 'custom' };
 }
 
 function getDefaultMessage(field: string, rule: Rule): string {
@@ -303,6 +484,9 @@ export const Validator = Object.freeze({
   Schema,
   validate,
   isValid,
+  rulesToSchema,
+  validateRules,
+  isValidRules,
 });
 
 /**

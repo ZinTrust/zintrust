@@ -56,6 +56,8 @@ Run your migrations on the production database:
 zin migrate --force
 ```
 
+`zin migrate` prompts for confirmation when `NODE_ENV=production`. Use `--force` for non-interactive deploys.
+
 ## Bundle Optimization
 
 For cloud deployments (AWS Lambda, Cloudflare Workers), bundle size is critical. Zintrust includes a built-in **Bundle Optimizer** to reduce your deployment artifact size.
