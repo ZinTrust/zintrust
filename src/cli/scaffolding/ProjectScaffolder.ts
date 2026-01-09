@@ -472,6 +472,7 @@ const API_TEMPLATE: ProjectTemplate = {
     'logs',
     'storage',
     'tmp',
+    'src',
     'routes',
     'tests',
   ],
@@ -651,6 +652,7 @@ zin s
 
 - Health: http://localhost:{{port}}/health
 - Tasks:  http://localhost:{{port}}/api/tasks
+- Doc:  http://localhost:{{port}}/doc
 `;
   }
 
