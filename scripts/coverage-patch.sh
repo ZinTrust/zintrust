@@ -6,8 +6,7 @@
 
 set -e
 
-# TODO: Restore to 82 after adding tests for schema/migration files
-MIN_PCT=${MIN_PCT:-59}
+MIN_PCT=${MIN_PCT:-82}
 
 UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
 

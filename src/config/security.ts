@@ -53,7 +53,7 @@ const securityConfigObj = {
       return cachedJwtSecret;
     },
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',
-    expiresIn: Env.get('JWT_EXPIRES_IN', '1h'),
+    expiresIn: Env.getInt('JWT_EXPIRES_IN', 60 * 60),
     refreshExpiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '7d'),
     issuer: Env.get('JWT_ISSUER', 'zintrust'),
     audience: Env.get('JWT_AUDIENCE', 'zintrust-api'),

@@ -3,6 +3,7 @@
  * Demonstrates routing patterns
  */
 
+import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import { registerBroadcastRoutes } from '@routes/broadcast';
@@ -11,9 +12,10 @@ import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
 
 export function registerRoutes(router: IRouter): void {
+  const authController = AuthController.create();
   const userController = UserQueryBuilderController.create();
   registerPublicRoutes(router);
-  registerApiV1Routes(router, userController);
+  registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
 }
 
@@ -44,27 +46,17 @@ function registerRootRoute(router: IRouter): void {
  */
 function registerApiV1Routes(
   router: IRouter,
+  authController: ReturnType<typeof AuthController.create>,
   userController: ReturnType<typeof UserQueryBuilderController.create>
 ): void {
   Router.group(router, '/api/v1', (r) => {
     // Auth routes
-    Router.post(
-      r,
-      '/auth/login',
-      async (_req, res) => {
-        res.json({ message: 'Login endpoint' });
-      },
-      { middleware: ['validateLogin'] }
-    );
+    Router.post(r, '/auth/login', authController.login, { middleware: ['validateLogin'] });
 
-    Router.post(
-      r,
-      '/auth/register',
-      async (_req, res) => {
-        res.json({ message: 'Register endpoint' });
-      },
-      { middleware: ['validateRegister'] }
-    );
+    Router.post(r, '/auth/register', authController.register, { middleware: ['validateRegister'] });
+
+    Router.post(r, '/auth/logout', authController.logout, { middleware: ['auth', 'jwt'] });
+    Router.post(r, '/auth/refresh', authController.refresh, { middleware: ['auth', 'jwt'] });
 
     // Protected routes (Router supports per-route middleware metadata)
     const pr = r;

@@ -86,7 +86,7 @@ describe('CsrfMiddleware', () => {
   });
 
   it('should generate a secure session id when missing', async () => {
-    const { generateSecureJobId } = await import('@common/uuid');
+    const { generateSecureJobId } = await import('@/common/utility');
     const middleware = CsrfMiddleware.create();
 
     // No cookie + no req.context.sessionId

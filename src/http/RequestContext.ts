@@ -1,4 +1,4 @@
-import { generateUuid } from '@common/uuid';
+import { generateUuid } from '@/common/utility';
 import type { IRequest } from '@http/Request';
 
 export interface IRequestContext {

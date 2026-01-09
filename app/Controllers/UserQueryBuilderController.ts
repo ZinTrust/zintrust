@@ -7,7 +7,7 @@ import { Logger } from '@config/logger';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
 import { randomBytes } from '@node-singletons/crypto';
-import { useDatabase } from '@orm/Database';
+import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { Schema, Validator } from '@validation/Validator';
 
@@ -22,14 +22,6 @@ const isValidationError = (error: unknown): error is ValidationErrorLike => {
   if (typeof error !== 'object' || error === null) return false;
   const maybe = error as ValidationErrorLike;
   return maybe.name === 'ValidationError' && typeof maybe.toObject === 'function';
-};
-
-const ensureDbConnected = async (): Promise<ReturnType<typeof useDatabase>> => {
-  const db = useDatabase(undefined, 'default');
-  if (db.isConnected() === false) {
-    await db.connect();
-  }
-  return db;
 };
 
 const nowIso = (): string => new Date().toISOString();
@@ -102,7 +94,7 @@ const userControllerMethods: IUserController = {
    */
   async index(_req: IRequest, res: IResponse): Promise<void> {
     try {
-      const db = await ensureDbConnected();
+      const db = await useEnsureDbConnected();
       const users = await QueryBuilder.create('users', db)
         .select('id', 'name', 'email', 'created_at', 'updated_at')
         .orderBy('id', 'DESC')
@@ -121,7 +113,7 @@ const userControllerMethods: IUserController = {
    */
   async show(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const db = await ensureDbConnected();
+      const db = await useEnsureDbConnected();
       const id = req.params['id'];
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });
@@ -175,7 +167,7 @@ const userControllerMethods: IUserController = {
 
       Validator.validate(body, schema);
 
-      const db = await ensureDbConnected();
+      const db = await useEnsureDbConnected();
       const ts = nowIso();
       const password = typeof body['password'] === 'string' ? body['password'] : '';
 
@@ -222,7 +214,7 @@ const userControllerMethods: IUserController = {
         return;
       }
 
-      const db = await ensureDbConnected();
+      const db = await useEnsureDbConnected();
       const ts = nowIso();
 
       const insertPromises = Array.from({ length: count }, async () =>
@@ -267,7 +259,7 @@ const userControllerMethods: IUserController = {
    */
   async update(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const db = await ensureDbConnected();
+      const db = await useEnsureDbConnected();
       const id = req.params['id'];
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });
@@ -348,7 +340,7 @@ const userControllerMethods: IUserController = {
    */
   async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const db = await ensureDbConnected();
+      const db = await useEnsureDbConnected();
       const id = req.params['id'];
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });

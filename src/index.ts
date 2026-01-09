@@ -31,7 +31,7 @@ export { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 export { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
-export { Database, resetDatabase, useDatabase } from '@orm/Database';
+export { Database, resetDatabase, useDatabase, useEnsureDbConnected } from '@orm/Database';
 export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
@@ -50,8 +50,14 @@ export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
 
 // Common
+export {
+  generateSecureJobId,
+  generateUuid,
+  getString,
+  Utilities,
+  type UtilitiesType,
+} from '@/common/utility';
 export { delay, ensureDirSafe } from '@common/index';
-export { generateSecureJobId, generateUuid } from '@common/uuid';
 export { ZintrustAwsSigV4 as AwsSigV4 };
 
 // Collections

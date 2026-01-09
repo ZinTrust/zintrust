@@ -30,8 +30,22 @@ export function generateSecureJobId(
   }
 }
 
+export const getString = (value: unknown): string => (typeof value === 'string' ? value : '');
+
 function bytesToHex(bytes: Uint8Array): string {
   let out = '';
   for (const b of bytes) out += b.toString(16).padStart(2, '0');
   return out;
 }
+
+export interface UtilitiesType {
+  generateUuid: () => string;
+  getString: (value: unknown) => string;
+  generateSecureJobId: (errMsg?: string) => string;
+}
+
+export const Utilities = Object.freeze({
+  generateUuid,
+  getString,
+  generateSecureJobId,
+});
