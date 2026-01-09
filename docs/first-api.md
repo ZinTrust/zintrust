@@ -13,15 +13,12 @@ zin add model Task --migration
 Edit the migration in `database/migrations/` to add a `title` and `completed` status:
 
 ```typescript
-import type { IDatabase } from '@orm/Database';
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;
   down(db: IDatabase): Promise<void>;
 }
-
-// Style A (recommended): secure schema builder (Blueprint/Compiler-backed)
-import { Schema as MigrationSchema } from '@/migrations/schema';
 
 export const migration: Migration = {
   async up(db: IDatabase): Promise<void> {
@@ -40,28 +37,6 @@ export const migration: Migration = {
     await schema.dropIfExists('tasks');
   },
 };
-
-// Style B (also supported): legacy ORM schema + compiler
-// Use this if you prefer the older `Schema.create('table')` + `SchemaCompiler` workflow.
-//
-// import { Schema } from '@orm/Schema';
-// import { SchemaCompiler } from '@orm/SchemaCompiler';
-//
-// export const migration: Migration = {
-//   async up(db: IDatabase): Promise<void> {
-//     const schema = Schema.create('tasks');
-//     schema.increments('id');
-//     schema.string('title');
-//     schema.boolean('completed').default(false);
-//     schema.timestamps();
-//
-//     await SchemaCompiler.createTable(db, schema, { ifNotExists: true });
-//   },
-//
-//   async down(db: IDatabase): Promise<void> {
-//     await SchemaCompiler.dropTable(db, 'tasks');
-//   },
-// };
 ```
 
 Run the migration:

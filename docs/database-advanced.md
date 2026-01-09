@@ -73,8 +73,7 @@ Zintrust supports two ways to define schema changes in migrations. Pick whicheve
 This is the newer builder-driven approach (Blueprint/Compiler-backed). It is the default style used by the migration generator.
 
 ```ts
-import type { IDatabase } from '@orm/Database';
-import { Schema as MigrationSchema } from '@/migrations/schema';
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;
@@ -96,37 +95,6 @@ export const migration: Migration = {
   async down(db: IDatabase): Promise<void> {
     const schema = MigrationSchema.create(db);
     await schema.dropIfExists('users');
-  },
-};
-```
-
-### Style B (also supported): legacy ORM schema + compiler
-
-This is the older `Schema.create('table')` + `SchemaCompiler` workflow.
-
-```ts
-import type { IDatabase } from '@orm/Database';
-import { Schema } from '@orm/Schema';
-import { SchemaCompiler } from '@orm/SchemaCompiler';
-
-export interface Migration {
-  up(db: IDatabase): Promise<void>;
-  down(db: IDatabase): Promise<void>;
-}
-
-export const migration: Migration = {
-  async up(db: IDatabase): Promise<void> {
-    const schema = Schema.create('users');
-    schema.increments('id');
-    schema.string('name');
-    schema.string('email').unique();
-    schema.timestamps();
-
-    await SchemaCompiler.createTable(db, schema, { ifNotExists: true });
-  },
-
-  async down(db: IDatabase): Promise<void> {
-    await SchemaCompiler.dropTable(db, 'users');
   },
 };
 ```

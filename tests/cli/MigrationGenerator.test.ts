@@ -164,10 +164,8 @@ describe('MigrationGenerator Generation Basic', () => {
 
     // Try to create same migration again (will have different timestamp)
     const result2 = await MigrationGenerator.generateMigration(options);
-    expect(result2.success).toBe(true);
-
-    // But should have different file paths
-    expect(result1.filePath).not.toBe(result2.filePath);
+    expect(result2.success).toBe(false);
+    expect(typeof result2.message).toBe('string');
   });
 });
 

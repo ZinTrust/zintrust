@@ -55,7 +55,9 @@ The `add` command scaffolds various components for your application:
 ```bash
 zin add model User             # Create a model
 zin add controller UserController        # Create a controller
-zin add migration create_users # Create a migration
+zin cm user                    # Create create_users_table migration
+zin am bio user                # Create add_bio_users_table migration (requires create_users_table)
+zin add migration custom_name  # Create a custom migration (advanced)
 zin add service auth           # Create a microservice
 zin add workflow               # Create deployment workflows
 ```

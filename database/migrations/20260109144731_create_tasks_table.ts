@@ -1,7 +1,8 @@
 /**
- * Migration: CreateUsersTable
- * Creates users table
+ * Migration: CreateTasksTable
+ * Creates tasks table
  */
+
 import { Schema as MigrationSchema, type Blueprint } from '@/migrations/schema';
 import type { IDatabase } from '@orm/Database';
 
@@ -11,20 +12,23 @@ export interface Migration {
 }
 
 export const migration: Migration = {
+  /**
+   * Run migration
+   */
   async up(db: IDatabase): Promise<void> {
     const schema = MigrationSchema.create(db);
 
-    await schema.create('users', (table: Blueprint) => {
+    await schema.create('tasks', (table: Blueprint) => {
       table.id();
-      table.string('name');
-      table.string('email').unique();
-      table.string('password');
       table.timestamps();
     });
   },
 
+  /**
+   * Rollback migration
+   */
   async down(db: IDatabase): Promise<void> {
     const schema = MigrationSchema.create(db);
-    await schema.dropIfExists('users');
+    await schema.dropIfExists('tasks');
   },
 };

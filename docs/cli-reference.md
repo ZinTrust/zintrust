@@ -4,6 +4,9 @@
 
 - `zin new <name>`: Create a new project
 - `zin add <type> [name]`: Add a component to existing project
+- `zin create migration <model>`: Create a create-table migration (same as `zin cm <model>`)
+- `zin cm <model>`: Shortcut: create-table migration (creates `create_<models>_table`)
+- `zin am <column> <model>`: Shortcut: add-column migration (creates `add_<column>_<models>_table`)
 - `zin prepare`: Prepare local dist/ for file: installs (dev workflow)
 - `zin migrate`: Run database migrations
 - `zin d1:migrate`: Run Cloudflare D1 migrations
@@ -67,6 +70,27 @@ zin add db:sqlite --package-manager pnpm
 | `requestfactory`  | Create a service request factory           |
 | `responsefactory` | Create a mock response factory             |
 | `workflow`        | Create GitHub Actions deployment workflows |
+
+### Migration scaffolding
+
+Migration filenames are timestamped, but the CLI will reject generating two migrations with the same logical name (for example, it will not allow creating `*_create_users_table.ts` twice).
+
+```bash
+# Create-table migration (recommended)
+zin cm user
+
+# Same as above
+zin create migration user
+
+# Add-column migration (requires create migration to exist first)
+zin am bio user
+
+# Custom migration name (advanced)
+zin add migration create_users_table
+
+# Shorthand: zin add migration <column> <model>
+zin add migration bio user
+```
 
 ### Workflow Options
 

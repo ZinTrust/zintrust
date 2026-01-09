@@ -5,6 +5,11 @@
 export { AddCommand } from '@cli/commands/AddCommand';
 export { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 export { ConfigCommand } from '@cli/commands/ConfigCommand';
+export {
+  AddMigrationCommand,
+  CreateCommand,
+  CreateMigrationCommand,
+} from '@cli/commands/CreateCommand';
 export { DebugCommand } from '@cli/commands/DebugCommand';
 export { LogsCleanupCommand } from '@cli/commands/LogsCleanupCommand';
 export { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';

@@ -95,7 +95,7 @@ function ensureLocalCorePackageShim(projectRoot: string, repoRoot: string): void
     };
 
     try {
-      runZin(['add', 'migration', 'create_users_table', '--no-interactive'], root, env);
+      runZin(['cm', 'user', '--no-interactive'], root, env);
 
       const created = readdirSync(migrationsDir).filter((f) =>
         /^\d{14}_create_users_table\.ts$/.test(f)

@@ -6,6 +6,11 @@
 import { AddCommand } from '@cli/commands/AddCommand';
 import { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
+import {
+  AddMigrationCommand,
+  CreateCommand,
+  CreateMigrationCommand,
+} from '@cli/commands/CreateCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
@@ -85,6 +90,9 @@ const registerCommands = (program: Command): void => {
     UpgradeCommand.create(),
     PrepareCommand,
     AddCommand.create(),
+    CreateCommand.create(),
+    CreateMigrationCommand.create(),
+    AddMigrationCommand.create(),
     StartCommand.create(),
     QueueCommand.create(),
     BroadcastWorkCommand.create(),

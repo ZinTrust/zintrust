@@ -7,6 +7,7 @@ import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { ControllerGenerator, ControllerType } from '@cli/scaffolding/ControllerGenerator';
 import { FactoryGenerator } from '@cli/scaffolding/FactoryGenerator';
 import { FeatureScaffolder, FeatureType } from '@cli/scaffolding/FeatureScaffolder';
+import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { MigrationGenerator, MigrationType } from '@cli/scaffolding/MigrationGenerator';
 import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
 import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
@@ -19,6 +20,7 @@ import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';
 import { WorkflowGenerator } from '@cli/scaffolding/WorkflowGenerator';
+import { CommonUtils } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -309,13 +311,38 @@ const promptMigrationConfig = async (): Promise<MigrationPromptAnswers> => {
   ]);
 };
 
+const pluralize = (snake: string): string => (snake.endsWith('s') ? snake : `${snake}s`);
+
+const findMigrationBySuffix = (migrationsPath: string, suffix: string): string | undefined => {
+  const files = FileGenerator.listFiles(migrationsPath, false);
+  for (const file of files) {
+    if (path.basename(file).endsWith(suffix)) return file;
+  }
+  return undefined;
+};
+
+const buildCreateTableMigrationName = (model: string): string => {
+  const modelSnake = CommonUtils.toSnakeCase(model).replaceAll(/[^a-z0-9_]+/g, '_');
+  const tablePlural = pluralize(modelSnake);
+  return `create_${tablePlural}_table`;
+};
+
+const buildAddColumnMigrationName = (column: string, model: string): string => {
+  const colSnake = CommonUtils.toSnakeCase(column).replaceAll(/[^a-z0-9_]+/g, '_');
+  const modelSnake = CommonUtils.toSnakeCase(model).replaceAll(/[^a-z0-9_]+/g, '_');
+  const tablePlural = pluralize(modelSnake);
+  return `add_${colSnake}_${tablePlural}_table`;
+};
+
 const addMigration = async (
   cmd: IBaseCommand,
-  migrationName: string | undefined,
+  migrationArgs: string[],
   opts: AddOptions
 ): Promise<void> => {
   const projectRoot = process.cwd();
-  let name: string = migrationName ?? '';
+  let name: string = migrationArgs[0] ?? '';
+  let table: string | undefined;
+  let column: string | undefined;
 
   if (name === '' && opts.noInteractive !== true) {
     const answers = await promptMigrationConfig();
@@ -326,12 +353,40 @@ const addMigration = async (
   }
 
   const migrationsPath = path.join(projectRoot, 'database', 'migrations');
+
+  // New shorthand semantics:
+  // `zin add migration <column> <model>` => add_<column>_<models>_table
+  if (migrationArgs.length >= 2) {
+    const columnArg = migrationArgs[0] ?? '';
+    const modelArg = migrationArgs[1] ?? '';
+    if (columnArg === '' || modelArg === '') {
+      throw ErrorFactory.createValidationError('Usage: zin add migration <column> <model>');
+    }
+
+    const createName = buildCreateTableMigrationName(modelArg);
+    const createSuffix = `_${createName}.ts`;
+    const existingCreate = findMigrationBySuffix(migrationsPath, createSuffix);
+    if (existingCreate === undefined) {
+      throw ErrorFactory.createCliError(
+        `Missing required create migration for model '${modelArg}'. Create it first: zin create migration ${modelArg}`
+      );
+    }
+
+    name = buildAddColumnMigrationName(columnArg, modelArg);
+
+    table = pluralize(CommonUtils.toSnakeCase(modelArg).replaceAll(/[^a-z0-9_]+/g, '_'));
+    // Store the normalized column name for generator placeholder.
+    column = CommonUtils.toSnakeCase(columnArg).replaceAll(/[^a-z0-9_]+/g, '_');
+  }
+
   cmd.info(`Creating migration: ${name}...`);
 
   const result = await MigrationGenerator.generateMigration({
     name,
     migrationsPath,
-    type: (opts.type ?? 'create') as MigrationType,
+    type: (opts.type as MigrationType | undefined) ?? undefined,
+    table,
+    column,
   });
 
   if (result.success === false) throw ErrorFactory.createCliError(result.message);
@@ -1059,57 +1114,65 @@ const addWorkflow = async (
   cmd.success(result.message);
 };
 
+type AddHandler = (cmd: IBaseCommand, name: string | undefined, opts: AddOptions) => Promise<void>;
+
+const TYPE_HANDLERS: Record<string, AddHandler> = {
+  service: addService,
+  feature: addFeature,
+  migration: async (cmd, name, opts) =>
+    addMigration(cmd, typeof name === 'string' && name.length > 0 ? [name] : [], opts),
+  model: addModel,
+  controller: addController,
+  routes: addRoutes,
+  factory: addFactory,
+  seeder: addSeeder,
+  requestfactory: addRequestFactory,
+  'request-factory': addRequestFactory,
+  responsefactory: addResponseFactory,
+  'response-factory': addResponseFactory,
+  workflow: addWorkflow,
+};
+
 const handleType = async (
   cmd: IBaseCommand,
   type: string,
   name: string | undefined,
   opts: AddOptions
 ): Promise<void> => {
-  switch (type) {
-    case 'service':
-      await addService(cmd, name, opts);
-      break;
-    case 'feature':
-      await addFeature(cmd, name, opts);
-      break;
-    case 'migration':
-      await addMigration(cmd, name, opts);
-      break;
-    case 'model':
-      await addModel(cmd, name, opts);
-      break;
-    case 'controller':
-      await addController(cmd, name, opts);
-      break;
-    case 'routes':
-      await addRoutes(cmd, name, opts);
-      break;
-    case 'factory':
-      await addFactory(cmd, name, opts);
-      break;
-    case 'seeder':
-      await addSeeder(cmd, name, opts);
-      break;
-    case 'requestfactory':
-    case 'request-factory':
-      await addRequestFactory(cmd, name, opts);
-      break;
-    case 'responsefactory':
-    case 'response-factory':
-      await addResponseFactory(cmd, name, opts);
-      break;
-    case 'workflow':
-      await addWorkflow(cmd, name, opts);
-      break;
-    default:
-      throw ErrorFactory.createCliError(
-        `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow`
-      );
+  const handler = TYPE_HANDLERS[type];
+  if (handler === undefined) {
+    throw ErrorFactory.createCliError(
+      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow`
+    );
   }
+  await handler(cmd, name, opts);
 };
 
 const getArgs = (args: unknown): string[] | undefined =>
   Array.isArray(args) ? (args as string[]) : undefined;
+
+const installPlugin = async (
+  cmd: IBaseCommand,
+  type: string,
+  name: string | undefined,
+  addOpts: AddOptions
+): Promise<void> => {
+  const normalizedType = type.toLowerCase();
+  if (name !== undefined && name.length > 0) {
+    throw ErrorFactory.createCliError(
+      `"${type}" looks like a plugin id. Run: zin add ${type} (without a name argument).`
+    );
+  }
+
+  cmd.info(`Installing plugin: ${normalizedType}...`);
+  const pm = typeof addOpts.packageManager === 'string' ? addOpts.packageManager : undefined;
+  if (pm === undefined) {
+    await PluginManager.install(normalizedType);
+  } else {
+    await PluginManager.install(normalizedType, { packageManager: pm });
+  }
+  cmd.success(`Plugin '${normalizedType}' installed successfully!`);
+};
 
 const executeAdd = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
   const command = cmd.getCommand();
@@ -1130,20 +1193,12 @@ const executeAdd = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
     // Planned modular adapter syntax: `zin add db:sqlite` (delegate to plugin installer)
     const normalizedType = type.toLowerCase();
     if (normalizedType.includes(':')) {
-      if (name !== undefined && name.length > 0) {
-        throw ErrorFactory.createCliError(
-          `"${type}" looks like a plugin id. Run: zin add ${type} (without a name argument).`
-        );
-      }
+      await installPlugin(cmd, type, name, addOpts);
+      return;
+    }
 
-      cmd.info(`Installing plugin: ${normalizedType}...`);
-      const pm = typeof addOpts.packageManager === 'string' ? addOpts.packageManager : undefined;
-      if (pm === undefined) {
-        await PluginManager.install(normalizedType);
-      } else {
-        await PluginManager.install(normalizedType, { packageManager: pm });
-      }
-      cmd.success(`Plugin '${normalizedType}' installed successfully!`);
+    if (normalizedType === 'migration') {
+      await addMigration(cmd, args.slice(1), addOpts);
       return;
     }
 
