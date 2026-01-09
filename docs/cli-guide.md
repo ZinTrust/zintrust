@@ -64,6 +64,28 @@ zin add workflow               # Create deployment workflows
 
 For a full list of types, see the [CLI Reference](./cli-reference.md).
 
+### List Routes
+
+To print a table of every registered route (including middleware/validation metadata), run:
+
+```bash
+zin routes
+```
+
+If you want the **URL** column to be fully qualified, set `BASE_URL` and `PORT`:
+
+```bash
+BASE_URL=http://127.0.0.1 PORT=7777 zin routes
+```
+
+You can also group and filter:
+
+```bash
+zin routes --group-by service --filter auth
+zin routes --method GET,POST
+zin routes --json
+```
+
 ### Debug Mode
 
 ```bash
@@ -87,6 +109,10 @@ zin config reset               # Reset to defaults
 ```bash
 zin key:generate               # Generate APP_KEY
 zin key:generate --show        # Show key without saving
+
+# Mint a dev JWT for testing protected routes (prints a token)
+zin jwt:dev --sub 1 --email dev@example.com --role admin
+zin jwt:dev --json --expires 30m
 ```
 
 ### Plugin Management

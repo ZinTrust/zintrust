@@ -4,6 +4,7 @@
  * Production Implementation
  */
 
+import { databaseConfig } from '@config/database';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -104,12 +105,16 @@ function executeQuery(
   const stmt = db.prepare(sql);
   if (isSelectQuery(sql)) {
     const rows = stmt.all(parameters) as Record<string, unknown>[];
-    Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+    if (databaseConfig.logging.enabled) {
+      Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+    }
     return { rows, rowCount: rows.length };
   }
 
   const info = stmt.run(parameters);
-  Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+  if (databaseConfig.logging.enabled) {
+    Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+  }
   return { rows: [], rowCount: info.changes };
 }
 

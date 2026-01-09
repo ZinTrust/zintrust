@@ -643,6 +643,7 @@ const addFactory = async (
   }
 
   const factoriesPath = path.join(projectRoot, 'database', 'factories');
+  ensureDirectoryExists(factoriesPath);
   cmd.info(`Creating factory: ${config.name} for model ${config.modelName}...`);
 
   const result = await FactoryGenerator.generateFactory({

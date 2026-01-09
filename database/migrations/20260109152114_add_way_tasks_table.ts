@@ -3,8 +3,8 @@
  * Modifies tasks table
  */
 
-import type { IDatabase } from '@orm/Database';
 import { Schema as MigrationSchema, type Blueprint } from '@/migrations/schema';
+import type { IDatabase } from '@orm/Database';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;
@@ -20,9 +20,6 @@ export const migration: Migration = {
 
     await schema.table('tasks', (table: Blueprint) => {
       table.string('way');
-      // Example:
-      // table.dropColumn('old_column');
-      // table.index('new_column');
     });
   },
 

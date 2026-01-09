@@ -63,7 +63,12 @@ export { HttpClient } from '@httpClient/Http';
 export type { IHttpRequest, IHttpResponse } from '@httpClient/Http';
 
 // Database adapter types
-export type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
+export type {
+  DatabaseConfig,
+  ID1Database,
+  IDatabaseAdapter,
+  QueryResult,
+} from '@orm/DatabaseAdapter';
 
 // Profiling
 export { MemoryProfiler } from '@profiling/MemoryProfiler';

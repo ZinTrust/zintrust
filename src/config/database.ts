@@ -195,7 +195,7 @@ const databaseConfigObj = {
    * Enable query logging
    */
   logging: {
-    enabled: Env.DEBUG,
+    enabled: Env.getBool('DB_LOG_QUERIES', Env.DEBUG),
     level: Env.get('DB_LOG_LEVEL', 'debug'),
   },
 

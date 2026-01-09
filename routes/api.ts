@@ -48,13 +48,23 @@ function registerApiV1Routes(
 ): void {
   Router.group(router, '/api/v1', (r) => {
     // Auth routes
-    Router.post(r, '/auth/login', async (_req, res) => {
-      res.json({ message: 'Login endpoint' });
-    });
+    Router.post(
+      r,
+      '/auth/login',
+      async (_req, res) => {
+        res.json({ message: 'Login endpoint' });
+      },
+      { middleware: ['validateLogin'] }
+    );
 
-    Router.post(r, '/auth/register', async (_req, res) => {
-      res.json({ message: 'Register endpoint' });
-    });
+    Router.post(
+      r,
+      '/auth/register',
+      async (_req, res) => {
+        res.json({ message: 'Register endpoint' });
+      },
+      { middleware: ['validateRegister'] }
+    );
 
     // Protected routes (Router supports per-route middleware metadata)
     const pr = r;
@@ -75,13 +85,23 @@ function registerApiV1Routes(
     Router.get(pr, '/users/:id/edit', userController.edit);
 
     // Custom user routes
-    Router.get(pr, '/profile', async (_req, res) => {
-      res.json({ message: 'Get user profile' });
-    });
+    Router.get(
+      pr,
+      '/profile',
+      async (_req, res) => {
+        res.json({ message: 'Get user profile' });
+      },
+      { middleware: ['auth', 'jwt'] }
+    );
 
-    Router.put(pr, '/profile', async (_req, res) => {
-      res.json({ message: 'Update user profile' });
-    });
+    Router.put(
+      pr,
+      '/profile',
+      async (_req, res) => {
+        res.json({ message: 'Update user profile' });
+      },
+      { middleware: ['auth', 'jwt'] }
+    );
 
     // Posts resource
     Router.get(r, '/posts', async (_req, res) => {

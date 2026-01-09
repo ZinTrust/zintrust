@@ -149,9 +149,92 @@ const printStatus = (
   }
 };
 
+const logAppliedMigrations = (cmd: IBaseCommand, appliedNames: ReadonlyArray<string>): void => {
+  cmd.info('Applied migrations:');
+  for (const name of appliedNames) {
+    cmd.info(`✓ ${name}`);
+  }
+};
+
 const parseRollbackSteps = (options: CommandOptions): number => {
   const stepRaw = typeof options['step'] === 'string' ? options['step'] : '1';
   return Math.max(1, Number.parseInt(stepRaw, 10) || 1);
+};
+
+const handleStatusAction = async (
+  migrator: ReturnType<typeof Migrator.create>,
+  cmd: IBaseCommand,
+  driver: string
+): Promise<void> => {
+  cmd.info(`Adapter: ${driver}`);
+  const rows = await migrator.status();
+  printStatus(cmd, rows);
+};
+
+const handleFreshAction = async (
+  migrator: ReturnType<typeof Migrator.create>,
+  cmd: IBaseCommand,
+  interactive: boolean
+): Promise<void> => {
+  cmd.warn('This will drop all tables and re-run migrations.');
+  if (interactive) {
+    const confirmed = await PromptHelper.confirm('Continue?', false, interactive);
+    if (!confirmed) {
+      cmd.warn('Cancelled.');
+      return;
+    }
+  }
+
+  const result = await migrator.fresh();
+  cmd.success(`Fresh migration completed (applied=${result.applied})`);
+};
+
+const handleResetAction = async (
+  migrator: ReturnType<typeof Migrator.create>,
+  cmd: IBaseCommand,
+  interactive: boolean
+): Promise<void> => {
+  cmd.warn('This will rollback ALL migrations.');
+  if (interactive) {
+    const confirmed = await PromptHelper.confirm('Continue?', false, interactive);
+    if (!confirmed) {
+      cmd.warn('Cancelled.');
+      return;
+    }
+  }
+
+  const result = await migrator.resetAll();
+  cmd.success(`All migrations reset (rolledBack=${result.rolledBack})`);
+};
+
+const handleRollbackAction = async (
+  migrator: ReturnType<typeof Migrator.create>,
+  cmd: IBaseCommand,
+  options: CommandOptions
+): Promise<void> => {
+  const steps = parseRollbackSteps(options);
+  const result = await migrator.rollbackLastBatch(steps);
+  cmd.success(`Migrations rolled back (rolledBack=${result.rolledBack})`);
+};
+
+const handleMigrateAction = async (
+  migrator: ReturnType<typeof Migrator.create>,
+  cmd: IBaseCommand
+): Promise<void> => {
+  const result = await migrator.migrate();
+  if (result.applied === 0) {
+    cmd.success(`Migrations completed successfully (applied=${result.applied})`);
+    return;
+  }
+
+  const appliedNames = Array.isArray((result as { appliedNames?: unknown }).appliedNames)
+    ? ((result as { appliedNames?: unknown }).appliedNames as string[])
+    : [];
+
+  if (appliedNames.length > 0) {
+    logAppliedMigrations(cmd, appliedNames);
+  }
+  cmd.success(`Migrations completed successfully (applied=${result.applied})`);
 };
 
 const runMigratorActions = async (
@@ -162,52 +245,26 @@ const runMigratorActions = async (
   driver: string
 ): Promise<void> => {
   if (options['status'] === true) {
-    cmd.info(`Adapter: ${driver}`);
-    const rows = await migrator.status();
-    printStatus(cmd, rows);
+    await handleStatusAction(migrator, cmd, driver);
     return;
   }
 
   if (options['fresh'] === true) {
-    cmd.warn('This will drop all tables and re-run migrations.');
-    if (interactive) {
-      const confirmed = await PromptHelper.confirm('Continue?', false, interactive);
-      if (!confirmed) {
-        cmd.warn('Cancelled.');
-        return;
-      }
-    }
-
-    const result = await migrator.fresh();
-    cmd.success(`Fresh migration completed (applied=${result.applied})`);
+    await handleFreshAction(migrator, cmd, interactive);
     return;
   }
 
   if (options['reset'] === true) {
-    cmd.warn('This will rollback ALL migrations.');
-    if (interactive) {
-      const confirmed = await PromptHelper.confirm('Continue?', false, interactive);
-      if (!confirmed) {
-        cmd.warn('Cancelled.');
-        return;
-      }
-    }
-
-    const result = await migrator.resetAll();
-    cmd.success(`All migrations reset (rolledBack=${result.rolledBack})`);
+    await handleResetAction(migrator, cmd, interactive);
     return;
   }
 
   if (options['rollback'] === true) {
-    const steps = parseRollbackSteps(options);
-    const result = await migrator.rollbackLastBatch(steps);
-    cmd.success(`Migrations rolled back (rolledBack=${result.rolledBack})`);
+    await handleRollbackAction(migrator, cmd, options);
     return;
   }
 
-  cmd.info('Running pending migrations...');
-  const result = await migrator.migrate();
-  cmd.success(`Migrations completed successfully (applied=${result.applied})`);
+  await handleMigrateAction(migrator, cmd);
 };
 
 const runD1Actions = async (params: {

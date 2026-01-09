@@ -1,10 +1,14 @@
 import { MiddlewareConfigType } from '@config/type';
+import { AuthMiddleware } from '@middleware/AuthMiddleware';
 import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
+import { JwtAuthMiddleware } from '@middleware/JwtAuthMiddleware';
 import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
 import type { Middleware } from '@middleware/MiddlewareStack';
 import { RateLimiter } from '@middleware/RateLimiter';
 import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
+import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
+import { Schema } from '@validation/Validator';
 
 type SharedMiddlewares = {
   log: Middleware;
@@ -13,6 +17,10 @@ type SharedMiddlewares = {
   rateLimit: Middleware;
   fillRateLimit: Middleware;
   csrf: Middleware;
+  auth: Middleware;
+  jwt: Middleware;
+  validateLogin: Middleware;
+  validateRegister: Middleware;
 };
 
 function createSharedMiddlewares(): SharedMiddlewares {
@@ -27,6 +35,22 @@ function createSharedMiddlewares(): SharedMiddlewares {
       message: 'Too many fill requests, please try again later.',
     }),
     csrf: CsrfMiddleware.create(),
+    auth: AuthMiddleware.create(),
+    jwt: JwtAuthMiddleware.create(),
+    validateLogin: ValidationMiddleware.create(
+      Schema.create().required('email').email('email').required('password').string('password')
+    ),
+    validateRegister: ValidationMiddleware.create(
+      Schema.create()
+        .required('name')
+        .string('name')
+        .minLength('name', 1)
+        .required('email')
+        .email('email')
+        .required('password')
+        .string('password')
+        .minLength('password', 8)
+    ),
   } satisfies SharedMiddlewares);
 }
 

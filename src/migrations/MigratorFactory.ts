@@ -22,10 +22,10 @@ function nowIso(): string {
 
 type MigratorApi = {
   status(): Promise<MigratorStatusRow[]>;
-  migrate(): Promise<{ applied: number; pending: number }>;
+  migrate(): Promise<{ applied: number; pending: number; appliedNames: string[] }>;
   rollbackLastBatch(steps: number): Promise<{ rolledBack: number }>;
   resetAll(): Promise<{ rolledBack: number }>;
-  fresh(): Promise<{ applied: number; pending: number }>;
+  fresh(): Promise<{ applied: number; pending: number; appliedNames: string[] }>;
 };
 
 type MigratorCtx = {
@@ -282,6 +282,52 @@ async function resetTarget(params: {
   return rolledBack;
 }
 
+async function applyPendingMigrations(
+  ctx: MigratorCtx,
+  db: MigratorOptions['db'],
+  migrations: LoadedMigration[]
+): Promise<{ applied: number; pending: number; appliedNames: string[] }> {
+  const targets = getTargets(ctx);
+  const appliedByTarget = new Map<string, Map<string, MigrationRecord>>();
+  const batchByTarget = new Map<string, number>();
+
+  await Promise.all(
+    targets.map(async (t) => {
+      const key = keyForTarget(t);
+      appliedByTarget.set(key, await MigrationStore.getAppliedMap(db, t.scope, t.service));
+      batchByTarget.set(
+        key,
+        (await MigrationStore.getLastCompletedBatch(db, t.scope, t.service)) + 1
+      );
+    })
+  );
+
+  const pending = migrations.filter((m) => {
+    const target = getTargetForMigration(ctx, m);
+    const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
+    return row?.status !== 'completed';
+  });
+  if (pending.length === 0) return { applied: 0, pending: 0, appliedNames: [] };
+
+  let appliedCount = 0;
+  const appliedNames: string[] = [];
+  await runSerial(pending, async (m) => {
+    const target = getTargetForMigration(ctx, m);
+    const batch = batchByTarget.get(keyForTarget(target)) ?? 1;
+    await applyOneMigration({
+      db,
+      migration: m,
+      scope: target.scope,
+      service: target.service,
+      batch,
+    });
+    appliedCount++;
+    appliedNames.push(m.name);
+  });
+
+  return { applied: appliedCount, pending: pending.length - appliedCount, appliedNames };
+}
+
 function buildStatus(ctx: MigratorCtx): MigratorApi['status'] {
   return async () => {
     const db = ctx.options.db;
@@ -323,42 +369,7 @@ function buildMigrate(ctx: MigratorCtx): MigratorApi['migrate'] {
 
       const migrations = await discover(ctx);
 
-      const targets = getTargets(ctx);
-      const appliedByTarget = new Map<string, Map<string, MigrationRecord>>();
-      const batchByTarget = new Map<string, number>();
-      await Promise.all(
-        targets.map(async (t) => {
-          const key = keyForTarget(t);
-          appliedByTarget.set(key, await MigrationStore.getAppliedMap(db, t.scope, t.service));
-          batchByTarget.set(
-            key,
-            (await MigrationStore.getLastCompletedBatch(db, t.scope, t.service)) + 1
-          );
-        })
-      );
-
-      const pending = migrations.filter((m) => {
-        const target = getTargetForMigration(ctx, m);
-        const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
-        return row?.status !== 'completed';
-      });
-      if (pending.length === 0) return { applied: 0, pending: 0 };
-
-      let appliedCount = 0;
-      await runSerial(pending, async (m) => {
-        const target = getTargetForMigration(ctx, m);
-        const batch = batchByTarget.get(keyForTarget(target)) ?? 1;
-        await applyOneMigration({
-          db,
-          migration: m,
-          scope: target.scope,
-          service: target.service,
-          batch,
-        });
-        appliedCount++;
-      });
-
-      return { applied: appliedCount, pending: pending.length - appliedCount };
+      return applyPendingMigrations(ctx, db, migrations);
     });
   };
 }
@@ -420,42 +431,7 @@ function buildFresh(ctx: MigratorCtx): MigratorApi['fresh'] {
 
       const migrations = await discover(ctx);
 
-      const targets = getTargets(ctx);
-      const appliedByTarget = new Map<string, Map<string, MigrationRecord>>();
-      const batchByTarget = new Map<string, number>();
-      await Promise.all(
-        targets.map(async (t) => {
-          const key = keyForTarget(t);
-          appliedByTarget.set(key, await MigrationStore.getAppliedMap(db, t.scope, t.service));
-          batchByTarget.set(
-            key,
-            (await MigrationStore.getLastCompletedBatch(db, t.scope, t.service)) + 1
-          );
-        })
-      );
-
-      const pending = migrations.filter((m) => {
-        const target = getTargetForMigration(ctx, m);
-        const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
-        return row?.status !== 'completed';
-      });
-      if (pending.length === 0) return { applied: 0, pending: 0 };
-
-      let appliedCount = 0;
-      await runSerial(pending, async (m) => {
-        const target = getTargetForMigration(ctx, m);
-        const batch = batchByTarget.get(keyForTarget(target)) ?? 1;
-        await applyOneMigration({
-          db,
-          migration: m,
-          scope: target.scope,
-          service: target.service,
-          batch,
-        });
-        appliedCount++;
-      });
-
-      return { applied: appliedCount, pending: pending.length - appliedCount };
+      return applyPendingMigrations(ctx, db, migrations);
     });
   };
 }

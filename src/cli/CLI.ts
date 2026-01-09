@@ -15,6 +15,7 @@ import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
+import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
@@ -25,6 +26,7 @@ import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
@@ -44,11 +46,6 @@ export interface ICLI {
   run(args: string[]): Promise<void>;
   getProgram(): Command;
 }
-
-/**
- * CLI - Main CLI Class
- * Orchestrates all CLI commands using Commander
- */
 /**
  * Load version from package.json
  */
@@ -111,6 +108,8 @@ const registerCommands = (program: Command): void => {
     TemplatesCommand,
     MakeMailTemplateCommand.create(),
     MakeNotificationTemplateCommand.create(),
+    RoutesCommand.create(),
+    JwtDevCommand,
   ];
 
   for (const command of commands) {

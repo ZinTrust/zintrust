@@ -62,6 +62,7 @@ export const Env = Object.freeze({
   // Prefer PORT, fallback to APP_PORT for compatibility
   PORT: getInt('PORT', getInt('APP_PORT', 3000)),
   HOST: get('HOST', 'localhost'),
+  BASE_URL: get('BASE_URL', ''),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
   APP_KEY: get('APP_KEY', ''),
   // Optional key rotation support (comma-separated or JSON array of keys)

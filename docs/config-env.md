@@ -7,11 +7,19 @@
 Import from the framework:
 
 ```ts
-import { env } from '@zintrust/core';
+import { Env } from '@zintrust/core';
 
 // Example (if supported by the module):
-// env.*
+// Env.*
 ```
+
+## BASE_URL
+
+`BASE_URL` is an optional base origin (for example: `http://127.0.0.1` or `https://api.example.com`).
+
+It is used anywhere the framework needs to construct fully-qualified URLs, including the `zin routes` table output (URL column), which computes:
+
+- `BASE_URL` + `PORT` + route path
 
 ## Encryption interoperability env vars
 
@@ -88,6 +96,7 @@ export const Env = Object.freeze({
   // Prefer PORT, fallback to APP_PORT for compatibility
   PORT: getInt('PORT', getInt('APP_PORT', 3000)),
   HOST: get('HOST', 'localhost'),
+  BASE_URL: get('BASE_URL', ''),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
   APP_KEY: get('APP_KEY', ''),
 

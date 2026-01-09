@@ -211,8 +211,10 @@ ${statePatterns}
 
         return result;
       }
+    };
+
     return factory;
-  }`;
+  },`;
 }
 
 /**

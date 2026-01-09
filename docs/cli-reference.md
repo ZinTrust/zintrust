@@ -15,6 +15,8 @@
 - `zin debug`: Start debug dashboard
 - `zin logs`: View application logs
 - `zin templates`: List/render built-in markdown templates
+- `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
+- `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
 - `zin fix`: Run automated code fixes
@@ -23,6 +25,75 @@
 - `zin simulate` (alias: `zin -sim`): Generate a simulated app under `./simulate/` (dev utility)
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
+
+## Routes Command
+
+Lists all routes registered by your router (including group prefixes) and prints a table.
+
+Columns:
+
+- **URL**: computed from `BASE_URL` + `PORT` + route path (safe-joined to avoid `//`)
+- **Group**: derived router group (or service name if `--group-by service`)
+- **Method**, **Path**, **Middleware**, **Validation**, **Handler**
+
+Usage:
+
+```bash
+zin routes [options]
+zin route:list [options]
+```
+
+Options:
+
+- `--group-by <mode>`: `group` | `service` | `none` (default: `group`)
+- `--filter <text>`: substring filter across all columns
+- `--method <methods>`: comma list (e.g. `GET,POST`)
+- `--json`: machine-readable output
+
+Examples:
+
+```bash
+# Pretty table (URL uses BASE_URL + PORT)
+BASE_URL=http://127.0.0.1 PORT=7777 zin routes
+
+# Group by service segment under /api/v1/<service>/...
+zin routes --group-by service
+
+# Filter to auth routes only
+zin routes --filter auth
+
+# JSON output
+zin routes --json
+```
+
+## JWT Dev Token (`jwt:dev`)
+
+Mints a JWT that is compatible with the framework's `jwt` middleware (useful for manual testing protected routes).
+
+Usage:
+
+```bash
+zin jwt:dev [options]
+```
+
+Options:
+
+- `--sub <sub>`: subject claim (default: `1`)
+- `--email <email>`: adds `email` claim
+- `--role <role>`: adds `role` claim
+- `--expires <duration>`: seconds or `30m`/`1h`/`7d` (default: `1h`)
+- `--json`: machine-readable output (prints a JSON object containing `token` and metadata)
+- `--allow-production`: override safety guard (dangerous)
+
+Examples:
+
+```bash
+# Mint a token and paste it into an Authorization header
+zin jwt:dev --sub 1 --email dev@example.com --role admin
+
+# JSON mode (easy to script)
+zin jwt:dev --json --expires 30m
+```
 
 ## The `add` Command
 

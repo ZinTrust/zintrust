@@ -20,9 +20,6 @@ export const migration: Migration = {
 
     await schema.table('tasks', (table: Blueprint) => {
       table.string('start');
-      // Example:
-      // table.dropColumn('old_column');
-      // table.index('new_column');
     });
   },
 

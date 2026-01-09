@@ -136,6 +136,11 @@ describe('Kernel', () => {
     };
     vi.mocked(Router.match).mockReturnValue(route);
 
+    (mockRequest.getHeader as unknown as Mock).mockImplementation((name: string) => {
+      if (name.toLowerCase() === 'authorization') return 'Bearer test-token';
+      return undefined;
+    });
+
     await kernel.handleRequest(mockRequest, mockResponse);
 
     expect(routeHandler).toHaveBeenCalledWith(mockRequest, mockResponse);

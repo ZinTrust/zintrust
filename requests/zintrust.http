@@ -1,0 +1,97 @@
+### Zintrust API - manual REST Client requests
+### Requires VS Code extension: "REST Client" (humao.rest-client)
+###
+### Usage:
+### 1) Start the dev server (default port is usually 7777):
+###    zin  start
+### 2) Run "CSRF warmup" first (it captures cookies + CSRF token)
+### 3) Run any POST/PUT requests after that
+###
+### Tip: If you want protected routes to succeed, set @jwt to a real token.
+### You can mint a dev token with the CLI:
+### zin jwt:dev --sub 1 --email dev@example.com --role admin
+
+@baseUrl = http://127.0.0.1:7777
+
+# Optional overrides
+@jwt = REPLACE_ME
+@csrf =
+@cookie =
+
+### Root
+GET {{baseUrl}}/
+
+### Health
+GET {{baseUrl}}/health
+
+### CSRF warmup (sets ZIN_SESSION_ID + XSRF-TOKEN)
+# @name csrfWarmup
+GET {{baseUrl}}/api/v1/posts
+
+> {%
+  const raw = response.headers['set-cookie'] ?? response.headers['Set-Cookie'];
+  if (!raw) {
+    client.log('No Set-Cookie header; CSRF/session cookies not captured');
+  } else {
+    const cookies = Array.isArray(raw) ? raw : [raw];
+    const pairs = cookies
+      .map((c) => String(c).split(';')[0])
+      .filter((v) => typeof v === 'string' && v.length > 0);
+
+    const cookieHeader = pairs.join('; ');
+    client.global.set('cookie', cookieHeader);
+
+    const xsrfPair = pairs.find((p) => p.startsWith('XSRF-TOKEN='));
+    if (xsrfPair) {
+      const token = xsrfPair.slice('XSRF-TOKEN='.length);
+      client.global.set('csrf', decodeURIComponent(token));
+    }
+
+    client.log('cookie=' + cookieHeader);
+    client.log('csrf=' + (client.global.get('csrf') ?? '(missing)'));
+  }
+%}
+
+### Auth: Register (validated + CSRF protected)
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "name": "Dev User",
+  "email": "dev@example.com",
+  "password": "password123"
+}
+
+### Auth: Login (validated + CSRF protected)
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "email": "dev@example.com",
+  "password": "password123"
+}
+
+### Profile: GET (requires auth + jwt)
+GET {{baseUrl}}/api/v1/profile
+Authorization: Bearer {{jwt}}
+
+### Profile: PUT (requires auth + jwt + CSRF)
+PUT {{baseUrl}}/api/v1/profile
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+Authorization: Bearer {{jwt}}
+
+{
+  "bio": "Hello from REST Client"
+}
+
+### Posts: list
+GET {{baseUrl}}/api/v1/posts
+
+### Posts: show
+GET {{baseUrl}}/api/v1/posts/123
