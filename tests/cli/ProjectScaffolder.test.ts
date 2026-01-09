@@ -444,7 +444,7 @@ describe('ProjectScaffolder Database Configuration', () => {
     const env = FileGenerator.readFile(path.join(projectPath, '.env'));
 
     expect(env).toContain('DB_CONNECTION=sqlite');
-    expect(env).toContain('DB_DATABASE=./database.sqlite');
+    expect(env).toContain('DB_DATABASE=.zintrust/dbs/my-app.sqlite');
   });
 });
 

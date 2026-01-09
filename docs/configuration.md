@@ -88,6 +88,10 @@ Core DB variables (from `Env`):
 | `DB_PASSWORD`   | string | `""`        |
 | `DB_READ_HOSTS` | string | `""`        |
 
+Notes:
+
+- For SQLite in development/testing, if `DB_DATABASE`/`DB_PATH` are not set, Zintrust stores the database file under `.zintrust/dbs/zintrust.sqlite` by default.
+
 Additional database tuning (from `src/config/database.ts`):
 
 - `DB_SSL` (bool, default `false`)

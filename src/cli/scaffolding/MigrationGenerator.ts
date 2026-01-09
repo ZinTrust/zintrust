@@ -144,31 +144,32 @@ function generateCreateMigration(className: string): string {
  * Creates ${tableName} table
  */
 
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
+
 export interface Migration {
-  up(): Promise<void>;
-  down(): Promise<void>;
+  up(db: IDatabase): Promise<void>;
+  down(db: IDatabase): Promise<void>;
 }
 
 export const migration: Migration = {
   /**
    * Run migration
    */
-  async up(): Promise<void> {
-    // Create table
-    // await db.schema.createTable('${tableName}', (table) => {
-    //   table.increments('id').primary();
-    //   table.string('name').notNullable();
-    //   table.string('email').unique();
-    //   table.timestamps();
-    // });
+  async up(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+
+    await schema.create('${tableName}', (table) => {
+      table.id();
+      table.timestamps();
+    });
   },
 
   /**
    * Rollback migration
    */
-  async down(): Promise<void> {
-    // Drop table
-    // await db.schema.dropTable('${tableName}');
+  async down(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+    await schema.dropIfExists('${tableName}');
   },
 };
 `;
@@ -185,30 +186,33 @@ function generateAlterMigration(className: string): string {
  * Modifies ${tableName} table
  */
 
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
+
 export interface Migration {
-  up(): Promise<void>;
-  down(): Promise<void>;
+  up(db: IDatabase): Promise<void>;
+  down(db: IDatabase): Promise<void>;
 }
 
 export const migration: Migration = {
   /**
    * Run migration
    */
-  async up(): Promise<void> {
-    // Add/modify columns
-    // await db.schema.alterTable('${tableName}', (table) => {
-    //   table.string('new_column').nullable();
-    // });
+  async up(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+
+    await schema.table('${tableName}', (table) => {
+      // Example:
+      // table.string('new_column');
+      // table.dropColumn('old_column');
+      // table.index('new_column');
+    });
   },
 
   /**
    * Rollback migration
    */
-  async down(): Promise<void> {
-    // Remove columns
-    // await db.schema.alterTable('${tableName}', (table) => {
-    //   table.dropColumn('new_column');
-    // });
+  async down(_db: IDatabase): Promise<void> {
+    // Note: dropping columns/FKs varies by driver; SQLite/D1 requires a table rebuild.
   },
 };
 `;
@@ -225,29 +229,27 @@ function generateDropMigration(className: string): string {
  * Drops ${tableName} table
  */
 
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
+
 export interface Migration {
-  up(): Promise<void>;
-  down(): Promise<void>;
+  up(db: IDatabase): Promise<void>;
+  down(db: IDatabase): Promise<void>;
 }
 
 export const migration: Migration = {
   /**
    * Run migration
    */
-  async up(): Promise<void> {
-    // Drop table
-    // await db.schema.dropTable('${tableName}');
+  async up(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+    await schema.dropIfExists('${tableName}');
   },
 
   /**
    * Rollback migration
    */
-  async down(): Promise<void> {
-    // Recreate table
-    // await db.schema.createTable('${tableName}', (table) => {
-    //   table.increments('id').primary();
-    //   table.timestamps();
-    // });
+  async down(_db: IDatabase): Promise<void> {
+    // Recreate table (DB-specific). Consider adding back columns explicitly.
   },
 };
 `;

@@ -64,6 +64,73 @@ import { Model } from '@zintrust/core';
 const rows = await Model.query('users', 'external_db').where('active', true).get();
 ```
 
+## Migrations (Two Supported Styles)
+
+Zintrust supports two ways to define schema changes in migrations. Pick whichever style you prefer (both run via `zin migrate`).
+
+### Style A (recommended): secure schema builder
+
+This is the newer builder-driven approach (Blueprint/Compiler-backed). It is the default style used by the migration generator.
+
+```ts
+import type { IDatabase } from '@orm/Database';
+import { Schema as MigrationSchema } from '@/migrations/schema';
+
+export interface Migration {
+  up(db: IDatabase): Promise<void>;
+  down(db: IDatabase): Promise<void>;
+}
+
+export const migration: Migration = {
+  async up(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+
+    await schema.create('users', (table) => {
+      table.id();
+      table.string('name');
+      table.string('email').unique();
+      table.timestamps();
+    });
+  },
+
+  async down(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+    await schema.dropIfExists('users');
+  },
+};
+```
+
+### Style B (also supported): legacy ORM schema + compiler
+
+This is the older `Schema.create('table')` + `SchemaCompiler` workflow.
+
+```ts
+import type { IDatabase } from '@orm/Database';
+import { Schema } from '@orm/Schema';
+import { SchemaCompiler } from '@orm/SchemaCompiler';
+
+export interface Migration {
+  up(db: IDatabase): Promise<void>;
+  down(db: IDatabase): Promise<void>;
+}
+
+export const migration: Migration = {
+  async up(db: IDatabase): Promise<void> {
+    const schema = Schema.create('users');
+    schema.increments('id');
+    schema.string('name');
+    schema.string('email').unique();
+    schema.timestamps();
+
+    await SchemaCompiler.createTable(db, schema, { ifNotExists: true });
+  },
+
+  async down(db: IDatabase): Promise<void> {
+    await SchemaCompiler.dropTable(db, 'users');
+  },
+};
+```
+
 ## Cloudflare D1
 
 Zintrust includes a dedicated `d1` database driver via `src/orm/adapters/D1Adapter.ts`.

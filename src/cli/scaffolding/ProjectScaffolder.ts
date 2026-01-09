@@ -159,7 +159,20 @@ const createProjectConfigFile = (
   }
 };
 
-const buildDatabaseEnvLines = (database: string): string[] => {
+const toSafeDbBasename = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return 'zintrust';
+
+  const normalized = trimmed
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/(?:^-+)|(?:-+$)/g, '');
+
+  return normalized === '' ? 'zintrust' : normalized;
+};
+
+const buildDatabaseEnvLinesWithName = (database: string, name: string): string[] => {
   if (database === 'postgresql' || database === 'postgres') {
     return [
       'DB_HOST=localhost',
@@ -180,7 +193,8 @@ const buildDatabaseEnvLines = (database: string): string[] => {
   }
   if (database === 'sqlite') {
     // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
-    return ['DB_DATABASE=./database.sqlite', 'DB_PATH=./database.sqlite'];
+    const base = toSafeDbBasename(name);
+    return [`DB_DATABASE=.zintrust/dbs/${base}.sqlite`, `DB_PATH=.zintrust/dbs/${base}.sqlite`];
   }
   if (database === 'd1-remote' || database === 'd1-proxy') {
     return [
@@ -235,7 +249,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       `DB_CONNECTION=${database}`,
     ];
 
-    const dbLines: string[] = buildDatabaseEnvLines(database);
+    const dbLines: string[] = buildDatabaseEnvLinesWithName(database, name);
 
     const placeholderLines: string[] = [
       '',
@@ -618,6 +632,7 @@ coverage/
 logs/
 storage/
 tmp/
+.zintrust/
 *.log
 `;
   }

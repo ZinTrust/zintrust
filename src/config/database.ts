@@ -8,6 +8,74 @@ import { Env } from '@config/env';
 import { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+const isNodeProcess = (): boolean => {
+  return typeof process !== 'undefined' && typeof process.cwd === 'function';
+};
+
+const isExplicitEnvValue = (key: string): boolean => {
+  if (!isNodeProcess()) return false;
+  const raw = process.env[key];
+  return typeof raw === 'string' && raw.trim() !== '';
+};
+
+const looksLikeSqliteFilePath = (value: string): boolean => {
+  const v = value.trim();
+  if (v === '') return false;
+  if (v === ':memory:') return true;
+
+  // Heuristic: if it's a path, has an extension, or is explicitly relative.
+  if (v.includes('/') || v.includes('\\')) return true;
+  if (v.startsWith('.')) return true;
+  if (v.startsWith('~')) return true;
+  if (v.endsWith('.sqlite') || v.endsWith('.db')) return true;
+
+  // Otherwise it's likely a placeholder name (e.g. "zintrust"), not a file path.
+  return false;
+};
+
+const toSafeDbBasename = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return 'zintrust';
+
+  // Conservative filename allowlist: letters/numbers/_/-, collapse everything else.
+  const normalized = trimmed
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/(?:^-+)|(?:-+$)/g, '');
+
+  return normalized === '' ? 'zintrust' : normalized;
+};
+
+const resolveSqliteDefaultBasename = (): string => {
+  const service =
+    typeof process.env['SERVICE_NAME'] === 'string' ? process.env['SERVICE_NAME'] : '';
+  if (service.trim() !== '') return toSafeDbBasename(service);
+
+  const app = typeof process.env['APP_NAME'] === 'string' ? process.env['APP_NAME'] : '';
+  if (app.trim() !== '') return toSafeDbBasename(app);
+
+  return 'zintrust';
+};
+
+const resolveDefaultSqliteDatabasePath = (): string => {
+  // Respect explicit sqlite *file path* configuration.
+  // Note: we intentionally treat plain names like "zintrust" as placeholders, not file paths,
+  // to avoid creating stray DB files in the project root.
+  if (isExplicitEnvValue('DB_DATABASE') || isExplicitEnvValue('DB_PATH')) {
+    const configured = Env.DB_DATABASE;
+    if (looksLikeSqliteFilePath(configured)) return configured;
+  }
+
+  // Only change the default behavior for dev/testing; production should be explicit.
+  if (!isNodeProcess() || Env.NODE_ENV === 'production') return Env.DB_DATABASE;
+
+  // Store dev sqlite files in project-local metadata folder.
+  // Note: the SQLite adapter ensures the parent directory exists.
+  const base = resolveSqliteDefaultBasename();
+  return `.zintrust/dbs/${base}.sqlite`;
+};
+
 const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
   return Object.hasOwn(obj, key);
 };
@@ -45,7 +113,7 @@ const getDatabaseConnection = (config: DatabaseConfigShape): DatabaseConnectionC
 const connections = {
   sqlite: {
     driver: 'sqlite' as const,
-    database: Env.DB_DATABASE,
+    database: resolveDefaultSqliteDatabasePath(),
     migrations: 'database/migrations',
   },
   d1: {

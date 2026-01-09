@@ -1,0 +1,22 @@
+node_modules/
+dist/
+
+# Env files
+.env
+.env.*
+.env.local
+
+# OS / editor
+.DS_Store
+
+# Test / build outputs
+coverage/
+*.log
+
+# App/runtime folders
+logs/
+storage/
+tmp/
+
+# Zintrust local metadata (sqlite dbs, locks, etc)
+.zintrust/

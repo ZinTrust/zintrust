@@ -32,11 +32,17 @@ export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 export { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 export { Database, resetDatabase, useDatabase } from '@orm/Database';
+export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 export { ZintrustApplication as Application };
+
+// Migrations
+// Note: `Schema` is already exported by Validation. We expose the migration schema runtime
+// as `MigrationSchema` to avoid name collisions.
+export { Schema as MigrationSchema } from '@/migrations/schema';
 
 // Adapter registry (for external adapter packages)
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';

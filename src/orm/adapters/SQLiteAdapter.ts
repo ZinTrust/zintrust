@@ -7,6 +7,8 @@
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { performance } from '@node-singletons/perf-hooks';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
@@ -127,6 +129,18 @@ async function connectSQLite(state: SQLiteAdapterState): Promise<void> {
   if (state.db !== null) return;
 
   const filename = normalizeFilename(state.config.database);
+
+  // Ensure file-backed sqlite DB directories exist (e.g. .zintrust/dbs/*.sqlite).
+  if (filename !== ':memory:') {
+    try {
+      fs.mkdirSync(path.dirname(filename), { recursive: true });
+    } catch (error) {
+      throw ErrorFactory.createTryCatchError('Failed to create SQLite database directory', {
+        filename,
+        cause: error,
+      });
+    }
+  }
 
   const SqliteDatabaseCtor = await importSqliteDatabaseConstructor();
   state.db = new SqliteDatabaseCtor(filename);
