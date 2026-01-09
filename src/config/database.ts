@@ -38,13 +38,33 @@ const toSafeDbBasename = (raw: string): string => {
   if (trimmed === '') return 'zintrust';
 
   // Conservative filename allowlist: letters/numbers/_/-, collapse everything else.
-  const normalized = trimmed
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '-')
-    .replaceAll(/-+/g, '-')
-    .replaceAll(/(?:^-+)|(?:-+$)/g, '');
+  // Avoid regexes that can exhibit catastrophic backtracking; do deterministic collapsing/trimming.
+  const collapsed = trimmed.toLowerCase().replaceAll(/[^a-z0-9_-]+/g, '-');
 
-  return normalized === '' ? 'zintrust' : normalized;
+  // Collapse consecutive hyphens deterministically without regex backtracking.
+  let normalized = '';
+  let prevHyphen = false;
+  for (const element of collapsed) {
+    const ch = element;
+    if (ch === '-') {
+      if (!prevHyphen) {
+        normalized += ch;
+        prevHyphen = true;
+      }
+    } else {
+      normalized += ch;
+      prevHyphen = false;
+    }
+  }
+
+  // Trim leading/trailing hyphens deterministically without regex.
+  let start = 0;
+  let end = normalized.length;
+  while (start < end && normalized.charAt(start) === '-') start++;
+  while (end > start && normalized.charAt(end - 1) === '-') end--;
+  const result = normalized.slice(start, end);
+
+  return result === '' ? 'zintrust' : result;
 };
 
 const resolveSqliteDefaultBasename = (): string => {

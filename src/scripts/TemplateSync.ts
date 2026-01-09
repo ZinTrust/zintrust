@@ -167,6 +167,20 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
   // not from internal path-alias modules that only exist in the framework repo.
   return (
     content
+      // Some templates are extracted from internal sources that use repo-relative imports.
+      // Normalize those to the public package surface.
+      .replaceAll("'../../../features'", "'@zintrust/core'")
+      .replaceAll('"../../../features"', '"@zintrust/core"')
+      .replaceAll("'../../../logger'", "'@zintrust/core'")
+      .replaceAll('"../../../logger"', '"@zintrust/core"')
+      .replaceAll("'../../logger'", "'@zintrust/core'")
+      .replaceAll('"../../logger"', '"@zintrust/core"')
+      .replaceAll("'../logger'", "'@zintrust/core'")
+      .replaceAll('"../logger"', '"@zintrust/core"')
+
+      .replaceAll("'@common/uuid'", "'@zintrust/core'")
+      .replaceAll('"@common/uuid"', '"@zintrust/core"')
+
       // Starter templates should not rely on local config/env wrappers.
       // Normalize Env imports to come from the public package surface.
       .replaceAll("from '../env';", "from '@zintrust/core';")
@@ -179,6 +193,8 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
       .replaceAll('"@node-singletons/fs"', '"node:fs"')
       .replaceAll("'@node-singletons/path'", "'node:path'")
       .replaceAll('"@node-singletons/path"', '"node:path"')
+      .replaceAll("'@node-singletons/perf-hooks'", "'node:perf_hooks'")
+      .replaceAll('"@node-singletons/perf-hooks"', '"node:perf_hooks"')
 
       // Starter project config/* should reference sibling config modules via relative imports.
       .replaceAll(/(['"])@config\/([^'"]+)\1/g, (_m, quote: string, suffix: string) => {
@@ -209,12 +225,61 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
   );
 };
 
+const rewriteRegistryTemplateImports = (relPath: string, content: string): string => {
+  if (!relPath.endsWith('.ts') && !relPath.endsWith('.tsx') && !relPath.endsWith('.mts')) {
+    return content;
+  }
+
+  // Registry templates (adapters/features) must only import from the public package surface.
+  // Unlike starter project templates, they should NEVER rewrite `@config/*` into relative imports.
+  return (
+    content
+      // Normalize internal aliases to public API
+      .replaceAll("'@config/logger'", "'@zintrust/core'")
+      .replaceAll('"@config/logger"', '"@zintrust/core"')
+      .replaceAll("'@config/features'", "'@zintrust/core'")
+      .replaceAll('"@config/features"', '"@zintrust/core"')
+      .replaceAll("'@exceptions/ZintrustError'", "'@zintrust/core'")
+      .replaceAll('"@exceptions/ZintrustError"', '"@zintrust/core"')
+      .replaceAll("'@orm/DatabaseAdapter'", "'@zintrust/core'")
+      .replaceAll('"@orm/DatabaseAdapter"', '"@zintrust/core"')
+      .replaceAll("'@orm/QueryBuilder'", "'@zintrust/core'")
+      .replaceAll('"@orm/QueryBuilder"', '"@zintrust/core"')
+      .replaceAll("'@orm/Database'", "'@zintrust/core'")
+      .replaceAll('"@orm/Database"', '"@zintrust/core"')
+      .replaceAll("'@common/uuid'", "'@zintrust/core'")
+      .replaceAll('"@common/uuid"', '"@zintrust/core"')
+      .replaceAll("'@common/index'", "'@zintrust/core'")
+      .replaceAll('"@common/index"', '"@zintrust/core"')
+
+      // Node-singletons are internal to this repo; templates should use Node built-ins.
+      .replaceAll("'@node-singletons/fs'", "'node:fs'")
+      .replaceAll('"@node-singletons/fs"', '"node:fs"')
+      .replaceAll("'@node-singletons/path'", "'node:path'")
+      .replaceAll('"@node-singletons/path"', '"node:path"')
+      .replaceAll("'@node-singletons/perf-hooks'", "'node:perf_hooks'")
+      .replaceAll('"@node-singletons/perf-hooks"', '"node:perf_hooks"')
+
+      // Defensive: if old templates already contain repo-relative imports, normalize them.
+      .replaceAll("'../../../features'", "'@zintrust/core'")
+      .replaceAll('"../../../features"', '"@zintrust/core"')
+      .replaceAll("'../../../logger'", "'@zintrust/core'")
+      .replaceAll('"../../../logger"', '"@zintrust/core"')
+      .replaceAll("'../../logger'", "'@zintrust/core'")
+      .replaceAll('"../../logger"', '"@zintrust/core"')
+      .replaceAll("'../logger'", "'@zintrust/core'")
+      .replaceAll('"../logger"', '"@zintrust/core"')
+  );
+};
+
 const syncRegistryMappings = (params: {
   checksums: ChecksumRecord;
   mappings: Array<{ basePath: string; templatePath: string; description: string }>;
 }): { updated: number; skipped: number } => {
   let updated = 0;
   let skipped = 0;
+
+  const checksumSalt = 'registry-imports-v3';
 
   for (const mapping of params.mappings) {
     const basePath = path.join(ROOT_DIR, mapping.basePath);
@@ -226,7 +291,8 @@ const syncRegistryMappings = (params: {
     }
 
     const currentHash = hashFile(basePath);
-    const storedHash = params.checksums[mapping.basePath];
+    const checksumKey = `${mapping.basePath}|${checksumSalt}`;
+    const storedHash = params.checksums[checksumKey];
 
     if (currentHash === storedHash && fs.existsSync(templatePath)) {
       Logger.info(`✓ ${mapping.description} (in sync)`);
@@ -235,10 +301,11 @@ const syncRegistryMappings = (params: {
     }
 
     try {
-      const templateContent = extractTemplateContent(basePath);
+      const rawTemplateContent = extractTemplateContent(basePath);
+      const templateContent = rewriteRegistryTemplateImports(mapping.basePath, rawTemplateContent);
       ensureDir(path.dirname(templatePath));
       fs.writeFileSync(templatePath, templateContent, 'utf8');
-      params.checksums[mapping.basePath] = currentHash;
+      params.checksums[checksumKey] = currentHash;
       Logger.info(`✓ Updated: ${mapping.description}`);
       updated++;
     } catch (error) {
@@ -306,14 +373,10 @@ const syncStarterProjectTemplates = (params: {
     description: 'Starter project app/*',
   });
 
-  const s2 = syncProjectTemplateDir({
-    checksums: params.checksums,
-    baseDirRel: 'src/config',
-    templateDirRel: `${params.projectRoot}/config`,
-    description: 'Starter project config/* (from src/config/*)',
-    transformContent: rewriteStarterTemplateImports,
-    checksumSalt: 'starter-imports-v4',
-  });
+  // NOTE:
+  // `src/templates/project/basic/config/*` is intentionally hand-authored.
+  // It must stay declarative (core owns runtime/env logic), and should never be
+  // auto-generated from `src/config/*` (which would overwrite project-level overrides).
 
   const s3 = syncProjectTemplateDir({
     checksums: params.checksums,
@@ -339,9 +402,9 @@ const syncStarterProjectTemplates = (params: {
   });
 
   return {
-    updated: s1.updated + s2.updated + s3.updated + s4.updated + s5.updated,
-    skipped: s1.skipped + s2.skipped + s3.skipped + s4.skipped + s5.skipped,
-    total: s1.total + s2.total + s3.total + s4.total + s5.total,
+    updated: s1.updated + s3.updated + s4.updated + s5.updated,
+    skipped: s1.skipped + s3.skipped + s4.skipped + s5.skipped,
+    total: s1.total + s3.total + s4.total + s5.total,
   };
 };
 
@@ -377,18 +440,33 @@ function saveChecksums(checksums: ChecksumRecord): void {
 async function syncTemplates(): Promise<void> {
   Logger.info('🔄 Syncing templates...\n');
 
+  const args = new Set(process.argv.slice(2));
+  const shouldSyncStarterTemplates = args.has('--dangerously-sync-starter-templates');
+
   const checksums = loadChecksums();
   const mappings = TemplateRegistry.getMappings();
   const registry = syncRegistryMappings({ checksums, mappings });
 
-  // Sync starter project templates (basic) from base framework folders.
-  // Spec: app/* -> app/*, src/config/* -> config/*, src/database/* -> database/*, routes/* -> routes/*
-  // plus .env (generated from .env.example with sensitive values blanked).
-  Logger.info('');
-  Logger.info('🔄 Syncing starter project templates (basic)...');
+  let starter: { updated: number; skipped: number; total: number } = {
+    updated: 0,
+    skipped: 0,
+    total: 0,
+  };
 
-  const projectRoot = 'src/templates/project/basic';
-  const starter = syncStarterProjectTemplates({ checksums, projectRoot });
+  // Sync starter project templates (basic) from base framework folders.
+  // This is intentionally opt-in to avoid overwriting hand-authored starter templates.
+  if (shouldSyncStarterTemplates) {
+    Logger.info('');
+    Logger.info('🔄 Syncing starter project templates (basic)...');
+
+    const projectRoot = 'src/templates/project/basic';
+    starter = syncStarterProjectTemplates({ checksums, projectRoot });
+  } else {
+    Logger.info('');
+    Logger.info(
+      '⏭️  Skipping starter project template sync (pass --dangerously-sync-starter-templates to enable)'
+    );
+  }
 
   // Save updated checksums
   saveChecksums(checksums);

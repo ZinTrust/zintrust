@@ -177,7 +177,13 @@ export { Constants, DEFAULTS, ENV_KEYS, HTTP_HEADERS, MIME_TYPES } from '@config
 export { FeatureFlags } from '@config/features';
 
 export { Cloudflare } from '@config/cloudflare';
-export { SecretsManager } from '@config/SecretsManager';
+export {
+  getDatabaseCredentials,
+  getJwtSecrets,
+  SECRETS,
+  SecretsManager,
+} from '@config/SecretsManager';
+export type { DatabaseCredentials, JwtSecrets } from '@config/SecretsManager';
 export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type';
 
 // Config (validation)

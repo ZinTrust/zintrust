@@ -163,13 +163,32 @@ const toSafeDbBasename = (raw: string): string => {
   const trimmed = raw.trim();
   if (trimmed === '') return 'zintrust';
 
-  const normalized = trimmed
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '-')
-    .replaceAll(/-+/g, '-')
-    .replaceAll(/(?:^-+)|(?:-+$)/g, '');
+  const lower = trimmed.toLowerCase();
+  let out = '';
+  let prevWasDash = false;
 
-  return normalized === '' ? 'zintrust' : normalized;
+  for (const char of lower) {
+    const isAlphaNum = (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9');
+    const isContent = isAlphaNum || char === '_';
+
+    if (isContent) {
+      out += char;
+      prevWasDash = false;
+      continue;
+    }
+
+    // Treat as separator: collapse dashes and avoid leading dash
+    if (out.length > 0 && !prevWasDash) {
+      out += '-';
+      prevWasDash = true;
+    }
+  }
+
+  if (out.endsWith('-')) {
+    out = out.slice(0, -1);
+  }
+
+  return out === '' ? 'zintrust' : out;
 };
 
 const buildDatabaseEnvLinesWithName = (database: string, name: string): string[] => {

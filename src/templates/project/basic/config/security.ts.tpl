@@ -1,170 +1,18 @@
 /**
- * Security Configuration
- * JWT, CSRF, encryption and other security settings
- * Sealed namespace for immutability
+ * Security Configuration (template)
  *
- * APP_KEY: Primary encryption key for storage signing and app-level encryption.
- *          Set automatically during project scaffolding.
- *
- * Security keys can be configured per domain:
- * - APP_KEY: Default encryption key for all operations (auto-generated)
- * - API_KEY_SECRET: Optional API key authentication (if API_KEY_ENABLED=true)
- * - ENCRYPTION_CIPHER: Cipher for encrypted envelope interoperability
- * - JWT_SECRET: JWT token signing key
- *
- * Developers can use a single APP_KEY or configure separate keys for different
- * security domains (e.g., different keys for different microservices).
+ * Keep this file declarative:
+ * - Core owns env parsing/default logic.
+ * - Projects can override values by editing `securityConfigObj`.
  */
 
-import { appConfig } from '@zintrust/core';
-import { Env } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
-import { ErrorFactory } from '@zintrust/core';
+import { securityConfig as coreSecurityConfig } from '@zintrust/core';
 
-/**
- * Helper to warn about missing secrets
- */
-function warnMissingSecret(secretName: string): string {
-  Logger.error(`❌ CRITICAL: ${secretName} environment variable is not set!`);
-  Logger.error('⚠️  Application may not function correctly. Set this in production immediately.');
-  if (appConfig.isProduction()) {
-    throw ErrorFactory.createConfigError(`Missing required secret: ${secretName}`, { secretName });
-  }
+type SecurityConfigShape = typeof coreSecurityConfig;
 
-  // In non-production environments, allow the app/CLI to start while still warning loudly.
-  // This is intentionally predictable for local development and test tooling.
-  return 'dev-unsafe-jwt-secret';
-}
+export const securityConfigObj = {
+  ...coreSecurityConfig,
+} satisfies SecurityConfigShape;
 
-let cachedJwtSecret: string | undefined;
-
-const securityConfigObj = {
-  /**
-   * JWT Configuration
-   */
-  jwt: {
-    enabled: Env.getBool('JWT_ENABLED', true),
-    get secret(): string {
-      if (cachedJwtSecret !== undefined) return cachedJwtSecret;
-      const isEnabled = Env.getBool('JWT_ENABLED', true);
-      cachedJwtSecret = isEnabled
-        ? Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET')
-        : Env.get('JWT_SECRET') || '';
-      return cachedJwtSecret;
-    },
-    algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',
-    expiresIn: Env.get('JWT_EXPIRES_IN', '1h'),
-    refreshExpiresIn: Env.get('JWT_REFRESH_EXPIRES_IN', '7d'),
-    issuer: Env.get('JWT_ISSUER', 'zintrust'),
-    audience: Env.get('JWT_AUDIENCE', 'zintrust-api'),
-  },
-
-  /**
-   * CSRF Protection
-   */
-  csrf: {
-    enabled: Env.getBool('CSRF_ENABLED', true),
-    headerName: Env.get('CSRF_HEADER_NAME', 'x-csrf-token'),
-    tokenName: Env.get('CSRF_TOKEN_NAME', '_csrf'),
-    cookieName: Env.get('CSRF_COOKIE_NAME', 'XSRF-TOKEN'),
-    cookieHttpOnly: Env.getBool('CSRF_COOKIE_HTTP_ONLY', true),
-    cookieSecure: Env.getBool('CSRF_COOKIE_SECURE', true),
-    cookieSameSite: Env.get('CSRF_COOKIE_SAME_SITE', 'strict') as 'strict' | 'lax' | 'none',
-  },
-
-  /**
-   * Encryption
-   */
-  encryption: {
-    // Required for framework-compatible encrypted payloads.
-    // Supported values: aes-256-cbc | aes-256-gcm (case-insensitive)
-    cipher: Env.get('ENCRYPTION_CIPHER', ''),
-
-    // Primary key used for encryption interoperability (framework-compatible envelopes).
-    // APP_KEY supports both `base64:...` and raw base64.
-    appKey: Env.get('APP_KEY', ''),
-    appPreviousKeys: Env.get('APP_PREVIOUS_KEYS', ''),
-
-    // Back-compat fields (not used by EncryptedEnvelope)
-    algorithm: Env.get('ENCRYPTION_ALGORITHM', 'aes-256-cbc'),
-    key: Env.get('ENCRYPTION_KEY', 'your-encryption-key'),
-  },
-
-  /**
-   * API Key Authentication
-   */
-  apiKey: {
-    enabled: Env.getBool('API_KEY_ENABLED', false),
-    headerName: Env.get('API_KEY_HEADER', 'x-api-key'),
-    secret: Env.get('API_KEY_SECRET'),
-  },
-
-  /**
-   * CORS Configuration
-   */
-  cors: {
-    enabled: Env.getBool('CORS_ENABLED', true),
-    origins: Env.get('CORS_ORIGINS', '*').split(','),
-    methods: Env.get('CORS_METHODS', 'GET,POST,PUT,PATCH,DELETE').split(','),
-    allowedHeaders: Env.get('CORS_ALLOWED_HEADERS', 'Content-Type,Authorization').split(','),
-    exposedHeaders: Env.get('CORS_EXPOSED_HEADERS', '').split(','),
-    credentials: Env.getBool('CORS_CREDENTIALS', false),
-    maxAge: Env.getInt('CORS_MAX_AGE', 86400),
-  },
-
-  /**
-   * Rate Limiting
-   */
-  rateLimit: {
-    enabled: Env.getBool('RATE_LIMIT_ENABLED', true),
-    windowMs: Env.getInt('RATE_LIMIT_WINDOW_MS', 900000), // 15 minutes
-    maxRequests: Env.getInt('RATE_LIMIT_MAX_REQUESTS', 100),
-    message: Env.get('RATE_LIMIT_MESSAGE', 'Too many requests, please try again later'),
-  },
-
-  /**
-   * XSS Protection
-   */
-  xss: {
-    enabled: Env.getBool('XSS_ENABLED', true),
-    reportUri: Env.get('XSS_REPORT_URI'),
-  },
-
-  /**
-   * Helmet Security Headers
-   */
-  helmet: {
-    enabled: Env.getBool('HELMET_ENABLED', true),
-    contentSecurityPolicy: Env.getBool('CSP_ENABLED', true),
-    hsts: {
-      enabled: Env.getBool('HSTS_ENABLED', true),
-      maxAge: Env.getInt('HSTS_MAX_AGE', 31536000),
-      includeSubDomains: Env.getBool('HSTS_INCLUDE_SUBDOMAINS', true),
-    },
-  },
-
-  /**
-   * Session Configuration
-   */
-  session: {
-    name: Env.get('SESSION_NAME', 'zintrust_session'),
-    secret: Env.get('SESSION_SECRET', 'your-session-secret'),
-    expiresIn: Env.getInt('SESSION_EXPIRES_IN', 1800000), // 30 minutes
-    secure: Env.getBool('SESSION_SECURE', true),
-    httpOnly: Env.getBool('SESSION_HTTP_ONLY', true),
-    sameSite: Env.get('SESSION_SAME_SITE', 'strict') as 'strict' | 'lax' | 'none',
-  },
-
-  /**
-   * Password settings
-   */
-  password: {
-    minLength: Env.getInt('PASSWORD_MIN_LENGTH', 8),
-    requireUppercase: Env.getBool('PASSWORD_REQUIRE_UPPERCASE', true),
-    requireNumbers: Env.getBool('PASSWORD_REQUIRE_NUMBERS', true),
-    requireSpecialChars: Env.getBool('PASSWORD_REQUIRE_SPECIAL_CHARS', true),
-    bcryptRounds: Env.getInt('BCRYPT_ROUNDS', 10),
-  },
-} as const;
-
-export const securityConfig = Object.freeze(securityConfigObj);
+const securityConfig = securityConfigObj;
+export default securityConfig;
