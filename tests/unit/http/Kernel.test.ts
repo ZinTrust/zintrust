@@ -161,7 +161,7 @@ describe('Kernel', () => {
   });
 
   it('should create and end an OpenTelemetry span when enabled', async () => {
-    process.env.OTEL_ENABLED = 'true';
+    process.env['OTEL_ENABLED'] = 'true';
     try {
       const routeHandler = vi.fn();
       const route = {
@@ -187,8 +187,10 @@ describe('Kernel', () => {
 
       otelMock.OpenTelemetry.runWithContext.mockImplementation(async (_ctx: any, fn: any) => fn());
 
+      // RequestContext is created inside kernel; seed fields via req.context (which RequestContext.create reads/writes)
       (mockRequest as any).context.userId = 'user-1';
       (mockRequest as any).context.tenantId = 'tenant-1';
+      (mockRequest as any).context.traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
 
       await kernel.handleRequest(mockRequest, mockResponse);
 
@@ -202,9 +204,17 @@ describe('Kernel', () => {
         })
       );
       expect(otelMock.OpenTelemetry.setHttpRoute).toHaveBeenCalledWith(span, 'GET', '/test');
+
+      // Late-bound attributes are set in finalize.
+      expect(span.setAttribute).toHaveBeenCalledWith('enduser.id', 'user-1');
+      expect(span.setAttribute).toHaveBeenCalledWith('zintrust.tenant_id', 'tenant-1');
+      expect(span.setAttribute).toHaveBeenCalledWith(
+        'zintrust.trace_id',
+        '4bf92f3577b34da6a3ce929d0e0e4736'
+      );
       expect(otelMock.OpenTelemetry.endHttpServerSpan).toHaveBeenCalled();
     } finally {
-      delete process.env.OTEL_ENABLED;
+      delete process.env['OTEL_ENABLED'];
     }
   });
 

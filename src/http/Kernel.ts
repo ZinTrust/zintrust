@@ -90,14 +90,6 @@ const resolveMiddlewareForRoute = (
 
 type KernelTraceSpan = ReturnType<typeof OpenTelemetry.startHttpServerSpan>;
 
-const getOptionalContextId = (req: IRequest, key: 'userId' | 'tenantId'): string | undefined => {
-  const anyReq = req as unknown as { context?: Record<string, unknown> };
-  const value = anyReq.context?.[key];
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
-  return undefined;
-};
-
 const maybeStartKernelTraceSpan = (
   req: IRequest,
   context: IRequestContext
@@ -111,8 +103,8 @@ const maybeStartKernelTraceSpan = (
       requestId: context.requestId,
       serviceName: Env.APP_NAME,
       userAgent: context.userAgent,
-      userId: getOptionalContextId(req, 'userId'),
-      tenantId: getOptionalContextId(req, 'tenantId'),
+      userId: context.userId,
+      tenantId: context.tenantId,
     });
   } catch {
     return undefined;
@@ -147,15 +139,40 @@ const runKernelPipeline = async (
     return routeLabel;
   }
 
-  const routeLabel =
-    typeof route.routePath === 'string' && route.routePath.trim() !== ''
-      ? route.routePath
-      : req.getPath();
+  // Safe type guard to ensure route.routePath is a non-empty string before calling .trim()
+  const hasNonEmptyRoutePath = (r: unknown): r is { routePath: string } => {
+    if (typeof r !== 'object' || r === null) return false;
+    const rp = (r as { routePath?: unknown }).routePath;
+    return typeof rp === 'string' && rp.trim() !== '';
+  };
+
+  const routeLabel = hasNonEmptyRoutePath(route) ? route.routePath : req.getPath();
 
   maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
-  req.setParams(route.params);
 
-  const middlewareToRun = resolveMiddlewareForRoute(route, globalMiddleware, routeMiddleware);
+  // Use a typed view of the matched route to avoid unsafe member access
+  const matchedRoute = route as {
+    params?: Record<string, unknown>;
+    handler: (req: IRequest, res: IResponse) => Promise<void> | void;
+    routePath?: string;
+  };
+
+  // Coerce route params (which may be undefined or non-string) into the
+  // expected Record<string, string> shape required by Request.setParams.
+  const safeParams: Record<string, string> = {};
+  if (typeof matchedRoute.params === 'object' && matchedRoute.params !== null) {
+    for (const [k, v] of Object.entries(matchedRoute.params)) {
+      if (v === undefined || v === null) continue;
+      safeParams[k] = typeof v === 'string' ? v : String(v);
+    }
+  }
+  req.setParams(safeParams);
+
+  const middlewareToRun = resolveMiddlewareForRoute(
+    matchedRoute,
+    globalMiddleware,
+    routeMiddleware
+  );
 
   let index = 0;
   const next = async (): Promise<void> => {
@@ -164,7 +181,7 @@ const runKernelPipeline = async (
       await mw(req, res, next);
       return;
     }
-    await route.handler(req, res);
+    await matchedRoute.handler(req, res);
   };
 
   await next();
@@ -193,6 +210,22 @@ const finalizeKernelObservability = (
 
   if (traceSpan) {
     const status = getStatusSafe(res);
+
+    // Late-bind context-derived attributes so auth/tenant middleware can populate them.
+    try {
+      if (typeof context.userId === 'string' && context.userId.trim() !== '') {
+        traceSpan.span.setAttribute('enduser.id', context.userId);
+      }
+      if (typeof context.tenantId === 'string' && context.tenantId.trim() !== '') {
+        traceSpan.span.setAttribute('zintrust.tenant_id', context.tenantId);
+      }
+      if (typeof context.traceId === 'string' && context.traceId.trim() !== '') {
+        traceSpan.span.setAttribute('zintrust.trace_id', context.traceId);
+      }
+    } catch {
+      // best-effort
+    }
+
     OpenTelemetry.endHttpServerSpan(traceSpan.span, {
       route: routeLabel,
       status,

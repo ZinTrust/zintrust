@@ -1,0 +1,47 @@
+# Typed Middleware Registry
+
+Zintrust supports _typed middleware names_ so you can catch typos at compile-time instead of at runtime.
+
+## Why
+
+Routes attach middleware by name (string). By default that’s flexible, but also easy to mistype.
+
+## Built-in registry
+
+The default middleware key registry lives in `src/config/middleware.ts`:
+
+- `MiddlewareKeys` is the canonical list of known keys.
+- `MiddlewareKey = keyof typeof MiddlewareKeys` is the type.
+
+## Using typed middleware in routes
+
+Most router methods accept a generic for middleware name:
+
+```ts
+import type { MiddlewareKey } from '@config/middleware';
+import { Router, type IRouter } from '@routing/Router';
+
+export function registerRoutes(router: IRouter): void {
+  Router.get<MiddlewareKey>(
+    router,
+    '/admin',
+    async (_req, res) => {
+      res.json({ ok: true });
+    },
+    {
+      middleware: ['auth', 'jwt'],
+    }
+  );
+}
+```
+
+If you try `middleware: ['autth']`, TypeScript will error.
+
+## Extending the registry
+
+In your app/project, add keys to the shared registry pattern (object + `keyof`). Keep the runtime registry (`middlewareConfig.route`) and the compile-time registry (`MiddlewareKey`) in sync.
+
+## Notes
+
+- The kernel resolves middleware names to actual functions via `middlewareConfig.route`.
+- A typed registry prevents typos, but it won’t validate ordering or middleware behavior.

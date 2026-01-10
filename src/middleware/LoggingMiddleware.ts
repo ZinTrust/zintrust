@@ -30,16 +30,23 @@ export const LoggingMiddleware = Object.freeze({
       const start = Date.now();
       const method = req.getMethod();
       const path = req.getPath();
-      const requestId = RequestContext.get(req)?.requestId ?? (req.context['requestId'] as string);
+      const ctx = RequestContext.get(req);
+      const requestId = ctx?.requestId ?? (req.context['requestId'] as string);
+      const traceId = ctx?.traceId;
 
-      Logger.info(`[${requestId}] ↓ ${method} ${path}`);
+      const prefix =
+        typeof traceId === 'string' && traceId.trim() !== ''
+          ? `[${requestId} trace=${traceId}]`
+          : `[${requestId}]`;
+
+      Logger.info(`${prefix} ↓ ${method} ${path}`);
 
       try {
         await next();
       } finally {
         const durationMs = Date.now() - start;
         const status = getStatusSafe(res);
-        Logger.info(`[${requestId}] ↑ ${method} ${path} ${status} ${durationMs}ms`);
+        Logger.info(`${prefix} ↑ ${method} ${path} ${status} ${durationMs}ms`);
       }
     };
   },

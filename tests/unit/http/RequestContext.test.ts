@@ -20,6 +20,16 @@ describe('RequestContext', () => {
     expect(req.context['requestContext']).toBeDefined();
   });
 
+  it('create() captures traceId from traceparent when present', () => {
+    const req = makeReq({
+      traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
+    });
+    const ctx = RequestContext.create(req);
+
+    expect(ctx.traceId).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
+    expect(req.context['traceId']).toBe('4bf92f3577b34da6a3ce929d0e0e4736');
+  });
+
   it('attach and get work as expected', () => {
     const req = makeReq();
     const ctx = { requestId: 'a', startTime: Date.now(), method: 'GET', path: '/a' } as any;
