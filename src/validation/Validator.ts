@@ -43,33 +43,43 @@ export type CustomValidatorFn =
   | ((value: unknown) => boolean)
   | ((value: unknown, data: Record<string, unknown>) => boolean);
 
-export interface ISchema {
-  required(field: string, message?: string): ISchema;
-  string(field: string, message?: string): ISchema;
-  number(field: string, message?: string): ISchema;
-  integer(field: string, message?: string): ISchema;
-  boolean(field: string, message?: string): ISchema;
-  array(field: string, message?: string): ISchema;
-  email(field: string, message?: string): ISchema;
-  min(field: string, value: number, message?: string): ISchema;
-  max(field: string, value: number, message?: string): ISchema;
-  minLength(field: string, value: number, message?: string): ISchema;
-  maxLength(field: string, value: number, message?: string): ISchema;
-  regex(field: string, pattern: RegExp, message?: string): ISchema;
-  in(field: string, values: unknown[], message?: string): ISchema;
-  custom(field: string, validator: CustomValidatorFn, message?: string): ISchema;
-  alphanumeric(field: string, message?: string): ISchema;
-  uuid(field: string, message?: string): ISchema;
-  token(field: string, message?: string): ISchema;
-  ipAddress(field: string, message?: string): ISchema;
-  positiveNumber(field: string, message?: string): ISchema;
-  digits(field: string, message?: string): ISchema;
-  decimal(field: string, message?: string): ISchema;
-  url(field: string, message?: string): ISchema;
-  phone(field: string, message?: string): ISchema;
-  date(field: string, message?: string): ISchema;
+export interface ISchemaBase<TReturn> {
+  required(field: string, message?: string): TReturn;
+  string(field: string, message?: string): TReturn;
+  number(field: string, message?: string): TReturn;
+  integer(field: string, message?: string): TReturn;
+  boolean(field: string, message?: string): TReturn;
+  array(field: string, message?: string): TReturn;
+  email(field: string, message?: string): TReturn;
+  min(field: string, value: number, message?: string): TReturn;
+  max(field: string, value: number, message?: string): TReturn;
+  minLength(field: string, value: number, message?: string): TReturn;
+  maxLength(field: string, value: number, message?: string): TReturn;
+  regex(field: string, pattern: RegExp, message?: string): TReturn;
+  in(field: string, values: unknown[], message?: string): TReturn;
+  custom(field: string, validator: CustomValidatorFn, message?: string): TReturn;
+  alphanumeric(field: string, message?: string): TReturn;
+  uuid(field: string, message?: string): TReturn;
+  token(field: string, message?: string): TReturn;
+  ipAddress(field: string, message?: string): TReturn;
+  positiveNumber(field: string, message?: string): TReturn;
+  digits(field: string, message?: string): TReturn;
+  decimal(field: string, message?: string): TReturn;
+  url(field: string, message?: string): TReturn;
+  phone(field: string, message?: string): TReturn;
+  date(field: string, message?: string): TReturn;
   getRules(): Map<string, ValidationRule[]>;
 }
+
+export type ISchema = ISchemaBase<ISchema>;
+
+export type TypedSchema<T> = ISchemaBase<TypedSchema<T>> & { readonly __type?: T };
+
+export type InferSchema<TSchema> = TSchema extends { readonly __type?: infer T }
+  ? unknown extends T
+    ? never
+    : T
+  : never;
 
 const addSimpleRule = (
   schema: ISchema,
@@ -140,6 +150,14 @@ export const Schema = Object.freeze({
     };
 
     return schema;
+  },
+
+  /**
+   * Create a schema instance carrying a declared TypeScript shape.
+   * This enables schema-inferred request typing when paired with validation middleware.
+   */
+  typed<T>(): TypedSchema<T> {
+    return Schema.create() as unknown as TypedSchema<T>;
   },
 });
 

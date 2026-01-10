@@ -45,9 +45,13 @@ export { ZintrustApplication as Application };
 export { Schema as MigrationSchema } from '@/migrations/schema';
 
 // Adapter registry (for external adapter packages)
+export { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
+export type { OpenApiGeneratorOptions } from '@/openapi/OpenApiGenerator';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
+export { normalizeRouteMeta, RouteRegistry } from '@routing/RouteRegistry';
+export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@routing/RouteRegistry';
 
 // Common
 export {
@@ -165,7 +169,8 @@ export { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistra
 export { microservicesConfig } from '@config/microservices';
 export type { MicroservicesConfig } from '@config/microservices';
 
-export { middlewareConfig } from '@config/middleware';
+export { middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
 export { queueConfig } from '@config/queue';

@@ -10,6 +10,17 @@ import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
 import { Schema } from '@validation/Validator';
 
+type LoginBody = {
+  email: string;
+  password: string;
+};
+
+type RegisterBody = {
+  name: string;
+  email: string;
+  password: string;
+};
+
 type SharedMiddlewares = {
   log: Middleware;
   error: Middleware;
@@ -22,6 +33,21 @@ type SharedMiddlewares = {
   validateLogin: Middleware;
   validateRegister: Middleware;
 };
+
+export const MiddlewareKeys = Object.freeze({
+  log: true,
+  error: true,
+  security: true,
+  rateLimit: true,
+  fillRateLimit: true,
+  csrf: true,
+  auth: true,
+  jwt: true,
+  validateLogin: true,
+  validateRegister: true,
+} satisfies Record<keyof SharedMiddlewares, true>);
+
+export type MiddlewareKey = keyof typeof MiddlewareKeys;
 
 function createSharedMiddlewares(): SharedMiddlewares {
   return Object.freeze({
@@ -37,11 +63,15 @@ function createSharedMiddlewares(): SharedMiddlewares {
     csrf: CsrfMiddleware.create(),
     auth: AuthMiddleware.create(),
     jwt: JwtAuthMiddleware.create(),
-    validateLogin: ValidationMiddleware.create(
-      Schema.create().required('email').email('email').required('password').string('password')
+    validateLogin: ValidationMiddleware.createBody(
+      Schema.typed<LoginBody>()
+        .required('email')
+        .email('email')
+        .required('password')
+        .string('password')
     ),
-    validateRegister: ValidationMiddleware.create(
-      Schema.create()
+    validateRegister: ValidationMiddleware.createBody(
+      Schema.typed<RegisterBody>()
         .required('name')
         .string('name')
         .minLength('name', 1)

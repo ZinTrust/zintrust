@@ -6,13 +6,24 @@
 import { getString } from '@common/utility';
 import { Logger } from '@config/logger';
 import { Auth } from '@features/Auth';
-import type { IRequest } from '@http/Request';
+import type { IRequest, ValidatedRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { JwtManager } from '@security/JwtManager';
 
 type JsonRecord = Record<string, unknown>;
+
+type LoginBody = {
+  email: string;
+  password: string;
+};
+
+type RegisterBody = {
+  name: string;
+  email: string;
+  password: string;
+};
 
 type UserRow = {
   id?: unknown;
@@ -37,7 +48,9 @@ const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: strin
 
 const controller: AuthControllerApi = {
   async login(req, res): Promise<void> {
-    const body = (req.body ?? {}) as JsonRecord;
+    const typedReq = req as ValidatedRequest<LoginBody>;
+    const maybeValidated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
+    const body = ((maybeValidated?.body ?? typedReq.body ?? {}) as JsonRecord) ?? {};
     const email = getString(body['email']).trim().toLowerCase();
     const password = getString(body['password']);
 
@@ -79,7 +92,9 @@ const controller: AuthControllerApi = {
   },
 
   async register(req, res): Promise<void> {
-    const body = (req.body ?? {}) as JsonRecord;
+    const typedReq = req as ValidatedRequest<RegisterBody>;
+    const maybeValidated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
+    const body = ((maybeValidated?.body ?? typedReq.body ?? {}) as JsonRecord) ?? {};
     const name = getString(body['name']).trim();
     const email = getString(body['email']).trim().toLowerCase();
     const password = getString(body['password']);

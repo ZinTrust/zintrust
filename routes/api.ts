@@ -6,8 +6,10 @@
 import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
+import type { MiddlewareKey } from '@config/middleware';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
+import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
 
@@ -26,6 +28,7 @@ function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerHealthRoutes(router);
   registerBroadcastRoutes(router);
+  registerOpenApiRoutes(router);
   registerStorageRoutes(router);
 }
 
@@ -51,12 +54,20 @@ function registerApiV1Routes(
 ): void {
   Router.group(router, '/api/v1', (r) => {
     // Auth routes
-    Router.post(r, '/auth/login', authController.login, { middleware: ['validateLogin'] });
+    Router.post<MiddlewareKey>(r, '/auth/login', authController.login, {
+      middleware: ['validateLogin'],
+    });
 
-    Router.post(r, '/auth/register', authController.register, { middleware: ['validateRegister'] });
+    Router.post<MiddlewareKey>(r, '/auth/register', authController.register, {
+      middleware: ['validateRegister'],
+    });
 
-    Router.post(r, '/auth/logout', authController.logout, { middleware: ['auth', 'jwt'] });
-    Router.post(r, '/auth/refresh', authController.refresh, { middleware: ['auth', 'jwt'] });
+    Router.post<MiddlewareKey>(r, '/auth/logout', authController.logout, {
+      middleware: ['auth', 'jwt'],
+    });
+    Router.post<MiddlewareKey>(r, '/auth/refresh', authController.refresh, {
+      middleware: ['auth', 'jwt'],
+    });
 
     // Protected routes (Router supports per-route middleware metadata)
     const pr = r;
@@ -70,14 +81,16 @@ function registerApiV1Routes(
       destroy: userController.destroy,
     });
 
-    Router.post(pr, '/users/fill', userController.fill, { middleware: ['fillRateLimit'] });
+    Router.post<MiddlewareKey>(pr, '/users/fill', userController.fill, {
+      middleware: ['fillRateLimit'],
+    });
 
     // If the controller exposes create/edit, wire them explicitly.
     Router.get(pr, '/users/create', userController.create);
     Router.get(pr, '/users/:id/edit', userController.edit);
 
     // Custom user routes
-    Router.get(
+    Router.get<MiddlewareKey>(
       pr,
       '/profile',
       async (_req, res) => {
@@ -86,7 +99,7 @@ function registerApiV1Routes(
       { middleware: ['auth', 'jwt'] }
     );
 
-    Router.put(
+    Router.put<MiddlewareKey>(
       pr,
       '/profile',
       async (_req, res) => {

@@ -5,6 +5,7 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -726,7 +727,7 @@ const scaffoldWithState = async (
     };
   } catch (error: unknown) {
     Logger.error('Project scaffolding failed', error);
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = error instanceof Error ? error : ErrorFactory.createGeneralError(String(error));
     return {
       success: false,
       projectPath: state.projectPath,

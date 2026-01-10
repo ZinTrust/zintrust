@@ -258,6 +258,97 @@ export default defineConfig(
       'valid-typeof': 'error',
     },
   },
+  // Governance / enforcement: keep core code on the sealed-namespace + factory patterns.
+  {
+    files: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts', 'bin/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message:
+            'Do not throw raw Errors. Use ErrorFactory.create*Error() methods (e.g., createValidationError, createSecurityError).',
+        },
+        {
+          selector: "NewExpression[callee.name='Error']",
+          message:
+            'Do not construct raw Errors. Use ErrorFactory.create*Error() methods (or Errors.*) instead.',
+        },
+        {
+          selector: "NewExpression[callee.object.name='globalThis'][callee.property.name='Error']",
+          message:
+            'Do not construct raw Errors. Use ErrorFactory.create*Error() methods (or Errors.*) instead.',
+        },
+        {
+          selector: 'ClassDeclaration',
+          message:
+            'Do not use classes in src/, app/, routes/, or bin/. Prefer plain functions + factories + Object.freeze({...}).',
+        },
+        {
+          selector: 'ClassExpression',
+          message:
+            'Do not use classes in src/, app/, routes/, or bin/. Prefer plain functions + factories + Object.freeze({...}).',
+        },
+        {
+          selector: 'ExportNamedDeclaration > ClassDeclaration:not([superClass])',
+          message:
+            'Exported classes must extend a base class (Model, Controller, etc.). Use Sealed Namespace Objects for utilities and singletons.',
+        },
+        {
+          selector: "CallExpression[callee.name='eval']",
+          message:
+            'eval() is a security risk and performance bottleneck. Use alternative approaches.',
+        },
+        {
+          selector: "CallExpression[callee.name='setTimeout'][arguments.length=2]",
+          message:
+            'setTimeout() without proper cleanup can cause memory leaks. Ensure cleanup in error handlers.',
+        },
+        {
+          selector: "Identifier[name='innerHTML']",
+          message: 'innerHTML is an XSS vulnerability. Use textContent or createElement instead.',
+        },
+      ],
+    },
+  },
+  // Exception factory is the only approved location for raw Error construction.
+  {
+    files: ['src/exceptions/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message:
+            'Do not throw raw Errors. Use ErrorFactory.create*Error() methods (e.g., createValidationError, createSecurityError).',
+        },
+        {
+          selector: "NewExpression[callee.name='Error']",
+          message:
+            'Do not construct raw Errors. Use ErrorFactory.create*Error() methods (or Errors.*) instead.',
+        },
+        {
+          selector: 'ExportNamedDeclaration > ClassDeclaration:not([superClass])',
+          message:
+            'Exported classes must extend a base class (Model, Controller, etc.). Use Sealed Namespace Objects for utilities and singletons.',
+        },
+        {
+          selector: "CallExpression[callee.name='eval']",
+          message:
+            'eval() is a security risk and performance bottleneck. Use alternative approaches.',
+        },
+        {
+          selector: "CallExpression[callee.name='setTimeout'][arguments.length=2]",
+          message:
+            'setTimeout() without proper cleanup can cause memory leaks. Ensure cleanup in error handlers.',
+        },
+        {
+          selector: "Identifier[name='innerHTML']",
+          message: 'innerHTML is an XSS vulnerability. Use textContent or createElement instead.',
+        },
+      ],
+    },
+  },
   // Typed linting rules requiring project configuration (applies to src/, app/, and routes/)
   {
     files: ['src/**/*.ts', 'app/**/*.ts', 'routes/**/*.ts'],
@@ -522,6 +613,37 @@ export default defineConfig(
       'no-restricted-imports': [
         'error',
         {
+          paths: [
+            { name: 'fs', message: 'Use @node-singletons/fs instead of fs in core.' },
+            { name: 'path', message: 'Use @node-singletons/path instead of path in core.' },
+            { name: 'crypto', message: 'Use @node-singletons/crypto instead of crypto in core.' },
+            {
+              name: 'child_process',
+              message: 'Use @node-singletons/child-process instead of child_process in core.',
+            },
+            { name: 'events', message: 'Use @node-singletons/events instead of events in core.' },
+            { name: 'http', message: 'Use @node-singletons/http instead of http in core.' },
+            { name: 'net', message: 'Use @node-singletons/net instead of net in core.' },
+            { name: 'os', message: 'Use @node-singletons/os instead of os in core.' },
+            { name: 'tls', message: 'Use @node-singletons/tls instead of tls in core.' },
+            { name: 'url', message: 'Use @node-singletons/url instead of url in core.' },
+            {
+              name: 'perf_hooks',
+              message: 'Use @node-singletons/perf-hooks instead of perf_hooks in core.',
+            },
+            {
+              name: 'process',
+              message: 'Use @node-singletons/process instead of process in core.',
+            },
+            {
+              name: 'async_hooks',
+              message: 'Use @node-singletons/async-hooks instead of async_hooks in core.',
+            },
+            {
+              name: 'readline',
+              message: 'Use @node-singletons/readline instead of readline in core.',
+            },
+          ],
           patterns: [
             {
               group: ['./*', '../*'],
