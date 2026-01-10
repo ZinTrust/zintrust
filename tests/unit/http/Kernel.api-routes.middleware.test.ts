@@ -2,7 +2,7 @@ import { JwtManager } from '@/security/JwtManager';
 import { registerRoutes } from '@routes/api';
 import { describe, expect, it } from 'vitest';
 
-import { TestEnvironment } from '../../helpers/TestEnvironment';
+import { TestEnvironment } from '@/testing/TestEnvironment';
 
 const env = TestEnvironment.create({ registerRoutes });
 

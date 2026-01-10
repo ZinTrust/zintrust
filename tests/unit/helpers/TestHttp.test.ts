@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TestHttp } from '../../helpers/TestHttp';
+import { TestHttp } from '@/testing/TestHttp';
 
 describe('TestHttp helpers', () => {
   it('createValidatedRequest provides typed validated payload', () => {
