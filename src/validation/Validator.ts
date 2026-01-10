@@ -21,7 +21,17 @@ export type Rule =
   | 'maxLength'
   | 'regex'
   | 'in'
-  | 'custom';
+  | 'custom'
+  | 'alphanumeric'
+  | 'uuid'
+  | 'token'
+  | 'ipAddress'
+  | 'positiveNumber'
+  | 'digits'
+  | 'decimal'
+  | 'url'
+  | 'phone'
+  | 'date';
 
 export interface ValidationRule {
   rule: Rule;
@@ -48,6 +58,16 @@ export interface ISchema {
   regex(field: string, pattern: RegExp, message?: string): ISchema;
   in(field: string, values: unknown[], message?: string): ISchema;
   custom(field: string, validator: CustomValidatorFn, message?: string): ISchema;
+  alphanumeric(field: string, message?: string): ISchema;
+  uuid(field: string, message?: string): ISchema;
+  token(field: string, message?: string): ISchema;
+  ipAddress(field: string, message?: string): ISchema;
+  positiveNumber(field: string, message?: string): ISchema;
+  digits(field: string, message?: string): ISchema;
+  decimal(field: string, message?: string): ISchema;
+  url(field: string, message?: string): ISchema;
+  phone(field: string, message?: string): ISchema;
+  date(field: string, message?: string): ISchema;
   getRules(): Map<string, ValidationRule[]>;
 }
 
@@ -106,6 +126,16 @@ export const Schema = Object.freeze({
       regex: (f, p, m) => addComplexRule(schema, rules, f, 'regex', p, m),
       in: (f, v, m) => addComplexRule(schema, rules, f, 'in', v, m),
       custom: (f, v, m) => addComplexRule(schema, rules, f, 'custom', v, m),
+      alphanumeric: (f, m) => addSimpleRule(schema, rules, f, 'alphanumeric', m),
+      uuid: (f, m) => addSimpleRule(schema, rules, f, 'uuid', m),
+      token: (f, m) => addSimpleRule(schema, rules, f, 'token', m),
+      ipAddress: (f, m) => addSimpleRule(schema, rules, f, 'ipAddress', m),
+      positiveNumber: (f, m) => addSimpleRule(schema, rules, f, 'positiveNumber', m),
+      digits: (f, m) => addSimpleRule(schema, rules, f, 'digits', m),
+      decimal: (f, m) => addSimpleRule(schema, rules, f, 'decimal', m),
+      url: (f, m) => addSimpleRule(schema, rules, f, 'url', m),
+      phone: (f, m) => addSimpleRule(schema, rules, f, 'phone', m),
+      date: (f, m) => addSimpleRule(schema, rules, f, 'date', m),
       getRules: () => rules,
     };
 
@@ -174,6 +204,16 @@ function validateRule(
     regex: () => validateRegex(field, value, rule.value as RegExp, message),
     in: () => validateIn(field, value, rule.value as unknown[], message),
     custom: () => validateCustom(field, value, rule.value as CustomValidatorFn, message, data),
+    alphanumeric: () => validateAlphanumeric(field, value, message),
+    uuid: () => validateUuid(field, value, message),
+    token: () => validateToken(field, value, message),
+    ipAddress: () => validateIpAddress(field, value, message),
+    positiveNumber: () => validatePositiveNumber(field, value, message),
+    digits: () => validateDigits(field, value, message),
+    decimal: () => validateDecimal(field, value, message),
+    url: () => validateUrl(field, value, message),
+    phone: () => validatePhone(field, value, message),
+    date: () => validateDate(field, value, message),
   };
 
   return validators[rule.rule]?.() ?? null;
@@ -255,6 +295,42 @@ const ruleStringTokenHandlers: Record<string, (ctx: RuleStringTokenContext) => v
   },
   email: ({ schema, field }) => {
     schema.email(field);
+  },
+  alphanumeric: ({ schema, field }) => {
+    schema.alphanumeric(field);
+  },
+  uuid: ({ schema, field }) => {
+    schema.uuid(field);
+  },
+  token: ({ schema, field }) => {
+    schema.token(field);
+  },
+  ipAddress: ({ schema, field }) => {
+    schema.ipAddress(field);
+  },
+  ip: ({ schema, field }) => {
+    schema.ipAddress(field);
+  },
+  positiveNumber: ({ schema, field }) => {
+    schema.positiveNumber(field);
+  },
+  positive: ({ schema, field }) => {
+    schema.positiveNumber(field);
+  },
+  digits: ({ schema, field }) => {
+    schema.digits(field);
+  },
+  decimal: ({ schema, field }) => {
+    schema.decimal(field);
+  },
+  url: ({ schema, field }) => {
+    schema.url(field);
+  },
+  phone: ({ schema, field }) => {
+    schema.phone(field);
+  },
+  date: ({ schema, field }) => {
+    schema.date(field);
   },
   min: ({ schema, field, tokenSet, arg }) => {
     const n = parseNumberArg(arg);
@@ -380,7 +456,87 @@ function validateEmail(field: string, value: unknown, message: string): FieldErr
     ? { field, message, rule: 'email' }
     : null;
 }
+function validateAlphanumeric(field: string, value: unknown, message: string): FieldError | null {
+  return typeof value === 'string' && /^[A-Za-z0-9]+$/.test(value)
+    ? null
+    : { field, message, rule: 'alphanumeric' };
+}
 
+function validateUuid(field: string, value: unknown, message: string): FieldError | null {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return typeof value === 'string' && uuidRegex.test(value)
+    ? null
+    : { field, message, rule: 'uuid' };
+}
+
+function validateToken(field: string, value: unknown, message: string): FieldError | null {
+  return typeof value === 'string' && /^[A-Za-z0-9\-=_]+$/.test(value)
+    ? null
+    : { field, message, rule: 'token' };
+}
+
+function validateIpAddress(field: string, value: unknown, message: string): FieldError | null {
+  if (typeof value !== 'string') return { field, message, rule: 'ipAddress' };
+  // IPv4: simplified pattern - match four dot-separated numbers (0-255)
+  const parts = value.split('.');
+  if (parts.length === 4) {
+    const isValidIpv4 = parts.every((part) => {
+      const num = Number.parseInt(part, 10);
+      return /^\d+$/.test(part) && num >= 0 && num <= 255;
+    });
+    if (isValidIpv4) return null;
+  }
+  // IPv6 (simplified)
+  const ipv6Regex = /^([\da-f]{1,4}:){7}[\da-f]{1,4}$/i;
+  return ipv6Regex.test(value) ? null : { field, message, rule: 'ipAddress' };
+}
+
+function validatePositiveNumber(field: string, value: unknown, message: string): FieldError | null {
+  return typeof value === 'number' && value > 0 ? null : { field, message, rule: 'positiveNumber' };
+}
+
+function validateDigits(field: string, value: unknown, message: string): FieldError | null {
+  return typeof value === 'string' && /^\d+$/.test(value)
+    ? null
+    : { field, message, rule: 'digits' };
+}
+
+function validateDecimal(field: string, value: unknown, message: string): FieldError | null {
+  return typeof value === 'string' && /^\d+(\.\d+)?$/.test(value)
+    ? null
+    : { field, message, rule: 'decimal' };
+}
+
+function validateUrl(field: string, value: unknown, message: string): FieldError | null {
+  if (typeof value !== 'string') return { field, message, rule: 'url' };
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? null
+      : { field, message, rule: 'url' };
+  } catch {
+    return { field, message, rule: 'url' };
+  }
+}
+
+function validatePhone(field: string, value: unknown, message: string): FieldError | null {
+  // International phone format with optional + and spaces/dashes
+  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+  const cleanedValue =
+    typeof value === 'string' ? value.replaceAll(/[\s\-()]/g, '') : String(value);
+  return phoneRegex.test(cleanedValue) ? null : { field, message, rule: 'phone' };
+}
+
+function validateDate(field: string, value: unknown, message: string): FieldError | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? { field, message, rule: 'date' } : null;
+  }
+  if (typeof value === 'string') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? { field, message, rule: 'date' } : null;
+  }
+  return { field, message, rule: 'date' };
+}
 function validateMin(
   field: string,
   value: unknown,
@@ -472,6 +628,16 @@ function getDefaultMessage(field: string, rule: Rule): string {
     regex: `${field} format is invalid`,
     in: `${field} value is not allowed`,
     custom: `${field} validation failed`,
+    alphanumeric: `${field} must contain only letters and numbers`,
+    uuid: `${field} must be a valid UUID`,
+    token: `${field} must be a valid token`,
+    ipAddress: `${field} must be a valid IP address`,
+    positiveNumber: `${field} must be a positive number`,
+    digits: `${field} must contain only digits`,
+    decimal: `${field} must be a valid decimal number`,
+    url: `${field} must be a valid URL`,
+    phone: `${field} must be a valid phone number`,
+    date: `${field} must be a valid date`,
   };
   return messages[rule];
 }

@@ -30,6 +30,10 @@ vi.mock('@orm/Database', () => ({
     isConnected: dbIsConnected,
     connect: dbConnect,
   })),
+  useEnsureDbConnected: vi.fn(async () => ({
+    isConnected: dbIsConnected,
+    connect: dbConnect,
+  })),
 }));
 
 const qbCreate = vi.fn();

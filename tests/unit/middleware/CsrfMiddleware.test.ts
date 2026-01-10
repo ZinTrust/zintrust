@@ -4,7 +4,7 @@ import { IRequest } from '@/http/Request';
 import { IResponse } from '@/http/Response';
 import { CsrfMiddleware } from '@/middleware/CsrfMiddleware';
 
-vi.mock('@common/uuid', () => ({
+vi.mock('@/common/utility', () => ({
   generateSecureJobId: vi.fn(async () => 'secure-session-id'),
 }));
 

@@ -121,6 +121,7 @@ export type {
   PasswordResetTokenBrokerType,
   PasswordResetTokenRecord,
 } from '@security/PasswordResetTokenBroker';
+export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Sanitizer';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 export { ZintrustSignedRequest as SignedRequest };

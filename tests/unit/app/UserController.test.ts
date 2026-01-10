@@ -1,10 +1,11 @@
 import { UserController } from '@app/Controllers/UserController';
-import { useDatabase } from '@orm/Database';
+import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 vi.mock('@orm/Database', () => ({
   useDatabase: vi.fn(),
+  useEnsureDbConnected: vi.fn(),
 }));
 
 vi.mock('@orm/QueryBuilder', () => ({
@@ -30,7 +31,7 @@ describe('UserController', () => {
       connect: vi.fn(),
     };
 
-    (useDatabase as unknown as Mock).mockReturnValue(db);
+    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
 
     const builder = {
       insert: vi.fn(),
@@ -63,7 +64,7 @@ describe('UserController', () => {
       connect: vi.fn(),
     };
 
-    (useDatabase as unknown as Mock).mockReturnValue(db);
+    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
 
     const builder = {
       insert: vi.fn().mockResolvedValue(undefined),
@@ -98,7 +99,7 @@ describe('UserController', () => {
       connect: vi.fn(),
     };
 
-    (useDatabase as unknown as Mock).mockReturnValue(db);
+    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
 
     // QueryBuilder shouldn't be called due to early validation
     (QueryBuilder.create as unknown as Mock).mockReturnValue({});
