@@ -74,7 +74,7 @@ Router.post(router, '/api/v1/auth/register', async (_req, res) => res.json({ ok:
 
 ## Built-in Middleware
 
-ZinTrustcomes with several built-in middleware:
+ZinTrust comes with several built-in middleware:
 
 - `CsrfMiddleware`: Protects against cross-site request forgery.
 - `JsonBodyParser`: Parses JSON request bodies.

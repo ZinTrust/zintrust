@@ -1,6 +1,6 @@
 # Your First API
 
-Building your first API with ZinTrustis fast and intuitive. In this guide, we'll create a simple "Task" API.
+Building your first API with ZinTrust is fast and intuitive. In this guide, we'll create a simple "Task" API.
 
 ## 1. Create the Model and Migration
 

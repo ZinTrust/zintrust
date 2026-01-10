@@ -1,10 +1,10 @@
 # Microservices Docker Integration
 
-ZinTrustautomatically generates Docker configuration for your microservices to simplify development and deployment.
+ZinTrust automatically generates Docker configuration for your microservices to simplify development and deployment.
 
 ## Generated Files
 
-When you generate a microservice domain using the CLI, ZinTrustcreates the following Docker-related files:
+When you generate a microservice domain using the CLI, ZinTrust creates the following Docker-related files:
 
 1.  **`services/{domain}/{service}/Dockerfile`**: A production-ready Dockerfile for the individual service.
 2.  **`services/{domain}/docker-compose.yml`**: A Docker Compose file to run all services in the domain together, including infrastructure like PostgreSQL and Redis.

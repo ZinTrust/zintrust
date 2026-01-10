@@ -1,6 +1,6 @@
 # Code Generation
 
-ZinTrustincludes a powerful code generation engine that helps you scaffold your application quickly while maintaining consistency.
+ZinTrust includes a powerful code generation engine that helps you scaffold your application quickly while maintaining consistency.
 
 ## Core Generators
 
@@ -16,7 +16,7 @@ The `zin add` command uses these generators under the hood:
 
 ## Advanced Generators
 
-ZinTrustalso provides generators for testing, data seeding, and deployment:
+ZinTrust also provides generators for testing, data seeding, and deployment:
 
 - `factory`: Generates a model factory for testing.
 - `seeder`: Generates a database seeder.

@@ -5,7 +5,7 @@ description: HTTP client for making authenticated requests
 
 # HTTP Client
 
-ZinTrustprovides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
+ZinTrust provides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
 
 ## Interface Reference
 

@@ -1,6 +1,6 @@
 # Security
 
-ZinTrustis built with security as a top priority, providing built-in protection against common web vulnerabilities.
+ZinTrust is built with security as a top priority, providing built-in protection against common web vulnerabilities.
 
 ## SQL Injection
 
@@ -31,7 +31,7 @@ export interface IQueryBuilder {
 
 ## Cross-Site Request Forgery (CSRF)
 
-ZinTrustincludes a `CsrfMiddleware` that automatically verifies CSRF tokens for all state-changing requests (POST, PUT, DELETE).
+ZinTrust includes a `CsrfMiddleware` that automatically verifies CSRF tokens for all state-changing requests (POST, PUT, DELETE).
 
 ```typescript
 // In your HTML form

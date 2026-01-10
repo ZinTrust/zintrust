@@ -1,11 +1,11 @@
 ---
 title: Tasks Demo (A–Z)
-description: A single happy-path demo that exercises ZinTrustfeatures end-to-end.
+description: A single happy-path demo that exercises ZinTrust features end-to-end.
 ---
 
 # Demo: Tasks App (A–Z)
 
-This is a single **happy-path** demo that exercises ZinTrustend-to-end.
+This is a single **happy-path** demo that exercises ZinTrust end-to-end.
 The goal: touch the real stuff (DBs, adapters, jobs, templates) without turning it into a novel.
 
 - User **register** → **login**
@@ -85,7 +85,7 @@ REDIS_URL=redis://localhost:6379
 
 ## 2) Bootstrap databases (named connections)
 
-ZinTrustsupports multi-DB via **named ORM instances**. You initialize each connection with `useDatabase(config, name)`.
+ZinTrust supports multi-DB via **named ORM instances**. You initialize each connection with `useDatabase(config, name)`.
 
 Important:
 
@@ -225,7 +225,7 @@ export async function login(email: string, password: string) {
 
 Avoid raw SQL in application code whenever possible.
 
-If you must run raw SQL, ZinTrustprotects you by default: raw queries are **disabled** unless you enable them.
+If you must run raw SQL, ZinTrust protects you by default: raw queries are **disabled** unless you enable them.
 
 ```env
 USE_RAW_QRY=true

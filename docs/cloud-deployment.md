@@ -1,10 +1,10 @@
 # Cloud Deployment
 
-ZinTrustis designed to run seamlessly on various cloud platforms, from serverless environments to traditional VPS.
+ZinTrust is designed to run seamlessly on various cloud platforms, from serverless environments to traditional VPS.
 
 ## Automated Workflows
 
-The easiest way to set up cloud deployment is using the ZinTrustCLI (installed via `@zintrust/core`) to generate GitHub Actions workflows.
+The easiest way to set up cloud deployment is using the ZinTrust CLI (installed via `@zintrust/core`) to generate GitHub Actions workflows.
 
 ```bash
 # Generate a workflow for AWS Lambda
@@ -21,7 +21,7 @@ This will create a `.github/workflows/deploy-cloud.yml` file tailored to your ch
 
 ## Cloudflare Workers
 
-ZinTrustcan be deployed to Cloudflare Workers using the `wrangler` CLI.
+ZinTrust can be deployed to Cloudflare Workers using the `wrangler` CLI.
 
 ```bash
 npm run deploy
@@ -37,7 +37,7 @@ Ensure you have configured your `wrangler.toml` with the necessary KV namespaces
 
 ## AWS Lambda
 
-Deploy ZinTrustas a serverless function on AWS Lambda using the `LambdaAdapter`.
+Deploy ZinTrust as a serverless function on AWS Lambda using the `LambdaAdapter`.
 
 ```typescript
 import { LambdaAdapter } from '@zintrust/core';
@@ -48,7 +48,7 @@ export const handler = LambdaAdapter.create(app);
 
 ## Vercel / Netlify
 
-For frontend-heavy applications or documentation sites, ZinTrustintegrates perfectly with Vercel and Netlify.
+For frontend-heavy applications or documentation sites, ZinTrust integrates perfectly with Vercel and Netlify.
 
 ## DigitalOcean / Linode / AWS EC2
 

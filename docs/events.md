@@ -1,6 +1,6 @@
 # Events
 
-ZinTrustincludes a small, framework-agnostic Events & Listeners utility you can use to decouple parts of your application.
+ZinTrust includes a small, framework-agnostic Events & Listeners utility you can use to decouple parts of your application.
 
 ## Interface Reference
 

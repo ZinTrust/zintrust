@@ -1,6 +1,6 @@
 # Deployment
 
-Deploying a ZinTrustapplication is straightforward thanks to its zero-dependency core and standard Node.js architecture.
+Deploying a ZinTrust application is straightforward thanks to its zero-dependency core and standard Node.js architecture.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ DB_HOST=your-db-host
 
 ## Running the Server
 
-You can start the server using the ZinTrustCLI (provided by `@zintrust/core`):
+You can start the server using the ZinTrust CLI (provided by `@zintrust/core`):
 
 ```bash
 npm start
@@ -60,7 +60,7 @@ zin migrate --force
 
 ## Bundle Optimization
 
-For cloud deployments (AWS Lambda, Cloudflare Workers), bundle size is critical. ZinTrustincludes a built-in **Bundle Optimizer** to reduce your deployment artifact size.
+For cloud deployments (AWS Lambda, Cloudflare Workers), bundle size is critical. ZinTrust includes a built-in **Bundle Optimizer** to reduce your deployment artifact size.
 
 The optimizer performs:
 

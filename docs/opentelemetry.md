@@ -1,8 +1,8 @@
 # OpenTelemetry (Tracing)
 
-ZinTrustsupports **optional OpenTelemetry tracing** to enable distributed request traces across services.
+ZinTrust supports **optional OpenTelemetry tracing** to enable distributed request traces across services.
 
-Important design choice: the ZinTrustcore only depends on `@opentelemetry/api` and does **not** ship an SDK or exporter. Your application owns the exporter configuration.
+Important design choice: the ZinTrust core only depends on `@opentelemetry/api` and does **not** ship an SDK or exporter. Your application owns the exporter configuration.
 
 ## Enable tracing
 
@@ -30,15 +30,15 @@ const sdk = new NodeSDK({
 await sdk.start();
 ```
 
-2. Enable ZinTrusttracing:
+2. Enable ZinTrust tracing:
 
 ```bash
 export OTEL_ENABLED=true
 ```
 
-## What ZinTrustrecords
+## What ZinTrust records
 
-When enabled, ZinTrustcreates spans in the request pipeline and propagates trace context.
+When enabled, ZinTrust creates spans in the request pipeline and propagates trace context.
 
 ### Incoming HTTP spans
 
@@ -57,7 +57,7 @@ Implementation lives in:
 
 ### Outgoing HTTP propagation
 
-ZinTrustinjects W3C trace headers (`traceparent`, `tracestate`) into outgoing requests made via `HttpClient`.
+ZinTrust injects W3C trace headers (`traceparent`, `tracestate`) into outgoing requests made via `HttpClient`.
 
 Implementation:
 
@@ -65,7 +65,7 @@ Implementation:
 
 ### Database spans
 
-ZinTrustrecords a short-lived `db.query` span for each DB query **when a request span is active** (to avoid creating orphan DB traces).
+ZinTrust records a short-lived `db.query` span for each DB query **when a request span is active** (to avoid creating orphan DB traces).
 
 Implementation:
 
@@ -75,4 +75,4 @@ Implementation:
 ## Notes
 
 - Tracing is intentionally **best-effort**: failures in tracing must never break request handling.
-- If `OTEL_ENABLED` is not set, ZinTrustdoes not create spans or inject headers.
+- If `OTEL_ENABLED` is not set, ZinTrust does not create spans or inject headers.

@@ -16,7 +16,7 @@ It complements:
 
 ## Multi-Database (Named Connections)
 
-ZinTrustsupports multiple database connections by name.
+ZinTrust supports multiple database connections by name.
 
 ### 1) Create/register a named connection
 
@@ -66,7 +66,7 @@ const rows = await Model.query('users', 'external_db').where('active', true).get
 
 ## Migrations (Two Supported Styles)
 
-ZinTrustsupports two ways to define schema changes in migrations. Pick whichever style you prefer (both run via `zin migrate`).
+ZinTrust supports two ways to define schema changes in migrations. Pick whichever style you prefer (both run via `zin migrate`).
 
 ### Style A (recommended): secure schema builder
 
@@ -101,7 +101,7 @@ export const migration: Migration = {
 
 ## Cloudflare D1
 
-ZinTrustincludes a dedicated `d1` database driver via `src/orm/adapters/D1Adapter.ts`.
+ZinTrust includes a dedicated `d1` database driver via `src/orm/adapters/D1Adapter.ts`.
 
 ### Wrangler binding
 
@@ -119,7 +119,7 @@ D1 bindings must be configured in Wrangler.
 }
 ```
 
-ZinTrustresolves Workers bindings using `src/config/cloudflare.ts`.
+ZinTrust resolves Workers bindings using `src/config/cloudflare.ts`.
 
 ### Runtime configuration
 
@@ -153,7 +153,7 @@ Practical notes:
 
 ## Cloudflare KV Cache
 
-ZinTrustsupports Cloudflare KV as a cache backend via the `kv` cache driver.
+ZinTrust supports Cloudflare KV as a cache backend via the `kv` cache driver.
 
 ### Wrangler binding
 
@@ -181,7 +181,7 @@ Implementation notes:
 
 ## Read Replicas (Read Hosts)
 
-For supported SQL drivers, you can configure read replicas via `readHosts` (or env-based equivalents) and ZinTrustwill round-robin reads.
+For supported SQL drivers, you can configure read replicas via `readHosts` (or env-based equivalents) and ZinTrust will round-robin reads.
 
 See `docs/query-builder.md` for the high-level behavior.
 
@@ -197,4 +197,4 @@ Guidelines:
 
 ## R2 note
 
-Cloudflare R2 is not implemented yet in ZinTrust(no binding helper/driver is provided today).
+Cloudflare R2 is not implemented yet in ZinTrust (no binding helper/driver is provided today).

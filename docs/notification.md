@@ -1,6 +1,6 @@
 # Notifications
 
-ZinTrustincludes a small notification toolkit with pluggable drivers and a built-in Markdown template registry.
+ZinTrust includes a small notification toolkit with pluggable drivers and a built-in Markdown template registry.
 
 ## Core API
 
@@ -174,7 +174,7 @@ Notes:
 
 ## Testing helpers 🧪
 
-ZinTrustincludes helper utilities for testing notifications.
+ZinTrust includes helper utilities for testing notifications.
 
 ### useFakeDriver(name)
 
@@ -230,7 +230,7 @@ Rendering uses the shared Markdown renderer and simple `{{variable}}` substituti
 
 ### CLI (recommended)
 
-Run the worker via the ZinTrustCLI (run once, drain up to limits, then exit):
+Run the worker via the ZinTrust CLI (run once, drain up to limits, then exit):
 
 ```bash
 # Auto-detect job type from payload
@@ -243,7 +243,7 @@ zin queue work notification notifications --timeout 10 --retry 3 --max-items 100
 zin notification:work notifications --timeout 10 --retry 3 --max-items 1000
 ```
 
-ZinTrustexposes a worker helper:
+ZinTrust exposes a worker helper:
 
 - `NotificationWorker.runOnce({ queueName?, driverName?, maxItems? })` (recommended)
 - `NotificationWorker.startWorker({ queueName?, driverName?, signal? })` (drain-until-empty, then exits)
@@ -281,7 +281,7 @@ Run every minute:
 
 ```ini
 [Unit]
-Description=ZinTrustNotification Queue Worker (run once)
+Description=ZinTrust Notification Queue Worker (run once)
 
 [Service]
 Type=oneshot
@@ -294,7 +294,7 @@ ExecStart=/usr/bin/env zin notification:work notifications --timeout 50 --retry 
 
 ```ini
 [Unit]
-Description=Run ZinTrustNotification Queue Worker every minute
+Description=Run ZinTrust Notification Queue Worker every minute
 
 [Timer]
 OnBootSec=30s

@@ -1,10 +1,10 @@
 # Service Discovery
 
-In a microservices architecture, services need to find and communicate with each other. ZinTrustprovides a built-in service discovery mechanism.
+In a microservices architecture, services need to find and communicate with each other. ZinTrust provides a built-in service discovery mechanism.
 
 ## How it Works
 
-ZinTrustuses a file-based discovery system by default, which is perfect for development and small-to-medium deployments.
+ZinTrust uses a file-based discovery system by default, which is perfect for development and small-to-medium deployments.
 
 1. Each service has a `service.config.json`.
 2. The `ServiceManager` scans the `services/` directory.

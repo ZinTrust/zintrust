@@ -1,6 +1,6 @@
 # Models & ORM
 
-ZinTrustfeatures a powerful, zero-dependency ORM that provides a clean, ActiveRecord-like interface for interacting with your database.
+ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveRecord-like interface for interacting with your database.
 
 ## Interface Reference
 
@@ -96,7 +96,7 @@ For scaffolds and real apps, prefer a strict `fillable` allow-list.
 
 ### Custom Methods
 
-ZinTrustsupports adding custom model methods via the second argument to `Model.define(...)`.
+ZinTrust supports adding custom model methods via the second argument to `Model.define(...)`.
 
 1. **Unbound method map** (existing pattern): methods receive the model instance as the first argument.
 
@@ -131,7 +131,7 @@ Both patterns work. Choose based on your context: use static imports for cleaner
 
 ## Multi-Database Support
 
-ZinTrustsupports multiple database connections. You can specify which connection a model should use by setting `connection` in `Model.define(...)`.
+ZinTrust supports multiple database connections. You can specify which connection a model should use by setting `connection` in `Model.define(...)`.
 
 ```typescript
 import { Model } from '@zintrust/core';
@@ -196,7 +196,7 @@ const activeUsers = await User.query().where('is_active', true).where('age', '>'
 
 ### Relationships
 
-ZinTrustsupports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and `BelongsToMany`.
+ZinTrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and `BelongsToMany`.
 
 #### HasMany
 
@@ -242,7 +242,7 @@ export const Post = Model.define(
 );
 ```
 
-By default, ZinTrustwill look for a pivot table named by joining the two table names in alphabetical order (e.g., `posts_tags`).
+By default, ZinTrust will look for a pivot table named by joining the two table names in alphabetical order (e.g., `posts_tags`).
 
 ## Persistence
 

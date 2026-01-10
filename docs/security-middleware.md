@@ -1,6 +1,6 @@
 # Security Middleware
 
-ZinTrustprovides a robust, zero-dependency security middleware suite to protect your application from common web vulnerabilities.
+ZinTrust provides a robust, zero-dependency security middleware suite to protect your application from common web vulnerabilities.
 
 ## Installation
 

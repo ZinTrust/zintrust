@@ -1,6 +1,6 @@
-# ZinTrustContributor & QA Guide
+# ZinTrust Contributor & QA Guide
 
-Welcome to the ZinTrustcontributor community! This guide outlines the standards and workflows required to maintain the high quality of the ZinTrustframework.
+Welcome to the ZinTrust contributor community! This guide outlines the standards and workflows required to maintain the high quality of the ZinTrust framework.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ To contribute to Zintrust, ensure you have the following installed:
 ### Initial Setup
 
 ```bash
-git clone https://github.com/ZinTrust/ZinTrust.git
+git clone https://github.com/ZinTrust /ZinTrust .git
 cd ZinTrust
 npm install
 npx husky init
@@ -137,7 +137,7 @@ If you find a security vulnerability, please do **not** open a public issue. Ema
 
 By contributing to Zintrust, you agree to the following:
 
-1. You grant ZinTrusta perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions.
+1. You grant ZinTrust a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions.
 2. You represent that you are legally entitled to grant this license.
 
 ---

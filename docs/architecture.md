@@ -1,6 +1,6 @@
 # Architecture & Design
 
-ZinTrustis built on a minimal core (no Express/Fastify), focusing on performance and type safety. The published npm package also includes a small set of runtime dependencies for the CLI and developer experience.
+ZinTrust is built on a minimal core (no Express/Fastify), focusing on performance and type safety. The published npm package also includes a small set of runtime dependencies for the CLI and developer experience.
 
 ## Core Principles
 
@@ -12,7 +12,7 @@ ZinTrustis built on a minimal core (no Express/Fastify), focusing on performance
 
 ## Plain Functions + Frozen Function-Objects
 
-ZinTrustintentionally avoids class-heavy frameworks in its core and instead leans on:
+ZinTrust intentionally avoids class-heavy frameworks in its core and instead leans on:
 
 - Plain functions for behavior
 - “Function-objects” (a plain object of functions exported as a sealed namespace)

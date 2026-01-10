@@ -15,7 +15,7 @@ import { security } from '@zintrust/core';
 
 ## Encrypted envelope interoperability
 
-ZinTrustsupports reading/writing **framework-compatible encrypted payloads** (e.g. encrypted DB columns) using the same key material that other ecosystems commonly use.
+ZinTrust supports reading/writing **framework-compatible encrypted payloads** (e.g. encrypted DB columns) using the same key material that other ecosystems commonly use.
 
 Required env vars:
 
@@ -26,7 +26,7 @@ Required env vars:
 
 Optional:
 
-- `APP_PREVIOUS_KEYS`: Key rotation fallback (comma-separated keys or JSON array). During decryption, ZinTrustwill try `APP_KEY` first, then each previous key.
+- `APP_PREVIOUS_KEYS`: Key rotation fallback (comma-separated keys or JSON array). During decryption, ZinTrust will try `APP_KEY` first, then each previous key.
 
 Migration guidance:
 
@@ -66,7 +66,7 @@ const plain = EncryptedEnvelope.decryptString('<db_value>', { cipher, key, previ
 
 #### Encrypt/decrypt structured data (serialized payload envelope)
 
-ZinTrustdoes not assume a specific serialization format. You provide it:
+ZinTrust does not assume a specific serialization format. You provide it:
 
 ```ts
 import { EncryptedEnvelope } from '@zintrust/core';

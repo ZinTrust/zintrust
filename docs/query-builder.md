@@ -12,7 +12,7 @@ const users = await db.table('users').get();
 
 ## Master-Slave Splitting
 
-ZinTrustautomatically handles read/write splitting if you configure multiple read hosts.
+ZinTrust automatically handles read/write splitting if you configure multiple read hosts.
 
 ### Configuration
 

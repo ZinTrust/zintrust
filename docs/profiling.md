@@ -1,6 +1,6 @@
 # Performance Profiling
 
-ZinTrustincludes built-in profiling tools to help you identify and resolve performance bottlenecks.
+ZinTrust includes built-in profiling tools to help you identify and resolve performance bottlenecks.
 
 ## Request Profiling
 
@@ -43,7 +43,7 @@ console.log(memProfiler.getReport());
 
 ## N+1 Query Detection
 
-ZinTrustautomatically detects N+1 query patterns in development mode and logs a warning to the console.
+ZinTrust automatically detects N+1 query patterns in development mode and logs a warning to the console.
 
 ```bash
 [N1Detector] Warning: Potential N+1 query detected on table 'posts'.

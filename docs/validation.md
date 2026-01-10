@@ -1,6 +1,6 @@
 # Validation
 
-ZinTrustuses a schema-based validator with a fluent API. You define a schema via `Schema.create()` and validate data using `Validator.validate()`.
+ZinTrust uses a schema-based validator with a fluent API. You define a schema via `Schema.create()` and validate data using `Validator.validate()`.
 
 ## Interface Reference
 

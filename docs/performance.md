@@ -1,6 +1,6 @@
 # Performance Optimization
 
-ZinTrustis built for speed, but there are several techniques you can use to further optimize your application.
+ZinTrust is built for speed, but there are several techniques you can use to further optimize your application.
 
 ## Memoization
 
@@ -19,7 +19,7 @@ export const getGlobalStatsMemoized = Memoize.create(getGlobalStats, { ttl: 60_0
 
 ## Lazy Loading
 
-ZinTrustsupports lazy loading for heavy dependencies to improve startup time.
+ZinTrust supports lazy loading for heavy dependencies to improve startup time.
 
 ```typescript
 import { LazyLoader } from '@zintrust/core';
@@ -46,4 +46,4 @@ await ParallelGenerator.runAll([() => fetchUser(), () => fetchPosts(), () => fet
 
 ## Production Mode
 
-Always run ZinTrustin production mode (`APP_ENV=production`) to disable debug logging and enable production optimizations.
+Always run ZinTrust in production mode (`APP_ENV=production`) to disable debug logging and enable production optimizations.

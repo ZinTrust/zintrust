@@ -2,7 +2,7 @@
 
 ## Overview 💡
 
-This document describes the ZinTrustMail API, supported drivers, attachment handling (via Storage disks), and test helpers.
+This document describes the ZinTrust Mail API, supported drivers, attachment handling (via Storage disks), and test helpers.
 All runtime mail configuration is **config-first** and accessed via `Env` & `src/config/mail.ts`. Drivers are pluggable and follow the repository's no-classes rule (sealed namespaces / plain functions).
 
 ## Interface Reference
@@ -101,7 +101,7 @@ zin add mail:nodemailer
 
 ## Templates (code + Markdown) 🧩
 
-ZinTrustincludes two lightweight templating options:
+ZinTrust includes two lightweight templating options:
 
 1. Code templates (plain strings)
 

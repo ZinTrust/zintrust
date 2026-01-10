@@ -5,7 +5,7 @@ Welcome to Zintrust, a production-grade TypeScript backend framework with proven
 ## Quick Start (2 minutes)
 
 ```bash
-# Install @zintrust/core (ZinTrustCLI)
+# Install @zintrust/core (ZinTrust CLI)
 npm install -g @zintrust/core
 
 # Create a new project
@@ -31,7 +31,7 @@ The canonical CLI is `zin`. `z` is a shorthand alias.
 
 ## Install adapters (database/cache/etc.)
 
-ZinTrustkeeps the core package minimal. Integrations like database drivers are installed explicitly via adapter packages.
+ZinTrust keeps the core package minimal. Integrations like database drivers are installed explicitly via adapter packages.
 
 ```bash
 # Database adapters
@@ -43,7 +43,7 @@ zin add db:mssql     # @zintrust/db-sqlserver
 
 ## What is Zintrust?
 
-ZinTrustis a **minimal-core** backend framework built on:
+ZinTrust is a **minimal-core** backend framework built on:
 
 - ✅ **Pure Node.js** - No Express, Fastify, or external HTTP libraries
 - ✅ **Type-Safe** - Strict TypeScript with 100% type coverage
@@ -88,7 +88,7 @@ ZinTrustis a **minimal-core** backend framework built on:
 
 ### From npm (Recommended)
 
-ZinTrustis distributed on npm as `@zintrust/core`.
+ZinTrust is distributed on npm as `@zintrust/core`.
 
 ```bash
 npm install -g @zintrust/core
@@ -114,7 +114,7 @@ bun add -g @zintrust/core
 ### From source
 
 ```bash
-git clone https://github.com/ZinTrust/ZinTrust.git
+git clone https://github.com/ZinTrust /ZinTrust .git
 cd ZinTrust
 npm install
 npm run build
@@ -200,7 +200,7 @@ curl -X POST http://localhost:7777/api/users \
 
 ## Architecture Overview
 
-ZinTrustuses a proven layered architecture:
+ZinTrust uses a proven layered architecture:
 
 ```
 ┌─────────────────────────────────┐
@@ -229,7 +229,7 @@ ZinTrustuses a proven layered architecture:
 - 📚 [Documentation](https://zintrust.com)
 - 💬 [Discord Community](https://discord.gg/zintrust)
 - 🐦 [Follow on X](https://x.com/zintrust)
-- 🐛 [Issue Tracker](https://github.com/ZinTrust/ZinTrust/issues)
+- 🐛 [Issue Tracker](https://github.com/ZinTrust /ZinTrust /issues)
 - 🤝 [Contributing Guide](./contributing.md)
 
 ## License

@@ -1,6 +1,6 @@
 # Broadcasting
 
-ZinTrustincludes a broadcasting toolkit for publishing events via pluggable drivers.
+ZinTrust includes a broadcasting toolkit for publishing events via pluggable drivers.
 
 ## Core API
 
@@ -103,7 +103,7 @@ Publishes via an HTTP endpoint that accepts Redis commands (useful when you canâ
 
 ### CLI (recommended)
 
-Run the worker via the ZinTrustCLI (run once, drain up to limits, then exit):
+Run the worker via the ZinTrust CLI (run once, drain up to limits, then exit):
 
 ```bash
 # Auto-detect job type from payload
@@ -116,7 +116,7 @@ zin queue work broadcast broadcasts --timeout 10 --retry 3 --max-items 1000
 zin broadcast:work broadcasts --timeout 10 --retry 3 --max-items 1000
 ```
 
-ZinTrustexposes a worker helper:
+ZinTrust exposes a worker helper:
 
 - `BroadcastWorker.runOnce({ queueName?, driverName?, maxItems? })` (recommended)
 - `BroadcastWorker.startWorker({ queueName?, driverName?, signal? })` (drain-until-empty, then exits)
@@ -156,7 +156,7 @@ Run every minute:
 
 ```ini
 [Unit]
-Description=ZinTrustBroadcast Queue Worker (run once)
+Description=ZinTrust Broadcast Queue Worker (run once)
 
 [Service]
 Type=oneshot
@@ -169,7 +169,7 @@ ExecStart=/usr/bin/env zin broadcast:work broadcasts --timeout 50 --retry 3 --ma
 
 ```ini
 [Unit]
-Description=Run ZinTrustBroadcast Queue Worker every minute
+Description=Run ZinTrust Broadcast Queue Worker every minute
 
 [Timer]
 OnBootSec=30s
@@ -190,7 +190,7 @@ sudo systemctl enable --now zintrust-broadcast-worker.timer
 
 pm2 is primarily a **process manager**, not a scheduler. The simplest and most reliable approach is still cron/systemd timers.
 
-If you want pm2 to keep a loop wrapper alive, do it in your app repo (not inside the ZinTrustlibrary):
+If you want pm2 to keep a loop wrapper alive, do it in your app repo (not inside the ZinTrust library):
 
 ```bash
 pm2 start "bash -lc 'while true; do zin broadcast:work broadcasts --timeout 50 --retry 3 --max-items 1000; sleep 60; done'" --name zintrust-broadcast-worker

@@ -1,6 +1,6 @@
 # Configuration
 
-ZinTrustconfiguration is driven primarily by environment variables and exposed through the sealed `Env` namespace (`src/config/env.ts`) and the config modules in `src/config/*`.
+ZinTrust configuration is driven primarily by environment variables and exposed through the sealed `Env` namespace (`src/config/env.ts`) and the config modules in `src/config/*`.
 
 ## Overview
 
@@ -10,7 +10,7 @@ ZinTrustconfiguration is driven primarily by environment variables and exposed t
 
 ## Loading `.env` Files (Node.js)
 
-ZinTrustincludes a small `.env` loader for the CLI and Node tooling (`src/cli/utils/EnvFileLoader.ts`).
+ZinTrust includes a small `.env` loader for the CLI and Node tooling (`src/cli/utils/EnvFileLoader.ts`).
 
 Load order (when present):
 
@@ -28,7 +28,7 @@ If you run the framework via the CLI, this is handled for you. If you run your o
 
 ## Startup Configuration Validation
 
-During `Application.boot()`, ZinTrustvalidates a small set of critical startup configuration using `StartupConfigValidator` (`src/config/StartupConfigValidator.ts`).
+During `Application.boot()`, ZinTrust validates a small set of critical startup configuration using `StartupConfigValidator` (`src/config/StartupConfigValidator.ts`).
 
 Currently validated:
 
@@ -47,7 +47,7 @@ If validation fails, boot throws a structured `ConfigError`.
 | Variable          | Type       | Default             | Notes                                                             |
 | ----------------- | ---------- | ------------------- | ----------------------------------------------------------------- |
 | `NODE_ENV`        | string     | `development`       | Common values: `development`, `production`, `testing`             |
-| `APP_NAME`        | string     | `ZinTrust`          | Used in responses and logs                                        |
+| `APP_NAME`        | string     | `ZinTrust `         | Used in responses and logs                                        |
 | `APP_KEY`         | string     | `""`                | Required in production (>= 16 chars)                              |
 | `APP_PORT`        | int        | `3000`              | Exposed as `Env.PORT`                                             |
 | `PORT`            | int        | `3000`              | Used by `src/boot/bootstrap.ts`; keep in sync with `APP_PORT`     |
@@ -90,7 +90,7 @@ Core DB variables (from `Env`):
 
 Notes:
 
-- For SQLite in development/testing, if `DB_DATABASE`/`DB_PATH` are not set, ZinTruststores the database file under `.zintrust/dbs/zintrust.sqlite` by default.
+- For SQLite in development/testing, if `DB_DATABASE`/`DB_PATH` are not set, ZinTrust stores the database file under `.zintrust/dbs/zintrust.sqlite` by default.
 
 Additional database tuning (from `src/config/database.ts`):
 
@@ -365,7 +365,7 @@ Legacy/optional env keys:
 - `D1_DATABASE_ID`
 - `KV_NAMESPACE_ID`
 
-These are not required for runtime access in Workers; ZinTrustresolves D1/KV via bindings.
+These are not required for runtime access in Workers; ZinTrust resolves D1/KV via bindings.
 
 See `docs/cloudflare.md` for the full setup.
 
