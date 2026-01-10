@@ -1,6 +1,6 @@
 # Schema to OpenAPI mapping
 
-Zintrust generates an OpenAPI 3.0.3 document at runtime from the **registered routes** plus each route’s metadata.
+ZinTrust generates an OpenAPI 3.0.3 document at runtime from the **registered routes** plus each route’s metadata.
 
 The generator is intentionally pragmatic: it aims to produce a useful spec that matches how requests are validated and how handlers are shaped, but it does not try to perfectly model every runtime behavior.
 
@@ -22,7 +22,7 @@ The generator uses that registry to build:
 
 ## Path normalization
 
-Zintrust uses Express-style route params (e.g. `/:id`).
+ZinTrust uses Express-style route params (e.g. `/:id`).
 
 OpenAPI requires `{id}` placeholders.
 
@@ -39,7 +39,7 @@ This avoids accidental churn in generated client SDKs.
 
 ## Parameters
 
-Zintrust supports generating OpenAPI parameters from route schemas.
+ZinTrust supports generating OpenAPI parameters from route schemas.
 
 ### Path parameters
 
@@ -90,9 +90,9 @@ If a route doesn’t provide explicit response metadata, the generator will stil
 
 ## Schema conversion (high level)
 
-Zintrust’s validation system is richer than vanilla JSON Schema; OpenAPI uses a JSON Schema dialect.
+ZinTrust’s validation system is richer than vanilla JSON Schema; OpenAPI uses a JSON Schema dialect.
 
-The generator therefore does a **best-effort conversion** from Zintrust schema objects into OpenAPI-compatible schema fragments.
+The generator therefore does a **best-effort conversion** from ZinTrust schema objects into OpenAPI-compatible schema fragments.
 
 In practice:
 

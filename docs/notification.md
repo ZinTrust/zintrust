@@ -8,7 +8,7 @@ Send a notification:
 
     import { Notification } from '@zintrust/core';
 
-    await Notification.send('+15551234567', 'Hello from Zintrust');
+    await Notification.send('+15551234567', 'Hello from ZinTrust');
 
 ### Explicit “now” vs queued “later”
 
@@ -18,8 +18,8 @@ Send a notification:
 import { Notification, NotificationWorker } from '@zintrust/core';
 
 // Immediate
-await Notification.send('+15551234567', 'Hello from Zintrust');
-await Notification.NotifyNow('+15551234567', 'Hello from Zintrust');
+await Notification.send('+15551234567', 'Hello from ZinTrust');
+await Notification.NotifyNow('+15551234567', 'Hello from ZinTrust');
 
 // Queue for later processing
 await Notification.NotifyLater('+15551234567', 'Your order has been shipped', { orderId: '12345' });
@@ -59,7 +59,7 @@ or:
 Termii environment variables used by the current driver implementation:
 
     TERMII_API_KEY=...
-    TERMII_SENDER=Zintrust
+    TERMII_SENDER=ZinTrust
 
 Notes:
 
@@ -117,7 +117,7 @@ import { sendSlackWebhook } from '@zintrust/core';
 
 await sendSlackWebhook(
   { webhookUrl: process.env.SLACK_WEBHOOK_URL ?? '' },
-  { text: 'Hello from Zintrust' }
+  { text: 'Hello from ZinTrust' }
 );
 ```
 

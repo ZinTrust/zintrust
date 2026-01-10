@@ -59,7 +59,7 @@ zin d1:migrate --remote
 
 ## KV Storage
 
-Cloudflare KV is a low-latency key-value store. You can use it as a cache driver in Zintrust.
+Cloudflare KV is a low-latency key-value store. You can use it as a cache driver in ZinTrust.
 
 ### Configuration
 

@@ -1,28 +1,70 @@
 # Route Registry
 
-Zintrust records route registrations to an in-memory registry at startup. This is primarily used for documentation and tooling (like OpenAPI generation).
+ZinTrust records route registrations into an in-memory registry at startup.
 
-## What it records
+This is primarily used for:
 
-Each route registration captures:
+- OpenAPI generation (runtime `/openapi.json`)
+- diagnostics and introspection tooling (e.g. “list routes” features)
 
-- `method`
-- `path`
-- `middleware` (names)
+Implementation: `src/routing/RouteRegistry.ts`.
+
+## What gets recorded
+
+Each recorded route is a `RouteRegistration`:
+
+- `method` (string)
+- `path` (as registered, e.g. `/users/:id`)
+- `middleware` (names, not functions)
 - `meta` (normalized route metadata)
 
-See `src/routing/RouteRegistry.ts`.
+That metadata is the same structure used by OpenAPI generation:
+
+- `meta.summary`, `meta.description`, `meta.tags`
+- `meta.request.*Schema` for body/query/params/headers
+- `meta.response.status` and `meta.response.schema`
+
+## Meta normalization
+
+Routes can provide metadata in a shorthand format or in the fully normalized format.
+
+`normalizeRouteMeta()` converts the shorthand into:
+
+- `request.bodySchema`
+- `response.status` and `response.schema`
+
+This helps keep route registrations ergonomic while still giving tools a consistent shape.
 
 ## How it’s populated
 
-Every call to `Router.get/post/put/patch/del/any/resource()` records the route into the registry (see `src/routing/Router.ts`).
+Every route registration helper records into the registry.
 
-## Typical usage
+Examples include:
 
-- Generate OpenAPI JSON at runtime from `RouteRegistry.list()`.
-- Export route lists for diagnostics.
+- `Router.get(...)`
+- `Router.post(...)`
+- `Router.put(...)`
+- `Router.patch(...)`
+- `Router.del(...)`
+- `Router.any(...)`
+- `Router.resource(...)`
 
-## Notes
+The registry is process-local and is built as your app registers routes.
 
-- The registry is process-local and resets when the server restarts.
-- If you register routes conditionally, the registry will reflect that.
+## Reading and clearing the registry
+
+- `RouteRegistry.list()` returns a shallow copy of the recorded registrations.
+- `RouteRegistry.clear()` empties the registry.
+
+`clear()` is mainly useful in tests where you create multiple apps/routers in one process.
+
+## Relationship to OpenAPI
+
+OpenAPI generation consumes `RouteRegistry.list()`.
+
+That means:
+
+- if a route isn’t registered, it won’t appear in `/openapi.json`
+- if you conditionally register routes (feature flags, env), the spec will reflect that
+
+For details on schema conversion and path normalization, see `docs/openapi.md` and `docs/schema-to-openapi-mapping.md`.

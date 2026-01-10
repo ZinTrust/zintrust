@@ -1,6 +1,6 @@
 # Swagger UI
 
-Zintrust serves a Swagger UI page that renders the **runtime-generated** OpenAPI spec.
+ZinTrust serves a Swagger UI page that renders the **runtime-generated** OpenAPI spec.
 
 This is implemented in `routes/openapi.ts`.
 

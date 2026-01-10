@@ -1,6 +1,6 @@
 # Advanced Database Guide
 
-This document covers advanced database topics in Zintrust:
+This document covers advanced database topics in ZinTrust:
 
 - Multi-database (named connections)
 - Cloudflare D1 integration
@@ -143,7 +143,7 @@ zin d1:migrate --remote
 
 ### D1 considerations (async-only)
 
-Cloudflare D1 is strictly asynchronous. Zintrust’s DB contract is already Promise-based, so D1 fits naturally.
+Cloudflare D1 is strictly asynchronous. ZinTrust’s DB contract is already Promise-based, so D1 fits naturally.
 
 Practical notes:
 

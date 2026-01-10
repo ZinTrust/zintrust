@@ -1,31 +1,39 @@
 # Typed Middleware Registry
 
-**Typed Middleware Registry** ensures middleware names are validated at compile-time using TypeScript's type system, preventing typos and configuration errors before runtime.
+ZinTrust route middleware is referenced by **string keys**. The typed middleware registry is the combination of:
+
+- A canonical list of allowed keys (`MiddlewareKeys` → `MiddlewareKey`)
+- Route APIs that let you type-check `middleware: [...]` at compile time
+- A governance test pattern to catch drift in CI
+
+This prevents the most common failure mode with stringly-typed middleware: **a typo that silently disables middleware at runtime**.
 
 ## Problem
 
-Traditional middleware systems use string names, prone to typos:
+Traditional middleware systems use string names, so typos are easy to ship:
 
 ```ts
-// Runtime error: 'autth' middleware not found
 Router.get(router, '/admin', handler, {
-  middleware: ['autth', 'jwt'],  // Typo discovered at runtime!
+  // typo: 'autth'
+  middleware: ['autth', 'jwt'],
 });
 ```
 
+In the current ZinTrust kernel, unknown middleware keys do not cause a hard failure; they are simply not executed.
+
 ## Solution
 
-TypeScript generics + `keyof` create compile-time validation:
+Use TypeScript to validate middleware keys at build time:
 
 ```ts
 // TypeScript error at compile-time
 Router.get<MiddlewareKey>(router, '/admin', handler, {
-  middleware: ['autth'],  // TS Error: not assignable to MiddlewareKey
+  middleware: ['autth'], // TS Error: not assignable to MiddlewareKey
 });
 
 // Valid names pass type-checking
 Router.get<MiddlewareKey>(router, '/admin', handler, {
-  middleware: ['auth', 'jwt'],  // OK!
+  middleware: ['auth', 'jwt'], // OK!
 });
 ```
 
@@ -36,35 +44,26 @@ Router.get<MiddlewareKey>(router, '/admin', handler, {
 Located in `src/config/middleware.ts`:
 
 ```ts
-/**
- * Canonical registry of middleware keys
- */
-export const MiddlewareKeys = {
-  // Auth
-  auth: 'auth',
-  jwt: 'jwt',
-  'api-key': 'api-key',
-  
-  // Security
-  cors: 'cors',
-  helmet: 'helmet',
-  csrf: 'csrf',
-  rateLimit: 'rateLimit',
-  
-  // Observability
-  logging: 'logging',
-  requestId: 'requestId',
-  
-  // Validation
-  validateRequest: 'validateRequest',
-  
-  // Other
-  cache: 'cache',
-  compression: 'compression',
-} as const;
+export const MiddlewareKeys = Object.freeze({
+  log: true,
+  error: true,
+  security: true,
+  rateLimit: true,
+  fillRateLimit: true,
+  csrf: true,
+  auth: true,
+  jwt: true,
+  validateLogin: true,
+  validateRegister: true,
+});
 
 export type MiddlewareKey = keyof typeof MiddlewareKeys;
 ```
+
+Notes:
+
+- `MiddlewareKey` is the compile-time union of allowed keys.
+- `MiddlewareKeys` is the runtime canonical list (values are not important; treat it as a set of keys).
 
 ### Type Safety Flow
 
@@ -86,16 +85,15 @@ Runtime: middleware already validated
 ### Basic Routes
 
 ```ts
-import { Router, type IRouter } from '@routing/Router';
-import type { MiddlewareKey } from '@config/middleware';
+import { Router, type IRouter, type MiddlewareKey } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   // Single middleware
   Router.get<MiddlewareKey>(
     router,
     '/profile',
-    async (req, res) => {
-      res.json({ user: req.user });
+    async (_req, res) => {
+      res.json({ ok: true });
     },
     { middleware: ['jwt'] }
   );
@@ -104,7 +102,7 @@ export function registerRoutes(router: IRouter): void {
   Router.post<MiddlewareKey>(
     router,
     '/admin/users',
-    async (req, res) => {
+    async (_req, res) => {
       res.setStatus(201).json({ id: 1 });
     },
     { middleware: ['jwt', 'auth', 'rateLimit'] }
@@ -115,171 +113,148 @@ export function registerRoutes(router: IRouter): void {
 ### Resource Routes
 
 ```ts
-Router.resource<MiddlewareKey>(
-  router,
-  '/api/v1/users',
-  UserController,
-  {
-    middleware: ['jwt', 'auth'],  // Applied to all CRUD
-    meta: { tags: ['Users'] },
-  }
-);
+import { Router, type MiddlewareKey } from '@zintrust/core';
+
+const usersMiddleware = ['jwt', 'auth'] satisfies MiddlewareKey[];
+
+Router.resource<MiddlewareKey>(router, '/api/v1/users', UserController, {
+  // Applied to all CRUD
+  middleware: usersMiddleware,
+  meta: { tags: ['Users'] },
+});
 ```
 
 ### Route Groups
 
 ```ts
-Router.group<MiddlewareKey>(
-  router,
-  { prefix: '/admin', middleware: ['jwt', 'auth'] },
-  (groupRouter) => {
-    Router.get(groupRouter, '/dashboard', AdminController.dashboard);
-    Router.get(groupRouter, '/users', AdminController.users);
-  }
-);
+import { Router, type MiddlewareKey } from '@zintrust/core';
+
+const adminMiddleware = ['jwt', 'auth'] satisfies MiddlewareKey[];
+
+Router.group(router, '/admin', (groupRouter) => {
+  Router.get<MiddlewareKey>(groupRouter, '/dashboard', AdminController.dashboard, {
+    middleware: adminMiddleware,
+  });
+  Router.get<MiddlewareKey>(groupRouter, '/users', AdminController.users, {
+    middleware: adminMiddleware,
+  });
+});
+```
+
+## Governance Test (recommended)
+
+Even if not every route uses generics, you can enforce correctness in CI by verifying that every route’s `middleware` list contains only keys from `MiddlewareKeys`.
+
+```ts
+import { MiddlewareKeys, RouteRegistry, Router } from '@zintrust/core';
+import { beforeEach, describe, expect, it } from 'vitest';
+
+import { registerRoutes } from '@routes/api';
+
+describe('Architecture: route middleware registry', () => {
+  beforeEach(() => {
+    RouteRegistry.clear();
+  });
+
+  it('ensures all route middleware names exist in MiddlewareKeys', () => {
+    const router = Router.createRouter();
+    registerRoutes(router);
+
+    const allowed = new Set(Object.keys(MiddlewareKeys));
+    const unknown: Array<{ method: string; path: string; middleware: string }> = [];
+
+    for (const route of RouteRegistry.list()) {
+      for (const name of route.middleware ?? []) {
+        if (!allowed.has(name)) {
+          unknown.push({ method: route.method, path: route.path, middleware: name });
+        }
+      }
+    }
+
+    expect(unknown).toEqual([]);
+  });
+});
 ```
 
 ## Extending the Registry
 
-### Adding Middleware
+In the current design, the route middleware registry is **framework-owned**:
 
-**Step 1: Add to Type Registry**
+- Route middleware is resolved from `middlewareConfig.route`, which is created and frozen inside the framework.
+- `MiddlewareKey` is derived from that framework-owned registry.
 
-```ts
-// src/config/middleware.ts
-export const MiddlewareKeys = {
-  // ... existing
-  'tenant-isolation': 'tenant-isolation',
-  'audit-log': 'audit-log',
-} as const;
-```
+If you are contributing to the framework and need to add a new named middleware:
 
-**Step 2: Add to Runtime Config**
+1. Update the `SharedMiddlewares` type in `src/config/middleware.ts`
+2. Add the new key to `MiddlewareKeys`
+3. Add the new middleware factory to `createSharedMiddlewares()`
+
+For application-level “presets” (reusable combinations), keep it in your application code:
 
 ```ts
-import { TenantIsolationMiddleware } from '@middleware/TenantIsolationMiddleware';
-
-export const middlewareConfig = {
-  route: {
-    // ... existing
-    'tenant-isolation': TenantIsolationMiddleware,
-    'audit-log': AuditLogMiddleware,
-  },
-};
-```
-
-**Step 3: Use in Routes**
-
-```ts
-Router.get<MiddlewareKey>(
-  router,
-  '/api/v1/data',
-  handler,
-  { middleware: ['jwt', 'tenant-isolation'] }
-);
-```
-
-### Middleware Presets
-
-Create reusable combinations:
-
-```ts
-// src/config/middleware-presets.ts
-import type { MiddlewareKey } from '@config/middleware';
+import type { MiddlewareKey } from '@zintrust/core';
 
 export const MiddlewarePresets = {
-  public: [] as MiddlewareKey[],
-  authenticated: ['jwt', 'auth'] as MiddlewareKey[],
-  admin: ['jwt', 'auth', 'rateLimit'] as MiddlewareKey[],
-  api: ['requestId', 'logging', 'cors'] as MiddlewareKey[],
-  highSecurity: ['jwt', 'auth', 'csrf', 'helmet'] as MiddlewareKey[],
+  authenticated: ['jwt', 'auth'] satisfies MiddlewareKey[],
+  admin: ['jwt', 'auth', 'rateLimit'] satisfies MiddlewareKey[],
 } as const;
-
-// Usage
-Router.post<MiddlewareKey>(
-  router,
-  '/admin/users',
-  handler,
-  { middleware: MiddlewarePresets.admin }
-);
 ```
 
 ## Best Practices
 
-### 1. Always Use Generic Parameter
+### 1. Prefer `satisfies MiddlewareKey[]` (or Router generics)
 
 ```ts
-// ❌ Bad: No type safety
-Router.get(router, '/admin', handler, {
-  middleware: ['autth'],  // No error!
-});
+import { Router, type MiddlewareKey } from '@zintrust/core';
 
-// ✅ Good: Type-safe
-Router.get<MiddlewareKey>(router, '/admin', handler, {
-  middleware: ['auth'],
-});
+// ✅ Type-checked without generics
+const mw = ['jwt', 'auth'] satisfies MiddlewareKey[];
+Router.get(router, '/admin', handler, { middleware: mw });
+
+// ✅ Also valid (generic typing)
+Router.get<MiddlewareKey>(router, '/admin', handler, { middleware: ['jwt', 'auth'] });
 ```
 
-### 2. Keep Registry Synchronized
+### 2. Keep type keys and runtime keys aligned (framework contributors)
 
-Test sync in test suite:
+The framework’s registry is intended to match the route middleware map. You can enforce this with a simple test:
 
 ```ts
-import { MiddlewareKeys, middlewareConfig } from '@config/middleware';
+import { MiddlewareKeys, middlewareConfig } from '@zintrust/core';
 
 describe('Middleware Registry', () => {
   it('should sync type and runtime registries', () => {
     const typeKeys = Object.keys(MiddlewareKeys);
     const runtimeKeys = Object.keys(middlewareConfig.route);
-    
+
     expect(typeKeys.sort()).toEqual(runtimeKeys.sort());
   });
 });
 ```
 
-### 3. Document Middleware
+### 3. Add a governance test for routes
 
-Add JSDoc comments:
-
-```ts
-export const MiddlewareKeys = {
-  /** Validates JWT from Authorization header */
-  jwt: 'jwt',
-  
-  /** Checks user permissions */
-  auth: 'auth',
-  
-  /** Rate limits by IP */
-  rateLimit: 'rateLimit',
-} as const;
-```
+If you want to enforce correctness across your route tree (even when not using generics everywhere), add an architecture test that inspects `RouteRegistry` and checks middleware names against `MiddlewareKeys`.
 
 ## Troubleshooting
 
 ### TypeScript Not Catching Invalid Names
 
-**Cause**: Missing generic parameter
+**Cause**: the `middleware` array widened to `string[]`.
 
-**Solution**: Add `<MiddlewareKey>`:
+**Solutions**:
 
-```ts
-Router.get<MiddlewareKey>(router, '/path', handler, config);
-//         ^^^^^^^^^^^^^^
-```
-
-### Runtime Error for Valid Name
-
-**Cause**: In type registry but not runtime config
-
-**Solution**: Add to `middlewareConfig.route`:
+- Add the generic: `Router.get<MiddlewareKey>(...)`
+- Or validate the array with `satisfies MiddlewareKey[]`
 
 ```ts
-export const middlewareConfig = {
-  route: {
-    'my-middleware': MyMiddleware,  // Add this
-  },
-};
+const middleware = ['jwt', 'auth'] satisfies MiddlewareKey[];
+Router.get(router, '/path', handler, { middleware });
 ```
+
+### Middleware not executing
+
+If the middleware key is unknown, the kernel will silently drop it. Use compile-time validation and/or the architecture test to prevent this from shipping.
 
 ## See Also
 

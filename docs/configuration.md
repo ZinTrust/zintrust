@@ -334,7 +334,7 @@ Temp files / uploads / backups:
 
 ## Cloudflare
 
-Zintrust’s Cloudflare support is configured primarily via your Workers bindings (Wrangler `binding` names) plus a small set of runtime env flags.
+ZinTrust’s Cloudflare support is configured primarily via your Workers bindings (Wrangler `binding` names) plus a small set of runtime env flags.
 
 Runtime flags:
 

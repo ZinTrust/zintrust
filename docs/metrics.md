@@ -1,6 +1,6 @@
 # Metrics (Prometheus)
 
-Zintrust can expose **Prometheus-compatible metrics** for:
+ZinTrust can expose **Prometheus-compatible metrics** for:
 
 - HTTP request volume and latency
 - DB query volume and latency (where supported)
@@ -43,7 +43,7 @@ When enabled, the app registers a GET route at `METRICS_PATH` (default `/metrics
 
 ## What metrics are emitted
 
-Zintrust defines these core application metrics:
+ZinTrust defines these core application metrics:
 
 ### HTTP
 

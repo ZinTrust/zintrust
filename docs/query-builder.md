@@ -1,6 +1,6 @@
 # Query Builder
 
-Zintrust's Query Builder provides a fluent, type-safe interface for building SQL queries. It protects your application against SQL injection attacks.
+ZinTrust's Query Builder provides a fluent, type-safe interface for building SQL queries. It protects your application against SQL injection attacks.
 
 ## Basic Usage
 

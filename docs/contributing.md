@@ -20,17 +20,17 @@ Welcome to the ZinTrust contributor community! This guide outlines the standards
 
 ## Environment Setup
 
-To contribute to Zintrust, ensure you have the following installed:
+To contribute to ZinTrust, ensure you have the following installed:
 
-- **Node.js**: >= 18.0.0
+- **Node.js**: >= 20.0.0
 - **Docker**: Required for local SonarQube and database testing.
 - **Git**: For version control.
 
 ### Initial Setup
 
 ```bash
-git clone https://github.com/ZinTrust /ZinTrust .git
-cd ZinTrust
+git clone https://github.com/ZinTrust/zintrust.git
+cd zintrust
 npm install
 npx husky init
 ```
@@ -135,7 +135,7 @@ If you find a security vulnerability, please do **not** open a public issue. Ema
 
 ## Contributor License Agreement (CLA)
 
-By contributing to Zintrust, you agree to the following:
+By contributing to ZinTrust, you agree to the following:
 
 1. You grant ZinTrust a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, sublicense, and distribute your contributions.
 2. You represent that you are legally entitled to grant this license.
@@ -154,7 +154,7 @@ We are committed to providing a welcoming and inspiring community.
 
 ## First Timers Guide
 
-New to Zintrust? Look for issues labeled `good-first-issue` or `first-timer`.
+New to ZinTrust? Look for issues labeled `good-first-issue` or `first-timer`.
 
 1. **Fork** the repository.
 2. **Create a branch** (`feat/your-feature`).

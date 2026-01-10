@@ -66,7 +66,7 @@ type RouteMeta = {
 
 ### Input Types
 
-Zintrust supports two formats for convenience:
+ZinTrust supports two formats for convenience:
 
 **Full Format**
 
@@ -99,8 +99,7 @@ meta: {
 ### Simple Route with Metadata
 
 ```ts
-import { Router, type IRouter } from '@routing/Router';
-import { Schema } from '@validation/Validator';
+import { Router, type IRouter, Schema } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   Router.get(
@@ -168,7 +167,7 @@ Router.post(
 ### Complete CRUD Resource
 
 ```ts
-import { Schema } from '@validation/Validator';
+import { Schema } from '@zintrust/core';
 
 const userSchema = Schema.typed<{
   name: string;
@@ -364,7 +363,7 @@ Router.resource(
 
 ## Metadata Normalization
 
-Zintrust normalizes metadata automatically:
+ZinTrust normalizes metadata automatically:
 
 ```ts
 // Input (shorthand)
@@ -397,8 +396,7 @@ This normalization happens automatically in `Router.registerRoute()`.
 Metadata automatically flows into OpenAPI specs:
 
 ```ts
-import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
-import { RouteRegistry } from '@routing/RouteRegistry';
+import { OpenApiGenerator, RouteRegistry } from '@zintrust/core';
 
 const spec = OpenApiGenerator.generate(RouteRegistry.list(), {
   title: 'My API',
@@ -466,7 +464,7 @@ Router.post(router, '/admin/users', handler, {
 
 ### 4. Document Error Responses
 
-While Zintrust only stores one response schema, document errors in description:
+While ZinTrust only stores one response schema, document errors in description:
 
 ```ts
 meta: {
@@ -507,7 +505,7 @@ response: {
 ## Testing Metadata
 
 ```ts
-import { RouteRegistry } from '@routing/RouteRegistry';
+import { RouteRegistry } from '@zintrust/core';
 import { describe, expect, it } from 'vitest';
 
 describe('Route Metadata', () => {

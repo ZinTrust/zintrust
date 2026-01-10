@@ -6,7 +6,7 @@ Log correlation is the practice of ensuring every log line can be tied to:
 - a distributed trace (when tracing is enabled)
 - a user/tenant (when appropriate)
 
-In Zintrust, correlation is built around **`RequestContext`** and the HTTP **`LoggingMiddleware`**.
+In ZinTrust, correlation is built around **`RequestContext`** and the HTTP **`LoggingMiddleware`**.
 
 ## Correlation fields
 
@@ -16,8 +16,8 @@ In Zintrust, correlation is built around **`RequestContext`** and the HTTP **`Lo
 
 Where it comes from:
 
-- If the client sends `x-request-id`, Zintrust uses it.
-- Otherwise Zintrust generates a UUID.
+- If the client sends `x-request-id`, ZinTrust uses it.
+- Otherwise ZinTrust generates a UUID.
 
 Where it is stored:
 
@@ -30,8 +30,8 @@ Where it is stored:
 
 Where it comes from:
 
-- If the client sends W3C `traceparent`, Zintrust extracts the 32-hex trace id.
-- Otherwise, if `req.context['traceId']` is already set (by middleware or an upstream adapter), Zintrust uses it.
+- If the client sends W3C `traceparent`, ZinTrust extracts the 32-hex trace id.
+- Otherwise, if `req.context['traceId']` is already set (by middleware or an upstream adapter), ZinTrust uses it.
 
 Where it is stored:
 
@@ -61,7 +61,7 @@ This pattern makes it easy to find _all_ logs for a specific request, and then j
 
 ### Outgoing requests
 
-If you use Zintrust’s OpenTelemetry integration, outgoing HTTP calls can propagate trace context.
+If you use ZinTrust’s OpenTelemetry integration, outgoing HTTP calls can propagate trace context.
 See [docs/opentelemetry.md](docs/opentelemetry.md).
 
 ## Suggested logging shape
@@ -79,7 +79,7 @@ Recommended fields (at minimum):
 - `tenantId` (optional; consider privacy)
 - `userId` (optional; consider privacy)
 
-Zintrust’s `Logger` supports redaction and structured formats; prefer that over ad-hoc `console.log`.
+ZinTrust’s `Logger` supports redaction and structured formats; prefer that over ad-hoc `console.log`.
 
 ## Common pitfalls
 

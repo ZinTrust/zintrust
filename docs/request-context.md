@@ -1,6 +1,6 @@
 # Request Context
 
-`RequestContext` is Zintrust’s request-scoped context object, designed for **correlation** and other cross-cutting concerns.
+`RequestContext` is ZinTrust’s request-scoped context object, designed for **correlation** and other cross-cutting concerns.
 
 It does two things at once:
 
@@ -66,7 +66,7 @@ This pattern is important:
 
 ## AsyncLocalStorage vs fallback mode
 
-Zintrust attempts to use Node’s `AsyncLocalStorage` through `@node-singletons/async_hooks`.
+ZinTrust attempts to use Node’s `AsyncLocalStorage` through `@node-singletons/async_hooks`.
 
 If it cannot import that module (for example in non-Node runtimes), it uses a small in-memory fallback store that behaves like a stack:
 
@@ -83,7 +83,7 @@ If you rely on async context propagation, prefer Node runtimes.
 If you’re in a request flow and need the current context:
 
 ```ts
-import { RequestContext } from '@http/RequestContext';
+import { RequestContext } from '@zintrust/core';
 
 const ctx = await RequestContext.current();
 if (ctx) {
@@ -137,7 +137,7 @@ Example:
 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 ```
 
-Zintrust extracts the 32-hex `traceid` if valid and non-zero.
+ZinTrust extracts the 32-hex `traceid` if valid and non-zero.
 
 ## Interaction with logging, metrics, tracing
 
@@ -172,7 +172,7 @@ The “late binding” is intentional: auth middleware runs after the request st
 If your code uses `RequestContext.current()`, wrap the call with `RequestContext.run(...)` in tests:
 
 ```ts
-import { RequestContext } from '@http/RequestContext';
+import { RequestContext } from '@zintrust/core';
 
 const ctx = {
   requestId: 'test-req-1',

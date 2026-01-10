@@ -11,9 +11,6 @@ To run your database seeders, use the `db:seed` command:
 ```bash
 # Run all seeders
 zin db:seed
-
-# Reset database (truncate) before seeding
-zin db:seed --reset
 ```
 
 ### Seeder Discovery
@@ -61,22 +58,13 @@ export const UserSeeder = Object.freeze({
 The master seeder typically delegates to other seeders:
 
 ```typescript
-import { Database } from '@runtime/Database';
-import { SeederDiscovery } from '@cli/discovery/SeederDiscovery';
-import { SeederLoader } from '@cli/loader/SeederLoader';
+import { PermissionSeeder } from './PermissionSeeder';
+import { RoleSeeder } from './RoleSeeder';
 
 export const DatabaseSeeder = Object.freeze({
   async run(): Promise<void> {
-    // 1. Run specific seeders in order
-    await SeederLoader.load(dir + '/PermissionSeeder.ts').run();
-    await SeederLoader.load(dir + '/RoleSeeder.ts').run();
-
-    // 2. Or discover and run all others
-    const files = SeederDiscovery.listSeederFiles(dir).filter((f) => !f.includes('DatabaseSeeder'));
-
-    for (const file of files) {
-      await SeederLoader.load(file).run();
-    }
+    await PermissionSeeder.run();
+    await RoleSeeder.run();
   },
 });
 ```

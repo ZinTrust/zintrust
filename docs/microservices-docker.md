@@ -1,72 +1,77 @@
-# Microservices Docker Integration
+# Microservices Docker
 
-ZinTrust automatically generates Docker configuration for your microservices to simplify development and deployment.
+ZinTrust includes a separate microservices workspace workflow under `services/`.
 
-## Generated Files
+This page documents how Docker fits into that workflow.
 
-When you generate a microservice domain using the CLI, ZinTrust creates the following Docker-related files:
+Important: this is distinct from `zin add service` (which scaffolds services inside a single project). The microservices scripts generate a **domain folder** like `services/ecommerce/*`.
 
-1.  **`services/{domain}/{service}/Dockerfile`**: A production-ready Dockerfile for the individual service.
-2.  **`services/{domain}/docker-compose.yml`**: A Docker Compose file to run all services in the domain together, including infrastructure like PostgreSQL and Redis.
+## What gets generated
 
-## Docker Compose Configuration
+When you generate a microservices domain, ZinTrust creates:
 
-The generated `docker-compose.yml` includes pre-configured environment variables for each service:
+- `services/<domain>/<service>/...` (one folder per service)
+- `services/<domain>/docker-compose.yml` (local dev compose for the domain)
 
-```yaml
-user-service:
-  build:
-    context: ../../
-    dockerfile: services/ecommerce/user-service/Dockerfile
-  ports:
-    - '3001:3000'
-  environment:
-    NODE_ENV: development
-    MICROSERVICES: 'true'
-    SERVICE_NAME: user-service
-    SERVICE_PORT: 3000
-    # Database Configuration
-    DB_CONNECTION: postgresql
-    DB_HOST: postgres
-    DB_PORT: 5432
-    DB_DATABASE: zintrust_user-service
-    DB_USERNAME: zintrust
-    DB_PASSWORD: zintrust
-    # Cache Configuration
-    REDIS_HOST: redis
-    REDIS_PORT: 6379
-```
-
-### Customizing Environment Variables
-
-You can easily add or modify environment variables in the `docker-compose.yml` file. This is useful for:
-
-- Changing database credentials.
-- Adding API keys for external services.
-- Configuring service-specific settings.
-
-## Running with Docker Compose
-
-To start all services in a domain:
+Generate a domain:
 
 ```bash
-cd services/{domain}
+npm run microservices:generate -- ecommerce users,orders,payments --port 3001
+```
+
+Notes:
+
+- `<services>` is a comma-separated list
+- `--port` sets the base port (defaults to `3001`); services increment from there
+
+## Local development with Docker Compose
+
+Run all services in a domain (plus shared infra declared in the compose file):
+
+```bash
+cd services/ecommerce
 docker-compose up -d
 ```
 
-This will:
-
-1. Build the Docker images for each service.
-2. Start PostgreSQL and Redis containers.
-3. Start each microservice container, linked to the database and cache.
-
-## Production Deployment
-
-For production, you can use the `zintrust docker` command to build and push images to a registry:
+To see logs:
 
 ```bash
-# Build and push images
-npm run microservices:docker <domain> <services>
+docker-compose logs -f
 ```
 
-This uses the `ServiceBundler` to create highly optimized images (typically < 1MB for the application logic) suitable for serverless or containerized environments.
+You can customize `services/<domain>/docker-compose.yml` like any other compose setup:
+
+- service environment variables
+- port mappings
+- database credentials / hostnames
+- adding optional dependencies (Redis, queues, etc.)
+
+## Generating per-service Dockerfiles
+
+The microservices CLI has a `docker` command that generates a minimal `Dockerfile` per service directory.
+
+```bash
+npm run microservices:docker -- ecommerce users,orders --registry localhost:5000
+```
+
+What it does (current behavior):
+
+- writes `services/<domain>/<service>/Dockerfile`
+- prints a `docker build ...` command you can run
+- does not automatically push images
+
+After generating Dockerfiles, you can build images using compose:
+
+```bash
+docker-compose -f services/ecommerce/docker-compose.yml build
+```
+
+## Bundling for deployment
+
+If you want a lightweight deployable artifact per service, use the bundler:
+
+```bash
+npm run microservices:bundle -- ecommerce users,orders --output dist/services --target-size 1
+```
+
+This creates independent bundles under `dist/services/<domain>-<service>/` and reports size/optimization status.

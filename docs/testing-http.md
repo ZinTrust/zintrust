@@ -1,6 +1,6 @@
 # Testing HTTP
 
-Zintrust includes small testing helpers that let you test:
+ZinTrust includes small testing helpers that let you test:
 
 - route registration + middleware + kernel handling (request-level “integration-ish” tests)
 - individual handlers/middleware in isolation (unit-style tests)

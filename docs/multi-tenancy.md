@@ -1,6 +1,6 @@
 # Multi-tenancy
 
-Multi-tenancy is an application-level concern, but Zintrust provides a clean place to store and propagate tenant identity: **`RequestContext.tenantId`**.
+Multi-tenancy is an application-level concern, but ZinTrust provides a clean place to store and propagate tenant identity: **`RequestContext.tenantId`**.
 
 The goal is that every request handler (and observability signal) can reliably access the current tenant without re-parsing headers or tokens.
 
@@ -41,7 +41,7 @@ Recommendation:
 
 ## Enforcement layers (defense-in-depth)
 
-Zintrust does not automatically scope queries by tenant. You should enforce multi-tenancy at multiple layers:
+ZinTrust does not automatically scope queries by tenant. You should enforce multi-tenancy at multiple layers:
 
 1. **Authentication:** reject requests missing tenant context if the route requires it.
 2. **Authorization:** verify the user is allowed to access the tenant.
@@ -77,7 +77,7 @@ It’s often useful to include `tenantId` in logs for debugging.
 
 ### Traces
 
-When OpenTelemetry is enabled, Zintrust records tenant information on spans:
+When OpenTelemetry is enabled, ZinTrust records tenant information on spans:
 
 - `zintrust.tenant_id` is set from request context (late-bound in the request lifecycle).
 

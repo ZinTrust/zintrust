@@ -1,6 +1,6 @@
 # Observability
 
-Zintrust ships **best-effort** observability primitives that you can adopt incrementally:
+ZinTrust ships **best-effort** observability primitives that you can adopt incrementally:
 
 - Request-scoped correlation via `RequestContext`
 - Structured logging (with redaction)
@@ -14,11 +14,11 @@ The core idea is: observability should help you in production without becoming a
 
 ### Observability must not break requests
 
-Zintrust treats metrics/tracing as “nice to have”. If a metrics client or tracing export is misconfigured, requests should still succeed.
+ZinTrust treats metrics/tracing as “nice to have”. If a metrics client or tracing export is misconfigured, requests should still succeed.
 
 ### Correlate using IDs
 
-Zintrust maintains a request-scoped context that includes:
+ZinTrust maintains a request-scoped context that includes:
 
 - `requestId` (from `x-request-id` or generated)
 - `traceId` (from W3C `traceparent` when present)
@@ -68,7 +68,7 @@ See: [health-checks](health-checks).
 
 ## Metrics (Prometheus)
 
-Zintrust exposes Prometheus-compatible metrics when enabled.
+ZinTrust exposes Prometheus-compatible metrics when enabled.
 
 Highlights:
 
@@ -82,7 +82,7 @@ See: [metrics](metrics).
 
 Tracing is optional and guarded by configuration (e.g. `OTEL_ENABLED=true`).
 
-Zintrust’s approach is intentionally conservative:
+ZinTrust’s approach is intentionally conservative:
 
 - Uses OpenTelemetry API patterns
 - Avoids hard coupling to an SDK/exporter

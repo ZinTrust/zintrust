@@ -1,53 +1,143 @@
 # Microservices
 
-ZinTrust is designed from the ground up to support microservices architectures with zero external dependencies.
+ZinTrust includes a microservices runtime that supports:
 
-## Service Discovery
+- Service discovery from the filesystem (`MicroserviceBootstrap`)
+- Service registration and calls (`MicroserviceManager`)
+- Optional service-to-service auth (`ServiceAuthMiddleware`)
+- Optional request tracing helpers (`RequestTracingMiddleware`)
+- Health monitoring helpers (`HealthCheckHandler`, `ServiceHealthMonitor`)
 
-Services are automatically discovered if they contain a `service.config.json` file in their root directory.
+This page documents what is implemented in the framework today.
+
+## Enable Microservices Mode
+
+Microservices mode is controlled by environment variables:
+
+- `MICROSERVICES=true` enables discovery/bootstrapping
+- `ENABLE_MICROSERVICES=true` exists as a legacy/test fallback
+- `SERVICES=name1,name2` acts as an allow-list (when set, only those services are registered)
+
+## Service Layout and `service.config.json`
+
+### Default discovery directory
+
+`MicroserviceBootstrap` discovers services under:
+
+`src/services/<domain>/<service>/service.config.json`
+
+Each discovered service is registered with the manager using its `name` and `domain`.
+
+### Custom discovery directory
+
+If your services live somewhere else (for example the standalone generator outputs `services/<domain>/<service>`), you can point the bootstrapper at that directory:
+
+```ts
+import { MicroserviceBootstrap } from '@zintrust/core';
+
+const bootstrap = MicroserviceBootstrap.getInstance();
+bootstrap.setServicesDir('services');
+await bootstrap.initialize();
+```
+
+### Config schema
+
+The framework reads `service.config.json` and normalizes it into a runtime `ServiceConfig`:
 
 ```json
 {
-  "name": "user-service",
+  "name": "users",
+  "domain": "ecommerce",
+  "version": "1.0.0",
   "port": 3001,
-  "auth": "jwt",
-  "version": "1.0.0"
+  "description": "Users microservice",
+  "dependencies": ["orders"],
+  "healthCheck": "/health",
+  "database": { "isolation": "shared", "migrations": true },
+  "auth": { "strategy": "none" },
+  "tracing": { "enabled": false, "samplingRate": 1 }
 }
 ```
 
-## Creating a Service
+Notes:
 
-Use the CLI to scaffold a new service:
+- `port` is optional; if missing, a port is assigned based on discovery order.
+- `healthCheck` defaults to `/health` if not provided.
+- `domain` is derived from the directory path (`src/services/<domain>/...`) and must match your layout.
 
-```bash
-zin add service orders
+## Bootstrapping and Registration
+
+The recommended initialization flow is:
+
+```ts
+import { MicroserviceBootstrap } from '@zintrust/core';
+
+await MicroserviceBootstrap.getInstance().initialize();
 ```
 
-This will create a new directory in `services/orders` with its own models, controllers, and configuration.
+What this does:
+
+1. If microservices are disabled, it returns early.
+2. Discovers services from the configured services directory.
+3. Registers them with `MicroserviceManager`.
+4. Logs migration-related info when a service config has `database.migrations: true`.
 
 ## Inter-Service Communication
 
-ZinTrust provides a type-safe way to communicate between services using `ServiceRequestFactory`.
+Use `MicroserviceManager.callService()` to call a registered service.
 
-```typescript
-import { ServiceClient } from '@zintrust/core';
+```ts
+import { MicroserviceManager } from '@zintrust/core';
 
-const userService = ServiceClient.for('user-service');
-const user = await userService.get('/users/1');
+const manager = MicroserviceManager.getInstance();
+
+await manager.startService('users');
+
+const response = await manager.callService('users', {
+  method: 'GET',
+  path: '/health',
+  timeout: 5_000,
+});
 ```
+
+Important behavior:
+
+- The manager will throw if the service is not registered.
+- The manager will throw if the service is not in `running` status.
+- `callService()` uses `fetch()` and runs URL validation for SSRF protection.
 
 ## Health Checks
 
-Every service automatically exposes a `GET /health` endpoint that returns the service status, memory usage, and uptime.
+ZinTrust does not automatically add a health route to your service. You must implement an endpoint and point `healthCheck` to it.
 
-## Distributed Tracing
+For convenience, the framework includes `HealthCheckHandler`:
 
-ZinTrust automatically propagates an `x-trace-id` header across service boundaries, allowing you to track a single request as it flows through your entire system.
+```ts
+import { HealthCheckHandler } from '@zintrust/core';
 
-## Monitoring
+const health = HealthCheckHandler.create('users', '1.0.0', 3001, 'ecommerce');
 
-Use the `zin debug` command to see a real-time dashboard of all running services, their health, and resource consumption.
+// Mount `health.handle` on your service route, e.g. GET /health
+```
+
+For polling multiple services from a monitoring process, use `ServiceHealthMonitor` (it is a helper, not automatically wired into the runtime).
+
+## Service-to-Service Authentication
+
+`ServiceAuthMiddleware` supports `api-key`, `jwt`, `none`, and `custom` strategies.
+
+- Configure `SERVICE_API_KEY` or `SERVICE_JWT_SECRET` in production.
+- Add the middleware to the service request pipeline to enforce that calls are authenticated.
+
+## Request Tracing
+
+`RequestTracingMiddleware` can:
+
+- Attach and log `x-trace-id` and related headers on incoming requests.
+- Provide an `injectHeaders()` helper for outgoing calls.
+
+Propagation is not automatic in `callService()`; you must pass headers to the call.
 
 ## Docker Integration
 
-ZinTrust automatically generates Dockerfiles and Docker Compose configurations for your microservices. See the [Docker Integration Guide](microservices-docker.md) for more details.
+The repository includes a microservices CLI that can generate/bundle/dockerize services (see `npm run microservices:*`). For containerized workflows, also see [microservices-docker.md](microservices-docker.md).

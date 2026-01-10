@@ -1,6 +1,6 @@
 # Request Typing & Validation
 
-Zintrust validation is **schema-based**, with a fluent API similar to the ORM’s QueryBuilder style.
+ZinTrust validation is **schema-based**, with a fluent API similar to the ORM’s QueryBuilder style.
 
 The goal is to let you:
 
@@ -31,7 +31,7 @@ They are related, but separate:
 Create a schema with `Schema.create()` (untyped) or `Schema.typed<T>()` (typed):
 
 ```ts
-import { Schema } from '@validation/Validator';
+import { Schema } from '@zintrust/core';
 
 type RegisterBody = { name: string; email: string; password: string };
 
@@ -53,9 +53,9 @@ Notes:
 
 ## Enforcement with ValidationMiddleware
 
-Zintrust provides helpers to validate different request parts:
+ZinTrust provides helpers to validate different request parts:
 
-- `ValidationMiddleware.createBody(schema)` — validates JSON body
+- `ValidationMiddleware.createBody(schema)` — validates request body (skips `GET` and `DELETE`)
 - `ValidationMiddleware.createQuery(schema)` — validates parsed query object
 - `ValidationMiddleware.createParams(schema)` — validates route params
 
@@ -96,8 +96,7 @@ If your route ensures the validations ran, you can type your handler accordingly
 Example pattern:
 
 ```ts
-import type { ValidatedRequest } from '@http/Request';
-import type { IResponse } from '@http/Response';
+import type { ValidatedRequest, IResponse } from '@zintrust/core';
 
 type RegisterBody = { name: string; email: string; password: string };
 

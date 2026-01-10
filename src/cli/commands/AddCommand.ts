@@ -136,9 +136,11 @@ const addOptions = (command: Command): void => {
       '--package-manager <pm>',
       'Specify package manager to use when installing plugins (npm|yarn|pnpm)'
     )
+    .option('--domain <name>', 'Service domain (e.g., ecommerce, payments) - for services')
     .option('--database <type>', 'Database (shared|isolated) - for services')
     .option('--auth <strategy>', 'Auth strategy (api-key|jwt|none|custom) - for services')
     .option('--port <number>', 'Service port - for services')
+    .option('--service <path>', 'Service path (relative to project root) - for features')
     .option('--with-test', 'Generate test files - for features')
     .option(
       '--controller-type <type>',

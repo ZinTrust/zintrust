@@ -1,6 +1,6 @@
 # Tracing
 
-Zintrust supports tracing in two complementary ways:
+ZinTrust supports tracing in two complementary ways:
 
 1. **Standards-based distributed tracing via OpenTelemetry** (W3C `traceparent`)
 2. **Lightweight microservice-to-microservice request tracing middleware** (custom `x-trace-*` headers)
@@ -9,7 +9,7 @@ This page explains when to use each, and how they relate to log correlation.
 
 ## 1) OpenTelemetry (recommended)
 
-Zintrust has an **optional OpenTelemetry integration** implemented in `src/observability/OpenTelemetry.ts`.
+ZinTrust has an **optional OpenTelemetry integration** implemented in `src/observability/OpenTelemetry.ts`.
 
 Design choices:
 
@@ -20,7 +20,7 @@ Design choices:
 ### Enabling OpenTelemetry
 
 1. Configure an SDK + exporter in your application entrypoint.
-2. Enable Zintrust tracing:
+2. Enable ZinTrust tracing:
 
 ```bash
 export OTEL_ENABLED=true
@@ -28,7 +28,7 @@ export OTEL_ENABLED=true
 
 The full setup and examples live in [docs/opentelemetry.md](docs/opentelemetry.md).
 
-### What Zintrust records
+### What ZinTrust records
 
 When enabled:
 
@@ -54,7 +54,7 @@ This is what enables log ↔ trace correlation.
 
 ## 2) Microservices RequestTracingMiddleware (lightweight)
 
-Separately from OpenTelemetry, Zintrust includes a microservices-oriented tracing middleware:
+Separately from OpenTelemetry, ZinTrust includes a microservices-oriented tracing middleware:
 
 - Implementation: `src/microservices/RequestTracingMiddleware.ts`
 - Purpose: lightweight correlation across service-to-service calls when you don’t want full OpenTelemetry.
@@ -90,5 +90,5 @@ You can also use both, but be explicit about which ID is your “primary” trac
 ## Troubleshooting
 
 - If you see request logs without a trace id, confirm the client/edge is sending `traceparent` and `OTEL_ENABLED=true` is set.
-- If OpenTelemetry is enabled but traces do not appear, confirm your app has an SDK/exporter installed (Zintrust does not ship one).
+- If OpenTelemetry is enabled but traces do not appear, confirm your app has an SDK/exporter installed (ZinTrust does not ship one).
 - If microservice trace headers are missing, confirm the middleware is installed for that service and that sampling isn’t filtering the request.

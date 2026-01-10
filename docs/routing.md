@@ -31,7 +31,7 @@ Routes are defined in `routes/api.ts`.
 import { router } from '@zintrust/core';
 
 router.get('/', async (req, res) => {
-  return res.json({ message: 'Welcome to Zintrust' });
+  return res.json({ message: 'Welcome to ZinTrust' });
 });
 
 router.post('/users', 'UserController@store');

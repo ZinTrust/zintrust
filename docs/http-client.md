@@ -46,7 +46,7 @@ export interface IHttpResponse {
 
 ## Installation
 
-HTTP client is built into Zintrust. No additional packages needed.
+HTTP client is built into ZinTrust. No additional packages needed.
 
 ```typescript
 import { HttpClient } from '@zintrust/core';

@@ -1,6 +1,6 @@
 # OpenAPI
 
-Zintrust can generate an **OpenAPI 3.0.3** document at runtime from the in-memory route registry. This keeps your API documentation close to your actual routes (and avoids a separate, manually maintained spec file).
+ZinTrust can generate an **OpenAPI 3.0.3** document at runtime from the in-memory route registry. This keeps your API documentation close to your actual routes (and avoids a separate, manually maintained spec file).
 
 This page covers:
 
@@ -36,7 +36,7 @@ BASE_URL=https://api.example.com
 
 ### `HOST` + `PORT`
 
-If `BASE_URL` is empty, Zintrust will try to construct `http://{HOST}:{PORT}`.
+If `BASE_URL` is empty, ZinTrust will try to construct `http://{HOST}:{PORT}`.
 
 Example:
 
@@ -50,7 +50,7 @@ PORT=3000
 These feed `info.title` and `info.version`.
 
 ```env
-APP_NAME=Zintrust
+APP_NAME=ZinTrust
 APP_VERSION=1.2.3
 ```
 
@@ -63,7 +63,7 @@ APP_VERSION=1.2.3
 
 ## Route Registry → OpenAPI
 
-Zintrust’s `RouteRegistry` stores minimal information needed for docs:
+ZinTrust’s `RouteRegistry` stores minimal information needed for docs:
 
 ```ts
 export type RouteRegistration = {
@@ -95,7 +95,7 @@ export type OpenApiGeneratorOptions = {
 };
 ```
 
-In the default OpenAPI route, Zintrust excludes the docs endpoints themselves:
+In the default OpenAPI route, ZinTrust excludes the docs endpoints themselves:
 
 ```ts
 excludePaths: ['/openapi.json', '/docs'];
@@ -146,7 +146,7 @@ If your route path includes `:id`, the generator will:
 To type/validate path params, provide `meta.request.paramsSchema`.
 
 ```ts
-import { Schema } from '@validation/Validator';
+import { Schema } from '@zintrust/core';
 
 Router.get(router, '/users/:id', handler, {
   meta: {

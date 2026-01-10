@@ -1,46 +1,94 @@
-# Docker Deployment
+# Docker
 
-ZinTrust comes with a pre-configured `Dockerfile` and `docker-compose.yml` for easy containerization.
+This repository includes a ready-to-use `Dockerfile` and `docker-compose.yml` for containerized development and production builds.
 
-## Building the Image
+## Quick start (recommended)
 
-Build your application's Docker image:
+Use the provided npm scripts:
 
 ```bash
-docker build -t zintrust-app .
+npm run docker:build
+npm run docker:up
 ```
 
-## Using Docker Compose
+Useful helpers:
 
-The included `docker-compose.yml` sets up the application along with a database:
+- `npm run docker:logs` — tail app logs
+- `npm run docker:shell` — open a shell in the app container
+- `npm run docker:test` — run tests inside the container
+- `npm run docker:down` / `npm run docker:stop`
+
+## What the `Dockerfile` does
+
+The root `Dockerfile` is multi-stage:
+
+1. **builder** (`node:20-alpine`)
+
+- installs build tooling (`python3`, `make`, `g++`) for native modules like `bcrypt`
+- runs `npm ci`
+- runs `npm run build:ci` to produce `dist/`
+
+2. **runtime** (`node:20-alpine`)
+
+- installs only production dependencies (`npm ci --omit=dev`)
+- copies `dist/` from the builder stage
+- runs as a non-root user
+- starts the compiled server via `node dist/src/boot/bootstrap.js`
+
+## Production build target
+
+To build the runtime stage explicitly:
+
+```bash
+npm run docker:build:prod
+```
+
+This corresponds to `docker build --target runtime ...`.
+
+## Docker Compose (local dev)
+
+The included `docker-compose.yml` is optimized for local development:
+
+- mounts the repo into the container (`.:/app`) for live iteration
+- runs `npm run dev` in the app container
+- starts PostgreSQL by default
+- includes Redis under the `optional` profile
+
+Start dev services:
 
 ```bash
 docker-compose up -d
 ```
 
-## Multi-Stage Builds
-
-The default `Dockerfile` uses a multi-stage build to keep the final image size small:
-
-1. **Build Stage**: Installs all dependencies and compiles TypeScript.
-2. **Production Stage**: Copies only the compiled code and production dependencies.
-
-## Environment Variables in Docker
-
-You can pass environment variables to your container using an `.env` file or the `-e` flag:
+Start dev services including Redis:
 
 ```bash
-docker run -e DB_HOST=db.example.com zintrust-app
+docker-compose --profile optional up -d
 ```
 
-## Persistent Storage
+## Environment variables
 
-Ensure you mount volumes for your logs and any local file storage:
+Compose passes common settings (examples):
 
-```yaml
-services:
-  app:
-    volumes:
-      - ./logs:/app/logs
-      - ./storage:/app/storage
-```
+- `NODE_ENV`, `HOST`, `PORT`
+- `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
+
+You can override these via your shell environment or a `.env` file that Docker Compose reads.
+
+## Ports and health checks
+
+The Docker setup uses two different conventions:
+
+- Compose maps `3000:3000` by default and sets `PORT=3000`.
+- Health checks in both `Dockerfile` and `docker-compose.yml` call `http://localhost:7777/health`.
+
+ZinTrust projects default to port `7777` unless configured otherwise. If your container is configured to listen on `3000`, update the health check URL accordingly (or set your server port to `7777` and map ports as you prefer).
+
+## Persistent data
+
+Compose uses named volumes for infrastructure:
+
+- `postgres_data` for Postgres
+- `redis_data` for Redis
+
+Application storage/logs are repo-mounted in dev mode; for production you typically mount only what you need (logs, uploads, backups) and keep your container filesystem immutable.

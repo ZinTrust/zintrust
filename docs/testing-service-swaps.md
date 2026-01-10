@@ -2,7 +2,7 @@
 
 In tests, you often want to swap real dependencies (DB, cache, mailer, HTTP clients) for fakes.
 
-Zintrust’s `TestEnvironment` helper includes a container override mechanism so you can do this cleanly without rewriting production wiring.
+ZinTrust’s `TestEnvironment` helper includes a container override mechanism so you can do this cleanly without rewriting production wiring.
 
 See `tests/helpers/TestEnvironment.ts`.
 

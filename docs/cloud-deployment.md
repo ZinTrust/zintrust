@@ -56,7 +56,7 @@ For traditional VPS deployments, follow the standard [Deployment Guide](./deploy
 
 ## Secrets Management
 
-Zintrust's `SecretsManager` provides a unified interface for retrieving secrets from various cloud providers:
+ZinTrust's `SecretsManager` provides a unified interface for retrieving secrets from various cloud providers:
 
 - **Cloudflare KV**
 - **AWS Secrets Manager**

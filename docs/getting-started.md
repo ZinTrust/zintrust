@@ -1,6 +1,6 @@
-# Getting Started with Zintrust
+# Getting Started with ZinTrust
 
-Welcome to Zintrust, a production-grade TypeScript backend framework with proven architectural patterns and a minimal core (no Express/Fastify). The published npm package also includes a few runtime dependencies for the CLI and developer experience.
+Welcome to ZinTrust, a production-grade TypeScript backend framework with proven architectural patterns and a minimal core (no Express/Fastify). The published npm package also includes a few runtime dependencies for the CLI and developer experience.
 
 ## Quick Start (2 minutes)
 
@@ -41,7 +41,7 @@ zin add db:mysql     # @zintrust/db-mysql
 zin add db:mssql     # @zintrust/db-sqlserver
 ```
 
-## What is Zintrust?
+## What is ZinTrust?
 
 ZinTrust is a **minimal-core** backend framework built on:
 

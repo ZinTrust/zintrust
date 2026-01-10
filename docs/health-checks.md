@@ -1,6 +1,6 @@
 # Health Checks
 
-Zintrust ships **health endpoints** suitable for container orchestrators (Kubernetes, ECS, Nomad) and load balancers.
+ZinTrust ships **health endpoints** suitable for container orchestrators (Kubernetes, ECS, Nomad) and load balancers.
 
 These routes are registered by `registerHealthRoutes(...)` in `routes/health.ts`:
 
@@ -21,7 +21,7 @@ In Kubernetes terms:
 - `livenessProbe` → `/health/live`
 - `readinessProbe` → `/health/ready`
 
-## Endpoint behavior (what Zintrust actually does)
+## Endpoint behavior (what ZinTrust actually does)
 
 ### `GET /health`
 
@@ -131,7 +131,7 @@ Notes:
 
 ## Production behavior (error redaction)
 
-Zintrust intentionally reduces error detail in production-like environments.
+ZinTrust intentionally reduces error detail in production-like environments.
 
 - `/health`: treats both `production` and `prod` as production.
 - `/health/ready`: treats `production` as production.

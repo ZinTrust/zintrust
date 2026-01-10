@@ -1,55 +1,100 @@
 # Service Discovery
 
-In a microservices architecture, services need to find and communicate with each other. ZinTrust provides a built-in service discovery mechanism.
+Service discovery in ZinTrust is currently a **filesystem + in-memory registry** model:
 
-## How it Works
+- Filesystem discovery is handled by `MicroserviceBootstrap`.
+- Registered services live in an in-memory map owned by `MicroserviceManager`.
 
-ZinTrust uses a file-based discovery system by default, which is perfect for development and small-to-medium deployments.
+There is no pluggable “discovery driver” API in the runtime today.
 
-1. Each service has a `service.config.json`.
-2. The `ServiceManager` scans the `services/` directory.
-3. It builds a registry of available services and their endpoints.
+## Filesystem Discovery (recommended for local/dev)
 
-## Service Configuration
+When microservices are enabled (`MICROSERVICES=true`), `MicroserviceBootstrap` discovers services by scanning a services directory for:
+
+`<servicesDir>/<domain>/<service>/service.config.json`
+
+By default, `servicesDir` is `src/services`.
+
+### Example structure
+
+```
+src/services/
+  ecommerce/
+    users/
+      service.config.json
+    orders/
+      service.config.json
+```
+
+### Example config
 
 ```json
 {
-  "name": "inventory-service",
-  "port": 3005,
-  "host": "localhost",
-  "healthCheck": "/health"
+  "name": "users",
+  "version": "1.0.0",
+  "port": 3001,
+  "healthCheck": "/health",
+  "dependencies": ["orders"]
 }
 ```
 
-## Discovering Services
+### Bootstrapping discovery
 
-You can list all discovered services using the CLI:
+```ts
+import { MicroserviceBootstrap } from '@zintrust/core';
 
-```bash
-zin microservices:discover
+await MicroserviceBootstrap.getInstance().initialize();
 ```
 
-## Health Monitoring
+This discovers configs and registers them with `MicroserviceManager`.
 
-The `ServiceManager` periodically pings each service's health check endpoint. If a service is down, it's marked as unhealthy in the registry.
+## In-Memory Registry (`MicroserviceManager`)
 
-```typescript
-import { ServiceManager } from '@zintrust/core';
+Once registered, services can be listed and called via the manager:
 
-const isHealthy = await ServiceManager.isHealthy('inventory-service');
+```ts
+import { MicroserviceManager } from '@zintrust/core';
+
+const manager = MicroserviceManager.getInstance();
+
+// Returns the currently registered services (it does not scan the filesystem)
+const services = await MicroserviceManager.discoverServices();
+
+// Call a running service
+await manager.startService('users');
+const response = await manager.callService('users', '/health');
 ```
 
-## Custom Discovery Drivers
+## Allow-List via `SERVICES`
 
-For larger deployments, you can implement custom discovery drivers for Consul, Etcd, or Kubernetes:
+If `SERVICES` is set (comma-separated), the framework treats it as an allow-list:
 
-```typescript
-import { DiscoveryDriver } from '@zintrust/core';
+- Services not listed will be skipped during registration.
+- If `SERVICES` is unset/empty, all discovered services are eligible.
 
-export const consulDriver: DiscoveryDriver = {
-  async resolve(serviceName: string): Promise<string> {
-    // Consul lookup logic
-    return serviceName;
-  },
-};
+## Health Checks
+
+The manager can health-check registered services by requesting their configured health path:
+
+```ts
+import { MicroserviceManager } from '@zintrust/core';
+
+const manager = MicroserviceManager.getInstance();
+const healthy = await manager.checkServiceHealth('users');
 ```
+
+Health checks depend on your services:
+
+- The endpoint must exist.
+- `healthCheck` in `service.config.json` must match the path your service exposes.
+
+## CLI
+
+This repo includes helper commands for generating and inspecting microservices:
+
+- `npm run microservices:generate`
+- `npm run microservices:discover`
+- `npm run microservices:status`
+- `npm run microservices:health`
+
+Note: the CLI “discover” command reports what `MicroserviceManager.discoverServices()` returns (registered services), not filesystem scanning.
