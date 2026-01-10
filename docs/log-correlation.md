@@ -31,6 +31,8 @@ Where it is stored:
 Where it comes from:
 
 - If the client sends W3C `traceparent`, ZinTrust extracts the 32-hex trace id.
+- Otherwise, if the client sends `x-trace-id`, ZinTrust uses it.
+- Otherwise, if microservices tracing has populated `req.context.trace.traceId`, ZinTrust uses it.
 - Otherwise, if `req.context['traceId']` is already set (by middleware or an upstream adapter), ZinTrust uses it.
 
 Where it is stored:

@@ -178,4 +178,27 @@ describe('Kernel middleware order', () => {
     expect(events).toEqual(['block']);
     expect(handler).not.toHaveBeenCalled();
   });
+
+  it('ignores unknown route middleware names (skips missing keys)', async () => {
+    const kernel = Kernel.create(mockRouter, mockContainer);
+    const events: string[] = [];
+
+    kernel.registerRouteMiddleware('r1', async (_req, _res, next) => {
+      events.push('r1-before');
+      await next();
+      events.push('r1-after');
+    });
+
+    vi.mocked(Router.match).mockReturnValue({
+      params: {},
+      middleware: ['does-not-exist', 'r1'],
+      handler: async () => {
+        events.push('handler');
+      },
+    } as any);
+
+    await kernel.handleRequest(mockReq, mockRes);
+
+    expect(events).toEqual(['r1-before', 'handler', 'r1-after']);
+  });
 });

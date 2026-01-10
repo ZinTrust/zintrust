@@ -45,6 +45,8 @@ export interface IRequestContext {
   - Otherwise generated via `generateUuid()`
 - `traceId`
   - Extracted from `traceparent` (W3C Trace Context) when valid
+  - Otherwise, if `x-trace-id` is present, ZinTrust uses it
+  - Otherwise, if microservices tracing has populated `req.context.trace.traceId`, ZinTrust uses it
   - Otherwise can be supplied via `req.context.traceId`
 - `userId`, `tenantId`
   - Typically populated by auth middleware (JWT/API key/session)

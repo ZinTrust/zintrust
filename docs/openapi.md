@@ -61,6 +61,20 @@ APP_VERSION=1.2.3
 3. `OpenApiGenerator.generate(RouteRegistry.list(), options)` converts the registry into an OpenAPI document.
 4. `/docs` renders Swagger UI pointing at `/openapi.json`.
 
+## Preventing spec drift (recommended)
+
+Treat the generated OpenAPI as a contract.
+
+This repo includes a snapshot test that generates the OpenAPI document from the registered routes and asserts it matches a committed snapshot:
+
+- `tests/unit/openapi/OpenApiSpec.snapshot.test.ts`
+
+When you intentionally change routes/metadata and expect the OpenAPI to change, update the snapshot as part of the same change:
+
+```bash
+npm test -- -u
+```
+
 ## Route Registry → OpenAPI
 
 ZinTrust’s `RouteRegistry` stores minimal information needed for docs:

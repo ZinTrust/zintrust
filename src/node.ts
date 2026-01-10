@@ -14,6 +14,17 @@ export { MailFake } from '@mail/testing';
 
 export { FakeStorage } from '@tools/storage/testing';
 
+export { TestEnvironment, TestHttp } from '@/testing/index';
+export type {
+  ITestEnvironment,
+  TestEnvironmentOptions,
+  TestHeaders,
+  TestHttpRequestInput,
+  TestHttpResponseRecorder,
+  TestRequestInput,
+  TestResponse,
+} from '@/testing/index';
+
 export {
   listTemplates as listNotificationTemplates,
   loadTemplate as loadNotificationTemplate,

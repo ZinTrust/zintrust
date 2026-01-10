@@ -1,16 +1,21 @@
 # Route Metadata
 
-**Route metadata** is structured information attached to routes that describes their behavior, requirements, and contracts. This metadata powers documentation generation, API specifications (OpenAPI), validation, and developer tooling.
+**Route metadata** is structured information attached to routes that describes their documented behavior and contracts.
+
+In ZinTrust core, metadata primarily powers **OpenAPI generation**. It is also available in the in-memory route registry so applications (or additional tooling) can inspect it.
 
 ## Why Use Route Metadata?
 
 Route metadata solves several challenges:
 
-1. **Documentation Generation**: Automatically generate OpenAPI/Swagger docs from code
+1. **Documentation Generation**: Generate OpenAPI/Swagger docs from code
 2. **API Contracts**: Define request/response schemas alongside route handlers
-3. **IDE Support**: Enable better autocomplete and inline documentation
-4. **Testing**: Generate test cases from route definitions
-5. **Client Generation**: Auto-generate API clients from route metadata
+3. **IDE Support**: Improve autocomplete by keeping route docs close to handlers
+
+Notes:
+
+- Metadata is **documentation**, not enforcement. Validation is enforced by middleware.
+- ZinTrust does not ship built-in test generation or client generation; those can be done downstream (typically from OpenAPI).
 
 ## Architecture
 
@@ -34,7 +39,7 @@ Route metadata is managed by two key modules:
 ```
 Route Registration → normalizeRouteMeta() → RouteRegistry → OpenAPI Generator
                                                          → Documentation
-                                                         → Testing Tools
+                                                         → Custom tooling (app-owned)
 ```
 
 ## Metadata Structure

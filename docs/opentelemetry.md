@@ -48,7 +48,12 @@ When enabled, ZinTrust creates spans in the request pipeline and propagates trac
   - `http.method`, `http.target`, `http.route`, `http.status_code`
   - `service.name` (from `Env.APP_NAME`)
   - `zintrust.request_id`
-  - `enduser.id` and `zintrust.tenant_id` (when available on `req.context`)
+  - `enduser.id` and `zintrust.tenant_id` (when available on the request context)
+  - `zintrust.trace_id` (late-bound from `RequestContext.traceId` when available)
+
+On errors, ZinTrust also records:
+
+- `zintrust.error` (best-effort string attribute)
 
 Implementation lives in:
 
@@ -59,6 +64,8 @@ Implementation lives in:
 
 ZinTrust injects W3C trace headers (`traceparent`, `tracestate`) into outgoing requests made via `HttpClient`.
 
+This uses the **active OpenTelemetry context**, so it is most useful when called inside an incoming request span.
+
 Implementation:
 
 - `src/tools/http/Http.ts`
@@ -66,6 +73,12 @@ Implementation:
 ### Database spans
 
 ZinTrust records a short-lived `db.query` span for each DB query **when a request span is active** (to avoid creating orphan DB traces).
+
+Recorded attributes (best-effort):
+
+- `db.system` (mapped from the configured driver)
+- `db.operation` (`query`)
+- `zintrust.db.driver`
 
 Implementation:
 

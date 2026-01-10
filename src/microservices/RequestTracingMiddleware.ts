@@ -1,6 +1,7 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { IRequest } from '@http/Request';
+import { RequestContext } from '@http/RequestContext';
 import { IResponse } from '@http/Response';
 import * as crypto from '@node-singletons/crypto';
 
@@ -112,6 +113,9 @@ function createTracingMiddleware(
       startTime: Date.now(),
       serviceName,
     };
+
+    // Keep the generic RequestContext traceId in sync for shared logging/observability.
+    RequestContext.setTraceId(req, traceId);
 
     req.context = Object.keys(req.context).length > 0 ? req.context : {};
     req.context['trace'] = traceContext;

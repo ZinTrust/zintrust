@@ -48,7 +48,7 @@ It also records DB query spans **only when a request span is active**, to avoid 
 RequestContext is still the source of truth for request-scoped identifiers:
 
 - `requestId` comes from `x-request-id` (or is generated).
-- `traceId` can be extracted from `traceparent` and stored in `RequestContext.traceId`.
+- `traceId` can be extracted from `traceparent` (W3C) or `x-trace-id` and stored in `RequestContext.traceId`.
 
 This is what enables log ↔ trace correlation.
 
@@ -70,6 +70,7 @@ Behavior:
 - If enabled, it creates or reuses a `x-trace-id` and attaches it to:
   - `req.context.trace` (an object with trace metadata)
   - `req.context.traceLogger` (a helper that prefixes logs with the trace id)
+- It also syncs `RequestContext.traceId` so shared logging/observability can rely on the canonical context.
 - It also sets trace headers on the response.
 - It supports sampling via a `samplingRate` parameter.
 

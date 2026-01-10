@@ -21,7 +21,7 @@ ZinTrust treats metrics/tracing as “nice to have”. If a metrics client or tr
 ZinTrust maintains a request-scoped context that includes:
 
 - `requestId` (from `x-request-id` or generated)
-- `traceId` (from W3C `traceparent` when present)
+- `traceId` (from W3C `traceparent` when present, otherwise from `x-trace-id`)
 - optional `userId` and `tenantId` (set by auth middleware)
 
 This enables consistent correlation across logs and traces.

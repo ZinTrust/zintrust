@@ -71,6 +71,14 @@ const extractTraceIdFromTraceparent = (traceparent: string | undefined): string 
   return traceId.toLowerCase();
 };
 
+const getTraceIdFromMicroserviceTraceContext = (req: IRequest): string | undefined => {
+  const anyReq = req as unknown as { context?: Record<string, unknown> };
+  const trace = anyReq.context?.['trace'];
+  if (typeof trace !== 'object' || trace === null) return undefined;
+  const traceId = (trace as { traceId?: unknown }).traceId;
+  return typeof traceId === 'string' && traceId.trim() !== '' ? traceId : undefined;
+};
+
 const getOptionalContextString = (
   req: IRequest,
   key: 'traceId' | 'userId' | 'tenantId'
@@ -119,6 +127,8 @@ export const RequestContext = Object.freeze({
 
     const traceId =
       extractTraceIdFromTraceparent(getHeaderString(req, 'traceparent')) ??
+      getHeaderString(req, 'x-trace-id') ??
+      getTraceIdFromMicroserviceTraceContext(req) ??
       getOptionalContextString(req, 'traceId');
 
     const userId = getOptionalContextString(req, 'userId');

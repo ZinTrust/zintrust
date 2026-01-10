@@ -21,11 +21,37 @@ type MetricsState = {
 
 let statePromise: Promise<MetricsState> | null = null;
 
+const DEFAULT_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
+
+const createNoopState = (): MetricsState => {
+  const noopCounter = { inc: () => undefined } as unknown as Counter<string>;
+  const noopHistogram = { observe: () => undefined } as unknown as Histogram<string>;
+  const noopRegistry = {
+    contentType: DEFAULT_CONTENT_TYPE,
+    metrics: async () => '',
+  } as unknown as Registry;
+
+  return {
+    client: {} as PromClientModule,
+    registry: noopRegistry,
+    httpRequestsTotal: noopCounter,
+    httpRequestDurationSeconds: noopHistogram,
+    dbQueriesTotal: noopCounter,
+    dbQueryDurationSeconds: noopHistogram,
+  };
+};
+
 async function ensureState(): Promise<MetricsState> {
   if (statePromise !== null) return statePromise;
 
   statePromise = (async () => {
-    const client: PromClientModule = await import('prom-client');
+    let client: PromClientModule;
+    try {
+      client = await import('prom-client');
+    } catch {
+      // prom-client is intentionally optional at runtime.
+      return createNoopState();
+    }
 
     const registry = new client.Registry();
     const appName = Env.get('APP_NAME', 'ZinTrust');
@@ -104,7 +130,7 @@ export const PrometheusMetrics = Object.freeze({
     const contentType =
       typeof (state.registry as unknown as { contentType?: unknown }).contentType === 'string'
         ? (state.registry as unknown as { contentType: string }).contentType
-        : 'text/plain; version=0.0.4; charset=utf-8';
+        : DEFAULT_CONTENT_TYPE;
 
     return { contentType, body };
   },

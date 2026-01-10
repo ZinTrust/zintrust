@@ -7,8 +7,8 @@ ZinTrust includes small testing helpers that let you test:
 
 Primary helpers:
 
-- `tests/helpers/TestEnvironment.ts`
-- `tests/helpers/TestHttp.ts`
+- `TestEnvironment` from `@zintrust/core/node`
+- `TestHttp` from `@zintrust/core/node`
 
 ## Two levels of HTTP testing
 
@@ -33,8 +33,8 @@ Example:
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { TestEnvironment } from '@/tests/helpers/TestEnvironment';
-import { Router } from '@/routing/Router';
+import { TestEnvironment } from '@zintrust/core/node';
+import { Router } from '@zintrust/core';
 
 it('returns 200 from /health', async () => {
   const env = TestEnvironment.create({
@@ -73,7 +73,7 @@ Example:
 
 ```ts
 import { expect, it } from 'vitest';
-import { TestHttp } from '@/tests/helpers/TestHttp';
+import { TestHttp } from '@zintrust/core/node';
 
 it('handler writes JSON', async () => {
   const req = TestHttp.createRequest({ method: 'GET', path: '/x' });

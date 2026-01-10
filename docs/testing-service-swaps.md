@@ -4,7 +4,11 @@ In tests, you often want to swap real dependencies (DB, cache, mailer, HTTP clie
 
 ZinTrust’s `TestEnvironment` helper includes a container override mechanism so you can do this cleanly without rewriting production wiring.
 
-See `tests/helpers/TestEnvironment.ts`.
+Import it from the Node-only entrypoint:
+
+```ts
+import { TestEnvironment } from '@zintrust/core/node';
+```
 
 ## How swapping works
 
@@ -23,7 +27,7 @@ The override applies only to `container.resolve(key)` / `container.get(key)` cal
 
 ```ts
 import { expect, it } from 'vitest';
-import { TestEnvironment } from '@/tests/helpers/TestEnvironment';
+import { TestEnvironment } from '@zintrust/core/node';
 
 it('uses fake mailer', async () => {
   const env = TestEnvironment.create();
