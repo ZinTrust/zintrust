@@ -2,6 +2,27 @@
 
 Zintrust provides a simple and expressive routing system to map URLs to controllers or closures.
 
+## Interface Reference
+
+```typescript
+export type IRouter = {
+  routes: Route[];
+  prefix: string;
+  routeIndex: Map<string, Route[]>;
+};
+
+export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
+
+export interface Route {
+  method: string;
+  path: string;
+  pattern: RegExp;
+  handler: RouteHandler;
+  paramNames: string[];
+  middleware?: string[];
+}
+```
+
 ## Basic Routing
 
 Routes are defined in `routes/api.ts`.

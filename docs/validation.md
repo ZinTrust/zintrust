@@ -2,6 +2,38 @@
 
 Zintrust uses a schema-based validator with a fluent API. You define a schema via `Schema.create()` and validate data using `Validator.validate()`.
 
+## Interface Reference
+
+```typescript
+export interface ISchema {
+  required(field: string, message?: string): ISchema;
+  string(field: string, message?: string): ISchema;
+  number(field: string, message?: string): ISchema;
+  integer(field: string, message?: string): ISchema;
+  boolean(field: string, message?: string): ISchema;
+  array(field: string, message?: string): ISchema;
+  email(field: string, message?: string): ISchema;
+  min(field: string, value: number, message?: string): ISchema;
+  max(field: string, value: number, message?: string): ISchema;
+  minLength(field: string, value: number, message?: string): ISchema;
+  maxLength(field: string, value: number, message?: string): ISchema;
+  regex(field: string, pattern: RegExp, message?: string): ISchema;
+  in(field: string, values: unknown[], message?: string): ISchema;
+  custom(field: string, validator: CustomValidatorFn, message?: string): ISchema;
+  alphanumeric(field: string, message?: string): ISchema;
+  uuid(field: string, message?: string): ISchema;
+  token(field: string, message?: string): ISchema;
+  ipAddress(field: string, message?: string): ISchema;
+  positiveNumber(field: string, message?: string): ISchema;
+  digits(field: string, message?: string): ISchema;
+  decimal(field: string, message?: string): ISchema;
+  url(field: string, message?: string): ISchema;
+  phone(field: string, message?: string): ISchema;
+  date(field: string, message?: string): ISchema;
+  getRules(): Map<string, ValidationRule[]>;
+}
+```
+
 ## Basic Validation
 
 ```typescript

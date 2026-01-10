@@ -84,7 +84,16 @@ export type SanitizerType = Readonly<{
   keyLike: (value: unknown) => string;
 }>;
 
-const createBasicSanitizers = () => {
+const createBasicSanitizers = (): Pick<
+  SanitizerType,
+  | 'parseAmount'
+  | 'alphanumeric'
+  | 'alphanumericDotDash'
+  | 'lockNonNegativeNumberString'
+  | 'digitsOnly'
+  | 'decimalString'
+  | 'numericDotOnly'
+> => {
   const parseAmount = (value: unknown): number => {
     if (isEmpty(value)) return 0;
     const cleaned = sanitize(value, /[^0-9.-]/g, true);
@@ -151,7 +160,16 @@ const createBasicSanitizers = () => {
   };
 };
 
-const createTextSanitizers = () => {
+const createTextSanitizers = (): Pick<
+  SanitizerType,
+  | 'addressText'
+  | 'emailLike'
+  | 'email'
+  | 'messageText'
+  | 'nameText'
+  | 'wordCharsAndSpaces'
+  | 'safePasswordChars'
+> => {
   const addressText = (value: unknown): string => {
     if (isEmpty(value)) return '';
     return sanitize(value, /[^A-Za-z0-9\-.@+, _]/g);
@@ -198,7 +216,19 @@ const createTextSanitizers = () => {
   };
 };
 
-const createSpecializedSanitizers = () => {
+const createSpecializedSanitizers = (): Pick<
+  SanitizerType,
+  | 'ipAddressText'
+  | 'alphaNumericColonDash'
+  | 'dateSlash'
+  | 'lowercaseAlphanumeric'
+  | 'uppercaseAlphanumeric'
+  | 'alphanumericNoSpaces'
+  | 'dateSlashNoSpaces'
+  | 'uuidTokenSafe'
+  | 'tokenSafe'
+  | 'keyLike'
+> => {
   const ipAddressText = (value: unknown): string => {
     if (isEmpty(value)) return '';
     return sanitize(value, /[^A-Za-z0-9:.]/g);

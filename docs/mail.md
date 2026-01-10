@@ -5,6 +5,28 @@
 This document describes the Zintrust Mail API, supported drivers, attachment handling (via Storage disks), and test helpers.
 All runtime mail configuration is **config-first** and accessed via `Env` & `src/config/mail.ts`. Drivers are pluggable and follow the repository's no-classes rule (sealed namespaces / plain functions).
 
+## Interface Reference
+
+```typescript
+export type SendMailInput = {
+  to: string | string[];
+  subject: string;
+  text: string;
+  html?: string;
+  from?: {
+    address?: string;
+    name?: string;
+  };
+  attachments?: AttachmentInput[];
+};
+
+export type SendMailResult = {
+  ok: boolean;
+  driver: 'sendgrid' | 'disabled' | 'smtp' | 'ses' | 'mailgun' | 'nodemailer';
+  messageId?: string;
+};
+```
+
 ---
 
 ## Quick start ✉️

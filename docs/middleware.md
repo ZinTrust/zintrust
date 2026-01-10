@@ -2,6 +2,22 @@
 
 Middleware provide a convenient mechanism for inspecting and filtering HTTP requests entering your application.
 
+## Interface Reference
+
+```typescript
+export type Middleware = (
+  req: IRequest,
+  res: IResponse,
+  next: () => Promise<void>
+) => Promise<void>;
+
+export interface IMiddlewareStack {
+  register(name: string, handler: Middleware): void;
+  execute(request: IRequest, response: IResponse, only?: string[] | Middleware[]): Promise<void>;
+  getMiddlewares(): Array<{ name: string; handler: Middleware }>;
+}
+```
+
 ## Defining Middleware
 
 Middleware are stored in `app/Middleware`. You can generate one using:
