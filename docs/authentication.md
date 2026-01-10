@@ -1,6 +1,6 @@
 # Authentication
 
-Zintrust provides a flexible authentication system that supports multiple drivers, including JWT and Session-based auth.
+ZinTrustprovides a flexible authentication system that supports multiple drivers, including JWT and Session-based auth.
 
 ## Configuration
 

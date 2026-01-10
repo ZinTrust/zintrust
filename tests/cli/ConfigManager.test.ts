@@ -3,6 +3,7 @@
  */
 
 import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,17 +15,23 @@ async function createTestManager() {
   // runs Vitest with coverage enabled, which can change worker scheduling and expose
   // cross-file mock leakage. Force the real fs wrapper for this file.
   vi.resetModules();
-  vi.unmock('@node-singletons/fs');
+  vi.doUnmock('node:fs');
+  vi.doUnmock('node:fs/promises');
+  vi.doUnmock('@node-singletons/fs');
+  vi.doUnmock('@node-singletons/path');
   const { ConfigManager } = await import('@cli/config/ConfigManager');
   return ConfigManager.create(testConfigPath);
 }
 
 describe('ConfigManager Basic Operations', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
     testConfigPath = path.join(
       process.cwd(),
       'tests/tmp',
-      `test-config-manager-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
     );
 
     // Clean up any existing test file
@@ -97,10 +104,13 @@ describe('ConfigManager Basic Operations', () => {
 
 describe('ConfigManager Advanced Operations', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
     testConfigPath = path.join(
       process.cwd(),
       'tests/tmp',
-      `test-config-manager-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
     );
 
     // Clean up any existing test file
@@ -154,10 +164,13 @@ describe('ConfigManager Advanced Operations', () => {
 
 describe('ConfigManager Persistence', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
     testConfigPath = path.join(
       process.cwd(),
       'tests/tmp',
-      `test-config-manager-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
     );
 
     // Clean up any existing test file
@@ -195,6 +208,12 @@ describe('ConfigManager Persistence', () => {
     manager.set('server.port', 5000);
     await manager.save();
 
+    // Sanity-check the persisted value is actually written to disk.
+    const persisted = JSON.parse(await fs.readFile(testConfigPath, 'utf-8')) as {
+      server?: { port?: number };
+    };
+    expect(persisted.server?.port).toBe(5000);
+
     // Create new manager instance and load
     manager = await createTestManager();
     await manager.load();
@@ -205,10 +224,13 @@ describe('ConfigManager Persistence', () => {
 
 describe('ConfigManager Export and Keys', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
     testConfigPath = path.join(
       process.cwd(),
       'tests/tmp',
-      `test-config-manager-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
     );
 
     // Clean up any existing test file

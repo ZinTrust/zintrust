@@ -2,7 +2,7 @@
 
 ## Overview 💡
 
-The Storage subsystem provides a registry of _disks_ (named drivers) and a simple API for file operations. Drivers are config-first and follow the Zintrust patterns (no classes, sealed namespaces).
+The Storage subsystem provides a registry of _disks_ (named drivers) and a simple API for file operations. Drivers are config-first and follow the ZinTrustpatterns (no classes, sealed namespaces).
 
 Supported drivers:
 
@@ -37,7 +37,7 @@ In most app code you should use helper-by-abstraction provided by toolkits or he
 
 ### Temporary URLs (signed / expiring)
 
-Zintrust exposes a convenience API for expiring URLs:
+ZinTrustexposes a convenience API for expiring URLs:
 
 ```ts
 import { Storage } from '@zintrust/core';
@@ -94,7 +94,7 @@ Examples of “S3-type” storage providers (non-exhaustive):
 - Linode Object Storage
 - Vultr Object Storage
 
-Cloudflare R2 is also S3-compatible, but Zintrust exposes it as a dedicated `r2` driver (which wraps S3-style behavior).
+Cloudflare R2 is also S3-compatible, but ZinTrustexposes it as a dedicated `r2` driver (which wraps S3-style behavior).
 
 To use an S3-compatible provider, you typically set:
 

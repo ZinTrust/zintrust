@@ -1,6 +1,6 @@
 # Cloudflare D1 Remote (Proxy Service)
 
-Cloudflare D1 is a Workers binding (not a database you can connect to over TCP). If your app runs **outside Cloudflare** (Node, container, VM, other cloud) but you still want to use D1, Zintrust supports a secure pattern:
+Cloudflare D1 is a Workers binding (not a database you can connect to over TCP). If your app runs **outside Cloudflare** (Node, container, VM, other cloud) but you still want to use D1, ZinTrustsupports a secure pattern:
 
 - Deploy a Cloudflare Worker service **`zintrust-d1`** in your Cloudflare account.
 - Configure your app to use the **remote D1 driver** (HTTP), which calls the Worker over HTTPS.
@@ -70,7 +70,7 @@ Deploy with Wrangler as you normally deploy Workers.
 
 ---
 
-## Configure your Zintrust app (outside Cloudflare)
+## Configure your ZinTrustapp (outside Cloudflare)
 
 In your app `.env`:
 

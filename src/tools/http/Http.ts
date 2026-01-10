@@ -6,6 +6,7 @@
  *   await HttpClient.post('https://api.example.com/users', data).withTimeout(5000).send();
  */
 
+import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -54,6 +55,10 @@ async function performRequest(state: RequestState): Promise<IHttpResponse> {
   }
 
   const buildInit = (): RequestInit => {
+    if (OpenTelemetry.isEnabled()) {
+      OpenTelemetry.injectTraceHeaders(state.headers);
+    }
+
     const init: RequestInit = {
       method: state.method,
       headers: state.headers,

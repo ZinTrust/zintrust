@@ -8,6 +8,7 @@ import { ControllerGenerator, ControllerType } from '@cli/scaffolding/Controller
 import { FactoryGenerator } from '@cli/scaffolding/FactoryGenerator';
 import { FeatureScaffolder, FeatureType } from '@cli/scaffolding/FeatureScaffolder';
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
 import { MigrationGenerator, MigrationType } from '@cli/scaffolding/MigrationGenerator';
 import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
 import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
@@ -125,11 +126,11 @@ const addOptions = (command: Command): void => {
   command
     .argument(
       '<type>',
-      'What to add: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow'
+      'What to add: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, workflow, or governance'
     )
     .argument(
       '[name]',
-      'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory/workflow'
+      'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory/workflow (governance takes no name)'
     )
     .option(
       '--package-manager <pm>',
@@ -1115,6 +1116,37 @@ const addWorkflow = async (
   cmd.success(result.message);
 };
 
+const addGovernance = async (
+  cmd: IBaseCommand,
+  name: string | undefined,
+  opts: AddOptions
+): Promise<void> => {
+  if (typeof name === 'string' && name.trim() !== '') {
+    throw ErrorFactory.createValidationError(
+      'governance does not take a name argument. Usage: zin add governance'
+    );
+  }
+
+  const projectRoot = process.cwd();
+  cmd.info('Installing governance tooling (ESLint + architecture tests)...');
+
+  const result = await GovernanceScaffolder.scaffold(projectRoot, {
+    writeEslintConfig: true,
+    writeArchTests: true,
+    install: true,
+    packageManager: opts.packageManager,
+  });
+
+  if (result.success === false) {
+    throw ErrorFactory.createCliError(result.message ?? 'Governance installation failed', result);
+  }
+
+  cmd.success('Governance installed successfully!');
+  if (result.filesCreated.length > 0) {
+    cmd.info(`Files created: ${result.filesCreated.length}`);
+  }
+};
+
 type AddHandler = (cmd: IBaseCommand, name: string | undefined, opts: AddOptions) => Promise<void>;
 
 const TYPE_HANDLERS: Record<string, AddHandler> = {
@@ -1132,6 +1164,7 @@ const TYPE_HANDLERS: Record<string, AddHandler> = {
   responsefactory: addResponseFactory,
   'response-factory': addResponseFactory,
   workflow: addWorkflow,
+  governance: addGovernance,
 };
 
 const handleType = async (
@@ -1143,7 +1176,7 @@ const handleType = async (
   const handler = TYPE_HANDLERS[type];
   if (handler === undefined) {
     throw ErrorFactory.createCliError(
-      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, or workflow`
+      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, workflow, or governance`
     );
   }
   await handler(cmd, name, opts);

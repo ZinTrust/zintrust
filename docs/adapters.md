@@ -1,6 +1,6 @@
 # Adapters & Drivers
 
-This page lists the optional database adapters and runtime drivers you can install into a Zintrust project.
+This page lists the optional database adapters and runtime drivers you can install into a ZinTrustproject.
 
 ## Database adapters
 

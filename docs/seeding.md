@@ -83,7 +83,7 @@ export const DatabaseSeeder = Object.freeze({
 
 ## Microservices Support
 
-Zintrust supports service-oriented seeding.
+ZinTrustsupports service-oriented seeding.
 
 ```bash
 # Run global seeders AND all microservice seeders

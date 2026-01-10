@@ -53,9 +53,9 @@ describe('OpenApiGenerator', () => {
     expect(doc.info.title).toBe('Test API');
 
     expect(doc.paths['/users/{id}']).toBeDefined();
-    expect(doc.paths['/users/{id}']?.get).toBeDefined();
+    expect(doc.paths['/users/{id}']?.['get']).toBeDefined();
 
-    const getUser = doc.paths['/users/{id}']!.get;
+    const getUser = doc.paths['/users/{id}']!['get'];
     expect(getUser.summary).toBe('Get user');
     expect(getUser.tags).toEqual(['Users']);
 
@@ -80,7 +80,7 @@ describe('OpenApiGenerator', () => {
     const idParam = params.find((p) => p.name === 'id' && p.in === 'path');
     expect(idParam?.schema).toEqual(expect.objectContaining({ type: 'integer' }));
 
-    const postUsers = doc.paths['/users']!.post;
+    const postUsers = doc.paths['/users']!['post'];
     expect(postUsers.requestBody?.content['application/json'].schema).toEqual(
       expect.objectContaining({
         type: 'object',

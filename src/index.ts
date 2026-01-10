@@ -93,6 +93,14 @@ export type {
   QueryLogEntry,
 } from '@profiling/types';
 
+// Observability
+export { OpenTelemetry } from '@/observability/OpenTelemetry';
+export { PrometheusMetrics } from '@/observability/PrometheusMetrics';
+export type {
+  ObserveDbQueryInput,
+  ObserveHttpRequestInput,
+} from '@/observability/PrometheusMetrics';
+
 // Validation
 export { ValidationError } from '@validation/ValidationError';
 export type { FieldError } from '@validation/ValidationError';

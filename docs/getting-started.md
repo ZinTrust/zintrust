@@ -5,7 +5,7 @@ Welcome to Zintrust, a production-grade TypeScript backend framework with proven
 ## Quick Start (2 minutes)
 
 ```bash
-# Install @zintrust/core (Zintrust CLI)
+# Install @zintrust/core (ZinTrustCLI)
 npm install -g @zintrust/core
 
 # Create a new project
@@ -31,7 +31,7 @@ The canonical CLI is `zin`. `z` is a shorthand alias.
 
 ## Install adapters (database/cache/etc.)
 
-Zintrust keeps the core package minimal. Integrations like database drivers are installed explicitly via adapter packages.
+ZinTrustkeeps the core package minimal. Integrations like database drivers are installed explicitly via adapter packages.
 
 ```bash
 # Database adapters
@@ -43,7 +43,7 @@ zin add db:mssql     # @zintrust/db-sqlserver
 
 ## What is Zintrust?
 
-Zintrust is a **minimal-core** backend framework built on:
+ZinTrustis a **minimal-core** backend framework built on:
 
 - ✅ **Pure Node.js** - No Express, Fastify, or external HTTP libraries
 - ✅ **Type-Safe** - Strict TypeScript with 100% type coverage
@@ -88,7 +88,7 @@ Zintrust is a **minimal-core** backend framework built on:
 
 ### From npm (Recommended)
 
-Zintrust is distributed on npm as `@zintrust/core`.
+ZinTrustis distributed on npm as `@zintrust/core`.
 
 ```bash
 npm install -g @zintrust/core
@@ -200,7 +200,7 @@ curl -X POST http://localhost:7777/api/users \
 
 ## Architecture Overview
 
-Zintrust uses a proven layered architecture:
+ZinTrustuses a proven layered architecture:
 
 ```
 ┌─────────────────────────────────┐

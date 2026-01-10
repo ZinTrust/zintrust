@@ -8,6 +8,7 @@ import { Env, type IRouter, Router } from '@zintrust/core';
 import { UserController } from '@app/Controllers/UserController';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
+import { registerMetricsRoutes } from '@routes/metrics';
 import { registerStorageRoutes } from '@routes/storage';
 
 export function registerRoutes(router: IRouter): void {
@@ -23,6 +24,7 @@ export function registerRoutes(router: IRouter): void {
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerHealthRoutes(router);
+  registerMetricsRoutes(router);
   registerBroadcastRoutes(router);
   registerStorageRoutes(router);
 }

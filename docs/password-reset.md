@@ -1,6 +1,6 @@
 # Password Reset
 
-Zintrust includes a small, framework-agnostic password reset token flow in core.
+ZinTrustincludes a small, framework-agnostic password reset token flow in core.
 
 It is intentionally **storage-pluggable** so you can back it with Redis, a database table, KV, etc. The default store is in-memory (good for tests and single-process dev).
 

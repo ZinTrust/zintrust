@@ -1,6 +1,6 @@
 # Microservices
 
-Zintrust is designed from the ground up to support microservices architectures with zero external dependencies.
+ZinTrustis designed from the ground up to support microservices architectures with zero external dependencies.
 
 ## Service Discovery
 
@@ -27,7 +27,7 @@ This will create a new directory in `services/orders` with its own models, contr
 
 ## Inter-Service Communication
 
-Zintrust provides a type-safe way to communicate between services using `ServiceRequestFactory`.
+ZinTrustprovides a type-safe way to communicate between services using `ServiceRequestFactory`.
 
 ```typescript
 import { ServiceClient } from '@zintrust/core';
@@ -42,7 +42,7 @@ Every service automatically exposes a `GET /health` endpoint that returns the se
 
 ## Distributed Tracing
 
-Zintrust automatically propagates an `x-trace-id` header across service boundaries, allowing you to track a single request as it flows through your entire system.
+ZinTrustautomatically propagates an `x-trace-id` header across service boundaries, allowing you to track a single request as it flows through your entire system.
 
 ## Monitoring
 
@@ -50,4 +50,4 @@ Use the `zin debug` command to see a real-time dashboard of all running services
 
 ## Docker Integration
 
-Zintrust automatically generates Dockerfiles and Docker Compose configurations for your microservices. See the [Docker Integration Guide](microservices-docker.md) for more details.
+ZinTrustautomatically generates Dockerfiles and Docker Compose configurations for your microservices. See the [Docker Integration Guide](microservices-docker.md) for more details.

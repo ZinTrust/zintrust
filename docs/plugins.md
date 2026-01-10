@@ -1,10 +1,10 @@
 # Plugin System
 
-The Zintrust Framework uses a "Zero-Config" plugin system to manage optional components like database adapters, authentication providers, and other features. This keeps the core framework lightweight and dependency-free while allowing you to easily add powerful capabilities when needed.
+The ZinTrustFramework uses a "Zero-Config" plugin system to manage optional components like database adapters, authentication providers, and other features. This keeps the core framework lightweight and dependency-free while allowing you to easily add powerful capabilities when needed.
 
 ## Overview
 
-Plugins in Zintrust are a mix of **npm dependencies** and (optionally) **templates** that scaffold code into your project. For modular adapters/drivers, the key step is activation: the CLI updates `src/zintrust.plugins.ts` with side-effect imports (for example `@zintrust/db-postgres/register`) so the adapter/driver registers itself at runtime.
+Plugins in ZinTrustare a mix of **npm dependencies** and (optionally) **templates** that scaffold code into your project. For modular adapters/drivers, the key step is activation: the CLI updates `src/zintrust.plugins.ts` with side-effect imports (for example `@zintrust/db-postgres/register`) so the adapter/driver registers itself at runtime.
 
 ## Managing Plugins
 
@@ -49,7 +49,7 @@ zin plugin install adapter:sqlite --package-manager pnpm
 **What happens during installation?**
 
 > You can control which package manager is used to install the plugin's dependencies with `--package-manager`.
-> If not specified, Zintrust will attempt to detect the project package manager by looking for lockfiles (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`) and default to `npm` if none are found. Supported values: `npm`, `yarn`, `pnpm`.
+> If not specified, ZinTrustwill attempt to detect the project package manager by looking for lockfiles (`pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`) and default to `npm` if none are found. Supported values: `npm`, `yarn`, `pnpm`.
 
 1.  **Dependencies**: The CLI runs your chosen package manager in your project directory (updates `package.json` and your lockfile).
 2.  **Templates (optional)**: Some plugins scaffold files into your project (features, helpers, etc.).

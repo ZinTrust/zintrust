@@ -1,6 +1,6 @@
 # Cache System
 
-Zintrust provides a unified, multi-driver cache system that allows you to store and retrieve data efficiently across different environments.
+ZinTrustprovides a unified, multi-driver cache system that allows you to store and retrieve data efficiently across different environments.
 
 ## Configuration
 

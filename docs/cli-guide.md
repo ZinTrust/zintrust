@@ -1,8 +1,8 @@
-# Zintrust CLI - Quick Start Guide
+# ZinTrustCLI - Quick Start Guide
 
 ## Installation
 
-The Zintrust CLI is distributed on npm as `@zintrust/core`.
+The ZinTrustCLI is distributed on npm as `@zintrust/core`.
 
 ```bash
 # Install globally from npm
@@ -218,7 +218,7 @@ zin new my-app -v     # Create project with verbose logging
 
 ### zin new
 
-Create a new Zintrust project
+Create a new ZinTrustproject
 
 **Usage**: `zin new <name> [options]`
 
@@ -327,7 +327,7 @@ zin debug --enable-profiling --enable-tracing
 
 ### zin config
 
-Manage Zintrust configuration
+Manage ZinTrustconfiguration
 
 **Usage**: `zin config <subcommand> [args]`
 
@@ -430,7 +430,7 @@ zin new my-app --no-interactive --database postgres --port 3000
 
 ## Environment Variables
 
-Configure Zintrust via environment variables:
+Configure ZinTrustvia environment variables:
 
 ```bash
 # Database

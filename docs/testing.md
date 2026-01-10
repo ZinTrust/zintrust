@@ -1,6 +1,6 @@
 # Testing
 
-Zintrust comes with a comprehensive testing suite powered by **Vitest**. We believe that testing should be an integral part of the development process, not an afterthought.
+ZinTrustcomes with a comprehensive testing suite powered by **Vitest**. We believe that testing should be an integral part of the development process, not an afterthought.
 
 ## Running Tests
 
@@ -24,7 +24,7 @@ npm run test:coverage
 
 ## Testing Structure
 
-Zintrust applications typically follow this testing structure:
+ZinTrustapplications typically follow this testing structure:
 
 ```
 tests/
@@ -37,7 +37,7 @@ tests/
 
 ### Unit Tests
 
-Unit tests focus on testing a single piece of logic in isolation. Zintrust uses Vitest's compatible API (describe, it, expect).
+Unit tests focus on testing a single piece of logic in isolation. ZinTrustuses Vitest's compatible API (describe, it, expect).
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -78,7 +78,7 @@ describe('User API', () => {
 
 ## Mocking
 
-Zintrust leverages Vitest's powerful mocking capabilities. You can mock external dependencies, database calls, or services within your app.
+ZinTrustleverages Vitest's powerful mocking capabilities. You can mock external dependencies, database calls, or services within your app.
 
 ```typescript
 import { vi } from 'vitest';
@@ -94,7 +94,7 @@ it('should call user service', () => {
 
 ## Continuous Integration
 
-Zintrust includes a `zin qa` command that runs your tests along with linting and type checking. This is perfect for CI/CD pipelines.
+ZinTrustincludes a `zin qa` command that runs your tests along with linting and type checking. This is perfect for CI/CD pipelines.
 
 ```bash
 zin qa

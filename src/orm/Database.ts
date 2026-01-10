@@ -3,6 +3,8 @@
  * Central database connection management and query execution
  */
 
+import { OpenTelemetry } from '@/observability/OpenTelemetry';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
@@ -114,6 +116,41 @@ const executeQueryOne = async (
   return result;
 };
 
+const installDbMetricsIfEnabled = (dbConfig: DatabaseConfig, eventEmitter: EventEmitter): void => {
+  if (Env.getBool('METRICS_ENABLED', false) === false) return;
+
+  let observeDbQueryPromise: Promise<
+    ((input: { driver: string; durationMs: number }) => Promise<void>) | null
+  > | null = null;
+
+  const ensureObserveDbQuery = async (): Promise<
+    ((input: { driver: string; durationMs: number }) => Promise<void>) | null
+  > => {
+    if (observeDbQueryPromise !== null) return observeDbQueryPromise;
+
+    observeDbQueryPromise = import('@/observability/PrometheusMetrics')
+      .then((m) => m.PrometheusMetrics.observeDbQuery)
+      .catch(() => null);
+
+    return observeDbQueryPromise;
+  };
+
+  eventEmitter.on('after-query', (_sql: string, _params: unknown[], durationMs: number) => {
+    void ensureObserveDbQuery().then((observe) => {
+      if (observe === null) return;
+      void observe({ driver: dbConfig.driver, durationMs });
+    });
+  });
+};
+
+const installDbTracingIfEnabled = (dbConfig: DatabaseConfig, eventEmitter: EventEmitter): void => {
+  if (Env.getBool('OTEL_ENABLED', false) === false) return;
+
+  eventEmitter.on('after-query', (_sql: string, _params: unknown[], durationMs: number) => {
+    OpenTelemetry.recordDbQuerySpan({ driver: dbConfig.driver, durationMs });
+  });
+};
+
 export const Database = Object.freeze({
   /**
    * Create a new database instance
@@ -125,6 +162,9 @@ export const Database = Object.freeze({
     let readIndex = 0;
 
     const { writeAdapter, readAdapters } = initializeAdapters(dbConfig);
+
+    installDbMetricsIfEnabled(dbConfig, eventEmitter);
+    installDbTracingIfEnabled(dbConfig, eventEmitter);
 
     const getAdapter = (isRead = false): IDatabaseAdapter => {
       if (isRead === false || readAdapters.length === 0) {

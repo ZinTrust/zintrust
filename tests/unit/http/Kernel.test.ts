@@ -6,9 +6,23 @@ import { Router } from '@/routing/Router';
 import * as http from '@node-singletons/http';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Env } from '@/config/env';
 import { IRequest } from '@/http/Request';
 import { IResponse } from '@/http/Response';
 import type { IRouter } from '@/routing/Router';
+
+const otelMock = vi.hoisted(() => ({
+  OpenTelemetry: {
+    isEnabled: vi.fn(),
+    startHttpServerSpan: vi.fn(),
+    runWithContext: vi.fn(),
+    setHttpRoute: vi.fn(),
+    endHttpServerSpan: vi.fn(),
+    injectTraceHeaders: vi.fn(),
+  },
+}));
+
+vi.mock('@/observability/OpenTelemetry', () => otelMock);
 
 vi.mock('@/routing/Router', async () => {
   const actual = await vi.importActual<typeof import('@/routing/Router')>('@/routing/Router');
@@ -144,6 +158,54 @@ describe('Kernel', () => {
     await kernel.handleRequest(mockRequest, mockResponse);
 
     expect(routeHandler).toHaveBeenCalledWith(mockRequest, mockResponse);
+  });
+
+  it('should create and end an OpenTelemetry span when enabled', async () => {
+    process.env.OTEL_ENABLED = 'true';
+    try {
+      const routeHandler = vi.fn();
+      const route = {
+        handler: routeHandler,
+        params: { id: '1' },
+        middleware: ['auth'],
+        routePath: '/test',
+      };
+      vi.mocked(Router.match).mockReturnValue(route);
+
+      const span = {
+        setAttribute: vi.fn(),
+        updateName: vi.fn(),
+        setStatus: vi.fn(),
+        end: vi.fn(),
+      };
+
+      otelMock.OpenTelemetry.isEnabled.mockReturnValue(true);
+      otelMock.OpenTelemetry.startHttpServerSpan.mockReturnValue({
+        span,
+        context: {} as any,
+      });
+
+      otelMock.OpenTelemetry.runWithContext.mockImplementation(async (_ctx: any, fn: any) => fn());
+
+      (mockRequest as any).context.userId = 'user-1';
+      (mockRequest as any).context.tenantId = 'tenant-1';
+
+      await kernel.handleRequest(mockRequest, mockResponse);
+
+      expect(otelMock.OpenTelemetry.startHttpServerSpan).toHaveBeenCalled();
+      expect(otelMock.OpenTelemetry.startHttpServerSpan).toHaveBeenCalledWith(
+        mockRequest,
+        expect.objectContaining({
+          serviceName: Env.APP_NAME,
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+        })
+      );
+      expect(otelMock.OpenTelemetry.setHttpRoute).toHaveBeenCalledWith(span, 'GET', '/test');
+      expect(otelMock.OpenTelemetry.endHttpServerSpan).toHaveBeenCalled();
+    } finally {
+      delete process.env.OTEL_ENABLED;
+    }
   });
 
   it('should not execute route middleware when none configured', async () => {

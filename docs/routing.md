@@ -1,6 +1,6 @@
 # Routing
 
-Zintrust provides a simple and expressive routing system to map URLs to controllers or closures.
+ZinTrustprovides a simple and expressive routing system to map URLs to controllers or closures.
 
 ## Interface Reference
 

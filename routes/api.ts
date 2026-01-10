@@ -9,6 +9,7 @@ import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
+import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
@@ -27,6 +28,7 @@ export function registerRoutes(router: IRouter): void {
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerHealthRoutes(router);
+  registerMetricsRoutes(router);
   registerBroadcastRoutes(router);
   registerOpenApiRoutes(router);
   registerStorageRoutes(router);

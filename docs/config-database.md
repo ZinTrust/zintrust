@@ -11,7 +11,7 @@
 - `default` picks which configured name is considered the default.
   - `DB_CONNECTION` can point to _any_ key that exists in `connections`.
 
-At runtime, Zintrust automatically registers all configured connections during application boot.
+At runtime, ZinTrustautomatically registers all configured connections during application boot.
 That means once the app has booted, you can use those names with `Model.db('name')` (or `useDatabase(undefined, 'name')`).
 
 ## Example: two MySQL pools (`mysql2` and `mysql3`)
@@ -81,7 +81,7 @@ await User.db('mysql3').query().where('id', 1).first();
 await User.db('mysql3').create({ name: 'Jane' }).save();
 ```
 
-If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and that name is not configured/registered, Zintrust throws.
+If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and that name is not configured/registered, ZinTrustthrows.
 
 ````
 

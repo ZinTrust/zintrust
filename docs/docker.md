@@ -1,6 +1,6 @@
 # Docker Deployment
 
-Zintrust comes with a pre-configured `Dockerfile` and `docker-compose.yml` for easy containerization.
+ZinTrustcomes with a pre-configured `Dockerfile` and `docker-compose.yml` for easy containerization.
 
 ## Building the Image
 

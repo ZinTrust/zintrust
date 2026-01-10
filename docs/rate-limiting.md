@@ -1,6 +1,6 @@
 # Rate Limiting
 
-Zintrust includes a built-in, zero-dependency Rate Limiter to protect your application from abuse.
+ZinTrustincludes a built-in, zero-dependency Rate Limiter to protect your application from abuse.
 
 ## Overview
 
@@ -39,7 +39,7 @@ router.group('/api', (api) => {
 
 ### Generated service API
 
-In addition to middleware, Zintrust exposes a small generated API for programmatic limiting:
+In addition to middleware, ZinTrustexposes a small generated API for programmatic limiting:
 
 ```typescript
 import { RateLimiter } from '@zintrust/core';

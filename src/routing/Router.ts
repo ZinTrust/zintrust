@@ -24,6 +24,7 @@ export interface RouteMatch {
   params: Record<string, string>;
   middleware?: string[];
   meta?: RouteMeta;
+  routePath?: string;
 }
 
 export interface Route {
@@ -142,6 +143,7 @@ const getRouteMatch = (route: Route, path: string): RouteMatch | null => {
     params,
     middleware: route.middleware,
     meta: route.meta,
+    routePath: route.path,
   };
 };
 

@@ -1,17 +1,17 @@
 # Cloudflare Integration
 
-Zintrust is optimized for Cloudflare Workers, providing native support for D1 databases and KV storage.
+ZinTrustis optimized for Cloudflare Workers, providing native support for D1 databases and KV storage.
 
 ## How Workers bindings are accessed
 
 In Cloudflare Workers, bindings are provided to the `fetch()` handler as the `_env` argument.
 
-Zintrust makes these bindings available to framework code by copying the Worker env object onto a global:
+ZinTrustmakes these bindings available to framework code by copying the Worker env object onto a global:
 
 - The Cloudflare entrypoint sets `globalThis.env = _env`
 - Framework components (database/cache) read bindings from `globalThis.env`
 
-To keep runtime-specific global access centralized, Zintrust provides a small helper module:
+To keep runtime-specific global access centralized, ZinTrustprovides a small helper module:
 
 - `src/config/cloudflare.ts`
 
@@ -19,7 +19,7 @@ This module is used by adapters/drivers to resolve bindings without duplicating 
 
 ## D1 Database
 
-Cloudflare D1 is a native serverless SQL database. Zintrust provides a dedicated adapter to use D1 as your primary ORM database.
+Cloudflare D1 is a native serverless SQL database. ZinTrustprovides a dedicated adapter to use D1 as your primary ORM database.
 
 ### Configuration
 
@@ -47,7 +47,7 @@ The D1 adapter expects the D1 binding name to be `DB` (as shown in the Wrangler 
 
 ### Migrations
 
-Zintrust includes a CLI command to manage D1 migrations via Wrangler:
+ZinTrustincludes a CLI command to manage D1 migrations via Wrangler:
 
 ```bash
 # Run migrations locally
@@ -88,14 +88,14 @@ The KV driver expects the KV namespace binding name to be `CACHE` (as shown in t
 
 D1 and KV are Cloudflare Workers bindings (there is no standard direct TCP connection string like Postgres/Redis).
 
-If your Zintrust app runs outside Cloudflare but you still want to use D1 and/or KV, deploy the Zintrust proxy services in Cloudflare and connect over HTTPS:
+If your ZinTrustapp runs outside Cloudflare but you still want to use D1 and/or KV, deploy the ZinTrustproxy services in Cloudflare and connect over HTTPS:
 
 - D1 remote: `docs/cloudflare-d1-remote.md`
 - KV remote: `docs/cloudflare-kv-remote.md`
 
 ## Deployment
 
-To deploy your Zintrust application to Cloudflare Workers:
+To deploy your ZinTrustapplication to Cloudflare Workers:
 
 ```bash
 npm run deploy
