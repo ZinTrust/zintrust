@@ -64,7 +64,7 @@ describe('ORM Eager Loading (N+1 Prevention)', () => {
     ]);
 
     // Execute query with eager loading
-    const users = await User.query().with('posts').get();
+    const users = (await User.query().with('posts').get()) as any[];
 
     // Verify User query
     expect(mockDb.query).toHaveBeenCalledWith(
@@ -100,7 +100,7 @@ describe('ORM Eager Loading (N+1 Prevention)', () => {
     };
     (useDatabase as any).mockReturnValue(mockDb);
 
-    const users = await User.query().with('posts').get();
+    const users = (await User.query().with('posts').get()) as any[];
     expect(users).toHaveLength(0);
     expect(mockDb.query).toHaveBeenCalledTimes(1);
   });
