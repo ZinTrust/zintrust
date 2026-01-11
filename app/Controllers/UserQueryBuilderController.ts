@@ -4,10 +4,11 @@
  */
 
 import { IUserController, JsonRecord, ValidationErrorLike } from '@app/Types/controller';
-import { getString } from '@common/utility';
+import { getString, nowIso } from '@common/utility';
 import { Logger } from '@config/logger';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
+import { getValidatedBody } from '@http/ValidationHelper';
 import { randomBytes } from '@node-singletons/crypto';
 import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
@@ -20,8 +21,6 @@ const isValidationError = (error: unknown): error is ValidationErrorLike => {
   return maybe.name === 'ValidationError' && typeof maybe.toObject === 'function';
 };
 
-const nowIso = (): string => new Date().toISOString();
-
 const toJsonRecord = (value: unknown): JsonRecord => {
   if (typeof value !== 'object' || value === null) return {};
   if (Array.isArray(value)) return {};
@@ -29,8 +28,7 @@ const toJsonRecord = (value: unknown): JsonRecord => {
 };
 
 const resolveBody = (req: IRequest): JsonRecord => {
-  const validated = (req as unknown as { validated?: { body?: unknown } }).validated;
-  return toJsonRecord(validated?.body ?? req.body ?? {});
+  return toJsonRecord(getValidatedBody(req) ?? req.body ?? {});
 };
 
 const requireSelf = (req: IRequest, res: IResponse, userId: string): boolean => {

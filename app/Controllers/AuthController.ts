@@ -3,21 +3,14 @@
  * Minimal, real auth endpoints backing the example API routes.
  */
 
-import {
-  AuthControllerApi,
-  JsonRecord,
-  LoginBody,
-  RegisterBody,
-  UserRow,
-} from '@app/Types/controller';
+import { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';
 import { getString } from '@common/utility';
 import { Logger } from '@config/logger';
 import { Auth } from '@features/Auth';
-import type { ValidatedRequest } from '@http/Request';
+import { getValidatedBody } from '@http/ValidationHelper';
 import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { JwtManager } from '@security/JwtManager';
-import { Sanitizer } from '@security/Sanitizer';
 
 const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: string } => {
   return {
@@ -29,12 +22,16 @@ const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: strin
 
 const controller: AuthControllerApi = {
   async login(req, res): Promise<void> {
-    const typedReq = req as ValidatedRequest<LoginBody>;
-    const validated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
-    const rawBody = (validated?.body ?? typedReq.body ?? {}) as JsonRecord;
-
-    const email = Sanitizer.email(rawBody['email']).trim().toLowerCase();
-    const password = Sanitizer.safePasswordChars(getString(rawBody['password']));
+    const body = getValidatedBody<JsonRecord>(req);
+    if (!body) {
+      Logger.error(
+        'AuthController.login: validation middleware did not populate req.validated.body'
+      );
+      return res.setStatus(500).json({ error: 'Internal server error' });
+    }
+    const email = getString(body['email']);
+    const password = getString(body['password']);
+    const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
     try {
       const db = await useEnsureDbConnected();
@@ -45,7 +42,12 @@ const controller: AuthControllerApi = {
         .first<UserRow>();
 
       if (existing === null) {
-        Logger.warn('AuthController.login invalid credentials');
+        Logger.warn('AuthController.login: failed login attempt', {
+          email,
+          ip: ipAddress,
+          reason: 'user_not_found',
+          timestamp: new Date().toISOString(),
+        });
         res.setStatus(401).json({ error: 'Invalid credentials' });
         return;
       }
@@ -53,7 +55,12 @@ const controller: AuthControllerApi = {
       const passwordHash = getString(existing.password);
       const ok = await Auth.compare(password, passwordHash);
       if (!ok) {
-        Logger.warn('AuthController.login invalid credentials');
+        Logger.warn('AuthController.login: failed login attempt', {
+          email,
+          ip: ipAddress,
+          reason: 'invalid_password',
+          timestamp: new Date().toISOString(),
+        });
         res.setStatus(401).json({ error: 'Invalid credentials' });
         return;
       }
@@ -72,25 +79,42 @@ const controller: AuthControllerApi = {
         email,
       });
 
+      Logger.info('AuthController.login: successful login', {
+        userId: subject,
+        email,
+        ip: ipAddress,
+        timestamp: new Date().toISOString(),
+      });
+
       res.json({
         token,
         token_type: 'Bearer',
         user,
       });
     } catch (error) {
-      Logger.error('AuthController.login failed', error);
+      Logger.error('AuthController.login: unexpected error', {
+        email,
+        ip: ipAddress,
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      });
       res.setStatus(500).json({ error: 'Login failed' });
     }
   },
 
   async register(req, res): Promise<void> {
-    const typedReq = req as ValidatedRequest<RegisterBody>;
-    const validated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
-    const rawBody = (validated?.body ?? typedReq.body ?? {}) as JsonRecord;
-
-    const name = Sanitizer.nameText(rawBody['name']).trim();
-    const email = Sanitizer.email(rawBody['email']).trim().toLowerCase();
-    const password = Sanitizer.safePasswordChars(getString(rawBody['password']));
+    const body = getValidatedBody<JsonRecord>(req);
+    if (!body) {
+      Logger.error(
+        'AuthController.register: validation middleware did not populate req.validated.body'
+      );
+      res.setStatus(500).json({ error: 'Internal server error' });
+      return;
+    }
+    const name = getString(body['name']);
+    const email = getString(body['email']);
+    const password = getString(body['password']);
+    const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
     try {
       const db = await useEnsureDbConnected();
@@ -101,6 +125,11 @@ const controller: AuthControllerApi = {
         .first<UserRow>();
 
       if (existing !== null) {
+        Logger.warn('AuthController.register: duplicate email attempt', {
+          email,
+          ip: ipAddress,
+          timestamp: new Date().toISOString(),
+        });
         res.setStatus(409).json({ error: 'Email already registered' });
         return;
       }
@@ -111,6 +140,12 @@ const controller: AuthControllerApi = {
         name,
         email,
         password: passwordHash,
+      });
+
+      Logger.info('AuthController.register: successful registration', {
+        email,
+        ip: ipAddress,
+        timestamp: new Date().toISOString(),
       });
 
       res.setStatus(201).json({ message: 'Registered' });

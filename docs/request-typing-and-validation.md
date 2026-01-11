@@ -84,7 +84,7 @@ Validation errors are serialized by `ValidationMiddleware`:
 
 This means:
 
-- your handler can treat “I have `req.validated.body`” as a strong precondition
+- your handler can treat “I have validated input” as a strong precondition
 - clients should expect `422` for schema failures
 
 ## Typed validated access in handlers
@@ -111,6 +111,26 @@ export async function registerHandler(
 ```
 
 Important: `ValidatedRequest<...>` is a TypeScript type only. You must ensure middleware actually sets the validated fields before using it.
+
+## Recommended runtime-safe access (no casting)
+
+If you want a simple guard without casting `ValidatedRequest`, use the core helper:
+
+```ts
+import { getValidatedBody, type IRequest, type IResponse, getString } from '@zintrust/core';
+
+export async function registerHandler(req: IRequest, res: IResponse): Promise<void> {
+  const body = getValidatedBody<Record<string, unknown>>(req);
+  if (!body) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+
+  const email = getString(body['email']);
+  // ...
+}
+```
+
+This keeps handler code consistent across body/query/params/headers via `ValidationHelper`.
 
 ## Recommended wiring pattern (this repo)
 

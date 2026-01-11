@@ -109,6 +109,8 @@ export function toMinusDecimal(num: unknown, dec = 8): number {
   return Number.parseFloat(normalized);
 }
 
+export const nowIso = (): string => new Date().toISOString();
+
 export interface UtilitiesType {
   generateUuid: () => string;
   getString: (value: unknown) => string;
@@ -120,6 +122,7 @@ export interface UtilitiesType {
   isNumericString: (value: string) => boolean;
   toPlusDecimal: (num: unknown, dec?: number) => number;
   toMinusDecimal: (num: unknown, dec?: number) => number;
+  nowIso: () => string;
 }
 
 export const Utilities = Object.freeze({
@@ -133,4 +136,5 @@ export const Utilities = Object.freeze({
   isNumericString,
   toPlusDecimal,
   toMinusDecimal,
+  nowIso,
 });

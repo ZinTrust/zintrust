@@ -20,6 +20,15 @@ export type { IRequest, ValidatedRequest } from '@http/Request';
 export { RequestContext } from '@http/RequestContext';
 export { Response } from '@http/Response';
 export type { IResponse } from '@http/Response';
+export {
+  getValidatedBody,
+  getValidatedHeaders,
+  getValidatedParams,
+  getValidatedQuery,
+  hasValidatedBody,
+  requireValidatedBody,
+  ValidationHelper,
+} from '@http/ValidationHelper';
 export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
 export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
