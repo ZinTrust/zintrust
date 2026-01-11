@@ -99,6 +99,7 @@ export type GeneralError = TypedZintrustError<'GENERAL_ERROR', 'GeneralError', 5
 export type CliError = TypedZintrustError<'CLI_ERROR', 'CliError', 1>;
 export type SecurityError = TypedZintrustError<'SECURITY_ERROR', 'SecurityError', 401>;
 export type CatchError = TypedZintrustError<'TRY_CATCH_ERROR', 'CatchError', 500>;
+export type SanitizerError = TypedZintrustError<'SANITIZER_ERROR', 'SanitizerError', 400>;
 
 /**
  * Plain error creators.
@@ -162,6 +163,33 @@ export function createTryCatchError(message: string, details?: unknown): CatchEr
 }
 
 /**
+ * Redact sensitive values for error messages
+ */
+function redactValue(value: unknown): string {
+  if (value === null || value === undefined) return String(value);
+  const str = String(value);
+  if (str.length <= 20) return str;
+  return `${str.slice(0, 10)}...${str.slice(-5)}`;
+}
+
+/**
+ * Create a sanitizer error with method name, reason, and redacted value
+ */
+export function createSanitizerError(
+  method: string,
+  reason: string,
+  value: unknown
+): SanitizerError {
+  const redacted = redactValue(value);
+  const message = `Sanitizer.${method}() failed: ${reason} (value: ${redacted})`;
+  return createTypedZintrustError(message, 400, 'SANITIZER_ERROR', 'SanitizerError', {
+    method,
+    reason,
+    redactedValue: redacted,
+  });
+}
+
+/**
  * Backward compatibility Errors object.
  */
 export const Errors = Object.freeze({
@@ -181,6 +209,8 @@ export const Errors = Object.freeze({
   cli: (message: string, details?: unknown): Error => createCliError(message, details),
   security: (message: string, details?: unknown): Error => createSecurityError(message, details),
   catchError: (message: string, details?: unknown): Error => createTryCatchError(message, details),
+  sanitizer: (method: string, reason: string, value: unknown): Error =>
+    createSanitizerError(method, reason, value),
 });
 
 /**
@@ -204,6 +234,8 @@ export const ErrorFactory = Object.freeze({
     createNotFoundError(message ?? 'Resource not found', details),
   createUnauthorizedError: (message?: string, details?: unknown) =>
     createUnauthorizedError(message ?? 'Unauthorized', details),
+  createSanitizerError: (method: string, reason: string, value: unknown) =>
+    createSanitizerError(method, reason, value),
   createForbiddenError: (message?: string, details?: unknown) =>
     createForbiddenError(message ?? 'Forbidden', details),
 });

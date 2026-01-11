@@ -32,6 +32,12 @@ describe('Kernel + routes/api.ts middleware wiring', () => {
     // 1) Call a safe GET first to receive session + CSRF cookies.
     const warmup = await env.request({ method: 'GET', path: '/api/v1/posts' });
 
+    // DEBUG: inspect warmup response to ensure cookies are set (temporary)
+    // eslint-disable-next-line no-console
+    console.debug('warmup.headers=', warmup.headers);
+    // eslint-disable-next-line no-console
+    console.debug('warmup.cookies=', warmup.cookies);
+
     const sessionId = warmup.cookies['ZIN_SESSION_ID'];
     const csrfToken = warmup.cookies['XSRF-TOKEN'];
 

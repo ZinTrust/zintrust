@@ -260,7 +260,13 @@ const readRequestBodyBytes = async (req: http.IncomingMessage): Promise<Buffer |
 
   // IncomingMessage is async-iterable in Node >= 10
   for await (const chunk of req as unknown as AsyncIterable<unknown>) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+    const buf = (() => {
+      if (Buffer.isBuffer(chunk)) return chunk;
+      if (typeof chunk === 'string') return Buffer.from(chunk);
+      if (chunk instanceof Uint8Array) return Buffer.from(chunk);
+      if (chunk instanceof ArrayBuffer) return Buffer.from(new Uint8Array(chunk));
+      return Buffer.from(String(chunk));
+    })();
     totalSize += buf.length;
     if (totalSize > maxBodySize) {
       // Best-effort: stop reading and close the connection.
@@ -306,12 +312,109 @@ const parseUrlEncodedBody = (text: string): Record<string, string | string[]> =>
   return out;
 };
 
+const storeRawBodyOnRequest = (request: IRequest, bodyBytes: Buffer, text: string): void => {
+  // Keep raw body available for advanced middleware (e.g., signing)
+  request.context['rawBodyBytes'] = bodyBytes;
+  request.context['rawBodyText'] = text;
+};
+
+const redactRawBodyTextForLogs = (text: string): string => {
+  // Best-effort redaction for raw text (works even when JSON is invalid).
+  // Keeps logs useful while avoiding accidentally printing credentials.
+  const patterns: Array<[RegExp, string]> = [
+    [/"password"\s*:\s*"[^"]*"/gi, '"password":"[REDACTED]"'],
+    [/"token"\s*:\s*"[^"]*"/gi, '"token":"[REDACTED]"'],
+    [/"access_token"\s*:\s*"[^"]*"/gi, '"access_token":"[REDACTED]"'],
+    [/"refresh_token"\s*:\s*"[^"]*"/gi, '"refresh_token":"[REDACTED]"'],
+    [/"authorization"\s*:\s*"[^"]*"/gi, '"authorization":"[REDACTED]"'],
+    [/Bearer\s+[A-Za-z0-9\-_.]+/g, 'Bearer [REDACTED]'],
+  ];
+
+  return patterns.reduce((acc, [re, replacement]) => acc.replace(re, replacement), text);
+};
+
+const getJsonParseDebugPayload = (input: {
+  err: unknown;
+  text: string;
+  bodyBytes: Buffer;
+  rawReq: http.IncomingMessage;
+  contentType: string;
+}): Record<string, unknown> | null => {
+  if (Env.NODE_ENV === 'production') return null;
+  if (!Env.getBool('ZIN_DEBUG_BODY_PARSE', false)) return null;
+
+  const message = (input.err as Error | undefined)?.message ?? '';
+  const posMatch = /position\s+(\d+)/i.exec(message);
+  const position = posMatch ? Number.parseInt(posMatch[1] ?? '', 10) : undefined;
+
+  const around =
+    typeof position === 'number' && Number.isFinite(position)
+      ? input.text.slice(Math.max(0, position - 80), Math.min(input.text.length, position + 80))
+      : undefined;
+
+  return {
+    byteLength: input.bodyBytes.length,
+    contentLength: input.rawReq.headers['content-length'],
+    transferEncoding: input.rawReq.headers['transfer-encoding'],
+    contentType: input.contentType,
+    hasResponseHandlerMarker: input.text.includes('> {%') || input.text.includes('%}'),
+    prefix: input.text.slice(0, 200),
+    suffix: input.text.slice(Math.max(0, input.text.length - 200)),
+    position,
+    around,
+  };
+};
+
+const handleJsonBody = (params: {
+  request: IRequest;
+  response: IResponse;
+  rawReq: http.IncomingMessage;
+  contentType: string;
+  text: string;
+  bodyBytes: Buffer;
+}): boolean => {
+  try {
+    const parsed: unknown = JSON.parse(params.text) as unknown;
+    params.request.setBody(parsed);
+
+    const keys =
+      typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+        ? Object.keys(parsed as Record<string, unknown>)
+        : [];
+
+    Logger.debug(`[BodyParse] JSON parsed, keys: ${keys.join(',')}`);
+    return true;
+  } catch (err) {
+    Logger.warn(`[BodyParse] JSON parse failed: ${(err as Error).message}`);
+
+    const debugPayload = getJsonParseDebugPayload({
+      err,
+      text: params.text,
+      bodyBytes: params.bodyBytes,
+      rawReq: params.rawReq,
+      contentType: params.contentType,
+    });
+    if (debugPayload !== null) {
+      Logger.debug('[BodyParse] JSON parse debug:', debugPayload);
+
+      // Optional: dump full raw body (redacted) for deep debugging
+      if (Env.getBool('ZIN_DEBUG_BODY_PARSE_FULL', false)) {
+        Logger.debug('[BodyParse] raw body (redacted):', redactRawBodyTextForLogs(params.text));
+      }
+    }
+
+    params.response.setStatus(400).json({ error: 'Invalid JSON body' });
+    return false;
+  }
+};
+
 const tryReadAndSetParsedBody = async (
   request: IRequest,
   response: IResponse
 ): Promise<boolean> => {
   const rawReq = request.getRaw();
   Logger.debug(`[BodyParse] Method=${rawReq.method} Path=${rawReq.url}`);
+
   if (!shouldReadRequestBody(rawReq)) {
     Logger.debug('[BodyParse] Skipping body read (GET/HEAD/OPTIONS)');
     return true;
@@ -323,28 +426,10 @@ const tryReadAndSetParsedBody = async (
 
   const contentType = getContentType(rawReq);
   const text = bodyBytes.toString('utf-8');
-
-  // Keep raw body available for advanced middleware (e.g., signing)
-  request.context['rawBodyBytes'] = bodyBytes;
-  request.context['rawBodyText'] = text;
+  storeRawBodyOnRequest(request, bodyBytes, text);
 
   if (contentType.includes('application/json')) {
-    try {
-      const parsed: unknown = JSON.parse(text) as unknown;
-      request.setBody(parsed);
-
-      const keys =
-        typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-          ? Object.keys(parsed as Record<string, unknown>)
-          : [];
-
-      Logger.debug(`[BodyParse] JSON parsed, keys: ${keys.join(',')}`);
-      return true;
-    } catch (err) {
-      Logger.warn(`[BodyParse] JSON parse failed: ${(err as Error).message}`);
-      response.setStatus(400).json({ error: 'Invalid JSON body' });
-      return false;
-    }
+    return handleJsonBody({ request, response, rawReq, contentType, text, bodyBytes });
   }
 
   if (contentType.includes('application/x-www-form-urlencoded')) {

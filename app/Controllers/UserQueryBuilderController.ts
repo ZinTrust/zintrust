@@ -4,8 +4,9 @@
  */
 
 import { IUserController, JsonRecord, ValidationErrorLike } from '@app/Types/controller';
-import { getString, nowIso } from '@common/utility';
+import { nowIso } from '@common/utility';
 import { Logger } from '@config/logger';
+import { SanitizerError } from '@exceptions/ZintrustError';
 import { IRequest } from '@http/Request';
 import { IResponse } from '@http/Response';
 import { getValidatedBody } from '@http/ValidationHelper';
@@ -21,6 +22,12 @@ const isValidationError = (error: unknown): error is ValidationErrorLike => {
   return maybe.name === 'ValidationError' && typeof maybe.toObject === 'function';
 };
 
+const isSanitizerError = (error: unknown): error is SanitizerError => {
+  if (typeof error !== 'object' || error === null) return false;
+  const maybe = error as SanitizerError;
+  return maybe.name === 'SanitizerError';
+};
+
 const toJsonRecord = (value: unknown): JsonRecord => {
   if (typeof value !== 'object' || value === null) return {};
   if (Array.isArray(value)) return {};
@@ -31,7 +38,16 @@ const resolveBody = (req: IRequest): JsonRecord => {
   return toJsonRecord(getValidatedBody(req) ?? req.body ?? {});
 };
 
-const requireSelf = (req: IRequest, res: IResponse, userId: string): boolean => {
+const requireSelf = (
+  req: IRequest,
+  res: IResponse,
+  userId: string | undefined
+): userId is string => {
+  if (typeof userId !== 'string' || userId.length === 0) {
+    res.status(400).json({ error: 'Missing user id' });
+    return false;
+  }
+
   const subject = typeof req.user?.sub === 'string' ? req.user.sub : undefined;
   if (subject === undefined || subject.length === 0) {
     res.status(401).json({ error: 'Unauthorized' });
@@ -82,6 +98,41 @@ const hasUnknownKeys = (body: JsonRecord, allowed: Set<string>): string | null =
   return null;
 };
 
+const sanitizeUserUpdateBody = (updateBody: JsonRecord): JsonRecord => {
+  const sanitizedUpdateBody: JsonRecord = {};
+  if ('name' in updateBody) {
+    sanitizedUpdateBody['name'] = Sanitizer.nameText(updateBody['name']).trim();
+  }
+  if ('email' in updateBody) {
+    sanitizedUpdateBody['email'] = Sanitizer.email(updateBody['email']).trim().toLowerCase();
+  }
+  if ('password' in updateBody) {
+    sanitizedUpdateBody['password'] = Sanitizer.safePasswordChars(updateBody['password']);
+  }
+  return sanitizedUpdateBody;
+};
+
+const buildUserUpdateSchema = (): ReturnType<typeof Schema.create> => {
+  return Schema.create()
+    .custom(
+      'name',
+      (v: unknown) => v === undefined || typeof v === 'string',
+      'name must be a string'
+    )
+    .minLength('name', 1)
+    .custom(
+      'email',
+      (v: unknown) => v === undefined || typeof v === 'string',
+      'email must be a string'
+    )
+    .custom(
+      'password',
+      (v: unknown) => v === undefined || typeof v === 'string',
+      'password must be a string'
+    )
+    .minLength('password', 8);
+};
+
 /**
  * User Controller Methods
  */
@@ -119,12 +170,14 @@ const userControllerMethods: IUserController = {
   async show(req: IRequest, res: IResponse): Promise<void> {
     try {
       const db = await useEnsureDbConnected();
-      const id = req.params['id'];
+
+      const rawId = req.getParam('id');
+      const id = Sanitizer.digitsOnly(rawId); // Zero trust protection for db id
       if (typeof id !== 'string' || id.length === 0) {
+        // ✅ Good
         res.status(400).json({ error: 'Missing user id' });
         return;
       }
-
       if (!requireSelf(req, res, id)) return;
 
       const user = await QueryBuilder.create('users', db)
@@ -139,6 +192,10 @@ const userControllerMethods: IUserController = {
       }
       res.json({ data: user });
     } catch (error) {
+      if (isSanitizerError(error)) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       Logger.error('Error fetching user:', error);
       res.status(500).json({ error: 'Failed to fetch user' });
     }
@@ -170,16 +227,25 @@ const userControllerMethods: IUserController = {
       const db = await useEnsureDbConnected();
       const ts = nowIso();
 
+      // Apply bulletproof sanitization for defense-in-depth
+      const name = Sanitizer.nameText(body['name']);
+      const email = Sanitizer.email(body['email']);
+      const password = Sanitizer.safePasswordChars(body['password']);
+
       await QueryBuilder.create('users', db).insert({
-        name: getString(body['name']),
-        email: getString(body['email']),
-        password: getString(body['password']), // Hashing should be handled by model/service or here if raw
+        name,
+        email,
+        password, // Hashing should be handled by model/service or here if raw
         created_at: ts,
         updated_at: ts,
       });
 
       res.status(201).json({ message: 'User created' });
     } catch (error) {
+      if (isSanitizerError(error)) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       if (isValidationError(error)) {
         res.status(422).json({ errors: error.toObject?.() ?? {} });
         return;
@@ -242,14 +308,15 @@ const userControllerMethods: IUserController = {
    * PUT /users/:id
    */
   async update(req: IRequest, res: IResponse): Promise<void> {
+    // NOSONAR bulletproof sanitization requires explicit validation steps
     try {
       const db = await useEnsureDbConnected();
-      const id = req.params['id'];
+      const rawId = req.getParam('id');
+      const id = Sanitizer.digitsOnly(rawId);
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });
         return;
       }
-
       if (!requireSelf(req, res, id)) return;
 
       const allowed = new Set(['name', 'email', 'password']);
@@ -266,37 +333,8 @@ const userControllerMethods: IUserController = {
         return;
       }
 
-      const sanitizedUpdateBody: JsonRecord = {};
-      if ('name' in updateBody) {
-        sanitizedUpdateBody['name'] = Sanitizer.nameText(updateBody['name']).trim();
-      }
-      if ('email' in updateBody) {
-        sanitizedUpdateBody['email'] = Sanitizer.email(updateBody['email']).trim().toLowerCase();
-      }
-      if ('password' in updateBody) {
-        sanitizedUpdateBody['password'] = Sanitizer.safePasswordChars(updateBody['password']);
-      }
-
-      const schema = Schema.create()
-        .custom(
-          'name',
-          (v: unknown) => v === undefined || typeof v === 'string',
-          'name must be a string'
-        )
-        .minLength('name', 1)
-        .custom(
-          'email',
-          (v: unknown) => v === undefined || typeof v === 'string',
-          'email must be a string'
-        )
-        .custom(
-          'password',
-          (v: unknown) => v === undefined || typeof v === 'string',
-          'password must be a string'
-        )
-        .minLength('password', 8);
-
-      Validator.validate(sanitizedUpdateBody, schema);
+      const sanitizedUpdateBody = sanitizeUserUpdateBody(updateBody);
+      Validator.validate(sanitizedUpdateBody, buildUserUpdateSchema());
 
       const existing = await QueryBuilder.create('users', db)
         .select('id')
@@ -322,6 +360,10 @@ const userControllerMethods: IUserController = {
 
       res.json({ message: 'User updated', user });
     } catch (error) {
+      if (isSanitizerError(error)) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       if (isValidationError(error)) {
         res.status(422).json({ errors: error.toObject?.() ?? {} });
         return;
@@ -338,7 +380,8 @@ const userControllerMethods: IUserController = {
   async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
       const db = await useEnsureDbConnected();
-      const id = req.params['id'];
+      const rawId = req.getParam('id');
+      const id = Sanitizer.digitsOnly(rawId);
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });
         return;
@@ -360,6 +403,10 @@ const userControllerMethods: IUserController = {
       await QueryBuilder.create('users', db).where('id', '=', id).delete();
       res.json({ message: 'User deleted' });
     } catch (error) {
+      if (isSanitizerError(error)) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       Logger.error('Error deleting user:', error);
       res.status(500).json({ error: 'Failed to delete user' });
     }

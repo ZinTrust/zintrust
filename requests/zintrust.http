@@ -36,10 +36,10 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt = REPLACE_ME
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MiIsImVtYWlsIjoiZGVkQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MTQ2MDQ1LCJleHAiOjE3NjgxNDk2NDUsImlzcyI6InppbnRydXN0IiwiYXVkIjoiemludHJ1c3QtYXBpIiwianRpIjoiOGU3NzRkOWRkOTgzZDVhZjlmY2JlZjQzNjc3MzdjOTgifQ.WRR8a1fkFAqgP9L9V7SkKqAxjISe6RKa-9k0FD5jwbk
 @csrf =
 @cookie =
-@userId =
+@userId = 82
 
 ### Root
 GET {{baseUrl}}/
@@ -83,8 +83,8 @@ Content-Type: application/json
 
 {
   "name": "Dev User",
-  "email": "dev@example.com",
-  "password": "password123"
+  "email": "dedf@example.com",
+  "password": "password"
 }
 
 ### Auth: Login (validated + CSRF protected)
@@ -95,21 +95,11 @@ Cookie: {{cookie}}
 X-CSRF-Token: {{csrf}}
 
 {
-  "email": "dev@example.com",
-  "password": "password123"
+  "email": "DEV@EXAMPLE.COM",
+  "password": "password"
 }
 
-> {%
-  try {
-    const body = JSON.parse(response.body ?? '{}');
-    if (body.token) client.global.set('jwt', body.token);
-    if (body.user && body.user.id !== undefined) client.global.set('userId', String(body.user.id));
-    client.log('jwt=' + (client.global.get('jwt') ? '(captured)' : '(missing)'));
-    client.log('userId=' + (client.global.get('userId') ?? '(missing)'));
-  } catch (e) {
-    client.log('Failed to parse login response');
-  }
-%}
+###
 
 ### Profile: GET (requires auth + jwt)
 GET {{baseUrl}}/api/v1/profile
