@@ -7,8 +7,11 @@ import { IApplication } from '@boot/Application';
 import { esmDirname } from '@common/index';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ErrorFactory, initZintrustError, type IZintrustError } from '@exceptions/ZintrustError';
+import type { IKernel } from '@http/Kernel';
+import { Kernel } from '@http/Kernel';
 import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
 import { ErrorPageRenderer } from '@http/error-pages/ErrorPageRenderer';
@@ -237,6 +240,123 @@ const setSecurityHeaders = (res: http.ServerResponse, requestPath: string): void
   res.setHeader(HTTP_HEADERS.CONTENT_SECURITY_POLICY, getContentSecurityPolicyForPath(requestPath));
 };
 
+const getContentType = (req: http.IncomingMessage): string => {
+  const value = req.headers['content-type'];
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return '';
+};
+
+const shouldReadRequestBody = (req: http.IncomingMessage): boolean => {
+  const method = (req.method ?? 'GET').toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+  return true;
+};
+
+const readRequestBodyBytes = async (req: http.IncomingMessage): Promise<Buffer | null> => {
+  const chunks: Buffer[] = [];
+  let totalSize = 0;
+  const maxBodySize = Env.MAX_BODY_SIZE;
+
+  // IncomingMessage is async-iterable in Node >= 10
+  for await (const chunk of req as unknown as AsyncIterable<unknown>) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+    totalSize += buf.length;
+    if (totalSize > maxBodySize) {
+      // Best-effort: stop reading and close the connection.
+      try {
+        req.destroy();
+      } catch {
+        // best-effort
+      }
+
+      // 413 isn't part of the standard ErrorFactory set, so initialize a typed ZinTrust error.
+      const err = ErrorFactory.createGeneralError('Payload Too Large');
+      initZintrustError(err, {
+        statusCode: 413,
+        code: 'PAYLOAD_TOO_LARGE',
+        name: 'PayloadTooLargeError',
+        details: { maxBodySize, totalSize },
+        captureStackTraceCtor: readRequestBodyBytes,
+      });
+      throw err;
+    }
+    chunks.push(buf);
+  }
+
+  if (chunks.length === 0) return null;
+  return Buffer.concat(chunks);
+};
+
+const parseUrlEncodedBody = (text: string): Record<string, string | string[]> => {
+  const out: Record<string, string | string[]> = {};
+  const params = new URLSearchParams(text);
+  for (const [key, value] of params.entries()) {
+    const existing = out[key];
+    if (existing === undefined) {
+      out[key] = value;
+      continue;
+    }
+    if (Array.isArray(existing)) {
+      existing.push(value);
+      continue;
+    }
+    out[key] = [existing, value];
+  }
+  return out;
+};
+
+const tryReadAndSetParsedBody = async (
+  request: IRequest,
+  response: IResponse
+): Promise<boolean> => {
+  const rawReq = request.getRaw();
+  Logger.debug(`[BodyParse] Method=${rawReq.method} Path=${rawReq.url}`);
+  if (!shouldReadRequestBody(rawReq)) {
+    Logger.debug('[BodyParse] Skipping body read (GET/HEAD/OPTIONS)');
+    return true;
+  }
+
+  const bodyBytes = await readRequestBodyBytes(rawReq);
+  Logger.debug(`[BodyParse] Read ${bodyBytes?.length ?? 0} bytes`);
+  if (bodyBytes === null) return true;
+
+  const contentType = getContentType(rawReq);
+  const text = bodyBytes.toString('utf-8');
+
+  // Keep raw body available for advanced middleware (e.g., signing)
+  request.context['rawBodyBytes'] = bodyBytes;
+  request.context['rawBodyText'] = text;
+
+  if (contentType.includes('application/json')) {
+    try {
+      const parsed: unknown = JSON.parse(text) as unknown;
+      request.setBody(parsed);
+
+      const keys =
+        typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+          ? Object.keys(parsed as Record<string, unknown>)
+          : [];
+
+      Logger.debug(`[BodyParse] JSON parsed, keys: ${keys.join(',')}`);
+      return true;
+    } catch (err) {
+      Logger.warn(`[BodyParse] JSON parse failed: ${(err as Error).message}`);
+      response.setStatus(400).json({ error: 'Invalid JSON body' });
+      return false;
+    }
+  }
+
+  if (contentType.includes('application/x-www-form-urlencoded')) {
+    request.setBody(parseUrlEncodedBody(text));
+    return true;
+  }
+
+  // Fallback: preserve as string (Request.body will be `{}` but getBody() will contain the raw string)
+  request.setBody(text);
+  return true;
+};
+
 /**
  * Handle incoming HTTP requests
  */
@@ -327,7 +447,7 @@ const handleInternalServerErrorRaw = (res: http.ServerResponse): void => {
 };
 
 const handleRequest = async (
-  app: IApplication,
+  params: { app: IApplication; getKernel: () => IKernel },
   req: http.IncomingMessage | null,
   res: http.ServerResponse
 ): Promise<void> => {
@@ -346,12 +466,20 @@ const handleRequest = async (
     request = Request.create(req);
     response = Response.create(res);
 
+    // Ensure middleware/controllers can read req.getBody()/req.body.
+    // Without this, validation middleware cannot populate req.validated.body at runtime.
+    Logger.debug(
+      `[Server] Before body parse: req.getBody()=${request.getBody() === null ? 'null' : typeof request.getBody()}`
+    );
+    const parsedOk = await tryReadAndSetParsedBody(request, response);
+    if (!parsedOk) return;
+
     // Dev-only: force a 500 error page for visual testing.
     if (appConfig.isDevelopment() && request.getPath() === '/test-500') {
       throw ErrorFactory.createGeneralError('Test 500 error page');
     }
 
-    const router = app.getRouter();
+    const router = params.app.getRouter();
     const route = Router.match(router, request.getMethod(), request.getPath());
 
     if (route === null) {
@@ -359,10 +487,20 @@ const handleRequest = async (
       return;
     }
 
-    request.setParams(route.params);
-    await route.handler(request, response);
+    // CRITICAL: Delegate to Kernel to execute middleware pipeline before handler.
+    // Note: body parsing must happen before validation middleware runs, so we keep
+    // tryReadAndSetParsedBody(...) here in the Node server path.
+    const kernel = params.getKernel();
+    await kernel.handleRequest(request, response);
   } catch (error) {
     ErrorFactory.createTryCatchError('Server error:', error);
+
+    // Handle oversized payloads explicitly.
+    const maybeZintrust = error as Partial<IZintrustError> | undefined;
+    if (response !== undefined && maybeZintrust?.statusCode === 413) {
+      response.setStatus(413).json({ error: 'Payload Too Large' });
+      return;
+    }
 
     // If we already have wrappers, prefer using them.
     if (request !== undefined && response !== undefined) {
@@ -382,12 +520,21 @@ export const Server = Object.freeze({
   /**
    * Create a new server instance
    */
-  create(app: IApplication, port?: number, host?: string): IServer {
+  create(app: IApplication, port?: number, host?: string, kernel: IKernel | null = null): IServer {
     const serverPort = port ?? appConfig.port;
     const serverHost = host ?? appConfig.host;
 
+    let kernelInstance: IKernel | null = kernel;
+
+    const getKernel = (): IKernel => {
+      if (kernelInstance !== null) return kernelInstance;
+      kernelInstance = Kernel.create(app.getRouter(), app.getContainer());
+      return kernelInstance;
+    };
+
     const httpServer = http.createServer(
-      async (req: http.IncomingMessage, res: http.ServerResponse) => handleRequest(app, req, res)
+      async (req: http.IncomingMessage, res: http.ServerResponse) =>
+        handleRequest({ app, getKernel }, req, res)
     );
 
     const sockets = new Set<Socket>();

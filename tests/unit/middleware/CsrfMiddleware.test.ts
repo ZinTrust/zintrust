@@ -130,4 +130,17 @@ describe('CsrfMiddleware', () => {
     expect(res.setStatus).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('bypasses CSRF validation for matching skipPaths', async () => {
+    const middleware = CsrfMiddleware.create({ skipPaths: ['/api/*'] });
+
+    // Simulate POST request to an API route without a token.
+    (req.getMethod as any).mockReturnValue('POST');
+    (req as any).getPath = vi.fn(() => '/api/v1/auth/register');
+    (req.getHeader as any).mockReturnValue(undefined);
+
+    await middleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.setStatus).not.toHaveBeenCalledWith(403);
+  });
 });

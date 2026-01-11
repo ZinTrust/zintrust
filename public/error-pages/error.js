@@ -106,20 +106,68 @@
     const header = lines[0] || 'Error';
     const frameLines = lines.slice(1).filter((l) => l.trim() !== '');
 
+    const parseLocation = (location) => {
+      if (typeof location !== 'string') return undefined;
+      const loc = location.trim();
+      if (!loc) return undefined;
+
+      const lastColon = loc.lastIndexOf(':');
+      if (lastColon === -1) return undefined;
+
+      const colPart = loc.slice(lastColon + 1);
+      if (!/^\d+$/.test(colPart)) return undefined;
+
+      const secondLastColon = loc.lastIndexOf(':', lastColon - 1);
+      if (secondLastColon === -1) return undefined;
+
+      const linePart = loc.slice(secondLastColon + 1, lastColon);
+      if (!/^\d+$/.test(linePart)) return undefined;
+
+      const file = loc.slice(0, secondLastColon);
+      if (!file) return undefined;
+
+      return { file, lineNo: linePart, colNo: colPart };
+    };
+
+    const parseV8Frame = (stackLine) => {
+      const trimmedLine = stackLine.trim();
+      if (!trimmedLine.startsWith('at ')) return undefined;
+
+      const afterAt = trimmedLine.slice(3).trim();
+
+      let fn = '';
+      let location = afterAt;
+
+      // Typical V8 format: "at fn (file:line:col)" or "at file:line:col"
+      if (afterAt.endsWith(')')) {
+        const openIdx = afterAt.lastIndexOf(' (');
+        if (openIdx !== -1) {
+          fn = afterAt.slice(0, openIdx).trim();
+          location = afterAt.slice(openIdx + 2, -1).trim();
+        }
+      }
+
+      const loc = parseLocation(location);
+      if (!loc) return undefined;
+
+      return { fn, ...loc };
+    };
+
     const frames = frameLines.map((rawLine) => {
       const line = rawLine.trim();
-      // Typical V8 format: "at fn (file:line:col)" or "at file:line:col"
-      const match = /^at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?$/.exec(
-        line.replace(/^at\s+/, 'at ')
-      );
-      if (!match) {
+      const parsed = parseV8Frame(line);
+
+      if (!parsed) {
         return { raw: line };
       }
-      const fn = match[1] || '';
-      const file = match[2] || '';
-      const lineNo = match[3] || '';
-      const colNo = match[4] || '';
-      return { raw: line, fn, file, lineNo, colNo };
+
+      return {
+        raw: line,
+        fn: parsed.fn || '',
+        file: parsed.file || '',
+        lineNo: parsed.lineNo || '',
+        colNo: parsed.colNo || '',
+      };
     });
 
     return { header, frames };

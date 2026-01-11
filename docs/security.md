@@ -58,6 +58,22 @@ export interface IQueryBuilder {
 
 ZinTrust includes a `CsrfMiddleware` that automatically verifies CSRF tokens for all state-changing requests (POST, PUT, DELETE).
 
+By default it uses the **Double Submit Cookie** pattern: the server issues an `XSRF-TOKEN` cookie on safe requests and expects the
+client to echo that value back on unsafe requests (typically via `X-CSRF-Token` header).
+
+### Skipping CSRF for APIs
+
+If you're building a pure Bearer-token API (no cookie-based authentication), you can bypass CSRF checks for selected routes by
+configuring `skipPaths`:
+
+```typescript
+import { CsrfMiddleware } from '@zintrust/core';
+
+const csrf = CsrfMiddleware.create({
+  skipPaths: ['/api/*'],
+});
+```
+
 ```typescript
 // In your HTML form
 <input type="hidden" name="_token" value="{{ csrf_token() }}">

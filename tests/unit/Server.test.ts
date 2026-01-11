@@ -16,6 +16,7 @@ describe('Server', () => {
     getRouter: vi.fn().mockReturnValue({
       match: vi.fn(),
     }),
+    getContainer: vi.fn().mockReturnValue({}),
   } as unknown as IApplication;
 
   it('should create http server', () => {

@@ -16,6 +16,16 @@ export interface CsrfOptions {
   headerName?: string;
   bodyKey?: string;
   ignoreMethods?: string[];
+  /**
+   * Optional path patterns to bypass CSRF entirely.
+   *
+   * Supports simple glob-style matching where `*` matches any characters.
+   * Examples:
+   * - `/api/*`
+   * - `/webhooks/*`
+   * - `/api/v1/auth/login`
+   */
+  skipPaths?: string[];
 }
 
 const DEFAULT_OPTIONS: CsrfOptions = {
@@ -46,6 +56,11 @@ export const CsrfMiddleware = Object.freeze({
     }
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
+      if (shouldSkipCsrfForRequest(req, config)) {
+        await next();
+        return;
+      }
+
       const cookieHeader = req.getHeader('cookie');
       const cookies = parseCookies(typeof cookieHeader === 'string' ? cookieHeader : '');
 
@@ -90,6 +105,36 @@ export const CsrfMiddleware = Object.freeze({
     };
   },
 });
+
+function shouldSkipCsrfForRequest(req: IRequest, config: CsrfOptions): boolean {
+  const patterns = config.skipPaths;
+  if (patterns === undefined || patterns.length === 0) return false;
+
+  const path = req.getPath();
+  for (const pattern of patterns) {
+    const trimmed = pattern.trim();
+    if (trimmed === '') continue;
+    if (pathMatchesPattern(path, trimmed)) return true;
+  }
+
+  return false;
+}
+
+function pathMatchesPattern(path: string, pattern: string): boolean {
+  if (pattern === '*') return true;
+  if (pattern === path) return true;
+
+  // Fast path: treat trailing "/*" as a prefix match.
+  if (pattern.endsWith('/*')) {
+    const prefix = pattern.slice(0, -1); // keep the trailing '/'
+    return path.startsWith(prefix);
+  }
+
+  // Generic glob-to-regex conversion where '*' matches any characters.
+  const escaped = pattern.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const regex = new RegExp(`^${escaped.replaceAll('*', '.*')}$`);
+  return regex.test(path);
+}
 
 function appendSetCookie(res: IResponse, cookie: string): void {
   const existing = res.getHeader('Set-Cookie');

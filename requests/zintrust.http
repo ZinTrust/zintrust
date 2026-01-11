@@ -33,7 +33,7 @@
 ### - Try protected routes without JWT → Layer 8 blocks (401)
 ### - Try accessing other users' data → Layer 9 blocks (403)
 
-@baseUrl = http://127.0.0.1:7777
+@baseUrl = http://localhost:7777
 
 # Optional overrides
 @jwt = REPLACE_ME
@@ -78,8 +78,8 @@ GET {{baseUrl}}/api/v1/posts
 ### Auth: Register (validated + CSRF protected)
 POST {{baseUrl}}/api/v1/auth/register
 Content-Type: application/json
-Cookie: {{cookie}}
-X-CSRF-Token: {{csrf}}
+# Cookie: {{cookie}}
+# X-CSRF-Token: {{csrf}}
 
 {
   "name": "Dev User",
