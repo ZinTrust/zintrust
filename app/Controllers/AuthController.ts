@@ -3,40 +3,21 @@
  * Minimal, real auth endpoints backing the example API routes.
  */
 
+import {
+  AuthControllerApi,
+  JsonRecord,
+  LoginBody,
+  RegisterBody,
+  UserRow,
+} from '@app/Types/controller';
 import { getString } from '@common/utility';
 import { Logger } from '@config/logger';
 import { Auth } from '@features/Auth';
-import type { IRequest, ValidatedRequest } from '@http/Request';
-import type { IResponse } from '@http/Response';
+import type { ValidatedRequest } from '@http/Request';
 import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { JwtManager } from '@security/JwtManager';
-
-type JsonRecord = Record<string, unknown>;
-
-type LoginBody = {
-  email: string;
-  password: string;
-};
-
-type RegisterBody = {
-  name: string;
-  email: string;
-  password: string;
-};
-
-type UserRow = {
-  id?: unknown;
-  name?: unknown;
-  email?: unknown;
-  password?: unknown;
-};
-export type AuthControllerApi = {
-  login(req: IRequest, res: IResponse): Promise<void>;
-  register(req: IRequest, res: IResponse): Promise<void>;
-  logout(req: IRequest, res: IResponse): Promise<void>;
-  refresh(req: IRequest, res: IResponse): Promise<void>;
-};
+import { Sanitizer } from '@security/Sanitizer';
 
 const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: string } => {
   return {
@@ -49,10 +30,11 @@ const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: strin
 const controller: AuthControllerApi = {
   async login(req, res): Promise<void> {
     const typedReq = req as ValidatedRequest<LoginBody>;
-    const maybeValidated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
-    const body = ((maybeValidated?.body ?? typedReq.body ?? {}) as JsonRecord) ?? {};
-    const email = getString(body['email']).trim().toLowerCase();
-    const password = getString(body['password']);
+    const validated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
+    const rawBody = (validated?.body ?? typedReq.body ?? {}) as JsonRecord;
+
+    const email = Sanitizer.email(rawBody['email']).trim().toLowerCase();
+    const password = Sanitizer.safePasswordChars(getString(rawBody['password']));
 
     try {
       const db = await useEnsureDbConnected();
@@ -63,6 +45,7 @@ const controller: AuthControllerApi = {
         .first<UserRow>();
 
       if (existing === null) {
+        Logger.warn('AuthController.login invalid credentials');
         res.setStatus(401).json({ error: 'Invalid credentials' });
         return;
       }
@@ -70,13 +53,22 @@ const controller: AuthControllerApi = {
       const passwordHash = getString(existing.password);
       const ok = await Auth.compare(password, passwordHash);
       if (!ok) {
+        Logger.warn('AuthController.login invalid credentials');
         res.setStatus(401).json({ error: 'Invalid credentials' });
         return;
       }
 
       const user = pickPublicUser(existing);
+
+      const subject = ((): string | undefined => {
+        const id = user.id;
+        if (typeof id === 'string' && id.length > 0) return id;
+        if (typeof id === 'number' && Number.isFinite(id)) return String(id);
+        return undefined;
+      })();
+
       const token = JwtManager.signAccessToken({
-        sub: typeof user.id === 'string' ? user.id : undefined,
+        sub: subject,
         email,
       });
 
@@ -93,11 +85,12 @@ const controller: AuthControllerApi = {
 
   async register(req, res): Promise<void> {
     const typedReq = req as ValidatedRequest<RegisterBody>;
-    const maybeValidated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
-    const body = ((maybeValidated?.body ?? typedReq.body ?? {}) as JsonRecord) ?? {};
-    const name = getString(body['name']).trim();
-    const email = getString(body['email']).trim().toLowerCase();
-    const password = getString(body['password']);
+    const validated = (typedReq as unknown as { validated?: { body?: unknown } }).validated;
+    const rawBody = (validated?.body ?? typedReq.body ?? {}) as JsonRecord;
+
+    const name = Sanitizer.nameText(rawBody['name']).trim();
+    const email = Sanitizer.email(rawBody['email']).trim().toLowerCase();
+    const password = Sanitizer.safePasswordChars(getString(rawBody['password']));
 
     try {
       const db = await useEnsureDbConnected();

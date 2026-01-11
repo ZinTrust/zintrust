@@ -28,7 +28,7 @@ const createNoopState = (): MetricsState => {
   const noopHistogram = { observe: () => undefined } as unknown as Histogram<string>;
   const noopRegistry = {
     contentType: DEFAULT_CONTENT_TYPE,
-    metrics: async () => Promise.resolve(''),
+    metrics: () => '',
   } as unknown as Registry;
 
   return {

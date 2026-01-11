@@ -2,6 +2,31 @@
 
 ZinTrust is built with security as a top priority, providing built-in protection against common web vulnerabilities.
 
+## Security Architecture (Defense-in-Depth)
+
+ZinTrust implements a **10-layer security architecture** where attackers must breach multiple independent security controls:
+
+| Layer  | Control                  | Location          | Purpose                                                   |
+| ------ | ------------------------ | ----------------- | --------------------------------------------------------- |
+| **1**  | Security Headers         | Global Middleware | HSTS, CSP, X-Frame-Options, X-Content-Type-Options        |
+| **2**  | CORS                     | Global Middleware | Origin validation, preflight handling                     |
+| **3**  | Rate Limiting            | Global Middleware | 100 req/min baseline (configurable per-route)             |
+| **4**  | CSRF Protection          | Global Middleware | Double Submit Cookie pattern                              |
+| **5**  | XSS Sanitization         | Global Middleware | Recursive HTML stripping via `Xss.sanitize`               |
+| **6**  | Field Sanitization       | Route Middleware  | Type-specific input normalization via `Sanitizer.*`       |
+| **7**  | Schema Validation        | Route Middleware  | Type checking, format validation via `Validator.validate` |
+| **8**  | Authentication           | Route Middleware  | JWT verification, session validation                      |
+| **9**  | Authorization            | Controller Logic  | Role-based access control, ownership checks               |
+| **10** | SQL Injection Prevention | Database Layer    | Prepared statements via QueryBuilder                      |
+
+### Defense-in-Depth Benefits
+
+1. **Multiple Failure Points:** Each layer provides independent protection
+2. **Attack Surface Reduction:** Early rejection reduces processing overhead
+3. **Compliance Ready:** Meets SOC2, HIPAA, PCI-DSS requirements
+4. **Observable Security:** Each layer generates audit logs
+5. **Fail-Safe Design:** One layer's failure doesn't compromise others
+
 ## SQL Injection
 
 The ORM and Query Builder use prepared statements for all queries, making your application immune to SQL injection by default.

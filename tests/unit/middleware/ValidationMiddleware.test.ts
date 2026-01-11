@@ -1,6 +1,7 @@
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
+import { Sanitizer } from '@security/Sanitizer';
 import { Validator } from '@validation/Validator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -70,5 +71,45 @@ describe('ValidationMiddleware', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.setStatus).not.toHaveBeenCalled();
     expect(req.validated.body).toBeUndefined();
+  });
+
+  it('sanitizes then validates body in createBodyWithSanitization()', async () => {
+    let bodyState: any = {
+      name: '<script>alert(1)</script>',
+      email: ' DEV@EXAMPLE.COM ',
+      password: 'pass word123',
+    };
+
+    req = {
+      getMethod: vi.fn(() => 'POST'),
+      getBody: vi.fn(() => bodyState),
+      setBody: vi.fn((b: unknown) => {
+        bodyState = b;
+        (req as any).body = b;
+      }),
+      body: bodyState,
+      validated: {},
+    } as unknown as IRequest;
+
+    const middleware = ValidationMiddleware.createBodyWithSanitization({} as any, {
+      name: (v) => Sanitizer.nameText(v).trim(),
+      email: (v) => Sanitizer.email(v).trim().toLowerCase(),
+      password: (v) => Sanitizer.safePasswordChars(v),
+    });
+
+    await middleware(req, res, next);
+
+    expect(Validator.validate).toHaveBeenCalledTimes(1);
+    expect((Validator.validate as any).mock.calls[0][0]).toEqual({
+      name: 'alert1',
+      email: 'dev@example.com',
+      password: 'pass word123',
+    });
+    expect(req.validated.body).toEqual({
+      name: 'alert1',
+      email: 'dev@example.com',
+      password: 'pass word123',
+    });
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

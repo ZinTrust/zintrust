@@ -57,11 +57,11 @@ function registerApiV1Routes(
   Router.group(router, '/api/v1', (r) => {
     // Auth routes
     Router.post<MiddlewareKey>(r, '/auth/login', authController.login, {
-      middleware: ['validateLogin'],
+      middleware: ['authRateLimit', 'validateLogin'],
     });
 
     Router.post<MiddlewareKey>(r, '/auth/register', authController.register, {
-      middleware: ['validateRegister'],
+      middleware: ['authRateLimit', 'validateRegister'],
     });
 
     Router.post<MiddlewareKey>(r, '/auth/logout', authController.logout, {
@@ -75,21 +75,35 @@ function registerApiV1Routes(
     const pr = r;
 
     // User resource (REST-ish)
-    Router.resource(pr, '/users', {
-      index: userController.index,
-      store: userController.store,
-      show: userController.show,
-      update: userController.update,
-      destroy: userController.destroy,
-    });
+    Router.resource<MiddlewareKey>(
+      pr,
+      '/users',
+      {
+        index: userController.index,
+        store: userController.store,
+        show: userController.show,
+        update: userController.update,
+        destroy: userController.destroy,
+      },
+      {
+        middleware: ['auth', 'jwt'],
+        store: { middleware: ['auth', 'jwt', 'userMutationRateLimit', 'validateUserStore'] },
+        update: { middleware: ['auth', 'jwt', 'userMutationRateLimit', 'validateUserUpdate'] },
+        destroy: { middleware: ['auth', 'jwt', 'userMutationRateLimit'] },
+      }
+    );
 
     Router.post<MiddlewareKey>(pr, '/users/fill', userController.fill, {
-      middleware: ['fillRateLimit'],
+      middleware: ['auth', 'jwt', 'fillRateLimit', 'validateUserFill'],
     });
 
     // If the controller exposes create/edit, wire them explicitly.
-    Router.get(pr, '/users/create', userController.create);
-    Router.get(pr, '/users/:id/edit', userController.edit);
+    Router.get<MiddlewareKey>(pr, '/users/create', userController.create, {
+      middleware: ['auth', 'jwt'],
+    });
+    Router.get<MiddlewareKey>(pr, '/users/:id/edit', userController.edit, {
+      middleware: ['auth', 'jwt'],
+    });
 
     // Custom user routes
     Router.get<MiddlewareKey>(

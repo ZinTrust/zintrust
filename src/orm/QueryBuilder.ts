@@ -50,7 +50,7 @@ export interface IQueryBuilder {
   firstOrFail<T>(message?: string): Promise<T>;
   get<T>(): Promise<T[]>;
 
-  insert(values: Record<string, unknown>): Promise<void>;
+  insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<void>;
   update(values: Record<string, unknown>): Promise<void>;
   delete(): Promise<void>;
 }
@@ -455,9 +455,15 @@ async function executeFirstOrFail<T>(
 
 const compileInsert = (
   tableName: string,
-  values: Record<string, unknown>
+  values: Record<string, unknown> | Array<Record<string, unknown>>
 ): { sql: string; parameters: unknown[] } => {
-  const keys = Object.keys(values);
+  const items = Array.isArray(values) ? values : [values];
+  if (items.length === 0) {
+    throw ErrorFactory.createDatabaseError('INSERT requires at least one column');
+  }
+
+  // Use keys from the first item
+  const keys = Object.keys(items[0] ?? {});
   if (keys.length === 0) {
     throw ErrorFactory.createDatabaseError('INSERT requires at least one column');
   }
@@ -466,9 +472,19 @@ const compileInsert = (
   for (const key of keys) assertSafeIdentifier(key, 'insert column');
 
   const colsSql = keys.map((k) => escapeIdentifier(k)).join(', ');
-  const placeholders = keys.map(() => '?').join(', ');
-  const parameters = keys.map((k) => values[k]);
-  const sql = `INSERT INTO ${escapeIdentifier(tableName)} (${colsSql}) VALUES (${placeholders})`;
+
+  // Single row or multi-row placeholders
+  const rowPlaceholders = `(${keys.map(() => '?').join(', ')})`;
+  const placeholders = items.map(() => rowPlaceholders).join(', ');
+
+  const parameters: unknown[] = [];
+  for (const item of items) {
+    for (const key of keys) {
+      parameters.push(item[key]);
+    }
+  }
+
+  const sql = `INSERT INTO ${escapeIdentifier(tableName)} (${colsSql}) VALUES ${placeholders}`;
   return { sql, parameters };
 };
 

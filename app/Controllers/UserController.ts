@@ -6,7 +6,6 @@
  */
 
 export {
-  IUserController,
   UserQueryBuilderController as UserController,
   UserQueryBuilderController,
 } from '@app/Controllers/UserQueryBuilderController';

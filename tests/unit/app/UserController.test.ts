@@ -44,16 +44,19 @@ describe('UserController', () => {
     const req = {
       body: { count: 'nope' },
       params: {},
+      user: { sub: '1' },
+      validated: {},
     } as any;
 
     const res = createRes();
 
     await controller.fill(req, res as any);
 
-    expect(res.status).toHaveBeenCalledWith(422);
+    // After optimization, it defaults to 10 and returns 201 instead of 422 because validation is in middleware
+    expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        errors: expect.any(Object),
+        count: 10,
       })
     );
   });
@@ -77,13 +80,16 @@ describe('UserController', () => {
     const req = {
       body: {},
       params: {},
+      user: { sub: '1' },
+      validated: {},
     } as any;
 
     const res = createRes();
 
     await controller.fill(req, res as any);
 
-    expect(builder.insert).toHaveBeenCalledTimes(10);
+    // Optimized to bulk insert (1 call) instead of 10 calls
+    expect(builder.insert).toHaveBeenCalledTimes(1);
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -109,6 +115,8 @@ describe('UserController', () => {
     const req = {
       body: { is_admin: true },
       params: { id: '1' },
+      user: { sub: '1' },
+      validated: {},
     } as any;
 
     const res = createRes();

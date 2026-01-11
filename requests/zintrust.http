@@ -1,4 +1,4 @@
-### Zintrust API - manual REST Client requests
+### ZinTrust API - manual REST Client requests
 ### Requires VS Code extension: "REST Client" (humao.rest-client)
 ###
 ### Usage:
@@ -17,6 +17,7 @@
 @jwt = REPLACE_ME
 @csrf =
 @cookie =
+@userId =
 
 ### Root
 GET {{baseUrl}}/
@@ -65,6 +66,7 @@ X-CSRF-Token: {{csrf}}
 }
 
 ### Auth: Login (validated + CSRF protected)
+# @name login
 POST {{baseUrl}}/api/v1/auth/login
 Content-Type: application/json
 Cookie: {{cookie}}
@@ -74,6 +76,18 @@ X-CSRF-Token: {{csrf}}
   "email": "dev@example.com",
   "password": "password123"
 }
+
+> {%
+  try {
+    const body = JSON.parse(response.body ?? '{}');
+    if (body.token) client.global.set('jwt', body.token);
+    if (body.user && body.user.id !== undefined) client.global.set('userId', String(body.user.id));
+    client.log('jwt=' + (client.global.get('jwt') ? '(captured)' : '(missing)'));
+    client.log('userId=' + (client.global.get('userId') ?? '(missing)'));
+  } catch (e) {
+    client.log('Failed to parse login response');
+  }
+%}
 
 ### Profile: GET (requires auth + jwt)
 GET {{baseUrl}}/api/v1/profile
@@ -88,6 +102,37 @@ Authorization: Bearer {{jwt}}
 
 {
   "bio": "Hello from REST Client"
+}
+
+### Users: Index (auth + jwt)
+GET {{baseUrl}}/api/v1/users
+Authorization: Bearer {{jwt}}
+
+### Users: Show (auth + jwt + self-only)
+GET {{baseUrl}}/api/v1/users/{{userId}}
+Authorization: Bearer {{jwt}}
+
+### Users: Update (auth + jwt + CSRF + validated + sanitized)
+PUT {{baseUrl}}/api/v1/users/{{userId}}
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+Authorization: Bearer {{jwt}}
+
+{
+  "name": "Dev User <script>alert(1)</script>",
+  "email": "DEV@EXAMPLE.COM"
+}
+
+### Users: Fill (auth + jwt + CSRF + strict rate limit)
+POST {{baseUrl}}/api/v1/users/fill
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+Authorization: Bearer {{jwt}}
+
+{
+  "count": 3
 }
 
 ### Posts: list

@@ -64,7 +64,7 @@ describe('Routes API', () => {
 
     const fillMatch = Router.match(router, 'POST', '/api/v1/users/fill');
     expect(fillMatch).not.toBeNull();
-    expect(fillMatch?.middleware).toEqual(['fillRateLimit']);
+    expect(fillMatch?.middleware).toEqual(['auth', 'jwt', 'fillRateLimit', 'validateUserFill']);
   });
 
   describe('Public Routes', () => {

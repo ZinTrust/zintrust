@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-We provide security updates for the following versions of Zintrust:
+We provide security updates for the following versions of ZinTrust:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -11,7 +11,7 @@ We provide security updates for the following versions of Zintrust:
 
 ## Reporting a Vulnerability
 
-We take the security of Zintrust seriously. If you believe you have found a security vulnerability, please **do not** report it via a public issue.
+We take the security of ZinTrust seriously. If you believe you have found a security vulnerability, please **do not** report it via a public issue.
 
 Instead, please follow these steps:
 
@@ -22,6 +22,8 @@ Instead, please follow these steps:
 We will acknowledge your report within 48 hours and provide a timeline for the fix.
 
 ## Security Best Practices for Contributors
+
+ZinTrust follows a defense-in-depth approach; see [docs/security.md](docs/security.md) for the full architecture and recommended usage patterns.
 
 - **SQL Injection**: Always use `QueryBuilder` or parameterized queries. Never concatenate strings for SQL.
 - **XSS**: Sanitize all user-provided content before rendering or storing.
