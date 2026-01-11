@@ -39,6 +39,7 @@ export default defineConfig(
       'vitest.config.ts',
       'eslint.config.mjs',
       'worker-configuration.d.ts',
+      'public/error-pages/error.js',
       '.scannerwork/**',
       'check_vi.ts',
       'dev/**',
