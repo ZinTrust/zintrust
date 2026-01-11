@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{statusCode}} • {{errorName}}</title>
+    <link rel="stylesheet" href="/error-pages/error.css" />
+    <script defer src="/error-pages/error.js"></script>
+  </head>
+  <body>
+    <div id="layout">
+      <header id="header">
+        <div id="header-actions">
+          <div id="toggle-theme-container">
+            <input type="checkbox" id="toggle-theme-checkbox" />
+            <label id="toggle-theme-label" for="toggle-theme-checkbox">
+              <span id="light-theme-indicator" title="Light mode">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  stroke-width="2"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M0 0h24v24H0z" stroke="none"></path>
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path
+                    d="M3 12h1m8-9v1m8 8h1m-9 8v1M5.6 5.6l.7.7m12.1-.7-.7.7m0 11.4.7.7m-12.1-.7-.7.7"
+                  ></path>
+                </svg>
+              </span>
+              <span id="dark-theme-indicator" title="Dark mode">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  stroke-width="2"
+                  stroke="currentColor"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M0 0h24v24H0z" stroke="none"></path>
+                  <path d="M12 3h.393a7.5 7.5 0 0 0 7.92 12.446A9 9 0 1 1 12 2.992z"></path>
+                </svg>
+              </span>
+            </label>
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <h4 id="error-name">{{errorName}}</h4>
+        <h1 id="error-title">That route doesn’t exist.</h1>
+      </section>
+
+      <section>
+        <div class="card">
+          <div class="card-body">
+            <h2 id="error-message">
+              <span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                  width="24"
+                  height="24"
+                  fill="none"
+                >
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 7v6m0 4.01.01-.011M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z"
+                  ></path>
+                </svg>
+              </span>
+              <span>{{errorMessage}}</span>
+            </h2>
+
+            <div id="error-hint">
+              <span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                  width="24"
+                  height="24"
+                  fill="none"
+                >
+                  <path
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="m21 2-1 1M3 2l1 1m17 13-1-1M3 16l1-1m5 3h6m-5 3h4M12 3C8 3 5.952 4.95 6 8c.023 1.487.5 2.5 1.5 3.5S9 13 9 15h6c0-2 .5-2.5 1.5-3.5h0c1-1 1.477-2.013 1.5-3.5.048-3.05-2-5-6-5Z"
+                  ></path>
+                </svg>
+              </span>
+              <span> Try the docs or check your route file. </span>
+            </div>
+
+            <div class="pills">
+              <span class="pill"><b>Status</b> {{statusCode}}</span>
+              <span class="pill"><b>Path</b> {{requestPath}}</span>
+              <a class="pill" href="/doc"><b>Open</b> Docs</a>
+            </div>
+
+            <pre class="code">
+Next steps:
+- Visit /doc for routes + reference
+- If this is an API endpoint, double-check routes/api.ts registration
+- Run: zin routes</pre
+            >
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="footer">
+          <div class="brand">
+            <div class="logo-frame" aria-hidden="true">
+              <img class="logo-img" src="/zintrust.svg" alt="ZinTrust logo" />
+            </div>
+            <div>
+              <b>ZinTrust</b>
+              <div><span>https://zintrust.com</span></div>
+            </div>
+          </div>
+          <div>
+            <a href="/">Home</a>
+            <span> · </span>
+            <a href="/doc">Docs</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

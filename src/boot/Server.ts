@@ -11,6 +11,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IRequest, Request } from '@http/Request';
 import { IResponse, Response } from '@http/Response';
+import { ErrorPageRenderer } from '@http/error-pages/ErrorPageRenderer';
 import * as fs from '@node-singletons/fs';
 import * as http from '@node-singletons/http';
 import type { Socket } from '@node-singletons/net';
@@ -39,6 +40,60 @@ const MIME_TYPES_MAP: Record<string, string> = {
   '.eot': MIME_TYPES.EOT,
   '.otf': MIME_TYPES.OTF,
   '.wasm': MIME_TYPES.WASM,
+};
+
+const trySendHtmlErrorPage = (
+  request: IRequest,
+  response: IResponse,
+  publicRoot: string,
+  input: {
+    statusCode: number;
+    errorName: string;
+    errorMessage: string;
+    stackPretty?: string;
+    stackRaw?: string;
+    requestPretty?: string;
+    requestRaw?: string;
+  }
+): boolean => {
+  if (!ErrorPageRenderer.shouldSendHtml(request)) return false;
+
+  const html = ErrorPageRenderer.renderHtml(publicRoot, {
+    statusCode: input.statusCode,
+    errorName: input.errorName,
+    errorMessage: input.errorMessage,
+    requestPath: request.getPath(),
+    stackPretty: input.stackPretty,
+    stackRaw: input.stackRaw,
+    requestPretty: input.requestPretty,
+    requestRaw: input.requestRaw,
+  });
+
+  if (html === undefined) return false;
+
+  response.html(html);
+  return true;
+};
+
+const redactHeaders = (headers: Record<string, unknown>): Record<string, unknown> => {
+  const redacted = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (redacted.has(key.toLowerCase())) {
+      out[key] = '[redacted]';
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+};
+
+const safeJsonStringify = (value: unknown): string => {
+  try {
+    return JSON.stringify(value, null, 2) ?? '';
+  } catch {
+    return '';
+  }
 };
 
 const findPackageRoot = (startDir: string): string => {
@@ -185,44 +240,137 @@ const setSecurityHeaders = (res: http.ServerResponse, requestPath: string): void
 /**
  * Handle incoming HTTP requests
  */
+const getRequestPathFromRawRequest = (req: http.IncomingMessage | null): string =>
+  typeof req?.url === 'string' ? req.url : '/';
+
+const handleNotFound = async (request: IRequest, response: IResponse): Promise<void> => {
+  // Try serving static files from docs-website
+  if (await serveStatic(request, response)) return;
+
+  // 404 Not Found
+  response.setStatus(404);
+
+  const publicRoot = getDocsPublicRoot();
+  if (
+    trySendHtmlErrorPage(request, response, publicRoot, {
+      statusCode: 404,
+      errorName: 'Not Found',
+      errorMessage: 'The page you requested could not be found.',
+    })
+  ) {
+    return;
+  }
+
+  response.json({ message: 'Not Found' });
+};
+
+const handleInternalServerErrorWithWrappers = (
+  request: IRequest,
+  response: IResponse,
+  error?: unknown
+): void => {
+  response.setStatus(500);
+
+  const isDev = appConfig.isDevelopment();
+  const err =
+    error instanceof Error ? error : ErrorFactory.createGeneralError('Unknown error', error);
+
+  const errorName = isDev ? err.name || 'Error' : 'Internal Server Error';
+  const errorMessage = isDev
+    ? err.message || 'An error has occurred'
+    : 'Something went wrong while handling your request.';
+
+  const requestObj = isDev
+    ? {
+        method: request.getMethod(),
+        path: request.getPath(),
+        query: request.getQuery(),
+        headers: redactHeaders(request.getHeaders() as unknown as Record<string, unknown>),
+      }
+    : undefined;
+
+  const requestPretty =
+    requestObj === undefined
+      ? undefined
+      : `Request\n\nMethod: ${requestObj.method}\nPath: ${requestObj.path}\n\nHeaders:\n${safeJsonStringify(
+          requestObj.headers
+        )}\n\nQuery:\n${safeJsonStringify(requestObj.query)}`;
+
+  const requestRaw = requestObj === undefined ? undefined : safeJsonStringify(requestObj);
+
+  const stackPretty = isDev ? (err.stack ?? '') : undefined;
+  const stackRaw = isDev
+    ? safeJsonStringify({ name: err.name, message: err.message, stack: err.stack })
+    : undefined;
+
+  const publicRoot = getDocsPublicRoot();
+  if (
+    trySendHtmlErrorPage(request, response, publicRoot, {
+      statusCode: 500,
+      errorName,
+      errorMessage,
+      stackPretty,
+      stackRaw,
+      requestPretty,
+      requestRaw,
+    })
+  ) {
+    return;
+  }
+
+  response.json({ message: 'Internal Server Error' });
+};
+
+const handleInternalServerErrorRaw = (res: http.ServerResponse): void => {
+  res.writeHead(500, { [HTTP_HEADERS.CONTENT_TYPE]: MIME_TYPES.JSON });
+  res.end(JSON.stringify({ message: 'Internal Server Error' }));
+};
+
 const handleRequest = async (
   app: IApplication,
   req: http.IncomingMessage | null,
   res: http.ServerResponse
 ): Promise<void> => {
+  let request: IRequest | undefined;
+  let response: IResponse | undefined;
+
   try {
     // Use the raw URL so docs assets (/doc/assets/...) get the correct CSP.
-    const requestPath = typeof req?.url === 'string' ? req.url : '/';
+    const requestPath = getRequestPathFromRawRequest(req);
     setSecurityHeaders(res, requestPath);
 
     if (!req) {
       throw ErrorFactory.createConnectionError('Request object is missing');
     }
 
-    const request = Request.create(req);
-    const response = Response.create(res);
+    request = Request.create(req);
+    response = Response.create(res);
 
-    // Route the request
+    // Dev-only: force a 500 error page for visual testing.
+    if (appConfig.isDevelopment() && request.getPath() === '/test-500') {
+      throw ErrorFactory.createGeneralError('Test 500 error page');
+    }
+
     const router = app.getRouter();
     const route = Router.match(router, request.getMethod(), request.getPath());
 
     if (route === null) {
-      // Try serving static files from docs-website
-      if (await serveStatic(request, response)) {
-        return;
-      }
-
-      // 404 Not Found
-      response.setStatus(404).json({ message: 'Not Found' });
-    } else {
-      // Handler found, execute route handler
-      request.setParams(route.params);
-      await route.handler(request, response);
+      await handleNotFound(request, response);
+      return;
     }
+
+    request.setParams(route.params);
+    await route.handler(request, response);
   } catch (error) {
     ErrorFactory.createTryCatchError('Server error:', error);
-    res.writeHead(500, { [HTTP_HEADERS.CONTENT_TYPE]: MIME_TYPES.JSON });
-    res.end(JSON.stringify({ message: 'Internal Server Error' }));
+
+    // If we already have wrappers, prefer using them.
+    if (request !== undefined && response !== undefined) {
+      handleInternalServerErrorWithWrappers(request, response, error);
+      return;
+    }
+
+    handleInternalServerErrorRaw(res);
   }
 };
 
@@ -259,7 +407,7 @@ export const Server = Object.freeze({
       async close(): Promise<void> {
         return new Promise((resolve) => {
           httpServer.close(() => {
-            Logger.info('Zintrust server stopped');
+            Logger.info('ZinTrust server stopped');
             resolve();
           });
 
