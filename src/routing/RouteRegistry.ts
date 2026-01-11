@@ -93,8 +93,9 @@ export const RouteRegistry = Object.freeze({
     state.routes.push(route);
   },
 
-  list(): RouteRegistration[] {
-    return state.routes.slice();
+  list(): readonly RouteRegistration[] {
+    // Return readonly reference to avoid unnecessary array cloning
+    return state.routes;
   },
 
   clear(): void {

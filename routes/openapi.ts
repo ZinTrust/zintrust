@@ -54,7 +54,9 @@ export function registerOpenApiRoutes(router: IRouter): void {
     router,
     '/openapi.json',
     async (_req, res) => {
-      const doc = OpenApiGenerator.generate(RouteRegistry.list(), {
+      // Convert readonly to mutable array for OpenApiGenerator
+      const routes = Array.from(RouteRegistry.list());
+      const doc = OpenApiGenerator.generate(routes, {
         title: Env.APP_NAME,
         version: Env.get('APP_VERSION', '0.0.0'),
         serverUrl: getServerUrl(),

@@ -9,7 +9,7 @@ describe('Sanitizer (coverage)', () => {
 
   it('sanitizes common inputs as expected', () => {
     expect(Sanitizer.parseAmount('$ 1,234.50')).toBe(1234.5);
-    expect(Sanitizer.parseAmount('nope')).toBe(0);
+    expect(Sanitizer.parseAmount('nope', false)).toBe(0);
 
     expect(Sanitizer.alphanumeric('A B-1_')).toBe('AB1');
     expect(Sanitizer.alphanumericDotDash('a-b.c@')).toBe('a-b.c');
@@ -24,7 +24,7 @@ describe('Sanitizer (coverage)', () => {
     expect(Sanitizer.messageText('hello<>$')).toBe('hello$');
     expect(Sanitizer.nameText('John-Doe. Jr.')).toBe('JohnDoe. Jr.');
     expect(Sanitizer.wordCharsAndSpaces('Hello-World_ 123')).toBe('HelloWorld_ 123');
-    expect(Sanitizer.safePasswordChars('a€b!@#')).toBe('ab!@#');
+    expect(Sanitizer.safePasswordChars('a€b!@#', false)).toBe('ab!@#');
 
     expect(Sanitizer.numericDotOnly(' -1.2 ')).toBe('1.2');
     expect(Sanitizer.ipAddressText('::1<script>')).toBe('::1script');

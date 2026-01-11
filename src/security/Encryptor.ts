@@ -5,7 +5,8 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { pbkdf2Sync, randomBytes } from '@node-singletons/crypto';
+import * as crypto from '@node-singletons/crypto';
+import { promisify } from '@node-singletons/util';
 
 /**
  * Hash algorithm selector
@@ -75,22 +76,52 @@ function timingSafeEquals(a: string, b: string): boolean {
 /**
  * Hash with PBKDF2 (default)
  */
-function hashPbkdf2(password: string): string {
+async function hashPbkdf2(password: string): Promise<string> {
   const iterations = 600000; // OWASP recommended for SHA-256
-  const salt = randomBytes(32).toString('hex');
+  const salt = crypto.randomBytes(32).toString('hex');
   const keyLength = 64;
   const digest = 'sha256';
 
-  const hash = pbkdf2Sync(password, salt, iterations, keyLength, digest).toString('hex');
+  const pbkdf2Fn = (() => {
+    try {
+      const maybe = (crypto as unknown as { pbkdf2?: unknown }).pbkdf2;
+      return typeof maybe === 'function' ? (maybe as (...args: unknown[]) => unknown) : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const pbkdf2SyncFn = (() => {
+    try {
+      const maybe = (crypto as unknown as { pbkdf2Sync?: unknown }).pbkdf2Sync;
+      return typeof maybe === 'function' ? (maybe as (...args: unknown[]) => unknown) : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  let hashHex = '';
+  if (pbkdf2Fn) {
+    const pbkdf2Async = promisify(pbkdf2Fn);
+    hashHex = (
+      (await pbkdf2Async(password, salt, iterations, keyLength, digest)) as Buffer
+    ).toString('hex');
+  } else if (pbkdf2SyncFn) {
+    hashHex = (pbkdf2SyncFn(password, salt, iterations, keyLength, digest) as Buffer).toString(
+      'hex'
+    );
+  } else {
+    throw ErrorFactory.createSecurityError('PBKDF2 is not available in this runtime');
+  }
 
   // Format: algorithm$iterations$salt$hash
-  return `pbkdf2$${iterations}$${salt}$${hash}`;
+  return `pbkdf2$${iterations}$${salt}$${hashHex}`;
 }
 
 /**
  * Verify PBKDF2 hash
  */
-function verifyPbkdf2(password: string, passwordHash: string): boolean {
+async function verifyPbkdf2(password: string, passwordHash: string): Promise<boolean> {
   const parts = passwordHash.split('$');
   const iterationsStr = parts[1];
   const salt = parts[2];
@@ -105,7 +136,38 @@ function verifyPbkdf2(password: string, passwordHash: string): boolean {
     const keyLength = 64;
     const digest = 'sha256';
 
-    const computed = pbkdf2Sync(password, salt, iterations, keyLength, digest).toString('hex');
+    const pbkdf2Fn = (() => {
+      try {
+        const maybe = (crypto as unknown as { pbkdf2?: unknown }).pbkdf2;
+        return typeof maybe === 'function' ? (maybe as (...args: unknown[]) => unknown) : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+
+    const pbkdf2SyncFn = (() => {
+      try {
+        const maybe = (crypto as unknown as { pbkdf2Sync?: unknown }).pbkdf2Sync;
+        return typeof maybe === 'function' ? (maybe as (...args: unknown[]) => unknown) : undefined;
+      } catch {
+        return undefined;
+      }
+    })();
+
+    let computed = '';
+    if (pbkdf2Fn) {
+      const pbkdf2Async = promisify(pbkdf2Fn);
+      computed = (
+        (await pbkdf2Async(password, salt, iterations, keyLength, digest)) as Buffer
+      ).toString('hex');
+    } else if (pbkdf2SyncFn) {
+      computed = (pbkdf2SyncFn(password, salt, iterations, keyLength, digest) as Buffer).toString(
+        'hex'
+      );
+    } else {
+      throw ErrorFactory.createSecurityError('PBKDF2 is not available in this runtime');
+    }
+
     return timingSafeEquals(computed, storedHash);
   } catch (error) {
     Logger.error('PBKDF2 verification failed', error);

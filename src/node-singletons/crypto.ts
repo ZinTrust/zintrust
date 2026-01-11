@@ -12,6 +12,7 @@ export {
   createSign,
   createVerify,
   generateKeyPairSync,
+  pbkdf2,
   pbkdf2Sync,
   randomBytes,
   randomInt,

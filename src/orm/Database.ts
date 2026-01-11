@@ -32,6 +32,7 @@ export interface IDatabase {
   getAdapterInstance(isRead?: boolean): IDatabaseAdapter;
   getType(): string;
   getConfig(): DatabaseConfig;
+  dispose(): void;
 }
 
 /**
@@ -116,8 +117,11 @@ const executeQueryOne = async (
   return result;
 };
 
-const installDbMetricsIfEnabled = (dbConfig: DatabaseConfig, eventEmitter: EventEmitter): void => {
-  if (Env.getBool('METRICS_ENABLED', false) === false) return;
+const installDbMetricsIfEnabled = (
+  dbConfig: DatabaseConfig,
+  eventEmitter: EventEmitter
+): (() => void) | null => {
+  if (Env.getBool('METRICS_ENABLED', false) === false) return null;
 
   let observeDbQueryPromise: Promise<
     ((input: { driver: string; durationMs: number }) => Promise<void>) | null
@@ -135,20 +139,37 @@ const installDbMetricsIfEnabled = (dbConfig: DatabaseConfig, eventEmitter: Event
     return observeDbQueryPromise;
   };
 
-  eventEmitter.on('after-query', (_sql: string, _params: unknown[], durationMs: number) => {
+  const handler = (_sql: string, _params: unknown[], durationMs: number): void => {
     void ensureObserveDbQuery().then((observe) => {
       if (observe === null) return;
       void observe({ driver: dbConfig.driver, durationMs });
     });
-  });
+  };
+
+  eventEmitter.on('after-query', handler);
+
+  // Return cleanup function
+  return (): void => {
+    eventEmitter.off('after-query', handler);
+  };
 };
 
-const installDbTracingIfEnabled = (dbConfig: DatabaseConfig, eventEmitter: EventEmitter): void => {
-  if (Env.getBool('OTEL_ENABLED', false) === false) return;
+const installDbTracingIfEnabled = (
+  dbConfig: DatabaseConfig,
+  eventEmitter: EventEmitter
+): (() => void) | null => {
+  if (Env.getBool('OTEL_ENABLED', false) === false) return null;
 
-  eventEmitter.on('after-query', (_sql: string, _params: unknown[], durationMs: number) => {
+  const handler = (_sql: string, _params: unknown[], durationMs: number): void => {
     OpenTelemetry.recordDbQuerySpan({ driver: dbConfig.driver, durationMs });
-  });
+  };
+
+  eventEmitter.on('after-query', handler);
+
+  // Return cleanup function
+  return (): void => {
+    eventEmitter.off('after-query', handler);
+  };
 };
 
 export const Database = Object.freeze({
@@ -163,8 +184,15 @@ export const Database = Object.freeze({
 
     const { writeAdapter, readAdapters } = initializeAdapters(dbConfig);
 
-    installDbMetricsIfEnabled(dbConfig, eventEmitter);
-    installDbTracingIfEnabled(dbConfig, eventEmitter);
+    // Store cleanup functions for event listeners
+    const cleanupFunctions: Array<() => void> = [];
+
+    // Install metrics and tracing, capture cleanup functions
+    const metricsCleanup = installDbMetricsIfEnabled(dbConfig, eventEmitter);
+    const tracingCleanup = installDbTracingIfEnabled(dbConfig, eventEmitter);
+
+    if (metricsCleanup) cleanupFunctions.push(metricsCleanup);
+    if (tracingCleanup) cleanupFunctions.push(tracingCleanup);
 
     const getAdapter = (isRead = false): IDatabaseAdapter => {
       if (isRead === false || readAdapters.length === 0) {
@@ -226,6 +254,13 @@ export const Database = Object.freeze({
       },
       getConfig() {
         return { ...dbConfig };
+      },
+      dispose() {
+        // Clean up event listeners to prevent memory leaks
+        for (const cleanup of cleanupFunctions) {
+          cleanup();
+        }
+        cleanupFunctions.length = 0;
       },
     };
     return db;

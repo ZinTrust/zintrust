@@ -173,9 +173,7 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    // After optimization and governance move to middleware,
-    // the controller defaults to 500 when called with invalid data bypassing middleware.
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 422 when name is null', async () => {
@@ -189,7 +187,7 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 422 when email is undefined', async () => {
@@ -203,7 +201,7 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 422 when email is null', async () => {
@@ -217,7 +215,7 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 201 on success', async () => {

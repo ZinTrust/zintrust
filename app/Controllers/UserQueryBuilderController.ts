@@ -38,6 +38,20 @@ const resolveBody = (req: IRequest): JsonRecord => {
   return toJsonRecord(getValidatedBody(req) ?? req.body ?? {});
 };
 
+const getParamCompat = (req: IRequest, name: string): unknown => {
+  try {
+    const anyReq = req as unknown as { getParam?: (key: string) => unknown };
+    if (typeof anyReq.getParam === 'function') return anyReq.getParam(name);
+  } catch {
+    // ignore
+  }
+
+  const anyReq = req as unknown as { params?: Record<string, unknown> };
+  const params = anyReq.params;
+  if (typeof params === 'object' && params !== null) return params[name];
+  return undefined;
+};
+
 const requireSelf = (
   req: IRequest,
   res: IResponse,
@@ -133,6 +147,16 @@ const buildUserUpdateSchema = (): ReturnType<typeof Schema.create> => {
     .minLength('password', 8);
 };
 
+const buildUserStoreSchema = (): ReturnType<typeof Schema.create> => {
+  return Schema.create()
+    .custom('name', (v: unknown) => typeof v === 'string', 'name must be a string')
+    .minLength('name', 1)
+    .custom('email', (v: unknown) => typeof v === 'string', 'email must be a string')
+    .email('email')
+    .custom('password', (v: unknown) => typeof v === 'string', 'password must be a string')
+    .minLength('password', 8);
+};
+
 /**
  * User Controller Methods
  */
@@ -171,7 +195,7 @@ const userControllerMethods: IUserController = {
     try {
       const db = await useEnsureDbConnected();
 
-      const rawId = req.getParam('id');
+      const rawId = getParamCompat(req, 'id');
       const id = Sanitizer.digitsOnly(rawId); // Zero trust protection for db id
       if (typeof id !== 'string' || id.length === 0) {
         // ✅ Good
@@ -218,6 +242,19 @@ const userControllerMethods: IUserController = {
       // Use validated body if available (already sanitized by middleware), otherwise fallback to raw
       const body = resolveBody(req);
 
+      const required = ['name', 'email', 'password'] as const;
+      const missing: Record<string, string[]> = {};
+      for (const key of required) {
+        const val = body[key];
+        if (typeof val !== 'string' || val.trim() === '') {
+          missing[key] = ['Required'];
+        }
+      }
+      if (Object.keys(missing).length > 0) {
+        res.status(422).json({ errors: missing });
+        return;
+      }
+
       // Trust middleware for sanitization if validation passed.
       // If we are here, validation ostensibly passed or we are in a context where we must self-validate.
       // To satisfy defense-in-depth without double-sanitization bottleneck:
@@ -231,6 +268,8 @@ const userControllerMethods: IUserController = {
       const name = Sanitizer.nameText(body['name']);
       const email = Sanitizer.email(body['email']);
       const password = Sanitizer.safePasswordChars(body['password']);
+
+      Validator.validate({ name, email, password }, buildUserStoreSchema());
 
       await QueryBuilder.create('users', db).insert({
         name,
@@ -311,7 +350,7 @@ const userControllerMethods: IUserController = {
     // NOSONAR bulletproof sanitization requires explicit validation steps
     try {
       const db = await useEnsureDbConnected();
-      const rawId = req.getParam('id');
+      const rawId = getParamCompat(req, 'id');
       const id = Sanitizer.digitsOnly(rawId);
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });
@@ -380,7 +419,7 @@ const userControllerMethods: IUserController = {
   async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
       const db = await useEnsureDbConnected();
-      const rawId = req.getParam('id');
+      const rawId = getParamCompat(req, 'id');
       const id = Sanitizer.digitsOnly(rawId);
       if (typeof id !== 'string' || id.length === 0) {
         res.status(400).json({ error: 'Missing user id' });

@@ -1,15 +1,15 @@
 /* eslint-disable @typescript-eslint/require-await */
-/* eslint-disable no-await-in-loop */
+
 /**
  * Plugin Manager
  * Handles installation and removal of framework plugins.
  */
 
+import { execSync } from '@/node-singletons/child-process';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { esmDirname, resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { execSync } from '@node-singletons/child-process';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { PluginDefinition, PluginRegistry } from '@runtime/PluginRegistry';
@@ -114,6 +114,22 @@ async function npmInstall(
   const projectRoot = options.projectRoot ?? resolveProjectRoot();
   const pm = options.packageManager ?? resolvePackageManager();
 
+  // Legacy behavior: npm uses execSync in this framework.
+  // This keeps behavior predictable for CI/test environments and matches existing unit tests.
+  if (pm === 'npm') {
+    const cmd = options.dev
+      ? `npm install -D ${packages.join(' ')}`
+      : `npm install ${packages.join(' ')}`;
+
+    try {
+      execSync(cmd, { cwd: projectRoot, stdio: 'inherit' });
+      return;
+    } catch (error: unknown) {
+      ErrorFactory.createCliError(`Failed to install ${options.label}`, { error });
+      throw error;
+    }
+  }
+
   let cmd: string;
   let args: string[] = [];
 
@@ -134,22 +150,15 @@ async function npmInstall(
   }
 
   try {
-    if (pm === 'npm') {
-      // Preserve legacy execSync behavior for npm so integration tests and simple CLI usage behave identically
-      const cmdStr = options.dev
-        ? `npm install -D ${packages.join(' ')}`
-        : `npm install ${packages.join(' ')}`; // NOSONAR
-      execSync(cmdStr, { stdio: 'inherit', cwd: projectRoot });
-    } else {
-      const exit = await SpawnUtil.spawnAndWait({ command: cmd, args, cwd: projectRoot });
-      if (exit !== 0) {
-        throw ErrorFactory.createCliError(
-          `Package manager ${pm} failed to install ${options.label}`,
-          {
-            exit,
-          }
-        );
-      }
+    // Use async spawn for all package managers to avoid blocking event loop
+    const exit = await SpawnUtil.spawnAndWait({ command: cmd, args, cwd: projectRoot });
+    if (exit !== 0) {
+      throw ErrorFactory.createCliError(
+        `Package manager ${pm} failed to install ${options.label}`,
+        {
+          exit,
+        }
+      );
     }
   } catch (error: unknown) {
     ErrorFactory.createCliError(`Failed to install ${options.label}`, { error });
@@ -161,38 +170,41 @@ async function copyPluginTemplates(plugin: PluginDefinition): Promise<void> {
   const templateRoot = resolveTemplateRootOrThrow();
   const projectRoot = resolveProjectRoot();
 
-  for (const template of plugin.templates) {
-    const sourcePath = path.join(templateRoot, template.source);
-    const destPath = path.join(projectRoot, template.destination);
+  // Parallelize file operations using Promise.all
+  await Promise.all(
+    plugin.templates.map(async (template) => {
+      const sourcePath = path.join(templateRoot, template.source);
+      const destPath = path.join(projectRoot, template.destination);
 
-    // Prevent path traversal: resolved destination must be within project root
-    const resolvedDest = path.resolve(destPath);
-    const resolvedProjectRoot = path.resolve(projectRoot);
-    if (
-      !(
-        resolvedDest === resolvedProjectRoot ||
-        resolvedDest.startsWith(resolvedProjectRoot + path.sep)
-      )
-    ) {
-      throw ErrorFactory.createCliError(`Invalid template destination: ${template.destination}`, {
-        destination: template.destination,
-      });
-    }
+      // Prevent path traversal: resolved destination must be within project root
+      const resolvedDest = path.resolve(destPath);
+      const resolvedProjectRoot = path.resolve(projectRoot);
+      if (
+        !(
+          resolvedDest === resolvedProjectRoot ||
+          resolvedDest.startsWith(resolvedProjectRoot + path.sep)
+        )
+      ) {
+        throw ErrorFactory.createCliError(`Invalid template destination: ${template.destination}`, {
+          destination: template.destination,
+        });
+      }
 
-    Logger.info(`Copying ${template.source} to ${template.destination}...`);
+      Logger.info(`Copying ${template.source} to ${template.destination}...`);
 
-    try {
-      // Ensure destination directory exists
-      await fs.mkdir(path.dirname(destPath), { recursive: true });
+      try {
+        // Ensure destination directory exists
+        await fs.mkdir(path.dirname(destPath), { recursive: true });
 
-      // Read and write file
-      const content = await fs.readFile(sourcePath, 'utf-8');
-      await fs.writeFile(destPath, content, 'utf-8');
-    } catch (error: unknown) {
-      ErrorFactory.createCliError(`Failed to copy template ${template.source}`, { error });
-      throw error;
-    }
-  }
+        // Read and write file
+        const content = await fs.readFile(sourcePath, 'utf-8');
+        await fs.writeFile(destPath, content, 'utf-8');
+      } catch (error: unknown) {
+        ErrorFactory.createCliError(`Failed to copy template ${template.source}`, { error });
+        throw error;
+      }
+    })
+  );
 }
 
 async function ensurePluginAutoImports(plugin: PluginDefinition): Promise<void> {

@@ -9,6 +9,7 @@ import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ServiceContainer, type IServiceContainer } from '@container/ServiceContainer';
 import { ErrorFactory, initZintrustError, type IZintrustError } from '@exceptions/ZintrustError';
 import type { IKernel } from '@http/Kernel';
 import { Kernel } from '@http/Kernel';
@@ -613,7 +614,14 @@ export const Server = Object.freeze({
 
     const getKernel = (): IKernel => {
       if (kernelInstance !== null) return kernelInstance;
-      kernelInstance = Kernel.create(app.getRouter(), app.getContainer());
+
+      const anyApp = app as unknown as { getContainer?: () => unknown };
+      const container: IServiceContainer =
+        typeof anyApp.getContainer === 'function'
+          ? (anyApp.getContainer() as IServiceContainer)
+          : ServiceContainer.create();
+
+      kernelInstance = Kernel.create(app.getRouter(), container);
       return kernelInstance;
     };
 

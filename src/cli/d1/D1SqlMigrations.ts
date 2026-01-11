@@ -188,6 +188,9 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
     getConfig(): DatabaseConfig {
       return { driver: 'd1' };
     },
+    dispose(): void {
+      // No resources to dispose for capture DB
+    },
   };
 
   return db;

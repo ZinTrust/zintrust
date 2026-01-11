@@ -106,9 +106,7 @@ describe('UserQueryBuilderController validation', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    // After optimization and governance move to middleware,
-    // the controller defaults to 500 (DB error) or 201 (empty) when called with invalid data bypassing middleware.
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 422 for invalid email', async () => {
@@ -116,12 +114,14 @@ describe('UserQueryBuilderController validation', () => {
       await import('@app/Controllers/UserQueryBuilderController');
     const controller = UserQueryBuilderController.create();
 
-    const req = createReq({ body: { name: 'Alice', email: 'not-an-email' } });
+    const req = createReq({
+      body: { name: 'Alice', email: 'not-an-email', password: 'password1' },
+    });
     const res = createRes();
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it('store() inserts and returns 201 when valid', async () => {

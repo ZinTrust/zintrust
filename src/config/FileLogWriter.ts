@@ -2,13 +2,39 @@
  * FileLogWriter (Node.js only)
  *
  * Provides best-effort file logging with daily + size-based rotation.
- * This module imports Node built-ins and should be loaded only in Node environments.
+ * Uses async write streams to avoid blocking the event loop.
  */
 
 import { ensureDirSafe } from '@common/index';
 import { Env } from '@config/env';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import type { PathLike, WriteStream, WriteStreamOptions } from 'node:fs';
+
+// Write stream cache to avoid recreating streams
+const streamCache = new Map<string, WriteStream>();
+const pendingWrites = new Map<string, string[]>();
+
+const canUseWriteStreams = (): boolean => {
+  try {
+    // Vitest's ESM module mocks can throw when accessing missing exports.
+    // Treat missing createWriteStream as "no stream support".
+    return (
+      typeof (fs as unknown as { createWriteStream?: unknown }).createWriteStream === 'function'
+    );
+  } catch {
+    return false;
+  }
+};
+
+const appendFileSafe = (logFile: string, content: string): void => {
+  try {
+    // Some tests/mock environments provide only appendFileSync (no streams).
+    fs.appendFileSync(logFile, content);
+  } catch {
+    // best-effort
+  }
+};
 
 const getCwdSafe = (): string => {
   try {
@@ -204,6 +230,13 @@ const rotateIfNeeded = (logFile: string, maxSizeBytes: number): void => {
     const stat = fs.statSync(logFile);
     if (stat.size <= maxSizeBytes) return;
 
+    // Close and clear existing stream before rotation
+    const stream = streamCache.get(logFile);
+    if (stream !== undefined) {
+      stream.end();
+      streamCache.delete(logFile);
+    }
+
     const ext = '.log';
     const base = logFile.endsWith(ext) ? logFile.slice(0, -ext.length) : logFile;
     const rotated = `${base}-${Date.now()}${ext}`;
@@ -211,6 +244,51 @@ const rotateIfNeeded = (logFile: string, maxSizeBytes: number): void => {
   } catch {
     // best-effort
   }
+};
+
+const getOrCreateStream = (logFile: string): WriteStream => {
+  let stream = streamCache.get(logFile);
+
+  if (stream === undefined || stream.destroyed) {
+    type CreateWriteStream = (path: PathLike, options: WriteStreamOptions) => WriteStream;
+
+    const createWriteStream = (fs as unknown as { createWriteStream: CreateWriteStream })
+      .createWriteStream;
+
+    stream = createWriteStream(logFile, { flags: 'a', encoding: 'utf-8' });
+
+    // Clean up on error
+    stream.on('error', () => {
+      streamCache.delete(logFile);
+    });
+
+    streamCache.set(logFile, stream);
+  }
+
+  return stream;
+};
+
+const flushPendingWrites = (logFile: string): void => {
+  const pending = pendingWrites.get(logFile);
+  if (pending === undefined || pending.length === 0) return;
+
+  const lines = pending.join('');
+
+  if (!canUseWriteStreams()) {
+    appendFileSafe(logFile, lines);
+    pendingWrites.delete(logFile);
+    return;
+  }
+
+  const stream = getOrCreateStream(logFile);
+
+  stream.write(lines, (error: Error | null | undefined) => {
+    if (error !== null && error !== undefined) {
+      // Silent failure for best-effort logging
+    }
+  });
+
+  pendingWrites.delete(logFile);
 };
 
 export const FileLogWriter = Object.freeze({
@@ -226,14 +304,38 @@ export const FileLogWriter = Object.freeze({
 
     rotateIfNeeded(logFile, Env.LOG_ROTATION_SIZE);
 
+    // In test environments we sometimes mock @node-singletons/fs without stream APIs.
+    // Fall back to synchronous append to avoid runtime crashes.
+    if (!canUseWriteStreams()) {
+      appendFileSafe(logFile, `${line}\n`);
+      cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
+      return;
+    }
+
     try {
-      fs.appendFileSync(logFile, `${line}\n`);
+      // Buffer writes for async processing
+      const pending = pendingWrites.get(logFile) ?? [];
+      pending.push(`${line}\n`);
+      pendingWrites.set(logFile, pending);
+
+      // Flush on next tick to batch multiple rapid writes
+      process.nextTick(() => flushPendingWrites(logFile));
     } catch {
       // best-effort
       return;
     }
 
     cleanupOldLogs(logsDir, Env.LOG_ROTATION_DAYS);
+  },
+
+  // Flush all streams (for graceful shutdown)
+  flush(): void {
+    for (const [logFile, stream] of streamCache.entries()) {
+      flushPendingWrites(logFile);
+      stream.end();
+    }
+    streamCache.clear();
+    pendingWrites.clear();
   },
 });
 

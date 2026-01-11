@@ -237,8 +237,7 @@ function createSharedMiddlewares(): SharedMiddlewares {
     sanitizeBody: SanitizeBodyMiddleware.create(),
     ...rateLimits,
     csrf: CsrfMiddleware.create({
-      skipPaths: ['/api/*'],
-      // skipPaths: [],
+      skipPaths: [],
     }),
     auth: AuthMiddleware.create(),
     jwt: JwtAuthMiddleware.create(),

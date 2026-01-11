@@ -39,7 +39,7 @@ export const EventDispatcher = Object.freeze({
   create<TEvents extends EventMap = EventMap>(): IEventDispatcher<TEvents> {
     const listeners: ListenerStore = new Map();
 
-    return {
+    const dispatcher: IEventDispatcher<TEvents> = {
       on<K extends keyof TEvents & string>(
         event: K,
         listener: EventListener<TEvents[K]>
@@ -47,8 +47,9 @@ export const EventDispatcher = Object.freeze({
         const set = getOrCreateSet(listeners, event);
         set.add(listener as AnyListener);
 
+        // Capture dispatcher reference in closure instead of using 'this'
         return (): void => {
-          this.off(event, listener);
+          dispatcher.off(event, listener);
         };
       },
 
@@ -57,7 +58,7 @@ export const EventDispatcher = Object.freeze({
         listener: EventListener<TEvents[K]>
       ): () => void {
         const wrapped: AnyListener = async (payload: unknown) => {
-          this.off(event, wrapped as unknown as EventListener<TEvents[K]>);
+          dispatcher.off(event, wrapped as unknown as EventListener<TEvents[K]>);
           return (listener as AnyListener)(payload);
         };
 
@@ -65,7 +66,7 @@ export const EventDispatcher = Object.freeze({
         set.add(wrapped);
 
         return (): void => {
-          this.off(event, wrapped as unknown as EventListener<TEvents[K]>);
+          dispatcher.off(event, wrapped as unknown as EventListener<TEvents[K]>);
         };
       },
 
@@ -132,6 +133,8 @@ export const EventDispatcher = Object.freeze({
         listeners.clear();
       },
     };
+
+    return dispatcher;
   },
 });
 

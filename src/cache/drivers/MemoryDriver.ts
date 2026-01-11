@@ -13,6 +13,19 @@ import { CacheDriver } from '@cache/CacheDriver';
 const create = (): CacheDriver => {
   const storage = new Map<string, { value: unknown; expires: number | null }>();
 
+  // Background cleanup interval (runs every 60 seconds)
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, item] of storage.entries()) {
+      if (item.expires !== null && item.expires < now) {
+        storage.delete(key);
+      }
+    }
+  }, 60_000); // 60 seconds
+
+  // Unref so it doesn't keep process alive
+  cleanupInterval.unref();
+
   return {
     async get<T>(key: string): Promise<T | null> {
       await Promise.resolve();
@@ -54,6 +67,12 @@ const create = (): CacheDriver => {
       }
 
       return true;
+    },
+
+    async dispose(): Promise<void> {
+      clearInterval(cleanupInterval);
+      storage.clear();
+      await Promise.resolve();
     },
   };
 };

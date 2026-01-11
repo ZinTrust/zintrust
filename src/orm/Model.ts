@@ -211,6 +211,7 @@ export const createModel = (
   const attrs: Record<string, unknown> = {};
   let original: Record<string, unknown> = {};
   let isExists = false;
+  const dirtyFields = new Set<string>();
 
   fillAttributes(config, attrs, attributes);
   original = { ...attrs };
@@ -218,12 +219,27 @@ export const createModel = (
   const model: IModel = {
     fill: (newAttrs): IModel => {
       fillAttributes(config, attrs, newAttrs);
+      // Mark all filled fields as dirty
+      for (const key of Object.keys(newAttrs)) {
+        if (attrs[key] !== original[key]) {
+          dirtyFields.add(key);
+        }
+      }
       return model;
     },
     setAttribute: (key, value): IModel => {
       const mutator = config.mutators?.[key];
       const nextValue = mutator ? mutator(value, attrs) : value;
-      attrs[key] = castAttribute(config, key, nextValue);
+      const castedValue = castAttribute(config, key, nextValue);
+      attrs[key] = castedValue;
+
+      // Track dirty field
+      if (original[key] === castedValue) {
+        dirtyFields.delete(key);
+      } else {
+        dirtyFields.add(key);
+      }
+
       return model;
     },
     getAttribute: (key): unknown => applyAccessor(config, key, attrs),
@@ -243,6 +259,7 @@ export const createModel = (
       }
       isExists = true;
       original = { ...attrs };
+      dirtyFields.clear(); // Clear dirty tracking after save
 
       await runObservers(config, isCreate ? 'created' : 'updated', model);
       await runObservers(config, 'saved', model);
@@ -258,10 +275,14 @@ export const createModel = (
       return true;
     },
     toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
-    isDirty: (key): boolean =>
-      key === undefined
-        ? JSON.stringify(attrs) !== JSON.stringify(original)
-        : attrs[key] !== original[key],
+    isDirty: (key): boolean => {
+      if (key !== undefined) {
+        // Field-level check (fast path)
+        return dirtyFields.has(key);
+      }
+      // Global check - use Set size instead of JSON serialization
+      return dirtyFields.size > 0;
+    },
     getTable: (): string => config.table,
     exists: (): boolean => isExists,
     setExists: (exists: boolean): void => {

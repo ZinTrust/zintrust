@@ -148,7 +148,7 @@ describe('Security Layers - Defense-in-Depth', () => {
     });
 
     it('should reject after sanitization if validation fails', () => {
-      const email = Sanitizer.email('  invalid-email  ');
+      const email = Sanitizer.email('  invalid-email  ', false);
       const schema = Schema.create().email('email');
 
       const validationFn = () => Validator.validate({ email }, schema);
