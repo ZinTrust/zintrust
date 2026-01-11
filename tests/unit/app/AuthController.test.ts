@@ -55,6 +55,8 @@ describe('AuthController', () => {
 
     const req = {
       body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' },
+      validated: { body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' } },
+      getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
     const res = createRes();
@@ -90,6 +92,8 @@ describe('AuthController', () => {
 
     const req = {
       body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' },
+      validated: { body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' } },
+      getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
     const res = createRes();
@@ -121,6 +125,8 @@ describe('AuthController', () => {
 
     const req = {
       body: { email: 'missing@example.com', password: 'wrong' },
+      validated: { body: { email: 'missing@example.com', password: 'wrong' } },
+      getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
     const res = createRes();
@@ -149,7 +155,9 @@ describe('AuthController', () => {
     const controller = AuthController.create();
 
     const req = {
-      body: { email: 'a@example.com', password: 'wrong' },
+      body: { email: 'a@example.com', password: 'wrongpassword' },
+      validated: { body: { email: 'a@example.com', password: 'wrongpassword' } },
+      getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
     const res = createRes();
@@ -180,6 +188,8 @@ describe('AuthController', () => {
 
     const req = {
       body: { email: 'a@example.com', password: 'password' },
+      validated: { body: { email: 'a@example.com', password: 'password' } },
+      getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
     const res = createRes();
