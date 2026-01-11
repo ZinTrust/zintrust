@@ -102,10 +102,17 @@ async function hashPbkdf2(password: string): Promise<string> {
 
   let hashHex = '';
   if (pbkdf2Fn) {
-    const pbkdf2Async = promisify(pbkdf2Fn);
-    hashHex = (
-      (await pbkdf2Async(password, salt, iterations, keyLength, digest)) as Buffer
-    ).toString('hex');
+    const pbkdf2Async = promisify(
+      pbkdf2Fn as (
+        p: string,
+        s: string,
+        i: number,
+        k: number,
+        d: string,
+        callback: (err: Error | null, result: Buffer) => void
+      ) => void
+    );
+    hashHex = (await pbkdf2Async(password, salt, iterations, keyLength, digest)).toString('hex');
   } else if (pbkdf2SyncFn) {
     hashHex = (pbkdf2SyncFn(password, salt, iterations, keyLength, digest) as Buffer).toString(
       'hex'
@@ -156,10 +163,17 @@ async function verifyPbkdf2(password: string, passwordHash: string): Promise<boo
 
     let computed = '';
     if (pbkdf2Fn) {
-      const pbkdf2Async = promisify(pbkdf2Fn);
-      computed = (
-        (await pbkdf2Async(password, salt, iterations, keyLength, digest)) as Buffer
-      ).toString('hex');
+      const pbkdf2Async = promisify(
+        pbkdf2Fn as (
+          p: string,
+          s: string,
+          i: number,
+          k: number,
+          d: string,
+          callback: (err: Error | null, result: Buffer) => void
+        ) => void
+      );
+      computed = (await pbkdf2Async(password, salt, iterations, keyLength, digest)).toString('hex');
     } else if (pbkdf2SyncFn) {
       computed = (pbkdf2SyncFn(password, salt, iterations, keyLength, digest) as Buffer).toString(
         'hex'

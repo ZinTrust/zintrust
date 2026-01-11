@@ -5,6 +5,8 @@
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { IDatabase } from '@orm/Database';
+import type { IModel } from '@orm/Model';
+import type { IRelationship } from '@orm/Relationships';
 
 export interface WhereClause {
   column: string;
@@ -49,6 +51,10 @@ export interface IQueryBuilder {
   first<T>(): Promise<T | null>;
   firstOrFail<T>(message?: string): Promise<T>;
   get<T>(): Promise<T[]>;
+  raw<T>(): Promise<T[]>;
+
+  with(relation: string): IQueryBuilder;
+  load(models: IModel[], relation: string): Promise<void>;
 
   insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<void>;
   update(values: Record<string, unknown>): Promise<void>;
@@ -64,6 +70,7 @@ interface QueryState {
   orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>;
   joins: Array<{ table: string; on: string }>;
   softDelete?: { column: string; mode: SoftDeleteMode };
+  eagerLoads: string[];
 }
 
 /**
@@ -644,12 +651,64 @@ function attachIntrospectionMethods(builder: IQueryBuilder, state: QueryState): 
   builder.isReadOperation = () => true;
   builder.toSQL = () => buildSelectQuery(state).sql;
   builder.getParameters = () => buildSelectQuery(state).parameters;
+  // Internal method for eager loading distribution
+  (builder as unknown as { getEagerLoads: () => string[] }).getEagerLoads = () => state.eagerLoads;
 }
 
 function attachReadExecutionMethods(builder: IQueryBuilder, db?: IDatabase): void {
   builder.first = async <T>() => executeFirst<T>(builder, db);
   builder.firstOrFail = async <T>(message?: string) => executeFirstOrFail<T>(builder, db, message);
   builder.get = async <T>() => executeGet<T>(builder, db);
+  // raw just returns results without any hydration logic in callers
+  builder.raw = async <T>() => executeGet<T>(builder, db);
+}
+
+function attachRelationshipMethods(builder: IQueryBuilder, state: QueryState): void {
+  builder.with = (relation: string) => {
+    state.eagerLoads.push(relation);
+    return builder;
+  };
+
+  builder.load = async (models: IModel[], relation: string) => {
+    if (models.length === 0) return;
+
+    // We assume the first model can give us the relationship definition
+    const firstModel = models[0] as unknown as Record<string, () => IRelationship>;
+    if (typeof firstModel[relation] !== 'function') return;
+
+    const rel = firstModel[relation]();
+    if (rel === null || rel === undefined) return;
+
+    const related = (rel as unknown as { related?: unknown }).related;
+    if (related === null || related === undefined) return;
+
+    const foreignKey = rel.foreignKey;
+    const localKey = rel.localKey;
+
+    const ids = models
+      .map((m) => m.getAttribute(localKey))
+      .filter((id): id is string | number => id !== null && id !== undefined);
+
+    if (ids.length === 0) return;
+
+    // Call query on the related model
+    const relatedModel = rel.related as unknown as { query(): IQueryBuilder };
+    if (typeof relatedModel.query !== 'function') return;
+
+    const relatedResults = await relatedModel.query().whereIn(foreignKey, ids).get<IModel>();
+
+    // Map results back to models
+    for (const model of models) {
+      const modelId = model.getAttribute(localKey);
+      if (rel.type === 'hasMany' || rel.type === 'belongsToMany') {
+        const filtered = relatedResults.filter((r) => r.getAttribute(foreignKey) === modelId);
+        model.setRelation(relation, filtered);
+      } else {
+        const found = relatedResults.find((r) => r.getAttribute(foreignKey) === modelId);
+        model.setRelation(relation, found ?? null);
+      }
+    }
+  };
 }
 
 function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDatabase): void {
@@ -694,6 +753,7 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
   attachJoinOrderPagingMethods(builder, state);
   attachIntrospectionMethods(builder, state);
   attachReadExecutionMethods(builder, db);
+  attachRelationshipMethods(builder, state);
   attachWriteMethods(builder, state, db);
 
   return builder;
@@ -727,6 +787,7 @@ export const QueryBuilder = Object.freeze({
       selectColumns: ['*'],
       orderByClauses: [],
       joins: [],
+      eagerLoads: [],
     };
 
     if (options.softDeleteColumn !== undefined && options.softDeleteColumn.trim().length > 0) {

@@ -18,6 +18,12 @@ export interface Relation {
 
 export interface IRelationship {
   get(instance: IModel): Promise<unknown>;
+  type: RelationshipType;
+  related: ModelStatic;
+  foreignKey: string;
+  localKey: string;
+  throughTable?: string;
+  relatedKey?: string;
 }
 
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
@@ -37,6 +43,10 @@ const getRelatedTableName = (relatedModel: ModelStatic): string => {
 export const HasOne = Object.freeze({
   create(relatedModel: ModelStatic, foreignKey: string, localKey: string): IRelationship {
     return {
+      type: 'hasOne',
+      related: relatedModel,
+      foreignKey,
+      localKey,
       async get(instance: IModel): Promise<unknown> {
         const value = instance.getAttribute(localKey);
         if (value === undefined || value === null || value === '') return null;
@@ -56,6 +66,10 @@ export const HasOne = Object.freeze({
 export const HasMany = Object.freeze({
   create(relatedModel: ModelStatic, foreignKey: string, localKey: string): IRelationship {
     return {
+      type: 'hasMany',
+      related: relatedModel,
+      foreignKey,
+      localKey,
       async get(instance: IModel): Promise<unknown[]> {
         const value = instance.getAttribute(localKey);
         if (value === undefined || value === null || value === '') return [];
@@ -75,6 +89,10 @@ export const HasMany = Object.freeze({
 export const BelongsTo = Object.freeze({
   create(relatedModel: ModelStatic, foreignKey: string, localKey: string): IRelationship {
     return {
+      type: 'belongsTo',
+      related: relatedModel,
+      foreignKey,
+      localKey,
       async get(instance: IModel): Promise<unknown> {
         const value = instance.getAttribute(foreignKey);
         if (value === undefined || value === null || value === '') return null;
@@ -111,6 +129,12 @@ export const BelongsToMany = Object.freeze({
     };
 
     return {
+      type: 'belongsToMany',
+      related: relatedModel,
+      throughTable,
+      foreignKey,
+      relatedKey,
+      localKey: 'id',
       async get(instance: IModel): Promise<unknown[]> {
         if (!isValidInstance(instance)) {
           return [];

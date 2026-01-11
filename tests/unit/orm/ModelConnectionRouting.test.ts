@@ -41,7 +41,7 @@ describe('ModelConnectionRouting', () => {
     const { createModel } = await import('@orm/Model');
     const { useDatabase } = await import('@orm/Database');
 
-    createModel({
+    const model = createModel({
       table: 'users',
       fillable: [],
       hidden: [],
@@ -49,6 +49,8 @@ describe('ModelConnectionRouting', () => {
       casts: {},
       connection: 'connB',
     });
+
+    await model.save();
 
     expect(useDatabase).toHaveBeenCalledWith(undefined, 'connB');
   });
