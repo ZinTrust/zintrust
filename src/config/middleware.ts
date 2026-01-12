@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -239,7 +240,10 @@ function createSharedMiddlewares(): SharedMiddlewares {
     sanitizeBody: SanitizeBodyMiddleware.create(),
     ...rateLimits,
     csrf: CsrfMiddleware.create({
-      skipPaths: ['/api/*'],
+      skipPaths: Env.get('CSRF_SKIP_PATHS', '')
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0),
     }),
     auth: AuthMiddleware.create(),
     jwt: JwtAuthMiddleware.create(),

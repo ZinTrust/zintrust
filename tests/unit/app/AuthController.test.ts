@@ -1,7 +1,11 @@
 import { Auth } from '@features/Auth';
-import { useEnsureDbConnected } from '@orm/Database';
+import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+
+beforeEach(() => {
+  vi.resetModules();
+});
 
 vi.mock('@orm/Database', () => ({
   useDatabase: vi.fn(),
@@ -40,7 +44,7 @@ const createRes = (): MockRes => ({
 describe('AuthController', () => {
   it('register: returns 409 when email exists', async () => {
     const db = { isConnected: () => true, connect: vi.fn() };
-    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
+    (useDatabase as unknown as Mock).mockReturnValue(db);
 
     const findBuilder = {
       where: vi.fn().mockReturnThis(),
@@ -69,7 +73,7 @@ describe('AuthController', () => {
 
   it('register: returns 201 when email does not exist', async () => {
     const db = { isConnected: () => true, connect: vi.fn() };
-    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
+    (useDatabase as unknown as Mock).mockReturnValue(db);
 
     const findBuilder = {
       where: vi.fn().mockReturnThis(),
@@ -110,15 +114,16 @@ describe('AuthController', () => {
   });
 
   it('login: returns 401 when user is not found', async () => {
-    const db = { isConnected: () => true, connect: vi.fn() };
-    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
-
-    const findBuilder = {
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      first: vi.fn().mockResolvedValue(null),
-    };
-    (QueryBuilder.create as unknown as Mock).mockReturnValue(findBuilder);
+    vi.resetModules();
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({
+          limit: () => ({
+            first: async () => null,
+          }),
+        }),
+      },
+    }));
 
     const { AuthController } = await import('@app/Controllers/AuthController');
     const controller = AuthController.create();
@@ -138,16 +143,16 @@ describe('AuthController', () => {
   });
 
   it('login: returns 401 on invalid password', async () => {
-    const db = { isConnected: () => true, connect: vi.fn() };
-    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
-
-    const findBuilder = {
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      first: vi.fn().mockResolvedValue({ id: 1, email: 'a@example.com', password: 'hash' }),
-    };
-
-    (QueryBuilder.create as unknown as Mock).mockReturnValue(findBuilder);
+    vi.resetModules();
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({
+          limit: () => ({
+            first: async () => ({ id: 1, email: 'a@example.com', password: 'hash' }),
+          }),
+        }),
+      },
+    }));
 
     (Auth.compare as unknown as Mock).mockResolvedValue(false);
 
@@ -169,17 +174,21 @@ describe('AuthController', () => {
   });
 
   it('login: returns token + user when credentials are valid', async () => {
-    const db = { isConnected: () => true, connect: vi.fn() };
-    (useEnsureDbConnected as unknown as Mock).mockResolvedValue(db);
-
-    const findBuilder = {
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      first: vi
-        .fn()
-        .mockResolvedValue({ id: 'u1', name: 'A', email: 'a@example.com', password: 'hash' }),
-    };
-    (QueryBuilder.create as unknown as Mock).mockReturnValue(findBuilder);
+    vi.resetModules();
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({
+          limit: () => ({
+            first: async () => ({
+              id: 'u1',
+              name: 'A',
+              email: 'a@example.com',
+              password: 'hash',
+            }),
+          }),
+        }),
+      },
+    }));
     (Auth.compare as unknown as Mock).mockResolvedValue(true);
 
     const { JwtManager } = await import('@security/JwtManager');

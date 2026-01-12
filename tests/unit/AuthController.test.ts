@@ -13,10 +13,16 @@ describe('AuthController.login', () => {
 
     const fakeUser = { id: 123, name: 'X', email: 'x', password: 'hash' };
 
-    vi.doMock('@orm/Database', () => ({ useEnsureDbConnected: vi.fn().mockResolvedValue({}) }));
-    vi.doMock('@orm/QueryBuilder', () => ({
-      QueryBuilder: {
-        create: () => ({ where: () => ({ limit: () => ({ first: async () => fakeUser }) }) }),
+    vi.doMock('@orm/Database', () => ({
+      useDatabase: vi.fn(() => ({})),
+    }));
+    vi.doMock('@app/Models/User', () => ({
+      User: {
+        where: () => ({
+          limit: () => ({
+            first: async () => fakeUser,
+          }),
+        }),
       },
     }));
 

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UserQueryBuilderController from '../../app/Controllers/UserQueryBuilderController';
 
-vi.mock('../../src/orm/Database', () => ({ useEnsureDbConnected: vi.fn().mockResolvedValue({}) }));
-vi.mock('../../src/orm/QueryBuilder', () => ({
+vi.mock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
+vi.mock('@orm/QueryBuilder', () => ({
   QueryBuilder: { create: vi.fn().mockReturnValue({}) },
 }));
 

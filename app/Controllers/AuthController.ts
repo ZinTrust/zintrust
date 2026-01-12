@@ -11,7 +11,7 @@ import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { getValidatedBody } from '@http/ValidationHelper';
-import { useEnsureDbConnected } from '@orm/Database';
+import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { JwtManager } from '@security/JwtManager';
 import { TokenRevocation } from '@security/TokenRevocation';
@@ -129,7 +129,7 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = await useEnsureDbConnected();
+    const db = useDatabase();
 
     const existing = await QueryBuilder.create('users', db)
       .where('email', '=', email)

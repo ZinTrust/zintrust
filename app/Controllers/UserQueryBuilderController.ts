@@ -11,7 +11,7 @@ import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { getValidatedBody } from '@http/ValidationHelper';
 import { randomBytes } from '@node-singletons/crypto';
-import { useEnsureDbConnected } from '@orm/Database';
+import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { Sanitizer } from '@security/Sanitizer';
 import { Schema, Validator } from '@validation/Validator';
@@ -173,7 +173,7 @@ const userControllerMethods: IUserController = {
         return;
       }
 
-      const db = await useEnsureDbConnected();
+      const db = useDatabase();
       const users = await QueryBuilder.create('users', db)
         .select('id', 'name', 'email', 'created_at', 'updated_at')
         .where('id', '=', subject)
@@ -193,7 +193,7 @@ const userControllerMethods: IUserController = {
    */
   async show(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const db = await useEnsureDbConnected();
+      const db = useDatabase();
 
       const rawId = getParamCompat(req, 'id');
       const id = Sanitizer.digitsOnly(rawId); // Zero trust protection for db id
@@ -261,7 +261,7 @@ const userControllerMethods: IUserController = {
       // We assume body is safe-ish if it came from resolved validated body.
       // But to be explicit and type-safe, we cast or read fields directly.
 
-      const db = await useEnsureDbConnected();
+      const db = useDatabase();
       const ts = nowIso();
 
       // Apply bulletproof sanitization for defense-in-depth
@@ -308,7 +308,7 @@ const userControllerMethods: IUserController = {
       if (count < 1) count = 1;
       if (count > 100) count = 100;
 
-      const db = await useEnsureDbConnected();
+      const db = useDatabase();
       const ts = nowIso();
 
       // Optimize: Bulk insert instead of N+1 inserts to reduce IO bottleneck and memory overhead
@@ -349,7 +349,7 @@ const userControllerMethods: IUserController = {
   async update(req: IRequest, res: IResponse): Promise<void> {
     // NOSONAR bulletproof sanitization requires explicit validation steps
     try {
-      const db = await useEnsureDbConnected();
+      const db = useDatabase();
       const rawId = getParamCompat(req, 'id');
       const id = Sanitizer.digitsOnly(rawId);
       if (typeof id !== 'string' || id.length === 0) {
@@ -418,7 +418,7 @@ const userControllerMethods: IUserController = {
    */
   async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
-      const db = await useEnsureDbConnected();
+      const db = useDatabase();
       const rawId = getParamCompat(req, 'id');
       const id = Sanitizer.digitsOnly(rawId);
       if (typeof id !== 'string' || id.length === 0) {

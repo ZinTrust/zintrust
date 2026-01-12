@@ -3,9 +3,9 @@ import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
+import type { IJwtManager, JwtAlgorithm } from '@security/JwtManager';
+import { JwtManager } from '@security/JwtManager';
 import { TokenRevocation } from '@security/TokenRevocation';
-import type { JwtAlgorithm} from '@security/JwtManager';
-import { JwtManager, type IJwtManager } from '@security/JwtManager';
 
 export interface JwtAuthOptions {
   algorithm?: JwtAlgorithm;

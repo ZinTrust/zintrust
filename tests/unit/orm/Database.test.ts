@@ -2,7 +2,7 @@
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
-import type { IDatabase} from '@orm/Database';
+import type { IDatabase } from '@orm/Database';
 import { Database, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -148,10 +148,10 @@ describe('Database', () => {
     expect(db.isConnected()).toBe(false);
   });
 
-  it('should throw error on query without connection', async () => {
+  it('should auto-connect on query without connection', async () => {
     db = Database.create({ driver: 'sqlite', database: ':memory:' });
-    const query = db.query('SELECT * FROM users');
-    await expect(query).rejects.toThrow('Database not connected');
+    await expect(db.query('select 1 as x')).resolves.toBeDefined();
+    // New behavior: query() will connect lazily by default.
   });
 
   it('should use singleton instance', () => {

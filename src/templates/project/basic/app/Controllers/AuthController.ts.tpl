@@ -8,7 +8,7 @@ import {
   Auth,
   Logger,
   getValidatedBody,
-  useEnsureDbConnected,
+  useDatabase,
   QueryBuilder,
   JwtManager,
   TokenRevocation
@@ -44,7 +44,7 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = await useEnsureDbConnected();
+    const db = useDatabase();
 
     const existing = await QueryBuilder.create('users', db)
       .where('email', '=', email)
@@ -135,7 +135,7 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = await useEnsureDbConnected();
+    const db = useDatabase();
 
     const existing = await QueryBuilder.create('users', db)
       .where('email', '=', email)
