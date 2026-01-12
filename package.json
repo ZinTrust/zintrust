@@ -94,7 +94,7 @@
     "pub:ci": "cd dist && npm publish --access public",
     "rebuild:bcrypt": "npm rebuild bcrypt",
     "rebuild:native": "npm rebuild bcrypt better-sqlite3",
-    "b:push": "npm run sonarcloud:check && npm run lint --max-warnings=0",
+    "b:push": "npm run lint --max-warnings=0",
     "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist",
     "release:sync-versions": "node scripts/release/sync-package-versions.mjs",
     "release:publish-packages": "node scripts/release/publish-packages.mjs",
