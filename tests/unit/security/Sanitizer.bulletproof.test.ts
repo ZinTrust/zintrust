@@ -24,6 +24,7 @@ describe('Sanitizer - Bulletproof Mode', () => {
       const huge = (Number.MAX_SAFE_INTEGER + 1).toString();
       expect(() => Sanitizer.digitsOnly(huge)).toThrow(/Invalid numeric ID/i);
       expect(() => Sanitizer.digitsOnly('9999999999999999999')).toThrow();
+      expect(() => Sanitizer.digitsOnly('99999999999999999999999')).toThrow(/too long/i);
     });
 
     it('should throw on leading zeros', () => {
@@ -72,6 +73,22 @@ describe('Sanitizer - Bulletproof Mode', () => {
       expect(() => Sanitizer.parseAmount('9999999999999999999')).toThrow();
     });
 
+    it('should throw on plus sign prefix', () => {
+      expect(() => Sanitizer.parseAmount('+123')).toThrow(/Plus sign not allowed/i);
+      expect(() => Sanitizer.parseAmount('+0.5')).toThrow();
+    });
+
+    it('should throw on scientific notation', () => {
+      expect(() => Sanitizer.parseAmount('1e10')).toThrow(/Scientific notation not allowed/i);
+      expect(() => Sanitizer.parseAmount('1E5')).toThrow();
+      expect(() => Sanitizer.parseAmount('2.5e-3')).toThrow();
+    });
+
+    it('should throw on invalid numeric format', () => {
+      expect(() => Sanitizer.parseAmount('abc')).toThrow(/Invalid numeric format/i);
+      expect(() => Sanitizer.parseAmount('12.34.56')).toThrow();
+    });
+
     it('should allow bulletproof=false for unsafe mode', () => {
       expect(Sanitizer.parseAmount('Infinity', false)).toBe(0);
       expect(Sanitizer.parseAmount('NaN', false)).toBe(0);
@@ -95,6 +112,7 @@ describe('Sanitizer - Bulletproof Mode', () => {
         /Invalid numeric format/i
       );
       expect(() => Sanitizer.nonNegativeNumericStringOrNull('00082')).toThrow();
+      expect(() => Sanitizer.nonNegativeNumericStringOrNull('0123')).toThrow();
     });
 
     it('should throw on overflow', () => {
@@ -102,6 +120,7 @@ describe('Sanitizer - Bulletproof Mode', () => {
       expect(() => Sanitizer.nonNegativeNumericStringOrNull(huge)).toThrow(
         /Invalid numeric format/i
       );
+      expect(() => Sanitizer.nonNegativeNumericStringOrNull('9999999999999999999')).toThrow();
     });
 
     it('should return 0 for negative numbers', () => {
@@ -110,6 +129,7 @@ describe('Sanitizer - Bulletproof Mode', () => {
 
     it('should return null for non-numeric', () => {
       expect(Sanitizer.nonNegativeNumericStringOrNull('abc')).toBeNull();
+      expect(Sanitizer.nonNegativeNumericStringOrNull('!!!')).toBeNull();
     });
 
     it('should allow bulletproof=false for unsafe mode', () => {
@@ -131,6 +151,11 @@ describe('Sanitizer - Bulletproof Mode', () => {
     it('should throw on empty after sanitization', () => {
       expect(() => Sanitizer.decimalString('abc')).toThrow(/Empty result after sanitization/i);
       expect(() => Sanitizer.decimalString('!!!')).toThrow();
+    });
+
+    it('should throw on signed values', () => {
+      expect(() => Sanitizer.decimalString('-5')).toThrow(/Signed values not allowed/i);
+      expect(() => Sanitizer.decimalString('+5')).toThrow();
     });
 
     it('should throw on non-numeric decimal', () => {

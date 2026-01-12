@@ -23,6 +23,48 @@ describe('ZintrustError helpers', () => {
     expect((err as any).details?.redactedValue).toMatch(/\.\.\./);
   });
 
+  it('createSanitizerError handles symbol values', () => {
+    const sym = Symbol('test');
+    const err = createSanitizerError('foo', 'reason', sym);
+    expect((err as any).details?.redactedValue).toBe('Symbol');
+  });
+
+  it('createSanitizerError handles function values', () => {
+    const fn = () => {};
+    const err = createSanitizerError('foo', 'reason', fn);
+    expect((err as any).details?.redactedValue).toBe('Function');
+  });
+
+  it('createSanitizerError handles Buffer values', () => {
+    const buf = Buffer.from('test');
+    const err = createSanitizerError('foo', 'reason', buf);
+    expect((err as any).details?.redactedValue).toMatch(/Buffer\(len=\d+\)/);
+  });
+
+  it('createSanitizerError handles Uint8Array values', () => {
+    const arr = new Uint8Array([1, 2, 3]);
+    const err = createSanitizerError('foo', 'reason', arr);
+    expect((err as any).details?.redactedValue).toMatch(/Uint8Array\(len=\d+\)/);
+  });
+
+  it('createSanitizerError handles Array values', () => {
+    const arr = [1, 2, 3];
+    const err = createSanitizerError('foo', 'reason', arr);
+    expect((err as any).details?.redactedValue).toMatch(/Array\(len=\d+\)/);
+  });
+
+  it('createSanitizerError handles Object values', () => {
+    const obj = { foo: 'bar' };
+    const err = createSanitizerError('foo', 'reason', obj);
+    expect((err as any).details?.redactedValue).toBe('Object');
+  });
+
+  it('createSanitizerError truncates non-object values', () => {
+    const num = 12345;
+    const err = createSanitizerError('foo', 'reason', num);
+    expect((err as any).details?.redactedValue).toContain('12345');
+  });
+
   it('createTryCatchError logs via Logger.error', async () => {
     vi.resetModules();
     const errorSpy = vi.fn();
