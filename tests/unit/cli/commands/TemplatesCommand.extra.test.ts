@@ -2,7 +2,8 @@
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import * as MailTpl from '@mail/templates/markdown';
 import * as NotifTpl from '@notification/templates/markdown';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import type { Mock} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@mail/templates/markdown', () => ({
   listTemplates: vi.fn(),

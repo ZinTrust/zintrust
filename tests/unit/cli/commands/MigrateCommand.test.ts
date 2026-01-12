@@ -79,7 +79,9 @@ vi.mock('@/cli/d1/WranglerConfig', () => ({
 import { MigrateCommand } from '@/cli/commands/MigrateCommand';
 import { D1SqlMigrations } from '@/cli/d1/D1SqlMigrations';
 import { WranglerD1 } from '@/cli/d1/WranglerD1';
+import { PromptHelper } from '@/cli/PromptHelper';
 import { databaseConfig } from '@/config/database';
+import { Env } from '@/config/env';
 import { Migrator } from '@/migrations/Migrator';
 import { Database } from '@/orm/Database';
 
@@ -88,6 +90,10 @@ describe('MigrateCommand', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default mocks setup
+    Env.NODE_ENV = 'test';
+    //... (reset other mocks if needed)
+
     command = MigrateCommand.create();
     command.debug = vi.fn();
     command.info = vi.fn();
@@ -204,5 +210,113 @@ describe('MigrateCommand', () => {
 
     await expect(command.execute({ status: true })).rejects.toBeDefined();
     expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('logs applied migration names if returned', async () => {
+    migratorMock.migrate.mockResolvedValueOnce({
+      applied: 2,
+      appliedNames: ['batch1', 'batch2'],
+    });
+
+    await command.execute({});
+
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('Applied migrations:'));
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('✓ batch1'));
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('✓ batch2'));
+  });
+
+  it('warns if separate tracking is enabled for D1', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+    vi.mocked(Env.getBool).mockReturnValueOnce(true); // MIGRATIONS_SEPARATE_TRACKING
+
+    await command.execute({});
+
+    expect(command.warn).toHaveBeenCalledWith(
+      expect.stringContaining('MIGRATIONS_SEPARATE_TRACKING is ignored for D1')
+    );
+  });
+
+  it('cancels fresh action if interactive confirmation denied', async () => {
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false);
+    await command.execute({ fresh: true, interactive: true });
+
+    expect(migratorMock.fresh).not.toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith('Cancelled.');
+  });
+
+  it('cancels reset action if interactive confirmation denied', async () => {
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false);
+    await command.execute({ reset: true, interactive: true });
+
+    expect(migratorMock.resetAll).not.toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith('Cancelled.');
+  });
+
+  it('prompts and cancels in production if not forced', async () => {
+    // @ts-ignore
+    Env.NODE_ENV = 'production';
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false);
+
+    await command.execute({});
+
+    expect(PromptHelper.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('NODE_ENV=production'),
+      false,
+      true // interactive default
+    );
+    expect(migratorMock.migrate).not.toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith('Cancelled.');
+  });
+
+  it('proceeds in production if forced', async () => {
+    // @ts-ignore
+    Env.NODE_ENV = 'production';
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false); // Should not be called
+
+    await command.execute({ force: true });
+
+    expect(migratorMock.migrate).toHaveBeenCalled();
+  });
+
+  it('configures postgres adapter correctly', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({
+      driver: 'postgresql',
+      host: 'localhost',
+      port: 5432,
+      database: 'mydb',
+      username: 'user',
+      password: 'pass',
+    } as any);
+
+    await command.execute({});
+
+    expect(Database.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driver: 'postgresql',
+        host: 'localhost',
+        database: 'mydb',
+      })
+    );
+  });
+
+  it('configures mysql adapter correctly', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({
+      driver: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      database: 'mydb',
+      username: 'user',
+      password: 'pass',
+    } as any);
+
+    await command.execute({});
+
+    expect(Database.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driver: 'mysql',
+        host: 'localhost',
+        database: 'mydb',
+      })
+    );
   });
 });

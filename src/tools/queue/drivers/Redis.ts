@@ -1,6 +1,6 @@
 import { generateUuid } from '@/common/utility';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { QueueMessage } from '@tools/queue/Queue';
+import type { QueueMessage } from '@tools/queue/Queue';
 
 type IRedisClient = {
   connect?: () => Promise<void>;

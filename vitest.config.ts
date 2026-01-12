@@ -111,10 +111,10 @@ export default defineConfig({
         'routes/**/*.d.ts',
       ],
       thresholds: {
-        lines: 82,
-        functions: 82,
-        branches: 78, // TODO: Increase back to 82 after adding tests for Validator.ts and registries
-        statements: 82,
+        lines: 95,
+        functions: 95,
+        branches: 95, // TODO: Increase back to 95 after adding tests for Validator.ts and registries
+        statements: 95,
       },
     },
     testTimeout: 10000,

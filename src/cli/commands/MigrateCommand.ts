@@ -4,7 +4,8 @@
  */
 
 import { Migrator } from '@/migrations/Migrator';
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { D1SqlMigrations } from '@cli/d1/D1SqlMigrations';
 import { WranglerConfig } from '@cli/d1/WranglerConfig';
 import { WranglerD1 } from '@cli/d1/WranglerD1';
@@ -15,7 +16,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 const addMigrateOptions = (command: Command): void => {
   command

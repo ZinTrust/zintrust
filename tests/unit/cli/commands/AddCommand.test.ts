@@ -648,6 +648,12 @@ describe('AddCommand', () => {
     });
   });
 
+  it('should throw error when governance is called with a name argument', async () => {
+    await expect(command.execute({ args: ['governance', 'invalid-name'] })).rejects.toThrow(
+      'governance does not take a name argument'
+    );
+  });
+
   describe('Internal Helpers & Validators', () => {
     const helpers = (AddCommand as any)._helpers;
 

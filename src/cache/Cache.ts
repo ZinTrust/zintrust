@@ -4,7 +4,7 @@
  * Sealed namespace pattern - all exports through Cache namespace
  */
 
-import { CacheDriver } from '@cache/CacheDriver';
+import type { CacheDriver } from '@cache/CacheDriver';
 import { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 import { KVDriver } from '@cache/drivers/KVDriver';
 import { KVRemoteDriver } from '@cache/drivers/KVRemoteDriver';

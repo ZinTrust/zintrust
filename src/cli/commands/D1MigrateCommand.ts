@@ -2,13 +2,14 @@
  * D1 Migrate Command
  * Run Cloudflare D1 migrations using Wrangler
  */
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { WranglerD1 } from '@cli/d1/WranglerD1';
 import { resolveNpmPath } from '@common/index';
 import { appConfig } from '@config/app';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 const RESOLVED_VOID: Promise<void> = Promise.resolve();
 

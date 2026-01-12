@@ -1,14 +1,16 @@
 import { Logger } from '@/config/logger';
-import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
-import { IKernel, Kernel } from '@/http/Kernel';
+import type { IServiceContainer} from '@/container/ServiceContainer';
+import { ServiceContainer } from '@/container/ServiceContainer';
+import type { IKernel} from '@/http/Kernel';
+import { Kernel } from '@/http/Kernel';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { Router } from '@/routing/Router';
-import * as http from '@node-singletons/http';
+import type * as http from '@node-singletons/http';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Env } from '@/config/env';
-import { IRequest } from '@/http/Request';
-import { IResponse } from '@/http/Response';
+import type { IRequest } from '@/http/Request';
+import type { IResponse } from '@/http/Response';
 import type { IRouter } from '@/routing/Router';
 
 const otelMock = vi.hoisted(() => ({

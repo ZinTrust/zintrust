@@ -12,7 +12,8 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { PluginDefinition, PluginRegistry } from '@runtime/PluginRegistry';
+import type { PluginDefinition} from '@runtime/PluginRegistry';
+import { PluginRegistry } from '@runtime/PluginRegistry';
 
 const __dirname = esmDirname(import.meta.url);
 

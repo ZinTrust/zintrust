@@ -1,4 +1,5 @@
-import { IRequestProfiler, RequestProfiler } from '@profiling/RequestProfiler';
+import type { IRequestProfiler} from '@profiling/RequestProfiler';
+import { RequestProfiler } from '@profiling/RequestProfiler';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('RequestProfiler Basic Tests', () => {

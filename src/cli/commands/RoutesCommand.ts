@@ -8,7 +8,7 @@ import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { registerRoutes } from '@routes/api';
 import { Router } from '@routing/Router';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type GroupByMode = 'group' | 'service' | 'none';
 

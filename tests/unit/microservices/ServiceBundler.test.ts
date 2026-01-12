@@ -1,6 +1,7 @@
+import type {
+  BundleConfig} from '@/microservices/ServiceBundler';
 import {
   bundleAll,
-  BundleConfig,
   bundleService,
   createServiceImage,
   ServiceBundler,

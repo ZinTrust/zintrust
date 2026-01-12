@@ -3,7 +3,7 @@
  * Uses Node.js built-in HTTP server with no external dependencies
  */
 
-import { IApplication } from '@boot/Application';
+import type { IApplication } from '@boot/Application';
 import { esmDirname } from '@common/index';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
@@ -13,8 +13,10 @@ import { ServiceContainer, type IServiceContainer } from '@container/ServiceCont
 import { ErrorFactory, initZintrustError, type IZintrustError } from '@exceptions/ZintrustError';
 import type { IKernel } from '@http/Kernel';
 import { Kernel } from '@http/Kernel';
-import { IRequest, Request } from '@http/Request';
-import { IResponse, Response } from '@http/Response';
+import type { IRequest} from '@http/Request';
+import { Request } from '@http/Request';
+import type { IResponse} from '@http/Response';
+import { Response } from '@http/Response';
 import { ErrorPageRenderer } from '@http/error-pages/ErrorPageRenderer';
 import * as fs from '@node-singletons/fs';
 import * as http from '@node-singletons/http';

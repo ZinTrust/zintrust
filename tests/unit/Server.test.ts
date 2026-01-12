@@ -1,4 +1,4 @@
-import { IApplication } from '@boot/Application';
+import type { IApplication } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 

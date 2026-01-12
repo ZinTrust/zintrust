@@ -11,7 +11,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { performance } from '@node-singletons/perf-hooks';
-import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
 type SqliteRunInfo = { changes: number };

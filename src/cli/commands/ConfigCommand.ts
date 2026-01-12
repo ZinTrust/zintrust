@@ -3,15 +3,17 @@
  * Handles configuration operations: get, set, list, reset, edit, export
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { ConfigManager, IConfigManager } from '@cli/config/ConfigManager';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
+import type { IConfigManager } from '@cli/config/ConfigManager';
+import { ConfigManager } from '@cli/config/ConfigManager';
 import type { ProjectConfig } from '@cli/config/ConfigSchema';
 import { ConfigValidator } from '@cli/config/ConfigValidator';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { PromptHelper } from '@cli/PromptHelper';
 import { Logger } from '@config/logger';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type ConfigManagerLike = {
   get?: (key: string) => unknown;

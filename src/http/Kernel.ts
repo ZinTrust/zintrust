@@ -4,14 +4,18 @@
 
 import { Logger } from '@config/logger';
 import { middlewareConfig } from '@config/middleware';
-import { IServiceContainer } from '@container/ServiceContainer';
+import type { IServiceContainer } from '@container/ServiceContainer';
 import { ErrorResponse } from '@http/ErrorResponse';
-import { IRequest, Request } from '@http/Request';
+import type { IRequest} from '@http/Request';
+import { Request } from '@http/Request';
 import { RequestContext, type IRequestContext } from '@http/RequestContext';
-import { IResponse, Response } from '@http/Response';
-import { IMiddlewareStack, Middleware, MiddlewareStack } from '@middleware/MiddlewareStack';
+import type { IResponse} from '@http/Response';
+import { Response } from '@http/Response';
+import type { IMiddlewareStack, Middleware} from '@middleware/MiddlewareStack';
+import { MiddlewareStack } from '@middleware/MiddlewareStack';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
-import { IRouter, Router } from '@routing/Router';
+import type { IRouter} from '@routing/Router';
+import { Router } from '@routing/Router';
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';

@@ -5,7 +5,7 @@
  */
 
 import { Env } from '@config/env';
-import { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } from '@config/type';
+import type { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const isNodeProcess = (): boolean => {

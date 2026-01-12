@@ -8,7 +8,7 @@ import { appConfig } from '@config/app';
 import { securityConfig } from '@config/security';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { JwtManager, type IJwtManager, type JwtPayload } from '@security/JwtManager';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type JwtDevCommandOptions = CommandOptions & {
   sub?: string;

@@ -3,14 +3,16 @@
  * Commands: zin logs, zin logs --follow, zin logs --level error, zin logs --clear
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { Logger as FileLogger, LogEntry, LogLevel, LoggerInstance } from '@cli/logger/Logger';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
+import type { LogEntry, LogLevel, LoggerInstance } from '@cli/logger/Logger';
+import { Logger as FileLogger } from '@cli/logger/Logger';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 interface LogsOptions {
   level: string;

@@ -467,8 +467,22 @@ export function createMemoized<T extends (...args: any[]) => any>(
   };
 
   return ((...args: Parameters<T>) => {
-    const key =
-      options.keyGenerator === undefined ? JSON.stringify(args) : options.keyGenerator(args);
+    let key: string;
+    if (options.keyGenerator === undefined) {
+      // Optimization: Avoid JSON.stringify for simple primitive arguments
+      const arePrimitives = args.every(
+        (a) =>
+          a === null ||
+          typeof a === 'string' ||
+          typeof a === 'number' ||
+          typeof a === 'boolean' ||
+          a === 'undefined'
+      );
+      key = arePrimitives ? args.join('|') : JSON.stringify(args);
+    } else {
+      key = options.keyGenerator(args);
+    }
+
     const entry = cache.get(key);
 
     if (entry !== undefined) {

@@ -3,7 +3,7 @@ import { ErrorHandler } from '@/cli/ErrorHandler';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as fs from '@node-singletons/fs';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@node-singletons/fs', () => ({

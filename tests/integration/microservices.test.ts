@@ -1,14 +1,17 @@
 import { Env } from '@config/env';
 import { Request } from '@http/Request';
-import { IResponse, Response } from '@http/Response';
-import {
+import type { IResponse} from '@http/Response';
+import { Response } from '@http/Response';
+import type {
   IMicroserviceBootstrap,
-  MicroserviceBootstrap,
-  ServiceConfig,
-} from '@microservices/MicroserviceBootstrap';
+  ServiceConfig} from '@microservices/MicroserviceBootstrap';
 import {
+  MicroserviceBootstrap
+} from '@microservices/MicroserviceBootstrap';
+import type {
   IMicroserviceManager,
-  MicroserviceConfig,
+  MicroserviceConfig} from '@microservices/MicroserviceManager';
+import {
   MicroserviceManager,
 } from '@microservices/MicroserviceManager';
 import { PostgresAdapter } from '@microservices/PostgresAdapter';

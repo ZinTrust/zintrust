@@ -3,11 +3,12 @@
  * Comprehensive tests for request DTO factory generation
  */
 
-import {
-  RequestFactoryGenerator,
+import type {
   RequestFactoryOptions,
   /* eslint-disable max-nested-callbacks */
-  RequestField,
+  RequestField} from '@cli/scaffolding/RequestFactoryGenerator';
+import {
+  RequestFactoryGenerator
 } from '@cli/scaffolding/RequestFactoryGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';

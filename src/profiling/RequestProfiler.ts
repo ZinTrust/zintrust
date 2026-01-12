@@ -3,10 +3,12 @@
  * Comprehensive profiling of request execution combining query, N+1, and memory metrics
  */
 
-import { IMemoryProfiler, MemoryProfiler } from '@profiling/MemoryProfiler';
+import type { IMemoryProfiler} from '@profiling/MemoryProfiler';
+import { MemoryProfiler } from '@profiling/MemoryProfiler';
 import { N1Detector } from '@profiling/N1Detector';
-import { IQueryLogger, QueryLogger } from '@profiling/QueryLogger';
-import { IN1Detector, N1Pattern, ProfileReport } from '@profiling/types';
+import type { IQueryLogger} from '@profiling/QueryLogger';
+import { QueryLogger } from '@profiling/QueryLogger';
+import type { IN1Detector, N1Pattern, ProfileReport } from '@profiling/types';
 
 export interface IRequestProfiler {
   getQueryLogger(): IQueryLogger;

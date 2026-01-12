@@ -157,6 +157,7 @@ export type {
   PasswordResetTokenRecord,
 } from '@security/PasswordResetTokenBroker';
 export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Sanitizer';
+export { TokenRevocation } from '@security/TokenRevocation';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 export { ZintrustSignedRequest as SignedRequest };
@@ -324,6 +325,40 @@ export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 // Queue drivers (for external registration packages)
 export { RedisQueue } from '@tools/queue/drivers/Redis';
 export { Queue } from '@tools/queue/Queue';
+
+// Seeders (for database seeding)
+export { SeederLoader } from '@/seeders/SeederLoader';
+export type { LoadedSeeder, SeederHandler } from '@/seeders/types';
+
+// Schedules
+export { default as logCleanup } from '@schedules/log-cleanup';
+
+// Node Singletons (cross-runtime wrappers for Node.js APIs)
+export * as NodeSingletons from '@node-singletons/index';
+
+// Auth features
+export { Auth } from '@/features/Auth';
+
+// Microservice utilities
+export { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
+export type {
+  GenerateServiceOptions,
+  IMicroserviceGenerator,
+} from '@microservices/MicroserviceGenerator';
+
+// CLI utilities (for build tools and scripting)
+export { BaseCommand } from '@cli/BaseCommand';
+export type { CommandOptions } from '@cli/BaseCommand';
+export { CLI } from '@cli/CLI';
+export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
+
+// Runtime detection and kernel
+export { getKernel } from '@/runtime/getKernel';
+export { RuntimeDetector } from '@/runtime/RuntimeDetector';
+
+// Plugin system
+export { PluginManager } from '@/runtime/PluginManager';
+export { PluginRegistry } from '@/runtime/PluginRegistry';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

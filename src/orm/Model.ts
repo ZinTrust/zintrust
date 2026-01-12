@@ -6,8 +6,10 @@
 import { DEFAULTS } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase, type IDatabase } from '@orm/Database';
-import { IQueryBuilder, QueryBuilder, type QueryBuilderOptions } from '@orm/QueryBuilder';
-import { BelongsTo, BelongsToMany, HasMany, HasOne, IRelationship } from '@orm/Relationships';
+import type { IQueryBuilder} from '@orm/QueryBuilder';
+import { QueryBuilder, type QueryBuilderOptions } from '@orm/QueryBuilder';
+import type { IRelationship } from '@orm/Relationships';
+import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
   if (typeof relatedModel.getTable === 'function') {

@@ -3,10 +3,11 @@
  * Manage framework plugins (install, uninstall, list)
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { PluginManager } from '@runtime/PluginManager';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 export const PluginCommand = Object.freeze({
   create(): IBaseCommand {

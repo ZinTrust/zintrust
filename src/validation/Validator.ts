@@ -5,7 +5,8 @@
  */
 
 import { Logger } from '@config/logger';
-import { FieldError, createValidationError } from '@validation/ValidationError';
+import type { FieldError} from '@validation/ValidationError';
+import { createValidationError } from '@validation/ValidationError';
 
 export type Rule =
   | 'required'

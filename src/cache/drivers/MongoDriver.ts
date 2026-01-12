@@ -3,7 +3,7 @@
  * Uses MongoDB Atlas Data API (HTTPS) for zero-dependency integration
  */
 
-import { CacheDriver } from '@cache/CacheDriver';
+import type { CacheDriver } from '@cache/CacheDriver';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';

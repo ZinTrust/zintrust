@@ -117,6 +117,14 @@ export default defineConfig(
       '@typescript-eslint/no-extraneous-class': ['error', { allowStaticOnly: false }],
       '@typescript-eslint/ban-ts-comment': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          disallowTypeAnnotations: false,
+          fixStyle: 'separate-type-imports',
+        },
+      ],
 
       // ==================== PERFORMANCE RULES ====================
       'no-console': 'error',

@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 import { LoggingMiddleware } from '@/middleware/LoggingMiddleware';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import type { Mock} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('LoggingMiddleware additional branches', () => {
   beforeEach(() => {

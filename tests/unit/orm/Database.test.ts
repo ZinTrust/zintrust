@@ -2,7 +2,8 @@
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
-import { Database, IDatabase, resetDatabase, useDatabase } from '@orm/Database';
+import type { IDatabase} from '@orm/Database';
+import { Database, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const otelDbMock = vi.hoisted(() => ({

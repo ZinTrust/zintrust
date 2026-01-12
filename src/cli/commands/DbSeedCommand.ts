@@ -5,14 +5,15 @@
 
 import { SeederDiscovery } from '@/seeders/SeederDiscovery';
 import { SeederLoader } from '@/seeders/SeederLoader';
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { databaseConfig } from '@config/database';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { resetDatabase, useDatabase } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type ServiceArgs = { service: string | undefined; includeGlobal: boolean };
 

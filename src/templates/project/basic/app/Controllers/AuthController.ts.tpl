@@ -3,17 +3,19 @@
  * Minimal, real auth endpoints backing the example API routes.
  */
 
-import { Auth } from '@/features/Auth';
+import {
+  getString,
+  Auth,
+  Logger,
+  getValidatedBody,
+  useEnsureDbConnected,
+  QueryBuilder,
+  JwtManager,
+  TokenRevocation
+} from '@zintrust/core';
 import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';
-import { getString } from '@common/utility';
-import { Logger } from '@config/logger';
-import type { IRequest } from '@http/Request';
-import type { IResponse } from '@http/Response';
-import { getValidatedBody } from '@http/ValidationHelper';
-import { useEnsureDbConnected } from '@orm/Database';
-import { QueryBuilder } from '@orm/QueryBuilder';
-import { JwtManager } from '@security/JwtManager';
-import { TokenRevocation } from '@security/TokenRevocation';
+import type { IRequest, IResponse } from '@zintrust/core';
+
 
 const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: string } => {
   return {

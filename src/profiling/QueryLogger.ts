@@ -3,7 +3,7 @@
  * Tracks database query execution with parameters, duration, and context
  */
 
-import { QueryLogEntry } from '@profiling/types';
+import type { QueryLogEntry } from '@profiling/types';
 
 /**
  * QueryLogger tracks all database queries executed during a request context

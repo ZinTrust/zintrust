@@ -4,7 +4,8 @@
  */
 
 import { fs } from '@node-singletons';
-import { Benchmark, IBenchmark, MemoryMonitor } from '@performance/Benchmark';
+import type { IBenchmark} from '@performance/Benchmark';
+import { Benchmark, MemoryMonitor } from '@performance/Benchmark';
 /* eslint-disable max-nested-callbacks */
 import * as path from '@node-singletons/path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

@@ -4,9 +4,11 @@
  */
 
 import { appConfig, cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
-import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
+import type { IServiceContainer} from '@/container/ServiceContainer';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
-import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
+import type { IMiddlewareStack} from '@/middleware/MiddlewareStack';
+import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';

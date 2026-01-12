@@ -429,7 +429,9 @@ export const OpenApiGenerator = Object.freeze({
       const { openApiPath, paramNames } = normalizeOpenApiPath(r.path);
       const method = r.method.toLowerCase();
 
-      doc.paths[openApiPath] ??= {};
+      if (!Object.prototype.hasOwnProperty.call(doc.paths, openApiPath)) {
+        doc.paths[openApiPath] = {};
+      }
 
       const meta = r.meta;
 

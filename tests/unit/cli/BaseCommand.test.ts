@@ -1,4 +1,5 @@
-import { BaseCommand, CommandOptions } from '@/cli/BaseCommand';
+import type { CommandOptions } from '@/cli/BaseCommand';
+import { BaseCommand } from '@/cli/BaseCommand';
 import { ErrorHandler } from '@/cli/ErrorHandler';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 

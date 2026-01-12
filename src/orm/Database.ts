@@ -13,9 +13,10 @@ import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
-import { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
-import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
+import type { IQueryBuilder} from '@orm/QueryBuilder';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 export interface IDatabase {
   connect(): Promise<void>;
@@ -302,6 +303,7 @@ export async function resetDatabase(): Promise<void> {
   const promises = Array.from(databaseInstances.values()).map(async (instance) => {
     try {
       await instance.disconnect();
+      instance.dispose();
     } catch {
       // Ignore errors during disconnect
     }

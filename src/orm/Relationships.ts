@@ -4,7 +4,7 @@
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { IModel, Model, ModelStatic } from '@orm/Model';
+import type { IModel, Model, ModelStatic } from '@orm/Model';
 
 export type RelationshipType = 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
 

@@ -3,7 +3,7 @@
  * Interfaces with the native KV binding in Cloudflare Workers
  */
 
-import { CacheDriver } from '@cache/CacheDriver';
+import type { CacheDriver } from '@cache/CacheDriver';
 import { Cloudflare } from '@config/cloudflare';
 import { Logger } from '@config/logger';
 

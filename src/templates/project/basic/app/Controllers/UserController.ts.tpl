@@ -5,19 +5,8 @@
 
 import { User } from '@app/Models/User';
 import { IRequest, Logger, IResponse } from '@zintrust/core';
+import { IUserController } from '@app/Types/controller';
 
-/**
- * User Controller Interface
- */
-export interface IUserController {
-  index(req: IRequest, res: IResponse): Promise<void>;
-  show(req: IRequest, res: IResponse): Promise<void>;
-  create(req: IRequest, res: IResponse): Promise<void>;
-  store(req: IRequest, res: IResponse): Promise<void>;
-  edit(req: IRequest, res: IResponse): Promise<void>;
-  update(req: IRequest, res: IResponse): Promise<void>;
-  destroy(req: IRequest, res: IResponse): Promise<void>;
-}
 
 /**
  * User Controller Methods

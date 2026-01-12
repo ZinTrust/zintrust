@@ -5,7 +5,7 @@
 
 import { FeatureFlags } from '@config/features';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
-import { IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import type { IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Skip these tests when native better-sqlite3 is not loadable in the test runtime (ABI mismatch)

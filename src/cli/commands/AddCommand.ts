@@ -3,19 +3,24 @@
  * Add services and features to existing Zintrust project
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { ControllerGenerator, ControllerType } from '@cli/scaffolding/ControllerGenerator';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
+import type { ControllerType } from '@cli/scaffolding/ControllerGenerator';
+import { ControllerGenerator } from '@cli/scaffolding/ControllerGenerator';
 import { FactoryGenerator } from '@cli/scaffolding/FactoryGenerator';
-import { FeatureScaffolder, FeatureType } from '@cli/scaffolding/FeatureScaffolder';
+import type { FeatureType } from '@cli/scaffolding/FeatureScaffolder';
+import { FeatureScaffolder } from '@cli/scaffolding/FeatureScaffolder';
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
-import { MigrationGenerator, MigrationType } from '@cli/scaffolding/MigrationGenerator';
+import type { MigrationType } from '@cli/scaffolding/MigrationGenerator';
+import { MigrationGenerator } from '@cli/scaffolding/MigrationGenerator';
 import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
 import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
-import {
-  ResponseFactoryGenerator,
+import type {
   ResponseFactoryGeneratorResult,
-  ResponseField,
+  ResponseField} from '@cli/scaffolding/ResponseFactoryGenerator';
+import {
+  ResponseFactoryGenerator
 } from '@cli/scaffolding/ResponseFactoryGenerator';
 import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
@@ -26,7 +31,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { PluginManager } from '@runtime/PluginManager';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 import inquirer from 'inquirer';
 
 type PlatformDeploy = 'lambda' | 'fargate' | 'cloudflare' | 'deno' | 'all';

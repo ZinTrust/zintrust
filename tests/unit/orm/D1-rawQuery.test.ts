@@ -8,7 +8,7 @@
 
 import { FeatureFlags } from '@config/features';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
-import { IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import type { IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Logger module to track method calls

@@ -3,8 +3,8 @@
  * All controllers extend this class
  */
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 
 export interface IController {
   json(res: IResponse, data: unknown, statusCode?: number): void;

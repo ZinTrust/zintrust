@@ -3,7 +3,7 @@
  * Zero-dependency implementation using Node.js native net module
  */
 
-import { CacheDriver } from '@cache/CacheDriver';
+import type { CacheDriver } from '@cache/CacheDriver';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import * as net from '@node-singletons/net';

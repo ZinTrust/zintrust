@@ -3,11 +3,12 @@
  * Validates configuration against schema and rules
  */
 
+import type {
+  ProjectConfig,
+  ValidationRule} from '@cli/config/ConfigSchema';
 import {
   CONFIG_RULES,
-  getConfigValue,
-  ProjectConfig,
-  ValidationRule,
+  getConfigValue
 } from '@cli/config/ConfigSchema';
 
 export interface ValidationError {

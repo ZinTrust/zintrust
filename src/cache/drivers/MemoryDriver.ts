@@ -3,7 +3,7 @@
  * Simple in-memory storage for local development
  */
 
-import { CacheDriver } from '@cache/CacheDriver';
+import type { CacheDriver } from '@cache/CacheDriver';
 
 /**
  * Memory Cache Driver

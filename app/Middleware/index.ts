@@ -1,13 +1,14 @@
-import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
-import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
 /**
  * Example Middleware
  * Common middleware patterns for Zintrust
  */
 
+import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
+import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
+import { TokenRevocation } from '@security/TokenRevocation';
 import { Logger } from '@config/logger';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 import { XssProtection } from '@security/XssProtection';
 import type { ISchema, SchemaType } from '@validation/Validator';
 import { Validator } from '@validation/Validator';
@@ -182,6 +183,11 @@ export const jwtMiddleware = (jwtManager: JwtManagerInput, algorithm: JwtAlgorit
 
     if (scheme !== 'Bearer' || token === undefined || token === '') {
       res.setStatus(401).json({ error: 'Invalid authorization header format' });
+      return;
+    }
+
+    if (TokenRevocation.isRevoked(token)) {
+      res.setStatus(401).json({ error: 'Invalid or expired token' });
       return;
     }
 

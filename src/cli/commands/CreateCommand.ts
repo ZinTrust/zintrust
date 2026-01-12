@@ -9,7 +9,7 @@ import { MigrationGenerator, type MigrationType } from '@cli/scaffolding/Migrati
 import { CommonUtils } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 const pluralize = (snake: string): string => (snake.endsWith('s') ? snake : `${snake}s`);
 

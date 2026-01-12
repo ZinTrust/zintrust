@@ -3,12 +3,12 @@
  * QueryBuilder-backed controller for the users resource.
  */
 
-import { IUserController, JsonRecord, ValidationErrorLike } from '@app/Types/controller';
+import type { IUserController, JsonRecord, ValidationErrorLike } from '@app/Types/controller';
 import { nowIso } from '@common/utility';
 import { Logger } from '@config/logger';
-import { SanitizerError } from '@exceptions/ZintrustError';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import type { SanitizerError } from '@exceptions/ZintrustError';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 import { getValidatedBody } from '@http/ValidationHelper';
 import { randomBytes } from '@node-singletons/crypto';
 import { useEnsureDbConnected } from '@orm/Database';

@@ -1,4 +1,4 @@
-import { MiddlewareConfigType } from '@config/type';
+import type { MiddlewareConfigType } from '@config/type';
 import { AuthMiddleware } from '@middleware/AuthMiddleware';
 import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';

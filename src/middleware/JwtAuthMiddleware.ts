@@ -3,7 +3,9 @@ import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
-import { JwtAlgorithm, JwtManager, type IJwtManager } from '@security/JwtManager';
+import { TokenRevocation } from '@security/TokenRevocation';
+import type { JwtAlgorithm} from '@security/JwtManager';
+import { JwtManager, type IJwtManager } from '@security/JwtManager';
 
 export interface JwtAuthOptions {
   algorithm?: JwtAlgorithm;
@@ -55,6 +57,11 @@ export const JwtAuthMiddleware = Object.freeze({
       const token = getBearerToken(authorizationHeader);
       if (token === null) {
         res.setStatus(401).json({ error: 'Invalid authorization header format' });
+        return;
+      }
+
+      if (TokenRevocation.isRevoked(token)) {
+        res.setStatus(401).json({ error: 'Invalid or expired token' });
         return;
       }
 

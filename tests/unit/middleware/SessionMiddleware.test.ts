@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 import { SessionMiddleware } from '@middleware/SessionMiddleware';
 
 vi.mock('@/common/utility', () => ({

@@ -1,8 +1,8 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { IRequest } from '@http/Request';
+import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
-import { IResponse } from '@http/Response';
+import type { IResponse } from '@http/Response';
 import * as crypto from '@node-singletons/crypto';
 
 // Middleware next function type

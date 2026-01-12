@@ -6,9 +6,9 @@
 
 import { Cache } from '@cache/Cache';
 import { Logger } from '@config/logger';
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
-import { Middleware } from '@middleware/MiddlewareStack';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
+import type { Middleware } from '@middleware/MiddlewareStack';
 
 export interface RateLimitOptions {
   windowMs: number; // Time window in milliseconds

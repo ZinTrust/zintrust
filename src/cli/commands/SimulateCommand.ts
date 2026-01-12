@@ -5,7 +5,7 @@
  * Usage: zin -sim my-blog
  */
 
-import { IBaseCommand } from '@cli/BaseCommand';
+import type { IBaseCommand } from '@cli/BaseCommand';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { DistPackager } from '@cli/utils/DistPackager';
 import { Logger } from '@config/logger';

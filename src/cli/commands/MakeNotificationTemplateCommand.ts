@@ -3,14 +3,15 @@
  * Scaffolds a notification markdown template into the project.
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { PromptHelper } from '@cli/PromptHelper';
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { TemplateGenerator } from '@cli/scaffolding/TemplateGenerator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 import inquirer from 'inquirer';
 
 type NotificationChannel = 'mail' | 'sms' | 'slack' | 'discord';

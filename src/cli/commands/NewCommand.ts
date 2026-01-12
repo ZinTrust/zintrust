@@ -2,7 +2,8 @@
  * New Command - Project scaffolding CLI command
  * Handles creation of new Zintrust projects
  */
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
@@ -13,7 +14,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type TemplateType = 'basic' | 'api' | 'microservice' | 'fullstack';
 type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb' | 'd1-remote';

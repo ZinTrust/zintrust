@@ -1,4 +1,5 @@
-import { IJwtManager, JwtManager, JwtPayload } from '@security/JwtManager';
+import type { IJwtManager, JwtPayload } from '@security/JwtManager';
+import { JwtManager } from '@security/JwtManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JwtManager Basic Tests', () => {

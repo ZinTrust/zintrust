@@ -3,14 +3,15 @@
  * Runs linting, type-checking, tests, and SonarQube
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { extractErrorMessageStrict, resolveNpmPath } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import { existsSync } from '@node-singletons/fs';
 import { resolve } from '@node-singletons/path';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 /**
  * QA Result interface

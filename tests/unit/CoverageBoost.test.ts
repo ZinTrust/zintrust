@@ -1,12 +1,15 @@
 import { CLI } from '@/cli/CLI';
 import { ErrorHandler } from '@/cli/ErrorHandler';
-import { Application, IApplication } from '@boot/Application';
+import type { IApplication } from '@boot/Application';
+import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';
-import { IRequest, Request } from '@http/Request';
-import { IResponse, Response } from '@http/Response';
+import type { IRequest} from '@http/Request';
+import { Request } from '@http/Request';
+import type { IResponse} from '@http/Response';
+import { Response } from '@http/Response';
 import { fs } from '@node-singletons';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';

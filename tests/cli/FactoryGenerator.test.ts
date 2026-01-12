@@ -3,7 +3,8 @@
  * Tests for factory generation functionality
  */
 
-import { FactoryField, FactoryGenerator, FactoryOptions } from '@cli/scaffolding/FactoryGenerator';
+import type { FactoryField, FactoryOptions } from '@cli/scaffolding/FactoryGenerator';
+import { FactoryGenerator } from '@cli/scaffolding/FactoryGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { fileURLToPath } from '@node-singletons/url';

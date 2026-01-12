@@ -4,7 +4,7 @@
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { IDatabase } from '@orm/Database';
+import type { IDatabase } from '@orm/Database';
 import type { IModel } from '@orm/Model';
 import type { IRelationship } from '@orm/Relationships';
 
