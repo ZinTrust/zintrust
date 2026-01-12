@@ -270,7 +270,7 @@ export const ValidationMiddleware = Object.freeze({
       } catch (error: unknown) {
         // Handle SanitizerError by converting to validation error format
         if (isSanitizerError(error)) {
-          res.setStatus(400).json({
+          res.setStatus(422).json({
             errors: {
               sanitization: [error.message],
             },

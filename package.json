@@ -143,8 +143,8 @@
     "@types/better-sqlite3": "7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.6",
-    "@typescript-eslint/eslint-plugin": "^8.52.0",
-    "@typescript-eslint/parser": "^8.52.0",
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
     "@vitest/coverage-v8": "^4.0.16",
     "better-sqlite3": "^12.6.0",
     "eslint": "^9.39.2",
@@ -157,7 +157,7 @@
     "tsc-alias": "^1.8.16",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.52.0",
+    "typescript-eslint": "^8.51.0",
     "vitest": "^4.0.16"
   }
 }

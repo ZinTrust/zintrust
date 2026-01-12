@@ -163,13 +163,55 @@ export function createTryCatchError(message: string, details?: unknown): CatchEr
 }
 
 /**
+ * Truncate a string if it exceeds maximum length
+ */
+function truncateString(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return `${str.slice(0, 16)}...${str.slice(-8)}`;
+}
+
+/**
  * Redact sensitive values for error messages
  */
 function redactValue(value: unknown): string {
   if (value === null || value === undefined) return String(value);
-  const str = String(value);
-  if (str.length <= 20) return str;
-  return `${str.slice(0, 10)}...${str.slice(-5)}`;
+
+  const MAX_LEN = 48;
+
+  if (typeof value === 'string') {
+    return truncateString(value, MAX_LEN);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+
+  if (typeof value === 'symbol') {
+    return 'Symbol';
+  }
+
+  if (typeof value === 'function') {
+    return 'Function';
+  }
+
+  // Avoid stringifying binary buffers (can leak secrets and/or blow up logs).
+  if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
+    return `Buffer(len=${value.length})`;
+  }
+
+  if (value instanceof Uint8Array) {
+    return `Uint8Array(len=${value.length})`;
+  }
+
+  if (Array.isArray(value)) {
+    return `Array(len=${value.length})`;
+  }
+
+  if (typeof value === 'object') {
+    return 'Object';
+  }
+
+  return truncateString(String(value), MAX_LEN);
 }
 
 /**

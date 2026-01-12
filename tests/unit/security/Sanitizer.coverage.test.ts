@@ -14,9 +14,9 @@ describe('Sanitizer (coverage)', () => {
     expect(Sanitizer.alphanumeric('A B-1_')).toBe('AB1');
     expect(Sanitizer.alphanumericDotDash('a-b.c@')).toBe('a-b.c');
 
-    expect(Sanitizer.lockNonNegativeNumberString('12.34')).toBe('12.34');
-    expect(Sanitizer.lockNonNegativeNumberString(' -12 ')).toBe(0);
-    expect(Sanitizer.lockNonNegativeNumberString('abc')).toBeNull();
+    expect(Sanitizer.nonNegativeNumericStringOrNull('12.34')).toBe('12.34');
+    expect(Sanitizer.nonNegativeNumericStringOrNull(' -12 ')).toBe(0);
+    expect(Sanitizer.nonNegativeNumericStringOrNull('abc')).toBeNull();
 
     expect(Sanitizer.addressText('Main St #5')).toBe('Main St 5');
     expect(Sanitizer.emailLike('hi there @+_-.')).toBe('hithere@+_-.');
@@ -30,7 +30,7 @@ describe('Sanitizer (coverage)', () => {
     expect(Sanitizer.ipAddressText('::1<script>')).toBe('::1script');
     expect(Sanitizer.alphaNumericColonDash('abc:12-34.')).toBe('abc:12-34');
     expect(Sanitizer.digitsOnly(' 1 2-3 ')).toBe('123');
-    expect(Sanitizer.decimalString('12.3.4')).toBe('12.34');
+    expect(Sanitizer.decimalString('12.3.4', false)).toBe('12.34');
     expect(Sanitizer.dateSlash('12/34-56')).toBe('12/3456');
     expect(Sanitizer.lowercaseAlphanumeric('AbC-1')).toBe('abc1');
     expect(Sanitizer.uppercaseAlphanumeric('AbC-1')).toBe('ABC1');
@@ -44,6 +44,6 @@ describe('Sanitizer (coverage)', () => {
   it('preserves legacy empty semantics', () => {
     expect(Sanitizer.parseAmount(0)).toBe(0);
     expect(Sanitizer.alphanumeric('0')).toBe('');
-    expect(Sanitizer.lockNonNegativeNumberString('0')).toBe(0);
+    expect(Sanitizer.nonNegativeNumericStringOrNull('0')).toBe(0);
   });
 });

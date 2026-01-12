@@ -71,6 +71,7 @@ Sanitizer.digitsOnly() failed: Invalid numeric ID (zero, negative, overflow, or 
 **Bulletproof Checks:**
 
 - ✅ Rejects `Infinity`, `-Infinity`, `NaN`
+- ✅ Rejects `+`-prefixed values and scientific notation (`1e3`)
 - ✅ Prevents overflow (> `MAX_SAFE_INTEGER`)
 - ✅ Validates finite numbers only
 
@@ -83,6 +84,8 @@ const amount2 = Sanitizer.parseAmount('-50.25'); // -50.25
 
 // ❌ Throws SanitizerError
 Sanitizer.parseAmount('Infinity'); // Non-finite
+Sanitizer.parseAmount('+82'); // Plus sign not allowed
+Sanitizer.parseAmount('1e3'); // Scientific notation not allowed
 Sanitizer.parseAmount('9999999999999999999'); // Overflow
 
 // Returns 0 for empty
@@ -99,13 +102,14 @@ Sanitizer.parseAmount() failed: Number exceeds safe integer range (value: 999999
 
 ---
 
-#### `lockNonNegativeNumberString(value, bulletproof=true)`
+#### `nonNegativeNumericStringOrNull(value, bulletproof=true)`
 
 **Purpose:** Validate non-negative numeric strings (integers or decimals).
 
 **Bulletproof Checks:**
 
 - ✅ Rejects leading zeros for integers (`"007"` → error)
+- ✅ Rejects `+`-prefixed values and scientific notation (`1e3`)
 - ✅ Prevents overflow for both integers and decimals
 - ✅ Allows decimals (e.g., `"42.5"` is valid)
 
@@ -113,15 +117,17 @@ Sanitizer.parseAmount() failed: Number exceeds safe integer range (value: 999999
 
 ```typescript
 // ✅ Valid inputs
-const int = Sanitizer.lockNonNegativeNumberString('123'); // '123'
-const dec = Sanitizer.lockNonNegativeNumberString('42.5'); // '42.5'
+const int = Sanitizer.nonNegativeNumericStringOrNull('123'); // '123'
+const dec = Sanitizer.nonNegativeNumericStringOrNull('42.5'); // '42.5'
 
 // ❌ Throws SanitizerError
-Sanitizer.lockNonNegativeNumberString('007'); // Leading zero (integer)
+Sanitizer.nonNegativeNumericStringOrNull('007'); // Leading zero (integer)
+Sanitizer.nonNegativeNumericStringOrNull('+82'); // Plus sign not allowed
+Sanitizer.nonNegativeNumericStringOrNull('1e3'); // Scientific notation not allowed
 
 // Returns 0 for negative, null for non-numeric
-Sanitizer.lockNonNegativeNumberString('-5'); // 0
-Sanitizer.lockNonNegativeNumberString('abc'); // null
+Sanitizer.nonNegativeNumericStringOrNull('-5'); // 0
+Sanitizer.nonNegativeNumericStringOrNull('abc'); // null
 ```
 
 ---
@@ -135,17 +141,21 @@ Sanitizer.lockNonNegativeNumberString('abc'); // null
 - ✅ Validates numeric parseability
 - ✅ Prevents overflow
 - ✅ Rejects empty post-sanitization results
+- ✅ Rejects multiple decimal points (does NOT normalize in bulletproof mode)
 
 **Usage:**
 
 ```typescript
 // ✅ Valid decimals
 const price = Sanitizer.decimalString('$99.99'); // '99.99'
-const num = Sanitizer.decimalString('12.3.4'); // '12.34' (normalized)
+
+// Unsafe mode (legacy compatibility): normalizes by keeping the first decimal point
+const legacy = Sanitizer.decimalString('12.3.4', false); // '12.34'
 
 // ❌ Throws SanitizerError
 Sanitizer.decimalString('abc'); // Empty after sanitization
 Sanitizer.decimalString('.'); // Non-numeric
+Sanitizer.decimalString('12.3.4'); // Multiple decimal points
 ```
 
 ---
@@ -212,11 +222,14 @@ Sanitizer.nameText('123'); // No letters
 
 #### `safePasswordChars(value, bulletproof=true)`
 
-**Purpose:** Sanitize passwords with minimum length enforcement.
+**Purpose:** Sanitize passwords by stripping disallowed characters.
 
 **Bulletproof Checks:**
 
-- ✅ Rejects passwords < 8 characters after sanitization
+- ✅ Rejects empty-after-sanitization values
+- ✅ Enforces a maximum length to prevent log/CPU abuse
+
+Note: Password _minimum length_ belongs in validation schemas (e.g. `Schema.create().minLength(...)`), not in the sanitizer.
 
 **Usage:**
 
@@ -226,8 +239,7 @@ const pwd1 = Sanitizer.safePasswordChars('Pass1234!'); // 'Pass1234!'
 const pwd2 = Sanitizer.safePasswordChars('My$ecur3Pa$$'); // 'My$ecur3Pa$$'
 
 // ❌ Throws SanitizerError
-Sanitizer.safePasswordChars('short'); // < 8 characters
-Sanitizer.safePasswordChars('Pass1!'); // < 8 characters
+Sanitizer.safePasswordChars('$$$'); // Empty after sanitization
 ```
 
 ---
@@ -236,7 +248,7 @@ Sanitizer.safePasswordChars('Pass1!'); // < 8 characters
 
 ### Controller Pattern
 
-Use try-catch to handle `SanitizerError` and convert to 400 responses:
+Use try-catch to handle `SanitizerError` and convert to 422 validation responses:
 
 ```typescript
 import { Sanitizer } from '@security/Sanitizer';
@@ -250,7 +262,7 @@ async show(req: IRequest, res: IResponse): Promise<void> {
     // Proceed with sanitized ID...
   } catch (error) {
     if (error instanceof SanitizerError) {
-      res.status(400).json({ error: error.message });
+      res.status(422).json({ error: error.message });
       return;
     }
     // Handle other errors...
@@ -311,15 +323,15 @@ export const validateUserUpdate =
 
 ### Benchmarks
 
-| Method                        | Bulletproof Overhead | Absolute Time (1000 ops) |
-| ----------------------------- | -------------------- | ------------------------ |
-| `digitsOnly`                  | ~8%                  | 12ms → 13ms              |
-| `parseAmount`                 | ~12%                 | 15ms → 17ms              |
-| `lockNonNegativeNumberString` | ~10%                 | 10ms → 11ms              |
-| `decimalString`               | ~5%                  | 8ms → 8.4ms              |
-| `email`                       | ~3%                  | 5ms → 5.2ms              |
-| `nameText`                    | ~3%                  | 4ms → 4.1ms              |
-| `safePasswordChars`           | ~2%                  | 3ms → 3.1ms              |
+| Method                           | Bulletproof Overhead | Absolute Time (1000 ops) |
+| -------------------------------- | -------------------- | ------------------------ |
+| `digitsOnly`                     | ~8%                  | 12ms → 13ms              |
+| `parseAmount`                    | ~12%                 | 15ms → 17ms              |
+| `nonNegativeNumericStringOrNull` | ~10%                 | 10ms → 11ms              |
+| `decimalString`                  | ~5%                  | 8ms → 8.4ms              |
+| `email`                          | ~3%                  | 5ms → 5.2ms              |
+| `nameText`                       | ~3%                  | 4ms → 4.1ms              |
+| `safePasswordChars`              | ~2%                  | 3ms → 3.1ms              |
 
 **Test Environment:** MacBook Pro M1, Node 20.x, 1000 iterations
 **Total Overhead:** < 1ms per request for typical API workload (4-5 sanitizer calls)
@@ -356,8 +368,8 @@ const zip = Sanitizer.digitsOnly(zipCode, false); // Allows "00501"
 #### All Tests Passing ✅
 
 - ✅ Valid input sanitization (all methods)
-- ✅ Overflow protection (`digitsOnly`, `parseAmount`, `decimalString`, `lockNonNegativeNumberString`)
-- ✅ Leading zero detection (`digitsOnly`, `lockNonNegativeNumberString`)
+- ✅ Overflow protection (`digitsOnly`, `parseAmount`, `decimalString`, `nonNegativeNumericStringOrNull`)
+- ✅ Leading zero detection (`digitsOnly`, `nonNegativeNumericStringOrNull`)
 - ✅ Type coercion protection (`"+82"`, `"-0"`, scientific notation)
 - ✅ Empty/whitespace rejection (`email`, `nameText`, `safePasswordChars`, `digitsOnly`)
 - ✅ Email format validation (missing @, invalid format)

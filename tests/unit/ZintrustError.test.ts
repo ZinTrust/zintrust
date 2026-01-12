@@ -17,7 +17,7 @@ describe('ZintrustError helpers', () => {
   });
 
   it('createSanitizerError redacts long values', () => {
-    const long = 'x'.repeat(40);
+    const long = 'x'.repeat(200);
     const err = createSanitizerError('foo', 'reason', long);
     expect(err.message).toContain('Sanitizer.foo() failed');
     expect((err as any).details?.redactedValue).toMatch(/\.\.\./);

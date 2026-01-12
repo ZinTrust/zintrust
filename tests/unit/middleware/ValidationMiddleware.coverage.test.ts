@@ -173,7 +173,7 @@ describe('ValidationMiddleware (coverage)', () => {
     const mw = ValidationMiddleware.createBodyWithBulletproofSanitization({} as any);
     await mw(req, res, next);
 
-    expect(res.setStatus).toHaveBeenCalledWith(400);
+    expect(res.setStatus).toHaveBeenCalledWith(422);
     expect(res.json).toHaveBeenCalledWith({
       errors: {
         sanitization: ['bad input'],

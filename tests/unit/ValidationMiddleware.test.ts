@@ -92,7 +92,7 @@ describe('ValidationMiddleware.createBodyWithSanitization', () => {
     });
 
     expect(nextCalled).toBe(false);
-    expect(res.payload.status).toBe(400);
+    expect(res.payload.status).toBe(422);
     expect(res.payload.body).toEqual({ errors: { sanitization: [sanitizerErr.message] } });
   });
 });
