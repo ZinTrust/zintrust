@@ -6,7 +6,9 @@ import { QueryBuilder } from '@orm/QueryBuilder';
 import type { MigrationRecord, MigrationRecordStatus, MigrationScope } from '@/migrations/types';
 
 function nowIso(): string {
-  return new Date().toISOString();
+  // MySQL/MariaDB DATETIME does not accept ISO8601 with timezone (e.g. trailing 'Z').
+  // Use a portable UTC datetime string.
+  return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
 const toSafeService = (service: string | null | undefined): string => {

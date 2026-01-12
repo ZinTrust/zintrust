@@ -81,16 +81,52 @@ interface QueryState {
   joins: Array<{ table: string; on: string }>;
   softDelete?: { column: string; mode: SoftDeleteMode };
   eagerLoads: string[];
+  dialect?: string;
 }
 
 /**
  * Escape SQL identifier
  */
-const escapeIdentifier = (id: string): string =>
-  id
+type IdentifierQuote = {
+  open: string;
+  close: string;
+  escape: (raw: string) => string;
+};
+
+const getIdentifierQuote = (dialect?: string): IdentifierQuote => {
+  const d = (dialect ?? '').toLowerCase();
+
+  if (d === 'mysql') {
+    return {
+      open: '`',
+      close: '`',
+      escape: (raw) => raw.replaceAll('`', '``'),
+    };
+  }
+
+  if (d === 'sqlserver') {
+    return {
+      open: '[',
+      close: ']',
+      escape: (raw) => raw.replaceAll(']', ']]'),
+    };
+  }
+
+  // sqlite/postgresql/d1/d1-remote: standard SQL double-quote identifiers.
+  return {
+    open: '"',
+    close: '"',
+    escape: (raw) => raw.replaceAll('"', '""'),
+  };
+};
+
+const escapeIdentifier = (id: string, dialect?: string): string => {
+  const q = getIdentifierQuote(dialect);
+  return id
     .split('.')
-    .map((part) => `"${part.replaceAll('"', '""')}"`)
+    .map((part) => `${q.open}${q.escape(part)}${q.close}`)
     .join('.');
+};
 
 const SAFE_IDENTIFIER_PATH = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
 const SAFE_IDENTIFIER = /^[A-Za-z_]\w*$/;
@@ -249,37 +285,39 @@ const formatSelectExpr = (
     | { kind: 'all' }
     | { kind: 'literal'; value: string }
     | { kind: 'column'; column: string; alias?: string }
-    | { kind: 'aggregate'; fn: SupportedAggregateFn; arg: string; alias?: string }
+    | { kind: 'aggregate'; fn: SupportedAggregateFn; arg: string; alias?: string },
+  dialect?: string
 ): string => {
   if (parsed.kind === 'all') return '*';
   if (parsed.kind === 'literal') return parsed.value;
 
   if (parsed.kind === 'aggregate') {
-    const argSql = parsed.arg === '*' ? '*' : escapeIdentifier(parsed.arg);
+    const argSql = parsed.arg === '*' ? '*' : escapeIdentifier(parsed.arg, dialect);
     const base = `${parsed.fn}(${argSql})`;
     const alias = typeof parsed.alias === 'string' && parsed.alias.length > 0 ? parsed.alias : null;
-    return alias === null ? base : `${base} AS ${escapeIdentifier(alias)}`;
+    return alias === null ? base : `${base} AS ${escapeIdentifier(alias, dialect)}`;
   }
 
-  const base = escapeIdentifier(parsed.column);
+  const base = escapeIdentifier(parsed.column, dialect);
   const alias = typeof parsed.alias === 'string' && parsed.alias.length > 0 ? parsed.alias : null;
-  return alias === null ? base : `${base} AS ${escapeIdentifier(alias)}`;
+  return alias === null ? base : `${base} AS ${escapeIdentifier(alias, dialect)}`;
 };
 
-const buildSelectClause = (columns: string[]): string => {
+const buildSelectClause = (columns: string[], dialect?: string): string => {
   const out: string[] = [];
   for (const c of columns) {
     const parsed = tryParseSelectExpr(String(c));
     if (parsed === null) continue;
 
-    out.push(formatSelectExpr(parsed));
+    out.push(formatSelectExpr(parsed, dialect));
   }
 
   return out.join(', ');
 };
 
 const compileWhere = (
-  conditions: WhereClause[]
+  conditions: WhereClause[],
+  dialect?: string
 ): {
   sql: string;
   parameters: unknown[];
@@ -290,7 +328,7 @@ const compileWhere = (
   const clauses = conditions.map((clause) => {
     assertSafeIdentifierPath(clause.column, 'where column');
     const operator = assertSafeOperator(clause.operator);
-    const columnSql = escapeIdentifier(clause.column);
+    const columnSql = escapeIdentifier(clause.column, dialect);
 
     if (operator === 'IN' || operator === 'NOT IN') {
       if (!Array.isArray(clause.value) || clause.value.length === 0) {
@@ -349,7 +387,8 @@ const getEffectiveWhereConditions = (state: QueryState): WhereClause[] => {
  * Build ORDER BY clause
  */
 const buildOrderByClause = (
-  orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>
+  orderByClauses: Array<{ column: string; direction: 'ASC' | 'DESC' }>,
+  dialect?: string
 ): string => {
   if (orderByClauses.length === 0) return '';
 
@@ -359,7 +398,7 @@ const buildOrderByClause = (
 
     if (!isNumericLiteral(col)) {
       assertSafeIdentifierPath(col, 'order by column');
-      columnSql = escapeIdentifier(col);
+      columnSql = escapeIdentifier(col, dialect);
     }
 
     const dir = normalizeOrderDirection(orderBy.direction);
@@ -390,13 +429,14 @@ const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown
     assertSafeIdentifierPath(state.tableName, 'table name');
   }
 
-  const columns = buildSelectClause(state.selectColumns);
-  const fromClause = state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName)}` : '';
-  const where = compileWhere(getEffectiveWhereConditions(state));
-  const sql = `SELECT ${columns}${fromClause}${where.sql}${buildOrderByClause(state.orderByClauses)}${buildLimitOffsetClause(
-    state.limitValue,
-    state.offsetValue
-  )}`;
+  const columns = buildSelectClause(state.selectColumns, state.dialect);
+  const fromClause =
+    state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName, state.dialect)}` : '';
+  const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
+  const sql = `SELECT ${columns}${fromClause}${where.sql}${buildOrderByClause(
+    state.orderByClauses,
+    state.dialect
+  )}${buildLimitOffsetClause(state.limitValue, state.offsetValue)}`;
   return { sql, parameters: where.parameters };
 };
 
@@ -472,7 +512,8 @@ async function executeFirstOrFail<T>(
 
 const compileInsert = (
   tableName: string,
-  values: Record<string, unknown> | Array<Record<string, unknown>>
+  values: Record<string, unknown> | Array<Record<string, unknown>>,
+  dialect?: string
 ): { sql: string; parameters: unknown[] } => {
   const items = Array.isArray(values) ? values : [values];
   if (items.length === 0) {
@@ -488,7 +529,7 @@ const compileInsert = (
   assertSafeIdentifierPath(tableName, 'table name');
   for (const key of keys) assertSafeIdentifier(key, 'insert column');
 
-  const colsSql = keys.map((k) => escapeIdentifier(k)).join(', ');
+  const colsSql = keys.map((k) => escapeIdentifier(k, dialect)).join(', ');
 
   // Single row or multi-row placeholders
   const rowPlaceholders = `(${keys.map(() => '?').join(', ')})`;
@@ -501,14 +542,15 @@ const compileInsert = (
     }
   }
 
-  const sql = `INSERT INTO ${escapeIdentifier(tableName)} (${colsSql}) VALUES ${placeholders}`;
+  const sql = `INSERT INTO ${escapeIdentifier(tableName, dialect)} (${colsSql}) VALUES ${placeholders}`;
   return { sql, parameters };
 };
 
 const compileUpdate = (
   tableName: string,
   values: Record<string, unknown>,
-  conditions: WhereClause[]
+  conditions: WhereClause[],
+  dialect?: string
 ): { sql: string; parameters: unknown[] } => {
   const keys = Object.keys(values);
   if (keys.length === 0) {
@@ -521,23 +563,24 @@ const compileUpdate = (
   assertSafeIdentifierPath(tableName, 'table name');
   for (const key of keys) assertSafeIdentifier(key, 'update column');
 
-  const setSql = keys.map((k) => `${escapeIdentifier(k)} = ?`).join(', ');
+  const setSql = keys.map((k) => `${escapeIdentifier(k, dialect)} = ?`).join(', ');
   const setParams = keys.map((k) => values[k]);
-  const where = compileWhere(conditions);
-  const sql = `UPDATE ${escapeIdentifier(tableName)} SET ${setSql}${where.sql}`;
+  const where = compileWhere(conditions, dialect);
+  const sql = `UPDATE ${escapeIdentifier(tableName, dialect)} SET ${setSql}${where.sql}`;
   return { sql, parameters: [...setParams, ...where.parameters] };
 };
 
 const compileDelete = (
   tableName: string,
-  conditions: WhereClause[]
+  conditions: WhereClause[],
+  dialect?: string
 ): { sql: string; parameters: unknown[] } => {
   if (conditions.length === 0) {
     throw ErrorFactory.createDatabaseError('DELETE requires at least one WHERE clause');
   }
   assertSafeIdentifierPath(tableName, 'table name');
-  const where = compileWhere(conditions);
-  const sql = `DELETE FROM ${escapeIdentifier(tableName)}${where.sql}`;
+  const where = compileWhere(conditions, dialect);
+  const sql = `DELETE FROM ${escapeIdentifier(tableName, dialect)}${where.sql}`;
   return { sql, parameters: where.parameters };
 };
 
@@ -733,7 +776,7 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('INSERT requires a table name');
-    const compiled = compileInsert(tableName, values);
+    const compiled = compileInsert(tableName, values, state.dialect);
     const items = Array.isArray(values) ? values : [values];
 
     await currentDb.query(compiled.sql, compiled.parameters, false);
@@ -752,7 +795,7 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('UPDATE requires a table name');
-    const compiled = compileUpdate(tableName, values, state.whereConditions);
+    const compiled = compileUpdate(tableName, values, state.whereConditions, state.dialect);
     await currentDb.query(compiled.sql, compiled.parameters, false);
   };
   builder.delete = async () => {
@@ -760,7 +803,7 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     const tableName = state.tableName.trim();
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('DELETE requires a table name');
-    const compiled = compileDelete(tableName, state.whereConditions);
+    const compiled = compileDelete(tableName, state.whereConditions, state.dialect);
     await currentDb.query(compiled.sql, compiled.parameters, false);
   };
 }
@@ -809,6 +852,7 @@ export const QueryBuilder = Object.freeze({
       orderByClauses: [],
       joins: [],
       eagerLoads: [],
+      dialect: typeof database?.getType === 'function' ? database.getType() : undefined,
     };
 
     if (options.softDeleteColumn !== undefined && options.softDeleteColumn.trim().length > 0) {

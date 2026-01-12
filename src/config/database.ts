@@ -5,7 +5,11 @@
  */
 
 import { Env } from '@config/env';
-import type { DatabaseConfigShape, DatabaseConnectionConfig, DatabaseConnections } from '@config/type';
+import type {
+  DatabaseConfigShape,
+  DatabaseConnectionConfig,
+  DatabaseConnections,
+} from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const isNodeProcess = (): boolean => {
@@ -145,10 +149,10 @@ const connections = {
   postgresql: {
     driver: 'postgresql' as const,
     host: Env.DB_HOST,
-    port: Env.DB_PORT,
-    database: Env.DB_DATABASE,
-    username: Env.DB_USERNAME,
-    password: Env.DB_PASSWORD,
+    port: Env.getInt('DB_PORT_POS'),
+    database: Env.get('DB_DATABASE_POS'),
+    username: Env.get('DB_USERNAME_POS'),
+    password: Env.get('DB_PASSWORD_POS'),
     ssl: Env.getBool('DB_SSL', false),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),

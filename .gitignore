@@ -68,3 +68,4 @@ zin-tools/
 .zintrust/
 zintrust
 issues/
+src/zintrust.plugins.ts

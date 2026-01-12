@@ -1,11 +1,17 @@
 import { pathToFileURL } from '@/node-singletons/url';
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 type ImportResult =
   | { ok: true; loadedPath: string }
-  | { ok: false; loadedPath?: string; reason: 'not-found' | 'import-failed' };
+  | {
+      ok: false;
+      loadedPath?: string;
+      reason: 'not-found' | 'import-failed';
+      errorMessage?: string;
+    };
 
 const resolveProjectRoot = (): string => {
   const fromEnv = process.env['ZINTRUST_PROJECT_ROOT'];
@@ -45,14 +51,23 @@ export const PluginAutoImports = Object.freeze({
         await import(url);
         return { ok: true, loadedPath: candidate };
       } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        Logger.warn('[plugins] Failed to import plugin auto-imports', {
+          candidate,
+          errorMessage,
+        });
+
+        // Keep error creation for consistent structure (but do not throw).
         ErrorFactory.createTryCatchError('Failed to import project plugin auto-imports', {
           candidate,
           error,
         });
-        return { ok: false, loadedPath: candidate, reason: 'import-failed' };
+
+        return { ok: false, loadedPath: candidate, reason: 'import-failed', errorMessage };
       }
     }
 
+    Logger.debug('[plugins] No plugin auto-imports file found', { projectRoot, candidates });
     return { ok: false, reason: 'not-found' };
   },
 });

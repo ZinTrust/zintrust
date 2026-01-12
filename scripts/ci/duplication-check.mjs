@@ -20,6 +20,7 @@ function isRelevantPath(filePath) {
     filePath.startsWith('tmp/') ||
     filePath.startsWith('tmp-test-logs/') ||
     filePath.startsWith('docs-website/public/') ||
+    filePath.startsWith('packages/') ||
     // Exclude package registration files as they are boilerplate
     filePath.match(/^packages\/.*\/src\/register\.ts$/)
   ) {

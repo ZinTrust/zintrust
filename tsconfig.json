@@ -83,6 +83,7 @@
     "dist",
     "build",
     "coverage",
+    "src/zintrust.plugins.ts",
     "tests/cli/test-factories-*",
     ".next",
     ".git",

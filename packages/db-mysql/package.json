@@ -22,7 +22,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.1.15"
+    "@zintrust/core": "file:../../dist"
   },
   "publishConfig": {
     "access": "public"
@@ -30,5 +30,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "mysql2": "^3.16.0"
   }
 }

@@ -17,7 +17,9 @@ import { SqliteMaintenance } from '@orm/maintenance/SqliteMaintenance';
 import { MigrationStore } from '@orm/migrations/MigrationStore';
 
 function nowIso(): string {
-  return new Date().toISOString();
+  // MySQL/MariaDB DATETIME does not accept ISO8601 with timezone (e.g. trailing 'Z').
+  // Use a portable UTC datetime string.
+  return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
 type MigratorApi = {
