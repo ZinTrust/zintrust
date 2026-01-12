@@ -126,7 +126,7 @@ await adapter.transaction(async () => {
 
 ## Raw SQL Queries (Advanced - Not Recommended)
 
-> **⚠️ IMPORTANT:** Raw SQL queries violate Zintrust's core philosophy of type-safe, zero-vulnerability database access. The QueryBuilder handles all standard operations safely. Raw SQL should **NEVER** be used unless absolutely necessary.
+> **⚠️ IMPORTANT:** Raw SQL queries violate ZinTrust's core philosophy of type-safe, zero-vulnerability database access. The QueryBuilder handles all standard operations safely. Raw SQL should **NEVER** be used unless absolutely necessary.
 
 ### When to Use Raw SQL
 

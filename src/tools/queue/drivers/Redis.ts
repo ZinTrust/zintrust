@@ -1,4 +1,4 @@
-import { generateUuid } from '@common/uuid';
+import { generateUuid } from '@/common/utility';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { QueueMessage } from '@tools/queue/Queue';
 

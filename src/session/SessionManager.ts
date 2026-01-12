@@ -1,4 +1,4 @@
-import { generateSecureJobId } from '@common/uuid';
+import { generateSecureJobId } from '@/common/utility';
 
 export type SessionData = Record<string, unknown>;
 

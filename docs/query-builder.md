@@ -1,6 +1,6 @@
 # Query Builder
 
-Zintrust's Query Builder provides a fluent, type-safe interface for building SQL queries. It protects your application against SQL injection attacks.
+ZinTrust's Query Builder provides a fluent, type-safe interface for building SQL queries. It protects your application against SQL injection attacks.
 
 ## Basic Usage
 
@@ -12,7 +12,7 @@ const users = await db.table('users').get();
 
 ## Master-Slave Splitting
 
-Zintrust automatically handles read/write splitting if you configure multiple read hosts.
+ZinTrust automatically handles read/write splitting if you configure multiple read hosts.
 
 ### Configuration
 

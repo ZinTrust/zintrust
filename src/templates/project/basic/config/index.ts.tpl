@@ -1,20 +1,7 @@
 /**
- * Configuration Exports
+ * Configuration Exports (template)
  * Central export point for all configuration
  */
-
-import {
-  appConfig,
-  broadcastConfig,
-  cacheConfig,
-  databaseConfig,
-  microservicesConfig,
-  middlewareConfig,
-  notificationConfig,
-  queueConfig,
-  securityConfig,
-  storageConfig,
-} from '@zintrust/core';
 
 export {
   appConfig,
@@ -31,23 +18,21 @@ export {
 
 export type {
   AppConfig,
+  BroadcastConfig,
   CacheConfig,
+  DatabaseConfig,
   MicroservicesConfig,
+  MiddlewareConfig,
+  NotificationConfig,
   QueueConfig,
+  SecurityConfig,
   StorageConfig,
 } from '@zintrust/core';
 
-// Core exports this as `DatabaseRuntimeConfig`; keep template API stable.
-export type { DatabaseRuntimeConfig as DatabaseConfig } from '@zintrust/core';
-
-export type BroadcastConfig = typeof broadcastConfig;
-export type NotificationConfig = typeof notificationConfig;
-
 /**
  * Combined configuration object
- * Sealed namespace for immutability
  */
-export const config = Object.freeze({
+export const config = {
   app: appConfig,
   broadcast: broadcastConfig,
   database: databaseConfig,
@@ -58,6 +43,6 @@ export const config = Object.freeze({
   microservices: microservicesConfig,
   cache: cacheConfig,
   queue: queueConfig,
-} as const);
+} as const;
 
 export type Config = typeof config;

@@ -1,6 +1,6 @@
 # Advanced Database Guide
 
-This document covers advanced database topics in Zintrust:
+This document covers advanced database topics in ZinTrust:
 
 - Multi-database (named connections)
 - Cloudflare D1 integration
@@ -16,7 +16,7 @@ It complements:
 
 ## Multi-Database (Named Connections)
 
-Zintrust supports multiple database connections by name.
+ZinTrust supports multiple database connections by name.
 
 ### 1) Create/register a named connection
 
@@ -64,9 +64,44 @@ import { Model } from '@zintrust/core';
 const rows = await Model.query('users', 'external_db').where('active', true).get();
 ```
 
+## Migrations (Two Supported Styles)
+
+ZinTrust supports two ways to define schema changes in migrations. Pick whichever style you prefer (both run via `zin migrate`).
+
+### Style A (recommended): secure schema builder
+
+This is the newer builder-driven approach (Blueprint/Compiler-backed). It is the default style used by the migration generator.
+
+```ts
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
+
+export interface Migration {
+  up(db: IDatabase): Promise<void>;
+  down(db: IDatabase): Promise<void>;
+}
+
+export const migration: Migration = {
+  async up(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+
+    await schema.create('users', (table) => {
+      table.id();
+      table.string('name');
+      table.string('email').unique();
+      table.timestamps();
+    });
+  },
+
+  async down(db: IDatabase): Promise<void> {
+    const schema = MigrationSchema.create(db);
+    await schema.dropIfExists('users');
+  },
+};
+```
+
 ## Cloudflare D1
 
-Zintrust includes a dedicated `d1` database driver via `src/orm/adapters/D1Adapter.ts`.
+ZinTrust includes a dedicated `d1` database driver via `src/orm/adapters/D1Adapter.ts`.
 
 ### Wrangler binding
 
@@ -84,7 +119,7 @@ D1 bindings must be configured in Wrangler.
 }
 ```
 
-Zintrust resolves Workers bindings using `src/config/cloudflare.ts`.
+ZinTrust resolves Workers bindings using `src/config/cloudflare.ts`.
 
 ### Runtime configuration
 
@@ -108,7 +143,7 @@ zin d1:migrate --remote
 
 ### D1 considerations (async-only)
 
-Cloudflare D1 is strictly asynchronous. Zintrust’s DB contract is already Promise-based, so D1 fits naturally.
+Cloudflare D1 is strictly asynchronous. ZinTrust’s DB contract is already Promise-based, so D1 fits naturally.
 
 Practical notes:
 
@@ -118,7 +153,7 @@ Practical notes:
 
 ## Cloudflare KV Cache
 
-Zintrust supports Cloudflare KV as a cache backend via the `kv` cache driver.
+ZinTrust supports Cloudflare KV as a cache backend via the `kv` cache driver.
 
 ### Wrangler binding
 
@@ -146,7 +181,7 @@ Implementation notes:
 
 ## Read Replicas (Read Hosts)
 
-For supported SQL drivers, you can configure read replicas via `readHosts` (or env-based equivalents) and Zintrust will round-robin reads.
+For supported SQL drivers, you can configure read replicas via `readHosts` (or env-based equivalents) and ZinTrust will round-robin reads.
 
 See `docs/query-builder.md` for the high-level behavior.
 
@@ -162,4 +197,4 @@ Guidelines:
 
 ## R2 note
 
-Cloudflare R2 is not implemented yet in Zintrust (no binding helper/driver is provided today).
+Cloudflare R2 is not implemented yet in ZinTrust (no binding helper/driver is provided today).

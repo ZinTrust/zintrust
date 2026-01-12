@@ -5,6 +5,14 @@ import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { Database, IDatabase, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const otelDbMock = vi.hoisted(() => ({
+  OpenTelemetry: {
+    recordDbQuerySpan: vi.fn(),
+  },
+}));
+
+vi.mock('@/observability/OpenTelemetry', () => otelDbMock);
+
 // Mock adapters
 vi.mock('@orm/adapters/SQLiteAdapter', () => {
   return {
@@ -182,6 +190,26 @@ describe('Database', () => {
 
     expect(beforeHandler).toHaveBeenCalledWith('SELECT * FROM users', []);
     expect(afterHandler).toHaveBeenCalled();
+  });
+
+  it('records a DB query span when OTEL_ENABLED=true', async () => {
+    process.env.OTEL_ENABLED = 'true';
+    try {
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      await db.query('SELECT * FROM users');
+
+      // allow the async after-query hook to run
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(otelDbMock.OpenTelemetry.recordDbQuerySpan).toHaveBeenCalled();
+      expect(otelDbMock.OpenTelemetry.recordDbQuerySpan).toHaveBeenCalledWith(
+        expect.objectContaining({ driver: 'sqlite', durationMs: expect.any(Number) })
+      );
+    } finally {
+      delete process.env.OTEL_ENABLED;
+    }
   });
 
   it('should handle read/write splitting', async () => {

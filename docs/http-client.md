@@ -5,7 +5,33 @@ description: HTTP client for making authenticated requests
 
 # HTTP Client
 
-Zintrust provides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
+ZinTrust provides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
+
+## Interface Reference
+
+```typescript
+export interface IHttpRequest {
+  withHeader(name: string, value: string): IHttpRequest;
+  withHeaders(headers: Record<string, string>): IHttpRequest;
+  withAuth(token: string, scheme?: 'Bearer' | 'Basic'): IHttpRequest;
+  withBasicAuth(username: string, password: string): IHttpRequest;
+  withTimeout(ms: number): IHttpRequest;
+  asJson(): IHttpRequest;
+  asForm(): IHttpRequest;
+  send(): Promise<IHttpResponse>;
+}
+
+export interface IHttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+  ok(): boolean;
+  json<T = unknown>(): T;
+  text(): string;
+  throwIfError(): IHttpResponse;
+}
+```
 
 ## Features
 
@@ -20,7 +46,7 @@ Zintrust provides a fluent, HTTP client for making authenticated requests to ext
 
 ## Installation
 
-HTTP client is built into Zintrust. No additional packages needed.
+HTTP client is built into ZinTrust. No additional packages needed.
 
 ```typescript
 import { HttpClient } from '@zintrust/core';

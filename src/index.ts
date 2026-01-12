@@ -1,5 +1,5 @@
 /**
- * Zintrust Framework - Production-Grade TypeScript Backend
+ * ZinTrust Framework - Production-Grade TypeScript Backend
  * Built for performance, type safety, and exceptional developer experience
  */
 
@@ -16,9 +16,19 @@ export { ServiceContainer } from '@container/ServiceContainer';
 export { Controller } from '@http/Controller';
 export { Kernel } from '@http/Kernel';
 export { Request } from '@http/Request';
-export type { IRequest } from '@http/Request';
+export type { IRequest, ValidatedRequest } from '@http/Request';
+export { RequestContext } from '@http/RequestContext';
 export { Response } from '@http/Response';
 export type { IResponse } from '@http/Response';
+export {
+  getValidatedBody,
+  getValidatedHeaders,
+  getValidatedParams,
+  getValidatedQuery,
+  hasValidatedBody,
+  requireValidatedBody,
+  ValidationHelper,
+} from '@http/ValidationHelper';
 export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
 export { LoggingMiddleware } from '@middleware/LoggingMiddleware';
@@ -27,25 +37,42 @@ export type { Middleware } from '@middleware/MiddlewareStack';
 export { RateLimiter } from '@middleware/RateLimiter';
 export { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 export { SessionMiddleware } from '@middleware/SessionMiddleware';
+export { ValidationMiddleware } from '@middleware/ValidationMiddleware';
 export { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 export { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 export { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 export { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
-export { Database, resetDatabase, useDatabase } from '@orm/Database';
+export { Database, resetDatabase, useDatabase, useEnsureDbConnected } from '@orm/Database';
+export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 export { ZintrustApplication as Application };
 
+// Migrations
+// Note: `Schema` is already exported by Validation. We expose the migration schema runtime
+// as `MigrationSchema` to avoid name collisions.
+export { Schema as MigrationSchema } from '@/migrations/schema';
+
 // Adapter registry (for external adapter packages)
+export { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
+export type { OpenApiGeneratorOptions } from '@/openapi/OpenApiGenerator';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 export { Router } from '@routing/Router';
 export type { IRouter } from '@routing/Router';
+export { normalizeRouteMeta, RouteRegistry } from '@routing/RouteRegistry';
+export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@routing/RouteRegistry';
 
 // Common
+export {
+  generateSecureJobId,
+  generateUuid,
+  getString,
+  Utilities,
+  type UtilitiesType,
+} from '@/common/utility';
 export { delay, ensureDirSafe } from '@common/index';
-export { generateSecureJobId, generateUuid } from '@common/uuid';
 export { ZintrustAwsSigV4 as AwsSigV4 };
 
 // Collections
@@ -57,7 +84,12 @@ export { HttpClient } from '@httpClient/Http';
 export type { IHttpRequest, IHttpResponse } from '@httpClient/Http';
 
 // Database adapter types
-export type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
+export type {
+  DatabaseConfig,
+  ID1Database,
+  IDatabaseAdapter,
+  QueryResult,
+} from '@orm/DatabaseAdapter';
 
 // Profiling
 export { MemoryProfiler } from '@profiling/MemoryProfiler';
@@ -71,6 +103,26 @@ export type {
   ProfileReport,
   QueryLogEntry,
 } from '@profiling/types';
+
+// Performance
+export {
+  GenerationCache,
+  LazyLoader,
+  Memoize,
+  ParallelGenerator,
+  PerformanceOptimizer,
+  runAll,
+  runBatch,
+} from '@performance/Optimizer';
+export type { IGenerationCache, ILazyLoader, IPerformanceOptimizer } from '@performance/Optimizer';
+
+// Observability
+export { OpenTelemetry } from '@/observability/OpenTelemetry';
+export { PrometheusMetrics } from '@/observability/PrometheusMetrics';
+export type {
+  ObserveDbQueryInput,
+  ObserveHttpRequestInput,
+} from '@/observability/PrometheusMetrics';
 
 // Validation
 export { ValidationError } from '@validation/ValidationError';
@@ -104,6 +156,7 @@ export type {
   PasswordResetTokenBrokerType,
   PasswordResetTokenRecord,
 } from '@security/PasswordResetTokenBroker';
+export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Sanitizer';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
 export { ZintrustSignedRequest as SignedRequest };
@@ -135,6 +188,10 @@ export type { AppConfig } from '@config/app';
 export { cacheConfig } from '@config/cache';
 export type { CacheConfig } from '@config/cache';
 
+// Cache helpers
+export { Cache, cache } from '@cache/Cache';
+export type { CacheDriver } from '@cache/CacheDriver';
+
 export { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
 
 // Cache driver registry (for external driver packages)
@@ -147,7 +204,22 @@ export { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistra
 export { microservicesConfig } from '@config/microservices';
 export type { MicroservicesConfig } from '@config/microservices';
 
-export { middlewareConfig } from '@config/middleware';
+// Microservices
+export { MicroserviceBootstrap } from '@microservices/MicroserviceBootstrap';
+export type { IMicroserviceBootstrap, ServiceConfig } from '@microservices/MicroserviceBootstrap';
+export { MicroserviceManager } from '@microservices/MicroserviceManager';
+export type { IMicroserviceManager, MicroserviceConfig } from '@microservices/MicroserviceManager';
+export { RequestTracingMiddleware } from '@microservices/RequestTracingMiddleware';
+export { ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
+export { HealthCheckHandler, ServiceHealthMonitor } from '@microservices/ServiceHealthMonitor';
+export type {
+  AggregatedHealthStatus,
+  HealthCheckResult,
+  IServiceHealthMonitor,
+} from '@microservices/ServiceHealthMonitor';
+
+export { middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
 export { queueConfig } from '@config/queue';
@@ -171,7 +243,13 @@ export { Constants, DEFAULTS, ENV_KEYS, HTTP_HEADERS, MIME_TYPES } from '@config
 export { FeatureFlags } from '@config/features';
 
 export { Cloudflare } from '@config/cloudflare';
-export { SecretsManager } from '@config/SecretsManager';
+export {
+  getDatabaseCredentials,
+  getJwtSecrets,
+  SECRETS,
+  SecretsManager,
+} from '@config/SecretsManager';
+export type { DatabaseCredentials, JwtSecrets } from '@config/SecretsManager';
 export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type';
 
 // Config (validation)

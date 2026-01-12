@@ -3,17 +3,22 @@
  * Demonstrates routing patterns
  */
 
-import { UserController } from '@app/Controllers/UserController';
+import { AuthController } from '@app/Controllers/AuthController';
+import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
+import type { MiddlewareKey } from '@config/middleware';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
+import { registerMetricsRoutes } from '@routes/metrics';
+import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
 
 export function registerRoutes(router: IRouter): void {
-  const userController = UserController.create();
+  const authController = AuthController.create();
+  const userController = UserQueryBuilderController.create();
   registerPublicRoutes(router);
-  registerApiV1Routes(router, userController);
+  registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
 }
 
@@ -23,7 +28,9 @@ export function registerRoutes(router: IRouter): void {
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerHealthRoutes(router);
+  registerMetricsRoutes(router);
   registerBroadcastRoutes(router);
+  registerOpenApiRoutes(router);
   registerStorageRoutes(router);
 }
 
@@ -44,42 +51,78 @@ function registerRootRoute(router: IRouter): void {
  */
 function registerApiV1Routes(
   router: IRouter,
-  userController: ReturnType<typeof UserController.create>
+  authController: ReturnType<typeof AuthController.create>,
+  userController: ReturnType<typeof UserQueryBuilderController.create>
 ): void {
   Router.group(router, '/api/v1', (r) => {
     // Auth routes
-    Router.post(r, '/auth/login', async (_req, res) => {
-      res.json({ message: 'Login endpoint' });
+    Router.post<MiddlewareKey>(r, '/auth/login', authController.login, {
+      middleware: ['authRateLimit', 'validateLogin'],
     });
 
-    Router.post(r, '/auth/register', async (_req, res) => {
-      res.json({ message: 'Register endpoint' });
+    Router.post<MiddlewareKey>(r, '/auth/register', authController.register, {
+      middleware: ['authRateLimit', 'validateRegister'],
     });
 
-    // Protected routes (middleware is not modeled in Router.ts yet)
+    Router.post<MiddlewareKey>(r, '/auth/logout', authController.logout, {
+      middleware: ['auth', 'jwt'],
+    });
+    Router.post<MiddlewareKey>(r, '/auth/refresh', authController.refresh, {
+      middleware: ['auth', 'jwt'],
+    });
+
+    // Protected routes (Router supports per-route middleware metadata)
     const pr = r;
 
     // User resource (REST-ish)
-    Router.resource(pr, '/users', {
-      index: userController.index,
-      store: userController.store,
-      show: userController.show,
-      update: userController.update,
-      destroy: userController.destroy,
+    Router.resource<MiddlewareKey>(
+      pr,
+      '/users',
+      {
+        index: userController.index,
+        store: userController.store,
+        show: userController.show,
+        update: userController.update,
+        destroy: userController.destroy,
+      },
+      {
+        middleware: ['auth', 'jwt'],
+        store: { middleware: ['auth', 'jwt', 'userMutationRateLimit', 'validateUserStore'] },
+        update: { middleware: ['auth', 'jwt', 'userMutationRateLimit', 'validateUserUpdate'] },
+        destroy: { middleware: ['auth', 'jwt', 'userMutationRateLimit'] },
+      }
+    );
+
+    Router.post<MiddlewareKey>(pr, '/users/fill', userController.fill, {
+      middleware: ['auth', 'jwt', 'fillRateLimit', 'validateUserFill'],
     });
 
     // If the controller exposes create/edit, wire them explicitly.
-    Router.get(pr, '/users/create', userController.create);
-    Router.get(pr, '/users/:id/edit', userController.edit);
+    Router.get<MiddlewareKey>(pr, '/users/create', userController.create, {
+      middleware: ['auth', 'jwt'],
+    });
+    Router.get<MiddlewareKey>(pr, '/users/:id/edit', userController.edit, {
+      middleware: ['auth', 'jwt'],
+    });
 
     // Custom user routes
-    Router.get(pr, '/profile', async (_req, res) => {
-      res.json({ message: 'Get user profile' });
-    });
+    Router.get<MiddlewareKey>(
+      pr,
+      '/profile',
+      async (_req, res) => {
+        res.json({ message: 'Get user profile' });
+      },
+      { middleware: ['auth', 'jwt'] }
+    );
 
-    Router.put(pr, '/profile', async (_req, res) => {
-      res.json({ message: 'Update user profile' });
-    });
+    Router.put<MiddlewareKey>(
+      pr,
+      '/profile',
+      async (_req, res) => {
+        res.json({ message: 'Update user profile' });
+      },
+      { middleware: ['auth', 'jwt'] }
+    );
 
     // Posts resource
     Router.get(r, '/posts', async (_req, res) => {

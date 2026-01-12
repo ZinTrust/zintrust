@@ -4,7 +4,7 @@ import { IRequest } from '@/http/Request';
 import { IResponse } from '@/http/Response';
 import { CsrfMiddleware } from '@/middleware/CsrfMiddleware';
 
-vi.mock('@common/uuid', () => ({
+vi.mock('@/common/utility', () => ({
   generateSecureJobId: vi.fn(async () => 'secure-session-id'),
 }));
 
@@ -86,7 +86,7 @@ describe('CsrfMiddleware', () => {
   });
 
   it('should generate a secure session id when missing', async () => {
-    const { generateSecureJobId } = await import('@common/uuid');
+    const { generateSecureJobId } = await import('@/common/utility');
     const middleware = CsrfMiddleware.create();
 
     // No cookie + no req.context.sessionId
@@ -129,5 +129,18 @@ describe('CsrfMiddleware', () => {
 
     expect(res.setStatus).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('bypasses CSRF validation for matching skipPaths', async () => {
+    const middleware = CsrfMiddleware.create({ skipPaths: ['/api/*'] });
+
+    // Simulate POST request to an API route without a token.
+    (req.getMethod as any).mockReturnValue('POST');
+    (req as any).getPath = vi.fn(() => '/api/v1/auth/register');
+    (req.getHeader as any).mockReturnValue(undefined);
+
+    await middleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.setStatus).not.toHaveBeenCalledWith(403);
   });
 });

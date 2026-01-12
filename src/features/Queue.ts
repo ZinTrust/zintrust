@@ -1,6 +1,6 @@
 // TEMPLATE_START
 
-import { generateSecureJobId } from '@common/uuid';
+import { generateSecureJobId } from '@/common/utility';
 import { Logger } from '@config/logger';
 
 export interface QueueJob {

@@ -13,6 +13,10 @@ import { app } from '@zintrust/core';
 // app.*
 ```
 
+## BASE_URL
+
+The app configuration exposes `BASE_URL` via the environment. This is commonly used as the base origin when generating absolute URLs (for example, tooling like `zin routes` uses `BASE_URL` + `PORT` + path for the URL column).
+
 ## Snapshot (top)
 
 ```ts

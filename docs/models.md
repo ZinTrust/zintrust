@@ -1,6 +1,56 @@
 # Models & ORM
 
-Zintrust features a powerful, zero-dependency ORM that provides a clean, ActiveRecord-like interface for interacting with your database.
+ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveRecord-like interface for interacting with your database.
+
+## Interface Reference
+
+```typescript
+export interface IModel {
+  fill(attributes: Record<string, unknown>): IModel;
+  setAttribute(key: string, value: unknown): IModel;
+  getAttribute(key: string): unknown;
+  getAttributes(): Record<string, unknown>;
+  save(): Promise<boolean>;
+  delete(): Promise<boolean>;
+  toJSON(): Record<string, unknown>;
+  isDirty(key?: string): boolean;
+  getTable(): string;
+  exists(): boolean;
+  setExists(exists: boolean): void;
+  hasOne(relatedModel: ModelStatic, foreignKey?: string): IRelationship;
+  hasMany(relatedModel: ModelStatic, foreignKey?: string): IRelationship;
+  belongsTo(relatedModel: ModelStatic, foreignKey?: string): IRelationship;
+  belongsToMany(
+    relatedModel: ModelStatic,
+    throughTable?: string,
+    foreignKey?: string,
+    relatedKey?: string
+  ): IRelationship;
+}
+
+export interface ModelConfig {
+  table: string;
+  fillable: string[];
+  hidden: string[];
+  timestamps: boolean;
+  casts: Record<string, string>;
+  softDeletes?: boolean;
+  accessors?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
+  mutators?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
+  scopes?: Record<string, (builder: IQueryBuilder, ...args: unknown[]) => IQueryBuilder>;
+  observers?: Array<{
+    saving?: (model: IModel) => void | Promise<void>;
+    saved?: (model: IModel) => void | Promise<void>;
+    creating?: (model: IModel) => void | Promise<void>;
+    created?: (model: IModel) => void | Promise<void>;
+    updating?: (model: IModel) => void | Promise<void>;
+    updated?: (model: IModel) => void | Promise<void>;
+    deleting?: (model: IModel) => void | Promise<void>;
+    deleted?: (model: IModel) => void | Promise<void>;
+  }>;
+  connection?: string;
+}
+```
 
 ## Defining Models
 
@@ -46,7 +96,7 @@ For scaffolds and real apps, prefer a strict `fillable` allow-list.
 
 ### Custom Methods
 
-Zintrust supports adding custom model methods via the second argument to `Model.define(...)`.
+ZinTrust supports adding custom model methods via the second argument to `Model.define(...)`.
 
 1. **Unbound method map** (existing pattern): methods receive the model instance as the first argument.
 
@@ -81,7 +131,7 @@ Both patterns work. Choose based on your context: use static imports for cleaner
 
 ## Multi-Database Support
 
-Zintrust supports multiple database connections. You can specify which connection a model should use by setting `connection` in `Model.define(...)`.
+ZinTrust supports multiple database connections. You can specify which connection a model should use by setting `connection` in `Model.define(...)`.
 
 ```typescript
 import { Model } from '@zintrust/core';
@@ -146,7 +196,7 @@ const activeUsers = await User.query().where('is_active', true).where('age', '>'
 
 ### Relationships
 
-Zintrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and `BelongsToMany`.
+ZinTrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and `BelongsToMany`.
 
 #### HasMany
 
@@ -192,7 +242,7 @@ export const Post = Model.define(
 );
 ```
 
-By default, Zintrust will look for a pivot table named by joining the two table names in alphabetical order (e.g., `posts_tags`).
+By default, ZinTrust will look for a pivot table named by joining the two table names in alphabetical order (e.g., `posts_tags`).
 
 ## Persistence
 

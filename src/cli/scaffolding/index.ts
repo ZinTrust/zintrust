@@ -22,6 +22,11 @@ export type {
 } from '@cli/scaffolding/FeatureScaffolder';
 export { FileGenerator } from '@cli/scaffolding/FileGenerator';
 export type { FileCreationOptions } from '@cli/scaffolding/FileGenerator';
+export { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
+export type {
+  GovernanceScaffoldOptions,
+  GovernanceScaffoldResult,
+} from '@cli/scaffolding/GovernanceScaffolder';
 export { MigrationGenerator } from '@cli/scaffolding/MigrationGenerator';
 export type {
   MigrationOptions,

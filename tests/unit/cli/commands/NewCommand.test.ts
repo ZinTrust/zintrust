@@ -16,6 +16,9 @@ vi.mock('@common/index', () => ({
 
 vi.mock('@cli/PromptHelper');
 vi.mock('@cli/scaffolding/ProjectScaffolder');
+vi.mock('@cli/scaffolding/GovernanceScaffolder', () => ({
+  GovernanceScaffolder: { scaffold: vi.fn() },
+}));
 vi.mock('@config/logger', () => ({
   Logger: {
     debug: vi.fn(),
@@ -52,6 +55,7 @@ vi.mock('@node-singletons/path', () => ({
 
 import { NewCommand } from '@/cli/commands/NewCommand';
 import { PromptHelper } from '@cli/PromptHelper';
+import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
@@ -262,6 +266,12 @@ describe('NewCommand', () => {
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--no-git');
     });
+
+    it('getCommand should have governance option configured', () => {
+      const cmd = command.getCommand();
+      const helpText = cmd.helpInformation();
+      expect(helpText).toContain('--governance');
+    });
   });
 
   describe('Execution Tests', () => {
@@ -307,6 +317,37 @@ describe('NewCommand', () => {
       await command.execute(options);
 
       expect(command.getProjectConfig).toHaveBeenCalled();
+    });
+
+    it('should run GovernanceScaffolder when --governance is set', async () => {
+      const options = {
+        args: ['my-project'],
+        template: 'basic',
+        database: 'sqlite',
+        port: '7777',
+        git: false,
+        interactive: false,
+        governance: true,
+      };
+
+      command.getProjectConfig = vi.fn().mockResolvedValue({
+        template: 'basic',
+        database: 'sqlite',
+        port: 7777,
+        author: '',
+        description: '',
+      });
+
+      vi.mocked(ProjectScaffolder.scaffold).mockResolvedValue({ success: true } as any);
+      vi.mocked(GovernanceScaffolder.scaffold).mockResolvedValue({
+        success: true,
+        filesCreated: [],
+        message: 'ok',
+      } as any);
+
+      await command.execute(options);
+
+      expect(GovernanceScaffolder.scaffold).toHaveBeenCalled();
     });
 
     it('should handle execution errors gracefully', async () => {

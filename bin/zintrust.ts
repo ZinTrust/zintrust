@@ -8,7 +8,7 @@
  * shortcuts (zin/z/zt) to import it without parse issues.
  */
 
-import { run } from './zintrust-main';
+import { run } from './zintrust-main.js';
 
 await run();
 export {};

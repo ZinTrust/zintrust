@@ -4,6 +4,7 @@
  * Uses native Node.js crypto module (zero external dependencies)
  */
 
+import { securityConfig } from '@/config';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { createHmac, createSign, createVerify, randomBytes } from '@node-singletons/crypto';
 
@@ -47,7 +48,47 @@ interface JwtState {
 
 export interface JwtManagerType {
   create(): IJwtManager;
+  signAccessToken: (payload: JwtPayload, expiresIn?: number) => string;
 }
+
+const createJwt = (): IJwtManager => {
+  const algorithm = securityConfig.jwt.algorithm;
+  const secret = securityConfig.jwt.secret;
+
+  const jwt: IJwtManager = JwtManager.create();
+
+  if (algorithm === 'HS256' || algorithm === 'HS512') {
+    jwt.setHmacSecret(secret);
+  }
+
+  return jwt;
+};
+
+const signAccessToken = (payload: JwtPayload, expiresIn?: number): string => {
+  const algorithm = securityConfig.jwt.algorithm;
+
+  const jwt = createJwt();
+
+  // JwtManager currently supports HMAC secrets directly for HS algorithms.
+  // For other algorithms, verify will still reject mismatched tokens.
+  if (algorithm !== 'HS256' && algorithm !== 'HS512') {
+    return jwt.sign(payload, {
+      algorithm,
+      issuer: securityConfig.jwt.issuer,
+      audience: securityConfig.jwt.audience,
+      jwtId: jwt.generateJwtId(),
+    });
+  }
+
+  return jwt.sign(payload, {
+    algorithm,
+    expiresIn: expiresIn ?? securityConfig.jwt.expiresIn,
+    issuer: securityConfig.jwt.issuer,
+    audience: securityConfig.jwt.audience,
+    subject: typeof payload.sub === 'string' ? payload.sub : undefined,
+    jwtId: jwt.generateJwtId(),
+  });
+};
 
 /**
  * Create a new JWT manager instance
@@ -90,6 +131,7 @@ const create = (): IJwtManager => {
  */
 export const JwtManager: JwtManagerType = Object.freeze({
   create,
+  signAccessToken,
 });
 
 /**

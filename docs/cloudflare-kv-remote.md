@@ -1,6 +1,6 @@
 # Cloudflare KV Remote (Proxy Service)
 
-Cloudflare KV is a Workers binding (not a Redis-like server you can connect to directly). If your app runs **outside Cloudflare** but you still want KV semantics (low-latency key-value), Zintrust supports a secure pattern:
+Cloudflare KV is a Workers binding (not a Redis-like server you can connect to directly). If your app runs **outside Cloudflare** but you still want KV semantics (low-latency key-value), ZinTrust supports a secure pattern:
 
 - Deploy a Cloudflare Worker service **`zintrust-kv`** in your Cloudflare account.
 - Configure your app to use the **remote KV cache driver** (HTTP), which calls the Worker over HTTPS.
@@ -38,7 +38,7 @@ In your Worker’s `wrangler.jsonc`:
 }
 ```
 
-Default binding name expected by Zintrust is `CACHE`.
+Default binding name expected by ZinTrust is `CACHE`.
 
 ### 2) Configure auth keys (Worker secrets)
 
@@ -63,7 +63,7 @@ Deploy with Wrangler as you normally deploy Workers.
 
 ---
 
-## Configure your Zintrust app (outside Cloudflare)
+## Configure your ZinTrust app (outside Cloudflare)
 
 In your app `.env`:
 

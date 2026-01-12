@@ -4,9 +4,12 @@
  * Production Implementation
  */
 
+import { databaseConfig } from '@config/database';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import { performance } from '@node-singletons/perf-hooks';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
@@ -20,6 +23,22 @@ type SqliteDatabase = {
   prepare: (sql: string) => SqliteStatement;
   pragma: (value: string) => void;
   close: () => void;
+};
+
+type SqliteIdentifier = string & { readonly __sqliteIdentifier: unique symbol };
+
+const SAFE_SQLITE_IDENTIFIER = /^[A-Za-z_]\w*$/;
+
+const toSqliteIdentifier = (value: string): SqliteIdentifier => {
+  if (!SAFE_SQLITE_IDENTIFIER.test(value)) {
+    throw ErrorFactory.createDatabaseError('Unsafe sqlite identifier');
+  }
+  return value as SqliteIdentifier;
+};
+
+const quoteSqliteIdentifier = (id: SqliteIdentifier): string => {
+  // Safe due to SAFE_SQLITE_IDENTIFIER allowlist.
+  return `"${id}"`;
 };
 
 function isMissingEsmPackage(error: unknown, packageName: string): boolean {
@@ -86,12 +105,16 @@ function executeQuery(
   const stmt = db.prepare(sql);
   if (isSelectQuery(sql)) {
     const rows = stmt.all(parameters) as Record<string, unknown>[];
-    Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+    if (databaseConfig.logging.enabled) {
+      Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+    }
     return { rows, rowCount: rows.length };
   }
 
   const info = stmt.run(parameters);
-  Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+  if (databaseConfig.logging.enabled) {
+    Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
+  }
   return { rows: [], rowCount: info.changes };
 }
 
@@ -111,6 +134,18 @@ async function connectSQLite(state: SQLiteAdapterState): Promise<void> {
   if (state.db !== null) return;
 
   const filename = normalizeFilename(state.config.database);
+
+  // Ensure file-backed sqlite DB directories exist (e.g. .zintrust/dbs/*.sqlite).
+  if (filename !== ':memory:') {
+    try {
+      fs.mkdirSync(path.dirname(filename), { recursive: true });
+    } catch (error) {
+      throw ErrorFactory.createTryCatchError('Failed to create SQLite database directory', {
+        filename,
+        cause: error,
+      });
+    }
+  }
 
   const SqliteDatabaseCtor = await importSqliteDatabaseConstructor();
   state.db = new SqliteDatabaseCtor(filename);
@@ -217,6 +252,44 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
 
     async rawQuery<T = unknown>(sql: string, parameters: unknown[] = []): Promise<T[]> {
       return rawQuerySQLite<T>(state, sql, parameters);
+    },
+
+    async ensureMigrationsTable(): Promise<void> {
+      await adapter.query(
+        `CREATE TABLE IF NOT EXISTS migrations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          scope TEXT NOT NULL DEFAULT 'global',
+          service TEXT NOT NULL DEFAULT '',
+          batch INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          applied_at TEXT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(name, scope, service)
+        )`,
+        []
+      );
+    },
+
+    async resetSchema(): Promise<void> {
+      // Best-effort for SQLite.
+      await adapter.query('PRAGMA foreign_keys = OFF', []);
+
+      const tables = (await adapter.query(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+        []
+      )) as unknown as { rows: Array<{ name?: unknown }> };
+
+      await Promise.all(
+        tables.rows.map(async (t) => {
+          const name = typeof t.name === 'string' ? t.name : '';
+          if (name.length === 0) return;
+          const tableName = toSqliteIdentifier(name);
+          await adapter.query(`DROP TABLE IF EXISTS ${quoteSqliteIdentifier(tableName)}`, []);
+        })
+      );
+
+      await adapter.query('PRAGMA foreign_keys = ON', []);
     },
 
     getType(): string {

@@ -132,6 +132,17 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     });
   /* c8 ignore stop */
 
+  // Flush file logging streams
+  import('@config/FileLogWriter')
+    .then((mod: { FileLogWriter: { flush: () => void } }) => {
+      shutdownManager.add(() => mod.FileLogWriter.flush());
+    })
+    /* c8 ignore start */
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+  /* c8 ignore stop */
+
   import('@broadcast/BroadcastRegistry')
     .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.BroadcastRegistry.reset());

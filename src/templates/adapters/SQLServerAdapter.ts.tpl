@@ -3,15 +3,11 @@
  * SQL Server Database Adapter
  */
 
-import {
-  ErrorFactory,
-  FeatureFlags,
-  Logger,
-  QueryBuilder,
-  type DatabaseConfig,
-  type IDatabaseAdapter,
-  type QueryResult,
-} from '@zintrust/core';
+import { FeatureFlags } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
+import { ErrorFactory } from '@zintrust/core';
+import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
+import { QueryBuilder } from '@zintrust/core';
 
 /**
  * SQL Server adapter implementation

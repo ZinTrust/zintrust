@@ -163,6 +163,20 @@ export const CommonUtils = Object.freeze({
   },
 
   /**
+   * Read file contents as string (async)
+   */
+  async readFileAsync(filePath: string): Promise<string> {
+    try {
+      const fsPromises = await import('@node-singletons/fs').then((m) => m.fsPromises);
+      return await fsPromises.readFile(filePath, 'utf-8');
+    } catch (error) {
+      throw ErrorFactory.createGeneralError(
+        `Failed to read file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  },
+
+  /**
    * Write file with optional directory creation
    */
   writeFile(filePath: string, content: string, createDir = true): void {
@@ -172,6 +186,24 @@ export const CommonUtils = Object.freeze({
         this.ensureDir(dir);
       }
       fs.writeFileSync(filePath, content, 'utf-8');
+    } catch (error) {
+      throw ErrorFactory.createGeneralError(
+        `Failed to write file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  },
+
+  /**
+   * Write file with optional directory creation (async)
+   */
+  async writeFileAsync(filePath: string, content: string, createDir = true): Promise<void> {
+    try {
+      const fsPromises = await import('@node-singletons/fs').then((m) => m.fsPromises);
+      if (createDir) {
+        const dir = path.dirname(filePath);
+        await fsPromises.mkdir(dir, { recursive: true });
+      }
+      await fsPromises.writeFile(filePath, content, 'utf-8');
     } catch (error) {
       throw ErrorFactory.createGeneralError(
         `Failed to write file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`

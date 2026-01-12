@@ -2,19 +2,41 @@
  * ConfigManager Tests
  */
 
-import { ConfigManager } from '@cli/config/ConfigManager';
 import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
-import { fsPromises as fs } from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const TEST_CONFIG_PATH = path.join(process.cwd(), 'tests/tmp/test-config-manager.json');
+let testConfigPath = path.join(process.cwd(), 'tests/tmp/test-config-manager.json');
+
+async function createTestManager() {
+  // Other test files sometimes mock '@node-singletons/fs'. The patch-coverage script
+  // runs Vitest with coverage enabled, which can change worker scheduling and expose
+  // cross-file mock leakage. Force the real fs wrapper for this file.
+  vi.resetModules();
+  vi.doUnmock('node:fs');
+  vi.doUnmock('node:fs/promises');
+  vi.doUnmock('@node-singletons/fs');
+  vi.doUnmock('@node-singletons/path');
+  const { ConfigManager } = await import('@cli/config/ConfigManager');
+  return ConfigManager.create(testConfigPath);
+}
 
 describe('ConfigManager Basic Operations', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
+    testConfigPath = path.join(
+      process.cwd(),
+      'tests/tmp',
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
+    );
+
     // Clean up any existing test file
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
@@ -23,14 +45,14 @@ describe('ConfigManager Basic Operations', () => {
   afterEach(async () => {
     // Clean up after tests
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
   });
 
   it('should load default config when file does not exist', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     const config = await manager.load();
 
     expect(config).toBeDefined();
@@ -39,7 +61,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should save config to file', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     const config = await manager.load();
 
     config.name = 'test-app';
@@ -50,13 +72,13 @@ describe('ConfigManager Basic Operations', () => {
     expect(exists).toBe(true);
 
     // Verify content
-    const content = await fs.readFile(TEST_CONFIG_PATH, 'utf-8');
+    const content = await fs.readFile(testConfigPath, 'utf-8');
     const parsed = JSON.parse(content);
     expect(parsed.name).toBe('test-app');
   });
 
   it('should get config value', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     const port = manager.get('server.port');
@@ -64,7 +86,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should set config value', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     manager.set('server.port', 3001);
@@ -72,7 +94,7 @@ describe('ConfigManager Basic Operations', () => {
   });
 
   it('should set nested config values', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     manager.set('database.host', 'localhost');
@@ -82,9 +104,18 @@ describe('ConfigManager Basic Operations', () => {
 
 describe('ConfigManager Advanced Operations', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
+    testConfigPath = path.join(
+      process.cwd(),
+      'tests/tmp',
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
+    );
+
     // Clean up any existing test file
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
@@ -93,14 +124,14 @@ describe('ConfigManager Advanced Operations', () => {
   afterEach(async () => {
     // Clean up after tests
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
   });
 
   it('should merge partial config', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     manager.merge({
@@ -120,7 +151,7 @@ describe('ConfigManager Advanced Operations', () => {
   });
 
   it('should reset to default config', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     const config = await manager.load();
 
     config.name = 'changed-app';
@@ -133,9 +164,18 @@ describe('ConfigManager Advanced Operations', () => {
 
 describe('ConfigManager Persistence', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
+    testConfigPath = path.join(
+      process.cwd(),
+      'tests/tmp',
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
+    );
+
     // Clean up any existing test file
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
@@ -144,14 +184,14 @@ describe('ConfigManager Persistence', () => {
   afterEach(async () => {
     // Clean up after tests
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
   });
 
   it('should create default config', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.create({ name: 'initial-app' });
 
     const exists = await manager.exists();
@@ -162,14 +202,20 @@ describe('ConfigManager Persistence', () => {
   });
 
   it('should persist changes across save and load', async () => {
-    let manager = ConfigManager.create(TEST_CONFIG_PATH);
+    let manager = await createTestManager();
     await manager.load();
 
     manager.set('server.port', 5000);
     await manager.save();
 
+    // Sanity-check the persisted value is actually written to disk.
+    const persisted = JSON.parse(await fs.readFile(testConfigPath, 'utf-8')) as {
+      server?: { port?: number };
+    };
+    expect(persisted.server?.port).toBe(5000);
+
     // Create new manager instance and load
-    manager = ConfigManager.create(TEST_CONFIG_PATH);
+    manager = await createTestManager();
     await manager.load();
 
     expect(manager.get('server.port')).toBe(5000);
@@ -178,9 +224,18 @@ describe('ConfigManager Persistence', () => {
 
 describe('ConfigManager Export and Keys', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+
+    testConfigPath = path.join(
+      process.cwd(),
+      'tests/tmp',
+      `test-config-manager-${process.pid}-${randomUUID()}.json`
+    );
+
     // Clean up any existing test file
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
@@ -189,14 +244,14 @@ describe('ConfigManager Export and Keys', () => {
   afterEach(async () => {
     // Clean up after tests
     try {
-      await fs.unlink(TEST_CONFIG_PATH);
+      await fs.unlink(testConfigPath);
     } catch {
       // Ignore if file doesn't exist
     }
   });
 
   it('should export config as JSON', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     const json = manager.export();
@@ -209,7 +264,7 @@ describe('ConfigManager Export and Keys', () => {
   });
 
   it('should get all config keys', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     const keys = manager.getAllKeys();
@@ -221,7 +276,7 @@ describe('ConfigManager Export and Keys', () => {
   });
 
   it('should get undefined for non-existent key', async () => {
-    const manager = ConfigManager.create(TEST_CONFIG_PATH);
+    const manager = await createTestManager();
     await manager.load();
 
     const value = manager.get('non.existent.key');

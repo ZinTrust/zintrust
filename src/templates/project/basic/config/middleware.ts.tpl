@@ -1,50 +1,32 @@
-import type { MiddlewareConfigType } from '@zintrust/core';
+/**
+ * Middleware Configuration (template)
+ *
+ * Keep this file declarative:
+ * - Core owns middleware construction / any runtime behavior.
+ * - Projects can override by editing `middlewareConfigObj`.
+ */
+
+import { middlewareConfig as coreMiddlewareConfig } from '@zintrust/core';
 import { CsrfMiddleware } from '@zintrust/core';
-import { ErrorHandlerMiddleware } from '@zintrust/core';
-import { LoggingMiddleware } from '@zintrust/core';
-import type { Middleware } from '@zintrust/core';
-import { RateLimiter } from '@zintrust/core';
-import { SecurityMiddleware } from '@zintrust/core';
 
-function createSharedMiddlewares() {
-  return Object.freeze({
-    log: LoggingMiddleware.create(),
-    error: ErrorHandlerMiddleware.create(),
-    security: SecurityMiddleware.create(),
-    rateLimit: RateLimiter.create(),
-    csrf: CsrfMiddleware.create(),
-  });
-}
+type MiddlewareConfigShape = typeof coreMiddlewareConfig;
 
-export function createMiddlewareConfig(): MiddlewareConfigType {
-  const shared = createSharedMiddlewares();
-
-  const middlewareConfigObj: MiddlewareConfigType = {
-    global: [shared.log, shared.error, shared.security, shared.rateLimit, shared.csrf],
-    route: shared,
-  };
-
-  return Object.freeze(middlewareConfigObj);
-}
-
-let cached: MiddlewareConfigType | null = null;
-
-function ensureMiddlewareConfig(): MiddlewareConfigType {
-  if (cached) return cached;
-  cached = createMiddlewareConfig();
-  return cached;
-}
-
-export const middlewareConfig: MiddlewareConfigType = new Proxy({} as MiddlewareConfigType, {
-  get(_target, prop: keyof MiddlewareConfigType) {
-    return ensureMiddlewareConfig()[prop];
-  },
-  ownKeys() {
-    return Reflect.ownKeys(ensureMiddlewareConfig());
-  },
-  getOwnPropertyDescriptor(_target, prop) {
-    return Object.getOwnPropertyDescriptor(ensureMiddlewareConfig(), prop);
-  },
+// Optional: if you're building a pure Bearer-token API (no cookie auth),
+// you can bypass CSRF for API routes.
+// Example: ['\/api\/*'] skips CSRF for all API endpoints.
+const csrf = CsrfMiddleware.create({
+  skipPaths: [],
 });
 
+export const middlewareConfigObj = {
+  ...coreMiddlewareConfig,
+  route: {
+    ...coreMiddlewareConfig.route,
+    csrf,
+  },
+  // Keep global middleware order but swap in the overridden CSRF middleware.
+  global: coreMiddlewareConfig.global.map((mw) => (mw === coreMiddlewareConfig.route.csrf ? csrf : mw)),
+} satisfies MiddlewareConfigShape;
+
+export const middlewareConfig = middlewareConfigObj;
 export default middlewareConfig;

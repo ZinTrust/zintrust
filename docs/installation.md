@@ -2,51 +2,93 @@
 
 ## Prerequisites
 
-- Node.js 20+
-- npm (recommended)
+- Node.js `>= 20`
+- npm `>= 9` (recommended)
 
-## Installation
+Optional (but often required): build tools for native dependencies (for example `bcrypt`, `better-sqlite3`). On macOS, Xcode Command Line Tools are usually sufficient.
+
+## Install ZinTrust
+
+You can install ZinTrust globally (recommended for getting started) or per-project.
+
+### Option A: Global install
 
 ```bash
 npm install -g @zintrust/core
 ```
 
-## Core Package Dependencies (CLI + DX)
+This provides the CLI entrypoints:
 
-The published npm package `@zintrust/core` includes runtime dependencies primarily for the CLI and developer experience:
+- `zin` (primary)
+- `z` and `zt` (shorthands)
+- `zintrust` (full name)
 
-- `commander` - CLI command parsing
-- `inquirer` - interactive prompts
-- `chalk` - colored terminal output
-- `tsx` - runs TypeScript-based CLI entrypoints
-
-Optional integrations (database drivers, Redis client, etc.) are installed on-demand using plugins.
-
-For example:
+Verify:
 
 ```bash
-# Install the SQLite adapter dependencies + templates
-zin add db:sqlite
-
-# Install Redis client dependency for queue/broadcast drivers
-zin add queue:redis
-zin add broadcast:redis
-
-# Install cache/mail drivers on-demand
-zin add cache:redis
-zin add mail:nodemailer
+zin --version
 ```
 
-Note: some drivers (e.g. `better-sqlite3`) are native modules and may require build tools on some platforms.
+### Option B: Project-local install
 
-## First Project
+If you prefer reproducible tooling per repo:
+
+```bash
+npm install --save-dev @zintrust/core
+```
+
+Then run the CLI via:
+
+```bash
+npx zin --version
+```
+
+## Create your first project
+
+Interactive (recommended):
 
 ```bash
 zin new my-app
 cd my-app
+```
 
-# Install database driver dependencies on-demand (example: SQLite)
+Scripted (CI / automation):
+
+```bash
+zin new my-app \
+	--template api \
+	--database postgresql \
+	--port 7777 \
+	--governance \
+	--no-interactive
+```
+
+`zin new` can also control:
+
+- git init: `--no-git`
+- dependency install: `--no-install` or `--install`
+- package manager: `--package-manager npm|yarn|pnpm`
+
+## Install adapters and drivers (plugin-style)
+
+Many integrations are installed on-demand using the `domain:driver` form:
+
+```bash
 zin add db:sqlite
+zin add queue:redis
+zin add broadcast:redis
+zin add cache:redis
+zin add mail:nodemailer
+```
 
+Some drivers are native modules; if installs fail, ensure your machine has build tooling available.
+
+## Start the app
+
+From a generated project:
+
+```bash
 zin start
 ```
+
+If you are running the framework repo directly, `npm run dev` starts the dev server.

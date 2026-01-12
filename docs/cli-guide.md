@@ -1,8 +1,8 @@
-# Zintrust CLI - Quick Start Guide
+# ZinTrust CLI - Quick Start Guide
 
 ## Installation
 
-The Zintrust CLI is distributed on npm as `@zintrust/core`.
+The ZinTrust CLI is distributed on npm as `@zintrust/core`.
 
 ```bash
 # Install globally from npm
@@ -55,12 +55,36 @@ The `add` command scaffolds various components for your application:
 ```bash
 zin add model User             # Create a model
 zin add controller UserController        # Create a controller
-zin add migration create_users # Create a migration
+zin cm user                    # Create create_users_table migration
+zin am bio user                # Create add_bio_users_table migration (requires create_users_table)
+zin add migration custom_name  # Create a custom migration (advanced)
 zin add service auth           # Create a microservice
 zin add workflow               # Create deployment workflows
 ```
 
 For a full list of types, see the [CLI Reference](./cli-reference.md).
+
+### List Routes
+
+To print a table of every registered route (including middleware/validation metadata), run:
+
+```bash
+zin routes
+```
+
+If you want the **URL** column to be fully qualified, set `BASE_URL` and `PORT`:
+
+```bash
+BASE_URL=http://127.0.0.1 PORT=7777 zin routes
+```
+
+You can also group and filter:
+
+```bash
+zin routes --group-by service --filter auth
+zin routes --method GET,POST
+zin routes --json
+```
 
 ### Debug Mode
 
@@ -85,6 +109,10 @@ zin config reset               # Reset to defaults
 ```bash
 zin key:generate               # Generate APP_KEY
 zin key:generate --show        # Show key without saving
+
+# Mint a dev JWT for testing protected routes (prints a token)
+zin jwt:dev --sub 1 --email dev@example.com --role admin
+zin jwt:dev --json --expires 30m
 ```
 
 ### Plugin Management
@@ -190,7 +218,7 @@ zin new my-app -v     # Create project with verbose logging
 
 ### zin new
 
-Create a new Zintrust project
+Create a new ZinTrust project
 
 **Usage**: `zin new <name> [options]`
 
@@ -247,14 +275,34 @@ Run database migrations
 - `--fresh` - Drop all tables and re-run migrations
 - `--rollback` - Rollback last migration batch
 - `--reset` - Rollback all migrations
-- `--step <number>` - Number of batches to rollback
+- `--status` - Show migration status
+- `--service <domain/name>` - Run global + service-local migrations
+- `--only-service <domain/name>` - Run only service-local migrations
+- `--step <number>` - Number of batches to rollback (for `--rollback`)
+- `--force` - Allow running migrations in production without prompts
+- `--no-interactive` - Skip interactive prompts
+- `--local` - D1 only: run migrations against local D1 database
+- `--remote` - D1 only: run migrations against remote D1 database
+- `--database <name>` - D1 only: D1 database name
+
+**Notes**:
+
+- If `DB_CONNECTION` is `d1`/`d1-remote`, `zin migrate` supports **apply-only** (it compiles TS migrations to Wrangler SQL and then applies via Wrangler). For rollback/reset/status, use Wrangler subcommands (or `zin d1:migrate` for apply).
 
 **Examples**:
 
 ```bash
 zin migrate
+zin migrate --status
 zin migrate --fresh
 zin migrate --rollback
+zin migrate --rollback --step 2
+
+# D1 (local by default)
+zin migrate --local --database zintrust_db
+
+# CI / non-interactive production deploys
+zin migrate --force --no-interactive
 ```
 
 ### zin debug
@@ -279,7 +327,7 @@ zin debug --enable-profiling --enable-tracing
 
 ### zin config
 
-Manage Zintrust configuration
+Manage ZinTrust configuration
 
 **Usage**: `zin config <subcommand> [args]`
 
@@ -382,7 +430,7 @@ zin new my-app --no-interactive --database postgres --port 3000
 
 ## Environment Variables
 
-Configure Zintrust via environment variables:
+Configure ZinTrust via environment variables:
 
 ```bash
 # Database

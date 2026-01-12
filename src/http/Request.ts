@@ -13,6 +13,12 @@ export interface IRequest {
   user: JwtPayload | undefined;
   params: Record<string, string>;
   body: Record<string, unknown>;
+  validated: {
+    body?: unknown;
+    query?: unknown;
+    params?: unknown;
+    headers?: unknown;
+  };
   getMethod(): string;
   getPath(): string;
   getHeaders(): http.IncomingHttpHeaders;
@@ -29,6 +35,20 @@ export interface IRequest {
   getRaw(): http.IncomingMessage;
   context: Record<string, unknown>;
 }
+
+export type ValidatedRequest<
+  TBody = unknown,
+  TQuery = unknown,
+  TParams = unknown,
+  THeaders = unknown,
+> = Omit<IRequest, 'validated'> & {
+  validated: {
+    body: TBody;
+    query: TQuery;
+    params: TParams;
+    headers: THeaders;
+  };
+};
 
 /**
  * Request - HTTP Request wrapper
@@ -67,6 +87,12 @@ type RequestState = {
   params: Record<string, string>;
   body: unknown;
   bodyRecord: Record<string, unknown>;
+  validated: {
+    body?: unknown;
+    query?: unknown;
+    params?: unknown;
+    headers?: unknown;
+  };
 };
 
 const createRequestState = (req: http.IncomingMessage): RequestState => {
@@ -76,6 +102,7 @@ const createRequestState = (req: http.IncomingMessage): RequestState => {
     params: {},
     body: null,
     bodyRecord: {},
+    validated: {},
   };
 };
 
@@ -87,7 +114,7 @@ const setBodyState = (state: RequestState, newBody: unknown): void => {
 const createRequestProperties = (
   state: RequestState,
   context: Record<string, unknown>
-): Pick<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'context'> => {
+): Pick<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'validated' | 'context'> => {
   return {
     get sessionId(): HeadParam {
       return state.sessionId;
@@ -118,6 +145,13 @@ const createRequestProperties = (
     set body(newBody: Record<string, unknown>) {
       setBodyState(state, newBody);
     },
+
+    get validated(): IRequest['validated'] {
+      return state.validated;
+    },
+    set validated(v: IRequest['validated']) {
+      state.validated = v;
+    },
   };
 };
 
@@ -125,7 +159,7 @@ const createRequestMethods = (
   req: http.IncomingMessage,
   query: Record<string, string | string[]>,
   state: RequestState
-): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'context'> => {
+): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'validated' | 'context'> => {
   return {
     getMethod(): string {
       return req.method ?? 'GET';

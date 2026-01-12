@@ -19,7 +19,7 @@
       "@container/*": ["./src/container/*"],
       "@http/*": ["./src/http/*"],
       "@runtime/*": ["./src/runtime/*"],
-      "@database/*": ["./src/database/*"],
+      "@database/*": ["./src/database/*", "./database/*"],
       "@validation/*": ["./src/validation/*"],
       "@security/*": ["./src/security/*"],
       "@profiling/*": ["./src/profiling/*"],
@@ -40,6 +40,7 @@
       "@microservices/*": ["./src/microservices/*"],
       "@toolkit/*": ["./src/toolkit/*"],
       "@tools/*": ["./src/tools/*"],
+      "@features/*": ["./src/features/*"],
       "@httpClient/*": ["./src/tools/http/*"],
       "@templates": ["./src/tools/templates/index.ts"],
       "@templates/*": ["./src/tools/templates/*"],
@@ -75,7 +76,7 @@
     "emitDecoratorMetadata": true,
     "downlevelIteration": true
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "env.d.ts"],
+  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "database/**/*", "env.d.ts"],
   "exclude": [
     "node_modules",
     "dist",

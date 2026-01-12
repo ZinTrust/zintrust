@@ -1,0 +1,154 @@
+### ZinTrust API - manual REST Client requests
+### Requires VS Code extension: "REST Client" (humao.rest-client)
+###
+### 🔒 SECURITY ARCHITECTURE: Defense-in-Depth (10 Layers)
+### ========================================================
+### ZinTrust implements multiple independent security controls that each request must pass:
+###
+### Layer 1: Security Headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options)
+### Layer 2: CORS (Origin validation, preflight handling)
+### Layer 3: Rate Limiting (100 req/min baseline, stricter for auth/mutations)
+### Layer 4: CSRF Protection (Double Submit Cookie pattern for state-changing requests)
+### Layer 5: XSS Sanitization (Recursive HTML stripping via Xss.sanitize)
+### Layer 6: Field Sanitization (Type-specific normalization via Sanitizer.*)
+### Layer 7: Schema Validation (Type checking, format validation via Validator.validate)
+### Layer 8: Authentication (JWT verification, session validation)
+### Layer 9: Authorization (Role-based access control, ownership checks)
+### Layer 10: SQL Injection Prevention (Prepared statements via QueryBuilder)
+###
+### 📝 Usage:
+### 1) Start the dev server (default port is usually 7777):
+###    zin start
+### 2) Run "CSRF warmup" first (it captures cookies + CSRF token)
+### 3) Run any POST/PUT requests after that
+###
+### 💡 Tip: If you want protected routes to succeed, set @jwt to a real token.
+### You can mint a dev token with the CLI:
+### zin jwt:dev --sub 1 --email dev@example.com --role admin
+###
+### 🧪 Security Testing:
+### - Try requests WITHOUT CSRF token → Layer 4 blocks (403)
+### - Try XSS payloads in body → Layer 5 sanitizes automatically
+### - Try invalid schema data → Layer 7 rejects (422)
+### - Try protected routes without JWT → Layer 8 blocks (401)
+### - Try accessing other users' data → Layer 9 blocks (403)
+
+@baseUrl = http://localhost:7777
+
+# Optional overrides
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MiIsImVtYWlsIjoiZGVkQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MTQ2MDQ1LCJleHAiOjE3NjgxNDk2NDUsImlzcyI6InppbnRydXN0IiwiYXVkIjoiemludHJ1c3QtYXBpIiwianRpIjoiOGU3NzRkOWRkOTgzZDVhZjlmY2JlZjQzNjc3MzdjOTgifQ.WRR8a1fkFAqgP9L9V7SkKqAxjISe6RKa-9k0FD5jwbk
+@csrf =
+@cookie =
+@userId = 82
+
+### Root
+GET {{baseUrl}}/
+
+### Health
+GET {{baseUrl}}/health
+
+### CSRF warmup (sets ZIN_SESSION_ID + XSRF-TOKEN)
+# @name csrfWarmup
+GET {{baseUrl}}/api/v1/posts
+
+> {%
+  const raw = response.headers['set-cookie'] ?? response.headers['Set-Cookie'];
+  if (!raw) {
+    client.log('No Set-Cookie header; CSRF/session cookies not captured');
+  } else {
+    const cookies = Array.isArray(raw) ? raw : [raw];
+    const pairs = cookies
+      .map((c) => String(c).split(';')[0])
+      .filter((v) => typeof v === 'string' && v.length > 0);
+
+    const cookieHeader = pairs.join('; ');
+    client.global.set('cookie', cookieHeader);
+
+    const xsrfPair = pairs.find((p) => p.startsWith('XSRF-TOKEN='));
+    if (xsrfPair) {
+      const token = xsrfPair.slice('XSRF-TOKEN='.length);
+      client.global.set('csrf', decodeURIComponent(token));
+    }
+
+    client.log('cookie=' + cookieHeader);
+    client.log('csrf=' + (client.global.get('csrf') ?? '(missing)'));
+  }
+%}
+
+### Auth: Register (validated + CSRF protected)
+POST {{baseUrl}}/api/v1/auth/register
+Content-Type: application/json
+# Cookie: {{cookie}}
+# X-CSRF-Token: {{csrf}}
+
+{
+  "name": "Dev User",
+  "email": "dedf@example.com",
+  "password": "password"
+}
+
+### Auth: Login (validated + CSRF protected)
+# @name login
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+
+{
+  "email": "DEV@EXAMPLE.COM",
+  "password": "password"
+}
+
+###
+
+### Profile: GET (requires auth + jwt)
+GET {{baseUrl}}/api/v1/profile
+Authorization: Bearer {{jwt}}
+
+### Profile: PUT (requires auth + jwt + CSRF)
+PUT {{baseUrl}}/api/v1/profile
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+Authorization: Bearer {{jwt}}
+
+{
+  "bio": "Hello from REST Client"
+}
+
+### Users: Index (auth + jwt)
+GET {{baseUrl}}/api/v1/users
+Authorization: Bearer {{jwt}}
+
+### Users: Show (auth + jwt + self-only)
+GET {{baseUrl}}/api/v1/users/{{userId}}
+Authorization: Bearer {{jwt}}
+
+### Users: Update (auth + jwt + CSRF + validated + sanitized)
+PUT {{baseUrl}}/api/v1/users/{{userId}}
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+Authorization: Bearer {{jwt}}
+
+{
+  "name": "Dev User <script>alert(1)</script>",
+  "email": "DEV@EXAMPLE.COM"
+}
+
+### Users: Fill (auth + jwt + CSRF + strict rate limit)
+POST {{baseUrl}}/api/v1/users/fill
+Content-Type: application/json
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+Authorization: Bearer {{jwt}}
+
+{
+  "count": 3
+}
+
+### Posts: list
+GET {{baseUrl}}/api/v1/posts
+
+### Posts: show
+GET {{baseUrl}}/api/v1/posts/123

@@ -126,19 +126,50 @@ const followLogs = (category: string): void => {
   Logger.info(chalk.gray('Press Ctrl+C to stop...\n'));
 
   let lastSize = 0;
+  let currentStream: fs.ReadStream | null = null;
+
+  const safeDestroy = (stream: unknown): void => {
+    try {
+      const anyStream = stream as { destroy?: () => void };
+      if (typeof anyStream.destroy === 'function') anyStream.destroy();
+    } catch {
+      // best-effort
+    }
+  };
 
   const interval = setInterval(() => {
     if (!fs.existsSync(logFile)) return;
     const stats = fs.statSync(logFile);
     if (stats.size <= lastSize) return;
 
-    const stream = fs.createReadStream(logFile, {
+    // Close previous stream if it exists
+    if (currentStream !== null) {
+      safeDestroy(currentStream);
+    }
+
+    currentStream = fs.createReadStream(logFile, {
       start: lastSize,
       encoding: 'utf-8',
     });
 
-    stream.on('data', (chunk: string | Buffer) => {
+    currentStream.on('data', (chunk: string | Buffer) => {
       processLogChunk(chunk, loggerInstance);
+    });
+
+    currentStream.on('end', () => {
+      // Clean up stream reference when done
+      if (currentStream !== null) {
+        safeDestroy(currentStream);
+        currentStream = null;
+      }
+    });
+
+    currentStream.on('error', (error) => {
+      Logger.error('Stream error', { error });
+      if (currentStream !== null) {
+        safeDestroy(currentStream);
+        currentStream = null;
+      }
     });
 
     lastSize = stats.size;
@@ -146,6 +177,11 @@ const followLogs = (category: string): void => {
 
   process.on('SIGINT', () => {
     clearInterval(interval);
+    // Clean up stream on exit
+    if (currentStream !== null) {
+      safeDestroy(currentStream);
+      currentStream = null;
+    }
     Logger.info(chalk.yellow('\n\nLog following stopped'));
     process.exit(0);
   });

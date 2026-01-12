@@ -100,11 +100,12 @@ export function generateRoutes(options: RouteOptions): Promise<RouteGeneratorRes
     });
   } catch (error) {
     Logger.error('Route generation failed', error);
+    const message = error instanceof Error ? error.message : String(error);
     return Promise.resolve({
       success: false,
       routeFile: '',
       routeCount: 0,
-      message: `Error: ${(error as Error).message}`,
+      message: `Error: ${message}`,
     });
   }
 }
@@ -114,6 +115,7 @@ export function generateRoutes(options: RouteOptions): Promise<RouteGeneratorRes
  */
 function buildRouteWrapper(options: RouteOptions): string {
   const imports = buildImports(options);
+  const controllerInstances = buildControllerInstances(options);
   const routeRegistration = buildRouteRegistration(options);
 
   return `/**
@@ -123,7 +125,8 @@ function buildRouteWrapper(options: RouteOptions): string {
 
 ${imports}
 
-export function registerRoutes(router: Router): void {
+export function registerRoutes(router: IRouter): void {
+${controllerInstances}
 ${routeRegistration}
 }
 `;
@@ -133,7 +136,7 @@ ${routeRegistration}
  * Build import statements
  */
 function buildImports(options: RouteOptions): string {
-  const imports: string[] = ['import { Router } from "@routing/Router";'];
+  const imports: string[] = ["import { Router, type IRouter } from '@zintrust/core';"];
 
   // Collect unique controllers
   const controllers = new Set<string>();
@@ -149,39 +152,53 @@ function buildImports(options: RouteOptions): string {
   return imports.join('\n');
 }
 
+function toControllerVar(controllerName: string): string {
+  if (controllerName.length === 0) return 'controller';
+  return `${controllerName[0].toLowerCase()}${controllerName.slice(1)}`;
+}
+
+function toTag(controllerName: string): string {
+  const trimmed = controllerName.endsWith('Controller')
+    ? controllerName.slice(0, -'Controller'.length)
+    : controllerName;
+  return trimmed === '' ? 'General' : trimmed;
+}
+
+function buildControllerInstances(options: RouteOptions): string {
+  const controllers = new Set<string>();
+  for (const route of options.routes) {
+    controllers.add(route.controller);
+  }
+
+  let code = '';
+  for (const controller of controllers) {
+    const varName = toControllerVar(controller);
+    code += `  const ${varName} = typeof ${controller}.create === 'function' ? ${controller}.create() : ${controller};\n`;
+  }
+
+  return code;
+}
+
 /**
  * Build route registration code
  */
 function buildRouteRegistration(options: RouteOptions): string {
   let code = '';
 
-  // Add group if prefix or middleware provided
-  if (options.prefix !== undefined || options.middleware !== undefined) {
-    code += `  router.group({`;
+  const groupMiddleware = options.middleware ?? [];
+  const groupMiddlewareList = groupMiddleware.map((m) => `'${m}'`).join(', ');
 
-    const groupOptions: string[] = [];
-    if (options.prefix !== undefined) {
-      groupOptions.push(`    prefix: '${options.prefix}'`);
-    }
-    if (options.middleware !== undefined && options.middleware.length > 0) {
-      const middleware = options.middleware.map((m) => `'${m}'`).join(', ');
-      groupOptions.push(`    middleware: [${middleware}]`);
-    }
-
-    code += groupOptions.join(',\n') + '\n';
-    code += `  }, (r) => {\n`;
-
-    // Add routes inside group
+  if (options.prefix !== undefined && options.prefix.trim() !== '') {
+    code += `  Router.group(router, '${options.prefix}', (r) => {\n`;
     for (const route of options.routes) {
-      code += buildRouteCode(route, 'r');
+      code += buildRouteCode(route, 'r', groupMiddlewareList);
     }
-
     code += `  });\n`;
-  } else {
-    // Add routes directly
-    for (const route of options.routes) {
-      code += buildRouteCode(route, 'router');
-    }
+    return code;
+  }
+
+  for (const route of options.routes) {
+    code += buildRouteCode(route, 'router', groupMiddlewareList);
   }
 
   return code;
@@ -190,48 +207,92 @@ function buildRouteRegistration(options: RouteOptions): string {
 /**
  * Build single route code
  */
-function buildRouteCode(route: RouteDefinition, router: string): string {
+function buildRouteCode(
+  route: RouteDefinition,
+  router: string,
+  groupMiddlewareList: string
+): string {
   if (route.method === 'resource') {
-    return buildResourceRoute(route, router);
+    return buildResourceRoute(route, router, groupMiddlewareList);
   } else {
-    return buildMethodRoute(route, router);
+    return buildMethodRoute(route, router, groupMiddlewareList);
   }
 }
 
 /**
  * Build standard method route (GET, POST, etc.)
  */
-function buildMethodRoute(route: RouteDefinition, router: string): string {
-  const method = route.method;
+function buildMethodRoute(
+  route: RouteDefinition,
+  router: string,
+  groupMiddlewareList: string
+): string {
+  const method = route.method === 'delete' ? 'del' : route.method;
   const routePath = route.path;
   const controller = route.controller;
   const action = route.action ?? 'handle';
-  const middleware =
-    route.middleware === undefined
-      ? ''
-      : ((): string => {
-          const middlewareList = route.middleware.map((m) => `'${m}'`).join(', ');
-          return `, { middleware: [${middlewareList}] }`;
-        })();
 
-  return `    ${router}.${method}('${routePath}', [${controller}, '${action}']${middleware});\n`;
+  const tag = toTag(controller);
+  const summary = `${method.toUpperCase()} ${routePath}`;
+  const controllerVar = toControllerVar(controller);
+
+  const localMiddlewareList = (route.middleware ?? []).map((m) => `'${m}'`).join(', ');
+  const hasGroup = groupMiddlewareList.trim() !== '';
+  const hasLocal = localMiddlewareList.trim() !== '';
+
+  const middlewareProp =
+    hasGroup || hasLocal
+      ? `middleware: [${[hasGroup ? groupMiddlewareList : '', hasLocal ? localMiddlewareList : '']
+          .filter((v) => v.trim() !== '')
+          .join(', ')}]`
+      : '';
+
+  const metaProp = `meta: { summary: ${JSON.stringify(summary)}, tags: [${JSON.stringify(tag)}] }`;
+  const options = `{ ${[middlewareProp, metaProp].filter((v) => v !== '').join(', ')} }`;
+
+  return `  Router.${method}(${router}, '${routePath}', (req, res) => ${controllerVar}.${action}(req, res), ${options});\n`;
 }
 
 /**
  * Build resource route (RESTful CRUD)
  */
-function buildResourceRoute(route: RouteDefinition, router: string): string {
+function buildResourceRoute(
+  route: RouteDefinition,
+  router: string,
+  groupMiddlewareList: string
+): string {
   const routePath = route.path;
   const controller = route.controller;
-  const middleware =
-    route.middleware === undefined
-      ? ''
-      : ((): string => {
-          const middlewareList = route.middleware.map((m) => `'${m}'`).join(', ');
-          return `, { middleware: [${middlewareList}] }`;
-        })();
 
-  return `    ${router}.resource('${routePath}', ${controller}${middleware});\n`;
+  const tag = toTag(controller);
+  const controllerVar = toControllerVar(controller);
+
+  const localMiddlewareList = (route.middleware ?? []).map((m) => `'${m}'`).join(', ');
+  const hasGroup = groupMiddlewareList.trim() !== '';
+  const hasLocal = localMiddlewareList.trim() !== '';
+
+  const middlewareProp =
+    hasGroup || hasLocal
+      ? `middleware: [${[hasGroup ? groupMiddlewareList : '', hasLocal ? localMiddlewareList : '']
+          .filter((v) => v.trim() !== '')
+          .join(', ')}]`
+      : '';
+
+  const resourceMeta = (action: string, routePattern: string): string =>
+    `meta: { summary: ${JSON.stringify(action.toUpperCase() + ' ' + routePattern)}, tags: [${JSON.stringify(tag)}] }`;
+  const pathId = routePath + '/:id';
+  const optsParts = [
+    middlewareProp,
+    `index: { ${resourceMeta('GET', routePath)} }`,
+    `store: { ${resourceMeta('POST', routePath)} }`,
+    `show: { ${resourceMeta('GET', pathId)} }`,
+    `update: { ${resourceMeta('PUT', pathId)} }`,
+    `destroy: { ${resourceMeta('DELETE', pathId)} }`,
+  ].filter((v) => v !== '');
+
+  const options = `{ ${optsParts.join(', ')} }`;
+
+  return `  Router.resource(${router}, '${routePath}', ${controllerVar}, ${options});\n`;
 }
 
 /**

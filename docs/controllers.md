@@ -2,6 +2,19 @@
 
 Controllers group related request handling logic into a single module (plain object / factory).
 
+## Interface Reference
+
+```typescript
+export interface IController {
+  json(res: IResponse, data: unknown, statusCode?: number): void;
+  error(res: IResponse, message: string, statusCode?: number): void;
+  redirect(res: IResponse, url: string, statusCode?: number): void;
+  param(req: IRequest, name: string): string | undefined;
+  query(req: IRequest, name: string): string | string[] | undefined;
+  body(req: IRequest): unknown;
+}
+```
+
 ## Creating Controllers
 
 ```bash
