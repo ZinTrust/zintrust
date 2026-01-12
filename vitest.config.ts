@@ -60,6 +60,7 @@ export default defineConfig({
       '@routes': path.resolve(__dirname, './routes'),
       '@scripts': path.resolve(__dirname, './scripts'),
       '@node-singletons': path.resolve(__dirname, './src/node-singletons'),
+      '@time': path.resolve(__dirname, './src/time'),
     },
   },
   test: {

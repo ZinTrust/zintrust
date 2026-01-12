@@ -35,6 +35,7 @@
       "@session/*": ["./src/session/*"],
       "@functions/*": ["./src/functions/*"],
       "@services/*": ["./src/services/*"],
+      "@time/*": ["./src/time/*"],
       "@app/*": ["./app/*"],
       "@routes/*": ["./routes/*"],
       "@microservices/*": ["./src/microservices/*"],

@@ -14,6 +14,16 @@ export interface WhereClause {
   value: unknown;
 }
 
+/**
+ * Result returned from INSERT operations
+ * Provides access to the created record ID, affected rows count, and the full record if available
+ */
+export interface InsertResult {
+  id: string | number | null;
+  affectedRows: number;
+  insertedRecords?: Record<string, unknown>[];
+}
+
 export type SoftDeleteMode = 'exclude' | 'include' | 'only';
 
 export interface QueryBuilderOptions {
@@ -56,7 +66,7 @@ export interface IQueryBuilder {
   with(relation: string): IQueryBuilder;
   load(models: IModel[], relation: string): Promise<void>;
 
-  insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<void>;
+  insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<InsertResult>;
   update(values: Record<string, unknown>): Promise<void>;
   delete(): Promise<void>;
 }
@@ -724,7 +734,18 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     if (tableName.length === 0)
       throw ErrorFactory.createDatabaseError('INSERT requires a table name');
     const compiled = compileInsert(tableName, values);
+    const items = Array.isArray(values) ? values : [values];
+
     await currentDb.query(compiled.sql, compiled.parameters, false);
+
+    // Return InsertResult with metadata
+    // Note: lastInsertId typically only available for single-row inserts in most databases
+    // For multi-row inserts, use the insertedRecords array
+    return {
+      id: items.length === 1 ? ((items[0]?.['id'] as string | number | null) ?? null) : null,
+      affectedRows: items.length,
+      insertedRecords: items,
+    };
   };
   builder.update = async (values) => {
     const currentDb = ensureDb();

@@ -47,8 +47,13 @@ export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
+export type { InsertResult, IQueryBuilder } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 export { ZintrustApplication as Application };
+
+// Time Utilities
+export { DateTime } from '@time/DateTime';
+export type { IDateTime } from '@time/DateTime';
 
 // Migrations
 // Note: `Schema` is already exported by Validation. We expose the migration schema runtime

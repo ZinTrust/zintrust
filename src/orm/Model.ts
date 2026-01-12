@@ -6,7 +6,7 @@
 import { DEFAULTS } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase, type IDatabase } from '@orm/Database';
-import type { IQueryBuilder} from '@orm/QueryBuilder';
+import type { IQueryBuilder, InsertResult } from '@orm/QueryBuilder';
 import { QueryBuilder, type QueryBuilderOptions } from '@orm/QueryBuilder';
 import type { IRelationship } from '@orm/Relationships';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
@@ -608,6 +608,29 @@ export function define(
 }
 
 /**
+ * Insert a single or multiple records into the database
+ * Returns insert metadata including ID and affected rows
+ */
+const insert = async (
+  config: ModelConfig,
+  values: Record<string, unknown> | Array<Record<string, unknown>>
+): Promise<InsertResult> => {
+  const db = useDatabase(undefined, config.connection ?? DEFAULTS.CONNECTION);
+  const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
+  return builder.insert(values);
+};
+
+/**
+ * Batch insert multiple records (alias for insert with array)
+ */
+const bulkInsert = async (
+  config: ModelConfig,
+  records: Array<Record<string, unknown>>
+): Promise<InsertResult> => {
+  return insert(config, records);
+};
+
+/**
  * Model namespace - sealed namespace object grouping all model operations
  * Frozen to prevent accidental mutation
  *
@@ -618,5 +641,7 @@ export const Model = Object.freeze({
   query,
   find,
   all,
+  insert,
+  bulkInsert,
   define,
 });
