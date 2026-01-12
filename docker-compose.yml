@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   app:
     build:
@@ -15,8 +13,8 @@ services:
       DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
       DB_DATABASE: ${DB_DATABASE:-zintrust}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_USERNAME: ${DB_USERNAME:-zintrust}
+      DB_PASSWORD: ${DB_PASSWORD:-zintrust}
     depends_on:
       postgres:
         condition: service_healthy
@@ -26,7 +24,11 @@ services:
       - /app/dist
     command: npm run dev
     healthcheck:
-      test: ['GET', 'http://localhost:7777/health']
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''node:http'').get(''http://localhost:''+(process.env.PORT||3000)+''/health'', (r)=>{ if(r.statusCode!==200) process.exit(1); r.resume(); }).on(''error'',()=>process.exit(1));"',
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -38,8 +40,8 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${DB_DATABASE:-zintrust}
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME:-zintrust}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zintrust}
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
@@ -69,9 +71,100 @@ services:
     profiles:
       - optional
 
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-${DB_DATABASE:-zintrust}}
+      MYSQL_USER: ${MYSQL_USER:-${DB_USERNAME:-zintrust}}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-${DB_PASSWORD:-zintrust}}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    ports:
+      - '${MYSQL_PORT:-3306}:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - zintrust-network
+    profiles:
+      - mysql
+
+  app-mysql:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '${MYSQL_APP_PORT:-3001}:3000'
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOST: 0.0.0.0
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${MYSQL_DATABASE:-${DB_DATABASE:-zintrust}}
+      DB_USERNAME: ${MYSQL_USER:-${DB_USERNAME:-zintrust}}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-${DB_PASSWORD:-zintrust}}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    command: npm run dev
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''node:http'').get(''http://localhost:''+(process.env.PORT||3000)+''/health'', (r)=>{ if(r.statusCode!==200) process.exit(1); r.resume(); }).on(''error'',()=>process.exit(1));"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - zintrust-network
+    profiles:
+      - mysql
+
+  d1-proxy:
+    image: node:20-alpine
+    working_dir: /work
+    environment:
+      ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
+    volumes:
+      - ./packages/cloudflare-d1-proxy:/work
+    command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 8787"
+    ports:
+      - '${D1_PROXY_PORT:-8787}:8787'
+    networks:
+      - zintrust-network
+    profiles:
+      - d1-proxy
+
+  kv-proxy:
+    image: node:20-alpine
+    working_dir: /work
+    environment:
+      ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
+    volumes:
+      - ./packages/cloudflare-kv-proxy:/work
+    command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 8788"
+    ports:
+      - '${KV_PROXY_PORT:-8788}:8788'
+    networks:
+      - zintrust-network
+    profiles:
+      - kv-proxy
+
 volumes:
   postgres_data:
   redis_data:
+  mysql_data:
 
 networks:
   zintrust-network:

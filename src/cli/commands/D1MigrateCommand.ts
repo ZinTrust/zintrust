@@ -30,7 +30,10 @@ const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> =
 
 const executeD1Migrate = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
   const isLocal = options['local'] === true || options['remote'] !== true;
-  const dbName = typeof options['database'] === 'string' ? options['database'] : 'zintrust_db';
+  const dbName =
+    typeof options['database'] === 'string' && options['database'].trim() !== ''
+      ? options['database']
+      : 'zintrust_db';
 
   cmd.info(`Running D1 migrations for ${dbName} (${isLocal ? 'local' : 'remote'})...`);
 
@@ -71,9 +74,12 @@ export const D1MigrateCommand = Object.freeze({
   create(): IBaseCommand {
     const addOptions = (command: Command): void => {
       command
-        .option('--local', 'Run migrations against local D1 database')
-        .option('--remote', 'Run migrations against remote D1 database')
-        .option('--database <name>', 'D1 database name', 'zintrust_db');
+        .option('--local', 'Run against local D1 database (via wrangler dev)')
+        .option('--remote', 'Run against remote D1 database (production)')
+        .option(
+          '--database <name>',
+          'Wrangler D1 database binding name (from wrangler.toml). Defaults to "zintrust_db"'
+        );
     };
 
     const cmd = BaseCommand.create<ID1MigrateCommand>({

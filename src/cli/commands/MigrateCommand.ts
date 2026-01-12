@@ -16,22 +16,26 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
+import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { Command } from 'commander';
 
 const addMigrateOptions = (command: Command): void => {
   command
-    .option('--fresh', 'Drop all tables and re-run migrations')
+    .option('--status', 'Display migration status (applied, pending, failed)')
+    .option('--fresh', 'Reset database: drop all tables and re-run all migrations')
+    .option('--reset', 'Rollback all migrations to initial state')
     .option('--rollback', 'Rollback last migration batch')
-    .option('--reset', 'Rollback all migrations')
-    .option('--status', 'Show migration status')
-    .option('--service <domain/name>', 'Run global + service-local migrations')
-    .option('--only-service <domain/name>', 'Run only service-local migrations')
-    .option('--step <number>', 'Number of batches to rollback (for --rollback)', '1')
-    .option('--force', 'Allow running migrations in production without prompts')
-    .option('--local', 'D1 only: run migrations against local D1 database')
-    .option('--remote', 'D1 only: run migrations against remote D1 database')
-    .option('--database <name>', 'D1 only: D1 database name', 'zintrust_db')
-    .option('--no-interactive', 'Skip interactive prompts');
+    .option('--step <number>', 'Number of batches to rollback (use with --rollback)', '1')
+    .option('--force', 'Skip production confirmation (allow unsafe operations in production)')
+    .option('--service <domain/name>', 'Run global + service-specific migrations for microservices')
+    .option('--only-service <domain/name>', 'Run only service-specific migrations (exclude global)')
+    .option('--local', 'D1 only: run against local D1 database')
+    .option('--remote', 'D1 only: run against remote D1 database')
+    .option(
+      '--database <name>',
+      'D1 only: Wrangler D1 database binding name (not DB_DATABASE env var)'
+    )
+    .option('--no-interactive', 'Disable interactive prompts (useful for CI/CD)');
 };
 
 const getInteractive = (options: CommandOptions): boolean =>
@@ -67,6 +71,19 @@ const isDestructiveAction = (options: CommandOptions): boolean =>
   options['fresh'] === true || options['reset'] === true || options['rollback'] === true;
 
 const isD1Driver = (driver: string): boolean => driver === 'd1' || driver === 'd1-remote';
+
+const describeTargetDatabase = (conn: ReturnType<typeof databaseConfig.getConnection>): string => {
+  switch (conn.driver) {
+    case 'sqlite':
+      return `sqlite:${conn.database}`;
+    case 'postgresql':
+      return `postgresql:${conn.host}:${conn.port}/${conn.database}`;
+    case 'mysql':
+      return `mysql:${conn.host}:${conn.port}/${conn.database}`;
+    default:
+      return `${conn.driver}`;
+  }
+};
 
 const mapConnectionToOrmConfig = (
   conn: ReturnType<typeof databaseConfig.getConnection>
@@ -305,7 +322,10 @@ const runD1Actions = async (params: {
   }
 
   const isLocal = options['local'] === true || options['remote'] !== true;
-  const dbName = typeof options['database'] === 'string' ? options['database'] : 'zintrust_db';
+  const dbName =
+    typeof options['database'] === 'string' && options['database'].trim() !== ''
+      ? options['database']
+      : 'zintrust_db';
 
   const migrationsRelDir = WranglerConfig.getD1MigrationsDir(projectRoot, dbName);
   const outputDir = path.join(projectRoot, migrationsRelDir);
@@ -328,10 +348,19 @@ const runD1Actions = async (params: {
 };
 
 const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
-  cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
-
   const interactive = getInteractive(options);
   const conn = databaseConfig.getConnection();
+
+  // Avoid confusion: `--database` is a D1-only option (Wrangler binding name), not DB_DATABASE.
+  if (isD1Driver(conn.driver)) {
+    cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
+  } else {
+    const optionsForLog: CommandOptions = { ...options };
+    delete optionsForLog['database'];
+    delete optionsForLog['local'];
+    delete optionsForLog['remote'];
+    cmd.debug(`Migrate command executed with options: ${JSON.stringify(optionsForLog)}`);
+  }
 
   const { globalDir, extension, separateTracking } = getMigrationDirs();
   const { service, includeGlobal } = getServiceArgs(options);
@@ -356,6 +385,29 @@ const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promi
 
   const okToProceed = await confirmProductionRun(cmd, interactive, destructive, force);
   if (!okToProceed) return;
+
+  cmd.info(`[i] Target database: ${describeTargetDatabase(conn)}`);
+  cmd.info('[i] Migration tracking table: migrations');
+
+  // If no production adapter plugin is registered, `@orm/adapters/*` fallbacks may behave like mocks.
+  // This is especially confusing for MySQL/Postgres users because commands can appear to succeed
+  // without actually touching a real database.
+  if (conn.driver === 'mysql' && DatabaseAdapterRegistry.get('mysql') === undefined) {
+    cmd.warn(
+      'MySQL adapter plugin is not installed/registered; running with the built-in fallback adapter.'
+    );
+    cmd.warn(
+      'Install a real adapter via `zin plugin install adapter:mysql` (or `zin plugin install mysql`).'
+    );
+  }
+  if (conn.driver === 'postgresql' && DatabaseAdapterRegistry.get('postgresql') === undefined) {
+    cmd.warn(
+      'PostgreSQL adapter plugin is not installed/registered; running with the built-in fallback adapter.'
+    );
+    cmd.warn(
+      'Install a real adapter via `zin plugin install adapter:postgres` (or `zin plugin install postgres`).'
+    );
+  }
 
   const db = Database.create(ormConfig);
   await db.connect();

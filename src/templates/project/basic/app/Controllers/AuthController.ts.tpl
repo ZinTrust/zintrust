@@ -15,6 +15,7 @@ import {
 } from '@zintrust/core';
 import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';
 import type { IRequest, IResponse } from '@zintrust/core';
+import User from '@app/Models/User';
 
 
 const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: string } => {
@@ -44,12 +45,7 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = useDatabase();
-
-    const existing = await QueryBuilder.create('users', db)
-      .where('email', '=', email)
-      .limit(1)
-      .first<UserRow>();
+    const existing = await User.where('email', '=', email).limit(1).first<UserRow>();
 
     if (existing === null) {
       Logger.warn('AuthController.login: failed login attempt', {
