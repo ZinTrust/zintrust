@@ -265,7 +265,7 @@ const formatRelativeTime = (diffMs: number, isFuture: boolean): string => {
 };
 
 const calculateRelative = (value: Date, other: Date | IDateTime): string => {
-  const otherDate = other instanceof Date ? other : (other as IDateTime).toDate();
+  const otherDate = other instanceof Date ? other : other.toDate();
   const diffMs = otherDate.getTime() - value.getTime();
 
   if (diffMs < 0) {
@@ -329,15 +329,15 @@ const createCompareMethods = (
 } => {
   return {
     isBefore: (other: Date | IDateTime): boolean => {
-      const otherDate = other instanceof Date ? other : (other as IDateTime).toDate();
+      const otherDate = other instanceof Date ? other : other.toDate();
       return value.getTime() < otherDate.getTime();
     },
     isAfter: (other: Date | IDateTime): boolean => {
-      const otherDate = other instanceof Date ? other : (other as IDateTime).toDate();
+      const otherDate = other instanceof Date ? other : other.toDate();
       return value.getTime() > otherDate.getTime();
     },
     isSame: (other: Date | IDateTime): boolean => {
-      const otherDate = other instanceof Date ? other : (other as IDateTime).toDate();
+      const otherDate = other instanceof Date ? other : other.toDate();
       return (
         value.getFullYear() === otherDate.getFullYear() &&
         value.getMonth() === otherDate.getMonth() &&
@@ -345,8 +345,8 @@ const createCompareMethods = (
       );
     },
     isBetween: (start: Date | IDateTime, end: Date | IDateTime): boolean => {
-      const startDate = start instanceof Date ? start : (start as IDateTime).toDate();
-      const endDate = end instanceof Date ? end : (end as IDateTime).toDate();
+      const startDate = start instanceof Date ? start : start.toDate();
+      const endDate = end instanceof Date ? end : end.toDate();
       return value.getTime() >= startDate.getTime() && value.getTime() <= endDate.getTime();
     },
   };
@@ -362,7 +362,7 @@ const createDiffMethods = (
   diffDays: (other: Date | IDateTime) => number;
 } => {
   const getOtherDate = (other: Date | IDateTime): Date =>
-    other instanceof Date ? other : (other as IDateTime).toDate();
+    other instanceof Date ? other : other.toDate();
 
   return {
     diffMs: (other: Date | IDateTime): number => {
@@ -492,7 +492,7 @@ const parse = (dateString: string): IDateTime => {
   // Try to parse as ISO 8601 / RFC 3339
   const parsedDate = new Date(dateString);
 
-  if (isNaN(parsedDate.getTime())) {
+  if (Number.isNaN(parsedDate.getTime())) {
     throw ErrorFactory.createValidationError(`Invalid date string: ${dateString}`);
   }
 

@@ -3,6 +3,8 @@
  * Wraps Node.js IncomingMessage with additional utilities
  */
 
+import type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
+import { FileUpload } from '@http/FileUpload';
 import type * as http from '@node-singletons/http';
 
 type HeadParam = string | string[] | undefined;
@@ -34,6 +36,12 @@ export interface IRequest {
   isJson(): boolean;
   getRaw(): http.IncomingMessage;
   context: Record<string, unknown>;
+
+  // File upload methods
+  file(fieldName: string, options?: FileUploadOptions): UploadedFile | undefined;
+  files(fieldName: string, options?: FileUploadOptions): UploadedFile[];
+  hasFile(fieldName: string): boolean;
+  fileUpload(): IFileUploadHandler;
 }
 
 export type ValidatedRequest<
@@ -206,6 +214,26 @@ const createRequestMethods = (
       const contentType = this.getHeader('content-type');
       return typeof contentType === 'string' && contentType.includes('application/json');
     },
+
+    file(fieldName: string, options) {
+      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      return handler.file(fieldName, options);
+    },
+
+    files(fieldName: string, options) {
+      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      return handler.files(fieldName, options);
+    },
+
+    hasFile(fieldName: string): boolean {
+      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      return handler.hasFile(fieldName);
+    },
+
+    fileUpload() {
+      return FileUpload.createHandler(this as unknown as IRequest);
+    },
+
     getRaw(): http.IncomingMessage {
       return req;
     },

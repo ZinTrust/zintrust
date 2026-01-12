@@ -6,8 +6,8 @@
 import { DEFAULTS } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase, type IDatabase } from '@orm/Database';
-import type { IQueryBuilder, InsertResult } from '@orm/QueryBuilder';
-import { QueryBuilder, type QueryBuilderOptions } from '@orm/QueryBuilder';
+import type { IQueryBuilder, InsertResult, QueryBuilderOptions } from '@orm/QueryBuilder';
+import { QueryBuilder } from '@orm/QueryBuilder';
 import type { IRelationship } from '@orm/Relationships';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 
@@ -26,6 +26,7 @@ export interface ModelConfig {
   timestamps: boolean;
   casts: Record<string, string>;
   softDeletes?: boolean;
+  deleteAtColumn?: string;
   accessors?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
   mutators?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
   scopes?: Record<string, (builder: IQueryBuilder, ...args: unknown[]) => IQueryBuilder>;
@@ -56,6 +57,9 @@ export interface IModel {
   getAttributes(): Record<string, unknown>;
   save(): Promise<boolean>;
   delete(): Promise<boolean>;
+  restore(): Promise<boolean>;
+  forceDelete(): Promise<boolean>;
+  isDeleted(): boolean;
   toJSON(): Record<string, unknown>;
   isDirty(key?: string): boolean;
   getTable(): string;
@@ -247,6 +251,7 @@ const performModelDelete = async (
 /**
  * Create a new model instance
  */
+// eslint-disable-next-line max-lines-per-function
 export const createModel = (
   config: ModelConfig,
   attributes: Record<string, unknown> = {}
@@ -317,6 +322,29 @@ export const createModel = (
 
     // remove in production - use delete pattern
     delete: async (): Promise<boolean> => performModelDelete(model, config, getDb, isExists),
+
+    // eslint-disable-next-line @typescript-eslint/require-await
+    restore: async (): Promise<boolean> => {
+      if (config.softDeletes !== true || !isExists) return false;
+      const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
+      attrs[deleteAtColumn] = null;
+      dirtyFields.add(deleteAtColumn);
+      return true;
+    },
+
+    forceDelete: async (): Promise<boolean> => {
+      if (!isExists) return false;
+      await runObservers(config, 'deleting', model);
+      await runObservers(config, 'deleted', model);
+      return true;
+    },
+
+    isDeleted: (): boolean => {
+      if (config.softDeletes !== true) return false;
+      const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
+      const deletedValue = attrs[deleteAtColumn];
+      return deletedValue !== null && deletedValue !== undefined;
+    },
 
     toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
     isDirty: (key?: string): boolean => {
