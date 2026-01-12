@@ -1,5 +1,6 @@
 import type { IApplication } from '@boot/Application';
 import { Server } from '@boot/Server';
+import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import type * as httpTypes from '@node-singletons/http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -141,6 +142,7 @@ describe('Server (coverage)', () => {
       getPath: () => '/form',
       getQuery: () => ({}),
       getHeaders: () => ({}),
+      getHeader: (name: string) => (rawReq as any).headers?.[String(name).toLowerCase()],
       getBody: () => null,
       setBody: vi.fn(),
     };
@@ -157,7 +159,9 @@ describe('Server (coverage)', () => {
     (Response.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(responseWrapper);
 
     const kernel = {
-      handleRequest: vi.fn().mockResolvedValue(undefined),
+      handleRequest: vi.fn().mockImplementation(async (req: any, res: any) => {
+        await bodyParsingMiddleware(req, res, async () => undefined);
+      }),
     } as any;
 
     const app = {
@@ -199,6 +203,7 @@ describe('Server (coverage)', () => {
       getPath: () => '/json',
       getQuery: () => ({}),
       getHeaders: () => ({ Authorization: 'Bearer token' }),
+      getHeader: (name: string) => (rawReq as any).headers?.[String(name).toLowerCase()],
       getBody: () => null,
       setBody: vi.fn(),
     };
@@ -215,7 +220,9 @@ describe('Server (coverage)', () => {
     (Response.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(responseWrapper);
 
     const kernel = {
-      handleRequest: vi.fn().mockResolvedValue(undefined),
+      handleRequest: vi.fn().mockImplementation(async (req: any, res: any) => {
+        await bodyParsingMiddleware(req, res, async () => undefined);
+      }),
     } as any;
 
     const app = {
@@ -245,8 +252,8 @@ describe('Server (coverage)', () => {
     const rawReq = makeAsyncReq({
       method: 'POST',
       url: '/too-big',
-      headers: { 'content-type': 'application/json' },
-      chunks: ['{"a":"0123456789abcdef"}'],
+      headers: { 'content-type': 'text/plain' },
+      chunks: ['0123456789abcdef'],
     });
 
     const requestWrapper: any = {
@@ -256,6 +263,7 @@ describe('Server (coverage)', () => {
       getPath: () => '/too-big',
       getQuery: () => ({}),
       getHeaders: () => ({}),
+      getHeader: (name: string) => (rawReq as any).headers?.[String(name).toLowerCase()],
       getBody: () => null,
       setBody: vi.fn(),
     };
@@ -272,7 +280,9 @@ describe('Server (coverage)', () => {
     (Response.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(responseWrapper);
 
     const kernel = {
-      handleRequest: vi.fn().mockResolvedValue(undefined),
+      handleRequest: vi.fn().mockImplementation(async (req: any, res: any) => {
+        await bodyParsingMiddleware(req, res, async () => undefined);
+      }),
     } as any;
 
     const app = {

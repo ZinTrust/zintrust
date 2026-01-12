@@ -148,4 +148,16 @@ If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and
 export const databaseConfig = Object.freeze(databaseConfigObj);
 export type DatabaseConfig = typeof databaseConfig;
 
+```
+
+## For Complete Multi-Database Documentation
+
+See **[docs/multi-database.md](multi-database.md)** for comprehensive guidance on:
+
+- Defining and registering multiple database connections
+- Using models with different connections (`.db()` method, model config)
+- QueryBuilder with specific databases
+- Multi-database patterns in controllers
+- Advanced patterns: sharding, read/write separation, cross-database transactions
+- Best practices and error handling
 ````

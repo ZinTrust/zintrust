@@ -1,4 +1,6 @@
 import type { MiddlewareConfigType } from '@config/type';
+import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
+import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
 import { AuthMiddleware } from '@middleware/AuthMiddleware';
 import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
@@ -237,7 +239,7 @@ function createSharedMiddlewares(): SharedMiddlewares {
     sanitizeBody: SanitizeBodyMiddleware.create(),
     ...rateLimits,
     csrf: CsrfMiddleware.create({
-      skipPaths: [],
+      skipPaths: ['/api/*'],
     }),
     auth: AuthMiddleware.create(),
     jwt: JwtAuthMiddleware.create(),
@@ -254,6 +256,8 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
       shared.error,
       shared.security,
       shared.rateLimit,
+      fileUploadMiddleware,
+      bodyParsingMiddleware,
       shared.csrf,
       shared.sanitizeBody,
     ],

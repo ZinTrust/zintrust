@@ -1,6 +1,6 @@
 /**
  * Body Parsers - Content-Type specific parsing
- * Handles form-data, XML, plain text, CSV, and other non-JSON formats
+ * Handles form-data, plain text, CSV, and other non-JSON formats
  */
 
 interface BodyParserResult {
@@ -66,39 +66,6 @@ const TextParser: IBodyParser = {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       return { ok: false, error: `Failed to parse text: ${errorMsg}` };
-    }
-  },
-};
-
-/**
- * XML parser
- * Content-Type: application/xml, text/xml
- */
-const XMLParser: IBodyParser = {
-  canParse: (contentType: string): boolean =>
-    contentType.includes('application/xml') || contentType.includes('text/xml'),
-
-  parse: (body: string | Buffer): BodyParserResult => {
-    try {
-      const text = typeof body === 'string' ? body : body.toString('utf-8');
-
-      // Simple XML to object conversion (not a full XML parser)
-      // For production use, consider using a proper XML library
-      const result: Record<string, unknown> = {};
-      const xmlRegex = /<(\w+)>([^<]*)<\/\1>/g;
-
-      let match;
-      while ((match = xmlRegex.exec(text)) !== null) {
-        const [, key, value] = match;
-        if (key !== undefined) {
-          result[key] = value;
-        }
-      }
-
-      return { ok: true, data: result };
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      return { ok: false, error: `Failed to parse XML: ${errorMsg}` };
     }
   },
 };
@@ -189,14 +156,13 @@ const CSVParser: IBodyParser = {
 export const BodyParsers = Object.freeze({
   FormDataParser,
   TextParser,
-  XMLParser,
   CSVParser,
 
   /**
    * Get all registered parsers
    */
   getAll(): IBodyParser[] {
-    return [this.FormDataParser, this.TextParser, this.XMLParser, this.CSVParser];
+    return [this.FormDataParser, this.TextParser, this.CSVParser];
   },
 
   /**

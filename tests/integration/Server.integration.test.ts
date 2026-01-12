@@ -73,6 +73,9 @@ describe('Server integration - body parsing and oversized payloads', () => {
     // like CSRF, while still exercising Server body parsing.
     const kernel = {
       handleRequest: async (req: any, res: any) => {
+        const { bodyParsingMiddleware } = await import('@http/middleware/BodyParsingMiddleware');
+        await bodyParsingMiddleware(req, res, async () => undefined);
+
         const match = Router.match(router, req.getMethod(), req.getPath());
         if (match === null) {
           res.setStatus(404).json({ error: 'Not Found' });
@@ -124,6 +127,9 @@ describe('Server integration - body parsing and oversized payloads', () => {
 
     const kernel = {
       handleRequest: async (req: any, res: any) => {
+        const { bodyParsingMiddleware } = await import('@http/middleware/BodyParsingMiddleware');
+        await bodyParsingMiddleware(req, res, async () => undefined);
+
         const match = Router.match(router, req.getMethod(), req.getPath());
         if (match === null) {
           res.setStatus(404).json({ error: 'Not Found' });
@@ -169,6 +175,9 @@ describe('Server integration - body parsing and oversized payloads', () => {
 
     const kernel = {
       handleRequest: async (req: any, res: any) => {
+        const { bodyParsingMiddleware } = await import('@http/middleware/BodyParsingMiddleware');
+        await bodyParsingMiddleware(req, res, async () => undefined);
+
         const match = Router.match(router, req.getMethod(), req.getPath());
         if (match === null) {
           res.setStatus(404).json({ error: 'Not Found' });

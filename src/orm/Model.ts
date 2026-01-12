@@ -444,6 +444,29 @@ export type DefinedModel<T extends BoundModelMethods> = {
   all: () => Promise<Array<IModel & T>>;
   raw: () => Promise<Array<Record<string, unknown>>>;
   query: () => IQueryBuilder;
+
+  // QueryBuilder convenience methods
+  where: (
+    column: string,
+    operator: string | number | boolean | null,
+    value?: unknown
+  ) => IQueryBuilder;
+  andWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
+  orWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
+  whereIn: (column: string, values: unknown[]) => IQueryBuilder;
+  whereNotIn: (column: string, values: unknown[]) => IQueryBuilder;
+  select: (...columns: string[]) => IQueryBuilder;
+  selectAs: (column: string, alias: string) => IQueryBuilder;
+  max: (column: string, alias?: string) => IQueryBuilder;
+  join: (table: string, on: string) => IQueryBuilder;
+  leftJoin: (table: string, on: string) => IQueryBuilder;
+  orderBy: (column: string, direction?: 'ASC' | 'DESC') => IQueryBuilder;
+  limit: (count: number) => IQueryBuilder;
+  offset: (count: number) => IQueryBuilder;
+  withTrashed: () => IQueryBuilder;
+  onlyTrashed: () => IQueryBuilder;
+  withoutTrashed: () => IQueryBuilder;
+
   scope: (name: string, ...args: unknown[]) => IQueryBuilder;
   getTable: () => string;
   db: (connection: string) => DefinedModel<T>;
@@ -532,6 +555,61 @@ const wrapBuilderGetForEagerLoading = (
   };
 };
 
+const createQueryBuilderMethods = (
+  cfg: ModelConfig,
+  hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
+): Omit<
+  DefinedModel<BoundModelMethods>,
+  'create' | 'hydrate' | 'find' | 'all' | 'raw' | 'db' | 'hydrateWithRelations'
+> => {
+  const wrappedBuilder = (): IQueryBuilder => {
+    const builder = createModelBuilder(cfg);
+    wrapBuilderGetForEagerLoading(builder, hydrateModel);
+    return builder;
+  };
+
+  return {
+    query: (): IQueryBuilder => wrappedBuilder(),
+    where: (
+      column: string,
+      operator: string | number | boolean | null,
+      value?: unknown
+    ): IQueryBuilder => wrappedBuilder().where(column, operator, value),
+    andWhere: (column: string, operator: string, value?: unknown): IQueryBuilder =>
+      wrappedBuilder().andWhere(column, operator, value),
+    orWhere: (column: string, operator: string, value?: unknown): IQueryBuilder =>
+      wrappedBuilder().orWhere(column, operator, value),
+    whereIn: (column: string, values: unknown[]): IQueryBuilder =>
+      wrappedBuilder().whereIn(column, values),
+    whereNotIn: (column: string, values: unknown[]): IQueryBuilder =>
+      wrappedBuilder().whereNotIn(column, values),
+    select: (...columns: string[]): IQueryBuilder => wrappedBuilder().select(...columns),
+    selectAs: (column: string, alias: string): IQueryBuilder =>
+      wrappedBuilder().selectAs(column, alias),
+    max: (column: string, alias?: string): IQueryBuilder =>
+      wrappedBuilder().max(column, alias),
+    join: (table: string, on: string): IQueryBuilder => wrappedBuilder().join(table, on),
+    leftJoin: (table: string, on: string): IQueryBuilder =>
+      wrappedBuilder().leftJoin(table, on),
+    orderBy: (column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder =>
+      wrappedBuilder().orderBy(column, direction),
+    limit: (count: number): IQueryBuilder => wrappedBuilder().limit(count),
+    offset: (count: number): IQueryBuilder => wrappedBuilder().offset(count),
+    withTrashed: (): IQueryBuilder => wrappedBuilder().withTrashed(),
+    onlyTrashed: (): IQueryBuilder => wrappedBuilder().onlyTrashed(),
+    withoutTrashed: (): IQueryBuilder => wrappedBuilder().withoutTrashed(),
+    scope: (name: string, ...args: unknown[]): IQueryBuilder => {
+      const fn = cfg.scopes?.[name];
+      if (typeof fn !== 'function') {
+        throw ErrorFactory.createConfigError(`Unknown query scope: ${name}`);
+      }
+      const builder = createModelBuilder(cfg);
+      return fn(builder, ...args);
+    },
+    getTable: (): string => cfg.table,
+  };
+};
+
 const createDefinedModelInternal = (
   cfg: ModelConfig,
   methodsOrPlan: MethodsOrPlan,
@@ -558,20 +636,7 @@ const createDefinedModelInternal = (
       const builder = createModelBuilder(cfg);
       return builder.get();
     },
-    query: (): IQueryBuilder => {
-      const builder = createModelBuilder(cfg);
-      wrapBuilderGetForEagerLoading(builder, hydrateModel);
-      return builder;
-    },
-    scope: (name: string, ...args: unknown[]): IQueryBuilder => {
-      const fn = cfg.scopes?.[name];
-      if (typeof fn !== 'function') {
-        throw ErrorFactory.createConfigError(`Unknown query scope: ${name}`);
-      }
-      const builder = createModelBuilder(cfg);
-      return fn(builder, ...args);
-    },
-    getTable: (): string => cfg.table,
+    ...createQueryBuilderMethods(cfg, hydrateModel),
     db: (connection: string): DefinedModel<BoundModelMethods> =>
       createDefinedModelInternal({ ...cfg, connection }, methodsOrPlan, attach, resolveMethods),
     hydrateWithRelations(

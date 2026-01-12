@@ -15,7 +15,7 @@ import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
-import type { IQueryBuilder} from '@orm/QueryBuilder';
+import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
 export interface IDatabase {
@@ -270,14 +270,31 @@ export const Database = Object.freeze({
 
 const databaseInstances: Map<string, IDatabase> = new Map();
 
+const connectionLocks: Map<string, Promise<void>> = new Map();
+
 export const useEnsureDbConnected = async (
   config = undefined,
   connectionName = 'default'
 ): Promise<ReturnType<typeof useDatabase>> => {
   const db = useDatabase(config, connectionName);
-  if (db.isConnected() === false) {
-    await db.connect();
+
+  if (db.isConnected()) return db;
+
+  const inFlight = connectionLocks.get(connectionName);
+  if (inFlight !== undefined) {
+    await inFlight;
+    return db;
   }
+
+  const connectPromise = db.connect();
+  connectionLocks.set(connectionName, connectPromise);
+  try {
+    await connectPromise;
+  } finally {
+    // Clear on success or failure to avoid deadlocks/lock leaks
+    connectionLocks.delete(connectionName);
+  }
+
   return db;
 };
 
@@ -300,6 +317,7 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
 }
 
 export async function resetDatabase(): Promise<void> {
+  connectionLocks.clear();
   const promises = Array.from(databaseInstances.values()).map(async (instance) => {
     try {
       await instance.disconnect();

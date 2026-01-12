@@ -139,10 +139,9 @@ describe('Routing and HTTP Module Coverage', () => {
       const bodyTypes = [
         { type: 'json', body: '{"key":"value"}' },
         { type: 'form', body: 'field1=value1&field2=value2' },
-        { type: 'xml', body: '<root><key>value</key></root>' },
       ];
 
-      expect(bodyTypes.length).toBe(3);
+      expect(bodyTypes.length).toBe(2);
     });
 
     it('should extract cookies', () => {
@@ -244,11 +243,10 @@ describe('Routing and HTTP Module Coverage', () => {
     it('should handle content negotiation', () => {
       const types = [
         { accept: 'application/json', format: 'json' },
-        { accept: 'application/xml', format: 'xml' },
         { accept: 'text/html', format: 'html' },
       ];
 
-      expect(types.length).toBe(3);
+      expect(types.length).toBe(2);
     });
 
     it('should handle response compression', () => {

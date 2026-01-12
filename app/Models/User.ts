@@ -3,7 +3,7 @@
  */
 
 import { Post } from '@app/Models/Post';
-import type { IModel} from '@orm/Model';
+import type { IModel } from '@orm/Model';
 import { Model } from '@orm/Model';
 
 /**

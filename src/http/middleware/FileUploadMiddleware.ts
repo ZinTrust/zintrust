@@ -6,6 +6,7 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { MultipartParser } from '@http/parsers/MultipartParser';
+import { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
@@ -20,35 +21,12 @@ const getContentType = (req: IRequest): string => {
 };
 
 /**
- * Get request body as Buffer
- */
-const getRequestBody = (req: IRequest): Buffer | undefined => {
-  // Check context for raw bytes (set by Server)
-  const rawBytes = req.context['rawBodyBytes'];
-  if (Buffer.isBuffer(rawBytes)) {
-    return rawBytes;
-  }
-
-  const raw = req.getRaw();
-  if (raw === undefined) return undefined;
-
-  // Check if body has been read as Buffer (mocking/testing support)
-  const body = (raw as unknown as { body?: unknown }).body;
-  if (Buffer.isBuffer(body)) return body;
-
-  // Try to convert string to Buffer
-  if (typeof body === 'string') return Buffer.from(body);
-
-  return undefined;
-};
-
-/**
  * File upload middleware
  * Automatically parses multipart/form-data and makes files available
  */
 export const fileUploadMiddleware: Middleware = async (
   req: IRequest,
-  _res: IResponse,
+  res: IResponse,
   next: () => Promise<void>
 ): Promise<void> => {
   const contentType = getContentType(req);
@@ -59,41 +37,40 @@ export const fileUploadMiddleware: Middleware = async (
     return;
   }
 
+  // Phase 4 default behavior: multipart requires external streaming parser.
+  const provider = MultipartParserRegistry.get();
+  if (provider === null) {
+    res.setStatus(415).json({
+      error: 'multipart/form-data not supported. Install @zintrust/storage to enable uploads.',
+    });
+    return;
+  }
+
   try {
-    const boundary = MultipartParser.getBoundary(contentType);
-    if (boundary === undefined || boundary === '') {
-      Logger.warn('[File Upload] Missing boundary in multipart request');
-      await next();
-      return;
-    }
+    const maxFileSizeBytes = Env.getInt('MAX_FILE_SIZE', 50 * 1024 * 1024);
+    const maxFiles = Env.getInt('MAX_FILES', 20);
+    const maxFields = Env.getInt('MAX_FIELDS', 200);
+    const maxFieldSizeBytes = Env.getInt('MAX_FIELD_SIZE', 128 * 1024);
 
-    const body = getRequestBody(req);
-    if (!body) {
-      await next();
-      return;
-    }
+    const parsed = await provider({
+      req: req.getRaw(),
+      contentType,
+      limits: {
+        maxFileSizeBytes,
+        maxFiles,
+        maxFields,
+        maxFieldSizeBytes,
+      },
+    });
 
-    // Check body size limit
-    const maxBodySize = Env.getInt('REQUEST_MAX_BODY_SIZE', 10 * 1024 * 1024); // 10MB default
-    if (body.length > maxBodySize) {
-      Logger.warn('[File Upload] Request body exceeds size limit', {
-        size: body.length,
-        limit: maxBodySize,
-      });
-      await next();
-      return;
-    }
-
-    // Parse multipart data
-    const parsed = MultipartParser.parse(body, boundary);
-
-    // Store parsed data on request for later access
     const currentBody = req.getBody?.();
     const updatedBody = typeof currentBody === 'object' && currentBody !== null ? currentBody : {};
 
+    // Merge fields directly into the request body for ergonomics.
+    // Files remain under __files for FileUpload helper compatibility.
     req.setBody({
       ...updatedBody,
-      __fields: parsed.fields,
+      ...parsed.fields,
       __files: parsed.files,
     });
 

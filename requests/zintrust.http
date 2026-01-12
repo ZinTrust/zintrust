@@ -36,7 +36,7 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MiIsImVtYWlsIjoiZGVkQGV4YW1wbGUuY29tIiwiaWF0IjoxNzY4MTQ2MDQ1LCJleHAiOjE3NjgxNDk2NDUsImlzcyI6InppbnRydXN0IiwiYXVkIjoiemludHJ1c3QtYXBpIiwianRpIjoiOGU3NzRkOWRkOTgzZDVhZjlmY2JlZjQzNjc3MzdjOTgifQ.WRR8a1fkFAqgP9L9V7SkKqAxjISe6RKa-9k0FD5jwbk
+@jwt =
 @csrf =
 @cookie =
 @userId = 82
@@ -91,8 +91,8 @@ Content-Type: application/json
 # @name login
 POST {{baseUrl}}/api/v1/auth/login
 Content-Type: application/json
-Cookie: {{cookie}}
-X-CSRF-Token: {{csrf}}
+# Cookie: {{cookie}}
+# X-CSRF-Token: {{csrf}}
 
 {
   "email": "DEV@EXAMPLE.COM",
@@ -108,8 +108,8 @@ Authorization: Bearer {{jwt}}
 ### Profile: PUT (requires auth + jwt + CSRF)
 PUT {{baseUrl}}/api/v1/profile
 Content-Type: application/json
-Cookie: {{cookie}}
-X-CSRF-Token: {{csrf}}
+# Cookie: {{cookie}}
+# X-CSRF-Token: {{csrf}}
 Authorization: Bearer {{jwt}}
 
 {

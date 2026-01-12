@@ -4,6 +4,7 @@
  */
 
 import { Auth } from '@/features/Auth';
+import { User } from '@app/Models/User';
 import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';
 import { getString } from '@common/utility';
 import { Logger } from '@config/logger';
@@ -42,12 +43,7 @@ async function login(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = await useEnsureDbConnected();
-
-    const existing = await QueryBuilder.create('users', db)
-      .where('email', '=', email)
-      .limit(1)
-      .first<UserRow>();
+    const existing = await User.where('email', '=', email).limit(1).first<UserRow>();
 
     if (existing === null) {
       Logger.warn('AuthController.login: failed login attempt', {

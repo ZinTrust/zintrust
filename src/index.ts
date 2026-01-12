@@ -21,6 +21,13 @@ export { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 export { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
 export { BodyParsers } from '@http/parsers/BodyParsers';
 export { MultipartParser } from '@http/parsers/MultipartParser';
+export { MultipartParserRegistry } from '@http/parsers/MultipartParserRegistry';
+export type {
+  MultipartFieldValue,
+  MultipartParseInput,
+  MultipartParserProvider,
+  ParsedMultipartData,
+} from '@http/parsers/MultipartParserRegistry';
 export { Request } from '@http/Request';
 export type { IRequest, ValidatedRequest } from '@http/Request';
 export { RequestContext } from '@http/RequestContext';

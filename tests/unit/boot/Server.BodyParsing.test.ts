@@ -68,7 +68,9 @@ describe('Server body parsing', () => {
     } as any;
 
     const kernelStub = {
-      handleRequest: async (req: any, res: any): Promise<void> => {
+      handleRequest: async (req: any, res: any) => {
+        const { bodyParsingMiddleware } = await import('@http/middleware/BodyParsingMiddleware');
+        await bodyParsingMiddleware(req, res, async () => undefined);
         observedBody = req.getBody();
         res.setStatus(200).json({ ok: true });
       },

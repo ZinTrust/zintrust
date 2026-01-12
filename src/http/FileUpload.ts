@@ -4,14 +4,34 @@
  */
 
 import type { IRequest } from '@http/Request';
+import type { Readable } from 'node:stream';
 
 export interface UploadedFile {
   fieldName: string;
   originalName: string;
   mimeType: string;
-  buffer: Buffer;
   size: number;
   encoding?: string;
+
+  /**
+   * Legacy in-memory payload (Phase 3). Optional in Phase 4.
+   */
+  buffer?: Buffer;
+
+  /**
+   * Disk-backed upload path (Phase 4, provided by @zintrust/storage).
+   */
+  path?: string;
+
+  /**
+   * Returns a fresh readable stream for the uploaded content.
+   */
+  stream?: () => Readable;
+
+  /**
+   * Optional cleanup hook (e.g., delete temp file after response).
+   */
+  cleanup?: () => Promise<void>;
 }
 
 export interface FileUploadOptions {
