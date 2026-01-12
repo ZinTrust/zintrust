@@ -5,9 +5,11 @@ describe('Validator rule-string token handlers (coverage)', () => {
   it('supports new rule tokens via rule strings', () => {
     const schema = Validator.rulesToSchema({
       id: 'required|uuid',
+      email: 'required|email',
       apiKey: 'required|token',
       ip: 'required|ipAddress',
       code: 'required|digits',
+      positive: 'required|positiveNumber',
       price: 'required|decimal',
       website: 'required|url',
       mobile: 'required|phone',
@@ -16,9 +18,11 @@ describe('Validator rule-string token handlers (coverage)', () => {
 
     const valid = {
       id: '550e8400-e29b-41d4-a716-446655440000',
+      email: 'user@example.com',
       apiKey: 'abc123-DEF-456_789',
       ip: '192.168.1.1',
       code: '12345',
+      positive: 1,
       price: '123.45',
       website: 'https://example.com',
       mobile: '+1-555-123-4567',
@@ -27,9 +31,11 @@ describe('Validator rule-string token handlers (coverage)', () => {
 
     expect(Validator.validate(valid, schema)).toEqual(valid);
 
+    expect(() => Validator.validate({ ...valid, email: 'not-an-email' }, schema)).toThrow();
     expect(() => Validator.validate({ ...valid, apiKey: 'bad token' }, schema)).toThrow();
     expect(() => Validator.validate({ ...valid, ip: '256.1.1.1' }, schema)).toThrow();
     expect(() => Validator.validate({ ...valid, code: '12a' }, schema)).toThrow();
+    expect(() => Validator.validate({ ...valid, positive: 0 }, schema)).toThrow();
     expect(() => Validator.validate({ ...valid, price: '12.3.4' }, schema)).toThrow();
     expect(() => Validator.validate({ ...valid, website: 'ftp://example.com' }, schema)).toThrow();
     expect(() => Validator.validate({ ...valid, mobile: 'not-a-phone' }, schema)).toThrow();
@@ -61,6 +67,28 @@ describe('Validator rule-string token handlers (coverage)', () => {
 
     expect(() => Validator.validate({ code: 'abc', role: 'admin' }, schema)).toThrow();
     expect(() => Validator.validate({ code: 'ABC', role: 'nope' }, schema)).toThrow();
+  });
+
+  it('supports explicit minLength/maxLength tokens and rejects non-string/non-Date date values', () => {
+    const schema = Validator.rulesToSchema({
+      note: 'string|minLength:2|maxLength:3',
+      createdAt: 'date',
+    });
+
+    expect(Validator.validate({ note: 'ab', createdAt: new Date('2024-01-01') }, schema)).toEqual({
+      note: 'ab',
+      createdAt: new Date('2024-01-01'),
+    });
+
+    expect(() =>
+      Validator.validate({ note: 'a', createdAt: new Date('2024-01-01') }, schema)
+    ).toThrow();
+    expect(() =>
+      Validator.validate({ note: 'abcd', createdAt: new Date('2024-01-01') }, schema)
+    ).toThrow();
+
+    // hit validateDate() non-string/non-Date path
+    expect(() => Validator.validate({ note: 'ab', createdAt: 123 as any }, schema)).toThrow();
   });
 
   it('treats nullable as a no-op token', () => {

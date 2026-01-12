@@ -128,6 +128,35 @@ describe('Storage (src/tools/storage/index.ts branch coverage)', () => {
     await expect(Storage.get('custom', 'a.txt')).rejects.toThrow(/missing get\(\)/i);
   });
 
+  it('put/get return driver results when implemented', async () => {
+    vi.doMock('@config/storage', () => ({
+      storageConfig: {
+        default: 'ok',
+        drivers: {
+          ok: { driver: 'ok' },
+        },
+      },
+    }));
+
+    const putSpy = vi.fn(async () => 'stored-key');
+    const getSpy = vi.fn(async () => Buffer.from('hello', 'utf8'));
+
+    const { StorageDriverRegistry } = await import('@storage/StorageDriverRegistry');
+    StorageDriverRegistry.register('ok', {
+      driver: {
+        put: putSpy,
+        get: getSpy,
+      },
+    });
+
+    const { Storage } = await import('@storage');
+
+    await expect(Storage.put('ok', 'a.txt', 'hi')).resolves.toBe('stored-key');
+    await expect(Storage.get('ok', 'a.txt')).resolves.toEqual(Buffer.from('hello', 'utf8'));
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('exists/delete/url/tempUrl cover optional-method branches', async () => {
     vi.doMock('@config/storage', () => ({
       storageConfig: {
