@@ -14,7 +14,7 @@ export const migration: Migration = {
       table.id();
       table.string('title');
       table.text('description').nullable();
-      table.string('status').defaultTo('pending');
+      table.string('status').default('pending');
       table.unsignedBigInt('user_id');
       table.foreign('user_id').references('id').on('users').onDelete('CASCADE');
       table.timestamps();

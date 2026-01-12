@@ -10,7 +10,7 @@ export const MigrationDiscovery = Object.freeze({
     if (!fs.existsSync(dir)) return [];
     const files = fs.readdirSync(dir);
     return files
-      .filter((f) => f.endsWith(extension))
+      .filter((f) => f.endsWith(extension) && !f.startsWith('index.'))
       .sort((a, b) => a.localeCompare(b))
       .map((f) => path.join(dir, f));
   },
