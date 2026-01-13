@@ -149,10 +149,10 @@ const connections = {
   postgresql: {
     driver: 'postgresql' as const,
     host: Env.DB_HOST,
-    port: Env.getInt('DB_PORT_POS'),
-    database: Env.get('DB_DATABASE_POS'),
-    username: Env.get('DB_USERNAME_POS'),
-    password: Env.get('DB_PASSWORD_POS'),
+    port: Env.DB_PORT_POSTGRESQL,
+    database: Env.DB_DATABASE_POSTGRESQL,
+    username: Env.DB_USERNAME_POSTGRESQL,
+    password: Env.DB_PASSWORD_POSTGRESQL,
     ssl: Env.getBool('DB_SSL', false),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),

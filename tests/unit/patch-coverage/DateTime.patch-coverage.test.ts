@@ -152,4 +152,9 @@ describe('patch coverage: DateTime', () => {
     expect(dt.getYear()).toBe(2024);
     expect(dt.getMilliseconds()).toBe(6);
   });
+
+  it('create() returns a DateTime wrapper', () => {
+    const dt = DateTime.create(new Date('2024-01-02T03:04:05.006Z'));
+    expect(dt.getYear()).toBe(2024);
+  });
 });

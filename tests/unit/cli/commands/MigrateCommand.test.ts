@@ -205,6 +205,25 @@ describe('MigrateCommand', () => {
     expect(Database.create).not.toHaveBeenCalled();
   });
 
+  it('passes through --database selection for D1 (remote)', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+
+    await command.execute({ database: 'remote' });
+
+    expect(WranglerD1.applyMigrations).toHaveBeenCalledWith(
+      expect.objectContaining({ dbName: 'remote', isLocal: true })
+    );
+    expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('describes unknown drivers using the driver string (default branch)', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'sqlserver' } as any);
+
+    await command.execute({});
+
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('sqlserver'));
+  });
+
   it('rejects unsupported D1 actions like --status', async () => {
     vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
 

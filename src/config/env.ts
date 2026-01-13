@@ -77,6 +77,12 @@ export const Env = Object.freeze({
   DB_USERNAME: get('DB_USERNAME', 'postgres'),
   DB_PASSWORD: get('DB_PASSWORD', ''),
   DB_READ_HOSTS: get('DB_READ_HOSTS', ''),
+  // PostgreSQL-specific configuration (with _POSTGRESQL suffix to avoid conflicts with MySQL)
+  DB_PORT_POSTGRESQL: getInt('DB_PORT_POSTGRESQL', 5432),
+  DB_DATABASE_POSTGRESQL: get('DB_DATABASE_POSTGRESQL', 'postgres'),
+  DB_USERNAME_POSTGRESQL: get('DB_USERNAME_POSTGRESQL', 'postgres'),
+  DB_PASSWORD_POSTGRESQL: get('DB_PASSWORD_POSTGRESQL', ''),
+  DB_READ_HOSTS_POSTGRESQL: get('DB_READ_HOSTS_POSTGRESQL', ''),
 
   // Cloudflare
   D1_DATABASE_ID: get('D1_DATABASE_ID'),
