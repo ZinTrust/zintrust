@@ -38,8 +38,7 @@ const addMigrateOptions = (command: Command): void => {
     .option('--no-interactive', 'Disable interactive prompts (useful for CI/CD)');
 };
 
-const getInteractive = (options: CommandOptions): boolean =>
-  options['interactive'] !== false && process.env['CI'] !== 'true';
+const getInteractive = (options: CommandOptions): boolean => options['interactive'] !== false;
 
 const getMigrationDirs = (): {
   globalDir: string;
