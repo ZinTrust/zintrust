@@ -7,7 +7,6 @@
 import { Env } from '@config/env';
 import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-
 const hasOwn = <T extends object>(obj: T, key: PropertyKey): key is keyof T => {
   return Object.hasOwn(obj, key);
 };
