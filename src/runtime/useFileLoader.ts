@@ -9,7 +9,7 @@
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync, readFileSync } from '@node-singletons/fs';
+import { existsSync } from '@node-singletons/fs';
 import pathModule, { extname, join, resolve, sep } from '@node-singletons/path';
 import processModule from '@node-singletons/process';
 import { pathToFileURL } from '@node-singletons/url';
@@ -43,12 +43,21 @@ const resolveProjectRoot = (): string => {
   };
 
   const isCoreRepo = (cwdPath: string): boolean => {
+    const fromNpm = processModule.env?.['npm_package_name'];
+    if (fromNpm === '@zintrust/core') return true;
+
+    // Vitest suites (notably CoverageBoost) may mock `@node-singletons/fs` to return
+    // `existsSync() === true` for everything and `readFileSync() === '{}'`, which makes
+    // any package.json-based detection unreliable. Instead, detect a core repo checkout
+    // by checking whether this module is being executed from within the current cwd.
+    // - core repo tests: import.meta.url points into `<cwd>/src/...`
+    // - consumer apps: import.meta.url points into `node_modules/@zintrust/core/...`
     try {
-      const pkgPath = resolve(cwdPath, 'package.json');
-      if (!existsSync(pkgPath)) return false;
-      const raw = readFileSync(pkgPath, 'utf-8');
-      const parsed = JSON.parse(String(raw)) as { name?: unknown };
-      return parsed?.name === '@zintrust/core';
+      const cwdAbs = resolve(cwdPath);
+      const selfUrl = new URL(import.meta.url);
+      const selfPath = decodeURIComponent(selfUrl.pathname);
+      const selfAbs = resolve(selfPath);
+      return selfAbs === cwdAbs || selfAbs.startsWith(cwdAbs + sep);
     } catch {
       return false;
     }
@@ -68,6 +77,9 @@ const resolveProjectRoot = (): string => {
 
   return cwd;
 };
+
+const isInternalProjectRoot = (projectRoot: string): boolean =>
+  pathModule.basename(projectRoot) === '.zintrust-internal-project-root';
 
 const normalizeProjectRelativePath = (raw: string): string => {
   const value = String(raw ?? '').trim();
@@ -161,11 +173,16 @@ export const useFileLoader = (...args: [string] | [string, ...string[]]): FileLo
       : normalizeProjectRelativePath(args.join('/'));
 
   const projectRoot = resolveProjectRoot();
+  const isInternalRoot = isInternalProjectRoot(projectRoot);
   const candidates = buildCandidateAbsolutePaths(projectRoot, relativePath);
 
-  const exists = (): boolean => candidates.some((c) => existsSync(c));
+  // The core repo uses `.zintrust-internal-project-root` as a sentinel during core test runs.
+  // In this mode, we must *never* import project config templates.
+  // This also avoids test suites that mock `existsSync()` globally (e.g. CoverageBoost).
+  const exists = (): boolean => (isInternalRoot ? false : candidates.some((c) => existsSync(c)));
 
   const resolveFirstExistingPath = (): string => {
+    if (isInternalRoot) return candidates[0] ?? resolveWithinProjectRoot(projectRoot, relativePath);
     for (const candidate of candidates) {
       if (existsSync(candidate)) return candidate;
     }
@@ -173,6 +190,14 @@ export const useFileLoader = (...args: [string] | [string, ...string[]]): FileLo
   };
 
   const get = async <T = unknown>(): Promise<T> => {
+    if (isInternalRoot) {
+      throw ErrorFactory.createNotFoundError('Project file not found', {
+        projectRoot,
+        relativePath,
+        candidates,
+      });
+    }
+
     const candidate = candidates.find((c) => existsSync(c));
     if (candidate === undefined) {
       throw ErrorFactory.createNotFoundError('Project file not found', {
