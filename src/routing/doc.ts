@@ -11,7 +11,7 @@ import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@routing/common';
 import { ErrorRouting } from '@routing/error';
-import { getPublicRoot } from '@routing/publicRoot';
+import { getPublicRootAsync } from '@routing/publicRoot';
 import type { IRouter } from '@routing/Router';
 import { Router } from '@routing/Router';
 
@@ -21,13 +21,17 @@ export { MIME_TYPES_MAP } from '@routing/common';
  * Find the package root directory
  */
 // Backward-compatible re-exports
-export { findPackageRoot, getFrameworkPublicRoots, getPublicRoot } from '@routing/publicRoot';
+export {
+  findPackageRoot,
+  findPackageRootAsync,
+  getFrameworkPublicRoots,
+  getFrameworkPublicRootsAsync,
+  getPublicRoot,
+  getPublicRootAsync,
+} from '@routing/publicRoot';
 
-/**
- * Map URL path to physical file path for /doc routes
- */
-const mapStaticPath = (urlPath: string): string | undefined => {
-  const publicRoot = getPublicRoot();
+const mapStaticPathAsync = async (urlPath: string): Promise<string | undefined> => {
+  const publicRoot = await getPublicRootAsync();
   const normalize = (p: string): string => (p.startsWith('/') ? p.slice(1) : p);
 
   if (urlPath === '/doc' || urlPath === '/doc/') return publicRoot;
@@ -58,32 +62,48 @@ export const setDocumentationCSPHeaders = (response: IResponse): void => {
 };
 
 /**
- * Serve a documentation static file
- * Returns true if file was served, false if not found
+ * Serve a documentation static file (async)
  */
-export const serveDocumentationFile = (urlPath: string, response: IResponse): boolean => {
-  let filePath = mapStaticPath(urlPath);
+export const serveDocumentationFileAsync = async (
+  urlPath: string,
+  response: IResponse
+): Promise<boolean> => {
+  let filePath = await mapStaticPathAsync(urlPath);
 
   if (filePath === undefined) {
     return false;
   }
 
   try {
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-      filePath = path.join(filePath, 'index.html');
+    try {
+      const stats = await fs.fsPromises.stat(filePath);
+      if (stats.isDirectory()) {
+        filePath = path.join(filePath, 'index.html');
+      }
+    } catch {
+      // ignore
     }
 
-    if (!fs.existsSync(filePath) && !path.extname(filePath)) {
+    const exists = async (p: string): Promise<boolean> => {
+      try {
+        await fs.fsPromises.access(p);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (!(await exists(filePath)) && !path.extname(filePath)) {
       const htmlPath = `${filePath}.html`;
-      if (fs.existsSync(htmlPath)) {
+      if (await exists(htmlPath)) {
         filePath = htmlPath;
       }
     }
 
-    if (fs.existsSync(filePath)) {
+    if (await exists(filePath)) {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = MIME_TYPES_MAP[ext] || 'application/octet-stream';
-      const content = fs.readFileSync(filePath);
+      const content = await fs.fsPromises.readFile(filePath);
 
       response.setStatus(200);
       response.setHeader('Content-Type', contentType);
@@ -97,10 +117,10 @@ export const serveDocumentationFile = (urlPath: string, response: IResponse): bo
   return false;
 };
 
-const handleDocRequest = (req: IRequest, res: IResponse): void => {
+const handleDocRequest = async (req: IRequest, res: IResponse): Promise<void> => {
   setDocumentationCSPHeaders(res);
   const urlPath = req.getPath();
-  if (serveDocumentationFile(urlPath, res)) return;
+  if (await serveDocumentationFileAsync(urlPath, res)) return;
   ErrorRouting.handleNotFound(req, res);
 };
 
@@ -112,4 +132,8 @@ export const registerDocRoutes = (router: IRouter): void => {
   Router.get(router, '/doc/:path*', handleDocRequest);
 };
 
-export default { registerDocRoutes, setDocumentationCSPHeaders, serveDocumentationFile };
+export default {
+  registerDocRoutes,
+  setDocumentationCSPHeaders,
+  serveDocumentationFileAsync,
+};

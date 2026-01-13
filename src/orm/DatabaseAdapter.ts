@@ -32,6 +32,7 @@ export interface DatabaseConfig {
 export interface QueryResult {
   rows: Record<string, unknown>[];
   rowCount: number;
+  lastInsertId?: string | number | bigint;
 }
 
 export interface IDatabaseAdapter {

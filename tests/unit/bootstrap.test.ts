@@ -3,6 +3,8 @@ import { Server } from '@boot/Server';
 import { Logger } from '@config/logger';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+vi.mock('@/zintrust.plugins', () => ({}));
+
 // Mock dependencies
 vi.mock('@boot/Application', () => ({
   Application: {

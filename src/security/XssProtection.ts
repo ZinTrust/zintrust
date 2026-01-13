@@ -32,34 +32,61 @@ const escapeHtml = (text: string): string => {
 /**
  * Sanitize HTML by removing dangerous tags and attributes
  */
-const sanitizeHtml = (html: string): string => {
-  if (typeof html !== 'string') {
+const MAX_SANITIZE_LOOPS = 50;
+
+function removeScripts(input: string): string {
+  // Remove script tags and content (loop until stable to avoid incomplete multi-character sanitization)
+  let sanitized = input;
+  let prevSanitized: string;
+  let loopCount = 0;
+
+  do {
+    prevSanitized = sanitized;
+    sanitized = sanitized.replaceAll(/<script\b[\s\S]*?<\/script[^<]*?>/gi, '');
+    loopCount++;
+  } while (sanitized !== prevSanitized && loopCount < MAX_SANITIZE_LOOPS);
+
+  if (loopCount >= MAX_SANITIZE_LOOPS) {
+    Logger.warn('[XSS] Sanitization loop limit reached (script removal)');
+    return ''; // Fail safe: return empty string if attack detected
+  }
+
+  return sanitized;
+}
+
+function removeDangerousTags(input: string): string {
+  // Remove iframe, object, embed, and base tags
+  let sanitized = input;
+  sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[\s\S]*?>/gi, '');
+  sanitized = sanitized.replaceAll(/<\/(?:iframe|object|embed|base)>/gi, '');
+  return sanitized;
+}
+
+function removeEventHandlers(input: string): string {
+  // Remove event handlers (on*). Re-apply until stable to avoid incomplete multi-character sanitization.
+  let sanitized = input;
+  let prevSanitized: string;
+  let loopCount = 0;
+
+  do {
+    prevSanitized = sanitized;
+    sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[^\s>]*)/gi, '');
+    loopCount++;
+  } while (sanitized !== prevSanitized && loopCount < MAX_SANITIZE_LOOPS);
+
+  if (loopCount >= MAX_SANITIZE_LOOPS) {
+    Logger.warn('[XSS] Sanitization loop limit reached (event handler removal)');
     return '';
   }
 
-  // Remove script tags and content (loop until stable to avoid incomplete multi-character sanitization)
-  let sanitized = html;
-  let prevScriptSanitized: string;
-  do {
-    prevScriptSanitized = sanitized;
-    sanitized = sanitized.replaceAll(/<script\b[\s\S]*?<\/script[^<]*?>/gi, '');
-  } while (sanitized !== prevScriptSanitized);
+  return sanitized;
+}
 
-  // Remove iframe, object, embed, and base tags
-  sanitized = sanitized.replaceAll(/<(?:iframe|object|embed|base)\b[\s\S]*?>/gi, '');
-  sanitized = sanitized.replaceAll(/<\/(?:iframe|object|embed|base)>/gi, '');
-
-  // Remove event handlers (on*). Re-apply until stable to avoid incomplete multi-character sanitization.
-  let previousSanitized: string;
-  do {
-    previousSanitized = sanitized;
-    sanitized = sanitized.replaceAll(/\bon\w+\s*=\s*(?:'[^']*'|"[^"]*"|`[^`]*`|[^\s>]*)/gi, '');
-  } while (sanitized !== previousSanitized);
-
+function stripDangerousUrlAttributes(input: string): string {
   // Remove dangerous protocols in URL-bearing attributes.
   // This uses the same protocol normalization logic as encodeHref to prevent obfuscations like:
   //   href="jav&#x61;script:..." or href="java\nscript:..." or href="%6a%61..."
-  sanitized = sanitized.replaceAll(
+  return input.replaceAll(
     /(\s)(href|src|action|formaction|xlink:href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi,
     (
       match: string,
@@ -119,14 +146,48 @@ const sanitizeHtml = (html: string): string => {
       return match;
     }
   );
+}
 
+function removeStyles(input: string): string {
   // Remove style tags and style attributes with potentially dangerous content
+  let sanitized = input;
   let prevSanitized: string;
+  let loopCount = 0;
+
   do {
     prevSanitized = sanitized;
     sanitized = sanitized.replaceAll(/<style\b[\s\S]*?<\/style>/gi, '');
-  } while (sanitized !== prevSanitized);
+    loopCount++;
+  } while (sanitized !== prevSanitized && loopCount < MAX_SANITIZE_LOOPS);
+
+  if (loopCount >= MAX_SANITIZE_LOOPS) {
+    Logger.warn('[XSS] Sanitization loop limit reached (style removal)');
+    return '';
+  }
+
   sanitized = sanitized.replaceAll(/\bstyle\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]*)/gi, '');
+  return sanitized;
+}
+
+function sanitizeHtml(html: string): string {
+  if (typeof html !== 'string') {
+    return '';
+  }
+
+  let sanitized = html;
+
+  sanitized = removeScripts(sanitized);
+  if (!sanitized) return '';
+
+  sanitized = removeDangerousTags(sanitized);
+
+  sanitized = removeEventHandlers(sanitized);
+  if (!sanitized) return '';
+
+  sanitized = stripDangerousUrlAttributes(sanitized);
+
+  sanitized = removeStyles(sanitized);
+  if (!sanitized) return '';
 
   // Remove form elements
   sanitized = sanitized.replaceAll(/<form\b[\s\S]*?<\/form>/gi, '');
@@ -135,7 +196,7 @@ const sanitizeHtml = (html: string): string => {
   sanitized = sanitized.replaceAll(/<(?:object|embed|applet|meta|link|base)\b[\s\S]*?>/gi, '');
 
   return sanitized.trim();
-};
+}
 
 /**
  * Encode URI component to prevent injection in URLs

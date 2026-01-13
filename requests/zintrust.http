@@ -83,7 +83,7 @@ Content-Type: application/json
 
 {
   "name": "Dev User",
-  "email": "dedf@example.com",
+  "email": "5t@example.com",
   "password": "password"
 }
 
@@ -95,7 +95,7 @@ Content-Type: application/json
 # X-CSRF-Token: {{csrf}}
 
 {
-  "email": "dedf@example.com",
+  "email": "5t@example.com",
   "password": "password"
 }
 

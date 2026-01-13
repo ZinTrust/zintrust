@@ -35,6 +35,7 @@ const addMigrateOptions = (command: Command): void => {
       '--database <name>',
       'D1 only: Wrangler D1 database binding name (not DB_DATABASE env var)'
     )
+    .option('--all', 'Run migrations for all configured database connections')
     .option('--no-interactive', 'Disable interactive prompts (useful for CI/CD)');
 };
 
@@ -79,6 +80,8 @@ const describeTargetDatabase = (conn: ReturnType<typeof databaseConfig.getConnec
       return `postgresql:${conn.host}:${conn.port}/${conn.database}`;
     case 'mysql':
       return `mysql:${conn.host}:${conn.port}/${conn.database}`;
+    case 'sqlserver':
+      return `sqlserver:${conn.host}:${conn.port}/${conn.database}`;
     default:
       return `${conn.driver}`;
   }
@@ -102,6 +105,15 @@ const mapConnectionToOrmConfig = (
     case 'mysql':
       return {
         driver: 'mysql',
+        host: conn.host,
+        port: conn.port,
+        database: conn.database,
+        username: conn.username,
+        password: conn.password,
+      };
+    case 'sqlserver':
+      return {
+        driver: 'sqlserver',
         host: conn.host,
         port: conn.port,
         database: conn.database,
@@ -346,10 +358,12 @@ const runD1Actions = async (params: {
   cmd.success('D1 migrations completed successfully');
 };
 
-const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
-  const interactive = getInteractive(options);
-  const conn = databaseConfig.getConnection();
-
+const processConnection = async (
+  conn: ReturnType<typeof databaseConfig.getConnection>,
+  options: CommandOptions,
+  cmd: IBaseCommand,
+  interactive: boolean
+): Promise<void> => {
   // Avoid confusion: `--database` is a D1-only option (Wrangler binding name), not DB_DATABASE.
   if (isD1Driver(conn.driver)) {
     cmd.debug(`Migrate command executed with options: ${JSON.stringify(options)}`);
@@ -424,6 +438,35 @@ const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promi
   } finally {
     await db.disconnect();
   }
+};
+
+const executeMigrate = async (options: CommandOptions, cmd: IBaseCommand): Promise<void> => {
+  const interactive = getInteractive(options);
+
+  const targets: Array<{ name: string; config: ReturnType<typeof databaseConfig.getConnection> }> =
+    [];
+
+  if (options['all'] === true) {
+    for (const [name, config] of Object.entries(databaseConfig.connections)) {
+      targets.push({ name, config });
+    }
+  } else {
+    targets.push({ name: 'default', config: databaseConfig.getConnection() });
+  }
+
+  // Run sequentially (to preserve ordering and interactive prompts), but avoid `await` inside a loop.
+  let sequence: Promise<void> = Promise.resolve();
+
+  for (const { name, config } of targets) {
+    sequence = sequence.then(async () => {
+      if (targets.length > 1) {
+        cmd.info(`\n--- Connection: ${name} (${config.driver}) ---`);
+      }
+      await processConnection(config, options, cmd, interactive);
+    });
+  }
+
+  await sequence;
 };
 
 /**

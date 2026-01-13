@@ -149,6 +149,7 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
 
     if (result.id !== null && result.id !== undefined) {
       Logger.info('AuthController.register: successful registration', {
+        user_id: result.id,
         email,
         ip: ipAddress,
         timestamp: new Date().toISOString(),
@@ -157,7 +158,9 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
       res.setStatus(201).json({ message: 'Registered' });
     } else {
       Logger.error('Failed to retrieve inserted user ID');
+      res.setStatus(500).json({ error: 'Registration failed' });
     }
+    return;
   } catch (error) {
     Logger.error('AuthController.register failed', error);
     res.setStatus(500).json({ error: 'Registration failed' });

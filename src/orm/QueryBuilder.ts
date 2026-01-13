@@ -19,7 +19,7 @@ export interface WhereClause {
  * Provides access to the created record ID, affected rows count, and the full record if available
  */
 export interface InsertResult {
-  id: string | number | null;
+  id: string | number | bigint | null;
   affectedRows: number;
   insertedRecords?: Record<string, unknown>[];
 }
@@ -779,14 +779,16 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     const compiled = compileInsert(tableName, values, state.dialect);
     const items = Array.isArray(values) ? values : [values];
 
-    await currentDb.query(compiled.sql, compiled.parameters, false);
+    const result = await currentDb.execute(compiled.sql, compiled.parameters, false);
 
     // Return InsertResult with metadata
     // Note: lastInsertId typically only available for single-row inserts in most databases
     // For multi-row inserts, use the insertedRecords array
     return {
-      id: items.length === 1 ? ((items[0]?.['id'] as string | number | null) ?? null) : null,
-      affectedRows: items.length,
+      id:
+        (result.lastInsertId as string | number | bigint) ??
+        (items.length === 1 ? ((items[0]?.['id'] as string | number | null) ?? null) : null),
+      affectedRows: result.rowCount,
       insertedRecords: items,
     };
   };

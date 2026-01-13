@@ -6,7 +6,7 @@ import { MigrationDiscovery } from '@/migrations/MigrationDiscovery';
 import { MigrationLoader } from '@/migrations/MigrationLoader';
 import type { LoadedMigration } from '@/migrations/types';
 import type { IDatabase } from '@orm/Database';
-import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { BaseAdapter } from '@orm/DatabaseAdapter';
 
 type D1SqlMigrationsCompileOptions = {
@@ -136,7 +136,7 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
 
   const noopAdapter = createNoopAdapter(() => connected, setConnected);
 
-  const db: IDatabase = {
+  const db = (<IDatabase>{
     async connect(): Promise<void> {
       connected = true;
       await RESOLVED_VOID;
@@ -158,9 +158,14 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
       await RESOLVED_VOID;
       return null;
     },
+    async execute(sql: string, parameters: unknown[] = []): Promise<QueryResult> {
+      captureSql(onSql, sql, parameters);
+      await RESOLVED_VOID;
+      return { rows: [], rowCount: 0 };
+    },
     async transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T> {
       await RESOLVED_VOID;
-      return callback(db);
+      return callback(this as unknown as IDatabase);
     },
     table(): never {
       throw ErrorFactory.createCliError(
@@ -191,7 +196,7 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
     dispose(): void {
       // No resources to dispose for capture DB
     },
-  };
+  }) satisfies IDatabase;
 
   return db;
 };

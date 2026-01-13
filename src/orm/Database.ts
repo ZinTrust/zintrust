@@ -3,6 +3,7 @@
  * Central database connection management and query execution
  */
 
+import Logger from '@/config/logger';
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -13,7 +14,7 @@ import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
-import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
@@ -24,6 +25,7 @@ export interface IDatabase {
   isConnected(): boolean;
   query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
+  execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
   table(name: string): IQueryBuilder;
   onBeforeQuery(handler: (query: string, params: unknown[]) => void): void;
@@ -101,7 +103,21 @@ const executeQuery = async (
   const result = await adapter[method](sql, parameters);
   const duration = Date.now() - startTime;
   eventEmitter.emit('after-query', sql, parameters, duration);
-  return (result as { rows: unknown[] }).rows;
+  return result.rows;
+};
+
+const executeFullQuery = async (
+  adapter: IDatabaseAdapter,
+  eventEmitter: EventEmitter,
+  sql: string,
+  parameters: unknown[]
+): Promise<QueryResult> => {
+  eventEmitter.emit('before-query', sql, parameters);
+  const startTime = Date.now();
+  const result = await adapter.query(sql, parameters);
+  const duration = Date.now() - startTime;
+  eventEmitter.emit('after-query', sql, parameters, duration);
+  return result;
 };
 
 const executeQueryOne = async (
@@ -241,16 +257,26 @@ const createQueryHandlers = (
 ): {
   query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
+  execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
 } => {
   return {
     async query(sql: string, parameters: unknown[] = [], isRead = false) {
       if (connected.value === false) await db.connect();
-      return executeQuery(getAdapter(isRead), eventEmitter, sql, parameters, 'query');
+      const adapter = getAdapter(isRead);
+      Logger.debug('Using DB adapter', {
+        type: adapter?.getType?.(),
+        hasRegistry: DatabaseAdapterRegistry.list(),
+      });
+      return executeQuery(adapter, eventEmitter, sql, parameters, 'query');
     },
     async queryOne(sql: string, parameters: unknown[] = [], isRead = false) {
       if (connected.value === false) await db.connect();
       return executeQueryOne(getAdapter(isRead), eventEmitter, sql, parameters);
+    },
+    async execute(sql: string, parameters: unknown[] = [], isRead = false) {
+      if (connected.value === false) await db.connect();
+      return executeFullQuery(getAdapter(isRead), eventEmitter, sql, parameters);
     },
     async transaction<T>(callback: (db: IDatabase) => Promise<T>) {
       if (connected.value === false) await db.connect();
@@ -259,104 +285,158 @@ const createQueryHandlers = (
   };
 };
 
+const setupDbInstrumentation = (
+  dbConfig: DatabaseConfig,
+  eventEmitter: EventEmitter
+): Array<() => void> => {
+  const cleanupFunctions: Array<() => void> = [];
+
+  const metricsCleanup = installDbMetricsIfEnabled(dbConfig, eventEmitter);
+  const tracingCleanup = installDbTracingIfEnabled(dbConfig, eventEmitter);
+
+  if (metricsCleanup) cleanupFunctions.push(metricsCleanup);
+  if (tracingCleanup) cleanupFunctions.push(tracingCleanup);
+
+  return cleanupFunctions;
+};
+
+const applyQueryHandlers = (
+  db: IDatabase,
+  queryHandlers: ReturnType<typeof createQueryHandlers>
+): void => {
+  db.query = queryHandlers.query;
+  db.queryOne = queryHandlers.queryOne;
+  db.execute = queryHandlers.execute;
+  db.transaction = queryHandlers.transaction;
+};
+
+const createDbFacade = (input: {
+  dbConfig: DatabaseConfig;
+  writeAdapter: IDatabaseAdapter;
+  eventEmitter: EventEmitter;
+  connected: { value: boolean };
+  getAdapter: (isRead?: boolean) => IDatabaseAdapter;
+  connectionHandlers: ReturnType<typeof createConnectionHandlers>;
+  queryHandlers: ReturnType<typeof createQueryHandlers>;
+  cleanupFunctions: Array<() => void>;
+}): IDatabase => {
+  const {
+    dbConfig,
+    writeAdapter,
+    eventEmitter,
+    connected,
+    getAdapter,
+    connectionHandlers,
+    queryHandlers,
+    cleanupFunctions,
+  } = input;
+
+  const db: IDatabase = {
+    connect: connectionHandlers.connect,
+    disconnect: connectionHandlers.disconnect,
+    isConnected() {
+      return connected.value;
+    },
+    query: queryHandlers.query,
+    queryOne: queryHandlers.queryOne,
+    execute: queryHandlers.execute,
+    transaction: queryHandlers.transaction,
+    table(name) {
+      return QueryBuilder.create(name, db);
+    },
+    onBeforeQuery: (h) => eventEmitter.on('before-query', h),
+    onAfterQuery: (h) => eventEmitter.on('after-query', h),
+    offBeforeQuery: (h) => eventEmitter.off('before-query', h),
+    offAfterQuery: (h) => eventEmitter.off('after-query', h),
+    getAdapterInstance(isRead = false) {
+      return getAdapter(isRead);
+    },
+    getType() {
+      return writeAdapter.getType();
+    },
+    getConfig() {
+      return { ...dbConfig };
+    },
+    dispose() {
+      // Clean up event listeners to prevent memory leaks
+      for (const cleanup of cleanupFunctions) {
+        cleanup();
+      }
+      cleanupFunctions.length = 0;
+    },
+  };
+
+  return db;
+};
+
+const createDatabaseInstance = (dbConfig: DatabaseConfig): IDatabase => {
+  const eventEmitter = new EventEmitter();
+  const connected = { value: false };
+  const connectInFlight = { value: undefined as Promise<void> | undefined };
+  let readIndex = 0;
+
+  const { writeAdapter, readAdapters } = initializeAdapters(dbConfig);
+  const cleanupFunctions = setupDbInstrumentation(dbConfig, eventEmitter);
+
+  const getAdapter = (isRead = false): IDatabaseAdapter => {
+    if (isRead === false || readAdapters.length === 0) {
+      return writeAdapter;
+    }
+    const adapter = readAdapters[readIndex];
+    if (adapter === undefined) return writeAdapter;
+    readIndex = (readIndex + 1) % readAdapters.length;
+    return adapter;
+  };
+
+  const connectionHandlers = createConnectionHandlers(
+    writeAdapter,
+    readAdapters,
+    connected,
+    connectInFlight
+  );
+
+  // Create temporary handlers with db as undefined, then update after db is created
+  let queryHandlers = createQueryHandlers(
+    writeAdapter,
+    readAdapters,
+    eventEmitter,
+    connected,
+    {} as IDatabase,
+    getAdapter
+  );
+
+  const db = createDbFacade({
+    dbConfig,
+    writeAdapter,
+    eventEmitter,
+    connected,
+    getAdapter,
+    connectionHandlers,
+    queryHandlers,
+    cleanupFunctions,
+  });
+
+  // Update handlers with actual db reference for circular dependency
+  queryHandlers = createQueryHandlers(
+    writeAdapter,
+    readAdapters,
+    eventEmitter,
+    connected,
+    db,
+    getAdapter
+  );
+  applyQueryHandlers(db, queryHandlers);
+
+  return db;
+};
+
 export const Database = Object.freeze({
   /**
    * Create a new database instance
    */
   create(config?: DatabaseConfig): IDatabase {
     const dbConfig = config ?? { driver: 'sqlite', database: ':memory:' };
-    const eventEmitter = new EventEmitter();
-    const connected = { value: false };
-    const connectInFlight = { value: undefined as Promise<void> | undefined };
-    let readIndex = 0;
-
-    const { writeAdapter, readAdapters } = initializeAdapters(dbConfig);
-
-    // Store cleanup functions for event listeners
-    const cleanupFunctions: Array<() => void> = [];
-
-    // Install metrics and tracing, capture cleanup functions
-    const metricsCleanup = installDbMetricsIfEnabled(dbConfig, eventEmitter);
-    const tracingCleanup = installDbTracingIfEnabled(dbConfig, eventEmitter);
-
-    if (metricsCleanup) cleanupFunctions.push(metricsCleanup);
-    if (tracingCleanup) cleanupFunctions.push(tracingCleanup);
-
-    const getAdapter = (isRead = false): IDatabaseAdapter => {
-      if (isRead === false || readAdapters.length === 0) {
-        return writeAdapter;
-      }
-      const adapter = readAdapters[readIndex];
-      if (adapter === undefined) return writeAdapter;
-      readIndex = (readIndex + 1) % readAdapters.length;
-      return adapter;
-    };
-
-    const connectionHandlers = createConnectionHandlers(
-      writeAdapter,
-      readAdapters,
-      connected,
-      connectInFlight
-    );
-
-    // Create temporary handlers with db as undefined, then update after db is created
-    let queryHandlers = createQueryHandlers(
-      writeAdapter,
-      readAdapters,
-      eventEmitter,
-      connected,
-      {} as IDatabase,
-      getAdapter
-    );
-
-    const db: IDatabase = {
-      connect: connectionHandlers.connect,
-      disconnect: connectionHandlers.disconnect,
-      isConnected() {
-        return connected.value;
-      },
-      query: queryHandlers.query,
-      queryOne: queryHandlers.queryOne,
-      transaction: queryHandlers.transaction,
-      table(name) {
-        return QueryBuilder.create(name, db);
-      },
-      onBeforeQuery: (h) => eventEmitter.on('before-query', h),
-      onAfterQuery: (h) => eventEmitter.on('after-query', h),
-      offBeforeQuery: (h) => eventEmitter.off('before-query', h),
-      offAfterQuery: (h) => eventEmitter.off('after-query', h),
-      getAdapterInstance(isRead = false) {
-        return getAdapter(isRead);
-      },
-      getType() {
-        return writeAdapter.getType();
-      },
-      getConfig() {
-        return { ...dbConfig };
-      },
-      dispose() {
-        // Clean up event listeners to prevent memory leaks
-        for (const cleanup of cleanupFunctions) {
-          cleanup();
-        }
-        cleanupFunctions.length = 0;
-      },
-    };
-
-    // Update handlers with actual db reference for circular dependency
-    queryHandlers = createQueryHandlers(
-      writeAdapter,
-      readAdapters,
-      eventEmitter,
-      connected,
-      db,
-      getAdapter
-    );
-    db.query = queryHandlers.query;
-    db.queryOne = queryHandlers.queryOne;
-    db.transaction = queryHandlers.transaction;
-
-    return db;
+    return createDatabaseInstance(dbConfig);
   },
 });
 

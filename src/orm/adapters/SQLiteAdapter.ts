@@ -14,7 +14,7 @@ import { performance } from '@node-singletons/perf-hooks';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
-type SqliteRunInfo = { changes: number };
+type SqliteRunInfo = { changes: number; lastInsertRowid: number | bigint };
 type SqliteStatement = {
   all: (params?: readonly unknown[]) => unknown[];
   run: (params?: readonly unknown[]) => SqliteRunInfo;
@@ -115,7 +115,7 @@ function executeQuery(
   if (databaseConfig.logging.enabled) {
     Logger.debug('SQLite query executed', { durationMs: performance.now() - start, sql });
   }
-  return { rows: [], rowCount: info.changes };
+  return { rows: [], rowCount: info.changes, lastInsertId: info.lastInsertRowid };
 }
 
 function executeRawQuery<T>(db: SqliteDatabase, sql: string, parameters: readonly unknown[]): T[] {

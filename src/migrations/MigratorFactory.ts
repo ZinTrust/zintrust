@@ -306,8 +306,28 @@ async function applyPendingMigrations(
 
   const pending = migrations.filter((m) => {
     const target = getTargetForMigration(ctx, m);
-    const row = appliedByTarget.get(keyForTarget(target))?.get(m.name);
-    return row?.status !== 'completed';
+    const appliedMap = appliedByTarget.get(keyForTarget(target));
+    const row = appliedMap?.get(m.name);
+
+    if (row?.status === 'completed') return false;
+
+    // Check for collision with existing migrations (same identifying suffix)
+    // This allows multiple projects to share a DB without re-running shared migrations
+    // Use \d+ to support variable timestamp length (default 14, but robust to 15+)
+    const match = new RegExp(/^(\d{14,})(_.+)$/).exec(m.name);
+    if (match && appliedMap) {
+      const suffix = match[2];
+      for (const appliedName of appliedMap.keys()) {
+        if (appliedName !== m.name && appliedName.endsWith(suffix)) {
+          Logger.info(
+            `Skipping migration '${m.name}' — migration '${appliedName}' with the same suffix ('${suffix}') has already been applied`
+          );
+          return false;
+        }
+      }
+    }
+
+    return true;
   });
   if (pending.length === 0) return { applied: 0, pending: 0, appliedNames: [] };
 
