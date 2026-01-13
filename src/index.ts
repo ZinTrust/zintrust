@@ -378,5 +378,9 @@ export { RuntimeDetector } from '@/runtime/RuntimeDetector';
 export { PluginManager } from '@/runtime/PluginManager';
 export { PluginRegistry } from '@/runtime/PluginRegistry';
 
+export { nowIso } from '@common/utility';
+export type { SanitizerError } from '@exceptions/ZintrustError';
+export { randomBytes } from '@node-singletons/crypto';
+
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

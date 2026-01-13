@@ -36,6 +36,7 @@ export default defineConfig({
       '@cli': path.resolve(__dirname, './src/cli'),
       '@boot': path.resolve(__dirname, './src/boot'),
       '@orm': path.resolve(__dirname, './src/orm'),
+      '@utils': path.resolve(__dirname, './src/utils'),
       '@routing': path.resolve(__dirname, './src/routing'),
       '@middleware': path.resolve(__dirname, './src/middleware'),
       '@container': path.resolve(__dirname, './src/container'),

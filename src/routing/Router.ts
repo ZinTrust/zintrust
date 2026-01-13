@@ -78,10 +78,17 @@ export const createRouter = (): IRouter => ({
  */
 const pathToRegex = (path: string): { pattern: RegExp; paramNames: string[] } => {
   const paramNames: string[] = [];
-  let regexPath = path.replaceAll(/:([a-zA-Z_]\w*)/g, (_, paramName) => {
-    paramNames.push(paramName);
-    return '([^/]+)';
-  });
+  // Supports:
+  // - :id     => single path segment (no slashes)
+  // - :path*  => greedy match (may include slashes)
+  let regexPath = path.replaceAll(
+    /:([a-zA-Z_]\w*)(\*)?/g,
+    (_full, paramName: string, star: unknown) => {
+      paramNames.push(paramName);
+      const isGreedy = star === '*';
+      return isGreedy ? '(.+)' : '([^/]+)';
+    }
+  );
 
   regexPath = `^${regexPath}$`;
   const pattern = new RegExp(regexPath);

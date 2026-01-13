@@ -5,17 +5,17 @@
 import { Logger } from '@config/logger';
 import { middlewareConfig } from '@config/middleware';
 import type { IServiceContainer } from '@container/ServiceContainer';
-import { ErrorResponse } from '@http/ErrorResponse';
-import type { IRequest} from '@http/Request';
+import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import { RequestContext, type IRequestContext } from '@http/RequestContext';
-import type { IResponse} from '@http/Response';
+import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
-import type { IMiddlewareStack, Middleware} from '@middleware/MiddlewareStack';
+import type { IMiddlewareStack, Middleware } from '@middleware/MiddlewareStack';
 import { MiddlewareStack } from '@middleware/MiddlewareStack';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
-import type { IRouter} from '@routing/Router';
+import type { IRouter } from '@routing/Router';
 import { Router } from '@routing/Router';
+import { ErrorRouting } from '@routing/error';
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';
@@ -139,7 +139,7 @@ const runKernelPipeline = async (
   if (!route) {
     const routeLabel = 'not_found';
     maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
-    res.setStatus(404).json(ErrorResponse.notFound('Route', context.requestId));
+    ErrorRouting.handleNotFound(req, res, context.requestId);
     return routeLabel;
   }
 
@@ -271,9 +271,7 @@ const createHandleRequest = (
       thrown = error;
       Logger.error('Kernel error:', error as Error);
       if (!isWritableEnded(res)) {
-        res
-          .setStatus(500)
-          .json(ErrorResponse.internalServerError('Internal server error', context.requestId));
+        ErrorRouting.handleInternalServerErrorWithWrappers(req, res, error, context.requestId);
       }
     } finally {
       finalizeKernelObservability(context, res, routeLabel, thrown, traceSpan);

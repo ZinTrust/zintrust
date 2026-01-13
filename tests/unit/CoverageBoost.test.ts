@@ -6,9 +6,9 @@ import { Server } from '@boot/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';
-import type { IRequest} from '@http/Request';
+import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
-import type { IResponse} from '@http/Response';
+import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
 import { fs } from '@node-singletons';
 import * as path from '@node-singletons/path';
@@ -97,6 +97,7 @@ describe('Application & Server', () => {
 
   it('should handle server requests and static files', async () => {
     const app = Application.create('/tmp');
+    await app.boot();
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
@@ -152,6 +153,7 @@ describe('Application & Server', () => {
 
   it('should handle 404 for unknown static files', async () => {
     const app = Application.create('/tmp');
+    await app.boot();
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
@@ -166,7 +168,7 @@ describe('Application & Server', () => {
     } as any;
 
     await httpRequestHandler?.(mockReq, mockRes);
-    expect(mockRes.end).toHaveBeenCalledWith(expect.stringContaining('Not Found'));
+    expect(mockRes.end).toHaveBeenCalledWith(expect.stringContaining('not found'));
   });
 
   it('should handle server errors', async () => {
@@ -184,6 +186,7 @@ describe('Application & Server', () => {
 
   it('should handle static file serving variations', async () => {
     const app = Application.create('/tmp');
+    await app.boot();
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
@@ -224,6 +227,7 @@ describe('Application & Server', () => {
 
   it('should resolve clean URLs to .html files', async () => {
     const app = Application.create('/tmp');
+    await app.boot();
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
@@ -236,7 +240,8 @@ describe('Application & Server', () => {
     });
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
 
-    const mockReq = { url: '/clean-url', method: 'GET', headers: {}, on: vi.fn() } as any;
+    // /doc/clean-url handled in Server.ts handleNotFound via doc.ts utilities
+    const mockReq = { url: '/doc/clean-url', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),
       writeHead: vi.fn(),
@@ -250,6 +255,7 @@ describe('Application & Server', () => {
 
   it('should return false when clean URL has no matching .html', async () => {
     const app = Application.create('/tmp');
+    await app.boot();
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
@@ -263,11 +269,12 @@ describe('Application & Server', () => {
     } as any;
 
     await httpRequestHandler?.(mockReq, mockRes);
-    expect(mockRes.end).toHaveBeenCalledWith(expect.stringContaining('Not Found'));
+    expect(mockRes.end).toHaveBeenCalledWith(expect.stringContaining('not found'));
   });
 
   it('should serve directory index.html', async () => {
     const app = Application.create('/tmp');
+    await app.boot();
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
@@ -281,6 +288,7 @@ describe('Application & Server', () => {
     } as any);
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
 
+    // /doc handled in Server.ts handleNotFound via doc.ts utilities
     const mockReq = { url: '/doc', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),

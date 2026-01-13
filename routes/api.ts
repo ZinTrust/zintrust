@@ -3,6 +3,8 @@
  * Demonstrates routing patterns
  */
 
+import type { IRequest } from '@/http/Request';
+import type { IResponse } from '@/http/Response';
 import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
@@ -35,7 +37,7 @@ function registerPublicRoutes(router: IRouter): void {
 }
 
 function registerRootRoute(router: IRouter): void {
-  Router.get(router, '/', async (_req, res) => {
+  Router.get(router, '/', async (_req: IRequest, res: IResponse) => {
     res.json({
       framework: 'Zintrust Framework',
       app_name: Env.APP_NAME,
@@ -54,7 +56,7 @@ function registerApiV1Routes(
   authController: ReturnType<typeof AuthController.create>,
   userController: ReturnType<typeof UserQueryBuilderController.create>
 ): void {
-  Router.group(router, '/api/v1', (r) => {
+  Router.group(router, '/api/v1', (r: IRouter) => {
     // Auth routes
     Router.post<MiddlewareKey>(r, '/auth/login', authController.login, {
       middleware: ['authRateLimit', 'validateLogin'],
@@ -109,7 +111,7 @@ function registerApiV1Routes(
     Router.get<MiddlewareKey>(
       pr,
       '/profile',
-      async (_req, res) => {
+      async (__req: IRequest, res: IResponse) => {
         res.json({ message: 'Get user profile' });
       },
       { middleware: ['auth', 'jwt'] }
@@ -118,18 +120,18 @@ function registerApiV1Routes(
     Router.put<MiddlewareKey>(
       pr,
       '/profile',
-      async (_req, res) => {
+      async (__req: IRequest, res: IResponse) => {
         res.json({ message: 'Update user profile' });
       },
       { middleware: ['auth', 'jwt'] }
     );
 
     // Posts resource
-    Router.get(r, '/posts', async (_req, res) => {
+    Router.get(r, '/posts', async (_req: IRequest, res: IResponse) => {
       res.json({ data: [] });
     });
 
-    Router.get(r, '/posts/:id', async (req, res) => {
+    Router.get(r, '/posts/:id', async (req: IRequest, res: IResponse) => {
       const id = req.getParam('id');
       res.json({ data: { id } });
     });
@@ -141,11 +143,11 @@ function registerApiV1Routes(
  */
 function registerAdminRoutes(router: IRouter): void {
   Router.group(router, '/admin', (r) => {
-    Router.get(r, '/dashboard', async (_req, res) => {
+    Router.get(r, '/dashboard', async (__req: IRequest, res: IResponse) => {
       res.json({ message: 'Admin dashboard' });
     });
 
-    Router.get(r, '/users', async (_req, res) => {
+    Router.get(r, '/users', async (__req: IRequest, res: IResponse) => {
       res.json({ data: [] });
     });
   });
