@@ -1,5 +1,4 @@
 import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
-import { Logger } from '@config/logger';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -300,7 +299,6 @@ function createSharedMiddlewares(
 export function createMiddlewareConfig(): MiddlewareConfigType {
   const loadMiddlewareConfig: Partial<MiddlewaresType> =
     StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
-  Logger.debug('loadMiddlewareConfig :', loadMiddlewareConfig.skipPaths);
 
   const shared = createSharedMiddlewares(loadMiddlewareConfig);
 

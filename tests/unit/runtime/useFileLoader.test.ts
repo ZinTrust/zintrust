@@ -80,4 +80,59 @@ describe('useFileLoader', () => {
       expect(error).toMatchObject({ code: 'SECURITY_ERROR' });
     }
   });
+
+  it('rejects empty or whitespace-only paths', () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-file-loader-'));
+    process.env['ZINTRUST_PROJECT_ROOT'] = tempRoot;
+
+    try {
+      useFileLoader('   ');
+      throw new Error('Expected useFileLoader() to throw');
+    } catch (error: unknown) {
+      expect(error).toMatchObject({ code: 'CONFIG_ERROR' });
+    }
+  });
+
+  it('rejects paths containing null bytes', () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-file-loader-'));
+    process.env['ZINTRUST_PROJECT_ROOT'] = tempRoot;
+
+    try {
+      useFileLoader('config/bad\u0000path.mjs');
+      throw new Error('Expected useFileLoader() to throw');
+    } catch (error: unknown) {
+      expect(error).toMatchObject({ code: 'SECURITY_ERROR' });
+    }
+  });
+
+  it('exposes deterministic candidate resolution and path() fallback', () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-file-loader-'));
+    process.env['ZINTRUST_PROJECT_ROOT'] = tempRoot;
+
+    const loader = useFileLoader('config/foo');
+    const candidates = loader.candidates();
+
+    expect(candidates).toContain(path.resolve(tempRoot, 'config/foo.ts'));
+    expect(candidates).toContain(path.resolve(tempRoot, 'config/foo.js'));
+    expect(candidates).toContain(path.resolve(tempRoot, 'config/foo.mjs'));
+
+    // When nothing exists on disk, we still resolve to the first candidate.
+    expect(loader.path()).toBe(candidates[0]);
+    expect(loader.exists()).toBe(false);
+  });
+
+  it('wraps ESM import failures with TRY_CATCH_ERROR', async () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-file-loader-'));
+    process.env['ZINTRUST_PROJECT_ROOT'] = tempRoot;
+
+    const configDir = path.join(tempRoot, 'config');
+    fs.mkdirSync(configDir, { recursive: true });
+
+    const bad = path.join(configDir, 'throws.mjs');
+    fs.writeFileSync(bad, "throw new Error('boom')\n", 'utf-8');
+
+    await expect(useFileLoader('config/throws.mjs').get()).rejects.toMatchObject({
+      code: 'TRY_CATCH_ERROR',
+    });
+  });
 });

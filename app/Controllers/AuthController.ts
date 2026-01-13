@@ -11,8 +11,6 @@ import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { getValidatedBody } from '@http/ValidationHelper';
-import { useDatabase } from '@orm/Database';
-import { QueryBuilder } from '@orm/QueryBuilder';
 import { JwtManager } from '@security/JwtManager';
 import { TokenRevocation } from '@security/TokenRevocation';
 
@@ -129,12 +127,7 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = useDatabase();
-
-    const existing = await QueryBuilder.create('users', db)
-      .where('email', '=', email)
-      .limit(1)
-      .first<UserRow>();
+    const existing = await User.where('email', '=', email).limit(1).first<UserRow>();
 
     if (existing !== null) {
       Logger.warn('AuthController.register: duplicate email attempt', {
@@ -148,19 +141,23 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
 
     const passwordHash = await Auth.hash(password);
 
-    await QueryBuilder.create('users', db).insert({
+    const result = await User.query().insert({
       name,
       email,
       password: passwordHash,
     });
 
-    Logger.info('AuthController.register: successful registration', {
-      email,
-      ip: ipAddress,
-      timestamp: new Date().toISOString(),
-    });
+    if (result.id !== null && result.id !== undefined) {
+      Logger.info('AuthController.register: successful registration', {
+        email,
+        ip: ipAddress,
+        timestamp: new Date().toISOString(),
+      });
 
-    res.setStatus(201).json({ message: 'Registered' });
+      res.setStatus(201).json({ message: 'Registered' });
+    } else {
+      Logger.error('Failed to retrieve inserted user ID');
+    }
   } catch (error) {
     Logger.error('AuthController.register failed', error);
     res.setStatus(500).json({ error: 'Registration failed' });
