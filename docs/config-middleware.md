@@ -36,7 +36,7 @@ const shared = Object.freeze({
     // Optional: bypass CSRF for path patterns (simple `*` glob), e.g. ['/api/*'].
     skipPaths: [],
   }),
-} satisfies Record<string, Middleware>);
+} satisfies Record\<string, Middleware>);
 
 const middlewareConfigObj: MiddlewareConfigType = {
   global: [shared.log, shared.error, shared.security, shared.rateLimit, shared.csrf],
@@ -84,7 +84,7 @@ const shared = Object.freeze({
   security: SecurityMiddleware.create(),
   rateLimit: RateLimiter.create(),
   csrf: CsrfMiddleware.create(),
-} satisfies Record<string, Middleware>);
+} satisfies Record\<string, Middleware>);
 
 const middlewareConfigObj: MiddlewareConfigType = {
   global: [shared.log, shared.error, shared.security, shared.rateLimit, shared.csrf],

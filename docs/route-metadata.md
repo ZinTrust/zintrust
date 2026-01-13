@@ -174,7 +174,7 @@ Router.post(
 ```ts
 import { Schema } from '@zintrust/core';
 
-const userSchema = Schema.typed<{
+const userSchema = Schema.typed\<{
   name: string;
   email: string;
   role: 'user' | 'admin';
@@ -451,7 +451,7 @@ meta: {
 
 ```ts
 // Define once
-const userCreateSchema = Schema.typed<UserCreate>()
+const userCreateSchema = Schema.typed\<UserCreate>()
   .required('email')
   .email('email')
   .required('password')

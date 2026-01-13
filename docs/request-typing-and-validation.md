@@ -28,14 +28,14 @@ They are related, but separate:
 
 ## Schema building blocks
 
-Create a schema with `Schema.create()` (untyped) or `Schema.typed<T>()` (typed):
+Create a schema with `Schema.create()` (untyped) or `Schema.typed\<T>()` (typed):
 
 ```ts
 import { Schema } from '@zintrust/core';
 
 type RegisterBody = { name: string; email: string; password: string };
 
-export const registerBodySchema = Schema.typed<RegisterBody>()
+export const registerBodySchema = Schema.typed\<RegisterBody>()
   .required('name')
   .string('name')
   .minLength('name', 1)
@@ -49,7 +49,7 @@ export const registerBodySchema = Schema.typed<RegisterBody>()
 Notes:
 
 - Schemas are **field-rule** based (e.g. `required`, `string`, `email`, `minLength`).
-- `Schema.typed<T>()` does not auto-generate rules from `T`. It just attaches a compile-time “shape” to the schema so middleware can infer `req.validated.*` types.
+- `Schema.typed\<T>()` does not auto-generate rules from `T`. It just attaches a compile-time “shape” to the schema so middleware can infer `req.validated.*` types.
 
 ## Enforcement with ValidationMiddleware
 
@@ -89,7 +89,7 @@ This means:
 
 ## Typed validated access in handlers
 
-The request type includes a `ValidatedRequest<TBody, TQuery, TParams, THeaders>` helper type.
+The request type includes a `ValidatedRequest\<TBody, TQuery, TParams, THeaders>` helper type.
 
 If your route ensures the validations ran, you can type your handler accordingly.
 
@@ -101,16 +101,16 @@ import type { ValidatedRequest, IResponse } from '@zintrust/core';
 type RegisterBody = { name: string; email: string; password: string };
 
 export async function registerHandler(
-  req: ValidatedRequest<RegisterBody>,
+  req: ValidatedRequest\<RegisterBody>,
   res: IResponse
-): Promise<void> {
+): Promise\<void> {
   const { email, password, name } = req.validated.body;
   // ...
   res.json({ ok: true });
 }
 ```
 
-Important: `ValidatedRequest<...>` is a TypeScript type only. You must ensure middleware actually sets the validated fields before using it.
+Important: `ValidatedRequest\<...>` is a TypeScript type only. You must ensure middleware actually sets the validated fields before using it.
 
 ## Recommended runtime-safe access (no casting)
 
@@ -119,8 +119,8 @@ If you want a simple guard without casting `ValidatedRequest`, use the core help
 ```ts
 import { getValidatedBody, type IRequest, type IResponse, getString } from '@zintrust/core';
 
-export async function registerHandler(req: IRequest, res: IResponse): Promise<void> {
-  const body = getValidatedBody<Record<string, unknown>>(req);
+export async function registerHandler(req: IRequest, res: IResponse): Promise\<void> {
+  const body = getValidatedBody\<Record\<string, unknown>>(req);
   if (!body) {
     return res.status(500).json({ error: 'Internal server error' });
   }
@@ -179,4 +179,4 @@ Keep in mind:
 
 - `Validator.validate(data, schema)` throws a structured validation error (see `src/validation/ValidationError.ts`).
 - `Validator.isValid(data, schema)` returns boolean and logs errors (useful in some internal flows, less ideal for HTTP).
-- Query parsing yields `Record<string, string | string[]>`; validate and then read `req.validated.query` for normalized access.
+- Query parsing yields `Record\<string, string | string[]>`; validate and then read `req.validated.query` for normalized access.

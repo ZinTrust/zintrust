@@ -5,8 +5,8 @@
 - `zin new <name>`: Create a new project
 - `zin add <type> [name]`: Add a component to existing project
 - `zin create migration <model>`: Create a create-table migration (same as `zin cm <model>`)
-- `zin cm <model>`: Shortcut: create-table migration (creates `create_<models>_table`)
-- `zin am <column> <model>`: Shortcut: add-column migration (creates `add_<column>_<models>_table`)
+- `zin cm <model>`: Shortcut: create-table migration (creates `create_\<models>_table`)
+- `zin am <column> <model>`: Shortcut: add-column migration (creates `add_\<column>_\<models>_table`)
 - `zin prepare`: Prepare local dist/ for file: installs (dev workflow)
 - `zin migrate`: Run database migrations
 - `zin d1:migrate`: Run Cloudflare D1 migrations

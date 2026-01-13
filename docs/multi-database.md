@@ -266,7 +266,7 @@ import { useDatabase } from '@zintrust/core';
 import { QueryBuilder } from '@zintrust/core';
 
 export const ReportController = {
-  async getUserMetrics(req: IRequest, res: IResponse): Promise<void> {
+  async getUserMetrics(req: IRequest, res: IResponse): Promise\<void> {
     try {
       // Get specific database connection
       const analyticsDb = await useEnsureDbConnected(undefined, 'analytics');
@@ -294,7 +294,7 @@ export const ReportController = {
 import { query } from '@zintrust/core';
 
 export const ShardController = {
-  async getUserFromShard(req: IRequest, res: IResponse): Promise<void> {
+  async getUserFromShard(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const userId = req.params.id;
 
@@ -322,7 +322,7 @@ Access any configured database directly:
 import { useDatabase } from '@zintrust/core';
 
 export const CustomQueryController = {
-  async complexAnalysis(req: IRequest, res: IResponse): Promise<void> {
+  async complexAnalysis(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const analyticsDb = await useEnsureDbConnected(undefined, 'analytics');
 
@@ -370,7 +370,7 @@ export const MultiDbController = Object.freeze({
       /**
        * Create user (users_db) and log event (analytics)
        */
-      async createUserWithAnalytics(req: IRequest, res: IResponse): Promise<void> {
+      async createUserWithAnalytics(req: IRequest, res: IResponse): Promise\<void> {
         try {
           const { name, email } = req.getBody() as {
             name: string;
@@ -403,7 +403,7 @@ export const MultiDbController = Object.freeze({
       /**
        * Get user with order count from different shards
        */
-      async getUserWithOrderStats(req: IRequest, res: IResponse): Promise<void> {
+      async getUserWithOrderStats(req: IRequest, res: IResponse): Promise\<void> {
         try {
           const userId = req.params.id;
 
@@ -440,7 +440,7 @@ export const MultiDbController = Object.freeze({
       /**
        * Get analytics across multiple sources
        */
-      async getDashboard(req: IRequest, res: IResponse): Promise<void> {
+      async getDashboard(req: IRequest, res: IResponse): Promise\<void> {
         try {
           const analyticsDb = await useEnsureDbConnected(undefined, 'analytics');
 
@@ -486,7 +486,7 @@ export const MultiDbController = Object.freeze({
       /**
        * Search across multiple databases
        */
-      async globalSearch(req: IRequest, res: IResponse): Promise<void> {
+      async globalSearch(req: IRequest, res: IResponse): Promise\<void> {
         try {
           const query = req.query.q as string;
           if (!query || query.length < 3) {
@@ -583,7 +583,7 @@ import { ShardRouter } from '@utils/ShardRouter';
 import { QueryBuilder } from '@zintrust/core';
 
 export const ShardedController = {
-  async getUserFromShard(req: IRequest, res: IResponse): Promise<void> {
+  async getUserFromShard(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const userId = parseInt(req.params.id);
 
@@ -603,7 +603,7 @@ export const ShardedController = {
     }
   },
 
-  async createOrderInShard(req: IRequest, res: IResponse): Promise<void> {
+  async createOrderInShard(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const { user_id, total_amount } = req.getBody() as {
         user_id: number;
@@ -645,7 +645,7 @@ export const CrossDbService = Object.freeze({
     userId: number,
     fromConnection: string,
     toConnection: string
-  ): Promise<void> {
+  ): Promise\<void> {
     const fromDb = await useEnsureDbConnected(undefined, fromConnection);
     const toDb = await useEnsureDbConnected(undefined, toConnection);
 
@@ -679,7 +679,7 @@ export const CrossDbService = Object.freeze({
   /**
    * Sync data between databases
    */
-  async syncUserDataToAnalytics(userId: number): Promise<void> {
+  async syncUserDataToAnalytics(userId: number): Promise\<void> {
     const mainDb = await useEnsureDbConnected(undefined, 'postgresql');
     const analyticsDb = await useEnsureDbConnected(undefined, 'analytics');
 
@@ -721,7 +721,7 @@ export const ResilientController = {
   /**
    * Try primary database, fallback to replica
    */
-  async getUserResilient(req: IRequest, res: IResponse): Promise<void> {
+  async getUserResilient(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const userId = req.params.id;
 
@@ -789,7 +789,7 @@ const connections = {
 
 ```typescript
 export const PerformanceController = {
-  async getAnalytics(req: IRequest, res: IResponse): Promise<void> {
+  async getAnalytics(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const db = await useEnsureDbConnected();
 
@@ -875,7 +875,7 @@ export const User = Model.define(
 
 ```typescript
 export const SafeController = {
-  async getUser(req: IRequest, res: IResponse): Promise<void> {
+  async getUser(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const user = await User.find(req.params.id);
       res.json({ data: user });
@@ -909,12 +909,12 @@ export const TransactionController = {
   /**
    * When writing to multiple databases, use transactions per database
    */
-  async createUserWithOrders(req: IRequest, res: IResponse): Promise<void> {
+  async createUserWithOrders(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const { name, email, orders } = req.getBody() as {
         name: string;
         email: string;
-        orders: Array<{ product_id: number; quantity: number }>;
+        orders: Array\<{ product_id: number; quantity: number }>;
       };
 
       // Transaction 1: User creation
@@ -954,7 +954,7 @@ export const TransactionController = {
 import { Logger } from '@zintrust/core';
 
 export const HealthController = {
-  async checkDatabaseHealth(req: IRequest, res: IResponse): Promise<void> {
+  async checkDatabaseHealth(req: IRequest, res: IResponse): Promise\<void> {
     try {
       const mainDb = await useEnsureDbConnected(undefined, 'postgresql');
       const analyticsDb = await useEnsureDbConnected(undefined, 'analytics');

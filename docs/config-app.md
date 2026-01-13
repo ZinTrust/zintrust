@@ -66,7 +66,7 @@ const readEnvBool = (key: string, defaultValue: boolean): boolean => {
 };
 
 const getSafeEnv = (): NodeJS.ProcessEnv => {
-  const baseEnv: Partial<NodeJS.ProcessEnv> = typeof process === 'undefined' ? {} : process.env;
+  const baseEnv: Partial\<NodeJS.ProcessEnv> = typeof process === 'undefined' ? {} : process.env;
 
   return {
     ...(baseEnv as NodeJS.ProcessEnv),

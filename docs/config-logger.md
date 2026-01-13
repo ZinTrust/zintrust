@@ -38,7 +38,7 @@ const isProduction = (): boolean => appConfig.isProduction();
 const getLogFormat = (): string => Env.get('LOG_FORMAT', 'text');
 const isJsonFormat = (value: unknown): value is 'json' => value === 'json';
 
-const SENSITIVE_FIELDS = new Set<string>([
+const SENSITIVE_FIELDS = new Set\<string>([
   'password',
   'token',
   'authorization',
@@ -50,7 +50,7 @@ const SENSITIVE_FIELDS = new Set<string>([
 ]);
 
 const redactSensitiveData = (data: unknown): unknown => {
-  const seen = new WeakSet<object>();
+  const seen = new WeakSet\<object>();
 
   const walk = (value: unknown): unknown => {
     if (Array.isArray(value)) {
@@ -60,11 +60,11 @@ const redactSensitiveData = (data: unknown): unknown => {
     }
 
     if (typeof value === 'object' && value !== null) {
-      const asObj = value as Record<string, unknown>;
+      const asObj = value as Record\<string, unknown>;
       if (seen.has(asObj)) return '[Circular]';
       seen.add(asObj);
 
-      const out: Record<string, unknown> = {};
+      const out: Record\<string, unknown> = {};
       for (const [key, inner] of Object.entries(asObj)) {
         if (SENSITIVE_FIELDS.has(key.toLowerCase())) {
           out[key] = '[REDACTED]';
@@ -82,7 +82,7 @@ const redactSensitiveData = (data: unknown): unknown => {
 };
 
 const safeStringify = (obj: unknown, indent: boolean = false): string => {
-  const seen = new WeakSet<object>();
+  const seen = new WeakSet\<object>();
   return JSON.stringify(
     obj,
     (_key: string, value: unknown) => {
@@ -125,7 +125,7 @@ const createLoggerScope = (scope: string): ILogger => {
 };
 
 // Expose log cleanup API and sealed namespace with all logger functionality
-export const cleanLogsOnce = async (): Promise<string[]> => {
+export const cleanLogsOnce = async (): Promise\<string[]> => {
   if (!shouldLogToFile()) return [];
 
   try {

@@ -254,7 +254,7 @@ Use try-catch to handle `SanitizerError` and convert to 422 validation responses
 import { Sanitizer } from '@security/Sanitizer';
 import { SanitizerError } from '@exceptions/ZintrustError';
 
-async show(req: IRequest, res: IResponse): Promise<void> {
+async show(req: IRequest, res: IResponse): Promise\<void> {
   try {
     const rawId = req.getParam('id');
     const id = Sanitizer.digitsOnly(rawId);  // Throws on invalid

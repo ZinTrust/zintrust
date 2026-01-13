@@ -110,7 +110,7 @@ import { QueryLogger } from '@zintrust/core';
 
 const queryLogger = QueryLogger.getInstance();
 
-async function queryWithLogging<T>(sql: string, params: unknown[], run: () => Promise<T>) {
+async function queryWithLogging\<T>(sql: string, params: unknown[], run: () => Promise\<T>) {
   const start = Date.now();
   const result = await run();
   const duration = Date.now() - start;

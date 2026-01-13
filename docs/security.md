@@ -44,13 +44,13 @@ export interface IQueryBuilder {
   whereNotNull(column: string): IQueryBuilder;
   orWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
   select(...columns: string[]): IQueryBuilder;
-  get(): Promise<Record<string, unknown>[]>;
-  first(): Promise<Record<string, unknown> | null>;
-  count(): Promise<number>;
-  pluck(column: string): Promise<unknown[]>;
-  insert(data: Record<string, unknown>): Promise<number>;
-  update(data: Record<string, unknown>): Promise<number>;
-  delete(): Promise<number>;
+  get(): Promise\<Record\<string, unknown>[]>;
+  first(): Promise\<Record\<string, unknown> | null>;
+  count(): Promise\<number>;
+  pluck(column: string): Promise\<unknown[]>;
+  insert(data: Record\<string, unknown>): Promise\<number>;
+  update(data: Record\<string, unknown>): Promise\<number>;
+  delete(): Promise\<number>;
 }
 ```
 
@@ -141,9 +141,9 @@ const matches = await Hash.check(password, hashedPassword);
 ```typescript
 export interface IHash {
   isValidHash(hash: string): boolean;
-  hash(plaintext: string): Promise<string>;
-  hashWithRounds(plaintext: string, rounds: number): Promise<string>;
-  verify(plaintext: string, hashed: string): Promise<boolean>;
+  hash(plaintext: string): Promise\<string>;
+  hashWithRounds(plaintext: string, rounds: number): Promise\<string>;
+  verify(plaintext: string, hashed: string): Promise\<boolean>;
 }
 ```
 
@@ -188,7 +188,7 @@ Use this for normalizing identifiers, cleaning phone numbers, and reducing unexp
 ### Interface Reference
 
 ```typescript
-export type SanitizerType = Readonly<{
+export type SanitizerType = Readonly\<{
   parseAmount: (value: unknown) => number;
   alphanumeric: (value: unknown) => string;
   alphanumericDotDash: (value: unknown) => string;

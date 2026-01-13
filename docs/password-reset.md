@@ -58,11 +58,11 @@ The broker is only as correct as its store. A store must implement:
 
 ```ts
 export interface IPasswordResetTokenStore {
-  set(record): void | Promise<void>;
-  get(identifier): record | null | Promise<record | null>;
-  delete(identifier): void | Promise<void>;
-  cleanup?(now?: Date): number | Promise<number>;
-  clear?(): void | Promise<void>;
+  set(record): void | Promise\<void>;
+  get(identifier): record | null | Promise\<record | null>;
+  delete(identifier): void | Promise\<void>;
+  cleanup?(now?: Date): number | Promise\<number>;
+  clear?(): void | Promise\<void>;
 }
 ```
 

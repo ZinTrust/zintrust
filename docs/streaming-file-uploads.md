@@ -375,7 +375,7 @@ interface UploadedFile {
   stream?: () => Readable;
 
   /** Clean up temp file (always call this) */
-  cleanup?: () => Promise<void>;
+  cleanup?: () => Promise\<void>;
 }
 ```
 
@@ -811,8 +811,8 @@ You can implement a custom parser (e.g., for S3 direct upload):
 import { MultipartParserRegistry, type MultipartParserProvider } from '@zintrust/core';
 
 const customParser: MultipartParserProvider = async (input) => {
-  const fields: Record<string, string | string[]> = {};
-  const files: Record<string, UploadedFile[]> = {};
+  const fields: Record\<string, string | string[]> = {};
+  const files: Record\<string, UploadedFile[]> = {};
 
   // Your custom parsing logic...
   // - Stream to S3

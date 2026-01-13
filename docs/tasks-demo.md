@@ -95,7 +95,7 @@ Important:
 ```ts
 import { Env, useDatabase, type DatabaseConfig } from '@zintrust/core';
 
-export async function initDatabases(): Promise<void> {
+export async function initDatabases(): Promise\<void> {
   // auth DB (SQLite)
   const authCfg: DatabaseConfig = {
     driver: 'sqlite',

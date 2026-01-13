@@ -38,7 +38,7 @@ export type KvLogEvent = {
   error?: string;
 };
 
-type KVNamespace = NonNullable<ReturnType<typeof Cloudflare.getKVBinding>>;
+type KVNamespace = NonNullable\<ReturnType\<typeof Cloudflare.getKVBinding>>;
 
 type PutOptions = { expiration?: number; expirationTtl?: number; metadata?: unknown };
 
@@ -81,10 +81,10 @@ const buildKey = (timestampIso: string): string => {
 };
 
 let buffer: KvLogEvent[] = [];
-let flushTimer: ReturnType<typeof setTimeout> | undefined;
-let flushPromise: Promise<void> | undefined;
+let flushTimer: ReturnType\<typeof setTimeout> | undefined;
+let flushPromise: Promise\<void> | undefined;
 
-const scheduleFlush = async (): Promise<void> => {
+const scheduleFlush = async (): Promise\<void> => {
   if (flushPromise !== undefined) return flushPromise;
 ```
 
@@ -94,7 +94,7 @@ const scheduleFlush = async (): Promise<void> => {
   await kv.put(key, payload, opts);
 };
 
-const flushNow = async (): Promise<void> => {
+const flushNow = async (): Promise\<void> => {
   if (!isEnabled()) {
     buffer = [];
     return;
@@ -116,7 +116,7 @@ const flushNow = async (): Promise<void> => {
   }
 };
 
-const flushSoon = async (): Promise<void> => {
+const flushSoon = async (): Promise\<void> => {
   if (flushPromise !== undefined) return flushPromise;
 
   flushPromise = Promise.resolve()
@@ -129,7 +129,7 @@ const flushSoon = async (): Promise<void> => {
 };
 
 export const KvLogger = Object.freeze({
-  async enqueue(event: KvLogEvent): Promise<void> {
+  async enqueue(event: KvLogEvent): Promise\<void> {
     if (!isEnabled()) return Promise.resolve();
 
     buffer.push(event);

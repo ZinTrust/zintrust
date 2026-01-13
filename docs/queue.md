@@ -14,11 +14,11 @@ API (Queue):
 
 Driver interface:
 
-- `enqueue(queue, payload): Promise<string>`
-- `dequeue(queue): Promise<QueueMessage | undefined>`
-- `ack(queue, id): Promise<void>`
-- `length(queue): Promise<number>`
-- `drain(queue): Promise<void>`
+- `enqueue(queue, payload): Promise\<string>`
+- `dequeue(queue): Promise\<QueueMessage | undefined>`
+- `ack(queue, id): Promise\<void>`
+- `length(queue): Promise\<number>`
+- `drain(queue): Promise\<void>`
 
 Notes:
 

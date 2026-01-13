@@ -30,7 +30,7 @@ export interface ISchema {
   url(field: string, message?: string): ISchema;
   phone(field: string, message?: string): ISchema;
   date(field: string, message?: string): ISchema;
-  getRules(): Map<string, ValidationRule[]>;
+  getRules(): Map\<string, ValidationRule[]>;
 }
 ```
 
@@ -49,7 +49,7 @@ const schema = Schema.create()
   .min('age', 18);
 
 // Throws a ValidationError when invalid
-Validator.validate(req.body as Record<string, unknown>, schema);
+Validator.validate(req.body as Record\<string, unknown>, schema);
 ```
 
 ## Non-throwing Validation
@@ -60,7 +60,7 @@ Use `Validator.isValid()` when you prefer a boolean result:
 import { Schema, Validator } from '@zintrust/core';
 
 const schema = Schema.create().required('email').email('email');
-const ok = Validator.isValid(req.body as Record<string, unknown>, schema);
+const ok = Validator.isValid(req.body as Record\<string, unknown>, schema);
 ```
 
 ## Available Schema Rules
@@ -90,7 +90,7 @@ const rules = {
   age: 'integer|min:18',
 };
 
-Validator.validateRules(req.body as Record<string, unknown>, rules);
+Validator.validateRules(req.body as Record\<string, unknown>, rules);
 ```
 
 Non-throwing variant:
@@ -98,7 +98,7 @@ Non-throwing variant:
 ```typescript
 import { Validator } from '@zintrust/core';
 
-const ok = Validator.isValidRules(req.body as Record<string, unknown>, {
+const ok = Validator.isValidRules(req.body as Record\<string, unknown>, {
   email: 'required|email',
 });
 ```

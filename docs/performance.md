@@ -9,7 +9,7 @@ Use `Memoize.create(...)` to cache the results of expensive function calls.
 ```typescript
 import { Memoize } from '@zintrust/core';
 
-const getGlobalStats = async (): Promise<unknown> => {
+const getGlobalStats = async (): Promise\<unknown> => {
   // Expensive database aggregation
   return { ok: true };
 };
@@ -57,7 +57,7 @@ Use `Memoize.create(...)` to cache the results of expensive function calls.
 ```typescript
 import { Memoize } from '@zintrust/core';
 
-const getGlobalStats = async (): Promise<unknown> => {
+const getGlobalStats = async (): Promise\<unknown> => {
   // Expensive database aggregation
   return { ok: true };
 };
@@ -80,7 +80,7 @@ Use `LazyLoader` to defer loading optional or heavy dependencies until they’re
 import { LazyLoader } from '@zintrust/core';
 
 const loader = LazyLoader.create();
-const bcrypt = await loader.load<typeof import('bcrypt')>('bcrypt');
+const bcrypt = await loader.load\<typeof import('bcrypt')>('bcrypt');
 ```
 
 Notes:

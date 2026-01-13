@@ -8,10 +8,10 @@ ZinTrust provides a simple and expressive routing system to map URLs to controll
 export type IRouter = {
   routes: Route[];
   prefix: string;
-  routeIndex: Map<string, Route[]>;
+  routeIndex: Map\<string, Route[]>;
 };
 
-export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
+export type RouteHandler = (req: IRequest, res: IResponse) => Promise\<void> | void;
 
 export interface Route {
   method: string;

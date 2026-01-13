@@ -19,13 +19,13 @@ ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveR
 
 ```typescript
 export interface IModel {
-  fill(attributes: Record<string, unknown>): IModel;
+  fill(attributes: Record\<string, unknown>): IModel;
   setAttribute(key: string, value: unknown): IModel;
   getAttribute(key: string): unknown;
-  getAttributes(): Record<string, unknown>;
-  save(): Promise<boolean>;
-  delete(): Promise<boolean>;
-  toJSON(): Record<string, unknown>;
+  getAttributes(): Record\<string, unknown>;
+  save(): Promise\<boolean>;
+  delete(): Promise\<boolean>;
+  toJSON(): Record\<string, unknown>;
   isDirty(key?: string): boolean;
   getTable(): string;
   exists(): boolean;
@@ -46,20 +46,20 @@ export interface ModelConfig {
   fillable: string[];
   hidden: string[];
   timestamps: boolean;
-  casts: Record<string, string>;
+  casts: Record\<string, string>;
   softDeletes?: boolean;
-  accessors?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
-  mutators?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
-  scopes?: Record<string, (builder: IQueryBuilder, ...args: unknown[]) => IQueryBuilder>;
-  observers?: Array<{
-    saving?: (model: IModel) => void | Promise<void>;
-    saved?: (model: IModel) => void | Promise<void>;
-    creating?: (model: IModel) => void | Promise<void>;
-    created?: (model: IModel) => void | Promise<void>;
-    updating?: (model: IModel) => void | Promise<void>;
-    updated?: (model: IModel) => void | Promise<void>;
-    deleting?: (model: IModel) => void | Promise<void>;
-    deleted?: (model: IModel) => void | Promise<void>;
+  accessors?: Record\<string, (value: unknown, attrs: Record\<string, unknown>) => unknown>;
+  mutators?: Record\<string, (value: unknown, attrs: Record\<string, unknown>) => unknown>;
+  scopes?: Record\<string, (builder: IQueryBuilder, ...args: unknown[]) => IQueryBuilder>;
+  observers?: Array\<{
+    saving?: (model: IModel) => void | Promise\<void>;
+    saved?: (model: IModel) => void | Promise\<void>;
+    creating?: (model: IModel) => void | Promise\<void>;
+    created?: (model: IModel) => void | Promise\<void>;
+    updating?: (model: IModel) => void | Promise\<void>;
+    updated?: (model: IModel) => void | Promise\<void>;
+    deleting?: (model: IModel) => void | Promise\<void>;
+    deleted?: (model: IModel) => void | Promise\<void>;
   }>;
   connection?: string;
 }

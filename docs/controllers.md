@@ -4,26 +4,43 @@ Controllers handle HTTP requests and coordinate between models, services, and re
 
 ## Table of Contents
 
-- [Creating Controllers](#creating-controllers)
-- [Controller Patterns](#controller-patterns)
-- [Using Models vs QueryBuilder](#using-models-vs-querybuilder)
-- [Authentication Controllers](#authentication-controllers)
-- [CRUD Operations](#crud-operations)
-- [Request Handling](#request-handling)
-- [Response Helpers](#response-helpers)
-- [Validation & Sanitization](#validation--sanitization)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
+- [Controllers](#controllers)
+  - [Table of Contents](#table-of-contents)
+  - [Creating Controllers](#creating-controllers)
+  - [Controller Patterns](#controller-patterns)
+    - [1. Sealed Namespace (Recommended)](#1-sealed-namespace-recommended)
+    - [2. Plain Object (Simplest)](#2-plain-object-simplest)
+    - [3. Factory with Dependency Injection](#3-factory-with-dependency-injection)
+  - [Using Models vs QueryBuilder](#using-models-vs-querybuilder)
+    - [Model-Based Approach](#model-based-approach)
+    - [QueryBuilder Approach](#querybuilder-approach)
+    - [QueryBuilder with Complex Queries](#querybuilder-with-complex-queries)
+  - [Authentication Controllers](#authentication-controllers)
+  - [CRUD Operations](#crud-operations)
+    - [RESTful CRUD Pattern](#restful-crud-pattern)
+  - [Request Handling](#request-handling)
+    - [Accessing Request Data](#accessing-request-data)
+  - [Response Helpers](#response-helpers)
+  - [Validation \& Sanitization](#validation--sanitization)
+    - [Defense-in-Depth Security](#defense-in-depth-security)
+  - [Error Handling](#error-handling)
+    - [Structured Error Handling](#structured-error-handling)
+  - [Best Practices](#best-practices)
+    - [1. Keep Controllers Thin](#1-keep-controllers-thin)
+    - [2. Use TypeScript Types](#2-use-typescript-types)
+    - [3. Input Sanitization](#3-input-sanitization)
+    - [4. Logging \& Monitoring](#4-logging--monitoring)
+  - [Summary](#summary)
 
 ## Creating Controllers
 
 Generate a new controller using the CLI:
 
-\`\`\`bash
+```bash
 zin add controller UserController
 zin add controller api/ProductController
 zin add controller admin/DashboardController
-\`\`\`
+```
 
 Controllers are stored in \`app/Controllers/\` and can be organized into subdirectories.
 
@@ -35,7 +52,7 @@ ZinTrust supports three main controller patterns:
 
 The sealed namespace pattern uses \`Object.freeze()\` with a factory function for immutability and testability:
 
-\`\`\`typescript
+```typescript
 import type { IRequest, IResponse } from '@zintrust/core';
 
 export const UserController = Object.freeze({
@@ -56,11 +73,11 @@ export const UserController = Object.freeze({
 });
 
 export default UserController;
-\`\`\`
+```
 
 ### 2. Plain Object (Simplest)
 
-\`\`\`typescript
+```typescript
 import type { IRequest, IResponse } from '@zintrust/core';
 
 export const UserController = {
@@ -74,13 +91,13 @@ export const UserController = {
 };
 
 export default UserController;
-\`\`\`
+```
 
 ### 3. Factory with Dependency Injection
 
 For controllers that need dependencies:
 
-\`\`\`typescript
+```typescript
 import type { IRequest, IResponse } from '@zintrust/core';
 import type { UserService } from '@app/Services/UserService';
 
@@ -93,12 +110,13 @@ export const createUserController = (userService: UserService) => ({
   async show(req: IRequest, res: IResponse): Promise<void> {
     const user = await userService.getUserById(req.params.id);
     if (!user) {
-      return res.setStatus(404).json({ error: 'User not found' });
+      res.setStatus(404).json({ error: 'User not found' });
+      return;
     }
     res.json({ data: user });
   },
 });
-\`\`\`
+```
 
 ## Using Models vs QueryBuilder
 
@@ -107,14 +125,16 @@ ZinTrust provides two approaches for database operations: **Model-based** (ORM) 
 ### Model-Based Approach
 
 Use models when you need:
+
 - Object-oriented data access
 - Relationships between entities
 - Model observers/hooks
 - Attribute accessors and mutators
 
-\`\`\`typescript
+```typescript
 import { User } from '@app/Models/User';
 import type { IRequest, IResponse } from '@zintrust/core';
+import { Logger } from '@config/logger';
 
 export const UserController = {
   /**
@@ -136,9 +156,10 @@ export const UserController = {
   async show(req: IRequest, res: IResponse): Promise<void> {
     try {
       const user = await User.find(req.params.id);
-      
+
       if (!user) {
-        return res.setStatus(404).json({ error: 'User not found' });
+        res.setStatus(404).json({ error: 'User not found' });
+        return;
       }
 
       res.json({ data: user });
@@ -162,9 +183,9 @@ export const UserController = {
       const user = User.create({ name, email, password });
       await user.save();
 
-      res.setStatus(201).json({ 
-        message: 'User created', 
-        data: user.toJSON() 
+      res.setStatus(201).json({
+        message: 'User created',
+        data: user.toJSON(),
       });
     } catch (error) {
       Logger.error('Error creating user:', error);
@@ -178,9 +199,10 @@ export const UserController = {
   async update(req: IRequest, res: IResponse): Promise<void> {
     try {
       const user = await User.find(req.params.id);
-      
+
       if (!user) {
-        return res.setStatus(404).json({ error: 'User not found' });
+        res.setStatus(404).json({ error: 'User not found' });
+        return;
       }
 
       const { name, email } = req.getBody() as {
@@ -190,12 +212,12 @@ export const UserController = {
 
       if (name) user.setAttribute('name', name);
       if (email) user.setAttribute('email', email);
-      
+
       await user.save();
 
-      res.json({ 
-        message: 'User updated', 
-        data: user.toJSON() 
+      res.json({
+        message: 'User updated',
+        data: user.toJSON(),
       });
     } catch (error) {
       Logger.error('Error updating user:', error);
@@ -209,9 +231,10 @@ export const UserController = {
   async destroy(req: IRequest, res: IResponse): Promise<void> {
     try {
       const user = await User.find(req.params.id);
-      
+
       if (!user) {
-        return res.setStatus(404).json({ error: 'User not found' });
+        res.setStatus(404).json({ error: 'User not found' });
+        return;
       }
 
       await user.delete();
@@ -222,12 +245,12 @@ export const UserController = {
       res.setStatus(500).json({ error: 'Failed to delete user' });
     }
   },
-};
-\`\`\`
+```
 
 ### QueryBuilder Approach
 
 Use QueryBuilder when you need:
+
 - Direct SQL control
 - Complex joins and aggregations
 - Optimal performance
@@ -235,12 +258,13 @@ Use QueryBuilder when you need:
 
 **Example from \`app/Controllers/UserQueryBuilderController.ts\`:**
 
-\`\`\`typescript
+```typescript
 import { useEnsureDbConnected } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { Sanitizer } from '@security/Sanitizer';
 import { Schema, Validator } from '@validation/Validator';
 import type { IRequest, IResponse } from '@zintrust/core';
+import { Logger } from '@config/logger';
 
 export const UserQueryBuilderController = {
   /**
@@ -249,9 +273,10 @@ export const UserQueryBuilderController = {
   async index(req: IRequest, res: IResponse): Promise<void> {
     try {
       const subject = typeof req.user?.sub === 'string' ? req.user.sub : undefined;
-      
+
       if (!subject) {
-        return res.setStatus(401).json({ error: 'Unauthorized' });
+        res.setStatus(401).json({ error: 'Unauthorized' });
+        return;
       }
 
       const db = await useEnsureDbConnected();
@@ -274,12 +299,13 @@ export const UserQueryBuilderController = {
   async show(req: IRequest, res: IResponse): Promise<void> {
     try {
       const db = await useEnsureDbConnected();
-      
+
       // Sanitize untrusted input
       const id = Sanitizer.digitsOnly(req.params.id);
-      
+
       if (!id) {
-        return res.setStatus(400).json({ error: 'Invalid user ID' });
+        res.setStatus(400).json({ error: 'Invalid user ID' });
+        return;
       }
 
       const user = await QueryBuilder.create('users', db)
@@ -289,7 +315,8 @@ export const UserQueryBuilderController = {
         .first();
 
       if (!user) {
-        return res.setStatus(404).json({ error: 'User not found' });
+        res.setStatus(404).json({ error: 'User not found' });
+        return;
       }
 
       res.json({ data: user });
@@ -299,11 +326,11 @@ export const UserQueryBuilderController = {
     }
   },
 };
-\`\`\`
+```
 
 ### QueryBuilder with Complex Queries
 
-\`\`\`typescript
+```typescript
 export const ReportController = {
   /**
    * Get sales report with aggregations
@@ -311,9 +338,13 @@ export const ReportController = {
   async salesReport(req: IRequest, res: IResponse): Promise<void> {
     try {
       const db = await useEnsureDbConnected();
-      
+
       const report = await QueryBuilder.create('orders', db)
-        .select('DATE(created_at) as date', 'COUNT(*) as total_orders', 'SUM(total_amount) as revenue')
+        .select(
+          'DATE(created_at) as date',
+          'COUNT(*) as total_orders',
+          'SUM(total_amount) as revenue'
+        )
         .where('status', '=', 'completed')
         .where('created_at', '>=', '2024-01-01')
         .groupBy('DATE(created_at)')
@@ -356,13 +387,13 @@ export const ReportController = {
     }
   },
 };
-\`\`\`
+```
 
 ## Authentication Controllers
 
 **Example from \`app/Controllers/AuthController.ts\`:**
 
-\`\`\`typescript
+```typescript
 import { Auth } from '@/features/Auth';
 import { Logger } from '@config/logger';
 import { JwtManager } from '@security/JwtManager';
@@ -401,7 +432,11 @@ export const AuthController = Object.freeze({
           const passwordValid = await Auth.compare(password, user.password as string);
 
           if (!passwordValid) {
-            Logger.warn('Failed login attempt', { email, ip: ipAddress, reason: 'invalid_password' });
+            Logger.warn('Failed login attempt', {
+              email,
+              ip: ipAddress,
+              reason: 'invalid_password',
+            });
             return res.setStatus(401).json({ error: 'Invalid credentials' });
           }
 
@@ -497,20 +532,20 @@ export const AuthController = Object.freeze({
 });
 
 export default AuthController;
-\`\`\`
+```
 
 ## CRUD Operations
 
 ### RESTful CRUD Pattern
 
-\`\`\`typescript
+```typescript
 export const ProductController = {
   /**
    * GET /products - List all products
    */
   async index(req: IRequest, res: IResponse): Promise<void> {
     const db = await useEnsureDbConnected();
-    
+
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = (page - 1) * limit;
@@ -522,9 +557,7 @@ export const ProductController = {
       .orderBy('created_at', 'DESC')
       .get();
 
-    const total = await QueryBuilder.create('products', db)
-      .count('*', 'total')
-      .first();
+    const total = await QueryBuilder.create('products', db).count('*', 'total').first();
 
     res.json({
       data: products,
@@ -542,9 +575,10 @@ export const ProductController = {
    */
   async show(req: IRequest, res: IResponse): Promise<void> {
     const product = await Product.find(req.params.id);
-    
+
     if (!product) {
-      return res.setStatus(404).json({ error: 'Product not found' });
+      res.setStatus(404).json({ error: 'Product not found' });
+      return;
     }
 
     res.json({ data: product });
@@ -557,9 +591,9 @@ export const ProductController = {
     const product = Product.create(req.getBody());
     await product.save();
 
-    res.setStatus(201).json({ 
-      message: 'Product created', 
-      data: product 
+    res.setStatus(201).json({
+      message: 'Product created',
+      data: product,
     });
   },
 
@@ -568,9 +602,10 @@ export const ProductController = {
    */
   async update(req: IRequest, res: IResponse): Promise<void> {
     const product = await Product.find(req.params.id);
-    
+
     if (!product) {
-      return res.setStatus(404).json({ error: 'Product not found' });
+      res.setStatus(404).json({ error: 'Product not found' });
+      return;
     }
 
     product.fill(req.getBody());
@@ -584,23 +619,23 @@ export const ProductController = {
    */
   async destroy(req: IRequest, res: IResponse): Promise<void> {
     const product = await Product.find(req.params.id);
-    
+
     if (!product) {
-      return res.setStatus(404).json({ error: 'Product not found' });
+      res.setStatus(404).json({ error: 'Product not found' });
+      return;
     }
 
     await product.delete();
-
     res.json({ message: 'Product deleted' });
   },
 };
-\`\`\`
+```
 
 ## Request Handling
 
 ### Accessing Request Data
 
-\`\`\`typescript
+```typescript
 export const ExampleController = {
   async handle(req: IRequest, res: IResponse): Promise<void> {
     // Get route parameters
@@ -628,11 +663,11 @@ export const ExampleController = {
     const files = req.files('documents');
   },
 };
-\`\`\`
+```
 
 ## Response Helpers
 
-\`\`\`typescript
+```typescript
 export const ExampleController = {
   async examples(req: IRequest, res: IResponse): Promise<void> {
     // JSON response
@@ -656,7 +691,7 @@ export const ExampleController = {
     res.download('/path/to/file.pdf');
   },
 };
-\`\`\`
+```
 
 ## Validation & Sanitization
 
@@ -664,7 +699,7 @@ export const ExampleController = {
 
 Always sanitize inputs, even after middleware validation:
 
-\`\`\`typescript
+```typescript
 import { Sanitizer } from '@security/Sanitizer';
 import { Schema, Validator } from '@validation/Validator';
 
@@ -714,13 +749,13 @@ export const SecureController = {
     }
   },
 };
-\`\`\`
+```
 
 ## Error Handling
 
 ### Structured Error Handling
 
-\`\`\`typescript
+```typescript
 const isValidationError = (error: unknown): error is ValidationError => {
   return error?.name === 'ValidationError' && typeof error.toObject === 'function';
 };
@@ -738,7 +773,7 @@ export const RobustController = {
       if (isSanitizerError(error)) {
         return res.setStatus(400).json({ error: error.message });
       }
-      
+
       if (isValidationError(error)) {
         return res.setStatus(422).json({ errors: error.toObject() });
       }
@@ -754,7 +789,7 @@ export const RobustController = {
     }
   },
 };
-\`\`\`
+```
 
 ## Best Practices
 
@@ -762,7 +797,7 @@ export const RobustController = {
 
 Move business logic to services:
 
-\`\`\`typescript
+```typescript
 // ❌ Fat Controller
 export const OrderController = {
   async create(req: IRequest, res: IResponse): Promise<void> {
@@ -778,11 +813,11 @@ export const OrderController = {
     res.setStatus(201).json({ data: order });
   },
 };
-\`\`\`
+```
 
 ### 2. Use TypeScript Types
 
-\`\`\`typescript
+```typescript
 interface CreateUserRequest {
   name: string;
   email: string;
@@ -802,49 +837,49 @@ export const UserController = {
     // Type-safe operations
   },
 };
-\`\`\`
+```
 
 ### 3. Input Sanitization
 
 Always sanitize route parameters and user inputs:
 
-\`\`\`typescript
+```typescript
 import { Sanitizer } from '@security/Sanitizer';
 
 export const SecureController = {
   async show(req: IRequest, res: IResponse): Promise<void> {
     // ❌ Unsafe
-    const id = req.params.id;
+    const unsafeId = req.params.id;
 
     // ✅ Safe
-    const id = Sanitizer.digitsOnly(req.params.id);
-    
+    const id = Sanitizer.digitsOnly(unsafeId);
+
     if (!id) {
       return res.setStatus(400).json({ error: 'Invalid ID' });
     }
   },
 };
-\`\`\`
+```
 
 ### 4. Logging & Monitoring
 
-\`\`\`typescript
+```typescript
 import { Logger } from '@config/logger';
 
 export const MonitoredController = {
   async processPayment(req: IRequest, res: IResponse): Promise<void> {
     const startTime = Date.now();
-    
+
     try {
       Logger.info('Processing payment', { userId: req.user?.sub });
-      
+
       // Process payment
-      
-      Logger.info('Payment processed', { 
-        userId: req.user?.sub, 
-        duration: Date.now() - startTime 
+
+      Logger.info('Payment processed', {
+        userId: req.user?.sub,
+        duration: Date.now() - startTime,
       });
-      
+
       res.json({ success: true });
     } catch (error) {
       Logger.error('Payment processing failed', {
@@ -852,12 +887,12 @@ export const MonitoredController = {
         error: error.message,
         duration: Date.now() - startTime,
       });
-      
+
       res.setStatus(500).json({ error: 'Payment failed' });
     }
   },
 };
-\`\`\`
+```
 
 ## Summary
 

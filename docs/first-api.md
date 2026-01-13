@@ -16,12 +16,12 @@ Edit the migration in `database/migrations/` to add a `title` and `completed` st
 import { MigrationSchema, type IDatabase } from '@zintrust/core';
 
 export interface Migration {
-  up(db: IDatabase): Promise<void>;
-  down(db: IDatabase): Promise<void>;
+  up(db: IDatabase): Promise\<void>;
+  down(db: IDatabase): Promise\<void>;
 }
 
 export const migration: Migration = {
-  async up(db: IDatabase): Promise<void> {
+  async up(db: IDatabase): Promise\<void> {
     const schema = MigrationSchema.create(db);
 
     await schema.create('tasks', (table) => {
@@ -32,7 +32,7 @@ export const migration: Migration = {
     });
   },
 
-  async down(db: IDatabase): Promise<void> {
+  async down(db: IDatabase): Promise\<void> {
     const schema = MigrationSchema.create(db);
     await schema.dropIfExists('tasks');
   },
@@ -66,13 +66,13 @@ import { Task } from '@app/Models/Task';
 import { Controller, type IRequest, type IResponse } from '@zintrust/core';
 
 export const TaskController = {
-  async index(_req: IRequest, res: IResponse): Promise<void> {
+  async index(_req: IRequest, res: IResponse): Promise\<void> {
     const tasks = await Task.query().get();
     Controller.json(res, { data: tasks });
   },
 
-  async store(req: IRequest, res: IResponse): Promise<void> {
-    const task = Task.create(req.getBody() as Record<string, unknown>);
+  async store(req: IRequest, res: IResponse): Promise\<void> {
+    const task = Task.create(req.getBody() as Record\<string, unknown>);
     await task.save();
     Controller.json(res, { data: task }, 201);
   },

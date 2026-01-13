@@ -8,13 +8,13 @@ Middleware provide a convenient mechanism for inspecting and filtering HTTP requ
 export type Middleware = (
   req: IRequest,
   res: IResponse,
-  next: () => Promise<void>
-) => Promise<void>;
+  next: () => Promise\<void>
+) => Promise\<void>;
 
 export interface IMiddlewareStack {
   register(name: string, handler: Middleware): void;
-  execute(request: IRequest, response: IResponse, only?: string[] | Middleware[]): Promise<void>;
-  getMiddlewares(): Array<{ name: string; handler: Middleware }>;
+  execute(request: IRequest, response: IResponse, only?: string[] | Middleware[]): Promise\<void>;
+  getMiddlewares(): Array\<{ name: string; handler: Middleware }>;
 }
 ```
 

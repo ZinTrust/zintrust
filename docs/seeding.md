@@ -46,7 +46,7 @@ A seeder is a module that exports a `run` method:
 import { UserFactory } from '@database/factories/UserFactory';
 
 export const UserSeeder = Object.freeze({
-  async run(): Promise<void> {
+  async run(): Promise\<void> {
     // Generate 50 users using a factory
     await UserFactory.new().count(50).create();
   },
@@ -62,7 +62,7 @@ import { PermissionSeeder } from './PermissionSeeder';
 import { RoleSeeder } from './RoleSeeder';
 
 export const DatabaseSeeder = Object.freeze({
-  async run(): Promise<void> {
+  async run(): Promise\<void> {
     await PermissionSeeder.run();
     await RoleSeeder.run();
   },

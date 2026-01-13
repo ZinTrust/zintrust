@@ -27,12 +27,12 @@ Use TypeScript to validate middleware keys at build time:
 
 ```ts
 // TypeScript error at compile-time
-Router.get<MiddlewareKey>(router, '/admin', handler, {
+Router.get\<MiddlewareKey>(router, '/admin', handler, {
   middleware: ['autth'], // TS Error: not assignable to MiddlewareKey
 });
 
 // Valid names pass type-checking
-Router.get<MiddlewareKey>(router, '/admin', handler, {
+Router.get\<MiddlewareKey>(router, '/admin', handler, {
   middleware: ['auth', 'jwt'], // OK!
 });
 ```
@@ -89,7 +89,7 @@ import { Router, type IRouter, type MiddlewareKey } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   // Single middleware
-  Router.get<MiddlewareKey>(
+  Router.get\<MiddlewareKey>(
     router,
     '/profile',
     async (_req, res) => {
@@ -99,7 +99,7 @@ export function registerRoutes(router: IRouter): void {
   );
 
   // Multiple middleware
-  Router.post<MiddlewareKey>(
+  Router.post\<MiddlewareKey>(
     router,
     '/admin/users',
     async (_req, res) => {
@@ -117,7 +117,7 @@ import { Router, type MiddlewareKey } from '@zintrust/core';
 
 const usersMiddleware = ['jwt', 'auth'] satisfies MiddlewareKey[];
 
-Router.resource<MiddlewareKey>(router, '/api/v1/users', UserController, {
+Router.resource\<MiddlewareKey>(router, '/api/v1/users', UserController, {
   // Applied to all CRUD
   middleware: usersMiddleware,
   meta: { tags: ['Users'] },
@@ -132,10 +132,10 @@ import { Router, type MiddlewareKey } from '@zintrust/core';
 const adminMiddleware = ['jwt', 'auth'] satisfies MiddlewareKey[];
 
 Router.group(router, '/admin', (groupRouter) => {
-  Router.get<MiddlewareKey>(groupRouter, '/dashboard', AdminController.dashboard, {
+  Router.get\<MiddlewareKey>(groupRouter, '/dashboard', AdminController.dashboard, {
     middleware: adminMiddleware,
   });
-  Router.get<MiddlewareKey>(groupRouter, '/users', AdminController.users, {
+  Router.get\<MiddlewareKey>(groupRouter, '/users', AdminController.users, {
     middleware: adminMiddleware,
   });
 });
@@ -161,7 +161,7 @@ describe('Architecture: route middleware registry', () => {
     registerRoutes(router);
 
     const allowed = new Set(Object.keys(MiddlewareKeys));
-    const unknown: Array<{ method: string; path: string; middleware: string }> = [];
+    const unknown: Array\<{ method: string; path: string; middleware: string }> = [];
 
     for (const route of RouteRegistry.list()) {
       for (const name of route.middleware ?? []) {
@@ -212,7 +212,7 @@ const mw = ['jwt', 'auth'] satisfies MiddlewareKey[];
 Router.get(router, '/admin', handler, { middleware: mw });
 
 // ✅ Also valid (generic typing)
-Router.get<MiddlewareKey>(router, '/admin', handler, { middleware: ['jwt', 'auth'] });
+Router.get\<MiddlewareKey>(router, '/admin', handler, { middleware: ['jwt', 'auth'] });
 ```
 
 ### 2. Keep type keys and runtime keys aligned (framework contributors)
@@ -244,7 +244,7 @@ If you want to enforce correctness across your route tree (even when not using g
 
 **Solutions**:
 
-- Add the generic: `Router.get<MiddlewareKey>(...)`
+- Add the generic: `Router.get\<MiddlewareKey>(...)`
 - Or validate the array with `satisfies MiddlewareKey[]`
 
 ```ts

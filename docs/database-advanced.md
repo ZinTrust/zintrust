@@ -76,12 +76,12 @@ This is the newer builder-driven approach (Blueprint/Compiler-backed). It is the
 import { MigrationSchema, type IDatabase } from '@zintrust/core';
 
 export interface Migration {
-  up(db: IDatabase): Promise<void>;
-  down(db: IDatabase): Promise<void>;
+  up(db: IDatabase): Promise\<void>;
+  down(db: IDatabase): Promise\<void>;
 }
 
 export const migration: Migration = {
-  async up(db: IDatabase): Promise<void> {
+  async up(db: IDatabase): Promise\<void> {
     const schema = MigrationSchema.create(db);
 
     await schema.create('users', (table) => {
@@ -92,7 +92,7 @@ export const migration: Migration = {
     });
   },
 
-  async down(db: IDatabase): Promise<void> {
+  async down(db: IDatabase): Promise\<void> {
     const schema = MigrationSchema.create(db);
     await schema.dropIfExists('users');
   },
