@@ -2,6 +2,3 @@
 
 # Block pushes when patch coverage would fail Codecov.
 npm run -s coverage:patch
-
-# Comment out zintrust.plugins import
-./scripts/disable-plugins-import.sh

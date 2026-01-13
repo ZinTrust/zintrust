@@ -38,6 +38,16 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     vi.doMock('@node-singletons', () => ({
       fs: {
+        fsPromises: {
+          unlink,
+          access: vi.fn(async () => undefined),
+          mkdir: vi.fn(async () => undefined),
+          writeFile: vi.fn(async () => undefined),
+          readdir: vi.fn(async () => []),
+          readFile: vi.fn(async () => ''),
+          rm: vi.fn(async () => undefined),
+          stat: vi.fn(async () => ({ size: 0 })),
+        },
         existsSync: vi.fn(() => false),
         mkdirSync: vi.fn(),
         writeFileSync: vi.fn(),
@@ -59,19 +69,19 @@ describe('Optimizer GenerationCache more coverage', () => {
     expect(unref).toHaveBeenCalled();
 
     nowSpy.mockReturnValue(0);
-    cache.set('t', { a: 1 }, 'code');
+    await cache.set('t', { a: 1 }, 'code');
     nowSpy.mockReturnValue(1000);
 
     // Trigger TTL eviction -> deleteFileNonBlocking (ENOENT ignored)
-    expect(cache.get('t', { a: 1 })).toBeNull();
+    expect(await cache.get('t', { a: 1 })).toBeNull();
     await Promise.resolve();
     expect(loggerError).not.toHaveBeenCalled();
 
     // Trigger another TTL eviction -> deleteFileNonBlocking (non-ENOENT logs)
     nowSpy.mockReturnValue(0);
-    cache.set('t2', { b: 2 }, 'code');
+    await cache.set('t2', { b: 2 }, 'code');
     nowSpy.mockReturnValue(1000);
-    expect(cache.get('t2', { b: 2 })).toBeNull();
+    expect(await cache.get('t2', { b: 2 })).toBeNull();
     await Promise.resolve();
 
     expect(loggerError).toHaveBeenCalledWith(
@@ -115,6 +125,16 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     vi.doMock('@node-singletons', () => ({
       fs: {
+        fsPromises: {
+          unlink: vi.fn(),
+          access: vi.fn(async () => undefined),
+          mkdir: vi.fn(async () => undefined),
+          writeFile: vi.fn(async () => undefined),
+          readdir: vi.fn(async () => []),
+          readFile: vi.fn(async () => ''),
+          rm: vi.fn(async () => undefined),
+          stat: vi.fn(async () => ({ size: 0 })),
+        },
         existsSync: vi.fn(() => false),
         mkdirSync: vi.fn(),
         writeFileSync: vi.fn(),
@@ -134,8 +154,8 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     // Force eviction that hits fs.unlink callback path
     nowSpy.mockReturnValue(0);
-    cache.set('x', { x: 1 }, 'code');
-    cache.set('y', { y: 2 }, 'code');
+    await cache.set('x', { x: 1 }, 'code');
+    await cache.set('y', { y: 2 }, 'code');
 
     expect(unlinkCb).toHaveBeenCalled();
 
@@ -180,6 +200,16 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     vi.doMock('@node-singletons', () => ({
       fs: {
+        fsPromises: {
+          access: vi.fn(async () => undefined),
+          mkdir: vi.fn(async () => undefined),
+          writeFile: vi.fn(async () => undefined),
+          readdir: vi.fn(async () => []),
+          readFile: vi.fn(async () => ''),
+          rm: vi.fn(async () => undefined),
+          stat: vi.fn(async () => ({ size: 0 })),
+          ...promisesWithThrowingGetter,
+        },
         existsSync: vi.fn(() => false),
         mkdirSync: vi.fn(),
         writeFileSync: vi.fn(),
@@ -198,10 +228,10 @@ describe('Optimizer GenerationCache more coverage', () => {
     const cache = GenerationCache.create('/cache', 1, 100);
 
     nowSpy.mockReturnValue(0);
-    cache.set('t', { a: 1 }, 'code');
+    await cache.set('t', { a: 1 }, 'code');
     nowSpy.mockReturnValue(1000);
 
-    expect(cache.get('t', { a: 1 })).toBeNull();
+    expect(await cache.get('t', { a: 1 })).toBeNull();
 
     expect(loggerError).toHaveBeenCalledWith(
       expect.stringContaining('Failed to schedule cache file deletion')
@@ -231,6 +261,16 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     vi.doMock('@node-singletons', () => ({
       fs: {
+        fsPromises: {
+          unlink,
+          access: vi.fn(async () => undefined),
+          mkdir: vi.fn(async () => undefined),
+          writeFile: vi.fn(async () => undefined),
+          readdir: vi.fn(async () => []),
+          readFile: vi.fn(async () => ''),
+          rm: vi.fn(async () => undefined),
+          stat: vi.fn(async () => ({ size: 0 })),
+        },
         existsSync: vi.fn(() => false),
         mkdirSync: vi.fn(),
         writeFileSync: vi.fn(),
@@ -249,7 +289,7 @@ describe('Optimizer GenerationCache more coverage', () => {
     // Use high maxEntries so cache.set() doesn't evict immediately.
     const cache = GenerationCache.create('/cache', 1, 1000);
 
-    cache.set('a', { a: 1 }, 'code-a');
+    await cache.set('a', { a: 1 }, 'code-a');
 
     // Run the 10-min cleanup interval; at t=600000ms entry is expired.
     await vi.advanceTimersByTimeAsync(600000);
@@ -257,7 +297,7 @@ describe('Optimizer GenerationCache more coverage', () => {
     expect(unlink).toHaveBeenCalled();
 
     // Cleanup interval should be cleared to avoid leaks.
-    cache.clear();
+    await cache.clear();
   });
 
   it('covers periodic cleanup interval callback (maxEntries eviction)', async () => {
@@ -278,6 +318,16 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     vi.doMock('@node-singletons', () => ({
       fs: {
+        fsPromises: {
+          unlink,
+          access: vi.fn(async () => undefined),
+          mkdir: vi.fn(async () => undefined),
+          writeFile: vi.fn(async () => undefined),
+          readdir: vi.fn(async () => []),
+          readFile: vi.fn(async () => ''),
+          rm: vi.fn(async () => undefined),
+          stat: vi.fn(async () => ({ size: 0 })),
+        },
         existsSync: vi.fn(() => false),
         mkdirSync: vi.fn(),
         writeFileSync: vi.fn(),
@@ -295,8 +345,8 @@ describe('Optimizer GenerationCache more coverage', () => {
 
     // ttl large so nothing expires; start with high maxEntries so set() doesn't evict.
     const cache = GenerationCache.create('/cache', 3600000, 1000);
-    cache.set('a', { a: 1 }, 'code-a');
-    cache.set('b', { b: 2 }, 'code-b');
+    await cache.set('a', { a: 1 }, 'code-a');
+    await cache.set('b', { b: 2 }, 'code-b');
 
     // Mutate internal state to force eviction inside the interval callback.
     const stateSymbol = Symbol.for('zintrust:GenerationCacheState');
@@ -307,6 +357,6 @@ describe('Optimizer GenerationCache more coverage', () => {
     await vi.advanceTimersByTimeAsync(600000);
 
     expect(unlink).toHaveBeenCalled();
-    cache.clear();
+    await cache.clear();
   });
 });
