@@ -12,11 +12,14 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "@zintrust/core": "file:../../dist"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "@zintrust/core": "workspace:*"
   }
 }

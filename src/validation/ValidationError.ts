@@ -3,6 +3,8 @@
  * Structured error response for validation failures with field-level details
  */
 
+import { ErrorFactory } from '@exceptions/ZintrustError';
+
 export interface FieldError {
   field: string;
   message: string;
@@ -53,8 +55,9 @@ const createValidationError = (
   errors: FieldError[],
   message: string = 'Validation failed'
 ): IValidationError => {
-  const error = new Error(message) as unknown as IValidationError;
-  error.name = 'ValidationError';
+  const error = ErrorFactory.createValidationError(message, {
+    errors,
+  }) as unknown as IValidationError;
   error.errors = errors;
   error.toObject = () => toObject(errors);
   error.getFieldError = (field: string) => getFieldError(errors, field);

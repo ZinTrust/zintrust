@@ -29,8 +29,8 @@ export type Environment =
   | 'test';
 export type StartMode = 'development' | 'production' | 'testing';
 
-export type EnvGetValue = ReturnType<typeof Env.get>;
-export type EnvGetBoolValue = ReturnType<typeof Env.getBool>;
+export type EnvGetValue = ReturnType\<typeof Env.get>;
+export type EnvGetBoolValue = ReturnType\<typeof Env.getBool>;
 
 export type LocalStorageDriverConfig = {
   driver: 'local';

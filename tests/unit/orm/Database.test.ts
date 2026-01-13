@@ -2,8 +2,17 @@
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
-import { Database, IDatabase, resetDatabase, useDatabase } from '@orm/Database';
+import type { IDatabase } from '@orm/Database';
+import { Database, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const otelDbMock = vi.hoisted(() => ({
+  OpenTelemetry: {
+    recordDbQuerySpan: vi.fn(),
+  },
+}));
+
+vi.mock('@/observability/OpenTelemetry', () => otelDbMock);
 
 // Mock adapters
 vi.mock('@orm/adapters/SQLiteAdapter', () => {
@@ -139,10 +148,10 @@ describe('Database', () => {
     expect(db.isConnected()).toBe(false);
   });
 
-  it('should throw error on query without connection', async () => {
+  it('should auto-connect on query without connection', async () => {
     db = Database.create({ driver: 'sqlite', database: ':memory:' });
-    const query = db.query('SELECT * FROM users');
-    await expect(query).rejects.toThrow('Database not connected');
+    await expect(db.query('select 1 as x')).resolves.toBeDefined();
+    // New behavior: query() will connect lazily by default.
   });
 
   it('should use singleton instance', () => {
@@ -182,6 +191,26 @@ describe('Database', () => {
 
     expect(beforeHandler).toHaveBeenCalledWith('SELECT * FROM users', []);
     expect(afterHandler).toHaveBeenCalled();
+  });
+
+  it('records a DB query span when OTEL_ENABLED=true', async () => {
+    process.env.OTEL_ENABLED = 'true';
+    try {
+      db = Database.create({ driver: 'sqlite', database: ':memory:' });
+      await db.connect();
+
+      await db.query('SELECT * FROM users');
+
+      // allow the async after-query hook to run
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(otelDbMock.OpenTelemetry.recordDbQuerySpan).toHaveBeenCalled();
+      expect(otelDbMock.OpenTelemetry.recordDbQuerySpan).toHaveBeenCalledWith(
+        expect.objectContaining({ driver: 'sqlite', durationMs: expect.any(Number) })
+      );
+    } finally {
+      delete process.env.OTEL_ENABLED;
+    }
   });
 
   it('should handle read/write splitting', async () => {

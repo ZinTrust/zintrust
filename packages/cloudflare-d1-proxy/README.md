@@ -73,3 +73,7 @@ Configure your app:
 - `D1_REMOTE_MODE=registry` or `sql`
 
 Then use `Database` / QueryBuilder as normal.
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

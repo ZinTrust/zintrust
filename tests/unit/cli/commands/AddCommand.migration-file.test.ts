@@ -35,7 +35,7 @@ describe('AddCommand (migration file via CLI)', () => {
 
       const content = fs.readFileSync(path.join(migrationsDir, files[0]), 'utf-8');
       expect(content).toContain('Migration: CreateUsersTable');
-      expect(content).toContain("createTable('users'");
+      expect(content).toContain("await schema.create('users'");
     } finally {
       process.chdir(originalCwd);
       fs.rmSync(tmp, { recursive: true, force: true });

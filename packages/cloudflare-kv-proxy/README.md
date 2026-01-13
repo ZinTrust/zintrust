@@ -67,3 +67,7 @@ Configure your app:
 - `KV_REMOTE_NAMESPACE=CACHE` (or empty)
 
 Then use `Cache.get/set/delete` as normal.
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

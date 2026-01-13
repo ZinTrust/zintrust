@@ -163,4 +163,30 @@ describe('Router', (): void => {
     expect(match?.handler).toBe(handler);
     expect(match?.params).toEqual({ id: '123' });
   });
+
+  it('should support middleware options via resource()', (): void => {
+    const handler = async (): Promise<void> => {};
+
+    Router.group(router, '/api', (api) => {
+      Router.resource(
+        api,
+        '/users',
+        {
+          index: handler,
+          store: handler,
+          show: handler,
+          update: handler,
+          destroy: handler,
+        },
+        { middleware: ['auth'] }
+      );
+    });
+
+    expect(Router.match(router, 'GET', '/api/users')?.middleware).toEqual(['auth']);
+    expect(Router.match(router, 'POST', '/api/users')?.middleware).toEqual(['auth']);
+    expect(Router.match(router, 'GET', '/api/users/1')?.middleware).toEqual(['auth']);
+    expect(Router.match(router, 'PUT', '/api/users/1')?.middleware).toEqual(['auth']);
+    expect(Router.match(router, 'PATCH', '/api/users/1')?.middleware).toEqual(['auth']);
+    expect(Router.match(router, 'DELETE', '/api/users/1')?.middleware).toEqual(['auth']);
+  });
 });

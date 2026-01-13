@@ -41,9 +41,9 @@ export type HttpLogEvent = {
 const isEnabled = (): boolean => Env.getBool('HTTP_LOG_ENABLED', false);
 
 let buffer: HttpLogEvent[] = [];
-let flushPromise: Promise<void> | undefined;
+let flushPromise: Promise\<void> | undefined;
 
-const postBatch = async (events: HttpLogEvent[]): Promise<void> => {
+const postBatch = async (events: HttpLogEvent[]): Promise\<void> => {
   const endpoint = Env.get('HTTP_LOG_ENDPOINT_URL').trim();
   if (endpoint.length === 0) {
     throw ErrorFactory.createConfigError(
@@ -66,7 +66,7 @@ const postBatch = async (events: HttpLogEvent[]): Promise<void> => {
   await builder.send();
 };
 
-const flushNow = async (): Promise<void> => {
+const flushNow = async (): Promise\<void> => {
   const toSend = buffer;
   buffer = [];
 
@@ -75,7 +75,7 @@ const flushNow = async (): Promise<void> => {
 
   const maxRetries = 3;
 
-  const attemptPost = async (attempt: number): Promise<void> => {
+  const attemptPost = async (attempt: number): Promise\<void> => {
     try {
       await postBatch(toSend);
     } catch {
@@ -88,7 +88,7 @@ const flushNow = async (): Promise<void> => {
 ## Snapshot (bottom)
 
 ```ts
-  const attemptPost = async (attempt: number): Promise<void> => {
+  const attemptPost = async (attempt: number): Promise\<void> => {
     try {
       await postBatch(toSend);
     } catch {
@@ -102,11 +102,11 @@ const flushNow = async (): Promise<void> => {
   await attemptPost(0);
 };
 
-const scheduleFlush = async (): Promise<void> => {
+const scheduleFlush = async (): Promise\<void> => {
   if (flushPromise !== undefined) return flushPromise;
 
-  const promise = new Promise<void>((resolve) => {
-    const run = async (): Promise<void> => {
+  const promise = new Promise\<void>((resolve) => {
+    const run = async (): Promise\<void> => {
       try {
         await flushNow();
       } finally {
@@ -132,7 +132,7 @@ const scheduleFlush = async (): Promise<void> => {
 };
 
 export const HttpLogger = Object.freeze({
-  async enqueue(event: HttpLogEvent): Promise<void> {
+  async enqueue(event: HttpLogEvent): Promise\<void> {
     if (!isEnabled()) return Promise.resolve(); // NOSONAR
 
     buffer.push(event);

@@ -1,6 +1,22 @@
 # Events
 
-Zintrust includes a small, framework-agnostic Events & Listeners utility you can use to decouple parts of your application.
+ZinTrust includes a small, framework-agnostic Events & Listeners utility you can use to decouple parts of your application.
+
+## Interface Reference
+
+```typescript
+export type EventListener\<TPayload> = (payload: TPayload) => void | Promise\<void>;
+
+export interface IEventDispatcher\<TEvents extends EventMap = EventMap> {
+  on\<K extends keyof TEvents & string>(event: K, listener: EventListener\<TEvents[K]>): () => void;
+  once\<K extends keyof TEvents & string>(event: K, listener: EventListener\<TEvents[K]>): () => void;
+  off\<K extends keyof TEvents & string>(event: K, listener: EventListener\<TEvents[K]>): void;
+  emit\<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): void;
+  emitAsync\<K extends keyof TEvents & string>(event: K, payload: TEvents[K]): Promise\<void>;
+  listenerCount\<K extends keyof TEvents & string>(event: K): number;
+  clear\<K extends keyof TEvents & string>(event?: K): void;
+}
+```
 
 ## Basic Usage
 
@@ -12,7 +28,7 @@ type AppEvents = {
   'email.sent': { to: string; template: string };
 };
 
-const events = EventDispatcher.create<AppEvents>();
+const events = EventDispatcher.create\<AppEvents>();
 
 // Register a listener
 const off = events.on('user.created', async ({ userId }) => {
@@ -35,7 +51,7 @@ type AppEvents = {
   'job.finished': { jobId: string };
 };
 
-const events = EventDispatcher.create<AppEvents>();
+const events = EventDispatcher.create\<AppEvents>();
 
 events.once('job.finished', ({ jobId }) => {
   // runs once
@@ -54,7 +70,7 @@ type AppEvents = {
   'invoice.paid': { invoiceId: string };
 };
 
-const events = EventDispatcher.create<AppEvents>();
+const events = EventDispatcher.create\<AppEvents>();
 
 events.on('invoice.paid', async () => {
   // ...

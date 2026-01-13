@@ -1,5 +1,5 @@
 import { D1Adapter } from '@/orm/adapters/D1Adapter';
-import { DatabaseConfig, IDatabaseAdapter } from '@/orm/DatabaseAdapter';
+import type { DatabaseConfig, IDatabaseAdapter } from '@/orm/DatabaseAdapter';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('D1Adapter', () => {

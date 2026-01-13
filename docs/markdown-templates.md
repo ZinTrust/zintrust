@@ -36,7 +36,7 @@ const emailHtml = MarkdownRenderer.renderWithLayout('# Welcome', 'email', { name
 
 ## Template registries
 
-Zintrust includes lightweight registries that load `.md` templates from the framework template folders.
+ZinTrust includes lightweight registries that load `.md` templates from the framework template folders.
 
 ### Mail templates
 

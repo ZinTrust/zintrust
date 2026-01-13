@@ -5,6 +5,7 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { randomBytes } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -159,7 +160,39 @@ const createProjectConfigFile = (
   }
 };
 
-const buildDatabaseEnvLines = (database: string): string[] => {
+const toSafeDbBasename = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (trimmed === '') return 'zintrust';
+
+  const lower = trimmed.toLowerCase();
+  let out = '';
+  let prevWasDash = false;
+
+  for (const char of lower) {
+    const isAlphaNum = (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9');
+    const isContent = isAlphaNum || char === '_';
+
+    if (isContent) {
+      out += char;
+      prevWasDash = false;
+      continue;
+    }
+
+    // Treat as separator: collapse dashes and avoid leading dash
+    if (out.length > 0 && !prevWasDash) {
+      out += '-';
+      prevWasDash = true;
+    }
+  }
+
+  if (out.endsWith('-')) {
+    out = out.slice(0, -1);
+  }
+
+  return out === '' ? 'zintrust' : out;
+};
+
+const buildDatabaseEnvLinesWithName = (database: string, name: string): string[] => {
   if (database === 'postgresql' || database === 'postgres') {
     return [
       'DB_HOST=localhost',
@@ -180,7 +213,8 @@ const buildDatabaseEnvLines = (database: string): string[] => {
   }
   if (database === 'sqlite') {
     // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
-    return ['DB_DATABASE=./database.sqlite', 'DB_PATH=./database.sqlite'];
+    const base = toSafeDbBasename(name);
+    return [`DB_DATABASE=.zintrust/dbs/${base}.sqlite`, `DB_PATH=.zintrust/dbs/${base}.sqlite`];
   }
   if (database === 'd1-remote' || database === 'd1-proxy') {
     return [
@@ -235,7 +269,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       `DB_CONNECTION=${database}`,
     ];
 
-    const dbLines: string[] = buildDatabaseEnvLines(database);
+    const dbLines: string[] = buildDatabaseEnvLinesWithName(database, name);
 
     const placeholderLines: string[] = [
       '',
@@ -343,6 +377,7 @@ const loadTemplateFiles = (templateDir: string): Record<string, string> => {
     'config/broadcast.ts',
     'config/cache.ts',
     'config/database.ts',
+    'config/middleware.ts',
     'config/logging/HttpLogger.ts',
     'config/mail.ts',
     'config/notification.ts',
@@ -458,6 +493,7 @@ const API_TEMPLATE: ProjectTemplate = {
     'logs',
     'storage',
     'tmp',
+    'src',
     'routes',
     'tests',
   ],
@@ -618,6 +654,7 @@ coverage/
 logs/
 storage/
 tmp/
+.zintrust/
 *.log
 `;
   }
@@ -636,6 +673,7 @@ zin s
 
 - Health: http://localhost:{{port}}/health
 - Tasks:  http://localhost:{{port}}/api/tasks
+- Doc:  http://localhost:{{port}}/doc
 `;
   }
 
@@ -690,7 +728,7 @@ const scaffoldWithState = async (
     };
   } catch (error: unknown) {
     Logger.error('Project scaffolding failed', error);
-    const err = error instanceof Error ? error : new Error(String(error));
+    const err = error instanceof Error ? error : ErrorFactory.createGeneralError(String(error));
     return {
       success: false,
       projectPath: state.projectPath,

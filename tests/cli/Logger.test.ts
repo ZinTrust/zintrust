@@ -3,7 +3,8 @@
  * Tests for file-based logging with rotation and retention
  */
 
-import { LogEntry, Logger, LoggerInstance } from '@cli/logger/Logger';
+import type { LogEntry, LoggerInstance } from '@cli/logger/Logger';
+import { Logger } from '@cli/logger/Logger';
 import { fs } from '@node-singletons';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

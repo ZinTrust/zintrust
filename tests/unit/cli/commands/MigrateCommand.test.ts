@@ -1,4 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const dbMock = {
+  connect: vi.fn(async () => undefined),
+  disconnect: vi.fn(async () => undefined),
+};
+
+const migratorMock = {
+  migrate: vi.fn(async () => ({ applied: 1 })),
+  status: vi.fn(async () => [] as any[]),
+  fresh: vi.fn(async () => ({ applied: 1 })),
+  resetAll: vi.fn(async () => ({ rolledBack: 1 })),
+  rollbackLastBatch: vi.fn(async () => ({ rolledBack: 1 })),
+};
 
 vi.mock('@/config/logger', () => ({
   Logger: {
@@ -9,281 +22,320 @@ vi.mock('@/config/logger', () => ({
   },
 }));
 
-import { MigrateCommand } from '@/cli/commands/MigrateCommand';
-import { Logger } from '@/config/logger';
+vi.mock('@/config/database', () => ({
+  databaseConfig: {
+    getConnection: vi.fn(() => ({ driver: 'sqlite', database: ':memory:' })),
+    migrations: {
+      directory: 'database/migrations',
+      extension: '.ts',
+    },
+  },
+}));
 
-const throwConfigLoadFailed = () => {
-  throw new Error('Config load failed');
-};
+vi.mock('@/config/env', () => ({
+  Env: {
+    NODE_ENV: 'test',
+    get: vi.fn((_key: string, fallback: string) => fallback),
+    getBool: vi.fn((_key: string, fallback: boolean) => fallback),
+  },
+}));
+
+vi.mock('@/cli/PromptHelper', () => ({
+  PromptHelper: {
+    confirm: vi.fn(async () => true),
+  },
+}));
+
+vi.mock('@/orm/Database', () => ({
+  Database: {
+    create: vi.fn(() => dbMock),
+  },
+}));
+
+vi.mock('@/migrations/Migrator', () => ({
+  Migrator: {
+    create: vi.fn(() => migratorMock),
+  },
+}));
+
+vi.mock('@/cli/d1/D1SqlMigrations', () => ({
+  D1SqlMigrations: {
+    compileAndWrite: vi.fn(async () => [{ outputFileName: '0000_test.sql' }]),
+  },
+}));
+
+vi.mock('@/cli/d1/WranglerD1', () => ({
+  WranglerD1: {
+    applyMigrations: vi.fn(async () => ''),
+  },
+}));
+
+vi.mock('@/cli/d1/WranglerConfig', () => ({
+  WranglerConfig: {
+    getD1MigrationsDir: vi.fn(() => 'migrations'),
+  },
+}));
+
+import { MigrateCommand } from '@/cli/commands/MigrateCommand';
+import { D1SqlMigrations } from '@/cli/d1/D1SqlMigrations';
+import { WranglerD1 } from '@/cli/d1/WranglerD1';
+import { PromptHelper } from '@/cli/PromptHelper';
+import { databaseConfig } from '@/config/database';
+import { Env } from '@/config/env';
+import { Migrator } from '@/migrations/Migrator';
+import { Database } from '@/orm/Database';
 
 describe('MigrateCommand', () => {
   let command: any;
 
   beforeEach(() => {
-    command = MigrateCommand.create();
     vi.clearAllMocks();
+    // Default mocks setup
+    Env.NODE_ENV = 'test';
+    //... (reset other mocks if needed)
+
+    command = MigrateCommand.create();
+    command.debug = vi.fn();
+    command.info = vi.fn();
+    command.warn = vi.fn();
+    command.success = vi.fn();
+
+    dbMock.connect.mockResolvedValue(undefined);
+    dbMock.disconnect.mockResolvedValue(undefined);
+    migratorMock.migrate.mockResolvedValue({ applied: 1 });
+    migratorMock.status.mockResolvedValue([]);
+    migratorMock.fresh.mockResolvedValue({ applied: 1 });
+    migratorMock.resetAll.mockResolvedValue({ rolledBack: 1 });
+    migratorMock.rollbackLastBatch.mockResolvedValue({ rolledBack: 1 });
   });
 
-  afterEach(() => {
-    vi.resetAllMocks();
+  it('creates command and exposes commander metadata', () => {
+    expect(command).toBeDefined();
+    const cmd = command.getCommand();
+    expect(cmd.name()).toBe('migrate');
+    expect(cmd.description().length).toBeGreaterThan(0);
   });
 
-  describe('Class Structure', () => {
-    it('should create MigrateCommand instance', () => {
-      expect(command).toBeDefined();
-    });
-
-    it('should inherit from BaseCommand', () => {
-      expect(typeof command.getCommand).toBe('function');
-      expect(typeof command.execute).toBe('function');
-      expect(typeof command.info).toBe('function');
-      expect(typeof command.warn).toBe('function');
-      expect(typeof command.success).toBe('function');
-      expect(typeof command.debug).toBe('function');
-    });
-
-    it('should have name property (protected)', () => {
-      const name = (command as any).name;
-      expect(name).toBeDefined();
-      expect(typeof name).toBe('string');
-    });
-
-    it('should have description property (protected)', () => {
-      const description = (command as any).description;
-      expect(description).toBeDefined();
-      expect(typeof description).toBe('string');
-    });
-
-    it('should have execute method', () => {
-      const execute = (command as any).execute;
-      expect(typeof execute).toBe('function');
-    });
-
-    it('should have getCommand method from BaseCommand', () => {
-      const getCommand = (command as any).getCommand();
-      expect(getCommand).toBeDefined();
-      expect(getCommand.name()).toBe('migrate');
-    });
+  it('registers expected options', () => {
+    const helpText = command.getCommand().helpInformation();
+    expect(helpText).toContain('--fresh');
+    expect(helpText).toContain('--rollback');
+    expect(helpText).toContain('--reset');
+    expect(helpText).toContain('--status');
+    expect(helpText).toContain('--service');
+    expect(helpText).toContain('--only-service');
+    expect(helpText).toContain('--step');
+    expect(helpText).toContain('--local');
+    expect(helpText).toContain('--remote');
+    expect(helpText).toContain('--database');
+    expect(helpText).toContain('--no-interactive');
+    expect(helpText).toContain('--verbose');
   });
 
-  describe('Command Metadata', () => {
-    it('command name should be "migrate"', () => {
-      const name = (command as any).name;
-      expect(name).toMatch(/migrate/i);
-    });
+  it('runs pending migrations by default', async () => {
+    await command.execute({});
 
-    it('description should not be empty', () => {
-      const description = (command as any).description;
-      expect(description.length).toBeGreaterThan(0);
-    });
-
-    it('description should mention database migrations', () => {
-      const description = (command as any).description;
-      expect(description.toLowerCase()).toContain('migrat');
-    });
+    expect(Database.create).toHaveBeenCalled();
+    expect(dbMock.connect).toHaveBeenCalled();
+    expect(Migrator.create).toHaveBeenCalled();
+    expect(migratorMock.migrate).toHaveBeenCalled();
+    expect(command.success).toHaveBeenCalledWith(expect.stringContaining('applied=1'));
+    expect(dbMock.disconnect).toHaveBeenCalled();
   });
 
-  describe('Instance Methods', () => {
-    it('addOptions method should be defined', () => {
-      const addOptions = (command as any).addOptions;
-      expect(typeof addOptions).toBe('function');
-    });
+  it('runs status when --status is provided', async () => {
+    migratorMock.status.mockResolvedValueOnce([
+      {
+        name: '20260101000000_create_users',
+        applied: true,
+        batch: 1,
+        appliedAt: '2026-01-01T00:00:00.000Z',
+      },
+      { name: '20260102000000_add_email', applied: false, batch: null, appliedAt: null },
+    ]);
 
-    it('debug method should be defined', () => {
-      const debug = (command as any).debug;
-      expect(typeof debug).toBe('function');
-    });
+    await command.execute({ status: true });
 
-    it('info method should be defined', () => {
-      const info = (command as any).info;
-      expect(typeof info).toBe('function');
-    });
-
-    it('success method should be defined', () => {
-      const success = (command as any).success;
-      expect(typeof success).toBe('function');
-    });
-
-    it('warn method should be defined', () => {
-      const warn = (command as any).warn;
-      expect(typeof warn).toBe('function');
-    });
+    expect(migratorMock.status).toHaveBeenCalled();
+    expect(command.info).toHaveBeenCalledWith(
+      expect.stringContaining('applied: 20260101000000_create_users')
+    );
+    expect(command.info).toHaveBeenCalledWith(
+      expect.stringContaining('pending: 20260102000000_add_email')
+    );
   });
 
-  describe('Constructor Initialization', () => {
-    it('should set name to "migrate" in constructor', () => {
-      const newCommand = MigrateCommand.create();
-      expect((newCommand as any).name).toBe('migrate');
-    });
+  it('runs fresh when --fresh is provided', async () => {
+    await command.execute({ fresh: true, interactive: false });
 
-    it('should set description in constructor', () => {
-      const newCommand = MigrateCommand.create();
-      const description = (newCommand as any).description;
-      expect(description).toBeDefined();
-      expect(description.length).toBeGreaterThan(0);
-    });
+    expect(migratorMock.fresh).toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith(expect.stringContaining('drop all tables'));
+    expect(command.success).toHaveBeenCalledWith(
+      expect.stringContaining('Fresh migration completed')
+    );
   });
 
-  describe('Command Creation', () => {
-    it('getCommand should return a Command object', () => {
-      const cmd = (command as any).getCommand();
-      expect(cmd).toBeDefined();
-      expect(cmd.name()).toMatch(/migrate/i);
-    });
+  it('runs reset when --reset is provided', async () => {
+    await command.execute({ reset: true, interactive: false });
 
-    it('getCommand should set up command name correctly', () => {
-      const cmd = (command as any).getCommand();
-      expect(cmd.name()).toBe('migrate');
-    });
-
-    it('getCommand should set up command description', () => {
-      const cmd = (command as any).getCommand();
-      const description = cmd.description();
-      expect(description.length).toBeGreaterThan(0);
-    });
-
-    it('getCommand should have fresh option configured', () => {
-      const cmd = (command as any).getCommand();
-      const helpText = cmd.helpInformation();
-      expect(helpText).toContain('--fresh');
-    });
-
-    it('getCommand should have rollback option configured', () => {
-      const cmd = (command as any).getCommand();
-      const helpText = cmd.helpInformation();
-      expect(helpText).toContain('--rollback');
-    });
-
-    it('getCommand should have reset option configured', () => {
-      const cmd = (command as any).getCommand();
-      const helpText = cmd.helpInformation();
-      expect(helpText).toContain('--reset');
-    });
-
-    it('getCommand should have step option configured', () => {
-      const cmd = (command as any).getCommand();
-      const helpText = cmd.helpInformation();
-      expect(helpText).toContain('--step');
-    });
-
-    it('getCommand should have verbose option from BaseCommand', () => {
-      const cmd = (command as any).getCommand();
-      const helpText = cmd.helpInformation();
-      expect(helpText).toContain('--verbose');
-    });
+    expect(migratorMock.resetAll).toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith(expect.stringContaining('rollback ALL'));
+    expect(command.success).toHaveBeenCalledWith(expect.stringContaining('rolledBack='));
   });
 
-  describe('Execute Method', () => {
-    it('execute should be an async function', () => {
-      const execute = (command as any).execute;
-      const isAsync = execute.constructor.name === 'AsyncFunction';
-      expect(isAsync).toBe(false);
-    });
+  it('runs rollback with parsed --step value', async () => {
+    await command.execute({ rollback: true, step: '2' });
 
-    it('should accept CommandOptions parameter', async () => {
-      const options = { args: [], verbose: false };
-      try {
-        await (command as any).execute(options);
-      } catch (error) {
-        // Error is expected since we're not mocking the full implementation
-        expect(error).toBeDefined();
-      }
-    });
+    expect(migratorMock.rollbackLastBatch).toHaveBeenCalledWith(2);
+    expect(command.success).toHaveBeenCalledWith(expect.stringContaining('rolledBack='));
   });
 
-  describe('Execution Tests', () => {
-    beforeEach(() => {
-      // Mock the methods used in execute
-      (command as any).debug = vi.fn();
-      (command as any).info = vi.fn();
-      (command as any).warn = vi.fn();
-      (command as any).success = vi.fn();
+  it('runs D1 migrations via compile + wrangler apply', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+
+    await command.execute({});
+
+    expect(D1SqlMigrations.compileAndWrite).toHaveBeenCalled();
+    expect(WranglerD1.applyMigrations).toHaveBeenCalledWith(
+      expect.objectContaining({ dbName: 'zintrust_db', isLocal: true })
+    );
+    expect(command.success).toHaveBeenCalledWith(
+      expect.stringContaining('D1 migrations completed successfully')
+    );
+    expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('passes through --database selection for D1 (remote)', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+
+    await command.execute({ database: 'remote' });
+
+    expect(WranglerD1.applyMigrations).toHaveBeenCalledWith(
+      expect.objectContaining({ dbName: 'remote', isLocal: true })
+    );
+    expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('describes unknown drivers using the driver string (default branch)', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'sqlserver' } as any);
+
+    await command.execute({});
+
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('sqlserver'));
+  });
+
+  it('rejects unsupported D1 actions like --status', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+
+    await expect(command.execute({ status: true })).rejects.toBeDefined();
+    expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('logs applied migration names if returned', async () => {
+    migratorMock.migrate.mockResolvedValueOnce({
+      applied: 2,
+      appliedNames: ['batch1', 'batch2'],
     });
 
-    it('should debug log with options', async () => {
-      await command.execute({});
+    await command.execute({});
 
-      expect((command as any).debug).toHaveBeenCalled();
-    });
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('Applied migrations:'));
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('✓ batch1'));
+    expect(command.info).toHaveBeenCalledWith(expect.stringContaining('✓ batch2'));
+  });
 
-    it('should handle fresh migration option', async () => {
-      await command.execute({ fresh: true });
+  it('warns if separate tracking is enabled for D1', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+    vi.mocked(Env.getBool).mockReturnValueOnce(true); // MIGRATIONS_SEPARATE_TRACKING
 
-      expect((command as any).warn).toHaveBeenCalledWith(expect.stringContaining('drop'));
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('Fresh'));
-    });
+    await command.execute({});
 
-    it('should handle rollback option', async () => {
-      await command.execute({ rollback: true });
+    expect(command.warn).toHaveBeenCalledWith(
+      expect.stringContaining('MIGRATIONS_SEPARATE_TRACKING is ignored for D1')
+    );
+  });
 
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('rolled back'));
-    });
+  it('cancels fresh action if interactive confirmation denied', async () => {
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false);
+    await command.execute({ fresh: true, interactive: true });
 
-    it('should handle reset option', async () => {
-      await command.execute({ reset: true });
+    expect(migratorMock.fresh).not.toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith('Cancelled.');
+  });
 
-      expect((command as any).warn).toHaveBeenCalledWith(expect.stringContaining('Resetting'));
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('reset'));
-    });
+  it('cancels reset action if interactive confirmation denied', async () => {
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false);
+    await command.execute({ reset: true, interactive: true });
 
-    it('should run pending migrations by default', async () => {
-      await command.execute({});
+    expect(migratorMock.resetAll).not.toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith('Cancelled.');
+  });
 
-      expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('pending'));
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('completed'));
-    });
+  it('prompts and cancels in production if not forced', async () => {
+    // @ts-ignore
+    Env.NODE_ENV = 'production';
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false);
 
-    it('should ignore step option when fresh is true', async () => {
-      await command.execute({ fresh: true, step: '2' });
+    await command.execute({});
 
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('Fresh'));
-    });
+    expect(PromptHelper.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('NODE_ENV=production'),
+      false,
+      true // interactive default
+    );
+    expect(migratorMock.migrate).not.toHaveBeenCalled();
+    expect(command.warn).toHaveBeenCalledWith('Cancelled.');
+  });
 
-    it('should respect step option for rollback', async () => {
-      await command.execute({ rollback: true, step: '2' });
+  it('proceeds in production if forced', async () => {
+    // @ts-ignore
+    Env.NODE_ENV = 'production';
+    vi.mocked(PromptHelper.confirm).mockResolvedValueOnce(false); // Should not be called
 
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('rolled back'));
-    });
+    await command.execute({ force: true });
 
-    it('should prioritize fresh over other options', async () => {
-      await command.execute({ fresh: true, rollback: true, reset: true });
+    expect(migratorMock.migrate).toHaveBeenCalled();
+  });
 
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('Fresh'));
-    });
+  it('configures postgres adapter correctly', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({
+      driver: 'postgresql',
+      host: 'localhost',
+      port: 5432,
+      database: 'mydb',
+      username: 'user',
+      password: 'pass',
+    } as any);
 
-    it('should prioritize rollback over reset', async () => {
-      await command.execute({ rollback: true, reset: true });
+    await command.execute({});
 
-      expect((command as any).success).toHaveBeenCalledWith(expect.stringContaining('rolled back'));
-    });
+    expect(Database.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driver: 'postgresql',
+        host: 'localhost',
+        database: 'mydb',
+      })
+    );
+  });
 
-    it('should load configuration at start', async () => {
-      await command.execute({});
+  it('configures mysql adapter correctly', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({
+      driver: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      database: 'mydb',
+      username: 'user',
+      password: 'pass',
+    } as any);
 
-      expect((command as any).info).toHaveBeenCalledWith(expect.stringContaining('Loading'));
-    });
+    await command.execute({});
 
-    it('should handle errors during execution', async () => {
-      (command as any).info = vi.fn().mockImplementation(throwConfigLoadFailed);
-
-      try {
-        await command.execute({});
-      } catch (error) {
-        expect(vi.mocked(Logger.error)).toHaveBeenCalled();
-        expect(error).toBeInstanceOf(Error);
-      }
-    });
-
-    it('should return no value on successful completion', async () => {
-      const result = await command.execute({ fresh: true });
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should handle multiple option combinations', async () => {
-      await command.execute({ fresh: false, rollback: false, reset: false, step: '0' });
-
-      expect((command as any).success).toHaveBeenCalled();
-    });
+    expect(Database.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        driver: 'mysql',
+        host: 'localhost',
+        database: 'mydb',
+      })
+    );
   });
 });

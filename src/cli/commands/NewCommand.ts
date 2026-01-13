@@ -2,8 +2,10 @@
  * New Command - Project scaffolding CLI command
  * Handles creation of new Zintrust projects
  */
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
+import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { extractErrorMessage, resolvePackageManager } from '@common/index';
@@ -12,7 +14,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
 import chalk from 'chalk';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type TemplateType = 'basic' | 'api' | 'microservice' | 'fullstack';
 type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb' | 'd1-remote';
@@ -315,6 +317,7 @@ const addOptions = (command: Command): void => {
   command.option('--no-install', 'Skip dependency installation');
   command.option('--install', 'Force dependency installation (useful to override CI defaults)');
   command.option('--package-manager <manager>', 'Package manager to use (npm, yarn, pnpm)');
+  command.option('--governance', 'Install governance tooling (ESLint + architecture tests)', false);
   command.option('--force', 'Overwrite existing directory');
   command.option('--overwrite', 'Overwrite existing directory');
 };
@@ -367,6 +370,18 @@ const createProject = async (
 
   if (isFailureResult(result)) {
     throw ErrorFactory.createCliError(result.message ?? 'Project scaffolding failed', result);
+  }
+
+  if (options['governance'] === true) {
+    const gov = await GovernanceScaffolder.scaffold(target.projectPath, {
+      writeEslintConfig: true,
+      writeArchTests: true,
+      install: false,
+    });
+
+    if (gov.success === false) {
+      throw ErrorFactory.createCliError(gov.message ?? 'Governance scaffolding failed', gov);
+    }
   }
 };
 

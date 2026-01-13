@@ -4,7 +4,7 @@
  * Usage: zintrust prepare
  */
 
-import { IBaseCommand } from '@cli/BaseCommand';
+import type { IBaseCommand } from '@cli/BaseCommand';
 import { DistPackager } from '@cli/utils/DistPackager';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';

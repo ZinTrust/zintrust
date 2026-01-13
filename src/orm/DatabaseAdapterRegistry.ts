@@ -2,7 +2,17 @@ import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
 
 export type AdapterFactory = (config: DatabaseConfig) => IDatabaseAdapter;
 
-const registry = new Map<DatabaseConfig['driver'], AdapterFactory>();
+type GlobalWithRegistry = {
+  __zintrust_db_adapter_registry__?: Map<DatabaseConfig['driver'], AdapterFactory>;
+};
+
+const globalWithRegistry = globalThis as unknown as GlobalWithRegistry;
+const registry =
+  globalWithRegistry.__zintrust_db_adapter_registry__ ??
+  (globalWithRegistry.__zintrust_db_adapter_registry__ = new Map<
+    DatabaseConfig['driver'],
+    AdapterFactory
+  >());
 
 function register(driver: DatabaseConfig['driver'], factory: AdapterFactory): void {
   registry.set(driver, factory);

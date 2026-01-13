@@ -5,9 +5,11 @@
 
 import { DEFAULTS } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { useDatabase } from '@orm/Database';
-import { IQueryBuilder, QueryBuilder, type QueryBuilderOptions } from '@orm/QueryBuilder';
-import { BelongsTo, BelongsToMany, HasMany, HasOne, IRelationship } from '@orm/Relationships';
+import { useDatabase, type IDatabase } from '@orm/Database';
+import type { IQueryBuilder, InsertResult, QueryBuilderOptions } from '@orm/QueryBuilder';
+import { QueryBuilder } from '@orm/QueryBuilder';
+import type { IRelationship } from '@orm/Relationships';
+import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
   if (typeof relatedModel.getTable === 'function') {
@@ -24,6 +26,7 @@ export interface ModelConfig {
   timestamps: boolean;
   casts: Record<string, string>;
   softDeletes?: boolean;
+  deleteAtColumn?: string;
   accessors?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
   mutators?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
   scopes?: Record<string, (builder: IQueryBuilder, ...args: unknown[]) => IQueryBuilder>;
@@ -44,6 +47,7 @@ export interface ModelStatic {
   query(): IQueryBuilder;
   getTable?(): string;
   name?: string;
+  hydrate?(attributes: Record<string, unknown>): IModel;
 }
 
 export interface IModel {
@@ -53,11 +57,18 @@ export interface IModel {
   getAttributes(): Record<string, unknown>;
   save(): Promise<boolean>;
   delete(): Promise<boolean>;
+  restore(): Promise<boolean>;
+  forceDelete(): Promise<boolean>;
+  isDeleted(): boolean;
   toJSON(): Record<string, unknown>;
   isDirty(key?: string): boolean;
   getTable(): string;
   exists(): boolean;
   setExists(exists: boolean): void;
+
+  // Relation Management
+  setRelation(name: string, value: unknown): void;
+  getRelation<T>(name: string): T | undefined;
 
   // Relationships
   hasOne(relatedModel: ModelStatic, foreignKey?: string): IRelationship;
@@ -162,113 +173,194 @@ const createModelJSON = (
 
 const createModelRelationships = (
   config: ModelConfig
-): {
-  hasOne: (relatedModel: ModelStatic, foreignKey?: string) => IRelationship;
-  hasMany: (relatedModel: ModelStatic, foreignKey?: string) => IRelationship;
-  belongsTo: (relatedModel: ModelStatic, foreignKey?: string) => IRelationship;
-  belongsToMany: (
-    relatedModel: ModelStatic,
-    throughTable?: string,
-    foreignKey?: string,
-    relatedKey?: string
-  ) => IRelationship;
-} => ({
-  hasOne: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
-    HasOne.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
-  hasMany: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
-    HasMany.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
-  belongsTo: (relatedModel: ModelStatic, foreignKey?: string): IRelationship => {
-    const relatedTable = getRelatedTableName(relatedModel);
-    return BelongsTo.create(relatedModel, foreignKey ?? `${relatedTable.slice(0, -1)}_id`, 'id');
-  },
-  belongsToMany: (
-    relatedModel: ModelStatic,
-    throughTable?: string,
-    foreignKey?: string,
-    relatedKey?: string
-  ): IRelationship => {
-    const relatedTable = getRelatedTableName(relatedModel);
-    const table =
-      throughTable ?? [config.table, relatedTable].sort((a, b) => a.localeCompare(b)).join('_');
-    return BelongsToMany.create(
-      relatedModel,
-      table,
-      foreignKey ?? `${config.table.slice(0, -1)}_id`,
-      relatedKey ?? `${relatedTable.slice(0, -1)}_id`
-    );
-  },
-});
+): Pick<IModel, 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany'> => {
+  return {
+    hasOne: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
+      HasOne.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
+    hasMany: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
+      HasMany.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
+    belongsTo: (relatedModel: ModelStatic, foreignKey?: string): IRelationship => {
+      const relatedTable = getRelatedTableName(relatedModel);
+      return BelongsTo.create(relatedModel, foreignKey ?? `${relatedTable.slice(0, -1)}_id`, 'id');
+    },
+    belongsToMany: (
+      relatedModel: ModelStatic,
+      throughTable?: string,
+      foreignKey?: string,
+      relatedKey?: string
+    ): IRelationship => {
+      const relatedTable = getRelatedTableName(relatedModel);
+      const table =
+        throughTable ?? [config.table, relatedTable].sort((a, b) => a.localeCompare(b)).join('_');
+      return BelongsToMany.create(
+        relatedModel,
+        table,
+        foreignKey ?? `${config.table.slice(0, -1)}_id`,
+        relatedKey ?? `${relatedTable.slice(0, -1)}_id`
+      );
+    },
+  };
+};
+
+const performModelSave = async (
+  model: IModel,
+  config: ModelConfig,
+  attrs: Record<string, unknown>,
+  getDb: () => IDatabase,
+  context: {
+    isExists: boolean;
+    setExists: (v: boolean) => void;
+    updateOriginal: (v: Record<string, unknown>) => void;
+    clearDirty: () => void;
+  }
+): Promise<boolean> => {
+  const db = getDb();
+  if (db === undefined) throw ErrorFactory.createDatabaseError('Database not initialized');
+
+  const isCreate = context.isExists === false;
+  await runObservers(config, 'saving', model);
+  await runObservers(config, isCreate ? 'creating' : 'updating', model);
+
+  if (config.timestamps) {
+    attrs['created_at'] = attrs['created_at'] ?? new Date().toISOString();
+    attrs['updated_at'] = new Date().toISOString();
+  }
+  context.setExists(true);
+  context.updateOriginal({ ...attrs });
+  context.clearDirty();
+
+  await runObservers(config, isCreate ? 'created' : 'updated', model);
+  await runObservers(config, 'saved', model);
+  return true;
+};
+
+const performModelDelete = async (
+  model: IModel,
+  config: ModelConfig,
+  getDb: () => IDatabase,
+  isExists: boolean
+): Promise<boolean> => {
+  const db = getDb();
+  if (!isExists || db === undefined) return false;
+
+  await runObservers(config, 'deleting', model);
+  await runObservers(config, 'deleted', model);
+  return true;
+};
 
 /**
  * Create a new model instance
  */
+// eslint-disable-next-line max-lines-per-function
 export const createModel = (
   config: ModelConfig,
   attributes: Record<string, unknown> = {}
 ): IModel => {
   const connection = config.connection ?? DEFAULTS.CONNECTION;
-  const db = useDatabase(undefined, connection);
+  const getDb = (): IDatabase => useDatabase(undefined, connection);
+
   const attrs: Record<string, unknown> = {};
+  const relations: Record<string, unknown> = {}; // Store eager loaded relations
   let original: Record<string, unknown> = {};
   let isExists = false;
+  const dirtyFields = new Set<string>();
 
   fillAttributes(config, attrs, attributes);
   original = { ...attrs };
 
-  const model: IModel = {
-    fill: (newAttrs): IModel => {
+  const model = {
+    fill: (newAttrs: Record<string, unknown>): IModel => {
       fillAttributes(config, attrs, newAttrs);
+      // Mark all filled fields as dirty
+      for (const key of Object.keys(newAttrs)) {
+        if (attrs[key] !== original[key]) {
+          dirtyFields.add(key);
+        }
+      }
       return model;
     },
-    setAttribute: (key, value): IModel => {
+    setAttribute: (key: string, value: unknown): IModel => {
       const mutator = config.mutators?.[key];
       const nextValue = mutator ? mutator(value, attrs) : value;
-      attrs[key] = castAttribute(config, key, nextValue);
+      const castedValue = castAttribute(config, key, nextValue);
+      attrs[key] = castedValue;
+
+      // Track dirty field
+      if (original[key] === castedValue) {
+        dirtyFields.delete(key);
+      } else {
+        dirtyFields.add(key);
+      }
+
       return model;
     },
-    getAttribute: (key): unknown => applyAccessor(config, key, attrs),
+    getAttribute: (key: string): unknown => {
+      // Check relations first if it's a relation name
+      if (relations[key] !== undefined) return relations[key];
+      return applyAccessor(config, key, attrs);
+    },
     getAttributes: (): Record<string, unknown> => ({ ...attrs }),
 
+    // Relationship helpers
+    setRelation: (name: string, value: unknown): void => {
+      relations[name] = value;
+    },
+    getRelation: <T>(name: string): T | undefined => relations[name] as T,
+
     // remove in production - use saveChanges pattern
-    async save(): Promise<boolean> {
-      if (db === undefined) throw ErrorFactory.createDatabaseError('Database not initialized');
+    save: async (): Promise<boolean> =>
+      performModelSave(model, config, attrs, getDb, {
+        isExists,
+        setExists: (v) => {
+          isExists = v;
+        },
+        updateOriginal: (v) => {
+          original = v;
+        },
+        clearDirty: () => dirtyFields.clear(),
+      }),
 
-      const isCreate = isExists === false;
-      await runObservers(config, 'saving', model);
-      await runObservers(config, isCreate ? 'creating' : 'updating', model);
+    // remove in production - use delete pattern
+    delete: async (): Promise<boolean> => performModelDelete(model, config, getDb, isExists),
 
-      if (config.timestamps) {
-        attrs['created_at'] = attrs['created_at'] ?? new Date().toISOString();
-        attrs['updated_at'] = new Date().toISOString();
-      }
-      isExists = true;
-      original = { ...attrs };
-
-      await runObservers(config, isCreate ? 'created' : 'updated', model);
-      await runObservers(config, 'saved', model);
+    // eslint-disable-next-line @typescript-eslint/require-await
+    restore: async (): Promise<boolean> => {
+      if (config.softDeletes !== true || !isExists) return false;
+      const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
+      attrs[deleteAtColumn] = null;
+      dirtyFields.add(deleteAtColumn);
       return true;
     },
 
-    // remove in production - use delete pattern
-    async delete(): Promise<boolean> {
-      if (!isExists || db === undefined) return false;
-
+    forceDelete: async (): Promise<boolean> => {
+      if (!isExists) return false;
       await runObservers(config, 'deleting', model);
       await runObservers(config, 'deleted', model);
       return true;
     },
+
+    isDeleted: (): boolean => {
+      if (config.softDeletes !== true) return false;
+      const deleteAtColumn = config.deleteAtColumn ?? 'deleted_at';
+      const deletedValue = attrs[deleteAtColumn];
+      return deletedValue !== null && deletedValue !== undefined;
+    },
+
     toJSON: (): Record<string, unknown> => createModelJSON(config, attrs),
-    isDirty: (key): boolean =>
-      key === undefined
-        ? JSON.stringify(attrs) !== JSON.stringify(original)
-        : attrs[key] !== original[key],
+    isDirty: (key?: string): boolean => {
+      if (key !== undefined) {
+        return dirtyFields.has(key);
+      }
+      return dirtyFields.size > 0;
+    },
     getTable: (): string => config.table,
     exists: (): boolean => isExists,
     setExists: (exists: boolean): void => {
       isExists = exists;
     },
-    ...createModelRelationships(config),
-  };
+  } as IModel;
+
+  Object.assign(model, createModelRelationships(config));
 
   return model;
 };
@@ -343,12 +435,239 @@ const extendModel = <T extends BoundModelMethods>(model: IModel, methods: T): IM
 
 export type DefinedModel<T extends BoundModelMethods> = {
   create: (attributes?: Record<string, unknown> | undefined) => IModel & T;
+  hydrate: (attributes: Record<string, unknown>) => IModel & T;
+  hydrateWithRelations(
+    attributes: Record<string, unknown>,
+    related: Record<string, unknown>
+  ): IModel & T;
   find: (id: unknown) => Promise<(IModel & T) | null>;
   all: () => Promise<Array<IModel & T>>;
+  raw: () => Promise<Array<Record<string, unknown>>>;
   query: () => IQueryBuilder;
+
+  // QueryBuilder convenience methods
+  where: (
+    column: string,
+    operator: string | number | boolean | null,
+    value?: unknown
+  ) => IQueryBuilder;
+  andWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
+  orWhere: (column: string, operator: string, value?: unknown) => IQueryBuilder;
+  whereIn: (column: string, values: unknown[]) => IQueryBuilder;
+  whereNotIn: (column: string, values: unknown[]) => IQueryBuilder;
+  select: (...columns: string[]) => IQueryBuilder;
+  selectAs: (column: string, alias: string) => IQueryBuilder;
+  max: (column: string, alias?: string) => IQueryBuilder;
+  join: (table: string, on: string) => IQueryBuilder;
+  leftJoin: (table: string, on: string) => IQueryBuilder;
+  orderBy: (column: string, direction?: 'ASC' | 'DESC') => IQueryBuilder;
+  limit: (count: number) => IQueryBuilder;
+  offset: (count: number) => IQueryBuilder;
+  withTrashed: () => IQueryBuilder;
+  onlyTrashed: () => IQueryBuilder;
+  withoutTrashed: () => IQueryBuilder;
+
   scope: (name: string, ...args: unknown[]) => IQueryBuilder;
   getTable: () => string;
   db: (connection: string) => DefinedModel<T>;
+};
+
+type MethodsOrPlan = UnboundModelMethods | ((model: IModel) => BoundModelMethods) | undefined;
+type AnyFunction = (...args: unknown[]) => unknown;
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const isRelationship = (value: unknown): value is IRelationship => {
+  if (!isRecord(value)) return false;
+  return 'type' in value && 'get' in value;
+};
+
+const createModelBuilder = (cfg: ModelConfig): IQueryBuilder => {
+  const db = useDatabase(undefined, cfg.connection ?? DEFAULTS.CONNECTION);
+  return QueryBuilder.create(cfg.table, db, buildSoftDeleteOptions(cfg));
+};
+
+const createHydrator = (
+  cfg: ModelConfig,
+  attach: (model: IModel) => IModel & BoundModelMethods
+) => {
+  return (attributes: Record<string, unknown>): IModel & BoundModelMethods => {
+    const model = createModel(cfg, attributes);
+    model.setExists(true);
+    return attach(model);
+  };
+};
+
+const createRelationMapping = (
+  cfg: ModelConfig,
+  resolveMethods: (model: IModel) => BoundModelMethods
+): Record<string, IRelationship> => {
+  const dummyModel = createModel(cfg);
+  const methods = resolveMethods(dummyModel);
+
+  const relationMapping: Record<string, IRelationship> = {};
+  for (const [name, fn] of Object.entries(methods) as Array<[string, AnyFunction]>) {
+    try {
+      const result = fn();
+      if (isRelationship(result)) {
+        relationMapping[name] = result;
+      }
+    } catch {
+      // Not a relationship call or requires params
+    }
+  }
+
+  return relationMapping;
+};
+
+const wrapBuilderGetForEagerLoading = (
+  builder: IQueryBuilder,
+  hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
+): void => {
+  const eagerBuilder = builder as unknown as {
+    get: () => Promise<unknown>;
+    getEagerLoads?: () => string[];
+    load?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
+  };
+
+  const originalGet = eagerBuilder.get.bind(builder);
+  eagerBuilder.get = async (): Promise<unknown> => {
+    const raw = await originalGet();
+    if (!Array.isArray(raw)) return raw;
+
+    const rows = raw.filter(isRecord);
+    const models = rows.map(hydrateModel);
+
+    const eagerLoads =
+      typeof eagerBuilder.getEagerLoads === 'function' ? eagerBuilder.getEagerLoads() : undefined;
+    if (
+      Array.isArray(eagerLoads) &&
+      eagerLoads.length > 0 &&
+      typeof eagerBuilder.load === 'function' &&
+      models.length > 0
+    ) {
+      await Promise.all(eagerLoads.map(async (relation) => eagerBuilder.load?.(models, relation)));
+    }
+
+    return models;
+  };
+};
+
+const createQueryBuilderMethods = (
+  cfg: ModelConfig,
+  hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
+): Omit<
+  DefinedModel<BoundModelMethods>,
+  'create' | 'hydrate' | 'find' | 'all' | 'raw' | 'db' | 'hydrateWithRelations'
+> => {
+  const wrappedBuilder = (): IQueryBuilder => {
+    const builder = createModelBuilder(cfg);
+    wrapBuilderGetForEagerLoading(builder, hydrateModel);
+    return builder;
+  };
+
+  return {
+    query: (): IQueryBuilder => wrappedBuilder(),
+    where: (
+      column: string,
+      operator: string | number | boolean | null,
+      value?: unknown
+    ): IQueryBuilder => wrappedBuilder().where(column, operator, value),
+    andWhere: (column: string, operator: string, value?: unknown): IQueryBuilder =>
+      wrappedBuilder().andWhere(column, operator, value),
+    orWhere: (column: string, operator: string, value?: unknown): IQueryBuilder =>
+      wrappedBuilder().orWhere(column, operator, value),
+    whereIn: (column: string, values: unknown[]): IQueryBuilder =>
+      wrappedBuilder().whereIn(column, values),
+    whereNotIn: (column: string, values: unknown[]): IQueryBuilder =>
+      wrappedBuilder().whereNotIn(column, values),
+    select: (...columns: string[]): IQueryBuilder => wrappedBuilder().select(...columns),
+    selectAs: (column: string, alias: string): IQueryBuilder =>
+      wrappedBuilder().selectAs(column, alias),
+    max: (column: string, alias?: string): IQueryBuilder =>
+      wrappedBuilder().max(column, alias),
+    join: (table: string, on: string): IQueryBuilder => wrappedBuilder().join(table, on),
+    leftJoin: (table: string, on: string): IQueryBuilder =>
+      wrappedBuilder().leftJoin(table, on),
+    orderBy: (column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder =>
+      wrappedBuilder().orderBy(column, direction),
+    limit: (count: number): IQueryBuilder => wrappedBuilder().limit(count),
+    offset: (count: number): IQueryBuilder => wrappedBuilder().offset(count),
+    withTrashed: (): IQueryBuilder => wrappedBuilder().withTrashed(),
+    onlyTrashed: (): IQueryBuilder => wrappedBuilder().onlyTrashed(),
+    withoutTrashed: (): IQueryBuilder => wrappedBuilder().withoutTrashed(),
+    scope: (name: string, ...args: unknown[]): IQueryBuilder => {
+      const fn = cfg.scopes?.[name];
+      if (typeof fn !== 'function') {
+        throw ErrorFactory.createConfigError(`Unknown query scope: ${name}`);
+      }
+      const builder = createModelBuilder(cfg);
+      return fn(builder, ...args);
+    },
+    getTable: (): string => cfg.table,
+  };
+};
+
+const createDefinedModelInternal = (
+  cfg: ModelConfig,
+  methodsOrPlan: MethodsOrPlan,
+  attach: (model: IModel) => IModel & BoundModelMethods,
+  resolveMethods: (model: IModel) => BoundModelMethods
+): DefinedModel<BoundModelMethods> => {
+  const relationMapping = createRelationMapping(cfg, resolveMethods);
+  const hydrateModel = createHydrator(cfg, attach);
+
+  return {
+    create: (attributes: Record<string, unknown> = {}): IModel & BoundModelMethods =>
+      attach(createModel(cfg, attributes)),
+    hydrate: (attributes: Record<string, unknown>): IModel & BoundModelMethods =>
+      hydrateModel(attributes),
+    find: async (id: unknown): Promise<(IModel & BoundModelMethods) | null> => {
+      const model = await find(cfg, id);
+      return model === null ? null : attach(model);
+    },
+    all: async (): Promise<Array<IModel & BoundModelMethods>> => {
+      const models = await all(cfg);
+      return models.map((m) => attach(m));
+    },
+    raw: async (): Promise<Array<Record<string, unknown>>> => {
+      const builder = createModelBuilder(cfg);
+      return builder.get();
+    },
+    ...createQueryBuilderMethods(cfg, hydrateModel),
+    db: (connection: string): DefinedModel<BoundModelMethods> =>
+      createDefinedModelInternal({ ...cfg, connection }, methodsOrPlan, attach, resolveMethods),
+    hydrateWithRelations(
+      attributes: Record<string, unknown>,
+      related: Record<string, unknown>
+    ): IModel & BoundModelMethods {
+      const model = hydrateModel(attributes);
+
+      for (const [name, data] of Object.entries(related)) {
+        const rel = relationMapping[name];
+        if (rel === undefined) continue;
+
+        const relatedStatic = rel.related;
+        const hydrate = relatedStatic.hydrate;
+        if (typeof hydrate !== 'function') continue;
+
+        if (Array.isArray(data)) {
+          const relatedModels = data.filter(isRecord).map((d) => hydrate(d));
+          model.setRelation(name, relatedModels);
+          continue;
+        }
+
+        if (data !== null && data !== undefined && isRecord(data)) {
+          const relatedModel = hydrate(data);
+          model.setRelation(name, relatedModel);
+        }
+      }
+
+      return model;
+    },
+  };
 };
 
 /**
@@ -366,49 +685,43 @@ export function define(
   config: ModelConfig,
   methodsOrPlan?: UnboundModelMethods | ((model: IModel) => BoundModelMethods)
 ): DefinedModel<BoundModelMethods> {
-  const isPlan = typeof methodsOrPlan === 'function';
+  const plan = typeof methodsOrPlan === 'function' ? methodsOrPlan : undefined;
+  const unboundMethods = typeof methodsOrPlan === 'function' ? undefined : methodsOrPlan;
+
+  const resolveMethods = (model: IModel): BoundModelMethods => {
+    return plan ? plan(model) : bindUnboundMethods(model, unboundMethods ?? {});
+  };
 
   const attach = (model: IModel): IModel & BoundModelMethods => {
-    const methods = isPlan
-      ? (methodsOrPlan as (m: IModel) => BoundModelMethods)(model)
-      : bindUnboundMethods(model, methodsOrPlan ?? {});
+    const methods = resolveMethods(model);
     return extendModel(model, methods);
   };
 
-  const createDefinedModel = (cfg: ModelConfig): DefinedModel<BoundModelMethods> => ({
-    create: (attributes: Record<string, unknown> = {}): (IModel & BoundModelMethods) | never =>
-      attach(createModel(cfg, attributes)),
-    find: async (id: unknown): Promise<(IModel & BoundModelMethods) | null> => {
-      const model = await find(cfg, id);
-      return model === null ? null : attach(model);
-    },
-    all: async (): Promise<Array<IModel & BoundModelMethods>> => {
-      const models = await all(cfg);
-      return models.map((m) => attach(m));
-    },
-    query: (): IQueryBuilder => {
-      const db = useDatabase(undefined, cfg.connection ?? DEFAULTS.CONNECTION);
-      return QueryBuilder.create(cfg.table, db, buildSoftDeleteOptions(cfg));
-    },
-    scope: (name: string, ...args: unknown[]): IQueryBuilder => {
-      const scopes = cfg.scopes;
-      const fn = scopes?.[name];
-      if (typeof fn !== 'function') {
-        throw ErrorFactory.createConfigError(`Unknown query scope: ${name}`);
-      }
-      const builder = (() => {
-        const db = useDatabase(undefined, cfg.connection ?? DEFAULTS.CONNECTION);
-        return QueryBuilder.create(cfg.table, db, buildSoftDeleteOptions(cfg));
-      })();
-      return fn(builder, ...args);
-    },
-    getTable: (): string => cfg.table,
-    db: (connection: string): DefinedModel<BoundModelMethods> =>
-      createDefinedModel({ ...cfg, connection }),
-  });
-
-  return createDefinedModel(config);
+  return createDefinedModelInternal(config, methodsOrPlan, attach, resolveMethods);
 }
+
+/**
+ * Insert a single or multiple records into the database
+ * Returns insert metadata including ID and affected rows
+ */
+const insert = async (
+  config: ModelConfig,
+  values: Record<string, unknown> | Array<Record<string, unknown>>
+): Promise<InsertResult> => {
+  const db = useDatabase(undefined, config.connection ?? DEFAULTS.CONNECTION);
+  const builder = QueryBuilder.create(config.table, db, buildSoftDeleteOptions(config));
+  return builder.insert(values);
+};
+
+/**
+ * Batch insert multiple records (alias for insert with array)
+ */
+const bulkInsert = async (
+  config: ModelConfig,
+  records: Array<Record<string, unknown>>
+): Promise<InsertResult> => {
+  return insert(config, records);
+};
 
 /**
  * Model namespace - sealed namespace object grouping all model operations
@@ -421,5 +734,7 @@ export const Model = Object.freeze({
   query,
   find,
   all,
+  insert,
+  bulkInsert,
   define,
 });

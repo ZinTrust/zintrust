@@ -6,7 +6,7 @@
  */
 
 import { Env } from '@config/env';
-import {
+import type {
   BroadcastConfigInput,
   BroadcastDrivers,
   InMemoryBroadcastDriverConfig,

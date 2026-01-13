@@ -1,5 +1,6 @@
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
-import { ProjectOptions, ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
+import type { ProjectOptions} from '@cli/scaffolding/ProjectScaffolder';
+import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { default as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -444,7 +445,7 @@ describe('ProjectScaffolder Database Configuration', () => {
     const env = FileGenerator.readFile(path.join(projectPath, '.env'));
 
     expect(env).toContain('DB_CONNECTION=sqlite');
-    expect(env).toContain('DB_DATABASE=./database.sqlite');
+    expect(env).toContain('DB_DATABASE=.zintrust/dbs/my-app.sqlite');
   });
 });
 

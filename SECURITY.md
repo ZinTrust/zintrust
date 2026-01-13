@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-We provide security updates for the following versions of Zintrust:
+We provide security updates for the following versions of ZinTrust:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -11,7 +11,7 @@ We provide security updates for the following versions of Zintrust:
 
 ## Reporting a Vulnerability
 
-We take the security of Zintrust seriously. If you believe you have found a security vulnerability, please **do not** report it via a public issue.
+We take the security of ZinTrust seriously. If you believe you have found a security vulnerability, please **do not** report it via a public issue.
 
 Instead, please follow these steps:
 
@@ -23,10 +23,33 @@ We will acknowledge your report within 48 hours and provide a timeline for the f
 
 ## Security Best Practices for Contributors
 
+ZinTrust follows a defense-in-depth approach with **10 independent security layers**; see [docs/security.md](docs/security.md) for the full architecture and recommended usage patterns.
+
+### Defense-in-Depth Architecture
+
+ZinTrust implements a **10-layer security architecture** where attackers must breach multiple independent security controls:
+
+| Layer  | Control                  | Location          | Purpose                                                   |
+| ------ | ------------------------ | ----------------- | --------------------------------------------------------- |
+| **1**  | Security Headers         | Global Middleware | HSTS, CSP, X-Frame-Options, X-Content-Type-Options        |
+| **2**  | CORS                     | Global Middleware | Origin validation, preflight handling                     |
+| **3**  | Rate Limiting            | Global Middleware | 100 req/min baseline (configurable per-route)             |
+| **4**  | CSRF Protection          | Global Middleware | Double Submit Cookie pattern                              |
+| **5**  | XSS Sanitization         | Global Middleware | Recursive HTML stripping via `Xss.sanitize`               |
+| **6**  | Field Sanitization       | Route Middleware  | Type-specific input normalization via `Sanitizer.*`       |
+| **7**  | Schema Validation        | Route Middleware  | Type checking, format validation via `Validator.validate` |
+| **8**  | Authentication           | Route Middleware  | JWT verification, session validation                      |
+| **9**  | Authorization            | Controller Logic  | Role-based access control, ownership checks               |
+| **10** | SQL Injection Prevention | Database Layer    | Prepared statements via QueryBuilder                      |
+
+### Key Security Practices
+
 - **SQL Injection**: Always use `QueryBuilder` or parameterized queries. Never concatenate strings for SQL.
-- **XSS**: Sanitize all user-provided content before rendering or storing.
-- **Authentication**: Use the built-in `Auth` middleware for protected routes.
+- **XSS**: Sanitize all user-provided content before rendering or storing. Use `Xss.sanitize` and field-specific `Sanitizer.*` methods.
+- **Authentication**: Use the built-in `Auth` middleware (`['auth', 'jwt']`) for protected routes.
+- **Input Validation**: Always use validation middleware with field sanitizers before processing user input.
 - **Dependencies**: Keep dependencies up to date and avoid adding unnecessary external packages.
+- **Security Logging**: Log all authentication failures, authorization denials, and suspicious activity for audit trails.
 
 ## Automated Security Scans (CI)
 

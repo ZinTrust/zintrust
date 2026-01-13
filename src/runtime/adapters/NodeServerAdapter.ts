@@ -1,8 +1,9 @@
 import { Env } from '@config/env';
 import Logger from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { createServer, IncomingMessage, Server, ServerResponse } from '@node-singletons/http';
-import {
+import type { IncomingMessage, Server, ServerResponse } from '@node-singletons/http';
+import { createServer } from '@node-singletons/http';
+import type {
   AdapterConfig,
   PlatformRequest,
   PlatformResponse,

@@ -11,7 +11,7 @@
 
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 import { SecretsToolkit } from '@toolkit/Secrets';
 import type { SecretsProviderName } from '@toolkit/Secrets/Manifest';

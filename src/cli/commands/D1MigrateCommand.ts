@@ -2,13 +2,16 @@
  * D1 Migrate Command
  * Run Cloudflare D1 migrations using Wrangler
  */
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
+import { WranglerD1 } from '@cli/d1/WranglerD1';
 import { resolveNpmPath } from '@common/index';
 import { appConfig } from '@config/app';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { execFileSync } from '@node-singletons/child-process';
-import { Command } from 'commander';
+import type { Command } from 'commander';
+
+const RESOLVED_VOID: Promise<void> = Promise.resolve();
 
 type ID1MigrateCommand = IBaseCommand & {
   resolveNpmPath: () => string;
@@ -16,28 +19,28 @@ type ID1MigrateCommand = IBaseCommand & {
   runWrangler: (args: string[]) => Promise<string>;
 };
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> => {
-  const npmPath = resolveNpmPath();
-  cmd.debug(`Executing: npm exec --yes -- wrangler ${args.join(' ')}`);
-
-  const result = execFileSync(npmPath, ['exec', '--yes', '--', 'wrangler', ...args], {
-    stdio: 'pipe',
-    encoding: 'utf8',
-    env: appConfig.getSafeEnv(),
-  });
-  return result;
+  // Back-compat entrypoint for tests; we only use this for D1 migrations apply.
+  const dbName = args[3];
+  const mode = args[4];
+  const isLocal = mode === '--local';
+  await RESOLVED_VOID;
+  return WranglerD1.applyMigrations({ cmd, dbName, isLocal });
 };
 
 const executeD1Migrate = async (cmd: IBaseCommand, options: CommandOptions): Promise<void> => {
   const isLocal = options['local'] === true || options['remote'] !== true;
-  const dbName = typeof options['database'] === 'string' ? options['database'] : 'zintrust_db';
-  const target = isLocal ? '--local' : '--remote';
+  const dbName =
+    typeof options['database'] === 'string' && options['database'].trim() !== ''
+      ? options['database']
+      : 'zintrust_db';
 
   cmd.info(`Running D1 migrations for ${dbName} (${isLocal ? 'local' : 'remote'})...`);
 
+  await RESOLVED_VOID;
+
   try {
-    const output = await runWrangler(cmd, ['d1', 'migrations', 'apply', dbName, target]);
+    const output = WranglerD1.applyMigrations({ cmd, dbName, isLocal });
     if (output !== '') cmd.info(output);
     cmd.info('✓ D1 migrations completed successfully');
   } catch (error: unknown) {
@@ -71,9 +74,12 @@ export const D1MigrateCommand = Object.freeze({
   create(): IBaseCommand {
     const addOptions = (command: Command): void => {
       command
-        .option('--local', 'Run migrations against local D1 database')
-        .option('--remote', 'Run migrations against remote D1 database')
-        .option('--database <name>', 'D1 database name', 'zintrust_db');
+        .option('--local', 'Run against local D1 database (via wrangler dev)')
+        .option('--remote', 'Run against remote D1 database (production)')
+        .option(
+          '--database <name>',
+          'Wrangler D1 database binding name (from wrangler.toml). Defaults to "zintrust_db"'
+        );
     };
 
     const cmd = BaseCommand.create<ID1MigrateCommand>({

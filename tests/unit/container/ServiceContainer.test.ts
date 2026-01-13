@@ -1,4 +1,5 @@
-import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
+import type { IServiceContainer} from '@/container/ServiceContainer';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('ServiceContainer', () => {

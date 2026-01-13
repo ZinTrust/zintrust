@@ -3,7 +3,7 @@
  * Tracks heap memory usage and garbage collection events
  */
 
-import { MemoryDelta, MemorySnapshot } from '@profiling/types';
+import type { MemoryDelta, MemorySnapshot } from '@profiling/types';
 
 export interface IMemoryProfiler {
   start(): void;

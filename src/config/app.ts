@@ -55,7 +55,10 @@ const getSafeEnv = (): NodeJS.ProcessEnv => {
       (readEnvString('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV']),
     USE_RAW_QRY: baseEnv.USE_RAW_QRY ?? (readEnvString('USE_RAW_QRY', '') || undefined),
     SERVICE_API_KEY: baseEnv.SERVICE_API_KEY ?? readEnvString('SERVICE_API_KEY', ''),
-    SERVICE_JWT_SECRET: baseEnv.SERVICE_JWT_SECRET ?? readEnvString('SERVICE_JWT_SECRET', ''),
+    SERVICE_JWT_SECRET:
+      baseEnv.SERVICE_JWT_SECRET ??
+      readEnvString('SERVICE_JWT_SECRET', '') ??
+      readEnvString('APP_KEY', ''),
     BASE_URL: baseEnv['BASE_URL'] ?? readEnvString('BASE_URL', ''),
     MODE: baseEnv['MODE'] ?? readEnvString('MODE', ''),
 

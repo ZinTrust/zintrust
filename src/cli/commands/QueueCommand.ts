@@ -6,7 +6,7 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { QueueWorkCommandUtils } from '@cli/commands/QueueWorkCommandUtils';
 import { QueueWorkRunner } from '@cli/workers/QueueWorkRunner';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type QueueCommandOptions = CommandOptions & {
   timeout?: string;

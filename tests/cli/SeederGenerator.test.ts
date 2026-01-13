@@ -3,7 +3,8 @@
  * Comprehensive tests for database seeder generation
  */
 
-import { SeederGenerator, SeederOptions } from '@cli/scaffolding/SeederGenerator';
+import type { SeederOptions } from '@cli/scaffolding/SeederGenerator';
+import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 /* eslint-disable max-nested-callbacks */

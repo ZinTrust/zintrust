@@ -1,6 +1,6 @@
 # Your First API
 
-Building your first API with Zintrust is fast and intuitive. In this guide, we'll create a simple "Task" API.
+Building your first API with ZinTrust is fast and intuitive. In this guide, we'll create a simple "Task" API.
 
 ## 1. Create the Model and Migration
 
@@ -13,20 +13,42 @@ zin add model Task --migration
 Edit the migration in `database/migrations/` to add a `title` and `completed` status:
 
 ```typescript
-export async function up(db: Database) {
-  await db.createTable('tasks', (table) => {
-    table.id();
-    table.string('title');
-    table.boolean('completed').default(false);
-    table.timestamps();
-  });
+import { MigrationSchema, type IDatabase } from '@zintrust/core';
+
+export interface Migration {
+  up(db: IDatabase): Promise\<void>;
+  down(db: IDatabase): Promise\<void>;
 }
+
+export const migration: Migration = {
+  async up(db: IDatabase): Promise\<void> {
+    const schema = MigrationSchema.create(db);
+
+    await schema.create('tasks', (table) => {
+      table.id();
+      table.string('title');
+      table.boolean('completed').default(false);
+      table.timestamps();
+    });
+  },
+
+  async down(db: IDatabase): Promise\<void> {
+    const schema = MigrationSchema.create(db);
+    await schema.dropIfExists('tasks');
+  },
+};
 ```
 
 Run the migration:
 
 ```bash
 zin migrate
+```
+
+If your project uses Cloudflare D1 (`DB_CONNECTION=d1` or `d1-remote`), use:
+
+```bash
+zin migrate --local --database zintrust_db
 ```
 
 ## 2. Create the Controller
@@ -44,13 +66,13 @@ import { Task } from '@app/Models/Task';
 import { Controller, type IRequest, type IResponse } from '@zintrust/core';
 
 export const TaskController = {
-  async index(_req: IRequest, res: IResponse): Promise<void> {
+  async index(_req: IRequest, res: IResponse): Promise\<void> {
     const tasks = await Task.query().get();
     Controller.json(res, { data: tasks });
   },
 
-  async store(req: IRequest, res: IResponse): Promise<void> {
-    const task = Task.create(req.getBody() as Record<string, unknown>);
+  async store(req: IRequest, res: IResponse): Promise\<void> {
+    const task = Task.create(req.getBody() as Record\<string, unknown>);
     await task.save();
     Controller.json(res, { data: task }, 201);
   },

@@ -1,6 +1,6 @@
 # Notifications
 
-Zintrust includes a small notification toolkit with pluggable drivers and a built-in Markdown template registry.
+ZinTrust includes a small notification toolkit with pluggable drivers and a built-in Markdown template registry.
 
 ## Core API
 
@@ -8,7 +8,7 @@ Send a notification:
 
     import { Notification } from '@zintrust/core';
 
-    await Notification.send('+15551234567', 'Hello from Zintrust');
+    await Notification.send('+15551234567', 'Hello from ZinTrust');
 
 ### Explicit “now” vs queued “later”
 
@@ -18,8 +18,8 @@ Send a notification:
 import { Notification, NotificationWorker } from '@zintrust/core';
 
 // Immediate
-await Notification.send('+15551234567', 'Hello from Zintrust');
-await Notification.NotifyNow('+15551234567', 'Hello from Zintrust');
+await Notification.send('+15551234567', 'Hello from ZinTrust');
+await Notification.NotifyNow('+15551234567', 'Hello from ZinTrust');
 
 // Queue for later processing
 await Notification.NotifyLater('+15551234567', 'Your order has been shipped', { orderId: '12345' });
@@ -59,7 +59,7 @@ or:
 Termii environment variables used by the current driver implementation:
 
     TERMII_API_KEY=...
-    TERMII_SENDER=Zintrust
+    TERMII_SENDER=ZinTrust
 
 Notes:
 
@@ -117,7 +117,7 @@ import { sendSlackWebhook } from '@zintrust/core';
 
 await sendSlackWebhook(
   { webhookUrl: process.env.SLACK_WEBHOOK_URL ?? '' },
-  { text: 'Hello from Zintrust' }
+  { text: 'Hello from ZinTrust' }
 );
 ```
 
@@ -174,7 +174,7 @@ Notes:
 
 ## Testing helpers 🧪
 
-Zintrust includes helper utilities for testing notifications.
+ZinTrust includes helper utilities for testing notifications.
 
 ### useFakeDriver(name)
 
@@ -230,7 +230,7 @@ Rendering uses the shared Markdown renderer and simple `{{variable}}` substituti
 
 ### CLI (recommended)
 
-Run the worker via the Zintrust CLI (run once, drain up to limits, then exit):
+Run the worker via the ZinTrust CLI (run once, drain up to limits, then exit):
 
 ```bash
 # Auto-detect job type from payload
@@ -243,7 +243,7 @@ zin queue work notification notifications --timeout 10 --retry 3 --max-items 100
 zin notification:work notifications --timeout 10 --retry 3 --max-items 1000
 ```
 
-Zintrust exposes a worker helper:
+ZinTrust exposes a worker helper:
 
 - `NotificationWorker.runOnce({ queueName?, driverName?, maxItems? })` (recommended)
 - `NotificationWorker.startWorker({ queueName?, driverName?, signal? })` (drain-until-empty, then exits)
@@ -281,7 +281,7 @@ Run every minute:
 
 ```ini
 [Unit]
-Description=Zintrust Notification Queue Worker (run once)
+Description=ZinTrust Notification Queue Worker (run once)
 
 [Service]
 Type=oneshot
@@ -294,7 +294,7 @@ ExecStart=/usr/bin/env zin notification:work notifications --timeout 50 --retry 
 
 ```ini
 [Unit]
-Description=Run Zintrust Notification Queue Worker every minute
+Description=Run ZinTrust Notification Queue Worker every minute
 
 [Timer]
 OnBootSec=30s

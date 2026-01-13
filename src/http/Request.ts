@@ -3,7 +3,9 @@
  * Wraps Node.js IncomingMessage with additional utilities
  */
 
-import * as http from '@node-singletons/http';
+import type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
+import { FileUpload } from '@http/FileUpload';
+import type * as http from '@node-singletons/http';
 
 type HeadParam = string | string[] | undefined;
 type JwtPayload = import('@/index').JwtPayload;
@@ -13,6 +15,12 @@ export interface IRequest {
   user: JwtPayload | undefined;
   params: Record<string, string>;
   body: Record<string, unknown>;
+  validated: {
+    body?: unknown;
+    query?: unknown;
+    params?: unknown;
+    headers?: unknown;
+  };
   getMethod(): string;
   getPath(): string;
   getHeaders(): http.IncomingHttpHeaders;
@@ -28,7 +36,27 @@ export interface IRequest {
   isJson(): boolean;
   getRaw(): http.IncomingMessage;
   context: Record<string, unknown>;
+
+  // File upload methods
+  file(fieldName: string, options?: FileUploadOptions): UploadedFile | undefined;
+  files(fieldName: string, options?: FileUploadOptions): UploadedFile[];
+  hasFile(fieldName: string): boolean;
+  fileUpload(): IFileUploadHandler;
 }
+
+export type ValidatedRequest<
+  TBody = unknown,
+  TQuery = unknown,
+  TParams = unknown,
+  THeaders = unknown,
+> = Omit<IRequest, 'validated'> & {
+  validated: {
+    body: TBody;
+    query: TQuery;
+    params: TParams;
+    headers: THeaders;
+  };
+};
 
 /**
  * Request - HTTP Request wrapper
@@ -67,6 +95,12 @@ type RequestState = {
   params: Record<string, string>;
   body: unknown;
   bodyRecord: Record<string, unknown>;
+  validated: {
+    body?: unknown;
+    query?: unknown;
+    params?: unknown;
+    headers?: unknown;
+  };
 };
 
 const createRequestState = (req: http.IncomingMessage): RequestState => {
@@ -76,6 +110,7 @@ const createRequestState = (req: http.IncomingMessage): RequestState => {
     params: {},
     body: null,
     bodyRecord: {},
+    validated: {},
   };
 };
 
@@ -87,7 +122,7 @@ const setBodyState = (state: RequestState, newBody: unknown): void => {
 const createRequestProperties = (
   state: RequestState,
   context: Record<string, unknown>
-): Pick<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'context'> => {
+): Pick<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'validated' | 'context'> => {
   return {
     get sessionId(): HeadParam {
       return state.sessionId;
@@ -118,6 +153,13 @@ const createRequestProperties = (
     set body(newBody: Record<string, unknown>) {
       setBodyState(state, newBody);
     },
+
+    get validated(): IRequest['validated'] {
+      return state.validated;
+    },
+    set validated(v: IRequest['validated']) {
+      state.validated = v;
+    },
   };
 };
 
@@ -125,7 +167,7 @@ const createRequestMethods = (
   req: http.IncomingMessage,
   query: Record<string, string | string[]>,
   state: RequestState
-): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'context'> => {
+): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'validated' | 'context'> => {
   return {
     getMethod(): string {
       return req.method ?? 'GET';
@@ -172,6 +214,26 @@ const createRequestMethods = (
       const contentType = this.getHeader('content-type');
       return typeof contentType === 'string' && contentType.includes('application/json');
     },
+
+    file(fieldName: string, options) {
+      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      return handler.file(fieldName, options);
+    },
+
+    files(fieldName: string, options) {
+      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      return handler.files(fieldName, options);
+    },
+
+    hasFile(fieldName: string): boolean {
+      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      return handler.hasFile(fieldName);
+    },
+
+    fileUpload() {
+      return FileUpload.createHandler(this as unknown as IRequest);
+    },
+
     getRaw(): http.IncomingMessage {
       return req;
     },

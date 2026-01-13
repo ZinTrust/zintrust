@@ -28,6 +28,11 @@ export interface CacheDriver {
    * Check if an item exists in the cache
    */
   has(key: string): Promise<boolean>;
+
+  /**
+   * Dispose of resources (optional cleanup method)
+   */
+  dispose?(): Promise<void>;
 }
 
 // Runtime marker to make this type-only module coverable in V8 coverage.

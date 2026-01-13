@@ -1,7 +1,7 @@
 import { SessionManager } from '@session/SessionManager';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@common/uuid', () => ({
+vi.mock('@/common/utility', () => ({
   generateSecureJobId: vi.fn(() => 'generated-session-id'),
 }));
 

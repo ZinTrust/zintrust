@@ -1,4 +1,5 @@
-import { IMiddlewareStack, MiddlewareStack } from '@middleware/MiddlewareStack';
+import type { IMiddlewareStack} from '@middleware/MiddlewareStack';
+import { MiddlewareStack } from '@middleware/MiddlewareStack';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('MiddlewareStack', () => {

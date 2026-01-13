@@ -5,7 +5,10 @@ APP_DEBUG=true
 APP_KEY=
 
 DB_CONNECTION=sqlite
-DB_DATABASE=./database.sqlite
+DB_DATABASE=.zintrust/dbs/{{projectSlug}}.sqlite
+
+# Common alias for sqlite file path
+DB_PATH=.zintrust/dbs/{{projectSlug}}.sqlite
 
 LOG_LEVEL=debug
 LOG_CHANNEL=file

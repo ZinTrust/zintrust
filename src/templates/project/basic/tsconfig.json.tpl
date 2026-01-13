@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "outDir": "./dist",
     "rootDir": "./",
@@ -16,17 +17,17 @@
       "@routes/*": ["./routes/*"],
       "@database/*": ["./database/*"],
 
-      "@tools/*": ["./src/tools/*"],
-      "@httpClient/*": ["./src/tools/http/*"],
-      "@templates": ["./src/tools/templates/index.ts"],
-      "@templates/*": ["./src/tools/templates/*"],
-      "@mail/*": ["./src/tools/mail/*"],
-      "@storage": ["./src/tools/storage/index.ts"],
-      "@storage/*": ["./src/tools/storage/*"],
-      "@drivers/*": ["./src/tools/storage/drivers/*"],
-      "@notification/*": ["./src/tools/notification/*"],
-      "@broadcast/*": ["./src/tools/broadcast/*"],
-      "@queue/*": ["./src/tools/queue/*"]
+      "@tools/*": ["app/Tools/*"],
+      "@httpClient/*": ["app/Tools/http/*"],
+      "@templates": ["app/Tools/templates/index.ts"],
+      "@templates/*": ["app/Tools/templates/*"],
+      "@mail/*": ["app/Tools/mail/*"],
+      "@storage": ["app/Tools/storage/index.ts"],
+      "@storage/*": ["app/Tools/storage/*"],
+      "@drivers/*": ["app/Tools/storage/drivers/*"],
+      "@notification/*": ["app/Tools/notification/*"],
+      "@broadcast/*": ["app/Tools/broadcast/*"],
+      "@queue/*": ["app/Tools/queue/*"]
     }
   },
   "include": ["src/**/*", "app/**/*", "routes/**/*", "database/**/*"],

@@ -5,7 +5,33 @@ description: HTTP client for making authenticated requests
 
 # HTTP Client
 
-Zintrust provides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
+ZinTrust provides a fluent, HTTP client for making authenticated requests to external APIs and services. Perfect for cloud logging, inter-service communication, and Redis HTTPS proxy requests.
+
+## Interface Reference
+
+```typescript
+export interface IHttpRequest {
+  withHeader(name: string, value: string): IHttpRequest;
+  withHeaders(headers: Record\<string, string>): IHttpRequest;
+  withAuth(token: string, scheme?: 'Bearer' | 'Basic'): IHttpRequest;
+  withBasicAuth(username: string, password: string): IHttpRequest;
+  withTimeout(ms: number): IHttpRequest;
+  asJson(): IHttpRequest;
+  asForm(): IHttpRequest;
+  send(): Promise\<IHttpResponse>;
+}
+
+export interface IHttpResponse {
+  status: number;
+  statusText: string;
+  headers: Record\<string, string>;
+  body: string;
+  ok(): boolean;
+  json\<T = unknown>(): T;
+  text(): string;
+  throwIfError(): IHttpResponse;
+}
+```
 
 ## Features
 
@@ -20,7 +46,7 @@ Zintrust provides a fluent, HTTP client for making authenticated requests to ext
 
 ## Installation
 
-HTTP client is built into Zintrust. No additional packages needed.
+HTTP client is built into ZinTrust. No additional packages needed.
 
 ```typescript
 import { HttpClient } from '@zintrust/core';
@@ -193,7 +219,7 @@ const response = await HttpClient.get('...').send();
 const body = response.body; // string
 
 // Parse as JSON
-const data = response.json<User>(); // Typed
+const data = response.json\<User>(); // Typed
 
 // Get specific header
 const contentType = response.header('content-type');
@@ -291,7 +317,7 @@ async function queryGraphQL(query: string, variables: unknown) {
     .withAuth(Env.get('API_TOKEN'))
     .send();
 
-  const result = response.json<{ data: unknown; errors?: unknown[] }>();
+  const result = response.json\<{ data: unknown; errors?: unknown[] }>();
 
   if (result.errors) {
     throw new Error(`GraphQL error: ${JSON.stringify(result.errors)}`);
@@ -358,12 +384,12 @@ interface CreateUserPayload {
 }
 
 async function createUser(data: CreateUserPayload) {
-  const response = await HttpClient.post<CreateUserPayload>(
+  const response = await HttpClient.post\<CreateUserPayload>(
     'https://api.example.com/users',
     data
   ).send();
 
-  const user = response.json<User>();
+  const user = response.json\<User>();
   return user;
 }
 ```

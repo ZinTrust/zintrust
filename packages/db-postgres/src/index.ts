@@ -25,6 +25,7 @@ export interface IDatabaseAdapter {
   ping(): Promise<void>;
   transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;
   rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]>;
+  ensureMigrationsTable?(): Promise<void>;
   getType(): string;
   isConnected(): boolean;
   getPlaceholder(index: number): string;
@@ -137,7 +138,14 @@ async function query(
 ): Promise<QueryResult> {
   const current = ensurePool(state);
   try {
-    const result = await current.query(sql, parameters);
+    // Convert ? placeholders to PostgreSQL's $1, $2, etc format
+    let paramIndex = 0;
+    const processedSql = sql.replaceAll('?', () => {
+      paramIndex++;
+      return `$${paramIndex}`;
+    });
+
+    const result = await current.query(processedSql, parameters);
     return {
       rows: (result.rows ?? []) as Record<string, unknown>[],
       rowCount: result.rowCount ?? result.rows?.length ?? 0,
@@ -196,6 +204,22 @@ function createPostgresAdapter(config: DatabaseConfig): IDatabaseAdapter {
     },
     transaction: async (callback) => transaction(state, adapter, callback),
     rawQuery: async (sql, parameters) => rawQuery(adapter, sql, parameters),
+    ensureMigrationsTable: async () => {
+      await adapter.query(
+        `CREATE TABLE IF NOT EXISTS migrations (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            scope VARCHAR(255) NOT NULL DEFAULT 'global',
+            service VARCHAR(255) NOT NULL DEFAULT '',
+            batch INTEGER NOT NULL,
+            status VARCHAR(255) NOT NULL,
+            applied_at TIMESTAMP NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(name, scope, service)
+          )`,
+        []
+      );
+    },
     getType: () => 'postgresql',
     isConnected: () => state.connected,
     getPlaceholder: (index) => `$${index}`,

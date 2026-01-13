@@ -164,10 +164,8 @@ describe('MigrationGenerator Generation Basic', () => {
 
     // Try to create same migration again (will have different timestamp)
     const result2 = await MigrationGenerator.generateMigration(options);
-    expect(result2.success).toBe(true);
-
-    // But should have different file paths
-    expect(result1.filePath).not.toBe(result2.filePath);
+    expect(result2.success).toBe(false);
+    expect(typeof result2.message).toBe('string');
   });
 });
 
@@ -204,7 +202,7 @@ describe('MigrationGenerator Generation Types', () => {
     expect(content).toContain('Creates posts table');
     expect(content).toContain('up');
     expect(content).toContain('down');
-    expect(content).toContain('createTable');
+    expect(content).toContain("await schema.create('posts'");
   });
 });
 
@@ -239,7 +237,7 @@ describe('MigrationGenerator Specialized Generation Basic', () => {
 
     const content = fs.readFileSync(result.filePath, 'utf-8');
     expect(content).toContain('Modifies');
-    expect(content).toContain('alterTable');
+    expect(content).toContain("await schema.table('users'");
   });
 
   it('should generate DROP migration', async () => {
@@ -255,7 +253,7 @@ describe('MigrationGenerator Specialized Generation Basic', () => {
 
     const content = fs.readFileSync(result.filePath, 'utf-8');
     expect(content).toContain('Drops');
-    expect(content).toContain('dropTable');
+    expect(content).toContain("await schema.dropIfExists('users'");
   });
 });
 
@@ -289,7 +287,7 @@ describe('MigrationGenerator Specialized Detection', () => {
 
     const content = fs.readFileSync(result.filePath, 'utf-8');
     expect(content).toContain('Creates products table');
-    expect(content).toContain('createTable');
+    expect(content).toContain("await schema.create('products'");
   });
 
   it('should auto-detect ALTER type', async () => {
@@ -304,7 +302,7 @@ describe('MigrationGenerator Specialized Detection', () => {
 
     const content = fs.readFileSync(result.filePath, 'utf-8');
     expect(content).toContain('Modifies orders table');
-    expect(content).toContain('alterTable');
+    expect(content).toContain("await schema.table('orders'");
   });
 
   it('should auto-detect DROP type', async () => {
@@ -319,7 +317,7 @@ describe('MigrationGenerator Specialized Detection', () => {
 
     const content = fs.readFileSync(result.filePath, 'utf-8');
     expect(content).toContain('Drops');
-    expect(content).toContain('dropTable');
+    expect(content).toContain("await schema.dropIfExists('olds'");
   });
 });
 
@@ -351,8 +349,8 @@ describe('MigrationGenerator Content and Structure', () => {
 
     const content = fs.readFileSync(result.filePath, 'utf-8');
     expect(content).toContain('interface Migration');
-    expect(content).toContain('up()');
-    expect(content).toContain('down()');
+    expect(content).toContain('up(db: IDatabase)');
+    expect(content).toContain('down(db: IDatabase)');
     expect(content).toContain('export const migration');
   });
 

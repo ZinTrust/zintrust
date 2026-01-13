@@ -6,9 +6,16 @@
 import { AddCommand } from '@cli/commands/AddCommand';
 import { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
+import {
+  AddMigrationCommand,
+  CreateCommand,
+  CreateMigrationCommand,
+} from '@cli/commands/CreateCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
+import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
+import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
@@ -19,6 +26,7 @@ import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
@@ -38,11 +46,6 @@ export interface ICLI {
   run(args: string[]): Promise<void>;
   getProgram(): Command;
 }
-
-/**
- * CLI - Main CLI Class
- * Orchestrates all CLI commands using Commander
- */
 /**
  * Load version from package.json
  */
@@ -84,11 +87,15 @@ const registerCommands = (program: Command): void => {
     UpgradeCommand.create(),
     PrepareCommand,
     AddCommand.create(),
+    CreateCommand.create(),
+    CreateMigrationCommand.create(),
+    AddMigrationCommand.create(),
     StartCommand.create(),
     QueueCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     MigrateCommand.create(),
+    DbSeedCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
     SecretsCommand.create(),
@@ -101,6 +108,8 @@ const registerCommands = (program: Command): void => {
     TemplatesCommand,
     MakeMailTemplateCommand.create(),
     MakeNotificationTemplateCommand.create(),
+    RoutesCommand.create(),
+    JwtDevCommand,
   ];
 
   for (const command of commands) {

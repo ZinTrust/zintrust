@@ -138,10 +138,10 @@ const scheduleFlush = async (): Promise<void> => {
 
 export const SlackLogger = Object.freeze({
   async enqueue(event: SlackLogEvent): Promise<void> {
-    if (!isEnabled()) return Promise.resolve();
+    if (!isEnabled()) return;
 
     const levels = getLevels();
-    if (!levels.has(event.level)) return Promise.resolve();
+    if (!levels.has(event.level)) return;
 
     const key = dedupeKeyFor(event);
     if (dedupeKeys.has(key)) return scheduleFlush();

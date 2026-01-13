@@ -1,5 +1,5 @@
 import { MySQLAdapter } from '@/orm/adapters/MySQLAdapter';
-import { DatabaseConfig } from '@/orm/DatabaseAdapter';
+import type { DatabaseConfig } from '@/orm/DatabaseAdapter';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('MySQLAdapter', () => {

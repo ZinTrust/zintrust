@@ -34,3 +34,7 @@ CACHE_DRIVER=redis
 
 - https://zintrust.com/cache
 - https://zintrust.com/adapters
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

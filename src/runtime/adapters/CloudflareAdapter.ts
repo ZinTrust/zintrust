@@ -4,14 +4,15 @@
 import { appConfig } from '@/config';
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
-import {
+import type {
   AdapterConfig,
-  createMockHttpObjects,
-  ErrorResponse,
-  HttpResponse,
   PlatformRequest,
   PlatformResponse,
-  RuntimeAdapter,
+  RuntimeAdapter} from '@runtime/RuntimeAdapter';
+import {
+  createMockHttpObjects,
+  ErrorResponse,
+  HttpResponse
 } from '@runtime/RuntimeAdapter';
 
 /**

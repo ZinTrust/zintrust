@@ -1,31 +1,16 @@
-import { Application } from '@boot/Application';
 import { Logger } from '@config/logger';
-import { IKernel, Kernel } from '@http/Kernel';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { DenoAdapter } from '@runtime/adapters/DenoAdapter';
 
-let kernel: IKernel | null = null;
-
-async function initializeKernel(): Promise<IKernel> {
-  if (kernel) {
-    return kernel;
-  }
-
-  const app = Application.create();
-  await app.boot();
-
-  kernel = Kernel.create(app.getRouter(), app.getContainer());
-
-  return kernel;
-}
+import { getKernel } from '@runtime/getKernel';
 
 const deno = async (request: Request): Promise<Response> => {
   try {
-    const app = await initializeKernel();
+    const kernel = await getKernel();
 
     const adapter = DenoAdapter.create({
       handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-        await app.handle(req, res);
+        await kernel.handle(req, res);
       },
     });
 

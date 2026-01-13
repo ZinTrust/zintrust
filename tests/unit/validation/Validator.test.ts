@@ -96,6 +96,40 @@ describe('Validator', () => {
     expect(Validator.isValid({}, schema)).toBe(false);
   });
 
+  it('should validate rule-string maps', () => {
+    const rules = {
+      name: 'required|string|min:3|max:10',
+    };
+
+    expect(Validator.validateRules({ name: 'John' }, rules)).toEqual({ name: 'John' });
+    expect(() => Validator.validateRules({ name: 'Jo' }, rules)).toThrow();
+    expect(() => Validator.validateRules({ name: 123 }, rules)).toThrow();
+  });
+
+  it('should support confirmed in rule-string maps', () => {
+    const rules = {
+      password: 'required|string|confirmed',
+    };
+
+    expect(
+      Validator.validateRules({ password: 'secret', password_confirmation: 'secret' }, rules)
+    ).toEqual({ password: 'secret', password_confirmation: 'secret' });
+
+    expect(() =>
+      Validator.validateRules({ password: 'secret', password_confirmation: 'nope' }, rules)
+    ).toThrow();
+  });
+
+  it('should fail unknown/unsupported rule strings clearly', () => {
+    expect(() => Validator.validateRules({ name: 'x' }, { name: 'unknown' })).toThrow();
+    expect(() => Validator.validateRules({ email: 'x' }, { email: 'unique' })).toThrow();
+  });
+
+  it('should check validity for rule-string maps without throwing', () => {
+    expect(Validator.isValidRules({ name: 'John' }, { name: 'required|string' })).toBe(true);
+    expect(Validator.isValidRules({}, { name: 'required|string' })).toBe(false);
+  });
+
   it('should return multiple errors', () => {
     const schema = Schema.create().required('name').required('email');
 

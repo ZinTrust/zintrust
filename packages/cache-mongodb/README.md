@@ -22,3 +22,7 @@ Then set `CACHE_DRIVER=mongodb` and configure:
 
 - `MONGO_URI` (Atlas Data API base URL)
 - `MONGO_DB`
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

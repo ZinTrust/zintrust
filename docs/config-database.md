@@ -11,7 +11,7 @@
 - `default` picks which configured name is considered the default.
   - `DB_CONNECTION` can point to _any_ key that exists in `connections`.
 
-At runtime, Zintrust automatically registers all configured connections during application boot.
+At runtime, ZinTrust automatically registers all configured connections during application boot.
 That means once the app has booted, you can use those names with `Model.db('name')` (or `useDatabase(undefined, 'name')`).
 
 ## Example: two MySQL pools (`mysql2` and `mysql3`)
@@ -81,7 +81,7 @@ await User.db('mysql3').query().where('id', 1).first();
 await User.db('mysql3').create({ name: 'Jane' }).save();
 ```
 
-If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and that name is not configured/registered, Zintrust throws.
+If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and that name is not configured/registered, ZinTrust throws.
 
 ````
 
@@ -148,4 +148,16 @@ If you call `User.db('unknown')...` (or `useDatabase(undefined, 'unknown')`) and
 export const databaseConfig = Object.freeze(databaseConfigObj);
 export type DatabaseConfig = typeof databaseConfig;
 
+```
+
+## For Complete Multi-Database Documentation
+
+See **[docs/multi-database.md](multi-database.md)** for comprehensive guidance on:
+
+- Defining and registering multiple database connections
+- Using models with different connections (`.db()` method, model config)
+- QueryBuilder with specific databases
+- Multi-database patterns in controllers
+- Advanced patterns: sharding, read/write separation, cross-database transactions
+- Best practices and error handling
 ````

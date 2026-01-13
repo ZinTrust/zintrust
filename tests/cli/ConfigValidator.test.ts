@@ -3,7 +3,8 @@
  */
 
 import { DEFAULT_CONFIG } from '@cli/config/ConfigSchema';
-import { ConfigValidator, ValidationResult } from '@cli/config/ConfigValidator';
+import type { ValidationResult } from '@cli/config/ConfigValidator';
+import { ConfigValidator } from '@cli/config/ConfigValidator';
 import { describe, expect, it } from 'vitest';
 
 describe('ConfigValidator Basic Validation', () => {

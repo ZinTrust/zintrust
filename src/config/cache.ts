@@ -5,7 +5,7 @@
  */
 
 import { Env } from '@config/env';
-import { CacheConfigInput, CacheDriverConfig } from '@config/type';
+import type { CacheConfigInput, CacheDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverConfig => {

@@ -1,5 +1,5 @@
 import { SQLServerAdapter } from '@/orm/adapters/SQLServerAdapter';
-import { DatabaseConfig } from '@/orm/DatabaseAdapter';
+import type { DatabaseConfig } from '@/orm/DatabaseAdapter';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Logger module to track method calls

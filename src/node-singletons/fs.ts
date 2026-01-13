@@ -14,12 +14,14 @@ export * as fsPromises from 'node:fs/promises';
 export {
   appendFileSync,
   copyFileSync,
+  createReadStream,
+  createWriteStream,
   existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   statSync,
@@ -28,7 +30,7 @@ export {
   writeFileSync,
 } from 'node:fs';
 
-export type { Stats } from 'node:fs';
+export type { ReadStream, Stats, WriteStream } from 'node:fs';
 
 export { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 

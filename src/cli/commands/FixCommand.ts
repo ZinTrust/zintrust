@@ -4,11 +4,12 @@
  */
 
 import { appConfig } from '@/config';
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { resolveNpmPath } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type IFixCommand = IBaseCommand & {
   resolveNpmPath: () => string;

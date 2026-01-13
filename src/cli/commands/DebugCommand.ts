@@ -3,10 +3,11 @@
  * Launch debug mode with profiling and monitoring
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { Dashboard } from '@cli/debug/Dashboard';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type DashboardHandle = {
   start(): void;

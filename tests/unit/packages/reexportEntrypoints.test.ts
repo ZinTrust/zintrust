@@ -8,7 +8,7 @@ import {
   S3Driver,
   SendGridDriver,
   SmtpDriver,
-} from '@zintrust/core';
+} from '../../../src/index';
 
 describe('adapter packages entrypoints (re-exports)', () => {
   it('re-exports queue-redis', async () => {

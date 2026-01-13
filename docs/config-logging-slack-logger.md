@@ -41,12 +41,12 @@ export type SlackLogEvent = {
 
 type SlackPayload = {
   text?: string;
-  attachments?: Array<{ color?: string; text: string }>;
+  attachments?: Array\<{ color?: string; text: string }>;
 };
 
 const isEnabled = (): boolean => Env.getBool('SLACK_LOG_ENABLED', false);
 
-const getLevels = (): Set<string> => {
+const getLevels = (): Set\<string> => {
   const raw = Env.get('SLACK_LOG_LEVELS', 'warn,error,fatal');
   return new Set(
     raw
@@ -77,8 +77,8 @@ const formatEventText = (ev: SlackLogEvent): string => {
 };
 
 let buffer: SlackLogEvent[] = [];
-let flushPromise: Promise<void> | undefined;
-let dedupeKeys = new Set<string>();
+let flushPromise: Promise\<void> | undefined;
+let dedupeKeys = new Set\<string>();
 
 const dedupeKeyFor = (ev: SlackLogEvent): string => {
   const base = `${ev.level}:${ev.message}:${ev.error ?? ''}`;
@@ -99,13 +99,13 @@ const dedupeKeyFor = (ev: SlackLogEvent): string => {
   }
 };
 
-const scheduleFlush = async (): Promise<void> => {
+const scheduleFlush = async (): Promise\<void> => {
   if (flushPromise !== undefined) return flushPromise;
 
   const windowMs = Math.max(0, Env.getInt('SLACK_LOG_BATCH_WINDOW_MS', 5000));
 
-  const promise = new Promise<void>((resolve) => {
-    const run = async (): Promise<void> => {
+  const promise = new Promise\<void>((resolve) => {
+    const run = async (): Promise\<void> => {
       try {
         await flushNow();
       } finally {
@@ -131,7 +131,7 @@ const scheduleFlush = async (): Promise<void> => {
 };
 
 export const SlackLogger = Object.freeze({
-  async enqueue(event: SlackLogEvent): Promise<void> {
+  async enqueue(event: SlackLogEvent): Promise\<void> {
     if (!isEnabled()) return Promise.resolve();
 
     const levels = getLevels();

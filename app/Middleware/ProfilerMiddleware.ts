@@ -5,7 +5,7 @@
  */
 
 import { Logger } from '@config/logger';
-import { Middleware } from '@middleware/MiddlewareStack';
+import type { Middleware } from '@middleware/MiddlewareStack';
 import { RequestProfiler } from '@profiling/RequestProfiler';
 
 /**

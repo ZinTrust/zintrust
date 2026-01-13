@@ -1,5 +1,5 @@
 import { PostgreSQLAdapter } from '@/orm/adapters/PostgreSQLAdapter';
-import { DatabaseConfig } from '@/orm/DatabaseAdapter';
+import type { DatabaseConfig } from '@/orm/DatabaseAdapter';
 import { describe, expect, it } from 'vitest';
 
 describe('PostgreSQLAdapter', () => {

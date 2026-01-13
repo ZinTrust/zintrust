@@ -1,4 +1,5 @@
-import { BUILT_IN_TEMPLATES, TemplateEngine, TemplateFile } from '@cli/scaffolding/TemplateEngine';
+import type { TemplateFile } from '@cli/scaffolding/TemplateEngine';
+import { BUILT_IN_TEMPLATES, TemplateEngine } from '@cli/scaffolding/TemplateEngine';
 import { describe, expect, it } from 'vitest';
 
 describe('TemplateEngine Rendering Basic', () => {

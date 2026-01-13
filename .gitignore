@@ -65,3 +65,8 @@ zin-tools/
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
+.zintrust/
+zintrust
+issues/
+src/zintrust.plugins.ts
+AUDIT_PACKAGES.json

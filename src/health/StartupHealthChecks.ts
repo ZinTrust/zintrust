@@ -5,8 +5,8 @@
  * the server starts accepting requests.
  */
 
+import { generateUuid } from '@/common/utility';
 import { Cache } from '@cache/Cache';
-import { generateUuid } from '@common/uuid';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { startupConfig } from '@config/startup';

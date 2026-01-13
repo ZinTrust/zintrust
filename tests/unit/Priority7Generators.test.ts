@@ -3,13 +3,15 @@
  * Tests for ServiceRequestFactoryGenerator and ServiceIntegrationTestGenerator
  */
 
+import type {
+  ServiceIntegrationTestOptions} from '@cli/scaffolding/ServiceIntegrationTestGenerator';
 import {
-  ServiceIntegrationTestGenerator,
-  ServiceIntegrationTestOptions,
+  ServiceIntegrationTestGenerator
 } from '@cli/scaffolding/ServiceIntegrationTestGenerator';
+import type {
+  ServiceRequestOptions} from '@cli/scaffolding/ServiceRequestFactoryGenerator';
 import {
-  ServiceRequestFactoryGenerator,
-  ServiceRequestOptions,
+  ServiceRequestFactoryGenerator
 } from '@cli/scaffolding/ServiceRequestFactoryGenerator';
 import { fs } from '@node-singletons';
 import * as os from '@node-singletons/os';

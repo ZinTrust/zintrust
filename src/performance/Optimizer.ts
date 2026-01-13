@@ -439,24 +439,68 @@ export const ParallelGenerator = Object.freeze({
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createMemoized<T extends (...args: any[]) => any>(
   fn: T,
-  options: { ttl?: number; keyGenerator?: (args: Parameters<T>) => string } = {}
+  options: { ttl?: number; keyGenerator?: (args: Parameters<T>) => string; maxSize?: number } = {}
 ): T {
-  const cache = new Map<string, { result: ReturnType<T>; timestamp: number }>();
+  const cache = new Map<
+    string,
+    { result: ReturnType<T>; createdAt: number; lastAccessAt: number }
+  >();
+  const maxSize = options.maxSize ?? 1000; // Default max size: 1000 entries
+
+  const evictLRU = (): void => {
+    if (cache.size < maxSize) return;
+
+    // Find oldest entry (LRU)
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [key, entry] of cache.entries()) {
+      if (entry.lastAccessAt < oldestTime) {
+        oldestTime = entry.lastAccessAt;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey !== null) {
+      cache.delete(oldestKey);
+    }
+  };
 
   return ((...args: Parameters<T>) => {
-    const key =
-      options.keyGenerator === undefined ? JSON.stringify(args) : options.keyGenerator(args);
+    let key: string;
+    if (options.keyGenerator === undefined) {
+      // Optimization: Avoid JSON.stringify for simple primitive arguments
+      const arePrimitives = args.every(
+        (a) =>
+          a === null ||
+          typeof a === 'string' ||
+          typeof a === 'number' ||
+          typeof a === 'boolean' ||
+          a === 'undefined'
+      );
+      key = arePrimitives ? args.join('|') : JSON.stringify(args);
+    } else {
+      key = options.keyGenerator(args);
+    }
+
     const entry = cache.get(key);
 
     if (entry !== undefined) {
-      if (options.ttl === undefined || Date.now() - entry.timestamp < options.ttl) {
+      if (options.ttl === undefined || Date.now() - entry.createdAt < options.ttl) {
+        // Update access time for LRU; TTL remains based on creation time
+        entry.lastAccessAt = Date.now();
         return entry.result;
       }
       cache.delete(key);
     }
 
     const result = fn(...args) as ReturnType<T>;
-    cache.set(key, { result, timestamp: Date.now() });
+
+    // Evict LRU before adding new entry
+    evictLRU();
+
+    const now = Date.now();
+    cache.set(key, { result, createdAt: now, lastAccessAt: now });
     return result;
   }) as unknown as T;
 }

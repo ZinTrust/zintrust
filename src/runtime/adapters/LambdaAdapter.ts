@@ -9,14 +9,15 @@ import {
   type OutgoingHttpHeaders,
   ServerResponse,
 } from '@node-singletons/http';
-import { Socket } from '@node-singletons/net';
-import {
+import type { Socket } from '@node-singletons/net';
+import type {
   AdapterConfig,
-  ErrorResponse,
-  HttpResponse,
   PlatformRequest,
   PlatformResponse,
-  RuntimeAdapter,
+  RuntimeAdapter} from '@runtime/RuntimeAdapter';
+import {
+  ErrorResponse,
+  HttpResponse
 } from '@runtime/RuntimeAdapter';
 
 /**

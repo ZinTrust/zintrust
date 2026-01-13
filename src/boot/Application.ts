@@ -4,9 +4,11 @@
  */
 
 import { appConfig, cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
-import { IServiceContainer, ServiceContainer } from '@/container/ServiceContainer';
+import type { IServiceContainer } from '@/container/ServiceContainer';
+import { ServiceContainer } from '@/container/ServiceContainer';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
-import { IMiddlewareStack, MiddlewareStack } from '@/middleware/MiddlewareStack';
+import type { IMiddlewareStack } from '@/middleware/MiddlewareStack';
+import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
@@ -132,6 +134,17 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     });
   /* c8 ignore stop */
 
+  // Flush file logging streams
+  import('@config/FileLogWriter')
+    .then((mod: { FileLogWriter: { flush: () => void } }) => {
+      shutdownManager.add(() => mod.FileLogWriter.flush());
+    })
+    /* c8 ignore start */
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+  /* c8 ignore stop */
+
   import('@broadcast/BroadcastRegistry')
     .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.BroadcastRegistry.reset());
@@ -215,11 +228,15 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
     const mod = await tryImportRoutesFromAppBase(resolvedBasePath);
     if (typeof mod?.registerRoutes === 'function') {
       mod.registerRoutes(router);
-      return;
+    } else {
+      const { registerRoutes: registerFrameworkRoutes } = await import('../routes/api');
+      registerFrameworkRoutes(router);
     }
 
-    const { registerRoutes: registerFrameworkRoutes } = await import('../routes/api');
-    registerFrameworkRoutes(router);
+    // Always register core framework routes (health, metrics, doc) after app routes
+    // This ensures app can override but core routes always exist
+    const { registerCoreRoutes } = await import('../routing/CoreRoutes');
+    registerCoreRoutes(router);
   } catch (error: unknown) {
     Logger.error('Failed to register routes:', error as Error);
   }

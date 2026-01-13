@@ -6,7 +6,7 @@ import { resolveNpmPath } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type StartMode = 'development' | 'production' | 'testing';
 

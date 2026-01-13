@@ -1,5 +1,6 @@
 /* eslint-disable max-nested-callbacks */
-import { middleware, NextFunction } from '@/microservices/RequestTracingMiddleware';
+import type { NextFunction } from '@/microservices/RequestTracingMiddleware';
+import { middleware } from '@/microservices/RequestTracingMiddleware';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@config/logger', () => ({

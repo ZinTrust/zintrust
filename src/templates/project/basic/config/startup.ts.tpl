@@ -1,29 +1,18 @@
 /**
- * Startup Configuration
+ * Startup Configuration (template)
  *
- * Startup-only controls (evaluated during Application.boot()).
+ * Keep this file declarative:
+ * - Core owns env parsing/default logic.
+ * - Projects can override values by editing `startupConfigObj`.
  */
 
-import { Env } from '@zintrust/core';
+import { startupConfig as coreStartupConfig } from '@zintrust/core';
 
-export type StartupConfig = {
-  healthChecksEnabled: boolean;
-  validateSecrets: boolean;
-  requireEnv: boolean;
-  checkDatabase: boolean;
-  checkCache: boolean;
-  timeoutMs: number;
-  continueOnFailure: boolean;
-};
+export type StartupConfig = typeof coreStartupConfig;
 
-export const startupConfig = Object.freeze({
-  healthChecksEnabled: Env.getBool('STARTUP_HEALTH_CHECKS', true),
-  validateSecrets: Env.getBool('STARTUP_VALIDATE_SECRETS', true),
-  requireEnv: Env.getBool('STARTUP_REQUIRE_ENV', false),
-  checkDatabase: Env.getBool('STARTUP_CHECK_DB', false),
-  checkCache: Env.getBool('STARTUP_CHECK_CACHE', false),
-  timeoutMs: Env.getInt('STARTUP_HEALTH_TIMEOUT_MS', 2500),
-  continueOnFailure: Env.getBool('STARTUP_CONTINUE_ON_FAILURE', false),
-} satisfies StartupConfig);
+export const startupConfigObj = {
+  ...coreStartupConfig,
+} satisfies StartupConfig;
 
+export const startupConfig = startupConfigObj;
 export default startupConfig;

@@ -2,9 +2,10 @@
  * Example Post Model
  */
 
-import { IRelationship } from '@/orm/Relationships';
+import type { IRelationship } from '@/orm/Relationships';
 import { User } from '@app/Models/User';
-import { IModel, Model, ModelConfig } from '@orm/Model';
+import type { IModel, ModelConfig } from '@orm/Model';
+import { Model } from '@orm/Model';
 
 export const PostConfig: ModelConfig = {
   table: 'posts',

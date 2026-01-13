@@ -1,7 +1,7 @@
 import { Env } from '@config/env';
 import Logger from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { AdapterConfig, RuntimeAdapter, ZintrustHandler } from '@runtime/RuntimeAdapter';
+import type { AdapterConfig, RuntimeAdapter, ZintrustHandler } from '@runtime/RuntimeAdapter';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import { DenoAdapter } from '@runtime/adapters/DenoAdapter';
 import { FargateAdapter } from '@runtime/adapters/FargateAdapter';

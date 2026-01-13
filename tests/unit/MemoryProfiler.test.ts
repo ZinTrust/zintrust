@@ -1,4 +1,5 @@
-import { IMemoryProfiler, MemoryProfiler, formatBytes } from '@profiling/MemoryProfiler';
+import type { IMemoryProfiler} from '@profiling/MemoryProfiler';
+import { MemoryProfiler, formatBytes } from '@profiling/MemoryProfiler';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type GlobalWithGc = typeof globalThis & { gc?: () => void };

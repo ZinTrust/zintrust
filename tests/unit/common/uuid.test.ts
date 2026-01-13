@@ -40,7 +40,7 @@ describe('uuid helpers', () => {
   it('generateUuid uses crypto.randomUUID when available', async () => {
     setCrypto({ randomUUID: vi.fn(() => 'uuid-1') });
 
-    const { generateUuid } = await import('@/common/uuid');
+    const { generateUuid } = await import('@/common/utility');
 
     expect(generateUuid()).toBe('uuid-1');
   });
@@ -51,7 +51,7 @@ describe('uuid helpers', () => {
 
     setCrypto({});
 
-    const { generateUuid } = await import('@/common/uuid');
+    const { generateUuid } = await import('@/common/utility');
 
     const id = generateUuid();
     expect(id).toContain('1577836800000-');
@@ -62,7 +62,7 @@ describe('uuid helpers', () => {
   it('generateSecureJobId uses crypto.randomUUID when available', async () => {
     setCrypto({ randomUUID: vi.fn(() => 'uuid-2') });
 
-    const { generateSecureJobId } = await import('@/common/uuid');
+    const { generateSecureJobId } = await import('@/common/utility');
 
     expect(generateSecureJobId()).toBe('uuid-2');
   });
@@ -75,7 +75,7 @@ describe('uuid helpers', () => {
       }),
     });
 
-    const { generateSecureJobId } = await import('@/common/uuid');
+    const { generateSecureJobId } = await import('@/common/utility');
 
     expect(generateSecureJobId()).toBe('000102030405060708090a0b0c0d0e0f');
   });
@@ -90,7 +90,7 @@ describe('uuid helpers', () => {
       randomBytes,
     }));
 
-    const { generateSecureJobId } = await import('@/common/uuid');
+    const { generateSecureJobId } = await import('@/common/utility');
 
     expect(generateSecureJobId()).toBe('0102030405060708090a0b0c0d0e0f10');
   });
@@ -102,7 +102,7 @@ describe('uuid helpers', () => {
       randomBytes: vi.fn(throwBoom),
     }));
 
-    const { generateSecureJobId } = await import('@/common/uuid');
+    const { generateSecureJobId } = await import('@/common/utility');
 
     expect(() => generateSecureJobId()).toThrow();
   });

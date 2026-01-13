@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import ts from 'typescript';
 
 const TEMPLATES_ROOT = path.resolve(process.cwd(), 'src/templates');
 
@@ -91,6 +92,37 @@ function checkFile(filePath: string): Array<{ line: number; spec: string; text: 
   return offenses;
 }
 
+function looksLikeTypeScriptTemplate(text: string): boolean {
+  // Only attempt TS parsing when the template appears to contain TS module syntax.
+  // Many templates are not TS (markdown/env/etc.) and should not be validated this way.
+  return /\b(import|export)\b/.test(text);
+}
+
+function getTypeScriptSyntaxErrors(filePath: string): Array<{ line: number; message: string }> {
+  const text = fs.readFileSync(filePath, 'utf8');
+  if (!looksLikeTypeScriptTemplate(text)) return [];
+
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    text,
+    ts.ScriptTarget.ESNext,
+    true,
+    ts.ScriptKind.TS
+  );
+  const diagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics?: ts.Diagnostic[] })
+    .parseDiagnostics;
+  if (!diagnostics || diagnostics.length === 0) return [];
+
+  const out: Array<{ line: number; message: string }> = [];
+  for (const d of diagnostics) {
+    const message = ts.flattenDiagnosticMessageText(d.messageText, '\n');
+    const pos = typeof d.start === 'number' ? d.start : 0;
+    const { line } = sourceFile.getLineAndCharacterOfPosition(pos);
+    out.push({ line: line + 1, message });
+  }
+  return out;
+}
+
 function main(): void {
   if (!fs.existsSync(TEMPLATES_ROOT)) {
     process.stderr.write(`Templates root not found: ${TEMPLATES_ROOT}\n`);
@@ -99,6 +131,7 @@ function main(): void {
 
   const files = listFilesRecursive(TEMPLATES_ROOT).filter(isTemplateFile);
   const allOffenses: Array<{ file: string; line: number; spec: string; text: string }> = [];
+  const allSyntaxErrors: Array<{ file: string; line: number; message: string }> = [];
 
   for (const file of files) {
     const offenses = checkFile(file);
@@ -110,6 +143,23 @@ function main(): void {
         text: o.text,
       });
     }
+
+    const syntaxErrors = getTypeScriptSyntaxErrors(file);
+    for (const e of syntaxErrors) {
+      allSyntaxErrors.push({
+        file: path.relative(process.cwd(), file),
+        line: e.line,
+        message: e.message,
+      });
+    }
+  }
+
+  if (allSyntaxErrors.length > 0) {
+    process.stderr.write('Template syntax check failed. TypeScript parse errors found:\n');
+    for (const e of allSyntaxErrors) {
+      process.stderr.write(`- ${e.file}:${e.line} -> ${e.message}\n`);
+    }
+    process.exit(1);
   }
 
   if (allOffenses.length > 0) {

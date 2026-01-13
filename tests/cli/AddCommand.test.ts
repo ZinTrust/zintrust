@@ -3,7 +3,7 @@
  * Tests Phase 5 integration with AddCommand
  */
 
-import { IBaseCommand } from '@cli/BaseCommand';
+import type { IBaseCommand } from '@cli/BaseCommand';
 import { AddCommand } from '@cli/commands/AddCommand';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';

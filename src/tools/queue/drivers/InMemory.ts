@@ -1,5 +1,5 @@
-import { generateUuid } from '@common/uuid';
-import { QueueMessage } from '@tools/queue/Queue';
+import { generateUuid } from '@/common/utility';
+import type { QueueMessage } from '@tools/queue/Queue';
 
 type InternalMessage = QueueMessage & { enqueuedAt: number };
 

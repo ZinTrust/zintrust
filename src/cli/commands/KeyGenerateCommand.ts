@@ -3,12 +3,13 @@
  * Generates and sets the application key
  */
 
-import { BaseCommand, CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
+import { BaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import * as crypto from '@node-singletons/crypto';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 export const KeyGenerateCommand = Object.freeze({
   create(): IBaseCommand {

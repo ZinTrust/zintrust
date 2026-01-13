@@ -1,5 +1,5 @@
 import { SQLiteAdapter } from '@/orm/adapters/SQLiteAdapter';
-import { DatabaseConfig } from '@/orm/DatabaseAdapter';
+import type { DatabaseConfig } from '@/orm/DatabaseAdapter';
 import { describe, expect, it } from 'vitest';
 
 // Skip these tests when native better-sqlite3 is not loadable in the test runtime (ABI mismatch)

@@ -22,15 +22,25 @@ vi.mock('@config/logger', () => ({
   },
 }));
 
-const userFind = vi.fn();
-const userAll = vi.fn();
-const userCreate = vi.fn();
+const dbIsConnected = vi.fn();
+const dbConnect = vi.fn();
 
-vi.mock('@app/Models/User', () => ({
-  User: {
-    find: userFind,
-    all: userAll,
-    create: userCreate,
+vi.mock('@orm/Database', () => ({
+  useDatabase: vi.fn(() => ({
+    isConnected: dbIsConnected,
+    connect: dbConnect,
+  })),
+  useEnsureDbConnected: vi.fn(async () => ({
+    isConnected: dbIsConnected,
+    connect: dbConnect,
+  })),
+}));
+
+const qbCreate = vi.fn();
+
+vi.mock('@orm/QueryBuilder', () => ({
+  QueryBuilder: {
+    create: qbCreate,
   },
 }));
 
@@ -39,6 +49,8 @@ type ReqFake = {
   getParam: ReturnType<typeof vi.fn>;
   body: Record<string, unknown>;
   params: Record<string, string>;
+  user?: { sub?: string };
+  validated?: { body?: unknown };
 };
 
 type ResFake = {
@@ -50,11 +62,14 @@ type ResFake = {
 function createReq(overrides?: Partial<ReqFake>): ReqFake {
   const body = overrides?.body ?? {};
   const params = overrides?.params ?? { id: '1' };
+  const user = overrides?.user ?? { sub: params['id'] ?? '1' };
   return {
     getBody: vi.fn(() => body),
     getParam: vi.fn((key: string) => params[key]),
     body,
     params,
+    user,
+    validated: overrides?.validated ?? {},
     ...overrides,
   } as ReqFake;
 }
@@ -71,21 +86,40 @@ function createRes(): ResFake {
   return res;
 }
 
+function createBuilder(overrides?: Partial<Record<string, unknown>>): Record<string, any> {
+  const builder: Record<string, any> = {
+    select: vi.fn(() => builder),
+    where: vi.fn(() => builder),
+    limit: vi.fn(() => builder),
+    orderBy: vi.fn(() => builder),
+    get: vi.fn(async () => []),
+    first: vi.fn(async () => null),
+    insert: vi.fn(async () => undefined),
+    update: vi.fn(async () => undefined),
+    delete: vi.fn(async () => undefined),
+    ...(overrides ?? {}),
+  };
+  return builder;
+}
+
 describe('UserController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    userFind.mockReset();
-    userAll.mockReset();
-    userCreate.mockReset();
 
-    userAll.mockResolvedValue([]);
-    userFind.mockResolvedValue({ id: '1', name: 'Test User' });
-    userCreate.mockImplementation((data: any) => ({ id: '1', ...data }));
+    dbIsConnected.mockReturnValue(true);
+    dbConnect.mockResolvedValue(undefined);
+    qbCreate.mockReset();
   });
 
   it('index() returns empty list', async () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
+
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        get: vi.fn(async () => []),
+      })
+    );
 
     const req = createReq();
     const res = createRes();
@@ -99,7 +133,13 @@ describe('UserController', () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
 
-    userAll.mockRejectedValueOnce(new Error('db error'));
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        get: vi.fn(async () => {
+          throw new Error('db error');
+        }),
+      })
+    );
     const req = createReq();
     const res = createRes();
 
@@ -134,7 +174,6 @@ describe('UserController', () => {
     await controller.store(req as unknown as never, res as unknown as never);
 
     expect(res.status).toHaveBeenCalledWith(422);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Name is required' });
   });
 
   it('store() returns 422 when name is null', async () => {
@@ -162,8 +201,7 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    // Controller currently only validates `name`.
-    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 422 when email is null', async () => {
@@ -177,15 +215,20 @@ describe('UserController', () => {
 
     await controller.store(req as unknown as never, res as unknown as never);
 
-    // Controller currently only validates `name`.
-    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.status).toHaveBeenCalledWith(422);
   });
 
   it('store() returns 201 on success', async () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
 
-    const body = { name: 'Alice', email: 'a@b.com' };
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        insert: vi.fn(async () => undefined),
+      })
+    );
+
+    const body = { name: 'Alice', email: 'a@b.com', password: 'password123' };
     const req = createReq({
       body,
     });
@@ -194,21 +237,23 @@ describe('UserController', () => {
     await controller.store(req as unknown as never, res as unknown as never);
 
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith({ message: 'User created', user: expect.any(Object) });
+    expect(res.json).toHaveBeenCalledWith({ message: 'User created' });
   });
 
   it('store() logs and returns 500 on error', async () => {
-    // Must set rejection AFTER beforeEach runs (which resets mocks)
-    // Reset first then set the rejection behavior
-    userCreate.mockImplementationOnce(() => {
-      throw new Error('db error');
-    });
-
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
 
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        insert: vi.fn(async () => {
+          throw new Error('db error');
+        }),
+      })
+    );
+
     const req = createReq({
-      body: { name: 'Alice', email: 'alice@test.com' },
+      body: { name: 'Alice', email: 'alice@test.com', password: 'password123' },
     });
     const res = createRes();
 
@@ -222,6 +267,12 @@ describe('UserController', () => {
   it('show() returns param id', async () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
+
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        first: vi.fn(async () => ({ id: '123', name: 'Test', email: 't@example.com' })),
+      })
+    );
 
     const req = createReq({
       params: { id: '123' },
@@ -237,7 +288,13 @@ describe('UserController', () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
 
-    userFind.mockRejectedValueOnce(new Error('db error'));
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        first: vi.fn(async () => {
+          throw new Error('db error');
+        }),
+      })
+    );
     const req = createReq();
     const res = createRes();
 
@@ -283,9 +340,22 @@ describe('UserController', () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
 
-    const fillMock = vi.fn();
-    const saveMock = vi.fn().mockResolvedValue(true);
-    userFind.mockResolvedValueOnce({ fill: fillMock, save: saveMock });
+    qbCreate
+      .mockReturnValueOnce(
+        createBuilder({
+          first: vi.fn(async () => ({ id: '9' })),
+        })
+      )
+      .mockReturnValueOnce(
+        createBuilder({
+          update: vi.fn(async () => undefined),
+        })
+      )
+      .mockReturnValueOnce(
+        createBuilder({
+          first: vi.fn(async () => ({ id: '9', name: 'Bob', email: 'bob@example.com' })),
+        })
+      );
 
     const req = createReq({
       params: { id: '9' },
@@ -299,16 +369,20 @@ describe('UserController', () => {
       message: 'User updated',
       user: expect.any(Object),
     });
-    expect(fillMock).toHaveBeenCalledWith({ name: 'Bob' });
-    expect(saveMock).toHaveBeenCalled();
   });
 
   it('update() logs and returns 500 on error', async () => {
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
 
-    userFind.mockRejectedValueOnce(new Error('db error'));
-    const req = createReq();
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        first: vi.fn(async () => {
+          throw new Error('db error');
+        }),
+      })
+    );
+    const req = createReq({ body: { name: 'Bob' } });
     const res = createRes();
 
     await controller.update(req as unknown as never, res as unknown as never);
@@ -319,27 +393,40 @@ describe('UserController', () => {
   });
 
   it('destroy() deletes found user', async () => {
-    const deleteMock = vi.fn(async () => undefined);
-    userFind.mockResolvedValueOnce({ delete: deleteMock });
-
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
+
+    const deleteMock = vi.fn(async () => undefined);
+    qbCreate
+      .mockReturnValueOnce(
+        createBuilder({
+          first: vi.fn(async () => ({ id: '5' })),
+        })
+      )
+      .mockReturnValueOnce(
+        createBuilder({
+          delete: deleteMock,
+        })
+      );
 
     const req = createReq({ params: { id: '5' } });
     const res = createRes();
 
     await controller.destroy(req as unknown as never, res as unknown as never);
 
-    expect(userFind).toHaveBeenCalledWith('5');
     expect(deleteMock).toHaveBeenCalledTimes(1);
     expect(res.json).toHaveBeenCalledWith({ message: 'User deleted' });
   });
 
   it('destroy() handles missing user (optional chaining)', async () => {
-    userFind.mockResolvedValueOnce(null);
-
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
+
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        first: vi.fn(async () => null),
+      })
+    );
 
     const req = createReq({ params: { id: '5' } });
     const res = createRes();
@@ -351,10 +438,16 @@ describe('UserController', () => {
   });
 
   it('destroy() logs and returns 500 on error', async () => {
-    userFind.mockRejectedValueOnce(new Error('boom'));
-
     const { UserController } = await import('@app/Controllers/UserController');
     const controller = UserController.create();
+
+    qbCreate.mockReturnValueOnce(
+      createBuilder({
+        first: vi.fn(async () => {
+          throw new Error('boom');
+        }),
+      })
+    );
 
     const req = createReq({ params: { id: '5' } });
     const res = createRes();

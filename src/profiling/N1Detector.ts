@@ -3,7 +3,7 @@
  * Analyzes query logs to identify N+1 patterns
  */
 
-import { IN1Detector, N1Pattern, QueryLogEntry } from '@profiling/types';
+import type { IN1Detector, N1Pattern, QueryLogEntry } from '@profiling/types';
 
 /**\n * N1Detector analyzes query logs to identify N+1 patterns
  * Groups identical queries and flags those executed 5+ times as critical

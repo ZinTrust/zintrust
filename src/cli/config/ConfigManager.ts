@@ -3,11 +3,12 @@
  * Handles reading, writing, and managing configuration files
  */
 
+import type {
+  ProjectConfig} from '@cli/config/ConfigSchema';
 import {
   ConfigPaths,
   DEFAULT_CONFIG,
   getConfigValue,
-  ProjectConfig,
   setConfigValue,
 } from '@cli/config/ConfigSchema';
 import { Logger } from '@config/logger';

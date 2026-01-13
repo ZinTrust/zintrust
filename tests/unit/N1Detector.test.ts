@@ -1,5 +1,5 @@
 import { N1Detector } from '@profiling/N1Detector';
-import { IN1Detector, QueryLogEntry } from '@profiling/types';
+import type { IN1Detector, QueryLogEntry } from '@profiling/types';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('N1Detector Basic Detection - Thresholds Basic', () => {

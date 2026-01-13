@@ -25,6 +25,7 @@ export interface IDatabaseAdapter {
   ping(): Promise<void>;
   transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T>;
   rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]>;
+  ensureMigrationsTable?(): Promise<void>;
   getType(): string;
   isConnected(): boolean;
   getPlaceholder(index: number): string;
@@ -32,25 +33,140 @@ export interface IDatabaseAdapter {
 
 type AdapterState = {
   connected: boolean;
+  pool?: MySqlPool;
 };
 
-function connect(state: AdapterState, config: DatabaseConfig): void {
-  if (config.host === 'error') {
-    throw ErrorFactory.createConnectionError(
-      'Failed to connect to MySQL: Error: Connection failed'
+type MySqlPool = {
+  execute: (sql: string, params?: unknown[]) => Promise<[unknown, unknown]>;
+  end: () => Promise<void>;
+  getConnection: () => Promise<MySqlPoolConnection>;
+};
+
+type MySqlPoolConnection = {
+  execute: (sql: string, params?: unknown[]) => Promise<[unknown, unknown]>;
+  beginTransaction: () => Promise<void>;
+  commit: () => Promise<void>;
+  rollback: () => Promise<void>;
+  release: () => void;
+};
+
+type MySqlModule = {
+  createPool: (config: unknown) => MySqlPool;
+};
+
+function isMissingEsmPackage(error: unknown, packageName: string): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  const maybe = error as { code?: unknown; message?: unknown };
+
+  if (maybe.code === 'ERR_MODULE_NOT_FOUND') {
+    return typeof maybe.message === 'string' && maybe.message.includes(packageName);
+  }
+
+  if (typeof maybe.message === 'string') {
+    return (
+      maybe.message.includes(`Cannot find package '${packageName}'`) ||
+      maybe.message.includes(`Cannot find module '${packageName}'`)
     );
   }
-  state.connected = true;
-  Logger.info(`✓ MySQL connected (${config.host}:${config.port})`);
+
+  return false;
 }
 
-function disconnect(state: AdapterState): void {
+async function loadMysql(): Promise<MySqlModule> {
+  return (await import('mysql2/promise')) as unknown as MySqlModule;
+}
+
+function getConnectionParams(config: DatabaseConfig): {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password: string;
+} {
+  return {
+    host: config.host ?? 'localhost',
+    port: config.port ?? 3306,
+    database: config.database ?? 'mysql',
+    user: config.username ?? 'root',
+    password: config.password ?? '',
+  };
+}
+
+function ensurePool(state: AdapterState): MySqlPool {
+  if (!state.connected || state.pool === undefined) {
+    throw ErrorFactory.createConnectionError('Database not connected');
+  }
+  return state.pool;
+}
+
+function normalizeQueryResult(raw: unknown): QueryResult {
+  // mysql2/promise returns:
+  // - SELECT: RowDataPacket[]
+  // - INSERT/UPDATE: ResultSetHeader
+  // We normalize to the framework's { rows, rowCount }.
+
+  if (Array.isArray(raw)) {
+    return {
+      rows: raw as Record<string, unknown>[],
+      rowCount: raw.length,
+    };
+  }
+
+  if (raw !== null && typeof raw === 'object') {
+    const maybe = raw as { affectedRows?: unknown };
+    const affectedRows =
+      typeof maybe.affectedRows === 'number' && Number.isFinite(maybe.affectedRows)
+        ? maybe.affectedRows
+        : 0;
+    return { rows: [], rowCount: affectedRows };
+  }
+
+  return { rows: [], rowCount: 0 };
+}
+
+async function connect(state: AdapterState, config: DatabaseConfig): Promise<void> {
+  if (state.connected) return;
+
+  try {
+    const mysql = await loadMysql();
+    const { host, port, database, user, password } = getConnectionParams(config);
+
+    state.pool = mysql.createPool({
+      host,
+      port,
+      database,
+      user,
+      password,
+      waitForConnections: true,
+      connectionLimit: 10,
+      namedPlaceholders: false,
+    });
+
+    // Probe.
+    await state.pool.execute('SELECT 1');
+    state.connected = true;
+    Logger.info(`✓ MySQL connected (${host}:${port})`);
+  } catch (error) {
+    if (isMissingEsmPackage(error, 'mysql2')) {
+      throw ErrorFactory.createConfigError(
+        "MySQL adapter requires the 'mysql2' package (run `npm install mysql2` or `zin add db:mysql`)."
+      );
+    }
+    throw ErrorFactory.createTryCatchError('Failed to connect to MySQL', error);
+  }
+}
+
+async function disconnect(state: AdapterState): Promise<void> {
+  if (!state.connected) return;
+  const pool = state.pool;
   state.connected = false;
-  Logger.info('✓ MySQL disconnected');
-}
+  state.pool = undefined;
 
-function ensureConnected(state: AdapterState): void {
-  if (!state.connected) throw ErrorFactory.createConnectionError('Database not connected');
+  try {
+    if (pool !== undefined) await pool.end();
+  } finally {
+    Logger.info('✓ MySQL disconnected');
+  }
 }
 
 async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknown[]): Promise<T[]> {
@@ -58,13 +174,12 @@ async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknow
     throw ErrorFactory.createConfigError('Raw SQL queries are disabled');
   }
 
-  ensureConnected(state);
+  const pool = ensurePool(state);
 
   try {
     Logger.warn(`Raw SQL Query executed: ${sql}`, { parameters });
-    if (sql.includes('INVALID')) {
-      throw ErrorFactory.createDatabaseError('Invalid SQL syntax');
-    }
+    const [rows] = await pool.execute(sql, parameters ?? []);
+    if (Array.isArray(rows)) return rows as T[];
     return [] as T[];
   } catch (error) {
     throw ErrorFactory.createTryCatchError(`Raw SQL query failed: ${sql}`, error);
@@ -77,9 +192,14 @@ function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
   const adapter: IDatabaseAdapter = {
     connect: async () => connect(state, config),
     disconnect: async () => disconnect(state),
-    query: async () => {
-      ensureConnected(state);
-      return { rows: [], rowCount: 0 };
+    query: async (sql: string, parameters: unknown[]) => {
+      const pool = ensurePool(state);
+      try {
+        const [rows] = await pool.execute(sql, parameters);
+        return normalizeQueryResult(rows);
+      } catch (error) {
+        throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
+      }
     },
     queryOne: async (sql, parameters) => {
       const result = await adapter.query(sql, parameters);
@@ -89,16 +209,56 @@ function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
       await adapter.query(QueryBuilder.create('').select('1').toSQL(), []);
     },
     transaction: async (callback) => {
-      ensureConnected(state);
+      const pool = ensurePool(state);
+      const conn = await pool.getConnection();
+
+      const txAdapter: IDatabaseAdapter = {
+        ...adapter,
+        query: async (sql: string, parameters: unknown[]) => {
+          try {
+            const [rows] = await conn.execute(sql, parameters);
+            return normalizeQueryResult(rows);
+          } catch (error) {
+            throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
+          }
+        },
+        queryOne: async (sql: string, parameters: unknown[]) => {
+          const res = await txAdapter.query(sql, parameters);
+          return res.rows[0] ?? null;
+        },
+      };
+
       try {
-        await adapter.query('START TRANSACTION', []);
-        const result = await callback(adapter);
-        await adapter.query('COMMIT', []);
+        await conn.beginTransaction();
+        const result = await callback(txAdapter);
+        await conn.commit();
         return result;
       } catch (error) {
-        await adapter.query('ROLLBACK', []);
+        try {
+          await conn.rollback();
+        } catch {
+          // ignore rollback errors
+        }
         throw ErrorFactory.createTryCatchError('MySQL transaction failed', error);
+      } finally {
+        conn.release();
       }
+    },
+    ensureMigrationsTable: async () => {
+      await adapter.query(
+        `CREATE TABLE IF NOT EXISTS migrations (
+            id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            name VARCHAR(255) NOT NULL,
+            scope VARCHAR(255) NOT NULL DEFAULT 'global',
+            service VARCHAR(255) NOT NULL DEFAULT '',
+            batch INTEGER NOT NULL,
+            status VARCHAR(255) NOT NULL,
+            applied_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(name, scope, service)
+          )`,
+        []
+      );
     },
     getType: () => 'mysql',
     isConnected: () => state.connected,

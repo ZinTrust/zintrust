@@ -46,6 +46,10 @@ vi.mock('@cli/scaffolding/WorkflowGenerator', () => ({
   WorkflowGenerator: { generate: vi.fn() },
 }));
 
+vi.mock('@cli/scaffolding/GovernanceScaffolder', () => ({
+  GovernanceScaffolder: { scaffold: vi.fn() },
+}));
+
 vi.mock('inquirer', () => ({
   default: { prompt: vi.fn() },
 }));
@@ -62,6 +66,7 @@ vi.mock('@node-singletons/fs', () => ({
 import { ControllerGenerator } from '@cli/scaffolding/ControllerGenerator';
 import { FactoryGenerator } from '@cli/scaffolding/FactoryGenerator';
 import { FeatureScaffolder } from '@cli/scaffolding/FeatureScaffolder';
+import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
 import { MigrationGenerator } from '@cli/scaffolding/MigrationGenerator';
 import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
 import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
@@ -109,6 +114,18 @@ describe('AddCommand', () => {
       await expect(command.execute({ args: ['db:sqlite', 'extra'] })).rejects.toThrow(
         /looks like a plugin id/i
       );
+    });
+
+    it('should handle governance installation', async () => {
+      vi.mocked(GovernanceScaffolder.scaffold).mockResolvedValue({
+        success: true,
+        filesCreated: [],
+        message: 'ok',
+      } as any);
+
+      await command.execute({ args: ['governance'], packageManager: 'pnpm' });
+
+      expect(GovernanceScaffolder.scaffold).toHaveBeenCalled();
     });
 
     it('should handle service creation', async () => {
@@ -629,6 +646,12 @@ describe('AddCommand', () => {
         'Unexpected error'
       );
     });
+  });
+
+  it('should throw error when governance is called with a name argument', async () => {
+    await expect(command.execute({ args: ['governance', 'invalid-name'] })).rejects.toThrow(
+      'governance does not take a name argument'
+    );
   });
 
   describe('Internal Helpers & Validators', () => {

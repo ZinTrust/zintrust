@@ -1,6 +1,6 @@
 # Logging
 
-Zintrust features a robust, file-based logging system that helps you monitor your application and debug issues.
+ZinTrust features a robust, file-based logging system that helps you monitor your application and debug issues.
 
 ## Basic Usage
 
@@ -16,7 +16,7 @@ Logger.debug('Query executed', { sql: query });
 
 ## Log Levels
 
-Zintrust supports standard log levels:
+ZinTrust supports standard log levels:
 
 - `debug`: Detailed information for debugging.
 - `info`: General application events.
@@ -87,7 +87,7 @@ Logs are stored in the `logs/` directory:
 
 ## Log Rotation
 
-Zintrust automatically rotates log files daily or when they reach a certain size (default 10MB), keeping your disk space usage under control.
+ZinTrust automatically rotates log files daily or when they reach a certain size (default 10MB), keeping your disk space usage under control.
 
 ## Viewing Logs
 
@@ -106,7 +106,7 @@ zin logs --level error
 
 ## Error Handling
 
-Zintrust enforces a "Zero-Swallow" safety guarantee: all errors must be logged before being handled or re-thrown.
+ZinTrust enforces a "Zero-Swallow" safety guarantee: all errors must be logged before being handled or re-thrown.
 
 ### Required Logger.error() in Catch Blocks
 
@@ -182,7 +182,7 @@ async function processPayment(userId: number) {
 
 ## Log Cleanup (File retention) 🔧
 
-To prevent logs from growing unbounded on disk, Zintrust includes a scheduled log cleanup job that will delete old or excess log files based on environment-configured retention rules. The job runs in long-running runtimes (Node.js, Fargate) and can also be invoked on-demand via the CLI command `zin logs:cleanup`.
+To prevent logs from growing unbounded on disk, ZinTrust includes a scheduled log cleanup job that will delete old or excess log files based on environment-configured retention rules. The job runs in long-running runtimes (Node.js, Fargate) and can also be invoked on-demand via the CLI command `zin logs:cleanup`.
 
 ### Environment Variables
 
@@ -214,7 +214,7 @@ npm run start
 
 ## Cloud Logging Backends
 
-Zintrust can optionally forward logs to cloud backends in addition to console/file output. These backends are **best-effort** and designed to be non-blocking.
+ZinTrust can optionally forward logs to cloud backends in addition to console/file output. These backends are **best-effort** and designed to be non-blocking.
 
 ### KV Logger (Cloudflare KV)
 

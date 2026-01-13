@@ -3,6 +3,8 @@
  * Central database connection management and query execution
  */
 
+import { OpenTelemetry } from '@/observability/OpenTelemetry';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
@@ -11,9 +13,10 @@ import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
-import { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
-import { IQueryBuilder, QueryBuilder } from '@orm/QueryBuilder';
+import type { IQueryBuilder } from '@orm/QueryBuilder';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 export interface IDatabase {
   connect(): Promise<void>;
@@ -30,6 +33,7 @@ export interface IDatabase {
   getAdapterInstance(isRead?: boolean): IDatabaseAdapter;
   getType(): string;
   getConfig(): DatabaseConfig;
+  dispose(): void;
 }
 
 /**
@@ -114,6 +118,147 @@ const executeQueryOne = async (
   return result;
 };
 
+const installDbMetricsIfEnabled = (
+  dbConfig: DatabaseConfig,
+  eventEmitter: EventEmitter
+): (() => void) | null => {
+  if (Env.getBool('METRICS_ENABLED', false) === false) return null;
+
+  let observeDbQueryPromise: Promise<
+    ((input: { driver: string; durationMs: number }) => Promise<void>) | null
+  > | null = null;
+
+  const ensureObserveDbQuery = async (): Promise<
+    ((input: { driver: string; durationMs: number }) => Promise<void>) | null
+  > => {
+    if (observeDbQueryPromise !== null) return observeDbQueryPromise;
+
+    observeDbQueryPromise = import('@/observability/PrometheusMetrics')
+      .then((m) => m.PrometheusMetrics.observeDbQuery)
+      .catch(() => null);
+
+    return observeDbQueryPromise;
+  };
+
+  const handler = (_sql: string, _params: unknown[], durationMs: number): void => {
+    void ensureObserveDbQuery().then((observe) => {
+      if (observe === null) return;
+      void observe({ driver: dbConfig.driver, durationMs });
+    });
+  };
+
+  eventEmitter.on('after-query', handler);
+
+  // Return cleanup function
+  return (): void => {
+    eventEmitter.off('after-query', handler);
+  };
+};
+
+const installDbTracingIfEnabled = (
+  dbConfig: DatabaseConfig,
+  eventEmitter: EventEmitter
+): (() => void) | null => {
+  if (Env.getBool('OTEL_ENABLED', false) === false) return null;
+
+  const handler = (_sql: string, _params: unknown[], durationMs: number): void => {
+    OpenTelemetry.recordDbQuerySpan({ driver: dbConfig.driver, durationMs });
+  };
+
+  eventEmitter.on('after-query', handler);
+
+  // Return cleanup function
+  return (): void => {
+    eventEmitter.off('after-query', handler);
+  };
+};
+
+/**
+ * Create connect/disconnect handlers
+ */
+const createConnectionHandlers = (
+  writeAdapter: IDatabaseAdapter,
+  readAdapters: IDatabaseAdapter[],
+  connected: { value: boolean },
+  connectInFlight: { value: Promise<void> | undefined }
+): {
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+} => {
+  return {
+    async connect() {
+      if (connected.value) return;
+
+      const inFlight = connectInFlight.value;
+      if (inFlight !== undefined) {
+        await inFlight;
+        return;
+      }
+
+      connectInFlight.value = (async () => {
+        await writeAdapter.connect();
+        await Promise.all(
+          readAdapters
+            .filter((adapter) => adapter !== writeAdapter)
+            .map(async (adapter) => adapter.connect())
+        );
+        connected.value = true;
+      })();
+
+      try {
+        await connectInFlight.value;
+      } finally {
+        connectInFlight.value = undefined;
+      }
+    },
+    async disconnect() {
+      if (connectInFlight.value !== undefined) {
+        await connectInFlight.value.catch(() => {
+          // ignore
+        });
+      }
+      await writeAdapter.disconnect();
+      await Promise.all(
+        readAdapters
+          .filter((adapter) => adapter !== writeAdapter)
+          .map(async (adapter) => adapter.disconnect())
+      );
+      connected.value = false;
+    },
+  };
+};
+
+/**
+ * Create query handlers
+ */
+const createQueryHandlers = (
+  writeAdapter: IDatabaseAdapter,
+  _readAdapters: IDatabaseAdapter[],
+  eventEmitter: EventEmitter,
+  connected: { value: boolean },
+  db: IDatabase,
+  getAdapter: (isRead?: boolean) => IDatabaseAdapter
+): {
+  query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
+  queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
+  transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
+} => {
+  return {
+    async query(sql: string, parameters: unknown[] = [], isRead = false) {
+      if (connected.value === false) await db.connect();
+      return executeQuery(getAdapter(isRead), eventEmitter, sql, parameters, 'query');
+    },
+    async queryOne(sql: string, parameters: unknown[] = [], isRead = false) {
+      if (connected.value === false) await db.connect();
+      return executeQueryOne(getAdapter(isRead), eventEmitter, sql, parameters);
+    },
+    async transaction<T>(callback: (db: IDatabase) => Promise<T>) {
+      if (connected.value === false) await db.connect();
+      return writeAdapter.transaction(async () => callback(db));
+    },
+  };
+};
+
 export const Database = Object.freeze({
   /**
    * Create a new database instance
@@ -121,10 +266,21 @@ export const Database = Object.freeze({
   create(config?: DatabaseConfig): IDatabase {
     const dbConfig = config ?? { driver: 'sqlite', database: ':memory:' };
     const eventEmitter = new EventEmitter();
-    let connected = false;
+    const connected = { value: false };
+    const connectInFlight = { value: undefined as Promise<void> | undefined };
     let readIndex = 0;
 
     const { writeAdapter, readAdapters } = initializeAdapters(dbConfig);
+
+    // Store cleanup functions for event listeners
+    const cleanupFunctions: Array<() => void> = [];
+
+    // Install metrics and tracing, capture cleanup functions
+    const metricsCleanup = installDbMetricsIfEnabled(dbConfig, eventEmitter);
+    const tracingCleanup = installDbTracingIfEnabled(dbConfig, eventEmitter);
+
+    if (metricsCleanup) cleanupFunctions.push(metricsCleanup);
+    if (tracingCleanup) cleanupFunctions.push(tracingCleanup);
 
     const getAdapter = (isRead = false): IDatabaseAdapter => {
       if (isRead === false || readAdapters.length === 0) {
@@ -136,41 +292,32 @@ export const Database = Object.freeze({
       return adapter;
     };
 
+    const connectionHandlers = createConnectionHandlers(
+      writeAdapter,
+      readAdapters,
+      connected,
+      connectInFlight
+    );
+
+    // Create temporary handlers with db as undefined, then update after db is created
+    let queryHandlers = createQueryHandlers(
+      writeAdapter,
+      readAdapters,
+      eventEmitter,
+      connected,
+      {} as IDatabase,
+      getAdapter
+    );
+
     const db: IDatabase = {
-      async connect() {
-        await writeAdapter.connect();
-        await Promise.all(
-          readAdapters
-            .filter((adapter) => adapter !== writeAdapter)
-            .map(async (adapter) => adapter.connect())
-        );
-        connected = true;
-      },
-      async disconnect() {
-        await writeAdapter.disconnect();
-        await Promise.all(
-          readAdapters
-            .filter((adapter) => adapter !== writeAdapter)
-            .map(async (adapter) => adapter.disconnect())
-        );
-        connected = false;
-      },
+      connect: connectionHandlers.connect,
+      disconnect: connectionHandlers.disconnect,
       isConnected() {
-        return connected;
+        return connected.value;
       },
-      async query(sql, parameters = [], isRead = false) {
-        if (connected === false)
-          throw ErrorFactory.createConnectionError('Database not connected. Call connect() first.');
-        return executeQuery(getAdapter(isRead), eventEmitter, sql, parameters, 'query');
-      },
-      async queryOne(sql, parameters = [], isRead = false) {
-        if (connected === false)
-          throw ErrorFactory.createConnectionError('Database not connected. Call connect() first.');
-        return executeQueryOne(getAdapter(isRead), eventEmitter, sql, parameters);
-      },
-      async transaction<T>(callback: (db: IDatabase) => Promise<T>) {
-        return writeAdapter.transaction(async () => callback(db));
-      },
+      query: queryHandlers.query,
+      queryOne: queryHandlers.queryOne,
+      transaction: queryHandlers.transaction,
       table(name) {
         return QueryBuilder.create(name, db);
       },
@@ -187,12 +334,44 @@ export const Database = Object.freeze({
       getConfig() {
         return { ...dbConfig };
       },
+      dispose() {
+        // Clean up event listeners to prevent memory leaks
+        for (const cleanup of cleanupFunctions) {
+          cleanup();
+        }
+        cleanupFunctions.length = 0;
+      },
     };
+
+    // Update handlers with actual db reference for circular dependency
+    queryHandlers = createQueryHandlers(
+      writeAdapter,
+      readAdapters,
+      eventEmitter,
+      connected,
+      db,
+      getAdapter
+    );
+    db.query = queryHandlers.query;
+    db.queryOne = queryHandlers.queryOne;
+    db.transaction = queryHandlers.transaction;
+
     return db;
   },
 });
 
 const databaseInstances: Map<string, IDatabase> = new Map();
+
+export const useEnsureDbConnected = async (
+  config = undefined,
+  connectionName = 'default'
+): Promise<ReturnType<typeof useDatabase>> => {
+  const db = useDatabase(config, connectionName);
+  if (!db.isConnected()) {
+    await db.connect();
+  }
+  return db;
+};
 
 export function useDatabase(config?: DatabaseConfig, connection = 'default'): IDatabase {
   if (databaseInstances.has(connection) === false) {
@@ -216,6 +395,7 @@ export async function resetDatabase(): Promise<void> {
   const promises = Array.from(databaseInstances.values()).map(async (instance) => {
     try {
       await instance.disconnect();
+      instance.dispose();
     } catch {
       // Ignore errors during disconnect
     }

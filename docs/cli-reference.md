@@ -4,6 +4,9 @@
 
 - `zin new <name>`: Create a new project
 - `zin add <type> [name]`: Add a component to existing project
+- `zin create migration <model>`: Create a create-table migration (same as `zin cm <model>`)
+- `zin cm <model>`: Shortcut: create-table migration (creates `create_\<models>_table`)
+- `zin am <column> <model>`: Shortcut: add-column migration (creates `add_\<column>_\<models>_table`)
 - `zin prepare`: Prepare local dist/ for file: installs (dev workflow)
 - `zin migrate`: Run database migrations
 - `zin d1:migrate`: Run Cloudflare D1 migrations
@@ -12,14 +15,85 @@
 - `zin debug`: Start debug dashboard
 - `zin logs`: View application logs
 - `zin templates`: List/render built-in markdown templates
+- `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
+- `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
 - `zin fix`: Run automated code fixes
 - `zin qa`: Run full Quality Assurance suite
 - `zin secrets`: Pull/push secrets via the Secrets toolkit
-- `zin simulate` (alias: `zin -sim`): [internal] generate a simulated app under `./simulate/`
+- `zin simulate` (alias: `zin -sim`): Generate a simulated app under `./simulate/` (dev utility)
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
+
+## Routes Command
+
+Lists all routes registered by your router (including group prefixes) and prints a table.
+
+Columns:
+
+- **URL**: computed from `BASE_URL` + `PORT` + route path (safe-joined to avoid `//`)
+- **Group**: derived router group (or service name if `--group-by service`)
+- **Method**, **Path**, **Middleware**, **Validation**, **Handler**
+
+Usage:
+
+```bash
+zin routes [options]
+zin route:list [options]
+```
+
+Options:
+
+- `--group-by <mode>`: `group` | `service` | `none` (default: `group`)
+- `--filter <text>`: substring filter across all columns
+- `--method <methods>`: comma list (e.g. `GET,POST`)
+- `--json`: machine-readable output
+
+Examples:
+
+```bash
+# Pretty table (URL uses BASE_URL + PORT)
+BASE_URL=http://127.0.0.1 PORT=7777 zin routes
+
+# Group by service segment under /api/v1/<service>/...
+zin routes --group-by service
+
+# Filter to auth routes only
+zin routes --filter auth
+
+# JSON output
+zin routes --json
+```
+
+## JWT Dev Token (`jwt:dev`)
+
+Mints a JWT that is compatible with the framework's `jwt` middleware (useful for manual testing protected routes).
+
+Usage:
+
+```bash
+zin jwt:dev [options]
+```
+
+Options:
+
+- `--sub <sub>`: subject claim (default: `1`)
+- `--email <email>`: adds `email` claim
+- `--role <role>`: adds `role` claim
+- `--expires <duration>`: seconds or `30m`/`1h`/`7d` (default: `1h`)
+- `--json`: machine-readable output (prints a JSON object containing `token` and metadata)
+- `--allow-production`: override safety guard (dangerous)
+
+Examples:
+
+```bash
+# Mint a token and paste it into an Authorization header
+zin jwt:dev --sub 1 --email dev@example.com --role admin
+
+# JSON mode (easy to script)
+zin jwt:dev --json --expires 30m
+```
 
 ## The `add` Command
 
@@ -68,6 +142,27 @@ zin add db:sqlite --package-manager pnpm
 | `responsefactory` | Create a mock response factory             |
 | `workflow`        | Create GitHub Actions deployment workflows |
 
+### Migration scaffolding
+
+Migration filenames are timestamped, but the CLI will reject generating two migrations with the same logical name (for example, it will not allow creating `*_create_users_table.ts` twice).
+
+```bash
+# Create-table migration (recommended)
+zin cm user
+
+# Same as above
+zin create migration user
+
+# Add-column migration (requires create migration to exist first)
+zin am bio user
+
+# Custom migration name (advanced)
+zin add migration create_users_table
+
+# Shorthand: zin add migration <column> <model>
+zin add migration bio user
+```
+
 ### Workflow Options
 
 When adding a `workflow`, you can specify the platform:
@@ -81,11 +176,20 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 ## Database Commands
 
 - `zin migrate`: Run all pending migrations
+- `zin migrate --status`: Show migration status
 - `zin migrate --rollback`: Rollback the last migration batch
+- `zin migrate --rollback --step <number>`: Rollback multiple batches
 - `zin migrate --fresh`: Drop all tables and re-run all migrations
 - `zin migrate --reset`: Rollback all migrations
-
-Note: seeding is supported by the framework runtime, but CLI syntax may vary per project template.
+- `zin migrate --service <domain/name>`: Run global + service-local migrations
+- `zin migrate --only-service <domain/name>`: Run only service-local migrations
+- `zin migrate --force`: Allow running migrations in production without prompts
+- `zin migrate --no-interactive`: Skip interactive prompts
+- `zin migrate --local|--remote --database <name>`: D1 only: compile TS migrations to Wrangler SQL and apply via Wrangler
+- `zin db:seed`: Run database seeders (see [Seeding Guide](./seeding.md))
+  - `--reset`: Truncate tables before run
+  - `--service <name>`: Include specific service seeders
+  - `--only-service <name>`: Run ONLY specific service seeders
 
 ## Plugin Commands
 

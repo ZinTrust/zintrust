@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 describe('core entrypoint exports', () => {
   it('exposes key exports from the root entrypoint', async () => {
-    const core = await import('@zintrust/core');
+    const core = await import('../../../src/index');
 
     // These are sanity checks to ensure the entrypoint is evaluated and
     // re-exports are present (also important for patch/diff coverage).

@@ -24,3 +24,7 @@ Note: D1 is a Cloudflare Workers binding (not a TCP database). You typically use
 
 - https://zintrust.com/cloudflare
 - https://zintrust.com/adapters
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

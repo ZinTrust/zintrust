@@ -241,9 +241,20 @@ import { Router, type IRouter } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   // Example route
-  Router.get(router, '/', (_req, res) => {
+  Router.get(
+    router,
+    '/',
+    (_req, res) => {
     res.json({ message: '${options.name} service' });
-  });
+    },
+    {
+      meta: {
+        summary: 'Service root',
+        tags: ['Service'],
+        responseStatus: 200,
+      },
+    }
+  );
 }
 `;
 }
@@ -259,7 +270,7 @@ function generateExampleController(options: ServiceOptions): string {
 
 import { type IRequest, type IResponse, Controller } from '@zintrust/core';
 
-export const ${className} = {
+const controller = Object.freeze({
   ...Controller,
 
   /**
@@ -300,6 +311,16 @@ export const ${className} = {
     res.json({ deleted: true, id });
   },
 };
+
+export type ${className}Api = typeof controller;
+
+export const ${className} = Object.freeze({
+  create(): ${className}Api {
+    return controller;
+  },
+});
+
+export default ${className};
 `;
 }
 

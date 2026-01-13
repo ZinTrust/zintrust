@@ -1,27 +1,32 @@
-import { IApplication } from '@boot/Application';
+import type { IApplication } from '@boot/Application';
 import { Server } from '@boot/Server';
-import * as http from '@node-singletons/http';
-import { type Mock, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+
+const createServerMock = vi.hoisted(() => vi.fn());
 
 // Mock dependencies
 vi.mock('@/Application');
 vi.mock('@/http/Request');
 vi.mock('@/http/Response');
 vi.mock('@/config/logger');
-vi.mock('@node-singletons/http');
+vi.mock('@node-singletons/http', () => ({ createServer: createServerMock }));
 vi.mock('@node-singletons/fs');
 
 describe('Server', () => {
+  beforeEach(() => {
+    createServerMock.mockReset();
+  });
   const mockApp = {
     getRouter: vi.fn().mockReturnValue({
       match: vi.fn(),
     }),
+    getContainer: vi.fn().mockReturnValue({}),
   } as unknown as IApplication;
 
   it('should create http server', () => {
-    (http.createServer as Mock).mockReturnValue({ on: vi.fn() });
+    (createServerMock as Mock).mockReturnValue({ on: vi.fn() });
     const server = Server.create(mockApp);
-    expect(http.createServer).toHaveBeenCalled();
+    expect(createServerMock).toHaveBeenCalled();
     expect(server.getHttpServer()).toBeDefined();
   });
 
@@ -31,7 +36,8 @@ describe('Server', () => {
       close: vi.fn(),
       on: vi.fn(),
     };
-    (http.createServer as Mock).mockReturnValue(mockHttpServer);
+
+    (createServerMock as Mock).mockReturnValue(mockHttpServer);
 
     const server = Server.create(mockApp, 3000, 'localhost');
     await server.listen();
@@ -49,7 +55,7 @@ describe('Server', () => {
         if (event === 'connection') onConnection = handler as any;
       }),
     };
-    (http.createServer as Mock).mockReturnValue(mockHttpServer);
+    (createServerMock as Mock).mockReturnValue(mockHttpServer);
 
     const server = Server.create(mockApp);
 
@@ -76,16 +82,16 @@ describe('Server', () => {
   });
 
   it('should handle request', async () => {
-    const mockReq = {} as http.IncomingMessage;
+    const mockReq = {} as any;
     const mockRes = {
       setHeader: vi.fn(),
       writeHead: vi.fn(),
       end: vi.fn(),
-    } as unknown as http.ServerResponse;
+    } as any;
 
     // Get the request handler passed to createServer
-    let requestHandler: ((req: http.IncomingMessage, res: http.ServerResponse) => void) | undefined;
-    (http.createServer as Mock).mockImplementation((handler) => {
+    let requestHandler: ((req: any, res: any) => void) | undefined;
+    (createServerMock as Mock).mockImplementation((handler) => {
       requestHandler = handler;
       return { listen: vi.fn(), on: vi.fn() };
     });

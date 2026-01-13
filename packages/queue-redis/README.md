@@ -17,3 +17,7 @@ import '@zintrust/queue-redis/register';
 ```
 
 Then set `QUEUE_DRIVER=redis` and configure `REDIS_URL`.
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

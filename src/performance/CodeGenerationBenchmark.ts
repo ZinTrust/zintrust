@@ -8,7 +8,8 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { fs } from '@node-singletons';
 import * as path from '@node-singletons/path';
-import { Benchmark, IBenchmark, IMemoryMonitor, MemoryMonitor } from '@performance/Benchmark';
+import type { IBenchmark, IMemoryMonitor} from '@performance/Benchmark';
+import { Benchmark, MemoryMonitor } from '@performance/Benchmark';
 
 export interface ICodeGenerationBenchmark {
   runAll(): Promise<void>;

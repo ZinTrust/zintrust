@@ -1,5 +1,5 @@
-import { IRequest } from '@http/Request';
-import { IResponse } from '@http/Response';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 
 /**
  * Middleware Stack

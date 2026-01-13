@@ -6,7 +6,7 @@
  * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
  */
 
-import { ProcessLike } from '@config/type';
+import type { ProcessLike } from '@config/type';
 
 const getProcessLike = (): ProcessLike | undefined => {
   return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
@@ -62,6 +62,7 @@ export const Env = Object.freeze({
   // Prefer PORT, fallback to APP_PORT for compatibility
   PORT: getInt('PORT', getInt('APP_PORT', 3000)),
   HOST: get('HOST', 'localhost'),
+  BASE_URL: get('BASE_URL', ''),
   APP_NAME: get('APP_NAME', 'ZinTrust'),
   APP_KEY: get('APP_KEY', ''),
   // Optional key rotation support (comma-separated or JSON array of keys)
@@ -76,6 +77,12 @@ export const Env = Object.freeze({
   DB_USERNAME: get('DB_USERNAME', 'postgres'),
   DB_PASSWORD: get('DB_PASSWORD', ''),
   DB_READ_HOSTS: get('DB_READ_HOSTS', ''),
+  // PostgreSQL-specific configuration (with _POSTGRESQL suffix to avoid conflicts with MySQL)
+  DB_PORT_POSTGRESQL: getInt('DB_PORT_POSTGRESQL', 5432),
+  DB_DATABASE_POSTGRESQL: get('DB_DATABASE_POSTGRESQL', 'postgres'),
+  DB_USERNAME_POSTGRESQL: get('DB_USERNAME_POSTGRESQL', 'postgres'),
+  DB_PASSWORD_POSTGRESQL: get('DB_PASSWORD_POSTGRESQL', ''),
+  DB_READ_HOSTS_POSTGRESQL: get('DB_READ_HOSTS_POSTGRESQL', ''),
 
   // Cloudflare
   D1_DATABASE_ID: get('D1_DATABASE_ID'),

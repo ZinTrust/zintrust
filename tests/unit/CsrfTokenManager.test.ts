@@ -1,4 +1,5 @@
-import { CsrfTokenManager, ICsrfTokenManager } from '@security/CsrfTokenManager';
+import type { ICsrfTokenManager } from '@security/CsrfTokenManager';
+import { CsrfTokenManager } from '@security/CsrfTokenManager';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('CsrfTokenManager Basic', () => {

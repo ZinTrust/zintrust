@@ -1,4 +1,5 @@
-import { QueryLogger, QueryLoggerInstance } from '@profiling/QueryLogger';
+import type { QueryLoggerInstance } from '@profiling/QueryLogger';
+import { QueryLogger } from '@profiling/QueryLogger';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('QueryLogger Basic Tests', () => {

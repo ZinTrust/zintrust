@@ -163,7 +163,7 @@ function handleError(res: IResponse, error: unknown): void {
   res.setStatus(500).json({ error: message });
 }
 
-export const ${className} = Object.freeze({
+const controller = Object.freeze({
   ...Controller,
 ${buildIndexMethod(modelName)},
 
@@ -175,6 +175,16 @@ ${buildUpdateMethod(modelName)},
 
 ${buildDestroyMethod(modelName)},
 });
+
+export type ${className}Api = typeof controller;
+
+export const ${className} = Object.freeze({
+  create(): ${className}Api {
+    return controller;
+  },
+});
+
+export default ${className};
 `;
 }
 
@@ -329,17 +339,27 @@ function handleError(res: IResponse, error: unknown): void {
   res.setStatus(500).json({ error: message });
 }
 
-export const ${className} = {\n  ...Controller,
-${buildApiControllerBody(className)},
-};
+const controller = Object.freeze({\n  ...Controller,
+${buildApiControllerBody()},
+});
+
+export type ${className}Api = typeof controller;
+
+export const ${className} = Object.freeze({
+  create(): ${className}Api {
+    return controller;
+  },
+});
+
+export default ${className};
 `;
 }
 
 /**
  * Build API controller body
  */
-function buildApiControllerBody(className: string): string {
-  return `${buildApiMainHandler(className)},
+function buildApiControllerBody(): string {
+  return `${buildApiMainHandler()},
 
 ${buildApiMethodHandlers()},
 `;
@@ -348,7 +368,7 @@ ${buildApiMethodHandlers()},
 /**
  * Build API main handler
  */
-function buildApiMainHandler(className: string): string {
+function buildApiMainHandler(): string {
   return `  /**
    * API endpoint template
    */
@@ -358,13 +378,13 @@ function buildApiMainHandler(className: string): string {
 
       // Route to appropriate handler
       if (method === 'GET') {
-        await ${className}.handleGet(req, res);
+        await controller.handleGet(req, res);
       } else if (method === 'POST') {
-        await ${className}.handlePost(req, res);
+        await controller.handlePost(req, res);
       } else if (method === 'PUT') {
-        await ${className}.handlePut(req, res);
+        await controller.handlePut(req, res);
       } else if (method === 'DELETE') {
-        await ${className}.handleDelete(req, res);
+        await controller.handleDelete(req, res);
       } else {
         res.setStatus(405).json({ error: 'Method not allowed' });
       }
@@ -425,7 +445,7 @@ function handleError(res: IResponse, error: unknown): void {
   res.setStatus(500).json({ errors: [{ message }] });
 }
 
-export const ${className} = {\n  ...Controller,
+const controller = Object.freeze({\n  ...Controller,
   /**
    * GraphQL endpoint
    */
@@ -440,7 +460,7 @@ export const ${className} = {\n  ...Controller,
       const query = body.query as string;
 
       // TODO: Execute GraphQL query
-      const result = await ${className}.executeQuery(query);
+      const result = await controller.executeQuery(query);
 
       res.json(result);
     } catch (error) {
@@ -455,7 +475,17 @@ export const ${className} = {\n  ...Controller,
     // TODO: Implement GraphQL execution
     return { data: null };
   },
-};
+});
+
+export type ${className}Api = typeof controller;
+
+export const ${className} = Object.freeze({
+  create(): ${className}Api {
+    return controller;
+  },
+});
+
+export default ${className};
 `;
 }
 
@@ -472,7 +502,7 @@ function generateWebSocketController(options?: ControllerOptions): string {
 
 import { Logger } from '@config/logger';
 
-export const ${className} = {
+const controller = Object.freeze({
   /**
    * Handle WebSocket connection
    */
@@ -494,7 +524,17 @@ export const ${className} = {
   async onDisconnect(socket: { id: string }): Promise<void> {
     Logger.info('Client disconnected:', { socketId: socket.id });
   },
-};
+});
+
+export type ${className}Api = typeof controller;
+
+export const ${className} = Object.freeze({
+  create(): ${className}Api {
+    return controller;
+  },
+});
+
+export default ${className};
 `;
 }
 
@@ -517,16 +557,26 @@ function handleError(res: IResponse, error: unknown): void {
   res.setStatus(500).json({ error: message });
 }
 
-export const ${className} = {\n  ...Controller,
-${buildWebhookControllerBody(className)},
-};
+const controller = Object.freeze({\n  ...Controller,
+${buildWebhookControllerBody()},
+});
+
+export type ${className}Api = typeof controller;
+
+export const ${className} = Object.freeze({
+  create(): ${className}Api {
+    return controller;
+  },
+});
+
+export default ${className};
 `;
 }
 
 /**
  * Build Webhook controller body
  */
-function buildWebhookControllerBody(className: string): string {
+function buildWebhookControllerBody(): string {
   return `  /**
    * Handle incoming webhook
    */
@@ -534,13 +584,13 @@ function buildWebhookControllerBody(className: string): string {
     try {
       // Verify webhook signature
       const signature = req.getHeader('x-webhook-signature');
-      if (${className}.verifySignature(req, signature as string) === false) {
+      if (controller.verifySignature(req, signature as string) === false) {
         res.setStatus(401).json({ error: 'Invalid signature' });
         return;
       }
 
       const body = req.getBody();
-      await ${className}.processWebhook(body);
+      await controller.processWebhook(body);
 
       res.json({ success: true });
     } catch (error) {

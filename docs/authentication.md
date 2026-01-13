@@ -1,6 +1,6 @@
 # Authentication
 
-Zintrust provides a flexible authentication system that supports multiple drivers, including JWT and Session-based auth.
+ZinTrust provides a flexible authentication system that supports multiple drivers, including JWT and Session-based auth.
 
 ## Configuration
 
@@ -58,6 +58,6 @@ For service-to-service communication, you can use API keys:
 
 ```typescript
 router.group({ middleware: ['auth:api-key'] }, (r) => {
-  r.get('/internal/stats', 'StatsController@index');
+  r.get('/stats', 'StatsController@index');
 });
 ```

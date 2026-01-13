@@ -2,7 +2,7 @@
  * ConfigCommand Tests
  */
 
-import { IBaseCommand } from '@cli/BaseCommand';
+import type { IBaseCommand } from '@cli/BaseCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
 import { beforeEach, describe, expect, it } from 'vitest';
 

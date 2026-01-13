@@ -8,10 +8,11 @@ vi.mock('@/cli/scaffolding/FileGenerator');
 vi.mock('@/config/logger');
 
 import { FileGenerator } from '@/cli/scaffolding/FileGenerator';
+import type {
+  WorkflowOptions} from '@/cli/scaffolding/WorkflowGenerator';
 import {
   generateWorkflow,
-  getWorkflowTemplate,
-  WorkflowOptions,
+  getWorkflowTemplate
 } from '@/cli/scaffolding/WorkflowGenerator';
 import { Logger } from '@/config/logger';
 

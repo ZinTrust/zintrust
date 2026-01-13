@@ -14,7 +14,7 @@ import { ErrorHandler } from '@cli/ErrorHandler';
 import { type EnvBackfillResult, EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { Command } from 'commander';
+import type { Command } from 'commander';
 
 type UpgradeCommandOptions = CommandOptions & {
   cwd?: string;

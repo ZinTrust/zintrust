@@ -159,7 +159,7 @@ const flushSoon = async (): Promise<void> => {
 
 export const KvLogger = Object.freeze({
   async enqueue(event: KvLogEvent): Promise<void> {
-    if (!isEnabled()) return Promise.resolve();
+    if (!isEnabled()) return;
 
     buffer.push(event);
 

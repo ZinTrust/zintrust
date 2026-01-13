@@ -1,6 +1,30 @@
-# Config Reference
+# Config reference
 
-Auto-generated list of configuration modules from `src/config/`.
+ZinTrust’s config system is split into focused modules under `src/config/*` and aggregated into a single export surface.
+
+Use this page as a table of contents. For “how do I import config in my app?” start with the config index doc.
+
+## How to consume config
+
+Typical usage is:
+
+```ts
+import { Config } from '@zintrust/core';
+
+const loggerConfig = Config.logger;
+const storageConfig = Config.storage;
+```
+
+Some features are _configuration + runtime singleton_ (for example SecretsManager). In those cases:
+
+- Read normalized config from `Config.*`.
+- Initialize the runtime singleton once during boot.
+
+## Generated list
+
+The list below is derived from `src/config/` and is intended to stay in sync as new modules are added.
+
+If anything here disagrees with actual runtime behavior, the authoritative source is the corresponding `src/config/*.ts` file.
 
 - [FileLogWriter.ts](./config-file-log-writer.md)
 - [SecretsManager.ts](./config-secrets-manager.md)
