@@ -28,7 +28,6 @@ export type {
   NotificationDrivers,
   ProcessLike,
   QueueConfig,
-  QueueConfigInput,
   StorageConfig,
   StorageConfigRuntime,
   StorageDriverConfig,

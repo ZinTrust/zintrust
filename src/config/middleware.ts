@@ -1,4 +1,3 @@
-import useFileLoader from '@/runtime/useFileLoader';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -75,7 +74,8 @@ export type MiddlewaresType = {
   userMutationRateLimit: { windowMs: number; max: number; message: string };
 };
 
-const loadMiddlewareConfig: MiddlewaresType = await useFileLoader('config/middleware.ts').get();
+// const loadMiddlewareConfig: MiddlewaresType = await useFileLoader('config/middleware.ts').get();
+const loadMiddlewareConfig: MiddlewaresType = undefined as unknown as MiddlewaresType;
 
 export const MiddlewareKeys = Object.freeze({
   log: true,
@@ -114,31 +114,36 @@ type SharedRateLimitMiddlewares = Pick<
   'rateLimit' | 'fillRateLimit' | 'authRateLimit' | 'userMutationRateLimit'
 >;
 
-// TODO need to confirm if rate limiter can be overrider by router
+const fillRateLimit = RateLimiter.create({
+  windowMs: loadMiddlewareConfig?.fillRateLimit?.windowMs ?? 60_000,
+  max: loadMiddlewareConfig?.fillRateLimit?.max ?? 5,
+  message:
+    loadMiddlewareConfig?.fillRateLimit?.message ??
+    'Too many fill requests, please try again later.',
+});
+
+const authRateLimit = RateLimiter.create({
+  windowMs: loadMiddlewareConfig?.authRateLimit?.windowMs ?? 60_000,
+  max: loadMiddlewareConfig?.authRateLimit?.max ?? 10,
+  message:
+    loadMiddlewareConfig?.authRateLimit?.message ??
+    'Too many authentication requests, please try again later.',
+});
+
+const userMutationRateLimit = RateLimiter.create({
+  windowMs: loadMiddlewareConfig?.userMutationRateLimit?.windowMs ?? 60_000,
+  max: loadMiddlewareConfig?.userMutationRateLimit?.max ?? 20,
+  message:
+    loadMiddlewareConfig?.userMutationRateLimit?.message ??
+    'Too many write requests, please try again later.',
+});
+
 function createRateLimitMiddlewares(): SharedRateLimitMiddlewares {
   return Object.freeze({
     rateLimit: RateLimiter.create(),
-    fillRateLimit: RateLimiter.create({
-      windowMs: loadMiddlewareConfig.fillRateLimit.windowMs ?? 60_000,
-      max: loadMiddlewareConfig.fillRateLimit.max ?? 5,
-      message:
-        loadMiddlewareConfig.fillRateLimit.message ??
-        'Too many fill requests, please try again later.',
-    }),
-    authRateLimit: RateLimiter.create({
-      windowMs: loadMiddlewareConfig.authRateLimit.windowMs ?? 60_000,
-      max: loadMiddlewareConfig.authRateLimit.max ?? 10,
-      message:
-        loadMiddlewareConfig.authRateLimit.message ??
-        'Too many authentication requests, please try again later.',
-    }),
-    userMutationRateLimit: RateLimiter.create({
-      windowMs: loadMiddlewareConfig.userMutationRateLimit.windowMs ?? 60_000,
-      max: loadMiddlewareConfig.userMutationRateLimit.max ?? 20,
-      message:
-        loadMiddlewareConfig.userMutationRateLimit.message ??
-        'Too many write requests, please try again later.',
-    }),
+    fillRateLimit: fillRateLimit,
+    authRateLimit: authRateLimit,
+    userMutationRateLimit: userMutationRateLimit,
   } satisfies SharedRateLimitMiddlewares);
 }
 
@@ -263,7 +268,7 @@ function createSharedMiddlewares(): SharedMiddlewares {
     sanitizeBody: SanitizeBodyMiddleware.create(),
     ...rateLimits,
     csrf: CsrfMiddleware.create({
-      skipPaths: loadMiddlewareConfig.skipPaths,
+      skipPaths: loadMiddlewareConfig?.skipPaths ?? [],
     }),
     auth: AuthMiddleware.create(),
     jwt: JwtAuthMiddleware.create(),

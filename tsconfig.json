@@ -10,6 +10,7 @@
     "rootDir": "./",
     "moduleResolution": "bundler",
     "paths": {
+      "@zintrust/core": ["./src/index.ts"],
       "@/*": ["./src/*"],
       "@boot/*": ["./src/boot/*"],
       "@cli/*": ["./src/cli/*"],
@@ -84,6 +85,7 @@
     "dist",
     "build",
     "coverage",
+    "config",
     "src/zintrust.plugins.ts",
     "tests/cli/test-factories-*",
     ".next",

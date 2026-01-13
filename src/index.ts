@@ -246,6 +246,7 @@ export type { QueueConfig } from '@config/queue';
 
 export { default as broadcastConfig } from '@config/broadcast';
 export { default as notificationConfig } from '@config/notification';
+export type { NotificationConfig } from '@config/notification';
 
 export { securityConfig } from '@config/security';
 
