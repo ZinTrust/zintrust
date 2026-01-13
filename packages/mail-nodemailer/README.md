@@ -25,3 +25,7 @@ MAIL_DRIVER=nodemailer
 ## Docs
 
 - https://zintrust.com/mail
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

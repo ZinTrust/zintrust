@@ -17,3 +17,7 @@ import '@zintrust/mail-mailgun/register';
 ```
 
 Then set `MAIL_DRIVER=mailgun` and configure `MAILGUN_API_KEY` + `MAILGUN_DOMAIN`.
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

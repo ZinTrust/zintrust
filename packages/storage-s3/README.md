@@ -17,3 +17,7 @@ import '@zintrust/storage-s3/register';
 ```
 
 Then set your storage disk driver to `s3` and configure AWS credentials.
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.

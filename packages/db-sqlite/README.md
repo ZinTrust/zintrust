@@ -34,3 +34,7 @@ DB_CONNECTION=sqlite
 
 - https://zintrust.com/adapters
 - https://zintrust.com/database-advanced
+
+## License
+
+This package and its dependencies are MIT licensed, permitting free commercial use.
