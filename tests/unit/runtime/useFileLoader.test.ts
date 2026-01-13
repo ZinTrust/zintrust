@@ -135,4 +135,26 @@ describe('useFileLoader', () => {
       code: 'TRY_CATCH_ERROR',
     });
   });
+
+  it('treats core repo as internal root in test runtime even when npm_package_name is unset', async () => {
+    const prevProjectRoot = process.env['ZINTRUST_PROJECT_ROOT'];
+    const prevNpmPackageName = process.env['npm_package_name'];
+
+    try {
+      delete process.env['ZINTRUST_PROJECT_ROOT'];
+      delete process.env['npm_package_name'];
+
+      // In a core-repo checkout, the loader should detect the repo via import.meta.url
+      // and avoid auto-loading template config files during tests.
+      const loader = useFileLoader('config/middleware.ts');
+      expect(loader.exists()).toBe(false);
+      await expect(loader.get()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    } finally {
+      if (prevProjectRoot === undefined) delete process.env['ZINTRUST_PROJECT_ROOT'];
+      else process.env['ZINTRUST_PROJECT_ROOT'] = prevProjectRoot;
+
+      if (prevNpmPackageName === undefined) delete process.env['npm_package_name'];
+      else process.env['npm_package_name'] = prevNpmPackageName;
+    }
+  });
 });
