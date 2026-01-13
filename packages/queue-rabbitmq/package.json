@@ -21,6 +21,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "dependencies": {
+    "amqplib": "^0.10.3"
+  },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
   },

@@ -21,6 +21,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.500.0"
+  },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
   },

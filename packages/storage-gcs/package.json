@@ -21,6 +21,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "dependencies": {
+    "@google-cloud/storage": "^7.0.0"
+  },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
   },
