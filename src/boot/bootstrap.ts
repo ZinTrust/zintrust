@@ -10,7 +10,7 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 // Register plugins (adapters, drivers, etc.)
-import '@/zintrust.plugins';
+// import '@/zintrust.plugins';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
