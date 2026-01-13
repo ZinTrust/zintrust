@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/zintrust.plugins', () => ({}));
+
 beforeEach(() => {
   vi.resetModules();
   // ensure a clean env

@@ -50,6 +50,7 @@ describe('AuthController', () => {
       where: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       first: vi.fn().mockResolvedValue({ id: 1, email: 'a@example.com' }),
+      get: vi.fn(),
     };
 
     (QueryBuilder.create as unknown as Mock).mockReturnValue(findBuilder);
@@ -79,10 +80,12 @@ describe('AuthController', () => {
       where: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       first: vi.fn().mockResolvedValue(null),
+      get: vi.fn(),
     };
 
     const insertBuilder = {
-      insert: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn().mockResolvedValue({ id: 123 }),
+      get: vi.fn(),
     };
 
     (QueryBuilder.create as unknown as Mock)

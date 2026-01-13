@@ -4,6 +4,9 @@
 
 import { isNodeMain, start } from '@zintrust/core/start';
 
+// Register plugins (side-effects)
+import './zintrust.plugins';
+
 // Cloudflare Workers entry.
 export { default } from '@zintrust/core/start';
 

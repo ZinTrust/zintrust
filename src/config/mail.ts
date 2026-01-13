@@ -4,9 +4,16 @@
  * Sealed namespace for immutability
  */
 
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type { MailConfigInput, MailDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type MailConfigOverrides = Partial<{
+  default: string;
+  from: { address: string; name: string };
+  drivers: Record<string, MailDriverConfig>;
+}>;
 
 const isMailDriverConfig = (value: unknown): value is MailDriverConfig => {
   if (typeof value !== 'object' || value === null) return false;
@@ -41,24 +48,23 @@ const getMailDriver = (config: MailConfigInput, name?: string): MailDriverConfig
   throw ErrorFactory.createConfigError(`Mail driver not configured: ${selected}`);
 };
 
-const mailConfigObj = {
-  /**
-   * Default mail driver
-   */
-  default: Env.get('MAIL_CONNECTION', Env.get('MAIL_DRIVER', 'disabled')).trim().toLowerCase(),
+const createMailConfig = (): {
+  default: string;
+  from: { address: string; name: string };
+  drivers: Record<string, MailDriverConfig>;
+  getDriver: (this: MailConfigInput, name?: string) => MailDriverConfig;
+} => {
+  const overrides: MailConfigOverrides =
+    StartupConfigFileRegistry.get<MailConfigOverrides>(StartupConfigFile.Mail) ?? {};
 
-  /**
-   * Default "From" identity
-   */
-  from: {
+  const baseDefault = Env.get('MAIL_CONNECTION', Env.get('MAIL_DRIVER', 'disabled'))
+    .trim()
+    .toLowerCase();
+  const baseFrom = {
     address: Env.get('MAIL_FROM_ADDRESS', ''),
     name: Env.get('MAIL_FROM_NAME', ''),
-  },
-
-  /**
-   * Driver configs
-   */
-  drivers: {
+  };
+  const baseDrivers: Record<string, MailDriverConfig> = {
     disabled: {
       driver: 'disabled' as const,
     },
@@ -109,15 +115,72 @@ const mailConfigObj = {
       driver: 'ses' as const,
       region: Env.get('AWS_REGION', 'us-east-1'),
     },
-  },
+  };
 
-  /**
-   * Get selected driver config
-   */
-  getDriver(name?: string): MailDriverConfig {
-    return getMailDriver(this, name);
-  },
-} as const;
+  const mailConfigObj = {
+    /**
+     * Default mail driver
+     */
+    default: (overrides.default ?? baseDefault).trim().toLowerCase(),
 
-export const mailConfig = Object.freeze(mailConfigObj);
-export type MailConfig = typeof mailConfig;
+    /**
+     * Default "From" identity
+     */
+    from: {
+      ...baseFrom,
+      ...(overrides.from ?? {}),
+    },
+
+    /**
+     * Driver configs
+     */
+    drivers: {
+      ...baseDrivers,
+      ...(overrides.drivers ?? {}),
+    },
+
+    /**
+     * Get selected driver config
+     */
+    getDriver(name?: string): MailDriverConfig {
+      return getMailDriver(this, name);
+    },
+  } as const;
+
+  return Object.freeze(mailConfigObj);
+};
+
+export type MailConfig = ReturnType<typeof createMailConfig>;
+
+let cached: MailConfig | null = null;
+const proxyTarget: MailConfig = {} as MailConfig;
+
+const ensureMailConfig = (): MailConfig => {
+  if (cached) return cached;
+  cached = createMailConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort
+  }
+
+  return cached;
+};
+
+export const mailConfig: MailConfig = new Proxy(proxyTarget, {
+  get(_target, prop: keyof MailConfig) {
+    return ensureMailConfig()[prop];
+  },
+  ownKeys() {
+    ensureMailConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    ensureMailConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+  },
+});

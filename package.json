@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -46,7 +46,7 @@
     "format": "prettier --write 'src/**/*.ts'",
     "dev": "./bin/z.ts s",
     "deploy": "cd docs-website && wrangler types && wrangler deploy --env ${WRANGLER_ENV:-production}",
-    "templates:sync": "tsx src/scripts/TemplateSync.ts",
+    "templates:sync": "npm run templates:check && node -e \"console.log('templates:sync is disabled for now (no auto-updates). Update src/templates manually.');\"",
     "templates:check": "tsx src/scripts/TemplateImportsCheck.ts",
     "env:generate": "tsx src/scripts/GenerateEnvArtifacts.ts",
     "git-reload": "git rm -r --cached .  && git add .",
@@ -86,6 +86,7 @@
     "ecommerce:down": "cd services/ecommerce && docker-compose down",
     "ecommerce:logs": "cd services/ecommerce && docker-compose logs -f",
     "cleanup:github-actions": "bash ./dev/cleanup-github-actions.sh",
+    "commemtout": "bash ./scripts/disable-plugins-import.sh",
     "duplication:check": "node scripts/ci/duplication-check.mjs",
     "prepare": "node -e \"const omit=(process.env.npm_config_omit||'').split(',').map(s=>s.trim()).filter(Boolean); const skip=process.env.NODE_ENV==='production'||process.env.CI==='true'||process.env.CI==='1'||omit.includes('dev'); process.exit(skip?0:1)\" || husky",
     "postinstall": "node -e \"process.exit(0)\"",
@@ -128,6 +129,7 @@
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "bg": "^1.0.0",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "inquirer": "^13.2.0",
@@ -142,6 +144,7 @@
     "@types/better-sqlite3": "7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.0.6",
+    "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.52.0",
     "@typescript-eslint/parser": "^8.52.0",
     "@vitest/coverage-v8": "^4.0.16",

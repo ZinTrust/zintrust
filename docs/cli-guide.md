@@ -276,6 +276,7 @@ Run database migrations
 - `--rollback` - Rollback last migration batch
 - `--reset` - Rollback all migrations
 - `--status` - Show migration status
+- `--all` - Run migrations for all configured database connections
 - `--service <domain/name>` - Run global + service-local migrations
 - `--only-service <domain/name>` - Run only service-local migrations
 - `--step <number>` - Number of batches to rollback (for `--rollback`)
@@ -300,6 +301,9 @@ zin migrate --rollback --step 2
 
 # D1 (local by default)
 zin migrate --local --database zintrust_db
+
+# Run for all connections
+zin migrate --all
 
 # CI / non-interactive production deploys
 zin migrate --force --no-interactive

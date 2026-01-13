@@ -84,6 +84,14 @@ export const Env = Object.freeze({
   DB_PASSWORD_POSTGRESQL: get('DB_PASSWORD_POSTGRESQL', ''),
   DB_READ_HOSTS_POSTGRESQL: get('DB_READ_HOSTS_POSTGRESQL', ''),
 
+  // SQL Server (MSSQL) specific configuration
+  DB_HOST_MSSQL: get('DB_HOST_MSSQL', get('DB_HOST', 'localhost')),
+  DB_PORT_MSSQL: getInt('DB_PORT_MSSQL', 1433),
+  DB_DATABASE_MSSQL: get('DB_DATABASE_MSSQL', 'zintrust'),
+  DB_USERNAME_MSSQL: get('DB_USERNAME_MSSQL', 'sa'),
+  DB_PASSWORD_MSSQL: get('DB_PASSWORD_MSSQL', ''),
+  DB_READ_HOSTS_MSSQL: get('DB_READ_HOSTS_MSSQL', ''),
+
   // Cloudflare
   D1_DATABASE_ID: get('D1_DATABASE_ID'),
   KV_NAMESPACE_ID: get('KV_NAMESPACE_ID'),

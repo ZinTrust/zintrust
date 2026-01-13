@@ -5,6 +5,7 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type {
   KnownNotificationDriverConfig,
@@ -13,6 +14,20 @@ import type {
   NotificationProviders,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type NotificationConfigOverrides = Partial<{
+  default: string;
+  drivers: NotificationDrivers;
+  providers: NotificationProviders;
+}>;
+
+type NotificationRuntimeConfig = {
+  default: string;
+  drivers: NotificationDrivers;
+  providers: NotificationProviders;
+  getDriverName: () => string;
+  getDriverConfig: (name?: string) => KnownNotificationDriverConfig;
+};
 
 const normalizeName = (value: string): string => value.trim().toLowerCase();
 
@@ -87,50 +102,104 @@ const getBaseProviders = (): NotificationProviders => {
   };
 };
 
-const notificationConfigObj = {
-  /**
-   * Default notification channel name (normalized).
-   */
-  get default(): string {
-    return getDefaultChannel(this.drivers);
-  },
+const createNotificationConfig = (): NotificationRuntimeConfig => {
+  const overrides: NotificationConfigOverrides =
+    StartupConfigFileRegistry.get<NotificationConfigOverrides>(StartupConfigFile.Notification) ??
+    {};
 
-  /**
-   * Notification channels.
-   *
-   * You may add custom named channels (e.g. `opsSlack`, `smsMarketing`) that
-   * point to any known driver config.
-   */
-  get drivers(): NotificationDrivers {
-    // Return a record of channels; can be extended by app-level config.
-    return getBaseProviders() as unknown as NotificationDrivers;
-  },
+  const notificationConfigObj: NotificationRuntimeConfig = {
+    /**
+     * Default notification channel name (normalized).
+     */
+    get default(): string {
+      const overrideDefault = overrides.default;
+      if (typeof overrideDefault === 'string' && overrideDefault.trim().length > 0) {
+        const value = normalizeName(overrideDefault);
+        if (value.length > 0 && hasOwn(this.drivers, value)) return value;
+        throw ErrorFactory.createConfigError(`Notification channel not configured: ${value}`);
+      }
 
-  /**
-   * Legacy provider configs (kept for backwards compatibility with wrappers).
-   */
-  get providers(): NotificationProviders {
-    return getBaseProviders();
-  },
+      return getDefaultChannel(this.drivers);
+    },
 
-  /**
-   * Normalized notification channel name.
-   */
-  getDriverName(): string {
-    return normalizeName(this.default);
-  },
+    /**
+     * Notification channels.
+     *
+     * You may add custom named channels (e.g. `opsSlack`, `smsMarketing`) that
+     * point to any known driver config.
+     */
+    get drivers(): NotificationDrivers {
+      // Return a record of channels; can be extended by app-level config.
+      return {
+        ...(getBaseProviders() as unknown as NotificationDrivers),
+        ...(overrides.providers ?? {}),
+        ...(overrides.drivers ?? {}),
+      } as NotificationDrivers;
+    },
 
-  /**
-   * Resolve a channel config.
-   * - Unknown names throw when explicitly selected.
-   * - `default` is a reserved alias of the configured default.
-   */
-  getDriverConfig(name?: string): KnownNotificationDriverConfig {
-    return getNotificationDriver(this, name);
-  },
-} as const;
+    /**
+     * Legacy provider configs (kept for backwards compatibility with wrappers).
+     */
+    get providers(): NotificationProviders {
+      return {
+        ...getBaseProviders(),
+        ...(overrides.providers ?? {}),
+      };
+    },
 
-export const notificationConfig = Object.freeze(notificationConfigObj);
-export type NotificationConfig = typeof notificationConfig;
+    /**
+     * Normalized notification channel name.
+     */
+    getDriverName(): string {
+      return normalizeName(this.default);
+    },
+
+    /**
+     * Resolve a channel config.
+     * - Unknown names throw when explicitly selected.
+     * - `default` is a reserved alias of the configured default.
+     */
+    getDriverConfig(name?: string): KnownNotificationDriverConfig {
+      return getNotificationDriver(this, name);
+    },
+  } as const;
+
+  return Object.freeze(notificationConfigObj);
+};
+
+export type NotificationConfig = ReturnType<typeof createNotificationConfig>;
+
+let cached: NotificationConfig | null = null;
+const proxyTarget: NotificationConfig = {} as NotificationConfig;
+
+const ensureNotificationConfig = (): NotificationConfig => {
+  if (cached) return cached;
+  cached = createNotificationConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort
+  }
+
+  return cached;
+};
+
+export const notificationConfig: NotificationConfig = new Proxy(proxyTarget, {
+  get(_target, prop: keyof NotificationConfig) {
+    return ensureNotificationConfig()[prop];
+  },
+  ownKeys() {
+    ensureNotificationConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    ensureNotificationConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+  },
+});
 
 export default notificationConfig;

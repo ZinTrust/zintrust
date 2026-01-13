@@ -15,6 +15,7 @@ export type DatabaseConfig = {
 export type QueryResult = {
   rows: Record<string, unknown>[];
   rowCount: number;
+  lastInsertId?: string | number | bigint;
 };
 
 export interface IDatabaseAdapter {
@@ -113,12 +114,21 @@ function normalizeQueryResult(raw: unknown): QueryResult {
   }
 
   if (raw !== null && typeof raw === 'object') {
-    const maybe = raw as { affectedRows?: unknown };
+    const maybe = raw as { affectedRows?: unknown; insertId?: unknown };
     const affectedRows =
       typeof maybe.affectedRows === 'number' && Number.isFinite(maybe.affectedRows)
         ? maybe.affectedRows
         : 0;
-    return { rows: [], rowCount: affectedRows };
+
+    const insertId =
+      (typeof maybe.insertId === 'number' ||
+        typeof maybe.insertId === 'string' ||
+        typeof maybe.insertId === 'bigint') &&
+      maybe.insertId !== 0 // Only return if valid ID
+        ? maybe.insertId
+        : undefined;
+
+    return { rows: [], rowCount: affectedRows, lastInsertId: insertId };
   }
 
   return { rows: [], rowCount: 0 };

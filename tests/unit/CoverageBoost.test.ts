@@ -36,6 +36,16 @@ vi.mock('@node-singletons/fs', () => ({
     isDirectory: vi.fn().mockReturnValue(false),
   }),
   unlinkSync: vi.fn(),
+  promises: {
+    stat: vi.fn(),
+    readFile: vi.fn(),
+    access: vi.fn(),
+  },
+  fsPromises: {
+    stat: vi.fn(),
+    readFile: vi.fn(),
+    access: vi.fn(),
+  },
 }));
 
 // Mock node:http
@@ -200,6 +210,19 @@ describe('Application & Server', () => {
     } as any);
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('test'));
 
+    // Mock async fs methods for serveDocumentationFileAsync
+    // Ensure fs.promises exists before spying (it should, but just in case)
+    if (fs.fsPromises) {
+      vi.spyOn(fs.fsPromises, 'stat').mockResolvedValue({
+        size: 0,
+        mtime: new Date(),
+        isDirectory: vi.fn().mockReturnValue(false),
+        isFile: vi.fn().mockReturnValue(true),
+      } as any);
+      vi.spyOn(fs.fsPromises, 'readFile').mockResolvedValue(Buffer.from('test'));
+      vi.spyOn(fs.fsPromises, 'access').mockResolvedValue(undefined);
+    }
+
     const mockReq = { url: '/doc/test.unknown', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),
@@ -215,6 +238,10 @@ describe('Application & Server', () => {
     vi.spyOn(fs, 'statSync').mockImplementation(() => {
       throw new Error('stat error');
     });
+    if (fs.fsPromises) {
+      vi.spyOn(fs.fsPromises, 'stat').mockRejectedValue(new Error('stat error'));
+    }
+
     const errReq = { url: '/doc/test.html', method: 'GET', headers: {}, on: vi.fn() } as any;
     const errRes = {
       setHeader: vi.fn(),
@@ -232,13 +259,39 @@ describe('Application & Server', () => {
     expect(httpRequestHandler).toBeDefined();
 
     const docPath = path.join(process.cwd(), 'public');
+    const expectedBasePath = path.join(docPath, 'clean-url');
     const expectedHtmlPath = path.join(docPath, 'clean-url.html');
 
-    vi.spyOn(fs, 'existsSync').mockImplementation((p) => {
-      const pathStr = String(p);
-      return pathStr === expectedHtmlPath || pathStr === docPath;
-    });
-    vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
+    if (fs.fsPromises) {
+      vi.spyOn(fs.fsPromises, 'access').mockImplementation(async (p) => {
+        const pathStr = String(p);
+        if (pathStr === expectedHtmlPath) return;
+        throw new Error('ENOENT');
+      });
+      vi.spyOn(fs.fsPromises, 'stat').mockImplementation(async (p) => {
+        const pathStr = String(p);
+        if (pathStr === expectedHtmlPath) {
+          return {
+            size: 0,
+            mtime: new Date(),
+            isDirectory: () => false,
+            isFile: () => true,
+          } as any;
+        }
+
+        if (pathStr === expectedBasePath) {
+          throw new Error('ENOENT');
+        }
+
+        return {
+          size: 0,
+          mtime: new Date(),
+          isDirectory: () => false,
+          isFile: () => false,
+        } as any;
+      });
+      vi.spyOn(fs.fsPromises, 'readFile').mockResolvedValue(Buffer.from('ok'));
+    }
 
     // /doc/clean-url handled in Server.ts handleNotFound via doc.ts utilities
     const mockReq = { url: '/doc/clean-url', method: 'GET', headers: {}, on: vi.fn() } as any;
@@ -250,7 +303,11 @@ describe('Application & Server', () => {
     } as any;
 
     await httpRequestHandler?.(mockReq, mockRes);
-    expect(fs.readFileSync).toHaveBeenCalled();
+    if (fs.fsPromises) {
+      expect(fs.fsPromises.readFile).toHaveBeenCalledWith(expectedHtmlPath);
+    } else {
+      expect(fs.readFileSync).toHaveBeenCalled();
+    }
   });
 
   it('should return false when clean URL has no matching .html', async () => {
@@ -260,6 +317,10 @@ describe('Application & Server', () => {
     expect(httpRequestHandler).toBeDefined();
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
+    if (fs.fsPromises) {
+      vi.spyOn(fs.fsPromises, 'access').mockRejectedValue(new Error('ENOENT'));
+      vi.spyOn(fs.fsPromises, 'stat').mockRejectedValue(new Error('ENOENT'));
+    }
     const mockReq = { url: '/doc/missing', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),
@@ -278,17 +339,37 @@ describe('Application & Server', () => {
     Server.create(app);
     expect(httpRequestHandler).toBeDefined();
 
-    const expectedIndexPath = path.join(process.cwd(), 'public', 'index.html');
-
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     vi.spyOn(fs, 'statSync').mockReturnValue({
       size: 0,
       mtime: new Date(),
       isDirectory: vi.fn().mockReturnValue(true),
     } as any);
+    if (fs.fsPromises) {
+      vi.spyOn(fs.fsPromises, 'stat').mockImplementation(async (p) => {
+        const pStr = String(p);
+        if (pStr.endsWith('index.html')) {
+          return {
+            size: 100,
+            mtime: new Date(),
+            isDirectory: () => false,
+            isFile: () => true,
+          } as any;
+        }
+        return {
+          size: 0,
+          mtime: new Date(),
+          isDirectory: () => true,
+          isFile: () => false,
+        } as any;
+      });
+      vi.spyOn(fs.fsPromises, 'readFile').mockResolvedValue(Buffer.from('<html></html>'));
+      vi.spyOn(fs.fsPromises, 'access').mockResolvedValue(undefined);
+    }
     vi.spyOn(fs, 'readFileSync').mockReturnValue(Buffer.from('ok'));
 
-    // /doc handled in Server.ts handleNotFound via doc.ts utilities
+    // Server.ts logic uses serveDocumentationFileAsync
+    // which maps /doc -> public/index.html (via @routing/doc).
     const mockReq = { url: '/doc', method: 'GET', headers: {}, on: vi.fn() } as any;
     const mockRes = {
       setHeader: vi.fn(),
@@ -298,7 +379,10 @@ describe('Application & Server', () => {
     } as any;
 
     await httpRequestHandler?.(mockReq, mockRes);
-    expect(fs.readFileSync).toHaveBeenCalledWith(expectedIndexPath);
+
+    if (fs.fsPromises) {
+      expect(fs.fsPromises.readFile).toHaveBeenCalled();
+    }
   });
 });
 

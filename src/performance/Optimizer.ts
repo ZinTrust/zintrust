@@ -11,16 +11,16 @@ import * as path from '@node-singletons/path';
 const GENERATION_CACHE_STATE_SYMBOL = Symbol.for('zintrust:GenerationCacheState');
 
 export interface IGenerationCache {
-  get(type: string, params: Record<string, unknown>): string | null;
-  set(type: string, params: Record<string, unknown>, code: string): void;
-  save(): void;
-  clear(): void;
-  getStats(): {
+  get(type: string, params: Record<string, unknown>): Promise<string | null>;
+  set(type: string, params: Record<string, unknown>, code: string): Promise<void>;
+  save(): Promise<void>;
+  clear(): Promise<void>;
+  getStats(): Promise<{
     size: number;
     entries: number;
     diskUsage: string;
     keys: string[];
-  };
+  }>;
 }
 
 interface CacheState {
@@ -143,29 +143,29 @@ function startCacheCleanup(state: CacheState & { maxEntries?: number }): void {
 function createCacheInstance(state: CacheState & { maxEntries?: number }): IGenerationCache {
   return {
     /**
-     * Get from cache
+     * Get from cache (async)
      */
-    get(type: string, params: Record<string, unknown>): string | null {
+    async get(type: string, params: Record<string, unknown>): Promise<string | null> {
       const key = getCacheKey(type, params);
       const entry = state.cache.get(key);
 
-      if (entry === undefined) return null;
+      if (entry === undefined) return Promise.resolve(null); //NoSONAR
 
       // Check TTL
       if (Date.now() - entry.timestamp > state.ttlMs) {
         state.cache.delete(key);
         const file = path.join(state.cacheDir, `${key}.json`);
         deleteFileNonBlocking(file);
-        return null;
+        return Promise.resolve(null); //NoSONAR
       }
 
-      return entry.code;
+      return Promise.resolve(entry.code); //NoSONAR
     },
 
     /**
-     * Set in cache
+     * Set in cache (async)
      */
-    set(type: string, params: Record<string, unknown>, code: string): void {
+    async set(type: string, params: Record<string, unknown>, code: string): Promise<void> {
       const key = getCacheKey(type, params);
 
       // If key already exists, delete first so insertion order updates for LRU
@@ -186,35 +186,44 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
           deleteFileNonBlocking(file);
         }
       }
+
+      // Save to disk asynchronously
+      const file = path.join(state.cacheDir, `${key}.json`);
+      try {
+        await fs.fsPromises.access(state.cacheDir);
+      } catch {
+        await fs.fsPromises.mkdir(state.cacheDir, { recursive: true });
+      }
+      await fs.fsPromises.writeFile(file, JSON.stringify({ code, timestamp: Date.now() }, null, 2));
     },
 
     /**
-     * Save cache to disk
+     * Save cache to disk (async)
      */
-    save(): void {
-      saveCacheToDisk(state);
+    async save(): Promise<void> {
+      await saveCacheToDisk(state);
     },
 
     /**
-     * Clear cache
+     * Clear cache (async)
      */
-    clear(): void {
+    async clear(): Promise<void> {
       if (state.cleanupInterval) {
         clearInterval(state.cleanupInterval);
         state.cleanupInterval = undefined;
       }
-      clearCache(state);
+      await clearCache(state);
     },
 
     /**
-     * Get cache statistics
+     * Get cache statistics (async)
      */
-    getStats(): {
+    async getStats(): Promise<{
       size: number;
       entries: number;
       diskUsage: string;
       keys: string[];
-    } {
+    }> {
       return getCacheStats(state);
     },
   };
@@ -228,45 +237,72 @@ function attachCacheStateForTests(instance: IGenerationCache, state: CacheState)
 }
 
 /**
- * Save cache to disk
+ * Save cache to disk (async)
  */
-function saveCacheToDisk(state: CacheState): void {
-  if (fs.existsSync(state.cacheDir) === false) {
-    fs.mkdirSync(state.cacheDir, { recursive: true });
-  }
+async function saveCacheToDisk(state: CacheState): Promise<void> {
+  try {
+    try {
+      await fs.fsPromises.access(state.cacheDir);
+    } catch {
+      await fs.fsPromises.mkdir(state.cacheDir, { recursive: true });
+    }
 
-  for (const [key, entry] of state.cache.entries()) {
-    const file = path.join(state.cacheDir, `${key}.json`);
-    fs.writeFileSync(file, JSON.stringify(entry, null, 2));
+    const writes = Array.from(state.cache.entries()).map(async ([key, entry]) => {
+      const file = path.join(state.cacheDir, `${key}.json`);
+      await fs.fsPromises.writeFile(file, JSON.stringify(entry, null, 2));
+    });
+
+    await Promise.all(writes);
+  } catch (error) {
+    Logger.error('Failed to save cache to disk', error);
   }
 }
 
 /**
- * Clear cache
+ * Clear cache (async)
  */
-function clearCache(state: CacheState): void {
+async function clearCache(state: CacheState): Promise<void> {
   state.cache.clear();
-  if (fs.existsSync(state.cacheDir) === true) {
-    fs.rmSync(state.cacheDir, { recursive: true });
+  try {
+    try {
+      await fs.fsPromises.access(state.cacheDir);
+    } catch {
+      return; // Dir doesn't exist
+    }
+    await fs.fsPromises.rm(state.cacheDir, { recursive: true });
+  } catch (error) {
+    Logger.error('Failed to clear cache', error);
   }
 }
 
 /**
- * Get cache statistics
+ * Get cache statistics (async)
  */
-function getCacheStats(state: CacheState): {
+async function getCacheStats(state: CacheState): Promise<{
   size: number;
   entries: number;
   diskUsage: string;
   keys: string[];
-} {
+}> {
   let diskUsage = 0;
-  if (fs.existsSync(state.cacheDir) === true) {
-    const files = fs.readdirSync(state.cacheDir);
-    for (const file of files) {
-      const stats = fs.statSync(path.join(state.cacheDir, file));
-      diskUsage += stats.size;
+  try {
+    try {
+      await fs.fsPromises.access(state.cacheDir);
+      const files = await fs.fsPromises.readdir(state.cacheDir);
+
+      const sizes = await Promise.all(
+        files.map(async (file) => {
+          const stats = await fs.fsPromises.stat(path.join(state.cacheDir, file));
+          return stats.size;
+        })
+      );
+
+      diskUsage = sizes.reduce((sum, size) => sum + size, 0);
+    } catch {
+      // ignore
     }
+  } catch {
+    // ignore
   }
 
   return {
@@ -317,24 +353,42 @@ function toInt32(value: number): number {
 }
 
 /**
- * Load cache from disk
+ * Load cache from disk (async)
  */
-function loadFromDisk(state: CacheState): void {
-  if (fs.existsSync(state.cacheDir) === true) {
+async function loadFromDisk(state: CacheState): Promise<void> {
+  try {
     try {
-      const files = fs.readdirSync(state.cacheDir);
-      for (const file of files) {
-        if (file.endsWith('.json') === true) {
-          const content = fs.readFileSync(path.join(state.cacheDir, file), 'utf-8');
-          const data = JSON.parse(content);
-          state.cache.set(file.replace('.json', ''), data);
-        }
-      }
-    } catch (err) {
-      Logger.error(
-        `Failed to load cache from disk: ${err instanceof Error ? err.message : String(err)}`
-      );
+      await fs.fsPromises.access(state.cacheDir);
+    } catch {
+      return;
     }
+
+    const files = await fs.fsPromises.readdir(state.cacheDir);
+    const jsonFiles = files.filter((file) => file.endsWith('.json') === true);
+
+    const parsedEntries = await Promise.all(
+      jsonFiles.map(async (file) => {
+        const filePath = path.join(state.cacheDir, file);
+        const content = await fs.fsPromises.readFile(filePath, 'utf-8');
+        try {
+          const data = JSON.parse(content);
+          return { key: file.replace('.json', ''), data };
+        } catch {
+          // ignore corrupted files
+          return null;
+        }
+      })
+    );
+
+    for (const entry of parsedEntries) {
+      if (entry !== null) {
+        state.cache.set(entry.key, entry.data);
+      }
+    }
+  } catch (err) {
+    Logger.error(
+      `Failed to load cache from disk: ${err instanceof Error ? err.message : String(err)}`
+    );
   }
 }
 
@@ -656,10 +710,26 @@ async function generateWithCache<T>(
   generatorFn: () => Promise<T>
 ): Promise<T> {
   // Try cache
-  const cached = cache.get(type, params);
+  let cached: string | null = null;
+  try {
+    cached = await cache.get(type, params);
+  } catch (err) {
+    Logger.warn('GenerationCache.get failed; treating as cache miss', {
+      type,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   if (cached !== null) {
-    stats.cacheHits++;
-    return JSON.parse(cached) as T;
+    try {
+      stats.cacheHits++;
+      return JSON.parse(cached) as T;
+    } catch (err) {
+      Logger.warn('Failed to parse cached generation result; treating as cache miss', {
+        type,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   // Generate
@@ -667,8 +737,11 @@ async function generateWithCache<T>(
   const result = await generatorFn();
   const duration = performance.now() - startTime;
 
-  // Cache result
-  cache.set(type, params, JSON.stringify(result));
+  // Cache result (fire-and-forget)
+  void cache
+    .set(type, params, JSON.stringify(result))
+    .catch((err) => Logger.error('GenerationCache.set failed', err));
+
   stats.cacheMisses++;
   stats.savedTime += duration;
 
@@ -678,6 +751,20 @@ async function generateWithCache<T>(
 /**
  * Get optimization statistics
  */
+function getCacheStatusSync(cache: IGenerationCache): { size: number; keys: string[] } {
+  const state = (cache as unknown as Record<symbol, unknown>)[GENERATION_CACHE_STATE_SYMBOL] as
+    | Partial<CacheState>
+    | undefined;
+
+  const map = state?.cache;
+  if (!(map instanceof Map)) return { size: 0, keys: [] };
+
+  return {
+    size: map.size,
+    keys: Array.from(map.keys()),
+  };
+}
+
 function getOptimizerStats(
   cache: IGenerationCache,
   stats: OptimizerStats
@@ -698,7 +785,7 @@ function getOptimizerStats(
     hitRate: `${hitRate.toFixed(1)}%`,
     parallelRuns: stats.parallelRuns,
     estimatedSavedTime: `${stats.savedTime.toFixed(2)}ms`,
-    cacheStatus: cache.getStats(),
+    cacheStatus: getCacheStatusSync(cache),
   };
 }
 

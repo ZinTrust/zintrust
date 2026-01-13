@@ -181,6 +181,7 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 - `zin migrate --rollback --step <number>`: Rollback multiple batches
 - `zin migrate --fresh`: Drop all tables and re-run all migrations
 - `zin migrate --reset`: Rollback all migrations
+- `zin migrate --all`: Run migrations for all configured database connections
 - `zin migrate --service <domain/name>`: Run global + service-local migrations
 - `zin migrate --only-service <domain/name>`: Run only service-local migrations
 - `zin migrate --force`: Allow running migrations in production without prompts

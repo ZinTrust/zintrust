@@ -23,7 +23,16 @@ describe('Database config - strict env selection', () => {
       return { Env };
     });
 
-    await expect(import('@config/database')).rejects.toMatchObject({
+    const { databaseConfig } = await import('@config/database');
+    let thrown: unknown;
+    try {
+      // Access triggers lazy config creation, which should throw.
+      void databaseConfig.default;
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(thrown).toMatchObject({
       name: 'ConfigError',
       code: 'CONFIG_ERROR',
     });

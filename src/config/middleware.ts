@@ -1,4 +1,4 @@
-import { Env } from '@config/env';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -61,6 +61,20 @@ type SharedMiddlewares = {
   validateUserFill: Middleware;
 };
 
+export enum MiddlewareBody {
+  email = 'email',
+  password = 'password',
+  name = 'name',
+  count = 'count',
+}
+
+export type MiddlewaresType = {
+  skipPaths: string[];
+  fillRateLimit: { windowMs: number; max: number; message: string };
+  authRateLimit: { windowMs: number; max: number; message: string };
+  userMutationRateLimit: { windowMs: number; max: number; message: string };
+};
+
 export const MiddlewareKeys = Object.freeze({
   log: true,
   error: true,
@@ -98,24 +112,56 @@ type SharedRateLimitMiddlewares = Pick<
   'rateLimit' | 'fillRateLimit' | 'authRateLimit' | 'userMutationRateLimit'
 >;
 
-function createRateLimitMiddlewares(): SharedRateLimitMiddlewares {
+const resolveFillRateLimit = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): { windowMs: number; max: number; message: string } => {
+  return {
+    windowMs: loadMiddlewareConfig.fillRateLimit?.windowMs ?? 60_000,
+    max: loadMiddlewareConfig.fillRateLimit?.max ?? 5,
+    message:
+      loadMiddlewareConfig.fillRateLimit?.message ??
+      'Too many requests, please try again after 1 minute.',
+  };
+};
+
+const resolveAuthRateLimit = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): { windowMs: number; max: number; message: string } => {
+  return {
+    windowMs: loadMiddlewareConfig.authRateLimit?.windowMs ?? 60_000,
+    max: loadMiddlewareConfig.authRateLimit?.max ?? 10,
+    message:
+      loadMiddlewareConfig.authRateLimit?.message ??
+      'Too many login attempts, please try again after 1 minute.',
+  };
+};
+
+const resolveUserMutationRateLimit = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): { windowMs: number; max: number; message: string } => {
+  return {
+    windowMs: loadMiddlewareConfig.userMutationRateLimit?.windowMs ?? 60_000,
+    max: loadMiddlewareConfig.userMutationRateLimit?.max ?? 20,
+    message:
+      loadMiddlewareConfig.userMutationRateLimit?.message ??
+      'Too many user requests, please try again after 1 minute.',
+  };
+};
+
+function createRateLimitMiddlewares(
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): SharedRateLimitMiddlewares {
+  const fillRateLimit = RateLimiter.create(resolveFillRateLimit(loadMiddlewareConfig));
+  const authRateLimit = RateLimiter.create(resolveAuthRateLimit(loadMiddlewareConfig));
+  const userMutationRateLimit = RateLimiter.create(
+    resolveUserMutationRateLimit(loadMiddlewareConfig)
+  );
+
   return Object.freeze({
     rateLimit: RateLimiter.create(),
-    fillRateLimit: RateLimiter.create({
-      windowMs: 60_000,
-      max: 5,
-      message: 'Too many fill requests, please try again later.',
-    }),
-    authRateLimit: RateLimiter.create({
-      windowMs: 60_000,
-      max: 10,
-      message: 'Too many authentication requests, please try again later.',
-    }),
-    userMutationRateLimit: RateLimiter.create({
-      windowMs: 60_000,
-      max: 20,
-      message: 'Too many write requests, please try again later.',
-    }),
+    fillRateLimit,
+    authRateLimit,
+    userMutationRateLimit,
   } satisfies SharedRateLimitMiddlewares);
 }
 
@@ -135,10 +181,10 @@ function createAuthValidationMiddlewares(): Pick<
   return {
     validateLogin: Validation.createBodyWithSanitization(
       Schema.typed<LoginBody>()
-        .required('email')
-        .email('email')
-        .required('password')
-        .string('password'),
+        .required(MiddlewareBody.email)
+        .email(MiddlewareBody.email)
+        .required(MiddlewareBody.password)
+        .string(MiddlewareBody.password),
       {
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
         password: (v) => Sanitizer.safePasswordChars(v),
@@ -146,14 +192,14 @@ function createAuthValidationMiddlewares(): Pick<
     ),
     validateRegister: Validation.createBodyWithSanitization(
       Schema.typed<RegisterBody>()
-        .required('name')
-        .string('name')
-        .minLength('name', 1)
-        .required('email')
-        .email('email')
-        .required('password')
-        .string('password')
-        .minLength('password', 8),
+        .required(MiddlewareBody.name)
+        .string(MiddlewareBody.name)
+        .minLength(MiddlewareBody.name, 1)
+        .required(MiddlewareBody.email)
+        .email(MiddlewareBody.email)
+        .required(MiddlewareBody.password)
+        .string(MiddlewareBody.password)
+        .minLength(MiddlewareBody.password, 8),
       {
         name: (v) => Sanitizer.nameText(v).trim(),
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
@@ -170,14 +216,14 @@ function createUserValidationMiddlewares(): Pick<
   return {
     validateUserStore: Validation.createBodyWithSanitization(
       Schema.typed<UserStoreBody>()
-        .required('name')
-        .string('name')
-        .minLength('name', 1)
-        .required('email')
-        .email('email')
-        .required('password')
-        .string('password')
-        .minLength('password', 8),
+        .required(MiddlewareBody.name)
+        .string(MiddlewareBody.name)
+        .minLength(MiddlewareBody.name, 1)
+        .required(MiddlewareBody.email)
+        .email(MiddlewareBody.email)
+        .required(MiddlewareBody.password)
+        .string(MiddlewareBody.password)
+        .minLength(MiddlewareBody.password, 8),
       {
         name: (v) => Sanitizer.nameText(v).trim(),
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
@@ -187,22 +233,22 @@ function createUserValidationMiddlewares(): Pick<
     validateUserUpdate: Validation.createBodyWithSanitization(
       Schema.typed<UserUpdateBody>()
         .custom(
-          'name',
+          MiddlewareBody.name,
           (v: unknown) => v === undefined || typeof v === 'string',
-          'name must be a string'
+          MiddlewareBody.name + ' must be a string'
         )
-        .minLength('name', 1)
+        .minLength(MiddlewareBody.name, 1)
         .custom(
-          'email',
+          MiddlewareBody.email,
           (v: unknown) => v === undefined || typeof v === 'string',
-          'email must be a string'
+          MiddlewareBody.email + ' must be a string'
         )
         .custom(
-          'password',
+          MiddlewareBody.password,
           (v: unknown) => v === undefined || typeof v === 'string',
-          'password must be a string'
+          MiddlewareBody.password + ' must be a string'
         )
-        .minLength('password', 8),
+        .minLength(MiddlewareBody.password, 8),
       {
         name: (v) => Sanitizer.nameText(v).trim(),
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
@@ -212,12 +258,12 @@ function createUserValidationMiddlewares(): Pick<
     validateUserFill: Validation.createBodyWithSanitization(
       Schema.typed<UserFillBody>()
         .custom(
-          'count',
+          MiddlewareBody.count,
           (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v)),
-          'count must be a number'
+          MiddlewareBody.count + ' must be a number'
         )
-        .min('count', 1)
-        .max('count', 100)
+        .min(MiddlewareBody.count, 1)
+        .max(MiddlewareBody.count, 100)
     ),
   };
 }
@@ -229,8 +275,10 @@ function createValidationMiddlewares(): SharedValidationMiddlewares {
   } satisfies SharedValidationMiddlewares);
 }
 
-function createSharedMiddlewares(): SharedMiddlewares {
-  const rateLimits = createRateLimitMiddlewares();
+function createSharedMiddlewares(
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): SharedMiddlewares {
+  const rateLimits = createRateLimitMiddlewares(loadMiddlewareConfig);
   const validations = createValidationMiddlewares();
 
   return Object.freeze({
@@ -240,10 +288,7 @@ function createSharedMiddlewares(): SharedMiddlewares {
     sanitizeBody: SanitizeBodyMiddleware.create(),
     ...rateLimits,
     csrf: CsrfMiddleware.create({
-      skipPaths: Env.get('CSRF_SKIP_PATHS', '')
-        .split(',')
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0),
+      skipPaths: loadMiddlewareConfig?.skipPaths ?? [],
     }),
     auth: AuthMiddleware.create(),
     jwt: JwtAuthMiddleware.create(),
@@ -252,7 +297,10 @@ function createSharedMiddlewares(): SharedMiddlewares {
 }
 
 export function createMiddlewareConfig(): MiddlewareConfigType {
-  const shared = createSharedMiddlewares();
+  const loadMiddlewareConfig: Partial<MiddlewaresType> =
+    StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
+
+  const shared = createSharedMiddlewares(loadMiddlewareConfig);
 
   const middlewareConfigObj: MiddlewareConfigType = {
     global: [

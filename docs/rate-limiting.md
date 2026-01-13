@@ -113,5 +113,46 @@ When enabled, the following headers are sent with each response:
 
 ## Performance Considerations
 
-- **Memory Usage**: With the default memory store, rate limit state is kept in-process and expired entries are removed via lazy cleanup.
-- **Distributed Systems**: For multi-instance deployments, pick a remote store (`redis`, `kv`, or `db`) so all instances share the same limiter state.
+### Memory Usage
+
+With the default memory store, rate limit state is kept in-process and expired entries are removed via lazy cleanup (every `windowMs` milliseconds).
+
+**Memory Formula**:
+
+```
+Memory ≈ unique_ips × num_limiters × ~64_bytes × requests_per_window
+```
+
+**Expected Memory Usage by Traffic Level**:
+
+| Traffic Pattern   | Unique IPs | Memory Usage | Risk Level  | Recommended Store |
+| ----------------- | ---------- | ------------ | ----------- | ----------------- |
+| Low (dev/test)    | 10–100     | ~25 KB       | ✅ None     | `memory`          |
+| Medium (staging)  | 1,000      | ~256 KB      | ✅ Safe     | `memory`          |
+| High (production) | 10,000+    | ~2.5 MB      | ⚠️ Monitor  | `redis` / `kv`    |
+| DDoS/Bot attack   | 100,000+   | ~25 MB       | 🔴 Critical | `redis` / `kv`    |
+
+**Key Points**:
+
+- Memory is **not a leak**—entries expire and are cleaned up lazily during the next request.
+- Within a single cleanup interval (`windowMs`), growth is unbounded if traffic contains unique IPs.
+- Each rate limiter instance (global + route-specific) maintains its own state, multiplying memory usage.
+
+### Distributed Systems
+
+For multi-instance deployments, pick a remote store (`redis`, `kv`, or `db`) so all instances share the same limiter state and benefit from centralized cleanup.
+
+### Production Recommendations
+
+- **Up to 1,000 req/s with <10k unique IPs**: Memory store is fine; monitor heap usage.
+- **>1,000 req/s or >10k unique IPs**: Switch to `redis` or `kv`:
+  ```typescript
+  // In config/middleware.ts
+  export default {
+    rateLimit: { store: 'redis' },
+    fillRateLimit: { store: 'redis', max: 5, windowMs: 60_000 },
+    authRateLimit: { store: 'redis', max: 10, windowMs: 60_000 },
+    userMutationRateLimit: { store: 'redis', max: 20, windowMs: 60_000 },
+  };
+  ```
+- **DDoS/Bot Mitigation**: Use a remote store + consider a WAF or rate limiting at the edge (e.g., Cloudflare, AWS Shield).

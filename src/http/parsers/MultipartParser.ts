@@ -10,6 +10,9 @@ interface ParsedMultipartData {
   files: Record<string, UploadedFile[]>;
 }
 
+const MAX_PARTS = 1000;
+const MAX_HEADER_SIZE = 16 * 1024; // 16KB
+
 /**
  * Simple multipart boundary extractor
  */
@@ -17,6 +20,20 @@ const getBoundary = (contentType: string): string | undefined => {
   const match = /boundary=([^;\s]+)/.exec(contentType);
   if (match?.[1] === undefined) return undefined;
   return match[1].replaceAll('"', '');
+};
+
+const stripTrailingNewline = (buffer: Buffer, start: number, end: number): number => {
+  if (end <= start) return end;
+
+  if (end - start >= 2 && buffer[end - 2] === 13 && buffer[end - 1] === 10) {
+    return end - 2;
+  }
+
+  if (end - start >= 1 && buffer[end - 1] === 10) {
+    return end - 1;
+  }
+
+  return end;
 };
 
 /**
@@ -31,11 +48,13 @@ const extractParts = (bodyBuffer: Buffer, boundary: string): Buffer[] => {
 
   let currentPos = 0;
   while (currentPos < bodyBuffer.length) {
+    if (parts.length >= MAX_PARTS) break;
+
     const boundaryPos = bodyBuffer.indexOf(boundaryBuffer, currentPos);
     if (boundaryPos === -1) break;
 
     const start = currentPos + (currentPos === 0 ? 0 : 2); // Skip CRLF before boundary
-    const end = boundaryPos;
+    const end = stripTrailingNewline(bodyBuffer, start, boundaryPos);
 
     if (start < end) {
       parts.push(bodyBuffer.subarray(start, end));
@@ -50,63 +69,95 @@ const extractParts = (bodyBuffer: Buffer, boundary: string): Buffer[] => {
 /**
  * Parse a single multipart part
  */
-const parsePart = (part: Buffer, result: ParsedMultipartData): void => {
-  if (part.length === 0) return;
-
+const getHeaderInfo = (part: Buffer): { headerSection: string; bodyStart: number } | undefined => {
   // Find headers/body separator (double CRLF or double LF)
   const headerEndIdx = part.indexOf(Buffer.from('\r\n\r\n'));
   const headerEndIdx2 = part.indexOf(Buffer.from('\n\n'));
   const headerEnd = headerEndIdx >= 0 ? headerEndIdx : headerEndIdx2;
 
-  if (headerEnd === -1) return;
+  if (headerEnd === -1) return undefined;
+  if (headerEnd > MAX_HEADER_SIZE) return undefined; // Header too large, ignore part
 
   const headerSection = part.subarray(0, headerEnd).toString('utf-8');
   const bodyStart = headerEnd + (headerEndIdx >= 0 ? 4 : 2);
+
+  return { headerSection, bodyStart };
+};
+
+const getContentDisposition = (
+  headerSection: string
+): { fieldName: string; fileName?: string } | undefined => {
+  const match = /Content-Disposition: form-data; name="([^"]+)"(?:; filename="([^"]*)")?/i.exec(
+    headerSection
+  );
+
+  if (!match) return undefined;
+
+  return { fieldName: match[1] ?? '', fileName: match[2] };
+};
+
+const addFile = (
+  part: Buffer,
+  headerSection: string,
+  bodyStart: number,
+  fieldName: string,
+  fileName: string,
+  result: ParsedMultipartData
+): void => {
+  const contentTypeMatch = /Content-Type: ([^\r\n]+)/i.exec(headerSection);
+  const mimeType = contentTypeMatch?.[1] ?? 'application/octet-stream';
+
+  // CRITICAL: Use buffer subarray directly for zero-copy and to prevent binary corruption via trim()
+  const buffer = part.subarray(bodyStart);
+
+  const file: UploadedFile = {
+    fieldName,
+    originalName: fileName,
+    mimeType,
+    buffer,
+    size: buffer.length,
+  };
+
+  result.files[fieldName] ??= [];
+  result.files[fieldName].push(file);
+};
+
+const addField = (partBody: string, fieldName: string, result: ParsedMultipartData): void => {
+  const fieldValue = result.fields[fieldName];
+  if (fieldValue === undefined) {
+    result.fields[fieldName] = partBody;
+  } else if (Array.isArray(fieldValue)) {
+    fieldValue.push(partBody);
+  } else {
+    result.fields[fieldName] = [fieldValue, partBody];
+  }
+};
+
+const parsePart = (part: Buffer, result: ParsedMultipartData): void => {
+  if (part.length === 0) return;
+
+  const headerInfo = getHeaderInfo(part);
+  if (!headerInfo) return;
   // OPTIMIZATION: Do not convert body to string yet, as it might be a binary file
 
-  // Parse headers
-  const contentDispositionMatch =
-    /Content-Disposition: form-data; name="([^"]+)"(?:; filename="([^"]*)")?/i.exec(headerSection);
+  const disposition = getContentDisposition(headerInfo.headerSection);
+  if (!disposition) return;
 
-  if (!contentDispositionMatch) return;
-
-  const fieldName = contentDispositionMatch[1] ?? '';
-  const fileName = contentDispositionMatch[2];
-
-  // Check if it's a file upload
-  if (fileName !== undefined && fileName !== null) {
-    const contentTypeMatch = /Content-Type: ([^\r\n]+)/i.exec(headerSection);
-    const mimeType = contentTypeMatch?.[1] ?? 'application/octet-stream';
-
-    // CRITICAL: Use buffer subarray directly for zero-copy and to prevent binary corruption via trim()
-    const buffer = part.subarray(bodyStart);
-
-    const file: UploadedFile = {
-      fieldName,
-      originalName: fileName,
-      mimeType,
-      buffer,
-      size: buffer.length,
-    };
-
-    result.files[fieldName] ??= [];
-    const files = result.files[fieldName];
-    if (files !== undefined) {
-      files.push(file);
-    }
-  } else {
-    // Regular form field - safe to convert to string and trim
-    const partBody = part.subarray(bodyStart).toString('utf-8').trim();
-
-    const fieldValue = result.fields[fieldName];
-    if (fieldValue === undefined) {
-      result.fields[fieldName] = partBody;
-    } else if (Array.isArray(fieldValue)) {
-      fieldValue.push(partBody);
-    } else {
-      result.fields[fieldName] = [fieldValue, partBody];
-    }
+  if (disposition.fileName !== undefined && disposition.fileName !== null) {
+    addFile(
+      part,
+      headerInfo.headerSection,
+      headerInfo.bodyStart,
+      disposition.fieldName,
+      disposition.fileName,
+      result
+    );
+    return;
   }
+
+  // Regular form field - safe to convert to string and trim
+  const partBody = part.subarray(headerInfo.bodyStart).toString('utf-8').trim();
+  addField(partBody, disposition.fieldName, result);
 };
 
 /**

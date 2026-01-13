@@ -10,6 +10,7 @@ import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import type { IMiddlewareStack } from '@/middleware/MiddlewareStack';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
@@ -281,28 +282,60 @@ const tryImportOptional = async <T>(modulePath: string): Promise<T | undefined> 
   }
 };
 
-const registerFromRuntimeConfig = async (): Promise<void> => {
+const isCompiledJsModule = (): boolean => {
+  // When running from dist, this module is compiled to .js and Node ESM resolution
+  // requires explicit file extensions for relative imports.
+  return import.meta.url.endsWith('.js');
+};
+
+const dbLoader = async (): Promise<void> => {
   const db = await tryImportOptional<{
     registerDatabasesFromRuntimeConfig?: (cfg: typeof databaseConfig) => void;
-  }>('@orm/DatabaseRuntimeRegistration');
+  }>(
+    isCompiledJsModule()
+      ? '../orm/DatabaseRuntimeRegistration.js'
+      : '../orm/DatabaseRuntimeRegistration'
+  );
   db?.registerDatabasesFromRuntimeConfig?.(databaseConfig);
+};
 
+const queuesLoader = async (): Promise<void> => {
   const queues = await tryImportOptional<{
     registerQueuesFromRuntimeConfig?: (cfg: typeof queueConfig) => void;
-  }>('@tools/queue/QueueRuntimeRegistration');
+  }>(
+    isCompiledJsModule()
+      ? '../tools/queue/QueueRuntimeRegistration.js'
+      : '../tools/queue/QueueRuntimeRegistration'
+  );
   queues?.registerQueuesFromRuntimeConfig?.(queueConfig);
+};
 
+const cachesLoader = async (): Promise<void> => {
   const caches = await tryImportOptional<{
     registerCachesFromRuntimeConfig?: (cfg: typeof cacheConfig) => void;
-  }>('@cache/CacheRuntimeRegistration');
+  }>(
+    isCompiledJsModule()
+      ? '../cache/CacheRuntimeRegistration.js'
+      : '../cache/CacheRuntimeRegistration'
+  );
   caches?.registerCachesFromRuntimeConfig?.(cacheConfig);
+};
+
+const registerFromRuntimeConfig = async (): Promise<void> => {
+  await dbLoader();
+  await queuesLoader();
+  await cachesLoader();
 
   const broadcasters = await tryImportOptional<{
     registerBroadcastersFromRuntimeConfig?: (cfg: {
       default: string;
       drivers: typeof broadcastConfig.drivers;
     }) => void;
-  }>('@broadcast/BroadcastRuntimeRegistration');
+  }>(
+    isCompiledJsModule()
+      ? '../tools/broadcast/BroadcastRuntimeRegistration.js'
+      : '../tools/broadcast/BroadcastRuntimeRegistration'
+  );
   broadcasters?.registerBroadcastersFromRuntimeConfig?.({
     default: broadcastConfig.default,
     drivers: broadcastConfig.drivers,
@@ -310,7 +343,11 @@ const registerFromRuntimeConfig = async (): Promise<void> => {
 
   const disks = await tryImportOptional<{
     registerDisksFromRuntimeConfig?: (cfg: typeof storageConfig) => void;
-  }>('@storage/StorageRuntimeRegistration');
+  }>(
+    isCompiledJsModule()
+      ? '../tools/storage/StorageRuntimeRegistration.js'
+      : '../tools/storage/StorageRuntimeRegistration'
+  );
   disks?.registerDisksFromRuntimeConfig?.(storageConfig);
 
   const notifications = await tryImportOptional<{
@@ -318,7 +355,11 @@ const registerFromRuntimeConfig = async (): Promise<void> => {
       default: string;
       drivers: typeof notificationConfig.drivers;
     }) => void;
-  }>('@notification/NotificationRuntimeRegistration');
+  }>(
+    isCompiledJsModule()
+      ? '../tools/notification/NotificationRuntimeRegistration.js'
+      : '../tools/notification/NotificationRuntimeRegistration'
+  );
   notifications?.registerNotificationChannelsFromRuntimeConfig?.({
     default: notificationConfig.default,
     drivers: notificationConfig.drivers,
@@ -339,6 +380,18 @@ const createLifecycle = (params: {
     Logger.info(`🚀 Booting Zintrust Application in ${params.environment} mode...`);
 
     StartupConfigValidator.assertValid();
+
+    // Preload project-owned config overrides that must be available synchronously.
+    await StartupConfigFileRegistry.preload([
+      StartupConfigFile.Middleware,
+      StartupConfigFile.Cache,
+      StartupConfigFile.Database,
+      StartupConfigFile.Queue,
+      StartupConfigFile.Storage,
+      StartupConfigFile.Mail,
+      StartupConfigFile.Broadcast,
+      StartupConfigFile.Notification,
+    ]);
 
     FeatureFlags.initialize();
     await StartupHealthChecks.assertHealthy();
@@ -410,9 +463,9 @@ export const Application = Object.freeze({
       boot,
       shutdown,
       isBooted: (): boolean => booted,
-      isDevelopment: (): boolean => environment === 'development',
-      isProduction: (): boolean => environment === 'production',
-      isTesting: (): boolean => environment === 'testing',
+      isDevelopment: (): boolean => appConfig.isDevelopment(),
+      isProduction: (): boolean => appConfig.isProduction(),
+      isTesting: (): boolean => appConfig.isTesting(),
       getEnvironment: (): string => environment,
       getRouter: (): IRouter => router,
       getContainer: (): IServiceContainer => container,

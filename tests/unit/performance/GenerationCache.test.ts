@@ -15,30 +15,30 @@ describe('GenerationCache eviction', () => {
     tmp = undefined;
   });
 
-  it('evicts oldest entries when maxEntries exceeded', () => {
+  it('evicts oldest entries when maxEntries exceeded', async () => {
     if (!tmp) throw new Error('tmp missing');
 
     const cache = GenerationCache.create(tmp, 60 * 60 * 1000, 3);
 
-    cache.set('t', { a: 1 }, 'one');
-    cache.set('t', { a: 2 }, 'two');
-    cache.set('t', { a: 3 }, 'three');
+    await cache.set('t', { a: 1 }, 'one');
+    await cache.set('t', { a: 2 }, 'two');
+    await cache.set('t', { a: 3 }, 'three');
 
     // At capacity
-    expect(cache.getStats().entries).toBe(3);
+    expect((await cache.getStats()).entries).toBe(3);
 
     // Insert more to force eviction
-    cache.set('t', { a: 4 }, 'four');
-    cache.set('t', { a: 5 }, 'five');
+    await cache.set('t', { a: 4 }, 'four');
+    await cache.set('t', { a: 5 }, 'five');
 
-    const stats = cache.getStats();
+    const stats = await cache.getStats();
     expect(stats.entries).toBe(3);
 
     // Ensure oldest entries were evicted and newest entries present
-    expect(cache.get('t', { a: 1 })).toBeNull();
-    expect(cache.get('t', { a: 2 })).toBeNull();
-    expect(cache.get('t', { a: 3 })).not.toBeNull();
-    expect(cache.get('t', { a: 4 })).not.toBeNull();
-    expect(cache.get('t', { a: 5 })).not.toBeNull();
+    expect(await cache.get('t', { a: 1 })).toBeNull();
+    expect(await cache.get('t', { a: 2 })).toBeNull();
+    expect(await cache.get('t', { a: 3 })).not.toBeNull();
+    expect(await cache.get('t', { a: 4 })).not.toBeNull();
+    expect(await cache.get('t', { a: 5 })).not.toBeNull();
   });
 });

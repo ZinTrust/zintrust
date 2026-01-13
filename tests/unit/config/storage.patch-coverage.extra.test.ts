@@ -39,4 +39,28 @@ describe('src/config/storage patch coverage (extra)', () => {
       /No storage disks are configured/i
     );
   });
+
+  it('exposes temp/uploads/backups getters and proxy metadata', () => {
+    expect(storageConfig.temp).toMatchObject({
+      path: expect.any(String),
+      maxAge: expect.any(Number),
+    });
+
+    expect(storageConfig.uploads).toMatchObject({
+      maxSize: expect.any(String),
+      allowedMimes: expect.any(String),
+      path: expect.any(String),
+    });
+
+    expect(storageConfig.backups).toMatchObject({
+      path: expect.any(String),
+      driver: expect.any(String),
+    });
+
+    const keys = Reflect.ownKeys(storageConfig as unknown as object);
+    expect(keys).toContain('default');
+
+    const desc = Object.getOwnPropertyDescriptor(storageConfig as unknown as object, 'temp');
+    expect(desc).not.toBeUndefined();
+  });
 });

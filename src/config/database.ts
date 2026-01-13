@@ -4,6 +4,7 @@
  * Sealed namespace for immutability
  */
 
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type {
   DatabaseConfigShape,
@@ -11,6 +12,14 @@ import type {
   DatabaseConnections,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type DatabaseConfigOverrides = Partial<{
+  default: string;
+  connections: DatabaseConnections;
+  logging: { enabled: boolean; level: string };
+  migrations: { directory: string; extension: string };
+  seeders: { directory: string };
+}>;
 
 const isNodeProcess = (): boolean => {
   return typeof process !== 'undefined' && typeof process.cwd === 'function';
@@ -104,6 +113,14 @@ const hasOwn = (obj: Record<string, unknown>, key: string): boolean => {
   return Object.hasOwn(obj, key);
 };
 
+const parseReadHosts = (raw: string): string[] | undefined => {
+  const list = String(raw ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+  return list.length > 0 ? list : undefined;
+};
+
 const getDefaultConnection = (connections: DatabaseConnections): string => {
   const envSelectedRaw = Env.get('DB_CONNECTION', '');
   const value = String(envSelectedRaw ?? '').trim();
@@ -154,6 +171,7 @@ const connections = {
     username: Env.DB_USERNAME_POSTGRESQL,
     password: Env.DB_PASSWORD_POSTGRESQL,
     ssl: Env.getBool('DB_SSL', false),
+    readHosts: parseReadHosts(Env.DB_READ_HOSTS_POSTGRESQL),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
       min: Env.getInt('DB_POOL_MIN', 5),
@@ -169,55 +187,136 @@ const connections = {
     database: Env.DB_DATABASE,
     username: Env.DB_USERNAME,
     password: Env.DB_PASSWORD,
+    readHosts: parseReadHosts(Env.DB_READ_HOSTS),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
       min: Env.getInt('DB_POOL_MIN', 5),
       max: Env.getInt('DB_POOL_MAX', 20),
     },
   },
+  sqlserver: {
+    driver: 'sqlserver' as const,
+    host: Env.DB_HOST_MSSQL,
+    port: Env.DB_PORT_MSSQL,
+    database: Env.DB_DATABASE_MSSQL,
+    username: Env.DB_USERNAME_MSSQL,
+    password: Env.DB_PASSWORD_MSSQL,
+    readHosts: parseReadHosts(Env.DB_READ_HOSTS_MSSQL),
+  },
 } satisfies DatabaseConnections;
 
-const databaseConfigObj = {
-  /**
-   * Default database connection
-   */
-  default: getDefaultConnection(connections),
+const createDatabaseConfig = (): {
+  default: string;
+  connections: DatabaseConnections;
+  getConnection: (this: DatabaseConfigShape) => DatabaseConnectionConfig;
+  logging: { enabled: boolean; level: string };
+  migrations: { directory: string; extension: string };
+  seeders: { directory: string };
+} => {
+  const overrides: DatabaseConfigOverrides =
+    StartupConfigFileRegistry.get<DatabaseConfigOverrides>(StartupConfigFile.Database) ?? {};
 
-  /**
-   * Database connections
-   */
-  connections,
+  const mergedConnections = {
+    ...connections,
+    ...overrides.connections,
+  } satisfies DatabaseConnections;
 
-  /**
-   * Get current connection config
-   */
-  getConnection(this: DatabaseConfigShape): DatabaseConnectionConfig {
-    return getDatabaseConnection(this);
-  },
-
-  /**
-   * Enable query logging
-   */
-  logging: {
+  const baseLogging = {
     enabled: Env.getBool('DB_LOG_QUERIES', Env.DEBUG),
     level: Env.get('DB_LOG_LEVEL', 'debug'),
-  },
+  };
 
-  /**
-   * Migration settings
-   */
-  migrations: {
+  const baseMigrations = {
     directory: 'database/migrations',
     extension: Env.get('DB_MIGRATION_EXT', '.ts'),
-  },
+  };
 
-  /**
-   * Seeding settings
-   */
-  seeders: {
+  const baseSeeders = {
     directory: 'database/seeders',
-  },
+  };
+
+  const mergedDefault =
+    typeof overrides.default === 'string' && overrides.default.trim() !== ''
+      ? overrides.default.trim()
+      : getDefaultConnection(mergedConnections);
+
+  const databaseConfigObj = {
+    /**
+     * Default database connection
+     */
+    default: mergedDefault,
+
+    /**
+     * Database connections
+     */
+    connections: mergedConnections,
+
+    /**
+     * Get current connection config
+     */
+    getConnection(this: DatabaseConfigShape): DatabaseConnectionConfig {
+      return getDatabaseConnection(this);
+    },
+
+    /**
+     * Enable query logging
+     */
+    logging: {
+      ...baseLogging,
+      ...overrides.logging,
+    },
+
+    /**
+     * Migration settings
+     */
+    migrations: {
+      ...baseMigrations,
+      ...overrides.migrations,
+    },
+
+    /**
+     * Seeding settings
+     */
+    seeders: {
+      ...baseSeeders,
+      ...overrides.seeders,
+    },
+  };
+
+  return Object.freeze(databaseConfigObj);
 };
 
-export const databaseConfig = Object.freeze(databaseConfigObj);
-export type DatabaseConfig = typeof databaseConfig;
+export type DatabaseConfig = ReturnType<typeof createDatabaseConfig>;
+
+let cached: DatabaseConfig | null = null;
+const proxyTarget: DatabaseConfig = {} as DatabaseConfig;
+
+const ensureDatabaseConfig = (): DatabaseConfig => {
+  if (cached) return cached;
+  cached = createDatabaseConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort
+  }
+
+  return cached;
+};
+
+export const databaseConfig: DatabaseConfig = new Proxy(proxyTarget, {
+  get(_target, prop: keyof DatabaseConfig) {
+    return ensureDatabaseConfig()[prop];
+  },
+  ownKeys() {
+    ensureDatabaseConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    ensureDatabaseConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+  },
+});

@@ -5,6 +5,7 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type {
   BroadcastConfigInput,
@@ -16,6 +17,18 @@ import type {
   RedisHttpsBroadcastDriverConfig,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type BroadcastConfigOverrides = Partial<{
+  default: string;
+  drivers: Record<string, KnownBroadcastDriverConfig>;
+}>;
+
+type BroadcastRuntimeConfig = {
+  default: string;
+  drivers: BroadcastDrivers;
+  getDriverName: () => string;
+  getDriverConfig: (name?: string) => KnownBroadcastDriverConfig;
+};
 
 const normalizeDriverName = (value: string): string => value.trim().toLowerCase();
 
@@ -89,49 +102,93 @@ const getBroadcastDriver = (
   throw ErrorFactory.createConfigError('No broadcast drivers are configured');
 };
 
-const broadcastConfigObj = {
-  /**
-   * Default broadcaster name (normalized).
-   */
-  get default(): string {
-    return getDefaultBroadcaster(this.drivers);
+const createBroadcastConfig = (): BroadcastRuntimeConfig => {
+  const overrides: BroadcastConfigOverrides =
+    StartupConfigFileRegistry.get<BroadcastConfigOverrides>(StartupConfigFile.Broadcast) ?? {};
+
+  const broadcastConfigObj: BroadcastRuntimeConfig = {
+    /**
+     * Default broadcaster name (normalized).
+     */
+    get default(): string {
+      const overrideDefault = overrides.default;
+      if (typeof overrideDefault === 'string' && overrideDefault.trim().length > 0) {
+        const value = normalizeDriverName(overrideDefault);
+        if (value.length > 0 && hasOwn(this.drivers, value)) return value;
+        throw ErrorFactory.createConfigError(`Broadcast driver not configured: ${value}`);
+      }
+
+      return getDefaultBroadcaster(this.drivers);
+    },
+
+    /**
+     * Broadcast drivers.
+     *
+     * You may add custom named broadcasters (e.g. `ops`, `billing`) that point to any
+     * known driver config.
+     */
+    get drivers(): BroadcastDrivers {
+      return {
+        inmemory: { driver: 'inmemory' } satisfies InMemoryBroadcastDriverConfig,
+        pusher: getPusherConfig(),
+        redis: getRedisConfig(),
+        redishttps: getRedisHttpsConfig(),
+        ...(overrides.drivers ?? {}),
+      } as BroadcastDrivers;
+    },
+
+    /**
+     * Normalized broadcast driver name for the default broadcaster.
+     */
+    getDriverName(): string {
+      return normalizeDriverName(this.default);
+    },
+
+    /**
+     * Get a config object for the currently selected driver.
+     * Defaults to inmemory for unknown/unsupported names.
+     */
+    getDriverConfig(name?: string): KnownBroadcastDriverConfig {
+      return getBroadcastDriver(this, name);
+    },
+  } as const;
+
+  return Object.freeze(broadcastConfigObj);
+};
+
+export type BroadcastConfig = ReturnType<typeof createBroadcastConfig>;
+
+let cached: BroadcastConfig | null = null;
+const proxyTarget: BroadcastConfig = {} as BroadcastConfig;
+
+const ensureBroadcastConfig = (): BroadcastConfig => {
+  if (cached) return cached;
+  cached = createBroadcastConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort
+  }
+
+  return cached;
+};
+
+const broadcastConfig: BroadcastConfig = new Proxy(proxyTarget, {
+  get(_target, prop: keyof BroadcastConfig) {
+    return ensureBroadcastConfig()[prop];
   },
-
-  /**
-   * Broadcast drivers.
-   *
-   * You may add custom named broadcasters (e.g. `ops`, `billing`) that point to any
-   * known driver config.
-   */
-  drivers: {
-    get inmemory(): InMemoryBroadcastDriverConfig {
-      return { driver: 'inmemory' };
-    },
-    get pusher() {
-      return getPusherConfig();
-    },
-    get redis() {
-      return getRedisConfig();
-    },
-    get redishttps() {
-      return getRedisHttpsConfig();
-    },
-  } satisfies BroadcastDrivers,
-
-  /**
-   * Normalized broadcast driver name for the default broadcaster.
-   */
-  getDriverName(): string {
-    return normalizeDriverName(this.default);
+  ownKeys() {
+    ensureBroadcastConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
   },
-
-  /**
-   * Get a config object for the currently selected driver.
-   * Defaults to inmemory for unknown/unsupported names.
-   */
-  getDriverConfig(name?: string): KnownBroadcastDriverConfig {
-    return getBroadcastDriver(this, name);
+  getOwnPropertyDescriptor(_target, prop) {
+    ensureBroadcastConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
   },
-} as const;
+});
 
-export default Object.freeze(broadcastConfigObj);
+export default broadcastConfig;

@@ -278,7 +278,6 @@ async function runConnect(
 
   try {
     // Dynamic import to keep core zero-dependency
-    // @ts-expect-error: pg might not be installed in core
     const { Pool } = await import('pg');
     const pool = new Pool({
       host: adapterConfig.host,

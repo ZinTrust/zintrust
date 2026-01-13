@@ -300,6 +300,7 @@ export type PostgresqlConnectionConfig = {
   username: string;
   password: string;
   ssl: boolean;
+  readHosts?: string[];
   pooling: {
     enabled: boolean;
     min: number;
@@ -316,11 +317,22 @@ export type MysqlConnectionConfig = {
   database: string;
   username: string;
   password: string;
+  readHosts?: string[];
   pooling: {
     enabled: boolean;
     min: number;
     max: number;
   };
+};
+
+export type SqlserverConnectionConfig = {
+  driver: 'sqlserver';
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  readHosts?: string[];
 };
 
 export type D1ConnectionConfig = {
@@ -335,6 +347,7 @@ export type DatabaseConnectionConfig =
   | SqliteConnectionConfig
   | PostgresqlConnectionConfig
   | MysqlConnectionConfig
+  | SqlserverConnectionConfig
   | D1ConnectionConfig
   | D1RemoteConnectionConfig;
 

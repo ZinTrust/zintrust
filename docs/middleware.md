@@ -72,6 +72,44 @@ Router.post(router, '/api/v1/auth/register', async (_req, res) => res.json({ ok:
 });
 ```
 
+### Overriding Rate Limiters Per-Route
+
+You can create custom rate limiters and apply them to specific routes, overriding the global defaults:
+
+```typescript
+import { RateLimiter, type IKernel, Router } from '@zintrust/core';
+import type { IRouter } from '@zintrust/core';
+
+export function registerRoutes(router: IRouter, kernel: IKernel): void {
+  // Create a stricter rate limit for sensitive endpoints
+  const strictRateLimit = RateLimiter.create({
+    windowMs: 60_000, // 1 minute
+    max: 3, // Only 3 attempts per minute
+    message: 'Too many attempts. Please try again later.',
+  });
+
+  // Register it with the kernel
+  kernel.registerRouteMiddleware('strictLimit', strictRateLimit);
+
+  // Apply it to specific routes
+  Router.post(router, '/api/v1/auth/login', authController.login, {
+    middleware: ['strictLimit', 'validateLogin'], // Uses strict limit instead of default authRateLimit
+  });
+
+  // Or use the default authRateLimit from config
+  Router.post(router, '/api/v1/auth/register', authController.register, {
+    middleware: ['authRateLimit', 'validateRegister'],
+  });
+}
+```
+
+**Key Points**:
+
+- Per-route middleware **overrides** the default middleware of the same type.
+- Middleware names must be registered via `kernel.registerRouteMiddleware()` before use.
+- Multiple rate limiters can coexist (one per route or group).
+- Each rate limiter maintains its own state (unless using a remote store like Redis).
+
 ## Built-in Middleware
 
 ZinTrust comes with several built-in middleware:
