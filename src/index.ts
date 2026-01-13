@@ -205,7 +205,7 @@ export { appConfig } from '@config/app';
 export type { AppConfig } from '@config/app';
 
 export { cacheConfig } from '@config/cache';
-export type { CacheConfig } from '@config/cache';
+export type { CacheConfig, CacheConfigOverrides } from '@config/cache';
 
 // Cache helpers
 export { Cache, cache } from '@cache/Cache';
@@ -217,7 +217,10 @@ export { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration
 export { CacheDriverRegistry } from '@cache/CacheDriverRegistry';
 
 export { databaseConfig } from '@config/database';
-export type { DatabaseConfig as DatabaseRuntimeConfig } from '@config/database';
+export type {
+  DatabaseConfigOverrides,
+  DatabaseConfig as DatabaseRuntimeConfig,
+} from '@config/database';
 export { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 
 export { microservicesConfig } from '@config/microservices';
@@ -242,19 +245,20 @@ export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
 export { queueConfig } from '@config/queue';
-export type { QueueConfig } from '@config/queue';
+export type { QueueConfig, QueueConfigOverrides } from '@config/queue';
 
 export { default as broadcastConfig } from '@config/broadcast';
+export type { BroadcastConfigOverrides } from '@config/broadcast';
 export { default as notificationConfig } from '@config/notification';
-export type { NotificationConfig } from '@config/notification';
+export type { NotificationConfig, NotificationConfigOverrides } from '@config/notification';
 
 export { securityConfig } from '@config/security';
 
 export { mailConfig } from '@config/mail';
-export type { MailConfig } from '@config/mail';
+export type { MailConfig, MailConfigOverrides } from '@config/mail';
 
 export { storageConfig } from '@config/storage';
-export type { StorageConfig } from '@config/storage';
+export type { StorageConfig, StorageConfigOverrides } from '@config/storage';
 
 export { startupConfig } from '@config/startup';
 export type { StartupConfig } from '@config/startup';

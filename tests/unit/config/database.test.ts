@@ -162,9 +162,8 @@ describe('Database Config', () => {
       },
     }));
 
-    await expect(import('../../../src/config/database')).rejects.toThrow(
-      /Database connection not configured: mongo/
-    );
+    const { databaseConfig } = await import('../../../src/config/database');
+    expect(() => databaseConfig.default).toThrow(/Database connection not configured: mongo/);
   });
 
   it('selects sqlite default if DB_CONNECTION not set', async () => {

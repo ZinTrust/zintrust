@@ -8,11 +8,11 @@
  *  - useFileLoader('config', 'mail.ts').get<TypeMail>()
  */
 
-import { pathToFileURL } from '@/node-singletons/url';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync } from '@node-singletons/fs';
+import { existsSync, readFileSync } from '@node-singletons/fs';
 import pathModule, { extname, join, resolve, sep } from '@node-singletons/path';
 import processModule from '@node-singletons/process';
+import { pathToFileURL } from '@node-singletons/url';
 
 type UnknownModule = Record<string, unknown> & { default?: unknown };
 
@@ -32,9 +32,41 @@ export type FileLoader = Readonly<{
 }>;
 
 const resolveProjectRoot = (): string => {
+  const isTestRuntime = (): boolean => {
+    const nodeEnv = processModule.env?.['NODE_ENV'];
+    const isVitest =
+      processModule.env?.['VITEST'] !== undefined ||
+      processModule.env?.['VITEST_WORKER_ID'] !== undefined ||
+      processModule.env?.['VITEST_POOL_ID'] !== undefined;
+
+    return nodeEnv === 'testing' || isVitest;
+  };
+
+  const isCoreRepo = (cwdPath: string): boolean => {
+    try {
+      const pkgPath = resolve(cwdPath, 'package.json');
+      if (!existsSync(pkgPath)) return false;
+      const raw = readFileSync(pkgPath, 'utf-8');
+      const parsed = JSON.parse(String(raw)) as { name?: unknown };
+      return parsed?.name === '@zintrust/core';
+    } catch {
+      return false;
+    }
+  };
+
   const fromEnv = processModule.env?.['ZINTRUST_PROJECT_ROOT'];
   if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv.trim();
-  return processModule.cwd();
+
+  const cwd = processModule.cwd();
+
+  // In the ZinTrust core repo, `config/*.ts` are templates (not consumer app config).
+  // During core test runs, we avoid auto-loading them to prevent unexpected overrides.
+  // In normal runs, keep the historical behavior (projectRoot = cwd).
+  if (isCoreRepo(cwd) && isTestRuntime()) {
+    return resolve(cwd, '.zintrust-internal-project-root');
+  }
+
+  return cwd;
 };
 
 const normalizeProjectRelativePath = (raw: string): string => {

@@ -30,6 +30,7 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
         database: cfg.database,
         username: cfg.username,
         password: cfg.password,
+        readHosts: cfg.readHosts,
       };
     case 'mysql':
       return {
@@ -39,6 +40,17 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
         database: cfg.database,
         username: cfg.username,
         password: cfg.password,
+        readHosts: cfg.readHosts,
+      };
+    case 'sqlserver':
+      return {
+        driver: 'sqlserver',
+        host: cfg.host,
+        port: cfg.port,
+        database: cfg.database,
+        username: cfg.username,
+        password: cfg.password,
+        readHosts: cfg.readHosts,
       };
     default:
       // Exhaustive check (kept for future driver additions)

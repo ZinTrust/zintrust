@@ -1,3 +1,5 @@
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
+import { Logger } from '@config/logger';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -74,9 +76,6 @@ export type MiddlewaresType = {
   userMutationRateLimit: { windowMs: number; max: number; message: string };
 };
 
-// const loadMiddlewareConfig: MiddlewaresType = await useFileLoader('config/middleware.ts').get();
-const loadMiddlewareConfig: MiddlewaresType = undefined as unknown as MiddlewaresType;
-
 export const MiddlewareKeys = Object.freeze({
   log: true,
   error: true,
@@ -114,36 +113,56 @@ type SharedRateLimitMiddlewares = Pick<
   'rateLimit' | 'fillRateLimit' | 'authRateLimit' | 'userMutationRateLimit'
 >;
 
-const fillRateLimit = RateLimiter.create({
-  windowMs: loadMiddlewareConfig?.fillRateLimit?.windowMs ?? 60_000,
-  max: loadMiddlewareConfig?.fillRateLimit?.max ?? 5,
-  message:
-    loadMiddlewareConfig?.fillRateLimit?.message ??
-    'Too many fill requests, please try again later.',
-});
+const resolveFillRateLimit = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): { windowMs: number; max: number; message: string } => {
+  return {
+    windowMs: loadMiddlewareConfig.fillRateLimit?.windowMs ?? 60_000,
+    max: loadMiddlewareConfig.fillRateLimit?.max ?? 5,
+    message:
+      loadMiddlewareConfig.fillRateLimit?.message ??
+      'Too many requests, please try again after 1 minute.',
+  };
+};
 
-const authRateLimit = RateLimiter.create({
-  windowMs: loadMiddlewareConfig?.authRateLimit?.windowMs ?? 60_000,
-  max: loadMiddlewareConfig?.authRateLimit?.max ?? 10,
-  message:
-    loadMiddlewareConfig?.authRateLimit?.message ??
-    'Too many authentication requests, please try again later.',
-});
+const resolveAuthRateLimit = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): { windowMs: number; max: number; message: string } => {
+  return {
+    windowMs: loadMiddlewareConfig.authRateLimit?.windowMs ?? 60_000,
+    max: loadMiddlewareConfig.authRateLimit?.max ?? 10,
+    message:
+      loadMiddlewareConfig.authRateLimit?.message ??
+      'Too many login attempts, please try again after 1 minute.',
+  };
+};
 
-const userMutationRateLimit = RateLimiter.create({
-  windowMs: loadMiddlewareConfig?.userMutationRateLimit?.windowMs ?? 60_000,
-  max: loadMiddlewareConfig?.userMutationRateLimit?.max ?? 20,
-  message:
-    loadMiddlewareConfig?.userMutationRateLimit?.message ??
-    'Too many write requests, please try again later.',
-});
+const resolveUserMutationRateLimit = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): { windowMs: number; max: number; message: string } => {
+  return {
+    windowMs: loadMiddlewareConfig.userMutationRateLimit?.windowMs ?? 60_000,
+    max: loadMiddlewareConfig.userMutationRateLimit?.max ?? 20,
+    message:
+      loadMiddlewareConfig.userMutationRateLimit?.message ??
+      'Too many user requests, please try again after 1 minute.',
+  };
+};
 
-function createRateLimitMiddlewares(): SharedRateLimitMiddlewares {
+function createRateLimitMiddlewares(
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): SharedRateLimitMiddlewares {
+  const fillRateLimit = RateLimiter.create(resolveFillRateLimit(loadMiddlewareConfig));
+  const authRateLimit = RateLimiter.create(resolveAuthRateLimit(loadMiddlewareConfig));
+  const userMutationRateLimit = RateLimiter.create(
+    resolveUserMutationRateLimit(loadMiddlewareConfig)
+  );
+
   return Object.freeze({
     rateLimit: RateLimiter.create(),
-    fillRateLimit: fillRateLimit,
-    authRateLimit: authRateLimit,
-    userMutationRateLimit: userMutationRateLimit,
+    fillRateLimit,
+    authRateLimit,
+    userMutationRateLimit,
   } satisfies SharedRateLimitMiddlewares);
 }
 
@@ -257,8 +276,10 @@ function createValidationMiddlewares(): SharedValidationMiddlewares {
   } satisfies SharedValidationMiddlewares);
 }
 
-function createSharedMiddlewares(): SharedMiddlewares {
-  const rateLimits = createRateLimitMiddlewares();
+function createSharedMiddlewares(
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): SharedMiddlewares {
+  const rateLimits = createRateLimitMiddlewares(loadMiddlewareConfig);
   const validations = createValidationMiddlewares();
 
   return Object.freeze({
@@ -277,7 +298,11 @@ function createSharedMiddlewares(): SharedMiddlewares {
 }
 
 export function createMiddlewareConfig(): MiddlewareConfigType {
-  const shared = createSharedMiddlewares();
+  const loadMiddlewareConfig: Partial<MiddlewaresType> =
+    StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
+  Logger.debug('loadMiddlewareConfig :', loadMiddlewareConfig.skipPaths);
+
+  const shared = createSharedMiddlewares(loadMiddlewareConfig);
 
   const middlewareConfigObj: MiddlewareConfigType = {
     global: [

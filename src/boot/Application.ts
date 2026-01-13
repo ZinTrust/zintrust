@@ -10,6 +10,7 @@ import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import type { IMiddlewareStack } from '@/middleware/MiddlewareStack';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
@@ -379,6 +380,18 @@ const createLifecycle = (params: {
     Logger.info(`🚀 Booting Zintrust Application in ${params.environment} mode...`);
 
     StartupConfigValidator.assertValid();
+
+    // Preload project-owned config overrides that must be available synchronously.
+    await StartupConfigFileRegistry.preload([
+      StartupConfigFile.Middleware,
+      StartupConfigFile.Cache,
+      StartupConfigFile.Database,
+      StartupConfigFile.Queue,
+      StartupConfigFile.Storage,
+      StartupConfigFile.Mail,
+      StartupConfigFile.Broadcast,
+      StartupConfigFile.Notification,
+    ]);
 
     FeatureFlags.initialize();
     await StartupHealthChecks.assertHealthy();

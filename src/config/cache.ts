@@ -4,9 +4,17 @@
  * Sealed namespace for immutability
  */
 
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type { CacheConfigInput, CacheDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type CacheConfigOverrides = Partial<{
+  default: string;
+  drivers: CacheConfigInput['drivers'];
+  keyPrefix: string;
+  ttl: number;
+}>;
 
 const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverConfig => {
   const selected = String(name ?? config.default).trim();
@@ -32,11 +40,14 @@ const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverCon
   );
 };
 
-const cacheConfigObj = {
-  /**
-   * Default cache driver
-   */
-  default: (() => {
+const createCacheConfig = (): {
+  default: string;
+  drivers: CacheConfigInput['drivers'];
+  getDriver: (name?: string) => CacheDriverConfig;
+  keyPrefix: string;
+  ttl: number;
+} => {
+  const baseDefault = (() => {
     const envConnection = Env.get('CACHE_CONNECTION', '').trim();
 
     const envDriver =
@@ -46,12 +57,9 @@ const cacheConfigObj = {
 
     const selected = envConnection.length > 0 ? envConnection : String(envDriver ?? 'memory');
     return selected.trim().toLowerCase();
-  })(),
+  })();
 
-  /**
-   * Cache drivers
-   */
-  drivers: {
+  const baseDrivers = {
     memory: {
       driver: 'memory' as const,
       ttl: Env.getInt('CACHE_MEMORY_TTL', 3600),
@@ -76,25 +84,92 @@ const cacheConfigObj = {
       driver: 'kv-remote' as const,
       ttl: Env.getInt('CACHE_KV_TTL', 3600),
     },
-  },
+  } satisfies CacheConfigInput['drivers'];
 
-  /**
-   * Get cache driver config
-   */
-  getDriver(name?: string): CacheDriverConfig {
-    return getCacheDriver(this, name);
-  },
+  const overrides: CacheConfigOverrides =
+    StartupConfigFileRegistry.get<CacheConfigOverrides>(StartupConfigFile.Cache) ?? {};
 
-  /**
-   * Key prefix for all cache keys
-   */
-  keyPrefix: Env.get('CACHE_KEY_PREFIX', 'zintrust:'),
+  const mergedDrivers = {
+    ...baseDrivers,
+    ...(overrides.drivers ?? {}),
+  } satisfies CacheConfigInput['drivers'];
 
-  /**
-   * Default cache TTL (seconds)
-   */
-  ttl: Env.getInt('CACHE_DEFAULT_TTL', 3600),
+  const mergedDefault =
+    typeof overrides.default === 'string' && overrides.default.trim() !== ''
+      ? overrides.default.trim().toLowerCase()
+      : baseDefault;
+
+  const mergedKeyPrefix =
+    typeof overrides.keyPrefix === 'string' && overrides.keyPrefix.length > 0
+      ? overrides.keyPrefix
+      : Env.get('CACHE_KEY_PREFIX', 'zintrust:');
+
+  const mergedTtl =
+    typeof overrides.ttl === 'number' && Number.isFinite(overrides.ttl) ? overrides.ttl : 3600;
+
+  const cacheConfigObj = {
+    /**
+     * Default cache driver
+     */
+    default: mergedDefault,
+
+    /**
+     * Cache drivers
+     */
+    drivers: mergedDrivers,
+
+    /**
+     * Get cache driver config
+     */
+    getDriver(name?: string): CacheDriverConfig {
+      return getCacheDriver(this, name);
+    },
+
+    /**
+     * Key prefix for all cache keys
+     */
+    keyPrefix: mergedKeyPrefix,
+
+    /**
+     * Default cache TTL (seconds)
+     */
+    ttl: mergedTtl,
+  };
+
+  return Object.freeze(cacheConfigObj);
 };
 
-export const cacheConfig = Object.freeze(cacheConfigObj);
-export type CacheConfig = typeof cacheConfig;
+export type CacheConfig = ReturnType<typeof createCacheConfig>;
+
+let cached: CacheConfig | null = null;
+const proxyTarget: CacheConfig = {} as CacheConfig;
+
+const ensureCacheConfig = (): CacheConfig => {
+  if (cached) return cached;
+  cached = createCacheConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort
+  }
+
+  return cached;
+};
+
+export const cacheConfig: CacheConfig = new Proxy(proxyTarget, {
+  get(_target, prop: keyof CacheConfig) {
+    return ensureCacheConfig()[prop];
+  },
+  ownKeys() {
+    ensureCacheConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    ensureCacheConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+  },
+});

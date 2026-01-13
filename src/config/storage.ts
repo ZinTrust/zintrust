@@ -4,9 +4,26 @@
  * Sealed namespace for immutability
  */
 
+import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+
+export type StorageConfigOverrides = Partial<{
+  default: string;
+  drivers: Partial<StorageDrivers> & Record<string, StorageDriverConfig>;
+  temp: { path: string; maxAge: number };
+  uploads: { maxSize: string; allowedMimes: string; path: string };
+  backups: { path: string; driver: string };
+}>;
+
+type StorageRuntimeConfig = StorageConfigRuntime & {
+  getDriver: (this: StorageConfigRuntime) => StorageDriverConfig;
+  getDriverConfig: (this: StorageConfigRuntime, name?: string) => StorageDriverConfig;
+  temp: { path: string; maxAge: number };
+  uploads: { maxSize: string; allowedMimes: string; path: string };
+  backups: { path: string; driver: string };
+};
 const hasOwn = <T extends object>(obj: T, key: PropertyKey): key is keyof T => {
   return Object.hasOwn(obj, key);
 };
@@ -70,71 +87,119 @@ const getDrivers = (): StorageDrivers => ({
   },
 });
 
-const storageConfigObj = {
-  /**
-   * Default storage driver (dynamic; tests may mutate process.env)
-   */
-  get default(): string {
-    return Env.get('STORAGE_CONNECTION', Env.get('STORAGE_DRIVER', 'local')).trim().toLowerCase();
-  },
+const createStorageConfig = (): StorageRuntimeConfig => {
+  const overrides: StorageConfigOverrides =
+    StartupConfigFileRegistry.get<StorageConfigOverrides>(StartupConfigFile.Storage) ?? {};
 
-  /**
-   * Storage drivers configuration (dynamic; tests may mutate process.env)
-   */
-  get drivers(): StorageDrivers {
-    return getDrivers();
-  },
+  const storageConfigObj: StorageRuntimeConfig = {
+    /**
+     * Default storage driver (dynamic; tests may mutate process.env)
+     */
+    get default(): string {
+      const base = Env.get('STORAGE_CONNECTION', Env.get('STORAGE_DRIVER', 'local'))
+        .trim()
+        .toLowerCase();
+      const selected = overrides.default ?? base;
+      return String(selected).trim().toLowerCase();
+    },
 
-  /**
-   * Get storage driver config
-   */
-  getDriver(this: StorageConfigRuntime): StorageDriverConfig {
-    return getStorageDriver(this);
-  },
+    /**
+     * Storage drivers configuration (dynamic; tests may mutate process.env)
+     */
+    get drivers(): StorageDrivers {
+      return {
+        ...getDrivers(),
+        ...(overrides.drivers ?? {}),
+      } as StorageDrivers;
+    },
 
-  /**
-   * Get a storage disk configuration by name.
-   *
-   * - When `name` is provided and not configured, this throws.
-   * - When `name` is omitted, it resolves the configured default with a backwards-compatible fallback.
-   * - Reserved name `default` aliases the configured default.
-   */
-  getDriverConfig(this: StorageConfigRuntime, name?: string): StorageDriverConfig {
-    return getStorageDriver(this, name);
-  },
+    /**
+     * Get storage driver config
+     */
+    getDriver(this: StorageConfigRuntime): StorageDriverConfig {
+      return getStorageDriver(this);
+    },
 
-  /**
-   * Temporary file settings
-   */
-  get temp(): { path: string; maxAge: number } {
-    return {
-      path: Env.get('TEMP_PATH', 'storage/temp'),
-      maxAge: Env.getInt('TEMP_FILE_MAX_AGE', 86400), // 24 hours
-    };
-  },
+    /**
+     * Get a storage disk configuration by name.
+     *
+     * - When `name` is provided and not configured, this throws.
+     * - When `name` is omitted, it resolves the configured default with a backwards-compatible fallback.
+     * - Reserved name `default` aliases the configured default.
+     */
+    getDriverConfig(this: StorageConfigRuntime, name?: string): StorageDriverConfig {
+      return getStorageDriver(this, name);
+    },
 
-  /**
-   * Uploads settings
-   */
-  get uploads(): { maxSize: string; allowedMimes: string; path: string } {
-    return {
-      maxSize: Env.get('MAX_UPLOAD_SIZE', '100mb'),
-      allowedMimes: Env.get('ALLOWED_UPLOAD_MIMES', 'jpg,jpeg,png,pdf,doc,docx'),
-      path: Env.get('UPLOADS_PATH', 'storage/uploads'),
-    };
-  },
+    /**
+     * Temporary file settings
+     */
+    get temp(): { path: string; maxAge: number } {
+      return {
+        path: Env.get('TEMP_PATH', 'storage/temp'),
+        maxAge: Env.getInt('TEMP_FILE_MAX_AGE', 86400), // 24 hours
+        ...(overrides.temp ?? {}),
+      };
+    },
 
-  /**
-   * Backups settings
-   */
-  get backups(): { path: string; driver: string } {
-    return {
-      path: Env.get('BACKUPS_PATH', 'storage/backups'),
-      driver: Env.get('BACKUP_DRIVER', 's3'),
-    };
-  },
+    /**
+     * Uploads settings
+     */
+    get uploads(): { maxSize: string; allowedMimes: string; path: string } {
+      return {
+        maxSize: Env.get('MAX_UPLOAD_SIZE', '100mb'),
+        allowedMimes: Env.get('ALLOWED_UPLOAD_MIMES', 'jpg,jpeg,png,pdf,doc,docx'),
+        path: Env.get('UPLOADS_PATH', 'storage/uploads'),
+        ...(overrides.uploads ?? {}),
+      };
+    },
+
+    /**
+     * Backups settings
+     */
+    get backups(): { path: string; driver: string } {
+      return {
+        path: Env.get('BACKUPS_PATH', 'storage/backups'),
+        driver: Env.get('BACKUP_DRIVER', 's3'),
+        ...(overrides.backups ?? {}),
+      };
+    },
+  };
+
+  return Object.freeze(storageConfigObj);
 };
 
-export const storageConfig = Object.freeze(storageConfigObj);
+export type StorageConfig = ReturnType<typeof createStorageConfig>;
 
-export type StorageConfig = typeof storageConfig;
+let cached: StorageConfig | null = null;
+const proxyTarget: StorageConfig = {} as StorageConfig;
+
+const ensureStorageConfig = (): StorageConfig => {
+  if (cached) return cached;
+  cached = createStorageConfig();
+
+  try {
+    Object.defineProperties(
+      proxyTarget as unknown as object,
+      Object.getOwnPropertyDescriptors(cached)
+    );
+  } catch {
+    // best-effort
+  }
+
+  return cached;
+};
+
+export const storageConfig: StorageConfig = new Proxy(proxyTarget, {
+  get(_target, prop: keyof StorageConfig) {
+    return ensureStorageConfig()[prop];
+  },
+  ownKeys() {
+    ensureStorageConfig();
+    return Reflect.ownKeys(proxyTarget as unknown as object);
+  },
+  getOwnPropertyDescriptor(_target, prop) {
+    ensureStorageConfig();
+    return Object.getOwnPropertyDescriptor(proxyTarget as unknown as object, prop);
+  },
+});
