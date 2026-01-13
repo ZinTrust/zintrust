@@ -1,6 +1,6 @@
-import { describe, it, beforeEach } from 'vitest';
 import MailFake from '@mail/testing';
 import FakeStorage from '@storage/testing';
+import { beforeEach, describe, it } from 'vitest';
 
 describe('Mail attachments integration (fake)', () => {
   beforeEach(() => {
@@ -30,6 +30,9 @@ describe('Mail attachments integration (fake)', () => {
     await MailFake.send({ ...input, attachments });
 
     // assert
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0].filename).toBe('x.txt');
+
     MailFake.assertSent(
       (r) =>
         r.subject === 'sub' && r.attachments?.length === 1 && r.attachments[0].filename === 'x.txt'

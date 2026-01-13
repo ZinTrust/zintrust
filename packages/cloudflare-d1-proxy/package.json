@@ -17,6 +17,6 @@
     "type-check": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@zintrust/core": "workspace:*"
+    "@zintrust/core": "file:../../dist"
   }
 }

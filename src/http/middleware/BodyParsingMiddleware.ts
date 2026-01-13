@@ -132,22 +132,16 @@ const convertExistingToRawResult = (
   existingBytes: unknown,
   existingText: unknown
 ): ReadBodyResult => {
-  let bytes: Buffer;
-  let text: string;
-
   if (Buffer.isBuffer(existingBytes)) {
-    bytes = existingBytes;
-    text = existingBytes.toString('utf-8');
-  } else if (typeof existingText === 'string') {
-    text = existingText;
-    bytes = Buffer.from(existingText, 'utf-8');
-  } else {
-    const fallback = String(existingText ?? '');
-    bytes = Buffer.from(fallback, 'utf-8');
-    text = fallback;
+    return { ok: true, bytes: existingBytes, text: existingBytes.toString('utf-8') };
   }
 
-  return { ok: true, bytes, text };
+  if (typeof existingText === 'string') {
+    return { ok: true, bytes: Buffer.from(existingText, 'utf-8'), text: existingText };
+  }
+
+  // Should be unreachable (guarded by `hasExisting`), but keep a safe fallback.
+  return { ok: true, bytes: Buffer.from('', 'utf-8'), text: '' };
 };
 
 const parseJsonBody = (text: string, contentType: string, res: IResponse): unknown => {
@@ -169,16 +163,10 @@ const setRequestBody = (
   rawResult: ReadBodyResult & { ok: true },
   contentType: string
 ): void => {
-  const isJson = contentType.includes('application/json');
   const isUrlEncoded = contentType.includes('application/x-www-form-urlencoded');
   const isText = contentType.startsWith('text/') || contentType.includes('application/xml');
 
-  if (isJson) {
-    const parsed = parseJsonBody(rawResult.text, contentType, {} as IResponse);
-    if (parsed !== null) {
-      req.setBody(parsed);
-    }
-  } else if (isUrlEncoded) {
+  if (isUrlEncoded) {
     req.setBody(parseUrlEncodedBody(rawResult.text));
   } else if (isText) {
     req.setBody(rawResult.text);

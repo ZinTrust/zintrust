@@ -22,7 +22,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.1.19"
+    "@zintrust/core": "file:../../dist"
   },
   "dependencies": {
     "busboy": "^1.6.0"

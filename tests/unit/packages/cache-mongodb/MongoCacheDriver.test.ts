@@ -22,19 +22,17 @@ describe('MongoCacheDriver (package)', () => {
   beforeEach(() => {
     loggerWarn.mockReset();
     fetchMock.mockReset();
-    // @ts-expect-error test override
     globalThis.fetch = fetchMock;
   });
 
   // Restore once at the end of the file run.
   // (Vitest runs tests in a single process here.)
   afterAll(() => {
-    // @ts-expect-error restore
     globalThis.fetch = originalFetch;
   });
 
   it('returns null and warns when uri is missing', async () => {
-    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index.ts');
+    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index');
 
     const driver = MongoCacheDriver.create({
       driver: 'mongodb',
@@ -49,7 +47,7 @@ describe('MongoCacheDriver (package)', () => {
   });
 
   it('calls fetch with correct action and payload on set()', async () => {
-    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index.ts');
+    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index');
 
     fetchMock.mockResolvedValue({
       json: async () => ({ ok: 1 }),
@@ -78,7 +76,7 @@ describe('MongoCacheDriver (package)', () => {
   });
 
   it('deletes expired documents when reading via get()', async () => {
-    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index.ts');
+    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index');
 
     const expired = Date.now() - 1000;
     fetchMock
@@ -104,7 +102,7 @@ describe('MongoCacheDriver (package)', () => {
   });
 
   it('has() returns true when a document exists', async () => {
-    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index.ts');
+    const { MongoCacheDriver } = await import('../../../../packages/cache-mongodb/src/index');
 
     fetchMock.mockResolvedValue({
       json: async () => ({ document: { _id: 'k' } }),
