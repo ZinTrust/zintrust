@@ -1,3 +1,4 @@
+import { QueryBuilder } from '@orm/QueryBuilder';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
@@ -28,7 +29,6 @@ vi.mock('@validation/Validator', () => ({
 
 import { Logger } from '@/cli/logger/Logger';
 import UserQueryBuilderController from '@app/Controllers/UserQueryBuilderController';
-import { QueryBuilder } from '@orm/QueryBuilder';
 
 const makeReqRes = () => {
   const resCalls: any = {};
