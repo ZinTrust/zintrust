@@ -63,4 +63,21 @@ describe('AuthController.login', () => {
     expect(res.payload.status).toBe(500);
     expect(res.payload.body).toEqual({ error: 'Internal server error' });
   });
+
+  it('register: returns 500 when validation body missing', async () => {
+    vi.resetModules();
+    vi.doMock('../../src/http/ValidationHelper', () => ({ getValidatedBody: () => undefined }));
+
+    const { AuthController } = await import('../../app/Controllers/AuthController');
+
+    const req: any = { getRaw: () => ({ socket: { remoteAddress: '1.2.3.4' } }) };
+    const res: any = {
+      setStatus: (s: number) => ({ json: (p: any) => (res.payload = { status: s, body: p }) }),
+    };
+
+    await AuthController.create().register(req, res);
+
+    expect(res.payload.status).toBe(500);
+    expect(res.payload.body).toEqual({ error: 'Internal server error' });
+  });
 });
