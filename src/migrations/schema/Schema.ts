@@ -2,9 +2,10 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IDatabase } from '@orm/Database';
 import { BaseAdapter } from '@orm/DatabaseAdapter';
 
-import { MigrationBlueprint } from '@/migrations/schema/Blueprint';
-import { MigrationSchemaCompiler } from '@/migrations/schema/SchemaCompiler';
-import type { Blueprint, BlueprintCallback, SchemaBuilder } from '@/migrations/schema/types';
+import { isSqliteFamily } from '@migrations/enum';
+import { MigrationBlueprint } from '@migrations/schema/Blueprint';
+import { MigrationSchemaCompiler } from '@migrations/schema/SchemaCompiler';
+import type { Blueprint, BlueprintCallback, SchemaBuilder } from '@migrations/schema/types';
 
 const IDENT_RE = /^[A-Za-z_]\w*$/;
 
@@ -101,7 +102,7 @@ async function schemaDrop(db: IDatabase, tableName: string, ifExists: boolean): 
 async function schemaHasTable(db: IDatabase, tableName: string): Promise<boolean> {
   const t = db.getType();
 
-  if (t === 'sqlite' || t === 'd1' || t === 'd1-remote') {
+  if (isSqliteFamily(t)) {
     return queryExists(db, "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", [
       tableName,
     ]);

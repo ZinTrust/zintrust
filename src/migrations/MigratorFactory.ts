@@ -3,16 +3,16 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
 
-import { MigrationDiscovery } from '@/migrations/MigrationDiscovery';
-import { MigrationLoader } from '@/migrations/MigrationLoader';
-import { MigrationLock } from '@/migrations/MigrationLock';
+import { MigrationDiscovery } from '@migrations/MigrationDiscovery';
+import { MigrationLoader } from '@migrations/MigrationLoader';
+import { MigrationLock } from '@migrations/MigrationLock';
 import type {
   LoadedMigration,
   MigrationRecord,
   MigrationScope,
   MigratorOptions,
   MigratorStatusRow,
-} from '@/migrations/types';
+} from '@migrations/types';
 import { SqliteMaintenance } from '@orm/maintenance/SqliteMaintenance';
 import { MigrationStore } from '@orm/migrations/MigrationStore';
 

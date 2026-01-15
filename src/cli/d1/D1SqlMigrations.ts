@@ -2,9 +2,10 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
-import { MigrationDiscovery } from '@/migrations/MigrationDiscovery';
-import { MigrationLoader } from '@/migrations/MigrationLoader';
-import type { LoadedMigration } from '@/migrations/types';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import { MigrationDiscovery } from '@migrations/MigrationDiscovery';
+import { MigrationLoader } from '@migrations/MigrationLoader';
+import type { LoadedMigration } from '@migrations/types';
 import type { IDatabase } from '@orm/Database';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { BaseAdapter } from '@orm/DatabaseAdapter';
@@ -110,8 +111,8 @@ const createNoopAdapter = (
     await RESOLVED_VOID;
     return [] as T[];
   },
-  getType(): string {
-    return 'd1';
+  getType(): SupportedDriver {
+    return AdaptersEnum.d1;
   },
   isConnected(): boolean {
     return isConnected();
@@ -188,10 +189,10 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
       return noopAdapter;
     },
     getType(): string {
-      return 'd1';
+      return AdaptersEnum.d1;
     },
     getConfig(): DatabaseConfig {
-      return { driver: 'd1' };
+      return { driver: AdaptersEnum.d1 };
     },
     dispose(): void {
       // No resources to dispose for capture DB

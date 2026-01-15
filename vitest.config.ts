@@ -40,6 +40,7 @@ export default defineConfig({
       '@routing': path.resolve(__dirname, './src/routing'),
       '@middleware': path.resolve(__dirname, './src/middleware'),
       '@container': path.resolve(__dirname, './src/container'),
+      '@migrations': path.resolve(__dirname, './src/migrations'),
       '@http': path.resolve(__dirname, './src/http'),
       '@httpClient': path.resolve(__dirname, './src/tools/http'),
       '@runtime': path.resolve(__dirname, './src/runtime'),

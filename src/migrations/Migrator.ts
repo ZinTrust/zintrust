@@ -1,4 +1,4 @@
-import { MigratorFactory } from '@/migrations/MigratorFactory';
+import { MigratorFactory } from '@migrations/MigratorFactory';
 
 export type {
   LoadedMigration,
@@ -9,7 +9,7 @@ export type {
   MigrationScope,
   MigratorOptions,
   MigratorStatusRow,
-} from '@/migrations/types';
+} from '@migrations/types';
 
 export const Migrator = Object.freeze({
   create: MigratorFactory.create,
