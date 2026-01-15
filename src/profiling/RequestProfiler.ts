@@ -3,10 +3,10 @@
  * Comprehensive profiling of request execution combining query, N+1, and memory metrics
  */
 
-import type { IMemoryProfiler} from '@profiling/MemoryProfiler';
+import type { IMemoryProfiler } from '@profiling/MemoryProfiler';
 import { MemoryProfiler } from '@profiling/MemoryProfiler';
 import { N1Detector } from '@profiling/N1Detector';
-import type { IQueryLogger} from '@profiling/QueryLogger';
+import type { IQueryLogger } from '@profiling/QueryLogger';
 import { QueryLogger } from '@profiling/QueryLogger';
 import type { IN1Detector, N1Pattern, ProfileReport } from '@profiling/types';
 
@@ -65,13 +65,17 @@ export const RequestProfiler = Object.freeze({
         const patterns = n1Detector.detect(queryLog);
         const memoryDelta = memoryProfiler.delta();
 
-        return {
+        const report = {
           duration,
           queriesExecuted,
           n1Patterns: patterns,
           memoryDelta,
           timestamp: new Date(),
         };
+
+        queryLogger.clear('profiling');
+
+        return report;
       },
       generateReport(profile: ProfileReport): string {
         const n1Section = formatN1Section(profile.n1Patterns);

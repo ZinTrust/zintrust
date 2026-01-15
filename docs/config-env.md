@@ -21,6 +21,14 @@ It is used anywhere the framework needs to construct fully-qualified URLs, inclu
 
 - `BASE_URL` + `PORT` + route path
 
+## Aurora Data API env vars
+
+When using the Aurora Data API (for serverless PostgreSQL/MySQL), install `@zintrust/client-rds-data` and set:
+
+- `AURORA_RESOURCE_ARN` (required)
+- `AURORA_SECRET_ARN` (required)
+- `AURORA_DATABASE` (optional; falls back to `DB_DATABASE`)
+
 ## Encryption interoperability env vars
 
 These env vars enable cross-framework encrypted payload compatibility (used by `EncryptedEnvelope`):

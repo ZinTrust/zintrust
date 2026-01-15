@@ -9,8 +9,17 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import type { SupportedDriver } from '@migrations/enum';
+import { D1Adapter } from '@orm/adapters/D1Adapter';
+import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
+import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
+import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
+import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
+import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
+import type { DatabaseConfig, IDatabaseAdapter } from '@orm/DatabaseAdapter';
+import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 export interface ConnectionConfig {
-  adapter: 'postgresql' | 'mysql' | 'sqlite' | 'sqlserver' | 'd1' | 'aurora-data-api';
+  adapter: SupportedDriver;
   host?: string;
   port?: number;
   database: string;
@@ -42,7 +51,7 @@ export interface ConnectionPool {
 let instance: ConnectionManagerInstance | undefined;
 
 interface ConnectionManagerInstance {
-  getConnection(id?: string): Promise<unknown>;
+  getConnection(id?: string): Promise<IDatabaseAdapter>;
   releaseConnection(connectionId?: string): Promise<void>;
   closeAll(): Promise<void>;
   getPoolStats(): ConnectionPool;
@@ -50,44 +59,43 @@ interface ConnectionManagerInstance {
   getAuroraDataApiConnection(): Promise<AuroraDataApiConnection>;
 }
 
+interface ConnectionWaiter {
+  resolve: (conn: IDatabaseAdapter) => void;
+  reject: (err: Error) => void;
+  timeoutId?: ReturnType<typeof setTimeout>;
+  cleanup: () => void;
+}
+
+interface ClientRdsDataModule {
+  getRdsDataClient: (
+    region?: string
+  ) => Promise<{ executeStatement: (input: unknown) => Promise<unknown> }>;
+  getSecretsManagerClient: (region?: string) => Promise<{
+    getSecretValue: (secretName: string) => Promise<{ SecretString?: string }>;
+  }>;
+}
+
 /**
  * Close a specific connection
  */
 const closeConnection = async (conn: unknown): Promise<void> => {
-  if (
-    conn !== undefined &&
-    conn !== null &&
-    typeof conn === 'object' &&
-    'close' in conn &&
-    typeof (conn as { close: unknown }).close === 'function'
-  ) {
-    await (conn as { close: () => Promise<void> }).close();
+  if (isDatabaseAdapter(conn)) {
+    await conn.disconnect();
   }
 };
 
 /**
  * Test if connection is still alive
  */
-const testConnection = async (config: ConnectionConfig, _conn: unknown): Promise<boolean> => {
+const testConnection = async (_config: ConnectionConfig, conn: unknown): Promise<boolean> => {
+  if (!isDatabaseAdapter(conn)) return false;
+  if (!conn.isConnected()) return false;
+
   try {
-    if (config.adapter === 'postgresql' || config.adapter === 'mysql') {
-      // SELECT 1 for PostgreSQL/MySQL
-      await new Promise((resolve, reject) => {
-        const timeout = globalThis.setTimeout(
-          () => reject(ErrorFactory.createConnectionError('Connection test timeout')),
-          5000
-        );
-        try {
-          // In real implementation, query the connection
-          resolve(true);
-        } finally {
-          clearTimeout(timeout);
-        }
-      });
-    }
+    await conn.ping();
     return true;
   } catch (error) {
-    ErrorFactory.createConnectionError('Connection test failed:', error as Error);
+    Logger.warn('Connection health check failed', error as Error);
     return false;
   }
 };
@@ -104,51 +112,173 @@ const updateConnectionUsage = (connectionPool: PooledConnection[], id: string): 
   }
 };
 
+const isDatabaseAdapter = (value: unknown): value is IDatabaseAdapter => {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as IDatabaseAdapter;
+  return (
+    typeof candidate.connect === 'function' &&
+    typeof candidate.disconnect === 'function' &&
+    typeof candidate.ping === 'function' &&
+    typeof candidate.isConnected === 'function'
+  );
+};
+
+const createAdapterFromConfig = (config: ConnectionConfig): IDatabaseAdapter => {
+  if (config.adapter === 'aurora-data-api') {
+    throw ErrorFactory.createConfigError(
+      'Aurora Data API connections should be created via getAuroraDataApiConnection()'
+    );
+  }
+
+  const driver: SupportedDriver = config.adapter;
+  const adapterConfig: DatabaseConfig = {
+    driver,
+    database: config.database,
+    host: config.host,
+    port: config.port,
+    username: config.username,
+    password: config.password,
+  };
+
+  const registered = DatabaseAdapterRegistry.get(driver);
+  if (registered !== undefined) {
+    return registered(adapterConfig);
+  }
+
+  switch (driver) {
+    case 'postgresql':
+      return PostgreSQLAdapter.create(adapterConfig);
+    case 'mysql':
+      return MySQLAdapter.create(adapterConfig);
+    case 'sqlserver':
+      return SQLServerAdapter.create(adapterConfig);
+    case 'd1':
+      return D1Adapter.create(adapterConfig);
+    case 'd1-remote':
+      return D1RemoteAdapter.create(adapterConfig);
+    case 'sqlite':
+    default:
+      return SQLiteAdapter.create(adapterConfig);
+  }
+};
+
 /**
  * Create new database connection
  */
-const createConnection = async (config: ConnectionConfig, id: string): Promise<unknown> => {
+const createConnection = async (
+  config: ConnectionConfig,
+  id: string
+): Promise<IDatabaseAdapter> => {
   Logger.info(`Creating ${config.adapter} connection (${id}) to ${config.host}:${config.port}`);
 
-  // Connection creation would be adapter-specific
-  // This is a placeholder for the actual implementation
-  return {
-    id,
-    adapter: config.adapter,
-    query: async (_sql: string, _params?: unknown[]): Promise<unknown> => {
-      throw ErrorFactory.createDatabaseError(
-        `Query execution not implemented for ${config.adapter}`
-      );
-    },
-    close: async (): Promise<void> => {
-      Logger.info(`Connection ${id} closed`);
-    },
-  };
+  if (config.adapter === 'aurora-data-api') {
+    throw ErrorFactory.createConfigError(
+      'Aurora Data API connections should be created via getAuroraDataApiConnection()'
+    );
+  }
+
+  const adapter = createAdapterFromConfig(config);
+  await adapter.connect();
+  return adapter;
 };
 
 /**
  * Create Aurora Data API connection
  */
-const createAuroraDataApiConnection = (): AuroraDataApiConnection => ({
-  execute: async (_sql: string, _params?: unknown[]): Promise<AuroraQueryResult> => {
-    // Call Aurora Data API via AWS SDK
-    // Requires proper IAM permissions
-    throw ErrorFactory.createConfigError('Aurora Data API not implemented yet');
-  },
-  batch: async (
-    _statements: Array<{ sql: string; params?: unknown[] }>
-  ): Promise<AuroraQueryResult[]> => {
-    // Execute batch statements
-    throw ErrorFactory.createConfigError('Aurora Data API batch not implemented yet');
-  },
-});
+function isMissingEsmPackage(error: unknown, packageName: string): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const maybe = error as { code?: unknown; message?: unknown };
+  const code = typeof maybe.code === 'string' ? maybe.code : '';
+  const message = typeof maybe.message === 'string' ? maybe.message : '';
+  if (code === 'ERR_MODULE_NOT_FOUND' && message.length === 0) return true;
+  if (code === 'ERR_MODULE_NOT_FOUND' && message.includes(`'${packageName}'`)) return true;
+  if (message.includes(`Cannot find package '${packageName}'`)) return true;
+  return false;
+}
+
+async function importOptionalModule(modulePath: string): Promise<unknown> {
+  return import(modulePath) as Promise<unknown>;
+}
+
+const loadClientRdsDataModule = async (): Promise<ClientRdsDataModule> => {
+  try {
+    return (await importOptionalModule('@zintrust/client-rds-data')) as ClientRdsDataModule;
+  } catch (error) {
+    if (isMissingEsmPackage(error, '@zintrust/client-rds-data')) {
+      throw ErrorFactory.createConfigError(
+        "Aurora Data API requires '@zintrust/client-rds-data' (install the package to enable AWS Data API support)."
+      );
+    }
+    throw ErrorFactory.createTryCatchError('Failed to load @zintrust/client-rds-data', {
+      cause: error,
+    });
+  }
+};
+
+const createAuroraDataApiConnection = (): AuroraDataApiConnection => {
+  const getClient = async (): Promise<{
+    executeStatement: (input: unknown) => Promise<unknown>;
+  }> => {
+    const mod = await loadClientRdsDataModule();
+    return mod.getRdsDataClient(Env.AWS_REGION);
+  };
+
+  const resourceArn = Env.get('AURORA_RESOURCE_ARN');
+  const secretArn = Env.get('AURORA_SECRET_ARN');
+  const database = Env.get('AURORA_DATABASE', Env.DB_DATABASE);
+
+  const assertConfig = (): void => {
+    if (resourceArn.length === 0 || secretArn.length === 0) {
+      throw ErrorFactory.createConfigError(
+        'Aurora Data API requires AURORA_RESOURCE_ARN and AURORA_SECRET_ARN env vars'
+      );
+    }
+  };
+
+  const executeStatement = async (sql: string, params?: unknown[]): Promise<AuroraQueryResult> => {
+    assertConfig();
+    const client = await getClient();
+    const input = {
+      resourceArn,
+      secretArn,
+      database,
+      sql,
+      parameters: (params ?? []).map((value) => ({ value: { stringValue: String(value) } })),
+    };
+
+    const response = (await client.executeStatement(input)) as {
+      numberOfRecordsUpdated?: number;
+      records?: Array<Record<string, unknown>>;
+    };
+
+    return {
+      numberOfRecordsUpdated: response.numberOfRecordsUpdated ?? 0,
+      records: response.records ?? [],
+    };
+  };
+
+  return {
+    execute: executeStatement,
+    batch: async (
+      statements: Array<{ sql: string; params?: unknown[] }>
+    ): Promise<AuroraQueryResult[]> => {
+      const results: AuroraQueryResult[] = [];
+      for (const statement of statements) {
+        const result = await executeStatement(statement.sql, statement.params);
+        results.push(result);
+      }
+      return results;
+    },
+  };
+};
 
 /**
  * Connection state wrapper to allow passing by reference
  */
 interface ConnectionState {
-  connections: Map<string, unknown>;
+  connections: Map<string, IDatabaseAdapter>;
   connectionPool: PooledConnection[];
+  waiters: ConnectionWaiter[];
   cleanupInterval?: ReturnType<typeof setInterval>;
 }
 
@@ -159,7 +289,7 @@ const getHealthyExistingConnection = async (
   config: ConnectionConfig,
   state: ConnectionState,
   id: string
-): Promise<unknown> => {
+): Promise<IDatabaseAdapter | null> => {
   if (!state.connections.has(id)) return null;
 
   const conn = state.connections.get(id);
@@ -176,7 +306,7 @@ const getHealthyExistingConnection = async (
 /**
  * Find an idle connection in the pool
  */
-const findIdleConnection = (state: ConnectionState): unknown => {
+const findIdleConnection = (state: ConnectionState): IDatabaseAdapter | null => {
   const idleConnections = state.connectionPool.filter((c) => !c.isActive);
   if (idleConnections.length === 0) return null;
 
@@ -185,45 +315,39 @@ const findIdleConnection = (state: ConnectionState): unknown => {
     idleConnections[0]
   );
   updateConnectionUsage(state.connectionPool, lru.id);
-  return state.connections.get(lru.id);
+  const conn = state.connections.get(lru.id);
+  return conn ?? null;
 };
 
 /**
  * Wait for a connection to become available
  */
-const waitForIdleConnection = async (state: ConnectionState): Promise<unknown> => {
+const waitForIdleConnection = async (state: ConnectionState): Promise<IDatabaseAdapter> => {
   return new Promise((resolve, reject) => {
-    let settled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const checkInterval = setInterval(() => {
-      const idle = state.connectionPool.find((c) => !c.isActive);
-      if (idle !== undefined) {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        updateConnectionUsage(state.connectionPool, idle.id);
-        resolve(state.connections.get(idle.id));
-      }
-    }, 100);
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
 
     const cleanup = (): void => {
-      clearInterval(checkInterval);
       if (timeoutId !== undefined) {
-        clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
         timeoutId = undefined;
       }
     };
 
-    // Node: allow process to exit; other runtimes may not support unref()
-    if (isUnrefableTimer(checkInterval)) {
-      checkInterval.unref();
-    }
+    const waiter: ConnectionWaiter = {
+      resolve: (conn) => {
+        cleanup();
+        resolve(conn);
+      },
+      reject: (err) => {
+        cleanup();
+        reject(err);
+      },
+      timeoutId,
+      cleanup,
+    };
 
-    // eslint-disable-next-line no-restricted-syntax
-    timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
+    timeoutId = globalThis.setTimeout(() => {
+      state.waiters = state.waiters.filter((entry) => entry !== waiter);
       cleanup();
       reject(
         ErrorFactory.createConnectionError(
@@ -232,9 +356,13 @@ const waitForIdleConnection = async (state: ConnectionState): Promise<unknown> =
       );
     }, 30000);
 
+    waiter.timeoutId = timeoutId;
+
     if (isUnrefableTimer(timeoutId)) {
       timeoutId.unref();
     }
+
+    state.waiters.push(waiter);
   });
 };
 
@@ -248,7 +376,7 @@ function isUnrefableTimer(value: unknown): value is UnrefableTimer {
 /**
  * Get or reuse a connection when at max capacity
  */
-const getOrReuseConnection = async (state: ConnectionState): Promise<unknown> => {
+const getOrReuseConnection = async (state: ConnectionState): Promise<IDatabaseAdapter> => {
   const idle = findIdleConnection(state);
   if (idle !== null) return idle;
 
@@ -283,6 +411,10 @@ const startIdleConnectionCleanup = (state: ConnectionState, idleTimeout: number)
       Logger.info(`Removed idle connection: ${id}`);
     }
   }, 300000); // Every 5 minutes
+
+  if (isUnrefableTimer(state.cleanupInterval)) {
+    state.cleanupInterval.unref();
+  }
 };
 
 /**
@@ -292,7 +424,7 @@ const createNewConnection = async (
   config: ConnectionConfig,
   state: ConnectionState,
   id: string
-): Promise<unknown> => {
+): Promise<IDatabaseAdapter> => {
   const connection = await createConnection(config, id);
   state.connections.set(id, connection);
   state.connectionPool.push({
@@ -313,6 +445,15 @@ const closeAllConnections = async (state: ConnectionState): Promise<void> => {
   if (state.cleanupInterval) {
     clearInterval(state.cleanupInterval);
     state.cleanupInterval = undefined;
+  }
+
+  if (state.waiters.length > 0) {
+    const err = ErrorFactory.createConnectionError('Connection manager shutting down');
+    for (const waiter of state.waiters) {
+      if (waiter.timeoutId !== undefined) clearTimeout(waiter.timeoutId);
+      waiter.reject(err);
+    }
+    state.waiters = [];
   }
 
   for (const [id, conn] of state.connections.entries()) {
@@ -337,7 +478,7 @@ const getPoolStatistics = (state: ConnectionState): ConnectionPool => {
     total: state.connectionPool.length,
     active,
     idle,
-    queued: 0,
+    queued: state.waiters.length,
   };
 };
 
@@ -353,6 +494,7 @@ const ConnectionManagerImpl = {
     const state: ConnectionState = {
       connections: new Map(),
       connectionPool: [],
+      waiters: [],
     };
     const maxConnections = config.maxConnections ?? 10;
     const idleTimeout = config.idleTimeout ?? 900000; // 15 minutes
@@ -364,7 +506,7 @@ const ConnectionManagerImpl = {
       /**
        * Get or create database connection
        */
-      async getConnection(id = 'default'): Promise<unknown> {
+      async getConnection(id = 'default'): Promise<IDatabaseAdapter> {
         const existing = await getHealthyExistingConnection(config, state, id);
         if (existing !== null) return existing;
 
@@ -380,10 +522,26 @@ const ConnectionManagerImpl = {
        */
       async releaseConnection(connectionId: string = 'default'): Promise<void> {
         const poolEntry = state.connectionPool.find((c) => c.id === connectionId);
-        if (poolEntry !== undefined) {
-          poolEntry.isActive = false;
-          poolEntry.lastUsedAt = Date.now();
+        if (poolEntry === undefined) return;
+
+        poolEntry.isActive = false;
+        poolEntry.lastUsedAt = Date.now();
+
+        if (state.waiters.length === 0) return;
+
+        const waiter = state.waiters.shift();
+        if (waiter === undefined) return;
+
+        waiter.cleanup();
+
+        const conn = state.connections.get(connectionId);
+        if (conn === undefined) {
+          waiter.reject(ErrorFactory.createConnectionError('Released connection not found'));
+          return;
         }
+
+        updateConnectionUsage(state.connectionPool, connectionId);
+        waiter.resolve(conn);
       },
 
       /**
@@ -460,7 +618,7 @@ export const ConnectionManager = Object.freeze({
   /**
    * Get or create database connection
    */
-  async getConnection(id = 'default'): Promise<unknown> {
+  async getConnection(id = 'default'): Promise<IDatabaseAdapter> {
     return this.getInstance().getConnection(id);
   },
 
@@ -516,9 +674,38 @@ export interface AuroraQueryResult {
 /**
  * Get database credentials from AWS Secrets Manager
  */
-export async function getDatabaseSecret(_secretName: string): Promise<DatabaseSecret> {
-  // Would use AWS SDK to fetch from Secrets Manager
-  throw ErrorFactory.createConfigError('Secrets Manager integration not implemented');
+export async function getDatabaseSecret(secretName: string): Promise<DatabaseSecret> {
+  try {
+    const mod = await loadClientRdsDataModule();
+    const client = await mod.getSecretsManagerClient(Env.AWS_REGION);
+    const response = await client.getSecretValue(secretName);
+
+    const secretString = response.SecretString;
+    if (secretString === undefined || secretString === null || secretString.trim().length === 0) {
+      throw ErrorFactory.createConfigError('Secrets Manager returned an empty secret');
+    }
+
+    const parsed = JSON.parse(secretString) as Partial<DatabaseSecret>;
+    if (
+      parsed.username === undefined ||
+      parsed.password === undefined ||
+      parsed.host === undefined ||
+      parsed.port === undefined ||
+      parsed.database === undefined
+    ) {
+      throw ErrorFactory.createConfigError('Secrets Manager secret is missing required fields');
+    }
+
+    return {
+      username: parsed.username,
+      password: parsed.password,
+      host: parsed.host,
+      port: Number(parsed.port),
+      database: parsed.database,
+    };
+  } catch (error) {
+    throw ErrorFactory.createTryCatchError('Failed to fetch database secret', { cause: error });
+  }
 }
 
 /**

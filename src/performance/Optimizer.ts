@@ -28,6 +28,8 @@ interface CacheState {
   cacheDir: string;
   ttlMs: number;
   cleanupInterval?: NodeJS.Timeout;
+  flushTimer?: NodeJS.Timeout;
+  pendingWrites: Map<string, { payload: string }>;
 }
 
 type UnrefableTimer = { unref: () => void };
@@ -103,7 +105,57 @@ function createCacheState(
     cacheDir,
     ttlMs,
     maxEntries,
+    pendingWrites: new Map(),
   };
+}
+
+async function ensureCacheDir(cacheDir: string): Promise<void> {
+  try {
+    await fs.fsPromises.access(cacheDir);
+  } catch {
+    await fs.fsPromises.mkdir(cacheDir, { recursive: true });
+  }
+}
+
+async function flushPendingWrites(state: CacheState): Promise<void> {
+  if (state.pendingWrites.size === 0) {
+    state.flushTimer = undefined;
+    return;
+  }
+
+  const pending = state.pendingWrites;
+  state.pendingWrites = new Map();
+  state.flushTimer = undefined;
+
+  try {
+    await ensureCacheDir(state.cacheDir);
+  } catch (error) {
+    Logger.error('Failed to ensure cache directory before flush', error);
+    return;
+  }
+
+  const writes = Array.from(pending.entries()).map(async ([key, entry]) => {
+    const file = path.join(state.cacheDir, `${key}.json`);
+    await fs.fsPromises.writeFile(file, entry.payload);
+  });
+
+  await Promise.all(writes);
+}
+
+function scheduleCacheWrite(state: CacheState, key: string, payload: string): void {
+  state.pendingWrites.set(key, { payload });
+
+  if (state.flushTimer !== undefined) return;
+
+  state.flushTimer = setTimeout(() => {
+    void flushPendingWrites(state).catch((error) => {
+      Logger.error('Failed to flush generation cache writes', error);
+    });
+  }, 50);
+
+  if (isUnrefableTimer(state.flushTimer)) {
+    state.flushTimer.unref();
+  }
 }
 
 function initializeCacheState(state: CacheState): void {
@@ -187,14 +239,8 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
         }
       }
 
-      // Save to disk asynchronously
-      const file = path.join(state.cacheDir, `${key}.json`);
-      try {
-        await fs.fsPromises.access(state.cacheDir);
-      } catch {
-        await fs.fsPromises.mkdir(state.cacheDir, { recursive: true });
-      }
-      await fs.fsPromises.writeFile(file, JSON.stringify({ code, timestamp: Date.now() }, null, 2));
+      const payload = JSON.stringify({ code, timestamp: Date.now() }, null, 2);
+      scheduleCacheWrite(state, key, payload);
     },
 
     /**
@@ -212,6 +258,11 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
         clearInterval(state.cleanupInterval);
         state.cleanupInterval = undefined;
       }
+      if (state.flushTimer) {
+        clearTimeout(state.flushTimer);
+        state.flushTimer = undefined;
+      }
+      state.pendingWrites.clear();
       await clearCache(state);
     },
 
@@ -241,11 +292,8 @@ function attachCacheStateForTests(instance: IGenerationCache, state: CacheState)
  */
 async function saveCacheToDisk(state: CacheState): Promise<void> {
   try {
-    try {
-      await fs.fsPromises.access(state.cacheDir);
-    } catch {
-      await fs.fsPromises.mkdir(state.cacheDir, { recursive: true });
-    }
+    await flushPendingWrites(state);
+    await ensureCacheDir(state.cacheDir);
 
     const writes = Array.from(state.cache.entries()).map(async ([key, entry]) => {
       const file = path.join(state.cacheDir, `${key}.json`);
@@ -263,6 +311,7 @@ async function saveCacheToDisk(state: CacheState): Promise<void> {
  */
 async function clearCache(state: CacheState): Promise<void> {
   state.cache.clear();
+  state.pendingWrites.clear();
   try {
     try {
       await fs.fsPromises.access(state.cacheDir);

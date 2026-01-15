@@ -79,6 +79,7 @@ export const AdaptersEnum = {
   d1: 'd1',
   d1Remote: 'd1-remote',
   sqlserver: 'sqlserver',
+  auroraDataApi: 'aurora-data-api',
 } as const;
 
 export const SchOther = {
@@ -103,7 +104,8 @@ export type SupportedDriver =
   | typeof AdaptersEnum.d1Remote
   | typeof AdaptersEnum.postgresql
   | typeof AdaptersEnum.mysql
-  | typeof AdaptersEnum.sqlserver;
+  | typeof AdaptersEnum.sqlserver
+  | typeof AdaptersEnum.auroraDataApi;
 
 export function isSqliteFamily(driver: SupportedDriver): boolean {
   return (

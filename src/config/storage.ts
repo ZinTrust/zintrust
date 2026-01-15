@@ -109,7 +109,7 @@ const createStorageConfig = (): StorageRuntimeConfig => {
     get drivers(): StorageDrivers {
       return {
         ...getDrivers(),
-        ...(overrides.drivers ?? {}),
+        ...overrides.drivers,
       } as StorageDrivers;
     },
 
@@ -138,7 +138,7 @@ const createStorageConfig = (): StorageRuntimeConfig => {
       return {
         path: Env.get('TEMP_PATH', 'storage/temp'),
         maxAge: Env.getInt('TEMP_FILE_MAX_AGE', 86400), // 24 hours
-        ...(overrides.temp ?? {}),
+        ...overrides.temp,
       };
     },
 
@@ -150,7 +150,7 @@ const createStorageConfig = (): StorageRuntimeConfig => {
         maxSize: Env.get('MAX_UPLOAD_SIZE', '100mb'),
         allowedMimes: Env.get('ALLOWED_UPLOAD_MIMES', 'jpg,jpeg,png,pdf,doc,docx'),
         path: Env.get('UPLOADS_PATH', 'storage/uploads'),
-        ...(overrides.uploads ?? {}),
+        ...overrides.uploads,
       };
     },
 
@@ -161,7 +161,7 @@ const createStorageConfig = (): StorageRuntimeConfig => {
       return {
         path: Env.get('BACKUPS_PATH', 'storage/backups'),
         driver: Env.get('BACKUP_DRIVER', 's3'),
-        ...(overrides.backups ?? {}),
+        ...overrides.backups,
       };
     },
   };
