@@ -70,7 +70,7 @@ describe('ConnectionManager', () => {
     const instance = ConnectionManager.getInstance(config);
     const conn = await instance.getConnection();
     expect(conn).toBeDefined();
-    expect((conn as any).adapter).toBe('postgresql');
+    expect(conn.getType()).toBe('postgresql');
   });
 
   it('should get pool stats', () => {

@@ -7,6 +7,7 @@ vi.mock('@/profiling/QueryLogger', () => ({
     getInstance: vi.fn(() => ({
       setContext: vi.fn(),
       getQueryLog: vi.fn().mockReturnValue([]),
+      clear: vi.fn(),
     })),
   },
 }));

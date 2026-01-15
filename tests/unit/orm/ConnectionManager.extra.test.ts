@@ -19,7 +19,7 @@ describe('ConnectionManager (extra tests)', () => {
 
     const conn = await instance.getConnection('default');
     expect(conn).toBeDefined();
-    expect((conn as any).adapter).toBe('sqlite');
+    expect(conn.getType()).toBe('sqlite');
 
     const stats1 = instance.getPoolStats();
     expect(stats1.total).toBe(1);
@@ -35,14 +35,16 @@ describe('ConnectionManager (extra tests)', () => {
 
     // get connection again (should reuse existing healthy connection)
     const conn2 = await instance.getConnection('default');
-    expect((conn2 as any).id).toBe((conn as any).id);
+    expect(conn2).toBe(conn);
 
     // enable rds proxy mutates config safely
     await instance.enableRdsProxy('rds-proxy.local');
 
     // aurora data api connection exposes execute that throws config error
     const a = await instance.getAuroraDataApiConnection();
-    await expect(a.execute('SELECT 1')).rejects.toThrow(/Aurora Data API not implemented/);
+    await expect(a.execute('SELECT 1')).rejects.toThrow(
+      /Aurora Data API requires AURORA_RESOURCE_ARN and AURORA_SECRET_ARN env vars/
+    );
 
     // close everything
     await instance.closeAll();
@@ -51,9 +53,15 @@ describe('ConnectionManager (extra tests)', () => {
   });
 
   it('returns an instance after shutdownIfInitialized if previously initialized', async () => {
-    // shutdown clears connections but the module keeps the instance reference
     await ConnectionManager.shutdownIfInitialized();
-    const inst = ConnectionManager.getInstance();
+    expect(() => ConnectionManager.getInstance()).toThrow(
+      'ConnectionManager not initialized. Call getInstance(config) first.'
+    );
+
+    const inst = ConnectionManager.getInstance({
+      adapter: 'sqlite',
+      database: 'testdb',
+    });
     expect(inst).toBeDefined();
     expect(typeof inst.getConnection).toBe('function');
   });

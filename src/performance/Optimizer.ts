@@ -117,21 +117,20 @@ async function ensureCacheDir(cacheDir: string): Promise<void> {
   }
 }
 
-async function flushPendingWrites(state: CacheState): Promise<void> {
+async function flushPendingWrites(state: CacheState): Promise<boolean> {
   if (state.pendingWrites.size === 0) {
     state.flushTimer = undefined;
-    return;
+    return false;
   }
 
   const pending = state.pendingWrites;
   state.pendingWrites = new Map();
   state.flushTimer = undefined;
-
   try {
     await ensureCacheDir(state.cacheDir);
   } catch (error) {
     Logger.error('Failed to ensure cache directory before flush', error);
-    return;
+    return false;
   }
 
   const writes = Array.from(pending.entries()).map(async ([key, entry]) => {
@@ -140,6 +139,7 @@ async function flushPendingWrites(state: CacheState): Promise<void> {
   });
 
   await Promise.all(writes);
+  return true;
 }
 
 function scheduleCacheWrite(state: CacheState, key: string, payload: string): void {
@@ -292,8 +292,10 @@ function attachCacheStateForTests(instance: IGenerationCache, state: CacheState)
  */
 async function saveCacheToDisk(state: CacheState): Promise<void> {
   try {
-    await flushPendingWrites(state);
-    await ensureCacheDir(state.cacheDir);
+    const flushedEnsured = await flushPendingWrites(state);
+    if (!flushedEnsured) {
+      await ensureCacheDir(state.cacheDir);
+    }
 
     const writes = Array.from(state.cache.entries()).map(async ([key, entry]) => {
       const file = path.join(state.cacheDir, `${key}.json`);

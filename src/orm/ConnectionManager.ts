@@ -609,6 +609,7 @@ export const ConnectionManager = Object.freeze({
     if (instance !== undefined) {
       try {
         await instance.closeAll();
+        instance = undefined;
       } catch (err) {
         Logger.error('Error while shutting down ConnectionManager:', err as Error);
       }

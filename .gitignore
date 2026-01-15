@@ -71,3 +71,4 @@ zintrust
 issues/
 src/zintrust.plugins.ts
 AUDIT_PACKAGES.json
+testdb
