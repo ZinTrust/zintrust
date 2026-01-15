@@ -22,13 +22,53 @@ export type SecretsManagerClient = {
   getSecretValue: (secretName: string) => Promise<{ SecretString?: string }>;
 };
 
+function getErrorCode(error: unknown): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as Record<string, unknown>).code === 'string'
+  ) {
+    return (error as Record<string, unknown>).code as string;
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as Record<string, unknown>).cause === 'object' &&
+    (error as Record<string, unknown>).cause !== null &&
+    typeof ((error as Record<string, unknown>).cause as Record<string, unknown>).code === 'string'
+  ) {
+    return ((error as Record<string, unknown>).cause as Record<string, unknown>).code as string;
+  }
+  return '';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as Record<string, unknown>).message === 'string'
+  ) {
+    return (error as Record<string, unknown>).message as string;
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as Record<string, unknown>).cause === 'object' &&
+    (error as Record<string, unknown>).cause !== null &&
+    typeof ((error as Record<string, unknown>).cause as Record<string, unknown>).message ===
+      'string'
+  ) {
+    return ((error as Record<string, unknown>).cause as Record<string, unknown>).message as string;
+  }
+  return '';
+}
+
 function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   if (typeof error !== 'object' || error === null) return false;
-  const maybe = error as { code?: unknown; message?: unknown };
-  const code = typeof maybe.code === 'string' ? maybe.code : '';
-  const message = typeof maybe.message === 'string' ? maybe.message : '';
-  if (code === 'ERR_MODULE_NOT_FOUND' && message.length === 0) return true;
-  if (code === 'ERR_MODULE_NOT_FOUND' && message.includes(`'${packageName}'`)) return true;
+  const code = getErrorCode(error);
+  const message = getErrorMessage(error);
+  if (code === 'ERR_MODULE_NOT_FOUND') return true;
+  if (message.includes(packageName)) return true;
   if (message.includes(`Cannot find package '${packageName}'`)) return true;
   return false;
 }
