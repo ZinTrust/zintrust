@@ -3,6 +3,8 @@
  * Build queries without raw SQL
  */
 
+import type { PaginationQuery, Paginator } from '@database/Paginator';
+import { createPaginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IDatabase } from '@orm/Database';
 import type { IModel } from '@orm/Model';
@@ -29,6 +31,11 @@ export type SoftDeleteMode = 'exclude' | 'include' | 'only';
 export interface QueryBuilderOptions {
   softDeleteColumn?: string;
   softDeleteMode?: SoftDeleteMode;
+}
+
+export interface PaginationOptions {
+  baseUrl?: string;
+  query?: PaginationQuery;
 }
 
 export interface IQueryBuilder {
@@ -62,6 +69,7 @@ export interface IQueryBuilder {
   firstOrFail<T>(message?: string): Promise<T>;
   get<T>(): Promise<T[]>;
   raw<T>(): Promise<T[]>;
+  paginate<T>(page: number, perPage: number, options?: PaginationOptions): Promise<Paginator<T>>;
 
   with(relation: string): IQueryBuilder;
   load(models: IModel[], relation: string): Promise<void>;
@@ -440,6 +448,18 @@ const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown
   return { sql, parameters: where.parameters };
 };
 
+const buildCountQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
+  if (state.tableName.length > 0) {
+    assertSafeIdentifierPath(state.tableName, 'table name');
+  }
+
+  const fromClause =
+    state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName, state.dialect)}` : '';
+  const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
+  const sql = `SELECT COUNT(*) AS total${fromClause}${where.sql}`;
+  return { sql, parameters: where.parameters };
+};
+
 const applyWhereCondition = (
   state: QueryState,
   column: string,
@@ -596,6 +616,57 @@ async function executeGet<T>(builder: IQueryBuilder, db?: IDatabase): Promise<T[
   )) as T[];
 }
 
+const normalizePaginationValue = (value: number, label: string): number => {
+  const n = Math.trunc(value);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw ErrorFactory.createValidationError(`${label} must be a positive integer`);
+  }
+  return n;
+};
+
+async function executePaginate<T>(
+  builder: IQueryBuilder,
+  state: QueryState,
+  db: IDatabase | undefined,
+  page: number,
+  perPage: number,
+  options?: PaginationOptions
+): Promise<Paginator<T>> {
+  if (!db) throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
+
+  const safePage = normalizePaginationValue(page, 'page');
+  const safePerPage = normalizePaginationValue(perPage, 'perPage');
+
+  const countQuery = buildCountQuery(state);
+  const countRows = (await db.query(countQuery.sql, countQuery.parameters, true)) as Array<
+    Record<string, unknown>
+  >;
+
+  const rawTotal = countRows.at(0)?.['total'];
+  const total = typeof rawTotal === 'bigint' ? Number(rawTotal) : Number(rawTotal ?? 0);
+  const sanitizedTotal = Number.isFinite(total) && total > 0 ? total : 0;
+
+  const offset = (safePage - 1) * safePerPage;
+  const prevLimit = state.limitValue;
+  const prevOffset = state.offsetValue;
+  state.limitValue = safePerPage;
+  state.offsetValue = offset;
+
+  const items = await executeGet<T>(builder, db);
+
+  state.limitValue = prevLimit;
+  state.offsetValue = prevOffset;
+
+  return createPaginator({
+    items,
+    total: sanitizedTotal,
+    perPage: safePerPage,
+    currentPage: safePage,
+    baseUrl: options?.baseUrl,
+    query: options?.query,
+  });
+}
+
 /**
  * Create the builder object
  */
@@ -708,10 +779,19 @@ function attachIntrospectionMethods(builder: IQueryBuilder, state: QueryState): 
   (builder as unknown as { getEagerLoads: () => string[] }).getEagerLoads = () => state.eagerLoads;
 }
 
-function attachReadExecutionMethods(builder: IQueryBuilder, db?: IDatabase): void {
+function attachReadExecutionMethods(
+  builder: IQueryBuilder,
+  state: QueryState,
+  db?: IDatabase
+): void {
   builder.first = async <T>() => executeFirst<T>(builder, db);
   builder.firstOrFail = async <T>(message?: string) => executeFirstOrFail<T>(builder, db, message);
   builder.get = async <T>() => executeGet<T>(builder, db);
+  builder.paginate = async <T>(
+    page: number,
+    perPage: number,
+    options: PaginationOptions | undefined
+  ) => executePaginate<T>(builder, state, db, page, perPage, options);
   // raw just returns results without any hydration logic in callers
   builder.raw = async <T>() => executeGet<T>(builder, db);
 }
@@ -818,7 +898,7 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
   attachSoftDeleteMethods(builder, state);
   attachJoinOrderPagingMethods(builder, state);
   attachIntrospectionMethods(builder, state);
-  attachReadExecutionMethods(builder, db);
+  attachReadExecutionMethods(builder, state, db);
   attachRelationshipMethods(builder, state);
   attachWriteMethods(builder, state, db);
 

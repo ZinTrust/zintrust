@@ -4,9 +4,15 @@
  */
 
 import { DEFAULTS } from '@config/constants';
+import type { Paginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { useDatabase, type IDatabase } from '@orm/Database';
-import type { IQueryBuilder, InsertResult, QueryBuilderOptions } from '@orm/QueryBuilder';
+import type {
+  IQueryBuilder,
+  InsertResult,
+  PaginationOptions,
+  QueryBuilderOptions,
+} from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import type { IRelationship } from '@orm/Relationships';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
@@ -465,6 +471,11 @@ export type DefinedModel<T extends BoundModelMethods> = {
   all: () => Promise<Array<IModel & T>>;
   raw: () => Promise<Array<Record<string, unknown>>>;
   query: () => IQueryBuilder;
+  paginate: (
+    page: number,
+    perPage: number,
+    options?: PaginationOptions
+  ) => Promise<Paginator<IModel & T>>;
 
   // QueryBuilder convenience methods
   where: (
@@ -549,6 +560,11 @@ const wrapBuilderGetForEagerLoading = (
 ): void => {
   const eagerBuilder = builder as unknown as {
     get: () => Promise<unknown>;
+    paginate?: (
+      page: number,
+      perPage: number,
+      options?: PaginationOptions
+    ) => Promise<Paginator<unknown>>;
     getEagerLoads?: () => string[];
     load?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
   };
@@ -574,6 +590,36 @@ const wrapBuilderGetForEagerLoading = (
 
     return models;
   };
+
+  if (typeof eagerBuilder.paginate === 'function') {
+    const originalPaginate = eagerBuilder.paginate.bind(builder);
+    eagerBuilder.paginate = async (
+      page: number,
+      perPage: number,
+      options?: PaginationOptions
+    ): Promise<Paginator<unknown>> => {
+      const result = await originalPaginate(page, perPage, options);
+      if (!Array.isArray(result.items)) return result;
+
+      const rows = result.items.filter(isRecord);
+      const models = rows.map(hydrateModel);
+
+      const eagerLoads =
+        typeof eagerBuilder.getEagerLoads === 'function' ? eagerBuilder.getEagerLoads() : undefined;
+      if (
+        Array.isArray(eagerLoads) &&
+        eagerLoads.length > 0 &&
+        typeof eagerBuilder.load === 'function' &&
+        models.length > 0
+      ) {
+        await Promise.all(
+          eagerLoads.map(async (relation) => eagerBuilder.load?.(models, relation))
+        );
+      }
+
+      return { ...result, items: models };
+    };
+  }
 };
 
 const createQueryBuilderMethods = (
@@ -591,6 +637,10 @@ const createQueryBuilderMethods = (
 
   return {
     query: (): IQueryBuilder => wrappedBuilder(),
+    paginate: async (page: number, perPage: number, options?: PaginationOptions) =>
+      wrappedBuilder().paginate(page, perPage, options) as Promise<
+        Paginator<IModel & BoundModelMethods>
+      >,
     where: (
       column: string,
       operator: string | number | boolean | null,

@@ -19,6 +19,7 @@ type MockBuilder = {
   join: ReturnType<typeof vi.fn>;
   first: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
+  paginate: ReturnType<typeof vi.fn>;
   table: string;
 };
 
@@ -34,6 +35,16 @@ vi.mock('@orm/QueryBuilder', () => {
         join: vi.fn().mockReturnThis(),
         first: vi.fn(async () => null),
         get: vi.fn(async () => []),
+        paginate: vi.fn(async () => ({
+          items: [],
+          total: 0,
+          perPage: 10,
+          currentPage: 1,
+          lastPage: 1,
+          from: 0,
+          to: 0,
+          links: {},
+        })),
       };
       lastBuilder = builder;
       return builder;
@@ -194,6 +205,16 @@ describe('Model', () => {
       join: vi.fn().mockReturnThis(),
       first: vi.fn(async () => ({ id: 2, name: 'X' })),
       get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
     } satisfies MockBuilder);
 
     const found = await Model.find(config, 2);
@@ -215,6 +236,16 @@ describe('Model', () => {
       join: vi.fn().mockReturnThis(),
       first: vi.fn(async () => null),
       get: vi.fn(async () => [{ id: 1 }, { id: 2 }]),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
     } satisfies MockBuilder);
 
     const all = await Model.all(config);
@@ -364,6 +395,16 @@ describe('Model', () => {
       join: vi.fn().mockReturnThis(),
       first: vi.fn(async () => ({ id: 2, name: 'Found' })),
       get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
     } satisfies MockBuilder);
 
     const found = await Test.find(2);
@@ -383,6 +424,16 @@ describe('Model', () => {
         { id: 1, name: 'A' },
         { id: 2, name: 'B' },
       ]),
+      paginate: vi.fn(async () => ({
+        items: [],
+        total: 0,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 0,
+        to: 0,
+        links: {},
+      })),
     } satisfies MockBuilder);
 
     const allRows = await Test.all();
@@ -430,5 +481,40 @@ describe('Model', () => {
       'users.id = test_models_users.user_id'
     );
     expect(relatedBuilder.where).toHaveBeenCalledWith('test_models_users.test_model_id', '5');
+  });
+
+  it('paginate returns hydrated model items', async (): Promise<void> => {
+    const config = { ...baseConfig, casts: {}, timestamps: false };
+    const builderMod = await import('@orm/QueryBuilder');
+
+    (
+      builderMod as unknown as { QueryBuilder: { create: ReturnType<typeof vi.fn> } }
+    ).QueryBuilder.create.mockReturnValueOnce({
+      table: config.table,
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      join: vi.fn().mockReturnThis(),
+      first: vi.fn(async () => null),
+      get: vi.fn(async () => []),
+      paginate: vi.fn(async () => ({
+        items: [{ id: 1, name: 'Paged' }],
+        total: 1,
+        perPage: 10,
+        currentPage: 1,
+        lastPage: 1,
+        from: 1,
+        to: 1,
+        links: {},
+      })),
+    } satisfies MockBuilder);
+
+    const Test = Model.define(config, {
+      greet: (m: IModel): string => `hi ${String(m.getAttribute('name'))}`,
+    });
+
+    const paged = await Test.paginate(1, 10);
+    expect(paged.items).toHaveLength(1);
+    expect(paged.items[0].exists()).toBe(true);
+    expect((paged.items[0] as IModel & { greet: () => string }).greet()).toBe('hi Paged');
   });
 });

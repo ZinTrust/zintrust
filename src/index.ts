@@ -13,6 +13,13 @@ const ZintrustSignedRequest = SignedRequest;
 
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
+export { createPaginator, getNextPageUrl, getPrevPageUrl, Paginator } from '@database/Paginator';
+export type {
+  CreatePaginatorInput,
+  PaginationLinks,
+  PaginationQuery,
+  Paginator as PaginatorType,
+} from '@database/Paginator';
 export { Controller } from '@http/Controller';
 export { FileUpload } from '@http/FileUpload';
 export type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
@@ -60,7 +67,7 @@ export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
-export type { InsertResult, IQueryBuilder } from '@orm/QueryBuilder';
+export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 export { ZintrustApplication as Application };
 
