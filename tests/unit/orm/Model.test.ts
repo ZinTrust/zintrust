@@ -20,6 +20,8 @@ type MockBuilder = {
   first: ReturnType<typeof vi.fn>;
   get: ReturnType<typeof vi.fn>;
   paginate: ReturnType<typeof vi.fn>;
+  with: ReturnType<typeof vi.fn>;
+  withCount: ReturnType<typeof vi.fn>;
   table: string;
 };
 
@@ -45,6 +47,8 @@ vi.mock('@orm/QueryBuilder', () => {
           to: 0,
           links: {},
         })),
+        with: vi.fn().mockReturnThis(),
+        withCount: vi.fn().mockReturnThis(),
       };
       lastBuilder = builder;
       return builder;
@@ -215,6 +219,8 @@ describe('Model', () => {
         to: 0,
         links: {},
       })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
     } satisfies MockBuilder);
 
     const found = await Model.find(config, 2);
@@ -246,6 +252,8 @@ describe('Model', () => {
         to: 0,
         links: {},
       })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
     } satisfies MockBuilder);
 
     const all = await Model.all(config);
@@ -405,6 +413,8 @@ describe('Model', () => {
         to: 0,
         links: {},
       })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
     } satisfies MockBuilder);
 
     const found = await Test.find(2);
@@ -434,6 +444,8 @@ describe('Model', () => {
         to: 0,
         links: {},
       })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
     } satisfies MockBuilder);
 
     const allRows = await Test.all();
@@ -506,6 +518,8 @@ describe('Model', () => {
         to: 1,
         links: {},
       })),
+      with: vi.fn().mockReturnThis(),
+      withCount: vi.fn().mockReturnThis(),
     } satisfies MockBuilder);
 
     const Test = Model.define(config, {

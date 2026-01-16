@@ -15,7 +15,17 @@ import type {
 } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import type { IRelationship } from '@orm/Relationships';
-import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
+import {
+  BelongsTo,
+  BelongsToMany,
+  HasMany,
+  HasManyThrough,
+  HasOne,
+  HasOneThrough,
+  MorphMany,
+  MorphOne,
+  MorphTo,
+} from '@orm/Relationships';
 
 const getRelatedTableName = (relatedModel: ModelStatic): string => {
   if (typeof relatedModel.getTable === 'function') {
@@ -85,6 +95,42 @@ export interface IModel {
     throughTable?: string,
     foreignKey?: string,
     relatedKey?: string
+  ): IRelationship;
+  morphOne(
+    relatedModel: ModelStatic,
+    morphName: string,
+    morphType?: string,
+    morphId?: string,
+    localKey?: string
+  ): IRelationship;
+  morphMany(
+    relatedModel: ModelStatic,
+    morphName: string,
+    morphType?: string,
+    morphId?: string,
+    localKey?: string
+  ): IRelationship;
+  morphTo(
+    morphName: string,
+    morphMap: Record<string, ModelStatic>,
+    morphType?: string,
+    morphId?: string
+  ): IRelationship;
+  hasOneThrough(
+    relatedModel: ModelStatic,
+    through: ModelStatic,
+    foreignKey?: string,
+    throughForeignKey?: string,
+    localKey?: string,
+    secondLocalKey?: string
+  ): IRelationship;
+  hasManyThrough(
+    relatedModel: ModelStatic,
+    through: ModelStatic,
+    foreignKey?: string,
+    throughForeignKey?: string,
+    localKey?: string,
+    secondLocalKey?: string
   ): IRelationship;
 }
 
@@ -198,34 +244,136 @@ const createModelJSON = (
   return json;
 };
 
+const createHasOneFactory =
+  (config: ModelConfig) =>
+  (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
+    HasOne.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id');
+
+const createHasManyFactory =
+  (config: ModelConfig) =>
+  (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
+    HasMany.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id');
+
+const createBelongsToFactory =
+  () =>
+  (relatedModel: ModelStatic, foreignKey?: string): IRelationship => {
+    const relatedTable = getRelatedTableName(relatedModel);
+    return BelongsTo.create(relatedModel, foreignKey ?? `${relatedTable.slice(0, -1)}_id`, 'id');
+  };
+
+const createBelongsToManyFactory =
+  (config: ModelConfig) =>
+  (
+    relatedModel: ModelStatic,
+    throughTable?: string,
+    foreignKey?: string,
+    relatedKey?: string
+  ): IRelationship => {
+    const relatedTable = getRelatedTableName(relatedModel);
+    const table =
+      throughTable ?? [config.table, relatedTable].sort((a, b) => a.localeCompare(b)).join('_');
+    return BelongsToMany.create(
+      relatedModel,
+      table,
+      foreignKey ?? `${config.table.slice(0, -1)}_id`,
+      relatedKey ?? `${relatedTable.slice(0, -1)}_id`
+    );
+  };
+
+const createMorphOneFactory =
+  () =>
+  (
+    relatedModel: ModelStatic,
+    morphName: string,
+    morphType?: string,
+    morphId?: string,
+    localKey?: string
+  ): IRelationship =>
+    MorphOne.create(relatedModel, morphName, morphType, morphId, localKey);
+
+const createMorphManyFactory =
+  () =>
+  (
+    relatedModel: ModelStatic,
+    morphName: string,
+    morphType?: string,
+    morphId?: string,
+    localKey?: string
+  ): IRelationship =>
+    MorphMany.create(relatedModel, morphName, morphType, morphId, localKey);
+
+const createMorphToFactory =
+  () =>
+  (
+    morphName: string,
+    morphMap: Record<string, ModelStatic>,
+    morphType?: string,
+    morphId?: string
+  ): IRelationship =>
+    MorphTo.create(morphName, morphMap, morphType, morphId);
+
+const createHasOneThroughFactory =
+  () =>
+  (
+    relatedModel: ModelStatic,
+    through: ModelStatic,
+    foreignKey?: string,
+    throughForeignKey?: string,
+    localKey?: string,
+    secondLocalKey?: string
+  ): IRelationship =>
+    HasOneThrough.create(
+      relatedModel,
+      through,
+      foreignKey,
+      throughForeignKey,
+      localKey,
+      secondLocalKey
+    );
+
+const createHasManyThroughFactory =
+  () =>
+  (
+    relatedModel: ModelStatic,
+    through: ModelStatic,
+    foreignKey?: string,
+    throughForeignKey?: string,
+    localKey?: string,
+    secondLocalKey?: string
+  ): IRelationship =>
+    HasManyThrough.create(
+      relatedModel,
+      through,
+      foreignKey,
+      throughForeignKey,
+      localKey,
+      secondLocalKey
+    );
+
 const createModelRelationships = (
   config: ModelConfig
-): Pick<IModel, 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany'> => {
+): Pick<
+  IModel,
+  | 'hasOne'
+  | 'hasMany'
+  | 'belongsTo'
+  | 'belongsToMany'
+  | 'morphOne'
+  | 'morphMany'
+  | 'morphTo'
+  | 'hasOneThrough'
+  | 'hasManyThrough'
+> => {
   return {
-    hasOne: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
-      HasOne.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
-    hasMany: (relatedModel: ModelStatic, foreignKey?: string): IRelationship =>
-      HasMany.create(relatedModel, foreignKey ?? `${config.table.slice(0, -1)}_id`, 'id'),
-    belongsTo: (relatedModel: ModelStatic, foreignKey?: string): IRelationship => {
-      const relatedTable = getRelatedTableName(relatedModel);
-      return BelongsTo.create(relatedModel, foreignKey ?? `${relatedTable.slice(0, -1)}_id`, 'id');
-    },
-    belongsToMany: (
-      relatedModel: ModelStatic,
-      throughTable?: string,
-      foreignKey?: string,
-      relatedKey?: string
-    ): IRelationship => {
-      const relatedTable = getRelatedTableName(relatedModel);
-      const table =
-        throughTable ?? [config.table, relatedTable].sort((a, b) => a.localeCompare(b)).join('_');
-      return BelongsToMany.create(
-        relatedModel,
-        table,
-        foreignKey ?? `${config.table.slice(0, -1)}_id`,
-        relatedKey ?? `${relatedTable.slice(0, -1)}_id`
-      );
-    },
+    hasOne: createHasOneFactory(config),
+    hasMany: createHasManyFactory(config),
+    belongsTo: createBelongsToFactory(),
+    belongsToMany: createBelongsToManyFactory(config),
+    morphOne: createMorphOneFactory(),
+    morphMany: createMorphManyFactory(),
+    morphTo: createMorphToFactory(),
+    hasOneThrough: createHasOneThroughFactory(),
+    hasManyThrough: createHasManyThroughFactory(),
   };
 };
 
@@ -554,6 +702,101 @@ const createRelationMapping = (
   return relationMapping;
 };
 
+const hydrateRows = (
+  raw: unknown,
+  hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
+): Array<IModel & BoundModelMethods> | null => {
+  if (!Array.isArray(raw)) return null;
+  const rows = raw.filter(isRecord);
+  return rows.map(hydrateModel);
+};
+
+const loadEagerRelations = async (
+  eagerBuilder: {
+    getEagerLoads?: () => string[];
+    getEagerLoadConstraints?: () => Record<string, (builder: IQueryBuilder) => IQueryBuilder>;
+    load?: (
+      models: Array<IModel & BoundModelMethods>,
+      relation: string,
+      constraint?: (builder: IQueryBuilder) => IQueryBuilder
+    ) => Promise<void>;
+  },
+  models: Array<IModel & BoundModelMethods>
+): Promise<void> => {
+  const eagerLoads =
+    typeof eagerBuilder.getEagerLoads === 'function' ? eagerBuilder.getEagerLoads() : undefined;
+  const eagerLoadConstraints =
+    typeof eagerBuilder.getEagerLoadConstraints === 'function'
+      ? eagerBuilder.getEagerLoadConstraints()
+      : undefined;
+
+  if (
+    !Array.isArray(eagerLoads) ||
+    eagerLoads.length === 0 ||
+    typeof eagerBuilder.load !== 'function' ||
+    models.length === 0
+  ) {
+    return;
+  }
+
+  await Promise.all(
+    eagerLoads.map(async (relation) => {
+      const constraint = eagerLoadConstraints?.[relation];
+      await eagerBuilder.load?.(models, relation, constraint);
+    })
+  );
+};
+
+const loadEagerCounts = async (
+  eagerBuilder: {
+    getEagerLoadCounts?: () => string[];
+    loadCount?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
+  },
+  models: Array<IModel & BoundModelMethods>
+): Promise<void> => {
+  const eagerLoadCounts =
+    typeof eagerBuilder.getEagerLoadCounts === 'function'
+      ? eagerBuilder.getEagerLoadCounts()
+      : undefined;
+
+  if (
+    !Array.isArray(eagerLoadCounts) ||
+    eagerLoadCounts.length === 0 ||
+    typeof eagerBuilder.loadCount !== 'function' ||
+    models.length === 0
+  ) {
+    return;
+  }
+
+  await Promise.all(
+    eagerLoadCounts.map(async (relation) => eagerBuilder.loadCount?.(models, relation))
+  );
+};
+
+const hydrateAndLoadRelations = async (
+  raw: unknown,
+  eagerBuilder: {
+    getEagerLoads?: () => string[];
+    getEagerLoadConstraints?: () => Record<string, (builder: IQueryBuilder) => IQueryBuilder>;
+    getEagerLoadCounts?: () => string[];
+    load?: (
+      models: Array<IModel & BoundModelMethods>,
+      relation: string,
+      constraint?: (builder: IQueryBuilder) => IQueryBuilder
+    ) => Promise<void>;
+    loadCount?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
+  },
+  hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
+): Promise<unknown> => {
+  const models = hydrateRows(raw, hydrateModel);
+  if (!models) return raw;
+
+  await loadEagerRelations(eagerBuilder, models);
+  await loadEagerCounts(eagerBuilder, models);
+
+  return models;
+};
+
 const wrapBuilderGetForEagerLoading = (
   builder: IQueryBuilder,
   hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
@@ -566,29 +809,20 @@ const wrapBuilderGetForEagerLoading = (
       options?: PaginationOptions
     ) => Promise<Paginator<unknown>>;
     getEagerLoads?: () => string[];
-    load?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
+    getEagerLoadCounts?: () => string[];
+    getEagerLoadConstraints?: () => Record<string, (builder: IQueryBuilder) => IQueryBuilder>;
+    load?: (
+      models: Array<IModel & BoundModelMethods>,
+      relation: string,
+      constraint?: (builder: IQueryBuilder) => IQueryBuilder
+    ) => Promise<void>;
+    loadCount?: (models: Array<IModel & BoundModelMethods>, relation: string) => Promise<void>;
   };
 
   const originalGet = eagerBuilder.get.bind(builder);
   eagerBuilder.get = async (): Promise<unknown> => {
     const raw = await originalGet();
-    if (!Array.isArray(raw)) return raw;
-
-    const rows = raw.filter(isRecord);
-    const models = rows.map(hydrateModel);
-
-    const eagerLoads =
-      typeof eagerBuilder.getEagerLoads === 'function' ? eagerBuilder.getEagerLoads() : undefined;
-    if (
-      Array.isArray(eagerLoads) &&
-      eagerLoads.length > 0 &&
-      typeof eagerBuilder.load === 'function' &&
-      models.length > 0
-    ) {
-      await Promise.all(eagerLoads.map(async (relation) => eagerBuilder.load?.(models, relation)));
-    }
-
-    return models;
+    return hydrateAndLoadRelations(raw, eagerBuilder, hydrateModel);
   };
 
   if (typeof eagerBuilder.paginate === 'function') {
@@ -601,23 +835,13 @@ const wrapBuilderGetForEagerLoading = (
       const result = await originalPaginate(page, perPage, options);
       if (!Array.isArray(result.items)) return result;
 
-      const rows = result.items.filter(isRecord);
-      const models = rows.map(hydrateModel);
+      const models = await hydrateAndLoadRelations(result.items, eagerBuilder, hydrateModel);
+      if (!Array.isArray(models)) return result;
 
-      const eagerLoads =
-        typeof eagerBuilder.getEagerLoads === 'function' ? eagerBuilder.getEagerLoads() : undefined;
-      if (
-        Array.isArray(eagerLoads) &&
-        eagerLoads.length > 0 &&
-        typeof eagerBuilder.load === 'function' &&
-        models.length > 0
-      ) {
-        await Promise.all(
-          eagerLoads.map(async (relation) => eagerBuilder.load?.(models, relation))
-        );
-      }
-
-      return { ...result, items: models };
+      return {
+        ...result,
+        items: models,
+      };
     };
   }
 };
@@ -627,7 +851,7 @@ const createQueryBuilderMethods = (
   hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
 ): Omit<
   DefinedModel<BoundModelMethods>,
-  'create' | 'hydrate' | 'find' | 'all' | 'raw' | 'db' | 'hydrateWithRelations'
+  'create' | 'hydrate' | 'hydrateWithRelations' | 'find' | 'all' | 'raw' | 'db'
 > => {
   const wrappedBuilder = (): IQueryBuilder => {
     const builder = createModelBuilder(cfg);
@@ -638,36 +862,28 @@ const createQueryBuilderMethods = (
   return {
     query: (): IQueryBuilder => wrappedBuilder(),
     paginate: async (page: number, perPage: number, options?: PaginationOptions) =>
-      wrappedBuilder().paginate(page, perPage, options) as Promise<
-        Paginator<IModel & BoundModelMethods>
-      >,
-    where: (
-      column: string,
-      operator: string | number | boolean | null,
-      value?: unknown
-    ): IQueryBuilder => wrappedBuilder().where(column, operator, value),
-    andWhere: (column: string, operator: string, value?: unknown): IQueryBuilder =>
+      wrappedBuilder().paginate(page, perPage, options),
+    where: (column: string, operator: string | number | boolean | null, value?: unknown) =>
+      wrappedBuilder().where(column, operator, value),
+    andWhere: (column: string, operator: string, value?: unknown) =>
       wrappedBuilder().andWhere(column, operator, value),
-    orWhere: (column: string, operator: string, value?: unknown): IQueryBuilder =>
+    orWhere: (column: string, operator: string, value?: unknown) =>
       wrappedBuilder().orWhere(column, operator, value),
-    whereIn: (column: string, values: unknown[]): IQueryBuilder =>
-      wrappedBuilder().whereIn(column, values),
-    whereNotIn: (column: string, values: unknown[]): IQueryBuilder =>
-      wrappedBuilder().whereNotIn(column, values),
-    select: (...columns: string[]): IQueryBuilder => wrappedBuilder().select(...columns),
-    selectAs: (column: string, alias: string): IQueryBuilder =>
-      wrappedBuilder().selectAs(column, alias),
-    max: (column: string, alias?: string): IQueryBuilder => wrappedBuilder().max(column, alias),
-    join: (table: string, on: string): IQueryBuilder => wrappedBuilder().join(table, on),
-    leftJoin: (table: string, on: string): IQueryBuilder => wrappedBuilder().leftJoin(table, on),
-    orderBy: (column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder =>
+    whereIn: (column: string, values: unknown[]) => wrappedBuilder().whereIn(column, values),
+    whereNotIn: (column: string, values: unknown[]) => wrappedBuilder().whereNotIn(column, values),
+    select: (...columns: string[]) => wrappedBuilder().select(...columns),
+    selectAs: (column: string, alias: string) => wrappedBuilder().selectAs(column, alias),
+    max: (column: string, alias?: string) => wrappedBuilder().max(column, alias),
+    join: (table: string, on: string) => wrappedBuilder().join(table, on),
+    leftJoin: (table: string, on: string) => wrappedBuilder().leftJoin(table, on),
+    orderBy: (column: string, direction?: 'ASC' | 'DESC') =>
       wrappedBuilder().orderBy(column, direction),
-    limit: (count: number): IQueryBuilder => wrappedBuilder().limit(count),
-    offset: (count: number): IQueryBuilder => wrappedBuilder().offset(count),
-    withTrashed: (): IQueryBuilder => wrappedBuilder().withTrashed(),
-    onlyTrashed: (): IQueryBuilder => wrappedBuilder().onlyTrashed(),
-    withoutTrashed: (): IQueryBuilder => wrappedBuilder().withoutTrashed(),
-    scope: (name: string, ...args: unknown[]): IQueryBuilder => {
+    limit: (count: number) => wrappedBuilder().limit(count),
+    offset: (count: number) => wrappedBuilder().offset(count),
+    withTrashed: () => wrappedBuilder().withTrashed(),
+    onlyTrashed: () => wrappedBuilder().onlyTrashed(),
+    withoutTrashed: () => wrappedBuilder().withoutTrashed(),
+    scope: (name: string, ...args: unknown[]) => {
       const fn = cfg.scopes?.[name];
       if (typeof fn !== 'function') {
         throw ErrorFactory.createConfigError(`Unknown query scope: ${name}`);

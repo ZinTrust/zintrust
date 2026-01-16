@@ -197,6 +197,7 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
     /**
      * Get from cache (async)
      */
+
     async get(type: string, params: Record<string, unknown>): Promise<string | null> {
       const key = getCacheKey(type, params);
       const entry = state.cache.get(key);
@@ -217,6 +218,7 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
     /**
      * Set in cache (async)
      */
+
     async set(type: string, params: Record<string, unknown>, code: string): Promise<void> {
       const key = getCacheKey(type, params);
 
@@ -241,6 +243,7 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
 
       const payload = JSON.stringify({ code, timestamp: Date.now() }, null, 2);
       scheduleCacheWrite(state, key, payload);
+      return Promise.resolve();
     },
 
     /**
@@ -364,9 +367,6 @@ async function getCacheStats(state: CacheState): Promise<{
   };
 }
 
-/**
- * Format bytes as human-readable
- */
 function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB'];
   let size = bytes;
@@ -383,8 +383,11 @@ function formatBytes(bytes: number): string {
  */
 function getCacheKey(type: string, params: Record<string, unknown>): string {
   // Use a more efficient key generation
-  const paramStr = JSON.stringify(params);
   // Simple hash-like string for the key
+  const paramStr = JSON.stringify(
+    params,
+    Object.keys(params).sort((a, b) => a.localeCompare(b))
+  );
   let hash = 0;
   for (let i = 0; i < paramStr.length; i++) {
     const char = paramStr.codePointAt(i);
