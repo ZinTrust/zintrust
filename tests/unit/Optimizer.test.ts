@@ -158,6 +158,7 @@ describe('GenerationCache', () => {
     // Clear mock history and set access to always succeed (directory exists)
     fsPromises.access.mockClear();
     fsPromises.mkdir.mockClear();
+    fsPromises.writeFile.mockClear();
     fsPromises.access.mockResolvedValue(undefined);
 
     vi.spyOn(Date, 'now').mockReturnValue(123);
