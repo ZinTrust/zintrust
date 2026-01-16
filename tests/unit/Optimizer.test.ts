@@ -155,16 +155,17 @@ describe('GenerationCache', () => {
     // allow loadFromDisk to consume initial access() rejection
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    fsPromises.access.mockReset();
+    // Clear mock history and set access to always succeed (directory exists)
+    fsPromises.access.mockClear();
+    fsPromises.mkdir.mockClear();
+    fsPromises.access.mockResolvedValue(undefined);
 
     vi.spyOn(Date, 'now').mockReturnValue(123);
 
     // access succeeds for set -> no mkdir, just writeFile
-    fsPromises.access.mockResolvedValue(undefined);
     await cache.set('t', { x: 1 }, 'code');
 
     // save(): directory already exists
-    fsPromises.access.mockResolvedValue(undefined);
     await cache.save();
 
     expect(fsPromises.mkdir).not.toHaveBeenCalled();
