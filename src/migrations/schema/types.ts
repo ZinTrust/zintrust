@@ -3,6 +3,8 @@ import type { IDatabase } from '@orm/Database';
 export type ColumnType =
   | 'STRING'
   | 'INTEGER'
+  | 'BIGINT'
+  | 'UUID'
   | 'REAL'
   | 'BOOLEAN'
   | 'TEXT'
@@ -70,6 +72,7 @@ export type ForeignKeyBuilder = {
 };
 
 export type Blueprint = {
+  uuid(arg0: string): unknown;
   string(name: string, length?: number): ColumnBuilder;
   integer(name: string): ColumnBuilder;
   bigInteger(name: string): ColumnBuilder;

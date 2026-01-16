@@ -22,4 +22,20 @@ describe('MemoryDriver (coverage)', () => {
 
     await driver.dispose();
   });
+
+  it('unrefs the cleanup interval when available', async () => {
+    const unref = vi.fn();
+    const original = globalThis.setInterval;
+
+    vi.spyOn(globalThis, 'setInterval').mockReturnValue({ unref } as any);
+
+    const driver = MemoryDriver.create();
+
+    expect(unref).toHaveBeenCalled();
+
+    await driver.dispose();
+
+    (globalThis.setInterval as unknown as { mockRestore: () => void }).mockRestore();
+    globalThis.setInterval = original;
+  });
 });

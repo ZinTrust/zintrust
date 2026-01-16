@@ -6,7 +6,13 @@ import { Cloudflare } from '@config/cloudflare';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import type { DatabaseConfig, ID1Database, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import type {
+  DatabaseConfig,
+  ID1Database,
+  IDatabaseAdapter,
+  QueryResult,
+} from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
 /**
@@ -104,8 +110,8 @@ export const D1Adapter = Object.freeze({
         }
       },
 
-      getType(): string {
-        return 'd1';
+      getType(): SupportedDriver {
+        return AdaptersEnum.d1;
       },
       isConnected(): boolean {
         return connected;

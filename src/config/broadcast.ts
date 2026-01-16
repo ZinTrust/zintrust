@@ -133,7 +133,7 @@ const createBroadcastConfig = (): BroadcastRuntimeConfig => {
         pusher: getPusherConfig(),
         redis: getRedisConfig(),
         redishttps: getRedisHttpsConfig(),
-        ...(overrides.drivers ?? {}),
+        ...overrides.drivers,
       } as BroadcastDrivers;
     },
 

@@ -3,7 +3,6 @@
  * Run database migrations
  */
 
-import { Migrator } from '@/migrations/Migrator';
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { D1SqlMigrations } from '@cli/d1/D1SqlMigrations';
@@ -13,6 +12,7 @@ import { PromptHelper } from '@cli/PromptHelper';
 import { databaseConfig } from '@config/database';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { Migrator } from '@migrations/Migrator';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';

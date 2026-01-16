@@ -94,6 +94,16 @@ const castAttribute = (config: ModelConfig, key: string, value: unknown): unknow
       return value === true || value === 1 || value === '1';
     case 'integer':
       return Number.parseInt(String(value), 10);
+    case 'bigint': {
+      // Native BigInt if supported, otherwise string
+      try {
+        return BigInt(value as string | number | boolean);
+      } catch {
+        return String(value);
+      }
+    }
+    case 'uuid':
+      return String(value);
     case 'float':
       return Number.parseFloat(String(value));
     case 'date':
@@ -166,7 +176,18 @@ const createModelJSON = (
 ): Record<string, unknown> => {
   const json: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(attrs)) {
-    if (!config.hidden.includes(key)) json[key] = value;
+    if (config.hidden.includes(key)) continue;
+    // Serialize BigInt as string to keep JSON stable
+    if (typeof value === 'bigint') {
+      json[key] = String(value);
+      continue;
+    }
+    // Convert Dates to ISO strings for JSON
+    if (value instanceof Date) {
+      json[key] = value.toISOString();
+      continue;
+    }
+    json[key] = value;
   }
   return json;
 };
@@ -586,11 +607,9 @@ const createQueryBuilderMethods = (
     select: (...columns: string[]): IQueryBuilder => wrappedBuilder().select(...columns),
     selectAs: (column: string, alias: string): IQueryBuilder =>
       wrappedBuilder().selectAs(column, alias),
-    max: (column: string, alias?: string): IQueryBuilder =>
-      wrappedBuilder().max(column, alias),
+    max: (column: string, alias?: string): IQueryBuilder => wrappedBuilder().max(column, alias),
     join: (table: string, on: string): IQueryBuilder => wrappedBuilder().join(table, on),
-    leftJoin: (table: string, on: string): IQueryBuilder =>
-      wrappedBuilder().leftJoin(table, on),
+    leftJoin: (table: string, on: string): IQueryBuilder => wrappedBuilder().leftJoin(table, on),
     orderBy: (column: string, direction?: 'ASC' | 'DESC'): IQueryBuilder =>
       wrappedBuilder().orderBy(column, direction),
     limit: (count: number): IQueryBuilder => wrappedBuilder().limit(count),

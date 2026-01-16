@@ -7,6 +7,7 @@
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { SignedRequest } from '@security/SignedRequest';
@@ -219,8 +220,8 @@ export const D1RemoteAdapter = Object.freeze({
         return out.rows as T[];
       },
 
-      getType(): string {
-        return 'd1-remote';
+      getType(): SupportedDriver {
+        return AdaptersEnum.d1Remote;
       },
       isConnected(): boolean {
         return connected;

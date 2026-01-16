@@ -25,7 +25,7 @@ const fsPromises = {
   writeFile: vi.fn(async () => undefined),
   readFile: vi.fn(async () => ''),
   rm: vi.fn(async () => undefined),
-  readdir: vi.fn(async () => []),
+  readdir: vi.fn(async () => [] as string[]),
   stat: vi.fn(async () => ({ size: 0 })),
 };
 
@@ -147,19 +147,26 @@ describe('GenerationCache', () => {
 
   it('save skips mkdir when directory exists', async () => {
     // constructor loadFromDisk
-    fsPromises.access.mockRejectedValue(new Error('no ent'));
+    fsPromises.access.mockRejectedValueOnce(new Error('no ent'));
 
     const { GenerationCache } = await loadOptimizer('cache-save-existing');
     const cache = GenerationCache.create('/cache-dir', 999999);
 
+    // allow loadFromDisk to consume initial access() rejection
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // Clear mock history and set access to always succeed (directory exists)
+    fsPromises.access.mockClear();
+    fsPromises.mkdir.mockClear();
+    fsPromises.writeFile.mockClear();
+    fsPromises.access.mockResolvedValue(undefined);
+
     vi.spyOn(Date, 'now').mockReturnValue(123);
 
     // access succeeds for set -> no mkdir, just writeFile
-    fsPromises.access.mockResolvedValue(undefined);
     await cache.set('t', { x: 1 }, 'code');
 
     // save(): directory already exists
-    fsPromises.access.mockResolvedValue(undefined);
     await cache.save();
 
     expect(fsPromises.mkdir).not.toHaveBeenCalled();

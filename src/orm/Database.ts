@@ -7,6 +7,7 @@ import Logger from '@/config/logger';
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import type { SupportedDriver } from '@migrations/enum';
 import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
@@ -33,7 +34,7 @@ export interface IDatabase {
   offBeforeQuery(handler: (query: string, params: unknown[]) => void): void;
   offAfterQuery(handler: (query: string, params: unknown[], duration: number) => void): void;
   getAdapterInstance(isRead?: boolean): IDatabaseAdapter;
-  getType(): string;
+  getType(): SupportedDriver;
   getConfig(): DatabaseConfig;
   dispose(): void;
 }

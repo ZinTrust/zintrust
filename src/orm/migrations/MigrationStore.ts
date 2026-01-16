@@ -3,7 +3,7 @@ import type { IDatabase } from '@orm/Database';
 import type { IDatabaseAdapter } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
-import type { MigrationRecord, MigrationRecordStatus, MigrationScope } from '@/migrations/types';
+import type { MigrationRecord, MigrationRecordStatus, MigrationScope } from '@migrations/types';
 
 function nowIso(): string {
   // MySQL/MariaDB DATETIME does not accept ISO8601 with timezone (e.g. trailing 'Z').

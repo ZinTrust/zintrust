@@ -21,7 +21,8 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@aws-sdk/client-sqs": "^3.500.0"
   },
   "peerDependencies": {

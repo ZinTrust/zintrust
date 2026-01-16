@@ -6,6 +6,7 @@
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
@@ -59,8 +60,8 @@ export const SQLServerAdapter = Object.freeze({
         }
       },
 
-      getType(): string {
-        return 'sqlserver';
+      getType(): SupportedDriver {
+        return AdaptersEnum.sqlserver;
       },
       isConnected(): boolean {
         return connected;

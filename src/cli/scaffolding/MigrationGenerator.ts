@@ -200,7 +200,7 @@ function resolveMigrationImportBlock(migrationsPath: string): string {
       const pkgRaw = FileGenerator.readFile(packageJsonPath);
       const pkg = JSON.parse(pkgRaw) as { name?: unknown };
       if (pkg.name === '@zintrust/core') {
-        return `import type { IDatabase } from '@orm/Database';\nimport { Schema as MigrationSchema, type Blueprint } from '@/migrations/schema';`;
+        return `import type { IDatabase } from '@orm/Database';\nimport { Schema as MigrationSchema, type Blueprint } from '@migrations/schema';`;
       }
     } catch {
       // fall through

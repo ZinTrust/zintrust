@@ -1,5 +1,6 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+import { ColumnType as ColumnTypeName, SchOther } from '@migrations/enum';
 import type {
   Blueprint,
   ColumnBuilder,
@@ -10,7 +11,7 @@ import type {
   ForeignKeyDefinition,
   IndexDefinition,
   TableDefinition,
-} from '@/migrations/schema/types';
+} from '@migrations/schema/types';
 
 const IDENT_RE = /^[A-Za-z_]\w*$/;
 
@@ -62,7 +63,7 @@ function createColumnBuilder(def: ColumnDefinition): ColumnBuilder {
 }
 
 function createForeignKeyBuilder(columns: string[], name?: string): ForeignKeyBuilder {
-  for (const c of columns) assertIdentifier('column', c);
+  for (const c of columns) assertIdentifier(SchOther.COLUMN, c);
 
   const fk: Partial<ForeignKeyDefinition> = {
     name: name ?? `fk_${columns.join('_')}`,
@@ -133,7 +134,7 @@ function addColumn(
   type: ColumnType,
   length?: number
 ): ColumnBuilder {
-  assertIdentifier('column', name);
+  assertIdentifier(SchOther.COLUMN, name);
   const def: ColumnDefinition = {
     name,
     type,
@@ -164,37 +165,38 @@ function buildDefinition(state: BlueprintState): TableDefinition {
 
 function createBlueprintApi(state: BlueprintState): Blueprint {
   const api: Blueprint = {
-    string: (name, length = 255) => addColumn(state, name, 'STRING', length),
-    integer: (name) => addColumn(state, name, 'INTEGER'),
-    bigInteger: (name) => addColumn(state, name, 'INTEGER').unsigned(),
-    real: (name) => addColumn(state, name, 'REAL'),
-    boolean: (name) => addColumn(state, name, 'BOOLEAN'),
-    text: (name) => addColumn(state, name, 'TEXT'),
-    json: (name) => addColumn(state, name, 'JSON'),
-    timestamp: (name) => addColumn(state, name, 'TIMESTAMP'),
-    blob: (name) => addColumn(state, name, 'BLOB'),
+    string: (name, length = 255) => addColumn(state, name, ColumnTypeName.STRING, length),
+    integer: (name) => addColumn(state, name, ColumnTypeName.INTEGER),
+    bigInteger: (name) => addColumn(state, name, ColumnTypeName.BIGINT).unsigned(),
+    uuid: (name) => addColumn(state, name, ColumnTypeName.UUID),
+    real: (name) => addColumn(state, name, ColumnTypeName.REAL),
+    boolean: (name) => addColumn(state, name, ColumnTypeName.BOOLEAN),
+    text: (name) => addColumn(state, name, ColumnTypeName.TEXT),
+    json: (name) => addColumn(state, name, ColumnTypeName.JSON),
+    timestamp: (name) => addColumn(state, name, ColumnTypeName.TIMESTAMP),
+    blob: (name) => addColumn(state, name, ColumnTypeName.BLOB),
+    id: (name = SchOther.ID) =>
+      addColumn(state, name, ColumnTypeName.INTEGER).primary().autoIncrement(),
 
-    id: (name = 'id') => addColumn(state, name, 'INTEGER').primary().autoIncrement(),
-
-    timestamps: (createdAt = 'created_at', updatedAt = 'updated_at') => {
-      api.timestamp(createdAt).notNullable().default('CURRENT_TIMESTAMP');
-      api.timestamp(updatedAt).notNullable().default('CURRENT_TIMESTAMP');
+    timestamps: (createdAt = SchOther.CREATED_AT, updatedAt = SchOther.UPDATED_AT) => {
+      api.timestamp(createdAt).notNullable().default(ColumnTypeName.CURRENT_TIMESTAMP);
+      api.timestamp(updatedAt).notNullable().default(ColumnTypeName.CURRENT_TIMESTAMP);
     },
 
     index: (cols, name) => {
       const arr = Array.isArray(cols) ? cols : [cols];
-      for (const c of arr) assertIdentifier('column', c);
+      for (const c of arr) assertIdentifier(SchOther.COLUMN, c);
       const indexName = name ?? `idx_${state.tableName}_${arr.join('_')}`;
-      assertIdentifier('index', indexName);
-      state.indexes.push({ name: indexName, columns: arr, type: 'INDEX' });
+      assertIdentifier(SchOther.INDEX, indexName);
+      state.indexes.push({ name: indexName, columns: arr, type: ColumnTypeName.INDEX });
     },
 
     unique: (cols, name) => {
       const arr = Array.isArray(cols) ? cols : [cols];
-      for (const c of arr) assertIdentifier('column', c);
+      for (const c of arr) assertIdentifier(SchOther.COLUMN, c);
       const indexName = name ?? `uniq_${state.tableName}_${arr.join('_')}`;
-      assertIdentifier('index', indexName);
-      state.indexes.push({ name: indexName, columns: arr, type: 'UNIQUE' });
+      assertIdentifier(SchOther.INDEX, indexName);
+      state.indexes.push({ name: indexName, columns: arr, type: ColumnTypeName.UNIQUE });
     },
 
     foreign: (cols, name) => {
@@ -205,17 +207,17 @@ function createBlueprintApi(state: BlueprintState): Blueprint {
     },
 
     dropColumn: (name) => {
-      assertIdentifier('column', name);
+      assertIdentifier(SchOther.COLUMN, name);
       state.dropColumns.push(name);
     },
 
     dropIndex: (name) => {
-      assertIdentifier('index', name);
+      assertIdentifier(SchOther.INDEX, name);
       state.dropIndexes.push(name);
     },
 
     dropForeign: (name) => {
-      assertIdentifier('foreign key', name);
+      assertIdentifier(SchOther.FOREIGN_KEY, name);
       state.dropForeignKeys.push(name);
     },
 
@@ -230,7 +232,7 @@ function createBlueprintApi(state: BlueprintState): Blueprint {
 
 export const MigrationBlueprint = Object.freeze({
   create(tableName: string): Blueprint {
-    assertIdentifier('table', tableName);
+    assertIdentifier(SchOther.TABLE, tableName);
 
     const state = createState(tableName);
     return createBlueprintApi(state);

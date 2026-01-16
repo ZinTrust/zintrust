@@ -3,6 +3,8 @@
  * Defines contract for different database implementations
  */
 
+import type { SupportedDriver } from '@migrations/enum';
+
 /**
  * Minimal D1 Database interface for type safety
  */
@@ -18,7 +20,7 @@ export interface ID1Database {
 
 export interface DatabaseConfig {
   d1?: ID1Database;
-  driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1' | 'd1-remote';
+  driver: SupportedDriver;
   database?: string;
   host?: string;
   port?: number;
@@ -92,7 +94,7 @@ export interface IDatabaseAdapter {
   /**
    * Get database type
    */
-  getType(): string;
+  getType(): SupportedDriver;
 
   /**
    * Check connection status
@@ -123,9 +125,27 @@ export const BaseAdapter = Object.freeze({
     if (typeof value === 'boolean') {
       return value ? '1' : '0';
     }
+    // Support BigInt explicitly to avoid JSON.stringify errors and driver issues
+    if (typeof value === 'bigint') {
+      return String(value);
+    }
+    // Dates should be passed as ISO strings
+    if (value instanceof Date) {
+      return `'${value.toISOString()}'`;
+    }
     if (typeof value === 'number') {
       return String(value);
     }
+    // Buffer / Uint8Array -> base64 string
+    // Some DB adapters expect binary types; returning base64-encoded string is a safe default
+    // and prevents JSON.stringify(BigInt) errors when objects include BigInt.
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
+      return `'${value.toString('base64')}'`;
+    }
+    if (value instanceof Uint8Array) {
+      return `'${Buffer.from(value).toString('base64')}'`;
+    }
+
     // For objects, convert to JSON string representation
     return `'${JSON.stringify(value).replaceAll("'", "''")}'`;
   },

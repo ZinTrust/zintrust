@@ -6,6 +6,7 @@
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
@@ -81,8 +82,8 @@ function createMySQLAdapterInstance(config: DatabaseConfig, state: AdapterState)
       }
     },
 
-    getType(): string {
-      return 'mysql';
+    getType(): SupportedDriver {
+      return AdaptersEnum.mysql;
     },
     isConnected(): boolean {
       return state.connected;

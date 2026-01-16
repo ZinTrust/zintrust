@@ -14,6 +14,14 @@
 At runtime, ZinTrust automatically registers all configured connections during application boot.
 That means once the app has booted, you can use those names with `Model.db('name')` (or `useDatabase(undefined, 'name')`).
 
+## Aurora Data API
+
+If you set `DB_CONNECTION=aurora-data-api`, install `@zintrust/client-rds-data` and configure these env vars:
+
+- `AURORA_RESOURCE_ARN` (required)
+- `AURORA_SECRET_ARN` (required)
+- `AURORA_DATABASE` (optional; defaults to `DB_DATABASE`)
+
 ## Example: two MySQL pools (`mysql2` and `mysql3`)
 
 Yes — a developer can do this in `src/config/database.ts`:

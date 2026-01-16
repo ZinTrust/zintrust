@@ -71,7 +71,7 @@ export type { IDateTime } from '@time/DateTime';
 // Migrations
 // Note: `Schema` is already exported by Validation. We expose the migration schema runtime
 // as `MigrationSchema` to avoid name collisions.
-export { Schema as MigrationSchema, type Blueprint } from '@/migrations/schema';
+export { Schema as MigrationSchema, type Blueprint } from '@migrations/schema';
 
 // Adapter registry (for external adapter packages)
 export { OpenApiGenerator } from '@/openapi/OpenApiGenerator';

@@ -1,6 +1,6 @@
-export { MigrationBlueprint } from '@/migrations/schema/Blueprint';
-export { Schema } from '@/migrations/schema/Schema';
-export { MigrationSchemaCompiler } from '@/migrations/schema/SchemaCompiler';
+export { MigrationBlueprint } from '@migrations/schema/Blueprint';
+export { Schema } from '@migrations/schema/Schema';
+export { MigrationSchemaCompiler } from '@migrations/schema/SchemaCompiler';
 export type {
   Blueprint,
   BlueprintCallback,
@@ -14,4 +14,4 @@ export type {
   IndexType,
   SchemaBuilder,
   TableDefinition,
-} from '@/migrations/schema/types';
+} from '@migrations/schema/types';

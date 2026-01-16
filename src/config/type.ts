@@ -466,3 +466,16 @@ export type BroadcastConfigInput = {
   default: string;
   drivers: BroadcastDrivers;
 };
+
+export const PackageTyps = {
+  Broadcast: 'Broadcast',
+  Cache: 'Cache',
+  Database: 'Database',
+  Mail: 'Mail',
+  Middleware: 'Middleware',
+  Notification: 'Notification',
+  Queue: 'Queue',
+  Storage: 'Storage',
+} as const;
+
+export type SupportedPackageTyps = keyof typeof PackageTyps;

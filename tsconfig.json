@@ -17,6 +17,7 @@
       "@orm/*": ["./src/orm/*"],
       "@utils/*": ["./src/utils/*"],
       "@routing/*": ["./src/routing/*"],
+      "@migrations/*": ["./src/migrations/*"],
       "@middleware/*": ["./src/middleware/*"],
       "@container/*": ["./src/container/*"],
       "@http/*": ["./src/http/*"],

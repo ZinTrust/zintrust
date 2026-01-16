@@ -11,11 +11,13 @@ import * as path from '@node-singletons/path';
 export type FieldType =
   | 'string'
   | 'integer'
+  | 'bigint'
   | 'float'
   | 'boolean'
   | 'text'
   | 'datetime'
   | 'json'
+  | 'uuid'
   | '';
 
 export interface ModelField {
@@ -187,11 +189,20 @@ function buildCasts(fields?: ModelField[]): string {
   if (fields === undefined) return '';
 
   const casts = fields
-    .filter((f) => f.type === 'boolean' || f.type === 'json' || f.type === 'datetime')
+    .filter(
+      (f) =>
+        f.type === 'boolean' ||
+        f.type === 'json' ||
+        f.type === 'datetime' ||
+        f.type === 'bigint' ||
+        f.type === 'uuid'
+    )
     .map((f) => {
       const castType = ((): string => {
         if (f.type === 'boolean') return "'boolean'";
         if (f.type === 'json') return "'json'";
+        if (f.type === 'bigint') return "'bigint'";
+        if (f.type === 'uuid') return "'uuid'";
         return "'datetime'";
       })();
       return `    ${f.name}: ${castType},`;
@@ -264,7 +275,7 @@ function buildSoftDelete(softDelete?: boolean): string {
  * Get common field types
  */
 export function getCommonFieldTypes(): FieldType[] {
-  return ['string', 'integer', 'float', 'boolean', 'text', 'datetime', 'json'];
+  return ['string', 'integer', 'bigint', 'float', 'boolean', 'text', 'datetime', 'json', 'uuid'];
 }
 
 /**

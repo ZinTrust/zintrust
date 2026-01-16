@@ -8,6 +8,7 @@ import { databaseConfig } from '@config/database';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { performance } from '@node-singletons/perf-hooks';
@@ -292,8 +293,8 @@ function createSQLiteAdapter(config: DatabaseConfig): IDatabaseAdapter {
       await adapter.query('PRAGMA foreign_keys = ON', []);
     },
 
-    getType(): string {
-      return 'sqlite';
+    getType(): SupportedDriver {
+      return AdaptersEnum.sqlite;
     },
 
     isConnected(): boolean {
