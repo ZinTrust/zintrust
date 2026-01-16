@@ -6,13 +6,18 @@ ZinTrust features a powerful, zero-dependency ORM that provides a clean, ActiveR
 
 - [Interface Reference](#interface-reference)
 - [Model Definition](#model-definition)
+- [Multi-Database Support](#multi-database-support)
+- [Querying](#querying)
 - [Relationships](#relationships)
+  - [Basic Relationships](#basic-relationships)
+  - [Loading Relationships](#loading-relationships)
+  - [Advanced Relationships](#advanced-relationships)
+- [Persistence](#persistence)
 - [Soft Deletes](#soft-deletes)
 - [Attribute Casting](#attribute-casting)
 - [Accessors & Mutators](#accessors--mutators)
 - [Model Observers](#model-observers)
 - [Query Scopes](#query-scopes)
-- [Multi-Database Support](#multi-database-support)
 - [Best Practices](#best-practices)
 
 ## Interface Reference
@@ -209,9 +214,37 @@ const activeUsers = await User.query().where('is_active', true).where('age', '>'
 
 ### Relationships
 
-ZinTrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and `BelongsToMany`.
+ZinTrust supports standard relationships: `HasOne`, `HasMany`, `BelongsTo`, and `BelongsToMany`, as well as advanced relationships like polymorphic relations and through relations.
 
-#### HasMany
+#### Basic Relationships
+
+##### HasOne
+
+One-to-one relationship (e.g., User has one Profile):
+
+```typescript
+import { Profile } from '@app/Models/Profile';
+import { IModel, Model } from '@zintrust/core';
+
+export const User = Model.define(
+  {
+    table: 'users',
+    fillable: ['name', 'email'],
+    hidden: [],
+    timestamps: true,
+    casts: {},
+  },
+  {
+    profile(model: IModel) {
+      return model.hasOne(Profile);
+    },
+  }
+);
+```
+
+##### HasMany
+
+One-to-many relationship (e.g., User has many Posts):
 
 ```typescript
 import { Post } from '@app/Models/Post';
@@ -220,7 +253,7 @@ import { IModel, Model } from '@zintrust/core';
 export const User = Model.define(
   {
     table: 'users',
-    fillable: [],
+    fillable: ['name', 'email'],
     hidden: [],
     timestamps: true,
     casts: {},
@@ -233,7 +266,33 @@ export const User = Model.define(
 );
 ```
 
-#### BelongsToMany (Pivot Tables)
+##### BelongsTo
+
+Inverse of HasOne/HasMany (e.g., Post belongs to User):
+
+```typescript
+import { User } from '@app/Models/User';
+import { IModel, Model } from '@zintrust/core';
+
+export const Post = Model.define(
+  {
+    table: 'posts',
+    fillable: ['title', 'content', 'user_id'],
+    hidden: [],
+    timestamps: true,
+    casts: {},
+  },
+  {
+    user(model: IModel) {
+      return model.belongsTo(User);
+    },
+  }
+);
+```
+
+##### BelongsToMany (Pivot Tables)
+
+Many-to-many relationship (e.g., Post has many Tags, Tag has many Posts):
 
 ```typescript
 import { Tag } from '@app/Models/Tag';
@@ -242,7 +301,7 @@ import { IModel, Model } from '@zintrust/core';
 export const Post = Model.define(
   {
     table: 'posts',
-    fillable: [],
+    fillable: ['title', 'content'],
     hidden: [],
     timestamps: true,
     casts: {},
@@ -256,6 +315,61 @@ export const Post = Model.define(
 ```
 
 By default, ZinTrust will look for a pivot table named by joining the two table names in alphabetical order (e.g., `posts_tags`).
+
+#### Loading Relationships
+
+##### Lazy Loading
+
+Load relationships after fetching the model:
+
+```typescript
+const user = await User.find(1);
+await User.query().load([user], 'posts');
+const posts = user.getAttribute('posts') as IModel[];
+```
+
+##### Eager Loading
+
+Load relationships with the initial query to avoid N+1 problems:
+
+```typescript
+const users = await User.query().with('posts').get<IModel>();
+
+// Each user will have posts loaded
+users.forEach((user) => {
+  const posts = user.getAttribute('posts') as IModel[];
+  console.log(`${user.getAttribute('name')} has ${posts.length} posts`);
+});
+```
+
+##### Constrained Eager Loading
+
+Apply filters when eager loading:
+
+```typescript
+const users = await User.query()
+  .with('posts', (query) => {
+    query.where('status', 'published').orderBy('created_at', 'desc').limit(5);
+  })
+  .get<IModel>();
+```
+
+##### Relationship Counts
+
+Count related records without loading them:
+
+```typescript
+const users = await User.query().withCount('posts').get<IModel>();
+
+users.forEach((user) => {
+  const postCount = user.getAttribute('posts_count');
+  console.log(`${user.getAttribute('name')} has ${postCount} posts`);
+});
+```
+
+#### Advanced Relationships
+
+For polymorphic relations (morphOne, morphMany, morphTo) and through relations (hasManyThrough, hasOneThrough), see the [Advanced ORM Relationships Guide](./orm-advanced-relationships.md).
 
 ## Persistence
 

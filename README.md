@@ -156,6 +156,7 @@ See [docs/](docs/) for comprehensive guides on:
 
 - [Getting Started](docs/getting-started.md)
 - [Models & ORM](docs/models.md)
+- [Advanced ORM Relationships](docs/orm-advanced-relationships.md)
 - [Query Builder](docs/query-builder.md)
 - [Routing](docs/routing.md)
 - [Middleware](docs/middleware.md)
