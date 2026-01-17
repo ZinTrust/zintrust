@@ -13,8 +13,8 @@ export default {
   basePath: Env.get('QUEUE_MONITOR_BASE_PATH', '/queue-monitor'),
   middleware: Env.get('QUEUE_MONITOR_MIDDLEWARE', 'auth')
     .split(',')
-    .map((m) => m.trim())
-    .filter((m) => m.length > 0),
+    .map((m: string) => m.trim())
+    .filter((m: string | string[]) => m.length > 0),
   redis: {
     host: Env.get('REDIS_HOST', 'localhost'),
     port: Env.getInt('REDIS_PORT', 6379),

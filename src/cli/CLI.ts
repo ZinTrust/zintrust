@@ -24,6 +24,7 @@ import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
+import { PublishCommand } from '@cli/commands/PublishCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
@@ -101,6 +102,7 @@ const registerCommands = (program: Command): void => {
     SecretsCommand.create(),
     ConfigCommand.create(),
     PluginCommand.create(),
+    PublishCommand.create(),
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
