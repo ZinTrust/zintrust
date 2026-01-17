@@ -72,7 +72,7 @@ export const PublishCommand = Object.freeze({
         const cwd = process.cwd();
 
         if (options['queueMonitor'] !== undefined && options['queueMonitor'] !== null) {
-          await publishQueueMonitorConfig(cwd);
+          await publishQueueMonitorConfig(cwd); //NOSONAR
         } else {
           Logger.warn('Please specify a configuration to publish (e.g., --queue-monitor)');
         }

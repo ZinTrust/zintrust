@@ -14,6 +14,13 @@ export type QueueConfigOverrides = Partial<{
   drivers: Partial<QueueDriversConfig>;
   failed: { database: string; table: string };
   processing: { timeout: number; retries: number; backoff: number; workers: number };
+  monitor: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  };
 }>;
 
 const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
@@ -21,49 +28,81 @@ const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[Queu
   return config.drivers[driverName];
 };
 
+/**
+ * Helper: Create base driver configurations from environment
+ */
+const createBaseDrivers = (): QueueDriversConfig => ({
+  sync: {
+    driver: 'sync' as const,
+  },
+  database: {
+    driver: 'database' as const,
+    table: Env.get('QUEUE_TABLE', 'jobs'),
+    connection: Env.get('QUEUE_DB_CONNECTION', 'default'),
+  },
+  redis: {
+    driver: 'redis' as const,
+    host: Env.get('REDIS_HOST', 'localhost'),
+    port: Env.getInt('REDIS_PORT', 6379),
+    password: Env.get('REDIS_PASSWORD'),
+    database: Env.getInt('REDIS_QUEUE_DB', 1),
+  },
+  rabbitmq: {
+    driver: 'rabbitmq' as const,
+    host: Env.get('RABBITMQ_HOST', 'localhost'),
+    port: Env.getInt('RABBITMQ_PORT', 5672),
+    username: Env.get('RABBITMQ_USER', 'guest'),
+    password: Env.get('RABBITMQ_PASSWORD', 'guest'),
+    vhost: Env.get('RABBITMQ_VHOST', '/'),
+  },
+  sqs: {
+    driver: 'sqs' as const,
+    key: Env.get('AWS_ACCESS_KEY_ID'),
+    secret: Env.get('AWS_SECRET_ACCESS_KEY'),
+    region: Env.AWS_REGION,
+    queueUrl: Env.get('AWS_SQS_QUEUE_URL'),
+  },
+});
+
+/**
+ * Helper: Create monitor configuration from environment
+ */
+const createBaseMonitor = (): {
+  enabled: boolean;
+  basePath: string;
+  middleware: ReadonlyArray<string>;
+  autoRefresh: boolean;
+  refreshIntervalMs: number;
+} => ({
+  enabled: Env.getBool('QUEUE_MONITOR_ENABLED', true),
+  basePath: Env.get('QUEUE_MONITOR_BASE_PATH', '/queue-monitor'),
+  middleware: Env.get('QUEUE_MONITOR_MIDDLEWARE', '')
+    .split(',')
+    .map((m: string) => m.trim())
+    .filter((m: string | string[]) => m.length > 0) as ReadonlyArray<string>,
+  autoRefresh: Env.getBool('QUEUE_MONITOR_AUTO_REFRESH', true),
+  refreshIntervalMs: Env.getInt('QUEUE_MONITOR_REFRESH_MS', 5000),
+});
+
 const createQueueConfig = (): {
   default: QueueDriverName;
   drivers: QueueDriversConfig;
   getDriver: (this: QueueConfigWithDrivers) => QueueDriversConfig[QueueDriverName];
   failed: { database: string; table: string };
   processing: { timeout: number; retries: number; backoff: number; workers: number };
+  monitor: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  };
 } => {
   const overrides: QueueConfigOverrides =
     StartupConfigFileRegistry.get<QueueConfigOverrides>(StartupConfigFile.Queue) ?? {};
 
   const baseDefault = Env.get('QUEUE_DRIVER', 'sync') as QueueDriverName;
-  const baseDrivers = {
-    sync: {
-      driver: 'sync' as const,
-    },
-    database: {
-      driver: 'database' as const,
-      table: Env.get('QUEUE_TABLE', 'jobs'),
-      connection: Env.get('QUEUE_DB_CONNECTION', 'default'),
-    },
-    redis: {
-      driver: 'redis' as const,
-      host: Env.get('REDIS_HOST', 'localhost'),
-      port: Env.getInt('REDIS_PORT', 6379),
-      password: Env.get('REDIS_PASSWORD'),
-      database: Env.getInt('REDIS_QUEUE_DB', 1),
-    },
-    rabbitmq: {
-      driver: 'rabbitmq' as const,
-      host: Env.get('RABBITMQ_HOST', 'localhost'),
-      port: Env.getInt('RABBITMQ_PORT', 5672),
-      username: Env.get('RABBITMQ_USER', 'guest'),
-      password: Env.get('RABBITMQ_PASSWORD', 'guest'),
-      vhost: Env.get('RABBITMQ_VHOST', '/'),
-    },
-    sqs: {
-      driver: 'sqs' as const,
-      key: Env.get('AWS_ACCESS_KEY_ID'),
-      secret: Env.get('AWS_SECRET_ACCESS_KEY'),
-      region: Env.AWS_REGION,
-      queueUrl: Env.get('AWS_SQS_QUEUE_URL'),
-    },
-  } satisfies QueueDriversConfig;
+  const baseDrivers = createBaseDrivers();
 
   const baseFailed = {
     database: Env.get('FAILED_JOBS_DB_CONNECTION', 'default'),
@@ -77,16 +116,18 @@ const createQueueConfig = (): {
     workers: Env.getInt('QUEUE_WORKERS', 1),
   };
 
+  const baseMonitor = createBaseMonitor();
+
   const mergedDrivers = {
     ...baseDrivers,
-    ...(overrides.drivers ?? {}),
+    ...overrides.drivers,
   } satisfies QueueDriversConfig;
 
   const queueConfigObj = {
     /**
      * Default queue driver
      */
-    default: (overrides.default ?? baseDefault) as QueueDriverName,
+    default: overrides.default ?? baseDefault,
 
     /**
      * Queue drivers
@@ -105,7 +146,7 @@ const createQueueConfig = (): {
      */
     failed: {
       ...baseFailed,
-      ...(overrides.failed ?? {}),
+      ...overrides.failed,
     },
 
     /**
@@ -113,7 +154,15 @@ const createQueueConfig = (): {
      */
     processing: {
       ...baseProcessing,
-      ...(overrides.processing ?? {}),
+      ...overrides.processing,
+    },
+
+    /**
+     * Queue Monitor settings
+     */
+    monitor: {
+      ...baseMonitor,
+      ...overrides.monitor,
     },
   };
 

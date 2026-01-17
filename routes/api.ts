@@ -1,23 +1,22 @@
-import { Logger } from '@config/logger';
 /**
  * Example Routes
  * Demonstrates routing patterns
  */
 
 import { AuthController } from '@app/Controllers/AuthController';
+import { TestController } from '@app/Controllers/TestController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+// import { registerDevRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
-import queueMonitorConfig from 'config/queueMonitor';
-import QueueMonitor from 'packages/queue-monitor/src/';
 
 export function registerRoutes(router: IRouter): void {
   const authController = AuthController.create();
@@ -25,16 +24,7 @@ export function registerRoutes(router: IRouter): void {
   registerPublicRoutes(router);
   registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
-
-  // Test Queue Monitor
-  if (queueMonitorConfig.enabled !== false) {
-    const monitor = QueueMonitor.create(queueMonitorConfig);
-
-    monitor.registerRoutes(router);
-    Logger.info(
-      `Queue Monitor routes registered http://${Env.HOST}:${Env.PORT}${queueMonitorConfig.basePath}`
-    );
-  }
+  // registerDevRoutes(router);
 }
 
 /**
@@ -58,6 +48,36 @@ function registerRootRoute(router: IRouter): void {
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
     });
+  });
+}
+
+/**
+ * Register test routes for queue monitor
+ */
+function registerTestRoutes(router: IRouter): void {
+  Router.post(router, '/test/enqueue', async (req: IRequest, res: IResponse) => {
+    const c = TestController.create();
+    await c.enqueue(req, res);
+  });
+
+  Router.post(router, '/test/populate-all', async (req: IRequest, res: IResponse) => {
+    const c = TestController.create();
+    await c.populateAll(req, res);
+  });
+
+  Router.post(router, '/test/worker/start', async (req: IRequest, res: IResponse) => {
+    const c = TestController.create();
+    await c.workerStart(req, res);
+  });
+
+  Router.post(router, '/test/worker/stop', async (req: IRequest, res: IResponse) => {
+    const c = TestController.create();
+    await c.workerStop(req, res);
+  });
+
+  Router.get(router, '/test/worker/status', async (req: IRequest, res: IResponse) => {
+    const c = TestController.create();
+    await c.workerStatus(req, res);
   });
 }
 
@@ -111,6 +131,8 @@ function registerApiV1Routes(
     Router.post<MiddlewareKey>(pr, '/users/fill', userController.fill, {
       middleware: ['auth', 'jwt', 'fillRateLimit', 'validateUserFill'],
     });
+
+    registerTestRoutes(pr);
 
     // If the controller exposes create/edit, wire them explicitly.
     Router.get<MiddlewareKey>(pr, '/users/create', userController.create, {

@@ -3,7 +3,7 @@ export type DashboardUiOptions = {
   refreshIntervalMs: number;
 };
 
-const getDashboardStyles = (): string => `
+const getRootAndThemeVariables = (): string => `
 :root {
     --bg: #0b1220;
     --card: rgba(15, 23, 42, 0.65);
@@ -26,8 +26,9 @@ html[data-theme="light"] {
     --accent2: #0f172a;
     --danger: #dc2626;
     --success: #16a34a;
-}
+}`;
 
+const getLogoAndLayoutStyles = (): string => `
 .logo-frame {
   width: 34px;
   height: 34px;
@@ -64,9 +65,9 @@ body {
     background: var(--card);
     border-radius: 12px;
     padding: 20px;
-}
+}`;
 
-/* Dashboard Specific Styles */
+const getDashboardComponentStyles = (): string => `
 header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .brand { display: flex; gap: 12px; align-items: center; }
 .brand b { font-size: 16px; color: var(--text); display: block; }
@@ -81,21 +82,46 @@ th { color: var(--muted); font-size: 11px; text-transform: uppercase; font-weigh
 tr:last-child td { border-bottom: none; }
 
 .stat-value { font-size: 28px; font-weight: 800; color: var(--text); margin-top: 8px; line-height: 1; }
-.stat-label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }`;
 
+const getStatusBadgeStyles = (): string => `
 .status-badge { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; letter-spacing: 0.02em; }
 .status-completed { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
 .status-failed { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+.status-active { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); }
+.status-waiting { background: rgba(250, 204, 21, 0.1); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.2); }
+.status-delayed { background: rgba(168, 85, 247, 0.1); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.2); }
+.status-paused { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }`;
 
+const getInteractiveStyles = (): string => `
 .refresh-btn { background: rgba(255,255,255,0.03); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
 .refresh-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--muted); }
 
 html[data-theme="light"] .refresh-btn { background: rgba(2, 132, 199, 0.08); }
 html[data-theme="light"] .refresh-btn:hover { background: rgba(2, 132, 199, 0.16); }
 
+.retry-btn { background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 600; transition: all 0.2s; }
+.retry-btn:hover { background: rgba(59, 130, 246, 0.2); transform: scale(1.05); }
+.retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 #error-container { display: none; margin-bottom: 2rem; padding: 1rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; font-size: 13px; font-weight: 600; }
 code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: var(--accent); border: 1px solid var(--border); }
-`;
+
+.stat-header { display: flex; align-items: center; gap: 6px; }
+.info-icon { width: 16px; height: 16px; border-radius: 50%; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; cursor: help; transition: all 0.2s; }
+.info-icon:hover { background: rgba(59, 130, 246, 0.3); transform: scale(1.1); }
+.tooltip { position: fixed; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 13px; line-height: 1.6; color: var(--text); box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; max-width: 320px; display: none; }
+.tooltip.show { display: block; }
+.tooltip-title { font-weight: 700; color: var(--accent); margin-bottom: 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }`;
+
+const getDashboardStyles = (): string =>
+  [
+    getRootAndThemeVariables(),
+    getLogoAndLayoutStyles(),
+    getDashboardComponentStyles(),
+    getStatusBadgeStyles(),
+    getInteractiveStyles(),
+  ].join('\n');
 
 const getDashboardBody = (): string => `
     <div class="page">
@@ -141,7 +167,7 @@ const getDashboardBody = (): string => `
             <div class="tile" style="margin-top: 24px; padding: 0;">
                 <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);">
                     <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Recent Jobs</h3>
-                    <select id="queue-select" onchange="fetchData()">
+                    <select id="queue-select">
                         <!-- Queues inserted here -->
                     </select>
                 </div>
@@ -155,6 +181,7 @@ const getDashboardBody = (): string => `
                                 <th>Status</th>
                                 <th>Attempts</th>
                                 <th>Time</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -173,7 +200,8 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => String.
                 : window.location.pathname;
         const THEME_KEY = 'zintrust-queue-monitor-theme';
         const AUTO_REFRESH_KEY = 'zintrust-queue-monitor-auto-refresh';
-        let currentQueue = 'default';
+        const QUEUE_KEY = 'zintrust-queue-monitor-selected-queue';
+        let currentQueue = localStorage.getItem(QUEUE_KEY) || 'default';
         let autoRefreshEnabled = AUTO_REFRESH;
         let refreshTimer = null;
         let currentTheme = null;
@@ -241,6 +269,189 @@ const getDashboardScriptAutoRefresh = (): string => `
         }
 `;
 
+const getRenderStatsFunction = (): string => `
+        function renderStats(data) {
+            const grid = document.getElementById('stats-grid');
+            grid.innerHTML = '';
+
+            const totalActive = data.queues.reduce((acc, q) => acc + q.counts.active, 0);
+            const totalFailed = data.queues.reduce((acc, q) => acc + q.counts.failed, 0);
+            const totalDelayed = data.queues.reduce((acc, q) => acc + q.counts.delayed, 0);
+            const totalWaiting = data.queues.reduce((acc, q) => acc + q.counts.waiting, 0);
+
+            const cards = [
+                {
+                    label: 'Active Jobs',
+                    value: totalActive,
+                    info: 'Jobs currently being processed by workers. These are picked up from the waiting queue and are actively running.'
+                },
+                {
+                    label: 'Failed Jobs',
+                    value: totalFailed,
+                    color: totalFailed > 0 ? '#f87171' : null,
+                    info: 'Jobs that threw an error during processing and exceeded retry attempts. Check error logs for details.'
+                },
+                {
+                    label: 'Delayed',
+                    value: totalDelayed,
+                    info: 'Jobs scheduled to run at a future time. They will move to waiting queue when their delay time expires.'
+                },
+                {
+                    label: 'Waiting',
+                    value: totalWaiting,
+                    color: totalWaiting > 0 ? '#facc15' : null,
+                    info: 'Jobs ready to be processed, waiting for available workers to pick them up from the queue.'
+                },
+                {
+                    label: 'Queues',
+                    value: data.queues.length,
+                    info: 'Total number of active job queues in Redis. Each queue can process different types of jobs independently.'
+                }
+            ];
+
+            cards.forEach(card => {
+                const div = document.createElement('div');
+                div.className = 'tile';
+                const infoIcon = '<span class="info-icon" data-info="' + card.info + '">i</span>';
+                div.innerHTML =
+                    '<div class="stat-header">' +
+                    '<div class="stat-label">' + card.label + '</div>' +
+                    infoIcon +
+                    '</div>' +
+                    '<div class="stat-value" style="' + (card.color ? 'color:' + card.color : '') + '">' +
+                    card.value +
+                    '</div>';
+                grid.appendChild(div);
+            });
+
+            document.querySelectorAll('.info-icon').forEach(icon => {
+                icon.addEventListener('mouseenter', showTooltip);
+                icon.addEventListener('mouseleave', hideTooltip);
+            });
+        }`;
+
+const getUpdateQueueSelectFunction = (): string => `
+        function updateQueueSelect(queues) {
+            const select = document.getElementById('queue-select');
+            const currentSelection = select.value || currentQueue;
+            select.innerHTML = '';
+
+            if (queues.length === 0) return;
+
+            queues.forEach(q => {
+                const opt = document.createElement('option');
+                opt.value = q.name;
+                opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting)';
+                opt.selected = q.name === currentSelection;
+                select.appendChild(opt);
+            });
+        }`;
+
+const getRenderJobsFunction = (): string => `
+        function renderJobs(jobs) {
+            const tbody = document.querySelector('#jobs-table tbody');
+            tbody.innerHTML = '';
+
+            if (!jobs || jobs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--muted)">No recent jobs found</td></tr>';
+                return;
+            }
+
+            jobs.forEach(job => {
+                const tr = document.createElement('tr');
+                const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
+                const statusMap = {
+                    failed: { label: 'Failed', cls: 'status-failed' },
+                    completed: { label: 'Completed', cls: 'status-completed' },
+                    active: { label: 'Active', cls: 'status-active' },
+                    waiting: { label: 'Waiting', cls: 'status-waiting' },
+                    delayed: { label: 'Delayed', cls: 'status-delayed' },
+                    paused: { label: 'Paused', cls: 'status-paused' }
+                };
+                const statusInfo = statusMap[status] || statusMap.completed;
+
+                const retryBtn = status === 'failed'
+                    ? '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ')" title="Retry this job">↻ Retry</button>'
+                    : '<span style="color: var(--muted); font-size: 11px;">—</span>';
+
+                tr.innerHTML =
+                    '<td><code>' + job.id + '</code></td>' +
+                    '<td>' + job.name + '</td>' +
+                    '<td>' + currentQueue + '</td>' +
+                    '<td><span class="status-badge ' +
+                    statusInfo.cls +
+                    '">' +
+                    statusInfo.label +
+                    '</span></td>' +
+                    '<td>' + job.attempts + '</td>' +
+                    '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>' +
+                    '<td>' + retryBtn + '</td>';
+                if (job.failedReason) {
+                    tr.title = job.failedReason;
+                }
+                tbody.appendChild(tr);
+            });
+        }`;
+
+const getErrorAndTooltipFunctions = (): string => `
+        function showError(msg) {
+            const el = document.getElementById('error-container');
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+
+        let tooltipEl = null;
+        function showTooltip(e) {
+            const info = e.target.getAttribute('data-info');
+            if (!info) return;
+
+            if (!tooltipEl) {
+                tooltipEl = document.createElement('div');
+                tooltipEl.className = 'tooltip';
+                document.body.appendChild(tooltipEl);
+            }
+
+            tooltipEl.textContent = info;
+            tooltipEl.classList.add('show');
+
+            const rect = e.target.getBoundingClientRect();
+            tooltipEl.style.left = Math.min(rect.left, window.innerWidth - tooltipEl.offsetWidth - 10) + 'px';
+            tooltipEl.style.top = (rect.bottom + 8) + 'px';
+        }
+
+        function hideTooltip() {
+            if (tooltipEl) {
+                tooltipEl.classList.remove('show');
+            }
+        }`;
+
+const getRetryJobFunction = (): string => `
+        async function retryJob(jobId) {
+            try {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.textContent = '⏳ Retrying...';
+
+                const res = await fetch(API_BASE + '/api/retry/' + currentQueue + '/' + jobId, {
+                    method: 'POST'
+                });
+
+                if (res.ok) {
+                    btn.textContent = '✓ Retried';
+                    setTimeout(() => {
+                        fetchJobs(currentQueue);
+                    }, 1000);
+                } else {
+                    btn.textContent = '✗ Failed';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                console.error('Retry failed', e);
+                event.target.textContent = '↻ Retry';
+                event.target.disabled = false;
+            }
+        }`;
+
 const getDashboardScriptFetch = (): string => `
         async function fetchData() {
             try {
@@ -255,6 +466,7 @@ const getDashboardScriptFetch = (): string => `
                 if (data.queues.length > 0) {
                      if (!data.queues.find(q => q.name === currentQueue)) {
                          currentQueue = data.queues[0].name;
+                         localStorage.setItem(QUEUE_KEY, currentQueue);
                      }
                      document.getElementById('queue-select').value = currentQueue;
                      await fetchJobs(currentQueue);
@@ -280,86 +492,14 @@ const getDashboardScriptFetch = (): string => `
         }
 `;
 
-const getDashboardScriptRender = (): string => `
-        function renderStats(data) {
-            const grid = document.getElementById('stats-grid');
-            grid.innerHTML = '';
-
-            const totalActive = data.queues.reduce((acc, q) => acc + q.counts.active, 0);
-            const totalFailed = data.queues.reduce((acc, q) => acc + q.counts.failed, 0);
-            const totalDelayed = data.queues.reduce((acc, q) => acc + q.counts.delayed, 0);
-
-            const cards = [
-                { label: 'Active Jobs', value: totalActive },
-                { label: 'Failed Jobs', value: totalFailed, color: totalFailed > 0 ? '#f87171' : null },
-                { label: 'Delayed', value: totalDelayed },
-                { label: 'Queues', value: data.queues.length }
-            ];
-
-            cards.forEach(card => {
-                const div = document.createElement('div');
-                div.className = 'tile';
-                div.innerHTML =
-                    '<div class="stat-label">' + card.label + '</div>' +
-                    '<div class="stat-value" style="' + (card.color ? 'color:' + card.color : '') + '">' +
-                    card.value +
-                    '</div>';
-                grid.appendChild(div);
-            });
-        }
-
-        function updateQueueSelect(queues) {
-            const select = document.getElementById('queue-select');
-            const currentSelection = select.value || currentQueue;
-            select.innerHTML = '';
-
-            if (queues.length === 0) return;
-
-            queues.forEach(q => {
-                const opt = document.createElement('option');
-                opt.value = q.name;
-                opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting)';
-                opt.selected = q.name === currentSelection;
-                select.appendChild(opt);
-            });
-        }
-
-        function renderJobs(jobs) {
-            const tbody = document.querySelector('#jobs-table tbody');
-            tbody.innerHTML = '';
-
-            if (!jobs || jobs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--muted)">No recent jobs found</td></tr>';
-                return;
-            }
-
-            jobs.forEach(job => {
-                const tr = document.createElement('tr');
-                const isFailed = !!job.failedReason;
-                tr.innerHTML =
-                    '<td><code>' + job.id + '</code></td>' +
-                    '<td>' + job.name + '</td>' +
-                    '<td>' + currentQueue + '</td>' +
-                    '<td><span class="status-badge ' +
-                    (isFailed ? 'status-failed' : 'status-completed') +
-                    '">' +
-                    (isFailed ? 'Failed' : 'Completed') +
-                    '</span></td>' +
-                    '<td>' + job.attempts + '</td>' +
-                    '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>';
-                if (isFailed) {
-                    tr.title = job.failedReason;
-                }
-                tbody.appendChild(tr);
-            });
-        }
-
-        function showError(msg) {
-            const el = document.getElementById('error-container');
-            el.textContent = msg;
-            el.style.display = 'block';
-        }
-`;
+const getDashboardScriptRender = (): string =>
+  [
+    getRenderStatsFunction(),
+    getUpdateQueueSelectFunction(),
+    getRenderJobsFunction(),
+    getErrorAndTooltipFunctions(),
+    getRetryJobFunction(),
+  ].join('\n');
 
 const getDashboardScriptBootstrap = (): string => `
         const themeButton = document.getElementById('theme-toggle');
@@ -370,6 +510,15 @@ const getDashboardScriptBootstrap = (): string => `
         const autoRefreshButton = document.getElementById('auto-refresh-toggle');
         if (autoRefreshButton) {
             autoRefreshButton.addEventListener('click', toggleAutoRefresh);
+        }
+
+        const queueSelect = document.getElementById('queue-select');
+        if (queueSelect) {
+            queueSelect.addEventListener('change', (e) => {
+                currentQueue = e.target.value;
+                localStorage.setItem(QUEUE_KEY, currentQueue);
+                fetchJobs(currentQueue);
+            });
         }
 
         const storedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);

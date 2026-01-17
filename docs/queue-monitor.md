@@ -8,6 +8,13 @@ The `@zintrust/queue-monitor` package provides a robust monitoring dashboard and
 zin add @zintrust/queue-monitor
 ```
 
+## When to use
+
+- ✅ Use `@zintrust/queue-monitor` if you need full queue management (enqueue + process + monitor + retry)
+- ✅✅ Use `@zintrust/queue-redis` if you only need to **enqueue jobs** and another service will process them
+
+**Note:** The monitor package can do everything queue-redis does, plus much more. So if you install `@zintrust/queue-monitor`, there's no need for `@zintrust/queue-redis`.
+
 ## Configuration
 
 Register the monitor in your application (e.g., in `src/index.ts` or a dedicated provider). You must provide a Redis configuration.
