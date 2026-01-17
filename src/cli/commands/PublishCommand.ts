@@ -5,7 +5,7 @@ import fs from '@node-singletons/fs';
 import path from '@node-singletons/path';
 import type { Command } from 'commander';
 
-const publishQueueMonitorConfig = async (cwd: string): Promise<void> => {
+const publishQueueMonitorConfig = (cwd: string): void => {
   const targetPath = path.join(cwd, 'config', 'queueMonitor.ts');
 
   if (fs.existsSync(targetPath)) {

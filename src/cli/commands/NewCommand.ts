@@ -10,6 +10,7 @@ import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { extractErrorMessage, resolvePackageManager } from '@common/index';
 import { appConfig } from '@config/app';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
@@ -253,8 +254,8 @@ const installDependencies = async (
   force: boolean = false
 ): Promise<void> => {
   // Respect CI by default — avoid network installs in CI unless explicitly allowed
-  const isCi = Boolean(process.env['CI']);
-  const allowAuto = process.env['ZINTRUST_ALLOW_AUTO_INSTALL'] === '1' || force;
+  const isCi = Boolean(Env.CI);
+  const allowAuto = Env.ZINTRUST_ALLOW_AUTO_INSTALL === '1' || force;
 
   if (isCi && !allowAuto) {
     log.info('Skipping automatic dependency installation in CI environment.');

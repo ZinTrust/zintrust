@@ -8,11 +8,12 @@
 import { execSync } from '@/node-singletons/child-process';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { esmDirname, resolvePackageManager } from '@common/index';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import type { PluginDefinition} from '@runtime/PluginRegistry';
+import type { PluginDefinition } from '@runtime/PluginRegistry';
 import { PluginRegistry } from '@runtime/PluginRegistry';
 
 const __dirname = esmDirname(import.meta.url);
@@ -34,10 +35,17 @@ function findPackageRoot(startDir: string): string {
   return path.resolve(startDir, '../..');
 }
 
+// Cache process values at module load time
+const projectCwd = process.cwd();
+const getProjectRootEnv = (): string => Env.ZINTRUST_PROJECT_ROOT;
+const getAllowPostInstallEnv = (): string => Env.ZINTRUST_ALLOW_POSTINSTALL.trim();
+
 function resolveProjectRoot(): string {
-  const fromEnv = process.env['ZINTRUST_PROJECT_ROOT'];
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) return fromEnv.trim();
-  return process.cwd();
+  const projectRootEnv = getProjectRootEnv();
+  if (projectRootEnv.trim().length > 0) {
+    return projectRootEnv.trim();
+  }
+  return projectCwd;
 }
 
 function resolveTemplateRootOrThrow(): string {
@@ -269,7 +277,7 @@ function runPostInstall(plugin: PluginDefinition): void {
   if (plugin.postInstall.command !== undefined) {
     // Post-install command execution is opt-in. To avoid arbitrary command execution
     // and reduce supply-chain risk, we only execute when ZINTRUST_ALLOW_POSTINSTALL=1
-    const allow = String(process.env['ZINTRUST_ALLOW_POSTINSTALL'] ?? '').trim() === '1';
+    const allow = getAllowPostInstallEnv() === '1';
     if (allow) {
       Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
       try {

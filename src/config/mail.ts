@@ -128,7 +128,7 @@ const createMailConfig = (): {
      */
     from: {
       ...baseFrom,
-      ...(overrides.from ?? {}),
+      ...overrides.from,
     },
 
     /**
@@ -136,7 +136,7 @@ const createMailConfig = (): {
      */
     drivers: {
       ...baseDrivers,
-      ...(overrides.drivers ?? {}),
+      ...overrides.drivers,
     },
 
     /**

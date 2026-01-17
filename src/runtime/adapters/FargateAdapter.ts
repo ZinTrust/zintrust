@@ -23,7 +23,7 @@ import type {
 
 export interface FargateEnvironment {
   [key: string]: unknown;
-  nodeEnv: string;
+  nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
   runtime: string;
   dbConnection: string;
   dbHost: string | undefined;

@@ -8,11 +8,13 @@
 
 import type { ProcessLike } from '@config/type';
 
-const getProcessLike = (): ProcessLike | undefined => {
-  return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
-};
+// Cache process check once at module load time
+const processLike: ProcessLike | undefined =
+  typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
 
-const dirnameFromExecPath = (execPath: string, platform?: string): string => {
+export const getProcessLike = (): ProcessLike | undefined => processLike;
+
+export const dirnameFromExecPath = (execPath: string, platform?: string): string => {
   const separator = platform === 'win32' ? '\\' : '/';
   const lastSep = execPath.lastIndexOf(separator);
   if (lastSep <= 0) return '';
@@ -20,30 +22,27 @@ const dirnameFromExecPath = (execPath: string, platform?: string): string => {
 };
 
 // Private helper functions
-const get = (key: string, defaultValue?: string): string => {
-  const proc = getProcessLike();
-  const env = proc?.env ?? {};
+export const get = (key: string, defaultValue?: string): string => {
+  const env = processLike?.env ?? {};
   return env[key] ?? defaultValue ?? '';
 };
 
-const getInt = (key: string, defaultValue?: number): number => {
-  const proc = getProcessLike();
-  const env = proc?.env ?? {};
+export const getInt = (key: string, defaultValue?: number): number => {
+  const env = processLike?.env ?? {};
   const value = env[key];
   if (value === undefined || value === null) return defaultValue ?? 0;
   if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
   return Number.parseInt(value, 10);
 };
 
-const getBool = (key: string, defaultValue?: boolean): boolean => {
-  const proc = getProcessLike();
-  const env = proc?.env ?? {};
+export const getBool = (key: string, defaultValue?: boolean): boolean => {
+  const env = processLike?.env ?? {};
   const value = env[key];
   if (value === undefined || value === null) return defaultValue ?? false;
   return value.toLowerCase() === 'true' || value === '1';
 };
 
-const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
+export const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
   const NODE_ENV_VALUE = get('NODE_ENV', 'development');
   if (NODE_ENV_VALUE === 'production') return 'info';
   if (NODE_ENV_VALUE === 'testing') return 'error';
@@ -58,7 +57,7 @@ export const Env = Object.freeze({
   getBool,
 
   // Core
-  NODE_ENV: get('NODE_ENV', 'development'),
+  NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],
   // Prefer PORT, fallback to APP_PORT for compatibility
   PORT: getInt('PORT', getInt('APP_PORT', 3000)),
   HOST: get('HOST', 'localhost'),
@@ -116,8 +115,23 @@ export const Env = Object.freeze({
   REDIS_HOST: get('REDIS_HOST', 'localhost'),
   REDIS_PORT: getInt('REDIS_PORT', 6379),
   REDIS_PASSWORD: get('REDIS_PASSWORD', ''),
+  REDIS_URL: get('REDIS_URL', ''),
   MONGO_URI: get('MONGO_URI'),
   MONGO_DB: get('MONGO_DB', 'zintrust_cache'),
+
+  // Queue
+  QUEUE_CONNECTION: get('QUEUE_CONNECTION', ''),
+  QUEUE_DRIVER: get('QUEUE_DRIVER', ''),
+
+  // Rate Limiting
+  RATE_LIMIT_STORE: get('RATE_LIMIT_STORE', ''),
+  RATE_LIMIT_DRIVER: get('RATE_LIMIT_DRIVER', ''),
+  RATE_LIMIT_KEY_PREFIX: get('RATE_LIMIT_KEY_PREFIX', 'zintrust:ratelimit:'),
+
+  // Notifications
+  NOTIFICATION_DRIVER: get('NOTIFICATION_DRIVER', ''),
+  TERMII_API_KEY: get('TERMII_API_KEY', ''),
+  TERMII_SENDER: get('TERMII_SENDER', 'Zintrust'),
 
   // AWS
   AWS_REGION: get('AWS_REGION', 'us-east-1'),
@@ -147,24 +161,59 @@ export const Env = Object.freeze({
   // Deployment
   ENVIRONMENT: get('ENVIRONMENT', 'development'),
   REQUEST_TIMEOUT: getInt('REQUEST_TIMEOUT', 30000),
+  APP_TIMEZONE: get('APP_TIMEZONE', 'UTC'),
   MAX_BODY_SIZE: getInt('MAX_BODY_SIZE', 10485760),
   SHUTDOWN_TIMEOUT: getInt('SHUTDOWN_TIMEOUT', 10000),
 
   // Logging
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
   LOG_FORMAT: get('LOG_FORMAT', 'text'),
+  LOG_CHANNEL: get('LOG_CHANNEL', ''),
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
   LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
   LOG_TO_FILE: getBool('LOG_TO_FILE', false),
   LOG_ROTATION_SIZE: getInt('LOG_ROTATION_SIZE', 10485760),
   LOG_ROTATION_DAYS: getInt('LOG_ROTATION_DAYS', 7),
 
+  // ZinTrust-specific
+  ZINTRUST_PROJECT_ROOT: get('ZINTRUST_PROJECT_ROOT', ''),
+  ZINTRUST_ALLOW_POSTINSTALL: get('ZINTRUST_ALLOW_POSTINSTALL', ''),
+  ZINTRUST_ENV_FILE: get('ZINTRUST_ENV_FILE', '.env.pull'),
+  ZINTRUST_SECRETS_MANIFEST: get('ZINTRUST_SECRETS_MANIFEST', 'secrets.manifest.json'),
+  ZINTRUST_ENV_IN_FILE: get('ZINTRUST_ENV_IN_FILE', '.env'),
+  ZINTRUST_SECRETS_PROVIDER: get('ZINTRUST_SECRETS_PROVIDER', ''),
+  ZINTRUST_ALLOW_AUTO_INSTALL: get('ZINTRUST_ALLOW_AUTO_INSTALL', ''),
+
+  // Cloudflare Credentials
+  CLOUDFLARE_ACCOUNT_ID: get('CLOUDFLARE_ACCOUNT_ID', ''),
+  CLOUDFLARE_API_TOKEN: get('CLOUDFLARE_API_TOKEN', ''),
+  CLOUDFLARE_KV_NAMESPACE_ID: get('CLOUDFLARE_KV_NAMESPACE_ID', ''),
+
+  // AWS Credentials (additional)
+  AWS_DEFAULT_REGION: get('AWS_DEFAULT_REGION', ''),
+  AWS_ACCESS_KEY_ID: get('AWS_ACCESS_KEY_ID', ''),
+  AWS_SECRET_ACCESS_KEY: get('AWS_SECRET_ACCESS_KEY', ''),
+  AWS_SESSION_TOKEN: get('AWS_SESSION_TOKEN', ''),
+
+  // CI/CD
+  CI: get('CI', ''),
+
+  // System paths
+  HOME: get('HOME', ''),
+  USERPROFILE: get('USERPROFILE', ''),
+
+  // Template/Misc
+  TEMPLATE_COPYRIGHT: get('TEMPLATE_COPYRIGHT', '© 2025 Zintrust Framework. All rights reserved.'),
+  SERVICE_NAME: get('SERVICE_NAME', ''),
+  APP_MODE: get('APP_MODE', ''),
+  APP_PORT: getInt('APP_PORT', 3000),
+  RUNTIME: get('RUNTIME', ''),
+
   // Paths (safely constructed for Node.js environments)
   NODE_BIN_DIR: (() => {
     try {
-      const proc = getProcessLike();
-      if (proc?.execPath === null || proc?.execPath === undefined) return '';
-      return dirnameFromExecPath(proc.execPath, proc.platform);
+      if (processLike?.execPath === null || processLike?.execPath === undefined) return '';
+      return dirnameFromExecPath(processLike.execPath, processLike.platform);
     } catch {
       // Fallback for non-Node environments
       return '';
@@ -172,11 +221,10 @@ export const Env = Object.freeze({
   })(),
   SAFE_PATH: (() => {
     try {
-      const proc = getProcessLike();
-      if (proc?.execPath === null || proc?.execPath === undefined) return '';
+      if (processLike?.execPath === null || processLike?.execPath === undefined) return '';
 
-      const binDir = dirnameFromExecPath(proc.execPath, proc.platform);
-      if (proc.platform === 'win32') {
+      const binDir = dirnameFromExecPath(processLike.execPath, processLike.platform);
+      if (processLike.platform === 'win32') {
         return [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, binDir].join(';');
       }
       return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', binDir].join(':');

@@ -1,4 +1,5 @@
 import { AwsSigV4 } from '@common/index';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type AwsCredentials = {
@@ -116,10 +117,10 @@ export const AwsSecretsManager = Object.freeze({
     getValue: (secretId: string, jsonKey?: string) => Promise<string | null>;
     putValue: (secretId: string, value: string) => Promise<void>;
   } {
-    const region = process.env['AWS_REGION'] ?? process.env['AWS_DEFAULT_REGION'] ?? '';
-    const accessKeyId = process.env['AWS_ACCESS_KEY_ID'] ?? '';
-    const secretAccessKey = process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-    const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
+    const region = Env.AWS_REGION || Env.AWS_DEFAULT_REGION || '';
+    const accessKeyId = Env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = Env.AWS_SECRET_ACCESS_KEY;
+    const sessionToken = Env.AWS_SESSION_TOKEN || undefined;
 
     if (region.trim() === '' || accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
       throw ErrorFactory.createCliError(
@@ -172,13 +173,13 @@ export const AwsSecretsManager = Object.freeze({
   doctorEnv(): string[] {
     const missing: string[] = [];
 
-    const region = (process.env['AWS_REGION'] ?? process.env['AWS_DEFAULT_REGION'] ?? '').trim();
+    const region = (Env.AWS_REGION || Env.AWS_DEFAULT_REGION || '').trim();
     if (region === '') missing.push('AWS_REGION');
 
-    const accessKeyId = (process.env['AWS_ACCESS_KEY_ID'] ?? '').trim();
+    const accessKeyId = Env.AWS_ACCESS_KEY_ID.trim();
     if (accessKeyId === '') missing.push('AWS_ACCESS_KEY_ID');
 
-    const secretAccessKey = (process.env['AWS_SECRET_ACCESS_KEY'] ?? '').trim();
+    const secretAccessKey = Env.AWS_SECRET_ACCESS_KEY.trim();
     if (secretAccessKey === '') missing.push('AWS_SECRET_ACCESS_KEY');
 
     return missing;

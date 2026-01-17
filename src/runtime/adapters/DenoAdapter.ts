@@ -7,11 +7,9 @@ import type {
   AdapterConfig,
   PlatformRequest,
   PlatformResponse,
-  RuntimeAdapter} from '@runtime/RuntimeAdapter';
-import {
-  createMockHttpObjects,
-  ErrorResponse
+  RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
+import { createMockHttpObjects, ErrorResponse } from '@runtime/RuntimeAdapter';
 
 /**
  * Deno runtime adapter for Deno Deploy and edge compute environments
@@ -63,7 +61,7 @@ export const DenoAdapter = Object.freeze({
       },
 
       getEnvironment(): {
-        nodeEnv: string;
+        nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
         runtime: string;
         dbConnection: string;
         dbHost?: string;
@@ -237,7 +235,7 @@ function formatDenoResponse(response: PlatformResponse): Response {
  * Get Deno environment
  */
 function getDenoEnvironment(): {
-  nodeEnv: string;
+  nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
   runtime: string;
   dbConnection: string;
   dbHost?: string;
@@ -250,7 +248,7 @@ function getDenoEnvironment(): {
     string
   >;
   return {
-    nodeEnv: env['DENO_ENV'] ?? 'production',
+    nodeEnv: env['DENO_ENV'] as NodeJS.ProcessEnv['NODE_ENV'],
     runtime: 'deno',
     dbConnection: env['DB_CONNECTION'] ?? 'postgresql',
     dbHost: env['DB_HOST'],

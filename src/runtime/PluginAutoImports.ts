@@ -1,4 +1,5 @@
 import { pathToFileURL } from '@/node-singletons/url';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync } from '@node-singletons/fs';
@@ -13,10 +14,16 @@ type ImportResult =
       errorMessage?: string;
     };
 
+// Cache process values at module load time
+const projectCwd = process.cwd();
+const getProjectRootEnv = (): string => Env.ZINTRUST_PROJECT_ROOT;
+
 const resolveProjectRoot = (): string => {
-  const fromEnv = process.env['ZINTRUST_PROJECT_ROOT'];
-  if (typeof fromEnv === 'string' && fromEnv.trim().length > 0) return fromEnv.trim();
-  return process.cwd();
+  const projectRootEnv = getProjectRootEnv();
+  if (projectRootEnv.trim().length > 0) {
+    return projectRootEnv.trim();
+  }
+  return projectCwd;
 };
 
 const getCandidates = (projectRoot: string): string[] => {

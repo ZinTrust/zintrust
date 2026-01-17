@@ -8,6 +8,9 @@ import {
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
+// Cache process.cwd() at module load time
+const projectCwd = process.cwd();
+
 /**
  * Service configuration from service.config.json
  */
@@ -151,7 +154,7 @@ export const MicroserviceBootstrap = Object.freeze(
       create(): IMicroserviceBootstrap {
         const state: BootstrapState = {
           serviceConfigs: new Map(),
-          servicesDir: path.join(process.cwd(), 'src', 'services'),
+          servicesDir: path.join(projectCwd, 'src', 'services'),
         };
 
         const self: IMicroserviceBootstrap = {

@@ -1,4 +1,5 @@
 import { generateUuid } from '@/common/utility';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { QueueMessage } from '@tools/queue/Queue';
 
@@ -11,7 +12,7 @@ type IRedisClient = {
 };
 
 const getRedisUrl = (): string | null => {
-  const url = (process.env['REDIS_URL'] ?? '').trim();
+  const url = Env.REDIS_URL.trim();
   return url.length > 0 ? url : null;
 };
 

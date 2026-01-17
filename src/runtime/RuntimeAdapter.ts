@@ -71,7 +71,7 @@ export interface RuntimeAdapter {
    * Get environment configuration object
    */
   getEnvironment(): {
-    nodeEnv: string;
+    nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
     runtime: string;
     dbConnection: string;
     dbHost?: string;

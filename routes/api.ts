@@ -3,20 +3,20 @@
  * Demonstrates routing patterns
  */
 
-import type { IRequest } from '@/http/Request';
-import type { IResponse } from '@/http/Response';
 import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
-import queueMonitorConfig from 'config/queueMonitor';
 import QueueMonitor from 'packages/queue-monitor/src/';
+import queueMonitorConfig from 'packages/queue-monitor/src/config/queueMonitor';
 
 export function registerRoutes(router: IRouter): void {
   const authController = AuthController.create();

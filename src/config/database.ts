@@ -27,7 +27,7 @@ const isNodeProcess = (): boolean => {
 
 const isExplicitEnvValue = (key: string): boolean => {
   if (!isNodeProcess()) return false;
-  const raw = process.env[key];
+  const raw = Env.get(key, '');
   return typeof raw === 'string' && raw.trim() !== '';
 };
 
@@ -81,11 +81,10 @@ const toSafeDbBasename = (raw: string): string => {
 };
 
 const resolveSqliteDefaultBasename = (): string => {
-  const service =
-    typeof process.env['SERVICE_NAME'] === 'string' ? process.env['SERVICE_NAME'] : '';
+  const service = Env.get('SERVICE_NAME', '');
   if (service.trim() !== '') return toSafeDbBasename(service);
 
-  const app = typeof process.env['APP_NAME'] === 'string' ? process.env['APP_NAME'] : '';
+  const app = Env.get('APP_NAME', '');
   if (app.trim() !== '') return toSafeDbBasename(app);
 
   return 'zintrust';

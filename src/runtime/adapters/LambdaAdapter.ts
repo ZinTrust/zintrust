@@ -14,11 +14,9 @@ import type {
   AdapterConfig,
   PlatformRequest,
   PlatformResponse,
-  RuntimeAdapter} from '@runtime/RuntimeAdapter';
-import {
-  ErrorResponse,
-  HttpResponse
+  RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
+import { ErrorResponse, HttpResponse } from '@runtime/RuntimeAdapter';
 
 /**
  * AWS Lambda adapter for API Gateway and ALB events
@@ -72,7 +70,7 @@ export const LambdaAdapter = Object.freeze({
       },
 
       getEnvironment(): {
-        nodeEnv: string;
+        nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
         runtime: string;
         dbConnection: string;
         dbHost?: string;
@@ -150,8 +148,10 @@ async function handleLambdaRequest(
     Logger.error('Lambda handler error', error as Error);
 
     const nodeEnv =
-      typeof Env.NODE_ENV === 'string' && Env.NODE_ENV !== '' ? Env.NODE_ENV : 'development';
-    const includeDetails = nodeEnv === 'development' || nodeEnv === 'dev';
+      typeof Env.NODE_ENV === 'string' && String(Env.NODE_ENV) !== ''
+        ? Env.NODE_ENV
+        : 'development';
+    const includeDetails = nodeEnv === 'development' || String(nodeEnv) === 'dev';
 
     const errorResponse = ErrorResponse.create(
       500,

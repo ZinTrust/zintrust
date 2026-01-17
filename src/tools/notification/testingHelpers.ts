@@ -1,6 +1,10 @@
 import { NotificationRegistry } from '@notification/Registry';
 import NotificationFake from '@notification/testing';
 
+// NOTE: This testing helper intentionally uses direct process.env mutations
+// to temporarily override NOTIFICATION_DRIVER for test isolation.
+// This is an exception to the Env singleton pattern.
+
 type DriverLike = {
   send(recipient: string, message: string, options?: Record<string, unknown>): Promise<unknown>;
 };

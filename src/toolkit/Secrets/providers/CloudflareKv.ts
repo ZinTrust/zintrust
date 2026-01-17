@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export const CloudflareKv = Object.freeze({
@@ -5,9 +6,9 @@ export const CloudflareKv = Object.freeze({
     getValue: (key: string, namespaceId?: string) => Promise<string | null>;
     putValue: (key: string, value: string, namespaceId?: string) => Promise<void>;
   } {
-    const accountId = process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
-    const apiToken = process.env['CLOUDFLARE_API_TOKEN'] ?? '';
-    const defaultNamespaceId = process.env['CLOUDFLARE_KV_NAMESPACE_ID'] ?? '';
+    const accountId = Env.CLOUDFLARE_ACCOUNT_ID;
+    const apiToken = Env.CLOUDFLARE_API_TOKEN;
+    const defaultNamespaceId = Env.CLOUDFLARE_KV_NAMESPACE_ID;
 
     if (accountId.trim() === '' || apiToken.trim() === '') {
       throw ErrorFactory.createCliError(
@@ -77,13 +78,13 @@ export const CloudflareKv = Object.freeze({
   doctorEnv(): string[] {
     const missing: string[] = [];
 
-    const accountId = (process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '').trim();
+    const accountId = Env.CLOUDFLARE_ACCOUNT_ID.trim();
     if (accountId === '') missing.push('CLOUDFLARE_ACCOUNT_ID');
 
-    const apiToken = (process.env['CLOUDFLARE_API_TOKEN'] ?? '').trim();
+    const apiToken = Env.CLOUDFLARE_API_TOKEN.trim();
     if (apiToken === '') missing.push('CLOUDFLARE_API_TOKEN');
 
-    const namespaceId = (process.env['CLOUDFLARE_KV_NAMESPACE_ID'] ?? '').trim();
+    const namespaceId = Env.CLOUDFLARE_KV_NAMESPACE_ID.trim();
     if (namespaceId === '') missing.push('CLOUDFLARE_KV_NAMESPACE_ID');
 
     return missing;

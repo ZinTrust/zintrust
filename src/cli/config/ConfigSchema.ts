@@ -3,6 +3,8 @@
  * Defines the structure and types for Zintrust configuration
  */
 
+import { Env } from '@config/env';
+
 export interface DatabaseConfig {
   connection: 'sqlite' | 'postgres' | 'mysql' | 'mariadb';
   host?: string;
@@ -114,7 +116,7 @@ export const DEFAULT_CONFIG = Object.freeze({
 /**
  * Configuration paths
  */
-const HOME_DIR = process.env['HOME'] ?? process.env['USERPROFILE'] ?? '';
+const HOME_DIR = Env.HOME || Env.USERPROFILE || '';
 const GLOBAL_DIR = `${HOME_DIR}/.zintrust`;
 
 /**

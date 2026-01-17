@@ -3,6 +3,7 @@ import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -40,7 +41,7 @@ const normalizeMode = (value: StartModeInput): StartMode => {
 };
 
 const resolveModeFromAppMode = (): StartMode => {
-  const raw = typeof process.env['APP_MODE'] === 'string' ? process.env['APP_MODE'].trim() : '';
+  const raw = Env.APP_MODE.trim();
   const normalized = raw.toLowerCase();
 
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod') {
@@ -75,10 +76,10 @@ const resolvePort = (options: StartCommandOptions): number | undefined => {
   }
 
   // .env is primary (loaded by EnvFileLoader with overrideExisting=true)
-  const envPort = process.env['APP_PORT'] ?? process.env['PORT'] ?? '';
+  const envPort = Env.APP_PORT || Env.PORT || '';
   if (envPort === '') return undefined;
 
-  const parsed = Number.parseInt(envPort, 10);
+  const parsed = Number.parseInt(String(envPort), 10);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 65536) {
     throw ErrorFactory.createCliError(
       `Error: Invalid APP_PORT/PORT '${envPort}'. Expected 1-65535.`

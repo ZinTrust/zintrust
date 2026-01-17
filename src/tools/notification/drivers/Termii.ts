@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
@@ -15,8 +16,8 @@ export const TermiiDriver = Object.freeze({
       throw ErrorFactory.createValidationError('Message body is required');
     }
 
-    const apiKey = process.env['TERMII_API_KEY'] ?? '';
-    const sender = process.env['TERMII_SENDER'] ?? 'Zintrust';
+    const apiKey = Env.TERMII_API_KEY;
+    const sender = Env.TERMII_SENDER;
 
     if (!apiKey) {
       throw ErrorFactory.createConfigError('TERMII_API_KEY is not configured');

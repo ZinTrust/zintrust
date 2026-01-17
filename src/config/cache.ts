@@ -91,7 +91,7 @@ const createCacheConfig = (): {
 
   const mergedDrivers = {
     ...baseDrivers,
-    ...(overrides.drivers ?? {}),
+    ...overrides.drivers,
   } satisfies CacheConfigInput['drivers'];
 
   const mergedDefault =
