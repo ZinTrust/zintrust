@@ -6,10 +6,10 @@ describe('TemplateEngine Rendering Basic', () => {
   describe('render Basic', () => {
     it('should replace simple variables', () => {
       const content = 'Hello {{name}}, welcome to {{project}}!';
-      const variables = { name: 'John', project: 'Zintrust' };
+      const variables = { name: 'John', project: 'ZinTrust' };
       const result = TemplateEngine.render(content, variables);
 
-      expect(result).toBe('Hello John, welcome to Zintrust!');
+      expect(result).toBe('Hello John, welcome to ZinTrust!');
     });
 
     it('should handle multiple occurrences of same variable', () => {

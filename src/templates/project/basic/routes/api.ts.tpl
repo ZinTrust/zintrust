@@ -32,7 +32,7 @@ function registerPublicRoutes(router: IRouter): void {
 function registerRootRoute(router: IRouter): void {
   Router.get(router, '/', async (_req: IRequest, res:IResponse) => {
     res.json({
-      framework: 'Zintrust Framework',
+      framework: 'ZinTrust Framework',
       app_name: Env.APP_NAME,
       version: '0.1.0',
       env: Env.NODE_ENV ?? 'development',

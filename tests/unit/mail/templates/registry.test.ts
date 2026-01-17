@@ -15,7 +15,7 @@ describe('Mail Markdown Registry', () => {
       expiryMinutes: 30,
     });
 
-    expect(meta.subject).toBe('Welcome to Zintrust');
+    expect(meta.subject).toBe('Welcome to ZinTrust');
     expect(html).toContain('<h1>Welcome, Bob!</h1>');
     expect(html).toContain('Verify Email');
   });

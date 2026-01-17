@@ -123,7 +123,7 @@ const createRequestBuilder = (
     method,
     url,
     headers: {
-      'User-Agent': 'Zintrust/1.0',
+      'User-Agent': 'ZinTrust/1.0',
     },
     body: initialBody ? JSON.stringify(initialBody) : undefined,
   };

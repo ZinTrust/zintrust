@@ -86,7 +86,7 @@ const getBaseProviders = (): NotificationProviders => {
     termii: {
       driver: 'termii' as const,
       apiKey: Env.get('TERMII_API_KEY', ''),
-      sender: Env.get('TERMII_SENDER', 'Zintrust'),
+      sender: Env.get('TERMII_SENDER', 'ZinTrust'),
       endpoint: Env.get('TERMII_ENDPOINT', 'https://api.termii.com/sms/send'),
     },
     twilio: {

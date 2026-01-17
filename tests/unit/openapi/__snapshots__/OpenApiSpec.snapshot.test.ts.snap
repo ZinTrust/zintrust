@@ -4,7 +4,7 @@ exports[`OpenAPI spec snapshot > matches a stable snapshot for routes/api.ts 1`]
 "{
   "openapi": "3.0.3",
   "info": {
-    "title": "Zintrust Framework",
+    "title": "ZinTrust Framework",
     "version": "0.0.0"
   },
   "paths": {

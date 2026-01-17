@@ -1,6 +1,6 @@
 # @zintrust/mail-sendgrid
 
-SendGrid mail driver registration for Zintrust.
+SendGrid mail driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/mail
 

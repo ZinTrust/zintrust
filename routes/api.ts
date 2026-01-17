@@ -4,13 +4,12 @@
  */
 
 import { AuthController } from '@app/Controllers/AuthController';
-import { TestController } from '@app/Controllers/TestController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-// import { registerDevRoutes } from '@routes/apiDev';
+// import { registerDevRoutes, registerTestRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerMetricsRoutes } from '@routes/metrics';
@@ -48,36 +47,6 @@ function registerRootRoute(router: IRouter): void {
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
     });
-  });
-}
-
-/**
- * Register test routes for queue monitor
- */
-function registerTestRoutes(router: IRouter): void {
-  Router.post(router, '/test/enqueue', async (req: IRequest, res: IResponse) => {
-    const c = TestController.create();
-    await c.enqueue(req, res);
-  });
-
-  Router.post(router, '/test/populate-all', async (req: IRequest, res: IResponse) => {
-    const c = TestController.create();
-    await c.populateAll(req, res);
-  });
-
-  Router.post(router, '/test/worker/start', async (req: IRequest, res: IResponse) => {
-    const c = TestController.create();
-    await c.workerStart(req, res);
-  });
-
-  Router.post(router, '/test/worker/stop', async (req: IRequest, res: IResponse) => {
-    const c = TestController.create();
-    await c.workerStop(req, res);
-  });
-
-  Router.get(router, '/test/worker/status', async (req: IRequest, res: IResponse) => {
-    const c = TestController.create();
-    await c.workerStatus(req, res);
   });
 }
 
@@ -132,7 +101,7 @@ function registerApiV1Routes(
       middleware: ['auth', 'jwt', 'fillRateLimit', 'validateUserFill'],
     });
 
-    registerTestRoutes(pr);
+    // registerTestRoutes(pr);
 
     // If the controller exposes create/edit, wire them explicitly.
     Router.get<MiddlewareKey>(pr, '/users/create', userController.create, {

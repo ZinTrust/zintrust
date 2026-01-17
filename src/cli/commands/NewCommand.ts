@@ -66,7 +66,7 @@ const initializeGitRepo = (projectPath: string, log: Pick<IBaseCommand, 'info' |
     const env = appConfig.getSafeEnv();
     execFileSync(git, ['init'], { cwd: projectPath, stdio: 'ignore', env });
     execFileSync(git, ['add', '.'], { cwd: projectPath, stdio: 'ignore', env });
-    execFileSync(git, ['commit', '-m', 'Initial commit from Zintrust'], {
+    execFileSync(git, ['commit', '-m', 'Initial commit from ZinTrust'], {
       cwd: projectPath,
       stdio: 'ignore',
       env,

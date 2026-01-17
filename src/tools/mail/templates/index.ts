@@ -40,8 +40,8 @@ export const MailTemplates = Object.freeze({
     // Example template. Apps can add their own workflows under app/Toolkit/Mail.
     welcome: Object.freeze({
       subject: 'Welcome, {{name}}!',
-      text: 'Hi {{name}},\n\nWelcome to Zintrust.',
-      html: '<p>Hi {{name}},</p><p>Welcome to Zintrust.</p>',
+      text: 'Hi {{name}},\n\nWelcome to ZinTrust.',
+      html: '<p>Hi {{name}},</p><p>Welcome to ZinTrust.</p>',
     } satisfies MailTemplate),
   }),
 } satisfies MailTemplateRegistry);

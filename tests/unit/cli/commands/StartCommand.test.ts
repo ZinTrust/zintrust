@@ -191,7 +191,7 @@ describe('StartCommand', () => {
   it('should handle missing package.json', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(false);
-    await expect(command.execute({})).rejects.toThrow(/No Zintrust app found/);
+    await expect(command.execute({})).rejects.toThrow(/No ZinTrust app found/);
   });
 
   it('should handle missing production build', async () => {

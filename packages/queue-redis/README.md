@@ -1,6 +1,6 @@
 # @zintrust/queue-redis
 
-Redis queue driver registration for Zintrust.
+Redis queue driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/queue
 

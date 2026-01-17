@@ -131,7 +131,7 @@ export const Env = Object.freeze({
   // Notifications
   NOTIFICATION_DRIVER: get('NOTIFICATION_DRIVER', ''),
   TERMII_API_KEY: get('TERMII_API_KEY', ''),
-  TERMII_SENDER: get('TERMII_SENDER', 'Zintrust'),
+  TERMII_SENDER: get('TERMII_SENDER', 'ZinTrust'),
 
   // AWS
   AWS_REGION: get('AWS_REGION', 'us-east-1'),
@@ -175,7 +175,7 @@ export const Env = Object.freeze({
   LOG_ROTATION_SIZE: getInt('LOG_ROTATION_SIZE', 10485760),
   LOG_ROTATION_DAYS: getInt('LOG_ROTATION_DAYS', 7),
 
-  // ZinTrust-specific
+  // zintrust-specific
   ZINTRUST_PROJECT_ROOT: get('ZINTRUST_PROJECT_ROOT', ''),
   ZINTRUST_ALLOW_POSTINSTALL: get('ZINTRUST_ALLOW_POSTINSTALL', ''),
   ZINTRUST_ENV_FILE: get('ZINTRUST_ENV_FILE', '.env.pull'),

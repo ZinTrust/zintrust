@@ -131,7 +131,7 @@ describe('Database Config', () => {
     expect(databaseConfig.connections.sqlite.database).toBe('.zintrust/dbs/zintrust-app.sqlite');
   });
 
-  it('defaults to zintrust if nothing set', async () => {
+  it('defaults to ZinTrust if nothing set', async () => {
     delete process.env['DB_DATABASE'];
     delete process.env['SERVICE_NAME'];
     delete process.env['APP_NAME'];

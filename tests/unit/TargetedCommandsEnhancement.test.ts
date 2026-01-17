@@ -207,14 +207,14 @@ describe('Template Rendering', () => {
 
   it('should handle template with multiple variables', () => {
     const template = '{{ greeting }} {{ name }}, welcome to {{ app }}';
-    const data = { greeting: 'Hello', name: 'User', app: 'Zintrust' };
+    const data = { greeting: 'Hello', name: 'User', app: 'ZinTrust' };
 
     let result = template;
     Object.entries(data).forEach(([key, value]) => {
       result = result.replace(`{{ ${key} }}`, String(value));
     });
 
-    expect(result).toBe('Hello User, welcome to Zintrust');
+    expect(result).toBe('Hello User, welcome to ZinTrust');
   });
 
   it('should handle conditional rendering', () => {

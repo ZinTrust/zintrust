@@ -1,6 +1,6 @@
 # {{projectName}}
 
-Starter Task API built with Zintrust.
+Starter Task API built with ZinTrust.
 
 ## Run
 

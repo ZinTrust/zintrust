@@ -4,7 +4,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 /**
- * ESLint Configuration for Zintrust Framework
+ * ESLint Configuration for ZinTrust Framework
  * Enforces security, performance, memory management, and best practices
  *
  * Key Areas:

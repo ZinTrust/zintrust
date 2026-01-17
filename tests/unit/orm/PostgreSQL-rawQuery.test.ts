@@ -36,7 +36,7 @@ describe('PostgreSQLAdapter - rawQuery()', () => {
       driver: 'postgresql',
       host: 'localhost',
       port: 5432,
-      database: 'zintrust_test',
+      database: 'ZinTrust_test',
       username: 'postgres',
       password: 'postgres', // NOSONAR - test password
     });

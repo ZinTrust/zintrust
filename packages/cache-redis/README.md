@@ -1,6 +1,6 @@
 # @zintrust/cache-redis
 
-Redis cache driver package for Zintrust.
+Redis cache driver package for ZinTrust.
 
 ## Install
 

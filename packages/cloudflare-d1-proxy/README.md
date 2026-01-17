@@ -2,7 +2,7 @@
 
 Cloudflare Worker service that exposes a small HTTPS API for executing D1 operations.
 
-This is intended for **server-to-server** use (e.g. a Node app running outside Cloudflare), via Zintrust’s `d1-remote` adapter.
+This is intended for **server-to-server** use (e.g. a Node app running outside Cloudflare), via ZinTrust’s `d1-remote` adapter.
 
 ## Endpoints
 

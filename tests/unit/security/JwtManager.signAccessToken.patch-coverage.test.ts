@@ -10,7 +10,7 @@ describe('JwtManager.signAccessToken (patch coverage)', () => {
           algorithm: 'HS256',
           secret: 'test-secret',
           expiresIn: 60,
-          issuer: 'zintrust',
+          issuer: 'ZinTrust',
           audience: 'tests',
         },
       },
@@ -27,7 +27,7 @@ describe('JwtManager.signAccessToken (patch coverage)', () => {
     const payload = verifier.verify(token, 'HS256');
     expect(payload.sub).toBe('user-1');
     expect(payload.email).toBe('a@example.com');
-    expect(payload.iss).toBe('zintrust');
+    expect(payload.iss).toBe('ZinTrust');
     expect(payload.aud).toBe('tests');
   });
 
@@ -40,7 +40,7 @@ describe('JwtManager.signAccessToken (patch coverage)', () => {
           algorithm: 'RS256',
           secret: 'unused',
           expiresIn: 60,
-          issuer: 'zintrust',
+          issuer: 'ZinTrust',
           audience: 'tests',
         },
       },

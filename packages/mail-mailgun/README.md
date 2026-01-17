@@ -1,6 +1,6 @@
 # @zintrust/mail-mailgun
 
-Mailgun mail driver registration for Zintrust.
+Mailgun mail driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/mail
 

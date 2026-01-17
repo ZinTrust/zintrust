@@ -36,7 +36,7 @@ describe('SQLServerAdapter - rawQuery()', () => {
       driver: 'sqlserver',
       host: 'localhost',
       port: 1433,
-      database: 'zintrust_test',
+      database: 'ZinTrust_test',
       username: 'sa',
       password: 'Password123', // NOSONAR - test password
     });

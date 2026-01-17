@@ -98,6 +98,10 @@ export default defineConfig({
         // Exclude non-executable barrels / type-only modules (V8 often reports 0% even when imported)
         'app/Types/**/*.ts',
         'app/Controllers/UserController.ts',
+        // Local test files (not part of the main codebase)
+        'app/Controllers/TestController.ts',
+        'app/Workers/TestWorker.ts',
+        'routes/apiDev.ts',
         'src/routes/**/*.ts',
         'src/collections/index.ts',
         'src/events/index.ts',

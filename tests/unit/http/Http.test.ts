@@ -70,7 +70,7 @@ describe('Http Client', () => {
       await HttpClient.get('https://api.example.com/users').send();
 
       const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
-      expect(init?.headers).toHaveProperty('User-Agent', 'Zintrust/1.0');
+      expect(init?.headers).toHaveProperty('User-Agent', 'ZinTrust/1.0');
     });
   });
 

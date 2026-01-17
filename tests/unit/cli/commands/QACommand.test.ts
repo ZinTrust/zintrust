@@ -300,7 +300,7 @@ describe('QACommand', () => {
       const options = { report: false };
       await command.execute(options);
 
-      expect(command.info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
+      expect(command.info).toHaveBeenCalledWith('Starting ZinTrust QA Suite...');
     });
 
     it('should handle failures gracefully', async () => {
@@ -314,7 +314,7 @@ describe('QACommand', () => {
       const options = { report: false };
       await command.execute(options);
 
-      expect(command.info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
+      expect(command.info).toHaveBeenCalledWith('Starting ZinTrust QA Suite...');
     });
 
     it('should handle execution errors', async () => {
@@ -343,7 +343,7 @@ describe('QACommand', () => {
       const options = { report: false };
       await command.execute(options);
 
-      expect(command.info).toHaveBeenCalledWith('Starting Zintrust QA Suite...');
+      expect(command.info).toHaveBeenCalledWith('Starting ZinTrust QA Suite...');
     });
 
     it('should pass correct options to sonar', async () => {

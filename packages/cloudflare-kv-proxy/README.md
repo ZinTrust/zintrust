@@ -2,7 +2,7 @@
 
 Cloudflare Worker service that exposes a small HTTPS API for KV operations.
 
-This is intended for **server-to-server** use (e.g. a Node app running outside Cloudflare), via Zintrust’s `kv-remote` cache driver.
+This is intended for **server-to-server** use (e.g. a Node app running outside Cloudflare), via ZinTrust’s `kv-remote` cache driver.
 
 ## Endpoints
 

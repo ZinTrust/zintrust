@@ -1,6 +1,6 @@
 # @zintrust/cache-mongodb
 
-MongoDB (Atlas Data API) cache driver for Zintrust.
+MongoDB (Atlas Data API) cache driver for ZinTrust.
 
 - Docs: https://zintrust.com/cache
 

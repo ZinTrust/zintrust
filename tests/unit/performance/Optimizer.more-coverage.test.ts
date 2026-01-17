@@ -106,7 +106,7 @@ describe('Optimizer GenerationCache more coverage', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (globalThis as any).clearInterval = vi.fn() as any;
 
-    const unlinkCb = vi.fn((p: string, cb: (err: NodeJS.ErrnoException | null) => void) => {
+    const unlinkCb = vi.fn((_p: string, cb: (err: NodeJS.ErrnoException | null) => void) => {
       cb({
         name: 'Error',
         message: 'nope',

@@ -170,7 +170,7 @@ const BootstrapFunctions = Object.freeze({
       await server.listen();
 
       Logger.info(`Server running at http://${host}:${port}`);
-      Logger.info(`Zintrust documentation at http://${host}:${port}/doc`);
+      Logger.info(`ZinTrust documentation at http://${host}:${port}/doc`);
 
       // Start schedules for long-running runtimes (Node.js / Fargate)
       await startSchedulesIfNeeded(app);

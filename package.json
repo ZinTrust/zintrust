@@ -120,7 +120,7 @@
     "symfony",
     "laravel"
   ],
-  "author": "Zintrust Team",
+  "author": "ZinTrust Team",
   "license": "MIT",
   "overrides": {
     "node-forge": "1.3.3",

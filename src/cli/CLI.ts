@@ -70,7 +70,7 @@ const loadVersion = (): string => {
 const setupProgram = (program: Command, version: string): void => {
   program
     .name('zintrust')
-    .description('Zintrust Framework CLI - Build production-grade TypeScript APIs')
+    .description('ZinTrust Framework CLI - Build production-grade TypeScript APIs')
     .version(version, '-v, --version', 'Output version number')
     .helpOption('-h, --help', 'Display help for command')
     .usage('[command] [options]');

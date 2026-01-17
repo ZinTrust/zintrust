@@ -1,6 +1,6 @@
 /**
  * Example Middleware
- * Common middleware patterns for Zintrust
+ * Common middleware patterns for ZinTrust
  */
 
 import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';

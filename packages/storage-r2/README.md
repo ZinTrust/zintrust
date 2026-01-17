@@ -1,6 +1,6 @@
 # @zintrust/storage-r2
 
-Cloudflare R2 storage driver registration for Zintrust.
+Cloudflare R2 storage driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/storage
 

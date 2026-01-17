@@ -1,6 +1,6 @@
 # @zintrust/queue-rabbitmq
 
-RabbitMQ queue driver registration for Zintrust.
+RabbitMQ queue driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/queue
 
