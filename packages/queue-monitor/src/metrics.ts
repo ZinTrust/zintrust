@@ -86,8 +86,9 @@ const getStatsImpl = async (
   keys.forEach((k) => pipeline.hgetall(k));
   const results = await pipeline.exec();
 
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  return results!
+  if (!results) return [];
+
+  return results
     .map((result, i) => {
       const [err, data] = result as [Error | null, Record<string, string>];
       if (err || !data)
@@ -98,8 +99,8 @@ const getStatsImpl = async (
         };
       return {
         time: new Date(timestamps[i] * 60000).toISOString(),
-        completed: Number.parseInt(data.completed || '0', 10),
-        failed: Number.parseInt(data.failed || '0', 10),
+        completed: Number.parseInt(data['completed'] || '0', 10),
+        failed: Number.parseInt(data['failed'] || '0', 10),
       };
     })
     .reverse();

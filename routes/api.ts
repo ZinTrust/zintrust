@@ -15,6 +15,8 @@ import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
+import queueMonitorConfig from 'config/queueMonitor';
+import QueueMonitor from 'packages/queue-monitor/src/';
 
 export function registerRoutes(router: IRouter): void {
   const authController = AuthController.create();
@@ -22,6 +24,12 @@ export function registerRoutes(router: IRouter): void {
   registerPublicRoutes(router);
   registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
+
+  // Test Queue Monitor
+  if (queueMonitorConfig.enabled !== false) {
+    const monitor = QueueMonitor.create(queueMonitorConfig);
+    monitor.registerRoutes(router);
+  }
 }
 
 /**
