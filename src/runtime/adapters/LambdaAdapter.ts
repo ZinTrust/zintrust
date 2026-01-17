@@ -20,7 +20,7 @@ import { ErrorResponse, HttpResponse } from '@runtime/RuntimeAdapter';
 
 /**
  * AWS Lambda adapter for API Gateway and ALB events
- * Converts Lambda events to standard HTTP format for Zintrust framework
+ * Converts Lambda events to standard HTTP format for ZinTrust framework
  * Sealed namespace for immutability
  */
 export const LambdaAdapter = Object.freeze({
@@ -125,7 +125,7 @@ async function handleLambdaRequest(
     }, timeout);
 
     try {
-      // Process request through Zintrust handler
+      // Process request through ZinTrust handler
       await config.handler(req, res, body);
     } finally {
       clearTimeout(timeoutHandle);

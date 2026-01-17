@@ -102,7 +102,7 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
 }
 
 /**
- * Fargate/Container adapter for running Zintrust in AWS Fargate, Cloud Run, or Docker
+ * Fargate/Container adapter for running ZinTrust in AWS Fargate, Cloud Run, or Docker
  * Wraps existing Node.js HTTP server for container orchestration
  * Sealed namespace for immutability
  */

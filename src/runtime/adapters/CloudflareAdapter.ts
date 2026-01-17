@@ -125,7 +125,7 @@ async function handleCloudflareRequest(
     }, timeout);
 
     try {
-      // Process request through Zintrust handler
+      // Process request through ZinTrust handler
       await config.handler(
         req as unknown as IncomingMessage,
         res as unknown as ServerResponse,

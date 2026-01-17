@@ -1,5 +1,5 @@
 /**
- * Base Exception Factory for Zintrust Framework
+ * Base Exception Factory for ZinTrust Framework
  * Implemented as plain functions (no classes / no prototype-based constructors).
  */
 
@@ -25,7 +25,7 @@ export type ZintrustErrorInit = Readonly<{
 }>;
 
 /**
- * Plain initializer for Zintrust framework errors.
+ * Plain initializer for ZinTrust framework errors.
  */
 export function initZintrustError(target: Error, init: ZintrustErrorInit = {}): void {
   const mutable = target as Error & {

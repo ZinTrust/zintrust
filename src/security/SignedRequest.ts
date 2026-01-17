@@ -92,7 +92,7 @@ const timingSafeEquals = (a: string, b: string): boolean => {
 const getCrypto = (): Crypto => {
   if (typeof crypto === 'undefined' || crypto.subtle === undefined) {
     // Some runtimes (or test environments) may not expose WebCrypto.
-    // Keep this as a typed Zintrust error to satisfy lint rules.
+    // Keep this as a typed ZinTrust error to satisfy lint rules.
 
     throw ErrorFactory.createSecurityError('WebCrypto is not available in this runtime');
   }

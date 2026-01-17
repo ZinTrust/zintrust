@@ -1,21 +1,31 @@
-export const DASHBOARD_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZinTrust Queue Monitor</title>
-    <style>
-/* Base Styles from x-thread-card-1/shared/styles.css */
+export type DashboardUiOptions = {
+  autoRefresh: boolean;
+  refreshIntervalMs: number;
+};
+
+const getDashboardStyles = (): string => `
 :root {
-  --bg: #0b1220;
-  --card: #0f172a;
-  --border: #334155;
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #bae6fd;
-  --accent2: #e2e8f0;
-  --danger: #ef4444;
-  --success: #10b981;
+    --bg: #0b1220;
+    --card: rgba(15, 23, 42, 0.65);
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #bae6fd;
+    --accent2: #e2e8f0;
+    --danger: #ef4444;
+    --success: #10b981;
+}
+
+html[data-theme="light"] {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #475569;
+    --accent: #0284c7;
+    --accent2: #0f172a;
+    --danger: #dc2626;
+    --success: #16a34a;
 }
 
 .logo-frame {
@@ -50,10 +60,10 @@ body {
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 
 .tile {
-  border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.65);
-  border-radius: 12px;
-  padding: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    border-radius: 12px;
+    padding: 20px;
 }
 
 /* Dashboard Specific Styles */
@@ -80,11 +90,14 @@ tr:last-child td { border-bottom: none; }
 .refresh-btn { background: rgba(255,255,255,0.03); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
 .refresh-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--muted); }
 
+html[data-theme="light"] .refresh-btn { background: rgba(2, 132, 199, 0.08); }
+html[data-theme="light"] .refresh-btn:hover { background: rgba(2, 132, 199, 0.16); }
+
 #error-container { display: none; margin-bottom: 2rem; padding: 1rem; background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; font-size: 13px; font-weight: 600; }
 code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: var(--accent); border: 1px solid var(--border); }
-    </style>
-</head>
-<body>
+`;
+
+const getDashboardBody = (): string => `
     <div class="page">
         <div class="shell">
             <header>
@@ -111,9 +124,11 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
                         <span>Queue Monitor</span>
                     </div>
                 </div>
-                <div style="display: flex; gap: 1rem; align-items: center;">
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                     <span id="last-updated" style="color: var(--muted); font-size: 12px;"></span>
-                    <button class="refresh-btn" onclick="fetchData()">Refresh</button>
+                    <button id="theme-toggle" class="refresh-btn" type="button">Light mode</button>
+                    <button id="auto-refresh-toggle" class="refresh-btn" type="button">Pause auto refresh</button>
+                    <button class="refresh-btn" onclick="fetchData()" type="button">Refresh</button>
                 </div>
             </header>
 
@@ -148,15 +163,89 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
             </div>
         </div>
     </div>
+`;
 
-    <script>
-        const API_BASE = window.location.pathname.replace(/\\/$/, '');
+const getDashboardScriptState = (options: DashboardUiOptions): string => String.raw`
+        const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
+        const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs || 0))};
+            const API_BASE = window.location.pathname.endsWith('/')
+                ? window.location.pathname.slice(0, -1)
+                : window.location.pathname;
+        const THEME_KEY = 'zintrust-queue-monitor-theme';
+        const AUTO_REFRESH_KEY = 'zintrust-queue-monitor-auto-refresh';
         let currentQueue = 'default';
+        let autoRefreshEnabled = AUTO_REFRESH;
+        let refreshTimer = null;
+        let currentTheme = null;
+`;
 
+const getDashboardScriptTheme = (): string => `
+        function getPreferredTheme() {
+            const stored = localStorage.getItem(THEME_KEY);
+            if (stored === 'light' || stored === 'dark') {
+                return stored;
+            }
+            const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+            return prefersLight ? 'light' : 'dark';
+        }
+
+        function updateThemeButton() {
+            const btn = document.getElementById('theme-toggle');
+            if (!btn) return;
+            btn.textContent = currentTheme === 'dark' ? 'Light mode' : 'Dark mode';
+        }
+
+        function applyTheme(nextTheme) {
+            currentTheme = nextTheme;
+            document.documentElement.setAttribute('data-theme', nextTheme);
+            localStorage.setItem(THEME_KEY, nextTheme);
+            updateThemeButton();
+        }
+
+        function toggleTheme() {
+            applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        }
+`;
+
+const getDashboardScriptAutoRefresh = (): string => `
+        function updateAutoRefreshButton() {
+            const btn = document.getElementById('auto-refresh-toggle');
+            if (!btn) return;
+            btn.textContent = autoRefreshEnabled ? 'Pause auto refresh' : 'Resume auto refresh';
+        }
+
+        function startAutoRefresh() {
+            if (!autoRefreshEnabled || refreshTimer !== null) return;
+            refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshTimer === null) return;
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+
+        function setAutoRefresh(enabled) {
+            autoRefreshEnabled = enabled;
+            localStorage.setItem(AUTO_REFRESH_KEY, String(enabled));
+            if (autoRefreshEnabled) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+            updateAutoRefreshButton();
+        }
+
+        function toggleAutoRefresh() {
+            setAutoRefresh(!autoRefreshEnabled);
+        }
+`;
+
+const getDashboardScriptFetch = (): string => `
         async function fetchData() {
             try {
                 document.getElementById('error-container').style.display = 'none';
-                const res = await fetch(\`\${API_BASE}/api/snapshot\`);
+                const res = await fetch(API_BASE + '/api/snapshot');
                 if (!res.ok) throw new Error('Failed to fetch stats');
                 const data = await res.json();
 
@@ -167,7 +256,6 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
                      if (!data.queues.find(q => q.name === currentQueue)) {
                          currentQueue = data.queues[0].name;
                      }
-                     // Force select update if changed
                      document.getElementById('queue-select').value = currentQueue;
                      await fetchJobs(currentQueue);
                 } else {
@@ -183,14 +271,16 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
 
         async function fetchJobs(queue) {
             try {
-                const res = await fetch(\`\${API_BASE}/api/jobs/\${queue}\`);
+                const res = await fetch(API_BASE + '/api/jobs/' + queue);
                 const jobs = await res.json();
                 renderJobs(jobs);
             } catch (e) {
                 console.error('Failed to fetch jobs', e);
             }
         }
+`;
 
+const getDashboardScriptRender = (): string => `
         function renderStats(data) {
             const grid = document.getElementById('stats-grid');
             grid.innerHTML = '';
@@ -209,10 +299,11 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
             cards.forEach(card => {
                 const div = document.createElement('div');
                 div.className = 'tile';
-                div.innerHTML = \`
-                    <div class="stat-label">\${card.label}</div>
-                    <div class="stat-value" style="\${card.color ? 'color:'+card.color : ''}">\${card.value}</div>
-                \`;
+                div.innerHTML =
+                    '<div class="stat-label">' + card.label + '</div>' +
+                    '<div class="stat-value" style="' + (card.color ? 'color:' + card.color : '') + '">' +
+                    card.value +
+                    '</div>';
                 grid.appendChild(div);
             });
         }
@@ -227,7 +318,7 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
             queues.forEach(q => {
                 const opt = document.createElement('option');
                 opt.value = q.name;
-                opt.textContent = \`\${q.name} (\${q.counts.waiting} waiting)\`;
+                opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting)';
                 opt.selected = q.name === currentSelection;
                 select.appendChild(opt);
             });
@@ -245,14 +336,17 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
             jobs.forEach(job => {
                 const tr = document.createElement('tr');
                 const isFailed = !!job.failedReason;
-                tr.innerHTML = \`
-                    <td><code>\${job.id}</code></td>
-                    <td>\${job.name}</td>
-                    <td>\${currentQueue}</td>
-                    <td><span class="status-badge \${isFailed ? 'status-failed' : 'status-completed'}">\${isFailed ? 'Failed' : 'Completed'}</span></td>
-                    <td>\${job.attempts}</td>
-                    <td>\${new Date(job.timestamp).toLocaleTimeString()}</td>
-                \`;
+                tr.innerHTML =
+                    '<td><code>' + job.id + '</code></td>' +
+                    '<td>' + job.name + '</td>' +
+                    '<td>' + currentQueue + '</td>' +
+                    '<td><span class="status-badge ' +
+                    (isFailed ? 'status-failed' : 'status-completed') +
+                    '">' +
+                    (isFailed ? 'Failed' : 'Completed') +
+                    '</span></td>' +
+                    '<td>' + job.attempts + '</td>' +
+                    '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>';
                 if (isFailed) {
                     tr.title = job.failedReason;
                 }
@@ -265,9 +359,54 @@ code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-f
             el.textContent = msg;
             el.style.display = 'block';
         }
+`;
 
+const getDashboardScriptBootstrap = (): string => `
+        const themeButton = document.getElementById('theme-toggle');
+        if (themeButton) {
+            themeButton.addEventListener('click', toggleTheme);
+        }
+
+        const autoRefreshButton = document.getElementById('auto-refresh-toggle');
+        if (autoRefreshButton) {
+            autoRefreshButton.addEventListener('click', toggleAutoRefresh);
+        }
+
+        const storedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);
+        const initialAutoRefresh = storedAutoRefresh === null
+            ? AUTO_REFRESH
+            : storedAutoRefresh === 'true';
+
+        applyTheme(getPreferredTheme());
         fetchData();
-        setInterval(fetchData, 5000);
+        setAutoRefresh(initialAutoRefresh);
+`;
+
+const getDashboardScript = (options: DashboardUiOptions): string =>
+  [
+    getDashboardScriptState(options),
+    getDashboardScriptTheme(),
+    getDashboardScriptAutoRefresh(),
+    getDashboardScriptFetch(),
+    getDashboardScriptRender(),
+    getDashboardScriptBootstrap(),
+  ].join('\n');
+
+export const getDashboardHtml = (options: DashboardUiOptions): string => `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZinTrust Queue Monitor</title>
+    <style>
+${getDashboardStyles()}
+    </style>
+</head>
+<body>
+${getDashboardBody()}
+
+    <script>
+${getDashboardScript(options)}
     </script>
 </body>
 </html>`;

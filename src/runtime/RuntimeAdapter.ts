@@ -48,7 +48,7 @@ export interface RuntimeAdapter {
   parseRequest(event: unknown): PlatformRequest;
 
   /**
-   * Convert Zintrust response to platform-specific format
+   * Convert ZinTrust response to platform-specific format
    */
   formatResponse(response: PlatformResponse): unknown;
 
@@ -81,7 +81,7 @@ export interface RuntimeAdapter {
 }
 
 /**
- * Request handler that processes HTTP requests through Zintrust framework
+ * Request handler that processes HTTP requests through ZinTrust framework
  */
 export type ZintrustHandler = (
   req: IncomingMessage,

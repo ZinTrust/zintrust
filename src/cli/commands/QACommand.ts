@@ -494,7 +494,7 @@ const addOptions = (command: Command): void => {
 
 const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void> => {
   try {
-    qa.info('Starting Zintrust QA Suite...');
+    qa.info('Starting ZinTrust QA Suite...');
     const results = createResults();
 
     await qa.runLint(results.lint);

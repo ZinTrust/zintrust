@@ -203,7 +203,7 @@ function handleRequest(
       }, timeout);
 
       try {
-        // Call Zintrust handler
+        // Call ZinTrust handler
         await config.handler(req, res, body);
       } finally {
         clearTimeout(timeoutHandle);

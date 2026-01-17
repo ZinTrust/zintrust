@@ -203,7 +203,7 @@ export const Env = Object.freeze({
   USERPROFILE: get('USERPROFILE', ''),
 
   // Template/Misc
-  TEMPLATE_COPYRIGHT: get('TEMPLATE_COPYRIGHT', '© 2025 Zintrust Framework. All rights reserved.'),
+  TEMPLATE_COPYRIGHT: get('TEMPLATE_COPYRIGHT', '© 2025 ZinTrust Framework. All rights reserved.'),
   SERVICE_NAME: get('SERVICE_NAME', ''),
   APP_MODE: get('APP_MODE', ''),
   APP_PORT: getInt('APP_PORT', 3000),

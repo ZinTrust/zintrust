@@ -1,5 +1,5 @@
 /**
- * Bundle Optimizer for Zintrust Framework
+ * Bundle Optimizer for ZinTrust Framework
  * Reduces deployment package size by:
  * - Tree-shaking unused ORM adapters
  * - Minifying compiled JavaScript

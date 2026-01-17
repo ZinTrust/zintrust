@@ -1,5 +1,5 @@
 /**
- * Zintrust Application Entry Point
+ * ZinTrust Application Entry Point
  */
 
 import { isNodeMain, start } from '@zintrust/core/start';

@@ -1,6 +1,6 @@
 # @zintrust/db-sqlite
 
-SQLite database adapter package for Zintrust (uses `better-sqlite3`).
+SQLite database adapter package for ZinTrust (uses `better-sqlite3`).
 
 ## Install
 

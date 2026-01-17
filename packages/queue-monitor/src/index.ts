@@ -1,6 +1,6 @@
 import { Router, type IRouter } from '@zintrust/core';
 import { type RedisConfig } from './connection';
-import { DASHBOARD_HTML } from './dashboard-ui';
+import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
 
@@ -11,6 +11,8 @@ export type QueueMonitorConfig = {
   enabled?: boolean;
   basePath?: string;
   middleware?: ReadonlyArray<string>;
+  autoRefresh?: boolean;
+  refreshIntervalMs?: number;
   redis: RedisConfig;
 };
 
@@ -43,6 +45,8 @@ const DEFAULTS = {
   enabled: true,
   basePath: '/queue-monitor',
   middleware: [],
+  autoRefresh: true,
+  refreshIntervalMs: 5000,
 };
 
 export const QueueMonitor = Object.freeze({
@@ -51,6 +55,11 @@ export const QueueMonitor = Object.freeze({
       enabled: config.enabled ?? DEFAULTS.enabled,
       basePath: config.basePath ?? DEFAULTS.basePath,
       middleware: config.middleware ?? DEFAULTS.middleware,
+      autoRefresh: config.autoRefresh ?? DEFAULTS.autoRefresh,
+      refreshIntervalMs:
+        typeof config.refreshIntervalMs === 'number' && Number.isFinite(config.refreshIntervalMs)
+          ? Math.max(1000, Math.floor(config.refreshIntervalMs))
+          : DEFAULTS.refreshIntervalMs,
     };
 
     const driver = createBullMQDriver(config.redis);
@@ -84,7 +93,12 @@ export const QueueMonitor = Object.freeze({
         router,
         settings.basePath,
         (_req, res) => {
-          res.html(DASHBOARD_HTML);
+          res.html(
+            getDashboardHtml({
+              autoRefresh: settings.autoRefresh,
+              refreshIntervalMs: settings.refreshIntervalMs,
+            })
+          );
         },
         routeOptions
       );

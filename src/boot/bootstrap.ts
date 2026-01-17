@@ -1,6 +1,6 @@
 /**
  * Application Bootstrap
- * Entry point for running the Zintrust server
+ * Entry point for running the ZinTrust server
  * Sealed namespace for immutability
  */
 

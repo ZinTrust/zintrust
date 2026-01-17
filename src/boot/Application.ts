@@ -377,7 +377,7 @@ const createLifecycle = (params: {
   const boot = async (): Promise<void> => {
     if (params.getBooted()) return;
 
-    Logger.info(`🚀 Booting Zintrust Application in ${params.environment} mode...`);
+    Logger.info(`🚀 Booting ZinTrust Application in ${params.environment} mode...`);
 
     StartupConfigValidator.assertValid();
 

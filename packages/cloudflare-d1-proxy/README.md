@@ -62,7 +62,7 @@ wrangler secret put ZT_KEYS_JSON
 wrangler secret put ZT_D1_STATEMENTS_JSON
 ```
 
-## Use from Zintrust (Node app)
+## Use from ZinTrust (Node app)
 
 Configure your app:
 

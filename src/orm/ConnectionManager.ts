@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop */
 /* eslint-disable @typescript-eslint/require-await */
 /**
- * Persistent Connection Manager for Zintrust Framework
+ * Persistent Connection Manager for ZinTrust Framework
  * Handles database connections across different runtime environments
  * Supports: PostgreSQL, MySQL, SQL Server with connection pooling for Lambda
  */

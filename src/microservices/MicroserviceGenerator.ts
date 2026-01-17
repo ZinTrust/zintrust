@@ -89,7 +89,7 @@ Domain: \`${domain}\`
 
 ## Description
 
-${serviceName} microservice for Zintrust framework.
+${serviceName} microservice for ZinTrust framework.
 
 ## Port
 
@@ -151,7 +151,7 @@ const response = await manager.callService('other-service', {
 
 ## Dependencies
 
-- Zintrust Framework`;
+- ZinTrust Framework`;
 };
 
 const generateServiceConfig = async (
@@ -393,7 +393,7 @@ ENV NODE_ENV=production
 ENV SERVICE_NAME=${serviceName}
 ENV SERVICE_PORT=3000
 
-# Standard Zintrust environment variables
+# Standard ZinTrust environment variables
 ENV DB_CONNECTION=postgresql
 ENV DB_HOST=postgres
 ENV DB_PORT=5432
@@ -479,7 +479,7 @@ const generateDockerCompose = async (
 
   const compose = `version: '3.9'
 
-# Zintrust Microservices Stack: ${domain}
+# ZinTrust Microservices Stack: ${domain}
 # Run with: docker-compose up -d
 
 services:

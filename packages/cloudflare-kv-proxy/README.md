@@ -56,7 +56,7 @@ Set secrets:
 wrangler secret put ZT_KEYS_JSON
 ```
 
-## Use from Zintrust (Node app)
+## Use from ZinTrust (Node app)
 
 Configure your app:
 

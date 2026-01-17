@@ -1,6 +1,6 @@
 /**
  * New Command - Project scaffolding CLI command
- * Handles creation of new Zintrust projects
+ * Handles creation of new ZinTrust projects
  */
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
@@ -107,7 +107,7 @@ const getProjectDefaults = (name: string, options: CommandOptions): NewProjectCo
   const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 7777;
 
   const author = getStringOption(options, 'author', '');
-  const description = getStringOption(options, 'description', `A new Zintrust project: ${name}`);
+  const description = getStringOption(options, 'description', `A new ZinTrust project: ${name}`);
   const interactive = getBooleanOption(options, 'interactive', true);
 
   return { name, template, database, port, author, description, interactive };
@@ -165,7 +165,7 @@ const getQuestions = (name: string, defaults: NewProjectConfig): InquirerQuestio
       name: 'description',
       message: 'Project description:',
       default:
-        defaults.description === '' ? `A new Zintrust project: ${name}` : defaults.description,
+        defaults.description === '' ? `A new ZinTrust project: ${name}` : defaults.description,
     },
   ];
 };
@@ -376,7 +376,7 @@ const createProject = async (
   command: INewCommand
 ): Promise<void> => {
   const config = await command.getProjectConfig(target.name, options);
-  command.info(chalk.bold(`\n🚀 Creating new Zintrust project in ${target.display}...\n`));
+  command.info(chalk.bold(`\n🚀 Creating new ZinTrust project in ${target.display}...\n`));
 
   const overwrite = options['overwrite'] === true || options['force'] === true ? true : undefined;
   const result = await command.runScaffolding(target.basePath, target.name, config, overwrite);
@@ -473,7 +473,7 @@ const createNewCommandInstance = (): INewCommand => {
 
   const base = BaseCommand.create({
     name: 'new',
-    description: 'Create a new Zintrust project',
+    description: 'Create a new ZinTrust project',
     addOptions,
     execute: async (options: CommandOptions): Promise<void> => {
       await executeImpl(options);

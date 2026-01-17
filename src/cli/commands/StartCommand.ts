@@ -143,7 +143,7 @@ const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string
   const packagePath = path.join(cwd, 'package.json');
   if (!existsSync(packagePath)) {
     throw ErrorFactory.createCliError(
-      "Error: No Zintrust app found. Run 'zin new <project>' or ensure package.json exists."
+      "Error: No ZinTrust app found. Run 'zin new <project>' or ensure package.json exists."
     );
   }
 

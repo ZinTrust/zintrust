@@ -1,5 +1,5 @@
 /**
- * Microservices Architecture for Zintrust Framework
+ * Microservices Architecture for ZinTrust Framework
  * Sealed namespace pattern with immutable microservice management
  */
 

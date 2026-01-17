@@ -24,8 +24,6 @@ export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORe
   if (typeof client.on === 'function') {
     client.on('error', (err: Error) => {
       try {
-        Logger.info('config :', config);
-
         if (err && err.message && err.message.includes('NOAUTH')) {
           // Provide a clearer hint for missing auth to help debugging
 

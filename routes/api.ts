@@ -1,3 +1,4 @@
+import { Logger } from '@config/logger';
 /**
  * Example Routes
  * Demonstrates routing patterns
@@ -15,8 +16,8 @@ import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
-// import QueueMonitor from 'packages/queue-monitor/src/';
-// import queueMonitorConfig from 'config/queueMonitor';
+import queueMonitorConfig from 'config/queueMonitor';
+import QueueMonitor from 'packages/queue-monitor/src/';
 
 export function registerRoutes(router: IRouter): void {
   const authController = AuthController.create();
@@ -26,10 +27,14 @@ export function registerRoutes(router: IRouter): void {
   registerAdminRoutes(router);
 
   // Test Queue Monitor
-  // if (queueMonitorConfig.enabled !== false) {
-  //   const monitor = QueueMonitor.create(queueMonitorConfig);
-  //   monitor.registerRoutes(router);
-  // }
+  if (queueMonitorConfig.enabled !== false) {
+    const monitor = QueueMonitor.create(queueMonitorConfig);
+
+    monitor.registerRoutes(router);
+    Logger.info(
+      `Queue Monitor routes registered http://${Env.HOST}:${Env.PORT}${queueMonitorConfig.basePath}`
+    );
+  }
 }
 
 /**
@@ -47,7 +52,7 @@ function registerPublicRoutes(router: IRouter): void {
 function registerRootRoute(router: IRouter): void {
   Router.get(router, '/', async (_req: IRequest, res: IResponse) => {
     res.json({
-      framework: 'Zintrust Framework',
+      framework: 'ZinTrust Framework',
       app_name: Env.APP_NAME,
       version: '0.1.0',
       env: Env.NODE_ENV ?? 'development',

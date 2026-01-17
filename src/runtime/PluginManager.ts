@@ -238,7 +238,7 @@ async function ensurePluginAutoImports(plugin: PluginDefinition): Promise<void> 
 
   const header =
     '/**\n' +
-    ' * Zintrust plugin auto-imports\n' +
+    ' * ZinTrust plugin auto-imports\n' +
     ' *\n' +
     ' * This file is managed by `zin plugin install` and contains side-effect\n' +
     ' * imports that register optional adapters/drivers into core registries.\n' +
