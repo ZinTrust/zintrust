@@ -416,7 +416,7 @@ export const OpenApiGenerator = Object.freeze({
         version: options.version,
         description: options.description,
       },
-      paths: Object.create(null),
+      paths: Object.create(null) as Record<string, Record<string, OpenApiOperation>>,
     };
 
     if (typeof options.serverUrl === 'string' && options.serverUrl.trim() !== '') {
@@ -430,7 +430,7 @@ export const OpenApiGenerator = Object.freeze({
       const method = r.method.toLowerCase();
 
       if (!Object.prototype.hasOwnProperty.call(doc.paths, openApiPath)) {
-        doc.paths[openApiPath] = Object.create(null);
+        doc.paths[openApiPath] = Object.create(null) as Record<string, OpenApiOperation>;
       }
 
       const meta = r.meta;
