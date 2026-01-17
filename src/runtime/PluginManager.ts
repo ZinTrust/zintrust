@@ -35,17 +35,27 @@ function findPackageRoot(startDir: string): string {
   return path.resolve(startDir, '../..');
 }
 
-// Cache process values at module load time
-const projectCwd = process.cwd();
-const getProjectRootEnv = (): string => Env.ZINTRUST_PROJECT_ROOT;
-const getAllowPostInstallEnv = (): string => Env.ZINTRUST_ALLOW_POSTINSTALL.trim();
+const readEnvString = (key: string): string => {
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string') return raw;
+  }
+  return fromEnv ?? '';
+};
+
+const getProjectCwd = (): string => process.cwd();
+const getProjectRootEnv = (): string => readEnvString('ZINTRUST_PROJECT_ROOT');
+const getAllowPostInstallEnv = (): string => readEnvString('ZINTRUST_ALLOW_POSTINSTALL').trim();
 
 function resolveProjectRoot(): string {
   const projectRootEnv = getProjectRootEnv();
   if (projectRootEnv.trim().length > 0) {
     return projectRootEnv.trim();
   }
-  return projectCwd;
+  return getProjectCwd();
 }
 
 function resolveTemplateRootOrThrow(): string {

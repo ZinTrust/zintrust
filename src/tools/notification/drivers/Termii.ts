@@ -16,8 +16,19 @@ export const TermiiDriver = Object.freeze({
       throw ErrorFactory.createValidationError('Message body is required');
     }
 
-    const apiKey = Env.TERMII_API_KEY;
-    const sender = Env.TERMII_SENDER;
+    const readEnvString = (key: string): string => {
+      const anyEnv = Env as { get?: (k: string, d?: string) => string };
+      const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+      if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+      if (typeof process !== 'undefined') {
+        const raw = process.env?.[key];
+        if (typeof raw === 'string') return raw;
+      }
+      return fromEnv ?? '';
+    };
+
+    const apiKey = readEnvString('TERMII_API_KEY') || Env.TERMII_API_KEY;
+    const sender = readEnvString('TERMII_SENDER') || Env.TERMII_SENDER;
 
     if (!apiKey) {
       throw ErrorFactory.createConfigError('TERMII_API_KEY is not configured');

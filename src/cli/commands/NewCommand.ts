@@ -254,8 +254,20 @@ const installDependencies = async (
   force: boolean = false
 ): Promise<void> => {
   // Respect CI by default — avoid network installs in CI unless explicitly allowed
-  const isCi = Boolean(Env.CI);
-  const allowAuto = Env.ZINTRUST_ALLOW_AUTO_INSTALL === '1' || force;
+  const readEnvString = (key: string): string => {
+    const anyEnv = Env as { get?: (k: string, d?: string) => string };
+    const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+    if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+    if (typeof process !== 'undefined') {
+      const raw = process.env?.[key];
+      if (typeof raw === 'string') return raw;
+    }
+    return fromEnv ?? '';
+  };
+
+  const ciRaw = readEnvString('CI').trim().toLowerCase();
+  const isCi = ciRaw !== '' && ciRaw !== '0' && ciRaw !== 'false';
+  const allowAuto = readEnvString('ZINTRUST_ALLOW_AUTO_INSTALL') === '1' || force;
 
   if (isCi && !allowAuto) {
     log.info('Skipping automatic dependency installation in CI environment.');

@@ -14,16 +14,26 @@ type ImportResult =
       errorMessage?: string;
     };
 
-// Cache process values at module load time
-const projectCwd = process.cwd();
-const getProjectRootEnv = (): string => Env.ZINTRUST_PROJECT_ROOT;
+const readEnvString = (key: string): string => {
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string') return raw;
+  }
+  return fromEnv ?? '';
+};
+
+const getProjectCwd = (): string => process.cwd();
+const getProjectRootEnv = (): string => readEnvString('ZINTRUST_PROJECT_ROOT');
 
 const resolveProjectRoot = (): string => {
   const projectRootEnv = getProjectRootEnv();
   if (projectRootEnv.trim().length > 0) {
     return projectRootEnv.trim();
   }
-  return projectCwd;
+  return getProjectCwd();
 };
 
 const getCandidates = (projectRoot: string): string[] => {

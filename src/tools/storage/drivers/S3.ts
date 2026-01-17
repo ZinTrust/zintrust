@@ -97,9 +97,22 @@ const buildCanonicalQueryString = (params: Record<string, string>): string => {
 };
 
 const getCredentials = (config: S3Config): GS3Cred => {
-  const accessKeyId = config.accessKeyId || Env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = config.secretAccessKey || Env.AWS_SECRET_ACCESS_KEY;
-  const sessionToken = Env.AWS_SESSION_TOKEN || undefined;
+  const readEnvString = (key: string): string => {
+    const anyEnv = Env as { get?: (k: string, d?: string) => string };
+    const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+    if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+    if (typeof process !== 'undefined') {
+      const raw = process.env?.[key];
+      if (typeof raw === 'string') return raw;
+    }
+    return fromEnv ?? '';
+  };
+
+  const accessKeyId =
+    config.accessKeyId || readEnvString('AWS_ACCESS_KEY_ID') || Env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey =
+    config.secretAccessKey || readEnvString('AWS_SECRET_ACCESS_KEY') || Env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken = readEnvString('AWS_SESSION_TOKEN') || Env.AWS_SESSION_TOKEN || undefined;
 
   if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
     throw ErrorFactory.createConfigError('S3: missing AWS credentials');

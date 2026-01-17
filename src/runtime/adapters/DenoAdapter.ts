@@ -248,7 +248,7 @@ function getDenoEnvironment(): {
     string
   >;
   return {
-    nodeEnv: env['DENO_ENV'] as NodeJS.ProcessEnv['NODE_ENV'],
+    nodeEnv: (env['DENO_ENV'] ?? 'production') as NodeJS.ProcessEnv['NODE_ENV'],
     runtime: 'deno',
     dbConnection: env['DB_CONNECTION'] ?? 'postgresql',
     dbHost: env['DB_HOST'],

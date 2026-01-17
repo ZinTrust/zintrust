@@ -25,14 +25,31 @@ const isNodeProcess = (): boolean => {
   return typeof process !== 'undefined' && typeof process.cwd === 'function';
 };
 
+const readEnvString = (key: string, fallback: string = ''): string => {
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, fallback) : fallback;
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string' && raw.trim() !== '') return raw;
+  }
+
+  return fromEnv ?? '';
+};
+
 const isExplicitEnvValue = (key: string): boolean => {
   if (!isNodeProcess()) return false;
-  const raw = Env.get(key, '');
+
+  const direct = (Env as Record<string, unknown>)[key];
+  if (typeof direct === 'string' && direct.trim() !== '') return true;
+
+  const raw = process.env[key] ?? Env.get(key, '');
   return typeof raw === 'string' && raw.trim() !== '';
 };
 
-const looksLikeSqliteFilePath = (value: string): boolean => {
-  const v = value.trim();
+const looksLikeSqliteFilePath = (value?: string): boolean => {
+  const v = String(value ?? '').trim();
   if (v === '') return false;
   if (v === ':memory:') return true;
 
@@ -81,10 +98,16 @@ const toSafeDbBasename = (raw: string): string => {
 };
 
 const resolveSqliteDefaultBasename = (): string => {
-  const service = Env.get('SERVICE_NAME', '');
+  const service =
+    typeof Env.SERVICE_NAME === 'string' && Env.SERVICE_NAME.trim() !== ''
+      ? Env.SERVICE_NAME
+      : readEnvString('SERVICE_NAME', '');
   if (service.trim() !== '') return toSafeDbBasename(service);
 
-  const app = Env.get('APP_NAME', '');
+  const app =
+    typeof Env.APP_NAME === 'string' && Env.APP_NAME.trim() !== ''
+      ? Env.APP_NAME
+      : readEnvString('APP_NAME', '');
   if (app.trim() !== '') return toSafeDbBasename(app);
 
   return 'zintrust';

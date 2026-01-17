@@ -1,6 +1,8 @@
 // TEMPLATE_START
 import * as bcrypt from 'bcrypt';
-import { sign, verify, type Secret, type SignOptions } from 'jsonwebtoken';
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
+
+const { sign, verify } = jwt;
 
 export const Auth = Object.freeze({
   /**

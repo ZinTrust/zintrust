@@ -12,7 +12,12 @@ type IRedisClient = {
 };
 
 const getRedisUrl = (): string | null => {
-  const url = Env.REDIS_URL.trim();
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get('REDIS_URL', '') : '';
+  const hasProcess = typeof process === 'object' && process !== null;
+  const fallback = hasProcess ? (process.env?.['REDIS_URL'] ?? '') : '';
+  const trimmed = fromEnv.trim();
+  const url = (trimmed.length > 0 ? fromEnv : String(fallback)).trim();
   return url.length > 0 ? url : null;
 };
 
