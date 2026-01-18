@@ -332,10 +332,10 @@ export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 export { Broadcast } from '@tools/broadcast/Broadcast';
 export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
 export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
-// export { BroadcastWorker } from '@zintrust/workers';
+export { BroadcastWorker } from '@zintrust/workers';
 
-// // Notification Workers
-// export { NotificationWorker } from '@zintrust/workers';
+// Notification Workers
+export { NotificationWorker } from '@zintrust/workers';
 
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';

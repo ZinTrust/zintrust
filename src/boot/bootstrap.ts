@@ -129,14 +129,6 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
         if (appInstance !== undefined) {
           await appInstance.shutdown();
         }
-
-        // Gracefully shutdown worker system
-        try {
-          const { WorkerShutdown } = await import('@zintrust/workers');
-          await WorkerShutdown.shutdown({ signal, timeout: 5000, forceExit: false });
-        } catch {
-          // Worker package might not be installed or fails to load
-        }
       })(),
       timeoutMs,
       'Graceful shutdown timed out'

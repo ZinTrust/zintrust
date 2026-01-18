@@ -195,6 +195,28 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
       /* ignore import failures in restrictive runtimes */
     });
   /* c8 ignore stop */
+
+  import('@zintrust/workers')
+    .then(
+      (mod: {
+        WorkerShutdown: {
+          shutdown: (opts: {
+            signal?: string;
+            timeout?: number;
+            forceExit?: boolean;
+          }) => Promise<void>;
+        };
+      }) => {
+        shutdownManager.add(async () =>
+          mod.WorkerShutdown.shutdown({ signal: 'APP_SHUTDOWN', timeout: 5000, forceExit: false })
+        );
+      }
+    )
+    /* c8 ignore start */
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+  /* c8 ignore stop */
 };
 
 const tryImportRoutesFromAppBase = async (

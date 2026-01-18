@@ -53,7 +53,7 @@ function commentOut(content) {
   // Comment out registerDevRoutes
   if (content.includes(DEV_MARKERS.registerDev)) {
     modified = modified.replace(
-      new RegExp(`^(\\s*)(${escapeRegex(DEV_MARKERS.registerDev)})`, 'm'),
+      new RegExp(String.raw`^(\s*)(${escapeRegex(DEV_MARKERS.registerDev)})`, 'm'),
       '$1// $2'
     );
     changeCount++;
@@ -62,7 +62,7 @@ function commentOut(content) {
   // Comment out registerTestRoutes
   if (content.includes(DEV_MARKERS.registerTest)) {
     modified = modified.replace(
-      new RegExp(`^(\\s*)(${escapeRegex(DEV_MARKERS.registerTest)})`, 'm'),
+      new RegExp(String.raw`^(\s*)(${escapeRegex(DEV_MARKERS.registerTest)})`, 'm'),
       '$1// $2'
     );
     changeCount++;
@@ -76,21 +76,27 @@ function uncomment(content) {
   let changeCount = 0;
 
   // Uncomment import
-  const importPattern = new RegExp(`^//\\s*(${escapeRegex(DEV_MARKERS.import)})`, 'm');
+  const importPattern = new RegExp(String.raw`^//\s*(${escapeRegex(DEV_MARKERS.import)})`, 'm');
   if (importPattern.test(content)) {
     modified = modified.replace(importPattern, '$1');
     changeCount++;
   }
 
   // Uncomment registerDevRoutes
-  const devPattern = new RegExp(`^(\\s*)//\\s*(${escapeRegex(DEV_MARKERS.registerDev)})`, 'm');
+  const devPattern = new RegExp(
+    String.raw`^(\s*)//\s*(${escapeRegex(DEV_MARKERS.registerDev)})`,
+    'm'
+  );
   if (devPattern.test(modified)) {
     modified = modified.replace(devPattern, '$1$2');
     changeCount++;
   }
 
   // Uncomment registerTestRoutes
-  const testPattern = new RegExp(`^(\\s*)//\\s*(${escapeRegex(DEV_MARKERS.registerTest)})`, 'm');
+  const testPattern = new RegExp(
+    String.raw`^(\s*)//\s*(${escapeRegex(DEV_MARKERS.registerTest)})`,
+    'm'
+  );
   if (testPattern.test(modified)) {
     modified = modified.replace(testPattern, '$1$2');
     changeCount++;
@@ -100,7 +106,7 @@ function uncomment(content) {
 }
 
 function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 function main() {
