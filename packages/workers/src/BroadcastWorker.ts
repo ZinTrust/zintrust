@@ -5,8 +5,8 @@
  * Use with Queue.dequeue() in a background process or cron job.
  */
 
-import { createQueueWorker } from '@/workers/createQueueWorker';
-import { Broadcast } from '@broadcast/Broadcast';
+import { Broadcast } from '@zintrust/core';
+import { createQueueWorker } from './createQueueWorker';
 
 type BroadcastJob = {
   channel: string;

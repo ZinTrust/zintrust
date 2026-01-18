@@ -9,27 +9,15 @@ const queueMock = {
 const broadcastMock = { send: vi.fn() };
 const notificationMock = { send: vi.fn() };
 
-vi.mock('@config/logger', () => ({
+vi.mock('@zintrust/core', () => ({
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
   },
-}));
-
-vi.mock('@tools/queue/Queue', () => ({
   Queue: queueMock,
-  default: queueMock,
-}));
-
-vi.mock('@broadcast/Broadcast', () => ({
   Broadcast: broadcastMock,
-  default: broadcastMock,
-}));
-
-vi.mock('@notification/Notification', () => ({
   Notification: notificationMock,
-  default: notificationMock,
 }));
 
 describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
@@ -46,7 +34,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
   });
 
   it('BroadcastWorker.processOne uses Broadcast.send', async () => {
-    const { BroadcastWorker } = await import('@/workers/BroadcastWorker');
+    const { BroadcastWorker } = await import('@zintrust/workers');
 
     queueMock.dequeue.mockResolvedValueOnce({
       id: 'b1',
@@ -60,7 +48,7 @@ describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
   });
 
   it('NotificationWorker.processOne uses Notification.send', async () => {
-    const { NotificationWorker } = await import('@/workers/NotificationWorker');
+    const { NotificationWorker } = await import('@zintrust/workers');
 
     queueMock.dequeue.mockResolvedValueOnce({
       id: 'n1',

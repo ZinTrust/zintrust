@@ -4,10 +4,10 @@
  * Sealed namespace for immutability
  */
 
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type { CacheConfigInput, CacheDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export type CacheConfigOverrides = Partial<{
   default: string;

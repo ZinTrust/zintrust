@@ -266,3 +266,10 @@ export const QueueMonitor = Object.freeze({
 });
 
 export default QueueMonitor;
+
+/**
+ * Package version and build metadata
+ * Available at runtime for debugging and health checks
+ */
+export const _ZINTRUST_QUEUE_MONITOR_VERSION = '0.1.0';
+export const _ZINTRUST_QUEUE_MONITOR_BUILD_DATE = '__BUILD_DATE__';

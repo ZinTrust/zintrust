@@ -33,6 +33,7 @@ import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
+import { WorkerCommands } from '@cli/commands/WorkerCommands';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
@@ -112,6 +113,13 @@ const registerCommands = (program: Command): void => {
     MakeNotificationTemplateCommand.create(),
     RoutesCommand.create(),
     JwtDevCommand,
+    // Worker management commands
+    WorkerCommands.createWorkerListCommand(),
+    WorkerCommands.createWorkerStatusCommand(),
+    WorkerCommands.createWorkerStartCommand(),
+    WorkerCommands.createWorkerStopCommand(),
+    WorkerCommands.createWorkerRestartCommand(),
+    WorkerCommands.createWorkerSummaryCommand(),
   ];
 
   for (const command of commands) {

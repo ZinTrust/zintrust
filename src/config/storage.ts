@@ -4,10 +4,10 @@
  * Sealed namespace for immutability
  */
 
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type { StorageConfigRuntime, StorageDriverConfig, StorageDrivers } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export type StorageConfigOverrides = Partial<{
   default: string;

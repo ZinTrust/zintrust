@@ -47,7 +47,7 @@ const startSchedulesIfNeeded = async (
   app: ReturnType<typeof Application.create>
 ): Promise<void> => {
   try {
-    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
+    const { RuntimeDetector } = await import('@runtime/RuntimeDetector');
     const runtime = RuntimeDetector.detectRuntime();
     if (runtime !== 'nodejs' && runtime !== 'fargate') return;
 

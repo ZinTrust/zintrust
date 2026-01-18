@@ -6,8 +6,8 @@
 
 import { Env } from '@config/env';
 
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export type QueueConfigOverrides = Partial<{
   default: QueueDriverName;

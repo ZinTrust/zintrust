@@ -228,6 +228,22 @@ const initialize = async (handler: ZintrustHandler): Promise<void> => {
 
   logger.info('Application initializing', runtimeInfo);
 
+  // Initialize worker management system
+  try {
+    const { WorkerInit } = await import('@zintrust/workers');
+    await WorkerInit.initialize({
+      enableResourceMonitoring: true,
+      enableHealthMonitoring: true,
+      enableAutoScaling: false, // Disabled by default, enable via config
+      registerShutdownHandlers: true,
+      resourceMonitoringInterval: 60000,
+    });
+    logger.info('Worker management system initialized');
+  } catch (error) {
+    logger.warn('Worker management system initialization failed (non-fatal)', error as Error);
+    // Non-fatal - application can still run without worker management
+  }
+
   // Start appropriate server based on runtime
   switch (runtime) {
     case 'fargate':
@@ -282,6 +298,19 @@ const shutdown = async (signal: string = 'SIGTERM'): Promise<void> => {
   const timeoutMs = Number(Env.SHUTDOWN_TIMEOUT);
 
   try {
+    // Shutdown worker management system first
+    try {
+      const { WorkerShutdown } = await import('@zintrust/workers');
+      await withTimeout(
+        WorkerShutdown.shutdown({ signal, timeout: 30000, forceExit: false }),
+        timeoutMs,
+        'Worker shutdown timed out'
+      );
+      logger.info('Worker management system shutdown complete');
+    } catch (error) {
+      logger.warn('Worker shutdown failed (continuing with app shutdown)', error as Error);
+    }
+
     const adapter = runtimeState.adapter as
       | (RuntimeAdapter & { stop?: () => Promise<void> })
       | undefined;

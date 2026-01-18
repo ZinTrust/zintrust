@@ -10,7 +10,6 @@ import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import type { IMiddlewareStack } from '@/middleware/MiddlewareStack';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
@@ -18,6 +17,7 @@ import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export interface IApplication {
   boot(): Promise<void>;

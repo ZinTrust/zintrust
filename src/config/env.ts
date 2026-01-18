@@ -35,6 +35,14 @@ export const getInt = (key: string, defaultValue?: number): number => {
   return Number.parseInt(value, 10);
 };
 
+export const getFloat = (key: string, defaultValue?: number): number => {
+  const env = processLike?.env ?? {};
+  const value = env[key];
+  if (value === undefined || value === null) return defaultValue ?? 0;
+  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
+  return Number.parseFloat(value);
+};
+
 export const getBool = (key: string, defaultValue?: boolean): boolean => {
   const env = processLike?.env ?? {};
   const value = env[key];
@@ -55,6 +63,7 @@ export const Env = Object.freeze({
   get,
   getInt,
   getBool,
+  getFloat,
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],

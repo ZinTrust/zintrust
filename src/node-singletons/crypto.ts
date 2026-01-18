@@ -16,5 +16,6 @@ export {
   pbkdf2Sync,
   randomBytes,
   randomInt,
+  scryptSync,
   timingSafeEqual,
 } from 'node:crypto';

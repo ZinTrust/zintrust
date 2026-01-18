@@ -9,13 +9,14 @@ import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-// import { registerDevRoutes, registerTestRoutes } from '@routes/apiDev';
+import { registerDevRoutes, registerTestRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
 import { type IRouter, Router } from '@routing/Router';
+import { registerWorkerRoutes } from '@zintrust/workers';
 
 export function registerRoutes(router: IRouter): void {
   const authController = AuthController.create();
@@ -23,7 +24,7 @@ export function registerRoutes(router: IRouter): void {
   registerPublicRoutes(router);
   registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
-  // registerDevRoutes(router);
+  registerDevRoutes(router);
 }
 
 /**
@@ -36,6 +37,7 @@ function registerPublicRoutes(router: IRouter): void {
   registerBroadcastRoutes(router);
   registerOpenApiRoutes(router);
   registerStorageRoutes(router);
+  registerWorkerRoutes(router);
 }
 
 function registerRootRoute(router: IRouter): void {
@@ -101,7 +103,7 @@ function registerApiV1Routes(
       middleware: ['auth', 'jwt', 'fillRateLimit', 'validateUserFill'],
     });
 
-    // registerTestRoutes(pr);
+    registerTestRoutes(pr);
 
     // If the controller exposes create/edit, wire them explicitly.
     Router.get<MiddlewareKey>(pr, '/users/create', userController.create, {

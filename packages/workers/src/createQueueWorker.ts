@@ -1,5 +1,5 @@
-import { Logger } from '@config/logger';
-import { type QueueMessage, Queue } from '@tools/queue/Queue';
+import type { QueueMessage } from '@zintrust/core';
+import { Logger, Queue } from '@zintrust/core';
 
 type QueueWorker = {
   processOne: (queueName?: string, driverName?: string) => Promise<boolean>;

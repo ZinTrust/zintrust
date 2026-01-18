@@ -5,7 +5,6 @@
  * Driver selection must be dynamic (tests may mutate process.env).
  */
 
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type {
   KnownNotificationDriverConfig,
@@ -14,6 +13,7 @@ import type {
   NotificationProviders,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export type NotificationConfigOverrides = Partial<{
   default: string;

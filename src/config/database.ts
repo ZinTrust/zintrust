@@ -4,7 +4,6 @@
  * Sealed namespace for immutability
  */
 
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type {
   DatabaseConfigShape,
@@ -12,6 +11,7 @@ import type {
   DatabaseConnections,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export type DatabaseConfigOverrides = Partial<{
   default: string;

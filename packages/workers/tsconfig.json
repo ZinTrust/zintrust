@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["es2023"],
+    "baseUrl": ".",
+    "moduleResolution": "bundler",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "composite": false,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "paths": {
+      "@zintrust/core": ["../../src/index.ts"],
+      "@zintrust/core/*": ["../../src/*"],
+      "@node-singletons": ["../../src/node-singletons/index.ts"],
+      "@node-singletons/*": ["../../src/node-singletons/*"],
+      "@workers/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

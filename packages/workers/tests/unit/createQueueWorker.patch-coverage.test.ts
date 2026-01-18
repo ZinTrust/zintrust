@@ -6,17 +6,13 @@ const queueMock = {
   ack: vi.fn(),
 };
 
-vi.mock('@config/logger', () => ({
+vi.mock('@zintrust/core', () => ({
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
   },
-}));
-
-vi.mock('@tools/queue/Queue', () => ({
   Queue: queueMock,
-  default: queueMock,
 }));
 
 describe('createQueueWorker (patch coverage)', () => {
@@ -31,7 +27,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('processOne acks and returns true on success', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const handle = vi.fn().mockResolvedValue(undefined);
     const worker = createQueueWorker<{ v: number }>({
@@ -50,7 +46,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('processOne re-enqueues when handle throws and attempts below max', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -68,7 +64,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('processOne does not re-enqueue when attempts >= maxAttempts', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -86,7 +82,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('processAll drains until dequeue returns undefined', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -105,7 +101,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('runOnce respects maxItems', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -124,7 +120,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('runOnce drains until empty when maxItems is undefined', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -142,7 +138,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('startWorker exits immediately when signal is already aborted', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -162,7 +158,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('startWorker drains until empty when not aborted', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker<{ v: number }>({
       kindLabel: 'job',
@@ -180,7 +176,7 @@ describe('createQueueWorker (patch coverage)', () => {
   });
 
   it('processOne re-enqueues without processing when timestamp is in future', async () => {
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const handle = vi.fn();
     const worker = createQueueWorker<{ v: number; timestamp?: number }>({

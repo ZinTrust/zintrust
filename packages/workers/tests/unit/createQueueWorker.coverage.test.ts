@@ -1,28 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@config/logger', () => ({
+const queueMock = {
+  dequeue: vi.fn(),
+  enqueue: vi.fn(),
+  ack: vi.fn(),
+};
+
+vi.mock('@zintrust/core', () => ({
   Logger: {
     info: vi.fn(),
     error: vi.fn(),
   },
-}));
-
-vi.mock('@tools/queue/Queue', () => ({
-  Queue: {
-    dequeue: vi.fn(),
-    enqueue: vi.fn(),
-    ack: vi.fn(),
-  },
+  Queue: queueMock,
 }));
 
 describe('createQueueWorker coverage', () => {
   it('processes one item using maxItems loop', async () => {
-    const { Queue } = await import('@tools/queue/Queue');
+    const { Queue } = await import('@zintrust/core');
     (Queue.dequeue as unknown as { mockResolvedValueOnce: (v: unknown) => void })
       .mockResolvedValueOnce({ id: '1', payload: { ok: true }, attempts: 0 })
       .mockResolvedValueOnce(undefined);
 
-    const { createQueueWorker } = await import('@/workers/createQueueWorker');
+    const { createQueueWorker } = await import('@zintrust/workers');
 
     const worker = createQueueWorker({
       kindLabel: 'job',
