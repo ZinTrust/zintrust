@@ -12,14 +12,8 @@
     "sourceMap": false,
     "composite": false,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "paths": {
-      "@zintrust/core": ["../../src/index.ts"],
-      "@zintrust/core/*": ["../../src/*"],
-      "@node-singletons": ["../../src/node-singletons/index.ts"],
-      "@node-singletons/*": ["../../src/node-singletons/*"],
-      "@workers/*": ["./src/*"]
-    }
+    "paths": {}
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "tests"]
 }

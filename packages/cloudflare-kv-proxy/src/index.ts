@@ -147,7 +147,7 @@ const verifySignedRequest = async (
             verifyNonceKv(env.ZT_NONCES as KVNamespace, keyId, nonce, ttlMs),
   });
 
-  if (!verifyResult.ok) {
+  if (verifyResult.ok === false) {
     return json(401, { code: verifyResult.code, message: verifyResult.message });
   }
 
@@ -187,7 +187,7 @@ const readAndVerifyJson = async (
 > => {
   const maxBodyBytes = getEnvInt(env, 'ZT_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES);
   const bodyResult = await readBodyBytes(request, maxBodyBytes);
-  if (!bodyResult.ok) return bodyResult;
+  if (bodyResult.ok === false) return { ok: false, response: bodyResult.response };
 
   const auth = await verifySignedRequest(request, env, bodyResult.bytes);
   if (auth instanceof Response) return { ok: false, response: auth };
@@ -232,13 +232,13 @@ const parseGetPayload = (
 
 const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const cache = requireCache(env);
   if (cache instanceof Response) return cache;
 
   const parsed = parseGetPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
 
@@ -293,13 +293,13 @@ const parsePutPayload = (
 
 const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const cache = requireCache(env);
   if (cache instanceof Response) return cache;
 
   const parsed = parsePutPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
   const value = JSON.stringify(parsed.value);
@@ -336,13 +336,13 @@ const parseDeletePayload = (
 
 const handleDelete = async (request: Request, env: KvEnv): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const cache = requireCache(env);
   if (cache instanceof Response) return cache;
 
   const parsed = parseDeletePayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
   await cache.delete(storageKey);
@@ -373,13 +373,13 @@ const parseListPayload = (
 
 const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const cache = requireCache(env);
   if (cache instanceof Response) return cache;
 
   const parsed = parseListPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const envLimit = getEnvInt(env, 'ZT_KV_LIST_LIMIT', DEFAULT_LIST_LIMIT);
   const requested = parsed.params.limit ?? envLimit;
