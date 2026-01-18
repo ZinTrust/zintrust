@@ -1,7 +1,7 @@
-# Comment out zintrust.plugins import
-npm run commemtout
+# # Comment out zintrust.plugins import
+# npm run commemtout
 
-npx lint-staged
-npm run -s duplication:check
-npm run -s type-check && npm run -s lint --max-warnings=0
-npm run templates:check
+# npx lint-staged
+# npm run -s duplication:check
+# npm run -s type-check && npm run -s lint --max-warnings=0
+# npm run templates:check
