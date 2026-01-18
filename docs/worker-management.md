@@ -844,7 +844,7 @@ await MultiQueueWorker.create({
   concurrency: 10,
 
   processor: async (job: Job, queueName: string) => {
-    console.log(`Processing job from ${queueName}`);
+    Logger.info(`Processing job from ${queueName}`);
     // Process job based on queue
     return await processJob(job, queueName);
   },
@@ -874,8 +874,8 @@ await CanaryController.startCanary('api-processor', {
 
 // 3. Monitor canary status
 const status = await CanaryController.getCanaryStatus('api-processor');
-console.log(`Canary health: ${status.health}/100`);
-console.log(`Traffic split: ${status.trafficPercentage}%`);
+Logger.info(`Canary health: ${status.health}/100`);
+Logger.info(`Traffic split: ${status.trafficPercentage}%`);
 
 // 4. Complete or rollback
 if (status.health > 95) {

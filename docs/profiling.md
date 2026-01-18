@@ -18,7 +18,7 @@ const report = await profiler.captureRequest(async () => {
 });
 
 // Generate and log the report
-console.log(profiler.generateReport(report));
+Logger.info(profiler.generateReport(report));
 ```
 
 ## Memory Profiling
@@ -38,7 +38,7 @@ await heavyProcessing();
 
 // End tracking and get report
 memProfiler.end();
-console.log(memProfiler.getReport());
+Logger.info(memProfiler.getReport());
 ```
 
 ## N+1 Query Detection
@@ -76,7 +76,7 @@ const report = await profiler.captureRequest(async () => {
   await doSomethingExpensive();
 });
 
-console.log(profiler.generateReport(report));
+Logger.info(profiler.generateReport(report));
 ```
 
 ## Memory Profiling
@@ -92,7 +92,7 @@ memProfiler.start();
 await heavyProcessing();
 memProfiler.end();
 
-console.log(memProfiler.getReport());
+Logger.info(memProfiler.getReport());
 ```
 
 Notes:

@@ -18,6 +18,7 @@ export { DeadLetterQueue } from './DeadLetterQueue';
 // Monitoring & Resources
 export { HealthMonitor } from './HealthMonitor';
 export { ResourceMonitor } from './ResourceMonitor';
+export { SLAMonitor } from './SLAMonitor';
 
 // Compliance & Security
 export { ComplianceManager } from './ComplianceManager';
@@ -31,7 +32,9 @@ export { PluginManager } from './PluginManager';
 // Advanced Features
 export { CanaryController } from './CanaryController';
 export { DatacenterOrchestrator } from './DatacenterOrchestrator';
+export { ChaosEngineering } from './ChaosEngineering';
 export { MultiQueueWorker } from './MultiQueueWorker';
+export { AnomalyDetection } from './AnomalyDetection';
 export { WorkerVersioning } from './WorkerVersioning';
 
 // Factory & Lifecycle
@@ -62,6 +65,23 @@ export type {
   WorkerStatus,
   WorkerVersioningConfig,
 } from '@zintrust/core';
+
+export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
+export type {
+  IChaosComparison,
+  IChaosExperiment,
+  IChaosReport,
+  IChaosStatus,
+} from './ChaosEngineering';
+export type {
+  IAnomaly,
+  IAnomalyConfig,
+  IForecast,
+  IMetric,
+  IPrediction,
+  IRecommendation,
+  IRootCauseAnalysis,
+} from './AnomalyDetection';
 
 /**
  * Package version and build metadata

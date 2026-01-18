@@ -3,6 +3,7 @@ import { type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
+import { registerWorkerUiRoutes } from './routes/workers';
 
 export type { JobPayload } from './driver';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker';
@@ -170,91 +171,128 @@ async function handleRetryEndpoint(
   }
 }
 
+function buildSettings(config: QueueMonitorConfig): {
+  enabled: boolean;
+  basePath: string;
+  middleware: ReadonlyArray<string>;
+  autoRefresh: boolean;
+  refreshIntervalMs: number;
+} {
+  return {
+    enabled: config.enabled ?? DEFAULTS.enabled,
+    basePath: config.basePath ?? DEFAULTS.basePath,
+    middleware: config.middleware ?? DEFAULTS.middleware,
+    autoRefresh: config.autoRefresh ?? DEFAULTS.autoRefresh,
+    refreshIntervalMs:
+      typeof config.refreshIntervalMs === 'number' && Number.isFinite(config.refreshIntervalMs)
+        ? Math.max(1000, Math.floor(config.refreshIntervalMs))
+        : DEFAULTS.refreshIntervalMs,
+  };
+}
+
+function createGetSnapshot(driver: QueueDriver, startedAt: string) {
+  return async (): Promise<QueueMonitorSnapshot> => {
+    const queues = await driver.getQueues();
+    const stats = await Promise.all(
+      queues.map(async (name) => {
+        const counts = await driver.getJobCounts(name);
+        return { name, counts: counts as unknown as QueueCounts };
+      })
+    );
+
+    return {
+      status: 'ok',
+      startedAt,
+      queues: stats,
+    };
+  };
+}
+
+function createRegisterRoutes(
+  settings: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  },
+  metrics: Metrics,
+  driver: QueueDriver,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>
+) {
+  return (router: IRouter): void => {
+    if (!settings.enabled) return;
+
+    const routeOptions =
+      settings.middleware.length > 0 ? { middleware: settings.middleware } : undefined;
+
+    // Dashboard HTML
+    Router.get(
+      router,
+      settings.basePath,
+      (_req, res) => {
+        res.html(
+          getDashboardHtml({
+            autoRefresh: settings.autoRefresh,
+            refreshIntervalMs: settings.refreshIntervalMs,
+          })
+        );
+      },
+      routeOptions
+    );
+
+    // API: Snapshot
+    Router.get(
+      router,
+      `${settings.basePath}/api/snapshot`,
+      async (_req, res) => {
+        const data = await getSnapshot();
+        res.json(data);
+      },
+      routeOptions
+    );
+
+    // API: Recent Jobs for Queue
+    Router.get(
+      router,
+      `${settings.basePath}/api/jobs/:queue`,
+      async (req, res) => {
+        await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
+      },
+      routeOptions
+    );
+
+    // API: Retry Failed Job
+    Router.post(
+      router,
+      `${settings.basePath}/api/retry/:queue/:jobId`,
+      async (req, res) => {
+        await handleRetryEndpoint(req as RequestWithParams, res, driver);
+      },
+      routeOptions
+    );
+
+    registerWorkerUiRoutes(
+      router,
+      {
+        basePath: settings.basePath,
+        autoRefresh: settings.autoRefresh,
+        refreshIntervalMs: settings.refreshIntervalMs,
+      },
+      routeOptions
+    );
+  };
+}
+
 export const QueueMonitor = Object.freeze({
   create(config: QueueMonitorConfig): QueueMonitorApi {
-    const settings = {
-      enabled: config.enabled ?? DEFAULTS.enabled,
-      basePath: config.basePath ?? DEFAULTS.basePath,
-      middleware: config.middleware ?? DEFAULTS.middleware,
-      autoRefresh: config.autoRefresh ?? DEFAULTS.autoRefresh,
-      refreshIntervalMs:
-        typeof config.refreshIntervalMs === 'number' && Number.isFinite(config.refreshIntervalMs)
-          ? Math.max(1000, Math.floor(config.refreshIntervalMs))
-          : DEFAULTS.refreshIntervalMs,
-    };
-
+    const settings = buildSettings(config);
     const driver = createBullMQDriver(config.redis);
     const metrics = createMetrics(config.redis);
     const startedAt = new Date().toISOString();
 
-    const getSnapshot = async (): Promise<QueueMonitorSnapshot> => {
-      const queues = await driver.getQueues();
-      const stats = await Promise.all(
-        queues.map(async (name) => {
-          const counts = await driver.getJobCounts(name);
-          return { name, counts: counts as unknown as QueueCounts };
-        })
-      );
-
-      return {
-        status: 'ok',
-        startedAt,
-        queues: stats,
-      };
-    };
-
-    const registerRoutes = (router: IRouter): void => {
-      if (!settings.enabled) return;
-
-      const routeOptions =
-        settings.middleware.length > 0 ? { middleware: settings.middleware } : undefined;
-
-      // Dashboard HTML
-      Router.get(
-        router,
-        settings.basePath,
-        (_req, res) => {
-          res.html(
-            getDashboardHtml({
-              autoRefresh: settings.autoRefresh,
-              refreshIntervalMs: settings.refreshIntervalMs,
-            })
-          );
-        },
-        routeOptions
-      );
-
-      // API: Snapshot
-      Router.get(
-        router,
-        `${settings.basePath}/api/snapshot`,
-        async (_req, res) => {
-          const data = await getSnapshot();
-          res.json(data);
-        },
-        routeOptions
-      );
-
-      // API: Recent Jobs for Queue
-      Router.get(
-        router,
-        `${settings.basePath}/api/jobs/:queue`,
-        async (req, res) => {
-          await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
-        },
-        routeOptions
-      );
-
-      // API: Retry Failed Job
-      Router.post(
-        router,
-        `${settings.basePath}/api/retry/:queue/:jobId`,
-        async (req, res) => {
-          await handleRetryEndpoint(req as RequestWithParams, res, driver);
-        },
-        routeOptions
-      );
-    };
+    const getSnapshot = createGetSnapshot(driver, startedAt);
+    const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot);
 
     return Object.freeze({
       registerRoutes,

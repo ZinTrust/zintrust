@@ -26,7 +26,7 @@ const users = await User.query().withCount('posts').get<IModel>();
 // Access the count
 for (const user of users) {
   const postCount = user.getAttribute('posts_count');
-  console.log(`${user.getAttribute('name')} has ${postCount} posts`);
+  Logger.info(`${user.getAttribute('name')} has ${postCount} posts`);
 }
 ```
 
@@ -314,9 +314,9 @@ const parent = comment.getAttribute('commentable') as IModel;
 // Check the parent type
 const parentType = comment.getAttribute('commentable_type');
 if (parentType === 'Post') {
-  console.log('Comment belongs to a post');
+  Logger.info('Comment belongs to a post');
 } else if (parentType === 'Video') {
-  console.log('Comment belongs to a video');
+  Logger.info('Comment belongs to a video');
 }
 ```
 
@@ -758,7 +758,7 @@ if (!parent) {
 }
 
 // Safe to use parent
-console.log(parent.getAttribute('title'));
+Logger.info(parent.getAttribute('title'));
 ```
 
 ### 6. Cache Relationship Counts

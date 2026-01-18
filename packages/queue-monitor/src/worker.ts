@@ -14,8 +14,9 @@ export const createWorker = (
 ): QueueWorker => {
   const connection = createRedisConnection(redisConfig);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const worker = new Worker(queueName, processor, { connection: connection as any });
+  const worker = new Worker(queueName, processor, {
+    connection: connection as unknown as RedisConfig,
+  });
 
   worker.on('completed', async (job: Job) => {
     await metrics.recordJob(queueName, 'completed', job);

@@ -13,7 +13,18 @@ import {
 } from '@zintrust/core';
 import type IORedis from 'ioredis';
 
-const { createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes } = NodeSingletons;
+// Access NodeSingletons lazily to avoid initialization errors in test environments
+const getCrypto = () => {
+  if (!NodeSingletons) {
+    throw ErrorFactory.createWorkerError('NodeSingletons not available');
+  }
+  return {
+    createCipheriv: NodeSingletons.createCipheriv,
+    createDecipheriv: NodeSingletons.createDecipheriv,
+    pbkdf2Sync: NodeSingletons.pbkdf2Sync,
+    randomBytes: NodeSingletons.randomBytes,
+  };
+};
 
 export type ComplianceStandard = 'gdpr' | 'hipaa' | 'soc2';
 
@@ -151,6 +162,7 @@ const DEFAULT_CONFIG: ComplianceConfig = {
  * Helper: Generate unique ID
  */
 const generateId = (): string => {
+  const { randomBytes } = getCrypto();
   return randomBytes(16).toString('hex');
 };
 
@@ -161,6 +173,7 @@ const encryptData = (
   data: string,
   keyId: string
 ): { encrypted: string; iv: string; authTag: string } => {
+  const { createCipheriv, pbkdf2Sync, randomBytes } = getCrypto();
   // In production, retrieve key from secure key management service (AWS KMS, HashiCorp Vault, etc.)
   const key = pbkdf2Sync(keyId, 'salt', 100_000, 32, 'sha256');
   const iv = randomBytes(16);
@@ -182,6 +195,7 @@ const encryptData = (
  * Helper: Decrypt data (AES-256-GCM)
  */
 const decryptData = (encrypted: string, iv: string, authTag: string, keyId: string): string => {
+  const { createDecipheriv, pbkdf2Sync } = getCrypto();
   const key = pbkdf2Sync(keyId, 'salt', 100_000, 32, 'sha256');
   const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'hex'));
   decipher.setAuthTag(Buffer.from(authTag, 'hex'));

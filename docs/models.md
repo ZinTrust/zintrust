@@ -338,7 +338,7 @@ const users = await User.query().with('posts').get<IModel>();
 // Each user will have posts loaded
 users.forEach((user) => {
   const posts = user.getAttribute('posts') as IModel[];
-  console.log(`${user.getAttribute('name')} has ${posts.length} posts`);
+  Logger.info(`${user.getAttribute('name')} has ${posts.length} posts`);
 });
 ```
 
@@ -363,7 +363,7 @@ const users = await User.query().withCount('posts').get<IModel>();
 
 users.forEach((user) => {
   const postCount = user.getAttribute('posts_count');
-  console.log(`${user.getAttribute('name')} has ${postCount} posts`);
+  Logger.info(`${user.getAttribute('name')} has ${postCount} posts`);
 });
 ```
 

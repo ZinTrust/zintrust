@@ -7,10 +7,12 @@
 import type { IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
-import { HealthMonitor as HealthMonitorAny } from '@zintrust/workers/HealthMonitor';
-import { ResourceMonitor as ResourceMonitorAny } from '@zintrust/workers/ResourceMonitor';
-import { WorkerFactory as WorkerFactoryAny } from '@zintrust/workers/WorkerFactory';
-import { WorkerRegistry as WorkerRegistryAny } from '@zintrust/workers/WorkerRegistry';
+import {
+  HealthMonitor as HealthMonitorAny,
+  ResourceMonitor as ResourceMonitorAny,
+  WorkerFactory as WorkerFactoryAny,
+  WorkerRegistry as WorkerRegistryAny,
+} from '@zintrust/workers';
 
 type WorkerRegistryStatus = {
   status?: string;

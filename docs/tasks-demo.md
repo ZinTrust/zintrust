@@ -215,7 +215,7 @@ export async function login(email: string, password: string) {
   // Demo-only: try to read from 'login' DB
   // This proves 'login' DB is distinct from 'register' DB
   const replicaUser = await User.db('login').query().where('email', email).limit(1).first();
-  // console.log('Replica user found:', replicaUser.length > 0);
+  // Logger.info('Replica user found:', replicaUser.length > 0);
 
   return { token: 'demo-token', user };
 }

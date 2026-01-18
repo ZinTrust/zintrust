@@ -12,6 +12,19 @@ vi.mock('@zintrust/core', () => ({
     error: vi.fn(),
   },
   Queue: queueMock,
+  NodeSingletons: {
+    os: {
+      cpus: () => [{ model: 'test', speed: 2400 }],
+      totalmem: () => 8 * 1024 * 1024 * 1024,
+      freemem: () => 4 * 1024 * 1024 * 1024,
+      loadavg: () => [1, 1.5, 2],
+    },
+    createCipheriv: vi.fn(),
+    createDecipheriv: vi.fn(),
+    pbkdf2Sync: vi.fn(),
+    randomBytes: vi.fn(() => Buffer.from('test')),
+  },
+  generateUuid: vi.fn(() => 'test-uuid'),
 }));
 
 describe('createQueueWorker coverage', () => {

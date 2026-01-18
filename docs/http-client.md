@@ -61,8 +61,8 @@ import { HttpClient } from '@zintrust/core';
 
 const response = await HttpClient.get('https://api.example.com/users/1').send();
 
-console.log(response.status); // 200
-console.log(response.json()); // { id: 1, name: 'Alice' }
+Logger.info(response.status); // 200
+Logger.info(response.json()); // { id: 1, name: 'Alice' }
 ```
 
 ### POST Request
@@ -176,7 +176,7 @@ HTTP_TIMEOUT=30000  # 30 seconds (default)
 const response = await HttpClient.get('https://api.example.com/users/999').send();
 
 if (response.successful) {
-  console.log('Success:', response.json());
+  Logger.info('Success:', response.json());
 } else if (response.clientError) {
   console.error('Client error:', response.status);
 } else if (response.serverError) {
@@ -457,7 +457,7 @@ Verify your token or credentials:
 
 ```typescript
 // Check if token is set
-console.log(Env.get('API_TOKEN')); // Should not be undefined
+Logger.info(Env.get('API_TOKEN')); // Should not be undefined
 
 // Verify token format
 const token = Env.get('API_TOKEN');
@@ -498,14 +498,14 @@ https.get('https://api.example.com/data', (res) => {
   res.on('data', (chunk) => {
     data += chunk;
   });
-  res.on('end', () => console.log(JSON.parse(data)));
+  res.on('end', () => Logger.info(JSON.parse(data)));
 });
 
 // ✅ New way
 import { HttpClient } from '@zintrust/core';
 
 const response = await HttpClient.get('https://api.example.com/data').send();
-console.log(response.json());
+Logger.info(response.json());
 ```
 
 ## Related

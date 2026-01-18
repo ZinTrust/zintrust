@@ -6,7 +6,87 @@
 
 import { Logger, NodeSingletons } from '@zintrust/core';
 
-const os = NodeSingletons.os;
+const getOsModule = () => NodeSingletons?.os ?? null;
+
+const safeTotalMemory = (): number => {
+  const os = getOsModule();
+  if (!os?.totalmem) return 0;
+  try {
+    return os.totalmem();
+  } catch {
+    return 0;
+  }
+};
+
+const safeFreeMemory = (): number => {
+  const os = getOsModule();
+  if (!os?.freemem) return 0;
+  try {
+    return os.freemem();
+  } catch {
+    return 0;
+  }
+};
+
+const safeLoadAverage = (): number[] => {
+  const os = getOsModule();
+  if (!os?.loadavg) return [0, 0, 0];
+  try {
+    return os.loadavg();
+  } catch {
+    return [0, 0, 0];
+  }
+};
+
+const safeCpuCount = (): number => {
+  const os = getOsModule();
+  if (!os?.cpus) return 1;
+  try {
+    return Math.max(1, os.cpus().length);
+  } catch {
+    return 1;
+  }
+};
+
+const safePlatform = (): string => {
+  const os = getOsModule();
+  if (!os?.platform) return 'unknown';
+  try {
+    return os.platform();
+  } catch {
+    return 'unknown';
+  }
+};
+
+const safeArch = (): string => {
+  const os = getOsModule();
+  if (!os?.arch) return 'unknown';
+  try {
+    return os.arch();
+  } catch {
+    return 'unknown';
+  }
+};
+
+const safeHostname = (): string => {
+  const os = getOsModule();
+  if (!os?.hostname) return 'unknown';
+  try {
+    return os.hostname();
+  } catch {
+    return 'unknown';
+  }
+};
+
+const safeUptime = (): number => {
+  const os = getOsModule();
+  if (!os?.uptime) return 0;
+  try {
+    return os.uptime();
+  } catch {
+    return 0;
+  }
+};
 
 export type ResourceSnapshot = {
   timestamp: Date;
@@ -146,15 +226,16 @@ const calculateCpuUsage = (): number => {
  * Helper: Get memory usage
  */
 const getMemoryUsage = (): ResourceSnapshot['memory'] => {
-  const totalMemory = os.totalmem();
-  const freeMemory = os.freemem();
+  const totalMemory = safeTotalMemory();
+  const freeMemory = safeFreeMemory();
   const usedMemory = totalMemory - freeMemory;
+  const usage = totalMemory > 0 ? (usedMemory / totalMemory) * 100 : 0;
 
   return {
     total: totalMemory,
     used: usedMemory,
     free: freeMemory,
-    usage: (usedMemory / totalMemory) * 100,
+    usage,
   };
 };
 
@@ -164,15 +245,15 @@ const getMemoryUsage = (): ResourceSnapshot['memory'] => {
 const captureSnapshot = (): ResourceSnapshot => {
   const cpuUsage = calculateCpuUsage();
   const memoryUsage = getMemoryUsage();
-  const loadAverage = os.loadavg();
-  const cpus = os.cpus();
+  const loadAverage = safeLoadAverage();
+  const cpuCores = safeCpuCount();
 
   return {
     timestamp: new Date(),
     cpu: {
       usage: cpuUsage,
       loadAverage,
-      cores: cpus.length,
+      cores: cpuCores,
     },
     memory: memoryUsage,
     disk: {
@@ -613,7 +694,7 @@ export const ResourceMonitor = Object.freeze({
     hoursPerDay: number,
     useSpotDiscount = false
   ): { daily: number; monthly: number; yearly: number } {
-    const cpuCores = os.cpus().length;
+    const cpuCores = safeCpuCount();
     const cpuCostPerHour = cpuCores * (cpuUsagePercent / 100) * costConfig.computeCostPerCoreHour;
     const memoryCostPerHour = memoryGB * costConfig.memoryCostPerGBHour;
 
@@ -643,13 +724,13 @@ export const ResourceMonitor = Object.freeze({
     uptime: number;
   } {
     return {
-      platform: os.platform(),
-      arch: os.arch(),
-      hostname: os.hostname(),
-      cpus: os.cpus().length,
-      totalMemory: os.totalmem(),
-      freeMemory: os.freemem(),
-      uptime: os.uptime(),
+      platform: safePlatform(),
+      arch: safeArch(),
+      hostname: safeHostname(),
+      cpus: safeCpuCount(),
+      totalMemory: safeTotalMemory(),
+      freeMemory: safeFreeMemory(),
+      uptime: safeUptime(),
     };
   },
 

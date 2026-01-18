@@ -53,7 +53,7 @@ import { createQueueWorker, type JobPayload } from '@zintrust/queue-monitor';
 
 // Define a processor
 const processor = async (job: { data: JobPayload }) => {
-  console.log('Processing', job.data);
+  Logger.info('Processing', job.data);
   // Do work...
 };
 
