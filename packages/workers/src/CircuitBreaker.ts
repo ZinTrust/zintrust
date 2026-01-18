@@ -492,11 +492,4 @@ export const CircuitBreaker = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  CircuitBreaker.shutdown();
-});
-
-process.on('SIGINT', () => {
-  CircuitBreaker.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

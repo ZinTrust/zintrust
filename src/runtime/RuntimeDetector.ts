@@ -15,6 +15,7 @@ import { NodeServerAdapter } from '@runtime/adapters/NodeServerAdapter';
 
 const RUNTIME_VAR = 'RUNTIME';
 const AUTO = 'auto';
+let shutdownHandlersRegistered = false;
 
 function ensureInstanceOfCompat(adapterExport: unknown): void {
   if (typeof adapterExport === 'function' || adapterExport === null) return;
@@ -333,6 +334,9 @@ const shutdown = async (signal: string = 'SIGTERM'): Promise<void> => {
  * Setup graceful shutdown handlers
  */
 const setupGracefulShutdown = (): void => {
+  if (shutdownHandlersRegistered) return;
+  shutdownHandlersRegistered = true;
+
   const signals = ['SIGTERM', 'SIGINT'];
   signals.forEach((signal) => {
     process.on(signal, async () => {

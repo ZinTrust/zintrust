@@ -663,11 +663,4 @@ export const HealthMonitor = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  HealthMonitor.shutdown();
-});
-
-process.on('SIGINT', () => {
-  HealthMonitor.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

@@ -427,11 +427,4 @@ export const MultiQueueWorker = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await MultiQueueWorker.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await MultiQueueWorker.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

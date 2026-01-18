@@ -496,11 +496,4 @@ export const ClusterLock = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await ClusterLock.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await ClusterLock.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

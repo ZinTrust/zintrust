@@ -673,11 +673,4 @@ export const ResourceMonitor = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  ResourceMonitor.shutdown();
-});
-
-process.on('SIGINT', () => {
-  ResourceMonitor.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

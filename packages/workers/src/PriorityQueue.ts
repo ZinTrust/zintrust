@@ -416,11 +416,4 @@ export const PriorityQueue = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await PriorityQueue.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await PriorityQueue.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

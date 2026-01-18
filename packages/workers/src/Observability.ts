@@ -693,11 +693,4 @@ export const Observability = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  Observability.shutdown();
-});
-
-process.on('SIGINT', () => {
-  Observability.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

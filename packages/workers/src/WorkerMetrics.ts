@@ -623,11 +623,4 @@ export const WorkerMetrics = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await WorkerMetrics.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await WorkerMetrics.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

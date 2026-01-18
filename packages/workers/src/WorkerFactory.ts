@@ -4,7 +4,13 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, workersConfig, type RedisConfig } from '@zintrust/core';
+import {
+  ErrorFactory,
+  Logger,
+  workersConfig,
+  type RedisConfig,
+  type WorkerStatus,
+} from '@zintrust/core';
 import { Worker, type Job, type WorkerOptions } from 'bullmq';
 import { AutoScaler, type AutoScalerConfig } from './AutoScaler';
 import { CanaryController } from './CanaryController';
@@ -13,11 +19,14 @@ import { ClusterLock } from './ClusterLock';
 import { ComplianceManager, type ComplianceConfig } from './ComplianceManager';
 import { DatacenterOrchestrator } from './DatacenterOrchestrator';
 import { DeadLetterQueue, type RetentionPolicy } from './DeadLetterQueue';
+import { HealthMonitor } from './HealthMonitor';
+import { MultiQueueWorker } from './MultiQueueWorker';
 import { Observability, type ObservabilityConfig } from './Observability';
 import { PluginManager } from './PluginManager';
+import { PriorityQueue } from './PriorityQueue';
 import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
-import { WorkerRegistry } from './WorkerRegistry';
+import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
 
 export type WorkerFactoryConfig = {
@@ -644,7 +653,7 @@ const registerWorkerInstance = (params: {
     version: workerVersion,
     region: config.datacenter?.primaryRegion,
     queues: [queueName],
-    factory: async () => {
+    factory: async (): Promise<RegistryWorkerInstance> => {
       await Promise.resolve();
       return {
         metadata: {
@@ -672,15 +681,15 @@ const registerWorkerInstance = (params: {
           config: {},
         },
         instance: worker,
-        start: () => undefined,
-        stop: async () => worker.close(),
-        drain: async () => worker.close(),
-        sleep: async () => worker.pause(),
-        wakeup: () => {
+        start: (): void => undefined,
+        stop: async (): Promise<void> => worker.close(),
+        drain: async (): Promise<void> => worker.close(),
+        sleep: async (): Promise<void> => worker.pause(),
+        wakeup: (): void => {
           worker.resume();
         },
-        getStatus: () => 'running',
-        getHealth: () => 'green',
+        getStatus: (): WorkerStatus => 'running',
+        getHealth: (): 'green' | 'yellow' | 'red' => 'green',
       };
     },
   });
@@ -942,6 +951,11 @@ export const WorkerFactory = Object.freeze({
 
     // Shutdown all modules
     ResourceMonitor.stop();
+    await WorkerMetrics.shutdown();
+    await MultiQueueWorker.shutdown();
+    await ComplianceManager.shutdown();
+    await PriorityQueue.shutdown();
+    HealthMonitor.shutdown();
     AutoScaler.stop();
     ClusterLock.shutdown();
     WorkerVersioning.shutdown();
@@ -958,11 +972,4 @@ export const WorkerFactory = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await WorkerFactory.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await WorkerFactory.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

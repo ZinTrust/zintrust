@@ -791,11 +791,4 @@ export const ComplianceManager = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await ComplianceManager.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await ComplianceManager.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

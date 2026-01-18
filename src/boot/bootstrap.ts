@@ -15,6 +15,7 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
 let isShuttingDown = false;
+let shutdownHandlersRegistered = false;
 
 const logBootstrapErrorDetails = (error: unknown): void => {
   // Best-effort: surface startup config validation details (already redacted)
@@ -128,6 +129,14 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
         if (appInstance !== undefined) {
           await appInstance.shutdown();
         }
+
+        // Gracefully shutdown worker system
+        try {
+          const { WorkerShutdown } = await import('@zintrust/workers');
+          await WorkerShutdown.shutdown({ signal, timeout: 5000, forceExit: false });
+        } catch {
+          // Worker package might not be installed or fails to load
+        }
       })(),
       timeoutMs,
       'Graceful shutdown timed out'
@@ -187,6 +196,9 @@ const BootstrapFunctions = Object.freeze({
    * Handle graceful shutdown
    */
   setupShutdownHandler(): void {
+    if (shutdownHandlersRegistered) return;
+    shutdownHandlersRegistered = true;
+
     process.on('SIGTERM', async () => {
       await gracefulShutdown('SIGTERM');
     });

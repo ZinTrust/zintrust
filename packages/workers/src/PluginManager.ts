@@ -548,11 +548,4 @@ export const PluginManager = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await PluginManager.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await PluginManager.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

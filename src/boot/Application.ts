@@ -403,9 +403,9 @@ const createLifecycle = (params: {
 
     // Register service providers
     // Bootstrap services
+    Logger.info('✅ Application booted successfully');
 
     params.setBooted(true);
-    Logger.info('✅ Application booted successfully');
   };
 
   const shutdown = async (): Promise<void> => {
@@ -417,8 +417,8 @@ const createLifecycle = (params: {
       Logger.error('Shutdown hook failed:', error as Error);
     }
 
-    Logger.info('✅ Application shut down successfully');
     params.setBooted(false);
+    Logger.info('✅ Application shut down successfully');
   };
 
   return { boot, shutdown };

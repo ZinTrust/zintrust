@@ -8,7 +8,6 @@ import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderCon
 import { Env , Router } from '@zintrust/core';
 import type { MiddlewareKey ,  IRouter , IResponse, IRequest} from '@zintrust/core';
 import { registerBroadcastRoutes } from '@routes/broadcast';
-import { registerHealthRoutes } from '@routes/health';
 import { registerStorageRoutes } from '@routes/storage';
 
 export function registerRoutes(router: IRouter): void {
@@ -24,7 +23,6 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
-  registerHealthRoutes(router);
   registerBroadcastRoutes(router);
   registerStorageRoutes(router);
 }

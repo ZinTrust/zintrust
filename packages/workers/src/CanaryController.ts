@@ -528,11 +528,4 @@ export const CanaryController = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  CanaryController.shutdown();
-});
-
-process.on('SIGINT', () => {
-  CanaryController.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

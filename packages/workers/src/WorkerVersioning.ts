@@ -415,11 +415,4 @@ export const WorkerVersioning = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  WorkerVersioning.shutdown();
-});
-
-process.on('SIGINT', () => {
-  WorkerVersioning.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

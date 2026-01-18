@@ -730,11 +730,4 @@ export const DeadLetterQueue = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', async () => {
-  await DeadLetterQueue.shutdown();
-});
-
-process.on('SIGINT', async () => {
-  await DeadLetterQueue.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

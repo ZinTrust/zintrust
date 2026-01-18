@@ -558,11 +558,4 @@ export const DatacenterOrchestrator = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  DatacenterOrchestrator.shutdown();
-});
-
-process.on('SIGINT', () => {
-  DatacenterOrchestrator.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown

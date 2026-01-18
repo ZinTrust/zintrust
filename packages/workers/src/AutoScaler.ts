@@ -651,11 +651,4 @@ export const AutoScaler = Object.freeze({
   },
 });
 
-// Graceful shutdown on process termination
-process.on('SIGTERM', () => {
-  AutoScaler.shutdown();
-});
-
-process.on('SIGINT', () => {
-  AutoScaler.shutdown();
-});
+// Graceful shutdown handled by WorkerShutdown
