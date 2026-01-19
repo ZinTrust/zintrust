@@ -12,6 +12,7 @@ import {
   ErrorFactory,
   Logger,
   NodeSingletons,
+  queueConfig,
   registerDatabasesFromRuntimeConfig,
   useEnsureDbConnected,
   workersConfig,
@@ -673,13 +674,20 @@ const isRedisEnvConfig = (config: RedisConfigInput): config is RedisEnvConfig =>
 
 const resolveRedisConfig = (config: RedisConfigInput, context: string): RedisConfig => {
   if (isRedisEnvConfig(config)) {
-    const host = resolveEnvString(config.host ?? 'REDIS_HOST', '127.0.0.1');
-    const port = resolveEnvInt(config.port ?? 'REDIS_PORT', 6379);
-    const db = resolveEnvInt(config.db ?? 'REDIS_DB', 0);
-    const password = resolveEnvString(
-      config.password ?? 'REDIS_PASSWORD',
-      Env.get('REDIS_PASSWORD', '')
-    );
+    const queueRedis = queueConfig.drivers.redis;
+    const fallbackHost =
+      queueRedis?.driver === 'redis' ? queueRedis.host : Env.get('REDIS_HOST', '127.0.0.1');
+    const fallbackPort =
+      queueRedis?.driver === 'redis' ? queueRedis.port : Env.getInt('REDIS_PORT', 6379);
+    const fallbackDb =
+      queueRedis?.driver === 'redis' ? queueRedis.database : Env.getInt('REDIS_DB', 0);
+    const fallbackPassword =
+      queueRedis?.driver === 'redis' ? (queueRedis.password ?? '') : Env.get('REDIS_PASSWORD', '');
+
+    const host = resolveEnvString(config.host ?? 'REDIS_HOST', fallbackHost);
+    const port = resolveEnvInt(config.port ?? 'REDIS_PORT', fallbackPort);
+    const db = resolveEnvInt(config.db ?? 'REDIS_DB', fallbackDb);
+    const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallbackPassword);
 
     if (!host) {
       throw ErrorFactory.createConfigError(`${context}.host is required`);
