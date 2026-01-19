@@ -6,7 +6,7 @@
 
 import { Logger, NodeSingletons } from '@zintrust/core';
 
-const getOsModule = () => NodeSingletons?.os ?? null;
+const getOsModule = (): typeof NodeSingletons.os => NodeSingletons?.os ?? null;
 
 const safeTotalMemory = (): number => {
   const os = getOsModule();

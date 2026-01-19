@@ -137,6 +137,7 @@ export default defineConfig({
         'src/node-singletons/**',
         'app/**/*.d.ts',
         'routes/**/*.d.ts',
+        'processors/*',
       ],
       thresholds: coverageThresholds,
     },

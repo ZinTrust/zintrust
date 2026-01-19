@@ -34,7 +34,20 @@ const getParam = (req: IRequest, key: string): string => {
 
 // ==================== Core Worker Operations ====================
 
+/**
+ * Create a new worker instance
+ * @param req.body.name - Worker name (required)
+ * @param req.body.queueName - Queue name (required)
+ * @param req.body.processor - Job processor function (required; internal only)
+ * @param req.body.version - Worker version (optional)
+ * @param req.body.options - BullMQ worker options (optional)
+ * @param req.body.infrastructure - Infrastructure config (optional)
+ * @param req.body.features - Feature flags (optional)
+ * @param req.body.datacenter - Datacenter placement config (optional)
+ * @returns Success response with worker name
+ */
 async function create(req: IRequest, res: IResponse): Promise<void> {
+  Logger.info('WorkerController.create called');
   try {
     const body = getBody(req);
     const config = body as Parameters<typeof WorkerFactory.create>[0];
@@ -48,6 +61,11 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Start a worker
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function start(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -59,6 +77,11 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Stop a worker
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function stop(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -70,6 +93,11 @@ async function stop(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Restart a worker
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function restart(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -81,6 +109,11 @@ async function restart(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Pause a worker
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function pause(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -92,6 +125,11 @@ async function pause(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Resume a paused worker
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function resume(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -103,6 +141,11 @@ async function resume(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Remove a worker instance
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function remove(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -116,6 +159,10 @@ async function remove(req: IRequest, res: IResponse): Promise<void> {
 
 // ==================== Worker Information ====================
 
+/**
+ * List all workers
+ * @returns Array of worker instances
+ */
 async function list(_req: IRequest, res: IResponse): Promise<void> {
   try {
     const workers = WorkerFactory.list();
@@ -126,6 +173,11 @@ async function list(_req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get a specific worker instance
+ * @param req.params.name - Worker name
+ * @returns Worker instance details
+ */
 async function get(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -143,6 +195,11 @@ async function get(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get worker status
+ * @param req.params.name - Worker name
+ * @returns Worker status information
+ */
 async function status(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -154,6 +211,11 @@ async function status(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get worker metrics
+ * @param req.params.name - Worker name
+ * @returns Worker metrics data
+ */
 async function metrics(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -165,6 +227,11 @@ async function metrics(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get worker health information
+ * @param req.params.name - Worker name
+ * @returns Worker health data
+ */
 async function health(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -178,6 +245,14 @@ async function health(req: IRequest, res: IResponse): Promise<void> {
 
 // ==================== Health Monitoring ====================
 
+/**
+ * Start health monitoring for a worker
+ * @param req.params.name - Worker name
+ * @param req.body.checkInterval - Interval in seconds between checks (optional)
+ * @param req.body.thresholds - Thresholds for errorRate/latency/throughput/cpu/memory/queueSize (optional)
+ * @param req.body.alerting - Alerting config (optional)
+ * @returns Success message
+ */
 async function startMonitoring(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -193,6 +268,11 @@ async function startMonitoring(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Stop health monitoring for a worker
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function stopMonitoring(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -204,6 +284,12 @@ async function stopMonitoring(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get health check history for a worker
+ * @param req.params.name - Worker name
+ * @param req.body.limit - Optional limit for number of history entries
+ * @returns Array of health check records
+ */
 async function healthHistory(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -218,6 +304,11 @@ async function healthHistory(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get health trend analysis for a worker
+ * @param req.params.name - Worker name
+ * @returns Health trend data
+ */
 async function healthTrend(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -229,6 +320,14 @@ async function healthTrend(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Update monitoring configuration for a worker
+ * @param req.params.name - Worker name
+ * @param req.body.checkInterval - Interval in seconds between checks (optional)
+ * @param req.body.thresholds - Thresholds for errorRate/latency/throughput/cpu/memory/queueSize (optional)
+ * @param req.body.alerting - Alerting config (optional)
+ * @returns Success message
+ */
 async function updateMonitoringConfig(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -244,6 +343,16 @@ async function updateMonitoringConfig(req: IRequest, res: IResponse): Promise<vo
 // ==================== Continue with remaining handlers... ====================
 // (Due to length, I'll create additional placeholders that should be implemented)
 
+/**
+ * Register a new worker version
+ * @param req.params.name - Worker name
+ * @param req.body.version - Semantic version object { major, minor, patch, prerelease?, build? }
+ * @param req.body.migrationPath - Migration path/version string (optional)
+ * @param req.body.eolDate - End of life date (optional)
+ * @param req.body.changelog - Changelog text (optional)
+ * @param req.body.breakingChanges - Array of breaking changes (optional)
+ * @returns Success message
+ */
 async function registerVersion(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -258,6 +367,12 @@ async function registerVersion(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * List all versions of a worker
+ * @param req.params.name - Worker name
+ * @param req.body.includeDeprecated - Optional flag to include deprecated versions
+ * @returns Array of version information
+ */
 async function listVersions(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -270,6 +385,12 @@ async function listVersions(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get specific version information
+ * @param req.params.name - Worker name
+ * @param req.params.version - Version identifier
+ * @returns Version details
+ */
 async function getVersion(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -282,6 +403,14 @@ async function getVersion(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Deprecate a worker version
+ * @param req.params.name - Worker name
+ * @param req.params.version - Version to deprecate
+ * @param req.body.migrationPath - Migration instructions
+ * @param req.body.eolDate - End of life date
+ * @returns Success message
+ */
 async function deprecateVersion(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -300,6 +429,12 @@ async function deprecateVersion(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Activate a worker version
+ * @param req.params.name - Worker name
+ * @param req.params.version - Version to activate
+ * @returns Success message
+ */
 async function activateVersion(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -312,6 +447,12 @@ async function activateVersion(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Deactivate a worker version
+ * @param req.params.name - Worker name
+ * @param req.params.version - Version to deactivate
+ * @returns Success message
+ */
 async function deactivateVersion(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -324,6 +465,13 @@ async function deactivateVersion(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Check compatibility between worker versions
+ * @param req.params.name - Worker name
+ * @param req.body.sourceVersion - Source version string (e.g., "1.2.3")
+ * @param req.body.targetVersion - Target version string (e.g., "1.3.0")
+ * @returns Compatibility information
+ */
 async function checkCompatibility(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -342,6 +490,22 @@ async function checkCompatibility(req: IRequest, res: IResponse): Promise<void> 
 
 // ==================== Canary Deployments ====================
 
+/**
+ * Start a canary deployment
+ * @param req.params.name - Worker name
+ * @param req.body.currentVersion - Current version string
+ * @param req.body.canaryVersion - Canary version string
+ * @param req.body.initialTrafficPercent - Starting traffic percent
+ * @param req.body.targetTrafficPercent - Target traffic percent
+ * @param req.body.incrementPercent - Increment per step
+ * @param req.body.incrementInterval - Seconds between increments
+ * @param req.body.monitoringDuration - Seconds per monitoring step
+ * @param req.body.errorThreshold - Error rate threshold (0-1)
+ * @param req.body.latencyThreshold - P95 latency threshold (ms)
+ * @param req.body.minSuccessRate - Minimum success rate (0-1)
+ * @param req.body.autoRollback - Auto rollback flag
+ * @returns Success message
+ */
 async function startCanary(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -356,6 +520,11 @@ async function startCanary(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Pause a canary deployment
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function pauseCanary(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -367,6 +536,11 @@ async function pauseCanary(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Resume a paused canary deployment
+ * @param req.params.name - Worker name
+ * @returns Success message
+ */
 async function resumeCanary(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -378,6 +552,12 @@ async function resumeCanary(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Rollback a canary deployment
+ * @param req.params.name - Worker name
+ * @param req.body.reason - Optional rollback reason
+ * @returns Success message
+ */
 async function rollbackCanary(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -390,6 +570,11 @@ async function rollbackCanary(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get canary deployment status
+ * @param req.params.name - Worker name
+ * @returns Canary status information
+ */
 async function canaryStatus(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -401,6 +586,11 @@ async function canaryStatus(req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get canary deployment history
+ * @param req.params.name - Worker name
+ * @returns Array of past canary deployments
+ */
 async function canaryHistory(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
@@ -698,6 +888,10 @@ const endTrace = async (_req: IRequest, res: IResponse): Promise<void> => {
   res.json({ ok: true, message: 'End trace endpoint - implementation pending' });
 };
 
+/**
+ * Get system-wide summary of all workers and monitoring
+ * @returns System summary with worker count and monitoring data
+ */
 async function systemSummary(_req: IRequest, res: IResponse): Promise<void> {
   try {
     const workers = WorkerFactory.list();
@@ -717,6 +911,10 @@ async function systemSummary(_req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Initiate graceful system shutdown
+ * @returns Success message
+ */
 async function shutdown(_req: IRequest, res: IResponse): Promise<void> {
   try {
     // Use the centralized shutdown coordinator
@@ -728,6 +926,10 @@ async function shutdown(_req: IRequest, res: IResponse): Promise<void> {
   }
 }
 
+/**
+ * Get monitoring summary for all workers
+ * @returns Monitoring summary data
+ */
 async function monitoringSummary(_req: IRequest, res: IResponse): Promise<void> {
   try {
     const summary = await HealthMonitor.getSummary();
@@ -737,10 +939,6 @@ async function monitoringSummary(_req: IRequest, res: IResponse): Promise<void> 
     res.setStatus(500).json({ error: (error as Error).message });
   }
 }
-
-/**
- * Export sealed WorkerController namespace
- */
 
 /**
  * Builders that group related handlers to keep the create() method small.

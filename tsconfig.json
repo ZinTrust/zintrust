@@ -90,7 +90,8 @@
     "bin/**/*",
     "database/**/*",
     "packages/workers/src/**/*",
-    "env.d.ts"
+    "env.d.ts",
+    "processors"
   ],
   "exclude": [
     "node_modules",
@@ -110,6 +111,7 @@
     "wrangler.jsonc",
     "dev",
     "simulate",
-    "test-project"
+    "test-project",
+    "processors"
   ]
 }

@@ -76,6 +76,10 @@ function extractQueueParam(req: RequestWithParams): string | undefined {
   return req && req.params !== undefined ? req?.params['queue'] : undefined;
 }
 
+function fieldError(key: string, message: string): { error: string } {
+  return { error: `[${key}] ${message}` };
+}
+
 async function handleJobsEndpoint(
   req: RequestWithParams,
   res: {
@@ -88,7 +92,7 @@ async function handleJobsEndpoint(
   const queueName = extractQueueParam(req);
 
   if (!queueName) {
-    res.status(400).json({ error: 'Queue name required' });
+    res.status(400).json(fieldError('queue_name', 'Queue name must be provided'));
     return;
   }
 
@@ -159,7 +163,7 @@ async function handleRetryEndpoint(
     typeof req.getParam === 'function' ? req.getParam?.('jobId') : req.params?.['jobId'];
 
   if (!queueName || !jobId) {
-    res.status(400).json({ error: 'Queue name and job ID required' });
+    res.status(400).json(fieldError('queue_name,job_id', 'Queue name and job ID must be provided'));
     return;
   }
 

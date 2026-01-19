@@ -74,3 +74,4 @@ testdb
 app/Controllers/TestController.ts
 app/Workers/TestWorker.ts
 routes/apiDev.ts
+processors/

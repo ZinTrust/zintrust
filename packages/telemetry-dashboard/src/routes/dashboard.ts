@@ -9,8 +9,7 @@ export type DashboardUiOptions = {
   refreshIntervalMs: number;
 };
 
-const getDashboardStyles = (): string => `
-<style>
+const getDashboardColorStyles = (): string => `
   :root {
     --bg: #0b1220;
     --card: rgba(15, 23, 42, 0.75);
@@ -43,6 +42,9 @@ const getDashboardStyles = (): string => `
     background: var(--bg);
     color: var(--text);
   }
+`;
+
+const getDashboardLayoutStyles = (): string => `
   .zt-page { min-height: 100vh; padding: 32px 24px; }
   .zt-container { max-width: 72rem; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
   .zt-header { display: flex; flex-direction: column; gap: 16px; }
@@ -110,12 +112,22 @@ const getDashboardStyles = (): string => `
   html[data-theme="light"] .zt-alert-item { background: #f8fafc; }
   .zt-text-emerald { color: var(--success); }
   .zt-text-amber { color: var(--warn); }
+`;
+
+const getDashboardResponsiveStyles = (): string => `
   @media (min-width: 640px) {
     .zt-header { flex-direction: row; align-items: center; justify-content: space-between; }
   }
   @media (min-width: 768px) {
     .zt-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+`;
+
+const getDashboardStyles = (): string => `
+<style>
+${getDashboardColorStyles()}
+${getDashboardLayoutStyles()}
+${getDashboardResponsiveStyles()}
 </style>`;
 
 const getLogo = (): string => `
