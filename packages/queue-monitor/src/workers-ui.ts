@@ -73,6 +73,15 @@ const getButtonStyles = (): string => `
     transition: border-color 0.2s ease, color 0.2s ease;
   }
   .zt-button:hover { border-color: #38bdf8; color: #38bdf8; }
+  .zt-select {
+    border: 1px solid #1e293b;
+    background: #0f172a;
+    color: #f1f5f9;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
 `;
 
 const getTableStyles = (): string => `
@@ -191,6 +200,11 @@ const getWorkersHeader = (): string => `
           </div>
           <div class="zt-actions">
             <span id="last-updated" class="zt-kicker"></span>
+            <select id="storage-select" class="zt-select" aria-label="Worker storage">
+              <option value="memory">Memory</option>
+              <option value="redis">Redis</option>
+              <option value="db">Database</option>
+            </select>
             <nav class="zt-nav">
               <a class="zt-nav-link" href="/queue-monitor/">Queue monitor</a>
               <a class="zt-nav-link" href="/workers">Workers</a>
@@ -267,6 +281,7 @@ const getWorkersScriptState = (options: WorkerUiOptions, apiBaseUrl: string): st
   : window.location.origin;
       const STORAGE_KEYS = {
         autoRefresh: 'zintrust.workers.autoRefresh',
+        storageMode: 'zintrust.workers.storageMode',
       };
       const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
       const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
@@ -279,8 +294,10 @@ const getWorkersScriptState = (options: WorkerUiOptions, apiBaseUrl: string): st
       const refreshBtn = document.getElementById('refresh-btn');
       const autoBtn = document.getElementById('auto-refresh-btn');
       const lastUpdated = document.getElementById('last-updated');
+      const storageSelect = document.getElementById('storage-select');
 
       let autoRefresh = AUTO_REFRESH;
+      let storageMode = 'memory';
       let autoTimer = null;
 `;
 
@@ -303,6 +320,13 @@ const getWorkersScriptStorage = (): string => `
 
       const setAutoLabel = () => {
         autoBtn.textContent = autoRefresh ? 'Pause auto refresh' : 'Resume auto refresh';
+      };
+
+      const setStorageValue = (value) => {
+        storageMode = value || 'memory';
+        if (storageSelect) {
+          storageSelect.value = storageMode;
+        }
       };
 `;
 
@@ -359,14 +383,31 @@ const getWorkersScriptRenderRows = (): string => `
         }
 
         workers.forEach((worker) => {
-          const statusInfo = toStatusTone(worker.status?.status || worker.status?.state || worker.status?.status);
+          const resolvedName =
+            worker.name || worker.workerName || worker.worker?.name || worker.status?.name || '';
+          const statusValue =
+            worker.status?.status ||
+            worker.status?.state ||
+            worker.status ||
+            worker.worker?.status ||
+            'unknown';
+          const statusInfo = toStatusTone(statusValue);
           const healthInfo = toHealthTone(worker.health?.status || worker.health);
-          const version = worker.status?.version || worker.worker?.config?.version || worker.worker?.version || 'n/a';
+          const version =
+            worker.version ||
+            worker.status?.version ||
+            worker.worker?.config?.version ||
+            worker.worker?.version ||
+            'n/a';
+
+          if (!resolvedName) {
+            return;
+          }
 
           const rowHtml =
             '<tr>' +
             '<td class="zt-cell zt-cell--strong">' +
-            worker.name +
+            resolvedName +
             '</td>' +
             '<td class="zt-cell">' +
             statusBadge(statusInfo.label, statusInfo.tone) +
@@ -380,13 +421,13 @@ const getWorkersScriptRenderRows = (): string => `
             '<td class="zt-cell zt-cell--right">' +
             '<div class="zt-row-actions">' +
             '<button class="action-btn" data-action="start" data-worker="' +
-            worker.name +
+            resolvedName +
             '">Start</button>' +
             '<button class="action-btn" data-action="restart" data-worker="' +
-            worker.name +
+            resolvedName +
             '">Restart</button>' +
             '<button class="action-btn" data-action="stop" data-worker="' +
-            worker.name +
+            resolvedName +
             '">Stop</button>' +
             '</div>' +
             '</td>' +
@@ -418,7 +459,11 @@ const getWorkersScriptFetch = (): string => `
       const fetchWorkers = async () => {
         setError('');
         try {
-          const response = await fetch(API_BASE + '/api/workers');
+          const query = new URLSearchParams({
+            detail: 'true',
+            storage: storageMode,
+          });
+          const response = await fetch(API_BASE + '/api/workers?' + query.toString());
           if (!response.ok) throw new Error('Failed to load workers');
           const payload = await response.json();
           const workers = payload.workers || [];
@@ -433,6 +478,9 @@ const getWorkersScriptFetch = (): string => `
       const handleAction = async (action, workerName) => {
         setError('');
         try {
+          if (!workerName) {
+            throw new Error('Missing worker name');
+          }
           const response = await fetch(API_BASE + '/api/workers/' + workerName + '/' + action, {
             method: 'POST',
           });
@@ -454,6 +502,13 @@ const getWorkersScriptControls = (): string => `
       });
 
       refreshBtn.addEventListener('click', () => fetchWorkers());
+      if (storageSelect) {
+        storageSelect.addEventListener('change', (event) => {
+          setStorageValue(event.target.value);
+          writeStorage(STORAGE_KEYS.storageMode, storageMode);
+          fetchWorkers();
+        });
+      }
       autoBtn.addEventListener('click', () => {
         autoRefresh = !autoRefresh;
         setAutoLabel();
@@ -470,6 +525,12 @@ const getWorkersScriptBootstrap = (): string => `
       const storedAuto = readStorage(STORAGE_KEYS.autoRefresh);
       if (storedAuto !== null) {
         autoRefresh = storedAuto === 'true';
+      }
+      const storedStorage = readStorage(STORAGE_KEYS.storageMode);
+      if (storedStorage) {
+        setStorageValue(storedStorage);
+      } else {
+        setStorageValue('memory');
       }
       setAutoLabel();
 

@@ -11,6 +11,7 @@ export type WorkerRecord = {
   queueName: string;
   version: string | null;
   status: string;
+  autoStart: boolean;
   concurrency: number;
   region: string | null;
   features?: Record<string, unknown> | null;
@@ -123,6 +124,7 @@ export const DbWorkerStore = Object.freeze({
       queue_name: record.queueName,
       version: record.version,
       status: record.status,
+      auto_start: record.autoStart,
       concurrency: record.concurrency,
       region: record.region,
       features: record.features ? JSON.stringify(record.features) : null,
@@ -147,6 +149,7 @@ export const DbWorkerStore = Object.freeze({
         queueName: String(row['queue_name'] ?? ''),
         version: row['version'] ? String(row['version']) : null,
         status: String(row['status'] ?? 'unknown'),
+        autoStart: Boolean(row['auto_start'] ?? false),
         concurrency: Number(row['concurrency'] ?? 0),
         region: row['region'] ? String(row['region']) : null,
         features: parseJson(row['features']),

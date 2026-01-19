@@ -7,9 +7,11 @@
 import {
   appConfig,
   createRedisConnection,
+  databaseConfig,
   Env,
   ErrorFactory,
   Logger,
+  registerDatabasesFromRuntimeConfig,
   useEnsureDbConnected,
   workersConfig,
   type IDatabase,
@@ -47,6 +49,7 @@ export type WorkerFactoryConfig = {
   queueName: string;
   processor: (job: Job) => Promise<unknown>;
   options?: WorkerOptions;
+  autoStart?: boolean;
   infrastructure?: {
     redis?: RedisConfigInput;
     persistence?: WorkerPersistenceConfig;
@@ -609,6 +612,9 @@ const resolveDefaultPersistenceTable = (): string =>
 const resolveDefaultPersistenceConnection = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default')) ?? 'default';
 
+const resolveAutoStart = (config: WorkerFactoryConfig): boolean =>
+  config.autoStart ?? workersConfig.defaultWorker?.autoStart ?? false;
+
 const normalizeExplicitPersistence = (
   persistence: WorkerPersistenceConfig
 ): WorkerPersistenceConfig => {
@@ -687,10 +693,20 @@ const resolvePersistenceConfig = (
 };
 
 const resolveDbClientFromEnv = async (connectionName = 'default'): Promise<IDatabase> => {
+  const connect = async (): Promise<IDatabase> =>
+    await useEnsureDbConnected(undefined, connectionName);
+
   try {
-    return await useEnsureDbConnected(undefined, connectionName);
+    return await connect();
   } catch (error) {
     Logger.error('Worker persistence failed to resolve database connection', error);
+  }
+
+  try {
+    registerDatabasesFromRuntimeConfig(databaseConfig);
+    return await connect();
+  } catch (error) {
+    Logger.error('Worker persistence failed after registering runtime databases', error);
     throw ErrorFactory.createConfigError(
       `Worker persistence requires a database client. Register connection '${connectionName}' or pass infrastructure.persistence.client.`
     );
@@ -724,6 +740,36 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
     next = DbWorkerStore.create(client, persistence.table);
   } else {
     next = InMemoryWorkerStore.create();
+  }
+
+  await next.init();
+  return next;
+};
+
+const resolveWorkerStoreForPersistence = async (
+  persistence: WorkerPersistenceConfig
+): Promise<WorkerStore> => {
+  let next: WorkerStore;
+
+  if (persistence.driver === 'memory') {
+    next = InMemoryWorkerStore.create();
+  } else if (persistence.driver === 'redis') {
+    const redisConfig = resolveRedisConfigWithFallback(
+      persistence.redis ?? { env: true },
+      undefined,
+      'Worker persistence requires redis config (persistence.redis or REDIS_* env values)',
+      'persistence.redis'
+    );
+    const client = createRedisConnection(redisConfig);
+    next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
+  } else {
+    const explicitConnection =
+      typeof persistence.client === 'string' ? persistence.client : persistence.connection;
+    const client =
+      typeof persistence.client === 'string'
+        ? await resolveDbClientFromEnv(explicitConnection)
+        : (persistence.client ?? (await resolveDbClientFromEnv(explicitConnection)));
+    next = DbWorkerStore.create(client, persistence.table);
   }
 
   await next.init();
@@ -773,6 +819,7 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     queueName: config.queueName,
     version: config.version ?? '1.0.0',
     status,
+    autoStart: resolveAutoStart(config),
     concurrency: config.options?.concurrency ?? 1,
     region: config.datacenter?.primaryRegion ?? null,
     features: config.features ? { ...config.features } : null,
@@ -848,8 +895,11 @@ const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScale
   };
 };
 
-const resolveWorkerOptions = (config: WorkerFactoryConfig): WorkerOptions => {
+const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): WorkerOptions => {
   const options = config.options ? { ...config.options } : ({} as WorkerOptions);
+  if (options.autorun === undefined) {
+    options.autorun = autoStart;
+  }
   if (options.connection) return options;
 
   const redisConfig = resolveRedisConfigWithFallback(
@@ -1068,8 +1118,9 @@ const registerWorkerInstance = (params: {
   workerVersion: string;
   queueName: string;
   options?: WorkerOptions;
+  autoStart: boolean;
 }): void => {
-  const { worker, config, workerVersion, queueName, options } = params;
+  const { worker, config, workerVersion, queueName, options, autoStart } = params;
 
   WorkerRegistry.register({
     name: config.name,
@@ -1082,7 +1133,7 @@ const registerWorkerInstance = (params: {
       return {
         metadata: {
           name: config.name,
-          status: 'running',
+          status: autoStart ? 'running' : 'stopped',
           version: workerVersion,
           region: config.datacenter?.primaryRegion ?? 'unknown',
           queueName,
@@ -1105,7 +1156,13 @@ const registerWorkerInstance = (params: {
           config: {},
         },
         instance: worker,
-        start: (): void => undefined,
+        start: (): void => {
+          if (!autoStart) {
+            worker.run().catch((error) => {
+              Logger.error(`Failed to start worker "${config.name}"`, error);
+            });
+          }
+        },
         stop: async (): Promise<void> => worker.close(),
         drain: async (): Promise<void> => worker.close(),
         sleep: async (): Promise<void> => worker.pause(),
@@ -1129,6 +1186,7 @@ export const WorkerFactory = Object.freeze({
   async create(config: WorkerFactoryConfig): Promise<Worker> {
     const { name, version, queueName, features } = config;
     const workerVersion = version ?? '1.0.0';
+    const autoStart = resolveAutoStart(config);
 
     if (workers.has(name)) {
       throw ErrorFactory.createWorkerError(`Worker "${name}" already exists`);
@@ -1150,7 +1208,7 @@ export const WorkerFactory = Object.freeze({
     const enhancedProcessor = createEnhancedProcessor(config);
 
     // Create BullMQ worker
-    const resolvedOptions = resolveWorkerOptions(config);
+    const resolvedOptions = resolveWorkerOptions(config, autoStart);
     const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
 
     setupWorkerEventListeners(worker, name, workerVersion, features);
@@ -1160,7 +1218,7 @@ export const WorkerFactory = Object.freeze({
       worker,
       config,
       startedAt: new Date(),
-      status: 'running',
+      status: autoStart ? 'running' : 'stopped',
     };
 
     workers.set(name, instance);
@@ -1171,9 +1229,12 @@ export const WorkerFactory = Object.freeze({
       workerVersion,
       queueName,
       options: resolvedOptions,
+      autoStart,
     });
 
-    await WorkerRegistry.start(name, workerVersion);
+    if (autoStart) {
+      await WorkerRegistry.start(name, workerVersion);
+    }
 
     // Execute afterStart hooks
     if (features?.plugins === true) {
@@ -1183,7 +1244,7 @@ export const WorkerFactory = Object.freeze({
       });
     }
 
-    await workerStore.save(buildWorkerRecord(config, 'running'));
+    await workerStore.save(buildWorkerRecord(config, autoStart ? 'running' : 'stopped'));
 
     Logger.info(`Worker created: ${name}@${workerVersion}`, {
       queueName,
@@ -1306,10 +1367,21 @@ export const WorkerFactory = Object.freeze({
   /**
    * List all persisted workers
    */
-  async listPersisted(): Promise<string[]> {
-    await ensureWorkerStoreConfigured();
-    const records = await workerStore.list();
+  async listPersisted(persistenceOverride?: WorkerPersistenceConfig): Promise<string[]> {
+    const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
     return records.map((record) => record.name);
+  },
+
+  async listPersistedRecords(
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<WorkerRecord[]> {
+    if (!persistenceOverride) {
+      await ensureWorkerStoreConfigured();
+      return workerStore.list();
+    }
+
+    const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+    return store.list();
   },
 
   /**

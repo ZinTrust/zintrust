@@ -29,6 +29,8 @@ const getBody = (req: IRequest): Record<string, unknown> => {
  * Helper to get path parameter
  */
 const getParam = (req: IRequest, key: string): string => {
+  const direct = req.getParam?.(key);
+  if (typeof direct === 'string' && direct.length > 0) return direct;
   const params = (req.params as Record<string, string> | undefined) ?? {};
   return params[key] ?? '';
 };
@@ -70,6 +72,17 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
 async function start(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
+    if (!name) {
+      res.setStatus(400).json({ error: 'Worker name is required' });
+      return;
+    }
+    const registered = WorkerRegistry.list().includes(name);
+    if (!registered) {
+      res.setStatus(409).json({
+        error: `Worker "${name}" is not registered. Start the app process that registers workers before calling this endpoint.`,
+      });
+      return;
+    }
     await WorkerRegistry.start(name);
     res.json({ ok: true, message: `Worker ${name} started` });
   } catch (error) {
@@ -164,9 +177,52 @@ async function remove(req: IRequest, res: IResponse): Promise<void> {
  * List all workers
  * @returns Array of worker instances
  */
-async function list(_req: IRequest, res: IResponse): Promise<void> {
+const normalizeQueryValue = (value: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(value)) return value[0];
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  return undefined;
+};
+
+const parseBool = (value: string | undefined): boolean => {
+  if (!value) return false;
+  return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
+};
+
+async function list(req: IRequest, res: IResponse): Promise<void> {
   try {
-    const workers = await WorkerFactory.listPersisted();
+    const storageRaw = normalizeQueryValue(req.getQueryParam?.('storage'));
+    const detail = parseBool(normalizeQueryValue(req.getQueryParam?.('detail')));
+
+    const storage = storageRaw?.toLowerCase();
+    let persistenceOverride:
+      | { driver: 'memory' }
+      | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
+      | { driver: 'db'; connection?: string; table?: string }
+      | undefined;
+
+    if (storage === 'memory') {
+      persistenceOverride = { driver: 'memory' };
+    } else if (storage === 'redis') {
+      persistenceOverride = {
+        driver: 'redis',
+        redis: { env: true },
+        keyPrefix: normalizeQueryValue(req.getQueryParam?.('keyPrefix')),
+      };
+    } else if (storage === 'db') {
+      persistenceOverride = {
+        driver: 'db',
+        connection: normalizeQueryValue(req.getQueryParam?.('connection')),
+        table: normalizeQueryValue(req.getQueryParam?.('table')),
+      };
+    }
+
+    if (detail) {
+      const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
+      res.json({ ok: true, workers: records });
+      return;
+    }
+
+    const workers = await WorkerFactory.listPersisted(persistenceOverride);
     res.json({ ok: true, workers });
   } catch (error) {
     Logger.error('WorkerController.list failed', error);

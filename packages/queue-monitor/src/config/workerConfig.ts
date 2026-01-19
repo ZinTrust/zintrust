@@ -17,8 +17,7 @@ const resolveWorkerApiUrl = (): string => {
     return normalizeBaseUrl(withHttpScheme(workerApiUrl));
   }
 
-  const host = Env.get('HOST', 'http://localhost:3000');
-  return normalizeBaseUrl(withHttpScheme(host));
+  return '';
 };
 
 export const WorkerConfig = Object.freeze({

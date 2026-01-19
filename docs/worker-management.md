@@ -183,6 +183,14 @@ export async function initializeWorkers() {
 }
 ```
 
+**Auto-start behavior**
+
+Workers start automatically when you call `WorkerFactory.create()` if `autoStart` (or `WORKER_AUTO_START`) is true. Set `autoStart: false` to register a worker without starting it, then use the CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
+
+**Process management**
+
+In production, run the worker service as a long-lived process (for example systemd, PM2, Docker, or Kubernetes). Cron is not required; workers are continuous services that should stay running.
+
 ### 2. CLI Commands
 
 ```bash
@@ -1462,6 +1470,16 @@ if (status.health > 95) {
    ```bash
    redis-cli keys "bull:*"
    ```
+
+### Worker list fails with DB persistence
+
+**Symptoms**: `worker:list` reports the database connection is not registered.
+
+**Solutions**:
+
+1. Confirm the connection exists in `config/database.ts` (for example `mysql`, `postgresql`, `sqlite`).
+2. Ensure your environment variables match that connection (for example `DB_CONNECTION=mysql`).
+3. If you register connections manually in app startup, call `useDatabase(config, 'mysql')` before running worker commands.
 
 ### High Memory Usage
 
