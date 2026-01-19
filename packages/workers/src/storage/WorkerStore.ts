@@ -14,6 +14,7 @@ export type WorkerRecord = {
   autoStart: boolean;
   concurrency: number;
   region: string | null;
+  processorPath?: string | null;
   features?: Record<string, unknown> | null;
   infrastructure?: Record<string, unknown> | null;
   datacenter?: Record<string, unknown> | null;
@@ -127,6 +128,7 @@ export const DbWorkerStore = Object.freeze({
       auto_start: record.autoStart,
       concurrency: record.concurrency,
       region: record.region,
+      processor_path: record.processorPath ?? null,
       features: record.features ? JSON.stringify(record.features) : null,
       infrastructure: record.infrastructure ? JSON.stringify(record.infrastructure) : null,
       datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
@@ -152,6 +154,7 @@ export const DbWorkerStore = Object.freeze({
         autoStart: Boolean(row['auto_start'] ?? false),
         concurrency: Number(row['concurrency'] ?? 0),
         region: row['region'] ? String(row['region']) : null,
+        processorPath: row['processor_path'] ? String(row['processor_path']) : null,
         features: parseJson(row['features']),
         infrastructure: parseJson(row['infrastructure']),
         datacenter: parseJson(row['datacenter']),

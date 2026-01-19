@@ -124,6 +124,63 @@ const getActionStyles = (): string => `
     cursor: pointer;
     transition: border-color 0.2s ease, color 0.2s ease;
   }
+  .action-btn.is-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: #1f2937;
+    color: #64748b;
+  }
+  .action-btn.is-disabled:hover { border-color: #1f2937; color: #64748b; }
+  .action-btn.is-active {
+    border-color: rgba(16, 185, 129, 0.6);
+    color: #6ee7b7;
+  }
+  .action-btn.is-toggle {
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #bae6fd;
+  }
+  .action-btn.is-delete {
+    border-color: rgba(244, 63, 94, 0.5);
+    color: #fda4af;
+  }
+  .action-btn.is-delete:hover { border-color: #fb7185; color: #fb7185; }
+  .zt-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #cbd5f5;
+  }
+  .zt-switch {
+    appearance: none;
+    width: 2.25rem;
+    height: 1.2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(239, 68, 68, 0.2);
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  .zt-switch::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 999px;
+    background: #f8fafc;
+    transition: transform 0.2s ease;
+  }
+  .zt-switch:checked {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.5);
+  }
+  .zt-switch:checked::after {
+    transform: translateX(1rem);
+  }
   .action-btn:hover { border-color: #38bdf8; color: #38bdf8; }
   .action-btn[data-action="start"]:hover { border-color: #34d399; color: #34d399; }
   .action-btn[data-action="restart"]:hover { border-color: #fbbf24; color: #fbbf24; }
@@ -374,6 +431,85 @@ const getWorkersScriptTone = (): string => `
       };
 `;
 
+const getWorkersScriptRenderRowTemplate = (): string => `
+      const renderWorkerRow = (worker) => {
+        const resolvedName =
+          worker.name || worker.workerName || worker.worker?.name || worker.status?.name || '';
+        const statusValue =
+          worker.status?.status ||
+          worker.status?.state ||
+          worker.status ||
+          worker.worker?.status ||
+          'unknown';
+        const statusInfo = toStatusTone(statusValue);
+        const healthInfo = toHealthTone(worker.health?.status || worker.health);
+        const version =
+          worker.version ||
+          worker.status?.version ||
+          worker.worker?.config?.version ||
+          worker.worker?.version ||
+          'n/a';
+        const autoStart = Boolean(worker.autoStart ?? worker.worker?.config?.autoStart ?? false);
+
+        const normalizedStatus = String(statusValue || '').toLowerCase();
+        const isRunning = ['running', 'active'].includes(normalizedStatus);
+        const startClass = isRunning ? 'action-btn is-disabled is-active' : 'action-btn';
+        const startAttr = isRunning ? ' disabled' : '';
+
+        if (!resolvedName) {
+          return '';
+        }
+
+        const rowHtml =
+          '<tr>' +
+          '<td class="zt-cell zt-cell--strong">' +
+          resolvedName +
+          '</td>' +
+          '<td class="zt-cell">' +
+          statusBadge(statusInfo.label, statusInfo.tone) +
+          '</td>' +
+          '<td class="zt-cell">' +
+          statusBadge(healthInfo.label, healthInfo.tone) +
+          '</td>' +
+          '<td class="zt-cell zt-cell--muted">' +
+          version +
+          '</td>' +
+          '<td class="zt-cell zt-cell--right">' +
+          '<div class="zt-row-actions">' +
+          '<label class="zt-toggle" title="Auto start">' +
+          '<input class="zt-switch" type="checkbox" data-action="auto-start" data-worker="' +
+          resolvedName +
+          '" data-auto-start="' +
+          (autoStart ? 'true' : 'false') +
+          '"' +
+          (autoStart ? ' checked' : '') +
+          ' />' +
+          '<span>Auto</span>' +
+          '</label>' +
+          '<button class="' +
+          startClass +
+          '" data-action="start" data-worker="' +
+          resolvedName +
+          '"' +
+          startAttr +
+          '>Start</button>' +
+          '<button class="action-btn" data-action="restart" data-worker="' +
+          resolvedName +
+          '">Restart</button>' +
+          '<button class="action-btn" data-action="stop" data-worker="' +
+          resolvedName +
+          '">Stop</button>' +
+          '<button class="action-btn is-delete" data-action="delete" data-worker="' +
+          resolvedName +
+          '">Delete</button>' +
+          '</div>' +
+          '</td>' +
+          '</tr>';
+
+        return rowHtml;
+      };
+`;
+
 const getWorkersScriptRenderRows = (): string => `
       const renderWorkers = (workers) => {
         bodyEl.innerHTML = '';
@@ -383,56 +519,10 @@ const getWorkersScriptRenderRows = (): string => `
         }
 
         workers.forEach((worker) => {
-          const resolvedName =
-            worker.name || worker.workerName || worker.worker?.name || worker.status?.name || '';
-          const statusValue =
-            worker.status?.status ||
-            worker.status?.state ||
-            worker.status ||
-            worker.worker?.status ||
-            'unknown';
-          const statusInfo = toStatusTone(statusValue);
-          const healthInfo = toHealthTone(worker.health?.status || worker.health);
-          const version =
-            worker.version ||
-            worker.status?.version ||
-            worker.worker?.config?.version ||
-            worker.worker?.version ||
-            'n/a';
-
-          if (!resolvedName) {
+          const rowHtml = renderWorkerRow(worker);
+          if (!rowHtml) {
             return;
           }
-
-          const rowHtml =
-            '<tr>' +
-            '<td class="zt-cell zt-cell--strong">' +
-            resolvedName +
-            '</td>' +
-            '<td class="zt-cell">' +
-            statusBadge(statusInfo.label, statusInfo.tone) +
-            '</td>' +
-            '<td class="zt-cell">' +
-            statusBadge(healthInfo.label, healthInfo.tone) +
-            '</td>' +
-            '<td class="zt-cell zt-cell--muted">' +
-            version +
-            '</td>' +
-            '<td class="zt-cell zt-cell--right">' +
-            '<div class="zt-row-actions">' +
-            '<button class="action-btn" data-action="start" data-worker="' +
-            resolvedName +
-            '">Start</button>' +
-            '<button class="action-btn" data-action="restart" data-worker="' +
-            resolvedName +
-            '">Restart</button>' +
-            '<button class="action-btn" data-action="stop" data-worker="' +
-            resolvedName +
-            '">Stop</button>' +
-            '</div>' +
-            '</td>' +
-            '</tr>';
-
           bodyEl.insertAdjacentHTML('beforeend', rowHtml);
         });
       };
@@ -442,7 +532,7 @@ const getWorkersScriptRenderSummary = (): string => `
       const updateSummary = (workers) => {
         totalEl.textContent = workers.length;
         const activeCount = workers.filter((worker) => {
-          const status = String(worker.status?.status || '').toLowerCase();
+          const status = String(worker.status?.status || worker.status || '').toLowerCase();
           return status === 'running' || status === 'active';
         }).length;
         const attentionCount = workers.filter((worker) => {
@@ -475,17 +565,18 @@ const getWorkersScriptFetch = (): string => `
         }
       };
 
-      const handleAction = async (action, workerName) => {
+      const handleAction = async (action, workerName, extraParams = {}, methodOverride) => {
         setError('');
         try {
           if (!workerName) {
             throw new Error('Missing worker name');
           }
-          const query = new URLSearchParams({ storage: storageMode });
+          const query = new URLSearchParams({ storage: storageMode, ...extraParams });
+          const path = action ? '/' + action : '';
           const response = await fetch(
-            API_BASE + '/api/workers/' + workerName + '/' + action + '?' + query.toString(),
+            API_BASE + '/api/workers/' + workerName + path + '?' + query.toString(),
             {
-            method: 'POST',
+            method: methodOverride || 'POST',
             }
           );
           if (!response.ok) throw new Error('Action failed');
@@ -501,7 +592,34 @@ const getWorkersScriptControls = (): string => `
         const target = event.target;
         if (!target || !target.dataset) return;
         if (target.dataset.action && target.dataset.worker) {
+          if (target.dataset.action === 'auto-start') {
+            return;
+          }
+          if (target.dataset.action === 'delete') {
+            const first = window.confirm('Delete this worker?');
+            if (!first) return;
+            const second = window.confirm('This cannot be undone. Delete worker permanently?');
+            if (!second) return;
+            handleAction('', target.dataset.worker, {}, 'DELETE');
+            return;
+          }
           handleAction(target.dataset.action, target.dataset.worker);
+        }
+      });
+
+      bodyEl.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!target || !target.dataset) return;
+        if (target.dataset.action === 'auto-start' && target.dataset.worker) {
+          const nextValue = target.checked === true;
+          const confirmMessage = nextValue
+            ? 'Enable auto start for this worker?'
+            : 'Disable auto start for this worker?';
+          if (!window.confirm(confirmMessage)) {
+            target.checked = !nextValue;
+            return;
+          }
+          handleAction('auto-start', target.dataset.worker, { enabled: String(nextValue) });
         }
       });
 
@@ -552,6 +670,7 @@ ${getWorkersScriptStorage()}
 ${getWorkersScriptError()}
 ${getWorkersScriptBadges()}
 ${getWorkersScriptTone()}
+${getWorkersScriptRenderRowTemplate()}
 ${getWorkersScriptRenderRows()}
 ${getWorkersScriptRenderSummary()}
 ${getWorkersScriptFetch()}

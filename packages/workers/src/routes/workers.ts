@@ -15,6 +15,7 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
 
     Router.post(r, '/create', controller.create);
     Router.post(r, '/:name/start', controller.start);
+    Router.post(r, '/:name/auto-start', controller.setAutoStart);
     Router.post(r, '/:name/stop', controller.stop);
     Router.post(r, '/:name/restart', controller.restart);
     Router.post(r, '/:name/pause', controller.pause);

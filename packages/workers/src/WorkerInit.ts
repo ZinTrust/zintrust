@@ -8,8 +8,9 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Logger } from '@zintrust/core';
+import { Logger, workersConfig } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
+import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
 
 // ============================================================================
@@ -139,6 +140,41 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
   }
 }
 
+async function autoStartPersistedWorkers(): Promise<void> {
+  console.log('workersConfig.defaultWorker?.autoStart :', workersConfig.defaultWorker?.autoStart);
+
+  if (workersConfig.defaultWorker?.autoStart !== true) return;
+
+  try {
+    const records = await WorkerFactory.listPersistedRecords();
+    const candidates = records.filter((record) => record.autoStart === true);
+    const results = await Promise.all(
+      candidates.map(async (record) => {
+        if (WorkerFactory.get(record.name)) {
+          return { name: record.name, started: false, skipped: true };
+        }
+        try {
+          await WorkerFactory.startFromPersisted(record.name);
+          return { name: record.name, started: true, skipped: false };
+        } catch (error) {
+          Logger.warn(`Auto-start failed for worker ${record.name}`, error as Error);
+          return { name: record.name, started: false, skipped: false };
+        }
+      })
+    );
+
+    const startedCount = results.filter((item) => item.started).length;
+    const skippedCount = results.filter((item) => item.skipped).length;
+    Logger.info('Auto-started persisted workers', {
+      total: candidates.length,
+      started: startedCount,
+      skipped: skippedCount,
+    });
+  } catch (error) {
+    Logger.warn('Auto-start persisted workers failed', error as Error);
+  }
+}
+
 /**
  * Check if worker management system is initialized
  */
@@ -194,4 +230,9 @@ export const WorkerInit = Object.freeze({
    * Graceful shutdown of worker management system
    */
   shutdown,
+
+  /**
+   * Start persisted workers after boot completes
+   */
+  autoStartPersistedWorkers,
 });

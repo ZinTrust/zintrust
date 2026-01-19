@@ -61,6 +61,56 @@ const readAppPort = (): number => {
   return Number.isFinite(parsed) ? parsed : 3000;
 };
 
+/**
+ * Check if running on AWS Lambda
+ */
+function isLambda(): boolean {
+  return (
+    Env.getBool('LAMBDA_TASK_ROOT') === true ||
+    Env.getBool('AWS_LAMBDA_FUNCTION_NAME') === true ||
+    Env.getBool('AWS_EXECUTION_ENV') === true
+  );
+}
+
+/**
+ * Check if running on Cloudflare Workers
+ */
+function isCloudflare(): boolean {
+  return (globalThis as unknown as { CF: unknown }).CF !== undefined;
+}
+
+/**
+ * Check if running on Deno
+ */
+function isDeno(): boolean {
+  return (globalThis as unknown as { Deno: unknown }).Deno !== undefined;
+}
+
+/**
+ * Detect current runtime environment
+ */
+const detectRuntime = (): string => {
+  const explicit = Env.get('RUNTIME').trim();
+
+  if (explicit !== '' && explicit !== 'auto') return explicit;
+
+  // Auto-detection logic
+  if (isLambda() === true) {
+    return 'lambda';
+  }
+
+  if (isCloudflare() === true) {
+    return 'cloudflare';
+  }
+
+  if (isDeno() === true) {
+    return 'deno';
+  }
+
+  // Default to nodejs for containers (Fargate, Docker, Cloud Run)
+  return 'nodejs';
+};
+
 const resolvedNodeEnv = readEnvString('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'];
 
 // Cache getSafeEnv result at module load time to avoid repeated object creation
@@ -159,6 +209,7 @@ const appConfigObj = {
   maxBodySize: readEnvInt('MAX_BODY_SIZE', Env.MAX_BODY_SIZE),
 
   getSafeEnv,
+  detectRuntime,
 } as const;
 
 export const appConfig = Object.freeze(appConfigObj);

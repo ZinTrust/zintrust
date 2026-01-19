@@ -51,6 +51,7 @@ export type WorkerFactoryConfig = {
   version?: string;
   queueName: string;
   processor: (job: Job) => Promise<unknown>;
+  processorPath?: string;
   options?: WorkerOptions;
   autoStart?: boolean;
   infrastructure?: {
@@ -168,20 +169,47 @@ const registerProcessorResolver = (resolver: ProcessorResolver): void => {
   processorResolvers.push(resolver);
 };
 
+const decodeProcessorPathEntities = (value: string): string =>
+  value
+    .replaceAll(/&#x2F;/gi, '/')
+    .replaceAll('&#47;', '/')
+    .replaceAll(/&sol;/gi, '/');
+
+const sanitizeProcessorPath = (value: string): string => {
+  const decoded = decodeProcessorPathEntities(value);
+  const base = decoded.split(/[?#&]/)[0]?.trim() ?? '';
+  if (!base) return '';
+  const isAbsolutePath = base.startsWith('/') || /^[A-Za-z]:[\\/]/.test(base);
+  const relativePath = base.startsWith('.') ? base : `./${base}`;
+  return isAbsolutePath ? base : path.resolve(process.cwd(), relativePath);
+};
+
 const resolveProcessorFromPath = async (
   modulePath: string
 ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
   const trimmed = modulePath.trim();
   if (!trimmed) return undefined;
 
-  const resolved = trimmed.startsWith('.') ? path.resolve(process.cwd(), trimmed) : trimmed;
+  const resolved = sanitizeProcessorPath(trimmed);
+  if (!resolved) return undefined;
 
-  const mod = await import(resolved);
-  const candidate = mod?.default ?? mod?.processor ?? mod?.handler ?? mod?.handle;
+  try {
+    const mod = await import(resolved);
+    const candidate = mod?.default ?? mod?.processor ?? mod?.handler ?? mod?.handle;
 
-  return typeof candidate === 'function'
-    ? (candidate as WorkerFactoryConfig['processor'])
-    : undefined;
+    if (typeof candidate !== 'function') {
+      Logger.warn(
+        `Module imported from ${resolved} but no valid processor function found (exported: ${Object.keys(mod)})`
+      );
+    }
+
+    return typeof candidate === 'function'
+      ? (candidate as WorkerFactoryConfig['processor'])
+      : undefined;
+  } catch (err) {
+    Logger.error(`Failed to import processor from path: ${resolved}`, err);
+    return undefined;
+  }
 };
 
 const resolveProcessor = async (
@@ -216,6 +244,10 @@ const resolveProcessor = async (
 
   return undefined;
 };
+
+const resolveProcessorPath = async (
+  modulePath: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => resolveProcessorFromPath(modulePath);
 
 const recordMetricSafely = (
   workerName: string,
@@ -698,8 +730,7 @@ const resolveDefaultPersistenceTable = (): string =>
 const resolveDefaultPersistenceConnection = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default')) ?? 'default';
 
-const resolveAutoStart = (config: WorkerFactoryConfig): boolean =>
-  config.autoStart ?? workersConfig.defaultWorker?.autoStart ?? false;
+const resolveAutoStart = (config: WorkerFactoryConfig): boolean => config.autoStart ?? false;
 
 const normalizeExplicitPersistence = (
   persistence: WorkerPersistenceConfig
@@ -916,6 +947,9 @@ const ensureWorkerStoreConfigured = async (): Promise<void> => {
 
 const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerRecord => {
   const now = new Date();
+  const decodedProcessorPath = config.processorPath
+    ? decodeProcessorPathEntities(config.processorPath)
+    : null;
   return {
     name: config.name,
     queueName: config.queueName,
@@ -924,6 +958,7 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     autoStart: resolveAutoStart(config),
     concurrency: config.options?.concurrency ?? 1,
     region: config.datacenter?.primaryRegion ?? null,
+    processorPath: decodedProcessorPath,
     features: config.features ? { ...config.features } : null,
     infrastructure: config.infrastructure ? { ...config.infrastructure } : null,
     datacenter: config.datacenter ? { ...config.datacenter } : null,
@@ -1286,6 +1321,7 @@ export const WorkerFactory = Object.freeze({
   registerProcessors,
   registerProcessorPaths,
   registerProcessorResolver,
+  resolveProcessorPath,
 
   /**
    * Create worker with all features
@@ -1374,11 +1410,29 @@ export const WorkerFactory = Object.freeze({
   /**
    * Stop worker
    */
-  async stop(name: string): Promise<void> {
+  async stop(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
 
     if (!instance) {
-      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+      if (!persistenceOverride) {
+        await ensureWorkerStoreConfigured();
+        const record = await workerStore.get(name);
+        if (!record) {
+          throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+        }
+        await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
+        Logger.info(`Worker marked stopped (not running): ${name}`);
+        return;
+      }
+
+      const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+      const record = await store.get(name);
+      if (!record) {
+        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+      }
+      await store.update(name, { status: 'stopped', updatedAt: new Date() });
+      Logger.info(`Worker marked stopped (not running): ${name}`);
+      return;
     }
 
     // Execute beforeStop hooks
@@ -1410,18 +1464,28 @@ export const WorkerFactory = Object.freeze({
   /**
    * Restart worker
    */
-  async restart(name: string): Promise<void> {
-    await WorkerFactory.stop(name);
+  async restart(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
 
     if (!instance) {
+      await WorkerFactory.startFromPersisted(name, persistenceOverride);
+      Logger.info(`Worker started from persistence: ${name}`);
+      return;
+    }
+
+    await WorkerFactory.stop(name, persistenceOverride);
+    const refreshed = workers.get(name);
+
+    if (!refreshed) {
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
     }
 
-    const newWorker = await WorkerFactory.create(instance.config);
-    instance.worker = newWorker;
-    instance.status = 'running';
-    instance.startedAt = new Date();
+    workers.delete(name);
+
+    const newWorker = await WorkerFactory.create(refreshed.config);
+    refreshed.worker = newWorker;
+    refreshed.status = 'running';
+    refreshed.startedAt = new Date();
 
     Logger.info(`Worker restarted: ${name}`);
   },
@@ -1462,6 +1526,48 @@ export const WorkerFactory = Object.freeze({
       .catch((error) => Logger.error('Failed to persist worker resume', error));
 
     Logger.info(`Worker resumed: ${name}`);
+  },
+
+  /**
+   * Update auto-start for persisted worker
+   */
+  async setAutoStart(
+    name: string,
+    autoStart: boolean,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<void> {
+    const instance = workers.get(name);
+    if (instance) {
+      instance.config.autoStart = autoStart;
+    }
+
+    if (persistenceOverride) {
+      const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+      const record = await store.get(name);
+      if (!record) {
+        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+      }
+      await store.update(name, { autoStart, updatedAt: new Date() });
+    } else {
+      await ensureWorkerStoreConfigured();
+      const record = await workerStore.get(name);
+      if (!record) {
+        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+      }
+      await workerStore.update(name, { autoStart, updatedAt: new Date() });
+    }
+
+    if (!autoStart) return;
+
+    const refreshed = workers.get(name);
+    if (refreshed) {
+      if (refreshed.status !== 'running') {
+        await WorkerFactory.start(name);
+      }
+      return;
+    }
+
+    await WorkerFactory.startFromPersisted(name, persistenceOverride);
   },
 
   /**
@@ -1524,10 +1630,19 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
     }
 
-    const processor = await resolveProcessor(name);
+    let processor = await resolveProcessor(name);
+
+    if (!processor && record.processorPath) {
+      try {
+        processor = await resolveProcessorFromPath(record.processorPath);
+      } catch (error) {
+        Logger.error(`Failed to resolve processor module for "${name}"`, error);
+      }
+    }
+
     if (!processor) {
       throw ErrorFactory.createConfigError(
-        `Worker "${name}" processor is not registered. Call WorkerFactory.registerProcessor(name, processor) during startup.`
+        `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorPath.`
       );
     }
 
@@ -1536,6 +1651,7 @@ export const WorkerFactory = Object.freeze({
       queueName: record.queueName,
       version: record.version ?? undefined,
       processor,
+      processorPath: record.processorPath ?? undefined,
       autoStart: true,
       options: { concurrency: record.concurrency } as WorkerOptions,
       infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],
@@ -1547,35 +1663,56 @@ export const WorkerFactory = Object.freeze({
   /**
    * Get persisted worker record
    */
-  async getPersisted(name: string): Promise<WorkerRecord | null> {
-    await ensureWorkerStoreConfigured();
-    return workerStore.get(name);
+  async getPersisted(
+    name: string,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<WorkerRecord | null> {
+    if (!persistenceOverride) {
+      await ensureWorkerStoreConfigured();
+      return workerStore.get(name);
+    }
+
+    const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+    return store.get(name);
   },
 
   /**
    * Remove worker
    */
-  async remove(name: string): Promise<void> {
+  async remove(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
 
-    if (!instance) {
-      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    if (instance) {
+      await WorkerFactory.stop(name);
+      const registry = WorkerRegistry as { unregister?: (name: string) => void };
+      registry.unregister?.(name);
+      AutoScaler.clearHistory(name);
+      ResourceMonitor.clearHistory(name);
+      CircuitBreaker.deleteWorker(name);
+      CanaryController.purge(name);
+      WorkerVersioning.clear(name);
+      DatacenterOrchestrator.removeWorker(name);
+      await Observability.clearWorkerMetrics(name);
+      workers.delete(name);
     }
 
-    await WorkerFactory.stop(name);
-    const registry = WorkerRegistry as { unregister?: (name: string) => void };
-    registry.unregister?.(name);
-    AutoScaler.clearHistory(name);
-    ResourceMonitor.clearHistory(name);
-    CircuitBreaker.deleteWorker(name);
-    CanaryController.purge(name);
-    WorkerVersioning.clear(name);
-    DatacenterOrchestrator.removeWorker(name);
-    await Observability.clearWorkerMetrics(name);
-    workers.delete(name);
+    if (!persistenceOverride) {
+      await ensureWorkerStoreConfigured();
+      const persisted = await workerStore.get(name);
+      if (!instance && !persisted) {
+        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+      }
+      await workerStore.remove(name);
+      Logger.info(`Worker removed: ${name}`);
+      return;
+    }
 
-    await workerStore.remove(name);
-
+    const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+    const persisted = await store.get(name);
+    if (!instance && !persisted) {
+      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    }
+    await store.remove(name);
     Logger.info(`Worker removed: ${name}`);
   },
 

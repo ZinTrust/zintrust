@@ -53,7 +53,31 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
   Logger.info('WorkerController.create called');
   try {
     const body = getBody(req);
-    const config = body as Parameters<typeof WorkerFactory.create>[0];
+
+    const rawProcessor = (body as { processor?: unknown }).processor;
+    let processor = rawProcessor as Parameters<typeof WorkerFactory.create>[0]['processor'];
+    let processorPath: string | undefined;
+
+    if (typeof rawProcessor === 'string') {
+      processorPath = rawProcessor;
+      const resolved = await WorkerFactory.resolveProcessorPath(rawProcessor);
+      if (!resolved) {
+        res.setStatus(400).json({ error: 'Processor path could not be resolved' });
+        return;
+      }
+      processor = resolved;
+    }
+
+    if (typeof processor !== 'function') {
+      res.setStatus(400).json({ error: 'Processor must be a function or resolvable path' });
+      return;
+    }
+
+    const config = {
+      ...(body as Parameters<typeof WorkerFactory.create>[0]),
+      processor,
+      processorPath,
+    };
 
     await WorkerFactory.create(config);
 
@@ -99,7 +123,8 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
 async function stop(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.stop(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.stop(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} stopped` });
   } catch (error) {
     Logger.error('WorkerController.stop failed', error);
@@ -115,10 +140,37 @@ async function stop(req: IRequest, res: IResponse): Promise<void> {
 async function restart(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.restart(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.restart(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} restarted` });
   } catch (error) {
     Logger.error('WorkerController.restart failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
+ * Toggle worker auto-start
+ * @param req.params.name - Worker name
+ * @param req.query.enabled - true/false
+ * @returns Success message
+ */
+async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const name = getParam(req, 'name');
+    if (!name) {
+      res.setStatus(400).json({ error: 'Worker name is required' });
+      return;
+    }
+    const enabledRaw = normalizeQueryValue(req.getQueryParam?.('enabled')) ?? '';
+    const enabled = ['true', '1', 'yes', 'on'].includes(enabledRaw.toLowerCase());
+    const persistenceOverride = resolvePersistenceOverride(req);
+
+    await WorkerFactory.setAutoStart(name, enabled, persistenceOverride);
+
+    res.json({ ok: true, message: `Worker ${name} autoStart set to ${enabled}` });
+  } catch (error) {
+    Logger.error('WorkerController.setAutoStart failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
   }
 }
@@ -163,7 +215,8 @@ async function resume(req: IRequest, res: IResponse): Promise<void> {
 async function remove(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.remove(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.remove(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} removed` });
   } catch (error) {
     Logger.error('WorkerController.remove failed', error);
@@ -229,7 +282,22 @@ async function list(req: IRequest, res: IResponse): Promise<void> {
 
     if (detail) {
       const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
-      res.json({ ok: true, workers: records });
+      const workers = await Promise.all(
+        records.map(async (record) => {
+          const instance = WorkerFactory.get(record.name);
+          if (!instance) {
+            return { ...record, health: { status: 'unknown' } };
+          }
+
+          try {
+            const wHealth = await WorkerFactory.getHealth(record.name);
+            return { ...record, health: wHealth ?? { status: 'unknown' } };
+          } catch {
+            return { ...record, health: { status: 'unknown' } };
+          }
+        })
+      );
+      res.json({ ok: true, workers });
       return;
     }
 
@@ -252,7 +320,8 @@ async function get(req: IRequest, res: IResponse): Promise<void> {
     const instance = WorkerFactory.get(name);
 
     if (!instance) {
-      const persisted = await WorkerFactory.getPersisted(name);
+      const persistenceOverride = resolvePersistenceOverride(req);
+      const persisted = await WorkerFactory.getPersisted(name, persistenceOverride);
       if (!persisted) {
         res.setStatus(404).json({ error: `Worker ${name} not found` });
         return;
@@ -1065,6 +1134,7 @@ const buildCoreOperations = () => ({
   stop,
   restart,
   pause,
+  setAutoStart,
   resume,
   remove,
   list,
