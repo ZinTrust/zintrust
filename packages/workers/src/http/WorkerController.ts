@@ -7,6 +7,7 @@
 import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
 import { CanaryController } from '../CanaryController';
 import { HealthMonitor } from '../HealthMonitor';
+import { ResourceMonitor } from '../ResourceMonitor';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerRegistry } from '../WorkerRegistry';
 import { WorkerShutdown } from '../WorkerShutdown';
@@ -800,6 +801,46 @@ const getScalingPolicy = async (_req: IRequest, res: IResponse): Promise<void> =
   res.json({ ok: true, message: 'Get scaling policy endpoint - implementation pending' });
 };
 
+/**
+ * Stop Resource Monitoring
+ * Stops the resource monitor that captures CPU/memory snapshots
+ * @remarks
+ * - Stops periodic resource snapshots (no more [DEBUG] logs)
+ * - Disables cost estimation
+ * - Disables resource alerts (CPU/memory warnings)
+ * - May impact auto-scaling decisions
+ * @returns Success message
+ */
+const stopResourceMonitoring = async (_req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    ResourceMonitor.stop();
+    res.json({ ok: true, message: 'Resource monitoring stopped' });
+  } catch (error) {
+    Logger.error('WorkerController.stopResourceMonitoring failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+};
+
+/**
+ * Start Resource Monitoring
+ * Starts the resource monitor to capture CPU/memory snapshots
+ * @remarks
+ * - Enables periodic resource snapshots (every 30s by default)
+ * - Enables cost estimation and tracking
+ * - Enables resource alerts for high CPU/memory usage
+ * - Required for resource-based auto-scaling
+ * @returns Success message
+ */
+const startResourceMonitoring = async (_req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    ResourceMonitor.start();
+    res.json({ ok: true, message: 'Resource monitoring started' });
+  } catch (error) {
+    Logger.error('WorkerController.startResourceMonitoring failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+};
+
 const getCurrentResourceUsage = async (_req: IRequest, res: IResponse): Promise<void> => {
   res.json({ ok: true, message: 'Get current resource usage endpoint - implementation pending' });
 };
@@ -1064,6 +1105,8 @@ const buildAutoScaling = () => ({
 
 const buildResources = () => ({
   // Resources
+  stopResourceMonitoring,
+  startResourceMonitoring,
   getCurrentResourceUsage,
   resourceHistory,
   resourceAlerts,

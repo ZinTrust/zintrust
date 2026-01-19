@@ -5,6 +5,7 @@
  */
 
 import {
+  Env,
   ErrorFactory,
   Logger,
   workersConfig,
@@ -36,16 +37,16 @@ export type WorkerFactoryConfig = {
   processor: (job: Job) => Promise<unknown>;
   options?: WorkerOptions;
   infrastructure?: {
-    redis?: RedisConfig;
+    redis?: RedisConfigInput;
     deadLetterQueue?: {
-      redis: RedisConfig;
+      redis?: RedisConfigInput;
       policy: RetentionPolicy;
     };
     compliance?: {
-      redis: RedisConfig;
+      redis?: RedisConfigInput;
       config?: Partial<ComplianceConfig>;
     };
-    observability?: ObservabilityConfig;
+    observability?: ObservabilityConfigInput;
     autoScaler?: AutoScalerConfig;
   };
   features?: {
@@ -78,6 +79,25 @@ export type WorkerInstance = {
   startedAt: Date;
   status: 'running' | 'stopped' | 'sleeping' | 'draining';
 };
+
+type RedisEnvConfig = {
+  env: true;
+  host?: string;
+  port?: string;
+  password?: string;
+  db?: string;
+};
+
+type RedisConfigInput = RedisConfig | RedisEnvConfig;
+
+type ObservabilityConfigInput =
+  | ObservabilityConfig
+  | {
+      enabled?: boolean;
+      prometheus?: Partial<ObservabilityConfig['prometheus']>;
+      openTelemetry?: Partial<ObservabilityConfig['openTelemetry']>;
+      datadog?: Partial<ObservabilityConfig['datadog']>;
+    };
 
 // Internal state
 const workers = new Map<string, WorkerInstance>();
@@ -482,20 +502,224 @@ const requireInfrastructure = <T>(value: T | null | undefined, message: string):
   return value;
 };
 
+const resolveEnvString = (envKey: string | undefined, fallback: string): string => {
+  if (!envKey) return fallback;
+  return Env.get(envKey, fallback);
+};
+
+const resolveEnvInt = (envKey: string | undefined, fallback: number): number => {
+  if (!envKey) return fallback;
+  return Env.getInt(envKey, fallback);
+};
+
+const isRedisEnvConfig = (config: RedisConfigInput): config is RedisEnvConfig =>
+  (config as RedisEnvConfig).env === true;
+
+const resolveRedisConfig = (config: RedisConfigInput, context: string): RedisConfig => {
+  if (isRedisEnvConfig(config)) {
+    const host = resolveEnvString(config.host ?? 'REDIS_HOST', '127.0.0.1');
+    const port = resolveEnvInt(config.port ?? 'REDIS_PORT', 6379);
+    const db = resolveEnvInt(config.db ?? 'REDIS_DB', 0);
+    const password = resolveEnvString(
+      config.password ?? 'REDIS_PASSWORD',
+      Env.get('REDIS_PASSWORD', '')
+    );
+
+    if (!host) {
+      throw ErrorFactory.createConfigError(`${context}.host is required`);
+    }
+
+    return {
+      host,
+      port,
+      db,
+      password: password || undefined,
+    };
+  }
+
+  if (!config.host) {
+    throw ErrorFactory.createConfigError(`${context}.host is required`);
+  }
+
+  return {
+    host: config.host,
+    port: config.port,
+    db: config.db,
+    password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+  };
+};
+
+const resolveRedisConfigWithFallback = (
+  primary: RedisConfigInput | undefined,
+  fallback: RedisConfigInput | undefined,
+  errorMessage: string,
+  context: string
+): RedisConfig => {
+  const selected = primary ?? fallback;
+  if (!selected) {
+    throw ErrorFactory.createConfigError(errorMessage);
+  }
+
+  return resolveRedisConfig(selected, context);
+};
+
+const buildDefaultAutoScalerConfig = (): AutoScalerConfig => ({
+  enabled: workersConfig.autoScaling.enabled,
+  checkInterval: workersConfig.autoScaling.interval,
+  scalingPolicies: new Map(),
+  costOptimization: {
+    enabled: workersConfig.costOptimization.enabled,
+    maxCostPerHour: 0,
+    preferSpotInstances: workersConfig.costOptimization.spotInstances,
+    offPeakSchedule: {
+      start: workersConfig.autoScaling.offPeakSchedule.split('-')[0] ?? '22:00',
+      end: workersConfig.autoScaling.offPeakSchedule.split('-')[1] ?? '06:00',
+      timezone: 'UTC',
+      reductionPercentage: Math.round(workersConfig.autoScaling.offPeakReduction * 100),
+    },
+    budgetAlerts: {
+      dailyLimit: 0,
+      weeklyLimit: 0,
+      monthlyLimit: 0,
+    },
+  },
+});
+
+const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScalerConfig => {
+  const defaults = buildDefaultAutoScalerConfig();
+  if (!input) return defaults;
+
+  const defaultOffPeakSchedule = defaults.costOptimization.offPeakSchedule ?? {
+    start: '22:00',
+    end: '06:00',
+    timezone: 'UTC',
+    reductionPercentage: 0,
+  };
+
+  const resolvedOffPeakSchedule = {
+    start: input.costOptimization?.offPeakSchedule?.start ?? defaultOffPeakSchedule.start,
+    end: input.costOptimization?.offPeakSchedule?.end ?? defaultOffPeakSchedule.end,
+    timezone: input.costOptimization?.offPeakSchedule?.timezone ?? defaultOffPeakSchedule.timezone,
+    reductionPercentage:
+      input.costOptimization?.offPeakSchedule?.reductionPercentage ??
+      defaultOffPeakSchedule.reductionPercentage,
+  };
+
+  return {
+    ...defaults,
+    ...input,
+    costOptimization: {
+      ...defaults.costOptimization,
+      ...input.costOptimization,
+      offPeakSchedule: {
+        ...resolvedOffPeakSchedule,
+      },
+      budgetAlerts: {
+        ...defaults.costOptimization.budgetAlerts,
+        ...input.costOptimization?.budgetAlerts,
+      },
+    },
+  };
+};
+
+const resolveWorkerOptions = (config: WorkerFactoryConfig): WorkerOptions => {
+  const options = config.options ? { ...config.options } : ({} as WorkerOptions);
+  if (options.connection) return options;
+
+  const redisConfig = resolveRedisConfigWithFallback(
+    config.infrastructure?.redis,
+    undefined,
+    'Worker requires a connection. Provide options.connection or infrastructure.redis config',
+    'infrastructure.redis'
+  );
+
+  return {
+    ...options,
+    connection: {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      db: redisConfig.db,
+      password: redisConfig.password,
+    },
+  };
+};
+
+const buildDefaultObservabilityConfig = (): ObservabilityConfig => ({
+  prometheus: {
+    enabled: workersConfig.observability.prometheus.enabled,
+    port: workersConfig.observability.prometheus.port,
+  },
+  openTelemetry: {
+    enabled: workersConfig.observability.opentelemetry.enabled,
+    serviceName: 'zintrust-workers',
+    exporterUrl: workersConfig.observability.opentelemetry.endpoint,
+  },
+  datadog: {
+    enabled: workersConfig.observability.datadog.enabled,
+    tags: workersConfig.observability.datadog.apiKey
+      ? [`apiKey:${workersConfig.observability.datadog.apiKey}`]
+      : undefined,
+  },
+});
+
+const resolveObservabilityConfig = (
+  input: ObservabilityConfigInput | undefined
+): ObservabilityConfig => {
+  const defaults = buildDefaultObservabilityConfig();
+  if (!input) return defaults;
+
+  const enabledOverride = 'enabled' in input ? input.enabled : undefined;
+
+  const prometheus = { ...defaults.prometheus };
+  if (input.prometheus) {
+    Object.assign(prometheus, input.prometheus);
+  }
+
+  const openTelemetry = { ...defaults.openTelemetry };
+  if (input.openTelemetry) {
+    Object.assign(openTelemetry, input.openTelemetry);
+  }
+
+  const datadog = { ...defaults.datadog };
+  if (input.datadog) {
+    Object.assign(datadog, input.datadog);
+  }
+
+  if (enabledOverride === false) {
+    prometheus.enabled = false;
+    openTelemetry.enabled = false;
+    datadog.enabled = false;
+  } else if (enabledOverride === true) {
+    prometheus.enabled = true;
+    openTelemetry.enabled = true;
+    datadog.enabled = true;
+  }
+
+  if (!openTelemetry.serviceName) {
+    openTelemetry.serviceName = defaults.openTelemetry.serviceName;
+  }
+
+  return { prometheus, openTelemetry, datadog };
+};
+
 const initializeClustering = (config: WorkerFactoryConfig): void => {
   if (!(config.features?.clustering ?? false)) return;
-  const redisConfig = requireInfrastructure(
+  const redisConfig = resolveRedisConfigWithFallback(
     config.infrastructure?.redis,
-    'ClusterLock requires infrastructure.redis config'
+    undefined,
+    'ClusterLock requires infrastructure.redis config',
+    'infrastructure.redis'
   );
   ClusterLock.initialize(redisConfig);
 };
 
 const initializeMetrics = (config: WorkerFactoryConfig): void => {
   if (!(config.features?.metrics ?? false)) return;
-  const redisConfig = requireInfrastructure(
+  const redisConfig = resolveRedisConfigWithFallback(
     config.infrastructure?.redis,
-    'WorkerMetrics requires infrastructure.redis config'
+    undefined,
+    'WorkerMetrics requires infrastructure.redis config',
+    'infrastructure.redis'
   );
   WorkerMetrics.initialize(redisConfig);
 };
@@ -503,27 +727,7 @@ const initializeMetrics = (config: WorkerFactoryConfig): void => {
 const initializeAutoScaling = (config: WorkerFactoryConfig): void => {
   if (!(config.features?.autoScaling ?? false)) return;
 
-  const autoScalerConfig: AutoScalerConfig = config.infrastructure?.autoScaler ?? {
-    enabled: workersConfig.autoScaling.enabled,
-    checkInterval: workersConfig.autoScaling.interval,
-    scalingPolicies: new Map(),
-    costOptimization: {
-      enabled: workersConfig.costOptimization.enabled,
-      maxCostPerHour: 0,
-      preferSpotInstances: workersConfig.costOptimization.spotInstances,
-      offPeakSchedule: {
-        start: workersConfig.autoScaling.offPeakSchedule.split('-')[0] ?? '22:00',
-        end: workersConfig.autoScaling.offPeakSchedule.split('-')[1] ?? '06:00',
-        timezone: 'UTC',
-        reductionPercentage: Math.round(workersConfig.autoScaling.offPeakReduction * 100),
-      },
-      budgetAlerts: {
-        dailyLimit: 0,
-        weeklyLimit: 0,
-        monthlyLimit: 0,
-      },
-    },
-  };
+  const autoScalerConfig = resolveAutoScalerConfig(config.infrastructure?.autoScaler);
 
   AutoScaler.initialize(autoScalerConfig);
 };
@@ -539,7 +743,13 @@ const initializeDeadLetterQueue = (config: WorkerFactoryConfig): void => {
     config.infrastructure?.deadLetterQueue,
     'DeadLetterQueue requires infrastructure.deadLetterQueue config'
   );
-  DeadLetterQueue.initialize(dlqConfig.redis, dlqConfig.policy);
+  const dlqRedisConfig = resolveRedisConfigWithFallback(
+    dlqConfig.redis,
+    config.infrastructure?.redis,
+    'DeadLetterQueue requires infrastructure.deadLetterQueue.redis or infrastructure.redis config',
+    'infrastructure.deadLetterQueue.redis'
+  );
+  DeadLetterQueue.initialize(dlqRedisConfig, dlqConfig.policy);
 };
 
 const initializeResourceMonitoring = (config: WorkerFactoryConfig): void => {
@@ -554,30 +764,18 @@ const initializeCompliance = (config: WorkerFactoryConfig): void => {
     config.infrastructure?.compliance,
     'ComplianceManager requires infrastructure.compliance config'
   );
-  ComplianceManager.initialize(complianceConfig.redis, complianceConfig.config);
+  const complianceRedisConfig = resolveRedisConfigWithFallback(
+    complianceConfig.redis,
+    config.infrastructure?.redis,
+    'ComplianceManager requires infrastructure.compliance.redis or infrastructure.redis config',
+    'infrastructure.compliance.redis'
+  );
+  ComplianceManager.initialize(complianceRedisConfig, complianceConfig.config);
 };
 
 const initializeObservability = async (config: WorkerFactoryConfig): Promise<void> => {
   if (!(config.features?.observability ?? false)) return;
-
-  const observabilityConfig: ObservabilityConfig = config.infrastructure?.observability ?? {
-    prometheus: {
-      enabled: workersConfig.observability.prometheus.enabled,
-      port: workersConfig.observability.prometheus.port,
-    },
-    openTelemetry: {
-      enabled: workersConfig.observability.opentelemetry.enabled,
-      serviceName: 'zintrust-workers',
-      exporterUrl: workersConfig.observability.opentelemetry.endpoint,
-    },
-    datadog: {
-      enabled: workersConfig.observability.datadog.enabled,
-      tags: workersConfig.observability.datadog.apiKey
-        ? [`apiKey:${workersConfig.observability.datadog.apiKey}`]
-        : undefined,
-    },
-  };
-
+  const observabilityConfig = resolveObservabilityConfig(config.infrastructure?.observability);
   await Observability.initialize(observabilityConfig);
 };
 
@@ -703,7 +901,7 @@ export const WorkerFactory = Object.freeze({
    * Create worker with all features
    */
   async create(config: WorkerFactoryConfig): Promise<Worker> {
-    const { name, version, queueName, options, features } = config;
+    const { name, version, queueName, features } = config;
     const workerVersion = version ?? '1.0.0';
 
     if (workers.has(name)) {
@@ -725,7 +923,8 @@ export const WorkerFactory = Object.freeze({
     const enhancedProcessor = createEnhancedProcessor(config);
 
     // Create BullMQ worker
-    const worker = new Worker(queueName, enhancedProcessor, options);
+    const resolvedOptions = resolveWorkerOptions(config);
+    const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
 
     setupWorkerEventListeners(worker, name, workerVersion, features);
 
@@ -744,7 +943,7 @@ export const WorkerFactory = Object.freeze({
       config,
       workerVersion,
       queueName,
-      options,
+      options: resolvedOptions,
     });
 
     await WorkerRegistry.start(name, workerVersion);

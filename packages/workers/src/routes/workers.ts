@@ -129,6 +129,8 @@ function registerAutoScalingRoutes(router: IRouter): void {
 
 function registerResourceMonitoringRoutes(router: IRouter): void {
   Router.group(router, '/api/resources', (r) => {
+    Router.post(r, '/stop', controller.stopResourceMonitoring);
+    Router.post(r, '/start', controller.startResourceMonitoring);
     Router.get(r, '/current', controller.getCurrentResourceUsage);
     Router.get(r, '/history', controller.resourceHistory);
     Router.get(r, '/alerts', controller.resourceAlerts);

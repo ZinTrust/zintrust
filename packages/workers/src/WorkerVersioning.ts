@@ -66,8 +66,12 @@ const parseVersion = (versionStr: string): SemanticVersion => {
  */
 const versionToString = (version: SemanticVersion): string => {
   let str = `${version.major}.${version.minor}.${version.patch}`;
-  if (version.prerelease !== null) str += `-${version.prerelease}`;
-  if (version.build !== null) str += `+${version.build}`;
+  if (typeof version.prerelease === 'string' && version.prerelease.length > 0) {
+    str += `-${version.prerelease}`;
+  }
+  if (typeof version.build === 'string' && version.build.length > 0) {
+    str += `+${version.build}`;
+  }
   return str;
 };
 

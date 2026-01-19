@@ -299,6 +299,66 @@ Costs (24h):
   Total:     $13.34
 ```
 
+### resource:monitor (rm)
+
+Control resource monitoring to start or stop CPU/memory snapshots:
+
+```bash
+# Stop resource monitoring (reduces log noise)
+zin resource:monitor stop
+zin rm stop  # Short alias
+
+# Start resource monitoring
+zin resource:monitor start
+zin rm start  # Short alias
+
+# With custom port
+zin rm stop --port 8080
+
+# With custom host
+zin rm stop --host 192.168.1.100
+```
+
+**Options:**
+
+- `<action>` - Required: `start` or `stop`
+- `--port <port>` - Worker service port (default: 7777)
+- `--host <host>` - Worker service host (default: 127.0.0.1)
+
+**Examples:**
+
+```bash
+# Stop monitoring on default port
+zin rm stop
+
+# Start monitoring on custom port
+zin rm start --port 8080
+
+# Stop monitoring on remote server
+zin rm stop --host 192.168.1.100 --port 7777
+```
+
+**Output:**
+
+```bash
+$ zin rm stop
+[INFO] Sending stop request to http://127.0.0.1:7777/api/resources/stop...
+[INFO] Success: Resource monitoring stopped
+
+$ zin rm start
+[INFO] Sending start request to http://127.0.0.1:7777/api/resources/start...
+[INFO] Success: Resource monitoring started
+```
+
+**Use Cases:**
+
+- Development: Reduce log noise during debugging
+- Maintenance: Temporarily disable during operations
+- Testing: Control monitoring programmatically
+- Production: Emergency disable if monitoring causes issues
+
+**Note:** This command sends HTTP requests to the running worker service. Ensure your workers are running before using this command.
+
 ## HTTP API
 
 ### Core Operations
@@ -388,6 +448,62 @@ POST /api/workers/:name/monitoring/stop
 
 ```http
 GET /api/workers/:name/monitoring/history?hours=24
+```
+
+#### Resource Monitoring Control
+
+**Stop resource monitoring:**
+
+```http
+POST /api/resources/stop
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "message": "Resource monitoring stopped"
+}
+```
+
+**Start resource monitoring:**
+
+```http
+POST /api/resources/start
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "message": "Resource monitoring started"
+}
+```
+
+**Get current resource usage:**
+
+```http
+GET /api/resources/current
+```
+
+**Get resource history:**
+
+```http
+GET /api/resources/history?hours=24
+```
+
+**Get resource alerts:**
+
+```http
+GET /api/resources/alerts
+```
+
+**Get resource trends:**
+
+```http
+GET /api/resources/trends
 ```
 
 ### Versioning
@@ -504,6 +620,247 @@ Auto-scaling features:
 - Time-based scaling (scale for known peaks)
 - Cost-aware scaling (consider cost limits)
 - Manual override controls
+
+### 3. Resource Monitoring Control
+
+Control the resource monitor to manage CPU/memory snapshots and logs:
+
+#### Why Control Resource Monitoring?
+
+The Resource Monitor runs by default and captures system snapshots every 30 seconds, which:
+
+- Generates `[DEBUG] Resource snapshot captured` logs continuously
+- Tracks CPU and memory usage for cost estimation
+- Provides data for resource-based auto-scaling
+- Generates alerts when thresholds are exceeded
+
+**When to stop it:**
+
+- During development when logs are distracting
+- When you don't need resource tracking
+- To reduce monitoring overhead in low-resource environments
+
+**Implications of stopping:**
+
+- ❌ No more periodic snapshot logs
+- ❌ Cost estimation disabled
+- ❌ Resource alerts disabled (no warnings for high CPU/memory)
+- ❌ Resource-based auto-scaling may not work correctly
+
+#### CLI Command
+
+**Stop resource monitoring:**
+
+```bash
+# Stop from another terminal while workers are running
+zin resource:monitor stop
+
+# Or use the short alias
+zin rm stop
+
+# Specify custom port if not using default 7777
+zin rm stop --port 8080
+
+# Specify custom host
+zin rm stop --host 192.168.1.100
+```
+
+**Start resource monitoring:**
+
+```bash
+# Start monitoring
+zin resource:monitor start
+
+# Or use the short alias
+zin rm start
+
+# With custom port/host
+zin rm start --port 8080 --host 192.168.1.100
+```
+
+**Output:**
+
+```bash
+$ zin rm stop
+[INFO] Sending stop request to http://127.0.0.1:7777/api/resources/stop...
+[INFO] Success: Resource monitoring stopped
+
+$ zin rm start
+[INFO] Sending start request to http://127.0.0.1:7777/api/resources/start...
+[INFO] Success: Resource monitoring started
+```
+
+#### HTTP API
+
+**Stop resource monitoring:**
+
+```http
+POST /api/resources/stop
+Content-Type: application/json
+```
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "message": "Resource monitoring stopped"
+}
+```
+
+**Start resource monitoring:**
+
+```http
+POST /api/resources/start
+Content-Type: application/json
+```
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "message": "Resource monitoring started"
+}
+```
+
+#### Example Usage
+
+**Scenario: Development Workflow**
+
+```bash
+# Terminal 1: Start your worker service
+zin start
+
+# You see continuous logs:
+# [DEBUG] Resource snapshot captured { cpu: '2.0%', memory: '98.0%' }
+# [DEBUG] Resource snapshot captured { cpu: '1.4%', memory: '99.5%' }
+# ...
+
+# Terminal 2: Stop the monitoring
+zin rm stop
+
+# Terminal 1: Logs stop immediately ✓
+```
+
+**Scenario: Production Debugging**
+
+```bash
+# Stop monitoring temporarily to reduce log noise
+curl -X POST http://localhost:7777/api/resources/stop
+
+# Debug your issues without resource logs
+
+# Re-enable monitoring
+curl -X POST http://localhost:7777/api/resources/start
+```
+
+**Scenario: Automated Control**
+
+```typescript
+import { Logger } from '@zintrust/core';
+
+// Stop monitoring during specific operations
+async function performMaintenanceTask() {
+  Logger.info('Starting maintenance...');
+
+  // Stop resource monitoring
+  await fetch('http://localhost:7777/api/resources/stop', {
+    method: 'POST',
+  });
+
+  // Perform heavy operations without monitoring overhead
+  await runDatabaseMigrations();
+  await rebuildIndexes();
+
+  // Resume monitoring
+  await fetch('http://localhost:7777/api/resources/start', {
+    method: 'POST',
+  });
+
+  Logger.info('Maintenance complete');
+}
+```
+
+#### Best Practices
+
+**Development:**
+
+- ✅ Stop monitoring to reduce log noise
+- ✅ Use `--verbose` flag only when needed
+- ✅ Configure `LOG_LEVEL=info` in `.env` to hide DEBUG logs
+
+**Staging:**
+
+- ✅ Keep monitoring enabled for realistic testing
+- ✅ Monitor resource usage patterns
+- ✅ Test auto-scaling behavior
+
+**Production:**
+
+- ✅ Keep monitoring enabled for observability
+- ✅ Configure alerts for resource thresholds
+- ✅ Use monitoring data for cost optimization
+- ❌ Don't stop monitoring unless debugging
+
+#### Configuration
+
+Control monitoring interval in your worker configuration:
+
+```typescript
+// config/workers.ts
+export const workerConfig = {
+  monitoring: {
+    resourceMonitoring: {
+      enabled: true,
+      intervalSeconds: 30, // Snapshot every 30 seconds
+      logLevel: 'debug', // Can be 'debug', 'info', or 'none'
+    },
+  },
+};
+```
+
+**Disable monitoring on startup:**
+
+```typescript
+import { ResourceMonitor } from '@zintrust/workers';
+
+// Don't start monitoring automatically
+ResourceMonitor.initialize({ enabled: false });
+
+// Start manually when needed
+ResourceMonitor.start(60); // Snapshot every 60 seconds
+```
+
+#### Error Handling
+
+**Worker service not running:**
+
+```bash
+$ zin rm stop
+[ERROR] Failed to stop resource monitor: fetch failed
+[INFO] Ensure the worker service is running and the port is correct.
+```
+
+**Solution:**
+
+1. Verify workers are running: `zin worker:list`
+2. Check port configuration: default is `7777`
+3. Verify service is accessible: `curl http://localhost:7777/api/workers`
+
+**Invalid action:**
+
+```bash
+$ zin rm pause
+[ERROR] Invalid action. Use "start" or "stop".
+```
+
+#### Related Commands
+
+- `zin worker:list` - List all workers
+- `zin worker:status <name>` - Check worker health
+- `zin start --verbose` - Start with verbose logging
+- `zin logs` - View application logs
 
 ### 3. Circuit Breakers
 
@@ -996,6 +1353,46 @@ if (status.health > 95) {
 3. Review resource limits (maxWorkers)
 
 4. Check evaluation interval
+
+### Too Many Resource Logs
+
+**Symptoms**: Continuous `[DEBUG] Resource snapshot captured` logs flooding console
+
+**Solutions:**
+
+1. **Stop resource monitoring (recommended for development):**
+
+   ```bash
+   zin rm stop
+   ```
+
+2. **Change log level in `.env`:**
+
+   ```bash
+   LOG_LEVEL=info  # Hide DEBUG logs
+   ```
+
+3. **Adjust monitoring interval:**
+
+   ```typescript
+   ResourceMonitor.start(120); // Snapshot every 2 minutes instead of 30s
+   ```
+
+4. **Disable monitoring in config:**
+   ```typescript
+   // config/workers.ts
+   monitoring: {
+     resourceMonitoring: {
+       enabled: false;
+     }
+   }
+   ```
+
+**Best Practice:**
+
+- Use `zin rm stop` during development
+- Keep enabled in staging/production for observability
+- Use log level `info` or higher to hide debug logs
 
 ## Support
 

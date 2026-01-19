@@ -27,6 +27,7 @@ import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
@@ -96,6 +97,7 @@ const registerCommands = (program: Command): void => {
     QueueCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
+    ResourceControlCommand,
     MigrateCommand.create(),
     DbSeedCommand.create(),
     D1MigrateCommand.create(),

@@ -16,6 +16,14 @@
 
 @WORKER_API_URL = http://localhost:7777
 
+
+### List all workers
+### @returns Array of workers
+###
+GET {{WORKER_API_URL}}/api/workers
+Accept: application/json
+
+
 ###  Create worker
 ###
 ### Create a new worker instance
@@ -45,6 +53,13 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
+    "redis": {
+      "env": true,
+      "host": "REDIS_HOST",
+      "port": "REDIS_PORT",
+      "db": "REDIS_DB",
+      "password": "REDIS_PASSWORD"
+    },
     "deadLetterQueue": {
       "policy": "expire"
     },
@@ -86,13 +101,6 @@ Content-Type: application/json
   }
 }
 
-###  List all workers
-###
-### List all workers
-### @returns Array of workers
-###
-GET {{WORKER_API_URL}}/api/workers
-Accept: application/json
 
 ###  Get worker details
 # Replace {{workerName}} with the worker name
