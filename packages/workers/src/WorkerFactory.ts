@@ -5,10 +5,14 @@
  */
 
 import {
+  appConfig,
+  createRedisConnection,
   Env,
   ErrorFactory,
   Logger,
+  useEnsureDbConnected,
   workersConfig,
+  type IDatabase,
   type RedisConfig,
   type WorkerStatus,
 } from '@zintrust/core';
@@ -29,6 +33,13 @@ import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
+import {
+  DbWorkerStore,
+  InMemoryWorkerStore,
+  RedisWorkerStore,
+  type WorkerRecord,
+  type WorkerStore,
+} from './storage/WorkerStore';
 
 export type WorkerFactoryConfig = {
   name: string;
@@ -38,6 +49,7 @@ export type WorkerFactoryConfig = {
   options?: WorkerOptions;
   infrastructure?: {
     redis?: RedisConfigInput;
+    persistence?: WorkerPersistenceConfig;
     deadLetterQueue?: {
       redis?: RedisConfigInput;
       policy: RetentionPolicy;
@@ -90,6 +102,11 @@ type RedisEnvConfig = {
 
 type RedisConfigInput = RedisConfig | RedisEnvConfig;
 
+export type WorkerPersistenceConfig =
+  | { driver: 'memory' }
+  | { driver: 'redis'; redis?: RedisConfigInput; keyPrefix?: string }
+  | { driver: 'db'; client?: IDatabase | string; connection?: string; table?: string };
+
 type ObservabilityConfigInput =
   | ObservabilityConfig
   | {
@@ -101,6 +118,15 @@ type ObservabilityConfigInput =
 
 // Internal state
 const workers = new Map<string, WorkerInstance>();
+let workerStore: WorkerStore = InMemoryWorkerStore.create();
+let workerStoreConfigured = false;
+let workerStoreConfig: WorkerPersistenceConfig | null = null;
+
+const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => ({
+  name: '__persistence_bootstrap__',
+  queueName: '__bootstrap__',
+  processor: async () => undefined,
+});
 
 const recordMetricSafely = (
   workerName: string,
@@ -563,6 +589,200 @@ const resolveRedisConfigWithFallback = (
   return resolveRedisConfig(selected, context);
 };
 
+const normalizeEnvValue = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const normalizeAppName = (value: string | undefined): string => {
+  const normalized = (value ?? '').trim().replaceAll(/\s+/g, '_');
+  return normalized.length > 0 ? normalized : 'zintrust';
+};
+
+const resolveDefaultRedisKeyPrefix = (): string =>
+  normalizeAppName(appConfig.name ?? Env.get('APP_NAME', 'zintrust'));
+
+const resolveDefaultPersistenceTable = (): string =>
+  normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ?? 'zintrust_workers';
+
+const resolveDefaultPersistenceConnection = (): string =>
+  normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default')) ?? 'default';
+
+const normalizeExplicitPersistence = (
+  persistence: WorkerPersistenceConfig
+): WorkerPersistenceConfig => {
+  if (persistence.driver === 'memory') return { driver: 'memory' };
+
+  if (persistence.driver === 'redis') {
+    return {
+      driver: 'redis',
+      redis: persistence.redis,
+      keyPrefix:
+        persistence.keyPrefix ??
+        normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')) ??
+        resolveDefaultRedisKeyPrefix(),
+    };
+  }
+
+  const clientIsConnection = typeof persistence.client === 'string';
+  const clientConnection = clientIsConnection ? (persistence.client as string) : undefined;
+  const resolvedConnection =
+    persistence.connection ??
+    clientConnection ??
+    normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default')) ??
+    resolveDefaultPersistenceConnection();
+
+  return {
+    driver: 'db',
+    client: clientIsConnection ? undefined : persistence.client,
+    connection: resolvedConnection,
+    table:
+      persistence.table ??
+      normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ??
+      resolveDefaultPersistenceTable(),
+  };
+};
+
+const describePersistence = (persistence: WorkerPersistenceConfig): string => {
+  if (persistence.driver === 'memory') return 'memory';
+  if (persistence.driver === 'redis') {
+    return `redis:${persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix()}`;
+  }
+  return `db:${persistence.connection ?? resolveDefaultPersistenceConnection()}:${
+    persistence.table ?? resolveDefaultPersistenceTable()
+  }`;
+};
+
+const resolvePersistenceConfig = (
+  config: WorkerFactoryConfig
+): WorkerPersistenceConfig | undefined => {
+  const explicit = config.infrastructure?.persistence;
+  if (explicit) return normalizeExplicitPersistence(explicit);
+
+  const driver = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DRIVER', ''))?.toLowerCase();
+  if (!driver) return undefined;
+
+  if (driver === 'memory') return { driver: 'memory' };
+
+  if (driver === 'redis') {
+    return {
+      driver: 'redis',
+      redis: { env: true },
+      keyPrefix: normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')),
+    };
+  }
+
+  if (driver === 'db') {
+    return {
+      driver: 'db',
+      connection: resolveDefaultPersistenceConnection(),
+      table: resolveDefaultPersistenceTable(),
+    };
+  }
+
+  throw ErrorFactory.createConfigError(
+    'WORKER_PERSISTENCE_DRIVER must be one of memory, redis, or db'
+  );
+};
+
+const resolveDbClientFromEnv = async (connectionName = 'default'): Promise<IDatabase> => {
+  try {
+    return await useEnsureDbConnected(undefined, connectionName);
+  } catch (error) {
+    Logger.error('Worker persistence failed to resolve database connection', error);
+    throw ErrorFactory.createConfigError(
+      `Worker persistence requires a database client. Register connection '${connectionName}' or pass infrastructure.persistence.client.`
+    );
+  }
+};
+
+const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerStore> => {
+  const persistence = resolvePersistenceConfig(config);
+  if (!persistence) return workerStore;
+
+  let next: WorkerStore;
+
+  if (persistence.driver === 'memory') {
+    next = InMemoryWorkerStore.create();
+  } else if (persistence.driver === 'redis') {
+    const redisConfig = resolveRedisConfigWithFallback(
+      persistence.redis,
+      config.infrastructure?.redis,
+      'Worker persistence requires redis config (persistence.redis or infrastructure.redis)',
+      'infrastructure.persistence.redis'
+    );
+    const client = createRedisConnection(redisConfig);
+    next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
+  } else if (persistence.driver === 'db') {
+    const explicitConnection =
+      typeof persistence.client === 'string' ? persistence.client : persistence.connection;
+    const client =
+      typeof persistence.client === 'string'
+        ? await resolveDbClientFromEnv(explicitConnection)
+        : (persistence.client ?? (await resolveDbClientFromEnv(explicitConnection)));
+    next = DbWorkerStore.create(client, persistence.table);
+  } else {
+    next = InMemoryWorkerStore.create();
+  }
+
+  await next.init();
+  return next;
+};
+
+const configureWorkerStore = async (config: WorkerFactoryConfig): Promise<void> => {
+  const persistence = resolvePersistenceConfig(config);
+  if (!persistence) return;
+
+  if (!workerStoreConfigured) {
+    workerStore = await resolveWorkerStore(config);
+    workerStoreConfigured = true;
+    workerStoreConfig = persistence;
+    return;
+  }
+
+  const current = workerStoreConfig ?? { driver: 'memory' };
+  const currentSignature = describePersistence(current);
+  const nextSignature = describePersistence(persistence);
+
+  if (currentSignature === nextSignature) return;
+
+  Logger.warn('Worker persistence configuration changed; reinitializing store.', {
+    previous: currentSignature,
+    next: nextSignature,
+  });
+
+  workerStore = await resolveWorkerStore(config);
+  workerStoreConfig = persistence;
+};
+
+const ensureWorkerStoreConfigured = async (): Promise<void> => {
+  if (workerStoreConfigured) return;
+  const bootstrapConfig = buildPersistenceBootstrapConfig();
+  const persistence = resolvePersistenceConfig(bootstrapConfig);
+  if (!persistence) return;
+  workerStore = await resolveWorkerStore(bootstrapConfig);
+  workerStoreConfigured = true;
+  workerStoreConfig = persistence;
+};
+
+const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerRecord => {
+  const now = new Date();
+  return {
+    name: config.name,
+    queueName: config.queueName,
+    version: config.version ?? '1.0.0',
+    status,
+    concurrency: config.options?.concurrency ?? 1,
+    region: config.datacenter?.primaryRegion ?? null,
+    features: config.features ? { ...config.features } : null,
+    infrastructure: config.infrastructure ? { ...config.infrastructure } : null,
+    datacenter: config.datacenter ? { ...config.datacenter } : null,
+    createdAt: now,
+    updatedAt: now,
+  };
+};
+
 const buildDefaultAutoScalerConfig = (): AutoScalerConfig => ({
   enabled: workersConfig.autoScaling.enabled,
   checkInterval: workersConfig.autoScaling.interval,
@@ -585,40 +805,46 @@ const buildDefaultAutoScalerConfig = (): AutoScalerConfig => ({
   },
 });
 
-const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScalerConfig => {
-  const defaults = buildDefaultAutoScalerConfig();
-  if (!input) return defaults;
-
-  const defaultOffPeakSchedule = defaults.costOptimization.offPeakSchedule ?? {
+const resolveOffPeakSchedule = (
+  input: AutoScalerConfig | undefined,
+  defaults: AutoScalerConfig
+): NonNullable<AutoScalerConfig['costOptimization']['offPeakSchedule']> => {
+  const fallback = defaults.costOptimization.offPeakSchedule ?? {
     start: '22:00',
     end: '06:00',
     timezone: 'UTC',
     reductionPercentage: 0,
   };
 
-  const resolvedOffPeakSchedule = {
-    start: input.costOptimization?.offPeakSchedule?.start ?? defaultOffPeakSchedule.start,
-    end: input.costOptimization?.offPeakSchedule?.end ?? defaultOffPeakSchedule.end,
-    timezone: input.costOptimization?.offPeakSchedule?.timezone ?? defaultOffPeakSchedule.timezone,
-    reductionPercentage:
-      input.costOptimization?.offPeakSchedule?.reductionPercentage ??
-      defaultOffPeakSchedule.reductionPercentage,
-  };
+  const override = input?.costOptimization?.offPeakSchedule;
+  const schedule = { ...fallback };
+  if (override) {
+    Object.assign(schedule, override);
+  }
+  return schedule;
+};
+
+const resolveCostOptimization = (
+  input: AutoScalerConfig | undefined,
+  defaults: AutoScalerConfig
+): AutoScalerConfig['costOptimization'] => ({
+  ...defaults.costOptimization,
+  ...input?.costOptimization,
+  offPeakSchedule: resolveOffPeakSchedule(input, defaults),
+  budgetAlerts: {
+    ...defaults.costOptimization.budgetAlerts,
+    ...input?.costOptimization?.budgetAlerts,
+  },
+});
+
+const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScalerConfig => {
+  const defaults = buildDefaultAutoScalerConfig();
+  if (!input) return defaults;
 
   return {
     ...defaults,
     ...input,
-    costOptimization: {
-      ...defaults.costOptimization,
-      ...input.costOptimization,
-      offPeakSchedule: {
-        ...resolvedOffPeakSchedule,
-      },
-      budgetAlerts: {
-        ...defaults.costOptimization.budgetAlerts,
-        ...input.costOptimization?.budgetAlerts,
-      },
-    },
+    costOptimization: resolveCostOptimization(input, defaults),
   };
 };
 
@@ -908,6 +1134,7 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createWorkerError(`Worker "${name}" already exists`);
     }
 
+    await configureWorkerStore(config);
     initializeClustering(config);
     initializeMetrics(config);
     initializeAutoScaling(config);
@@ -956,6 +1183,8 @@ export const WorkerFactory = Object.freeze({
       });
     }
 
+    await workerStore.save(buildWorkerRecord(config, 'running'));
+
     Logger.info(`Worker created: ${name}@${workerVersion}`, {
       queueName,
       features: Object.keys(features ?? {}).filter(
@@ -994,6 +1223,8 @@ export const WorkerFactory = Object.freeze({
 
     await instance.worker.close();
     instance.status = 'stopped';
+
+    await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
 
     await WorkerRegistry.stop(name);
 
@@ -1040,6 +1271,8 @@ export const WorkerFactory = Object.freeze({
     await instance.worker.pause();
     instance.status = 'sleeping';
 
+    await workerStore.update(name, { status: 'sleeping', updatedAt: new Date() });
+
     Logger.info(`Worker paused: ${name}`);
   },
 
@@ -1056,6 +1289,10 @@ export const WorkerFactory = Object.freeze({
     instance.worker.resume();
     instance.status = 'running';
 
+    workerStore
+      .update(name, { status: 'running', updatedAt: new Date() })
+      .catch((error) => Logger.error('Failed to persist worker resume', error));
+
     Logger.info(`Worker resumed: ${name}`);
   },
 
@@ -1064,6 +1301,23 @@ export const WorkerFactory = Object.freeze({
    */
   list(): string[] {
     return Array.from(workers.keys());
+  },
+
+  /**
+   * List all persisted workers
+   */
+  async listPersisted(): Promise<string[]> {
+    await ensureWorkerStoreConfigured();
+    const records = await workerStore.list();
+    return records.map((record) => record.name);
+  },
+
+  /**
+   * Get persisted worker record
+   */
+  async getPersisted(name: string): Promise<WorkerRecord | null> {
+    await ensureWorkerStoreConfigured();
+    return workerStore.get(name);
   },
 
   /**
@@ -1087,6 +1341,8 @@ export const WorkerFactory = Object.freeze({
     DatacenterOrchestrator.removeWorker(name);
     await Observability.clearWorkerMetrics(name);
     workers.delete(name);
+
+    await workerStore.remove(name);
 
     Logger.info(`Worker removed: ${name}`);
   },

@@ -25,6 +25,7 @@ type WorkerRegistryStatus = {
 
 type WorkerFactoryApi = {
   list: () => string[];
+  listPersisted: () => Promise<string[]>;
   getHealth: (name: string) => Promise<unknown>;
   getMetrics: (name: string) => Promise<unknown>;
   stop: (name: string) => Promise<void>;
@@ -75,9 +76,9 @@ const formatTable = (headers: string[], rows: string[][]): string => {
  * Worker List Command
  */
 const createWorkerListCommand = (): IBaseCommand => {
-  const ext = (): void => {
+  const ext = async (): Promise<void> => {
     try {
-      const workers = WorkerFactory.list();
+      const workers = await WorkerFactory.listPersisted();
 
       console.log(`\nTotal Workers: ${workers.length}\n`);
 
@@ -86,7 +87,7 @@ const createWorkerListCommand = (): IBaseCommand => {
         return;
       }
 
-      const rows = workers.map((name) => {
+      const rows = workers.map((name: string) => {
         const status = WorkerRegistry.status(name);
         return [
           name,
@@ -108,7 +109,7 @@ const createWorkerListCommand = (): IBaseCommand => {
   const cmd = BaseCommand.create({
     name: 'worker:list',
     description: 'List all workers',
-    execute: () => ext(),
+    execute: async () => ext(),
   });
 
   return cmd;

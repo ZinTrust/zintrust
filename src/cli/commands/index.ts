@@ -16,6 +16,7 @@ export { LogsCleanupCommand } from '@cli/commands/LogsCleanupCommand';
 export { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 export { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 export { MigrateCommand } from '@cli/commands/MigrateCommand';
+export { MigrateWorkerCommand } from '@cli/commands/MigrateWorkerCommand';
 export { NewCommand } from '@cli/commands/NewCommand';
 export { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 export { PrepareCommand } from '@cli/commands/PrepareCommand';

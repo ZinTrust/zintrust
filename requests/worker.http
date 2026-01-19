@@ -6,7 +6,7 @@
 
 @jobId = 12345
 
-@pluginId = example-plugin
+@pluginId = example-queue
 
 @queueName = default
 
@@ -41,7 +41,7 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "example-worker",
+  "name": "example-test-mysql",
   "queueName": "example-queue",
   "processor": "processors/emailProcessor.ts",
   "version": "1.0.0",
@@ -53,6 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
+  "persistence": { "driver": "db", "connection": "mysql" },
     "redis": {
       "env": true,
       "host": "REDIS_HOST",

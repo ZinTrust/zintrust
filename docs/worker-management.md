@@ -6,6 +6,8 @@ Enterprise-grade worker management system for ZinTrust Framework with comprehens
 
 - [Overview](#overview)
 - [Quick Start](#quick-start)
+- [Environment Variables](#environment-variables)
+- [CLI Quick List](#cli-quick-list)
 - [Core Concepts](#core-concepts)
 - [Configuration](#configuration)
 - [CLI Commands](#cli-commands)
@@ -48,6 +50,109 @@ Or continue importing from core if you prefer (core re-exports the workers API w
 
 ```typescript
 import { WorkerFactory } from '@zintrust/core';
+```
+
+## Environment Variables
+
+These environment variables control worker behavior. Set only what you need.
+
+**Core Worker Settings**
+
+| Key                          | Description                     | Default   |
+| ---------------------------- | ------------------------------- | --------- |
+| WORKERS_ENABLED              | Global worker system toggle     | true      |
+| WORKER_ENABLED               | Default worker enabled flag     | true      |
+| WORKER_CONCURRENCY           | Default concurrency             | 5         |
+| WORKER_TIMEOUT               | Job timeout (seconds)           | 60        |
+| WORKER_RETRIES               | Retry attempts                  | 3         |
+| WORKER_AUTO_START            | Auto-start worker               | false     |
+| WORKER_PRIORITY              | Default priority                | 1         |
+| WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds) | 60        |
+| WORKER_CLUSTER_MODE          | Enable cluster mode             | true      |
+| WORKER_REGION                | Default region                  | us-east-1 |
+
+**Auto-Scaling**
+
+| Key                              | Description                     | Default     |
+| -------------------------------- | ------------------------------- | ----------- |
+| WORKER_AUTO_SCALING_ENABLED      | Enable auto-scaling             | false       |
+| WORKER_AUTO_SCALING_INTERVAL     | Evaluation interval (seconds)   | 30          |
+| WORKER_OFF_PEAK_SCHEDULE         | Off-peak schedule (HH:MM-HH:MM) | 22:00-06:00 |
+| WORKER_OFF_PEAK_REDUCTION        | Off-peak reduction ratio        | 0.7         |
+| WORKER_COST_OPTIMIZATION_ENABLED | Enable cost optimization        | false       |
+| WORKER_SPOT_INSTANCES            | Prefer spot instances           | false       |
+| WORKER_OFF_PEAK_SCALING          | Enable off-peak scaling         | false       |
+
+**Compliance**
+
+| Key                   | Description           | Default |
+| --------------------- | --------------------- | ------- |
+| WORKER_AUDIT_LOG      | Enable audit logging  | true    |
+| WORKER_ENCRYPTION     | Enable encryption     | true    |
+| WORKER_DATA_RETENTION | Retention days        | 90      |
+| WORKER_GDPR           | Enable GDPR controls  | false   |
+| WORKER_HIPAA          | Enable HIPAA controls | false   |
+| WORKER_SOC2           | Enable SOC2 controls  | true    |
+
+**Observability**
+
+| Key                           | Description               | Default               |
+| ----------------------------- | ------------------------- | --------------------- |
+| WORKER_PROMETHEUS_ENABLED     | Enable Prometheus metrics | false                 |
+| WORKER_PROMETHEUS_PORT        | Prometheus port           | 9090                  |
+| WORKER_OPENTELEMETRY_ENABLED  | Enable OpenTelemetry      | false                 |
+| WORKER_OPENTELEMETRY_ENDPOINT | OpenTelemetry endpoint    | http://localhost:4318 |
+| WORKER_DATADOG_ENABLED        | Enable Datadog            | false                 |
+| WORKER_DATADOG_API_KEY        | Datadog API key           | (empty)               |
+
+**Redis (Metrics/DLQ/Queues/Persistence when using Redis)**
+
+| Key            | Description          | Default   |
+| -------------- | -------------------- | --------- |
+| REDIS_HOST     | Redis host           | localhost |
+| REDIS_PORT     | Redis port           | 6379      |
+| REDIS_PASSWORD | Redis password       | (empty)   |
+| REDIS_DB       | Redis database index | 0         |
+
+**Persistence**
+
+| Key                                 | Description                                                         | Default                           |
+| ----------------------------------- | ------------------------------------------------------------------- | --------------------------------- |
+| WORKER_PERSISTENCE_DRIVER           | Persistence driver: memory, redis, db                               | memory                            |
+| WORKER_PERSISTENCE_DB_CONNECTION    | Named DB connection to use when driver=db and no client is provided | default                           |
+| WORKER_PERSISTENCE_TABLE            | Table name for DB persistence                                       | zintrust_workers                  |
+| WORKER_PERSISTENCE_REDIS_KEY_PREFIX | Redis hash key prefix when driver=redis                             | APP*NAME (spaces replaced with *) |
+
+**Logging**
+
+| Key         | Description       | Default |
+| ----------- | ----------------- | ------- |
+| LOG_LEVEL   | Minimum log level | info    |
+| LOG_CHANNEL | Output channel    | console |
+| LOG_FORMAT  | text or json      | text    |
+
+## CLI Quick List
+
+```bash
+# Worker lifecycle
+zin worker:list
+zin worker:status <name>
+zin worker:start <name>
+zin worker:stop <name>
+zin worker:restart <name>
+zin worker:summary
+
+# Resource monitoring
+zin resource:monitor start
+zin resource:monitor stop
+
+# Worker migrations
+zin migrate:worker
+zin migrate:worker --status
+zin migrate:worker --fresh
+zin migrate:worker --rollback --step 1
+zin migrate:worker --reset
+zin migrate:worker --all
 ```
 
 ### 1. Define Workers
@@ -199,6 +304,95 @@ export const workerConfig: IWorkerConfig = {
   },
 };
 ```
+
+### Persistence Options
+
+Workers can be persisted in **memory**, **Redis**, or **DB**.
+
+**Memory (default)**
+
+```typescript
+await WorkerFactory.create({
+  name: 'email-sender',
+  queueName: 'emails',
+  processor: async (job) => job.data,
+  infrastructure: {
+    persistence: { driver: 'memory' },
+  },
+});
+```
+
+**Redis persistence**
+
+```typescript
+await WorkerFactory.create({
+  name: 'email-sender',
+  queueName: 'emails',
+  processor: async (job) => job.data,
+  infrastructure: {
+    redis: { env: true },
+    persistence: { driver: 'redis' },
+  },
+});
+```
+
+**DB persistence (connected client optional)**
+
+```typescript
+import { Database } from '@orm/Database';
+
+const db = Database.create(databaseConfig.getConnection());
+await db.connect();
+
+await WorkerFactory.create({
+  name: 'email-sender',
+  queueName: 'emails',
+  processor: async (job) => job.data,
+  infrastructure: {
+    persistence: { driver: 'db', client: db },
+  },
+});
+
+// Or rely on a registered connection without passing a client
+await WorkerFactory.create({
+  name: 'email-sender',
+  queueName: 'emails',
+  processor: async (job) => job.data,
+  infrastructure: {
+    persistence: { driver: 'db', connection: 'mysql' },
+  },
+});
+```
+
+**DB persistence via environment (no explicit client in code)**
+
+```bash
+WORKER_PERSISTENCE_DRIVER=db
+WORKER_PERSISTENCE_DB_CONNECTION=default
+WORKER_PERSISTENCE_TABLE=zintrust_workers
+```
+
+`WORKER_PERSISTENCE_DB_CONNECTION` must match a connection key in `config/database.ts` (for example `mysql`, `postgresql`, `sqlite`, `sqlserver`, `d1`, `d1-remote`) or any custom key you define. If you omit it, the default connection uses `DB_CONNECTION` from your environment.
+
+```typescript
+await WorkerFactory.create({
+  name: 'email-sender',
+  queueName: 'emails',
+  processor: async (job) => job.data,
+  infrastructure: {
+    persistence: { driver: 'db' },
+  },
+});
+```
+
+**What each option means**
+
+- `driver`: Selects the storage backend. `memory` keeps workers in-process only, `redis` stores them in Redis, and `db` stores them in your SQL database.
+- `client`: The connected `IDatabase` instance to use for `db` persistence. If omitted, the worker system will try to resolve a registered connection using `WORKER_PERSISTENCE_DB_CONNECTION`.
+- `connection`: Optional name of a registered database connection (for example `default`). Used only when `client` is not supplied. Connection names come from the keys in `config/database.ts` (for example `sqlite`, `mysql`, `postgresql`, `sqlserver`, `d1`, `d1-remote`) and any custom keys you define.
+- `table`: DB table used to store worker records (defaults to `zintrust_workers`).
+- `redis`: Optional Redis config for the persistence store when `driver=redis`. Use `{ env: true }` to read `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB`.
+- `keyPrefix`: Redis hash key prefix for persisted worker records. Defaults to `APP_NAME` with spaces replaced by `_` when `WORKER_PERSISTENCE_REDIS_KEY_PREFIX` is not set.
 
 ## CLI Commands
 

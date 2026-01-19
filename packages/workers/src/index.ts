@@ -30,15 +30,16 @@ export { Observability } from './Observability';
 export { PluginManager } from './PluginManager';
 
 // Advanced Features
-export { CanaryController } from './CanaryController';
-export { DatacenterOrchestrator } from './DatacenterOrchestrator';
-export { ChaosEngineering } from './ChaosEngineering';
-export { MultiQueueWorker } from './MultiQueueWorker';
 export { AnomalyDetection } from './AnomalyDetection';
+export { CanaryController } from './CanaryController';
+export { ChaosEngineering } from './ChaosEngineering';
+export { DatacenterOrchestrator } from './DatacenterOrchestrator';
+export { MultiQueueWorker } from './MultiQueueWorker';
 export { WorkerVersioning } from './WorkerVersioning';
 
 // Factory & Lifecycle
 export { WorkerFactory } from './WorkerFactory';
+export type { WorkerPersistenceConfig } from './WorkerFactory';
 export { WorkerInit } from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
 
@@ -60,19 +61,12 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkersConfigOverrides,
-  WorkersGlobalConfig,
   WorkerStatus,
   WorkerVersioningConfig,
+  WorkersConfigOverrides,
+  WorkersGlobalConfig,
 } from '@zintrust/core';
 
-export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
-export type {
-  IChaosComparison,
-  IChaosExperiment,
-  IChaosReport,
-  IChaosStatus,
-} from './ChaosEngineering';
 export type {
   IAnomaly,
   IAnomalyConfig,
@@ -82,6 +76,13 @@ export type {
   IRecommendation,
   IRootCauseAnalysis,
 } from './AnomalyDetection';
+export type {
+  IChaosComparison,
+  IChaosExperiment,
+  IChaosReport,
+  IChaosStatus,
+} from './ChaosEngineering';
+export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
 
 /**
  * Package version and build metadata

@@ -38,8 +38,13 @@ const validateJwtSecret = (): StartupSecretValidationError | null => {
 
   try {
     const secret = securityConfig.jwt.secret.trim();
+    const appKey = (Env.APP_KEY ?? '').trim();
     if (secret.length === 0) {
-      return { key: 'JWT_SECRET', message: 'JWT_SECRET must be set when JWT is enabled' };
+      if (appKey.length > 0) return null;
+      return {
+        key: 'JWT_SECRET',
+        message: 'JWT_SECRET must be set when JWT is enabled (or provide APP_KEY)',
+      };
     }
     return null;
   } catch (error: unknown) {

@@ -166,7 +166,7 @@ async function remove(req: IRequest, res: IResponse): Promise<void> {
  */
 async function list(_req: IRequest, res: IResponse): Promise<void> {
   try {
-    const workers = WorkerFactory.list();
+    const workers = await WorkerFactory.listPersisted();
     res.json({ ok: true, workers });
   } catch (error) {
     Logger.error('WorkerController.list failed', error);
@@ -185,7 +185,13 @@ async function get(req: IRequest, res: IResponse): Promise<void> {
     const instance = WorkerFactory.get(name);
 
     if (!instance) {
-      res.setStatus(404).json({ error: `Worker ${name} not found` });
+      const persisted = await WorkerFactory.getPersisted(name);
+      if (!persisted) {
+        res.setStatus(404).json({ error: `Worker ${name} not found` });
+        return;
+      }
+
+      res.json({ ok: true, worker: persisted, persisted: true });
       return;
     }
 

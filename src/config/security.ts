@@ -48,8 +48,8 @@ const securityConfigObj = {
       if (cachedJwtSecret !== undefined) return cachedJwtSecret;
       const isEnabled = Env.getBool('JWT_ENABLED', true);
       cachedJwtSecret = isEnabled
-        ? Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET')
-        : Env.get('JWT_SECRET') || '';
+        ? Env.get('JWT_SECRET') || Env.get('APP_KEY') || warnMissingSecret('JWT_SECRET')
+        : Env.get('JWT_SECRET') || Env.get('APP_KEY') || '';
       return cachedJwtSecret;
     },
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',

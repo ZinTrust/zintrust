@@ -20,6 +20,7 @@ import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
+import { MigrateWorkerCommand } from '@cli/commands/MigrateWorkerCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
@@ -98,6 +99,7 @@ const registerCommands = (program: Command): void => {
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     ResourceControlCommand,
+    MigrateWorkerCommand.create(),
     MigrateCommand.create(),
     DbSeedCommand.create(),
     D1MigrateCommand.create(),
