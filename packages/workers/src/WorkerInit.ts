@@ -109,7 +109,9 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 
     // 2. Start resource monitoring (important for scaling decisions)
     if (enableResourceMonitoring) {
-      ResourceMonitor.start(resourceMonitoringInterval / 1000);
+      if (ResourceMonitor.isRunning() === false) {
+        ResourceMonitor.start(resourceMonitoringInterval / 1000);
+      }
       state.resourceMonitoring = true;
       Logger.debug('✓ Resource monitoring started');
     }
@@ -141,8 +143,6 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 }
 
 async function autoStartPersistedWorkers(): Promise<void> {
-  console.log('workersConfig.defaultWorker?.autoStart :', workersConfig.defaultWorker?.autoStart);
-
   if (workersConfig.defaultWorker?.autoStart !== true) return;
 
   try {

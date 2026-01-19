@@ -46,6 +46,15 @@ import {
 
 const path = NodeSingletons.path;
 
+// Internal initialization state to prevent memory leaks and redundant calls
+let clusteringInitialized = false;
+let metricsInitialized = false;
+let autoScalingInitialized = false;
+let deadLetterQueueInitialized = false;
+let resourceMonitoringInitialized = false;
+let complianceInitialized = false;
+let observabilityInitialized = false;
+
 export type WorkerFactoryConfig = {
   name: string;
   version?: string;
@@ -1116,7 +1125,7 @@ const resolveObservabilityConfig = (
 };
 
 const initializeClustering = (config: WorkerFactoryConfig): void => {
-  if (!(config.features?.clustering ?? false)) return;
+  if (clusteringInitialized || !(config.features?.clustering ?? false)) return;
   const redisConfig = resolveRedisConfigWithFallback(
     config.infrastructure?.redis,
     undefined,
@@ -1124,10 +1133,11 @@ const initializeClustering = (config: WorkerFactoryConfig): void => {
     'infrastructure.redis'
   );
   ClusterLock.initialize(redisConfig);
+  clusteringInitialized = true;
 };
 
 const initializeMetrics = (config: WorkerFactoryConfig): void => {
-  if (!(config.features?.metrics ?? false)) return;
+  if (metricsInitialized || !(config.features?.metrics ?? false)) return;
   const redisConfig = resolveRedisConfigWithFallback(
     config.infrastructure?.redis,
     undefined,
@@ -1135,14 +1145,16 @@ const initializeMetrics = (config: WorkerFactoryConfig): void => {
     'infrastructure.redis'
   );
   WorkerMetrics.initialize(redisConfig);
+  metricsInitialized = true;
 };
 
 const initializeAutoScaling = (config: WorkerFactoryConfig): void => {
-  if (!(config.features?.autoScaling ?? false)) return;
+  if (autoScalingInitialized || !(config.features?.autoScaling ?? false)) return;
 
   const autoScalerConfig = resolveAutoScalerConfig(config.infrastructure?.autoScaler);
 
   AutoScaler.initialize(autoScalerConfig);
+  autoScalingInitialized = true;
 };
 
 const initializeCircuitBreaker = (config: WorkerFactoryConfig, version: string): void => {
@@ -1151,7 +1163,7 @@ const initializeCircuitBreaker = (config: WorkerFactoryConfig, version: string):
 };
 
 const initializeDeadLetterQueue = (config: WorkerFactoryConfig): void => {
-  if (!(config.features?.deadLetterQueue ?? false)) return;
+  if (deadLetterQueueInitialized || !(config.features?.deadLetterQueue ?? false)) return;
   const dlqConfig = requireInfrastructure(
     config.infrastructure?.deadLetterQueue,
     'DeadLetterQueue requires infrastructure.deadLetterQueue config'
@@ -1163,16 +1175,18 @@ const initializeDeadLetterQueue = (config: WorkerFactoryConfig): void => {
     'infrastructure.deadLetterQueue.redis'
   );
   DeadLetterQueue.initialize(dlqRedisConfig, dlqConfig.policy);
+  deadLetterQueueInitialized = true;
 };
 
 const initializeResourceMonitoring = (config: WorkerFactoryConfig): void => {
-  if (!(config.features?.resourceMonitoring ?? false)) return;
+  if (resourceMonitoringInitialized || !(config.features?.resourceMonitoring ?? false)) return;
   ResourceMonitor.initialize();
   ResourceMonitor.start();
+  resourceMonitoringInitialized = true;
 };
 
 const initializeCompliance = (config: WorkerFactoryConfig): void => {
-  if (!(config.features?.compliance ?? false)) return;
+  if (complianceInitialized || !(config.features?.compliance ?? false)) return;
   const complianceConfig = requireInfrastructure(
     config.infrastructure?.compliance,
     'ComplianceManager requires infrastructure.compliance config'
@@ -1184,12 +1198,14 @@ const initializeCompliance = (config: WorkerFactoryConfig): void => {
     'infrastructure.compliance.redis'
   );
   ComplianceManager.initialize(complianceRedisConfig, complianceConfig.config);
+  complianceInitialized = true;
 };
 
 const initializeObservability = async (config: WorkerFactoryConfig): Promise<void> => {
-  if (!(config.features?.observability ?? false)) return;
+  if (observabilityInitialized || !(config.features?.observability ?? false)) return;
   const observabilityConfig = resolveObservabilityConfig(config.infrastructure?.observability);
   await Observability.initialize(observabilityConfig);
+  observabilityInitialized = true;
 };
 
 const initializeVersioning = (config: WorkerFactoryConfig, version: string): void => {

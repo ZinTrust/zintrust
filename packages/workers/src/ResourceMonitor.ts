@@ -546,6 +546,13 @@ export const ResourceMonitor = Object.freeze({
   },
 
   /**
+   * Check whether monitoring is running
+   */
+  isRunning(): boolean {
+    return monitoringInterval !== null;
+  },
+
+  /**
    * Start monitoring
    */
   start(intervalSeconds = 30): void {
