@@ -226,20 +226,18 @@ function createRegisterRoutes(
     const routeOptions =
       settings.middleware.length > 0 ? { middleware: settings.middleware } : undefined;
 
+    const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
+      res.html(
+        getDashboardHtml({
+          autoRefresh: settings.autoRefresh,
+          refreshIntervalMs: settings.refreshIntervalMs,
+        })
+      );
+    };
+
     // Dashboard HTML
-    Router.get(
-      router,
-      settings.basePath,
-      (_req, res) => {
-        res.html(
-          getDashboardHtml({
-            autoRefresh: settings.autoRefresh,
-            refreshIntervalMs: settings.refreshIntervalMs,
-          })
-        );
-      },
-      routeOptions
-    );
+    Router.get(router, settings.basePath, renderDashboard, routeOptions);
+    Router.get(router, `${settings.basePath}/`, renderDashboard, routeOptions);
 
     // API: Snapshot
     Router.get(

@@ -97,6 +97,10 @@ const getInteractiveStyles = (): string => `
 .refresh-btn { background: rgba(255,255,255,0.03); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
 .refresh-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--muted); }
 
+.nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
+.nav-link { text-decoration: none; color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; transition: all 0.2s; }
+.nav-link:hover { border-color: var(--accent); color: var(--accent); }
+
 html[data-theme="light"] .refresh-btn { background: rgba(2, 132, 199, 0.08); }
 html[data-theme="light"] .refresh-btn:hover { background: rgba(2, 132, 199, 0.16); }
 
@@ -152,6 +156,12 @@ const getDashboardBody = (): string => `
                 </div>
                 <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
                     <span id="last-updated" style="color: var(--muted); font-size: 12px;"></span>
+                    <div class="nav-links">
+                        <a class="nav-link" href="/queue-monitor/">Queue monitor</a>
+                        <a class="nav-link" href="/workers">Workers</a>
+                        <a class="nav-link" href="/telemetry">Telemetry</a>
+                        <a class="nav-link" href="/metrics">Metrics</a>
+                    </div>
                     <button id="theme-toggle" class="refresh-btn" type="button">Light mode</button>
                     <button id="auto-refresh-toggle" class="refresh-btn" type="button">Pause auto refresh</button>
                     <button class="refresh-btn" onclick="fetchData()" type="button">Refresh</button>

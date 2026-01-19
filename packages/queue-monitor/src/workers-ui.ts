@@ -5,14 +5,17 @@ export type WorkerUiOptions = {
   refreshIntervalMs: number;
 };
 
-const getInlineStyles = (): string => `
-<style>
+const getBaseStyles = (): string => `
   body {
     margin: 0;
     font-family: 'Inter', ui-sans-serif, system-ui;
     background: #0b1220;
     color: #f1f5f9;
   }
+  .hidden { display: none; }
+`;
+
+const getLayoutStyles = (): string => `
   .zt-page { min-height: 100vh; padding: 32px 24px; }
   .zt-container { max-width: 72rem; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
   .zt-header { display: flex; flex-direction: column; gap: 16px; }
@@ -22,6 +25,42 @@ const getInlineStyles = (): string => `
   .zt-title { font-size: 1.5rem; font-weight: 600; color: #f8fafc; margin: 0; }
   .zt-subtitle { font-size: 0.875rem; color: #94a3b8; margin: 0.25rem 0 0; }
   .zt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .zt-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .zt-nav-link {
+    border: 1px solid #1e293b;
+    color: #e2e8f0;
+    text-decoration: none;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .zt-nav-link:hover { border-color: #38bdf8; color: #38bdf8; }
+  .zt-grid { display: grid; gap: 16px; }
+  .zt-grid-3 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+`;
+
+const getCardStyles = (): string => `
+  .zt-card { background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 1rem; padding: 1.25rem; }
+  .zt-card-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.2em; color: #94a3b8; }
+  .zt-card-value { margin-top: 0.75rem; font-size: 1.875rem; font-weight: 600; }
+  .zt-text-emerald { color: #6ee7b7; }
+  .zt-text-amber { color: #fbbf24; }
+`;
+
+const getAlertStyles = (): string => `
+  .zt-alert {
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.1);
+    color: #fecaca;
+    padding: 0.75rem 1rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+  }
+`;
+
+const getButtonStyles = (): string => `
   .zt-button {
     border: 1px solid #1e293b;
     background: #0f172a;
@@ -34,22 +73,9 @@ const getInlineStyles = (): string => `
     transition: border-color 0.2s ease, color 0.2s ease;
   }
   .zt-button:hover { border-color: #38bdf8; color: #38bdf8; }
-  .zt-alert {
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    background: rgba(239, 68, 68, 0.1);
-    color: #fecaca;
-    padding: 0.75rem 1rem;
-    border-radius: 1rem;
-    font-size: 0.875rem;
-  }
-  .hidden { display: none; }
-  .zt-grid { display: grid; gap: 16px; }
-  .zt-grid-3 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-  .zt-card { background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 1rem; padding: 1.25rem; }
-  .zt-card-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.2em; color: #94a3b8; }
-  .zt-card-value { margin-top: 0.75rem; font-size: 1.875rem; font-weight: 600; }
-  .zt-text-emerald { color: #6ee7b7; }
-  .zt-text-amber { color: #fbbf24; }
+`;
+
+const getTableStyles = (): string => `
   .zt-table-card { border-radius: 1.5rem; padding: 1.5rem; }
   .zt-table-header { display: flex; flex-direction: column; gap: 12px; }
   .zt-table-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.75rem; color: #94a3b8; }
@@ -60,6 +86,10 @@ const getInlineStyles = (): string => `
   .zt-cell--strong { font-weight: 600; color: #f1f5f9; }
   .zt-cell--muted { color: #94a3b8; }
   .zt-cell--right { text-align: right; }
+  .zt-empty { padding: 1.5rem 0.75rem; text-align: center; font-size: 0.875rem; color: #94a3b8; }
+`;
+
+const getBadgeStyles = (): string => `
   .zt-dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 999px; }
   .zt-dot--emerald { background: #34d399; }
   .zt-dot--amber { background: #fbbf24; }
@@ -69,7 +99,10 @@ const getInlineStyles = (): string => `
   .zt-badge--warn { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border-color: rgba(245, 158, 11, 0.3); }
   .zt-badge--danger { background: rgba(244, 63, 94, 0.12); color: #fda4af; border-color: rgba(244, 63, 94, 0.3); }
   .zt-badge--neutral { background: rgba(148, 163, 184, 0.12); color: #cbd5f5; border-color: rgba(148, 163, 184, 0.3); }
-  .zt-empty { padding: 1.5rem 0.75rem; text-align: center; font-size: 0.875rem; color: #94a3b8; }
+  .status-pill { border-radius: 999px; padding: 0.125rem 0.625rem; font-size: 0.75rem; font-weight: 600; }
+`;
+
+const getActionStyles = (): string => `
   .zt-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
   .action-btn {
     border: 1px solid #1e293b;
@@ -86,7 +119,9 @@ const getInlineStyles = (): string => `
   .action-btn[data-action="start"]:hover { border-color: #34d399; color: #34d399; }
   .action-btn[data-action="restart"]:hover { border-color: #fbbf24; color: #fbbf24; }
   .action-btn[data-action="stop"]:hover { border-color: #fb7185; color: #fb7185; }
-  .status-pill { border-radius: 999px; padding: 0.125rem 0.625rem; font-size: 0.75rem; font-weight: 600; }
+`;
+
+const getResponsiveStyles = (): string => `
   @media (min-width: 640px) {
     .zt-header { flex-direction: row; align-items: center; justify-content: space-between; }
     .zt-table-header { flex-direction: row; align-items: center; justify-content: space-between; }
@@ -94,6 +129,19 @@ const getInlineStyles = (): string => `
   @media (min-width: 768px) {
     .zt-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
+`;
+
+const getInlineStyles = (): string => `
+<style>
+${getBaseStyles()}
+${getLayoutStyles()}
+${getCardStyles()}
+${getAlertStyles()}
+${getButtonStyles()}
+${getTableStyles()}
+${getBadgeStyles()}
+${getActionStyles()}
+${getResponsiveStyles()}
 </style>`;
 
 const getLogo = (): string => `
@@ -143,6 +191,12 @@ const getWorkersHeader = (): string => `
           </div>
           <div class="zt-actions">
             <span id="last-updated" class="zt-kicker"></span>
+            <nav class="zt-nav">
+              <a class="zt-nav-link" href="/queue-monitor/">Queue monitor</a>
+              <a class="zt-nav-link" href="/workers">Workers</a>
+              <a class="zt-nav-link" href="/telemetry">Telemetry</a>
+              <a class="zt-nav-link" href="/metrics">Metrics</a>
+            </nav>
             <button id="refresh-btn" class="zt-button">Refresh</button>
             <button id="auto-refresh-btn" class="zt-button">Pause auto refresh</button>
           </div>
@@ -207,7 +261,13 @@ ${getWorkersTable()}
     </div>`;
 
 const getWorkersScriptState = (options: WorkerUiOptions, apiBaseUrl: string): string => `
-  const API_BASE = '${apiBaseUrl}';
+      const RAW_API_BASE = '${apiBaseUrl}';
+      const API_BASE = RAW_API_BASE
+        ? (RAW_API_BASE.startsWith('/') ? window.location.origin + RAW_API_BASE : RAW_API_BASE)
+  : window.location.origin;
+      const STORAGE_KEYS = {
+        autoRefresh: 'zintrust.workers.autoRefresh',
+      };
       const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
       const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
 
@@ -222,6 +282,28 @@ const getWorkersScriptState = (options: WorkerUiOptions, apiBaseUrl: string): st
 
       let autoRefresh = AUTO_REFRESH;
       let autoTimer = null;
+`;
+
+const getWorkersScriptStorage = (): string => `
+      const readStorage = (key) => {
+        try {
+          return localStorage.getItem(key);
+        } catch (error) {
+          return null;
+        }
+      };
+
+      const writeStorage = (key, value) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch (error) {
+          return;
+        }
+      };
+
+      const setAutoLabel = () => {
+        autoBtn.textContent = autoRefresh ? 'Pause auto refresh' : 'Resume auto refresh';
+      };
 `;
 
 const getWorkersScriptError = (): string => `
@@ -268,7 +350,7 @@ const getWorkersScriptTone = (): string => `
       };
 `;
 
-const getWorkersScriptRender = (): string => `
+const getWorkersScriptRenderRows = (): string => `
       const renderWorkers = (workers) => {
         bodyEl.innerHTML = '';
         if (!workers.length) {
@@ -313,7 +395,9 @@ const getWorkersScriptRender = (): string => `
           bodyEl.insertAdjacentHTML('beforeend', rowHtml);
         });
       };
+`;
 
+const getWorkersScriptRenderSummary = (): string => `
       const updateSummary = (workers) => {
         totalEl.textContent = workers.length;
         const activeCount = workers.filter((worker) => {
@@ -372,7 +456,8 @@ const getWorkersScriptControls = (): string => `
       refreshBtn.addEventListener('click', () => fetchWorkers());
       autoBtn.addEventListener('click', () => {
         autoRefresh = !autoRefresh;
-        autoBtn.textContent = autoRefresh ? 'Pause auto refresh' : 'Resume auto refresh';
+        setAutoLabel();
+        writeStorage(STORAGE_KEYS.autoRefresh, String(autoRefresh));
         if (autoRefresh) {
           autoTimer = setInterval(fetchWorkers, REFRESH_INTERVAL);
         } else if (autoTimer) {
@@ -382,6 +467,12 @@ const getWorkersScriptControls = (): string => `
 `;
 
 const getWorkersScriptBootstrap = (): string => `
+      const storedAuto = readStorage(STORAGE_KEYS.autoRefresh);
+      if (storedAuto !== null) {
+        autoRefresh = storedAuto === 'true';
+      }
+      setAutoLabel();
+
       if (autoRefresh) {
         autoTimer = setInterval(fetchWorkers, REFRESH_INTERVAL);
       }
@@ -392,17 +483,18 @@ const getWorkersScriptBootstrap = (): string => `
 const getWorkersScript = (options: WorkerUiOptions, apiBaseUrl: string): string => `
     <script>
 ${getWorkersScriptState(options, apiBaseUrl)}
+${getWorkersScriptStorage()}
 ${getWorkersScriptError()}
 ${getWorkersScriptBadges()}
 ${getWorkersScriptTone()}
-${getWorkersScriptRender()}
+${getWorkersScriptRenderRows()}
+${getWorkersScriptRenderSummary()}
 ${getWorkersScriptFetch()}
 ${getWorkersScriptControls()}
 ${getWorkersScriptBootstrap()}
     </script>`;
 
 export const getWorkersHtml = (options: WorkerUiOptions): string => {
-  const basePath = normalizeBasePath(options.basePath);
   const apiBaseUrl = normalizeBasePath(options.apiBaseUrl ?? '');
 
   return `<!DOCTYPE html>
@@ -410,7 +502,7 @@ export const getWorkersHtml = (options: WorkerUiOptions): string => {
 ${getWorkersHead()}
   <body>
 ${getWorkersBody()}
-${getWorkersScript(options, apiBaseUrl || basePath)}
+${getWorkersScript(options, apiBaseUrl)}
   </body>
 </html>`;
 };

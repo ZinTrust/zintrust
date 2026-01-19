@@ -1,0 +1,355 @@
+# Worker API requests for ZinTrust
+# Set WORKER_API_URL to your worker service base (default localhost:3000)
+
+@workerName = example-worker
+@version = 1.0.0
+
+@jobId = 12345
+
+@pluginId = example-plugin
+
+@queueName = default
+
+@regionId = us-east-1
+
+@spanId = abcdef123456
+
+@WORKER_API_URL = http://localhost:7777
+
+### Create worker
+POST {{WORKER_API_URL}}/api/workers/create
+Content-Type: application/json
+
+{
+  "name": "example-worker",
+  "config": {
+    "concurrency": 5,
+    "queue": "default"
+  }
+}
+
+### List all workers
+GET {{WORKER_API_URL}}/api/workers/
+Accept: application/json
+
+### Get worker details
+# Replace {{workerName}} with the worker name
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}
+Accept: application/json
+
+### Get worker status
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/status
+Accept: application/json
+
+### Get worker metrics
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/metrics
+Accept: application/json
+
+### Get worker health
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/health
+Accept: application/json
+
+
+
+### Start worker
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/start
+Accept: application/json
+
+### Stop worker
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/stop
+Accept: application/json
+
+### Restart worker
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/restart
+Accept: application/json
+
+### Pause worker
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/pause
+Accept: application/json
+
+### Resume worker
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/resume
+Accept: application/json
+
+### Delete worker
+DELETE {{WORKER_API_URL}}/api/workers/{{workerName}}
+Accept: application/json
+
+### Health monitoring - start
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/start
+Content-Type: application/json
+{
+  "interval": "30s"
+}
+
+### Health monitoring - stop
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/stop
+
+### Health monitoring - history
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/history
+
+### Health monitoring - trend
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/trend
+
+### Update monitoring config
+PUT {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/config
+Content-Type: application/json
+{
+  "thresholds": {
+    "errorRate": 1.0,
+    "p95LatencyMs": 500
+  }
+}
+
+### Versions - register
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions
+Content-Type: application/json
+{
+  "version": "1.2.0",
+  "notes": "release notes"
+}
+
+### Versions - list
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/versions
+
+### Versions - get
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}
+
+### Versions - deprecate
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}/deprecate
+
+### Versions - activate
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}/activate
+
+### Versions - deactivate
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}/deactivate
+
+### Canary - start
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/start
+Content-Type: application/json
+{
+  "percentage": 10
+}
+
+### Canary - pause
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/pause
+
+### Canary - resume
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/resume
+
+### Canary - rollback
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/rollback
+
+### Canary - status
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/status
+
+### Circuit breaker - state
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker
+
+### Circuit breaker - reset
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker/reset
+
+### Circuit breaker - force open
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker/force-open
+
+### Circuit breaker - events
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker/events
+
+### Dead letter queue - list failed jobs
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue
+
+### Dead letter queue - get failed job
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}
+
+### Dead letter queue - retry job
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}/retry
+
+### Dead letter queue - delete job
+DELETE {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}
+
+### Dead letter queue - anonymize
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}/anonymize
+
+### Dead letter queue - audit log
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/audit-log
+
+### Dead letter queue - stats
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/stats
+
+### Plugins - register
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/register
+Content-Type: application/json
+{
+  "pluginId": "example-plugin",
+  "config": {}
+}
+
+### Plugins - unregister
+DELETE {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}
+
+### Plugins - enable
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}/enable
+
+### Plugins - disable
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}/disable
+
+### Plugins - list
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins
+
+### Plugins - history
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}/history
+
+### Plugins - statistics
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/statistics
+
+### Multi-queue - create
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/queues
+Content-Type: application/json
+{
+  "queueName": "high-priority",
+  "concurrency": 10
+}
+
+### Multi-queue - start
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/start
+
+### Multi-queue - stop
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/stop
+
+### Multi-queue - stats
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/stats
+
+### Multi-queue - update priority
+PUT {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/priority
+Content-Type: application/json
+{
+  "priority": 5
+}
+
+### Multi-queue - update concurrency
+PUT {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/concurrency
+Content-Type: application/json
+{
+  "concurrency": 8
+}
+
+### Datacenter - register region
+POST {{WORKER_API_URL}}/api/datacenters/regions
+Content-Type: application/json
+{
+  "regionId": "eu-west-1",
+  "name": "EU West"
+}
+
+### Datacenter - unregister region
+DELETE {{WORKER_API_URL}}/api/datacenters/regions/{{regionId}}
+
+### Datacenter - list regions
+GET {{WORKER_API_URL}}/api/datacenters/regions
+
+### Datacenter - get region
+GET {{WORKER_API_URL}}/api/datacenters/regions/{{regionId}}
+
+### Datacenter - placements
+POST {{WORKER_API_URL}}/api/datacenters/placements
+Content-Type: application/json
+{
+  "workerName": "example-worker",
+  "region": "eu-west-1"
+}
+
+### Datacenter - topology
+GET {{WORKER_API_URL}}/api/datacenters/topology
+
+### Auto-scaling - start
+POST {{WORKER_API_URL}}/api/auto-scaling/start
+
+### Auto-scaling - stop
+POST {{WORKER_API_URL}}/api/auto-scaling/stop
+
+### Auto-scaling - evaluate
+POST {{WORKER_API_URL}}/api/auto-scaling/evaluate/{{workerName}}
+
+### Auto-scaling - decision
+GET {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/decision
+
+### Auto-scaling - history
+GET {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/history
+
+### Auto-scaling - cost summary
+GET {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/cost-summary
+
+### Auto-scaling - set policy
+PUT {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/policy
+Content-Type: application/json
+{
+  "policy": { "min": 1, "max": 10 }
+}
+
+### Resources - current
+GET {{WORKER_API_URL}}/api/resources/current
+
+### Resources - history
+GET {{WORKER_API_URL}}/api/resources/history
+
+### Resources - alerts
+GET {{WORKER_API_URL}}/api/resources/alerts
+
+### Resources - trends
+GET {{WORKER_API_URL}}/api/resources/trends
+
+### Resources - system-info
+GET {{WORKER_API_URL}}/api/resources/system-info
+
+### Compliance - register data subject
+POST {{WORKER_API_URL}}/api/compliance/data-subjects
+Content-Type: application/json
+{
+  "subjectId": "user-123",
+  "reason": "GDPR request"
+}
+
+### Compliance - consent
+POST {{WORKER_API_URL}}/api/compliance/consent
+Content-Type: application/json
+{
+  "subjectId": "user-123",
+  "consent": true
+}
+
+### Compliance - check
+POST {{WORKER_API_URL}}/api/compliance/check
+Content-Type: application/json
+{
+  "worker": "example-worker"
+}
+
+### Observability - metrics
+GET {{WORKER_API_URL}}/api/observability/metrics
+
+### Observability - record custom metric
+POST {{WORKER_API_URL}}/api/observability/metrics/custom
+Content-Type: application/json
+{
+  "name": "jobs.processed",
+  "value": 1
+}
+
+### Observability - traces start
+POST {{WORKER_API_URL}}/api/observability/traces/start
+Content-Type: application/json
+{
+  "name": "job.process"
+}
+
+### Observability - end trace
+POST {{WORKER_API_URL}}/api/observability/traces/{{spanId}}/end
+
+### System - summary
+GET {{WORKER_API_URL}}/api/workers/system/summary
+
+### System - shutdown
+POST {{WORKER_API_URL}}/api/workers/system/shutdown
+
+### System - monitoring summary
+GET {{WORKER_API_URL}}/api/workers/system/monitoring/summary

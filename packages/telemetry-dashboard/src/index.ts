@@ -22,9 +22,13 @@ export type TelemetryDashboardApi = {
 };
 
 type ResourceCurrentResponse = { ok: boolean; usage?: unknown };
+type SystemSummaryResponse = { ok: boolean; summary?: unknown };
 
 const isOkWithUsage = (value: ResourceCurrentResponse): value is ResourceCurrentResponse =>
   value.ok === true && 'usage' in value;
+
+const isOkWithSummary = (value: SystemSummaryResponse): value is SystemSummaryResponse =>
+  value.ok === true && 'summary' in value;
 
 export const TelemetryDashboard = Object.freeze({
   create(config: TelemetryDashboardConfig): TelemetryDashboardApi {
@@ -77,7 +81,7 @@ export const TelemetryDashboard = Object.freeze({
             Logger.error('Telemetry resource summary failed', resourceCurrentResult.reason);
           }
 
-          const systemSummary =
+          const systemSummary: SystemSummaryResponse =
             systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value : { ok: false };
           const resourceCurrent =
             resourceCurrentResult.status === 'fulfilled'
@@ -86,7 +90,7 @@ export const TelemetryDashboard = Object.freeze({
 
           res.json({
             ok: systemSummary.ok ?? false,
-            summary: systemSummary.ok ? (systemSummary.summary ?? {}) : {},
+            summary: isOkWithSummary(systemSummary) ? systemSummary.summary : {},
             resources: isOkWithUsage(resourceCurrent) ? resourceCurrent.usage : null,
             cost: null,
           });

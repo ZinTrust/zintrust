@@ -3,12 +3,13 @@
  * HTTP API for managing workers with all enterprise features
  */
 
-import { Router, type IRouter } from '@zintrust/core';
+import { Logger, Router, type IRouter } from '@zintrust/core';
 import { WorkerController } from '../http/WorkerController';
 
 const controller = WorkerController.create();
 
 function registerWorkerLifecycleRoutes(router: IRouter): void {
+  Logger.info('Registering Worker Management Routes');
   Router.group(router, '/api/workers', () => {
     // Core worker operations
     Router.post(router, '/create', controller.create);

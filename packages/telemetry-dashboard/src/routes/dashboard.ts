@@ -61,6 +61,18 @@ const getDashboardStyles = (): string => `
   .zt-title { font-size: 1.5rem; font-weight: 600; color: var(--text); margin: 0; }
   .zt-subtitle { font-size: 0.875rem; color: var(--muted); margin: 0.25rem 0 0; }
   .zt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 0.75rem; color: var(--muted); }
+  .zt-nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  .zt-nav-link {
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .zt-nav-link:hover { border-color: var(--accent); color: var(--accent); }
   #last-updated { min-width: 9rem; font-variant-numeric: tabular-nums; }
   .zt-button {
     border: 1px solid var(--border);
@@ -146,6 +158,12 @@ const getDashboardHeader = (): string => `
           </div>
           <div class="zt-actions">
             <span id="last-updated"></span>
+            <nav class="zt-nav">
+              <a class="zt-nav-link" href="/queue-monitor/">Queue monitor</a>
+              <a class="zt-nav-link" href="/workers">Workers</a>
+              <a class="zt-nav-link" href="/telemetry">Telemetry</a>
+              <a class="zt-nav-link" href="/metrics">Metrics</a>
+            </nav>
             <button id="refresh-btn" class="zt-button">Refresh</button>
             <button id="auto-refresh-btn" class="zt-button">Pause auto refresh</button>
             <button id="theme-toggle" class="zt-button" aria-label="Toggle theme">Light mode</button>
