@@ -187,6 +187,33 @@ export async function initializeWorkers() {
 
 Workers start automatically when you call `WorkerFactory.create()` if `autoStart` (or `WORKER_AUTO_START`) is true. Set `autoStart: false` to register a worker without starting it, then use the CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
 
+**Processor registration (start from persistence)**
+
+If you want `POST /api/workers/:name/start` to auto-register a worker from persistence, register its processor at boot. You can do this with a direct function, bulk registration, or a file-based resolver.
+
+```typescript
+import { WorkerFactory } from '@zintrust/workers';
+
+WorkerFactory.registerProcessor('email-sender', async (job) => {
+  // ...process job
+  return job.data;
+});
+
+WorkerFactory.registerProcessors({
+  'example-test': async (job) => job.data,
+  'example-test-mysql': async (job) => job.data,
+});
+
+WorkerFactory.registerProcessorPaths({
+  'email-sender': './processors/emailProcessor.ts',
+});
+
+WorkerFactory.registerProcessorResolver(async (name) => {
+  if (name === 'special') return async (job) => job.data;
+  return undefined;
+});
+```
+
 **Process management**
 
 In production, run the worker service as a long-lived process (for example systemd, PM2, Docker, or Kubernetes). Cron is not required; workers are continuous services that should stay running.

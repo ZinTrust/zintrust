@@ -11,6 +11,7 @@ import {
   Env,
   ErrorFactory,
   Logger,
+  NodeSingletons,
   registerDatabasesFromRuntimeConfig,
   useEnsureDbConnected,
   workersConfig,
@@ -42,6 +43,8 @@ import {
   type WorkerRecord,
   type WorkerStore,
 } from './storage/WorkerStore';
+
+const path = NodeSingletons.path;
 
 export type WorkerFactoryConfig = {
   name: string;
@@ -124,12 +127,95 @@ const workers = new Map<string, WorkerInstance>();
 let workerStore: WorkerStore = InMemoryWorkerStore.create();
 let workerStoreConfigured = false;
 let workerStoreConfig: WorkerPersistenceConfig | null = null;
+type ProcessorResolver = (
+  name: string
+) =>
+  | WorkerFactoryConfig['processor']
+  | undefined
+  | Promise<WorkerFactoryConfig['processor'] | undefined>;
+
+const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
+const processorPathRegistry = new Map<string, string>();
+const processorResolvers: ProcessorResolver[] = [];
 
 const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => ({
   name: '__persistence_bootstrap__',
   queueName: '__bootstrap__',
   processor: async () => undefined,
 });
+
+const registerProcessor = (name: string, processor: WorkerFactoryConfig['processor']): void => {
+  processorRegistry.set(name, processor);
+};
+
+const registerProcessors = (processors: Record<string, WorkerFactoryConfig['processor']>): void => {
+  Object.entries(processors).forEach(([name, processor]) => {
+    if (typeof processor === 'function') {
+      processorRegistry.set(name, processor);
+    }
+  });
+};
+
+const registerProcessorPaths = (paths: Record<string, string>): void => {
+  Object.entries(paths).forEach(([name, modulePath]) => {
+    if (typeof modulePath === 'string' && modulePath.trim().length > 0) {
+      processorPathRegistry.set(name, modulePath);
+    }
+  });
+};
+
+const registerProcessorResolver = (resolver: ProcessorResolver): void => {
+  processorResolvers.push(resolver);
+};
+
+const resolveProcessorFromPath = async (
+  modulePath: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  const trimmed = modulePath.trim();
+  if (!trimmed) return undefined;
+
+  const resolved = trimmed.startsWith('.') ? path.resolve(process.cwd(), trimmed) : trimmed;
+
+  const mod = await import(resolved);
+  const candidate = mod?.default ?? mod?.processor ?? mod?.handler ?? mod?.handle;
+
+  return typeof candidate === 'function'
+    ? (candidate as WorkerFactoryConfig['processor'])
+    : undefined;
+};
+
+const resolveProcessor = async (
+  name: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  const direct = processorRegistry.get(name);
+  if (direct) return direct;
+
+  const pathHint = processorPathRegistry.get(name);
+  if (pathHint) {
+    try {
+      const resolved = await resolveProcessorFromPath(pathHint);
+      if (resolved) return resolved;
+    } catch (error) {
+      Logger.error(`Failed to resolve processor module for "${name}"`, error);
+    }
+  }
+
+  const resolverResults = await Promise.all(
+    processorResolvers.map(async (resolver) => {
+      try {
+        return await resolver(name);
+      } catch (error) {
+        Logger.error(`Processor resolver failed for "${name}"`, error);
+        return undefined;
+      }
+    })
+  );
+
+  const resolvedFromResolvers = resolverResults.find((result) => result !== undefined);
+  if (resolvedFromResolvers) return resolvedFromResolvers;
+
+  return undefined;
+};
 
 const recordMetricSafely = (
   workerName: string,
@@ -752,6 +838,9 @@ const resolveWorkerStoreForPersistence = async (
   let next: WorkerStore;
 
   if (persistence.driver === 'memory') {
+    if (workerStoreConfigured && workerStoreConfig?.driver === 'memory') {
+      return workerStore;
+    }
     next = InMemoryWorkerStore.create();
   } else if (persistence.driver === 'redis') {
     const redisConfig = resolveRedisConfigWithFallback(
@@ -774,6 +863,19 @@ const resolveWorkerStoreForPersistence = async (
 
   await next.init();
   return next;
+};
+
+const getPersistedRecord = async (
+  name: string,
+  persistenceOverride?: WorkerPersistenceConfig
+): Promise<WorkerRecord | null> => {
+  if (!persistenceOverride) {
+    await ensureWorkerStoreConfigured();
+    return workerStore.get(name);
+  }
+
+  const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+  return store.get(name);
 };
 
 const configureWorkerStore = async (config: WorkerFactoryConfig): Promise<void> => {
@@ -1180,6 +1282,11 @@ const registerWorkerInstance = (params: {
  * Worker Factory - Sealed namespace
  */
 export const WorkerFactory = Object.freeze({
+  registerProcessor,
+  registerProcessors,
+  registerProcessorPaths,
+  registerProcessorResolver,
+
   /**
    * Create worker with all features
    */
@@ -1358,6 +1465,27 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Start worker
+   */
+  async start(name: string): Promise<void> {
+    const instance = workers.get(name);
+
+    if (!instance) {
+      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    }
+
+    const version = instance.config.version ?? '1.0.0';
+    await WorkerRegistry.start(name, version);
+
+    instance.status = 'running';
+    instance.startedAt = new Date();
+
+    await workerStore.update(name, { status: 'running', updatedAt: new Date() });
+
+    Logger.info(`Worker started: ${name}`);
+  },
+
+  /**
    * List all workers
    */
   list(): string[] {
@@ -1382,6 +1510,38 @@ export const WorkerFactory = Object.freeze({
 
     const store = await resolveWorkerStoreForPersistence(persistenceOverride);
     return store.list();
+  },
+
+  /**
+   * Start a worker from persisted storage when it is not registered.
+   */
+  async startFromPersisted(
+    name: string,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<void> {
+    const record = await getPersistedRecord(name, persistenceOverride);
+    if (!record) {
+      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
+    }
+
+    const processor = await resolveProcessor(name);
+    if (!processor) {
+      throw ErrorFactory.createConfigError(
+        `Worker "${name}" processor is not registered. Call WorkerFactory.registerProcessor(name, processor) during startup.`
+      );
+    }
+
+    await WorkerFactory.create({
+      name: record.name,
+      queueName: record.queueName,
+      version: record.version ?? undefined,
+      processor,
+      autoStart: true,
+      options: { concurrency: record.concurrency } as WorkerOptions,
+      infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],
+      features: record.features as WorkerFactoryConfig['features'],
+      datacenter: record.datacenter as WorkerFactoryConfig['datacenter'],
+    });
   },
 
   /**

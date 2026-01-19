@@ -78,12 +78,12 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
     }
     const registered = WorkerRegistry.list().includes(name);
     if (!registered) {
-      res.setStatus(409).json({
-        error: `Worker "${name}" is not registered. Start the app process that registers workers before calling this endpoint.`,
-      });
+      const persistenceOverride = resolvePersistenceOverride(req);
+      await WorkerFactory.startFromPersisted(name, persistenceOverride);
+      res.json({ ok: true, message: `Worker ${name} registered and started` });
       return;
     }
-    await WorkerRegistry.start(name);
+    await WorkerFactory.start(name);
     res.json({ ok: true, message: `Worker ${name} started` });
   } catch (error) {
     Logger.error('WorkerController.start failed', error);
@@ -188,33 +188,44 @@ const parseBool = (value: string | undefined): boolean => {
   return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
 };
 
+const resolvePersistenceOverride = (
+  req: IRequest
+):
+  | { driver: 'memory' }
+  | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
+  | { driver: 'db'; connection?: string; table?: string }
+  | undefined => {
+  const storageRaw = normalizeQueryValue(req.getQueryParam?.('storage'));
+  const storage = storageRaw?.toLowerCase();
+
+  if (storage === 'memory') {
+    return { driver: 'memory' };
+  }
+
+  if (storage === 'redis') {
+    return {
+      driver: 'redis',
+      redis: { env: true },
+      keyPrefix: normalizeQueryValue(req.getQueryParam?.('keyPrefix')),
+    };
+  }
+
+  if (storage === 'db') {
+    return {
+      driver: 'db',
+      connection: normalizeQueryValue(req.getQueryParam?.('connection')),
+      table: normalizeQueryValue(req.getQueryParam?.('table')),
+    };
+  }
+
+  return undefined;
+};
+
 async function list(req: IRequest, res: IResponse): Promise<void> {
   try {
-    const storageRaw = normalizeQueryValue(req.getQueryParam?.('storage'));
     const detail = parseBool(normalizeQueryValue(req.getQueryParam?.('detail')));
 
-    const storage = storageRaw?.toLowerCase();
-    let persistenceOverride:
-      | { driver: 'memory' }
-      | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
-      | { driver: 'db'; connection?: string; table?: string }
-      | undefined;
-
-    if (storage === 'memory') {
-      persistenceOverride = { driver: 'memory' };
-    } else if (storage === 'redis') {
-      persistenceOverride = {
-        driver: 'redis',
-        redis: { env: true },
-        keyPrefix: normalizeQueryValue(req.getQueryParam?.('keyPrefix')),
-      };
-    } else if (storage === 'db') {
-      persistenceOverride = {
-        driver: 'db',
-        connection: normalizeQueryValue(req.getQueryParam?.('connection')),
-        table: normalizeQueryValue(req.getQueryParam?.('table')),
-      };
-    }
+    const persistenceOverride = resolvePersistenceOverride(req);
 
     if (detail) {
       const records = await WorkerFactory.listPersistedRecords(persistenceOverride);

@@ -41,8 +41,8 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "example-test-mysql",
-  "queueName": "example-queue",
+  "name": "example-test-memo",
+  "queueName": "example-memo",
   "processor": "processors/emailProcessor.ts",
   "version": "1.0.0",
   "options": {
@@ -53,7 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
-  "persistence": { "driver": "db", "connection": "mysql" },
+  "persistence": { "driver": "memory"},
     "redis": {
       "env": true,
       "host": "REDIS_HOST",
@@ -149,6 +149,16 @@ Accept: application/json
 ### @returns Success message
 ###
 POST {{WORKER_API_URL}}/api/workers/{{workerName}}/start
+Accept: application/json
+
+###  Start worker (from DB persistence)
+###
+### Start a worker and auto-register from the DB persistence store
+### @param workerName - Worker name (path)
+### @param connection - DB connection name (query)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/start?storage=db&connection=mysql
 Accept: application/json
 
 ###  Stop worker

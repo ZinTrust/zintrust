@@ -30,6 +30,7 @@ type WorkerFactoryApi = {
   getMetrics: (name: string) => Promise<unknown>;
   stop: (name: string) => Promise<void>;
   restart: (name: string) => Promise<void>;
+  start: (name: string) => Promise<void>;
 };
 
 type WorkerRegistryApi = {
@@ -158,7 +159,7 @@ const createWorkerStatusCommand = (): IBaseCommand => {
     addOptions: (command) => {
       command.argument('<name>', 'Worker name');
     },
-    execute: async (options) => ext(options['name'] as string),
+    execute: async (options) => ext((options.args?.[0] as string) ?? ''),
   });
 
   return cmd;
@@ -175,7 +176,7 @@ const createWorkerStartCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await WorkerRegistry.start(name);
+      await WorkerFactory.start(name);
       Logger.info(`✓ Worker "${name}" started successfully`);
     } catch (error) {
       Logger.error('worker:start command failed', error);
@@ -189,7 +190,7 @@ const createWorkerStartCommand = (): IBaseCommand => {
     addOptions: (command) => {
       command.argument('<name>', 'Worker name');
     },
-    execute: async (options) => ext(options['name'] as string),
+    execute: async (options) => ext((options.args?.[0] as string) ?? ''),
   });
 
   return cmd;
@@ -221,7 +222,7 @@ const createWorkerStopCommand = (): IBaseCommand => {
     addOptions: (command) => {
       command.argument('<name>', 'Worker name');
     },
-    execute: async (options) => ext(options['name'] as string),
+    execute: async (options) => ext((options.args?.[0] as string) ?? ''),
   });
 
   return cmd;
@@ -253,7 +254,7 @@ const createWorkerRestartCommand = (): IBaseCommand => {
     addOptions: (command) => {
       command.argument('<name>', 'Worker name');
     },
-    execute: async (options) => ext(options['name'] as string),
+    execute: async (options) => ext((options.args?.[0] as string) ?? ''),
   });
 
   return cmd;

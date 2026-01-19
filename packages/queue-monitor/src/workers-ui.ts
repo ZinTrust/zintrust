@@ -481,9 +481,13 @@ const getWorkersScriptFetch = (): string => `
           if (!workerName) {
             throw new Error('Missing worker name');
           }
-          const response = await fetch(API_BASE + '/api/workers/' + workerName + '/' + action, {
+          const query = new URLSearchParams({ storage: storageMode });
+          const response = await fetch(
+            API_BASE + '/api/workers/' + workerName + '/' + action + '?' + query.toString(),
+            {
             method: 'POST',
-          });
+            }
+          );
           if (!response.ok) throw new Error('Action failed');
           await fetchWorkers();
         } catch (error) {
