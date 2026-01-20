@@ -1,4 +1,4 @@
-# #!/bin/sh
+#!/bin/sh
 
-# # Block pushes when patch coverage would fail Codecov.
-# npm run -s coverage:patch
+# Block pushes when patch coverage would fail Codecov.
+npm run -s coverage:patch

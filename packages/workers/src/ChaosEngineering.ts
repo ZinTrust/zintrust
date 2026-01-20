@@ -191,9 +191,12 @@ export const ChaosEngineering = Object.freeze({
 
     await applyFailure(record.config, targets);
 
-    record.timer = setTimeout(() => {
+    record.timer = globalThis.setTimeout(() => {
+      const currentTimer = record.timer;
+      record.timer = null;
       ChaosEngineering.stopExperiment(experimentId).catch((error) => {
         Logger.error('Failed to stop chaos experiment after duration', error);
+        if (currentTimer) clearTimeout(currentTimer);
       });
     }, record.config.duration);
   },

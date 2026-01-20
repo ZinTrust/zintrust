@@ -21,13 +21,66 @@ const packages = fs.readdirSync(packagesDir).filter((name) => {
   return fs.statSync(pkgPath).isDirectory() && fs.existsSync(path.join(pkgPath, 'package.json'));
 });
 
-console.log(`\n📦 Found ${packages.length} packages to build:\n`);
-packages.forEach((pkg) => console.log(`   - ${pkg}`));
+const args = process.argv.slice(2);
+const getArg = (flag) => {
+  const direct = args.find((arg) => arg.startsWith(`${flag}=`));
+  if (direct) return direct.slice(flag.length + 1);
+  const idx = args.indexOf(flag);
+  if (idx !== -1) return args[idx + 1];
+  return undefined;
+};
+
+let buildAll = args.includes('--all');
+const packageSelector =
+  getArg('--package') ?? getArg('--pkg') ?? process.env.PACKAGE ?? process.env.npm_config_package;
+
+if (!buildAll && !packageSelector && process.env.CI === 'true') {
+  buildAll = true;
+}
+
+if (!buildAll && !packageSelector) {
+  console.error('❌ Provide --package <folder|name> or use --all');
+  process.exit(1);
+}
+
+const resolvePackage = (selector) => {
+  if (!selector) return [];
+  const matchByDir = packages.find((name) => name === selector);
+  if (matchByDir) return [matchByDir];
+  const matchByName = packages.find((name) => {
+    const pkgPath = path.join(packagesDir, name, 'package.json');
+    const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    return pkgJson.name === selector;
+  });
+  return matchByName ? [matchByName] : [];
+};
+
+const selectedPackages = buildAll ? packages : resolvePackage(packageSelector);
+
+if (selectedPackages.length === 0) {
+  console.error(`❌ Package not found: ${packageSelector}`);
+  process.exit(1);
+}
+
+const ensureCoreDist = () => {
+  if (process.env.SKIP_CORE_BUILD === 'true') return;
+  const distTypes = path.join(rootDir, 'dist', 'src', 'index.d.ts');
+  if (!fs.existsSync(distTypes)) {
+    console.log('\n🔨 Building core (dist)...');
+    execSync('npm run core:build:dist', { cwd: rootDir, stdio: 'inherit' });
+  }
+  execSync('npm run core:link-dist', { cwd: rootDir, stdio: 'inherit' });
+};
+
+console.log(`\n📦 Found ${selectedPackages.length} package(s) to build:\n`);
+selectedPackages.forEach((pkg) => console.log(`   - ${pkg}`));
 console.log();
 
 const failed = [];
 
-for (const pkg of packages) {
+ensureCoreDist();
+
+for (const pkg of selectedPackages) {
   const pkgPath = path.join(packagesDir, pkg);
   const pkgJsonPath = path.join(pkgPath, 'package.json');
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
@@ -94,10 +147,10 @@ for (const pkg of packages) {
 
 console.log('\n' + '='.repeat(60));
 if (failed.length === 0) {
-  console.log(`✅ All ${packages.length} packages built successfully!`);
+  console.log(`✅ All ${selectedPackages.length} package(s) built successfully!`);
 } else {
   console.log(
-    `⚠️  ${packages.length - failed.length}/${packages.length} packages built successfully`
+    `⚠️  ${selectedPackages.length - failed.length}/${selectedPackages.length} package(s) built successfully`
   );
   console.log(`❌ Failed packages: ${failed.join(', ')}`);
   process.exit(1);

@@ -39,6 +39,51 @@ const mergeRecord = (current: WorkerRecord, patch: Partial<WorkerRecord>): Worke
   updatedAt: patch.updatedAt ?? now(),
 });
 
+const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
+  name: record.name,
+  queue_name: record.queueName,
+  version: record.version,
+  status: record.status,
+  auto_start: record.autoStart,
+  concurrency: record.concurrency,
+  region: record.region,
+  processor_path: record.processorPath ?? null,
+  features: record.features ? JSON.stringify(record.features) : null,
+  infrastructure: record.infrastructure ? JSON.stringify(record.infrastructure) : null,
+  datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
+  created_at: record.createdAt,
+  updated_at: record.updatedAt,
+});
+
+const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
+  const parseJson = (value: unknown): Record<string, unknown> | null => {
+    if (typeof value !== 'string' || value.trim() === '') return null;
+    try {
+      return JSON.parse(value) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  };
+
+  return {
+    name: String(row['name'] ?? ''),
+    queueName: String(row['queue_name'] ?? ''),
+    version: row['version'] ? String(row['version']) : null,
+    status: String(row['status'] ?? 'unknown'),
+    autoStart: Boolean(row['auto_start'] ?? false),
+    concurrency: Number(row['concurrency'] ?? 0),
+    region: row['region'] ? String(row['region']) : null,
+    processorPath: row['processor_path'] ? String(row['processor_path']) : null,
+    features: parseJson(row['features']),
+    infrastructure: parseJson(row['infrastructure']),
+    datacenter: parseJson(row['datacenter']),
+    createdAt:
+      row['created_at'] instanceof Date ? row['created_at'] : new Date(String(row['created_at'])),
+    updatedAt:
+      row['updated_at'] instanceof Date ? row['updated_at'] : new Date(String(row['updated_at'])),
+  };
+};
+
 export const InMemoryWorkerStore = Object.freeze({
   create(): WorkerStore {
     const store = new Map<string, WorkerRecord>();
@@ -120,66 +165,17 @@ export const RedisWorkerStore = Object.freeze({
 
 export const DbWorkerStore = Object.freeze({
   create(db: IDatabase, table = 'zintrust_workers'): WorkerStore {
-    const serialize = (record: WorkerRecord): Record<string, unknown> => ({
-      name: record.name,
-      queue_name: record.queueName,
-      version: record.version,
-      status: record.status,
-      auto_start: record.autoStart,
-      concurrency: record.concurrency,
-      region: record.region,
-      processor_path: record.processorPath ?? null,
-      features: record.features ? JSON.stringify(record.features) : null,
-      infrastructure: record.infrastructure ? JSON.stringify(record.infrastructure) : null,
-      datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
-      created_at: record.createdAt,
-      updated_at: record.updatedAt,
-    });
-
-    const deserialize = (row: Record<string, unknown>): WorkerRecord => {
-      const parseJson = (value: unknown): Record<string, unknown> | null => {
-        if (typeof value !== 'string' || value.trim() === '') return null;
-        try {
-          return JSON.parse(value) as Record<string, unknown>;
-        } catch {
-          return null;
-        }
-      };
-
-      return {
-        name: String(row['name'] ?? ''),
-        queueName: String(row['queue_name'] ?? ''),
-        version: row['version'] ? String(row['version']) : null,
-        status: String(row['status'] ?? 'unknown'),
-        autoStart: Boolean(row['auto_start'] ?? false),
-        concurrency: Number(row['concurrency'] ?? 0),
-        region: row['region'] ? String(row['region']) : null,
-        processorPath: row['processor_path'] ? String(row['processor_path']) : null,
-        features: parseJson(row['features']),
-        infrastructure: parseJson(row['infrastructure']),
-        datacenter: parseJson(row['datacenter']),
-        createdAt:
-          row['created_at'] instanceof Date
-            ? row['created_at']
-            : new Date(String(row['created_at'])),
-        updatedAt:
-          row['updated_at'] instanceof Date
-            ? row['updated_at']
-            : new Date(String(row['updated_at'])),
-      };
-    };
-
     return {
       async init(): Promise<void> {
         return undefined;
       },
       async list(): Promise<WorkerRecord[]> {
         const rows = await db.table(table).get<Record<string, unknown>>();
-        return rows.map(deserialize);
+        return rows.map(deserializeDbWorker);
       },
       async get(name: string): Promise<WorkerRecord | null> {
         const row = await db.table(table).where('name', '=', name).first<Record<string, unknown>>();
-        return row ? deserialize(row) : null;
+        return row ? deserializeDbWorker(row) : null;
       },
       async save(record: WorkerRecord): Promise<void> {
         const existing = await db
@@ -188,17 +184,17 @@ export const DbWorkerStore = Object.freeze({
           .first<Record<string, unknown>>();
 
         if (existing) {
-          await db.table(table).where('name', '=', record.name).update(serialize(record));
+          await db.table(table).where('name', '=', record.name).update(serializeDbWorker(record));
           return;
         }
 
-        await db.table(table).insert(serialize(record));
+        await db.table(table).insert(serializeDbWorker(record));
       },
       async update(name: string, patch: Partial<WorkerRecord>): Promise<void> {
         const current = await this.get(name);
         if (!current) return;
         const updated = mergeRecord(current, patch);
-        await db.table(table).where('name', '=', name).update(serialize(updated));
+        await db.table(table).where('name', '=', name).update(serializeDbWorker(updated));
       },
       async remove(name: string): Promise<void> {
         await db.table(table).where('name', '=', name).delete();

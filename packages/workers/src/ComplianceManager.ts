@@ -13,8 +13,15 @@ import {
 } from '@zintrust/core';
 import type IORedis from 'ioredis';
 
+type CryptoAdapter = {
+  createCipheriv: typeof NodeSingletons.createCipheriv;
+  createDecipheriv: typeof NodeSingletons.createDecipheriv;
+  pbkdf2Sync: typeof NodeSingletons.pbkdf2Sync;
+  randomBytes: typeof NodeSingletons.randomBytes;
+};
+
 // Access NodeSingletons lazily to avoid initialization errors in test environments
-const getCrypto = () => {
+const getCrypto = (): CryptoAdapter => {
   if (!NodeSingletons) {
     throw ErrorFactory.createWorkerError('NodeSingletons not available');
   }

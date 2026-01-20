@@ -244,35 +244,35 @@ export const AnomalyDetection = Object.freeze({
       end: new Date(),
     };
 
-    const results: IAnomaly[] = [];
+    const results = await Promise.all(
+      config.metrics.map(async (metric) => {
+        const entry = await WorkerMetrics.query({
+          workerName,
+          metricType: metric,
+          granularity: 'hourly',
+          startDate: range.start,
+          endDate: range.end,
+        });
 
-    for (const metric of config.metrics) {
-      const entry = await WorkerMetrics.query({
-        workerName,
-        metricType: metric,
-        granularity: 'hourly',
-        startDate: range.start,
-        endDate: range.end,
-      });
+        const points = entry.points;
+        if (points.length === 0) return null;
 
-      const points = entry.points;
-      if (points.length === 0) continue;
+        const stats = modelMap.get(metric) ?? buildStats(points.map((point) => point.value));
+        modelMap.set(metric, stats);
 
-      const stats = modelMap.get(metric) ?? buildStats(points.map((point) => point.value));
-      modelMap.set(metric, stats);
+        const latest = points.at(-1);
+        if (!latest) return null;
 
-      const latest = points.at(-1);
-      if (!latest) continue;
+        const stdDev = getStdDev(stats);
+        if (stdDev === 0) return null;
 
-      const stdDev = getStdDev(stats);
-      if (stdDev === 0) continue;
+        const zScore = Math.abs((latest.value - stats.mean) / stdDev);
+        const threshold = getThreshold(config.sensitivity);
+        const confidence = Math.min(1, zScore / threshold);
 
-      const zScore = Math.abs((latest.value - stats.mean) / stdDev);
-      const threshold = getThreshold(config.sensitivity);
-      const confidence = Math.min(1, zScore / threshold);
+        if (zScore < threshold || confidence < config.alertThreshold) return null;
 
-      if (zScore >= threshold && confidence >= config.alertThreshold) {
-        results.push({
+        return {
           id: generateUuid(),
           timestamp: latest.timestamp,
           workerName,
@@ -284,11 +284,11 @@ export const AnomalyDetection = Object.freeze({
           severity: selectSeverity(zScore),
           possibleCauses: buildPossibleCauses(metric),
           recommendations: buildRecommendations(metric),
-        });
-      }
-    }
+        } as IAnomaly;
+      })
+    );
 
-    return results;
+    return results.filter((item): item is IAnomaly => item !== null);
   },
 
   /**
@@ -413,21 +413,21 @@ export const AnomalyDetection = Object.freeze({
       end: new Date(),
     };
 
-    const data: IMetric[] = [];
+    const batches = await Promise.all(
+      config.metrics.map(async (metric) => {
+        const entry = await WorkerMetrics.query({
+          workerName,
+          metricType: metric,
+          granularity: 'daily',
+          startDate: range.start,
+          endDate: range.end,
+        });
 
-    for (const metric of config.metrics) {
-      const entry = await WorkerMetrics.query({
-        workerName,
-        metricType: metric,
-        granularity: 'daily',
-        startDate: range.start,
-        endDate: range.end,
-      });
+        return mapPoints(metric, entry.points);
+      })
+    );
 
-      data.push(...mapPoints(metric, entry.points));
-    }
-
-    return data;
+    return batches.flat();
   },
 });
 
