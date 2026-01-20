@@ -220,6 +220,56 @@ exports[`OpenAPI spec snapshot > matches a stable snapshot for routes/api.ts 1`]
         }
       }
     },
+    "/api/v1/test/enqueue": {
+      "post": {
+        "operationId": "post_api_v1_test_enqueue",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/test/populate-all": {
+      "post": {
+        "operationId": "post_api_v1_test_populate_all",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/test/worker/start": {
+      "post": {
+        "operationId": "post_api_v1_test_worker_start",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/test/worker/stop": {
+      "post": {
+        "operationId": "post_api_v1_test_worker_stop",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/test/worker/status": {
+      "get": {
+        "operationId": "get_api_v1_test_worker_status",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/users/create": {
       "get": {
         "operationId": "get_api_v1_users_create",

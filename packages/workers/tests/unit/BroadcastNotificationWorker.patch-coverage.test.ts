@@ -25,6 +25,9 @@ vi.mock('@zintrust/core', () => ({
       freemem: () => 4 * 1024 * 1024 * 1024,
       loadavg: () => [1, 1.5, 2],
     },
+    path: {
+      resolve: (...parts: string[]) => parts.join('/'),
+    },
     createCipheriv: vi.fn(),
     createDecipheriv: vi.fn(),
     pbkdf2Sync: vi.fn(),
@@ -36,6 +39,7 @@ vi.mock('@zintrust/core', () => ({
 describe('BroadcastWorker / NotificationWorker (patch coverage)', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.unmock('@zintrust/workers');
     vi.clearAllMocks();
 
     queueMock.dequeue.mockResolvedValue(undefined);

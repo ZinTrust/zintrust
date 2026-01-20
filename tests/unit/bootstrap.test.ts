@@ -26,9 +26,9 @@ vi.mock('@config/env', () => ({
     NODE_ENV: 'test',
     DB_CONNECTION: 'sqlite',
     SHUTDOWN_TIMEOUT: 10_000,
-    get: vi.fn((key: string, defaultValue: unknown) => {
+    get: vi.fn((key: string, defaultValue?: string) => {
       String(key);
-      return defaultValue;
+      return defaultValue ?? '';
     }),
     getInt: vi.fn((key: string, defaultValue: number) => {
       String(key);
@@ -54,9 +54,8 @@ vi.mock('@config/logger', () => ({
     })),
   },
 }));
-
-vi.mock('@/runtime/RuntimeDetector', () => ({
-  RuntimeDetector: {
+vi.mock('@config/app', () => ({
+  appConfig: {
     detectRuntime: vi.fn(() => 'unknown'),
   },
 }));
@@ -207,8 +206,8 @@ describe('Bootstrap', () => {
   });
 
   it('should stop schedules via shutdown manager hook', async () => {
-    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
-    (RuntimeDetector.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
+    const { appConfig } = await import('@config/app');
+    (appConfig.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
 
     const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
     const runner = {
@@ -249,8 +248,8 @@ describe('Bootstrap', () => {
   });
 
   it('should warn when schedules fail to start', async () => {
-    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
-    (RuntimeDetector.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
+    const { appConfig } = await import('@config/app');
+    (appConfig.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
 
     const boom = new Error('schedule boom');
     const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');

@@ -1,33 +1,104 @@
 // Global Vitest setup
-// Ensures required secrets exist so config modules can be imported safely in unit tests.
 
-(process.env as Record<string, string>)['JWT_SECRET'] ??= 'test-jwt-secret';
-
-import path from 'node:path';
 import { vi } from 'vitest';
+
+vi.mock('@zintrust/workers', () => ({
+  BroadcastWorker: {
+    processOne: async () => true,
+  },
+  NotificationWorker: {
+    processOne: async () => true,
+  },
+  WorkerFactory: {
+    list: () => [],
+    listPersisted: async () => [],
+    getHealth: async () => ({}),
+    getMetrics: async () => ({}),
+    stop: async () => undefined,
+    restart: async () => undefined,
+    start: async () => undefined,
+  },
+  WorkerRegistry: {
+    status: () => null,
+    start: async () => undefined,
+  },
+  HealthMonitor: {
+    getSummary: () => [],
+  },
+  ResourceMonitor: {
+    getCurrentUsage: () => ({
+      cpu: 0,
+      memory: { percent: 0, used: 0 },
+      cost: { hourly: 0, daily: 0 },
+    }),
+  },
+  registerWorkerRoutes: () => undefined,
+  WorkerInit: {
+    start: async () => undefined,
+  },
+  WorkerShutdown: {
+    shutdownAll: async () => undefined,
+  },
+}));
 
 // Ensure any import of '@zintrust/core' used in tests has a NodeSingletons.path
 // so modules that access NodeSingletons.path at import-time don't throw.
 vi.mock('@zintrust/core', async () => {
-  const actual = await vi.importActual('@zintrust/core');
+  const [actual, nodePath] = await Promise.all([
+    vi.importActual('@zintrust/core'),
+    import('node:path'),
+  ]);
   return {
     ...(actual as Record<string, unknown>),
     NodeSingletons: {
       ...(Object(actual).NodeSingletons ?? {}),
-      path,
+      path: (nodePath as { default?: unknown }).default ?? nodePath,
     },
   } as unknown;
 });
 
 // Provide a lightweight virtual `config/queue` module for tests that import
 // app workers or controllers which may reference it.
-vi.mock(
-  'config/queue',
-  () => ({
-    default: {
-      drivers: { redis: { host: '127.0.0.1', port: 6379, db: 0 } },
-      queues: {},
+vi.mock('config/queue', () => ({
+  default: {
+    drivers: {
+      redis: { host: '127.0.0.1', port: 6379, db: 0, password: '', database: 0 },
     },
+    monitor: {
+      enabled: false,
+      basePath: '/queue-monitor',
+      middleware: [],
+      autoRefresh: true,
+      refreshIntervalMs: 5000,
+    },
+    queues: {},
+  },
+}));
+
+vi.mock('packages/queue-monitor/src', () => ({
+  createBullMQDriver: () => ({
+    enqueue: async () => 'mock-job-id',
+    close: async () => undefined,
   }),
-  { virtual: true }
-);
+}));
+
+vi.mock('packages/queue-monitor/src/', () => ({
+  default: {
+    create: () => ({
+      registerRoutes: () => undefined,
+    }),
+  },
+}));
+
+vi.mock('packages/telemetry-dashboard/src', () => ({
+  TelemetryDashboard: {
+    create: () => ({
+      registerRoutes: () => undefined,
+    }),
+  },
+}));
+
+vi.mock('packages/queue-monitor/src/driver', () => ({}));
+vi.mock('packages/db-mysql/src/register', () => ({}));
+vi.mock('packages/db-postgres/src/register', () => ({}));
+vi.mock('packages/queue-redis/src/register', () => ({}));

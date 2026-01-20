@@ -148,9 +148,9 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    // Mock runtime detector to return nodejs
-    vi.doMock('@/runtime/RuntimeDetector', () => ({
-      RuntimeDetector: { detectRuntime: () => 'nodejs' },
+    // Mock runtime detection to return nodejs
+    vi.doMock('@config/app', () => ({
+      appConfig: { detectRuntime: () => 'nodejs' },
     }));
 
     // Mock schedules module with a single fake schedule
@@ -209,8 +209,8 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
-    vi.doMock('@/runtime/RuntimeDetector', () => ({
-      RuntimeDetector: { detectRuntime: () => 'nodejs' },
+    vi.doMock('@config/app', () => ({
+      appConfig: { detectRuntime: () => 'nodejs' },
     }));
 
     const fakeSchedule = { name: 's1' } as any;

@@ -19,6 +19,9 @@ vi.mock('@zintrust/core', () => ({
       freemem: () => 4 * 1024 * 1024 * 1024,
       loadavg: () => [1, 1.5, 2],
     },
+    path: {
+      resolve: (...parts: string[]) => parts.join('/'),
+    },
     createCipheriv: vi.fn(),
     createDecipheriv: vi.fn(),
     pbkdf2Sync: vi.fn(),
@@ -29,6 +32,7 @@ vi.mock('@zintrust/core', () => ({
 
 describe('createQueueWorker coverage', () => {
   it('processes one item using maxItems loop', async () => {
+    vi.unmock('@zintrust/workers');
     const { Queue } = await import('@zintrust/core');
     (Queue.dequeue as unknown as { mockResolvedValueOnce: (v: unknown) => void })
       .mockResolvedValueOnce({ id: '1', payload: { ok: true }, attempts: 0 })

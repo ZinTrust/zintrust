@@ -24,7 +24,7 @@ describe('StartupSecretValidation', () => {
       ...originalEnv,
       NODE_ENV: 'production',
       ENCRYPTION_CIPHER: 'aes-256-cbc',
-      APP_KEY: validAppKey,
+      APP_KEY: '',
       JWT_ENABLED: 'true',
       JWT_SECRET: '',
     };
@@ -34,6 +34,7 @@ describe('StartupSecretValidation', () => {
     const result = StartupSecretValidation.validate();
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.key === 'JWT_SECRET')).toBe(true);
+    expect(result.errors.some((e) => e.key === 'APP_KEY')).toBe(true);
 
     expect(() => StartupSecretValidation.assertValid()).toThrow(/startup secret/i);
   });

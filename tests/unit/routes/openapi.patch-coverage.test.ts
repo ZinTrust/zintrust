@@ -32,6 +32,9 @@ describe('routes/openapi patch coverage', () => {
         PORT: 3000,
         APP_NAME: 'ZinTrust',
         get: (_key: string, def: string) => def,
+        getInt: (_key: string, def?: number) => def ?? 0,
+        getBool: (_key: string, def?: boolean) => def ?? false,
+        getFloat: (_key: string, def?: number) => def ?? 0,
       },
     }));
 
@@ -91,6 +94,9 @@ describe('routes/openapi patch coverage', () => {
         PORT: 3005,
         APP_NAME: 'ZinTrust',
         get: (_key: string, def: string) => def,
+        getInt: (_key: string, def?: number) => def ?? 0,
+        getBool: (_key: string, def?: boolean) => def ?? false,
+        getFloat: (_key: string, def?: number) => def ?? 0,
       },
     }));
 
@@ -140,6 +146,9 @@ describe('routes/openapi patch coverage', () => {
         PORT: Number.NaN,
         APP_NAME: 'ZinTrust',
         get: (_key: string, def: string) => def,
+        getInt: (_key: string, def?: number) => def ?? 0,
+        getBool: (_key: string, def?: boolean) => def ?? false,
+        getFloat: (_key: string, def?: number) => def ?? 0,
       },
     }));
 

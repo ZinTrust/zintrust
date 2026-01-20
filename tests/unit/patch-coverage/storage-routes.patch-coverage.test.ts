@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@config/constants', () => ({ HTTP_HEADERS: { CONTENT_TYPE: 'Content-Type' } }));
-vi.mock('@config/env', () => ({ Env: { get: vi.fn() } }));
+vi.mock('@config/env', () => ({
+  Env: {
+    get: vi.fn(),
+    getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+    getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
+    getFloat: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+  },
+}));
 vi.mock('@storage/LocalSignedUrl', () => ({ LocalSignedUrl: { verifyToken: vi.fn() } }));
 vi.mock('@storage/index', () => ({ Storage: { get: vi.fn() } }));
 

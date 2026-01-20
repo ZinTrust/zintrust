@@ -45,9 +45,9 @@ describe('Bootstrap start flow', () => {
     const ServerMod = await import('@boot/Server');
     expect(typeof ServerMod.Server.create(mockApp, 3000, 'localhost').listen).toBe('function');
 
-    // runtime detector
-    vi.mock('@/runtime/RuntimeDetector', () => ({
-      RuntimeDetector: { detectRuntime: () => 'nodejs' },
+    // runtime detection
+    vi.mock('@config/app', () => ({
+      appConfig: { detectRuntime: () => 'nodejs' },
     }));
 
     // schedule runner and schedules

@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 import { TestEnvironment } from '@/testing/TestEnvironment';
 
+const jwtSecret = 'test-jwt-secret';
+process.env['JWT_SECRET'] = jwtSecret;
+process.env['APP_KEY'] = process.env['APP_KEY'] ?? 'test-app-key';
+
 const env = TestEnvironment.create({ registerRoutes });
 
 describe('Kernel + routes/api.ts middleware wiring', () => {
@@ -15,7 +19,7 @@ describe('Kernel + routes/api.ts middleware wiring', () => {
 
   it('GET /api/v1/profile succeeds with valid Bearer token', async () => {
     const jwt = JwtManager.create();
-    jwt.setHmacSecret(process.env.JWT_SECRET ?? 'test-jwt-secret');
+    jwt.setHmacSecret(jwtSecret);
     const token = jwt.sign({ sub: '123' }, { algorithm: 'HS256' });
 
     const r = await env.request({

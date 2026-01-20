@@ -61,6 +61,11 @@ describe('Routes API', () => {
     expect(Router.match(router, 'POST', '/broadcast/send')).not.toBeNull();
     expect(Router.match(router, 'POST', '/api/v1/auth/login')).not.toBeNull();
     expect(Router.match(router, 'GET', '/admin/dashboard')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/api/v1/test/enqueue')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/api/v1/test/populate-all')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/api/v1/test/worker/start')).not.toBeNull();
+    expect(Router.match(router, 'POST', '/api/v1/test/worker/stop')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/api/v1/test/worker/status')).not.toBeNull();
 
     const fillMatch = Router.match(router, 'POST', '/api/v1/users/fill');
     expect(fillMatch).not.toBeNull();

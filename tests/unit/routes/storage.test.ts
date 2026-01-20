@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 vi.mock('@config/env', () => ({
   Env: {
     get: vi.fn((_key: string, defaultVal?: string) => defaultVal ?? ''),
+    getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+    getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
+    getFloat: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
   },
 }));
 

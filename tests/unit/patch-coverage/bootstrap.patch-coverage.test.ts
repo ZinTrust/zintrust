@@ -21,12 +21,19 @@ vi.mock('@boot/Server', () => ({
   },
 }));
 
-vi.mock('@config/env', () => ({ Env: { getInt: () => 0, get: () => 'localhost' } }));
+vi.mock('@config/env', () => ({
+  Env: {
+    getInt: () => 0,
+    get: () => 'localhost',
+    getBool: (_key: string, defaultVal?: boolean) => defaultVal ?? false,
+    getFloat: (_key: string, defaultVal?: number) => defaultVal ?? 0,
+  },
+}));
 vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
 
 // Runtime schedules helpers
-vi.mock('@/runtime/RuntimeDetector', () => ({
-  RuntimeDetector: { detectRuntime: () => 'nodejs' },
+vi.mock('@config/app', () => ({
+  appConfig: { detectRuntime: () => 'nodejs' },
 }));
 vi.mock('@/scheduler/ScheduleRunner', () => ({
   create: () => ({ register: () => {}, start: () => {}, stop: async () => {} }),
