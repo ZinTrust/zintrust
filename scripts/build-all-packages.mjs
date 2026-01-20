@@ -84,10 +84,24 @@ for (const pkg of selectedPackages) {
   const pkgPath = path.join(packagesDir, pkg);
   const pkgJsonPath = path.join(pkgPath, 'package.json');
   const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+  const deps = {
+    ...pkgJson.dependencies,
+    ...pkgJson.devDependencies,
+    ...pkgJson.optionalDependencies,
+  };
+  const hasDeps = Object.keys(deps).length > 0;
+  const skipInstall =
+    process.env.SKIP_PACKAGE_INSTALL === 'true' || process.env.CI_PACKAGE_INSTALL === 'false';
 
   console.log(`\n🔨 Building ${pkgJson.name}...`);
 
   try {
+    if (hasDeps && !skipInstall) {
+      execSync('npm install --ignore-scripts --no-package-lock', {
+        cwd: pkgPath,
+        stdio: 'inherit',
+      });
+    }
     // Check if package has build script
     if (pkgJson.scripts?.build) {
       // Run build from package directory
