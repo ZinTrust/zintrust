@@ -307,6 +307,8 @@ export const QueueMonitor = Object.freeze({
 
 export default QueueMonitor;
 
+export { createBullMQDriver } from './driver';
+
 /**
  * Package version and build metadata
  * Available at runtime for debugging and health checks

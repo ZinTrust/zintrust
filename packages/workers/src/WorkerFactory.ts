@@ -672,46 +672,58 @@ const resolveEnvInt = (envKey: string | undefined, fallback: number): number => 
 const isRedisEnvConfig = (config: RedisConfigInput): config is RedisEnvConfig =>
   (config as RedisEnvConfig).env === true;
 
-const resolveRedisConfig = (config: RedisConfigInput, context: string): RedisConfig => {
-  if (isRedisEnvConfig(config)) {
-    const queueRedis = queueConfig.drivers.redis;
-    const fallbackHost =
-      queueRedis?.driver === 'redis' ? queueRedis.host : Env.get('REDIS_HOST', '127.0.0.1');
-    const fallbackPort =
-      queueRedis?.driver === 'redis' ? queueRedis.port : Env.getInt('REDIS_PORT', 6379);
-    const fallbackDb =
-      queueRedis?.driver === 'redis' ? queueRedis.database : Env.getInt('REDIS_DB', 0);
-    const fallbackPassword =
-      queueRedis?.driver === 'redis' ? (queueRedis.password ?? '') : Env.get('REDIS_PASSWORD', '');
-
-    const host = resolveEnvString(config.host ?? 'REDIS_HOST', fallbackHost);
-    const port = resolveEnvInt(config.port ?? 'REDIS_PORT', fallbackPort);
-    const db = resolveEnvInt(config.db ?? 'REDIS_DB', fallbackDb);
-    const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallbackPassword);
-
-    if (!host) {
-      throw ErrorFactory.createConfigError(`${context}.host is required`);
-    }
-
-    return {
-      host,
-      port,
-      db,
-      password: password || undefined,
-    };
-  }
-
-  if (!config.host) {
+const requireRedisHost = (host: string, context: string): string => {
+  if (!host) {
     throw ErrorFactory.createConfigError(`${context}.host is required`);
   }
+  return host;
+};
 
+const resolveRedisFallbacks = (): {
+  host: string;
+  port: number;
+  db: number;
+  password: string;
+} => {
+  const queueRedis = queueConfig.drivers.redis;
   return {
-    host: config.host,
-    port: config.port,
-    db: config.db,
-    password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+    host: queueRedis?.driver === 'redis' ? queueRedis.host : Env.get('REDIS_HOST', '127.0.0.1'),
+    port: queueRedis?.driver === 'redis' ? queueRedis.port : Env.getInt('REDIS_PORT', 6379),
+    db: queueRedis?.driver === 'redis' ? queueRedis.database : Env.getInt('REDIS_DB', 0),
+    password:
+      queueRedis?.driver === 'redis' ? (queueRedis.password ?? '') : Env.get('REDIS_PASSWORD', ''),
   };
 };
+
+const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): RedisConfig => {
+  const fallback = resolveRedisFallbacks();
+  const host = requireRedisHost(
+    resolveEnvString(config.host ?? 'REDIS_HOST', fallback.host),
+    context
+  );
+  const port = resolveEnvInt(config.port ?? 'REDIS_PORT', fallback.port);
+  const db = resolveEnvInt(config.db ?? 'REDIS_DB', fallback.db);
+  const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallback.password);
+
+  return {
+    host,
+    port,
+    db,
+    password: password || undefined,
+  };
+};
+
+const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => ({
+  host: requireRedisHost(config.host, context),
+  port: config.port,
+  db: config.db,
+  password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+});
+
+const resolveRedisConfig = (config: RedisConfigInput, context: string): RedisConfig =>
+  isRedisEnvConfig(config)
+    ? resolveRedisConfigFromEnv(config, context)
+    : resolveRedisConfigFromDirect(config, context);
 
 const resolveRedisConfigWithFallback = (
   primary: RedisConfigInput | undefined,
