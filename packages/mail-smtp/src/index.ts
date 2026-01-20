@@ -1,8 +1,8 @@
 import { SmtpDriver as CoreSmtpDriver } from '@zintrust/core';
 
-const SmtpDriver = CoreSmtpDriver;
-export { SmtpDriver };
+const SmtpDriver: typeof CoreSmtpDriver = CoreSmtpDriver;
 export type { SmtpDriverConfig } from '@zintrust/core';
+export { SmtpDriver };
 
 /**
  * Package version and build metadata
