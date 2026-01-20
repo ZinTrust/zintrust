@@ -20,11 +20,12 @@ const registerOptionalPlugins = async (): Promise<void> => {
   try {
     await import('@/zintrust.plugins');
   } catch (error) {
+    /* c8 ignore start */
     const code = (error as { code?: string } | undefined)?.code;
-    /* c8 ignore next 2 */
     if (code !== 'ERR_MODULE_NOT_FOUND') {
       Logger.warn('Failed to register optional plugins:', error as Error);
     }
+    /* c8 ignore stop */
   }
 };
 
