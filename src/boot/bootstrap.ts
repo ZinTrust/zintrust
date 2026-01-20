@@ -16,19 +16,6 @@ let serverInstance: ReturnType<typeof Server.create> | undefined;
 let isShuttingDown = false;
 let shutdownHandlersRegistered = false;
 
-const registerOptionalPlugins = async (): Promise<void> => {
-  try {
-    await import('@/zintrust.plugins');
-  } catch (error) {
-    /* c8 ignore start */
-    const code = (error as { code?: string } | undefined)?.code;
-    if (code !== 'ERR_MODULE_NOT_FOUND') {
-      Logger.warn('Failed to register optional plugins:', error as Error);
-    }
-    /* c8 ignore stop */
-  }
-};
-
 const logBootstrapErrorDetails = (error: unknown): void => {
   // Best-effort: surface startup config validation details (already redacted)
   // so container runs show which env vars are missing/misconfigured.
@@ -199,8 +186,6 @@ const BootstrapFunctions = Object.freeze({
    */
   async start(): Promise<void> {
     try {
-      await registerOptionalPlugins();
-
       // Create application instance
       // if (Env.ZINTRUST_PROJECT_ROOT) {
       // }
