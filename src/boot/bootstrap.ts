@@ -6,17 +6,26 @@
 
 import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
+import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-// Register plugins (adapters, drivers, etc.)
-// import '@/zintrust.plugins';
-import { appConfig } from '..';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
 let isShuttingDown = false;
 let shutdownHandlersRegistered = false;
+
+const registerOptionalPlugins = async (): Promise<void> => {
+  try {
+    await import('@/zintrust.plugins');
+  } catch (error) {
+    const code = (error as { code?: string } | undefined)?.code;
+    if (code !== 'ERR_MODULE_NOT_FOUND') {
+      Logger.warn('Failed to register optional plugins:', error as Error);
+    }
+  }
+};
 
 const logBootstrapErrorDetails = (error: unknown): void => {
   // Best-effort: surface startup config validation details (already redacted)
@@ -188,6 +197,8 @@ const BootstrapFunctions = Object.freeze({
    */
   async start(): Promise<void> {
     try {
+      await registerOptionalPlugins();
+
       // Create application instance
       // if (Env.ZINTRUST_PROJECT_ROOT) {
       // }
