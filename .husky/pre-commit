@@ -1,5 +1,4 @@
-# Comment out zintrust.plugins import
-npm run commemtout
+node scripts/toggle-dev-routes.mjs comment
 
 npx lint-staged
 npm run -s duplication:check

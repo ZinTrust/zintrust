@@ -179,7 +179,7 @@ const verifySignedRequest = async (
             verifyNonceKv(env.ZT_NONCES as KVNamespace, keyId, nonce, ttlMs),
   });
 
-  if (!verifyResult.ok) {
+  if (verifyResult.ok === false) {
     return json(401, { code: verifyResult.code, message: verifyResult.message });
   }
 
@@ -236,7 +236,7 @@ const readAndVerifyJson = async (
 > => {
   const maxBodyBytes = getEnvInt(env, 'ZT_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES);
   const bodyResult = await readBodyBytes(request, maxBodyBytes);
-  if (!bodyResult.ok) return bodyResult;
+  if (bodyResult.ok === false) return { ok: false, response: bodyResult.response };
 
   const auth = await verifySignedRequest(request, env, bodyResult.bytes);
   if (auth instanceof Response) return { ok: false, response: auth };
@@ -254,13 +254,13 @@ const readAndVerifyJson = async (
 
 const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const db = requireDb(env);
   if (db instanceof Response) return db;
 
   const parsed = parseSqlPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const limit = enforceSqlLimits(env, parsed.sql, parsed.params);
   if (limit !== null) return limit;
@@ -275,13 +275,13 @@ const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
 
 const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const db = requireDb(env);
   if (db instanceof Response) return db;
 
   const parsed = parseSqlPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const row = await db
     .prepare(parsed.sql)
@@ -292,13 +292,13 @@ const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> =
 
 const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const db = requireDb(env);
   if (db instanceof Response) return db;
 
   const parsed = parseSqlPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const out = await db
     .prepare(parsed.sql)
@@ -331,7 +331,7 @@ const parseStatementPayload = (
 
 const handleStatement = async (request: Request, env: D1Env): Promise<Response> => {
   const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  if (check.ok === false) return check.response;
 
   const db = requireDb(env);
   if (db instanceof Response) return db;
@@ -342,7 +342,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
   }
 
   const parsed = parseStatementPayload(check.payload);
-  if (!parsed.ok) return parsed.response;
+  if (parsed.ok === false) return parsed.response;
 
   const sql = statements[parsed.statementId];
   if (!isString(sql) || sql.trim() === '') {
@@ -389,3 +389,10 @@ export const ZintrustD1Proxy = Object.freeze({
 });
 
 export default ZintrustD1Proxy;
+
+/**
+ * Package version and build metadata
+ * Available at runtime for debugging and health checks
+ */
+export const _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION = '0.1.15';
+export const _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE = '__BUILD_DATE__';

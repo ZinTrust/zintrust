@@ -50,9 +50,9 @@ const { html, meta } = renderTemplate('auth/welcome', {
   expiryMinutes: 30,
 });
 
-console.log(templates);
-console.log(meta.subject);
-console.log(html);
+Logger.info(templates);
+Logger.info(meta.subject);
+Logger.info(html);
 ```
 
 ## Template format (metadata + Markdown)

@@ -1,7 +1,7 @@
 import { ErrorFactory, Errors, initZintrustError } from '@/exceptions/ZintrustError';
 import { describe, expect, it, vi } from 'vitest';
 
-describe('ZintrustError internals', () => {
+describe('ZinTrustError internals', () => {
   it('applies name, details, prototype and defaults', () => {
     const e = new Error('msg');
 

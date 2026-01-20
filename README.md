@@ -1,4 +1,4 @@
-# Zintrust Framework
+# ZinTrust Framework
 
 [![Website](https://img.shields.io/badge/website-zintrust.com-blue)](https://zintrust.com)
 [![CI/CD Pipeline](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml/badge.svg)](https://github.com/ZinTrust/ZinTrust/actions/workflows/ci.yml)
@@ -46,7 +46,7 @@ If you want PR-specific “New Code” numbers in GitHub, rely on the SonarCloud
 ## Quick Start
 
 ```bash
-# Install @zintrust/core (Zintrust CLI) globally
+# Install @zintrust/core (ZinTrust CLI) globally
 npm install -g @zintrust/core
 
 # Create a new project
@@ -68,7 +68,7 @@ New projects include an `.env` with safe defaults (and the generator will backfi
 
 ## Adapters (on-demand installs)
 
-Zintrust ships a minimal core. Database/cache/etc. integrations are installed explicitly via adapter packages.
+ZinTrust ships a minimal core. Database/cache/etc. integrations are installed explicitly via adapter packages.
 
 ```bash
 # Database adapters
@@ -156,6 +156,7 @@ See [docs/](docs/) for comprehensive guides on:
 
 - [Getting Started](docs/getting-started.md)
 - [Models & ORM](docs/models.md)
+- [Advanced ORM Relationships](docs/orm-advanced-relationships.md)
 - [Query Builder](docs/query-builder.md)
 - [Routing](docs/routing.md)
 - [Middleware](docs/middleware.md)
@@ -205,7 +206,7 @@ import { usersService } from '@services/ecommerce/users';
 
 ## Architecture
 
-Zintrust is built on proven architectural patterns for modern backend development:
+ZinTrust is built on proven architectural patterns for modern backend development:
 
 - **Models first**: Define your data schema with explicit models
 - **Type safety**: Full TypeScript with strict mode enabled
@@ -219,7 +220,7 @@ We welcome contributions! Please see our **[Contributor & QA Guide](docs/contrib
 
 ### Quality Assurance
 
-Zintrust enforces strict quality standards. Before submitting a PR, ensure you run:
+ZinTrust enforces strict quality standards. Before submitting a PR, ensure you run:
 
 ```bash
 zin qa
@@ -229,7 +230,7 @@ This will run linting, type-checking, and tests to ensure your changes meet our 
 
 ## Security
 
-If you discover a security vulnerability within Zintrust, please see our [Security Policy](SECURITY.md).
+If you discover a security vulnerability within ZinTrust, please see our [Security Policy](SECURITY.md).
 
 ## Community & Support
 
@@ -252,4 +253,4 @@ MIT
 
 ---
 
-**Copyright © 2025 Zintrust Framework. All rights reserved.**
+**Copyright © 2025 ZinTrust Framework. All rights reserved.**

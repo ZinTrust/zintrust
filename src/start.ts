@@ -1,6 +1,7 @@
 const isNodeRuntime = (): boolean => {
   // Avoid importing any `node:*` modules so this file remains Worker-safe.
   // In Workers/Deno, `process` is typically undefined.
+
   return (
     typeof process !== 'undefined' &&
     typeof process === 'object' &&

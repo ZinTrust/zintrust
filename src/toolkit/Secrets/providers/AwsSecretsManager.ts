@@ -1,4 +1,5 @@
 import { AwsSigV4 } from '@common/index';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type AwsCredentials = {
@@ -8,6 +9,17 @@ export type AwsCredentials = {
 };
 
 const sha256Hex = (data: string | Uint8Array): string => AwsSigV4.sha256Hex(data);
+
+const readEnvString = (key: string): string => {
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string') return raw;
+  }
+  return fromEnv ?? '';
+};
 
 const buildAuthorization = (params: {
   method: string;
@@ -116,10 +128,10 @@ export const AwsSecretsManager = Object.freeze({
     getValue: (secretId: string, jsonKey?: string) => Promise<string | null>;
     putValue: (secretId: string, value: string) => Promise<void>;
   } {
-    const region = process.env['AWS_REGION'] ?? process.env['AWS_DEFAULT_REGION'] ?? '';
-    const accessKeyId = process.env['AWS_ACCESS_KEY_ID'] ?? '';
-    const secretAccessKey = process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-    const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
+    const region = readEnvString('AWS_REGION') || readEnvString('AWS_DEFAULT_REGION');
+    const accessKeyId = readEnvString('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = readEnvString('AWS_SECRET_ACCESS_KEY');
+    const sessionToken = readEnvString('AWS_SESSION_TOKEN') || undefined;
 
     if (region.trim() === '' || accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
       throw ErrorFactory.createCliError(
@@ -172,13 +184,13 @@ export const AwsSecretsManager = Object.freeze({
   doctorEnv(): string[] {
     const missing: string[] = [];
 
-    const region = (process.env['AWS_REGION'] ?? process.env['AWS_DEFAULT_REGION'] ?? '').trim();
+    const region = (readEnvString('AWS_REGION') || readEnvString('AWS_DEFAULT_REGION')).trim();
     if (region === '') missing.push('AWS_REGION');
 
-    const accessKeyId = (process.env['AWS_ACCESS_KEY_ID'] ?? '').trim();
+    const accessKeyId = readEnvString('AWS_ACCESS_KEY_ID').trim();
     if (accessKeyId === '') missing.push('AWS_ACCESS_KEY_ID');
 
-    const secretAccessKey = (process.env['AWS_SECRET_ACCESS_KEY'] ?? '').trim();
+    const secretAccessKey = readEnvString('AWS_SECRET_ACCESS_KEY').trim();
     if (secretAccessKey === '') missing.push('AWS_SECRET_ACCESS_KEY');
 
     return missing;

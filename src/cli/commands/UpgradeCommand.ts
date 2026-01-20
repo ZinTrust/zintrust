@@ -1,7 +1,7 @@
 /**
  * Upgrade Command
  *
- * Goal: help existing Zintrust projects adopt new safe defaults without forcing
+ * Goal: help existing ZinTrust projects adopt new safe defaults without forcing
  * a full re-scaffold.
  *
  * Current scope (minimal/safe):
@@ -97,7 +97,7 @@ export const UpgradeCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'upgrade',
-      description: 'Upgrade an existing Zintrust project in-place (safe, non-destructive)',
+      description: 'Upgrade an existing ZinTrust project in-place (safe, non-destructive)',
       addOptions: (command: Command) => {
         command.option('--cwd <path>', 'Project directory (default: current working directory)');
         command.option('--dry-run', 'Print planned changes without writing files');

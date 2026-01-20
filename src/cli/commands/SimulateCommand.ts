@@ -1,6 +1,6 @@
 /**
  * Simulate Command
- * Internal dev tool that generates a simulated Zintrust app under ./simulate/
+ * Internal dev tool that generates a simulated ZinTrust app under ./simulate/
  * IMPORTANT: this uses the same ProjectScaffolder as `zin new`.
  * Usage: zin -sim my-blog
  */
@@ -41,13 +41,13 @@ const rewriteSimulatedAppDependencyToDist = (appPath: string, distPath: string):
  */
 export const SimulateCommand = {
   name: 'simulate',
-  description: '[INTERNAL] Generate simulated Zintrust app for testing new developer experience',
+  description: '[INTERNAL] Generate simulated ZinTrust app for testing new developer experience',
 
   getCommand(): Command {
     const command = new Command('simulate')
       .alias('-sim')
       .alias('--sim')
-      .description('[INTERNAL DEV] Create a simulated Zintrust application in simulate/ folder')
+      .description('[INTERNAL DEV] Create a simulated ZinTrust application in simulate/ folder')
       .argument('<name>', 'Name of the simulated app')
       .action(async (appName: string) => {
         try {
@@ -65,7 +65,7 @@ export const SimulateCommand = {
             template: 'basic',
             database: 'sqlite',
             author: 'Internal',
-            description: `Simulated Zintrust app - ${appName}`,
+            description: `Simulated ZinTrust app - ${appName}`,
           });
 
           if (!result.success) {

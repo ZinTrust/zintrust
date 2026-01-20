@@ -56,10 +56,10 @@ const displayInfo = (message: string): void => {
  */
 const displayBanner = (version: string): void => {
   /* eslint-disable no-console */
-  const framework = 'Zintrust Framework';
+  const framework = 'ZinTrust Framework';
   const bannerWidth = 46;
-  const env = Env.NODE_ENV || 'development';
-  const db = Env.DB_CONNECTION || 'sqlite';
+  const env = Env.NODE_ENV ?? 'development';
+  const db = Env.DB_CONNECTION ?? 'sqlite';
 
   const border = chalk.cyanBright;
   const label = chalk.bold.white;

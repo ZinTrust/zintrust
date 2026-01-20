@@ -95,7 +95,7 @@ export const TemplateEngine = Object.freeze({
 export const BUILT_IN_TEMPLATES: Record<string, Template> = {
   basic: {
     name: 'basic',
-    description: 'Basic Zintrust application',
+    description: 'Basic ZinTrust application',
     directories: [
       'src',
       'app/Models',

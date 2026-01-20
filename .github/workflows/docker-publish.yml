@@ -1,5 +1,5 @@
 # Docker Image Publication
-# Builds and pushes the Zintrust image to GitHub Container Registry (GHCR)
+# Builds and pushes the ZinTrust image to GitHub Container Registry (GHCR)
 
 name: Publish Docker Image
 

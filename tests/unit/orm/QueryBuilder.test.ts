@@ -107,6 +107,47 @@ describe('QueryBuilder', () => {
     expect(result).toEqual([{ id: 1 }]);
   });
 
+  it('paginate returns a paginator and restores limit/offset', async () => {
+    const mockDb = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([{ total: 25 }])
+        .mockResolvedValueOnce([{ id: 1 }, { id: 2 }]),
+    } as unknown as IDatabase;
+
+    const builder = QueryBuilder.create('users', mockDb as any);
+    builder.limit(99).offset(5);
+
+    const result = await builder.paginate(2, 10, { baseUrl: '/users', query: { q: 'a' } });
+
+    expect(result.total).toBe(25);
+    expect(result.perPage).toBe(10);
+    expect(result.currentPage).toBe(2);
+    expect(result.lastPage).toBe(3);
+    expect(result.items).toEqual([{ id: 1 }, { id: 2 }]);
+    expect(result.links.next).toContain('page=3');
+    expect(result.links.prev).toContain('page=1');
+
+    expect(builder.getLimit()).toBe(99);
+    expect(builder.getOffset()).toBe(5);
+
+    const calls = (mockDb.query as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(String(calls[0]?.[0])).toContain('COUNT(*)');
+    expect(String(calls[1]?.[0])).toContain('LIMIT 10');
+    expect(String(calls[1]?.[0])).toContain('OFFSET 10');
+  });
+
+  it('paginate rejects invalid page values', async () => {
+    const mockDb = {
+      query: vi.fn().mockResolvedValue([]),
+    } as unknown as IDatabase;
+
+    const builder = QueryBuilder.create('users', mockDb as any);
+
+    await expect(builder.paginate(0, 10)).rejects.toThrow(/positive integer/i);
+    await expect(builder.paginate(1, 0)).rejects.toThrow(/positive integer/i);
+  });
+
   it('should execute first()', async () => {
     const mockDb = {
       query: vi.fn().mockResolvedValue([{ id: 1 }]),

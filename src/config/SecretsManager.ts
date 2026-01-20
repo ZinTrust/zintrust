@@ -4,6 +4,7 @@
  * Supports: AWS Secrets Manager, Parameter Store, Cloudflare KV, Deno env
  */
 
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type {
   GetSecretOptions,
@@ -308,7 +309,7 @@ async function getFromDenoEnv(key: string): Promise<string> {
  */
 // eslint-disable-next-line @typescript-eslint/require-await
 async function getFromEnv(key: string): Promise<string> {
-  const value = process.env[key];
+  const value = Env.get(key, '');
   if (value === undefined || value === null || value === '') {
     throw ErrorFactory.createNotFoundError(`Secret not found: ${key}`, { key });
   }

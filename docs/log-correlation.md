@@ -81,7 +81,7 @@ Recommended fields (at minimum):
 - `tenantId` (optional; consider privacy)
 - `userId` (optional; consider privacy)
 
-ZinTrust’s `Logger` supports redaction and structured formats; prefer that over ad-hoc `console.log`.
+ZinTrust’s `Logger` supports redaction and structured formats; prefer that over ad-hoc logging.
 
 ## Common pitfalls
 

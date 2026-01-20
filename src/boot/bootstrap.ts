@@ -1,20 +1,20 @@
 /**
  * Application Bootstrap
- * Entry point for running the Zintrust server
+ * Entry point for running the ZinTrust server
  * Sealed namespace for immutability
  */
 
 import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
+import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-// Register plugins (adapters, drivers, etc.)
-// import '@/zintrust.plugins';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
 let isShuttingDown = false;
+let shutdownHandlersRegistered = false;
 
 const logBootstrapErrorDetails = (error: unknown): void => {
   // Best-effort: surface startup config validation details (already redacted)
@@ -47,10 +47,8 @@ const startSchedulesIfNeeded = async (
   app: ReturnType<typeof Application.create>
 ): Promise<void> => {
   try {
-    const { RuntimeDetector } = await import('@/runtime/RuntimeDetector');
-    const runtime = RuntimeDetector.detectRuntime();
+    const runtime = appConfig.detectRuntime();
     if (runtime !== 'nodejs' && runtime !== 'fargate') return;
-
     const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
     const schedules = await import('@/schedules');
     const runner = createScheduleRunner();
@@ -133,6 +131,21 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
       'Graceful shutdown timed out'
     );
 
+    // Shutdown worker management system first
+    if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+      try {
+        const { WorkerShutdown } = await import('@zintrust/workers');
+        await withTimeout(
+          WorkerShutdown.shutdown({ signal, timeout: 30000, forceExit: false }),
+          timeoutMs,
+          'Worker shutdown timed out'
+        );
+        Logger.info('Worker management system shutdown complete');
+      } catch (error) {
+        Logger.warn('Worker shutdown failed (continuing with app shutdown)', error as Error);
+      }
+    }
+
     globalThis.clearTimeout(forceExitTimer);
 
     process.exit(0);
@@ -142,6 +155,28 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
   }
 };
 
+async function useWorkerStarter(): Promise<void> {
+  // Initialize worker management system
+  let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
+  try {
+    const { WorkerInit } = await import('@zintrust/workers');
+    workerInit = WorkerInit;
+    await WorkerInit.initialize({
+      enableResourceMonitoring: true,
+      enableHealthMonitoring: true,
+      enableAutoScaling: false, // Disabled by default, enable via config
+      registerShutdownHandlers: true,
+      resourceMonitoringInterval: 60000,
+    });
+    Logger.info('Worker management system initialized');
+  } catch (error) {
+    Logger.warn('Worker management system initialization failed (non-fatal)', error as Error);
+    // Non-fatal - application can still run without worker management
+  }
+  if (workerInit?.autoStartPersistedWorkers) {
+    await workerInit.autoStartPersistedWorkers();
+  }
+}
 /**
  * Bootstrap implementation
  */
@@ -152,7 +187,9 @@ const BootstrapFunctions = Object.freeze({
   async start(): Promise<void> {
     try {
       // Create application instance
-      const app = Application.create();
+      // if (Env.ZINTRUST_PROJECT_ROOT) {
+      // }
+      const app = Application.create(Env.ZINTRUST_PROJECT_ROOT || undefined);
       appInstance = app;
 
       // Boot application
@@ -170,10 +207,14 @@ const BootstrapFunctions = Object.freeze({
       await server.listen();
 
       Logger.info(`Server running at http://${host}:${port}`);
-      Logger.info(`Zintrust documentation at http://${host}:${port}/doc`);
+      Logger.info(`ZinTrust documentation at http://${host}:${port}/doc`);
 
       // Start schedules for long-running runtimes (Node.js / Fargate)
       await startSchedulesIfNeeded(app);
+
+      if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+        await useWorkerStarter();
+      }
     } catch (error) {
       Logger.error('Failed to bootstrap application:', error as Error);
 
@@ -187,6 +228,9 @@ const BootstrapFunctions = Object.freeze({
    * Handle graceful shutdown
    */
   setupShutdownHandler(): void {
+    if (shutdownHandlersRegistered) return;
+    shutdownHandlersRegistered = true;
+
     process.on('SIGTERM', async () => {
       await gracefulShutdown('SIGTERM');
     });

@@ -1,7 +1,7 @@
 /**
  * D1 Remote Database Adapter
  *
- * Calls a Zintrust Cloudflare Worker proxy over HTTPS.
+ * Calls a ZinTrust Cloudflare Worker proxy over HTTPS.
  */
 
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';

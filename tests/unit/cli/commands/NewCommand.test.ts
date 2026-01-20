@@ -1091,9 +1091,12 @@ describe('NewCommand', () => {
       expect(pathStr.length).toBeGreaterThan(0);
     });
 
-    it('should preserve other env variables', () => {
+    it('should preserve other env variables', async () => {
       process.env['TEST_VAR_UNIQUE'] = 'test-value-unique';
-      const env = command.getSafeEnv();
+      vi.resetModules();
+      const { NewCommand: FreshNewCommand } = await import('@/cli/commands/NewCommand');
+      const freshCommand = FreshNewCommand.create();
+      const env = freshCommand.getSafeEnv();
       expect(env['TEST_VAR_UNIQUE']).toBe('test-value-unique');
       delete process.env['TEST_VAR_UNIQUE'];
     });

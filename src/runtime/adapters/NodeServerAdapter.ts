@@ -79,7 +79,7 @@ export const NodeServerAdapter = Object.freeze({
       },
 
       getEnvironment(): {
-        nodeEnv: string;
+        nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
         runtime: string;
         dbConnection: string;
         dbHost?: string;
@@ -149,7 +149,7 @@ async function stopNodeServer(
  * Get Node.js environment
  */
 function getNodeEnvironment(): {
-  nodeEnv: string;
+  nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
   runtime: string;
   dbConnection: string;
   dbHost?: string;
@@ -203,7 +203,7 @@ function handleRequest(
       }, timeout);
 
       try {
-        // Call Zintrust handler
+        // Call ZinTrust handler
         await config.handler(req, res, body);
       } finally {
         clearTimeout(timeoutHandle);

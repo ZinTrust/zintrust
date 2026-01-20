@@ -1,6 +1,6 @@
 {
   "name": "basic",
-  "description": "Basic Zintrust project structure",
+  "description": "Basic ZinTrust project structure",
   "directories": [
     "config",
     "app/Controllers",

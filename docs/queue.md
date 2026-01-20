@@ -37,6 +37,13 @@ Notes:
 zin add queue:redis
 ```
 
+### When to use queue-redis vs queue-monitor
+
+- ✅ Use `@zintrust/queue-redis` if you only need to **enqueue jobs** and another service will process them
+- ✅✅ Use `@zintrust/queue-monitor` if you need full queue management (enqueue + process + monitor + retry)
+
+**Note:** The monitor package can do everything queue-redis does, plus much more. So if you install `@zintrust/queue-monitor`, there's no need for `@zintrust/queue-redis`.
+
 ## RabbitMQ Driver
 
 Install:

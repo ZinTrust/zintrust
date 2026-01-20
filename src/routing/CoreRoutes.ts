@@ -49,7 +49,7 @@ async function handleHealthRoute(_req: IRequest, res: IResponse): Promise<void> 
   } catch (error) {
     Logger.error('Health check failed:', error);
 
-    const isProd = environment === 'production' || environment === 'prod';
+    const isProd = environment === 'production';
 
     res.setStatus(503).json({
       status: 'unhealthy',

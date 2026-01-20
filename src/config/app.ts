@@ -5,78 +5,142 @@
  */
 
 import { Env } from '@config/env';
-import type { Environment, ProcessLike, StartMode } from '@config/type';
+import type { Environment, StartMode } from '@config/type';
 
-const getProcessLike = (): ProcessLike | undefined => {
-  return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
+// Cache getSafeEnv result at module load time to avoid repeated object creation
+const anyEnv = Env as {
+  get?: (key: string, defaultValue?: string) => string;
+  getInt?: (key: string, defaultValue?: number) => number;
+  getBool?: (key: string, defaultValue?: boolean) => boolean;
 };
 
 const readEnvString = (key: string, defaultValue: string = ''): string => {
-  const anyEnv = Env as unknown as { get?: unknown };
   if (typeof anyEnv.get === 'function') {
-    return (anyEnv.get as (k: string, d?: string) => string)(key, defaultValue);
+    return anyEnv.get(key, defaultValue) ?? '';
   }
 
-  const proc = getProcessLike();
-  const raw = proc?.env?.[key];
-  return raw ?? defaultValue;
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string' && raw !== '') return raw;
+  }
+
+  return defaultValue;
 };
 
-const readEnvInt = (key: string, defaultValue: number): number => {
-  const anyEnv = Env as unknown as { getInt?: unknown };
+const readEnvInt = (key: string, defaultValue: number = 0): number => {
   if (typeof anyEnv.getInt === 'function') {
-    return (anyEnv.getInt as (k: string, d?: number) => number)(key, defaultValue);
+    return anyEnv.getInt(key, defaultValue);
   }
 
   const raw = readEnvString(key, String(defaultValue));
   const parsed = Number.parseInt(raw, 10);
-  return Number.isNaN(parsed) ? defaultValue : parsed;
+  return Number.isFinite(parsed) ? parsed : defaultValue;
 };
 
-const readEnvBool = (key: string, defaultValue: boolean): boolean => {
-  const anyEnv = Env as unknown as { getBool?: unknown };
+const readEnvBool = (key: string, defaultValue: boolean = false): boolean => {
   if (typeof anyEnv.getBool === 'function') {
-    return (anyEnv.getBool as (k: string, d?: boolean) => boolean)(key, defaultValue);
+    return anyEnv.getBool(key, defaultValue);
   }
 
-  const raw = readEnvString(key, defaultValue ? 'true' : 'false');
+  const raw = readEnvString(key, '');
+  if (raw === '') return defaultValue;
   return raw.toLowerCase() === 'true' || raw === '1';
 };
 
-const getSafeEnv = (): NodeJS.ProcessEnv => {
-  const baseEnv: Partial<NodeJS.ProcessEnv> = typeof process === 'undefined' ? {} : process.env;
+const readAppPort = (): number => {
+  if (typeof anyEnv.getInt === 'function') {
+    return anyEnv.getInt('PORT', anyEnv.getInt('APP_PORT', 3000));
+  }
 
-  return {
-    ...(baseEnv as NodeJS.ProcessEnv),
+  if (typeof Env.PORT === 'number' && Number.isFinite(Env.PORT) && Env.PORT > 0) {
+    return Env.PORT;
+  }
 
-    // Ensure required keys exist (env.d.ts augments ProcessEnv with required fields)
-    NODE_ENV:
-      baseEnv.NODE_ENV ??
-      (readEnvString('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV']),
-    USE_RAW_QRY: baseEnv.USE_RAW_QRY ?? (readEnvString('USE_RAW_QRY', '') || undefined),
-    SERVICE_API_KEY: baseEnv.SERVICE_API_KEY ?? readEnvString('SERVICE_API_KEY', ''),
-    SERVICE_JWT_SECRET:
-      baseEnv.SERVICE_JWT_SECRET ??
-      readEnvString('SERVICE_JWT_SECRET', '') ??
-      readEnvString('APP_KEY', ''),
-    BASE_URL: baseEnv['BASE_URL'] ?? readEnvString('BASE_URL', ''),
-    MODE: baseEnv['MODE'] ?? readEnvString('MODE', ''),
-
-    // Hardening for child-process usage
-    PATH:
-      typeof (Env as unknown as { SAFE_PATH?: unknown }).SAFE_PATH === 'string'
-        ? (Env as unknown as { SAFE_PATH: string }).SAFE_PATH
-        : (baseEnv['PATH'] ?? ''),
-    npm_config_scripts_prepend_node_path: 'true',
-  };
+  const portRaw = readEnvString('PORT', readEnvString('APP_PORT', '3000'));
+  const parsed = Number.parseInt(portRaw, 10);
+  return Number.isFinite(parsed) ? parsed : 3000;
 };
 
+/**
+ * Check if running on AWS Lambda
+ */
+function isLambda(): boolean {
+  return (
+    Env.getBool('LAMBDA_TASK_ROOT') === true ||
+    Env.getBool('AWS_LAMBDA_FUNCTION_NAME') === true ||
+    Env.getBool('AWS_EXECUTION_ENV') === true
+  );
+}
+
+/**
+ * Check if running on Cloudflare Workers
+ */
+function isCloudflare(): boolean {
+  return (globalThis as unknown as { CF: unknown }).CF !== undefined;
+}
+
+/**
+ * Check if running on Deno
+ */
+function isDeno(): boolean {
+  return (globalThis as unknown as { Deno: unknown }).Deno !== undefined;
+}
+
+/**
+ * Detect current runtime environment
+ */
+const detectRuntime = (): string => {
+  const explicit = Env.get('RUNTIME').trim();
+
+  if (explicit !== '' && explicit !== 'auto') return explicit;
+
+  // Auto-detection logic
+  if (isLambda() === true) {
+    return 'lambda';
+  }
+
+  if (isCloudflare() === true) {
+    return 'cloudflare';
+  }
+
+  if (isDeno() === true) {
+    return 'deno';
+  }
+
+  // Default to nodejs for containers (Fargate, Docker, Cloud Run)
+  return 'nodejs';
+};
+
+const resolvedNodeEnv = readEnvString('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'];
+
+// Cache getSafeEnv result at module load time to avoid repeated object creation
+const cachedSafeEnv: NodeJS.ProcessEnv = {
+  ...(typeof process === 'undefined' ? {} : process.env),
+  NODE_ENV: resolvedNodeEnv,
+  MODE: resolvedNodeEnv,
+  npm_config_scripts_prepend_node_path: 'true',
+};
+
+const useRawQry = readEnvString('USE_RAW_QRY');
+if (useRawQry !== '') cachedSafeEnv.USE_RAW_QRY = useRawQry;
+
+const serviceApiKey = readEnvString('SERVICE_API_KEY');
+if (serviceApiKey !== '') cachedSafeEnv.SERVICE_API_KEY = serviceApiKey;
+
+const serviceJwtSecret = readEnvString('SERVICE_JWT_SECRET') || readEnvString('APP_KEY');
+if (serviceJwtSecret !== '') cachedSafeEnv.SERVICE_JWT_SECRET = serviceJwtSecret;
+
+const baseUrl = readEnvString('BASE_URL');
+if (baseUrl !== '') cachedSafeEnv['BASE_URL'] = baseUrl;
+
+if (typeof Env.SAFE_PATH === 'string' && Env.SAFE_PATH !== '') {
+  cachedSafeEnv['PATH'] = Env.SAFE_PATH;
+}
+
+const getSafeEnv = (): NodeJS.ProcessEnv => cachedSafeEnv;
+
 const normalizeMode = (): StartMode => {
-  const value = (
-    typeof (Env as unknown as { NODE_ENV?: unknown }).NODE_ENV === 'string'
-      ? (Env as unknown as { NODE_ENV: string }).NODE_ENV
-      : readEnvString('NODE_ENV', 'development')
-  ) as Environment;
+  const value = readEnvString('NODE_ENV', Env.NODE_ENV ?? 'development') as Environment;
   if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
   if (value === 'testing' || value === 'test') return 'testing';
   return 'development';
@@ -86,10 +150,7 @@ const appConfigObj = {
   /**
    * Application name
    */
-  name:
-    typeof (Env as unknown as { APP_NAME?: unknown }).APP_NAME === 'string'
-      ? (Env as unknown as { APP_NAME: string }).APP_NAME
-      : readEnvString('APP_NAME', 'ZinTrust'),
+  name: readEnvString('APP_NAME', Env.APP_NAME),
 
   /**
    * Application environment
@@ -99,18 +160,12 @@ const appConfigObj = {
   /**
    * Application port
    */
-  port:
-    typeof (Env as unknown as { PORT?: unknown }).PORT === 'number'
-      ? (Env as unknown as { PORT: number }).PORT
-      : readEnvInt('APP_PORT', 3000),
+  port: readAppPort(),
 
   /**
    * Application host
    */
-  host:
-    typeof (Env as unknown as { HOST?: unknown }).HOST === 'string'
-      ? (Env as unknown as { HOST: string }).HOST
-      : readEnvString('HOST', 'localhost'),
+  host: readEnvString('HOST', Env.HOST),
 
   /**
    * Is development environment
@@ -136,27 +191,25 @@ const appConfigObj = {
   /**
    * Application debug mode
    */
-  debug:
-    typeof (Env as unknown as { DEBUG?: unknown }).DEBUG === 'boolean'
-      ? (Env as unknown as { DEBUG: boolean }).DEBUG
-      : readEnvBool('DEBUG', false),
+  debug: readEnvBool('DEBUG', Env.DEBUG),
 
   /**
    * Application timezone
    */
-  timezone: readEnvString('APP_TIMEZONE', 'UTC'),
+  timezone: readEnvString('APP_TIMEZONE', Env.APP_TIMEZONE),
 
   /**
    * Request timeout (milliseconds)
    */
-  requestTimeout: readEnvInt('REQUEST_TIMEOUT', 30000),
+  requestTimeout: readEnvInt('REQUEST_TIMEOUT', Env.REQUEST_TIMEOUT),
 
   /**
    * Max request body size
    */
-  maxBodySize: readEnvString('MAX_BODY_SIZE', '10mb'),
+  maxBodySize: readEnvInt('MAX_BODY_SIZE', Env.MAX_BODY_SIZE),
 
   getSafeEnv,
+  detectRuntime,
 } as const;
 
 export const appConfig = Object.freeze(appConfigObj);

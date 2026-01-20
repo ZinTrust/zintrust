@@ -8,11 +8,12 @@
 import { execSync } from '@/node-singletons/child-process';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { esmDirname, resolvePackageManager } from '@common/index';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import type { PluginDefinition} from '@runtime/PluginRegistry';
+import type { PluginDefinition } from '@runtime/PluginRegistry';
 import { PluginRegistry } from '@runtime/PluginRegistry';
 
 const __dirname = esmDirname(import.meta.url);
@@ -34,10 +35,27 @@ function findPackageRoot(startDir: string): string {
   return path.resolve(startDir, '../..');
 }
 
+const readEnvString = (key: string): string => {
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string') return raw;
+  }
+  return fromEnv ?? '';
+};
+
+const getProjectCwd = (): string => process.cwd();
+const getProjectRootEnv = (): string => readEnvString('ZINTRUST_PROJECT_ROOT');
+const getAllowPostInstallEnv = (): string => readEnvString('ZINTRUST_ALLOW_POSTINSTALL').trim();
+
 function resolveProjectRoot(): string {
-  const fromEnv = process.env['ZINTRUST_PROJECT_ROOT'];
-  if (fromEnv !== undefined && fromEnv.trim().length > 0) return fromEnv.trim();
-  return process.cwd();
+  const projectRootEnv = getProjectRootEnv();
+  if (projectRootEnv.trim().length > 0) {
+    return projectRootEnv.trim();
+  }
+  return getProjectCwd();
 }
 
 function resolveTemplateRootOrThrow(): string {
@@ -220,7 +238,7 @@ async function ensurePluginAutoImports(plugin: PluginDefinition): Promise<void> 
 
   const header =
     '/**\n' +
-    ' * Zintrust plugin auto-imports\n' +
+    ' * ZinTrust plugin auto-imports\n' +
     ' *\n' +
     ' * This file is managed by `zin plugin install` and contains side-effect\n' +
     ' * imports that register optional adapters/drivers into core registries.\n' +
@@ -269,7 +287,7 @@ function runPostInstall(plugin: PluginDefinition): void {
   if (plugin.postInstall.command !== undefined) {
     // Post-install command execution is opt-in. To avoid arbitrary command execution
     // and reduce supply-chain risk, we only execute when ZINTRUST_ALLOW_POSTINSTALL=1
-    const allow = String(process.env['ZINTRUST_ALLOW_POSTINSTALL'] ?? '').trim() === '1';
+    const allow = getAllowPostInstallEnv() === '1';
     if (allow) {
       Logger.info(`Running post-install command: ${plugin.postInstall.command}...`);
       try {

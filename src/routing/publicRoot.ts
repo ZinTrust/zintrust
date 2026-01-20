@@ -63,12 +63,15 @@ export const getFrameworkPublicRootsAsync = async (): Promise<string[]> => {
   return [path.join(packageRoot, 'dist/public'), path.join(packageRoot, 'public')];
 };
 
+// Cache process.cwd() at module load time
+const projectCwd = process.cwd();
+
 /**
  * Resolve the effective public root.
  * Prefers app-local `public/` when present; otherwise falls back to framework public roots.
  */
 export const getPublicRoot = (): string => {
-  const appRoots = [path.join(process.cwd(), 'public')];
+  const appRoots = [path.join(projectCwd, 'public')];
   const candidates = [...appRoots, ...getFrameworkPublicRoots()];
 
   // Prefer a root that contains an index.html (common for docs + dev portal).
@@ -89,7 +92,7 @@ export const getPublicRoot = (): string => {
  * Resolve the effective public root (async).
  */
 export const getPublicRootAsync = async (): Promise<string> => {
-  const appRoots = [path.join(process.cwd(), 'public')];
+  const appRoots = [path.join(projectCwd, 'public')];
   const fwRoots = await getFrameworkPublicRootsAsync();
   const candidates = [...appRoots, ...fwRoots];
 

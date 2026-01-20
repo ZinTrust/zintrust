@@ -1,6 +1,6 @@
 # @zintrust/db-mysql
 
-MySQL / MariaDB database adapter package for Zintrust (uses `mysql2`).
+MySQL / MariaDB database adapter package for ZinTrust (uses `mysql2`).
 
 ## Install
 

@@ -1,5 +1,3 @@
-// TEMPLATE_START
-
 import { generateSecureJobId } from '@/common/utility';
 import { Logger } from '@config/logger';
 
@@ -43,5 +41,3 @@ export const Queue = Object.freeze({
     await Promise.all(jobsToProcess.map(async (job) => handler(job)));
   },
 });
-
-// TEMPLATE_END

@@ -88,6 +88,8 @@ const queueConfigObj = {
     table: Env.get('FAILED_JOBS_TABLE', 'failed_jobs'),
 ```
 
+Note: The workers package and queue monitor share a Redis connection helper from core config. It uses the workers Redis settings (host/port/password/db), not the queue driver `database` field.
+
 ## Snapshot (bottom)
 
 ```ts

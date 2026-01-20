@@ -30,7 +30,7 @@ const addSeedOptions = (command: Command): void => {
 };
 
 const getInteractive = (options: CommandOptions): boolean =>
-  options['interactive'] !== false && process.env['CI'] !== 'true';
+  options['interactive'] !== false && Env.CI !== 'true';
 
 const ensureNonD1Driver = (driver: string): void => {
   if (driver === 'd1' || driver === 'd1-remote') {

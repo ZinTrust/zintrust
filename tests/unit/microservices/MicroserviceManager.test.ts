@@ -43,7 +43,6 @@ vi.mock('@/config/logger', () => ({
 }));
 
 vi.mock('@/http/Kernel');
-vi.mock('@/runtime/RuntimeDetector');
 
 vi.mock('@/security/UrlValidator', () => ({
   validateUrl: vi.fn(),

@@ -1,4 +1,4 @@
-import useFileLoader from '@/runtime/useFileLoader';
+import useFileLoader from '@runtime/useFileLoader';
 
 export const StartupConfigFile = {
   Broadcast: 'config/broadcast.ts',
@@ -9,6 +9,7 @@ export const StartupConfigFile = {
   Notification: 'config/notification.ts',
   Queue: 'config/queue.ts',
   Storage: 'config/storage.ts',
+  Workers: 'config/workers.ts',
 } as const;
 
 export type StartupConfigFileTyps =
@@ -19,7 +20,8 @@ export type StartupConfigFileTyps =
   | typeof StartupConfigFile.Middleware
   | typeof StartupConfigFile.Notification
   | typeof StartupConfigFile.Queue
-  | typeof StartupConfigFile.Storage;
+  | typeof StartupConfigFile.Storage
+  | typeof StartupConfigFile.Workers;
 
 const cache = new Map<StartupConfigFileTyps, unknown>();
 let preloaded = false;

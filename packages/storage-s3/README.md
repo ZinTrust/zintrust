@@ -1,6 +1,6 @@
 # @zintrust/storage-s3
 
-AWS S3 storage driver registration for Zintrust.
+AWS S3 storage driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/storage
 

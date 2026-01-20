@@ -1,6 +1,6 @@
 # @zintrust/storage-gcs
 
-Google Cloud Storage (GCS) storage driver registration for Zintrust.
+Google Cloud Storage (GCS) storage driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/storage
 

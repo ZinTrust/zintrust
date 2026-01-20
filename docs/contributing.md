@@ -47,7 +47,7 @@ npx husky init
 
 ### ESLint & Logger
 
-- **No `console.log`**: Use the `Logger` system ([src/config/logger.ts](src/config/logger.ts)).
+- **No `Logger.info` bypass**: Use the `Logger` system ([src/config/logger.ts](src/config/logger.ts)).
 - **Catch Blocks**: Every `catch` block **must** include a `Logger.error(error)` call.
 - **Automated Fixes**: Run `zin fix` to automatically resolve common linting issues.
 

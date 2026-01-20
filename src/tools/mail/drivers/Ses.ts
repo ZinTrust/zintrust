@@ -1,4 +1,5 @@
 import { AwsSigV4 } from '@common/index';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type SesConfig = {
@@ -76,9 +77,20 @@ const ensureCredentials = (): {
   secretAccessKey: string;
   sessionToken?: string;
 } => {
-  const accessKeyId = process.env['AWS_ACCESS_KEY_ID'] ?? '';
-  const secretAccessKey = process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-  const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
+  const readEnvString = (key: string): string => {
+    const anyEnv = Env as { get?: (k: string, d?: string) => string };
+    const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+    if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+    if (typeof process !== 'undefined') {
+      const raw = process.env?.[key];
+      if (typeof raw === 'string') return raw;
+    }
+    return fromEnv ?? '';
+  };
+
+  const accessKeyId = readEnvString('AWS_ACCESS_KEY_ID') || Env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = readEnvString('AWS_SECRET_ACCESS_KEY') || Env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken = readEnvString('AWS_SESSION_TOKEN') || Env.AWS_SESSION_TOKEN || undefined;
 
   if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
     throw ErrorFactory.createConfigError(

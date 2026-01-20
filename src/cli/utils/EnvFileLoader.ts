@@ -1,6 +1,11 @@
 import { existsSync, readFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 
+// NOTE: This module intentionally uses direct process.env[*] mutations
+// as its primary purpose is to load .env files and populate process.env
+// during application initialization. This is the only location where
+// such mutations should occur - all other code should use Env.get().
+
 type EnvMap = Record<string, string>;
 
 const normalizeAppMode = (value: string): string => {

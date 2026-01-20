@@ -5,6 +5,7 @@
  */
 
 import { Cache } from '@cache/Cache';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
@@ -108,7 +109,7 @@ const resolveStore = (
   name?: RateLimitStoreName
 ): { storeName: RateLimitStoreName; store: RateLimitStore } => {
   const selected = normalizeStoreName(
-    name ?? process.env['RATE_LIMIT_STORE'] ?? process.env['RATE_LIMIT_DRIVER'] ?? 'memory'
+    (name ?? Env.RATE_LIMIT_STORE) || Env.RATE_LIMIT_DRIVER || 'memory'
   );
 
   if (selected === 'redis') return { storeName: 'redis', store: createCacheStore('redis') };
@@ -118,12 +119,12 @@ const resolveStore = (
 };
 
 let serviceStoreSelection: RateLimitStoreName = normalizeStoreName(
-  process.env['RATE_LIMIT_STORE'] ?? process.env['RATE_LIMIT_DRIVER'] ?? 'memory'
+  Env.RATE_LIMIT_STORE || Env.RATE_LIMIT_DRIVER || 'memory'
 );
 let serviceStore: RateLimitStore = resolveStore(serviceStoreSelection).store;
 
 const prefixKey = (purpose: 'service' | 'middleware', key: string): string => {
-  const prefix = (process.env['RATE_LIMIT_KEY_PREFIX'] ?? 'zintrust:ratelimit:').toString().trim();
+  const prefix = Env.RATE_LIMIT_KEY_PREFIX.trim();
   return `${prefix}${purpose}:${key}`;
 };
 

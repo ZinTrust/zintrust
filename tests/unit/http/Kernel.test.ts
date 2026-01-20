@@ -1,7 +1,7 @@
 import { Logger } from '@/config/logger';
-import type { IServiceContainer} from '@/container/ServiceContainer';
+import type { IServiceContainer } from '@/container/ServiceContainer';
 import { ServiceContainer } from '@/container/ServiceContainer';
-import type { IKernel} from '@/http/Kernel';
+import type { IKernel } from '@/http/Kernel';
 import { Kernel } from '@/http/Kernel';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { Router } from '@/routing/Router';

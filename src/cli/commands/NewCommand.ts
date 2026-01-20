@@ -1,6 +1,6 @@
 /**
  * New Command - Project scaffolding CLI command
- * Handles creation of new Zintrust projects
+ * Handles creation of new ZinTrust projects
  */
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
@@ -10,6 +10,7 @@ import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { extractErrorMessage, resolvePackageManager } from '@common/index';
 import { appConfig } from '@config/app';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
@@ -65,7 +66,7 @@ const initializeGitRepo = (projectPath: string, log: Pick<IBaseCommand, 'info' |
     const env = appConfig.getSafeEnv();
     execFileSync(git, ['init'], { cwd: projectPath, stdio: 'ignore', env });
     execFileSync(git, ['add', '.'], { cwd: projectPath, stdio: 'ignore', env });
-    execFileSync(git, ['commit', '-m', 'Initial commit from Zintrust'], {
+    execFileSync(git, ['commit', '-m', 'Initial commit from ZinTrust'], {
       cwd: projectPath,
       stdio: 'ignore',
       env,
@@ -106,7 +107,7 @@ const getProjectDefaults = (name: string, options: CommandOptions): NewProjectCo
   const port = Number.isFinite(portParsed) && portParsed > 0 ? portParsed : 7777;
 
   const author = getStringOption(options, 'author', '');
-  const description = getStringOption(options, 'description', `A new Zintrust project: ${name}`);
+  const description = getStringOption(options, 'description', `A new ZinTrust project: ${name}`);
   const interactive = getBooleanOption(options, 'interactive', true);
 
   return { name, template, database, port, author, description, interactive };
@@ -164,7 +165,7 @@ const getQuestions = (name: string, defaults: NewProjectConfig): InquirerQuestio
       name: 'description',
       message: 'Project description:',
       default:
-        defaults.description === '' ? `A new Zintrust project: ${name}` : defaults.description,
+        defaults.description === '' ? `A new ZinTrust project: ${name}` : defaults.description,
     },
   ];
 };
@@ -253,8 +254,20 @@ const installDependencies = async (
   force: boolean = false
 ): Promise<void> => {
   // Respect CI by default — avoid network installs in CI unless explicitly allowed
-  const isCi = Boolean(process.env['CI']);
-  const allowAuto = process.env['ZINTRUST_ALLOW_AUTO_INSTALL'] === '1' || force;
+  const readEnvString = (key: string): string => {
+    const anyEnv = Env as { get?: (k: string, d?: string) => string };
+    const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+    if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+    if (typeof process !== 'undefined') {
+      const raw = process.env?.[key];
+      if (typeof raw === 'string') return raw;
+    }
+    return fromEnv ?? '';
+  };
+
+  const ciRaw = readEnvString('CI').trim().toLowerCase();
+  const isCi = ciRaw !== '' && ciRaw !== '0' && ciRaw !== 'false';
+  const allowAuto = readEnvString('ZINTRUST_ALLOW_AUTO_INSTALL') === '1' || force;
 
   if (isCi && !allowAuto) {
     log.info('Skipping automatic dependency installation in CI environment.');
@@ -363,7 +376,7 @@ const createProject = async (
   command: INewCommand
 ): Promise<void> => {
   const config = await command.getProjectConfig(target.name, options);
-  command.info(chalk.bold(`\n🚀 Creating new Zintrust project in ${target.display}...\n`));
+  command.info(chalk.bold(`\n🚀 Creating new ZinTrust project in ${target.display}...\n`));
 
   const overwrite = options['overwrite'] === true || options['force'] === true ? true : undefined;
   const result = await command.runScaffolding(target.basePath, target.name, config, overwrite);
@@ -460,7 +473,7 @@ const createNewCommandInstance = (): INewCommand => {
 
   const base = BaseCommand.create({
     name: 'new',
-    description: 'Create a new Zintrust project',
+    description: 'Create a new ZinTrust project',
     addOptions,
     execute: async (options: CommandOptions): Promise<void> => {
       await executeImpl(options);

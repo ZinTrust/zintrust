@@ -479,3 +479,130 @@ export const PackageTyps = {
 } as const;
 
 export type SupportedPackageTyps = keyof typeof PackageTyps;
+
+export type WorkerStatus =
+  | 'stopped'
+  | 'starting'
+  | 'running'
+  | 'stopping'
+  | 'sleeping'
+  | 'unhealthy';
+
+export type WorkerAutoScalingConfig = {
+  minConcurrency: number;
+  maxConcurrency: number;
+  scaleUpThreshold: number;
+  scaleDownThreshold: number;
+  cooldownPeriod: number;
+  enabled: boolean;
+  minWorkers: number;
+  maxWorkers: number;
+  queueThreshold: number;
+  scaleUpCooldown: number;
+  scaleDownCooldown: number;
+};
+
+export type WorkerVersioningConfig = {
+  enabled: boolean;
+  current: string;
+  canary?: {
+    enabled: boolean;
+    version: string;
+    percentage: number;
+    errorThreshold: number;
+    duration: number;
+  };
+};
+
+export type WorkerComplianceConfig = {
+  gdpr: boolean;
+  hipaa: boolean;
+  soc2: boolean;
+  certifications: ReadonlyArray<string>;
+};
+
+export type WorkerCostConfig = {
+  enabled: boolean;
+  budgetLimit: number;
+  currency: string;
+  alertThreshold: number;
+};
+
+export type WorkerObservabilityConfig = {
+  prometheus: {
+    enabled: boolean;
+    port: number;
+  };
+  opentelemetry: {
+    enabled: boolean;
+    endpoint: string;
+  };
+  datadog: {
+    enabled: boolean;
+    apiKey: string;
+  };
+};
+
+export type WorkerConfig = {
+  name: string;
+  enabled: boolean;
+  concurrency: number;
+  timeout: number;
+  retries: number;
+  autoStart: boolean;
+  priority: number;
+  queues: ReadonlyArray<string>;
+  region: string;
+  healthCheckInterval: number;
+  clusterMode: boolean;
+  autoScaling: WorkerAutoScalingConfig;
+  versioning: WorkerVersioningConfig;
+  compliance: WorkerComplianceConfig;
+  cost: WorkerCostConfig;
+};
+
+export type WorkersGlobalConfig = {
+  enabled: boolean;
+  healthCheckInterval: number;
+  clusterMode: boolean;
+  autoScaling: {
+    enabled: boolean;
+    interval: number;
+    offPeakSchedule: string;
+    offPeakReduction: number;
+  };
+  costOptimization: {
+    enabled: boolean;
+    spotInstances: boolean;
+    offPeakScaling: boolean;
+  };
+  compliance: {
+    auditLog: boolean;
+    encryption: boolean;
+    dataRetention: number;
+    gdpr: boolean;
+    hipaa: boolean;
+    soc2: boolean;
+  };
+  observability: WorkerObservabilityConfig;
+  defaultWorker: Partial<WorkerConfig>;
+};
+
+export type WorkersConfigOverrides = Partial<{
+  enabled: boolean;
+  healthCheckInterval: number;
+  clusterMode: boolean;
+  autoScaling: Partial<WorkersGlobalConfig['autoScaling']>;
+  costOptimization: Partial<WorkersGlobalConfig['costOptimization']>;
+  compliance: Partial<WorkersGlobalConfig['compliance']>;
+  observability: Partial<WorkerObservabilityConfig>;
+  defaultWorker: Partial<WorkerConfig>;
+  workers: Record<string, Partial<WorkerConfig>>;
+}>;
+
+export type RedisConfig = {
+  host: string;
+  port: number;
+  password?: string;
+  db?: number;
+};

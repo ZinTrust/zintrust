@@ -1,6 +1,6 @@
 # @zintrust/queue-sqs
 
-AWS SQS queue driver registration for Zintrust.
+AWS SQS queue driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/queue
 

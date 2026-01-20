@@ -1,7 +1,9 @@
 /**
  * Configuration Schema
- * Defines the structure and types for Zintrust configuration
+ * Defines the structure and types for ZinTrust configuration
  */
+
+import { Env } from '@config/env';
 
 export interface DatabaseConfig {
   connection: 'sqlite' | 'postgres' | 'mysql' | 'mariadb';
@@ -71,7 +73,7 @@ export interface ProjectConfig {
 export const DEFAULT_CONFIG = Object.freeze({
   name: 'zintrust-app',
   version: '1.0.0',
-  description: 'A Zintrust application',
+  description: 'A ZinTrust application',
   author: 'Developer',
   database: {
     connection: 'sqlite',
@@ -114,7 +116,7 @@ export const DEFAULT_CONFIG = Object.freeze({
 /**
  * Configuration paths
  */
-const HOME_DIR = process.env['HOME'] ?? process.env['USERPROFILE'] ?? '';
+const HOME_DIR = Env.HOME || Env.USERPROFILE || '';
 const GLOBAL_DIR = `${HOME_DIR}/.zintrust`;
 
 /**

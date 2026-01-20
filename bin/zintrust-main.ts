@@ -1,5 +1,5 @@
 /**
- * Zintrust CLI - Main Entry Point (hashbang-free)
+ * ZinTrust CLI - Main Entry Point (hashbang-free)
  *
  * This module contains the CLI implementation without a hashbang so that it can
  * be imported by other bin shortcuts (zin/z/zt) without parse errors.
@@ -38,7 +38,7 @@ const isVersionRequest = (args: string[]): boolean => {
 };
 
 const printFancyVersion = (version: string): void => {
-  const framework = 'Zintrust Framework';
+  const framework = 'ZinTrust Framework';
   const bannerWidth = 46;
   const env = (process.env['NODE_ENV'] ?? 'development').toString();
   const db = (process.env['DB_CONNECTION'] ?? 'sqlite').toString();

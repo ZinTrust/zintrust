@@ -12,7 +12,10 @@
     "sourceMap": false,
     "composite": false,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "paths": {}
+    "paths": {
+      "@zintrust/core": ["../../dist/src/index"],
+      "@zintrust/core/*": ["../../dist/src/*"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

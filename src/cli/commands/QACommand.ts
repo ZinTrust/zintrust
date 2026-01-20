@@ -370,7 +370,7 @@ const generateQAReport = (results: QAResults): string => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zintrust QA Report</title>
+    <title>ZinTrust QA Report</title>
     <link rel="stylesheet" href="base.css">
     <link rel="stylesheet" href="qa-report.css">
 </head>
@@ -378,7 +378,7 @@ const generateQAReport = (results: QAResults): string => {
     <main class="qa-shell">
       <section class="qa-panel">
         <header class="qa-hero">
-          <h1 class="qa-title">Zintrust QA Report</h1>
+          <h1 class="qa-title">ZinTrust QA Report</h1>
           <p class="qa-subtitle">Quality Assurance Suite Results</p>
           <div class="qa-meta">Generated on ${timestamp}</div>
         </header>
@@ -404,7 +404,7 @@ const generateQAReport = (results: QAResults): string => {
           </div>
         </div>
 
-        <footer class="qa-footer">Zintrust Framework QA Suite | Generated automatically</footer>
+        <footer class="qa-footer">ZinTrust Framework QA Suite | Generated automatically</footer>
       </section>
     </main>
 </body>
@@ -494,7 +494,7 @@ const addOptions = (command: Command): void => {
 
 const executeQA = async (qa: IQACommand, options: CommandOptions): Promise<void> => {
   try {
-    qa.info('Starting Zintrust QA Suite...');
+    qa.info('Starting ZinTrust QA Suite...');
     const results = createResults();
 
     await qa.runLint(results.lint);

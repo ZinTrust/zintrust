@@ -15,11 +15,13 @@ import { getPublicRoot } from '@routing/publicRoot';
 import type { IRouter } from '@routing/Router';
 import { Router } from '@routing/Router';
 
+// Cache Set at module level to avoid repeated creation
+const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);
+
 const redactHeaders = (headers: Record<string, unknown>): Record<string, unknown> => {
-  const redacted = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (redacted.has(key.toLowerCase())) {
+    if (REDACTED_HEADERS.has(key.toLowerCase())) {
       out[key] = '[redacted]';
       continue;
     }

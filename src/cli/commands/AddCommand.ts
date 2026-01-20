@@ -1,6 +1,6 @@
 /**
  * Add Command - Phase 4 Integration
- * Add services and features to existing Zintrust project
+ * Add services and features to existing ZinTrust project
  */
 
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
@@ -18,10 +18,9 @@ import { ModelGenerator } from '@cli/scaffolding/ModelGenerator';
 import { RequestFactoryGenerator } from '@cli/scaffolding/RequestFactoryGenerator';
 import type {
   ResponseFactoryGeneratorResult,
-  ResponseField} from '@cli/scaffolding/ResponseFactoryGenerator';
-import {
-  ResponseFactoryGenerator
+  ResponseField,
 } from '@cli/scaffolding/ResponseFactoryGenerator';
+import { ResponseFactoryGenerator } from '@cli/scaffolding/ResponseFactoryGenerator';
 import { RouteGenerator } from '@cli/scaffolding/RouteGenerator';
 import { SeederGenerator } from '@cli/scaffolding/SeederGenerator';
 import { ServiceScaffolder } from '@cli/scaffolding/ServiceScaffolder';

@@ -7,7 +7,7 @@ describe('Mail (Mailgun)', () => {
 
     process.env['MAIL_DRIVER'] = 'mailgun';
     process.env['MAIL_FROM_ADDRESS'] = 'no-reply@example.com';
-    process.env['MAIL_FROM_NAME'] = 'Zintrust';
+    process.env['MAIL_FROM_NAME'] = 'ZinTrust';
     process.env['MAILGUN_API_KEY'] = 'key-test';
     process.env['MAILGUN_DOMAIN'] = 'mg.example.com';
     process.env['MAILGUN_BASE_URL'] = 'https://api.mailgun.net';
@@ -66,7 +66,7 @@ describe('Mail (Mailgun)', () => {
     expect(String(map.get('text'))).toBe('Plain text');
     expect(String(map.get('html'))).toBe('<p>Hello</p>');
     expect(String(map.get('to'))).toBe('user1@example.com,user2@example.com');
-    expect(String(map.get('from'))).toBe('Zintrust <no-reply@example.com>');
+    expect(String(map.get('from'))).toBe('ZinTrust <no-reply@example.com>');
   });
 
   it('errors if MAILGUN_API_KEY is missing', async () => {

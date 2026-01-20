@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 describe('Mail Markdown Templates', () => {
   it('loads auth/welcome.md and returns metadata and content', () => {
     const tpl = loadTemplate('auth/welcome');
-    expect(tpl.subject).toBe('Welcome to Zintrust');
+    expect(tpl.subject).toBe('Welcome to ZinTrust');
     expect(tpl.preheader).toBe('Thanks for joining our platform');
     expect(tpl.variables).toContain('name');
     const html = MarkdownRenderer.render(tpl.content, {

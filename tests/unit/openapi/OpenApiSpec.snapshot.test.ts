@@ -28,7 +28,7 @@ vi.mock('@config/env', () => ({
     get: vi.fn((_key: string, defaultVal?: string) => defaultVal ?? ''),
     getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
     getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
-    APP_NAME: 'Zintrust Framework',
+    APP_NAME: 'ZinTrust Framework',
     NODE_ENV: 'test',
     HOST: 'localhost',
     PORT: 3000,
@@ -52,7 +52,7 @@ describe('OpenAPI spec snapshot', () => {
     registerRoutes(router);
 
     const doc = OpenApiGenerator.generate(RouteRegistry.list(), {
-      title: 'Zintrust Framework',
+      title: 'ZinTrust Framework',
       version: '0.0.0',
       excludePaths: ['/openapi.json', '/docs'],
     });

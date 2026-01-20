@@ -105,7 +105,7 @@ await adapter.connect();
 
 // Get pool statistics
 const stats = adapter.getPoolStats();
-console.log(`Connections: ${stats.totalConnections}, Idle: ${stats.idleConnections}`);
+Logger.info(`Connections: ${stats.totalConnections}, Idle: ${stats.idleConnections}`);
 
 // Run transaction with QueryBuilder (Recommended)
 const { User } = await import('@app/Models/User');

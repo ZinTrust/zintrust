@@ -1,4 +1,3 @@
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -12,6 +11,7 @@ import { RateLimiter } from '@middleware/RateLimiter';
 import { SanitizeBodyMiddleware } from '@middleware/SanitizeBodyMiddleware';
 import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 import { Sanitizer } from '@security/Sanitizer';
 import { Schema } from '@validation/Validator';
 

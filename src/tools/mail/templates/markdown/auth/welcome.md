@@ -1,4 +1,4 @@
-<!-- Subject: Welcome to Zintrust -->
+<!-- Subject: Welcome to ZinTrust -->
 <!-- Preheader: Thanks for joining our platform -->
 <!-- Variables: name, confirmLink, expiryMinutes -->
 

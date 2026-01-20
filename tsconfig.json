@@ -11,12 +11,15 @@
     "moduleResolution": "bundler",
     "paths": {
       "@zintrust/core": ["./src/index.ts"],
+      "@zintrust/workers": ["./packages/workers/src/index.ts"],
+      "@zintrust/workers/*": ["./packages/workers/src/*"],
       "@/*": ["./src/*"],
       "@boot/*": ["./src/boot/*"],
       "@cli/*": ["./src/cli/*"],
       "@orm/*": ["./src/orm/*"],
       "@utils/*": ["./src/utils/*"],
       "@routing/*": ["./src/routing/*"],
+      "@workers/*": ["./src/workers/*"],
       "@migrations/*": ["./src/migrations/*"],
       "@middleware/*": ["./src/middleware/*"],
       "@container/*": ["./src/container/*"],
@@ -80,7 +83,16 @@
     "emitDecoratorMetadata": true,
     "downlevelIteration": true
   },
-  "include": ["src/**/*", "app/**/*", "routes/**/*", "bin/**/*", "database/**/*", "env.d.ts"],
+  "include": [
+    "src/**/*",
+    "app/**/*",
+    "routes/**/*",
+    "bin/**/*",
+    "database/**/*",
+    "packages/workers/src/**/*",
+    "env.d.ts",
+    "processors"
+  ],
   "exclude": [
     "node_modules",
     "dist",
@@ -99,6 +111,7 @@
     "wrangler.jsonc",
     "dev",
     "simulate",
-    "test-project"
+    "test-project",
+    "processors"
   ]
 }

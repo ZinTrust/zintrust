@@ -7,7 +7,7 @@ describe('Mail (SES)', () => {
 
     process.env['MAIL_DRIVER'] = 'ses';
     process.env['MAIL_FROM_ADDRESS'] = 'no-reply@example.com';
-    process.env['MAIL_FROM_NAME'] = 'Zintrust';
+    process.env['MAIL_FROM_NAME'] = 'ZinTrust';
     process.env['AWS_REGION'] = 'us-east-1';
     process.env['AWS_ACCESS_KEY_ID'] = 'AKIA..';
     process.env['AWS_SECRET_ACCESS_KEY'] = 'secret';

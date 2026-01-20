@@ -3,6 +3,7 @@ import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -39,8 +40,19 @@ const normalizeMode = (value: StartModeInput): StartMode => {
   return 'development';
 };
 
+const readEnvString = (key: string): string => {
+  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+  if (typeof process !== 'undefined') {
+    const raw = process.env?.[key];
+    if (typeof raw === 'string') return raw;
+  }
+  return fromEnv ?? '';
+};
+
 const resolveModeFromAppMode = (): StartMode => {
-  const raw = typeof process.env['APP_MODE'] === 'string' ? process.env['APP_MODE'].trim() : '';
+  const raw = readEnvString('APP_MODE').trim();
   const normalized = raw.toLowerCase();
 
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod') {
@@ -74,14 +86,13 @@ const resolvePort = (options: StartCommandOptions): number | undefined => {
     return parsed;
   }
 
-  // .env is primary (loaded by EnvFileLoader with overrideExisting=true)
-  const envPort = process.env['APP_PORT'] ?? process.env['PORT'] ?? '';
-  if (envPort === '') return undefined;
+  const envPortRaw = process.env['APP_PORT'] ?? process.env['PORT'] ?? '';
+  if (envPortRaw === '') return undefined;
 
-  const parsed = Number.parseInt(envPort, 10);
+  const parsed = Number.parseInt(String(envPortRaw), 10);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 65536) {
     throw ErrorFactory.createCliError(
-      `Error: Invalid APP_PORT/PORT '${envPort}'. Expected 1-65535.`
+      `Error: Invalid APP_PORT/PORT '${envPortRaw}'. Expected 1-65535.`
     );
   }
   return parsed;
@@ -132,7 +143,7 @@ const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string
   const packagePath = path.join(cwd, 'package.json');
   if (!existsSync(packagePath)) {
     throw ErrorFactory.createCliError(
-      "Error: No Zintrust app found. Run 'zin new <project>' or ensure package.json exists."
+      "Error: No ZinTrust app found. Run 'zin new <project>' or ensure package.json exists."
     );
   }
 

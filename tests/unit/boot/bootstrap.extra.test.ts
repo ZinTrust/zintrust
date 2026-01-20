@@ -78,8 +78,8 @@ describe('Bootstrap edge branches', () => {
     }));
 
     // Make runtime detection throw to hit the catch branch inside start
-    vi.mock('@/runtime/RuntimeDetector', () => ({
-      RuntimeDetector: {
+    vi.mock('@config/app', () => ({
+      appConfig: {
         detectRuntime: () => {
           throw new Error('boom');
         },
@@ -128,8 +128,8 @@ describe('Bootstrap edge branches', () => {
     }));
 
     // Make runtime detect a nodejs runtime
-    vi.mock('@/runtime/RuntimeDetector', () => ({
-      RuntimeDetector: { detectRuntime: () => 'nodejs' },
+    vi.mock('@config/app', () => ({
+      appConfig: { detectRuntime: () => 'nodejs' },
     }));
 
     // Mock ScheduleRunner (use global hook for safety)
