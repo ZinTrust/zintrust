@@ -1,5 +1,5 @@
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { AwsSigV4 } from '@common/index';
-import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type AwsCredentials = {
@@ -9,17 +9,6 @@ export type AwsCredentials = {
 };
 
 const sha256Hex = (data: string | Uint8Array): string => AwsSigV4.sha256Hex(data);
-
-const readEnvString = (key: string): string => {
-  const anyEnv = Env as { get?: (k: string, d?: string) => string };
-  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
-  if (typeof process !== 'undefined') {
-    const raw = process.env?.[key];
-    if (typeof raw === 'string') return raw;
-  }
-  return fromEnv ?? '';
-};
 
 const buildAuthorization = (params: {
   method: string;

@@ -136,10 +136,10 @@ These environment variables control worker behavior. Set only what you need.
 ```bash
 # Worker lifecycle
 zin worker:list
-zin worker:status <name>
-zin worker:start <name>
-zin worker:stop <name>
-zin worker:restart <name>
+zin worker:status &lt;name&gt;
+zin worker:start &lt;name&gt;
+zin worker:stop &lt;name&gt;
+zin worker:restart &lt;name&gt;
 zin worker:summary
 
 # Resource monitoring
@@ -451,7 +451,7 @@ Output:
 └──────────────┴──────────┴─────────┴───────────┴─────────────┘
 ```
 
-### worker:status <name>
+### worker:status &lt;name&gt;
 
 Get detailed status for a specific worker:
 
@@ -477,7 +477,7 @@ Metrics:
   Avg Duration:    1.2s
 ```
 
-### worker:start <name>
+### worker:start &lt;name&gt;
 
 Start a stopped worker:
 
@@ -485,7 +485,7 @@ Start a stopped worker:
 zintrust worker:start email-sender
 ```
 
-### worker:stop <name>
+### worker:stop &lt;name&gt;
 
 Stop a running worker gracefully:
 
@@ -493,7 +493,7 @@ Stop a running worker gracefully:
 zintrust worker:stop email-sender
 ```
 
-### worker:restart <name>
+### worker:restart &lt;name&gt;
 
 Restart a worker:
 
@@ -550,9 +550,9 @@ zin rm stop --host 192.168.1.100
 
 **Options:**
 
-- `<action>` - Required: `start` or `stop`
-- `--port <port>` - Worker service port (default: 7777)
-- `--host <host>` - Worker service host (default: 127.0.0.1)
+- `&lt;action&gt;` - Required: `start` or `stop`
+- `--port &lt;port&gt;` - Worker service port (default: 7777)
+- `--host &lt;host&gt;` - Worker service host (default: 127.0.0.1)
 
 **Examples:**
 
@@ -570,12 +570,14 @@ zin rm stop --host 192.168.1.100 --port 7777
 **Output:**
 
 ```bash
+# Stop monitoring
 $ zin rm stop
-[INFO] Sending stop request to http://127.0.0.1:7777/api/resources/stop...
+[INFO] Sending stop request
 [INFO] Success: Resource monitoring stopped
 
+# Start monitoring
 $ zin rm start
-[INFO] Sending start request to http://127.0.0.1:7777/api/resources/start...
+[INFO] Sending start request
 [INFO] Success: Resource monitoring started
 ```
 
@@ -1087,7 +1089,7 @@ $ zin rm pause
 #### Related Commands
 
 - `zin worker:list` - List all workers
-- `zin worker:status <name>` - Check worker health
+- `zin worker:status &lt;name&gt;` - Check worker health
 - `zin start --verbose` - Start with verbose logging
 - `zin logs` - View application logs
 

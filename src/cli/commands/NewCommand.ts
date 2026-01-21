@@ -8,9 +8,9 @@ import { PromptHelper } from '@cli/PromptHelper';
 import { GovernanceScaffolder } from '@cli/scaffolding/GovernanceScaffolder';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { extractErrorMessage, resolvePackageManager } from '@common/index';
 import { appConfig } from '@config/app';
-import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
 import * as path from '@node-singletons/path';
@@ -254,17 +254,6 @@ const installDependencies = async (
   force: boolean = false
 ): Promise<void> => {
   // Respect CI by default — avoid network installs in CI unless explicitly allowed
-  const readEnvString = (key: string): string => {
-    const anyEnv = Env as { get?: (k: string, d?: string) => string };
-    const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
-    if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
-    if (typeof process !== 'undefined') {
-      const raw = process.env?.[key];
-      if (typeof raw === 'string') return raw;
-    }
-    return fromEnv ?? '';
-  };
-
   const ciRaw = readEnvString('CI').trim().toLowerCase();
   const isCi = ciRaw !== '' && ciRaw !== '0' && ciRaw !== 'false';
   const allowAuto = readEnvString('ZINTRUST_ALLOW_AUTO_INSTALL') === '1' || force;

@@ -1,5 +1,5 @@
 import { pathToFileURL } from '@/node-singletons/url';
-import { Env } from '@config/env';
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync } from '@node-singletons/fs';
@@ -13,17 +13,6 @@ type ImportResult =
       reason: 'not-found' | 'import-failed';
       errorMessage?: string;
     };
-
-const readEnvString = (key: string): string => {
-  const anyEnv = Env as { get?: (k: string, d?: string) => string };
-  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
-  if (typeof process !== 'undefined') {
-    const raw = process.env?.[key];
-    if (typeof raw === 'string') return raw;
-  }
-  return fromEnv ?? '';
-};
 
 const getProjectCwd = (): string => process.cwd();
 const getProjectRootEnv = (): string => readEnvString('ZINTRUST_PROJECT_ROOT');

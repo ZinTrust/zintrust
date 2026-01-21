@@ -147,10 +147,6 @@ function main() {
 
   for (const target of targets) {
     const content = readTargetFile(target.filePath);
-    // const result =
-    //   action === 'comment'
-    //     ? commentOut(content, target.markers)
-    //     : uncomment(content, target.markers);
     const result =
       action === 'comment'
         ? commentOut(content, target.markers)
