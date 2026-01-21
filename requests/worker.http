@@ -41,8 +41,8 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "example-test-redis3",
-  "queueName": "example-redis2",
+  "name": "example-test-mysql2",
+  "queueName": "example-mysql1",
   "processor": "processors/emailProcessor.ts",
   "version": "1.0.0",
   "options": {
@@ -53,7 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
-  "persistence": { "driver": "redis"},
+  "persistence": { "driver": "db"},
     "redis": {
       "env": true,
       "host": "REDIS_HOST",
