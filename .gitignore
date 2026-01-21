@@ -75,3 +75,6 @@ app/Controllers/TestController.ts
 app/Workers/TestWorker.ts
 routes/apiDev.ts
 processors/
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.windsurf/rules/snyk_rules.md

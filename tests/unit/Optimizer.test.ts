@@ -340,13 +340,13 @@ describe('PerformanceOptimizer', () => {
     expect(stats.cacheStatus.size).toBe(0);
     expect(stats.cacheStatus.keys).toEqual([]);
 
-    await optimizer.saveCache();
+    optimizer.saveCache();
     // save should attempt to create the cache directory when missing
     // expect(mkdirSync).toHaveBeenCalled();
     // NOTE: access default mock resolves (success), so mkdir won't be called unless we force access fail.
     // For now just ensure async call completes.
 
-    await optimizer.clear();
+    optimizer.clear();
     expect(optimizer.getStats().hitRate).toBe('0.0%');
   });
 

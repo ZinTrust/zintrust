@@ -1,0 +1,122 @@
+{
+  "name": "ZinTrust Workspace Profile",
+  "description": "Windsurf profile for ZinTrust project with TypeScript, Node.js, and testing focus",
+  "version": "1.0.0",
+  "extensions": {
+    "required": [
+      "ms-vscode.vscode-typescript-next",
+      "dbaeumer.vscode-eslint", 
+      "esbenp.prettier-vscode",
+      "vitest.explorer"
+    ],
+    "recommended": [
+      "ms-azuretools.vscode-docker",
+      "eamodio.gitlens",
+      "humao.rest-client",
+      "yzhang.markdown-all-in-one",
+      "mikestead.dotenv",
+      "SonarSource.sonarlint-vscode",
+      "joshbolduc.json-to-ts"
+    ],
+    "optional": [
+      "ms-vscode.vscode-language-pack-en",
+      "firsttris.vscode-jest-runner",
+      "donjayamanne.githistory",
+      "GitHub.vscode-pull-request-github",
+      "rangav.vscode-thunder-client",
+      "bierner.markdown-preview-github-styles",
+      "ms-vscode.vscode-node-debug2",
+      "appulate.appulate-vscode",
+      "ES7-based.snippets"
+    ]
+  },
+  "settings": {
+    "typescript": {
+      "strict": true,
+      "inlayHints": {
+        "parameterNames": "all",
+        "parameterTypes": true,
+        "variableTypes": true,
+        "propertyDeclarationTypes": true,
+        "functionLikeReturnTypes": true,
+        "enumMemberValues": true
+      },
+      "autoImports": true,
+      "updateImportsOnFileMove": "always"
+    },
+    "eslint": {
+      "enable": true,
+      "run": "onType",
+      "validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+      "fixOnSave": true
+    },
+    "prettier": {
+      "tabWidth": 2,
+      "useTabs": false,
+      "semi": true,
+      "singleQuote": true,
+      "trailingComma": "es5"
+    },
+    "editor": {
+      "formatOnSave": true,
+      "defaultFormatter": "esbenp.prettier-vscode",
+      "tabSize": 2,
+      "insertSpaces": true,
+      "trimAutoWhitespace": true,
+      "wordWrap": "on",
+      "rulers": [80, 100, 120],
+      "fontSize": 14,
+      "lineHeight": 1.6
+    },
+    "files": {
+      "trimTrailingWhitespace": true,
+      "insertFinalNewline": true,
+      "trimFinalNewlines": true,
+      "autoSave": "onFocusChange"
+    },
+    "testing": {
+      "framework": "vitest",
+      "testPatterns": ["*.test.ts", "*.test.js"],
+      "coverage": {
+        "enabled": true,
+        "threshold": 80
+      }
+    }
+  },
+  "rules": {
+    "codeQuality": {
+      "maxLineLength": 120,
+      "maxNestedCallbacks": 3,
+      "requireTests": true,
+      "noConsoleErrors": true
+    },
+    "naming": {
+      "classes": "PascalCase",
+      "variables": "camelCase",
+      "functions": "camelCase",
+      "constants": "UPPER_SNAKE_CASE",
+      "files": "kebab-case"
+    },
+    "imports": {
+      "organizeOnSave": true,
+      "autoImport": true,
+      "noUnusedImports": true
+    }
+  },
+  "exclude": {
+    "patterns": [
+      "**/node_modules/**",
+      "**/dist/**", 
+      "**/.git/**",
+      "**/coverage/**",
+      "**/.turbo/**",
+      "**/.next/**"
+    ],
+    "files": [
+      "*.log",
+      "*.tmp",
+      ".env",
+      ".env.local"
+    ]
+  }
+}

@@ -47,4 +47,29 @@ describe('Paginator', () => {
     expect(getPrevPageUrl(paginator, '/users')).toBeUndefined();
     expect(getNextPageUrl(paginator, '/users')).toBeUndefined();
   });
+
+  it('returns next/prev urls within bounds', () => {
+    const paginator = createPaginator({
+      items: [{ id: 1 }, { id: 2 }],
+      total: 25,
+      perPage: 10,
+      currentPage: 2,
+      baseUrl: '/users',
+    });
+
+    expect(getPrevPageUrl(paginator, '/users')).toContain('page=1');
+    expect(getNextPageUrl(paginator, '/users')).toContain('page=3');
+  });
+
+  it('throws when perPage is not positive', () => {
+    expect(() =>
+      createPaginator({
+        items: [],
+        total: 1,
+        perPage: 0,
+        currentPage: 1,
+        baseUrl: '/users',
+      })
+    ).toThrow('perPage must be a positive integer');
+  });
 });

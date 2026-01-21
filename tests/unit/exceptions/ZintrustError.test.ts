@@ -1,10 +1,12 @@
 import {
-  ZintrustError,
   createDatabaseError,
   createForbiddenError,
   createNotFoundError,
   createUnauthorizedError,
   createValidationError,
+  createWorkerError,
+  ErrorFactory,
+  ZintrustError,
 } from '@/exceptions/ZintrustError';
 import { describe, expect, it } from 'vitest';
 
@@ -49,5 +51,17 @@ describe('Exceptions', () => {
     const error = createForbiddenError();
     expect(error.statusCode).toBe(403);
     expect(error.code).toBe('FORBIDDEN');
+  });
+
+  it('should create worker error', () => {
+    const error = createWorkerError('Worker failed');
+    expect(error.statusCode).toBe(500);
+    expect(error.code).toBe('WORKER_ERROR');
+    expect(error.name).toBe('WorkerError');
+  });
+
+  it('should create worker error via ErrorFactory', () => {
+    const error = ErrorFactory.createWorkerError('Factory worker failed');
+    expect(error.code).toBe('WORKER_ERROR');
   });
 });

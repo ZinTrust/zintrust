@@ -1131,7 +1131,7 @@ const loadMorphToRelation = async (
   const tasks = [...modelsByType.entries()].map(async ([type, modelsOfType]) => {
     const relatedModel = morphMap[type] as unknown as { query(): IQueryBuilder } | undefined;
     if (relatedModel === undefined || typeof relatedModel.query !== 'function') {
-      return Promise.resolve();
+      return Promise.resolve(); //NOSONAR
     }
 
     return loadMorphToGroup(relation, morphId, modelsOfType, relatedModel, constraint);

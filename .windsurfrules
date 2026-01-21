@@ -1,0 +1,91 @@
+# Windsurf Profile for ZinTrust Workspace
+# Based on .vscode/settings.json and extensions.json
+
+## Core Development Environment
+
+### TypeScript & JavaScript Support
+- Use TypeScript 5.x with strict mode enabled
+- Enable all inlay hints for better code understanding
+- Auto-import suggestions should be enabled
+- Format on save using Prettier
+- ESLint should run on type and fix issues automatically
+
+### Code Quality Standards
+- ESLint rules must be followed (no warnings, no errors)
+- Prettier formatting with 2-space indentation
+- Maximum line length: 80 characters (soft), 100 (medium), 120 (hard)
+- No trailing whitespace
+- Files must end with newline
+- Auto-organize imports on save
+
+### Testing Requirements
+- Use Vitest for unit testing
+- Test files should follow pattern: *.test.ts or *.test.js
+- Tests must be isolated and not share state
+- Mock implementations should avoid nested callbacks (>3 levels)
+- All tests must pass before commits
+
+### File Structure & Patterns
+- Use TypeScript for all new files
+- Follow existing naming conventions (PascalCase for classes, camelCase for variables)
+- Environment files: .env, .env.example (dotenv syntax)
+- Config files: *.config.ts (TypeScript)
+- Docker: docker-compose.yml (YAML), Dockerfile (dockerfile)
+
+## Required Extensions (based on .vscode/extensions.json)
+
+### Essential (must be enabled)
+- ms-vscode.vscode-typescript-next (TypeScript support)
+- dbaeumer.vscode-eslint (ESLint integration)
+- esbenp.prettier-vscode (Prettier formatting)
+- vitest.explorer (Vitest testing)
+
+### Development Tools
+- ms-azuretools.vscode-docker (Docker support)
+- eamodio.gitlens (Git enhancements)
+- humao.rest-client (API testing)
+- yzhang.markdown-all-in-one (Markdown support)
+- mikestead.dotenv (Environment variables)
+
+### Code Quality
+- SonarSource.sonarlint-vscode (Code analysis)
+- joshbolduc.json-to-ts (JSON to TypeScript)
+
+### Optional but Recommended
+- ms-vscode.vscode-language-pack-en (English pack)
+- firsttris.vscode-jest-runner (Jest support if needed)
+- donjayamanne.githistory (Git history)
+- GitHub.vscode-pull-request-github (GitHub PRs)
+- rangav.vscode-thunder-client (API testing)
+- bierner.markdown-preview-github-styles (GitHub Markdown)
+- ms-vscode.vscode-node-debug2 (Node.js debugging)
+- appulate.appulate-vscode (Configuration)
+- ES7-based.snippets (Code snippets)
+
+## Project-Specific Rules
+
+### ORM & Database
+- Use Model.define() for model definitions
+- Relationship methods must follow naming conventions
+- Eager loading to prevent N+1 queries
+- All database operations must be type-safe
+
+### Security & Validation
+- Environment variables must be validated on startup
+- Use TypeScript strict mode for security
+- Input validation for all user data
+- Secret management with proper validation
+
+### Testing Strategy
+- Unit tests for business logic
+- Integration tests for database operations
+- Mock external dependencies
+- Test coverage requirements
+- No nested callbacks in tests (>3 levels)
+
+## Configuration Files Priority
+1. .windsurfrules (this file)
+2. .vscode/settings.json
+3. .vscode/extensions.json
+4. package.json scripts
+5. tsconfig.json

@@ -1,4 +1,5 @@
 import { useDatabase } from '@orm/Database';
+import type { IModel } from '@orm/Model';
 import { Model } from '@orm/Model';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,7 +65,7 @@ describe('ORM Eager Loading (N+1 Prevention)', () => {
     ]);
 
     // Execute query with eager loading
-    const users = (await User.query().with('posts').get()) as any[];
+    const users: IModel[] = await User.query().with('posts').get();
 
     // Verify User query
     expect(mockDb.query).toHaveBeenCalledWith(
@@ -80,13 +81,15 @@ describe('ORM Eager Loading (N+1 Prevention)', () => {
       true
     );
 
-    const user1Posts = users[0].getRelation<any[]>('posts');
+    const user1Posts = users[0].getRelation<IModel[]>('posts');
+    expect(user1Posts).toBeDefined();
     expect(user1Posts).toHaveLength(2);
-    expect(user1Posts[0].getAttribute('title')).toBe('Post 1');
+    expect(user1Posts![0].getAttribute('title')).toBe('Post 1');
 
-    const user2Posts = users[1].getRelation<any[]>('posts');
+    const user2Posts = users[1].getRelation<IModel[]>('posts');
+    expect(user2Posts).toBeDefined();
     expect(user2Posts).toHaveLength(1);
-    expect(user2Posts[0].getAttribute('title')).toBe('Post 3');
+    expect(user2Posts![0].getAttribute('title')).toBe('Post 3');
 
     // Total database calls should be 2 (one for users, one for posts)
     // instead of 3 (one for users + 2 for posts)
@@ -100,7 +103,7 @@ describe('ORM Eager Loading (N+1 Prevention)', () => {
     };
     (useDatabase as any).mockReturnValue(mockDb);
 
-    const users = (await User.query().with('posts').get()) as any[];
+    const users: IModel[] = await User.query().with('posts').get();
     expect(users).toHaveLength(0);
     expect(mockDb.query).toHaveBeenCalledTimes(1);
   });

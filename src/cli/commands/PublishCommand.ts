@@ -5,7 +5,6 @@ import fs from '@node-singletons/fs';
 import path from '@node-singletons/path';
 import type { Command } from 'commander';
 
-/* c8 ignore start */
 const publishQueueMonitorConfig = (cwd: string): void => {
   const targetPath = path.join(cwd, 'config', 'queueMonitor.ts');
 
@@ -56,7 +55,6 @@ const publishQueueMonitorConfig = (cwd: string): void => {
   fs.copyFileSync(sourcePath, targetPath);
   Logger.info('Published configuration: config/queueMonitor.ts');
 };
-/* c8 ignore stop */
 
 export const PublishCommand = Object.freeze({
   create(): IBaseCommand {
@@ -67,7 +65,6 @@ export const PublishCommand = Object.freeze({
       addOptions: (command: Command) => {
         command.option('--queue-monitor', 'Publish Queue Monitor configuration');
       },
-      /* c8 ignore start */
       execute: async (options) => {
         const cwd = process.cwd();
 
@@ -77,7 +74,6 @@ export const PublishCommand = Object.freeze({
           Logger.warn('Please specify a configuration to publish (e.g., --queue-monitor)');
         }
       },
-      /* c8 ignore stop */
     });
   },
 });

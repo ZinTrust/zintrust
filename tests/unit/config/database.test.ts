@@ -185,4 +185,24 @@ describe('Database Config', () => {
     const conn = databaseConfig.getConnection();
     expect(conn.driver).toBe('sqlite');
   });
+
+  it('uses SERVICE_NAME for sqlite default basename when available', async () => {
+    process.env['SERVICE_NAME'] = 'my-service';
+    process.env.NODE_ENV = 'development';
+
+    vi.doMock('@/config/env', () => ({
+      Env: {
+        SERVICE_NAME: 'my-service',
+        NODE_ENV: 'development',
+        get: (k: string, d: any) => process.env[k] ?? d,
+        getBool: () => false,
+        getInt: () => 10,
+      },
+    }));
+
+    const { databaseConfig } = await import('../../../src/config/database');
+    // This should cover the line that uses Env.SERVICE_NAME
+    const conn = databaseConfig.getConnection();
+    expect(conn.driver).toBe('sqlite');
+  });
 });

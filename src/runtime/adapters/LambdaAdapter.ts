@@ -146,14 +146,11 @@ async function handleLambdaRequest(
     return response.toResponse();
   } catch (error) {
     Logger.error('Lambda handler error', error as Error);
-
-    /* c8 ignore start */
     const nodeEnv =
       typeof Env.NODE_ENV === 'string' && String(Env.NODE_ENV) !== ''
         ? Env.NODE_ENV
         : 'development';
     const includeDetails = nodeEnv === 'development' || String(nodeEnv) === 'dev';
-    /* c8 ignore stop */
 
     const errorResponse = ErrorResponse.create(
       500,
