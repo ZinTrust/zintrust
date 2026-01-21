@@ -329,12 +329,12 @@ build_*
 
 # Bitrix
 /bitrix/*
-!/bitrix/templates
-!/bitrix/components
+! /bitrix/templates
+! /bitrix/components
 /bitrix/components/bitrix
-!/bitrix/gadgets
+! /bitrix/gadgets
 /bitrix/gadgets/bitrix
-!/bitrix/php_interface/
+! /bitrix/php_interface/
 /upload/
 
 # CodeSniffer
@@ -346,7 +346,7 @@ build_*
 /website/var/backup/*
 /website/var/cache/*
 /website/var/classes/Object*
-!/website/var/classes/objectbricks
+! /website/var/classes/objectbricks
 /website/var/config/Geo*
 /website/var/config/object/*
 /website/var/config/portal/*
@@ -418,8 +418,8 @@ sites/*/translations
 
 # InforCMS
 [Mm]odel/[Dd]eployment
-!Model/Portal/*/SupportFiles/[Bb]in/
-!Model/Portal/PortalTemplates/*/SupportFiles/[Bb]in
+! Model/Portal/*/SupportFiles/[Bb]in/
+! Model/Portal/PortalTemplates/*/SupportFiles/[Bb]in
 
 # Kentico
 !CMS/CMSAdminControls/*/
@@ -1661,3 +1661,4 @@ test-app/
 tests/
 .envcopy
 processors/
+report/

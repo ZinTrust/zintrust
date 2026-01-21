@@ -353,7 +353,7 @@ export const SLAMonitor = Object.freeze({
       const workerViolations = SLAMonitor.getViolations(workerName, timeRange);
       violations.push(...workerViolations);
 
-      const totalChecks = 5;
+      const totalChecks = slaConfigs.size * 5;
       const breachCount = workerViolations.length;
       const complianceRate = totalChecks > 0 ? (totalChecks - breachCount) / totalChecks : 1;
 

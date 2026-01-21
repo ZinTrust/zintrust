@@ -12,7 +12,7 @@ import { WorkerRegistry } from './WorkerRegistry';
 
 export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'critical';
 
-type StatusD = 'improving' | 'stable' | 'degrading';
+type HealthTrend = 'improving' | 'stable' | 'degrading';
 
 export type HealthCheckResult = {
   status: HealthStatus;
@@ -544,7 +544,7 @@ export const HealthMonitor = Object.freeze({
    * Get health trend (improving/stable/degrading)
    */
   getHealthTrend(workerName: string): {
-    trend: StatusD;
+    trend: HealthTrend;
     scoreChange: number;
     periodChecks: number;
   } {
