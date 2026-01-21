@@ -2,7 +2,7 @@
 /**
  * Build all packages with version banners and manifests
  */
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -112,11 +112,10 @@ for (const pkg of selectedPackages) {
 
       // Add version banner
       try {
-        execSync(
-          `node ${path.join(rootDir, 'scripts/add-package-version-banner.mjs')} ${pkgPath}`,
-          {
-            stdio: 'inherit',
-          }
+        execFileSync(
+          'node',
+          [path.join(rootDir, 'scripts/add-package-version-banner.mjs'), pkgPath],
+          { stdio: 'inherit' }
         );
       } catch {
         console.warn(`⚠️  Could not add banner to ${pkgJson.name}`);
@@ -124,11 +123,10 @@ for (const pkg of selectedPackages) {
 
       // Replace placeholders
       try {
-        execSync(
-          `node ${path.join(rootDir, 'scripts/replace-package-placeholders.mjs')} ${pkgPath}`,
-          {
-            stdio: 'inherit',
-          }
+        execFileSync(
+          'node',
+          [path.join(rootDir, 'scripts/replace-package-placeholders.mjs'), pkgPath],
+          { stdio: 'inherit' }
         );
       } catch (err) {
         // Handle the error by logging details to aid debugging
@@ -142,9 +140,11 @@ for (const pkg of selectedPackages) {
 
       // Generate manifest
       try {
-        execSync(`node ${path.join(rootDir, 'scripts/generate-package-manifest.mjs')} ${pkgPath}`, {
-          stdio: 'inherit',
-        });
+        execFileSync(
+          'node',
+          [path.join(rootDir, 'scripts/generate-package-manifest.mjs'), pkgPath],
+          { stdio: 'inherit' }
+        );
       } catch {
         console.warn(`⚠️  Could not generate manifest for ${pkgJson.name}`);
       }

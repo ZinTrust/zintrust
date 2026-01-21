@@ -103,8 +103,8 @@ const testConnection = async (_config: ConnectionConfig, conn: unknown): Promise
 /**
  * Update connection usage metrics
  */
-const updateConnectionUsage = (connectionPool: PooledConnection[], id: string): void => {
-  const entry = connectionPool.find((c) => c.id === id);
+const updateConnectionUsage = (connectionPool: Map<string, PooledConnection>, id: string): void => {
+  const entry = connectionPool.get(id); // O(1) lookup instead of O(n) find
   if (entry !== undefined) {
     entry.lastUsedAt = Date.now();
     entry.queryCount++;
@@ -277,7 +277,7 @@ const createAuroraDataApiConnection = (): AuroraDataApiConnection => {
  */
 interface ConnectionState {
   connections: Map<string, IDatabaseAdapter>;
-  connectionPool: PooledConnection[];
+  connectionPool: Map<string, PooledConnection>; // Changed from Array to Map for O(1) lookup
   waiters: ConnectionWaiter[];
   cleanupInterval?: ReturnType<typeof setInterval>;
 }
@@ -299,7 +299,7 @@ const getHealthyExistingConnection = async (
   }
 
   state.connections.delete(id);
-  state.connectionPool = state.connectionPool.filter((c) => c.id !== id);
+  state.connectionPool.delete(id); // O(1) instead of O(n) filter
   return null;
 };
 
@@ -307,15 +307,21 @@ const getHealthyExistingConnection = async (
  * Find an idle connection in the pool
  */
 const findIdleConnection = (state: ConnectionState): IDatabaseAdapter | null => {
-  const idleConnections = state.connectionPool.filter((c) => !c.isActive);
-  if (idleConnections.length === 0) return null;
+  let lruEntry: PooledConnection | null = null;
+  let lruTime = Date.now();
 
-  const lru = idleConnections.reduce(
-    (prev, current) => (prev.lastUsedAt < current.lastUsedAt ? prev : current),
-    idleConnections[0]
-  );
-  updateConnectionUsage(state.connectionPool, lru.id);
-  const conn = state.connections.get(lru.id);
+  // Iterate through Map values to find least recently used idle connection
+  for (const poolEntry of state.connectionPool.values()) {
+    if (!poolEntry.isActive && poolEntry.lastUsedAt < lruTime) {
+      lruTime = poolEntry.lastUsedAt;
+      lruEntry = poolEntry;
+    }
+  }
+
+  if (lruEntry === null) return null;
+
+  updateConnectionUsage(state.connectionPool, lruEntry.id);
+  const conn = state.connections.get(lruEntry.id);
   return conn ?? null;
 };
 
@@ -395,9 +401,9 @@ const startIdleConnectionCleanup = (state: ConnectionState, idleTimeout: number)
     const now = Date.now();
     const toRemove: string[] = [];
 
-    for (const poolEntry of state.connectionPool) {
+    for (const [id, poolEntry] of state.connectionPool.entries()) {
       if (!poolEntry.isActive && now - poolEntry.lastUsedAt > idleTimeout) {
-        toRemove.push(poolEntry.id);
+        toRemove.push(id);
       }
     }
 
@@ -407,7 +413,7 @@ const startIdleConnectionCleanup = (state: ConnectionState, idleTimeout: number)
         Logger.error(`Failed to close idle connection ${id}:`, err as Error)
       );
       state.connections.delete(id);
-      state.connectionPool = state.connectionPool.filter((c) => c.id !== id);
+      state.connectionPool.delete(id); // O(1) instead of O(n) filter
       Logger.info(`Removed idle connection: ${id}`);
     }
   }, 300000); // Every 5 minutes
@@ -427,7 +433,8 @@ const createNewConnection = async (
 ): Promise<IDatabaseAdapter> => {
   const connection = await createConnection(config, id);
   state.connections.set(id, connection);
-  state.connectionPool.push({
+  state.connectionPool.set(id, {
+    // O(1) instead of O(n) push
     id,
     adapter: config.adapter,
     createdAt: Date.now(),
@@ -464,18 +471,27 @@ const closeAllConnections = async (state: ConnectionState): Promise<void> => {
     }
   }
   state.connections.clear();
-  state.connectionPool = [];
+  state.connectionPool.clear(); // Use Map.clear() instead of array reset
 };
 
 /**
  * Get connection pool statistics
  */
 const getPoolStatistics = (state: ConnectionState): ConnectionPool => {
-  const active = state.connectionPool.filter((c) => c.isActive).length;
-  const idle = state.connectionPool.filter((c) => !c.isActive).length;
+  let active = 0;
+  let idle = 0;
+
+  // Iterate through Map values instead of filtering array
+  for (const poolEntry of state.connectionPool.values()) {
+    if (poolEntry.isActive) {
+      active++;
+    } else {
+      idle++;
+    }
+  }
 
   return {
-    total: state.connectionPool.length,
+    total: state.connectionPool.size, // Use Map.size instead of array length
     active,
     idle,
     queued: state.waiters.length,
@@ -493,7 +509,7 @@ const ConnectionManagerImpl = {
   create(config: ConnectionConfig): ConnectionManagerInstance {
     const state: ConnectionState = {
       connections: new Map(),
-      connectionPool: [],
+      connectionPool: new Map(), // Changed from Array to Map
       waiters: [],
     };
     const maxConnections = config.maxConnections ?? 10;
@@ -510,7 +526,8 @@ const ConnectionManagerImpl = {
         const existing = await getHealthyExistingConnection(config, state, id);
         if (existing !== null) return existing;
 
-        if (state.connectionPool.length < maxConnections) {
+        if (state.connectionPool.size < maxConnections) {
+          // Use Map.size instead of array length
           return createNewConnection(config, state, id);
         }
 
@@ -521,7 +538,7 @@ const ConnectionManagerImpl = {
        * Release connection back to pool (but keep persistent)
        */
       async releaseConnection(connectionId: string = 'default'): Promise<void> {
-        const poolEntry = state.connectionPool.find((c) => c.id === connectionId);
+        const poolEntry = state.connectionPool.get(connectionId); // O(1) instead of O(n) find
         if (poolEntry === undefined) return;
 
         poolEntry.isActive = false;

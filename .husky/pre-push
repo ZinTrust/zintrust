@@ -4,4 +4,4 @@
 node scripts/toggle-dev-routes.mjs comment
 
 # Block pushes when patch coverage would fail Codecov.
-# npm run -s coverage:patch
+npm run -s coverage:patch
