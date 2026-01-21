@@ -143,11 +143,26 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 }
 
 async function autoStartPersistedWorkers(): Promise<void> {
+  // Check if auto-start is enabled globally via environment variable
   if (workersConfig.defaultWorker?.autoStart !== true) return;
 
   try {
     const records = await WorkerFactory.listPersistedRecords();
-    const candidates = records.filter((record) => record.autoStart === true);
+    const candidates = records.filter((record) => {
+      // If autoStart is explicitly true, always include
+      if (record.autoStart === true) {
+        return true;
+      }
+      // If autoStart is null or undefined and global auto-start is enabled, include
+      if (
+        (record.autoStart === null || record.autoStart === undefined) &&
+        workersConfig.defaultWorker?.autoStart === true
+      ) {
+        return true;
+      }
+
+      return false;
+    });
     const results = await Promise.all(
       candidates.map(async (record) => {
         if (WorkerFactory.get(record.name)) {

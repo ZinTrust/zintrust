@@ -759,7 +759,14 @@ const resolveDefaultPersistenceTable = (): string =>
 const resolveDefaultPersistenceConnection = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default')) ?? 'default';
 
-const resolveAutoStart = (config: WorkerFactoryConfig): boolean => config.autoStart ?? false;
+const resolveAutoStart = (config: WorkerFactoryConfig): boolean => {
+  // If explicitly set in config (not null/undefined), use that
+  if (config.autoStart !== undefined && config.autoStart !== null) {
+    return config.autoStart;
+  }
+  // Otherwise, use environment variable
+  return Env.getBool('WORKER_AUTO_START', false);
+};
 
 const normalizeExplicitPersistence = (
   persistence: WorkerPersistenceConfig
@@ -1688,7 +1695,7 @@ export const WorkerFactory = Object.freeze({
       version: record.version ?? undefined,
       processor,
       processorPath: record.processorPath ?? undefined,
-      autoStart: true,
+      autoStart: record.autoStart,
       options: { concurrency: record.concurrency } as WorkerOptions,
       infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],
       features: record.features as WorkerFactoryConfig['features'],

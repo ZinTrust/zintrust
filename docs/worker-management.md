@@ -185,7 +185,31 @@ export async function initializeWorkers() {
 
 **Auto-start behavior**
 
-Workers start automatically when you call `WorkerFactory.create()` if `autoStart` (or `WORKER_AUTO_START`) is true. Set `autoStart: false` to register a worker without starting it, then use the CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
+Workers start automatically when you call `WorkerFactory.create()` based on the following logic:
+
+| Worker Config `autoStart` | `WORKER_AUTO_START` | Result                                                     |
+| ------------------------- | ------------------- | ---------------------------------------------------------- |
+| `true`                    | `true`              | **Starts** (both true)                                     |
+| `false`                   | `false`             | **Doesn't start** (both false)                             |
+| `true`                    | `false`             | **Doesn't start** (global override)                        |
+| `false`                   | `true`              | **Doesn't start** (worker config)                          |
+| `null`                    | `true`              | **Starts** (uses global setting)                           |
+| `null`                    | `false`             | **Doesn't start** (both false)                             |
+| `undefined`               | `true`              | **Starts** (uses global setting)                           |
+| `undefined`               | `false`             | **Doesn't start** (uses global setting)                    |
+| `undefined`               | `null`              | **Doesn't start** (uses global setting, defaults to false) |
+
+**Key Rules:**
+
+1. **`WORKER_AUTO_START` acts as a global kill switch** - when `false`, NO workers auto-start regardless of their individual config
+2. If `WORKER_AUTO_START` is `true`, then individual worker `autoStart` settings are respected:
+   - `autoStart: true` → Worker starts
+   - `autoStart: false` → Worker doesn't start
+   - `autoStart: null`/`undefined` → Worker starts (uses global setting)
+3. `WORKER_AUTO_START` defaults to `false` if not set
+4. `autoStart: null` and `autoStart: undefined` both behave the same - they use the global `WORKER_AUTO_START` setting
+
+Set `autoStart: false` to register a worker without starting it, then use CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
 
 **Processor registration (start from persistence)**
 
