@@ -106,7 +106,7 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
   isShuttingDown = true;
 
   const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
-  const forceExitMs = Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 2500);
+  const forceExitMs = Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 10000);
   Logger.info(`${signal} received, shutting down gracefully...`);
 
   try {
@@ -119,32 +119,35 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
 
     await withTimeout(
       (async () => {
+        // Shutdown worker management system FIRST (before database closes)
+        if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+          try {
+            const { WorkerShutdown } = await import('@zintrust/workers');
+            await withTimeout(
+              WorkerShutdown.shutdown({ signal, timeout: 30000, forceExit: false }),
+              15000,
+              'Worker shutdown timed out'
+            );
+          } catch (error) {
+            Logger.warn('Worker shutdown failed (continuing with app shutdown)', error as Error);
+          }
+        }
+
         if (serverInstance !== undefined) {
           await serverInstance.close();
         }
 
         if (appInstance !== undefined) {
-          await appInstance.shutdown();
+          try {
+            await withTimeout(appInstance.shutdown(), 5000, 'App shutdown timed out');
+          } catch (error) {
+            Logger.warn('App shutdown failed or timed out, forcing exit', error as Error);
+          }
         }
       })(),
       timeoutMs,
       'Graceful shutdown timed out'
     );
-
-    // Shutdown worker management system first
-    if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
-      try {
-        const { WorkerShutdown } = await import('@zintrust/workers');
-        await withTimeout(
-          WorkerShutdown.shutdown({ signal, timeout: 30000, forceExit: false }),
-          timeoutMs,
-          'Worker shutdown timed out'
-        );
-        Logger.info('Worker management system shutdown complete');
-      } catch (error) {
-        Logger.warn('Worker shutdown failed (continuing with app shutdown)', error as Error);
-      }
-    }
 
     globalThis.clearTimeout(forceExitTimer);
 

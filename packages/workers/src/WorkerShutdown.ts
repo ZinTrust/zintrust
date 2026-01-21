@@ -119,34 +119,28 @@ function registerShutdownHandlers(): void {
     Logger.info('📨 Received SIGTERM signal');
     try {
       await shutdown({ signal: 'SIGTERM', timeout: 30000, forceExit: true });
-      process.exit(0);
     } catch (error) {
       Logger.error('Error during SIGTERM shutdown', error);
-      process.exit(1);
     }
   });
 
-  // SIGINT - user interrupt (Ctrl+C)
-  process.on('SIGINT', async () => {
-    Logger.info('📨 Received SIGINT signal');
-    try {
-      await shutdown({ signal: 'SIGINT', timeout: 30000, forceExit: true });
-      process.exit(0);
-    } catch (error) {
-      Logger.error('Error during SIGINT shutdown', error);
-      process.exit(1);
-    }
-  });
+  // SIGINT - user interrupt (Ctrl+C) - REMOVED: handled by bootstrap.ts to prevent race condition
+  // process.on('SIGINT', async () => {
+  //   Logger.info('📨 Received SIGINT signal');
+  //   try {
+  //     await shutdown({ signal: 'SIGINT', timeout: 30000, forceExit: true });
+  //   } catch (error) {
+  //     Logger.error('Error during SIGINT shutdown', error);
+  //   }
+  // });
 
   // SIGHUP - terminal closed
   process.on('SIGHUP', async () => {
     Logger.info('📨 Received SIGHUP signal');
     try {
       await shutdown({ signal: 'SIGHUP', timeout: 30000, forceExit: true });
-      process.exit(0);
     } catch (error) {
       Logger.error('Error during SIGHUP shutdown', error);
-      process.exit(1);
     }
   });
 

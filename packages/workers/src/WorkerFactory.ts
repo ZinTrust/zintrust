@@ -1479,22 +1479,49 @@ export const WorkerFactory = Object.freeze({
     }
 
     // Execute beforeStop hooks
-    if (instance.config.features?.plugins !== undefined) {
+    if (instance.config.features?.plugins === true) {
       await PluginManager.executeHook('beforeStop', {
         workerName: name,
         timestamp: new Date(),
       });
     }
 
-    await instance.worker.close();
+    // Close worker with timeout to prevent hanging
+    const workerClosePromise = instance.worker.close();
+    let timeoutId: NodeJS.Timeout | undefined;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      // eslint-disable-next-line no-restricted-syntax
+      timeoutId = setTimeout(() => {
+        reject(new Error('Worker close timeout'));
+      }, 5000);
+    });
+
+    try {
+      await Promise.race([workerClosePromise, timeoutPromise]);
+    } catch (error) {
+      Logger.warn(`Worker "${name}" close failed or timed out, continuing...`, error as Error);
+    } finally {
+      // Always clean up timeout to prevent memory leak
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    }
     instance.status = 'stopped';
 
-    await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
+    try {
+      await ensureWorkerStoreConfigured();
+      await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
+      Logger.info(`Worker "${name}" status updated to stopped in database`);
+    } catch (error) {
+      Logger.error(`Failed to update worker "${name}" status in database`, error as Error);
+    }
 
     await WorkerRegistry.stop(name);
 
     // Execute afterStop hooks
-    if (instance.config.features?.plugins !== undefined) {
+    if (instance.config.features?.plugins === true) {
       await PluginManager.executeHook('afterStop', {
         workerName: name,
         timestamp: new Date(),
