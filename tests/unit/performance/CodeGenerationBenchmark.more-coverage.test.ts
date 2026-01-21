@@ -2,27 +2,70 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+function BenchmarkCtor(name: string): any {
+  return {
+    name,
+    measureAsync: vi.fn(async () => undefined),
+    export: vi.fn(async () => undefined),
+    getTable: vi.fn(() => ''),
+  };
+}
+
 describe('CodeGenerationBenchmark more coverage', () => {
+  const createBenchmarkFactoryMock = () => ({
+    Benchmark: {
+      create: (name: string) => ({
+        name,
+        measureAsync: vi.fn(async () => undefined),
+        export: vi.fn(async () => undefined),
+        getTable: vi.fn(() => ''),
+      }),
+    },
+    MemoryMonitor: {
+      create: () => ({
+        start: vi.fn(),
+        stop: vi.fn(),
+        formatStats: vi.fn(() => ''),
+      }),
+    },
+  });
+
+  const createBenchmarkConstructorMock = () => ({
+    Benchmark: BenchmarkCtor,
+    MemoryMonitor: () => ({
+      start: vi.fn(),
+      stop: vi.fn(),
+      formatStats: vi.fn(() => ''),
+    }),
+  });
+
+  const createInvalidBenchmarkMock = () => ({
+    Benchmark: 123,
+    MemoryMonitor: {
+      create: () => ({
+        start: vi.fn(),
+        stop: vi.fn(),
+        formatStats: vi.fn(() => ''),
+      }),
+    },
+  });
+
+  const createInvalidMemoryMonitorMock = () => ({
+    Benchmark: {
+      create: (name: string) => ({
+        name,
+        measureAsync: vi.fn(async () => undefined),
+        export: vi.fn(async () => undefined),
+        getTable: vi.fn(() => ''),
+      }),
+    },
+    MemoryMonitor: { nope: true },
+  });
+
   it('creates when Benchmark is a factory and MemoryMonitor is a factory', async () => {
     vi.resetModules();
 
-    vi.doMock('@performance/Benchmark', () => ({
-      Benchmark: {
-        create: (name: string) => ({
-          name,
-          measureAsync: vi.fn(async () => undefined),
-          export: vi.fn(async () => undefined),
-          getTable: vi.fn(() => ''),
-        }),
-      },
-      MemoryMonitor: {
-        create: () => ({
-          start: vi.fn(),
-          stop: vi.fn(),
-          formatStats: vi.fn(() => ''),
-        }),
-      },
-    }));
+    vi.doMock('@performance/Benchmark', () => createBenchmarkFactoryMock());
 
     const { CodeGenerationBenchmark } = await import('@performance/CodeGenerationBenchmark');
     expect(() => CodeGenerationBenchmark.create()).not.toThrow();
@@ -31,24 +74,7 @@ describe('CodeGenerationBenchmark more coverage', () => {
   it('creates when Benchmark is a constructor and MemoryMonitor is a function', async () => {
     vi.resetModules();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function BenchmarkCtor(name: string): any {
-      return {
-        name,
-        measureAsync: vi.fn(async () => undefined),
-        export: vi.fn(async () => undefined),
-        getTable: vi.fn(() => ''),
-      };
-    }
-
-    vi.doMock('@performance/Benchmark', () => ({
-      Benchmark: BenchmarkCtor,
-      MemoryMonitor: () => ({
-        start: vi.fn(),
-        stop: vi.fn(),
-        formatStats: vi.fn(() => ''),
-      }),
-    }));
+    vi.doMock('@performance/Benchmark', () => createBenchmarkConstructorMock());
 
     const { CodeGenerationBenchmark } = await import('@performance/CodeGenerationBenchmark');
     expect(() => CodeGenerationBenchmark.create()).not.toThrow();
@@ -57,16 +83,7 @@ describe('CodeGenerationBenchmark more coverage', () => {
   it('throws when Benchmark export is neither factory nor constructor', async () => {
     vi.resetModules();
 
-    vi.doMock('@performance/Benchmark', () => ({
-      Benchmark: 123,
-      MemoryMonitor: {
-        create: () => ({
-          start: vi.fn(),
-          stop: vi.fn(),
-          formatStats: vi.fn(() => ''),
-        }),
-      },
-    }));
+    vi.doMock('@performance/Benchmark', () => createInvalidBenchmarkMock());
 
     const { CodeGenerationBenchmark } = await import('@performance/CodeGenerationBenchmark');
     expect(() => CodeGenerationBenchmark.create()).toThrow(
@@ -77,17 +94,7 @@ describe('CodeGenerationBenchmark more coverage', () => {
   it('throws when MemoryMonitor export is neither factory nor function', async () => {
     vi.resetModules();
 
-    vi.doMock('@performance/Benchmark', () => ({
-      Benchmark: {
-        create: (name: string) => ({
-          name,
-          measureAsync: vi.fn(async () => undefined),
-          export: vi.fn(async () => undefined),
-          getTable: vi.fn(() => ''),
-        }),
-      },
-      MemoryMonitor: { nope: true },
-    }));
+    vi.doMock('@performance/Benchmark', () => createInvalidMemoryMonitorMock());
 
     const { CodeGenerationBenchmark } = await import('@performance/CodeGenerationBenchmark');
     expect(() => CodeGenerationBenchmark.create()).toThrow(

@@ -3,12 +3,12 @@
  * Demonstrates routing patterns
  */
 
-import type { IRequest } from '@/http/Request';
-import type { IResponse } from '@/http/Response';
 import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerMetricsRoutes } from '@routes/metrics';
@@ -39,7 +39,7 @@ function registerPublicRoutes(router: IRouter): void {
 function registerRootRoute(router: IRouter): void {
   Router.get(router, '/', async (_req: IRequest, res: IResponse) => {
     res.json({
-      framework: 'Zintrust Framework',
+      framework: 'ZinTrust Framework',
       app_name: Env.APP_NAME,
       version: '0.1.0',
       env: Env.NODE_ENV ?? 'development',

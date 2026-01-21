@@ -24,6 +24,7 @@ export { notificationConfig, type NotificationConfig } from '@config/notificatio
 export { queueConfig, type QueueConfig } from '@config/queue';
 export { securityConfig } from '@config/security';
 export { storageConfig, type StorageConfig } from '@config/storage';
+export { createRedisConnection } from '@config/workers';
 
 /**
  * Combined configuration object

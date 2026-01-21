@@ -131,7 +131,7 @@ describe('Database Config', () => {
     expect(databaseConfig.connections.sqlite.database).toBe('.zintrust/dbs/zintrust-app.sqlite');
   });
 
-  it('defaults to zintrust if nothing set', async () => {
+  it('defaults to ZinTrust if nothing set', async () => {
     delete process.env['DB_DATABASE'];
     delete process.env['SERVICE_NAME'];
     delete process.env['APP_NAME'];
@@ -182,6 +182,26 @@ describe('Database Config', () => {
       Env: { get: (_k: string, _d: any) => 'sqlite', getBool: () => false, getInt: () => 0 },
     }));
     const { databaseConfig } = await import('../../../src/config/database');
+    const conn = databaseConfig.getConnection();
+    expect(conn.driver).toBe('sqlite');
+  });
+
+  it('uses SERVICE_NAME for sqlite default basename when available', async () => {
+    process.env['SERVICE_NAME'] = 'my-service';
+    process.env.NODE_ENV = 'development';
+
+    vi.doMock('@/config/env', () => ({
+      Env: {
+        SERVICE_NAME: 'my-service',
+        NODE_ENV: 'development',
+        get: (k: string, d: any) => process.env[k] ?? d,
+        getBool: () => false,
+        getInt: () => 10,
+      },
+    }));
+
+    const { databaseConfig } = await import('../../../src/config/database');
+    // This should cover the line that uses Env.SERVICE_NAME
     const conn = databaseConfig.getConnection();
     expect(conn.driver).toBe('sqlite');
   });

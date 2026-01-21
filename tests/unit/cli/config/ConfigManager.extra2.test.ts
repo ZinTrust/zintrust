@@ -9,7 +9,7 @@ type FsPromisesStub = {
 
 const makeFsStub = (overrides: Partial<FsPromisesStub> = {}): FsPromisesStub => {
   return {
-    readFile: vi.fn(async () => '{"app": {"name": "Zintrust"}}'),
+    readFile: vi.fn(async () => '{"app": {"name": "ZinTrust"}}'),
     writeFile: vi.fn(async () => undefined),
     mkdir: vi.fn(async () => undefined),
     access: vi.fn(async () => undefined),

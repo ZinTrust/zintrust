@@ -1,6 +1,6 @@
 # @zintrust/db-sqlserver
 
-SQL Server database adapter package for Zintrust (uses `mssql`).
+SQL Server database adapter package for ZinTrust (uses `mssql`).
 
 ## Install
 

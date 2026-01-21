@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export const CloudflareKv = Object.freeze({
@@ -5,9 +6,20 @@ export const CloudflareKv = Object.freeze({
     getValue: (key: string, namespaceId?: string) => Promise<string | null>;
     putValue: (key: string, value: string, namespaceId?: string) => Promise<void>;
   } {
-    const accountId = process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '';
-    const apiToken = process.env['CLOUDFLARE_API_TOKEN'] ?? '';
-    const defaultNamespaceId = process.env['CLOUDFLARE_KV_NAMESPACE_ID'] ?? '';
+    const readEnvString = (key: string): string => {
+      const anyEnv = Env as { get?: (k: string, d?: string) => string };
+      const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
+      if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+      if (typeof process !== 'undefined') {
+        const raw = process.env?.[key];
+        if (typeof raw === 'string') return raw;
+      }
+      return fromEnv ?? '';
+    };
+
+    const accountId = readEnvString('CLOUDFLARE_ACCOUNT_ID');
+    const apiToken = readEnvString('CLOUDFLARE_API_TOKEN');
+    const defaultNamespaceId = readEnvString('CLOUDFLARE_KV_NAMESPACE_ID');
 
     if (accountId.trim() === '' || apiToken.trim() === '') {
       throw ErrorFactory.createCliError(
@@ -77,13 +89,15 @@ export const CloudflareKv = Object.freeze({
   doctorEnv(): string[] {
     const missing: string[] = [];
 
-    const accountId = (process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '').trim();
+    const accountId = (Env.get?.('CLOUDFLARE_ACCOUNT_ID', '') ?? Env.CLOUDFLARE_ACCOUNT_ID).trim();
     if (accountId === '') missing.push('CLOUDFLARE_ACCOUNT_ID');
 
-    const apiToken = (process.env['CLOUDFLARE_API_TOKEN'] ?? '').trim();
+    const apiToken = (Env.get?.('CLOUDFLARE_API_TOKEN', '') ?? Env.CLOUDFLARE_API_TOKEN).trim();
     if (apiToken === '') missing.push('CLOUDFLARE_API_TOKEN');
 
-    const namespaceId = (process.env['CLOUDFLARE_KV_NAMESPACE_ID'] ?? '').trim();
+    const namespaceId = (
+      Env.get?.('CLOUDFLARE_KV_NAMESPACE_ID', '') ?? Env.CLOUDFLARE_KV_NAMESPACE_ID
+    ).trim();
     if (namespaceId === '') missing.push('CLOUDFLARE_KV_NAMESPACE_ID');
 
     return missing;

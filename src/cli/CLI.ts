@@ -20,18 +20,22 @@ import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
+import { MigrateWorkerCommand } from '@cli/commands/MigrateWorkerCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
+import { PublishCommand } from '@cli/commands/PublishCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
+import { WorkerCommands } from '@cli/commands/WorkerCommands';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
@@ -69,7 +73,7 @@ const loadVersion = (): string => {
 const setupProgram = (program: Command, version: string): void => {
   program
     .name('zintrust')
-    .description('Zintrust Framework CLI - Build production-grade TypeScript APIs')
+    .description('ZinTrust Framework CLI - Build production-grade TypeScript APIs')
     .version(version, '-v, --version', 'Output version number')
     .helpOption('-h, --help', 'Display help for command')
     .usage('[command] [options]');
@@ -94,6 +98,8 @@ const registerCommands = (program: Command): void => {
     QueueCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
+    ResourceControlCommand,
+    MigrateWorkerCommand.create(),
     MigrateCommand.create(),
     DbSeedCommand.create(),
     D1MigrateCommand.create(),
@@ -101,6 +107,7 @@ const registerCommands = (program: Command): void => {
     SecretsCommand.create(),
     ConfigCommand.create(),
     PluginCommand.create(),
+    PublishCommand.create(),
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
@@ -110,6 +117,13 @@ const registerCommands = (program: Command): void => {
     MakeNotificationTemplateCommand.create(),
     RoutesCommand.create(),
     JwtDevCommand,
+    // Worker management commands
+    WorkerCommands.createWorkerListCommand(),
+    WorkerCommands.createWorkerStatusCommand(),
+    WorkerCommands.createWorkerStartCommand(),
+    WorkerCommands.createWorkerStopCommand(),
+    WorkerCommands.createWorkerRestartCommand(),
+    WorkerCommands.createWorkerSummaryCommand(),
   ];
 
   for (const command of commands) {

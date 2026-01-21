@@ -48,4 +48,15 @@ describe('Security Config', () => {
     const { securityConfig } = await import('@/config/security');
     expect(() => securityConfig.jwt.secret).toThrow('Missing required secret: JWT_SECRET');
   });
+
+  it('should return empty string when JWT is disabled', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('JWT_ENABLED', 'false');
+    vi.stubEnv('JWT_SECRET', '');
+    vi.stubEnv('APP_KEY', '');
+    vi.resetModules();
+
+    const { securityConfig } = await import('@/config/security');
+    expect(securityConfig.jwt.secret).toBe('');
+  });
 });

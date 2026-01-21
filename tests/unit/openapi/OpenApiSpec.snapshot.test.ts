@@ -4,6 +4,16 @@ import { Router } from '@routing/Router';
 import { RouteRegistry } from '@routing/RouteRegistry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Mock the dev routes to prevent test routes from being registered
+vi.mock('@routes/apiDev', () => ({
+  registerDevRoutes: vi.fn(),
+  registerTestRoutes: vi.fn(),
+}));
+
+vi.mock('@zintrust/workers', () => ({
+  registerWorkerRoutes: vi.fn(),
+}));
+
 vi.mock('@app/Controllers/UserQueryBuilderController', () => {
   const createMockUserController = () => ({
     index: vi.fn(),
@@ -28,7 +38,7 @@ vi.mock('@config/env', () => ({
     get: vi.fn((_key: string, defaultVal?: string) => defaultVal ?? ''),
     getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
     getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
-    APP_NAME: 'Zintrust Framework',
+    APP_NAME: 'ZinTrust Framework',
     NODE_ENV: 'test',
     HOST: 'localhost',
     PORT: 3000,
@@ -48,11 +58,14 @@ describe('OpenAPI spec snapshot', () => {
   });
 
   it('matches a stable snapshot for routes/api.ts', () => {
+    // Reset modules to ensure clean state
+    vi.resetModules();
+
     const router = Router.createRouter();
     registerRoutes(router);
 
     const doc = OpenApiGenerator.generate(RouteRegistry.list(), {
-      title: 'Zintrust Framework',
+      title: 'ZinTrust Framework',
       version: '0.0.0',
       excludePaths: ['/openapi.json', '/docs'],
     });

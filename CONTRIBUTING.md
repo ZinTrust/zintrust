@@ -1,6 +1,6 @@
-# Contributing to Zintrust
+# Contributing to ZinTrust
 
-Thank you for your interest in contributing to Zintrust!
+Thank you for your interest in contributing to ZinTrust!
 
 To ensure a smooth contribution process and maintain high code quality, please refer to our comprehensive **[Contributor & QA Guide](docs/contributing.md)**.
 

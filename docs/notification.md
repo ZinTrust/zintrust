@@ -264,7 +264,7 @@ Create a tiny script in your app repo (example name: `scripts/notification-worke
 import { NotificationWorker } from '@zintrust/core';
 
 const processed = await NotificationWorker.runOnce({ queueName: 'notifications' });
-console.log(`NotificationWorker processed: ${processed}`);
+Logger.info(`NotificationWorker processed: ${processed}`);
 ```
 
 ### Cron (Linux/macOS)

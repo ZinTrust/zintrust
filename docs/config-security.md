@@ -128,6 +128,9 @@ const securityConfigObj = {
   /**
    * JWT Configuration
    */
+
+  <!-- Note: As of recent changes, if `JWT_SECRET` is not provided the framework will fall back to `APP_KEY` for signing/verification. In production you should still set an explicit `JWT_SECRET` and keep secrets rotated. -->
+
   jwt: {
     enabled: Env.getBool('JWT_ENABLED', true),
     get secret(): string {

@@ -5,6 +5,7 @@
  * It may use Node APIs (via node-singletons) and should not be used by runtime apps.
  */
 
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 import { EnvFile } from '@toolkit/Secrets/EnvFile';
@@ -34,6 +35,13 @@ export type DoctorOptions = {
   provider?: SecretsProviderName;
 };
 
+const resolveDefaultEnvFile = (): string => Env.ZINTRUST_ENV_FILE;
+const resolveDefaultManifest = (): string => Env.ZINTRUST_SECRETS_MANIFEST;
+const resolveDefaultInFile = (): string => Env.ZINTRUST_ENV_IN_FILE;
+const resolveSecretsProvider = (): SecretsProviderName | undefined => {
+  return Env.ZINTRUST_SECRETS_PROVIDER as SecretsProviderName | undefined;
+};
+
 const resolveProvider = (provider?: SecretsProviderName): SecretsProviderName => {
   if (provider === 'aws' || provider === 'cloudflare') return provider;
   throw ErrorFactory.createCliError(
@@ -41,14 +49,12 @@ const resolveProvider = (provider?: SecretsProviderName): SecretsProviderName =>
   );
 };
 
-const resolveOutFile = (outFile?: string): string =>
-  outFile ?? process.env['ZINTRUST_ENV_FILE'] ?? '.env.pull';
+const resolveOutFile = (outFile?: string): string => outFile ?? resolveDefaultEnvFile();
 
 const resolveManifestPath = (manifestPath?: string): string =>
-  manifestPath ?? process.env['ZINTRUST_SECRETS_MANIFEST'] ?? 'secrets.manifest.json';
+  manifestPath ?? resolveDefaultManifest();
 
-const resolveInFile = (inFile?: string): string =>
-  inFile ?? process.env['ZINTRUST_ENV_IN_FILE'] ?? '.env';
+const resolveInFile = (inFile?: string): string => inFile ?? resolveDefaultInFile();
 
 const pullAws = async (
   manifest: Awaited<ReturnType<typeof Manifest.load>>
@@ -140,10 +146,7 @@ const pushCloudflare = async (
 
 export const SecretsToolkit = Object.freeze({
   async pull(options: PullOptions): Promise<{ outFile: string; keys: string[] }> {
-    const provider = resolveProvider(
-      options.provider ??
-        (process.env['ZINTRUST_SECRETS_PROVIDER'] as SecretsProviderName | undefined)
-    );
+    const provider = resolveProvider(options.provider ?? resolveSecretsProvider());
 
     const outFile = resolveOutFile(options.outFile);
     const manifestPath = resolveManifestPath(options.manifestPath);
@@ -158,10 +161,7 @@ export const SecretsToolkit = Object.freeze({
   },
 
   async push(options: PushOptions): Promise<{ inFile: string; keys: string[] }> {
-    const provider = resolveProvider(
-      options.provider ??
-        (process.env['ZINTRUST_SECRETS_PROVIDER'] as SecretsProviderName | undefined)
-    );
+    const provider = resolveProvider(options.provider ?? resolveSecretsProvider());
 
     const inFile = resolveInFile(options.inFile);
     const manifestPath = resolveManifestPath(options.manifestPath);
@@ -182,10 +182,7 @@ export const SecretsToolkit = Object.freeze({
     ok: boolean;
     missing: string[];
   } {
-    const provider = resolveProvider(
-      options.provider ??
-        (process.env['ZINTRUST_SECRETS_PROVIDER'] as SecretsProviderName | undefined)
-    );
+    const provider = resolveProvider(options.provider ?? resolveSecretsProvider());
 
     const missing = provider === 'aws' ? AwsSecretsManager.doctorEnv() : CloudflareKv.doctorEnv();
     return { provider, ok: missing.length === 0, missing };

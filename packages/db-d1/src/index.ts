@@ -170,3 +170,10 @@ export const D1Adapter = Object.freeze({
 });
 
 export default D1Adapter;
+
+/**
+ * Package version and build metadata
+ * Available at runtime for debugging and health checks
+ */
+export const _ZINTRUST_DB_D1_VERSION = '0.1.15';
+export const _ZINTRUST_DB_D1_BUILD_DATE = '__BUILD_DATE__';

@@ -1,3 +1,4 @@
+import { readEnvString, safeFetch, validateRequiredParams } from '@common/ExternalServiceUtils';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 /**
@@ -7,16 +8,10 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
  */
 export const TermiiDriver = Object.freeze({
   async send(recipient: string, message: string, options: Record<string, unknown> = {}) {
-    if (!recipient || typeof recipient !== 'string') {
-      throw ErrorFactory.createValidationError('Recipient phone number is required');
-    }
+    validateRequiredParams({ recipient, message }, ['recipient', 'message']);
 
-    if (!message || typeof message !== 'string') {
-      throw ErrorFactory.createValidationError('Message body is required');
-    }
-
-    const apiKey = process.env['TERMII_API_KEY'] ?? '';
-    const sender = process.env['TERMII_SENDER'] ?? 'Zintrust';
+    const apiKey = readEnvString('TERMII_API_KEY');
+    const sender = readEnvString('TERMII_SENDER');
 
     if (!apiKey) {
       throw ErrorFactory.createConfigError('TERMII_API_KEY is not configured');
@@ -30,23 +25,15 @@ export const TermiiDriver = Object.freeze({
       ...options,
     } as Record<string, unknown>;
 
-    // Use global fetch — tests will mock this
+    // Use shared fetch wrapper
     const url = 'https://api.termii.com/sms/send';
-    const res = await globalThis.fetch(url, {
+    const res = await safeFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw ErrorFactory.createTryCatchError(`Termii request failed (${res.status})`, {
-        status: res.status,
-        body: txt,
-      });
-    }
 
     const json = await res.json().catch(() => ({}));
     return json;

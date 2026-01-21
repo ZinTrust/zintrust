@@ -210,10 +210,10 @@ Router.post(router, '/upload/avatar', async (req: IRequest, res: IResponse) => {
   }
 
   // File is now on disk at file.path
-  console.log('Uploaded to:', file.path);
-  console.log('Original name:', file.originalName);
-  console.log('MIME type:', file.mimeType);
-  console.log('Size:', file.size);
+  Logger.info('Uploaded to:', file.path);
+  Logger.info('Original name:', file.originalName);
+  Logger.info('MIME type:', file.mimeType);
+  Logger.info('Size:', file.size);
 
   // Process the file (e.g., move to permanent storage)
   const newPath = `/var/uploads/${Date.now()}-${file.originalName}`;
@@ -320,9 +320,9 @@ Router.post(router, '/upload/document', async (req: IRequest, res: IResponse) =>
   }
 
   // Validation middleware already sanitized text fields
-  console.log('Title:', body.title);
-  console.log('Description:', body.description);
-  console.log('Category:', body.category);
+  Logger.info('Title:', body.title);
+  Logger.info('Description:', body.description);
+  Logger.info('Category:', body.category);
 
   // Process file...
   const newPath = `/documents/${Date.now()}-${file.originalName}`;

@@ -1,4 +1,4 @@
--- Initialize Zintrust microservices databases
+-- Initialize ZinTrust microservices databases
 -- This script runs once when PostgreSQL container starts
 
 -- Create schemas for shared database isolation

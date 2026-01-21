@@ -4,10 +4,10 @@
  * Sealed namespace for immutability
  */
 
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import { Env } from '@config/env';
 import type { MailConfigInput, MailDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export type MailConfigOverrides = Partial<{
   default: string;
@@ -128,7 +128,7 @@ const createMailConfig = (): {
      */
     from: {
       ...baseFrom,
-      ...(overrides.from ?? {}),
+      ...overrides.from,
     },
 
     /**
@@ -136,7 +136,7 @@ const createMailConfig = (): {
      */
     drivers: {
       ...baseDrivers,
-      ...(overrides.drivers ?? {}),
+      ...overrides.drivers,
     },
 
     /**

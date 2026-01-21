@@ -36,7 +36,7 @@ describe('MySQLAdapter - rawQuery()', () => {
       driver: 'mysql',
       host: 'localhost',
       port: 3306,
-      database: 'zintrust_test',
+      database: 'ZinTrust_test',
       username: 'root',
       password: 'password', // NOSONAR - test password
     });

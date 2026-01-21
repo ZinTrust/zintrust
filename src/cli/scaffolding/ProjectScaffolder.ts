@@ -463,7 +463,7 @@ const loadTemplateFromDisk = (
  */
 const BASIC_TEMPLATE: ProjectTemplate = {
   name: 'basic',
-  description: 'Basic Zintrust project structure',
+  description: 'Basic ZinTrust project structure',
   directories: [
     'config',
     'app/Controllers',
@@ -485,7 +485,7 @@ const BASIC_TEMPLATE: ProjectTemplate = {
 
 const API_TEMPLATE: ProjectTemplate = {
   name: 'api',
-  description: 'API-focused Zintrust project structure',
+  description: 'API-focused ZinTrust project structure',
   directories: [
     'app/Controllers',
     'app/Middleware',
@@ -502,7 +502,7 @@ const API_TEMPLATE: ProjectTemplate = {
 
 const MICROSERVICE_TEMPLATE: ProjectTemplate = {
   name: 'microservice',
-  description: 'Microservice-focused Zintrust project structure',
+  description: 'Microservice-focused ZinTrust project structure',
   directories: [
     'app/Controllers',
     'app/Middleware',
@@ -520,7 +520,7 @@ const MICROSERVICE_TEMPLATE: ProjectTemplate = {
 
 const FULLSTACK_TEMPLATE: ProjectTemplate = {
   name: 'fullstack',
-  description: 'Fullstack Zintrust project structure',
+  description: 'Fullstack ZinTrust project structure',
   directories: [
     'app/Controllers',
     'app/Middleware',
@@ -662,7 +662,7 @@ tmp/
   if (!Object.hasOwn(files, 'README.md')) {
     files['README.md'] = `# {{projectName}}
 
-Starter Task API built with Zintrust.
+Starter Task API built with ZinTrust.
 
 ## Run
 

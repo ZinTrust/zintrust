@@ -137,7 +137,7 @@ Create a tiny script in your app repo (example name: `scripts/broadcast-worker.m
 import { BroadcastWorker } from '@zintrust/core';
 
 const processed = await BroadcastWorker.runOnce({ queueName: 'broadcasts' });
-console.log(`BroadcastWorker processed: ${processed}`);
+Logger.info(`BroadcastWorker processed: ${processed}`);
 ```
 
 If you prefer TypeScript in development, you can do the same with `tsx` (dev-only). In production, prefer compiled JS.

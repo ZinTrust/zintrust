@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Zintrust Microservices CLI
+ * ZinTrust Microservices CLI
  * Commands for generating, bundling, and managing microservices
  */
 

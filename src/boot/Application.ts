@@ -10,7 +10,6 @@ import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import type { IMiddlewareStack } from '@/middleware/MiddlewareStack';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
 import { type IRouter, Router } from '@/routing/Router';
-import { StartupConfigFile, StartupConfigFileRegistry } from '@/runtime/StartupConfigFileRegistry';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
@@ -18,6 +17,7 @@ import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
+import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 
 export interface IApplication {
   boot(): Promise<void>;
@@ -109,92 +109,94 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     .then((mod: { ConnectionManager: { shutdownIfInitialized: () => Promise<void> } }) => {
       shutdownManager.add(async () => mod.ConnectionManager.shutdownIfInitialized());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@orm/Database')
     .then((mod: { resetDatabase: () => void }) => {
       shutdownManager.add(() => mod.resetDatabase());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@cache/Cache')
     .then((mod: { Cache: { reset: () => void } }) => {
       shutdownManager.add(() => mod.Cache.reset());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   // Flush file logging streams
   import('@config/FileLogWriter')
     .then((mod: { FileLogWriter: { flush: () => void } }) => {
       shutdownManager.add(() => mod.FileLogWriter.flush());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@broadcast/BroadcastRegistry')
     .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.BroadcastRegistry.reset());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@storage/StorageDiskRegistry')
     .then((mod: { StorageDiskRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.StorageDiskRegistry.reset());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@notification/NotificationChannelRegistry')
     .then((mod: { NotificationChannelRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.NotificationChannelRegistry.reset());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@mail/MailDriverRegistry')
     .then((mod: { MailDriverRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.MailDriverRegistry.reset());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
 
   import('@tools/queue/Queue')
     .then((mod: { Queue: { reset: () => void } }) => {
       shutdownManager.add(() => mod.Queue.reset());
     })
-    /* c8 ignore start */
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
-  /* c8 ignore stop */
+
+  import('@zintrust/workers')
+    .then(
+      (mod: {
+        WorkerShutdown: {
+          shutdown: (opts: {
+            signal?: string;
+            timeout?: number;
+            forceExit?: boolean;
+          }) => Promise<void>;
+        };
+      }) => {
+        shutdownManager.add(async () =>
+          mod.WorkerShutdown.shutdown({ signal: 'APP_SHUTDOWN', timeout: 5000, forceExit: false })
+        );
+      }
+    )
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
 };
 
 const tryImportRoutesFromAppBase = async (
@@ -377,7 +379,7 @@ const createLifecycle = (params: {
   const boot = async (): Promise<void> => {
     if (params.getBooted()) return;
 
-    Logger.info(`🚀 Booting Zintrust Application in ${params.environment} mode...`);
+    Logger.info(`🚀 Booting ZinTrust Application in ${params.environment} mode...`);
 
     StartupConfigValidator.assertValid();
 
@@ -403,9 +405,9 @@ const createLifecycle = (params: {
 
     // Register service providers
     // Bootstrap services
+    Logger.info('✅ Application booted successfully');
 
     params.setBooted(true);
-    Logger.info('✅ Application booted successfully');
   };
 
   const shutdown = async (): Promise<void> => {
@@ -417,8 +419,8 @@ const createLifecycle = (params: {
       Logger.error('Shutdown hook failed:', error as Error);
     }
 
-    Logger.info('✅ Application shut down successfully');
     params.setBooted(false);
+    Logger.info('✅ Application shut down successfully');
   };
 
   return { boot, shutdown };

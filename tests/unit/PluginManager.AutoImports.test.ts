@@ -61,7 +61,7 @@ describe('PluginManager autoImports', () => {
     await expect(PluginManager.install(id, { packageManager: 'npm' })).resolves.toBeUndefined();
 
     const first = await readFile(pluginFile, 'utf8');
-    expect(first).toContain('Zintrust plugin auto-imports');
+    expect(first).toContain('ZinTrust plugin auto-imports');
     expect(first).toContain("import '@zintrust/cache-redis/register';");
     expect(first).toContain("import '@zintrust/mail-nodemailer/register';");
 

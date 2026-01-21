@@ -1,3 +1,4 @@
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { AwsSigV4 } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
@@ -76,11 +77,11 @@ const ensureCredentials = (): {
   secretAccessKey: string;
   sessionToken?: string;
 } => {
-  const accessKeyId = process.env['AWS_ACCESS_KEY_ID'] ?? '';
-  const secretAccessKey = process.env['AWS_SECRET_ACCESS_KEY'] ?? '';
-  const sessionToken = process.env['AWS_SESSION_TOKEN'] ?? undefined;
+  const accessKeyId = readEnvString('AWS_ACCESS_KEY_ID');
+  const secretAccessKey = readEnvString('AWS_SECRET_ACCESS_KEY');
+  const sessionToken = readEnvString('AWS_SESSION_TOKEN') ?? undefined;
 
-  if (accessKeyId.trim() === '' || secretAccessKey.trim() === '') {
+  if (accessKeyId.length === 0 || secretAccessKey.length === 0) {
     throw ErrorFactory.createConfigError(
       'SES: missing AWS credentials (set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)'
     );

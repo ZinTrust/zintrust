@@ -1,5 +1,5 @@
 /**
- * Base Exception Factory for Zintrust Framework
+ * Base Exception Factory for ZinTrust Framework
  * Implemented as plain functions (no classes / no prototype-based constructors).
  */
 
@@ -25,7 +25,7 @@ export type ZintrustErrorInit = Readonly<{
 }>;
 
 /**
- * Plain initializer for Zintrust framework errors.
+ * Plain initializer for ZinTrust framework errors.
  */
 export function initZintrustError(target: Error, init: ZintrustErrorInit = {}): void {
   const mutable = target as Error & {
@@ -89,6 +89,7 @@ function createTypedZintrustError<
 
 export type ZintrustError = TypedZintrustError<'INTERNAL_ERROR', 'ZintrustError', 500>;
 export type DatabaseError = TypedZintrustError<'DATABASE_ERROR', 'DatabaseError', 500>;
+export type WorkerError = TypedZintrustError<'WORKER_ERROR', 'WorkerError', 500>;
 export type ValidationError = TypedZintrustError<'VALIDATION_ERROR', 'ValidationError', 400>;
 export type NotFoundError = TypedZintrustError<'NOT_FOUND', 'NotFoundError', 404>;
 export type UnauthorizedError = TypedZintrustError<'UNAUTHORIZED', 'UnauthorizedError', 401>;
@@ -110,6 +111,10 @@ export function ZintrustError(message: string, details?: unknown): ZintrustError
 
 export function createDatabaseError(message: string, details?: unknown): DatabaseError {
   return createTypedZintrustError(message, 500, 'DATABASE_ERROR', 'DatabaseError', details);
+}
+
+export function createWorkerError(message: string, details?: unknown): WorkerError {
+  return createTypedZintrustError(message, 500, 'WORKER_ERROR', 'WorkerError', details);
 }
 
 export function createValidationError(message: string, details?: unknown): ValidationError {
@@ -261,6 +266,8 @@ export const Errors = Object.freeze({
 export const ErrorFactory = Object.freeze({
   createDatabaseError: (message: string, details?: unknown) =>
     createDatabaseError(message, details),
+  createWorkerError: (message: string, details?: unknown) => createWorkerError(message, details),
+
   createConnectionError: (message: string, details?: unknown) =>
     createConnectionError(message, details),
   createConfigError: (message: string, details?: unknown) => createConfigError(message, details),

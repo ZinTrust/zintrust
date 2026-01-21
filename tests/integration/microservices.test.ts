@@ -1,19 +1,11 @@
 import { Env } from '@config/env';
 import { Request } from '@http/Request';
-import type { IResponse} from '@http/Response';
+import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
-import type {
-  IMicroserviceBootstrap,
-  ServiceConfig} from '@microservices/MicroserviceBootstrap';
-import {
-  MicroserviceBootstrap
-} from '@microservices/MicroserviceBootstrap';
-import type {
-  IMicroserviceManager,
-  MicroserviceConfig} from '@microservices/MicroserviceManager';
-import {
-  MicroserviceManager,
-} from '@microservices/MicroserviceManager';
+import type { IMicroserviceBootstrap, ServiceConfig } from '@microservices/MicroserviceBootstrap';
+import { MicroserviceBootstrap } from '@microservices/MicroserviceBootstrap';
+import type { IMicroserviceManager, MicroserviceConfig } from '@microservices/MicroserviceManager';
+import { MicroserviceManager } from '@microservices/MicroserviceManager';
 import { PostgresAdapter } from '@microservices/PostgresAdapter';
 import { RequestTracingMiddleware } from '@microservices/RequestTracingMiddleware';
 import { ApiKeyAuth, JwtAuth, ServiceAuthMiddleware } from '@microservices/ServiceAuthMiddleware';
@@ -475,7 +467,7 @@ describe('Microservices PostgreSQL Adapter', () => {
       const adapter = PostgresAdapter.create({
         host: 'localhost',
         port: 5432,
-        database: 'zintrust',
+        database: 'ZinTrust',
         user: 'postgres',
         password: Env.DB_PASSWORD || 'postgres',
         serviceName: 'users',
@@ -489,7 +481,7 @@ describe('Microservices PostgreSQL Adapter', () => {
       const adapter = PostgresAdapter.create({
         host: 'localhost',
         port: 5432,
-        database: 'zintrust',
+        database: 'ZinTrust',
         user: 'postgres',
         password: Env.DB_PASSWORD || 'postgres',
         max: 10,

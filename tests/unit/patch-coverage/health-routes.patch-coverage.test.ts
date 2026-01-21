@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), info: vi.fn() } }));
-vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'production', get: vi.fn() } }));
+vi.mock('@config/env', () => ({
+  Env: {
+    NODE_ENV: 'production',
+    get: vi.fn(),
+    getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+    getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
+    getFloat: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
+  },
+}));
 vi.mock('@/config', () => ({ appConfig: { environment: 'production' } }));
 vi.mock('@orm/Database', () => ({ useDatabase: vi.fn() }));
 vi.mock('@orm/QueryBuilder', () => ({ QueryBuilder: { ping: vi.fn() } }));
@@ -44,7 +52,7 @@ describe('patch coverage: health routes', () => {
     const { Router } = await import('@routing/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@/../routes/health');
+    const { registerHealthRoutes } = await import('@routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();
@@ -71,7 +79,7 @@ describe('patch coverage: health routes', () => {
     const { Router } = await import('@routing/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@/../routes/health');
+    const { registerHealthRoutes } = await import('@routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();

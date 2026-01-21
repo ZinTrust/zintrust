@@ -9,6 +9,7 @@ import { ErrorHandler } from '@cli/ErrorHandler';
 import { PromptHelper } from '@cli/PromptHelper';
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
 import { TemplateGenerator } from '@cli/scaffolding/TemplateGenerator';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
 import type { Command } from 'commander';
@@ -33,8 +34,7 @@ const addOptions = (command: Command): void => {
   command.option('--no-interactive', 'Disable prompts (requires args/options)');
 };
 
-const defaultCopyright = (): string =>
-  process.env['TEMPLATE_COPYRIGHT'] ?? '© 2025 Zintrust Framework. All rights reserved.';
+const defaultCopyright = (): string => Env.TEMPLATE_COPYRIGHT;
 
 const parseChannelsCsv = (csv: string | undefined): NotificationChannel[] => {
   if (csv === undefined || csv.trim() === '') return [];

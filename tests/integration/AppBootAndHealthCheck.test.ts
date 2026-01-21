@@ -1,8 +1,8 @@
-import { Application, type IApplication } from '@boot/Application';
+import type { IApplication } from '@boot/Application';
 import { mkdtemp, rm } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const hasRoute = (
   router: { routes: Array<{ method: string; path: string }> },
@@ -18,10 +18,14 @@ const hasRoute = (
 };
 
 describe.sequential('Application Boot and Health Check Integration', () => {
+  let Application: typeof import('@boot/Application').Application;
   let app: IApplication;
   let tempDir: string | undefined;
 
   beforeAll(async () => {
+    process.env.NODE_ENV = 'testing';
+    vi.resetModules();
+    ({ Application } = await import('@boot/Application'));
     tempDir = await mkdtemp(join(tmpdir(), 'zintrust-app-boot-health-'));
     app = Application.create(tempDir);
     await app.boot();

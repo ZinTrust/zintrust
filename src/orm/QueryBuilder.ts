@@ -3,6 +3,8 @@
  * Build queries without raw SQL
  */
 
+import type { PaginationQuery, Paginator } from '@database/Paginator';
+import { createPaginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IDatabase } from '@orm/Database';
 import type { IModel } from '@orm/Model';
@@ -30,6 +32,14 @@ export interface QueryBuilderOptions {
   softDeleteColumn?: string;
   softDeleteMode?: SoftDeleteMode;
 }
+
+export interface PaginationOptions {
+  baseUrl?: string;
+  query?: PaginationQuery;
+}
+
+export type EagerLoadConstraint = (builder: IQueryBuilder) => IQueryBuilder;
+export type EagerLoadConstraints = Record<string, EagerLoadConstraint>;
 
 export interface IQueryBuilder {
   select(...columns: string[]): IQueryBuilder;
@@ -62,9 +72,12 @@ export interface IQueryBuilder {
   firstOrFail<T>(message?: string): Promise<T>;
   get<T>(): Promise<T[]>;
   raw<T>(): Promise<T[]>;
+  paginate<T>(page: number, perPage: number, options?: PaginationOptions): Promise<Paginator<T>>;
 
-  with(relation: string): IQueryBuilder;
-  load(models: IModel[], relation: string): Promise<void>;
+  with(relation: string | EagerLoadConstraints): IQueryBuilder;
+  withCount(relation: string): IQueryBuilder;
+  load(models: IModel[], relation: string, constraint?: EagerLoadConstraint): Promise<void>;
+  loadCount(models: IModel[], relation: string): Promise<void>;
 
   insert(values: Record<string, unknown> | Array<Record<string, unknown>>): Promise<InsertResult>;
   update(values: Record<string, unknown>): Promise<void>;
@@ -81,6 +94,8 @@ interface QueryState {
   joins: Array<{ table: string; on: string }>;
   softDelete?: { column: string; mode: SoftDeleteMode };
   eagerLoads: string[];
+  eagerLoadConstraints: EagerLoadConstraints;
+  eagerLoadCounts: string[];
   dialect?: string;
 }
 
@@ -440,6 +455,18 @@ const buildSelectQuery = (state: QueryState): { sql: string; parameters: unknown
   return { sql, parameters: where.parameters };
 };
 
+const buildCountQuery = (state: QueryState): { sql: string; parameters: unknown[] } => {
+  if (state.tableName.length > 0) {
+    assertSafeIdentifierPath(state.tableName, 'table name');
+  }
+
+  const fromClause =
+    state.tableName.length > 0 ? ` FROM ${escapeIdentifier(state.tableName, state.dialect)}` : '';
+  const where = compileWhere(getEffectiveWhereConditions(state), state.dialect);
+  const sql = `SELECT COUNT(*) AS total${fromClause}${where.sql}`;
+  return { sql, parameters: where.parameters };
+};
+
 const applyWhereCondition = (
   state: QueryState,
   column: string,
@@ -596,6 +623,57 @@ async function executeGet<T>(builder: IQueryBuilder, db?: IDatabase): Promise<T[
   )) as T[];
 }
 
+const normalizePaginationValue = (value: number, label: string): number => {
+  const n = Math.trunc(value);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw ErrorFactory.createValidationError(`${label} must be a positive integer`);
+  }
+  return n;
+};
+
+async function executePaginate<T>(
+  builder: IQueryBuilder,
+  state: QueryState,
+  db: IDatabase | undefined,
+  page: number,
+  perPage: number,
+  options?: PaginationOptions
+): Promise<Paginator<T>> {
+  if (!db) throw ErrorFactory.createDatabaseError('Database instance not provided to QueryBuilder');
+
+  const safePage = normalizePaginationValue(page, 'page');
+  const safePerPage = normalizePaginationValue(perPage, 'perPage');
+
+  const countQuery = buildCountQuery(state);
+  const countRows = (await db.query(countQuery.sql, countQuery.parameters, true)) as Array<
+    Record<string, unknown>
+  >;
+
+  const rawTotal = countRows.at(0)?.['total'];
+  const total = typeof rawTotal === 'bigint' ? Number(rawTotal) : Number(rawTotal ?? 0);
+  const sanitizedTotal = Number.isFinite(total) && total > 0 ? total : 0;
+
+  const offset = (safePage - 1) * safePerPage;
+  const prevLimit = state.limitValue;
+  const prevOffset = state.offsetValue;
+  state.limitValue = safePerPage;
+  state.offsetValue = offset;
+
+  const items = await executeGet<T>(builder, db);
+
+  state.limitValue = prevLimit;
+  state.offsetValue = prevOffset;
+
+  return createPaginator({
+    items,
+    total: sanitizedTotal,
+    perPage: safePerPage,
+    currentPage: safePage,
+    baseUrl: options?.baseUrl,
+    query: options?.query,
+  });
+}
+
 /**
  * Create the builder object
  */
@@ -706,61 +784,593 @@ function attachIntrospectionMethods(builder: IQueryBuilder, state: QueryState): 
   builder.getParameters = () => buildSelectQuery(state).parameters;
   // Internal method for eager loading distribution
   (builder as unknown as { getEagerLoads: () => string[] }).getEagerLoads = () => state.eagerLoads;
+  (
+    builder as unknown as { getEagerLoadConstraints: () => EagerLoadConstraints }
+  ).getEagerLoadConstraints = () => state.eagerLoadConstraints;
+  (builder as unknown as { getEagerLoadCounts: () => string[] }).getEagerLoadCounts = () =>
+    state.eagerLoadCounts;
 }
 
-function attachReadExecutionMethods(builder: IQueryBuilder, db?: IDatabase): void {
+function attachReadExecutionMethods(
+  builder: IQueryBuilder,
+  state: QueryState,
+  db?: IDatabase
+): void {
   builder.first = async <T>() => executeFirst<T>(builder, db);
   builder.firstOrFail = async <T>(message?: string) => executeFirstOrFail<T>(builder, db, message);
   builder.get = async <T>() => executeGet<T>(builder, db);
+  builder.paginate = async <T>(
+    page: number,
+    perPage: number,
+    options: PaginationOptions | undefined
+  ) => executePaginate<T>(builder, state, db, page, perPage, options);
   // raw just returns results without any hydration logic in callers
   builder.raw = async <T>() => executeGet<T>(builder, db);
 }
 
-function attachRelationshipMethods(builder: IQueryBuilder, state: QueryState): void {
-  builder.with = (relation: string) => {
-    state.eagerLoads.push(relation);
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0;
+
+const isKeyValue = (value: unknown): value is string | number =>
+  typeof value === 'string' || typeof value === 'number';
+
+const getModelIds = (models: IModel[], key: string): Array<string | number> =>
+  models.map((model) => model.getAttribute(key)).filter(isKeyValue);
+
+const applyConstraint = (query: IQueryBuilder, constraint?: EagerLoadConstraint): IQueryBuilder => {
+  if (typeof constraint === 'function') {
+    return constraint(query) ?? query;
+  }
+  return query;
+};
+
+/**
+ * Load relationship counts for a collection of models
+ */
+async function loadCounts(models: IModel[], relation: string, db?: IDatabase): Promise<void> {
+  if (models.length === 0 || !db) return;
+
+  const firstModel = models[0] as unknown as Record<string, () => IRelationship>;
+  if (typeof firstModel[relation] !== 'function') return;
+
+  const rel = firstModel[relation]();
+  if (rel === null || rel === undefined) return;
+
+  const relType = rel.type;
+
+  // Only hasMany and belongsToMany support counts
+  if (relType !== 'hasMany' && relType !== 'belongsToMany') {
+    return;
+  }
+
+  const foreignKey = rel.foreignKey;
+  const localKey = rel.localKey;
+
+  const ids = getModelIds(models, localKey);
+
+  if (ids.length === 0) return;
+
+  const dialect = typeof db.getType === 'function' ? db.getType() : undefined;
+
+  const queryCounts = async (
+    sql: string,
+    params: unknown[]
+  ): Promise<Map<string | number, number>> => {
+    const results = (await db.query(sql, params, true)) as Array<{
+      key: string | number;
+      count: number | bigint;
+    }>;
+    const map = new Map<string | number, number>();
+    for (const row of results) {
+      let count: number;
+      if (typeof row.count === 'bigint') {
+        count = Number(row.count);
+      } else if (typeof row.count === 'number') {
+        count = row.count;
+      } else {
+        count = Number(row.count ?? 0);
+      }
+      map.set(row.key, count);
+    }
+    return map;
+  };
+
+  const setCountsOnModels = (countMap: Map<string | number, number>): void => {
+    for (const model of models) {
+      const modelId = model.getAttribute(localKey);
+      if (isKeyValue(modelId)) {
+        const count = countMap.get(modelId) ?? 0;
+        model.setAttribute(`${relation}_count`, count);
+      } else {
+        model.setAttribute(`${relation}_count`, 0);
+      }
+    }
+  };
+
+  if (relType === 'hasMany') {
+    const relatedModel = rel.related as unknown as { query(): IQueryBuilder };
+    if (typeof relatedModel?.query !== 'function') return;
+
+    const tempQuery = relatedModel.query();
+    const relatedTable = tempQuery.getTable();
+
+    const sql = `SELECT ${escapeIdentifier(foreignKey, dialect)} as key, COUNT(*) as count FROM ${escapeIdentifier(
+      relatedTable,
+      dialect
+    )} WHERE ${escapeIdentifier(foreignKey, dialect)} IN (${ids.map(() => '?').join(',')}) GROUP BY ${escapeIdentifier(
+      foreignKey,
+      dialect
+    )}`;
+
+    const countMap = await queryCounts(sql, ids);
+    setCountsOnModels(countMap);
+    return;
+  }
+
+  // belongsToMany
+  const throughTable = rel.throughTable;
+  const relatedKey = rel.relatedKey;
+  if (!isNonEmptyString(throughTable) || !isNonEmptyString(relatedKey)) return;
+
+  const sql = `SELECT ${escapeIdentifier(foreignKey, dialect)} as key, COUNT(*) as count FROM ${escapeIdentifier(
+    throughTable,
+    dialect
+  )} WHERE ${escapeIdentifier(foreignKey, dialect)} IN (${ids.map(() => '?').join(',')}) GROUP BY ${escapeIdentifier(
+    foreignKey,
+    dialect
+  )}`;
+
+  const countMap = await queryCounts(sql, ids);
+  setCountsOnModels(countMap);
+}
+
+const getRelationFromModels = (models: IModel[], relation: string): IRelationship | null => {
+  const firstModel = models[0] as unknown as Record<string, () => IRelationship>;
+  const relationFactory = firstModel?.[relation];
+  if (typeof relationFactory !== 'function') return null;
+  const rel = relationFactory();
+  return rel ?? null;
+};
+
+const assignMorphToGroup = (
+  modelsByType: Map<string, IModel[]>,
+  type: string,
+  model: IModel
+): void => {
+  const existing = modelsByType.get(type);
+  if (existing) {
+    existing.push(model);
+  } else {
+    modelsByType.set(type, [model]);
+  }
+};
+
+const getModelTable = (model: IModel): string | null => {
+  const tableGetter = (model as unknown as { getTable?: () => string }).getTable;
+  if (typeof tableGetter !== 'function') return null;
+  const table = tableGetter();
+  return isNonEmptyString(table) ? table : null;
+};
+
+const buildSingleMap = (results: IModel[], key: string): Map<string | number, IModel> => {
+  const map = new Map<string | number, IModel>();
+  for (const result of results) {
+    const resultId = result.getAttribute(key);
+    if (isKeyValue(resultId)) {
+      map.set(resultId, result);
+    }
+  }
+  return map;
+};
+
+const buildBucketMap = (results: IModel[], key: string): Map<string | number, IModel[]> => {
+  const buckets = new Map<string | number, IModel[]>();
+  for (const result of results) {
+    const resultId = result.getAttribute(key);
+    if (isKeyValue(resultId)) {
+      const existing = buckets.get(resultId) ?? [];
+      existing.push(result);
+      buckets.set(resultId, existing);
+    }
+  }
+  return buckets;
+};
+
+const setRelationsFromBuckets = (
+  models: IModel[],
+  relation: string,
+  localKey: string,
+  buckets: Map<string | number, IModel[]>,
+  isMany: boolean
+): void => {
+  for (const model of models) {
+    const modelId = model.getAttribute(localKey);
+    if (!isKeyValue(modelId)) {
+      model.setRelation(relation, isMany ? [] : null);
+      continue;
+    }
+
+    const bucket = buckets.get(modelId) ?? [];
+    if (isMany) {
+      model.setRelation(relation, bucket);
+    } else {
+      model.setRelation(relation, bucket[0] ?? null);
+    }
+  }
+};
+
+const buildParentToThroughIds = (
+  throughResults: IModel[],
+  throughForeignKey: string,
+  secondLocalKey: string
+): Map<string | number, Array<string | number>> => {
+  const parentToThroughIds = new Map<string | number, Array<string | number>>();
+  for (const throughItem of throughResults) {
+    const parentId = throughItem.getAttribute(throughForeignKey);
+    const throughId = throughItem.getAttribute(secondLocalKey);
+    if (isKeyValue(parentId) && isKeyValue(throughId)) {
+      const existing = parentToThroughIds.get(parentId) ?? [];
+      existing.push(throughId);
+      parentToThroughIds.set(parentId, existing);
+    }
+  }
+  return parentToThroughIds;
+};
+
+const collectThroughRelated = (
+  throughIds: Array<string | number>,
+  relatedBuckets: Map<string | number, IModel[]>
+): IModel[] => {
+  const aggregated: IModel[] = [];
+  for (const throughId of throughIds) {
+    const bucket = relatedBuckets.get(throughId);
+    if (bucket !== undefined) {
+      aggregated.push(...bucket);
+    }
+  }
+  return aggregated;
+};
+
+const setThroughRelations = (
+  models: IModel[],
+  relation: string,
+  localKey: string,
+  parentToThroughIds: Map<string | number, Array<string | number>>,
+  relatedBuckets: Map<string | number, IModel[]>,
+  isMany: boolean
+): void => {
+  for (const model of models) {
+    const modelId = model.getAttribute(localKey);
+    if (!isKeyValue(modelId)) {
+      model.setRelation(relation, isMany ? [] : null);
+      continue;
+    }
+
+    const throughIds = parentToThroughIds.get(modelId) ?? [];
+    if (throughIds.length === 0) {
+      model.setRelation(relation, isMany ? [] : null);
+      continue;
+    }
+
+    const aggregated = collectThroughRelated(throughIds, relatedBuckets);
+    if (isMany) {
+      model.setRelation(relation, aggregated);
+    } else {
+      model.setRelation(relation, aggregated[0] ?? null);
+    }
+  }
+};
+
+const buildMorphToGroups = (models: IModel[], morphType: string): Map<string, IModel[]> => {
+  const modelsByType = new Map<string, IModel[]>();
+  for (const model of models) {
+    const type = model.getAttribute(morphType);
+    if (isNonEmptyString(type)) {
+      assignMorphToGroup(modelsByType, type, model);
+    }
+  }
+  return modelsByType;
+};
+
+const setMorphToRelations = (
+  models: IModel[],
+  relation: string,
+  morphId: string,
+  relatedMap: Map<string | number, IModel>
+): void => {
+  for (const model of models) {
+    const modelId = model.getAttribute(morphId);
+    if (isKeyValue(modelId)) {
+      model.setRelation(relation, relatedMap.get(modelId) ?? null);
+    } else {
+      model.setRelation(relation, null);
+    }
+  }
+};
+
+const loadMorphToGroup = async (
+  relation: string,
+  morphId: string,
+  modelsOfType: IModel[],
+  relatedModel: { query: () => IQueryBuilder },
+  constraint?: EagerLoadConstraint
+): Promise<void> => {
+  const ids = getModelIds(modelsOfType, morphId);
+  if (ids.length === 0) return;
+
+  const relatedQuery = applyConstraint(relatedModel.query(), constraint);
+
+  const relatedResults = await relatedQuery.whereIn('id', ids).get<IModel>();
+  const relatedMap = buildSingleMap(relatedResults, 'id');
+  setMorphToRelations(modelsOfType, relation, morphId, relatedMap);
+};
+
+const loadMorphToRelation = async (
+  models: IModel[],
+  relation: string,
+  rel: IRelationship,
+  constraint?: EagerLoadConstraint
+): Promise<boolean> => {
+  if (rel.type !== 'morphTo') return false;
+
+  const morphType = rel.morphType;
+  const morphId = rel.morphId;
+  const morphMap = rel.morphMap;
+
+  if (
+    !isNonEmptyString(morphType) ||
+    !isNonEmptyString(morphId) ||
+    morphMap === null ||
+    morphMap === undefined
+  ) {
+    return true;
+  }
+
+  const modelsByType = buildMorphToGroups(models, morphType);
+
+  const tasks = [...modelsByType.entries()].map(async ([type, modelsOfType]) => {
+    const relatedModel = morphMap[type] as unknown as { query(): IQueryBuilder } | undefined;
+    if (relatedModel === undefined || typeof relatedModel.query !== 'function') {
+      return Promise.resolve(); //NOSONAR
+    }
+
+    return loadMorphToGroup(relation, morphId, modelsOfType, relatedModel, constraint);
+  });
+
+  await Promise.all(tasks);
+
+  return true;
+};
+
+const prepareMorphOneMany = (
+  models: IModel[],
+  rel: IRelationship,
+  localKey: string | undefined,
+  morphId: string | undefined,
+  morphType: string | undefined
+): {
+  proceed: boolean;
+  ids?: Array<string | number>;
+  relatedModel?: { query?: () => IQueryBuilder };
+  tableName?: string;
+} => {
+  if (!isNonEmptyString(morphType) || !isNonEmptyString(morphId) || !isNonEmptyString(localKey)) {
+    return { proceed: false };
+  }
+
+  const ids = getModelIds(models, localKey);
+  if (ids.length === 0) return { proceed: false };
+
+  const relatedModel = rel.related as unknown as { query?: () => IQueryBuilder };
+  if (typeof relatedModel.query !== 'function') return { proceed: false };
+
+  const tableName = getModelTable(models[0]);
+  if (tableName === null) return { proceed: false };
+
+  return { proceed: true, ids, relatedModel, tableName };
+};
+
+const loadMorphOneManyRelation = async (
+  models: IModel[],
+  relation: string,
+  rel: IRelationship,
+  constraint?: EagerLoadConstraint
+): Promise<boolean> => {
+  if (rel.type !== 'morphOne' && rel.type !== 'morphMany') return false;
+
+  const morphType = rel.morphType;
+  const morphId = rel.morphId;
+  const localKey = rel.localKey;
+
+  const prep = prepareMorphOneMany(models, rel, localKey, morphId, morphType);
+  if (
+    !prep.proceed ||
+    prep.ids === undefined ||
+    prep.relatedModel === undefined ||
+    prep.tableName === undefined ||
+    !isNonEmptyString(morphType) ||
+    !isNonEmptyString(morphId) ||
+    !isNonEmptyString(localKey)
+  ) {
+    return true;
+  }
+
+  const ids = prep.ids;
+  const relatedModel = prep.relatedModel as { query(): IQueryBuilder };
+  const tableName = prep.tableName;
+
+  const relatedQuery = applyConstraint(relatedModel.query(), constraint)
+    .where(morphType, '=', tableName)
+    .whereIn(morphId, ids);
+
+  const relatedResults = await relatedQuery.get<IModel>();
+  const relatedBuckets = buildBucketMap(relatedResults, morphId);
+  const isMany = rel.type === 'morphMany';
+  setRelationsFromBuckets(models, relation, localKey, relatedBuckets, isMany);
+
+  return true;
+};
+
+const loadThroughRelation = async (
+  models: IModel[],
+  relation: string,
+  rel: IRelationship,
+  constraint?: EagerLoadConstraint
+): Promise<boolean> => {
+  if (rel.type !== 'hasOneThrough' && rel.type !== 'hasManyThrough') return false;
+
+  const through = rel.through;
+  const throughForeignKey = rel.throughForeignKey;
+  const secondLocalKey = rel.secondLocalKey;
+  const foreignKey = rel.foreignKey;
+  const localKey = rel.localKey;
+
+  if (
+    through === undefined ||
+    through === null ||
+    !isNonEmptyString(throughForeignKey) ||
+    !isNonEmptyString(secondLocalKey) ||
+    !isNonEmptyString(foreignKey) ||
+    !isNonEmptyString(localKey)
+  ) {
+    return true;
+  }
+
+  const ids = getModelIds(models, localKey);
+  if (ids.length === 0) return true;
+
+  const throughModel = through as unknown as {
+    query(): IQueryBuilder;
+    getTable?: () => string;
+  };
+  const relatedModel = rel.related as unknown as {
+    query(): IQueryBuilder;
+    getTable?: () => string;
+  };
+
+  if (
+    typeof throughModel.getTable !== 'function' ||
+    typeof relatedModel.query !== 'function' ||
+    typeof relatedModel.getTable !== 'function'
+  ) {
+    return true;
+  }
+
+  const throughTable = throughModel.getTable();
+  const relatedTable = relatedModel.getTable();
+  if (!isNonEmptyString(throughTable) || !isNonEmptyString(relatedTable)) return true;
+
+  let relatedQuery = relatedModel.query();
+  relatedQuery = applyConstraint(relatedQuery, constraint);
+
+  relatedQuery = relatedQuery
+    .join(throughTable, `${relatedTable}.${foreignKey} = ${throughTable}.${secondLocalKey}`)
+    .whereIn(`${throughTable}.${throughForeignKey}`, ids);
+
+  const relatedResults = await relatedQuery.get<IModel>();
+
+  const throughQuery = throughModel.query().whereIn(throughForeignKey, ids);
+  const throughResults = await throughQuery.get<IModel>();
+
+  const parentToThroughIds = buildParentToThroughIds(
+    throughResults,
+    throughForeignKey,
+    secondLocalKey
+  );
+
+  const relatedBuckets = buildBucketMap(relatedResults, foreignKey);
+
+  const isMany = rel.type === 'hasManyThrough';
+  setThroughRelations(models, relation, localKey, parentToThroughIds, relatedBuckets, isMany);
+
+  return true;
+};
+
+const loadStandardRelation = async (
+  models: IModel[],
+  relation: string,
+  rel: IRelationship,
+  constraint?: EagerLoadConstraint
+): Promise<boolean> => {
+  const related = (rel as unknown as { related?: unknown }).related;
+  if (related === null || related === undefined) return false;
+
+  const foreignKey = rel.foreignKey;
+  const localKey = rel.localKey;
+  if (!isNonEmptyString(foreignKey) || !isNonEmptyString(localKey)) return false;
+
+  const ids = getModelIds(models, localKey);
+  if (ids.length === 0) return true;
+
+  const relatedModel = rel.related as unknown as { query(): IQueryBuilder };
+  if (typeof relatedModel.query !== 'function') return false;
+
+  const relatedQuery = applyConstraint(relatedModel.query(), constraint);
+  const relatedResults = await relatedQuery.whereIn(foreignKey, ids).get<IModel>();
+  const relatedBuckets = buildBucketMap(relatedResults, foreignKey);
+  const isMany = rel.type === 'hasMany' || rel.type === 'belongsToMany';
+  setRelationsFromBuckets(models, relation, localKey, relatedBuckets, isMany);
+
+  return true;
+};
+
+const loadRelation = async (
+  models: IModel[],
+  relation: string,
+  constraint?: EagerLoadConstraint
+): Promise<void> => {
+  if (models.length === 0) return;
+  const rel = getRelationFromModels(models, relation);
+  if (!rel) return;
+
+  const type = rel.type;
+  if (type === 'morphTo') {
+    await loadMorphToRelation(models, relation, rel, constraint);
+    return;
+  }
+  if (type === 'morphOne' || type === 'morphMany') {
+    await loadMorphOneManyRelation(models, relation, rel, constraint);
+    return;
+  }
+  if (type === 'hasOneThrough' || type === 'hasManyThrough') {
+    await loadThroughRelation(models, relation, rel, constraint);
+    return;
+  }
+  await loadStandardRelation(models, relation, rel, constraint);
+};
+
+function attachRelationshipMethods(
+  builder: IQueryBuilder,
+  state: QueryState,
+  db?: IDatabase
+): void {
+  builder.with = (relation: string | EagerLoadConstraints) => {
+    if (typeof relation === 'string') {
+      state.eagerLoads.push(relation);
+      return builder;
+    }
+
+    for (const [name, constraint] of Object.entries(relation)) {
+      if (state.eagerLoads.includes(name) === false) {
+        state.eagerLoads.push(name);
+      }
+      state.eagerLoadConstraints[name] = constraint;
+    }
+
     return builder;
   };
 
-  builder.load = async (models: IModel[], relation: string) => {
-    if (models.length === 0) return;
+  builder.withCount = (relation: string) => {
+    state.eagerLoadCounts.push(relation);
+    return builder;
+  };
 
-    // We assume the first model can give us the relationship definition
-    const firstModel = models[0] as unknown as Record<string, () => IRelationship>;
-    if (typeof firstModel[relation] !== 'function') return;
+  builder.load = async (models: IModel[], relation: string, constraint?: EagerLoadConstraint) => {
+    await loadRelation(models, relation, constraint);
+  };
 
-    const rel = firstModel[relation]();
-    if (rel === null || rel === undefined) return;
-
-    const related = (rel as unknown as { related?: unknown }).related;
-    if (related === null || related === undefined) return;
-
-    const foreignKey = rel.foreignKey;
-    const localKey = rel.localKey;
-
-    const ids = models
-      .map((m) => m.getAttribute(localKey))
-      .filter((id): id is string | number => id !== null && id !== undefined);
-
-    if (ids.length === 0) return;
-
-    // Call query on the related model
-    const relatedModel = rel.related as unknown as { query(): IQueryBuilder };
-    if (typeof relatedModel.query !== 'function') return;
-
-    const relatedResults = await relatedModel.query().whereIn(foreignKey, ids).get<IModel>();
-
-    // Map results back to models
-    for (const model of models) {
-      const modelId = model.getAttribute(localKey);
-      if (rel.type === 'hasMany' || rel.type === 'belongsToMany') {
-        const filtered = relatedResults.filter((r) => r.getAttribute(foreignKey) === modelId);
-        model.setRelation(relation, filtered);
-      } else {
-        const found = relatedResults.find((r) => r.getAttribute(foreignKey) === modelId);
-        model.setRelation(relation, found ?? null);
-      }
-    }
+  builder.loadCount = async (models: IModel[], relation: string) => {
+    await loadCounts(models, relation, db);
   };
 }
 
@@ -818,8 +1428,8 @@ function createBuilder(state: QueryState, db?: IDatabase): IQueryBuilder {
   attachSoftDeleteMethods(builder, state);
   attachJoinOrderPagingMethods(builder, state);
   attachIntrospectionMethods(builder, state);
-  attachReadExecutionMethods(builder, db);
-  attachRelationshipMethods(builder, state);
+  attachReadExecutionMethods(builder, state, db);
+  attachRelationshipMethods(builder, state, db);
   attachWriteMethods(builder, state, db);
 
   return builder;
@@ -854,6 +1464,8 @@ export const QueryBuilder = Object.freeze({
       orderByClauses: [],
       joins: [],
       eagerLoads: [],
+      eagerLoadConstraints: {},
+      eagerLoadCounts: [],
       dialect: typeof database?.getType === 'function' ? database.getType() : undefined,
     };
 

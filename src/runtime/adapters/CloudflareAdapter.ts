@@ -8,12 +8,9 @@ import type {
   AdapterConfig,
   PlatformRequest,
   PlatformResponse,
-  RuntimeAdapter} from '@runtime/RuntimeAdapter';
-import {
-  createMockHttpObjects,
-  ErrorResponse,
-  HttpResponse
+  RuntimeAdapter,
 } from '@runtime/RuntimeAdapter';
+import { createMockHttpObjects, ErrorResponse, HttpResponse } from '@runtime/RuntimeAdapter';
 
 /**
  * Cloudflare Workers adapter for Cloudflare's edge compute platform
@@ -64,7 +61,7 @@ export const CloudflareAdapter = Object.freeze({
       },
 
       getEnvironment(): {
-        nodeEnv: string;
+        nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
         runtime: string;
         dbConnection: string;
         dbHost?: string;
@@ -128,7 +125,7 @@ async function handleCloudflareRequest(
     }, timeout);
 
     try {
-      // Process request through Zintrust handler
+      // Process request through ZinTrust handler
       await config.handler(
         req as unknown as IncomingMessage,
         res as unknown as ServerResponse,
@@ -215,7 +212,7 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
  * Get Cloudflare environment
  */
 function getCloudflareEnvironment(): {
-  nodeEnv: string;
+  nodeEnv: NodeJS.ProcessEnv['NODE_ENV'];
   runtime: string;
   dbConnection: string;
   dbHost?: string;

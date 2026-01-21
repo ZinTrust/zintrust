@@ -23,7 +23,7 @@ describe('GenerationCache shutdown/timer cleanup', () => {
     const cache = GenerationCache.create(tmp, 1000, 10);
 
     // Access internal state via well-known symbol
-    const internal = (cache as any)[STATE_SYMBOL] as any;
+    const internal = (cache as any)[STATE_SYMBOL];
     expect(internal.cleanupInterval).toBeDefined();
 
     cache.clear();

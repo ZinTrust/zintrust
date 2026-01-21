@@ -1,0 +1,34 @@
+{
+  "meta": {
+    "workerName": "example-worker",
+    "version": "1.0.0",
+    "jobId": "12345",
+    "pluginId": "example-plugin",
+    "queueName": "default",
+    "regionId": "us-east-1",
+    "spanId": "abcdef123456",
+    "workerApiUrl": "http://localhost:3000"
+  },
+  "jobs": [
+    {
+      "id": 18,
+      "jobName": "demo",
+      "queue": "default",
+      "status": "Completed",
+      "attempts": 1,
+      "time": "2026-01-19T13:27:58Z",
+      "timeHuman": "1:27:58 PM",
+      "action": null
+    },
+    {
+      "id": 17,
+      "jobName": "demo",
+      "queue": "default",
+      "status": "Completed",
+      "attempts": 1,
+      "time": "2026-01-19T13:17:00Z",
+      "timeHuman": "1:17:00 PM",
+      "action": null
+    }
+  ]
+}

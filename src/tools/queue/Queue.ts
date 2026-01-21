@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
@@ -22,13 +23,8 @@ export const Queue = Object.freeze({
   },
 
   get(name?: string): IQueueDriver {
-    const driverName = (
-      name ??
-      process.env['QUEUE_CONNECTION'] ??
-      process.env['QUEUE_DRIVER'] ??
-      'inmemory'
-    )
-      .toString()
+    const resolved = (name ?? Env.QUEUE_CONNECTION) || Env.QUEUE_DRIVER || 'inmemory';
+    const driverName = (resolved !== null && resolved !== undefined ? String(resolved) : 'inmemory')
       .trim()
       .toLowerCase();
     const driver = drivers.get(driverName);

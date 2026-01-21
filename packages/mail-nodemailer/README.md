@@ -1,6 +1,6 @@
 # @zintrust/mail-nodemailer
 
-Nodemailer mail driver package for Zintrust.
+Nodemailer mail driver package for ZinTrust.
 
 ## Install
 

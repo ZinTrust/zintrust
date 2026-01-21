@@ -13,6 +13,13 @@ const ZintrustSignedRequest = SignedRequest;
 
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
+export { createPaginator, getNextPageUrl, getPrevPageUrl, Paginator } from '@database/Paginator';
+export type {
+  CreatePaginatorInput,
+  PaginationLinks,
+  PaginationQuery,
+  Paginator as PaginatorType,
+} from '@database/Paginator';
 export { Controller } from '@http/Controller';
 export { FileUpload } from '@http/FileUpload';
 export type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
@@ -60,7 +67,7 @@ export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
-export type { InsertResult, IQueryBuilder } from '@orm/QueryBuilder';
+export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 export { ZintrustApplication as Application };
 
@@ -199,7 +206,6 @@ export type {
 // Config (core-owned)
 export { Env } from '@config/env';
 export { Logger } from '@config/logger';
-export type * from '@config/type';
 
 export { appConfig } from '@config/app';
 export type { AppConfig } from '@config/app';
@@ -323,13 +329,13 @@ export { MarkdownRenderer } from '@tools/templates';
 export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 
 // Broadcast (for real-time features)
-export { BroadcastWorker } from '@/workers/BroadcastWorker';
 export { Broadcast } from '@tools/broadcast/Broadcast';
 export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
 export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
+export { BroadcastWorker } from '@zintrust/workers';
 
 // Notification Workers
-export { NotificationWorker } from '@/workers/NotificationWorker';
+export { NotificationWorker } from '@zintrust/workers';
 
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';
@@ -348,6 +354,7 @@ export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 // Queue drivers (for external registration packages)
 export { RedisQueue } from '@tools/queue/drivers/Redis';
 export { Queue } from '@tools/queue/Queue';
+export type { QueueMessage } from '@tools/queue/Queue';
 
 // Seeders (for database seeding)
 export { SeederLoader } from '@/seeders/SeederLoader';
@@ -360,7 +367,7 @@ export { default as logCleanup } from '@schedules/log-cleanup';
 export * as NodeSingletons from '@node-singletons/index';
 
 // Auth features
-export { Auth } from '@/features/Auth';
+export { Auth } from '@features/Auth';
 
 // Microservice utilities
 export { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
@@ -377,7 +384,6 @@ export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
 
 // Runtime detection and kernel
 export { getKernel } from '@runtime/getKernel';
-export { RuntimeDetector } from '@runtime/RuntimeDetector';
 export { useFileLoader } from '@runtime/useFileLoader';
 
 // Plugin system
@@ -388,9 +394,33 @@ export { nowIso } from '@common/utility';
 export type { SanitizerError } from '@exceptions/ZintrustError';
 export { randomBytes } from '@node-singletons/crypto';
 
+/**
+ * Framework version and build metadata
+ * Available at runtime for debugging and health checks
+ */
+export const ZINTRUST_VERSION = '0.1.23';
+export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
+
 //New Start Confing
 
 export type { MiddlewaresType } from '@config/middleware';
+
+export type * from '@config/type';
+
+// Workers config
+export type {
+  RedisConfig,
+  WorkerAutoScalingConfig,
+  WorkerComplianceConfig,
+  WorkerConfig,
+  WorkerCostConfig,
+  WorkerObservabilityConfig,
+  WorkersConfigOverrides,
+  WorkersGlobalConfig,
+  WorkerStatus,
+  WorkerVersioningConfig,
+} from '@config/type';
+export { createRedisConnection, workersConfig } from '@config/workers';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

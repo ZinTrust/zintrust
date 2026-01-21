@@ -1,6 +1,6 @@
 /**
  * Example Middleware
- * Common middleware patterns for Zintrust
+ * Common middleware patterns for ZinTrust
  */
 
 import type { IJwtManager, JwtAlgorithm, JwtManagerType, ISchema, SchemaType, CsrfTokenManagerType, ICsrfTokenManager } from '@zintrust/core';

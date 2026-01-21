@@ -7,7 +7,7 @@ describe('Mail (SendGrid)', () => {
 
     process.env['MAIL_DRIVER'] = 'sendgrid';
     process.env['MAIL_FROM_ADDRESS'] = 'no-reply@example.com';
-    process.env['MAIL_FROM_NAME'] = 'Zintrust';
+    process.env['MAIL_FROM_NAME'] = 'ZinTrust';
     process.env['SENDGRID_API_KEY'] = 'SG.test-key';
   });
 

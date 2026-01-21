@@ -1,6 +1,6 @@
 // TEMPLATE_START
 import * as bcrypt from 'bcrypt';
-import { sign, verify, type Secret, type SignOptions } from 'jsonwebtoken';
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 
 export const Auth = Object.freeze({
   /**
@@ -27,14 +27,14 @@ export const Auth = Object.freeze({
     expiresIn: NonNullable<SignOptions['expiresIn']> = '1h'
   ): string {
     const options: SignOptions = { expiresIn };
-    return sign(payload, secret, options);
+    return jwt.sign(payload, secret, options);
   },
 
   /**
    * Verify a JWT token
    */
   verifyToken<T>(token: string, secret: Secret): T {
-    return verify(token, secret) as T;
+    return jwt.verify(token, secret) as T;
   },
 });
 // TEMPLATE_END

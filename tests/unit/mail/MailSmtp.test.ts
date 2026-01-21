@@ -12,7 +12,7 @@ describe('Mail (SMTP)', () => {
     process.env['MAIL_PASSWORD'] = 'pass';
     process.env['MAIL_SECURE'] = 'false';
     process.env['MAIL_FROM_ADDRESS'] = 'no-reply@example.com';
-    process.env['MAIL_FROM_NAME'] = 'Zintrust';
+    process.env['MAIL_FROM_NAME'] = 'ZinTrust';
   });
 
   it('passes secure=false to SMTP driver when MAIL_SECURE=false', async () => {

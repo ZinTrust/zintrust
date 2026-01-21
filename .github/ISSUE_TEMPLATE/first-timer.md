@@ -6,7 +6,7 @@ body:
 - type: markdown
   attributes:
   value: | ### Welcome, First Timer! 👋
-  Thank you for wanting to contribute to Zintrust. This issue is designed to be a great starting point for your first contribution.
+  Thank you for wanting to contribute to ZinTrust. This issue is designed to be a great starting point for your first contribution.
 
       **Before you start:**
       1. Read our [Contributor Guide](https://github.com/ZinTrust/ZinTrust/blob/master/docs/contributing.md).

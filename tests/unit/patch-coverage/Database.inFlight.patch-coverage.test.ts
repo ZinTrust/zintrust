@@ -25,20 +25,17 @@ describe('patch coverage: Database in-flight connect/disconnect', () => {
 
     const failingConnect = () => Promise.reject(new Error('connect failed'));
 
-    vi.doMock('@orm/adapters/SQLiteAdapter', () => ({
-      SQLiteAdapter: {
-        create: () => {
-          const adapter = {
-            connect: failingConnect,
-            disconnect: vi.fn(async () => undefined),
-            getType: () => 'sqlite',
-            query: vi.fn(async () => ({ rows: [] })),
-          };
-          createdAdapters.push(adapter);
-          return adapter;
-        },
-      },
-    }));
+    const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
+    DatabaseAdapterRegistry.register('sqlite', () => {
+      const adapter = {
+        connect: failingConnect,
+        disconnect: vi.fn(async () => undefined),
+        getType: () => 'sqlite',
+        query: vi.fn(async () => ({ rows: [] })),
+      };
+      createdAdapters.push(adapter);
+      return adapter as any;
+    });
 
     const core = await import('../../../src/index');
 

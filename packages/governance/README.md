@@ -1,6 +1,6 @@
 # @zintrust/governance
 
-ESLint configuration and TypeScript governance setup for Zintrust projects.
+ESLint configuration and TypeScript governance setup for ZinTrust projects.
 
 ## Install
 

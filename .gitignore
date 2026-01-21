@@ -57,7 +57,6 @@ tmp/missing-coverage-statements.json
 coverage_cli.txt
 COVERAGE_SUMMARY.txt
 test-app/
-.env copy
 .envcopy
 promotion/
 
@@ -72,3 +71,11 @@ issues/
 src/zintrust.plugins.ts
 AUDIT_PACKAGES.json
 testdb
+app/Controllers/TestController.ts
+app/Workers/TestWorker.ts
+routes/apiDev.ts
+processors/
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.windsurf/rules/snyk_rules.md
+report/

@@ -1,6 +1,6 @@
 # @zintrust/mail-smtp
 
-SMTP mail driver registration for Zintrust.
+SMTP mail driver registration for ZinTrust.
 
 - Docs: https://zintrust.com/mail
 

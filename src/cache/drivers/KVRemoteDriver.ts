@@ -1,7 +1,7 @@
 /**
  * KV Remote Cache Driver
  *
- * Calls a Zintrust Cloudflare Worker KV proxy over HTTPS.
+ * Calls a ZinTrust Cloudflare Worker KV proxy over HTTPS.
  */
 
 import type { CacheDriver } from '@cache/CacheDriver';

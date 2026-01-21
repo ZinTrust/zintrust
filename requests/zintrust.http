@@ -47,6 +47,49 @@ GET {{baseUrl}}/
 ### Health
 GET {{baseUrl}}/health
 
+### Enqueue test jobs
+POST {{baseUrl}}/api/v1/test/enqueue
+Content-Type: application/json
+
+{
+  "queue": "test",
+  "count": 5
+}
+
+### Populate all job types (waiting, delayed, failed)
+POST {{baseUrl}}/api/v1/test/populate-all
+Content-Type: application/json
+
+{
+  "queue": "demo"
+}
+
+### Start worker to process jobs
+POST {{baseUrl}}/api/v1/test/worker/start
+Content-Type: application/json
+
+{
+  "queue": "demo"
+}
+
+### Stop worker
+POST {{baseUrl}}/api/v1/test/worker/stop
+
+### Worker status
+GET {{baseUrl}}/api/v1/test/worker/status
+
+### Queue Monitor: Get snapshot
+GET {{baseUrl}}/queue-monitor/api/snapshot
+
+### Queue Monitor: Get jobs for queue
+GET {{baseUrl}}/queue-monitor/api/jobs/demo
+
+### Queue Monitor: Retry failed job
+# Note: This requires CSRF token. Use the dashboard UI retry button or set cookies/CSRF
+POST {{baseUrl}}/queue-monitor/api/retry/demo/9
+Cookie: {{cookie}}
+X-CSRF-Token: {{csrf}}
+
 ### CSRF warmup (sets ZIN_SESSION_ID + XSRF-TOKEN)
 # @name csrfWarmup
 GET {{baseUrl}}/api/v1/posts

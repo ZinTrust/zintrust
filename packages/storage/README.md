@@ -1,6 +1,6 @@
 # @zintrust/storage
 
-Core storage (disk driver) abstraction for Zintrust with multipart form parsing support.
+Core storage (disk driver) abstraction for ZinTrust with multipart form parsing support.
 
 - Docs: https://zintrust.com/storage
 

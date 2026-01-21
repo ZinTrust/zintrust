@@ -1,6 +1,6 @@
 # @zintrust/db-postgres
 
-PostgreSQL database adapter package for Zintrust (uses `pg`).
+PostgreSQL database adapter package for ZinTrust (uses `pg`).
 
 ## Install
 

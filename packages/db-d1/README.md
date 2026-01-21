@@ -1,6 +1,6 @@
 # @zintrust/db-d1
 
-Cloudflare D1 database adapter package for Zintrust.
+Cloudflare D1 database adapter package for ZinTrust.
 
 ## Install
 

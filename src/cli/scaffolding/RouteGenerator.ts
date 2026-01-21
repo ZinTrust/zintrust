@@ -18,6 +18,27 @@ export interface RouteDefinition {
   params?: string[];
 }
 
+// Escape characters that can cause issues when embedding JSON.stringify output
+// into generated JavaScript source (e.g., inside <script> tags).
+const unsafeCharMap: { [ch: string]: string } = {
+  '<': '\\u003C',
+  '>': '\\u003E',
+  '/': '\\u002F',
+  '\\': '\\\\',
+  '\b': '\\b',
+  '\f': '\\f',
+  '\n': '\\n',
+  '\r': '\\r',
+  '\t': '\\t',
+  '\0': '\\0',
+  '\u2028': '\\u2028',
+  '\u2029': '\\u2029',
+};
+
+function escapeUnsafeChars(str: string): string {
+  return str.replace(/[<>/\\\b\f\n\r\t\0\u2028\u2029]/g, (ch) => unsafeCharMap[ch] ?? ch);
+}
+
 export interface RouteOptions {
   routesPath: string; // Path to routes/
   groupName?: string; // e.g., 'api', 'admin'
@@ -247,7 +268,9 @@ function buildMethodRoute(
           .join(', ')}]`
       : '';
 
-  const metaProp = `meta: { summary: ${JSON.stringify(summary)}, tags: [${JSON.stringify(tag)}] }`;
+  const metaProp = `meta: { summary: ${escapeUnsafeChars(JSON.stringify(summary))}, tags: [${escapeUnsafeChars(
+    JSON.stringify(tag)
+  )}] }`;
   const options = `{ ${[middlewareProp, metaProp].filter((v) => v !== '').join(', ')} }`;
 
   return `  Router.${method}(${router}, '${routePath}', (req, res) => ${controllerVar}.${action}(req, res), ${options});\n`;
@@ -279,7 +302,9 @@ function buildResourceRoute(
       : '';
 
   const resourceMeta = (action: string, routePattern: string): string =>
-    `meta: { summary: ${JSON.stringify(action.toUpperCase() + ' ' + routePattern)}, tags: [${JSON.stringify(tag)}] }`;
+    `meta: { summary: ${escapeUnsafeChars(
+      JSON.stringify(action.toUpperCase() + ' ' + routePattern)
+    )}, tags: [${escapeUnsafeChars(JSON.stringify(tag))}] }`;
   const pathId = routePath + '/:id';
   const optsParts = [
     middlewareProp,

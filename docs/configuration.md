@@ -227,7 +227,7 @@ From `src/config/security.ts`:
 JWT:
 
 - `JWT_ENABLED` (default `true`)
-- `JWT_SECRET`
+- `JWT_SECRET` (signing key). If `JWT_SECRET` is not set the framework will fall back to `APP_KEY` for signing/verification; set an explicit `JWT_SECRET` in production.
 - `JWT_ALGORITHM` (default `HS256`)
 - `JWT_EXPIRES_IN` (default `1h`)
 - `JWT_REFRESH_EXPIRES_IN` (default `7d`)

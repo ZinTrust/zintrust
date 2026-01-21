@@ -18,5 +18,5 @@ logs/
 storage/
 tmp/
 
-# Zintrust local metadata (sqlite dbs, locks, etc)
+# ZinTrust local metadata (sqlite dbs, locks, etc)
 .zintrust/

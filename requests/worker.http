@@ -1,0 +1,867 @@
+# Worker API requests for ZinTrust
+# Set WORKER_API_URL to your worker service base (default localhost:3000)
+
+@workerName = example-worker
+@version = 1.0.0
+
+@jobId = 12345
+
+@pluginId = example-queue
+
+@queueName = default
+
+@regionId = us-east-1
+
+@spanId = abcdef123456
+
+@WORKER_API_URL = http://localhost:7777
+
+
+### List all workers
+### @returns Array of workers
+###
+GET {{WORKER_API_URL}}/api/workers
+Accept: application/json
+
+
+###  Create worker
+###
+### Create a new worker instance
+### @param name - Worker name (required)
+### @param queueName - Queue name (required)
+### @param processor - Job processor function (required; internal only)
+### @param version - Worker version (optional)
+### @param options - BullMQ worker options (optional)
+### @param infrastructure - Infrastructure config (optional)
+### @param features - Feature flags (optional)
+### @param datacenter - Datacenter placement config (optional)
+### @returns Success response with worker name
+###
+POST {{WORKER_API_URL}}/api/workers/create
+Content-Type: application/json
+
+{
+  "name": "example-test-redis3",
+  "queueName": "example-redis2",
+  "processor": "processors/emailProcessor.ts",
+  "version": "1.0.0",
+  "options": {
+    "concurrency": 5,
+    "limiter": {
+      "max": 100,
+      "duration": 60000
+    }
+  },
+  "infrastructure": {
+  "persistence": { "driver": "redis"},
+    "redis": {
+      "env": true,
+      "host": "REDIS_HOST",
+      "port": "REDIS_PORT",
+      "db": "REDIS_DB",
+      "password": "REDIS_PASSWORD"
+    },
+    "deadLetterQueue": {
+      "policy": "expire"
+    },
+    "compliance": {
+      "config": {
+        "retentionDays": 30
+      }
+    },
+    "observability": {
+      "enabled": true
+    },
+    "autoScaler": {
+      "enabled": true,
+      "minWorkers": 1,
+      "maxWorkers": 5
+    }
+  },
+  "features": {
+    "clustering": false,
+    "metrics": true,
+    "autoScaling": true,
+    "circuitBreaker": true,
+    "deadLetterQueue": true,
+    "resourceMonitoring": true,
+    "compliance": true,
+    "observability": true,
+    "plugins": false,
+    "versioning": true,
+    "datacenterOrchestration": false
+  },
+  "datacenter": {
+    "primaryRegion": "us-east-1",
+    "secondaryRegions": ["us-west-2"],
+    "affinityRules": {
+      "preferLocal": true,
+      "maxLatency": 120,
+      "avoidRegions": ["ap-south-1"]
+    }
+  }
+}
+
+
+###  Get worker details
+# Replace {{workerName}} with the worker name
+###
+### Get worker details
+### @param workerName - Worker name (path)
+### @returns Worker details
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}
+Accept: application/json
+
+###  Get worker status
+###
+### Get worker status
+### @param workerName - Worker name (path)
+### @returns Worker status
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/status
+Accept: application/json
+
+###  Get worker metrics
+###
+### Get worker metrics
+### @param workerName - Worker name (path)
+### @returns Worker metrics
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/metrics
+Accept: application/json
+
+###  Get worker health
+###
+### Get worker health
+### @param workerName - Worker name (path)
+### @returns Worker health
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/health
+Accept: application/json
+
+
+
+###  Start worker
+###
+### Start a worker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/start
+Accept: application/json
+
+###  Start worker (from DB persistence)
+###
+### Start a worker and auto-register from the DB persistence store
+### @param workerName - Worker name (path)
+### @param connection - DB connection name (query)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/start?storage=db&connection=mysql
+Accept: application/json
+
+###  Stop worker
+###
+### Stop a worker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/stop
+Accept: application/json
+
+###  Restart worker
+###
+### Restart a worker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/restart
+Accept: application/json
+
+###  Pause worker
+###
+### Pause a worker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/pause
+Accept: application/json
+
+###  Resume worker
+###
+### Resume a worker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/resume
+Accept: application/json
+
+###  Delete worker
+###
+### Delete a worker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+DELETE {{WORKER_API_URL}}/api/workers/{{workerName}}
+Accept: application/json
+
+###  Health monitoring - start
+###
+### Start health monitoring
+### @param workerName - Worker name (path)
+### @param checkInterval - Interval in seconds (body, optional)
+### @param thresholds - Threshold config (body, optional)
+### @param alerting - Alerting config (body, optional)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/start
+Content-Type: application/json
+{
+  "interval": "30s"
+}
+
+###  Health monitoring - stop
+###
+### Stop health monitoring
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/stop
+
+###  Health monitoring - history
+###
+### Get health history
+### @param workerName - Worker name (path)
+### @returns Health history
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/history
+
+###  Health monitoring - trend
+###
+### Get health trend
+### @param workerName - Worker name (path)
+### @returns Health trend
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/trend
+
+###  Update monitoring config
+###
+### Update monitoring config
+### @param workerName - Worker name (path)
+### @param checkInterval - Interval in seconds (body, optional)
+### @param thresholds - Threshold config (body, optional)
+### @param alerting - Alerting config (body, optional)
+### @returns Success message
+###
+PUT {{WORKER_API_URL}}/api/workers/{{workerName}}/monitoring/config
+Content-Type: application/json
+{
+  "thresholds": {
+    "errorRate": 1.0,
+    "p95LatencyMs": 500
+  }
+}
+
+###  Versions - register
+###
+### Register worker version
+### @param workerName - Worker name (path)
+### @param version - Semantic version object (body)
+### @param migrationPath - Migration path (body, optional)
+### @param eolDate - End of life date (body, optional)
+### @param changelog - Changelog (body, optional)
+### @param breakingChanges - Array of breaking changes (body, optional)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions
+Content-Type: application/json
+{
+  "version": "1.2.0",
+  "notes": "release notes"
+}
+
+###  Versions - list
+###
+### List worker versions
+### @param workerName - Worker name (path)
+### @returns Versions list
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/versions
+
+###  Versions - get
+###
+### Get worker version
+### @param workerName - Worker name (path)
+### @param version - Version identifier (path)
+### @returns Version details
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}
+
+###  Versions - deprecate
+###
+### Deprecate worker version
+### @param workerName - Worker name (path)
+### @param version - Version identifier (path)
+### @param migrationPath - Migration path (body, optional)
+### @param eolDate - End of life date (body, optional)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}/deprecate
+
+###  Versions - activate
+###
+### Activate worker version
+### @param workerName - Worker name (path)
+### @param version - Version identifier (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}/activate
+
+###  Versions - deactivate
+###
+### Deactivate worker version
+### @param workerName - Worker name (path)
+### @param version - Version identifier (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/versions/{{version}}/deactivate
+
+###  Canary - start
+###
+### Start canary deployment
+### @param workerName - Worker name (path)
+### @param currentVersion - Current version (body)
+### @param canaryVersion - Canary version (body)
+### @param initialTrafficPercent - Starting traffic percent (body)
+### @param targetTrafficPercent - Target traffic percent (body)
+### @param incrementPercent - Increment per step (body)
+### @param incrementInterval - Seconds between increments (body)
+### @param monitoringDuration - Seconds per step (body)
+### @param errorThreshold - Error threshold (body)
+### @param latencyThreshold - Latency threshold (body)
+### @param minSuccessRate - Minimum success rate (body)
+### @param autoRollback - Auto rollback flag (body)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/start
+Content-Type: application/json
+{
+  "percentage": 10
+}
+
+###  Canary - pause
+###
+### Pause canary deployment
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/pause
+
+###  Canary - resume
+###
+### Resume canary deployment
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/resume
+
+###  Canary - rollback
+###
+### Rollback canary deployment
+### @param workerName - Worker name (path)
+### @param reason - Rollback reason (body, optional)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/rollback
+
+###  Canary - status
+###
+### Get canary status
+### @param workerName - Worker name (path)
+### @returns Canary status
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/canary/status
+
+###  Circuit breaker - state
+###
+### Get circuit breaker state
+### @param workerName - Worker name (path)
+### @returns Circuit breaker state
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker
+
+###  Circuit breaker - reset
+###
+### Reset circuit breaker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker/reset
+
+###  Circuit breaker - force open
+###
+### Force open circuit breaker
+### @param workerName - Worker name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker/force-open
+
+###  Circuit breaker - events
+###
+### Get circuit breaker events
+### @param workerName - Worker name (path)
+### @returns Circuit breaker events
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/circuit-breaker/events
+
+###  Dead letter queue - list failed jobs
+###
+### List failed jobs
+### @param workerName - Worker name (path)
+### @returns Failed jobs list
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue
+
+###  Dead letter queue - get failed job
+###
+### Get failed job
+### @param workerName - Worker name (path)
+### @param jobId - Job ID (path)
+### @returns Failed job
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}
+
+###  Dead letter queue - retry job
+###
+### Retry failed job
+### @param workerName - Worker name (path)
+### @param jobId - Job ID (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}/retry
+
+###  Dead letter queue - delete job
+###
+### Delete failed job
+### @param workerName - Worker name (path)
+### @param jobId - Job ID (path)
+### @returns Success message
+###
+DELETE {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}
+
+###  Dead letter queue - anonymize
+###
+### Anonymize failed job
+### @param workerName - Worker name (path)
+### @param jobId - Job ID (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/{{jobId}}/anonymize
+
+###  Dead letter queue - audit log
+###
+### Get DLQ audit log
+### @param workerName - Worker name (path)
+### @returns Audit log
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/audit-log
+
+###  Dead letter queue - stats
+###
+### Get DLQ stats
+### @param workerName - Worker name (path)
+### @returns DLQ stats
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/dead-letter-queue/stats
+
+###  Plugins - register
+###
+### Register plugin
+### @param workerName - Worker name (path)
+### @param pluginId - Plugin ID (body)
+### @param config - Plugin config (body, optional)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/register
+Content-Type: application/json
+{
+  "pluginId": "example-plugin",
+  "config": {}
+}
+
+###  Plugins - unregister
+###
+### Unregister plugin
+### @param workerName - Worker name (path)
+### @param pluginId - Plugin ID (path)
+### @returns Success message
+###
+DELETE {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}
+
+###  Plugins - enable
+###
+### Enable plugin
+### @param workerName - Worker name (path)
+### @param pluginId - Plugin ID (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}/enable
+
+###  Plugins - disable
+###
+### Disable plugin
+### @param workerName - Worker name (path)
+### @param pluginId - Plugin ID (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}/disable
+
+###  Plugins - list
+###
+### List plugins
+### @param workerName - Worker name (path)
+### @returns Plugins list
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins
+
+###  Plugins - history
+###
+### Get plugin execution history
+### @param workerName - Worker name (path)
+### @param pluginId - Plugin ID (path)
+### @returns Plugin history
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/{{pluginId}}/history
+
+###  Plugins - statistics
+###
+### Get plugin statistics
+### @param workerName - Worker name (path)
+### @returns Plugin statistics
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/plugins/statistics
+
+###  Multi-queue - create
+###
+### Create queue
+### @param workerName - Worker name (path)
+### @param queueName - Queue name (body)
+### @param concurrency - Concurrency (body, optional)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/queues
+Content-Type: application/json
+{
+  "queueName": "high-priority",
+  "concurrency": 10
+}
+
+###  Multi-queue - start
+###
+### Start queue
+### @param workerName - Worker name (path)
+### @param queueName - Queue name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/start
+
+###  Multi-queue - stop
+###
+### Stop queue
+### @param workerName - Worker name (path)
+### @param queueName - Queue name (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/stop
+
+###  Multi-queue - stats
+###
+### Get queue stats
+### @param workerName - Worker name (path)
+### @param queueName - Queue name (path)
+### @returns Queue stats
+###
+GET {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/stats
+
+###  Multi-queue - update priority
+###
+### Update queue priority
+### @param workerName - Worker name (path)
+### @param queueName - Queue name (path)
+### @param priority - Priority value (body)
+### @returns Success message
+###
+PUT {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/priority
+Content-Type: application/json
+{
+  "priority": 5
+}
+
+###  Multi-queue - update concurrency
+###
+### Update queue concurrency
+### @param workerName - Worker name (path)
+### @param queueName - Queue name (path)
+### @param concurrency - Concurrency value (body)
+### @returns Success message
+###
+PUT {{WORKER_API_URL}}/api/workers/{{workerName}}/queues/{{queueName}}/concurrency
+Content-Type: application/json
+{
+  "concurrency": 8
+}
+
+###  Datacenter - register region
+###
+### Register region
+### @param regionId - Region ID (body)
+### @param name - Region name (body)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/datacenters/regions
+Content-Type: application/json
+{
+  "regionId": "eu-west-1",
+  "name": "EU West"
+}
+
+###  Datacenter - unregister region
+###
+### Unregister region
+### @param regionId - Region ID (path)
+### @returns Success message
+###
+DELETE {{WORKER_API_URL}}/api/datacenters/regions/{{regionId}}
+
+###  Datacenter - list regions
+###
+### List regions
+### @returns Regions list
+###
+GET {{WORKER_API_URL}}/api/datacenters/regions
+
+###  Datacenter - get region
+###
+### Get region
+### @param regionId - Region ID (path)
+### @returns Region details
+###
+GET {{WORKER_API_URL}}/api/datacenters/regions/{{regionId}}
+
+###  Datacenter - placements
+###
+### Place worker
+### @param workerName - Worker name (body)
+### @param region - Region ID (body)
+### @returns Placement result
+###
+POST {{WORKER_API_URL}}/api/datacenters/placements
+Content-Type: application/json
+{
+  "workerName": "example-worker",
+  "region": "eu-west-1"
+}
+
+###  Datacenter - topology
+###
+### Get topology
+### @returns Topology data
+###
+GET {{WORKER_API_URL}}/api/datacenters/topology
+
+###  Auto-scaling - start
+###
+### Start auto-scaling
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/auto-scaling/start
+
+###  Auto-scaling - stop
+###
+### Stop auto-scaling
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/auto-scaling/stop
+
+###  Auto-scaling - evaluate
+###
+### Evaluate auto-scaling
+### @param workerName - Worker name (path)
+### @returns Evaluation result
+###
+POST {{WORKER_API_URL}}/api/auto-scaling/evaluate/{{workerName}}
+
+###  Auto-scaling - decision
+###
+### Get last scaling decision
+### @param workerName - Worker name (path)
+### @returns Decision details
+###
+GET {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/decision
+
+###  Auto-scaling - history
+###
+### Get scaling history
+### @param workerName - Worker name (path)
+### @returns Scaling history
+###
+GET {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/history
+
+###  Auto-scaling - cost summary
+###
+### Get cost summary
+### @param workerName - Worker name (path)
+### @returns Cost summary
+###
+GET {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/cost-summary
+
+###  Auto-scaling - set policy
+###
+### Set scaling policy
+### @param workerName - Worker name (path)
+### @param policy - Policy config (body)
+### @returns Success message
+###
+PUT {{WORKER_API_URL}}/api/auto-scaling/{{workerName}}/policy
+Content-Type: application/json
+{
+  "policy": { "min": 1, "max": 10 }
+}
+
+###  Resources - current
+###
+### Get current resource usage
+### @returns Resource usage
+###
+GET {{WORKER_API_URL}}/api/resources/current
+
+###  Resources - history
+###
+### Get resource history
+### @returns Resource history
+###
+GET {{WORKER_API_URL}}/api/resources/history
+
+###  Resources - alerts
+###
+### Get resource alerts
+### @returns Resource alerts
+###
+GET {{WORKER_API_URL}}/api/resources/alerts
+
+###  Resources - trends
+###
+### Get resource trends
+### @returns Resource trends
+###
+GET {{WORKER_API_URL}}/api/resources/trends
+
+###  Resources - system-info
+###
+### Get system info
+### @returns System info
+###
+GET {{WORKER_API_URL}}/api/resources/system-info
+
+###  Compliance - register data subject
+###
+### Register data subject
+### @param subjectId - Subject ID (body)
+### @param reason - Request reason (body)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/compliance/data-subjects
+Content-Type: application/json
+{
+  "subjectId": "user-123",
+  "reason": "GDPR request"
+}
+
+###  Compliance - consent
+###
+### Record consent
+### @param subjectId - Subject ID (body)
+### @param consent - Consent flag (body)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/compliance/consent
+Content-Type: application/json
+{
+  "subjectId": "user-123",
+  "consent": true
+}
+
+###  Compliance - check
+###
+### Check compliance
+### @param worker - Worker name (body)
+### @returns Compliance check
+###
+POST {{WORKER_API_URL}}/api/compliance/check
+Content-Type: application/json
+{
+  "worker": "example-worker"
+}
+
+###  Observability - metrics
+###
+### Get observability metrics
+### @returns Metrics data
+###
+GET {{WORKER_API_URL}}/api/observability/metrics
+
+###  Observability - record custom metric
+###
+### Record custom metric
+### @param name - Metric name (body)
+### @param value - Metric value (body)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/observability/metrics/custom
+Content-Type: application/json
+{
+  "name": "jobs.processed",
+  "value": 1
+}
+
+###  Observability - traces start
+###
+### Start trace
+### @param name - Trace name (body)
+### @returns Trace span info
+###
+POST {{WORKER_API_URL}}/api/observability/traces/start
+Content-Type: application/json
+{
+  "name": "job.process"
+}
+
+###  Observability - end trace
+###
+### End trace
+### @param spanId - Span ID (path)
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/observability/traces/{{spanId}}/end
+
+###  System - summary
+###
+### Get system summary
+### @returns Summary data
+###
+GET {{WORKER_API_URL}}/api/workers/system/summary
+
+###  System - shutdown
+###
+### Shutdown system
+### @returns Success message
+###
+POST {{WORKER_API_URL}}/api/workers/system/shutdown
+
+###  System - monitoring summary
+###
+### Get monitoring summary
+### @returns Monitoring summary
+###
+GET {{WORKER_API_URL}}/api/workers/system/monitoring/summary

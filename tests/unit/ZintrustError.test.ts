@@ -5,7 +5,7 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
-describe('ZintrustError helpers', () => {
+describe('ZinTrustError helpers', () => {
   it('initZintrustError applies properties', () => {
     const e = new Error('boom');
     initZintrustError(e, { name: 'MyErr', statusCode: 418, code: 'I_AM', details: { foo: 'bar' } });

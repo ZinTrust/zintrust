@@ -84,7 +84,7 @@ describe('Routes API', () => {
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          framework: 'Zintrust Framework',
+          framework: 'ZinTrust Framework',
           version: '0.1.0',
           env: 'test',
           database: 'sqlite',
