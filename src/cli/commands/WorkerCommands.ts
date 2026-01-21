@@ -50,10 +50,31 @@ type ResourceMonitorApi = {
   };
 };
 
-const WorkerFactory = WorkerFactoryAny as unknown as WorkerFactoryApi;
-const WorkerRegistry = WorkerRegistryAny as unknown as WorkerRegistryApi;
-const HealthMonitor = HealthMonitorAny as unknown as HealthMonitorApi;
-const ResourceMonitor = ResourceMonitorAny as unknown as ResourceMonitorApi;
+// Lazy initialization to prevent temporal dead zone issues
+let WorkerFactory: WorkerFactoryApi;
+let WorkerRegistry: WorkerRegistryApi;
+let HealthMonitor: HealthMonitorApi;
+let ResourceMonitor: ResourceMonitorApi;
+
+const getWorkerFactory = (): WorkerFactoryApi => {
+  WorkerFactory ??= WorkerFactoryAny as unknown as WorkerFactoryApi;
+  return WorkerFactory;
+};
+
+const getWorkerRegistry = (): WorkerRegistryApi => {
+  WorkerRegistry ??= WorkerRegistryAny as unknown as WorkerRegistryApi;
+  return WorkerRegistry;
+};
+
+const getHealthMonitor = (): HealthMonitorApi => {
+  HealthMonitor ??= HealthMonitorAny as unknown as HealthMonitorApi;
+  return HealthMonitor;
+};
+
+const getResourceMonitor = (): ResourceMonitorApi => {
+  ResourceMonitor ??= ResourceMonitorAny as unknown as ResourceMonitorApi;
+  return ResourceMonitor;
+};
 
 /**
  * Helper: Format table output
@@ -79,7 +100,7 @@ const formatTable = (headers: string[], rows: string[][]): string => {
 const createWorkerListCommand = (): IBaseCommand => {
   const ext = async (): Promise<void> => {
     try {
-      const workers = await WorkerFactory.listPersisted();
+      const workers = await getWorkerFactory().listPersisted();
 
       console.log(`\nTotal Workers: ${workers.length}\n`);
 
@@ -89,7 +110,7 @@ const createWorkerListCommand = (): IBaseCommand => {
       }
 
       const rows = workers.map((name: string) => {
-        const status = WorkerRegistry.status(name);
+        const status = getWorkerRegistry().status(name);
         return [
           name,
           status?.status ?? 'unknown',
@@ -127,13 +148,13 @@ const createWorkerStatusCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      const status = WorkerRegistry.status(name);
-      const health = await WorkerFactory.getHealth(name);
+      const status = getWorkerRegistry().status(name);
+      const health = await getWorkerFactory().getHealth(name);
       const healthData =
         typeof health === 'object' && health !== null
           ? (health as { score?: number; status?: string })
           : {};
-      const metrics = await WorkerFactory.getMetrics(name);
+      const metrics = await getWorkerFactory().getMetrics(name);
 
       console.log(`\n=== Worker: ${name} ===\n`);
       console.log(`Status: ${status?.status}`);
@@ -176,7 +197,7 @@ const createWorkerStartCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await WorkerFactory.start(name);
+      await getWorkerFactory().start(name);
       Logger.info(`✓ Worker "${name}" started successfully`);
     } catch (error) {
       Logger.error('worker:start command failed', error);
@@ -207,7 +228,7 @@ const createWorkerStopCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await WorkerFactory.stop(name);
+      await getWorkerFactory().stop(name);
       console.log(`✓ Worker "${name}" stopped successfully`);
     } catch (error) {
       Logger.error('worker:stop command failed', error);
@@ -239,7 +260,7 @@ const createWorkerRestartCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await WorkerFactory.restart(name);
+      await getWorkerFactory().restart(name);
       console.log(`✓ Worker "${name}" restarted successfully`);
     } catch (error) {
       Logger.error('worker:restart command failed', error);
@@ -266,9 +287,9 @@ const createWorkerRestartCommand = (): IBaseCommand => {
 const createWorkerSummaryCommand = (): IBaseCommand => {
   const ext = (): void => {
     try {
-      const workers = WorkerFactory.list();
-      const monitoringSummary = HealthMonitor.getSummary();
-      const resourceUsage = ResourceMonitor.getCurrentUsage('system');
+      const workers = getWorkerFactory().list();
+      const monitoringSummary = getHealthMonitor().getSummary();
+      const resourceUsage = getResourceMonitor().getCurrentUsage('system');
 
       console.log(`\n=== Worker System Summary ===\n`);
       console.log(`Total Workers: ${workers.length}`);

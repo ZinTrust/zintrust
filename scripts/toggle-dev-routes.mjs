@@ -18,9 +18,8 @@ const targets = [
   {
     filePath: join(rootDir, 'routes', 'api.ts'),
     markers: {
-      import: "import { registerDevRoutes, registerTestRoutes } from '@routes/apiDev';",
+      import: "import { registerDevRoutes } from '@routes/apiDev';",
       registerDev: 'registerDevRoutes(router);',
-      registerTest: 'registerTestRoutes(pr);',
     },
   },
   {
@@ -148,6 +147,10 @@ function main() {
 
   for (const target of targets) {
     const content = readTargetFile(target.filePath);
+    // const result =
+    //   action === 'comment'
+    //     ? commentOut(content, target.markers)
+    //     : uncomment(content, target.markers);
     const result =
       action === 'comment'
         ? commentOut(content, target.markers)

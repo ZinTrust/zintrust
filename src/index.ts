@@ -384,7 +384,6 @@ export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
 
 // Runtime detection and kernel
 export { getKernel } from '@runtime/getKernel';
-// export { RuntimeDetector } from '@runtime/RuntimeDetector';
 export { useFileLoader } from '@runtime/useFileLoader';
 
 // Plugin system

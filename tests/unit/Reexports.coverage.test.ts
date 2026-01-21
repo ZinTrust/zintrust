@@ -18,15 +18,9 @@ describe('Re-export modules (coverage)', () => {
   it('re-exports route registrars from src/routes/*', async () => {
     const api = await import('@/routes/api');
     const broadcast = await import('@/routes/broadcast');
-    const health = await import('@/routes/health');
+    const health = await import('@routes/health');
     const metrics = await import('@/routes/metrics');
     const storage = await import('@/routes/storage');
-
-    // await import('@/routes/api);
-    // await import('@/routes/broadcast);
-    // await import('@/routes/health);
-    // await import('@/routes/metrics);
-    // await import('@/routes/storage);
 
     const apiImpl = await import('@routes/api');
     const broadcastImpl = await import('@routes/broadcast');

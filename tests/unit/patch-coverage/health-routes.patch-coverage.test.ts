@@ -52,7 +52,7 @@ describe('patch coverage: health routes', () => {
     const { Router } = await import('@routing/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@/../routes/health');
+    const { registerHealthRoutes } = await import('@routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();
@@ -79,7 +79,7 @@ describe('patch coverage: health routes', () => {
     const { Router } = await import('@routing/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@/../routes/health');
+    const { registerHealthRoutes } = await import('@routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();

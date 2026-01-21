@@ -9,7 +9,9 @@ import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import { registerDevRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
+import { registerHealthRoutes } from '@routes/health';
 import { registerMetricsRoutes } from '@routes/metrics';
 import { registerOpenApiRoutes } from '@routes/openapi';
 import { registerStorageRoutes } from '@routes/storage';
@@ -21,6 +23,7 @@ export function registerRoutes(router: IRouter): void {
   registerPublicRoutes(router);
   registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
+  registerDevRoutes(router);
 }
 
 /**
@@ -28,6 +31,7 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
+  registerHealthRoutes(router);
   registerMetricsRoutes(router);
   registerBroadcastRoutes(router);
   registerOpenApiRoutes(router);

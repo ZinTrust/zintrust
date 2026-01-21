@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { registerRoutes as registerFrameworkFallbackRoutes } from '@/routes/api';
 import { registerBroadcastRoutes } from '@/routes/broadcast';
-import { registerHealthRoutes } from '@/routes/health';
 import { registerStorageRoutes } from '@/routes/storage';
 import { Router } from '@/routing/Router';
+import { registerHealthRoutes } from '@routes/health';
 
 vi.mock('@config/env', () => ({
   Env: {

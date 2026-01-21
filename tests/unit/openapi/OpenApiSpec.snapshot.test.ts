@@ -4,6 +4,16 @@ import { Router } from '@routing/Router';
 import { RouteRegistry } from '@routing/RouteRegistry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Mock the dev routes to prevent test routes from being registered
+vi.mock('@routes/apiDev', () => ({
+  registerDevRoutes: vi.fn(),
+  registerTestRoutes: vi.fn(),
+}));
+
+vi.mock('@zintrust/workers', () => ({
+  registerWorkerRoutes: vi.fn(),
+}));
+
 vi.mock('@app/Controllers/UserQueryBuilderController', () => {
   const createMockUserController = () => ({
     index: vi.fn(),
@@ -48,6 +58,9 @@ describe('OpenAPI spec snapshot', () => {
   });
 
   it('matches a stable snapshot for routes/api.ts', () => {
+    // Reset modules to ensure clean state
+    vi.resetModules();
+
     const router = Router.createRouter();
     registerRoutes(router);
 
