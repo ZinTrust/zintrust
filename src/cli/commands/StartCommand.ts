@@ -2,8 +2,8 @@ import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCo
 import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { resolveNpmPath } from '@common/index';
-import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -38,17 +38,6 @@ const normalizeMode = (value: StartModeInput): StartMode => {
   if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
   if (value === 'testing') return 'testing';
   return 'development';
-};
-
-const readEnvString = (key: string): string => {
-  const anyEnv = Env as { get?: (k: string, d?: string) => string };
-  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
-  if (typeof process !== 'undefined') {
-    const raw = process.env?.[key];
-    if (typeof raw === 'string') return raw;
-  }
-  return fromEnv ?? '';
 };
 
 const resolveModeFromAppMode = (): StartMode => {

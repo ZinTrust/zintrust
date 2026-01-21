@@ -6,7 +6,7 @@ const dbMock = {
 };
 
 const migratorMock = {
-  migrate: vi.fn(async () => ({ applied: 1 })),
+  migrate: vi.fn(async () => ({ applied: 1, appliedNames: [] as string[] })),
   status: vi.fn(async () => [] as any[]),
   fresh: vi.fn(async () => ({ applied: 1 })),
   resetAll: vi.fn(async () => ({ rolledBack: 1 })),
@@ -91,7 +91,7 @@ describe('MigrateCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default mocks setup
-    Env.NODE_ENV = 'test';
+    (Env as { NODE_ENV: string }).NODE_ENV = 'test';
     //... (reset other mocks if needed)
 
     command = MigrateCommand.create();
@@ -102,7 +102,7 @@ describe('MigrateCommand', () => {
 
     dbMock.connect.mockResolvedValue(undefined);
     dbMock.disconnect.mockResolvedValue(undefined);
-    migratorMock.migrate.mockResolvedValue({ applied: 1 });
+    migratorMock.migrate.mockResolvedValue({ applied: 1, appliedNames: [] });
     migratorMock.status.mockResolvedValue([]);
     migratorMock.fresh.mockResolvedValue({ applied: 1 });
     migratorMock.resetAll.mockResolvedValue({ rolledBack: 1 });
@@ -246,7 +246,9 @@ describe('MigrateCommand', () => {
 
   it('warns if separate tracking is enabled for D1', async () => {
     vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
-    vi.mocked(Env.getBool).mockReturnValueOnce(true); // MIGRATIONS_SEPARATE_TRACKING
+    vi.mocked(Env.get).mockImplementation((key: string, defaultValue?: string) =>
+      key === 'MIGRATIONS_SEPARATE_TRACKING' ? 'true' : (defaultValue ?? '')
+    );
 
     await command.execute({});
 

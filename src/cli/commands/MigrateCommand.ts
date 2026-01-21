@@ -9,13 +9,17 @@ import { D1SqlMigrations } from '@cli/d1/D1SqlMigrations';
 import { WranglerConfig } from '@cli/d1/WranglerConfig';
 import { WranglerD1 } from '@cli/d1/WranglerD1';
 import { PromptHelper } from '@cli/PromptHelper';
+import {
+  confirmProductionRun,
+  mapConnectionToOrmConfig,
+  parseRollbackSteps,
+} from '@cli/utils/DatabaseCliUtils';
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { databaseConfig } from '@config/database';
-import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Migrator } from '@migrations/Migrator';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
-import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { Command } from 'commander';
 
@@ -46,9 +50,11 @@ const getMigrationDirs = (): {
   extension: string;
   separateTracking: boolean;
 } => {
-  const globalDir = Env.get('MIGRATIONS_GLOBAL_DIR', databaseConfig.migrations.directory);
+  const globalDir = readEnvString('MIGRATIONS_GLOBAL_DIR', databaseConfig.migrations.directory);
   const extension = databaseConfig.migrations.extension;
-  const separateTracking = Env.getBool('MIGRATIONS_SEPARATE_TRACKING', false);
+  const separateTrackingRaw = readEnvString('MIGRATIONS_SEPARATE_TRACKING', '').trim();
+  const separateTracking =
+    separateTrackingRaw === '1' || separateTrackingRaw.toLowerCase() === 'true';
   return { globalDir, extension, separateTracking };
 };
 
@@ -87,67 +93,6 @@ const describeTargetDatabase = (conn: ReturnType<typeof databaseConfig.getConnec
   }
 };
 
-const mapConnectionToOrmConfig = (
-  conn: ReturnType<typeof databaseConfig.getConnection>
-): OrmDatabaseConfig => {
-  switch (conn.driver) {
-    case 'sqlite':
-      return { driver: 'sqlite', database: conn.database };
-    case 'postgresql':
-      return {
-        driver: 'postgresql',
-        host: conn.host,
-        port: conn.port,
-        database: conn.database,
-        username: conn.username,
-        password: conn.password,
-      };
-    case 'mysql':
-      return {
-        driver: 'mysql',
-        host: conn.host,
-        port: conn.port,
-        database: conn.database,
-        username: conn.username,
-        password: conn.password,
-      };
-    case 'sqlserver':
-      return {
-        driver: 'sqlserver',
-        host: conn.host,
-        port: conn.port,
-        database: conn.database,
-        username: conn.username,
-        password: conn.password,
-      };
-    default:
-      return { driver: 'sqlite', database: ':memory:' };
-  }
-};
-
-const confirmProductionRun = async (
-  cmd: IBaseCommand,
-  interactive: boolean,
-  destructive: boolean,
-  force: boolean
-): Promise<boolean> => {
-  if (Env.NODE_ENV !== 'production') return true;
-  if (force) return true;
-
-  const confirmed = await PromptHelper.confirm(
-    `NODE_ENV=production. Continue running migrations${destructive ? ' (destructive)' : ''}?`,
-    false,
-    interactive
-  );
-
-  if (!confirmed) {
-    cmd.warn('Cancelled.');
-    return false;
-  }
-
-  return true;
-};
-
 const printStatus = (
   cmd: IBaseCommand,
   rows: Array<{
@@ -183,11 +128,6 @@ const logAppliedMigrations = (cmd: IBaseCommand, appliedNames: ReadonlyArray<str
   for (const name of appliedNames) {
     cmd.info(`✓ ${name}`);
   }
-};
-
-const parseRollbackSteps = (options: CommandOptions): number => {
-  const stepRaw = typeof options['step'] === 'string' ? options['step'] : '1';
-  return Math.max(1, Number.parseInt(stepRaw, 10) || 1);
 };
 
 const handleStatusAction = async (
@@ -396,7 +336,13 @@ const processConnection = async (
   const destructive = isDestructiveAction(options);
   const force = options['force'] === true;
 
-  const okToProceed = await confirmProductionRun(cmd, interactive, destructive, force);
+  const okToProceed = await confirmProductionRun({
+    cmd,
+    interactive,
+    destructive,
+    force,
+    message: 'NODE_ENV=production. Continue running migrations?',
+  });
   if (!okToProceed) return;
 
   cmd.info(`[i] Target database: ${describeTargetDatabase(conn)}`);

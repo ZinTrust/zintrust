@@ -1,7 +1,4 @@
 #!/bin/sh
 
-# Ensure dev-only imports are commented before push.
-node scripts/toggle-dev-routes.mjs comment
-
 # Block pushes when patch coverage would fail Codecov.
 npm run -s coverage:patch

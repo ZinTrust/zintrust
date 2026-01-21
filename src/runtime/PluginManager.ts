@@ -7,8 +7,8 @@
 
 import { execSync } from '@/node-singletons/child-process';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { readEnvString } from '@common/ExternalServiceUtils';
 import { esmDirname, resolvePackageManager } from '@common/index';
-import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
@@ -34,17 +34,6 @@ function findPackageRoot(startDir: string): string {
   // Fallback to a reasonable default if package.json isn't found.
   return path.resolve(startDir, '../..');
 }
-
-const readEnvString = (key: string): string => {
-  const anyEnv = Env as { get?: (k: string, d?: string) => string };
-  const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
-  if (typeof process !== 'undefined') {
-    const raw = process.env?.[key];
-    if (typeof raw === 'string') return raw;
-  }
-  return fromEnv ?? '';
-};
 
 const getProjectCwd = (): string => process.cwd();
 const getProjectRootEnv = (): string => readEnvString('ZINTRUST_PROJECT_ROOT');

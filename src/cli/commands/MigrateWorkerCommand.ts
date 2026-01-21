@@ -5,13 +5,15 @@
 
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { PromptHelper } from '@cli/PromptHelper';
+import {
+  confirmProductionRun,
+  mapConnectionToOrmConfig,
+  parseRollbackSteps,
+} from '@cli/utils/DatabaseCliUtils';
 import { databaseConfig } from '@config/database';
-import { Env } from '@config/env';
 import { Migrator } from '@migrations/Migrator';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
-import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { Command } from 'commander';
 
@@ -29,74 +31,8 @@ const addOptions = (command: Command): void => {
 
 const getInteractive = (options: CommandOptions): boolean => options['interactive'] !== false;
 
-const mapConnectionToOrmConfig = (
-  conn: ReturnType<typeof databaseConfig.getConnection>
-): OrmDatabaseConfig => {
-  switch (conn.driver) {
-    case 'sqlite':
-      return { driver: 'sqlite', database: conn.database };
-    case 'postgresql':
-      return {
-        driver: 'postgresql',
-        host: conn.host,
-        port: conn.port,
-        database: conn.database,
-        username: conn.username,
-        password: conn.password,
-      };
-    case 'mysql':
-      return {
-        driver: 'mysql',
-        host: conn.host,
-        port: conn.port,
-        database: conn.database,
-        username: conn.username,
-        password: conn.password,
-      };
-    case 'sqlserver':
-      return {
-        driver: 'sqlserver',
-        host: conn.host,
-        port: conn.port,
-        database: conn.database,
-        username: conn.username,
-        password: conn.password,
-      };
-    default:
-      return { driver: 'sqlite', database: ':memory:' };
-  }
-};
-
 const isDestructiveAction = (options: CommandOptions): boolean =>
   options['fresh'] === true || options['reset'] === true || options['rollback'] === true;
-
-const parseRollbackSteps = (options: CommandOptions): number => {
-  const stepRaw = typeof options['step'] === 'string' ? options['step'] : '1';
-  return Math.max(1, Number.parseInt(stepRaw, 10) || 1);
-};
-
-const confirmProductionRun = async (
-  cmd: IBaseCommand,
-  interactive: boolean,
-  destructive: boolean,
-  force: boolean
-): Promise<boolean> => {
-  if (Env.NODE_ENV !== 'production') return true;
-  if (force) return true;
-
-  const confirmed = await PromptHelper.confirm(
-    `NODE_ENV=production. Continue running worker migrations${destructive ? ' (destructive)' : ''}?`,
-    false,
-    interactive
-  );
-
-  if (!confirmed) {
-    cmd.warn('Cancelled.');
-    return false;
-  }
-
-  return true;
-};
 
 const printStatus = async (
   migrator: ReturnType<typeof Migrator.create>,
@@ -170,12 +106,13 @@ const runForConnection = async (
   interactive: boolean
 ): Promise<void> => {
   const destructive = isDestructiveAction(options);
-  const proceed = await confirmProductionRun(
+  const proceed = await confirmProductionRun({
     cmd,
     interactive,
     destructive,
-    options['force'] === true
-  );
+    force: options['force'] === true,
+    message: 'NODE_ENV=production. Continue running worker migrations?',
+  });
   if (!proceed) return;
 
   if (!DatabaseAdapterRegistry.has(conn.driver)) {
