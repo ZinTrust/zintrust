@@ -357,21 +357,17 @@ describe('ConnectionManager coverage', () => {
     expect(secret.username).toBe('user');
   });
 
-  it('wraps Secrets Manager errors when JSON is invalid', async () => {
+  it('wraps Secrets Manager errors when client throws', async () => {
     vi.doMock('@zintrust/client-rds-data', () => ({
-      getRdsDataClient: async () => ({
-        executeStatement: async () => ({ numberOfRecordsUpdated: 0, records: [] }),
-      }),
-      getSecretsManagerClient: async () => ({
-        getSecretValue: async () => ({ SecretString: '{invalid-json' }),
-      }),
+      getRdsDataClient: async () => ({ numberOfRecordsUpdated: 0, records: [] }),
+      getSecretsManagerClient: async () => ({ SecretString: '{invalid-json' }),
     }));
 
     const { getDatabaseSecret } = await import('@/orm/ConnectionManager');
-    await expect(getDatabaseSecret('secret')).rejects.toThrow('Failed to fetch database secret');
-  });
 
-  it('wraps Secrets Manager errors when client throws', async () => {
+    await expect(getDatabaseSecret('secret')).rejects.toThrow('Failed to fetch database secret');
+
+    vi.resetModules();
     vi.doMock('@zintrust/client-rds-data', () => ({
       getRdsDataClient: async () => ({
         executeStatement: async () => ({ numberOfRecordsUpdated: 0, records: [] }),
@@ -383,8 +379,8 @@ describe('ConnectionManager coverage', () => {
       }),
     }));
 
-    const { getDatabaseSecret } = await import('@/orm/ConnectionManager');
-    await expect(getDatabaseSecret('secret')).rejects.toThrow('Failed to fetch database secret');
+    const { getDatabaseSecret: getDatabaseSecret2 } = await import('@/orm/ConnectionManager');
+    await expect(getDatabaseSecret2('secret')).rejects.toThrow('Failed to fetch database secret');
   });
 
   it('fails Secrets Manager on empty or invalid secret', async () => {

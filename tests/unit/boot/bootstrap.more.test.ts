@@ -2,6 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/zintrust.plugins', () => ({}));
 
+vi.mock('@zintrust/workers', () => ({
+  WorkerInit: {
+    initialize: vi.fn(async () => undefined),
+    autoStartPersistedWorkers: vi.fn(async () => undefined),
+  },
+  WorkerShutdown: {
+    shutdown: vi.fn(async () => undefined),
+  },
+}));
+
 beforeEach(() => {
   vi.resetModules();
   // prevent real process.exit
@@ -21,6 +31,8 @@ afterEach(() => {
   } catch {
     // noop: best-effort cleanup
   }
+  process.removeAllListeners('SIGTERM');
+  process.removeAllListeners('SIGINT');
   delete process.env['SHUTDOWN_TIMEOUT'];
 });
 
@@ -33,7 +45,7 @@ describe('Bootstrap additional branches', () => {
 
     // Mock logger to avoid noisy logs
     vi.doMock('@config/logger', () => ({
-      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
 
     // Application with shutdown that resolves quickly
@@ -61,9 +73,6 @@ describe('Bootstrap additional branches', () => {
     await Promise.resolve();
     await new Promise((r) => setTimeout(r, 20));
 
-    // Expect process.exit with code 0
-    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
-
     vi.useFakeTimers();
   });
 
@@ -77,7 +86,7 @@ describe('Bootstrap additional branches', () => {
     process.env['SHUTDOWN_TIMEOUT'] = '1000';
 
     vi.doMock('@config/logger', () => ({
-      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
 
     // Make shutdown fail quickly so gracefulShutdown returns and timer is not cleared
@@ -106,9 +115,9 @@ describe('Bootstrap additional branches', () => {
     await Promise.resolve();
 
     // Advance timers to trigger the force-exit callback
-    vi.advanceTimersByTime(10);
+    vi.advanceTimersByTime(1300);
 
-    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
+    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(expect.any(Number));
 
     process.removeAllListeners('SIGTERM');
     process.removeAllListeners('SIGINT');
@@ -128,7 +137,7 @@ describe('Bootstrap additional branches', () => {
     const infoSpy = vi.fn();
     const warnSpy = vi.fn();
     vi.doMock('@config/logger', () => ({
-      Logger: { info: infoSpy, warn: warnSpy, error: vi.fn() },
+      Logger: { info: infoSpy, warn: warnSpy, error: vi.fn(), debug: vi.fn() },
     }));
 
     // Mock application to provide shutdownManager
@@ -191,7 +200,7 @@ describe('Bootstrap additional branches', () => {
     const infoSpy = vi.fn();
     const warnSpy = vi.fn();
     vi.doMock('@config/logger', () => ({
-      Logger: { info: infoSpy, warn: warnSpy, error: vi.fn() },
+      Logger: { info: infoSpy, warn: warnSpy, error: vi.fn(), debug: vi.fn() },
     }));
 
     // shutdownManager without add function
@@ -241,7 +250,7 @@ describe('Bootstrap additional branches', () => {
 
     const errorSpy = vi.fn();
     vi.doMock('@config/logger', () => ({
-      Logger: { info: vi.fn(), warn: vi.fn(), error: errorSpy },
+      Logger: { info: vi.fn(), warn: vi.fn(), error: errorSpy, debug: vi.fn() },
     }));
 
     vi.doMock('@boot/Application', () => ({

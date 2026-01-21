@@ -105,8 +105,11 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  const timeoutMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
-  const forceExitMs = Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 10000);
+  const shutdownBudgetMs = Env.getInt('SHUTDOWN_TIMEOUT', 1500);
+  const minForceExitMs = shutdownBudgetMs + 250;
+  const forceExitMs = Math.max(Env.getInt('SHUTDOWN_FORCE_EXIT_MS', 10000), minForceExitMs);
+  const deadlineMs = Date.now() + shutdownBudgetMs;
+  const remainingMs = (): number => Math.max(0, deadlineMs - Date.now());
   Logger.info(`${signal} received, shutting down gracefully...`);
 
   try {
@@ -123,9 +126,10 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
         if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
           try {
             const { WorkerShutdown } = await import('@zintrust/workers');
+            const workerBudgetMs = Math.min(15000, remainingMs());
             await withTimeout(
-              WorkerShutdown.shutdown({ signal, timeout: 30000, forceExit: false }),
-              15000,
+              WorkerShutdown.shutdown({ signal, timeout: workerBudgetMs, forceExit: false }),
+              workerBudgetMs,
               'Worker shutdown timed out'
             );
           } catch (error) {
@@ -139,13 +143,14 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
 
         if (appInstance !== undefined) {
           try {
-            await withTimeout(appInstance.shutdown(), 5000, 'App shutdown timed out');
+            const appBudgetMs = Math.min(5000, remainingMs());
+            await withTimeout(appInstance.shutdown(), appBudgetMs, 'App shutdown timed out');
           } catch (error) {
             Logger.warn('App shutdown failed or timed out, forcing exit', error as Error);
           }
         }
       })(),
-      timeoutMs,
+      shutdownBudgetMs,
       'Graceful shutdown timed out'
     );
 

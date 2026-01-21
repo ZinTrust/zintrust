@@ -29,7 +29,9 @@ vi.mock('@config/env', () => ({
     getFloat: (_key: string, defaultVal?: number) => defaultVal ?? 0,
   },
 }));
-vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
+vi.mock('@config/logger', () => ({
+  Logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
 
 // Runtime schedules helpers
 vi.mock('@config/app', () => ({
@@ -39,6 +41,16 @@ vi.mock('@/scheduler/ScheduleRunner', () => ({
   create: () => ({ register: () => {}, start: () => {}, stop: async () => {} }),
 }));
 vi.mock('@/schedules', () => ({}));
+
+vi.mock('@zintrust/workers', () => ({
+  WorkerInit: {
+    initialize: vi.fn(async () => undefined),
+    autoStartPersistedWorkers: vi.fn(async () => undefined),
+  },
+  WorkerShutdown: {
+    shutdown: vi.fn(async () => undefined),
+  },
+}));
 
 // Prevent actual process.exit during module import
 const exitSpy = vi

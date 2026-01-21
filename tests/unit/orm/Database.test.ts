@@ -1,7 +1,10 @@
 /* eslint-disable max-nested-callbacks */
+import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
+import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
+import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import type { IDatabase } from '@orm/Database';
 import { Database, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -115,6 +118,15 @@ describe('Database', () => {
   beforeEach(async () => {
     resetDatabase();
     vi.clearAllMocks();
+
+    // Register adapters in the registry for tests to use
+    const { DatabaseAdapterRegistry } = await import('src/orm/DatabaseAdapterRegistry');
+    DatabaseAdapterRegistry.register('sqlite', SQLiteAdapter.create);
+    DatabaseAdapterRegistry.register('mysql', MySQLAdapter.create);
+    DatabaseAdapterRegistry.register('postgresql', PostgreSQLAdapter.create);
+    DatabaseAdapterRegistry.register('d1', D1Adapter.create);
+    DatabaseAdapterRegistry.register('d1-remote', D1RemoteAdapter.create);
+    DatabaseAdapterRegistry.register('sqlserver', SQLServerAdapter.create);
   });
 
   it('should create SQLite adapter by default', () => {

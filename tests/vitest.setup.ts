@@ -102,3 +102,24 @@ vi.mock('packages/queue-monitor/src/driver', () => ({}));
 vi.mock('packages/db-mysql/src/register', () => ({}));
 vi.mock('packages/db-postgres/src/register', () => ({}));
 vi.mock('packages/queue-redis/src/register', () => ({}));
+
+// Mock database adapter registry to match actual global structure
+vi.mock('src/orm/DatabaseAdapterRegistry', () => {
+  // Initialize the global registry property if it doesn't exist
+  if (!(globalThis as any).__zintrust_db_adapter_registry__) {
+    (globalThis as any).__zintrust_db_adapter_registry__ = new Map();
+  }
+
+  const registry = {
+    adapters: (globalThis as any).__zintrust_db_adapter_registry__,
+    register: (driver: string, factory: any) => {
+      (globalThis as any).__zintrust_db_adapter_registry__.set(driver, factory);
+    },
+    get: (driver: string) => (globalThis as any).__zintrust_db_adapter_registry__.get(driver),
+    has: (driver: string) => (globalThis as any).__zintrust_db_adapter_registry__.has(driver),
+    clear: () => (globalThis as any).__zintrust_db_adapter_registry__.clear(),
+    list: () => Array.from((globalThis as any).__zintrust_db_adapter_registry__.keys()),
+  };
+
+  return { DatabaseAdapterRegistry: registry };
+});

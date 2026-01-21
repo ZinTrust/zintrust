@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { Migrator } from '@/migrations/Migrator';
 import { Database } from '@orm/Database';
+import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
+import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 
 // Skip these tests when native better-sqlite3 is not loadable in the test runtime (ABI mismatch)
 let HAS_NATIVE_SQLITE = true;
@@ -96,6 +98,8 @@ function writeServiceOnlyMigration(dir: string): string {
 }
 
 (HAS_NATIVE_SQLITE ? describe : describe.skip)('Migrator (SQLite) Integration', () => {
+  DatabaseAdapterRegistry.register('sqlite', SQLiteAdapter.create);
+
   it('applies and rolls back a JS migration', async () => {
     const root = mkdtempSync(join(tmpdir(), 'zintrust-migrator-'));
     const migrationsDir = join(root, 'database', 'migrations');
