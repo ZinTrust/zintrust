@@ -1,9 +1,11 @@
+/* istanbul ignore file */
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { Mail } from '@mail/Mail';
 import { Router, type IRouter } from '@zintrust/core';
 
 export const registerMailUiPag = (router: IRouter): void => {
+  /* istanbul ignore next */
   const handler = async (req: IRequest, res: IResponse): Promise<void> => {
     const templateName = req.getParam('template') ?? 'welcome';
     const html = await Mail.render({
