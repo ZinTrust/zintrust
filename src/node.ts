@@ -9,7 +9,7 @@ export { default, default as process } from '@node-singletons/process';
 
 export { cleanOnce, FileLogWriter } from '@config/FileLogWriter';
 
-export { listTemplates, loadTemplate, renderTemplate } from '@mail/templates/markdown';
+export { listTemplates, loadTemplate, renderTemplate } from '@mail/templates';
 export { MailFake } from '@mail/testing';
 
 export { FakeStorage } from '@tools/storage/testing';

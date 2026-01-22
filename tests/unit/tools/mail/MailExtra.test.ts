@@ -13,7 +13,7 @@ vi.mock('@mail/drivers/SendGrid', () => ({
 }));
 vi.mock('@storage', () => ({ Storage: { getDisk: vi.fn() } }));
 
-import { Mail } from '@/tools/mail/Mail';
+import { Mail } from '@/tools/mail';
 import { mailConfig } from '@config/mail';
 import { SendGridDriver } from '@mail/drivers/SendGrid';
 import { Storage } from '@storage';

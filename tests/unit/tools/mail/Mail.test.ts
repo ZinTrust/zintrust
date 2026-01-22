@@ -41,7 +41,7 @@ describe('Mail', () => {
   it('throws when driver is disabled', async () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'disabled' });
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toBeDefined();
   });
 
@@ -49,7 +49,7 @@ describe('Mail', () => {
     // No registry handler for nodemailer in this test file
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'nodemailer' });
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
       /Mail driver not implemented/i
     );
@@ -61,7 +61,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
       /Mail driver not registered: sendgrid/i
     );
@@ -77,7 +77,7 @@ describe('Mail', () => {
       // restore driver
       vi.mocked(mailConfig.getDriver as any).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-      const { Mail } = await import('@/tools/mail/Mail');
+      const { Mail } = await import('@/tools/mail');
       await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toBeDefined();
     } finally {
       // restore
@@ -89,7 +89,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({ to: 'user@example.com', subject: 'Hi', text: 't' });
     expect(res.ok).toBe(true);
     expect(res.driver).toBe('sendgrid');
@@ -107,7 +107,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     await expect(
       Mail.send({
         to: 'u@e.com',
@@ -132,7 +132,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({
       to: 'a@b.com',
       subject: 's',
@@ -154,7 +154,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'smtp', host: 'h', port: 587 });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
     expect(res.ok).toBe(true);
     expect(res.driver).toBe('smtp');
@@ -172,7 +172,7 @@ describe('Mail', () => {
       domain: 'd',
     });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
     expect(res.ok).toBe(true);
     expect(res.driver).toBe('mailgun');
@@ -186,7 +186,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'ses', region: 'us-east-1' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
     expect(res.ok).toBe(true);
     expect(res.driver).toBe('ses');
@@ -197,7 +197,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({
       to: 'a@b.com',
       subject: 's',
@@ -215,7 +215,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({
       to: 'a@b.com',
       subject: 's',
@@ -233,7 +233,7 @@ describe('Mail', () => {
     // @ts-ignore
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'sendgrid', apiKey: 'k' });
 
-    const { Mail } = await import('@/tools/mail/Mail');
+    const { Mail } = await import('@/tools/mail');
     const res = await Mail.send({
       to: 'a@b.com',
       subject: 's',

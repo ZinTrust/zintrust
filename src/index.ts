@@ -286,8 +286,8 @@ export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type'
 export { StartupConfigValidator } from '@config/StartupConfigValidator';
 
 // Mail
-export { Mail } from '@mail/Mail';
-export type { SendMailInput, SendMailResult } from '@mail/Mail';
+export { Mail } from '@/tools/mail';
+export type { SendMailInput, SendMailResult } from '@/tools/mail';
 
 export { MailTemplateRenderer, MailTemplates } from '@mail/templates';
 export type { MailTemplate, MailTemplateRegistry } from '@mail/templates';

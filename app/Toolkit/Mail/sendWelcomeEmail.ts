@@ -1,4 +1,4 @@
-import { Mail } from '@mail/Mail';
+import { Mail } from '@/tools/mail';
 
 export async function sendWelcomeEmail(
   to: string,

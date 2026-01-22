@@ -88,7 +88,7 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
 }
 
 function registerDatacenterOrchestrationRoutes(router: IRouter): void {
-  Router.group(router, '/api/datacenters', (r) => {
+  Router.group(router, '/api/datacenters', (r: IRouter) => {
     // Region management
     Router.post(r, '/regions', controller.registerRegion);
     Router.del(r, '/regions/:regionId', controller.unregisterRegion);
@@ -116,7 +116,7 @@ function registerDatacenterOrchestrationRoutes(router: IRouter): void {
 }
 
 function registerAutoScalingRoutes(router: IRouter): void {
-  Router.group(router, '/api/auto-scaling', (r) => {
+  Router.group(router, '/api/auto-scaling', (r: IRouter) => {
     Router.post(r, '/start', controller.startAutoScaling);
     Router.post(r, '/stop', controller.stopAutoScaling);
     Router.post(r, '/evaluate/:workerName', controller.evaluateScaling);
@@ -129,7 +129,7 @@ function registerAutoScalingRoutes(router: IRouter): void {
 }
 
 function registerResourceMonitoringRoutes(router: IRouter): void {
-  Router.group(router, '/api/resources', (r) => {
+  Router.group(router, '/api/resources', (r: IRouter) => {
     Router.post(r, '/stop', controller.stopResourceMonitoring);
     Router.post(r, '/start', controller.startResourceMonitoring);
     Router.get(r, '/current', controller.getCurrentResourceUsage);
@@ -144,7 +144,7 @@ function registerResourceMonitoringRoutes(router: IRouter): void {
 }
 
 function registerComplianceRoutes(router: IRouter): void {
-  Router.group(router, '/api/compliance', (r) => {
+  Router.group(router, '/api/compliance', (r: IRouter) => {
     Router.post(r, '/data-subjects', controller.registerDataSubject);
     Router.post(r, '/consent', controller.recordConsent);
     Router.post(r, '/check', controller.checkCompliance);
@@ -159,7 +159,7 @@ function registerComplianceRoutes(router: IRouter): void {
 }
 
 function registerObservabilityRoutes(router: IRouter): void {
-  Router.group(router, '/api/observability', (r) => {
+  Router.group(router, '/api/observability', (r: IRouter) => {
     Router.get(r, '/metrics', controller.prometheusMetrics);
     Router.post(r, '/metrics/custom', controller.recordCustomMetric);
     Router.post(r, '/traces/start', controller.startTrace);
@@ -168,7 +168,7 @@ function registerObservabilityRoutes(router: IRouter): void {
 }
 
 function registerSystemOperationRoutes(router: IRouter): void {
-  Router.group(router, '/api/workers/system', (r) => {
+  Router.group(router, '/api/workers/system', (r: IRouter) => {
     Router.get(r, '/summary', controller.systemSummary);
     Router.post(r, '/shutdown', controller.shutdown);
     Router.get(r, '/monitoring/summary', controller.monitoringSummary);

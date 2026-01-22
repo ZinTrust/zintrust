@@ -140,7 +140,7 @@ const createLineReader = (
     if (idx < 0) return undefined;
     const line = buffer.slice(0, idx + 1);
     buffer = buffer.slice(idx + 1);
-    return line.replaceAll(/\r?\n$/, '');
+    return line.replace(/\r?\n$/, '');
   };
 
   const readLine = async (): Promise<string> => {
@@ -241,17 +241,38 @@ const doAuthLoginIfNeeded = async (
     throw ErrorFactory.createConfigError('SMTP: both MAIL_USERNAME and MAIL_PASSWORD are required');
   }
 
-  await writeLine(socket, 'AUTH LOGIN');
-  const auth1 = await reader.readResponse();
-  assertCode(auth1, 334, 'AUTH LOGIN');
+  // Try AUTH PLAIN first (more widely supported)
+  try {
+    // AUTH PLAIN format: base64("\0username\0password")
+    const authPlainString = `\0${username}\0${password}`;
+    const authPlainEncoded = toBase64(authPlainString);
 
-  await writeLine(socket, toBase64(username));
-  const auth2 = await reader.readResponse();
-  assertCode(auth2, 334, 'AUTH username');
+    await writeLine(socket, `AUTH PLAIN ${authPlainEncoded}`);
+    const authPlain = await reader.readResponse();
+    assertCode(authPlain, 235, 'AUTH PLAIN');
+    return; // Success!
+  } catch (plainError) {
+    // AUTH PLAIN failed, try AUTH LOGIN as fallback
+    try {
+      await writeLine(socket, 'AUTH LOGIN');
+      const auth1 = await reader.readResponse();
+      assertCode(auth1, 334, 'AUTH LOGIN');
 
-  await writeLine(socket, toBase64(password));
-  const auth3 = await reader.readResponse();
-  assertCode(auth3, 235, 'AUTH password');
+      await writeLine(socket, toBase64(username));
+      const auth2 = await reader.readResponse();
+      assertCode(auth2, 334, 'AUTH username');
+
+      await writeLine(socket, toBase64(password));
+      const auth3 = await reader.readResponse();
+      assertCode(auth3, 235, 'AUTH password');
+    } catch (loginError) {
+      // Both methods failed, throw the original error
+      throw ErrorFactory.createConnectionError('SMTP authentication failed', {
+        error: plainError,
+        loginError,
+      });
+    }
+  }
 };
 
 const doMailFrom = async (
