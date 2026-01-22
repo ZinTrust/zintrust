@@ -317,6 +317,26 @@ exports[`OpenAPI spec snapshot > matches a stable snapshot for routes/api.ts 1`]
           }
         }
       }
+    },
+    "/mail/{template}": {
+      "get": {
+        "operationId": "get_mail__template",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "parameters": [
+          {
+            "name": "template",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
     }
   }
 }"

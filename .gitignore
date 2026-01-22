@@ -81,4 +81,5 @@ scripts/zintrust-qa-validator.js
 .windsurf/
 app/Workers/EmailWorker.ts
 test-all-templates.ts
-*.ts
+test-email-templates.ts
+test-email-simple.ts
