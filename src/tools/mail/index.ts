@@ -172,7 +172,35 @@ const createMailer = (
     },
   });
 
+export interface RenderMailInput {
+  template: string; // template filename without .html extension
+  variables?: Record<string, unknown>;
+}
+
+async function renderTemplateToHtml(input: RenderMailInput): Promise<string> {
+  const { template, variables } = input;
+  // Import lazily to avoid circular deps
+  const { loadTemplate } = await import('./template-loader.js');
+  // template-loader expects full filename
+  const fileName = template.endsWith('.html') ? template : `${template}.html`;
+  return loadTemplate(
+    fileName,
+    (variables ?? {}) as import('@mail/template-utils').TemplateVariables
+  );
+}
+
 export const Mail = Object.freeze({
+  /**
+   * Render a template with variables and return HTML (preview only).
+   */
+  async render(input: RenderMailInput): Promise<string> {
+    return renderTemplateToHtml(input);
+  },
+
+  /** Alias of render */
+  async view(input: RenderMailInput): Promise<string> {
+    return renderTemplateToHtml(input);
+  },
   /**
    * Select a named mailer (key from mailConfig.drivers).
    *

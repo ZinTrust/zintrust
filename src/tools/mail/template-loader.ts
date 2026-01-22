@@ -1,10 +1,11 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { readFile } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
+import { dirname, join } from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
-export interface TemplateVariables {
-  [key: string]: string | number | boolean | undefined;
-}
+import { Env } from '@config/env';
+import type { TemplateVariables } from '@mail/template-utils';
+import { interpolate } from '@mail/template-utils';
 
 /**
  * Load and render email template with variable substitution
@@ -14,16 +15,38 @@ export async function loadTemplate(
   variables: TemplateVariables = {}
 ): Promise<string> {
   try {
-    const templatePath = join(__dirname, 'templates', templateName);
-    const template = await readFile(templatePath, 'utf-8');
-
-    // Replace template variables {{variable}} with actual values
-    let rendered = template;
-
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(`{{${key}}}`, 'g');
-      rendered = rendered.replaceAll(regex, String(value ?? ''));
+    const baseDir = dirname(fileURLToPath(import.meta.url));
+    const isPath = templateName.includes('/') || templateName.endsWith('.html');
+    let templatePath: string;
+    if (isPath) {
+      if (templateName.startsWith('/')) {
+        templatePath = templateName;
+      } else {
+        templatePath = join(process.cwd(), templateName);
+      }
+    } else {
+      templatePath = join(baseDir, 'templates', `${templateName}.html`);
     }
+    let template: string;
+    try {
+      template = await readFile(templatePath, 'utf-8');
+    } catch {
+      // Fallback to built-in directory if the supplied name looked like a file but wasn't found
+      const fallbackPath = join(
+        baseDir,
+        'templates',
+        templateName.endsWith('.html') ? templateName : `${templateName}.html`
+      );
+      template = await readFile(fallbackPath, 'utf-8');
+    }
+
+    // Replace variables using shared interpolate util
+    const mergedVars: TemplateVariables = {
+      year: new Date().getFullYear().toString(),
+      APP_NAME: Env.APP_NAME ?? 'ZinTrust',
+      ...variables,
+    };
+    let rendered = interpolate(template, mergedVars);
 
     // Handle conditional blocks {{#if_condition}}...{{/if_condition}}
     rendered = renderConditionals(rendered, variables);
@@ -46,7 +69,7 @@ function renderConditionals(template: string, variables: TemplateVariables): str
   return template.replaceAll(
     conditionalRegex,
     (_fullMatch: string, condition: string, content: string): string => {
-      const value = variables[condition as keyof TemplateVariables];
+      const value = variables[condition];
 
       if (value === true || value === 'true') {
         return content;
@@ -66,7 +89,7 @@ function renderLoops(template: string, variables: TemplateVariables): string {
   return template.replaceAll(
     loopRegex,
     (_fullMatch: string, arrayName: string, content: string): string => {
-      const array = variables[arrayName as keyof TemplateVariables] as unknown[] | undefined;
+      const array = variables[arrayName] as unknown[] | undefined;
 
       if (!Array.isArray(array)) {
         return '';
@@ -100,5 +123,6 @@ export function getAvailableTemplates(): string[] {
     'job-completed.html',
     'worker-alert.html',
     'performance-report.html',
+    'general.html',
   ];
 }

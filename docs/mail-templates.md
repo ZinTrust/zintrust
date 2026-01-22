@@ -52,6 +52,10 @@ ZinTrust includes the following professionally-designed email templates:
 
 ### General Templates
 
+- **general.html** - Flexible generic template with brand color
+  - Variables: `{{subject}}`, `{{headline}}`, `{{message}}`, `{{action_url}}`, `{{action_text}}`, `{{primary_color}}`, `{{APP_NAME}}`, `{{year}}`
+  - Design: Modern dark theme with customizable brand color
+
 - **welcome.html** - Generic welcome template
   - Variables: `{{name}}`, `{{email}}`, `{{action_url}}`, `{{next_step_1}}`, `{{next_step_2}}`, `{{next_step_3}}`, `{{APP_NAME}}`, `{{year}}`
   - Design: Modern dark theme with gradient elements
@@ -182,6 +186,54 @@ All templates include a copyright footer that uses:
 ```
 
 This automatically displays the current year and your application name.
+
+## Previewing Templates During Development
+
+You can render any email template in the browser without sending an email.
+
+### Route-based preview
+
+If you registered the example helper route:
+
+```ts
+registerMailUiPag(router);
+```
+
+Visit:
+
+```
+/mail/<template-name>
+```
+
+Example:
+
+```
+/mail/password-reset
+```
+
+The route calls `Mail.render()` internally and streams the raw HTML so you can inspect the final markup.
+
+### Programmatic preview
+
+```ts
+import { Mail } from '@zintrust/core';
+
+await Mail.send({
+  to: 'bob@site.com',
+  subject: 'Custom',
+  html: await Mail.render({
+    template: 'src/emails/my-brand.html', // absolute or relative path
+    variables: {
+      primary_color: '#ff0000',
+      headline: 'Hi Bob',
+      message: '...',
+      action_url: 'https://example.com',
+    },
+  }),
+});
+```
+
+---
 
 ## Email Client Compatibility
 

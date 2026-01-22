@@ -79,3 +79,6 @@ processors/
 report/
 scripts/zintrust-qa-validator.js
 .windsurf/
+app/Workers/EmailWorker.ts
+test-all-templates.ts
+*.ts

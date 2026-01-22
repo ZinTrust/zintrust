@@ -15,6 +15,7 @@ describe('mail template-loader patch coverage', () => {
       'job-completed.html',
       'worker-alert.html',
       'performance-report.html',
+      'general.html',
     ]);
   });
 

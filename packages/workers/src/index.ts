@@ -67,6 +67,9 @@ export type {
   WorkersGlobalConfig,
 } from '@zintrust/core';
 
+// Re-export bullmq types for type compatibility
+export type { Job, Worker, WorkerOptions } from 'bullmq';
+
 export type {
   IAnomaly,
   IAnomalyConfig,
