@@ -395,6 +395,35 @@ describe('SmtpDriver', () => {
     const responses = [
       '220 welcome',
       '250 OK',
+      '235 authenticated',
+      '250 OK',
+      '250 OK',
+      '354 Continue',
+      '250 Queued',
+      '221 Bye',
+    ];
+    const socket = createMockSocket(responses);
+    // @ts-ignore
+    vi.mocked(netConnect).mockReturnValue(socket);
+
+    const res = await SmtpDriver.send(
+      { host: 'localhost', port: 25, secure: false, username: 'u', password: 'p' },
+      {
+        to: 'a@b.com',
+        from: { email: 'from@ex.com' },
+        subject: 's',
+        text: 't',
+      } as any
+    );
+
+    expect(res.ok).toBe(true);
+  });
+
+  it('falls back to AUTH LOGIN when AUTH PLAIN fails', async () => {
+    const responses = [
+      '220 welcome',
+      '250 OK',
+      '535 auth failed',
       '334 auth1',
       '334 auth2',
       '235 authenticated',

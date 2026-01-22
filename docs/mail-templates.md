@@ -23,17 +23,17 @@ ZinTrust includes the following professionally-designed email templates:
 ### Authentication Templates
 
 - **auth-welcome.html** - Welcome email for new users
-  - Variables: `{{name}}`, `{{confirmLink}}`, `{{expiryMinutes}}`, `{{APP_NAME}}`
+  - Variables: `{{name}}`, `{{confirmLink}}`, `{{expiryMinutes}}`, `{{support_url}}`, `{{APP_NAME}}`
   - Design: Blue gradient header with icon badge
 
 - **auth-password-reset.html** - Password reset emails
-  - Variables: `{{name}}`, `{{email}}`, `{{reset_url}}`, `{{APP_NAME}}`, `{{year}}`
+  - Variables: `{{name}}`, `{{email}}`, `{{reset_url}}`, `{{expiryMinutes}}`, `{{support_url}}`, `{{APP_NAME}}`, `{{year}}`
   - Design: Red/orange security theme with warning badges
 
 ### Notification Templates
 
 - **notifications-new-comment.html** - New comment notifications
-  - Variables: `{{name}}`, `{{commenterName}}`, `{{commentText}}`, `{{commentLink}}`, `{{APP_NAME}}`, `{{year}}`
+  - Variables: `{{name}}`, `{{commenterName}}`, `{{commenterInitial}}`, `{{commentText}}`, `{{commentTime}}`, `{{commentLink}}`, `{{postTitle}}`, `{{unsubscribeLink}}`, `{{APP_NAME}}`, `{{year}}`
   - Design: Purple theme with avatar placeholder
 
 ### Worker Management Templates
@@ -53,11 +53,11 @@ ZinTrust includes the following professionally-designed email templates:
 ### General Templates
 
 - **welcome.html** - Generic welcome template
-  - Variables: `{{name}}`, `{{email}}`, `{{action_url}}`, `{{APP_NAME}}`, `{{year}}`
+  - Variables: `{{name}}`, `{{email}}`, `{{action_url}}`, `{{next_step_1}}`, `{{next_step_2}}`, `{{next_step_3}}`, `{{APP_NAME}}`, `{{year}}`
   - Design: Modern dark theme with gradient elements
 
 - **password-reset.html** - Alternative password reset template
-  - Variables: `{{name}}`, `{{email}}`, `{{reset_url}}`, `{{APP_NAME}}`, `{{year}}`
+  - Variables: `{{name}}`, `{{email}}`, `{{reset_url}}`, `{{expiryTime}}`, `{{APP_NAME}}`, `{{year}}`
   - Design: Red security-focused theme
 
 ## Using Templates

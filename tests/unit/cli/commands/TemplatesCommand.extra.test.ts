@@ -1,11 +1,11 @@
 /* eslint-disable no-console */
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
-import * as MailTpl from '@mail/templates/markdown';
+import * as MailTpl from '@mail/templates';
 import * as NotifTpl from '@notification/templates/markdown';
-import type { Mock} from 'vitest';
+import type { Mock } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@mail/templates/markdown', () => ({
+vi.mock('@mail/templates', () => ({
   listTemplates: vi.fn(),
   renderTemplate: vi.fn(),
 }));

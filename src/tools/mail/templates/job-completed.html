@@ -4,196 +4,185 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Job Completed</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #0b1220;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: 40px auto;
+        background-color: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .header {
+        padding: 40px 40px 30px;
+        text-align: center;
+        background: linear-gradient(180deg, rgba(34, 197, 94, 0.15), rgba(22, 163, 74, 0.08));
+        border-bottom: 1px solid #334155;
+      }
+
+      .icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(34, 197, 94, 0.35);
+        background: linear-gradient(180deg, rgba(34, 197, 94, 0.2), rgba(22, 163, 74, 0.1));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .title {
+        margin: 0 0 8px;
+        font-size: 28px;
+        font-weight: 700;
+        color: #e2e8f0;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 16px;
+        color: #e2e8f0;
+        line-height: 1.5;
+      }
+
+      .content {
+        padding: 40px;
+      }
+
+      .greeting {
+        margin: 0 0 24px;
+        font-size: 15px;
+        color: #e2e8f0;
+        line-height: 1.6;
+      }
+
+      .job-details {
+        margin-bottom: 30px;
+      }
+
+      .job-details table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .job-details th {
+        text-align: left;
+        padding: 12px;
+        background: rgba(34, 197, 94, 0.12);
+        border-bottom: 2px solid #22c55e;
+        color: #e2e8f0;
+        font-weight: 600;
+      }
+
+      .job-details td {
+        padding: 8px 0;
+        color: #e2e8f0;
+        font-size: 14px;
+        font-family: 'Courier New', monospace;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        background-color: #22c55e;
+        color: #ffffff;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .button-container {
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .dashboard-button {
+        display: inline-block;
+        padding: 14px 32px;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 15px;
+        border: 1px solid rgba(34, 197, 94, 0.5);
+      }
+
+      .footer {
+        padding: 30px 40px;
+        background: rgba(15, 23, 42, 0.65);
+        border-top: 1px solid #334155;
+        text-align: center;
+      }
+
+      .footer p {
+        margin: 0;
+        font-size: 12px;
+        color: #64748b;
+      }
+    </style>
   </head>
-  <body
-    style="
-      margin: 0;
-      padding: 0;
-      background-color: #0b1220;
-      font-family:
-        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    "
-  >
-    <table
-      role="presentation"
-      style="width: 100%; border-collapse: collapse; background-color: #0b1220"
-    >
-      <tr>
-        <td align="center" style="padding: 40px 20px">
-          <table
-            role="presentation"
-            style="
-              width: 100%;
-              max-width: 600px;
-              border-collapse: collapse;
-              background-color: #0f172a;
-              border: 1px solid #334155;
-              border-radius: 12px;
-              overflow: hidden;
-            "
-          >
+  <body>
+    <div class="email-container">
+      <!-- Header -->
+      <div class="header">
+        <div class="icon">
+          <span style="font-size: 24px">✅</span>
+        </div>
+        <h1 class="title">Job Completed</h1>
+        <p class="subtitle">Your worker job has finished processing</p>
+      </div>
+
+      <!-- Main Content -->
+      <div class="content">
+        <p class="greeting">Hi <strong style="color: #e2e8f0">{{name}}</strong>,</p>
+
+        <div class="job-details">
+          <table class="job-details table">
             <tr>
-              <td
-                style="
-                  padding: 40px 40px 30px;
-                  text-align: center;
-                  background: linear-gradient(
-                    180deg,
-                    rgba(34, 197, 94, 0.15),
-                    rgba(22, 163, 74, 0.08)
-                  );
-                  border-bottom: 1px solid #334155;
-                "
-              >
-                <div
-                  style="
-                    width: 48px;
-                    height: 48px;
-                    margin: 0 auto 20px;
-                    border-radius: 12px;
-                    border: 1px solid rgba(34, 197, 94, 0.35);
-                    background: linear-gradient(
-                      180deg,
-                      rgba(34, 197, 94, 0.2),
-                      rgba(22, 163, 74, 0.1)
-                    );
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                  "
-                >
-                  <span style="font-size: 24px">✅</span>
-                </div>
-                <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #e2e8f0">
-                  Job Completed
-                </h1>
-                <p style="margin: 0; font-size: 16px; color: #94a3b8">
-                  Your worker job has finished processing
-                </p>
-              </td>
+              <th>Job ID:</th>
+              <td>{{job_id}}</td>
             </tr>
             <tr>
-              <td style="padding: 40px">
-                <p style="margin: 0 0 24px; font-size: 15px; color: #cbd5e1; line-height: 1.6">
-                  Hi <strong style="color: #e2e8f0">{{name}}</strong>,
-                </p>
-                <table
-                  role="presentation"
-                  style="width: 100%; border-collapse: collapse; margin-bottom: 30px"
-                >
-                  <tr>
-                    <td
-                      style="
-                        padding: 20px;
-                        background: rgba(15, 23, 42, 0.65);
-                        border: 1px solid #334155;
-                        border-radius: 8px;
-                      "
-                    >
-                      <table style="width: 100%; border-collapse: collapse">
-                        <tr>
-                          <td style="padding: 8px 0; color: #94a3b8; font-size: 14px; width: 140px">
-                            Job ID:
-                          </td>
-                          <td
-                            style="
-                              padding: 8px 0;
-                              color: #e2e8f0;
-                              font-size: 14px;
-                              font-family: 'Courier New', monospace;
-                            "
-                          >
-                            {{job_id}}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #94a3b8; font-size: 14px">Worker:</td>
-                          <td
-                            style="
-                              padding: 8px 0;
-                              color: #e2e8f0;
-                              font-size: 14px;
-                              font-weight: 500;
-                            "
-                          >
-                            {{worker_name}}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #94a3b8; font-size: 14px">Queue:</td>
-                          <td style="padding: 8px 0; color: #e2e8f0; font-size: 14px">
-                            {{queue_name}}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #94a3b8; font-size: 14px">
-                            Completed:
-                          </td>
-                          <td style="padding: 8px 0; color: #e2e8f0; font-size: 14px">
-                            {{processed_at}}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 8px 0; color: #94a3b8; font-size: 14px">Status:</td>
-                          <td style="padding: 8px 0">
-                            <span
-                              style="
-                                display: inline-block;
-                                padding: 4px 12px;
-                                background-color: #22c55e;
-                                color: #ffffff;
-                                border-radius: 4px;
-                                font-size: 12px;
-                                font-weight: 600;
-                              "
-                              >{{status}}</span
-                            >
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-                <table role="presentation" style="width: 100%; border-collapse: collapse">
-                  <tr>
-                    <td align="center">
-                      <a
-                        href="{{dashboard_url}}"
-                        style="
-                          display: inline-block;
-                          padding: 14px 32px;
-                          background: linear-gradient(135deg, #22c55e, #16a34a);
-                          color: #ffffff;
-                          text-decoration: none;
-                          border-radius: 8px;
-                          font-weight: 600;
-                          font-size: 15px;
-                          border: 1px solid rgba(34, 197, 94, 0.5);
-                        "
-                        >View Dashboard</a
-                      >
-                    </td>
-                  </tr>
-                </table>
-              </td>
+              <th>Worker:</th>
+              <td>{{worker_name}}</td>
             </tr>
             <tr>
-              <td
-                style="
-                  padding: 30px 40px;
-                  background: rgba(15, 23, 42, 0.65);
-                  border-top: 1px solid #334155;
-                  text-align: center;
-                "
-              >
-                <p style="margin: 0; font-size: 12px; color: #64748b">
-                  &copy; {{year}} {{APP_NAME}}. All rights reserved.
-                </p>
-              </td>
+              <th>Queue:</th>
+              <td>{{queue_name}}</td>
+            </tr>
+            <tr>
+              <th>Completed:</th>
+              <td>{{processed_at}}</td>
+            </tr>
+            <tr>
+              <th>Status:</th>
+              <td><span class="status-badge">{{status}}</span></td>
             </tr>
           </table>
-        </td>
-      </tr>
-    </table>
+        </div>
+
+        <!-- CTA Button -->
+        <div class="button-container">
+          <a href="{{dashboard_url}}" class="dashboard-button">View Dashboard</a>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>&copy; {{year}} {{APP_NAME}}. All rights reserved.</p>
+      </div>
+    </div>
   </body>
 </html>

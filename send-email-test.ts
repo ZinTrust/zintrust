@@ -63,8 +63,8 @@ async function sendTestEmail() {
   Logger.info('📧 Sending templated test email...');
   Logger.info('   To: test@zintrust.com');
   Logger.info('   From: no-reply@engage.vizo.app');
-  Logger.info('   Driver: ' + process.env.MAIL_DRIVER);
-  Logger.info('   SMTP: ' + process.env.MAIL_HOST + ':' + process.env.MAIL_PORT);
+  Logger.info('   Driver: configured via MAIL_DRIVER');
+  Logger.info('   SMTP: configured via MAIL_HOST/MAIL_PORT');
   Logger.info('');
 
   // Use the built-in welcome template from MailTemplates
