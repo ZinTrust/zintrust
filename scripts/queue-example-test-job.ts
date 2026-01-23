@@ -24,7 +24,7 @@ const buildConnection = (queueConfig: {
   };
 };
 
-const run = async (): Promise<void> => {
+try {
   EnvFileLoader.ensureLoaded();
   const queueConfig = (await import('../config/queue')).default;
   const queue = new Queue(QUEUE_NAME, {
@@ -39,9 +39,7 @@ const run = async (): Promise<void> => {
 
   console.log(`Queued job ${String(job.id)} on ${QUEUE_NAME}`);
   await queue.close();
-};
-
-run().catch((error) => {
+} catch (error) {
   console.error('Failed to enqueue job', error);
   process.exit(1);
-});
+}

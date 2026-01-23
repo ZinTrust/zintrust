@@ -122,7 +122,8 @@ type RedisConfigInput = RedisConfig | RedisEnvConfig;
 export type WorkerPersistenceConfig =
   | { driver: 'memory' }
   | { driver: 'redis'; redis?: RedisConfigInput; keyPrefix?: string }
-  | { driver: 'db'; client?: IDatabase | string; connection?: string; table?: string };
+  | { driver: 'db'; client?: IDatabase | string; connection?: string; table?: string }
+  | { driver: 'database'; client?: IDatabase | string; connection?: string; table?: string };
 
 type ObservabilityConfigInput =
   | ObservabilityConfig
@@ -832,7 +833,7 @@ const resolvePersistenceConfig = (
     };
   }
 
-  if (driver === 'db') {
+  if (driver === 'db' || driver === 'database') {
     return {
       driver: 'db',
       connection: resolveDefaultPersistenceConnection(),
@@ -883,7 +884,7 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
     );
     const client = createRedisConnection(redisConfig);
     next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
-  } else if (persistence.driver === 'db') {
+  } else if (persistence.driver === 'db' || persistence.driver === 'database') {
     const explicitConnection =
       typeof persistence.client === 'string' ? persistence.client : persistence.connection;
     const client =

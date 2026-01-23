@@ -6,9 +6,9 @@
 import type { FileUploadOptions, IFileUploadHandler, UploadedFile } from '@http/FileUpload';
 import { FileUpload } from '@http/FileUpload';
 import type * as http from '@node-singletons/http';
+import type { JwtPayload } from '@security/JwtManager';
 
 type HeadParam = string | string[] | undefined;
-type JwtPayload = import('@/index').JwtPayload;
 
 export interface IRequest {
   sessionId: HeadParam;

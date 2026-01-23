@@ -1,5 +1,5 @@
 import { appConfig } from '@config/app';
-import { Logger } from '@zintrust/core';
+import { Logger } from '@config/logger';
 
 /**
  * Redis Key Management Utility

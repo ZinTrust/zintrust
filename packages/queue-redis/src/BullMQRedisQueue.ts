@@ -65,8 +65,9 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
     const backoffDelay = Env.getInt('BULLMQ_BACKOFF_DELAY', 2000);
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
 
-    const queue = new Queue(createBullMQKey(queueName), {
+    const queue = new Queue(queueName, {
       connection: config,
+      prefix: createBullMQKey('').replace(/:$/, ''), // Remove trailing colon for prefix
       defaultJobOptions: {
         removeOnComplete,
         removeOnFail,
