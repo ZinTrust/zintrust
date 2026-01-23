@@ -5,7 +5,7 @@
 
 import { Logger } from '@config/logger';
 import { UserFactory } from '@database/factories/UserFactory';
-import { Auth } from '@features/Auth';
+import { Auth } from '@/auth/Auth';
 import type { IDatabase } from '@orm/Database';
 
 async function truncateUsersTable(db: IDatabase): Promise<void> {

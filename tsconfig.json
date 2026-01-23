@@ -50,7 +50,7 @@
       "@toolkit/*": ["./src/toolkit/*"],
       "@tools/*": ["./src/tools/*"],
       "@processors/*": ["./processors/*"],
-      "@features/*": ["./src/features/*"],
+      "@auth/*": ["src/auth/*"],
       "@httpClient/*": ["./src/tools/http/*"],
       "@templates": ["./src/tools/templates/index.ts"],
       "@templates/*": ["./src/tools/templates/*"],

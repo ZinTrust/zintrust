@@ -70,7 +70,7 @@ export default defineConfig({
       '@mail': path.resolve(__dirname, './src/tools/mail'),
       '@notification': path.resolve(__dirname, './src/tools/notification'),
       '@templates': path.resolve(__dirname, './src/tools/templates'),
-      '@features': path.resolve(__dirname, './src/features'),
+      '@auth': path.resolve(__dirname, './src/auth'),
       '@queue': path.resolve(__dirname, './src/tools/queue'),
       '@queue/*': path.resolve(__dirname, './src/tools/queue/*'),
       '@broadcast': path.resolve(__dirname, './src/tools/broadcast'),

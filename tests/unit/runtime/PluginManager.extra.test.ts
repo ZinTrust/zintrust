@@ -30,9 +30,9 @@ describe('PluginManager extra tests', () => {
 
   it('detects installed plugin when template file and deps exist', async () => {
     // prepare project files and package.json
-    const projectSrc = path.join(tmpDirRoot, 'src', 'features');
+    const projectSrc = path.join(tmpDirRoot, 'src', 'auth');
     await fs.mkdir(projectSrc, { recursive: true });
-    await fs.writeFile(path.join(projectSrc, 'Auth.ts'), '// auth feature');
+    await fs.writeFile(path.join(projectSrc, 'Auth.ts'), '// auth auth');
 
     const packageJson = {
       dependencies: { jsonwebtoken: '^1.0.0', bcrypt: '^1.0.0' },

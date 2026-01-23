@@ -35,7 +35,7 @@ describe('PluginManager path traversal', () => {
       aliases: [],
       dependencies: [],
       devDependencies: [],
-      templates: [{ source: 'features/Auth.ts.tpl', destination: '../../etc/exploit.ts' }],
+      templates: [{ source: 'auth/Auth.ts.tpl', destination: '../../etc/exploit.ts' }],
     } as any;
 
     await expect(PluginManager.install(id)).rejects.toThrow();

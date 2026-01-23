@@ -92,8 +92,8 @@ export const PluginRegistry: Record<string, PluginDefinition> = {
     devDependencies: ['@types/jsonwebtoken', '@types/bcrypt'],
     templates: [
       {
-        source: 'features/Auth.ts.tpl',
-        destination: 'src/features/Auth.ts',
+        source: 'auth/Auth.ts.tpl',
+        destination: 'src/auth/Auth.ts',
       },
     ],
     postInstall: {

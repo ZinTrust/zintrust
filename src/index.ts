@@ -374,7 +374,7 @@ export { default as logCleanup } from '@schedules/log-cleanup';
 export * as NodeSingletons from '@node-singletons/index';
 
 // Auth features
-export { Auth } from '@features/Auth';
+export { Auth } from '@/auth/Auth';
 
 // Microservice utilities
 export { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';

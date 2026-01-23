@@ -1,4 +1,4 @@
-import { Auth } from '@features/Auth';
+import { Auth } from '@auth/Auth';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -18,7 +18,7 @@ vi.mock('@orm/QueryBuilder', () => ({
   },
 }));
 
-vi.mock('@features/Auth', () => ({
+vi.mock('@auth/Auth', () => ({
   Auth: {
     hash: vi.fn(),
     compare: vi.fn(),

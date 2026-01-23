@@ -32,8 +32,8 @@ const MAPPINGS: TemplateMapping[] = [
     description: 'SQL Server database adapter',
   },
   {
-    basePath: 'src/features/Auth.ts',
-    templatePath: 'src/templates/features/Auth.ts.tpl',
+    basePath: 'src/auth/Auth.ts',
+    templatePath: 'src/templates/auth/Auth.ts.tpl',
     description: 'Authentication feature with JWT & bcrypt',
   },
   {

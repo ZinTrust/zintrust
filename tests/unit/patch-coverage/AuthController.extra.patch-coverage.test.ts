@@ -60,7 +60,7 @@ describe('AuthController targeted branches', () => {
         where: () => ({ limit: () => ({ first: async () => ({ id: '1', password: 'hash' }) }) }),
       },
     }));
-    vi.doMock('@/features/Auth', () => ({ Auth: { compare: async () => false } }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { compare: async () => false } }));
     const { default: AuthController } = await import('@app/Controllers/AuthController');
     const { req, res } = makeReqRes();
     await AuthController.create().login(req, res);
@@ -81,7 +81,7 @@ describe('AuthController targeted branches', () => {
         }),
       },
     }));
-    vi.doMock('@/features/Auth', () => ({ Auth: { compare: async () => true } }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { compare: async () => true } }));
     vi.doMock('@security/JwtManager', () => ({ JwtManager: { signAccessToken: () => 'tok' } }));
     const { default: AuthController } = await import('@app/Controllers/AuthController');
     const { req, res } = makeReqRes();
@@ -111,7 +111,7 @@ describe('AuthController targeted branches', () => {
     vi.doMock('@http/ValidationHelper', () => ({
       getValidatedBody: () => ({ name: 'A', email: 'a@b', password: 'pw' }),
     }));
-    vi.doMock('@/features/Auth', () => ({ Auth: { hash: async () => 'h' } }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { hash: async () => 'h' } }));
     vi.doMock('@app/Models/User', () => ({
       User: {
         where: () => ({ limit: () => ({ first: async () => null }) }),

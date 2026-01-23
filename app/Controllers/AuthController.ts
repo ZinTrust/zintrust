@@ -3,7 +3,7 @@
  * Minimal, real auth endpoints backing the example API routes.
  */
 
-import { Auth } from '@/features/Auth';
+import { Auth } from '@/auth/Auth';
 import { User } from '@app/Models/User';
 import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';
 import { getString } from '@common/utility';

@@ -394,13 +394,15 @@ export const ReportController = {
 **Example from \`app/Controllers/AuthController.ts\`:**
 
 ```typescript
-import { Auth } from '@/features/Auth';
-import { Logger } from '@config/logger';
-import { JwtManager } from '@security/JwtManager';
-import { TokenRevocation } from '@security/TokenRevocation';
-import { useEnsureDbConnected } from '@orm/Database';
-import { QueryBuilder } from '@orm/QueryBuilder';
 import type { IRequest, IResponse } from '@zintrust/core';
+import {
+  Auth,
+  QueryBuilder,
+  useEnsureDbConnected,
+  TokenRevocation,
+  JwtManager,
+  Logger,
+} from '@zintrust/core';
 
 export const AuthController = Object.freeze({
   create() {
