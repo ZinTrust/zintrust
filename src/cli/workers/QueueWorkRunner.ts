@@ -1,3 +1,13 @@
+/**
+ * Queue Work Runner
+ *
+ * Processes queued jobs via the framework CLI.
+ *
+ * BullMQ Compatibility:
+ * - Works with both basic queue drivers and BullMQ Redis driver
+ * - When QUEUE_DRIVER=redis, uses BullMQ enterprise features automatically
+ * - No changes needed - uses standard Queue API which is BullMQ-compatible
+ */
 import { Broadcast } from '@broadcast/Broadcast';
 import { Logger } from '@config/logger';
 import { queueConfig } from '@config/queue';
