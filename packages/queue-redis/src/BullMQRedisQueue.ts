@@ -37,6 +37,20 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
 
     const config = getRedisConfig();
 
+    // Memory Leak Protection: Limit cached queues
+    if (queues.size >= 50) {
+      // Find queue with no activity or just remove oldest?
+      // Since we can't easily track activity, we remove the first key (oldest)
+      // and close it to release Redis connections.
+      const oldestKey = queues.keys().next().value;
+      if (oldestKey) {
+        const oldQueue = queues.get(oldestKey);
+        oldQueue?.close().catch((err) => Logger.error('BullMQ: Failed to close old queue', err));
+        queues.delete(oldestKey);
+        Logger.debug(`BullMQ: Cleaned up cached queue ${oldestKey} to free resources`);
+      }
+    }
+
     // Customizable BullMQ settings from environment
     const removeOnComplete = Env.getInt('BULLMQ_REMOVE_ON_COMPLETE', 100);
     const removeOnFail = Env.getInt('BULLMQ_REMOVE_ON_FAIL', 50);
@@ -90,13 +104,17 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
 
         const job = jobs[0];
 
+        // Implements Visibility Timeout Pattern:
+        // Move to delayed state (30s) to "lock" it from other consumers without losing data on crash.
+        // If ack() is not called within 30s, the job reappears in waiting.
+        // We use a fixed token 'pull-worker' as we don't have a specific worker ID in this context.
+        await job.moveToDelayed(Date.now() + 30000, 'pull-worker');
+
         const message: QueueMessage<T> = {
           id: String(job.id),
           payload: job.data as T,
           attempts: job.attemptsMade || 0,
         };
-
-        await job.remove();
 
         Logger.debug(`BullMQ: Job dequeued from ${queue}`, {
           jobId: job.id,
@@ -109,8 +127,21 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
       }
     },
 
-    async ack(_queue: string, _id: string): Promise<void> {
-      Logger.debug(`BullMQ: ACK called for job ${_id} in queue ${_queue} (handled automatically)`);
+    async ack(queue: string, id: string): Promise<void> {
+      try {
+        const q = getQueue(queue);
+        const job = await q.getJob(id);
+
+        if (job) {
+          // Remove the job entirely upon success
+          await job.remove();
+          Logger.debug(`BullMQ: Job ${id} acked and removed from ${queue}`);
+        } else {
+          Logger.warn(`BullMQ: ACK failed - job ${id} not found in ${queue}`);
+        }
+      } catch (error) {
+        Logger.error(`BullMQ: Failed to ack job ${id}`, error as Error);
+      }
     },
 
     async length(queue: string): Promise<number> {
