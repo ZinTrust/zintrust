@@ -147,9 +147,9 @@ const normalizeMode = (): StartMode => {
 };
 
 const Prefix = (): string => {
-  const app_name = (Env.APP_NAME || 'zintrust').toLowerCase().replaceAll(/\s/g, '-');
+  const app_name = (Env.APP_NAME || 'zintrust').toLowerCase().replaceAll(/\s/g, '_');
   const env = Env.NODE_ENV;
-  return `${app_name}-zintrust-${env}`;
+  return `${app_name}_zintrust_${env}`;
 };
 
 const appConfigObj = {

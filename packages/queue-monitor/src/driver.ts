@@ -1,3 +1,4 @@
+import { getBullMQSafeQueueName } from '@zintrust/core';
 import { Queue, type Job, type JobsOptions } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 
@@ -64,16 +65,16 @@ async function discoverQueuesFromRedis(
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const queues = new Map<string, Queue>();
   const redis = createRedisConnection(config);
-
   const getQueue = (name: string): Queue => {
     if (!queues.has(name)) {
+      const prefix = getBullMQSafeQueueName(name);
+      // console.log('prefix :', prefix);
       const connection = createRedisConnection(config);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const queue = new Queue(name, { connection: connection as any });
+      const queue = new Queue(name, { prefix, connection: connection });
       queues.set(name, queue);
     }
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return queues.get(name)!;
+    const queue = queues.get(name);
+    return queue!;
   };
 
   const enqueue = async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {

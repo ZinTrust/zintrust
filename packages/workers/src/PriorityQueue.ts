@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, type RedisConfig } from '@zintrust/core';
+import { ErrorFactory, getBullMQSafeQueueName, Logger, type RedisConfig } from '@zintrust/core';
 import { Queue, type QueueOptions } from 'bullmq';
 
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low';
@@ -95,7 +95,8 @@ const getQueue = (queueName: string): Queue => {
       },
     };
 
-    queue = new Queue(queueName, queueOptions);
+    const prefix = getBullMQSafeQueueName(queueName);
+    queue = new Queue(queueName, { prefix, ...queueOptions });
     queues.set(queueName, queue);
 
     Logger.info(`Created priority queue "${queueName}"`);

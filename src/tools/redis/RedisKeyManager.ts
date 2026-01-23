@@ -30,7 +30,7 @@ export function createRedisKey(key: string): string {
   while (cleanKey.endsWith(':')) {
     cleanKey = cleanKey.slice(0, -1);
   }
-  return `${PREFIX}:${cleanKey}`;
+  return `${PREFIX}_${cleanKey}`;
 }
 
 /**
@@ -108,6 +108,13 @@ export function isAppKey(key: string): boolean {
 export function getPrefix(): string {
   return PREFIX;
 }
+
+export const getBullMQSafeQueueName = (queueName: string): string => {
+  // Create prefixed key but make it BullMQ-safe by replacing colons with dashes
+  const prefixedKey = createBullMQKey(queueName);
+  const replace = prefixedKey.split(':')[0];
+  return replace;
+};
 
 // Export types for better TypeScript support
 export type RedisKeyType = 'queue' | 'bullmq' | 'worker' | 'session' | 'cache' | 'custom';

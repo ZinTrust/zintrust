@@ -1,10 +1,10 @@
 import type { QueueMessage } from '@zintrust/core';
 import {
   createBaseDrivers,
-  createBullMQKey,
   Env,
   ErrorFactory,
   generateUuid,
+  getBullMQSafeQueueName,
   Logger,
 } from '@zintrust/core';
 import { Queue, type JobsOptions } from 'bullmq';
@@ -64,10 +64,10 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
     const attempts = Env.getInt('BULLMQ_DEFAULT_ATTEMPTS', 3);
     const backoffDelay = Env.getInt('BULLMQ_BACKOFF_DELAY', 2000);
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
-
+    const prefix = getBullMQSafeQueueName(queueName);
     const queue = new Queue(queueName, {
       connection: config,
-      prefix: createBullMQKey('').replace(/:$/, ''), // Remove trailing colon for prefix
+      prefix: prefix,
       defaultJobOptions: {
         removeOnComplete,
         removeOnFail,

@@ -423,6 +423,7 @@ export {
   createSessionKey,
   createWorkerKey,
   extractOriginalKey,
+  getBullMQSafeQueueName,
   getPrefix,
   isAppKey,
   type RedisKeyType,
