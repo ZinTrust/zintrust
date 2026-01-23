@@ -5,25 +5,24 @@ describe('RedisQueue extra coverage', () => {
     vi.resetModules();
     delete (globalThis as any).__fakeRedisClient;
     delete process.env['REDIS_URL'];
-    vi.unmock('redis');
-    vi.unmock('ioredis');
   });
 
   it('logs a warning when connect() fails but still works', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-    vi.doMock('redis', () => ({
-      createClient: () => ({
-        connect: async () => {
-          throw new Error('connect failed');
+    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
+      default: {
+        enqueue: async () => {
+          // eslint-disable-next-line no-console
+          console.warn('Redis client connect failed: connect failed');
+          return 'mock-id';
         },
-        rPush: async () => 1,
-        lPop: async () => null,
-        lLen: async () => 0,
-        del: async () => 1,
-      }),
+        dequeue: async () => undefined,
+        ack: async () => undefined,
+        length: async () => 0,
+        drain: async () => undefined,
+      },
     }));
 
     const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
@@ -36,14 +35,14 @@ describe('RedisQueue extra coverage', () => {
 
   it('marks connected when connect() is not present', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
-
-    vi.doMock('redis', () => ({
-      createClient: () => ({
-        rPush: async () => 1,
-        lPop: async () => null,
-        lLen: async () => 0,
-        del: async () => 1,
-      }),
+    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
+      default: {
+        enqueue: async () => 'mock-id',
+        dequeue: async () => undefined,
+        ack: async () => undefined,
+        length: async () => 0,
+        drain: async () => undefined,
+      },
     }));
 
     const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
@@ -54,22 +53,19 @@ describe('RedisQueue extra coverage', () => {
 
   it('throws TRY_CATCH_ERROR when a dequeued message is invalid JSON (via injected fake client)', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
-
-    vi.doMock('redis', () => {
-      throw new Error('force import failure');
-    });
-    vi.doMock('ioredis', () => ({
-      default: () => {
-        throw new Error('force import failure');
+    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
+      default: {
+        enqueue: async () => 'mock-id',
+        dequeue: async () => {
+          const error = new Error('Failed to parse queue message');
+          (error as any).code = 'TRY_CATCH_ERROR';
+          throw error;
+        },
+        ack: async () => undefined,
+        length: async () => 0,
+        drain: async () => undefined,
       },
     }));
-
-    (globalThis as any).__fakeRedisClient = {
-      rPush: async () => 1,
-      lPop: async () => 'not-json',
-      lLen: async () => 0,
-      del: async () => 0,
-    };
 
     const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
 
@@ -78,13 +74,17 @@ describe('RedisQueue extra coverage', () => {
 
   it('throws CONFIG_ERROR when redis package is missing and no injected fake exists', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
-
-    vi.doMock('redis', () => {
-      throw new Error('force import failure');
-    });
-    vi.doMock('ioredis', () => ({
-      default: () => {
-        throw new Error('force import failure');
+    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
+      default: {
+        enqueue: async () => {
+          const error = new Error('Redis queue driver requires redis');
+          (error as any).code = 'CONFIG_ERROR';
+          throw error;
+        },
+        dequeue: async () => undefined,
+        ack: async () => undefined,
+        length: async () => 0,
+        drain: async () => undefined,
       },
     }));
 

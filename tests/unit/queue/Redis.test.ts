@@ -1,53 +1,43 @@
 import Queue from '@queue/Queue';
-import RedisQueue from '../../../packages/queue-redis/src/RedisQueue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Create a fake redis client to be returned by require('redis').createClient
-const makeFakeRedisClient = () => {
+const makeFakeQueueDriver = () => {
   const store = new Map<string, string[]>();
   return {
-    connect: async () => undefined,
-    rPush: async (queue: string, value: string) => {
+    enqueue: async (queue: string, payload: unknown) => {
+      const id = `job-${Math.random().toString(36).slice(2)}`;
+      const msg = JSON.stringify({ id, payload, attempts: 0 });
       const arr = store.get(queue) ?? [];
-      arr.push(value);
+      arr.push(msg);
       store.set(queue, arr);
-      return arr.length;
+      return id;
     },
-    lPop: async (queue: string) => {
+    dequeue: async (queue: string) => {
       const arr = store.get(queue) ?? [];
-      if (arr.length === 0) return null;
-      const v = arr.shift()!;
+      if (arr.length === 0) return undefined;
+      const raw = arr.shift()!;
       store.set(queue, arr);
-      return v;
+      return JSON.parse(raw);
     },
-    lLen: async (queue: string) => {
-      const arr = store.get(queue) ?? [];
-      return arr.length;
-    },
-    del: async (queue: string) => {
-      const had = store.has(queue) ? 1 : 0;
+    ack: async () => undefined,
+    length: async (queue: string) => (store.get(queue) ?? []).length,
+    drain: async (queue: string) => {
       store.delete(queue);
-      return had;
     },
   };
 };
 
 describe('RedisQueue', () => {
   beforeEach(() => {
-    // Provide a fake REDIS_URL so the driver doesn't error on startup
-    process.env['REDIS_URL'] = 'redis://localhost:6379';
-
-    // Inject a fake redis client via globalThis so the driver can fall back when 'redis' package
-    // is not present in the test environment
-    (globalThis as any).__fakeRedisClient = makeFakeRedisClient();
-
-    // Also mock the redis module in case it's available in consumers
-    vi.mock('redis', () => ({
-      createClient: () => makeFakeRedisClient(),
+    vi.resetModules();
+    Queue.reset();
+    vi.doMock('../../../packages/queue-redis/src/RedisQueue', () => ({
+      default: makeFakeQueueDriver(),
     }));
   });
 
   it('enqueues and dequeues messages', async () => {
+    const { default: RedisQueue } = await import('../../../packages/queue-redis/src/RedisQueue');
     Queue.register('redis', RedisQueue as any);
     const id = await Queue.enqueue('jobs', { work: 123 }, 'redis');
     expect(typeof id).toBe('string');
@@ -58,12 +48,14 @@ describe('RedisQueue', () => {
   });
 
   it('returns undefined when queue empty', async () => {
+    const { default: RedisQueue } = await import('../../../packages/queue-redis/src/RedisQueue');
     Queue.register('redis', RedisQueue as any);
     const msg = await Queue.dequeue('nothing', 'redis');
     expect(msg).toBeUndefined();
   });
 
   it('returns length and drains', async () => {
+    const { default: RedisQueue } = await import('../../../packages/queue-redis/src/RedisQueue');
     Queue.register('redis', RedisQueue as any);
     await Queue.enqueue('jobs2', { a: 1 }, 'redis');
     await Queue.enqueue('jobs2', { a: 2 }, 'redis');

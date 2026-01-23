@@ -56,10 +56,102 @@ vi.mock('@zintrust/core', async () => {
   return {
     ...(actual as Record<string, unknown>),
     NodeSingletons: {
-      ...(Object(actual).NodeSingletons ?? {}),
+      ...Object(actual).NodeSingletons, //NOSONAR
       path: (nodePath as { default?: unknown }).default ?? nodePath,
     },
   } as unknown;
+});
+
+// Global Redis/ioredis mocks to avoid real network calls in tests.
+if (!(globalThis as any).__zintrustRedisMockState) {
+  (globalThis as any).__zintrustRedisMockState = {
+    mode: 'client' as 'client' | 'throw-create' | 'connect-fail' | 'no-connect',
+    makeFakeRedisClient: () => {
+      const store = new Map<string, string[]>();
+      return {
+        connect: async () => {},
+        disconnect: async () => {},
+        ping: async () => 'PONG',
+        get: async (key: string) => store.get(key)?.[0] ?? null,
+        set: async (key: string, value: string) => {
+          store.set(key, [value]);
+          return 'OK';
+        },
+        del: async (key: string) => {
+          const existed = store.has(key);
+          store.delete(key);
+          return existed ? 1 : 0;
+        },
+        exists: async (key: string) => (store.has(key) ? 1 : 0),
+        flushdb: async () => {
+          store.clear();
+          return 'OK';
+        },
+        on: () => {},
+        off: () => {},
+        once: () => {},
+        emit: () => {},
+        isOpen: true,
+        isReady: true,
+        status: 'ready',
+      };
+    },
+  };
+}
+const redisMockState = (globalThis as any).__zintrustRedisMockState;
+
+// Initialize ioredis mock state
+if (!(globalThis as any).__zintrustIoredisMockState) {
+  (globalThis as any).__zintrustIoredisMockState = {
+    mode: 'client' as 'throw' | 'client',
+  };
+}
+const ioredisMockState = (globalThis as any).__zintrustIoredisMockState;
+
+vi.mock('redis', () => ({
+  createClient: () => {
+    if (redisMockState.mode === 'throw-create') {
+      throw new Error('force import failure');
+    }
+    const client = redisMockState.makeFakeRedisClient();
+    if (redisMockState.mode === 'connect-fail') {
+      client.connect = async () => {
+        throw new Error('connect failed');
+      };
+    }
+    if (redisMockState.mode === 'no-connect') {
+      delete (client as { connect?: () => Promise<void> }).connect;
+    }
+    return client;
+  },
+}));
+
+vi.mock('ioredis', () => {
+  const createClient = () => ({
+    on: () => undefined,
+    rpush: async () => 1,
+    lpop: async () => null,
+    llen: async () => 0,
+    del: async () => 0,
+    quit: async () => undefined,
+    disconnect: async () => undefined,
+  });
+
+  const IORedisMock = function IORedisMock(this: unknown) {
+    if (ioredisMockState.mode === 'throw') {
+      throw new Error('force import failure');
+    }
+    const client = createClient();
+    if (this && typeof this === 'object') {
+      Object.assign(this as Record<string, unknown>, client);
+      return this;
+    }
+    return client;
+  } as unknown as new () => unknown;
+
+  return {
+    default: IORedisMock,
+  };
 });
 
 // Provide a lightweight virtual `config/queue` module for tests that import
