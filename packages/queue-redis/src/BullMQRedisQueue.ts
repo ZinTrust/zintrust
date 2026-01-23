@@ -98,7 +98,10 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
 
         await job.remove();
 
-        Logger.debug(`BullMQ: Job dequeued from ${queue}`, { jobId: job.id });
+        Logger.debug(`BullMQ: Job dequeued from ${queue}`, {
+          jobId: job.id,
+          payload: message.payload,
+        });
         return message;
       } catch (error) {
         Logger.error('BullMQ: Failed to dequeue job', error as Error);

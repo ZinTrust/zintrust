@@ -5,7 +5,7 @@ const EmailJobService = Object.freeze({
   /**
    * Send a welcome email using worker queue
    */
-  async sendWelcome(to: string, userName: string, queueName: string = 'default'): Promise<string> {
+  async sendWelcome(to: string, userName: string, _queueName: string = 'default'): Promise<string> {
     const payload: EmailJobPayload = {
       to,
       subject: 'Welcome to ZinTrust!',
@@ -18,7 +18,7 @@ const EmailJobService = Object.freeze({
     };
 
     // Queue job for persistence and monitoring
-    const jobId = await EmailQueue.add(payload, queueName);
+    const jobId = await EmailQueue.add(payload, _queueName);
 
     // Process immediately for fast delivery
     Logger.info('Welcome email job queued and processed', { jobId, to, userName });
