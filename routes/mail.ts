@@ -1,4 +1,6 @@
 /* istanbul ignore file */
+import EmailJobService from '@app/Jobs/EmailJobService';
+// import { EmailWorkerInstance } from '@app/Workers/EmailWorker';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { Mail } from '@mail/Mail';
@@ -7,6 +9,8 @@ import { Router, type IRouter } from '@zintrust/core';
 export const registerMailUiPag = (router: IRouter): void => {
   /* istanbul ignore next */
   const handler = async (req: IRequest, res: IResponse): Promise<void> => {
+    await EmailJobService.sendWelcome('test@zintrust.com', 'Test User', 'example-mysql1');
+    // await EmailWorkerInstance.processOne('example-mysql1');
     const templateName = req.getParam('template') ?? 'welcome';
     const html = await Mail.render({
       template: templateName,

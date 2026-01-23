@@ -43,7 +43,7 @@ Content-Type: application/json
 {
   "name": "example-test-mysql2",
   "queueName": "example-mysql1",
-  "processor": "processors/emailProcessor.ts",
+  "processor": "app/Workers/EmailWorker.ts",
   "version": "1.0.0",
   "options": {
     "concurrency": 5,
