@@ -14,6 +14,11 @@ vi.mock('@notification/NotificationChannelRegistry', () => ({
 vi.mock('@mail/MailDriverRegistry', () => ({ MailDriverRegistry: { reset: vi.fn() } }));
 vi.mock('@tools/queue/Queue', () => ({ Queue: { reset: vi.fn() } }));
 vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
   WorkerShutdown: { shutdown: vi.fn().mockResolvedValue(undefined) },
 }));
 

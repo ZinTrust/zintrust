@@ -1,5 +1,5 @@
 import Queue from '@queue/Queue';
-import RedisQueue from '@queue/drivers/Redis';
+import RedisQueue from '../../../packages/queue-redis/src/RedisQueue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Create a fake redis client to be returned by require('redis').createClient

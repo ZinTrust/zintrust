@@ -445,6 +445,7 @@ export type RedisBroadcastDriverConfig = {
   port: number;
   password: string;
   channelPrefix: string;
+  database?: number;
 };
 
 export type RedisHttpsBroadcastDriverConfig = {

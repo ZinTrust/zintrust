@@ -11,6 +11,11 @@ vi.mock('@routes/apiDev', () => ({
 }));
 
 vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
   registerWorkerRoutes: vi.fn(),
 }));
 

@@ -6,6 +6,7 @@ describe('RedisQueue extra coverage', () => {
     delete (globalThis as any).__fakeRedisClient;
     delete process.env['REDIS_URL'];
     vi.unmock('redis');
+    vi.unmock('ioredis');
   });
 
   it('logs a warning when connect() fails but still works', async () => {
@@ -25,7 +26,8 @@ describe('RedisQueue extra coverage', () => {
       }),
     }));
 
-    const { default: RedisQueue } = await import('@tools/queue/drivers/Redis');
+    const { default: RedisQueue } =
+      await import('../../../../../packages/queue-redis/src/RedisQueue');
 
     await expect(RedisQueue.enqueue('q', { a: 1 })).resolves.toEqual(expect.any(String));
     expect(warn).toHaveBeenCalled();
@@ -45,7 +47,8 @@ describe('RedisQueue extra coverage', () => {
       }),
     }));
 
-    const { default: RedisQueue } = await import('@tools/queue/drivers/Redis');
+    const { default: RedisQueue } =
+      await import('../../../../../packages/queue-redis/src/RedisQueue');
 
     await RedisQueue.enqueue('q', { a: 1 });
     await expect(RedisQueue.length('q')).resolves.toBeTypeOf('number');
@@ -57,6 +60,11 @@ describe('RedisQueue extra coverage', () => {
     vi.doMock('redis', () => {
       throw new Error('force import failure');
     });
+    vi.doMock('ioredis', () => ({
+      default: () => {
+        throw new Error('force import failure');
+      },
+    }));
 
     (globalThis as any).__fakeRedisClient = {
       rPush: async () => 1,
@@ -65,7 +73,8 @@ describe('RedisQueue extra coverage', () => {
       del: async () => 0,
     };
 
-    const { default: RedisQueue } = await import('@tools/queue/drivers/Redis');
+    const { default: RedisQueue } =
+      await import('../../../../../packages/queue-redis/src/RedisQueue');
 
     await expect(RedisQueue.dequeue('q')).rejects.toHaveProperty('code', 'TRY_CATCH_ERROR');
   });
@@ -76,8 +85,14 @@ describe('RedisQueue extra coverage', () => {
     vi.doMock('redis', () => {
       throw new Error('force import failure');
     });
+    vi.doMock('ioredis', () => ({
+      default: () => {
+        throw new Error('force import failure');
+      },
+    }));
 
-    const { default: RedisQueue } = await import('@tools/queue/drivers/Redis');
+    const { default: RedisQueue } =
+      await import('../../../../../packages/queue-redis/src/RedisQueue');
 
     await expect(RedisQueue.enqueue('q', { a: 1 })).rejects.toHaveProperty('code', 'CONFIG_ERROR');
   });

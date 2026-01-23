@@ -3,13 +3,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Capture handler via mock Router.get
 const captured: { handler?: (req: any, res: any) => Promise<void> } = {};
-vi.mock('@zintrust/core', () => ({
-  Router: {
-    get: (_router: any, _path: string, h: any) => {
-      captured.handler = h;
+vi.mock('@zintrust/core', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...(actual as Record<string, unknown>),
+    Router: {
+      get: (_router: any, _path: string, h: any) => {
+        captured.handler = h;
+      },
     },
-  },
-}));
+    Queue: {
+      enqueue: vi.fn(async () => 'job-id'),
+    },
+  } as unknown;
+});
 
 vi.mock('@mail/Mail', () => ({
   Mail: { render: vi.fn() },

@@ -3,6 +3,11 @@
 import { vi } from 'vitest';
 
 vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
   BroadcastWorker: {
     processOne: async () => true,
   },

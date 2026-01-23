@@ -13,6 +13,11 @@ vi.mock('@config/logger', () => ({
 }));
 
 vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
   WorkerFactory: {
     list: vi.fn(),
     listPersisted: vi.fn(),

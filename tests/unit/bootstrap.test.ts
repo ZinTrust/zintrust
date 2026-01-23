@@ -79,6 +79,11 @@ vi.mock('@/schedules', () => ({
 }));
 
 vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
   WorkerInit: {
     initialize: vi.fn(async () => undefined),
     autoStartPersistedWorkers: vi.fn(async () => undefined),

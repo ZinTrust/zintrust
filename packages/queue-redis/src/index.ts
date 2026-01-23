@@ -1,8 +1,12 @@
-import { RedisQueue as CoreRedisQueue } from '@zintrust/core';
+import RedisQueue from './RedisQueue';
+export {
+  createRedisPublishClient,
+  RedisPublishClient,
+  resetPublishClient,
+} from './RedisPublishClient';
 
-const RedisQueue = CoreRedisQueue;
-export { RedisQueue };
 export type { QueueMessage } from '@zintrust/core';
+export { RedisQueue };
 
 /**
  * Package version and build metadata

@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/zintrust.plugins', () => ({}));
 
 vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
   WorkerInit: {
     initialize: vi.fn(async () => undefined),
     autoStartPersistedWorkers: vi.fn(async () => undefined),

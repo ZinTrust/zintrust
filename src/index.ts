@@ -3,6 +3,13 @@
  * Built for performance, type safety, and exceptional developer experience
  */
 
+/**
+ * Framework version and build metadata
+ * Available at runtime for debugging and health checks
+ */
+export const ZINTRUST_VERSION = '0.1.23';
+export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
+
 import { Application } from '@boot/Application';
 import { AwsSigV4 } from '@common/index';
 import { SignedRequest } from '@security/SignedRequest';
@@ -394,32 +401,16 @@ export { nowIso } from '@common/utility';
 export type { SanitizerError } from '@exceptions/ZintrustError';
 export { randomBytes } from '@node-singletons/crypto';
 
-/**
- * Framework version and build metadata
- * Available at runtime for debugging and health checks
- */
-export const ZINTRUST_VERSION = '0.1.23';
-export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
-
 //New Start Confing
 
 export type { MiddlewaresType } from '@config/middleware';
 
+// Redis config
+export * from '@config/redis';
+
 export type * from '@config/type';
 
 // Workers config
-export type {
-  RedisConfig,
-  WorkerAutoScalingConfig,
-  WorkerComplianceConfig,
-  WorkerConfig,
-  WorkerCostConfig,
-  WorkerObservabilityConfig,
-  WorkersConfigOverrides,
-  WorkersGlobalConfig,
-  WorkerStatus,
-  WorkerVersioningConfig,
-} from '@config/type';
 export { createRedisConnection, workersConfig } from '@config/workers';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
