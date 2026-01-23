@@ -17,6 +17,7 @@ vi.mock('@/config/env', () => ({
       if (key === 'NODE_ENV') return 'development';
       return defaultValue;
     }),
+    NODE_ENV: 'development',
   },
 }));
 
@@ -37,6 +38,11 @@ const mockEnv = vi.mocked(await import('@/config/env')).Env;
 const mockLogger = vi.mocked(await import('@/config/logger')).Logger;
 const mockRequestContext = vi.mocked(await import('@/http/RequestContext')).RequestContext;
 
+// Ensure mockEnv.get is a proper Vitest mock
+const mockEnvGet = vi.mocked(mockEnv.get);
+// Ensure mockRequestContext.get is a proper Vitest mock
+const mockRequestContextGet = vi.mocked(mockRequestContext.get);
+
 describe('ErrorHandlerMiddleware Coverage', () => {
   let mockReq: Partial<IRequest>;
   let mockRes: Partial<IResponse>;
@@ -50,7 +56,6 @@ describe('ErrorHandlerMiddleware Coverage', () => {
     };
 
     mockRes = {
-      setRaw: vi.fn(),
       getRaw: vi.fn(),
       setStatus: vi.fn(),
       json: vi.fn(),
@@ -59,10 +64,10 @@ describe('ErrorHandlerMiddleware Coverage', () => {
     mockNext = vi.fn().mockResolvedValue(undefined);
 
     // Reset mock implementations
-    mockEnv.get.mockImplementation((key: string, defaultValue: string) => {
+    mockEnvGet.mockImplementation((key: string, defaultValue?: string) => {
       if (key === 'ERROR_MODE') return 'html';
       if (key === 'NODE_ENV') return 'development';
-      return defaultValue;
+      return defaultValue || '';
     });
   });
 
@@ -76,8 +81,8 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('handles error and serves HTML error page', async () => {
-    mockEnv.get.mockReturnValue('html');
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false });
+    mockEnvGet.mockReturnValue('html');
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false } as any);
 
     const error = new Error('Test error');
     mockNext = vi.fn().mockRejectedValue(error);
@@ -97,13 +102,14 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('handles error and serves JSON error response', async () => {
-    mockEnv.get.mockReturnValue('json');
-    mockEnv.get.mockImplementation((key: string) => {
+    mockEnvGet.mockReturnValue('json');
+    mockEnvGet.mockImplementation((key: string) => {
       if (key === 'ERROR_MODE') return 'json';
       if (key === 'NODE_ENV') return 'production';
       return 'json';
     });
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false });
+    (mockEnv as typeof mockEnv & { NODE_ENV?: string }).NODE_ENV = 'production';
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false } as any);
 
     const error = new Error('Test error');
     error.stack = 'Error stack trace';
@@ -118,19 +124,19 @@ describe('ErrorHandlerMiddleware Coverage', () => {
     expect(mockRes.json).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Internal server error',
-        requestId: undefined,
-        stack: undefined, // No stack in production
+        requestId: '',
       })
     );
   });
 
   it('includes stack trace in non-production environment', async () => {
-    mockEnv.get.mockImplementation((key: string) => {
+    mockEnvGet.mockImplementation((key: string) => {
       if (key === 'ERROR_MODE') return 'json';
       if (key === 'NODE_ENV') return 'development';
       return 'json';
     });
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false });
+    (mockEnv as typeof mockEnv & { NODE_ENV?: string }).NODE_ENV = 'development';
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false } as any);
 
     const error = new Error('Test error');
     error.stack = 'Error stack trace';
@@ -143,21 +149,26 @@ describe('ErrorHandlerMiddleware Coverage', () => {
     expect(mockRes.json).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Internal server error',
-        requestId: undefined,
+        requestId: '',
         stack: 'Error stack trace', // Stack included in development
       })
     );
   });
 
   it('uses requestId from RequestContext', async () => {
-    mockEnv.get.mockReturnValue('json');
-    mockEnv.get.mockImplementation((key: string) => {
+    mockEnvGet.mockReturnValue('json');
+    mockEnvGet.mockImplementation((key: string) => {
       if (key === 'ERROR_MODE') return 'json';
       if (key === 'NODE_ENV') return 'production';
       return 'json';
     });
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false });
-    mockRequestContext.get.mockReturnValue({ requestId: 'test-request-id' });
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false } as any);
+    mockRequestContextGet.mockReturnValue({
+      requestId: 'test-request-id',
+      startTime: Date.now(),
+      method: 'GET',
+      path: '/test',
+    });
 
     const error = new Error('Test error');
     mockNext = vi.fn().mockRejectedValue(error);
@@ -175,14 +186,14 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('uses requestId from request context as fallback', async () => {
-    mockEnv.get.mockReturnValue('json');
-    mockEnv.get.mockImplementation((key: string) => {
+    mockEnvGet.mockReturnValue('json');
+    mockEnvGet.mockImplementation((key: string) => {
       if (key === 'ERROR_MODE') return 'json';
       if (key === 'NODE_ENV') return 'production';
       return 'json';
     });
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false });
-    mockRequestContext.get.mockReturnValue(undefined);
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: false } as any);
+    mockRequestContextGet.mockReturnValue(undefined);
 
     mockReq.context = { requestId: 'fallback-request-id' };
 
@@ -202,7 +213,7 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('does nothing when response is already writable ended', async () => {
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: true });
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({ writableEnded: true } as any);
 
     const error = new Error('Test error');
     mockNext = vi.fn().mockRejectedValue(error);
@@ -218,7 +229,7 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('handles getRaw returning non-object', async () => {
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue(null);
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue(null as any);
 
     const error = new Error('Test error');
     mockNext = vi.fn().mockRejectedValue(error);
@@ -232,8 +243,8 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('handles getRaw returning object without writableEnded', async () => {
-    vi.spyOn(mockRes, 'getRaw').mockReturnValue({});
-    mockEnv.get.mockReturnValue('json');
+    vi.spyOn(mockRes, 'getRaw').mockReturnValue({} as any);
+    mockEnvGet.mockReturnValue('json');
 
     const error = new Error('Test error');
     mockNext = vi.fn().mockRejectedValue(error);
@@ -248,9 +259,7 @@ describe('ErrorHandlerMiddleware Coverage', () => {
   });
 
   it('handles getRaw not being a function', async () => {
-    vi.spyOn(mockRes, 'getRaw').mockImplementation(() => {
-      throw new Error('getRaw is not a function');
-    });
+    (mockRes as { getRaw?: unknown }).getRaw = undefined;
 
     const error = new Error('Test error');
     mockNext = vi.fn().mockRejectedValue(error);

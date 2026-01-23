@@ -26,8 +26,7 @@ describe('RedisQueue extra coverage', () => {
       }),
     }));
 
-    const { default: RedisQueue } =
-      await import('../../../../../packages/queue-redis/src/RedisQueue');
+    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
 
     await expect(RedisQueue.enqueue('q', { a: 1 })).resolves.toEqual(expect.any(String));
     expect(warn).toHaveBeenCalled();
@@ -47,8 +46,7 @@ describe('RedisQueue extra coverage', () => {
       }),
     }));
 
-    const { default: RedisQueue } =
-      await import('../../../../../packages/queue-redis/src/RedisQueue');
+    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
 
     await RedisQueue.enqueue('q', { a: 1 });
     await expect(RedisQueue.length('q')).resolves.toBeTypeOf('number');
@@ -73,8 +71,7 @@ describe('RedisQueue extra coverage', () => {
       del: async () => 0,
     };
 
-    const { default: RedisQueue } =
-      await import('../../../../../packages/queue-redis/src/RedisQueue');
+    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
 
     await expect(RedisQueue.dequeue('q')).rejects.toHaveProperty('code', 'TRY_CATCH_ERROR');
   });
@@ -91,8 +88,7 @@ describe('RedisQueue extra coverage', () => {
       },
     }));
 
-    const { default: RedisQueue } =
-      await import('../../../../../packages/queue-redis/src/RedisQueue');
+    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
 
     await expect(RedisQueue.enqueue('q', { a: 1 })).rejects.toHaveProperty('code', 'CONFIG_ERROR');
   });

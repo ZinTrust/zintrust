@@ -14,7 +14,7 @@ describe('Redis Config Coverage', () => {
         driver: 'redis' as const,
         host: 'test-host',
         port: 6380,
-        password: 'test-pass',
+        password: 'test-pass', // NOSONAR
         channelPrefix: 'test:',
         database: 2,
       };
@@ -46,7 +46,7 @@ describe('Redis Config Coverage', () => {
         driver: 'redis' as const,
         host: 'test-host',
         port: 6380,
-        password: 'test-pass',
+        password: 'test-pass', // NOSONAR
         channelPrefix: 'test:',
         database: 0,
       };
@@ -78,7 +78,7 @@ describe('Redis Config Coverage', () => {
     });
 
     it('falls back to buildRedisUrl when REDIS_URL is empty', async () => {
-      const { getRedisUrl, buildRedisUrl } = await import('@config/redis');
+      const { getRedisUrl } = await import('@config/redis');
 
       const config = {
         driver: 'redis' as const,
@@ -113,9 +113,11 @@ describe('Redis Config Coverage', () => {
         publish: vi.fn().mockResolvedValue(1),
       };
 
-      vi.doMock('@zintrust/queue-redis', () => ({
+      const mockFactory = () => ({
         createRedisPublishClient: async () => fakeClient,
-      }));
+      });
+
+      vi.doMock('@zintrust/queue-redis', mockFactory);
 
       const { ensureDriver } = await import('@config/redis');
       const client = await ensureDriver('publish');
@@ -123,7 +125,11 @@ describe('Redis Config Coverage', () => {
     });
 
     it('throws error when publish client is not available', async () => {
-      vi.doMock('@zintrust/queue-redis', () => ({}));
+      const mockFactory = () => ({
+        createRedisPublishClient: undefined,
+      });
+
+      vi.doMock('@zintrust/queue-redis', mockFactory);
 
       const { ensureDriver } = await import('@config/redis');
       await expect(ensureDriver('publish')).rejects.toThrow(
@@ -140,11 +146,13 @@ describe('Redis Config Coverage', () => {
         drain: vi.fn(),
       };
 
-      vi.doMock('@tools/queue/Queue', () => ({
+      const queueMockFactory = () => ({
         Queue: {
           get: vi.fn().mockResolvedValue(fakeDriver as any),
         },
-      }));
+      });
+
+      vi.doMock('@tools/queue/Queue', queueMockFactory);
 
       const { ensureDriver } = await import('@config/redis');
       const driver = await ensureDriver('queue');
@@ -160,19 +168,25 @@ describe('Redis Config Coverage', () => {
         drain: vi.fn(),
       };
 
-      vi.doMock('@tools/queue/Queue', () => ({
+      const queueMockFactory = () => ({
         Queue: {
           get: vi
             .fn()
-            .mockRejectedValueOnce(new Error('Driver not found'))
+            .mockImplementationOnce(() => {
+              throw new Error('Driver not found');
+            })
             .mockResolvedValueOnce(fakeDriver as any),
           register: vi.fn(),
         },
-      }));
+      });
 
-      vi.doMock('@zintrust/queue-redis', () => ({
+      vi.doMock('@tools/queue/Queue', queueMockFactory);
+
+      const redisMockFactory = () => ({
         RedisQueue: fakeDriver,
-      }));
+      });
+
+      vi.doMock('@zintrust/queue-redis', redisMockFactory);
 
       const { ensureDriver } = await import('@config/redis');
       const driver = await ensureDriver('queue');
@@ -180,15 +194,21 @@ describe('Redis Config Coverage', () => {
     });
 
     it('throws error when queue driver registration fails', async () => {
-      vi.doMock('@tools/queue/Queue', () => ({
+      const queueMockFactory = () => ({
         Queue: {
-          get: vi.fn().mockRejectedValue(new Error('Driver not found')),
+          get: vi.fn().mockImplementation(() => {
+            throw new Error('Driver not found');
+          }),
         },
-      }));
-
-      vi.doMock('@zintrust/queue-redis', () => {
-        throw new Error('Package import failed');
       });
+
+      vi.doMock('@tools/queue/Queue', queueMockFactory);
+
+      const redisMockFactory = () => {
+        throw new Error('Package import failed');
+      };
+
+      vi.doMock('@zintrust/queue-redis', redisMockFactory);
 
       const { ensureDriver } = await import('@config/redis');
       await expect(ensureDriver('queue')).rejects.toThrow(
@@ -205,11 +225,13 @@ describe('Redis Config Coverage', () => {
         drain: vi.fn(),
       };
 
-      vi.doMock('@tools/queue/Queue', () => ({
+      const queueMockFactory = () => ({
         Queue: {
           get: vi.fn().mockResolvedValue(fakeDriver as any),
         },
-      }));
+      });
+
+      vi.doMock('@tools/queue/Queue', queueMockFactory);
 
       const { ensureDriver } = await import('@config/redis');
       const driver = await ensureDriver();

@@ -34,6 +34,7 @@ export default defineConfig({
       '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
+      '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@boot': path.resolve(__dirname, './src/boot'),
       '@orm': path.resolve(__dirname, './src/orm'),

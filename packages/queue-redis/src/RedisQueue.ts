@@ -1,6 +1,14 @@
 import type { QueueMessage } from '@zintrust/core';
 import { ErrorFactory, generateUuid, getRedisUrl, Logger } from '@zintrust/core';
 
+interface IQueueDriver {
+  enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
+  dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
+  ack(queue: string, id: string): Promise<void>;
+  length(queue: string): Promise<number>;
+  drain(queue: string): Promise<void>;
+}
+
 type IRedisClient = {
   connect?: () => Promise<void>;
   rPush(queue: string, value: string): Promise<number>;
@@ -9,7 +17,7 @@ type IRedisClient = {
   del(queue: string): Promise<number>;
 };
 
-export const RedisQueue = (() => {
+export const RedisQueue = ((): IQueueDriver => {
   let client: IRedisClient | null = null;
   let connected = false;
 
@@ -53,10 +61,10 @@ export const RedisQueue = (() => {
 
         const redis = mod.default(url);
         client = {
-          rPush: (queue: string, value: string) => redis.rpush(queue, value),
-          lPop: (queue: string) => redis.lpop(queue),
-          lLen: (queue: string) => redis.llen(queue),
-          del: (queue: string) => redis.del(queue),
+          rPush: (queue: string, value: string): Promise<number> => redis.rpush(queue, value),
+          lPop: (queue: string): Promise<string | null> => redis.lpop(queue),
+          lLen: (queue: string): Promise<number> => redis.llen(queue),
+          del: (queue: string): Promise<number> => redis.del(queue),
         };
         connected = true;
       }

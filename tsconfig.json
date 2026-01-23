@@ -13,6 +13,8 @@
       "@zintrust/core": ["./src/index.ts"],
       "@zintrust/workers": ["./packages/workers/src/index.ts"],
       "@zintrust/workers/*": ["./packages/workers/src/*"],
+      "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],
+      "@zintrust/queue-redis/*": ["./packages/queue-redis/src/*"],
       "@/*": ["./src/*"],
       "@boot/*": ["./src/boot/*"],
       "@cli/*": ["./src/cli/*"],

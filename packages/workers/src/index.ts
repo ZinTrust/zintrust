@@ -50,6 +50,7 @@ export { registerWorkerRoutes } from './routes/workers';
 // Queue Workers
 export { BroadcastWorker } from './BroadcastWorker';
 export { createQueueWorker } from './createQueueWorker';
+export type { CreateQueueWorkerOptions } from './createQueueWorker';
 
 export { NotificationWorker } from './NotificationWorker';
 
@@ -61,10 +62,10 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkerStatus,
-  WorkerVersioningConfig,
   WorkersConfigOverrides,
   WorkersGlobalConfig,
+  WorkerStatus,
+  WorkerVersioningConfig,
 } from '@zintrust/core';
 
 // Re-export bullmq types for type compatibility
