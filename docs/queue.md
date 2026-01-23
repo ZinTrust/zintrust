@@ -25,6 +25,55 @@ Notes:
 - The in-memory driver is NOT suitable for production — use Redis or another durable backend for PHASE 1.5 production work.
 - Drivers should be registered with `Queue.register('redis', RedisDriver)`.
 
+## Sync Driver
+
+When `QUEUE_DRIVER=sync`, jobs are processed synchronously and immediately. This is useful for testing and development but **requires explicit worker execution** after enqueuing.
+
+### Important: Manual Worker Execution Required
+
+With the sync driver, you must manually call the worker runner to process enqueued jobs:
+
+```typescript
+import { EmailQueue } from '@app/Workers/EmailWorker';
+
+// Enqueue a job
+await EmailJobService.sendWelcome('test@zintrust.com', 'Test User', 'example-mysql1');
+
+// IMPORTANT: Process the job immediately (required for sync driver)
+await EmailQueue.processOne('example-mysql1');
+
+// Or process all jobs
+await EmailQueue.processAll('example-mysql1');
+```
+
+### When to Use Sync Driver
+
+- ✅ **Development & Testing** - Immediate feedback and debugging
+- ✅ **Simple Applications** - No background processing needed
+- ✅ **Unit Tests** - Predictable, synchronous behavior
+
+### Limitations
+
+- ⚠️ **Blocking** - Jobs block the request/response cycle
+- ⚠️ **No Persistence** - Jobs are lost if application crashes
+- ⚠️ **No Retry** - Failed jobs are not retried automatically
+- ⚠️ **Manual Processing** - Must explicitly call worker methods
+
+### Migration to Production
+
+For production use, switch to Redis driver:
+
+```bash
+# Development (sync)
+QUEUE_DRIVER=sync
+
+# Production (Redis)
+QUEUE_DRIVER=redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+```
+
 ## Redis Driver (BullMQ-Powered)
 
 - The Redis queue driver now uses **BullMQ** for enterprise-grade job processing with auto-scaling, circuit breaker, dead letter queue, and advanced monitoring.

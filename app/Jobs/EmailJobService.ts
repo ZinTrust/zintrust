@@ -21,7 +21,7 @@ const EmailJobService = Object.freeze({
     const jobId = await EmailQueue.add(payload, _queueName);
 
     // Process immediately for fast delivery
-    Logger.info('Welcome email job queued and processed', { jobId, to, userName });
+    Logger.info('Welcome email job queued and waiting to be processed', { jobId, to, userName });
     return jobId;
   },
 
