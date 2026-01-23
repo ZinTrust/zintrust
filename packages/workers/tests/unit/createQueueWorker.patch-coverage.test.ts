@@ -7,6 +7,9 @@ const queueMock = {
 };
 
 vi.mock('@zintrust/core', () => ({
+  appConfig: {
+    prefix: 'zintrust-test',
+  },
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),

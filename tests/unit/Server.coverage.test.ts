@@ -4,7 +4,23 @@ import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import type * as httpTypes from '@node-singletons/http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@boot/Application', () => ({}));
+vi.mock('@boot/Application', () => ({
+  Application: {
+    create: vi.fn(() => ({
+      boot: vi.fn(),
+      shutdown: vi.fn(),
+      isBooted: vi.fn(() => false),
+      isDevelopment: vi.fn(() => true),
+      isProduction: vi.fn(() => false),
+      isTesting: vi.fn(() => true),
+      getEnvironment: vi.fn(() => 'test'),
+      getRouter: vi.fn(),
+      getContainer: vi.fn(),
+      getMiddlewareStack: vi.fn(),
+      getBasePath: vi.fn(() => ''),
+    })),
+  },
+}));
 
 vi.mock('@config/app', () => ({
   appConfig: {

@@ -10,6 +10,9 @@ const broadcastMock = { send: vi.fn() };
 const notificationMock = { send: vi.fn() };
 
 vi.mock('@zintrust/core', () => ({
+  appConfig: {
+    prefix: 'zintrust-test',
+  },
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),

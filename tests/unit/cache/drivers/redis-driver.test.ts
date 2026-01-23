@@ -11,8 +11,14 @@ vi.mock('@config/logger', () => ({
 
 vi.mock('@config/env', () => ({
   Env: {
+    APP_NAME: 'zintrust',
+    NODE_ENV: 'test',
     REDIS_HOST: 'localhost',
     REDIS_PORT: 6379,
+    get: vi.fn((_key: string, fallback?: string) => fallback ?? ''),
+    getInt: vi.fn((_key: string, fallback?: number) => fallback ?? 0),
+    getBool: vi.fn((_key: string, fallback?: boolean) => fallback ?? false),
+    getFloat: vi.fn((_key: string, fallback?: number) => fallback ?? 0),
   },
 }));
 
