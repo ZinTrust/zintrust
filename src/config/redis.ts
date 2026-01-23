@@ -23,7 +23,6 @@ export const buildRedisUrl = (config?: RedisBroadcastDriverConfig): string => {
   const port = config?.port ?? Env.getInt('REDIS_PORT', 6379);
   const password = config?.password ?? Env.get('REDIS_PASSWORD');
   const database = config?.database ?? Env.getInt('REDIS_QUEUE_DB', 1);
-
   let redisUrl = `redis://`;
   if (password) redisUrl += `:${password}@`;
   redisUrl += `${host}:${port}`;

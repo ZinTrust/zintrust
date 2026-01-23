@@ -25,11 +25,51 @@ Notes:
 - The in-memory driver is NOT suitable for production — use Redis or another durable backend for PHASE 1.5 production work.
 - Drivers should be registered with `Queue.register('redis', RedisDriver)`.
 
-## Redis Driver (Quick Usage)
+## Redis Driver (BullMQ-Powered)
 
-- The Redis queue driver stores messages as JSON strings in a Redis list and provides a minimal, reliable surface for enqueue/dequeue operations.
-- Configure via `REDIS_URL` (e.g., `redis://:password@host:6379`).
+- The Redis queue driver now uses **BullMQ** for enterprise-grade job processing with auto-scaling, circuit breaker, dead letter queue, and advanced monitoring.
+- Configure via standard Redis environment variables (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_QUEUE_DB`).
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
+
+### BullMQ Environment Variables
+
+When `QUEUE_DRIVER=redis`, the system uses BullMQ with these customizable settings:
+
+| Environment Variable        | Default     | Description                                        | Example |
+| --------------------------- | ----------- | -------------------------------------------------- | ------- |
+| `BULLMQ_REMOVE_ON_COMPLETE` | 100         | Number of completed jobs to keep in Redis          | 200     |
+| `BULLMQ_REMOVE_ON_FAIL`     | 50          | Number of failed jobs to keep in Redis             | 25      |
+| `BULLMQ_DEFAULT_ATTEMPTS`   | 3           | Default retry attempts for jobs                    | 5       |
+| `BULLMQ_BACKOFF_DELAY`      | 2000        | Delay between retries (milliseconds)               | 5000    |
+| `BULLMQ_BACKOFF_TYPE`       | exponential | Backoff strategy: 'exponential', 'fixed', 'custom' | fixed   |
+
+### Environment-Specific Examples
+
+**Development Environment:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=500
+BULLMQ_REMOVE_ON_FAIL=100
+BULLMQ_DEFAULT_ATTEMPTS=2
+BULLMQ_BACKOFF_DELAY=10000
+```
+
+**Production Environment:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=50
+BULLMQ_REMOVE_ON_FAIL=20
+BULLMQ_DEFAULT_ATTEMPTS=5
+BULLMQ_BACKOFF_DELAY=1000
+```
+
+**High-Volume Environment:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=10
+BULLMQ_REMOVE_ON_FAIL=5
+BULLMQ_BACKOFF_DELAY=500
+```
 
 ### Install Redis driver
 

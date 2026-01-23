@@ -90,6 +90,38 @@ const queueConfigObj = {
 
 Note: The workers package and queue monitor share a Redis connection helper from core config. It uses the workers Redis settings (host/port/password/db), not the queue driver `database` field.
 
+## BullMQ Redis Driver Environment Variables
+
+When `QUEUE_DRIVER=redis`, the system uses BullMQ for enterprise features. Additional BullMQ-specific settings:
+
+| Environment Variable        | Default     | Description                                        | Example |
+| --------------------------- | ----------- | -------------------------------------------------- | ------- |
+| `BULLMQ_REMOVE_ON_COMPLETE` | 100         | Number of completed jobs to keep in Redis          | 200     |
+| `BULLMQ_REMOVE_ON_FAIL`     | 50          | Number of failed jobs to keep in Redis             | 25      |
+| `BULLMQ_DEFAULT_ATTEMPTS`   | 3           | Default retry attempts for jobs                    | 5       |
+| `BULLMQ_BACKOFF_DELAY`      | 2000        | Delay between retries (milliseconds)               | 5000    |
+| `BULLMQ_BACKOFF_TYPE`       | exponential | Backoff strategy: 'exponential', 'fixed', 'custom' | fixed   |
+
+### Usage Examples
+
+**Development:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=500 BULLMQ_DEFAULT_ATTEMPTS=2
+```
+
+**Production:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=50 BULLMQ_DEFAULT_ATTEMPTS=5
+```
+
+**High-Volume:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=10 BULLMQ_BACKOFF_DELAY=500
+```
+
 ## Snapshot (bottom)
 
 ```ts

@@ -257,7 +257,7 @@ export { middlewareConfig, MiddlewareKeys } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
-export { queueConfig } from '@config/queue';
+export { createBaseDrivers, queueConfig } from '@config/queue';
 export type { QueueConfig, QueueConfigOverrides } from '@config/queue';
 
 export { default as broadcastConfig } from '@config/broadcast';

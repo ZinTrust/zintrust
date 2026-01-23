@@ -3,7 +3,7 @@ type QueueApi = {
 };
 
 export async function registerRedisQueueDriver(queue: QueueApi): Promise<void> {
-  const mod = await import('./RedisQueue');
+  const mod = await import('./BullMQRedisQueue');
   queue.register('redis', mod.default);
 }
 

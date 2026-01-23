@@ -15,6 +15,38 @@ zin add @zintrust/queue-monitor
 
 **Note:** The monitor package can do everything queue-redis does, plus much more. So if you install `@zintrust/queue-monitor`, there's no need for `@zintrust/queue-redis`.
 
+## BullMQ Environment Variables
+
+The queue monitor and Redis queue driver use BullMQ with these customizable settings:
+
+| Environment Variable        | Default     | Description                                        | Example |
+| --------------------------- | ----------- | -------------------------------------------------- | ------- |
+| `BULLMQ_REMOVE_ON_COMPLETE` | 100         | Number of completed jobs to keep in Redis          | 200     |
+| `BULLMQ_REMOVE_ON_FAIL`     | 50          | Number of failed jobs to keep in Redis             | 25      |
+| `BULLMQ_DEFAULT_ATTEMPTS`   | 3           | Default retry attempts for jobs                    | 5       |
+| `BULLMQ_BACKOFF_DELAY`      | 2000        | Delay between retries (milliseconds)               | 5000    |
+| `BULLMQ_BACKOFF_TYPE`       | exponential | Backoff strategy: 'exponential', 'fixed', 'custom' | fixed   |
+
+### Environment-Specific Configuration
+
+**Development:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=500 BULLMQ_DEFAULT_ATTEMPTS=2
+```
+
+**Production:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=50 BULLMQ_DEFAULT_ATTEMPTS=5
+```
+
+**High-Volume:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=10 BULLMQ_BACKOFF_DELAY=500
+```
+
 ## Configuration
 
 Register the monitor in your application (e.g., in `src/index.ts` or a dedicated provider). You must provide a Redis configuration.

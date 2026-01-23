@@ -31,7 +31,7 @@ const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[Queu
 /**
  * Helper: Create base driver configurations from environment
  */
-const createBaseDrivers = (): QueueDriversConfig => ({
+export const createBaseDrivers = (): QueueDriversConfig => ({
   sync: {
     driver: 'sync' as const,
   },
