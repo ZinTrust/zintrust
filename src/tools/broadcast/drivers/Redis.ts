@@ -1,5 +1,6 @@
 import { ensureDriver } from '@config/redis';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { createRedisKey } from '@tools/redis/RedisKeyManager';
 
 export type IRedisPublishClient = {
   connect?: () => Promise<void>;
@@ -24,7 +25,9 @@ export const RedisDriver = (() => {
     async send(config: RedisBroadcastDriverConfig, channel: string, event: string, data: unknown) {
       const cli = await ensureDriver<IRedisPublishClient>('publish');
 
-      const fullChannel = `${normalizePrefix(config.channelPrefix)}${channel}`;
+      const prefixedChannel = createRedisKey(
+        `broadcast:${normalizePrefix(config.channelPrefix)}${channel}`
+      );
 
       let message: string;
       try {
@@ -36,7 +39,7 @@ export const RedisDriver = (() => {
         );
       }
 
-      const published = await cli.publish(fullChannel, message);
+      const published = await cli.publish(prefixedChannel, message);
 
       return { ok: true, published };
     },

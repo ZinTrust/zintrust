@@ -4,8 +4,16 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, createRedisConnection, type RedisConfig } from '@zintrust/core';
+import {
+  ErrorFactory,
+  Logger,
+  appConfig,
+  createRedisConnection,
+  type RedisConfig,
+} from '@zintrust/core';
 import type IORedis from 'ioredis';
+
+const PREFIX = appConfig.prefix;
 
 export type MetricType =
   | 'processed'
@@ -69,8 +77,8 @@ export type WorkerHealthScore = {
 };
 
 // Redis key prefixes
-const METRICS_PREFIX = 'worker:metrics:';
-const HEALTH_PREFIX = 'worker:health:';
+const METRICS_PREFIX = `${PREFIX}:worker:metrics:`;
+const HEALTH_PREFIX = `${PREFIX}:worker:health:`;
 
 // Retention periods (in seconds)
 const RETENTION = {

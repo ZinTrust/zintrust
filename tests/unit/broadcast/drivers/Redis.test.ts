@@ -45,7 +45,7 @@ describe('RedisDriver (Broadcast)', () => {
     expect(res.ok).toBe(true);
     expect(res.published).toBe(1);
     expect(fake._published.length).toBe(1);
-    expect(fake._published[0].channel).toBe('broadcast:orders');
+    expect(fake._published[0].channel).toBe('zintrust-zintrust-test:broadcast:broadcast:orders');
 
     const payload = JSON.parse(fake._published[0].message);
     expect(payload).toEqual({ event: 'created', data: { id: 123 } });

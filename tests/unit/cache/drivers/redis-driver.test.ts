@@ -64,11 +64,11 @@ describe('RedisDriver', () => {
 
   it('handles basic commands (get/set/setex/delete/clear/has) and reuses connection', async () => {
     const responses: Record<string, string> = {
-      'GET myKey\r\n': '$4\r\n"hi"\r\n',
-      'EXISTS myKey\r\n': ':1\r\n',
-      'SET myKey "hi"\r\n': '+OK\r\n',
-      'SETEX myKey 5 "hi"\r\n': '+OK\r\n',
-      'DEL myKey\r\n': ':1\r\n',
+      'GET zintrust-zintrust-test:cache:myKey\r\n': '$4\r\n"hi"\r\n',
+      'EXISTS zintrust-zintrust-test:cache:myKey\r\n': ':1\r\n',
+      'SET zintrust-zintrust-test:cache:myKey "hi"\r\n': '+OK\r\n',
+      'SETEX zintrust-zintrust-test:cache:myKey 5 "hi"\r\n': '+OK\r\n',
+      'DEL zintrust-zintrust-test:cache:myKey\r\n': ':1\r\n',
       'FLUSHDB\r\n': '+OK\r\n',
     };
 
@@ -95,18 +95,18 @@ describe('RedisDriver', () => {
     expect(connectMock).toHaveBeenCalledTimes(1);
 
     expect(socket.writes).toEqual([
-      'GET myKey\r\n',
-      'SET myKey "hi"\r\n',
-      'SETEX myKey 5 "hi"\r\n',
-      'DEL myKey\r\n',
+      'GET zintrust-zintrust-test:cache:myKey\r\n',
+      'SET zintrust-zintrust-test:cache:myKey "hi"\r\n',
+      'SETEX zintrust-zintrust-test:cache:myKey 5 "hi"\r\n',
+      'DEL zintrust-zintrust-test:cache:myKey\r\n',
       'FLUSHDB\r\n',
-      'EXISTS myKey\r\n',
+      'EXISTS zintrust-zintrust-test:cache:myKey\r\n',
     ]);
   });
 
   it('returns null when Redis reports missing key', async () => {
     const socket = new FakeSocket({
-      'GET missing\r\n': '$-1\r\n',
+      'GET zintrust-zintrust-test:cache:missing\r\n': '$-1\r\n',
     });
 
     connectMock.mockImplementation((_port: number, _host: string, cb: () => void) => {

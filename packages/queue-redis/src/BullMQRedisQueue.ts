@@ -1,5 +1,12 @@
 import type { QueueMessage } from '@zintrust/core';
-import { createBaseDrivers, Env, ErrorFactory, generateUuid, Logger } from '@zintrust/core';
+import {
+  createBaseDrivers,
+  createBullMQKey,
+  Env,
+  ErrorFactory,
+  generateUuid,
+  Logger,
+} from '@zintrust/core';
 import { Queue, type JobsOptions } from 'bullmq';
 
 interface IQueueDriver {
@@ -58,7 +65,7 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
     const backoffDelay = Env.getInt('BULLMQ_BACKOFF_DELAY', 2000);
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
 
-    const queue = new Queue(queueName, {
+    const queue = new Queue(createBullMQKey(queueName), {
       connection: config,
       defaultJobOptions: {
         removeOnComplete,

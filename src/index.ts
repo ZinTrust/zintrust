@@ -413,5 +413,20 @@ export type * from '@config/type';
 // Workers config
 export { createRedisConnection, workersConfig } from '@config/workers';
 
+// Redis config key
+export {
+  createBullMQKey,
+  createCacheKey,
+  createKeyByType,
+  createQueueKey,
+  createRedisKey,
+  createSessionKey,
+  createWorkerKey,
+  extractOriginalKey,
+  getPrefix,
+  isAppKey,
+  type RedisKeyType,
+} from '@tools/redis/RedisKeyManager';
+
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.
