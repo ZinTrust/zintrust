@@ -42,11 +42,11 @@ const getHeaderTopSection = (): string => `
               </svg>
               <span id="auto-refresh-label">Auto Refresh</span>
             </button>
-            <button id="bulk-auto-switch-toggle" class="btn" onclick="toggleBulkAutoSwitch()">
-              <svg id="bulk-auto-switch-icon" class="icon" viewBox="0 0 24 24">
+            <button id="bulk-auto-start-toggle" class="btn" onclick="toggleBulkAutoStart()">
+              <svg id="bulk-auto-start-icon" class="icon" viewBox="0 0 24 24">
                 <path d="M12 2v20M2 12h20" />
               </svg>
-              <span id="bulk-auto-switch-label">Auto Switch: Off</span>
+              <span id="bulk-auto-start-label">Auto Start: Off</span>
             </button>
             <button class="btn" onclick="fetchData()">
               <svg class="icon" viewBox="0 0 24 24">
@@ -405,8 +405,8 @@ const getDetailRowTemplate = (): string => `
                                     </div>
                                     <div class="detail-item">
                                         <span>Auto Start</span>
-                                        <label class="auto-switch-toggle" onclick="event.stopPropagation()">
-                                            <input type="checkbox" \${worker.autoSwitch ? 'checked' : ''} onchange="toggleAutoSwitch('\${worker.name}', '\${worker.driver}', this.checked)">
+                                        <label class="auto-start-toggle" onclick="event.stopPropagation()">
+                                            <input type="checkbox" \${worker.autoStart ? 'checked' : ''} onchange="toggleAutoStart('\${worker.name}', '\${worker.driver}', this.checked)">
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -449,29 +449,7 @@ const getDetailRowTemplate = (): string => `
                 </td>
 `;
 
-const getDetailRenderingScripts = (): string => String.raw`
-        function bindDetailTabs(detailRow) {
-            const tabs = detailRow.querySelectorAll('.details-tab');
-            tabs.forEach((tab) => {
-                tab.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const view = tab.getAttribute('data-view');
-                    if (view) {
-                        setActiveDetailView(detailRow, view);
-                    }
-                });
-            });
-        }
-
-        function setActiveDetailView(detailRow, view) {
-            detailRow.querySelectorAll('.details-view').forEach((panel) => {
-                panel.classList.toggle('active', panel.getAttribute('data-view') === view);
-            });
-            detailRow.querySelectorAll('.details-tab').forEach((tab) => {
-                tab.classList.toggle('active', tab.getAttribute('data-view') === view);
-            });
-        }
-
+const getDetailFormattingScripts = (): string => String.raw`
         function formatDetailsMarkdown(details) {
             if (!details) return 'No details available.';
             const sections = [];
@@ -504,12 +482,42 @@ const getDetailRenderingScripts = (): string => String.raw`
                 markdownPanel.textContent = formatDetailsMarkdown(details);
             }
         }
+`;
 
-        async function ensureWorkerDetails(workerName, detailRow) {
+const getDetailRenderingScripts = (): string => String.raw`
+        function bindDetailTabs(detailRow) {
+            const tabs = detailRow.querySelectorAll('.details-tab');
+            tabs.forEach((tab) => {
+                tab.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const view = tab.getAttribute('data-view');
+                    if (view) {
+                        setActiveDetailView(detailRow, view);
+                    }
+                });
+            });
+        }
+
+        function setActiveDetailView(detailRow, view) {
+            detailRow.querySelectorAll('.details-view').forEach((panel) => {
+                panel.classList.toggle('active', panel.getAttribute('data-view') === view);
+            });
+            detailRow.querySelectorAll('.details-tab').forEach((tab) => {
+                tab.classList.toggle('active', tab.getAttribute('data-view') === view);
+            });
+        }
+
+        async function ensureWorkerDetails(workerName, detailRow, driver) {
             if (!workerName || !detailRow) return;
             if (!detailsCache.has(workerName)) {
                 try {
-                    const response = await fetch(API_BASE + '/api/workers/' + workerName + '/details');
+                    // Validate driver before making request
+                    if (driver && !['db', 'redis', 'memory'].includes(driver)) {
+                        console.error('Invalid driver specified');
+                        return;
+                    }
+
+                    const response = await fetch(API_BASE + '/api/workers/' + workerName + '/details?driver=' + driver);
                     if (!response.ok) {
                         console.error('Failed to load worker details:', response.statusText);
                         return;
@@ -578,18 +586,18 @@ const getSummaryRenderingScripts = (): string => `
             });
         }
 
-        function syncBulkAutoSwitchState(workers) {
+        function syncBulkAutoStartState(workers) {
             if (!Array.isArray(workers)) return;
             lastWorkers = workers;
-            const enabledCount = workers.filter((worker) => worker.autoSwitch).length;
+            const enabledCount = workers.filter((worker) => worker.autoStart).length;
             if (enabledCount === workers.length && workers.length > 0) {
-                bulkAutoSwitchEnabled = true;
-                updateBulkAutoSwitchButton('Auto Switch: On');
+                bulkAutoStartEnabled = true;
+                updateBulkAutoStartButton('Auto Start: On');
             } else if (enabledCount === 0) {
-                bulkAutoSwitchEnabled = false;
-                updateBulkAutoSwitchButton('Auto Switch: Off');
+                bulkAutoStartEnabled = false;
+                updateBulkAutoStartButton('Auto Start: Off');
             } else {
-                updateBulkAutoSwitchButton('Auto Switch: Mixed');
+                updateBulkAutoStartButton('Auto Start: Mixed');
             }
         }
 `;
@@ -602,6 +610,7 @@ const getTableRenderingScripts = (): string => `
             row.className = 'expander';
             row.setAttribute('onclick', \`toggleDetails('\${detailsId}')\`);
             row.setAttribute('data-worker-name', worker.name);
+            row.setAttribute('data-worker-driver', worker.driver);
 
             row.innerHTML = \`${getWorkerRowTemplate()}\`;
             return { row, detailsId };
@@ -612,6 +621,7 @@ const getTableRenderingScripts = (): string => `
             detailRow.className = 'expandable-row';
             detailRow.id = detailsId;
             detailRow.setAttribute('data-worker-name', worker.name);
+            detailRow.setAttribute('data-worker-driver', worker.driver);
             detailRow.innerHTML = \`${getDetailRowTemplate()}\`;
             bindDetailTabs(detailRow);
             return detailRow;
@@ -634,7 +644,7 @@ const getTableRenderingScripts = (): string => `
                 updateQueueSummary(data.queueData);
                 updateDriverFilter(data.drivers);
                 updateDriversList(data.drivers);
-                syncBulkAutoSwitchState([]);
+                syncBulkAutoStartState([]);
                 updatePagination(data.pagination);
                 return;
             }
@@ -646,7 +656,7 @@ const getTableRenderingScripts = (): string => `
                 const normalizedName = worker.name.replace(/[^a-z0-9]/gi, '-');
                 if (expandedWorkers.has(normalizedName)) {
                     detailRow.classList.add('open');
-                    ensureWorkerDetails(worker.name, detailRow);
+                    ensureWorkerDetails(worker.name, detailRow, worker.driver);
                 }
 
                 tbody.appendChild(row);
@@ -656,7 +666,7 @@ const getTableRenderingScripts = (): string => `
             updateQueueSummary(data.queueData);
             updateDriverFilter(data.drivers);
             updateDriversList(data.drivers);
-            syncBulkAutoSwitchState(data.workers);
+            syncBulkAutoStartState(data.workers);
             updatePagination(data.pagination);
         }
 
@@ -666,7 +676,8 @@ const getTableRenderingScripts = (): string => `
                 const isOpen = row.classList.toggle('open');
                 if (isOpen) {
                     const workerName = row.getAttribute('data-worker-name') || rowId.replace('details-', '');
-                    ensureWorkerDetails(workerName, row);
+                    const workerDriver = row.getAttribute('data-worker-driver');
+                    ensureWorkerDetails(workerName, row, workerDriver);
                 }
             }
         }
@@ -674,6 +685,7 @@ const getTableRenderingScripts = (): string => `
 
 const getRenderingScripts = (): string => `
         ${getDetailRenderingScripts()}
+        ${getDetailFormattingScripts()}
         ${getSummaryRenderingScripts()}
         ${getTableRenderingScripts()}
 `;
@@ -726,7 +738,7 @@ const getPaginationScripts = (): string => `
 
 const getWorkerActionScripts = (): string => `
         ${getWorkerLifecycleScripts()}
-        ${getWorkerAutoSwitchScripts()}
+        ${getWorkerAutoStartScripts()}
         ${getWorkerBulkScripts()}
         ${getWorkerModalScripts()}
 `;
@@ -775,34 +787,34 @@ const getWorkerLifecycleScripts = (): string => `
         }
 `;
 
-const getWorkerAutoSwitchScripts = (): string => `
-        async function toggleAutoSwitch(name, driver, enabled) {
+const getWorkerAutoStartScripts = (): string => `
+        async function toggleAutoStart(name, driver, enabled) {
             try {
-                await fetch(\`\${API_BASE}/api/workers/\${name}/auto-switch?driver=\${driver}\`, {
+                await fetch(\`\${API_BASE}/api/workers/\${name}/auto-start?driver=\${driver}\`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled })
                 });
             } catch (err) {
-                console.error('Failed to toggle auto-switch:', err);
+                console.error('Failed to toggle auto-start:', err);
             }
         }
 `;
 
 const getWorkerBulkScripts = (): string => `
-        function updateBulkAutoSwitchButton(label) {
-            const buttonLabel = document.getElementById('bulk-auto-switch-label');
+        function updateBulkAutoStartButton(label) {
+            const buttonLabel = document.getElementById('bulk-auto-start-label');
             if (buttonLabel) {
                 buttonLabel.textContent = label;
             }
         }
 
-        async function toggleBulkAutoSwitch() {
+        async function toggleBulkAutoStart() {
             if (!Array.isArray(lastWorkers) || lastWorkers.length === 0) return;
-            const nextEnabled = !bulkAutoSwitchEnabled;
-            bulkAutoSwitchEnabled = nextEnabled;
-            localStorage.setItem(BULK_AUTO_SWITCH_KEY, nextEnabled.toString());
-            updateBulkAutoSwitchButton(nextEnabled ? 'Auto Switch: On' : 'Auto Switch: Off');
+            const nextEnabled = !bulkAutoStartEnabled;
+            bulkAutoStartEnabled = nextEnabled;
+            localStorage.setItem(BULK_AUTO_START_KEY, nextEnabled.toString());
+            updateBulkAutoStartButton(nextEnabled ? 'Auto Start: On' : 'Auto Start: Off');
 
             try {
                 const CHUNK_SIZE = 10;
@@ -810,7 +822,7 @@ const getWorkerBulkScripts = (): string => `
 
                 for (let i = 0; i < workersToUpdate.length; i += CHUNK_SIZE) {
                     const chunk = workersToUpdate.slice(i, i + CHUNK_SIZE);
-                    await fetch(API_BASE + '/api/workers/auto-switch/bulk', {
+                    await fetch(API_BASE + '/api/workers/auto-start/bulk', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ workers: chunk, enabled: nextEnabled })
@@ -818,7 +830,7 @@ const getWorkerBulkScripts = (): string => `
                 }
                 fetchData();
             } catch (err) {
-                console.error('Failed to toggle bulk auto-switch:', err);
+                console.error('Failed to toggle bulk auto-start:', err);
             }
         }
 `;
@@ -902,13 +914,13 @@ const getEventListenersScripts = (options: WorkersDashboardUiOptions): string =>
                 setAutoRefresh(storedAutoRefresh === 'true');
             }
 
-            const storedBulkAutoSwitch = localStorage.getItem(BULK_AUTO_SWITCH_KEY);
-            if (storedBulkAutoSwitch === 'true') {
-                bulkAutoSwitchEnabled = true;
-                updateBulkAutoSwitchButton('Auto Switch: On');
-            } else if (storedBulkAutoSwitch === 'false') {
-                bulkAutoSwitchEnabled = false;
-                updateBulkAutoSwitchButton('Auto Switch: Off');
+            const storedBulkAutoStart = localStorage.getItem(BULK_AUTO_START_KEY);
+            if (storedBulkAutoStart === 'true') {
+                bulkAutoStartEnabled = true;
+                updateBulkAutoStartButton('Auto Start: On');
+            } else if (storedBulkAutoStart === 'false') {
+                bulkAutoStartEnabled = false;
+                updateBulkAutoStartButton('Auto Start: Off');
             }
 
             // Load initial data
@@ -924,7 +936,7 @@ const getDashboardScripts = (options: WorkersDashboardUiOptions): string => `
         const THEME_KEY = 'zintrust-workers-dashboard-theme';
         const AUTO_REFRESH_KEY = 'zintrust-workers-dashboard-auto-refresh';
         const PAGE_SIZE_KEY = 'zintrust-workers-dashboard-page-size';
-        const BULK_AUTO_SWITCH_KEY = 'zintrust-workers-dashboard-bulk-auto-switch';
+        const BULK_AUTO_START_KEY = 'zintrust-workers-dashboard-bulk-auto-start';
 
         let currentPage = 1;
         let totalPages = 1;
@@ -932,7 +944,7 @@ const getDashboardScripts = (options: WorkersDashboardUiOptions): string => `
         let autoRefreshEnabled = ${options.autoRefresh};
         let refreshTimer = null;
         let currentTheme = null;
-        let bulkAutoSwitchEnabled = false;
+        let bulkAutoStartEnabled = false;
         let lastWorkers = [];
         const detailsCache = new Map();
         const MAX_CACHE_SIZE = 50;

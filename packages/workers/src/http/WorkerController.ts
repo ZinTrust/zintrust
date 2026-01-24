@@ -7,6 +7,7 @@
 import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
 import { CanaryController } from '../CanaryController';
 import { HealthMonitor } from '../HealthMonitor';
+import { getParam } from '../helper';
 import { ResourceMonitor } from '../ResourceMonitor';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerRegistry } from '../WorkerRegistry';
@@ -23,16 +24,6 @@ const getBody = (req: IRequest): Record<string, unknown> => {
     (req.body as Record<string, unknown> | undefined) ??
     {}
   );
-};
-
-/**
- * Helper to get path parameter
- */
-const getParam = (req: IRequest, key: string): string => {
-  const direct = req.getParam?.(key);
-  if (typeof direct === 'string' && direct.length > 0) return direct;
-  const params = (req.params as Record<string, string> | undefined) ?? {};
-  return params[key] ?? '';
 };
 
 // ==================== Core Worker Operations ====================
@@ -256,6 +247,12 @@ const resolvePersistenceOverride = (
     normalizeQueryValue(req.getQueryParam?.('driver')) ||
     normalizeQueryValue(req.getQueryParam?.('storage'));
   const driver = driverRaw?.toLowerCase();
+
+  // Validate driver parameter
+  if (driver && !['memory', 'redis', 'db'].includes(driver)) {
+    Logger.error(`Invalid driver parameter: ${driver}. Must be one of: memory, redis, db`);
+    return undefined;
+  }
 
   if (driver === 'memory') {
     return { driver: 'memory' };

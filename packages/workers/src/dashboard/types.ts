@@ -48,7 +48,7 @@ export interface WorkerData {
   processed: number;
   avgTime: number;
   memory: number;
-  autoSwitch: boolean;
+  autoStart: boolean;
   details?: {
     configuration: WorkerConfiguration;
     health: WorkerHealth;
@@ -102,7 +102,7 @@ export type WorkersDashboardUiOptions = {
   autoRefresh: boolean;
   refreshIntervalMs: number;
   pageSize: number;
-  enableAutoSwitch: boolean;
+  enableAutoStart: boolean;
   basePath?: string;
 };
 
@@ -115,7 +115,7 @@ export type RawWorkerData = {
   memory?: number;
   processed?: number;
   version?: string;
-  autoSwitch?: boolean;
+  autoStart?: boolean;
   queueName?: string;
   details?: {
     configuration: WorkerConfiguration;

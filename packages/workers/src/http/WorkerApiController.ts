@@ -12,7 +12,8 @@ import type {
   WorkerSortOrder,
   WorkerStatus,
 } from '../dashboard/types';
-import { getWorkerDetails, getWorkers, toggleAutoSwitch } from '../dashboard/workers-api';
+import { getWorkerDetails, getWorkers, toggleAutoStart } from '../dashboard/workers-api';
+import { getParam } from '../helper';
 
 /**
  * Helper to safely get a single string value from query params
@@ -128,8 +129,13 @@ export const listWorkers = async (req: IRequest, res: IResponse): Promise<void> 
  */
 export const getWorkerDetailsHandler = async (req: IRequest, res: IResponse): Promise<void> => {
   try {
-    const { name } = req.params;
-    const details = await getWorkerDetails(name);
+    const name = getParam(req, 'name');
+    if (!name) {
+      res.setStatus(400).json({ error: 'Worker name is required' });
+      return;
+    }
+    const driver = getQueryParam(req.getQuery?.() || {}, 'driver');
+    const details = await getWorkerDetails(name, driver);
     res.json(details);
   } catch (error) {
     if (error instanceof Error && error.message.includes('not found')) {
@@ -148,9 +154,9 @@ export const getWorkerDetailsHandler = async (req: IRequest, res: IResponse): Pr
 };
 
 /**
- * POST /api/workers/auto-switch/bulk - Bulk toggle auto-switch for multiple workers
+ * POST /api/workers/auto-start/bulk - Bulk toggle auto-start for multiple workers
  */
-export const bulkToggleAutoSwitchHandler = async (req: IRequest, res: IResponse): Promise<void> => {
+export const bulkToggleAutoStartHandler = async (req: IRequest, res: IResponse): Promise<void> => {
   try {
     const { workers, enabled } = req.body;
 
@@ -164,7 +170,7 @@ export const bulkToggleAutoSwitchHandler = async (req: IRequest, res: IResponse)
 
     const results = await Promise.allSettled(
       workers.map(async (workerName: string) => {
-        await toggleAutoSwitch(workerName, enabled);
+        await toggleAutoStart(workerName, enabled);
         return { worker: workerName, success: true };
       })
     );
@@ -174,7 +180,7 @@ export const bulkToggleAutoSwitchHandler = async (req: IRequest, res: IResponse)
 
     res.json({
       success: true,
-      message: `Auto-switch ${enabled ? 'enabled' : 'disabled'} for ${successful} workers`,
+      message: `Auto-start ${enabled ? 'enabled' : 'disabled'} for ${successful} workers`,
       summary: {
         total: workers.length,
         successful,
@@ -187,9 +193,9 @@ export const bulkToggleAutoSwitchHandler = async (req: IRequest, res: IResponse)
       })),
     });
   } catch (error) {
-    Logger.error('Error in bulk auto-switch toggle:', error);
+    Logger.error('Error in bulk auto-start toggle:', error);
     res.status(500).json({
-      error: 'Failed to toggle auto-switch for workers',
+      error: 'Failed to toggle auto-start for workers',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
@@ -269,7 +275,7 @@ export const WorkerApiController = Object.freeze({
       getHealthSummaryHandler,
       listWorkers,
       getWorkerDetailsHandler,
-      bulkToggleAutoSwitchHandler,
+      bulkToggleAutoStartHandler,
     };
   },
 });

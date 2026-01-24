@@ -929,7 +929,7 @@ ${getPageSizeSelectorStyles()}
 
 const getToggleSwitchStyles = (): string => `
 /* Toggle Switch */
-.auto-switch-toggle {
+.auto-start-toggle {
   position: relative;
   display: inline-block;
   width: 44px;
@@ -937,7 +937,7 @@ const getToggleSwitchStyles = (): string => `
   cursor: pointer;
 }
 
-.auto-switch-toggle input {
+.auto-start-toggle input {
   opacity: 0;
   width: 0;
   height: 0;
@@ -980,7 +980,7 @@ input:checked + .toggle-slider:before {
 }
 
 /* Hover generic for toggles */
-.auto-switch-toggle:hover .toggle-slider {
+.auto-start-toggle:hover .toggle-slider {
   border-color: var(--muted);
 }`;
 

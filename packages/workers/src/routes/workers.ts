@@ -8,6 +8,7 @@ import { Logger, Router } from '@zintrust/core';
 import { createWorkersDashboard, type WorkersDashboardUiOptions } from '../dashboard';
 import { WorkerApiController } from '../http/WorkerApiController';
 import { WorkerController } from '../http/WorkerController';
+import { withDriverValidation } from '../http/middleware/ValidateDriver';
 
 type WorkerUiOptions = WorkersDashboardUiOptions;
 type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
@@ -36,18 +37,18 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
     Logger.info('Registering Worker Management Routes');
 
     Router.post(r, '/create', controller.create);
-    Router.post(r, '/:name/start', controller.start);
-    Router.post(r, '/:name/auto-start', controller.setAutoStart);
-    Router.post(r, '/:name/stop', controller.stop);
-    Router.post(r, '/:name/restart', controller.restart);
-    Router.post(r, '/:name/pause', controller.pause);
-    Router.post(r, '/:name/resume', controller.resume);
-    Router.del(r, '/:name', controller.remove);
+    Router.post(r, '/:name/start', withDriverValidation(controller.start));
+    Router.post(r, '/:name/auto-start', withDriverValidation(controller.setAutoStart));
+    Router.post(r, '/:name/stop', withDriverValidation(controller.stop));
+    Router.post(r, '/:name/restart', withDriverValidation(controller.restart));
+    Router.post(r, '/:name/pause', withDriverValidation(controller.pause));
+    Router.post(r, '/:name/resume', withDriverValidation(controller.resume));
+    Router.del(r, '/:name', withDriverValidation(controller.remove));
 
     // Worker listing and filtering
-    Router.get(r, '/', newController.listWorkers);
+    Router.get(r, '/', withDriverValidation(newController.listWorkers));
 
-    Router.get(r, '/:name', controller.get);
+    Router.get(r, '/:name', withDriverValidation(controller.get));
     Router.get(r, '/:name/status', controller.status);
     Router.get(r, '/:name/creation-status', controller.getCreationStatus);
     Router.get(r, '/:name/metrics', controller.metrics);
@@ -66,10 +67,10 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
     Router.get(r, '/:name/versions/:version', controller.getVersion);
 
     // Worker details
-    Router.get(r, '/:name', newController.getWorkerDetailsHandler);
+    Router.get(r, '/:name/details', withDriverValidation(newController.getWorkerDetailsHandler));
 
     // Bulk operations
-    Router.post(r, '/auto-switch/bulk', newController.bulkToggleAutoSwitchHandler);
+    Router.post(r, '/auto-start/bulk', newController.bulkToggleAutoStartHandler);
 
     // Utility endpoints
     Router.get(r, '/drivers', newController.getDriversHandler);

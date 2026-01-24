@@ -17,7 +17,7 @@ export function createWorkersDashboard(options: Partial<WorkersDashboardUiOption
     autoRefresh: true,
     refreshIntervalMs: 30000,
     pageSize: 100,
-    enableAutoSwitch: true,
+    enableAutoStart: true,
     ...options,
   };
 

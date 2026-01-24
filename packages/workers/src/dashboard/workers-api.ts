@@ -260,7 +260,7 @@ const buildWorkerFromRecord = (record: WorkerRecord, driver: WorkerDriver): Work
     queueName: record.queueName,
     status,
     version: record.version ?? '1.0.0',
-    autoSwitch: record.autoStart,
+    autoStart: record.autoStart,
     lastError: record.lastError,
   };
 
@@ -279,7 +279,7 @@ const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): Wo
     processed: workerData.processed || 0,
     avgTime: workerData.avgTime || 0,
     memory: workerData.memory || 0,
-    autoSwitch: workerData.autoSwitch || false,
+    autoStart: workerData.autoStart || false,
     details: workerData.details || {
       configuration: {} as WorkerConfiguration,
       health: {} as WorkerHealth,
@@ -745,12 +745,12 @@ const getWorkerMetricsSnapshot = async (
   }
 };
 
-export async function toggleAutoSwitch(name: string, enabled: boolean): Promise<void> {
+export async function toggleAutoStart(name: string, enabled: boolean): Promise<void> {
   await WorkerFactory.setAutoStart(name, enabled);
 }
 
-export async function getWorkerDetails(name: string): Promise<WorkerData> {
-  const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'] ?? 'memory';
+export async function getWorkerDetails(name: string, driver?: string): Promise<WorkerData> {
+  const persistenceDriver = (driver || process.env['WORKER_PERSISTENCE_DRIVER']) ?? 'memory';
   const isMixedPersistence = persistenceDriver === 'db' || persistenceDriver === 'database';
 
   let worker: WorkerData | undefined;
