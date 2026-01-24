@@ -383,130 +383,152 @@ const getWorkerRowTemplate = (): string => `
                 </td>
 `;
 
+const getConfigSection = (): string => `
+                      <div class="detail-section">
+                        <h4>Configuration</h4>
+                        <div class="detail-item">
+                          <span>Queue Name</span>
+                          <span data-key="configuration.queueName">\${worker.queueName}</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Concurrency</span>
+                          <span data-key="configuration.concurrency">-</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Auto Start</span>
+                          <label class="auto-switch-toggle" onclick="event.stopPropagation()">
+                            <input type="checkbox" \${worker.autoStart ? 'checked' : ''} onchange="toggleAutoStart('\${worker.name}', '\${worker.driver}', this.checked)">
+                            <span class="toggle-slider"></span>
+                          </label>
+                        </div>
+                        <div class="detail-item">
+                          <span>Processor Path</span>
+                          <span data-key="configuration.processorPath">-</span>
+                        </div>
+                      </div>
+`;
+
+const getMetricsSection = (): string => `
+                      <div class="detail-section">
+                        <h4>Performance Metrics</h4>
+                        <div class="detail-item">
+                          <span>Processed Jobs</span>
+                          <span data-key="metrics.processed">\${worker.processed != null ? worker.processed.toLocaleString() : '-'}</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Failed Jobs</span>
+                          <span data-key="metrics.failed">-</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Success Rate</span>
+                          <span data-key="metrics.successRate">-</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Avg Processing Time</span>
+                          <span data-key="metrics.avgTime">\${worker.avgTime != null ? worker.avgTime + 'ms' : '-'}</span>
+                        </div>
+                      </div>
+`;
+
+const getHealthSection = (): string => `
+                      <div class="detail-section">
+                        <h4>Health & Status</h4>
+                        <div class="detail-item">
+                          <span>Last Health Check</span>
+                          <span data-key="health.lastCheck">-</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Response Time</span>
+                          <span data-key="health.responseTime">-</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Memory Usage</span>
+                          <span data-key="metrics.memory">\${worker.memory != null ? worker.memory + 'MB' : '-'}</span>
+                        </div>
+                        <div class="detail-item">
+                          <span>Uptime</span>
+                          <span data-key="metrics.uptime">-</span>
+                        </div>
+                      </div>
+`;
+
+const getLogsSection = (): string => `
+                      <div class="detail-section">
+                        <h4>Recent Logs</h4>
+                        <div class="recent-logs-container" style="
+                            font-family: monospace;
+                            font-size: 11px;
+                            line-height: 1.6;
+                            color: var(--text);
+                            background: var(--input-bg);
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            max-height: 200px;
+                            overflow-y: auto;
+                          ">
+                          <div class="logs-content">Loading logs...</div>
+                        </div>
+                      </div>
+`;
+
 const getDetailRowTemplate = (): string => `
-                <td colspan="7" class="details-cell" style="padding:0; border-bottom:0;">
-                    <div class="details-content">
-                        <div class="details-tabs">
-                            <button class="details-tab active" data-view="table">Table</button>
-                            <button class="details-tab" data-view="json">JSON</button>
-                            <button class="details-tab" data-view="markdown">Markdown</button>
-                        </div>
-                        <div class="details-view details-view-table active" data-view="table">
-                            <div class="details-grid">
-                                <div class="detail-section">
-                                    <h4>Configuration</h4>
-                                    <div class="detail-item">
-                                        <span>Queue Name</span>
-                                        <span>\${worker.queueName}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span>Concurrency</span>
-                                        <span>\${worker.details && worker.details.configuration && worker.details.configuration.concurrency !== undefined ? worker.details.configuration.concurrency : 'N/A'}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span>Auto Start</span>
-                                        <label class="auto-start-toggle" onclick="event.stopPropagation()">
-                                            <input type="checkbox" \${worker.autoStart ? 'checked' : ''} onchange="toggleAutoStart('\${worker.name}', '\${worker.driver}', this.checked)">
-                                            <span class="toggle-slider"></span>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="detail-section">
-                                    <h4>System</h4>
-                                    <div class="detail-item">
-                                        <span>Version</span>
-                                        <span>v\${worker.version}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span>Health</span>
-                                        <span>\${worker.health.status}</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <span>Processed</span>
-                                        <span>\${worker.processed}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="recent-logs">
-                                <h4>Recent Logs</h4>
-                                <div class="log-entry">
-                                    <span class="log-time">10:45:22</span>
-                                    <span class="log-msg">Job #4922 completed successfully</span>
-                                </div>
-                                <div class="log-entry error">
-                                    <span class="log-time">10:44:15</span>
-                                    <span class="log-msg">Connection timeout while fetching storage</span>
-                                </div>
-                                <div class="log-entry">
-                                    <span class="log-time">10:42:01</span>
-                                    <span class="log-msg">Processing job #4921</span>
-                                </div>
-                            </div>
-                        </div>
-                        <pre class="details-view details-view-json" data-view="json">Loading details...</pre>
-                        <pre class="details-view details-view-markdown" data-view="markdown">Loading details...</pre>
+                <td colspan="7" class="details-cell">
+                  <div class="details-content">
+                    <div class="details-grid">
+                      ${getConfigSection()}
+                      ${getMetricsSection()}
+                      ${getHealthSection()}
+                      ${getLogsSection()}
                     </div>
+                  </div>
                 </td>
 `;
 
 const getDetailFormattingScripts = (): string => String.raw`
-        function formatDetailsMarkdown(details) {
-            if (!details) return 'No details available.';
-            const sections = [];
-            if (details.configuration) {
-                sections.push('## Configuration');
-                Object.entries(details.configuration).forEach(([key, value]) => {
-                    sections.push('- ' + key + ': ' + String(value));
-                });
-            }
-            if (details.health) {
-                sections.push('\n## Health');
-                sections.push('- status: ' + String(details.health.status));
-            }
-            if (details.metrics) {
-                sections.push('\n## Metrics');
-                Object.entries(details.metrics).forEach(([key, value]) => {
-                    sections.push('- ' + key + ': ' + String(value));
-                });
-            }
-            return sections.join('\n');
-        }
-
         function updateDetailViews(detailRow, details) {
-            const jsonPanel = detailRow.querySelector('.details-view-json');
-            const markdownPanel = detailRow.querySelector('.details-view-markdown');
-            if (jsonPanel) {
-                jsonPanel.textContent = JSON.stringify(details, null, 2);
-            }
-            if (markdownPanel) {
-                markdownPanel.textContent = formatDetailsMarkdown(details);
+            if (!details) return;
+
+            // Helper to safe access nested properties
+            const get = (obj, path) => path.split('.').reduce((o, i) => o ? o[i] : null, obj);
+
+            // Update simple data attributes
+            detailRow.querySelectorAll('[data-key]').forEach(el => {
+                const key = el.getAttribute('data-key');
+                let value = get(details, key);
+
+                // Format specific fields
+                if (key === 'metrics.processed' && value != null) value = Number(value).toLocaleString();
+                if (key === 'metrics.avgTime' && value != null) value = value + 'ms';
+                if (key === 'metrics.memory' && value != null) value = value + 'MB';
+
+                if (value !== null && value !== undefined) {
+                    el.textContent = value;
+                }
+            });
+
+            // Handle logs if present
+            const logsContainer = detailRow.querySelector('.logs-content');
+            if (logsContainer && details.recentLogs && Array.isArray(details.recentLogs)) {
+                if (details.recentLogs.length === 0) {
+                    logsContainer.innerHTML = '<div style="color: var(--muted)">No recent logs</div>';
+                } else {
+                    logsContainer.innerHTML = details.recentLogs.map(log => {
+                        let color = 'var(--text)';
+                        if (log.toLowerCase().includes('failed') || log.toLowerCase().includes('error')) color = 'var(--danger)';
+                        else if (log.toLowerCase().includes('success')) color = 'var(--success)';
+                        else if (log.toLowerCase().includes('processing')) color = 'var(--info)';
+
+                        return \`<div style="color: \${color}">\${log}</div>\`;
+                    }).join('');
+                }
+            } else if (logsContainer) {
+                logsContainer.innerHTML = '<div style="color: var(--muted)">No logs available</div>';
             }
         }
 `;
 
 const getDetailRenderingScripts = (): string => String.raw`
-        function bindDetailTabs(detailRow) {
-            const tabs = detailRow.querySelectorAll('.details-tab');
-            tabs.forEach((tab) => {
-                tab.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const view = tab.getAttribute('data-view');
-                    if (view) {
-                        setActiveDetailView(detailRow, view);
-                    }
-                });
-            });
-        }
-
-        function setActiveDetailView(detailRow, view) {
-            detailRow.querySelectorAll('.details-view').forEach((panel) => {
-                panel.classList.toggle('active', panel.getAttribute('data-view') === view);
-            });
-            detailRow.querySelectorAll('.details-tab').forEach((tab) => {
-                tab.classList.toggle('active', tab.getAttribute('data-view') === view);
-            });
-        }
-
         async function ensureWorkerDetails(workerName, detailRow, driver) {
             if (!workerName || !detailRow) return;
             if (!detailsCache.has(workerName)) {
@@ -623,7 +645,6 @@ const getTableRenderingScripts = (): string => `
             detailRow.setAttribute('data-worker-name', worker.name);
             detailRow.setAttribute('data-worker-driver', worker.driver);
             detailRow.innerHTML = \`${getDetailRowTemplate()}\`;
-            bindDetailTabs(detailRow);
             return detailRow;
         }
 

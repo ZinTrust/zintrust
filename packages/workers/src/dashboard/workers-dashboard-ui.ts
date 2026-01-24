@@ -607,52 +607,6 @@ ${getActionButtonsStyles()}
 ${getActionButtonHoverStyles()}
 `;
 
-const getRecentLogsStyles = (): string => `
-/* Recent Logs */
-.recent-logs {
-  margin-top: 24px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.recent-logs h4 {
-  background: var(--surface-hover);
-  padding: 12px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-  margin: 0;
-}
-
-.log-entry {
-  padding: 10px 20px;
-  font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace;
-  font-size: 12px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 12px;
-}
-
-.log-entry:last-child {
-  border-bottom: none;
-}
-
-.log-entry.error {
-  background: rgba(239, 68, 68, 0.05);
-  color: var(--danger);
-  border-left: 2px solid var(--danger);
-}
-
-.log-time {
-  opacity: 0.6;
-  min-width: 60px;
-}
-`;
-
 const getExpandedRowStyles = (): string => `
 /* Expandable Rows */
 .expandable-row {
@@ -721,52 +675,6 @@ const getExpandedRowStyles = (): string => `
 .detail-item span:last-child {
   color: var(--text);
   font-weight: 600;
-}
-
-${getRecentLogsStyles()}
-${getDetailViewStyles()}
-`;
-
-const getDetailViewStyles = (): string => `
-/* Detail Tabs */
-.details-tabs {
-  display: flex;
-  gap: 8px;
-  margin: 24px 0 12px;
-}
-
-.details-tab {
-  border: 1px solid var(--border);
-  background: var(--card);
-  color: var(--muted);
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.details-tab.active {
-  color: var(--text);
-  border-color: var(--primary);
-  background: rgba(14, 165, 233, 0.15);
-}
-
-.details-view {
-  display: none;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  font-size: 12px;
-  color: var(--text);
-  font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.details-view.active {
-  display: block;
 }
 `;
 
@@ -927,7 +835,7 @@ const getPaginationStyles = (): string => `
 ${getPageSizeSelectorStyles()}
 `;
 
-const getToggleSwitchStyles = (): string => `
+const getToggleStartStyles = (): string => `
 /* Toggle Switch */
 .auto-start-toggle {
   position: relative;
@@ -1134,7 +1042,7 @@ const getWorkersDashboardStyles = (): string =>
     getExpandedRowStyles(),
     getLogoAndIconStyles(),
     getPaginationStyles(),
-    getToggleSwitchStyles(),
+    getToggleStartStyles(),
     getResponsiveStyles(),
   ].join('\n');
 
