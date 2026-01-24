@@ -30,7 +30,7 @@ export function createRedisKey(key: string): string {
   while (cleanKey.endsWith(':')) {
     cleanKey = cleanKey.slice(0, -1);
   }
-  return `${PREFIX}_${cleanKey}`;
+  return `${PREFIX}:${cleanKey}`;
 }
 
 /**
@@ -109,11 +109,8 @@ export function getPrefix(): string {
   return PREFIX;
 }
 
-export const getBullMQSafeQueueName = (queueName: string): string => {
-  // Create prefixed key but make it BullMQ-safe by replacing colons with dashes
-  const prefixedKey = createBullMQKey(queueName);
-  const replace = prefixedKey.split(':')[0];
-  return replace;
+export const getBullMQSafeQueueName = (): string => {
+  return PREFIX;
 };
 
 // Export types for better TypeScript support

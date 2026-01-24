@@ -64,7 +64,7 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
     const attempts = Env.getInt('BULLMQ_DEFAULT_ATTEMPTS', 3);
     const backoffDelay = Env.getInt('BULLMQ_BACKOFF_DELAY', 2000);
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
-    const prefix = getBullMQSafeQueueName(queueName);
+    const prefix = getBullMQSafeQueueName();
     const queue = new Queue(queueName, {
       connection: config,
       prefix: prefix,

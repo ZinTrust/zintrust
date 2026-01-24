@@ -67,8 +67,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const redis = createRedisConnection(config);
   const getQueue = (name: string): Queue => {
     if (!queues.has(name)) {
-      const prefix = getBullMQSafeQueueName(name);
-      // console.log('prefix :', prefix);
+      const prefix = getBullMQSafeQueueName();
       const connection = createRedisConnection(config);
       const queue = new Queue(name, { prefix, connection: connection });
       queues.set(name, queue);

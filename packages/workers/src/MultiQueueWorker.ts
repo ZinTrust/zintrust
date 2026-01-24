@@ -63,6 +63,7 @@ const createQueueWorker = (
     concurrency: queueConfig.concurrency,
     limiter: queueConfig.rateLimit,
     autorun: queueConfig.enabled,
+    prefix: queue.opts.prefix,
   };
 
   const worker = new Worker(

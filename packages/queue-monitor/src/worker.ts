@@ -1,3 +1,4 @@
+import { getBullMQSafeQueueName } from '@zintrust/core';
 import { Worker, type Job, type Processor } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 import type { Metrics } from './metrics';
@@ -13,9 +14,11 @@ export const createWorker = (
   metrics: Metrics
 ): QueueWorker => {
   const connection = createRedisConnection(redisConfig);
+  const prefix = getBullMQSafeQueueName();
 
   const worker = new Worker(queueName, processor, {
     connection: connection as unknown as RedisConfig,
+    prefix,
   });
 
   worker.on('completed', async (job: Job) => {

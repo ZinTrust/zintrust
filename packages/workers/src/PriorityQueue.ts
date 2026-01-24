@@ -95,7 +95,7 @@ const getQueue = (queueName: string): Queue => {
       },
     };
 
-    const prefix = getBullMQSafeQueueName(queueName);
+    const prefix = getBullMQSafeQueueName();
     queue = new Queue(queueName, { prefix, ...queueOptions });
     queues.set(queueName, queue);
 

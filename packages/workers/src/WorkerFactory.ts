@@ -10,6 +10,7 @@ import {
   databaseConfig,
   Env,
   ErrorFactory,
+  getBullMQSafeQueueName,
   Logger,
   NodeSingletons,
   queueConfig,
@@ -1071,6 +1072,11 @@ const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScale
 
 const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): WorkerOptions => {
   const options = config.options ? { ...config.options } : ({} as WorkerOptions);
+
+  if (options.prefix === undefined) {
+    options.prefix = getBullMQSafeQueueName();
+  }
+
   if (options.autorun === undefined) {
     options.autorun = autoStart;
   }
