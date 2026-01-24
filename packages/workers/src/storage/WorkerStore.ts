@@ -20,6 +20,9 @@ export type WorkerRecord = {
   datacenter?: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+  lastHealthCheck?: Date;
+  lastError?: string;
+  connectionState?: 'disconnected' | 'connecting' | 'connected' | 'error';
 };
 
 export type WorkerStore = {
@@ -53,7 +56,19 @@ const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
   created_at: record.createdAt,
   updated_at: record.updatedAt,
+  last_health_check: record.lastHealthCheck,
+  last_error: record.lastError,
+  connection_state: record.connectionState,
 });
+
+const getHealthCheck = (row: Record<string, unknown>): Date | undefined => {
+  if (!row['last_health_check']) {
+    return undefined;
+  }
+  return row['last_health_check'] instanceof Date
+    ? row['last_health_check']
+    : new Date(String(row['last_health_check']));
+};
 
 const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
   const parseJson = (value: unknown): Record<string, unknown> | null => {
@@ -81,6 +96,11 @@ const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
       row['created_at'] instanceof Date ? row['created_at'] : new Date(String(row['created_at'])),
     updatedAt:
       row['updated_at'] instanceof Date ? row['updated_at'] : new Date(String(row['updated_at'])),
+    lastHealthCheck: getHealthCheck(row),
+    lastError: row['last_error'] ? String(row['last_error']) : undefined,
+    connectionState: row['connection_state']
+      ? (String(row['connection_state']) as 'disconnected' | 'connecting' | 'connected' | 'error')
+      : undefined,
   };
 };
 

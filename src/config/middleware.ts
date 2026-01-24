@@ -61,12 +61,12 @@ type SharedMiddlewares = {
   validateUserFill: Middleware;
 };
 
-export enum MiddlewareBody {
-  email = 'email',
-  password = 'password',
-  name = 'name',
-  count = 'count',
-}
+export const MiddlewareBody = {
+  email: 'email',
+  password: 'password',
+  name: 'name',
+  count: 'count',
+} as const;
 
 export type MiddlewaresType = {
   skipPaths: string[];

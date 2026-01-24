@@ -48,6 +48,18 @@ import {
 
 const path = NodeSingletons.path;
 
+// Worker creation status enum for proper lifecycle management
+export const WorkerCreationStatus = {
+  CREATING: 'creating', // Initial state - worker is being created
+  CONNECTING: 'connecting', // Connecting to Redis/Queue
+  STARTING: 'starting', // Starting BullMQ worker
+  RUNNING: 'running', // Actually processing jobs
+  FAILED: 'failed', // Connection/startup failed
+  STOPPED: 'stopped', // Intentionally stopped
+} as const;
+
+export type WorkerCreationStatus = (typeof WorkerCreationStatus)[keyof typeof WorkerCreationStatus];
+
 // Internal initialization state to prevent memory leaks and redundant calls
 let clusteringInitialized = false;
 let metricsInitialized = false;
@@ -107,7 +119,9 @@ export type WorkerInstance = {
   worker: Worker;
   config: WorkerFactoryConfig;
   startedAt: Date;
-  status: 'running' | 'stopped' | 'sleeping' | 'draining';
+  status: WorkerCreationStatus;
+  lastHealthCheck?: Date;
+  connectionState?: 'disconnected' | 'connecting' | 'connected' | 'error';
 };
 
 type RedisEnvConfig = {
@@ -137,6 +151,7 @@ type ObservabilityConfigInput =
 
 // Internal state
 const workers = new Map<string, WorkerInstance>();
+const healthCheckIntervals = new Map<string, NodeJS.Timeout>();
 let workerStore: WorkerStore = InMemoryWorkerStore.create();
 let workerStoreConfigured = false;
 let workerStoreConfig: WorkerPersistenceConfig | null = null;
@@ -186,6 +201,106 @@ const decodeProcessorPathEntities = (value: string): string =>
     .replaceAll(/&#x2F;/gi, '/')
     .replaceAll('&#47;', '/')
     .replaceAll(/&sol;/gi, '/');
+
+const waitForWorkerConnection = async (worker: Worker, timeoutMs: number): Promise<void> => {
+  const startTime = Date.now();
+  const checkInterval = 100; // 100ms between checks
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  return new Promise<void>((resolve, reject) => {
+    const checkConnection = async (): Promise<void> => {
+      try {
+        // Check if worker is actually running
+        const isRunning = await worker.isRunning();
+        if (isRunning) {
+          Logger.debug('Worker connection established');
+          if (timeoutId) clearTimeout(timeoutId);
+          resolve();
+          return;
+        }
+
+        // Check timeout
+        if (Date.now() - startTime >= timeoutMs) {
+          if (timeoutId) clearTimeout(timeoutId);
+          reject(ErrorFactory.createWorkerError('Worker failed to connect within timeout period'));
+          return;
+        }
+
+        // Schedule next check
+        timeoutId = globalThis.setTimeout(checkConnection, checkInterval);
+      } catch (error) {
+        Logger.debug('Worker connection check failed, retrying...', error);
+
+        // Check timeout on error
+        if (Date.now() - startTime >= timeoutMs) {
+          if (timeoutId) clearTimeout(timeoutId);
+          reject(ErrorFactory.createWorkerError('Worker failed to connect within timeout period'));
+          return;
+        }
+
+        // Schedule next check on error
+        timeoutId = globalThis.setTimeout(checkConnection, checkInterval);
+      }
+    };
+
+    // Start checking
+    checkConnection();
+  });
+};
+
+const verifyWorkerHealth = async (
+  worker: Worker,
+  name: string,
+  queueName: string
+): Promise<boolean> => {
+  try {
+    // Check BullMQ worker status
+    const isRunning = await worker.isRunning();
+
+    // Check Redis connection
+    const client = await worker.client;
+    const pingResult = await client.ping();
+
+    // Check queue accessibility
+    const { Queue } = await import('bullmq');
+    const queue = new Queue(queueName, { connection: client });
+    const queueInfo = await queue.getJobCounts();
+    await queue.close(); // Clean up queue instance
+
+    Logger.debug(`Worker health check passed for ${name}`, {
+      isRunning,
+      pingResult,
+      queueInfo,
+    });
+
+    return isRunning && pingResult === 'PONG';
+  } catch (error) {
+    Logger.error(`Worker health check failed for ${name}`, error);
+    return false;
+  }
+};
+
+const startHealthMonitoring = (name: string, worker: Worker, queueName: string): void => {
+  const healthCheckInterval = setInterval(async () => {
+    const isHealthy = await verifyWorkerHealth(worker, name, queueName);
+    const currentStatus = await workerStore.get(name);
+
+    if (currentStatus) {
+      const newStatus = isHealthy ? WorkerCreationStatus.RUNNING : WorkerCreationStatus.FAILED;
+      if (currentStatus.status !== newStatus) {
+        await workerStore.update(name, {
+          status: newStatus,
+          updatedAt: new Date(),
+        });
+
+        Logger.info(`Worker ${name} status changed to ${newStatus}`);
+      }
+    }
+  }, 30000); // Check every 30 seconds
+
+  // Store interval for cleanup
+  healthCheckIntervals.set(name, healthCheckInterval);
+};
 
 const sanitizeProcessorPath = (value: string): string => {
   const decoded = decodeProcessorPathEntities(value);
@@ -1002,6 +1117,9 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     datacenter: config.datacenter ? { ...config.datacenter } : null,
     createdAt: now,
     updatedAt: now,
+    lastHealthCheck: undefined,
+    lastError: undefined,
+    connectionState: undefined,
   };
 };
 
@@ -1385,68 +1503,106 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createWorkerError(`Worker "${name}" already exists`);
     }
 
-    await configureWorkerStore(config);
-    initializeClustering(config);
-    initializeMetrics(config);
-    initializeAutoScaling(config);
-    initializeCircuitBreaker(config, workerVersion);
-    initializeDeadLetterQueue(config);
-    initializeResourceMonitoring(config);
-    initializeCompliance(config);
-    await initializeObservability(config);
-    initializeVersioning(config, workerVersion);
-    initializeDatacenter(config);
+    // Save initial status as "creating"
+    await workerStore.save(buildWorkerRecord(config, WorkerCreationStatus.CREATING));
 
-    // Create enhanced processor
-    const enhancedProcessor = createEnhancedProcessor(config);
+    try {
+      await configureWorkerStore(config);
+      initializeClustering(config);
+      initializeMetrics(config);
+      initializeAutoScaling(config);
+      initializeCircuitBreaker(config, workerVersion);
+      initializeDeadLetterQueue(config);
+      initializeResourceMonitoring(config);
+      initializeCompliance(config);
+      await initializeObservability(config);
+      initializeVersioning(config, workerVersion);
+      initializeDatacenter(config);
 
-    // Create BullMQ worker
-    const resolvedOptions = resolveWorkerOptions(config, autoStart);
-    const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
-
-    setupWorkerEventListeners(worker, name, workerVersion, features);
-
-    // Store worker instance
-    const instance: WorkerInstance = {
-      worker,
-      config,
-      startedAt: new Date(),
-      status: autoStart ? 'running' : 'stopped',
-    };
-
-    workers.set(name, instance);
-
-    registerWorkerInstance({
-      worker,
-      config,
-      workerVersion,
-      queueName,
-      options: resolvedOptions,
-      autoStart,
-    });
-
-    if (autoStart) {
-      await WorkerRegistry.start(name, workerVersion);
-    }
-
-    // Execute afterStart hooks
-    if (features?.plugins === true) {
-      await PluginManager.executeHook('afterStart', {
-        workerName: name,
-        timestamp: new Date(),
+      // Update status to "connecting"
+      await workerStore.update(name, {
+        status: WorkerCreationStatus.CONNECTING,
+        updatedAt: new Date(),
       });
+
+      // Create enhanced processor
+      const enhancedProcessor = createEnhancedProcessor(config);
+
+      // Create BullMQ worker
+      const resolvedOptions = resolveWorkerOptions(config, autoStart);
+      const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
+
+      setupWorkerEventListeners(worker, name, workerVersion, features);
+
+      // Update status to "starting"
+      await workerStore.update(name, {
+        status: WorkerCreationStatus.STARTING,
+        updatedAt: new Date(),
+      });
+
+      // Wait for actual connection
+      await waitForWorkerConnection(worker, 5000); // 5 second timeout
+
+      // Update status to "running" only after successful connection
+      await workerStore.update(name, {
+        status: WorkerCreationStatus.RUNNING,
+        updatedAt: new Date(),
+      });
+
+      // Store worker instance
+      const instance: WorkerInstance = {
+        worker,
+        config,
+        startedAt: new Date(),
+        status: WorkerCreationStatus.RUNNING,
+        connectionState: 'connected',
+      };
+
+      workers.set(name, instance);
+
+      registerWorkerInstance({
+        worker,
+        config,
+        workerVersion,
+        queueName,
+        options: resolvedOptions,
+        autoStart,
+      });
+
+      if (autoStart) {
+        await WorkerRegistry.start(name, workerVersion);
+      }
+
+      // Execute afterStart hooks
+      if (features?.plugins === true) {
+        await PluginManager.executeHook('afterStart', {
+          workerName: name,
+          timestamp: new Date(),
+        });
+      }
+
+      // Start health monitoring for the worker
+      startHealthMonitoring(name, worker, queueName);
+
+      Logger.info(`Worker created: ${name}@${workerVersion}`, {
+        queueName,
+        features: Object.keys(features ?? {}).filter(
+          (k) => features?.[k as keyof typeof features] === true
+        ),
+      });
+
+      return worker;
+    } catch (error) {
+      // Handle failure - update status to "failed"
+      await workerStore.update(name, {
+        status: WorkerCreationStatus.FAILED,
+        updatedAt: new Date(),
+        lastError: (error as Error).message,
+      });
+
+      Logger.error(`Worker creation failed: ${name}`, error);
+      throw error;
     }
-
-    await workerStore.save(buildWorkerRecord(config, autoStart ? 'running' : 'stopped'));
-
-    Logger.info(`Worker created: ${name}@${workerVersion}`, {
-      queueName,
-      features: Object.keys(features ?? {}).filter(
-        (k) => features?.[k as keyof typeof features] === true
-      ),
-    });
-
-    return worker;
   },
 
   /**
@@ -1515,11 +1671,22 @@ export const WorkerFactory = Object.freeze({
         timeoutId = undefined;
       }
     }
-    instance.status = 'stopped';
+    instance.status = WorkerCreationStatus.STOPPED;
+
+    // Stop health monitoring for this worker
+    const healthInterval = healthCheckIntervals.get(name);
+    if (healthInterval) {
+      clearInterval(healthInterval);
+      healthCheckIntervals.delete(name);
+      Logger.debug(`Stopped health monitoring for worker: ${name}`);
+    }
 
     try {
       await ensureWorkerStoreConfigured();
-      await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
+      await workerStore.update(name, {
+        status: WorkerCreationStatus.STOPPED,
+        updatedAt: new Date(),
+      });
       Logger.info(`Worker "${name}" status updated to stopped in database`);
     } catch (error) {
       Logger.error(`Failed to update worker "${name}" status in database`, error as Error);
@@ -1561,7 +1728,7 @@ export const WorkerFactory = Object.freeze({
 
     const newWorker = await WorkerFactory.create(refreshed.config);
     refreshed.worker = newWorker;
-    refreshed.status = 'running';
+    refreshed.status = WorkerCreationStatus.RUNNING;
     refreshed.startedAt = new Date();
 
     Logger.info(`Worker restarted: ${name}`);
@@ -1578,9 +1745,12 @@ export const WorkerFactory = Object.freeze({
     }
 
     await instance.worker.pause();
-    instance.status = 'sleeping';
+    instance.status = WorkerCreationStatus.STARTING; // Using STARTING as equivalent to sleeping/paused
 
-    await workerStore.update(name, { status: 'sleeping', updatedAt: new Date() });
+    await workerStore.update(name, {
+      status: WorkerCreationStatus.STARTING,
+      updatedAt: new Date(),
+    });
 
     Logger.info(`Worker paused: ${name}`);
   },
@@ -1596,10 +1766,10 @@ export const WorkerFactory = Object.freeze({
     }
 
     instance.worker.resume();
-    instance.status = 'running';
+    instance.status = WorkerCreationStatus.RUNNING;
 
     workerStore
-      .update(name, { status: 'running', updatedAt: new Date() })
+      .update(name, { status: WorkerCreationStatus.RUNNING, updatedAt: new Date() })
       .catch((error) => Logger.error('Failed to persist worker resume', error));
 
     Logger.info(`Worker resumed: ${name}`);
@@ -1660,10 +1830,10 @@ export const WorkerFactory = Object.freeze({
     const version = instance.config.version ?? '1.0.0';
     await WorkerRegistry.start(name, version);
 
-    instance.status = 'running';
+    instance.status = WorkerCreationStatus.RUNNING;
     instance.startedAt = new Date();
 
-    await workerStore.update(name, { status: 'running', updatedAt: new Date() });
+    await workerStore.update(name, { status: WorkerCreationStatus.RUNNING, updatedAt: new Date() });
 
     Logger.info(`Worker started: ${name}`);
   },
@@ -1770,6 +1940,15 @@ export const WorkerFactory = Object.freeze({
       WorkerVersioning.clear(name);
       DatacenterOrchestrator.removeWorker(name);
       await Observability.clearWorkerMetrics(name);
+
+      // Stop health monitoring for this worker
+      const healthInterval = healthCheckIntervals.get(name);
+      if (healthInterval) {
+        clearInterval(healthInterval);
+        healthCheckIntervals.delete(name);
+        Logger.debug(`Stopped health monitoring for worker: ${name}`);
+      }
+
       workers.delete(name);
     }
 

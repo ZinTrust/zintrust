@@ -81,7 +81,12 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
 
     await WorkerFactory.create(config);
 
-    res.json({ ok: true, workerName: config.name, message: 'Worker created successfully' });
+    res.json({
+      ok: true,
+      workerName: config.name,
+      status: 'creating',
+      message: 'Worker creation started. Check status endpoint for progress.',
+    });
   } catch (error) {
     Logger.error('WorkerController.create failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
@@ -350,6 +355,38 @@ async function status(req: IRequest, res: IResponse): Promise<void> {
     res.json({ ok: true, status: workerStatus });
   } catch (error) {
     Logger.error('WorkerController.status failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
+ * Get worker creation status for polling
+ * @param req.params.name - Worker name
+ * @returns Worker creation status with progress information
+ */
+async function getCreationStatus(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const name = getParam(req, 'name');
+    const persistenceOverride = resolvePersistenceOverride(req);
+    const record = await WorkerFactory.getPersisted(name, persistenceOverride);
+
+    if (!record) {
+      res.setStatus(404).json({ error: `Worker ${name} not found` });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      workerName: name,
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      lastError: record.lastError,
+      connectionState: record.connectionState,
+      lastHealthCheck: record.lastHealthCheck,
+    });
+  } catch (error) {
+    Logger.error('WorkerController.getCreationStatus failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
   }
 }
@@ -1140,6 +1177,7 @@ const buildCoreOperations = () => ({
   list,
   get,
   status,
+  getCreationStatus,
   metrics,
   health,
 });

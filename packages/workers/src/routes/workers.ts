@@ -26,6 +26,7 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
     Router.get(r, '/', controller.list);
     Router.get(r, '/:name', controller.get);
     Router.get(r, '/:name/status', controller.status);
+    Router.get(r, '/:name/creation-status', controller.getCreationStatus);
     Router.get(r, '/:name/metrics', controller.metrics);
     Router.get(r, '/:name/health', controller.health);
 
