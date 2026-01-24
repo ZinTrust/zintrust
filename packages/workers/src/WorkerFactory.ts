@@ -248,6 +248,7 @@ const waitForWorkerConnection = async (worker: Worker, timeoutMs: number): Promi
   });
 };
 
+// TODO why we running verifyWorkerHealth  ??
 const verifyWorkerHealth = async (
   worker: Worker,
   name: string,
@@ -263,7 +264,8 @@ const verifyWorkerHealth = async (
 
     // Check queue accessibility
     const { Queue } = await import('bullmq');
-    const queue = new Queue(queueName, { connection: client });
+    const prefix = getBullMQSafeQueueName();
+    const queue = new Queue(queueName, { prefix, connection: client });
     const queueInfo = await queue.getJobCounts();
     await queue.close(); // Clean up queue instance
 

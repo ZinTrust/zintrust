@@ -539,6 +539,11 @@ const getActionButtonHoverStyles = (): string => `
   border-color: var(--info);
   background: rgba(59, 130, 246, 0.1);
 }
+.action-btn.delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
 `;
 
 const getPerformanceAndActionStyles = (): string => `

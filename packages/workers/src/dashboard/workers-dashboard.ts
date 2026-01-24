@@ -36,6 +36,12 @@ const getHeaderTopSection = (): string => `
               </svg>
               Theme
             </button>
+            <button id="auto-refresh-toggle" class="btn" onclick="toggleAutoRefresh()">
+              <svg id="auto-refresh-icon" class="icon" viewBox="0 0 24 24">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <span id="auto-refresh-label">Auto Refresh</span>
+            </button>
             <button class="btn" onclick="fetchData()">
               <svg class="icon" viewBox="0 0 24 24">
                 <path d="M23 4v6h-6" />
@@ -321,6 +327,14 @@ const getWorkerRowTemplate = (): string => `
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                             </svg>
                         </button>
+                        <button class="action-btn delete" title="Delete" onclick="event.stopPropagation(); deleteWorker('\${worker.name}')">
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                <line x1="10" y1="11" x2="10" y2="17" />
+                                <line x1="14" y1="11" x2="14" y2="17" />
+                            </svg>
+                        </button>
                     </div>
                 </td>
 `;
@@ -523,6 +537,20 @@ const getWorkerActionScripts = (): string => `
             }
         }
 
+        async function deleteWorker(name) {
+            if (!confirm(\`Are you sure you want to delete worker "\${name}"? This action cannot be undone.\`)) {
+                return;
+            }
+            try {
+                const response = await fetch(\`\${API_BASE}/api/workers/\${name}\`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Failed to delete worker');
+                fetchData();
+            } catch (err) {
+                console.error('Failed to delete worker:', err);
+                alert('Failed to delete worker: ' + err.message);
+            }
+        }
+
         async function toggleAutoSwitch(name, enabled) {
             try {
                 await fetch(\`\${API_BASE}/api/workers/\${name}/auto-switch\`, {
@@ -542,6 +570,10 @@ const getWorkerActionScripts = (): string => `
 `;
 
 const getAutoRefreshScripts = (options: WorkersDashboardUiOptions): string => `
+        function toggleAutoRefresh() {
+            setAutoRefresh(!autoRefreshEnabled);
+        }
+
         // Auto-refresh
         function setAutoRefresh(enabled) {
             autoRefreshEnabled = enabled;
@@ -554,6 +586,20 @@ const getAutoRefreshScripts = (options: WorkersDashboardUiOptions): string => `
 
             if (enabled) {
                 refreshTimer = setInterval(fetchData, ${options.refreshIntervalMs});
+            }
+
+            const btn = document.getElementById('auto-refresh-toggle');
+            const icon = document.getElementById('auto-refresh-icon');
+            const label = document.getElementById('auto-refresh-label');
+
+            if (btn && icon && label) {
+                if (enabled) {
+                     label.textContent = 'Pause Refresh';
+                     icon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+                } else {
+                     label.textContent = 'Auto Refresh';
+                     icon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+                }
             }
         }
 `;
@@ -597,9 +643,7 @@ const getEventListenersScripts = (options: WorkersDashboardUiOptions): string =>
 const getDashboardScripts = (options: WorkersDashboardUiOptions): string => `
     <script>
         // Configuration
-        const API_BASE = window.location.pathname.endsWith('/')
-            ? window.location.pathname.slice(0, -1)
-            : window.location.pathname;
+        const API_BASE = '';
 
         const THEME_KEY = 'zintrust-workers-dashboard-theme';
         const AUTO_REFRESH_KEY = 'zintrust-workers-dashboard-auto-refresh';

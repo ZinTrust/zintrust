@@ -282,6 +282,8 @@ async function getQueueData(): Promise<QueueData> {
         return getRedisQueueData();
       case 'database':
         return getDatabaseQueueData();
+      case 'db':
+        return getDatabaseQueueData();
       case 'memory':
         return getMemoryQueueData();
       default:
