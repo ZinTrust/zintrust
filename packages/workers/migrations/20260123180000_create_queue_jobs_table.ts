@@ -14,7 +14,7 @@ export const migration: Migration = {
     const schema = MigrationSchema.create(db);
 
     await schema.create('queue_jobs', (table: Blueprint) => {
-      table.uuid('36');
+      table.uuid('id').primary();
       table.string('queue');
       table.json('payload');
       table.integer('attempts').default(0);
