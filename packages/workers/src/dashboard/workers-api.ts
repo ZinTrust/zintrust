@@ -1,12 +1,13 @@
 import { ErrorFactory, Logger } from '@zintrust/core';
 import { WorkerFactory } from '../WorkerFactory';
+import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
+import type { WorkerRecord } from '../storage/WorkerStore';
 import type {
   GetWorkersQuery,
   QueueData,
   RawWorkerData,
   WorkerConfiguration,
   WorkerData,
-  WorkerDetails,
   WorkerDriver,
   WorkerHealth,
   WorkerHealthCheckStatus,
@@ -18,16 +19,24 @@ import type {
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE_SIZE = 200;
 
+type PersistenceResult = {
+  workers: WorkerData[];
+  total: number;
+  drivers: WorkerDriver[];
+  effectiveLimit: number;
+  prePaginated: boolean;
+};
+
 export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListResponse> {
   const page = Math.max(1, query.page || 1);
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, query.limit || DEFAULT_PAGE_SIZE));
   const offset = (page - 1) * limit;
 
   // Get workers from persistence based on configuration
-  const workers = await getWorkersFromPersistence();
+  const persistence = await getWorkersFromPersistence(page, limit, query.driver);
 
   // Apply filters
-  let filteredWorkers = applyFilters(workers, query);
+  let filteredWorkers = applyFilters(persistence.workers, query);
 
   // Apply search
   if (query.search) {
@@ -41,126 +50,251 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
   const queueData = await getQueueData();
 
   // Apply pagination
-  const paginatedWorkers = filteredWorkers.slice(offset, offset + limit);
+  const paginatedWorkers = persistence.prePaginated
+    ? filteredWorkers
+    : filteredWorkers.slice(offset, offset + persistence.effectiveLimit);
+
+  const workersWithMetrics = await enrichWithMetrics(paginatedWorkers);
 
   // Include details if requested
   if (query.includeDetails) {
-    const enrichedWorkers = await enrichWithDetails(paginatedWorkers);
+    const enrichedWorkers = await enrichWithDetails(workersWithMetrics);
     return {
       workers: enrichedWorkers,
       queueData,
       pagination: {
         page,
-        limit,
-        total: filteredWorkers.length,
-        totalPages: Math.ceil(filteredWorkers.length / limit),
-        hasNext: offset + limit < filteredWorkers.length,
+        limit: persistence.effectiveLimit,
+        total: persistence.prePaginated ? persistence.total : filteredWorkers.length,
+        totalPages: Math.ceil(
+          (persistence.prePaginated ? persistence.total : filteredWorkers.length) /
+            persistence.effectiveLimit
+        ),
+        hasNext:
+          offset + persistence.effectiveLimit <
+          (persistence.prePaginated ? persistence.total : filteredWorkers.length),
         hasPrev: page > 1,
       },
-      drivers: getAvailableDrivers(workers),
+      drivers: persistence.drivers,
     };
   }
 
   return {
-    workers: paginatedWorkers,
+    workers: workersWithMetrics,
     queueData,
     pagination: {
       page,
-      limit,
-      total: filteredWorkers.length,
-      totalPages: Math.ceil(filteredWorkers.length / limit),
-      hasNext: offset + limit < filteredWorkers.length,
+      limit: persistence.effectiveLimit,
+      total: persistence.prePaginated ? persistence.total : filteredWorkers.length,
+      totalPages: Math.ceil(
+        (persistence.prePaginated ? persistence.total : filteredWorkers.length) /
+          persistence.effectiveLimit
+      ),
+      hasNext:
+        offset + persistence.effectiveLimit <
+        (persistence.prePaginated ? persistence.total : filteredWorkers.length),
       hasPrev: page > 1,
     },
-    drivers: getAvailableDrivers(workers),
+    drivers: persistence.drivers,
   };
 }
 
-async function getWorkersFromPersistence(): Promise<WorkerData[]> {
-  const workers: WorkerData[] = [];
+async function getWorkersFromPersistence(
+  page: number,
+  limit: number,
+  driverFilter?: WorkerDriver
+): Promise<PersistenceResult> {
+  const offset = (page - 1) * limit;
 
-  // Check if we have mixed persistence (database + redis)
-  const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'];
+  const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'] ?? 'memory';
+  const isMixedPersistence = persistenceDriver === 'db' || persistenceDriver === 'database';
 
-  if (persistenceDriver === 'db') {
-    // Mixed persistence: get from both database and redis
-    try {
-      const dbWorkers = await WorkerFactory.list();
-      const redisWorkers = await WorkerFactory.list();
-
-      workers.push(
-        ...transformToWorkerData(dbWorkers, 'db'),
-        ...transformToWorkerData(redisWorkers, 'redis')
-      );
-    } catch (error) {
-      Logger.error('Error fetching workers from mixed persistence:', error);
-    }
-  } else {
-    // Single persistence driver
-    try {
-      const driverWorkers = await WorkerFactory.list();
-      workers.push(...transformToWorkerData(driverWorkers, persistenceDriver as WorkerDriver));
-    } catch (error) {
-      Logger.error(`Error fetching workers from ${persistenceDriver}:`, error);
-    }
+  if (driverFilter) {
+    return getWorkersByDriverFilter(driverFilter, offset, limit);
   }
 
-  return workers;
+  if (isMixedPersistence) {
+    return getWorkersFromMixedPersistence(offset, limit);
+  }
+
+  return getWorkersFromSinglePersistence(persistenceDriver, offset, limit);
 }
+
+async function getWorkersByDriverFilter(
+  driverFilter: WorkerDriver,
+  offset: number,
+  limit: number
+): Promise<PersistenceResult> {
+  try {
+    const driverRecords = await WorkerFactory.listPersistedRecords(
+      { driver: driverFilter },
+      { offset, limit }
+    );
+    const workers = transformToWorkerData(driverRecords, driverFilter);
+
+    return {
+      workers,
+      total: driverRecords.length === limit ? offset + limit + 100 : offset + driverRecords.length,
+      drivers: getAvailableDriversFromDrivers([driverFilter]),
+      effectiveLimit: limit,
+      prePaginated: true,
+    };
+  } catch (error) {
+    Logger.error(`Error fetching workers from ${driverFilter}:`, error);
+    return {
+      workers: [],
+      total: 0,
+      drivers: getAvailableDriversFromDrivers([driverFilter]),
+      effectiveLimit: limit,
+      prePaginated: true,
+    };
+  }
+}
+
+async function getWorkersFromMixedPersistence(
+  offset: number,
+  limit: number
+): Promise<PersistenceResult> {
+  try {
+    const dbRecords = await WorkerFactory.listPersistedRecords({ driver: 'db' }, { offset, limit });
+    const redisRecords = await WorkerFactory.listPersistedRecords(
+      { driver: 'redis' },
+      { offset, limit }
+    );
+
+    const workers = [
+      ...transformToWorkerData(dbRecords, 'db'),
+      ...transformToWorkerData(redisRecords, 'redis'),
+    ];
+
+    return {
+      workers,
+      total:
+        dbRecords.length + redisRecords.length >= limit
+          ? offset + limit * 2
+          : offset + dbRecords.length + redisRecords.length,
+      drivers: getAvailableDriversFromDrivers(['db', 'redis']),
+      effectiveLimit: Math.min(MAX_PAGE_SIZE, limit * 2),
+      prePaginated: true,
+    };
+  } catch (error) {
+    Logger.error('Error fetching workers from mixed persistence:', error);
+    return {
+      workers: [],
+      total: 0,
+      drivers: getAvailableDriversFromDrivers(['db', 'redis']),
+      effectiveLimit: Math.min(MAX_PAGE_SIZE, limit * 2),
+      prePaginated: true,
+    };
+  }
+}
+
+async function getWorkersFromSinglePersistence(
+  persistenceDriver: string,
+  offset: number,
+  limit: number
+): Promise<PersistenceResult> {
+  try {
+    const normalizedDriver = normalizeDriver(persistenceDriver);
+    const driverRecords = await WorkerFactory.listPersistedRecords(
+      { driver: normalizedDriver },
+      { offset, limit }
+    );
+    const workers = transformToWorkerData(driverRecords, normalizedDriver);
+
+    return {
+      workers,
+      total: driverRecords.length === limit ? offset + limit + 100 : offset + driverRecords.length,
+      drivers: getAvailableDriversFromDrivers([normalizedDriver]),
+      effectiveLimit: limit,
+      prePaginated: true,
+    };
+  } catch (error) {
+    Logger.error(`Error fetching workers from ${persistenceDriver}:`, error);
+    return {
+      workers: [],
+      total: 0,
+      drivers: getAvailableDriversFromDrivers([normalizeDriver(persistenceDriver)]),
+      effectiveLimit: limit,
+      prePaginated: false,
+    };
+  }
+}
+
+const normalizeDriver = (driver: string): WorkerDriver => {
+  if (driver === 'db' || driver === 'database') return 'db';
+  if (driver === 'redis') return 'redis';
+  return 'memory';
+};
+
+const getAvailableDriversFromDrivers = (drivers: WorkerDriver[]): WorkerDriver[] => {
+  const uniqueDrivers = new Set(drivers);
+  return Array.from(uniqueDrivers);
+};
 
 function transformToWorkerData(
-  workers: (string | RawWorkerData)[],
-  driver: WorkerDriver // Make this required and of type WorkerDriver
+  workers: (string | RawWorkerData | WorkerRecord)[],
+  driver: WorkerDriver
 ): WorkerData[] {
-  return workers.map((worker: string | RawWorkerData) => {
-    // Handle case where worker is a string (worker name)
+  return workers.map((worker) => {
     if (typeof worker === 'string') {
-      return {
-        name: worker,
-        queueName: `${worker}-queue`,
-        status: 'stopped' as WorkerData['status'],
-        health: {
-          status: 'healthy' as const,
-          checks: [],
-          lastCheck: new Date().toISOString(),
-        },
-        driver,
-        version: '1.0.0',
-        processed: 0,
-        avgTime: 0,
-        memory: 0,
-        autoSwitch: false,
-        details: {
-          configuration: {} as WorkerConfiguration,
-          health: {} as WorkerHealth,
-          metrics: {} as WorkerMetrics,
-          recentLogs: [],
-        },
-      };
+      return buildWorkerFromRaw({ name: worker }, driver);
     }
 
-    // Handle case where worker is a RawWorkerData object
-    const workerData = worker as RawWorkerData;
-    return {
-      name: workerData.name,
-      queueName: workerData.queueName || `${workerData.name}-queue`,
-      status: (workerData.status || 'stopped') as WorkerData['status'],
-      health: determineHealth(workerData),
-      driver: driver,
-      version: workerData.version || '1.0.0',
-      processed: workerData.processed || 0,
-      avgTime: workerData.avgTime || 0,
-      memory: workerData.memory || 0,
-      autoSwitch: workerData.autoSwitch || false,
-      details: workerData.details || {
-        configuration: {} as WorkerConfiguration,
-        health: {} as WorkerHealth,
-        metrics: {} as WorkerMetrics,
-        recentLogs: [],
-      },
-    };
+    if (isWorkerRecord(worker)) {
+      return buildWorkerFromRecord(worker, driver);
+    }
+
+    return buildWorkerFromRaw(worker, driver);
   });
 }
+
+const isWorkerRecord = (worker: RawWorkerData | WorkerRecord): worker is WorkerRecord => {
+  return 'autoStart' in worker && 'queueName' in worker && 'createdAt' in worker;
+};
+
+const buildWorkerFromRecord = (record: WorkerRecord, driver: WorkerDriver): WorkerData => {
+  const status = normalizeStatus(record.status);
+  const rawData: RawWorkerData = {
+    name: record.name,
+    queueName: record.queueName,
+    status,
+    version: record.version ?? '1.0.0',
+    autoSwitch: record.autoStart,
+    lastError: record.lastError,
+  };
+
+  return buildWorkerFromRaw(rawData, driver);
+};
+
+const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): WorkerData => {
+  const status = normalizeStatus(workerData.status ?? 'stopped');
+  return {
+    name: workerData.name,
+    queueName: workerData.queueName || `${workerData.name}-queue`,
+    status,
+    health: determineHealth({ ...workerData, status }),
+    driver,
+    version: workerData.version || '1.0.0',
+    processed: workerData.processed || 0,
+    avgTime: workerData.avgTime || 0,
+    memory: workerData.memory || 0,
+    autoSwitch: workerData.autoSwitch || false,
+    details: workerData.details || {
+      configuration: {} as WorkerConfiguration,
+      health: {} as WorkerHealth,
+      metrics: {} as WorkerMetrics,
+      recentLogs: [],
+    },
+  };
+};
+
+const normalizeStatus = (status: string): WorkerData['status'] => {
+  if (status === 'running' || status === 'stopped' || status === 'error' || status === 'paused') {
+    return status;
+  }
+  return 'stopped';
+};
 
 function determineHealth(worker: RawWorkerData): WorkerHealth {
   let status: WorkerHealthStatus = 'healthy';
@@ -284,101 +418,360 @@ async function getQueueData(): Promise<QueueData> {
         return getDatabaseQueueData();
       case 'db':
         return getDatabaseQueueData();
-      case 'memory':
-        return getMemoryQueueData();
       default:
-        return getDefaultQueueData();
+        return getMemoryQueueData();
     }
   } catch (error) {
     Logger.error('Error fetching queue data:', error);
-    return getDefaultQueueData();
+    return getMemoryQueueData();
   }
 }
 
 async function getRedisQueueData(): Promise<QueueData> {
-  // Implementation for Redis queue statistics
-  return {
-    driver: 'redis',
-    totalQueues: 5,
-    totalJobs: 1250,
-    processingJobs: 23,
-    failedJobs: 12,
-  };
+  try {
+    // Use existing queue monitor infrastructure
+    const { QueueMonitor } = await import('@zintrust/queue-monitor');
+    const { queueConfig } = await import('@zintrust/core');
+
+    const redisConfig = queueConfig.drivers.redis;
+    if (redisConfig?.driver !== 'redis') {
+      throw ErrorFactory.createConfigError('Redis driver not configured');
+    }
+
+    const monitor = QueueMonitor.create({ redis: redisConfig });
+    const snapshot = await monitor.getSnapshot();
+
+    let totalJobs = 0;
+    let processingJobs = 0;
+    let failedJobs = 0;
+
+    // Aggregate stats from all queues
+    for (const queue of snapshot.queues) {
+      totalJobs +=
+        (queue.counts.waiting || 0) +
+        (queue.counts.active || 0) +
+        (queue.counts.completed || 0) +
+        (queue.counts.failed || 0);
+      processingJobs += queue.counts.active || 0;
+      failedJobs += queue.counts.failed || 0;
+    }
+
+    return {
+      driver: 'redis',
+      totalQueues: snapshot.queues.length,
+      totalJobs,
+      processingJobs,
+      failedJobs,
+    };
+  } catch (error) {
+    Logger.error('Error fetching Redis queue data:', error);
+    return {
+      driver: 'redis',
+      totalQueues: 0,
+      totalJobs: 0,
+      processingJobs: 0,
+      failedJobs: 0,
+    };
+  }
 }
 
 async function getDatabaseQueueData(): Promise<QueueData> {
-  // Implementation for Database queue statistics
-  return {
-    driver: 'db',
-    totalQueues: 8,
-    totalJobs: 3400,
-    processingJobs: 45,
-    failedJobs: 28,
-  };
+  try {
+    // For database queues, use the existing database connection
+    const { useEnsureDbConnected } = await import('@zintrust/core');
+    const db = await useEnsureDbConnected();
+
+    // Get queue statistics from actual database tables using proper query builder
+    const queueStats = (await db
+      .table('queue_jobs')
+      .select('COUNT(DISTINCT queue) as totalQueues')
+      .selectAs('COUNT(*)', 'totalJobs')
+      .selectAs(
+        'SUM(CASE WHEN reserved_at IS NOT NULL AND failed_at IS NULL THEN 1 ELSE 0 END)',
+        'processingJobs'
+      )
+      .selectAs('SUM(CASE WHEN failed_at IS NOT NULL THEN 1 ELSE 0 END)', 'failedJobs')
+      .first()) as {
+      totalQueues: number;
+      totalJobs: number;
+      processingJobs: number;
+      failedJobs: number;
+    } | null;
+
+    const stats = queueStats || {
+      totalQueues: 0,
+      totalJobs: 0,
+      processingJobs: 0,
+      failedJobs: 0,
+    };
+
+    return {
+      driver: 'db',
+      totalQueues: Number(stats.totalQueues) || 0,
+      totalJobs: Number(stats.totalJobs) || 0,
+      processingJobs: Number(stats.processingJobs) || 0,
+      failedJobs: Number(stats.failedJobs) || 0,
+    };
+  } catch (error) {
+    Logger.error('Error fetching database queue data:', error);
+    return {
+      driver: 'db',
+      totalQueues: 0,
+      totalJobs: 0,
+      processingJobs: 0,
+      failedJobs: 0,
+    };
+  }
 }
 
 async function getMemoryQueueData(): Promise<QueueData> {
-  // Implementation for Memory queue statistics
+  // For memory queues, we need to access the in-memory queue registry
+  // This is a simplified implementation - in practice you'd need to
+  // access the actual queue registry from the queue system
+  // Since memory queues don't persist, we return basic info
+  // In a real implementation, you'd track active memory queues
   return {
     driver: 'memory',
-    totalQueues: 3,
-    totalJobs: 156,
-    processingJobs: 5,
-    failedJobs: 2,
-  };
-}
-
-function getDefaultQueueData(): QueueData {
-  return {
-    driver: 'memory',
-    totalQueues: 0,
+    totalQueues: 0, // Memory queues are not persisted
     totalJobs: 0,
     processingJobs: 0,
     failedJobs: 0,
   };
 }
 
-function getAvailableDrivers(workers: WorkerData[]): WorkerDriver[] {
-  const drivers = new Set(workers.map((w) => w.driver));
-  return Array.from(drivers) as WorkerDriver[];
+async function enrichWithMetrics(workers: WorkerData[]): Promise<WorkerData[]> {
+  const now = Date.now();
+  const oneHourAgo = new Date(now - 60 * 60 * 1000);
+  const endDate = new Date(now);
+
+  if (workers.length === 0) return workers;
+
+  const metricRequests = workers.flatMap((worker) => [
+    {
+      workerName: worker.name,
+      metricType: 'processed' as const,
+      granularity: 'hourly' as const,
+      startDate: oneHourAgo,
+      endDate,
+    },
+    {
+      workerName: worker.name,
+      metricType: 'duration' as const,
+      granularity: 'hourly' as const,
+      startDate: oneHourAgo,
+      endDate,
+    },
+    {
+      workerName: worker.name,
+      metricType: 'memory' as const,
+      granularity: 'hourly' as const,
+      startDate: oneHourAgo,
+      endDate,
+    },
+  ]);
+
+  try {
+    const results = await WorkerMetricsManager.aggregateBatch(metricRequests);
+
+    return workers.map((worker, index) => {
+      const baseIdx = index * 3;
+      const processedMetric = results[baseIdx];
+      const durationMetric = results[baseIdx + 1];
+      const memoryMetric = results[baseIdx + 2];
+
+      const processed =
+        processedMetric && Number.isFinite(processedMetric.total)
+          ? Math.round(processedMetric.total)
+          : worker.processed;
+      const avgTime =
+        durationMetric && Number.isFinite(durationMetric.average)
+          ? Math.round(durationMetric.average)
+          : worker.avgTime;
+      const memory =
+        memoryMetric && Number.isFinite(memoryMetric.average)
+          ? Math.round(memoryMetric.average)
+          : worker.memory;
+
+      return {
+        ...worker,
+        processed,
+        avgTime,
+        memory,
+      };
+    });
+  } catch (error) {
+    Logger.debug('Batch metrics unavailable', error);
+    return workers;
+  }
 }
 
 async function enrichWithDetails(workers: WorkerData[]): Promise<WorkerData[]> {
-  // Add detailed information for each worker
-  return Promise.all(
-    workers.map(async (worker) => {
-      try {
-        // TODO: Implement getDetails method when available
-        const details: WorkerDetails = {
-          configuration: {} as WorkerConfiguration,
-          health: {} as WorkerHealth,
-          metrics: {} as WorkerMetrics,
-          recentLogs: [],
-        };
-        return {
-          ...worker,
-          details: {
-            configuration: details.configuration,
-            health: details.health,
-            metrics: details.metrics,
-            recentLogs: details.recentLogs,
-          },
-        };
-      } catch (error) {
-        Logger.error(`Error fetching details for worker ${worker.name}:`, error);
-        return worker;
-      }
-    })
-  );
+  return Promise.all(workers.map(buildWorkerDetails));
 }
+
+async function buildWorkerDetails(worker: WorkerData): Promise<WorkerData> {
+  try {
+    const persistenceOverride = resolvePersistenceOverride(worker.driver);
+    const persisted = await WorkerFactory.getPersisted(worker.name, persistenceOverride);
+    const health = await getWorkerHealthSnapshot(worker.name, worker.health);
+    const metrics = await getWorkerMetricsSnapshot(worker.name, worker);
+    const configuration = buildWorkerConfiguration(worker, persisted);
+
+    return {
+      ...worker,
+      processed: metrics.processed,
+      avgTime: metrics.avgTime,
+      memory: metrics.memory,
+      details: {
+        configuration,
+        health,
+        metrics,
+        recentLogs: worker.details?.recentLogs ?? [],
+      },
+    };
+  } catch (error) {
+    Logger.error(`Error fetching details for worker ${worker.name}:`, error);
+    return worker;
+  }
+}
+
+function buildWorkerConfiguration(
+  worker: WorkerData,
+  persisted: Awaited<ReturnType<typeof WorkerFactory.getPersisted>>
+): WorkerConfiguration {
+  if (!persisted) {
+    return {
+      queueName: worker.queueName,
+      concurrency: null,
+      region: null,
+      processorPath: null,
+      version: worker.version,
+      features: null,
+      infrastructure: null,
+      datacenter: null,
+    };
+  }
+
+  return {
+    queueName: persisted.queueName ?? worker.queueName,
+    concurrency: persisted.concurrency ?? null,
+    region: persisted.region ?? null,
+    processorPath: persisted.processorPath ?? null,
+    version: persisted.version ?? worker.version,
+    features: persisted.features ?? null,
+    infrastructure: persisted.infrastructure ?? null,
+    datacenter: persisted.datacenter ?? null,
+  };
+}
+
+const resolvePersistenceOverride = (driver: WorkerDriver): { driver: WorkerDriver } => {
+  if (driver === 'db') return { driver: 'db' } as const;
+  if (driver === 'redis') return { driver: 'redis' } as const;
+  return { driver: 'memory' } as const;
+};
+
+const getWorkerHealthSnapshot = async (
+  name: string,
+  fallback: WorkerHealth
+): Promise<WorkerHealth> => {
+  try {
+    const health = (await WorkerFactory.getHealth(name)) as WorkerHealth | null;
+    if (health && typeof health.status === 'string') {
+      return health;
+    }
+  } catch (error) {
+    Logger.debug(`Health snapshot unavailable for worker ${name}`, error);
+  }
+  return fallback;
+};
+
+const getWorkerMetricsSnapshot = async (
+  name: string,
+  fallback: WorkerData
+): Promise<WorkerMetrics> => {
+  const now = Date.now();
+  const oneHourAgo = new Date(now - 60 * 60 * 1000);
+  const endDate = new Date(now);
+
+  try {
+    const [processedMetric, durationMetric, memoryMetric] = await Promise.all([
+      WorkerMetricsManager.aggregate({
+        workerName: name,
+        metricType: 'processed',
+        granularity: 'hourly',
+        startDate: oneHourAgo,
+        endDate,
+      }),
+      WorkerMetricsManager.aggregate({
+        workerName: name,
+        metricType: 'duration',
+        granularity: 'hourly',
+        startDate: oneHourAgo,
+        endDate,
+      }),
+      WorkerMetricsManager.aggregate({
+        workerName: name,
+        metricType: 'memory',
+        granularity: 'hourly',
+        startDate: oneHourAgo,
+        endDate,
+      }),
+    ]);
+
+    return {
+      processed: Number.isFinite(processedMetric.total)
+        ? Math.round(processedMetric.total)
+        : fallback.processed,
+      failed: 0,
+      avgTime: Number.isFinite(durationMetric.average)
+        ? Math.round(durationMetric.average)
+        : fallback.avgTime,
+      memory: Number.isFinite(memoryMetric.average)
+        ? Math.round(memoryMetric.average)
+        : fallback.memory,
+      cpu: 0,
+      uptime: 0,
+    };
+  } catch (error) {
+    Logger.debug(`Metrics snapshot unavailable for worker ${name}`, error);
+    return {
+      processed: fallback.processed,
+      failed: 0,
+      avgTime: fallback.avgTime,
+      memory: fallback.memory,
+      cpu: 0,
+      uptime: 0,
+    };
+  }
+};
 
 export async function toggleAutoSwitch(name: string, enabled: boolean): Promise<void> {
   await WorkerFactory.setAutoStart(name, enabled);
 }
 
 export async function getWorkerDetails(name: string): Promise<WorkerData> {
-  const workers = await getWorkersFromPersistence();
-  const worker = workers.find((w) => w.name === name);
+  const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'] ?? 'memory';
+  const isMixedPersistence = persistenceDriver === 'db' || persistenceDriver === 'database';
+
+  let worker: WorkerData | undefined;
+
+  if (isMixedPersistence) {
+    const dbRecord = await WorkerFactory.getPersisted(name, { driver: 'db' });
+    if (dbRecord) {
+      worker = buildWorkerFromRecord(dbRecord, 'db');
+    } else {
+      const redisRecord = await WorkerFactory.getPersisted(name, { driver: 'redis' });
+      if (redisRecord) {
+        worker = buildWorkerFromRecord(redisRecord, 'redis');
+      }
+    }
+  } else {
+    const normalizedDriver = normalizeDriver(persistenceDriver);
+    const record = await WorkerFactory.getPersisted(name, { driver: normalizedDriver });
+    if (record) {
+      worker = buildWorkerFromRecord(record, normalizedDriver);
+    }
+  }
 
   if (!worker) {
     throw ErrorFactory.createWorkerError(`Worker ${name} not found`);

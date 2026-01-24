@@ -42,6 +42,12 @@ const getHeaderTopSection = (): string => `
               </svg>
               <span id="auto-refresh-label">Auto Refresh</span>
             </button>
+            <button id="bulk-auto-switch-toggle" class="btn" onclick="toggleBulkAutoSwitch()">
+              <svg id="bulk-auto-switch-icon" class="icon" viewBox="0 0 24 24">
+                <path d="M12 2v20M2 12h20" />
+              </svg>
+              <span id="bulk-auto-switch-label">Auto Switch: Off</span>
+            </button>
             <button class="btn" onclick="fetchData()">
               <svg class="icon" viewBox="0 0 24 24">
                 <path d="M23 4v6h-6" />
@@ -80,15 +86,13 @@ const getFilterBar = (): string => `
               <option value="running">Running</option>
               <option value="stopped">Stopped</option>
               <option value="error">Error</option>
+              <option value="paused">Paused</option>
             </select>
           </div>
           <div class="filter-group">
             <label>Driver:</label>
             <select id="driver-filter">
               <option value="">All Drivers</option>
-              <option value="db">Database</option>
-              <option value="redis">Redis</option>
-              <option value="memory">Memory</option>
             </select>
           </div>
           <div class="filter-group">
@@ -97,6 +101,8 @@ const getFilterBar = (): string => `
               <option value="name">Sort by Name</option>
               <option value="status">Sort by Status</option>
               <option value="driver">Sort by Driver</option>
+              <option value="health">Sort by Health</option>
+              <option value="version">Sort by Version</option>
               <option value="processed">Sort by Performance</option>
             </select>
           </div>
@@ -130,6 +136,32 @@ const getDashboardLoadingStates = (): string => `
             </div>
 
             <div id="workers-content" style="display: none;">
+              <div class="summary-bar" id="queue-summary">
+                <div class="summary-item">
+                    <span class="summary-label">Queue Driver</span>
+                    <span class="summary-value" id="queue-driver">-</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Queues</span>
+                    <span class="summary-value" id="queue-total">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Jobs</span>
+                    <span class="summary-value" id="queue-jobs">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Processing</span>
+                    <span class="summary-value" id="queue-processing">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Failed</span>
+                    <span class="summary-value" id="queue-failed">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Drivers</span>
+                    <div class="drivers-list" id="drivers-list"></div>
+                </div>
+              </div>
               <div class="table-container">
                 <div class="table-wrapper">
                     <table>
@@ -224,17 +256,29 @@ const getDataFetchingScripts = (options: WorkersDashboardUiOptions): string => `
                 const limitSelect = document.getElementById('limit-select');
                 if (limitSelect && limitSelect.value !== limit) limitSelect.value = limit;
 
+                const statusFilter = document.getElementById('status-filter');
+                const driverFilter = document.getElementById('driver-filter');
+                const sortSelect = document.getElementById('sort-select');
+                const searchInput = document.getElementById('search-input');
+
                 const params = new URLSearchParams({
                     page: currentPage.toString(),
                     limit: limit,
-                    status: document.getElementById('status-filter').value,
-                    driver: document.getElementById('driver-filter').value,
-                    sort: document.getElementById('sort-select').value,
-                    search: document.getElementById('search-input').value
+                    status: statusFilter ? statusFilter.value : '',
+                    driver: driverFilter ? driverFilter.value : '',
+                    sortBy: sortSelect ? sortSelect.value : 'name',
+                    sortOrder: 'asc',
+                    search: searchInput ? searchInput.value : ''
                 });
 
-                const response = await fetch(\`\${API_BASE}/api/workers?\${params}\`);
-                if (!response.ok) throw new Error('Failed to fetch workers');
+                const response = await fetch(API_BASE + '/api/workers?' + params.toString());
+                if (!response.ok) {
+                    console.error('Failed to fetch workers:', response.statusText);
+                    loading.style.display = 'none';
+                    error.style.display = 'block';
+                    content.style.opacity = '1';
+                    return;
+                }
 
                 const data = await response.json();
                 renderWorkers(data);
@@ -342,66 +386,216 @@ const getWorkerRowTemplate = (): string => `
 const getDetailRowTemplate = (): string => `
                 <td colspan="7" class="details-cell" style="padding:0; border-bottom:0;">
                     <div class="details-content">
-                        <div class="details-grid">
-                            <div class="detail-section">
-                                <h4>Configuration</h4>
-                                <div class="detail-item">
-                                    <span>Queue Name</span>
-                                    <span>\${worker.queueName}</span>
+                        <div class="details-tabs">
+                            <button class="details-tab active" data-view="table">Table</button>
+                            <button class="details-tab" data-view="json">JSON</button>
+                            <button class="details-tab" data-view="markdown">Markdown</button>
+                        </div>
+                        <div class="details-view details-view-table active" data-view="table">
+                            <div class="details-grid">
+                                <div class="detail-section">
+                                    <h4>Configuration</h4>
+                                    <div class="detail-item">
+                                        <span>Queue Name</span>
+                                        <span>\${worker.queueName}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span>Concurrency</span>
+                                        <span>\${worker.details && worker.details.configuration && worker.details.configuration.concurrency !== undefined ? worker.details.configuration.concurrency : 'N/A'}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span>Auto Start</span>
+                                        <label class="auto-switch-toggle" onclick="event.stopPropagation()">
+                                            <input type="checkbox" \${worker.autoSwitch ? 'checked' : ''} onchange="toggleAutoSwitch('\${worker.name}', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="detail-item">
-                                    <span>Concurrency</span>
-                                    <span>5 jobs</span>
-                                </div>
-                                <div class="detail-item">
-                                    <span>Auto Start</span>
-                                    <label class="auto-switch-toggle" onclick="event.stopPropagation()">
-                                        <input type="checkbox" \${worker.autoSwitch ? 'checked' : ''} onchange="toggleAutoSwitch('\${worker.name}', this.checked)">
-                                        <span class="toggle-slider"></span>
-                                    </label>
+                                <div class="detail-section">
+                                    <h4>System</h4>
+                                    <div class="detail-item">
+                                        <span>Version</span>
+                                        <span>v\${worker.version}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span>Health</span>
+                                        <span>\${worker.health.status}</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <span>Processed</span>
+                                        <span>\${worker.processed}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="detail-section">
-                                <h4>System</h4>
-                                <div class="detail-item">
-                                    <span>Node Version</span>
-                                    <span>v20.10.0</span>
+                            <div class="recent-logs">
+                                <h4>Recent Logs</h4>
+                                <div class="log-entry">
+                                    <span class="log-time">10:45:22</span>
+                                    <span class="log-msg">Job #4922 completed successfully</span>
                                 </div>
-                                <div class="detail-item">
-                                    <span>PID</span>
-                                    <span>12345</span>
+                                <div class="log-entry error">
+                                    <span class="log-time">10:44:15</span>
+                                    <span class="log-msg">Connection timeout while fetching storage</span>
                                 </div>
-                                <div class="detail-item">
-                                    <span>Uptime</span>
-                                    <span>3d 2h 15m</span>
+                                <div class="log-entry">
+                                    <span class="log-time">10:42:01</span>
+                                    <span class="log-msg">Processing job #4921</span>
                                 </div>
                             </div>
                         </div>
-                        <div class="recent-logs">
-                            <h4>Recent Logs</h4>
-                            <div class="log-entry">
-                                <span class="log-time">10:45:22</span>
-                                <span class="log-msg">Job #4922 completed successfully</span>
-                            </div>
-                            <div class="log-entry error">
-                                <span class="log-time">10:44:15</span>
-                                <span class="log-msg">Connection timeout while fetching storage</span>
-                            </div>
-                            <div class="log-entry">
-                                <span class="log-time">10:42:01</span>
-                                <span class="log-msg">Processing job #4921</span>
-                            </div>
-                        </div>
+                        <pre class="details-view details-view-json" data-view="json">Loading details...</pre>
+                        <pre class="details-view details-view-markdown" data-view="markdown">Loading details...</pre>
                     </div>
                 </td>
 `;
 
-const getRenderingScripts = (): string => `
-        /**
-         * Creates the main worker row HTML
-         */
+const getDetailRenderingScripts = (): string => `
+        function bindDetailTabs(detailRow) {
+            const tabs = detailRow.querySelectorAll('.details-tab');
+            tabs.forEach((tab) => {
+                tab.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const view = tab.getAttribute('data-view');
+                    if (view) {
+                        setActiveDetailView(detailRow, view);
+                    }
+                });
+            });
+        }
+
+        function setActiveDetailView(detailRow, view) {
+            detailRow.querySelectorAll('.details-view').forEach((panel) => {
+                panel.classList.toggle('active', panel.getAttribute('data-view') === view);
+            });
+            detailRow.querySelectorAll('.details-tab').forEach((tab) => {
+                tab.classList.toggle('active', tab.getAttribute('data-view') === view);
+            });
+        }
+
+        function formatDetailsMarkdown(details) {
+            if (!details) return 'No details available.';
+            const sections = [];
+            if (details.configuration) {
+                sections.push('## Configuration');
+                Object.entries(details.configuration).forEach(([key, value]) => {
+                    sections.push('- ' + key + ': ' + String(value));
+                });
+            }
+            if (details.health) {
+                sections.push('\n## Health');
+                sections.push('- status: ' + String(details.health.status));
+            }
+            if (details.metrics) {
+                sections.push('\n## Metrics');
+                Object.entries(details.metrics).forEach(([key, value]) => {
+                    sections.push('- ' + key + ': ' + String(value));
+                });
+            }
+            return sections.join('\n');
+        }
+
+        function updateDetailViews(detailRow, details) {
+            const jsonPanel = detailRow.querySelector('.details-view-json');
+            const markdownPanel = detailRow.querySelector('.details-view-markdown');
+            if (jsonPanel) {
+                jsonPanel.textContent = JSON.stringify(details, null, 2);
+            }
+            if (markdownPanel) {
+                markdownPanel.textContent = formatDetailsMarkdown(details);
+            }
+        }
+
+        async function ensureWorkerDetails(workerName, detailRow) {
+            if (!workerName || !detailRow) return;
+            if (!detailsCache.has(workerName)) {
+                try {
+                    const response = await fetch(API_BASE + '/api/workers/' + workerName + '/details');
+                    if (!response.ok) {
+                        console.error('Failed to load worker details:', response.statusText);
+                        return;
+                    }
+                    const data = await response.json();
+                    if (detailsCache.size >= MAX_CACHE_SIZE) {
+                        const firstKey = detailsCache.keys().next().value;
+                        detailsCache.delete(firstKey);
+                    }
+                    detailsCache.set(workerName, data);
+                } catch (err) {
+                    console.error('Failed to load worker details:', err);
+                }
+            }
+
+            const cached = detailsCache.get(workerName);
+            const detailsData = cached?.details ?? cached;
+            updateDetailViews(detailRow, detailsData);
+        }
+`;
+
+const getSummaryRenderingScripts = (): string => `
+        function updateQueueSummary(queueData) {
+            if (!queueData) return;
+            const driverEl = document.getElementById('queue-driver');
+            const totalEl = document.getElementById('queue-total');
+            const jobsEl = document.getElementById('queue-jobs');
+            const processingEl = document.getElementById('queue-processing');
+            const failedEl = document.getElementById('queue-failed');
+
+            if (driverEl) driverEl.textContent = queueData.driver || '-';
+            if (totalEl) totalEl.textContent = String(queueData.totalQueues ?? 0);
+            if (jobsEl) jobsEl.textContent = String(queueData.totalJobs ?? 0);
+            if (processingEl) processingEl.textContent = String(queueData.processingJobs ?? 0);
+            if (failedEl) failedEl.textContent = String(queueData.failedJobs ?? 0);
+        }
+
+        function updateDriverFilter(drivers) {
+            const select = document.getElementById('driver-filter');
+            if (!select || !Array.isArray(drivers)) return;
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">All Drivers</option>';
+            drivers.forEach((driver) => {
+                const option = document.createElement('option');
+                option.value = driver;
+                option.textContent = driver.charAt(0).toUpperCase() + driver.slice(1);
+                select.appendChild(option);
+            });
+            if (drivers.includes(currentValue)) {
+                select.value = currentValue;
+            }
+        }
+
+        function updateDriversList(drivers) {
+            const list = document.getElementById('drivers-list');
+            if (!list) return;
+            list.innerHTML = '';
+            if (!Array.isArray(drivers) || drivers.length === 0) {
+                return;
+            }
+            drivers.forEach((driver) => {
+                const chip = document.createElement('span');
+                chip.className = 'driver-chip';
+                chip.textContent = driver;
+                list.appendChild(chip);
+            });
+        }
+
+        function syncBulkAutoSwitchState(workers) {
+            if (!Array.isArray(workers)) return;
+            lastWorkers = workers;
+            const enabledCount = workers.filter((worker) => worker.autoSwitch).length;
+            if (enabledCount === workers.length && workers.length > 0) {
+                bulkAutoSwitchEnabled = true;
+                updateBulkAutoSwitchButton('Auto Switch: On');
+            } else if (enabledCount === 0) {
+                bulkAutoSwitchEnabled = false;
+                updateBulkAutoSwitchButton('Auto Switch: Off');
+            } else {
+                updateBulkAutoSwitchButton('Auto Switch: Mixed');
+            }
+        }
+`;
+
+const getTableRenderingScripts = (): string => `
         function createWorkerRow(worker) {
-            const rowId = \`worker-\${worker.name.replace(/[^a-z0-9]/gi, '-')}\`;
             const detailsId = \`details-\${worker.name.replace(/[^a-z0-9]/gi, '-')}\`;
 
             const row = document.createElement('tr');
@@ -413,53 +607,75 @@ const getRenderingScripts = (): string => `
             return { row, detailsId };
         }
 
-        /**
-         * Creates the detail row HTML for a worker
-         */
         function createDetailRow(worker, detailsId) {
             const detailRow = document.createElement('tr');
             detailRow.className = 'expandable-row';
             detailRow.id = detailsId;
+            detailRow.setAttribute('data-worker-name', worker.name);
             detailRow.innerHTML = \`${getDetailRowTemplate()}\`;
+            bindDetailTabs(detailRow);
             return detailRow;
         }
 
-        /**
-         * Renders the workers table with the provided data
-         */
         function renderWorkers(data) {
             const tbody = document.getElementById('workers-tbody');
             if (!tbody) return;
 
-            // Capture currently expanded rows
             const expandedWorkers = new Set(
-                Array.from(tbody.querySelectorAll('.expanded-row.open'))
+                Array.from(tbody.querySelectorAll('.expandable-row.open'))
                      .map(row => row.getAttribute('id')?.replace('details-', ''))
                      .filter(Boolean)
             );
 
-            // Clear existing rows
             tbody.innerHTML = '';
 
-            // Process each worker
+            if (!data.workers || data.workers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">No workers found</td></tr>';
+                updateQueueSummary(data.queueData);
+                updateDriverFilter(data.drivers);
+                updateDriversList(data.drivers);
+                syncBulkAutoSwitchState([]);
+                updatePagination(data.pagination);
+                return;
+            }
+
             data.workers.forEach(worker => {
                 const { row, detailsId } = createWorkerRow(worker);
                 const detailRow = createDetailRow(worker, detailsId);
 
-                // Add to DOM
+                const normalizedName = worker.name.replace(/[^a-z0-9]/gi, '-');
+                if (expandedWorkers.has(normalizedName)) {
+                    detailRow.classList.add('open');
+                    ensureWorkerDetails(worker.name, detailRow);
+                }
+
                 tbody.appendChild(row);
                 tbody.appendChild(detailRow);
             });
 
+            updateQueueSummary(data.queueData);
+            updateDriverFilter(data.drivers);
+            updateDriversList(data.drivers);
+            syncBulkAutoSwitchState(data.workers);
             updatePagination(data.pagination);
         }
 
         function toggleDetails(rowId) {
             const row = document.getElementById(rowId);
             if (row) {
-                row.classList.toggle('open');
+                const isOpen = row.classList.toggle('open');
+                if (isOpen) {
+                    const workerName = row.getAttribute('data-worker-name') || rowId.replace('details-', '');
+                    ensureWorkerDetails(workerName, row);
+                }
             }
         }
+`;
+
+const getRenderingScripts = (): string => `
+        ${getDetailRenderingScripts()}
+        ${getSummaryRenderingScripts()}
+        ${getTableRenderingScripts()}
 `;
 
 const getPaginationScripts = (): string => `
@@ -509,6 +725,13 @@ const getPaginationScripts = (): string => `
 `;
 
 const getWorkerActionScripts = (): string => `
+        ${getWorkerLifecycleScripts()}
+        ${getWorkerAutoSwitchScripts()}
+        ${getWorkerBulkScripts()}
+        ${getWorkerModalScripts()}
+`;
+
+const getWorkerLifecycleScripts = (): string => `
         // Worker actions
         async function startWorker(name) {
             try {
@@ -550,7 +773,9 @@ const getWorkerActionScripts = (): string => `
                 alert('Failed to delete worker: ' + err.message);
             }
         }
+`;
 
+const getWorkerAutoSwitchScripts = (): string => `
         async function toggleAutoSwitch(name, enabled) {
             try {
                 await fetch(\`\${API_BASE}/api/workers/\${name}/auto-switch\`, {
@@ -562,7 +787,43 @@ const getWorkerActionScripts = (): string => `
                 console.error('Failed to toggle auto-switch:', err);
             }
         }
+`;
 
+const getWorkerBulkScripts = (): string => `
+        function updateBulkAutoSwitchButton(label) {
+            const buttonLabel = document.getElementById('bulk-auto-switch-label');
+            if (buttonLabel) {
+                buttonLabel.textContent = label;
+            }
+        }
+
+        async function toggleBulkAutoSwitch() {
+            if (!Array.isArray(lastWorkers) || lastWorkers.length === 0) return;
+            const nextEnabled = !bulkAutoSwitchEnabled;
+            bulkAutoSwitchEnabled = nextEnabled;
+            localStorage.setItem(BULK_AUTO_SWITCH_KEY, nextEnabled.toString());
+            updateBulkAutoSwitchButton(nextEnabled ? 'Auto Switch: On' : 'Auto Switch: Off');
+
+            try {
+                const CHUNK_SIZE = 10;
+                const workersToUpdate = lastWorkers.map(w => w.name);
+
+                for (let i = 0; i < workersToUpdate.length; i += CHUNK_SIZE) {
+                    const chunk = workersToUpdate.slice(i, i + CHUNK_SIZE);
+                    await fetch(API_BASE + '/api/workers/auto-switch/bulk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ workers: chunk, enabled: nextEnabled })
+                    });
+                }
+                fetchData();
+            } catch (err) {
+                console.error('Failed to toggle bulk auto-switch:', err);
+            }
+        }
+`;
+
+const getWorkerModalScripts = (): string => `
         function showAddWorkerModal() {
             // TODO: Implement add worker modal
             alert('Add Worker functionality coming soon!');
@@ -635,6 +896,15 @@ const getEventListenersScripts = (options: WorkersDashboardUiOptions): string =>
             const storedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);
             setAutoRefresh(storedAutoRefresh === 'true' || ${options.autoRefresh});
 
+            const storedBulkAutoSwitch = localStorage.getItem(BULK_AUTO_SWITCH_KEY);
+            if (storedBulkAutoSwitch === 'true') {
+                bulkAutoSwitchEnabled = true;
+                updateBulkAutoSwitchButton('Auto Switch: On');
+            } else if (storedBulkAutoSwitch === 'false') {
+                bulkAutoSwitchEnabled = false;
+                updateBulkAutoSwitchButton('Auto Switch: Off');
+            }
+
             // Load initial data
             fetchData();
         });
@@ -648,6 +918,7 @@ const getDashboardScripts = (options: WorkersDashboardUiOptions): string => `
         const THEME_KEY = 'zintrust-workers-dashboard-theme';
         const AUTO_REFRESH_KEY = 'zintrust-workers-dashboard-auto-refresh';
         const PAGE_SIZE_KEY = 'zintrust-workers-dashboard-page-size';
+        const BULK_AUTO_SWITCH_KEY = 'zintrust-workers-dashboard-bulk-auto-switch';
 
         let currentPage = 1;
         let totalPages = 1;
@@ -655,6 +926,10 @@ const getDashboardScripts = (options: WorkersDashboardUiOptions): string => `
         let autoRefreshEnabled = ${options.autoRefresh};
         let refreshTimer = null;
         let currentTheme = null;
+        let bulkAutoSwitchEnabled = false;
+        let lastWorkers = [];
+        const detailsCache = new Map();
+        const MAX_CACHE_SIZE = 50;
 
         ${getThemeManagementScripts()}
         ${getDataFetchingScripts(options)}

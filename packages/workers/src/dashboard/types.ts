@@ -1,6 +1,6 @@
 // Worker Configuration Types
 export interface WorkerConfiguration {
-  [key: string]: string | number | boolean | null | undefined;
+  [key: string]: string | number | boolean | null | undefined | object;
 }
 
 export type WorkerDriver = 'db' | 'redis' | 'memory';

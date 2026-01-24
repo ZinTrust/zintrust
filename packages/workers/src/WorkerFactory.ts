@@ -1889,21 +1889,25 @@ export const WorkerFactory = Object.freeze({
   /**
    * List all persisted workers
    */
-  async listPersisted(persistenceOverride?: WorkerPersistenceConfig): Promise<string[]> {
-    const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
+  async listPersisted(
+    persistenceOverride?: WorkerPersistenceConfig,
+    options?: { offset?: number; limit?: number; search?: string }
+  ): Promise<string[]> {
+    const records = await WorkerFactory.listPersistedRecords(persistenceOverride, options);
     return records.map((record) => record.name);
   },
 
   async listPersistedRecords(
-    persistenceOverride?: WorkerPersistenceConfig
+    persistenceOverride?: WorkerPersistenceConfig,
+    options?: { offset?: number; limit?: number; search?: string }
   ): Promise<WorkerRecord[]> {
     if (!persistenceOverride) {
       await ensureWorkerStoreConfigured();
-      return workerStore.list();
+      return workerStore.list(options);
     }
 
     const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-    return store.list();
+    return store.list(options);
   },
 
   /**

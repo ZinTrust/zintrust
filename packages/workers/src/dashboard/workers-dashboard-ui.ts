@@ -297,6 +297,60 @@ const getFilterStyles = (): string => `
 }
 `;
 
+const getSummaryStyles = (): string => `
+/* Summary Bar */
+.summary-bar {
+  margin: 16px 0 0;
+  padding: 16px 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.summary-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.summary-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.drivers-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.driver-chip {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+`;
+
 const getTableStyles = (): string => `
 /* Table Container */
 .table-container {
@@ -426,6 +480,7 @@ const getStatusBadgeStyles = (): string => `
 .health-healthy { background: var(--success); }
 .health-unhealthy { background: var(--danger); }
 .health-degraded { background: var(--warning); }
+.health-warning { background: var(--warning); }
 .health-unknown { background: var(--muted); }
 
 /* Driver & Version */
@@ -669,6 +724,50 @@ const getExpandedRowStyles = (): string => `
 }
 
 ${getRecentLogsStyles()}
+${getDetailViewStyles()}
+`;
+
+const getDetailViewStyles = (): string => `
+/* Detail Tabs */
+.details-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 24px 0 12px;
+}
+
+.details-tab {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.details-tab.active {
+  color: var(--text);
+  border-color: var(--primary);
+  background: rgba(14, 165, 233, 0.15);
+}
+
+.details-view {
+  display: none;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 12px;
+  color: var(--text);
+  font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.details-view.active {
+  display: block;
+}
 `;
 
 const getLogoAndIconStyles = (): string => `
@@ -1028,6 +1127,7 @@ const getWorkersDashboardStyles = (): string =>
     getHeaderStyles(),
     getButtonsAndInputsStyles(),
     getFilterStyles(),
+    getSummaryStyles(),
     getTableStyles(),
     getStatusBadgeStyles(),
     getPerformanceAndActionStyles(),

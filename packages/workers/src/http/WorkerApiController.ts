@@ -67,34 +67,47 @@ const getEnumParam = <T extends string>(
 };
 
 /**
+ * Helper to safely get optional enum value
+ */
+const getOptionalEnumParam = <T extends string>(
+  query: Record<string, string | string[]>,
+  key: string,
+  validValues: readonly T[]
+): T | undefined => {
+  const value = getQueryParam(query, key, '').trim();
+  if (!value) return undefined;
+  return validValues.includes(value as T) ? (value as T) : undefined;
+};
+
+/**
  * GET /api/workers - List workers with pagination, filtering, and sorting
  */
 export const listWorkers = async (req: IRequest, res: IResponse): Promise<void> => {
   try {
     const query = req.getQuery() as Record<string, string | string[]>;
+    const sortByRaw = getQueryParam(query, 'sortBy', getQueryParam(query, 'sort', 'name'));
 
     const queryParams: GetWorkersQuery = {
       page: getNumberParam(query, 'page', 1),
       limit: getNumberParam(query, 'limit', 100),
       sortBy: getEnumParam<WorkerSortBy>(
-        query,
+        { ...query, sortBy: sortByRaw },
         'sortBy',
         ['name', 'status', 'driver', 'health', 'version', 'processed'] as const,
         'name'
       ),
       sortOrder: getEnumParam<WorkerSortOrder>(query, 'sortOrder', ['asc', 'desc'] as const, 'asc'),
-      status: getEnumParam<WorkerStatus>(
-        query,
-        'status',
-        ['running', 'stopped', 'error', 'paused'] as const,
-        'stopped'
-      ),
-      driver: getEnumParam<WorkerDriver>(
-        query,
-        'driver',
-        ['db', 'redis', 'memory'] as const,
-        'memory'
-      ),
+      status: getOptionalEnumParam<WorkerStatus>(query, 'status', [
+        'running',
+        'stopped',
+        'error',
+        'paused',
+      ] as const),
+      driver: getOptionalEnumParam<WorkerDriver>(query, 'driver', [
+        'db',
+        'redis',
+        'memory',
+      ] as const),
       search: getQueryParam(query, 'search'),
       includeDetails: getBooleanParam(query, 'includeDetails', false),
     };

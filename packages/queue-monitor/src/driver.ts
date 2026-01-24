@@ -1,4 +1,4 @@
-import { getBullMQSafeQueueName } from '@zintrust/core';
+import { ErrorFactory, getBullMQSafeQueueName } from '@zintrust/core';
 import { Queue, type Job, type JobsOptions } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 
@@ -73,7 +73,10 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
       queues.set(name, queue);
     }
     const queue = queues.get(name);
-    return queue!;
+    if (!queue) {
+      throw ErrorFactory.createTryCatchError(`Queue initialization failed for ${name}`);
+    }
+    return queue;
   };
 
   const enqueue = async <T>(name: string, payload: T, options?: JobsOptions): Promise<string> => {
@@ -83,8 +86,10 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
       removeOnFail: false,
       ...options,
     });
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    return job.id!;
+    if (job.id === undefined || job.id === null) {
+      throw ErrorFactory.createTryCatchError(`Queue job id missing for ${name}`);
+    }
+    return String(job.id);
   };
 
   const getJob = async (queueName: string, jobId: string): Promise<Job | undefined> => {
