@@ -1,3 +1,4 @@
+export { BullMQRedisQueue } from './BullMQRedisQueue';
 export {
   createRedisPublishClient,
   RedisPublishClient,

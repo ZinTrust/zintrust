@@ -479,7 +479,7 @@ export const Database = Object.freeze({
 const databaseInstances: Map<string, IDatabase> = new Map();
 
 export const useEnsureDbConnected = async (
-  config = undefined,
+  config: DatabaseConfig | undefined = undefined,
   connectionName = 'default'
 ): Promise<ReturnType<typeof useDatabase>> => {
   const db = useDatabase(config, connectionName);

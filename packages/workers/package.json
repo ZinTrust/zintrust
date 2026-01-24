@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "bullmq": "^5.66.5",
+    "@zintrust/queue-redis": "file:../queue-redis",
     "hot-shots": "^10.2.1",
     "ioredis": "^5.9.2",
     "ml.js": "^0.0.1",

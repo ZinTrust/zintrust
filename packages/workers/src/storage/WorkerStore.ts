@@ -56,9 +56,9 @@ const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
   created_at: record.createdAt,
   updated_at: record.updatedAt,
-  last_health_check: record.lastHealthCheck,
-  last_error: record.lastError,
-  connection_state: record.connectionState,
+  last_health_check: record.lastHealthCheck ?? null,
+  last_error: record.lastError ?? null,
+  connection_state: record.connectionState ?? null,
 });
 
 const getHealthCheck = (row: Record<string, unknown>): Date | undefined => {

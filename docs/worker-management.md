@@ -552,6 +552,18 @@ Costs (24h):
   Total:     $13.34
 ```
 
+### queue:prune
+
+Prune failed job records from the database. This is essential for maintaining database performance when using DB persistence or failed job logging.
+
+```bash
+# Prune jobs older than 7 days (default)
+zin queue prune
+
+# Prune jobs older than 24 hours
+zin queue prune --hours 24
+```
+
 ### resource:monitor (rm)
 
 Control resource monitoring to start or stop CPU/memory snapshots:

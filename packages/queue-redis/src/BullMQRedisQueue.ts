@@ -1,13 +1,15 @@
 import type { QueueMessage } from '@zintrust/core';
 import {
   createBaseDrivers,
+  createRedisConnection,
   Env,
   ErrorFactory,
   generateUuid,
   getBullMQSafeQueueName,
   Logger,
 } from '@zintrust/core';
-import { Queue, type JobsOptions } from 'bullmq';
+import { Queue, type JobsOptions, type QueueOptions } from 'bullmq';
+import type { Redis as IoRedis } from 'ioredis';
 
 interface IQueueDriver {
   enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
@@ -17,32 +19,75 @@ interface IQueueDriver {
   drain(queue: string): Promise<void>;
 }
 
+interface IBullMQRedisQueue extends IQueueDriver {
+  getQueue(queueName: string): Queue;
+  shutdown(): Promise<void>;
+  closeQueue(queueName: string): Promise<void>;
+  getQueueNames(): string[];
+}
+
 /**
  * BullMQ Redis Queue Driver
  *
  * Implements the same interface as the basic Redis driver but uses BullMQ internally.
  * This provides enterprise features while maintaining full API compatibility.
  */
-export const BullMQRedisQueue = ((): IQueueDriver => {
+export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const queues = new Map<string, Queue>();
+  let sharedConnection: IoRedis | null = null;
 
-  const getRedisConfig = (): { host: string; port: number; password?: string; db: number } => {
+  const getSharedConnection = (): IoRedis => {
+    if (sharedConnection) return sharedConnection;
+
     const redisConfig = createBaseDrivers().redis;
-    return {
+    sharedConnection = createRedisConnection({
       host: redisConfig.host,
       port: redisConfig.port,
       password: redisConfig.password,
       db: redisConfig.database,
-    };
+    });
+    return sharedConnection; // sharedConnection is IoRedis (compatible with BullMQ)
+  };
+
+  const shutdown = async (): Promise<void> => {
+    Logger.info('BullMQRedisQueue shutting down...');
+
+    // Close all queues in parallel
+    const closePromises = Array.from(queues.entries()).map(async ([name, queue]) => {
+      try {
+        await queue.close();
+        Logger.debug(`Closed queue "${name}"`);
+      } catch (err) {
+        Logger.error(`Failed to close queue "${name}"`, err);
+      }
+    });
+
+    await Promise.allSettled(closePromises);
+    queues.clear();
+
+    // Close shared connection
+    if (sharedConnection) {
+      try {
+        await sharedConnection.quit();
+        sharedConnection = null;
+        Logger.info('Closed shared Redis connection');
+      } catch (err) {
+        Logger.error('Failed to close shared Redis connection', err);
+      }
+    }
   };
 
   const getQueue = (queueName: string): Queue => {
+    // Check if queue exists in cache
     if (queues.has(queueName)) {
       const existingQueue = queues.get(queueName);
-      if (existingQueue) return existingQueue;
+      // LRU Mechanic: Promote to newest by deleting and re-inserting
+      queues.delete(queueName);
+      if (existingQueue) {
+        queues.set(queueName, existingQueue);
+        return existingQueue;
+      }
     }
-
-    const config = getRedisConfig();
 
     // Memory Leak Protection: Limit cached queues
     if (queues.size >= 50) {
@@ -58,6 +103,8 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
       }
     }
 
+    const connection = getSharedConnection();
+
     // Customizable BullMQ settings from environment
     const removeOnComplete = Env.getInt('BULLMQ_REMOVE_ON_COMPLETE', 100);
     const removeOnFail = Env.getInt('BULLMQ_REMOVE_ON_FAIL', 50);
@@ -65,9 +112,10 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
     const backoffDelay = Env.getInt('BULLMQ_BACKOFF_DELAY', 2000);
     const backoffType = Env.get('BULLMQ_BACKOFF_TYPE', 'exponential');
     const prefix = getBullMQSafeQueueName();
+
     const queue = new Queue(queueName, {
-      connection: config,
-      prefix: prefix,
+      connection: connection as QueueOptions['connection'],
+      prefix,
       defaultJobOptions: {
         removeOnComplete,
         removeOnFail,
@@ -83,7 +131,25 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
     return queue;
   };
 
+  const closeQueue = async (queueName: string): Promise<void> => {
+    const queue = queues.get(queueName);
+    if (queue) {
+      await queue.close();
+      queues.delete(queueName);
+      Logger.debug(`BullMQ: Closed queue "${queueName}"`);
+    }
+  };
+
+  const getQueueNames = (): string[] => {
+    return Array.from(queues.keys());
+  };
+
   return {
+    getQueue,
+    shutdown,
+    closeQueue,
+    getQueueNames,
+
     async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
       try {
         const q = getQueue(queue);
@@ -157,7 +223,7 @@ export const BullMQRedisQueue = ((): IQueueDriver => {
         const q = getQueue(queue);
         const counts = await q.getJobCounts();
 
-        return counts.waiting || 0;
+        return counts['waiting'] || 0;
       } catch (error) {
         Logger.error('BullMQ: Failed to get queue length', error as Error);
         throw ErrorFactory.createTryCatchError(

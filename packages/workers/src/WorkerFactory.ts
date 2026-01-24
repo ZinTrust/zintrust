@@ -1016,17 +1016,34 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
   return next;
 };
 
-const resolveWorkerStoreForPersistence = async (
-  persistence: WorkerPersistenceConfig
-): Promise<WorkerStore> => {
-  let next: WorkerStore;
+// Store instance cache to reuse connections
+const storeInstanceCache = new Map<string, WorkerStore>();
 
+/**
+ * Generate cache key for persistence configuration
+ */
+const generateCacheKey = (persistence: WorkerPersistenceConfig): string => {
+  return JSON.stringify({
+    driver: persistence.driver,
+    redis: 'redis' in persistence ? persistence.redis : undefined,
+    keyPrefix: 'keyPrefix' in persistence ? persistence.keyPrefix : undefined,
+    connection: 'connection' in persistence ? persistence.connection : undefined,
+    table: 'table' in persistence ? persistence.table : undefined,
+  });
+};
+
+/**
+ * Create new store instance based on persistence configuration
+ */
+const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<WorkerStore> => {
   if (persistence.driver === 'memory') {
     if (workerStoreConfigured && workerStoreConfig?.driver === 'memory') {
       return workerStore;
     }
-    next = InMemoryWorkerStore.create();
-  } else if (persistence.driver === 'redis') {
+    return InMemoryWorkerStore.create();
+  }
+
+  if (persistence.driver === 'redis') {
     const redisConfig = resolveRedisConfigWithFallback(
       persistence.redis ?? { env: true },
       undefined,
@@ -1034,19 +1051,38 @@ const resolveWorkerStoreForPersistence = async (
       'persistence.redis'
     );
     const client = createRedisConnection(redisConfig);
-    next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
-  } else {
-    const explicitConnection =
-      typeof persistence.client === 'string' ? persistence.client : persistence.connection;
-    const client =
-      typeof persistence.client === 'string'
-        ? await resolveDbClientFromEnv(explicitConnection)
-        : (persistence.client ?? (await resolveDbClientFromEnv(explicitConnection)));
-    next = DbWorkerStore.create(client, persistence.table);
+    return RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
   }
 
-  await next.init();
-  return next;
+  // Database driver
+  const explicitConnection =
+    typeof persistence.client === 'string' ? persistence.client : persistence.connection;
+  const client =
+    typeof persistence.client === 'string'
+      ? await resolveDbClientFromEnv(explicitConnection)
+      : (persistence.client ?? (await resolveDbClientFromEnv(explicitConnection)));
+  return DbWorkerStore.create(client, persistence.table);
+};
+
+const resolveWorkerStoreForPersistence = async (
+  persistence: WorkerPersistenceConfig
+): Promise<WorkerStore> => {
+  const cacheKey = generateCacheKey(persistence);
+
+  // Return cached instance if available
+  const cached = storeInstanceCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Create new store instance
+  const store = await createWorkerStore(persistence);
+  await store.init();
+
+  // Cache the store instance for reuse
+  storeInstanceCache.set(cacheKey, store);
+
+  return store;
 };
 
 const getPersistedRecord = async (
@@ -1078,6 +1114,9 @@ const configureWorkerStore = async (config: WorkerFactoryConfig): Promise<void> 
   const nextSignature = describePersistence(persistence);
 
   if (currentSignature === nextSignature) return;
+
+  // Clear cached store instances when configuration changes
+  storeInstanceCache.clear();
 
   Logger.warn('Worker persistence configuration changed; reinitializing store.', {
     previous: currentSignature,

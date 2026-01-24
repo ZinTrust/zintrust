@@ -187,6 +187,12 @@ async function applyOneMigration(params: {
       });
     });
   } catch (error) {
+    await MigrationStore.markStatus(db, {
+      name: migration.name,
+      scope,
+      service,
+      status: 'failed',
+    });
     Logger.error('Migration failed', { migration: migration.name, error });
     throw error;
   }

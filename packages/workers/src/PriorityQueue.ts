@@ -4,8 +4,9 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, getBullMQSafeQueueName, Logger, type RedisConfig } from '@zintrust/core';
-import { Queue, type QueueOptions } from 'bullmq';
+import { ErrorFactory, Logger, type RedisConfig } from '@zintrust/core';
+import { BullMQRedisQueue } from '@zintrust/queue-redis';
+import type { Queue } from 'bullmq';
 
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low';
 
@@ -53,56 +54,11 @@ const PRIORITY_VALUES: Record<PriorityLevel, number> = {
   low: 0,
 };
 
-// Internal state
-let redisConfig: RedisConfig | null = null;
-const queues = new Map<string, Queue>();
-
 /**
- * Helper: Get or create queue
+ * Helper: Get or create queue via shared driver
  */
 const getQueue = (queueName: string): Queue => {
-  if (!redisConfig) {
-    throw ErrorFactory.createConfigError('PriorityQueue not initialized. Call initialize() first.');
-  }
-
-  let queue = queues.get(queueName);
-
-  if (!queue) {
-    const connection: QueueOptions['connection'] = {
-      host: redisConfig.host,
-      port: redisConfig.port,
-      password: redisConfig.password,
-      db: redisConfig.db,
-      maxRetriesPerRequest: null,
-    };
-
-    const queueOptions: QueueOptions = {
-      connection,
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
-        removeOnComplete: {
-          count: 1000, // Keep last 1000 completed jobs
-          age: 24 * 60 * 60, // 1 day
-        },
-        removeOnFail: {
-          count: 5000, // Keep last 5000 failed jobs for debugging
-          age: 7 * 24 * 60 * 60, // 7 days
-        },
-      },
-    };
-
-    const prefix = getBullMQSafeQueueName();
-    queue = new Queue(queueName, { prefix, ...queueOptions });
-    queues.set(queueName, queue);
-
-    Logger.info(`Created priority queue "${queueName}"`);
-  }
-
-  return queue;
+  return BullMQRedisQueue.getQueue(queueName);
 };
 
 /**
@@ -172,14 +128,8 @@ export const PriorityQueue = Object.freeze({
   /**
    * Initialize with Redis configuration
    */
-  initialize(config: RedisConfig): void {
-    if (redisConfig) {
-      Logger.warn('PriorityQueue already initialized');
-      return;
-    }
-
-    redisConfig = config;
-    Logger.info('PriorityQueue initialized');
+  initialize(_config: RedisConfig): void {
+    Logger.debug('PriorityQueue.initialize() called - auto-initialized via BullMQRedisQueue');
   },
 
   /**
@@ -319,7 +269,7 @@ export const PriorityQueue = Object.freeze({
    * Get all queue names
    */
   getQueueNames(): string[] {
-    return Array.from(queues.keys());
+    return BullMQRedisQueue.getQueueNames();
   },
 
   /**
@@ -354,7 +304,7 @@ export const PriorityQueue = Object.freeze({
   async obliterate(queueName: string, force = false): Promise<void> {
     const queue = getQueue(queueName);
     await queue.obliterate({ force });
-    queues.delete(queueName);
+    await BullMQRedisQueue.closeQueue(queueName);
 
     Logger.warn(`Obliterated queue "${queueName}"`);
   },
@@ -384,35 +334,16 @@ export const PriorityQueue = Object.freeze({
    * Close a queue
    */
   async closeQueue(queueName: string): Promise<void> {
-    const queue = queues.get(queueName);
-
-    if (queue) {
-      await queue.close();
-      queues.delete(queueName);
-      Logger.info(`Closed queue "${queueName}"`);
-    }
+    await BullMQRedisQueue.closeQueue(queueName);
+    Logger.info(`Closed queue "${queueName}"`);
   },
 
   /**
    * Shutdown and close all queues
    */
   async shutdown(): Promise<void> {
-    Logger.info('PriorityQueue shutting down...');
-
-    const closePromises = Array.from(queues.entries()).map(async ([name, queue]) => {
-      try {
-        await queue.close();
-        Logger.debug(`Closed queue "${name}"`);
-      } catch (error) {
-        Logger.error(`Failed to close queue "${name}"`, error);
-      }
-    });
-
-    await Promise.all(closePromises);
-
-    queues.clear();
-    redisConfig = null;
-
+    Logger.info('PriorityQueue shutting down via BullMQRedisQueue...');
+    await BullMQRedisQueue.shutdown();
     Logger.info('PriorityQueue shutdown complete');
   },
 });
