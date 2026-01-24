@@ -1,8 +1,8 @@
 export { BullMQRedisQueue } from './BullMQRedisQueue';
 export {
   createRedisPublishClient,
-  RedisPublishClient,
   resetPublishClient,
+  type RedisPublishClient,
 } from './RedisPublishClient';
 export { RedisQueue } from './RedisQueue';
 
