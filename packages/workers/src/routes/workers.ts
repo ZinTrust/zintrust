@@ -1,10 +1,43 @@
 /**
  * Worker Management Routes
- * HTTP API for managing workers with all enterprise features
+ * HTTP API for managing workers with dashboard functionality
  */
 
-import { Logger, Router, type IRouter } from '@zintrust/core';
+import type { IRequest, IResponse, IRouter } from '@zintrust/core';
+import { Logger, Router } from '@zintrust/core';
+import {
+  createWorkersDashboard,
+  type GetWorkersQuery,
+  type WorkersDashboardUiOptions,
+} from '../dashboard';
+import type { WorkerDriver, WorkerSortBy, WorkerSortOrder, WorkerStatus } from '../dashboard/types';
+import {
+  getWorkerDetails,
+  getWorkers,
+  restartWorker,
+  startWorker,
+  stopWorker,
+  toggleAutoSwitch,
+} from '../dashboard/workers-api';
 import { WorkerController } from '../http/WorkerController';
+
+type WorkerUiOptions = WorkersDashboardUiOptions;
+type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
+
+const registerWorkerUiPage = (
+  router: IRouter,
+  options?: WorkerUiOptions,
+  routeOptions?: RouteOptions
+): void => {
+  const handler = (_req: unknown, res: { html: (value: string) => void }): void => {
+    const dashboard = createWorkersDashboard(options);
+    res.html(dashboard.html);
+  };
+
+  Router.get(router, `${options?.basePath || ''}/workers`, handler, routeOptions);
+  Router.get(router, '/workers', handler, routeOptions);
+  Router.get(router, '/workers/', handler, routeOptions);
+};
 
 const controller = WorkerController.create();
 
@@ -41,149 +74,304 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
     Router.post(r, '/:name/versions', controller.registerVersion);
     Router.get(r, '/:name/versions', controller.listVersions);
     Router.get(r, '/:name/versions/:version', controller.getVersion);
-    Router.post(r, '/:name/versions/:version/deprecate', controller.deprecateVersion);
-    Router.post(r, '/:name/versions/:version/activate', controller.activateVersion);
-    Router.post(r, '/:name/versions/:version/deactivate', controller.deactivateVersion);
-    Router.post(r, '/:name/versions/compatibility', controller.checkCompatibility);
 
-    // Canary deployments
-    Router.post(r, '/:name/canary/start', controller.startCanary);
-    Router.post(r, '/:name/canary/pause', controller.pauseCanary);
-    Router.post(r, '/:name/canary/resume', controller.resumeCanary);
-    Router.post(r, '/:name/canary/rollback', controller.rollbackCanary);
-    Router.get(r, '/:name/canary/status', controller.canaryStatus);
-    Router.get(r, '/:name/canary/history', controller.canaryHistory);
-
-    // Circuit breaker
-    Router.get(r, '/:name/circuit-breaker', controller.circuitBreakerState);
-    Router.post(r, '/:name/circuit-breaker/reset', controller.resetCircuitBreaker);
-    Router.post(r, '/:name/circuit-breaker/force-open', controller.forceOpenCircuit);
-    Router.get(r, '/:name/circuit-breaker/events', controller.circuitBreakerEvents);
-
-    // Dead letter queue
-    Router.get(r, '/:name/dead-letter-queue', controller.listFailedJobs);
-    Router.get(r, '/:name/dead-letter-queue/:jobId', controller.getFailedJob);
-    Router.post(r, '/:name/dead-letter-queue/:jobId/retry', controller.retryFailedJob);
-    Router.del(r, '/:name/dead-letter-queue/:jobId', controller.deleteFailedJob);
-    Router.post(r, '/:name/dead-letter-queue/:jobId/anonymize', controller.anonymizeFailedJob);
-    Router.get(r, '/:name/dead-letter-queue/audit-log', controller.dlqAuditLog);
-    Router.get(r, '/:name/dead-letter-queue/stats', controller.dlqStats);
-
-    // Plugins
-    Router.post(r, '/:name/plugins/register', controller.registerPlugin);
-    Router.del(r, '/:name/plugins/:pluginId', controller.unregisterPlugin);
-    Router.post(r, '/:name/plugins/:pluginId/enable', controller.enablePlugin);
-    Router.post(r, '/:name/plugins/:pluginId/disable', controller.disablePlugin);
-    Router.get(r, '/:name/plugins', controller.listPlugins);
-    Router.get(r, '/:name/plugins/:pluginId/history', controller.pluginExecutionHistory);
-    Router.get(r, '/:name/plugins/statistics', controller.pluginStatistics);
-
-    // Multi-queue support
-    Router.post(r, '/:name/queues', controller.createMultiQueue);
-    Router.post(r, '/:name/queues/:queueName/start', controller.startQueue);
-    Router.post(r, '/:name/queues/:queueName/stop', controller.stopQueue);
-    Router.get(r, '/:name/queues/:queueName/stats', controller.queueStats);
-    Router.put(r, '/:name/queues/:queueName/priority', controller.updateQueuePriority);
-    Router.put(r, '/:name/queues/:queueName/concurrency', controller.updateQueueConcurrency);
+    // Dashboard API routes
+    registerDashboardRoutes(r);
   });
 }
 
-function registerDatacenterOrchestrationRoutes(router: IRouter): void {
-  Router.group(router, '/api/datacenters', (r: IRouter) => {
-    // Region management
-    Router.post(r, '/regions', controller.registerRegion);
-    Router.del(r, '/regions/:regionId', controller.unregisterRegion);
-    Router.get(r, '/regions', controller.listRegions);
-    Router.get(r, '/regions/:regionId', controller.getRegion);
-    Router.put(r, '/regions/:regionId/health', controller.updateRegionHealth);
-    Router.put(r, '/regions/:regionId/load', controller.updateRegionLoad);
+function registerDashboardListRoute(router: IRouter): void {
+  // GET /api/workers - List workers with pagination, filtering, and sorting
+  Router.get(router, '/api/workers', async (req: IRequest, res: IResponse) => {
+    try {
+      const query = req.getQuery() as Record<string, string | string[]>;
 
-    // Worker placement
-    Router.post(r, '/placements', controller.placeWorker);
-    Router.get(r, '/placements/:workerName', controller.getPlacement);
-    Router.put(r, '/placements/:workerName', controller.updatePlacement);
-    Router.get(r, '/placements/:workerName/optimal-region', controller.findOptimalRegion);
+      // Helper function to safely get a single string value from query params
+      const getQueryParam = (key: string, defaultValue: string = ''): string => {
+        const value = query[key];
+        return Array.isArray(value) ? value[0] : value || defaultValue;
+      };
 
-    // Failover policies
-    Router.put(r, '/regions/:regionId/failover-policy', controller.setFailoverPolicy);
-    Router.get(r, '/regions/:regionId/failover-policy', controller.getFailoverPolicy);
-    Router.post(r, '/regions/:regionId/health-checks/start', controller.startHealthChecks);
-    Router.post(r, '/regions/:regionId/health-checks/stop', controller.stopHealthChecks);
+      // Helper function to safely get a number from query params
+      const getNumberParam = (key: string, defaultValue: number): number => {
+        const value = getQueryParam(key, String(defaultValue));
+        const parsed = Number.parseInt(value, 10);
+        return Number.isNaN(parsed) ? defaultValue : parsed;
+      };
 
-    // Topology
-    Router.get(r, '/topology', controller.getTopology);
-    Router.get(r, '/load-balancing-recommendation', controller.getLoadBalancingRecommendation);
+      // Helper function to safely get a boolean from query params
+      const getBooleanParam = (key: string, defaultValue: boolean): boolean => {
+        const value = getQueryParam(key, '').toLowerCase();
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        return defaultValue;
+      };
+
+      // Helper function to get typed enum value with type safety
+      const getEnumParam = <T extends string>(
+        key: string,
+        validValues: readonly T[],
+        defaultValue: T
+      ): T => {
+        const value = getQueryParam(key, defaultValue);
+        return validValues.includes(value as T) ? (value as T) : defaultValue;
+      };
+
+      const queryParams: GetWorkersQuery = {
+        page: getNumberParam('page', 1),
+        limit: getNumberParam('limit', 100),
+        sortBy: getEnumParam<WorkerSortBy>(
+          'sortBy',
+          ['name', 'status', 'driver', 'health', 'version', 'processed'] as const,
+          'name'
+        ),
+        sortOrder: getEnumParam<WorkerSortOrder>('sortOrder', ['asc', 'desc'] as const, 'asc'),
+        status: getEnumParam<WorkerStatus>(
+          'status',
+          ['running', 'stopped', 'error', 'paused'] as const,
+          'stopped'
+        ),
+        driver: getEnumParam<WorkerDriver>('driver', ['db', 'redis', 'memory'] as const, 'memory'),
+        search: getQueryParam('search'),
+        includeDetails: getBooleanParam('includeDetails', false),
+      };
+
+      const result = await getWorkers(queryParams);
+      res.json(result);
+    } catch (error) {
+      Logger.error('Error fetching workers:', error);
+      res.status(500).json({
+        error: 'Failed to fetch workers',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 }
 
-function registerAutoScalingRoutes(router: IRouter): void {
-  Router.group(router, '/api/auto-scaling', (r: IRouter) => {
-    Router.post(r, '/start', controller.startAutoScaling);
-    Router.post(r, '/stop', controller.stopAutoScaling);
-    Router.post(r, '/evaluate/:workerName', controller.evaluateScaling);
-    Router.get(r, '/:workerName/decision', controller.lastScalingDecision);
-    Router.get(r, '/:workerName/history', controller.scalingHistory);
-    Router.get(r, '/:workerName/cost-summary', controller.costSummary);
-    Router.put(r, '/:workerName/policy', controller.setScalingPolicy);
-    Router.get(r, '/:workerName/policy', controller.getScalingPolicy);
+function registerWorkerDetailsRoute(router: IRouter): void {
+  // GET /api/workers/:name/details - Get detailed worker information
+  Router.get(router, '/api/workers/:name/details', async (req: IRequest, res: IResponse) => {
+    try {
+      const { name } = req.params;
+      const details = await getWorkerDetails(name);
+      res.json(details);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        res.status(404).json({
+          error: 'Worker not found',
+          message: error.message,
+        });
+      } else {
+        Logger.error('Error fetching worker details:', error);
+        res.status(500).json({
+          error: 'Failed to fetch worker details',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
   });
 }
 
-function registerResourceMonitoringRoutes(router: IRouter): void {
-  Router.group(router, '/api/resources', (r: IRouter) => {
-    Router.post(r, '/stop', controller.stopResourceMonitoring);
-    Router.post(r, '/start', controller.startResourceMonitoring);
-    Router.get(r, '/current', controller.getCurrentResourceUsage);
-    Router.get(r, '/history', controller.resourceHistory);
-    Router.get(r, '/alerts', controller.resourceAlerts);
-    Router.get(r, '/trends', controller.resourceTrends);
-    Router.get(r, '/:workerName/trends', controller.workerResourceTrend);
-    Router.put(r, '/cost-config', controller.updateCostConfig);
-    Router.get(r, '/projected-cost', controller.calculateProjectedCost);
-    Router.get(r, '/system-info', controller.getSystemInfo);
+function registerWorkerActionRoutes(router: IRouter): void {
+  // POST /api/workers/:name/start - Start a worker
+  Router.post(router, '/api/workers/:name/start', async (req: IRequest, res: IResponse) => {
+    try {
+      const { name } = req.params;
+      await startWorker(name);
+      res.json({ success: true, message: `Worker ${name} started successfully` });
+    } catch (error) {
+      Logger.error('Error starting worker:', error);
+      res.status(500).json({
+        error: 'Failed to start worker',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // POST /api/workers/:name/stop - Stop a worker
+  Router.post(router, '/api/workers/:name/stop', async (req: IRequest, res: IResponse) => {
+    try {
+      const { name } = req.params;
+      await stopWorker(name);
+      res.json({ success: true, message: `Worker ${name} stopped successfully` });
+    } catch (error) {
+      Logger.error('Error stopping worker:', error);
+      res.status(500).json({
+        error: 'Failed to stop worker',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // POST /api/workers/:name/restart - Restart a worker
+  Router.post(router, '/api/workers/:name/restart', async (req: IRequest, res: IResponse) => {
+    try {
+      const { name } = req.params;
+      await restartWorker(name);
+      res.json({ success: true, message: `Worker ${name} restarted successfully` });
+    } catch (error) {
+      Logger.error('Error restarting worker:', error);
+      res.status(500).json({
+        error: 'Failed to restart worker',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // POST /api/workers/:name/auto-switch - Toggle auto-switch for a worker
+  Router.post(router, '/api/workers/:name/auto-switch', async (req: IRequest, res: IResponse) => {
+    try {
+      const { name } = req.params;
+      const { enabled } = req.body;
+
+      if (typeof enabled !== 'boolean') {
+        res.status(400).json({
+          error: 'Invalid request',
+          message: 'enabled field must be a boolean',
+        });
+        return;
+      }
+
+      await toggleAutoSwitch(name, enabled);
+      res.json({
+        success: true,
+        message: `Auto-switch ${enabled ? 'enabled' : 'disabled'} for worker ${name}`,
+        autoSwitch: enabled,
+      });
+    } catch (error) {
+      Logger.error('Error toggling auto-switch:', error);
+      res.status(500).json({
+        error: 'Failed to toggle auto-switch',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 }
 
-function registerComplianceRoutes(router: IRouter): void {
-  Router.group(router, '/api/compliance', (r: IRouter) => {
-    Router.post(r, '/data-subjects', controller.registerDataSubject);
-    Router.post(r, '/consent', controller.recordConsent);
-    Router.post(r, '/check', controller.checkCompliance);
-    Router.post(r, '/access-requests', controller.createAccessRequest);
-    Router.post(r, '/access-requests/:requestId/process', controller.processAccessRequest);
-    Router.post(r, '/encrypt', controller.encryptSensitiveData);
-    Router.post(r, '/decrypt', controller.decryptSensitiveData);
-    Router.post(r, '/violations', controller.recordViolation);
-    Router.get(r, '/audit-logs', controller.complianceAuditLogs);
-    Router.get(r, '/summary', controller.complianceSummary);
+function registerBulkAutoSwitchRoute(router: IRouter): void {
+  // POST /api/workers/auto-switch/bulk - Bulk toggle auto-switch for multiple workers
+  Router.post(router, '/api/workers/auto-switch/bulk', async (req: IRequest, res: IResponse) => {
+    try {
+      const { workers, enabled } = req.body;
+
+      if (!Array.isArray(workers) || typeof enabled !== 'boolean') {
+        res.status(400).json({
+          error: 'Invalid request',
+          message: 'workers must be an array and enabled must be a boolean',
+        });
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        workers.map(async (workerName: string) => {
+          await toggleAutoSwitch(workerName, enabled);
+          return { worker: workerName, success: true };
+        })
+      );
+
+      const successful = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected').length;
+
+      res.json({
+        success: true,
+        message: `Auto-switch ${enabled ? 'enabled' : 'disabled'} for ${successful} workers`,
+        summary: {
+          total: workers.length,
+          successful,
+          failed,
+        },
+        results: results.map((r, i) => ({
+          worker: workers[i],
+          success: r.status === 'fulfilled',
+          error: r.status === 'rejected' ? (r as PromiseRejectedResult).reason.message : null,
+        })),
+      });
+    } catch (error) {
+      Logger.error('Error in bulk auto-switch toggle:', error);
+      res.status(500).json({
+        error: 'Failed to toggle auto-switch for workers',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 }
 
-function registerObservabilityRoutes(router: IRouter): void {
-  Router.group(router, '/api/observability', (r: IRouter) => {
-    Router.get(r, '/metrics', controller.prometheusMetrics);
-    Router.post(r, '/metrics/custom', controller.recordCustomMetric);
-    Router.post(r, '/traces/start', controller.startTrace);
-    Router.post(r, '/traces/:spanId/end', controller.endTrace);
+function registerUtilityRoutes(router: IRouter): void {
+  // GET /api/workers/drivers - Get available worker drivers
+  Router.get(router, '/api/workers/drivers', async (_req: IRequest, res: IResponse) => {
+    try {
+      const result = await getWorkers({});
+      res.json({
+        drivers: result.drivers,
+        count: result.drivers.length,
+      });
+    } catch (error) {
+      Logger.error('Error fetching drivers:', error);
+      res.status(500).json({
+        error: 'Failed to fetch drivers',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // GET /api/workers/queue-data - Get queue statistics
+  Router.get(router, '/api/workers/queue-data', async (_req: IRequest, res: IResponse) => {
+    try {
+      const result = await getWorkers({});
+      res.json(result.queueData);
+    } catch (error) {
+      Logger.error('Error fetching queue data:', error);
+      res.status(500).json({
+        error: 'Failed to fetch queue data',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // GET /api/workers/health - Get overall workers health summary
+  Router.get(router, '/api/workers/health', async (_req: IRequest, res: IResponse) => {
+    try {
+      const result = await getWorkers({});
+
+      const healthSummary = {
+        total: result.workers.length,
+        running: result.workers.filter((w) => w.status === 'running').length,
+        stopped: result.workers.filter((w) => w.status === 'stopped').length,
+        error: result.workers.filter((w) => w.status === 'error').length,
+        paused: result.workers.filter((w) => w.status === 'paused').length,
+        healthy: result.workers.filter((w) => w.health.status === 'healthy').length,
+        unhealthy: result.workers.filter((w) => w.health.status === 'unhealthy').length,
+        warning: result.workers.filter((w) => w.health.status === 'warning').length,
+        drivers: result.drivers,
+        queueData: result.queueData,
+      };
+
+      res.json(healthSummary);
+    } catch (error) {
+      Logger.error('Error fetching health summary:', error);
+      res.status(500).json({
+        error: 'Failed to fetch health summary',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   });
 }
 
-function registerSystemOperationRoutes(router: IRouter): void {
-  Router.group(router, '/api/workers/system', (r: IRouter) => {
-    Router.get(r, '/summary', controller.systemSummary);
-    Router.post(r, '/shutdown', controller.shutdown);
-    Router.get(r, '/monitoring/summary', controller.monitoringSummary);
-  });
+function registerDashboardRoutes(router: IRouter): void {
+  registerDashboardListRoute(router);
+  registerWorkerDetailsRoute(router);
+  registerWorkerActionRoutes(router);
+  registerBulkAutoSwitchRoute(router);
+  registerUtilityRoutes(router);
 }
 
-export function registerWorkerRoutes(router: IRouter): void {
+export function registerWorkerRoutes(
+  router: IRouter,
+  options?: WorkerUiOptions,
+  routeOptions?: RouteOptions
+): void {
+  registerWorkerUiPage(router, options, routeOptions);
   registerWorkerLifecycleRoutes(router);
-  registerDatacenterOrchestrationRoutes(router);
-  registerAutoScalingRoutes(router);
-  registerResourceMonitoringRoutes(router);
-  registerComplianceRoutes(router);
-  registerObservabilityRoutes(router);
-  registerSystemOperationRoutes(router);
   Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
 }
 

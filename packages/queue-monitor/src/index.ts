@@ -3,7 +3,6 @@ import { type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
-import { registerWorkerUiRoutes } from './routes/workers';
 
 export type { JobPayload } from './driver';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker';
@@ -270,16 +269,6 @@ function createRegisterRoutes(
       `${settings.basePath}/api/retry/:queue/:jobId`,
       async (req, res) => {
         await handleRetryEndpoint(req as RequestWithParams, res, driver);
-      },
-      routeOptions
-    );
-
-    registerWorkerUiRoutes(
-      router,
-      {
-        basePath: settings.basePath,
-        autoRefresh: settings.autoRefresh,
-        refreshIntervalMs: settings.refreshIntervalMs,
       },
       routeOptions
     );

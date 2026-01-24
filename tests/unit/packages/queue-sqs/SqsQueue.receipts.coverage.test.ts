@@ -74,7 +74,7 @@ describe('packages/queue-sqs SqsQueue receipts (coverage)', () => {
       };
     });
 
-    const { SqsQueue } = await import('../../../../packages/queue-sqs/src/index');
+    const { SqsQueue } = await import('../../../../packages/queue-redis/queue-sqs/src/index');
 
     const queue = SqsQueue.create({
       driver: 'sqs',

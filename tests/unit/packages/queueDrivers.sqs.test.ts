@@ -60,7 +60,7 @@ describe('adapter package queue-sqs', () => {
       };
     });
 
-    const { SqsQueue } = (await import('../../../packages/queue-sqs/src/index.js')) as {
+    const { SqsQueue } = (await import('../../../packages/queue-redis/queue-sqs/src/index.js')) as {
       SqsQueue: {
         create: (config?: unknown) => {
           enqueue: (queue: string, payload: unknown) => Promise<string>;
