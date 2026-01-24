@@ -241,11 +241,6 @@ const normalizeQueryValue = (value: string | string[] | undefined): string | und
   return undefined;
 };
 
-const parseBool = (value: string | undefined): boolean => {
-  if (!value) return false;
-  return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
-};
-
 const resolvePersistenceOverride = (
   req: IRequest
 ):
@@ -278,41 +273,6 @@ const resolvePersistenceOverride = (
 
   return undefined;
 };
-
-async function list(req: IRequest, res: IResponse): Promise<void> {
-  try {
-    const detail = parseBool(normalizeQueryValue(req.getQueryParam?.('detail')));
-
-    const persistenceOverride = resolvePersistenceOverride(req);
-
-    if (detail) {
-      const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
-      const workers = await Promise.all(
-        records.map(async (record) => {
-          const instance = WorkerFactory.get(record.name);
-          if (!instance) {
-            return { ...record, health: { status: 'unknown' } };
-          }
-
-          try {
-            const wHealth = await WorkerFactory.getHealth(record.name);
-            return { ...record, health: wHealth ?? { status: 'unknown' } };
-          } catch {
-            return { ...record, health: { status: 'unknown' } };
-          }
-        })
-      );
-      res.json({ ok: true, workers });
-      return;
-    }
-
-    const workers = await WorkerFactory.listPersisted(persistenceOverride);
-    res.json({ ok: true, workers });
-  } catch (error) {
-    Logger.error('WorkerController.list failed', error);
-    res.setStatus(500).json({ error: (error as Error).message });
-  }
-}
 
 /**
  * Get a specific worker instance
@@ -1174,7 +1134,6 @@ const buildCoreOperations = () => ({
   setAutoStart,
   resume,
   remove,
-  list,
   get,
   status,
   getCreationStatus,

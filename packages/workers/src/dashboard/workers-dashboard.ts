@@ -14,15 +14,14 @@ export type {
   WorkersListResponse,
 } from './types';
 
-const getDashboardHeader = (): string => `
-      <div class="header">
+const getHeaderTopSection = (): string => `
         <div class="header-top">
           <div style="display: flex; align-items: center; gap: 16px">
             <div class="logo-frame">
               <img
-                src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230ea5e9'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='white' font-family='Arial' font-size='40' font-weight='bold'%3EZ%3C/text%3E%3C/svg%3E"
+                src="/zintrust.svg"
                 alt="ZinTrust"
-                class="logo-img"
+                class="logo logo-img"
               />
             </div>
             <h1>Workers Dashboard</h1>
@@ -54,6 +53,19 @@ const getDashboardHeader = (): string => `
             </button>
           </div>
         </div>
+`;
+
+const getNavigationBar = (): string => `
+        <div class="nav-bar">
+          <nav class="nav-links">
+            <a href="/queue-monitor" class="nav-link">Queue Monitor</a>
+            <a href="/telemetry" class="nav-link">Telemetry</a>
+            <a href="/metrics" class="nav-link">Metrics</a>
+          </nav>
+        </div>
+`;
+
+const getFilterBar = (): string => `
         <div class="filters-bar">
           <div class="filter-group">
             <label>Status:</label>
@@ -91,6 +103,13 @@ const getDashboardHeader = (): string => `
             <input type="text" id="search-input" placeholder="Search workers...">
           </div>
         </div>
+`;
+
+const getDashboardHeader = (): string => `
+      <div class="header">
+        ${getHeaderTopSection()}
+        ${getNavigationBar()}
+        ${getFilterBar()}
       </div>
 `;
 
@@ -211,7 +230,7 @@ const getDataFetchingScripts = (options: WorkersDashboardUiOptions): string => `
                 const response = await fetch(\`\${API_BASE}/api/workers?\${params}\`);
                 if (!response.ok) throw new Error('Failed to fetch workers');
 
-                const data: WorkersListResponse = await response.json();
+                const data = await response.json();
                 renderWorkers(data);
 
                 loading.style.display = 'none';

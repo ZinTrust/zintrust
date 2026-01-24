@@ -370,18 +370,6 @@ async function enrichWithDetails(workers: WorkerData[]): Promise<WorkerData[]> {
   );
 }
 
-export async function startWorker(name: string): Promise<void> {
-  await WorkerFactory.start(name);
-}
-
-export async function stopWorker(name: string): Promise<void> {
-  await WorkerFactory.stop(name);
-}
-
-export async function restartWorker(name: string): Promise<void> {
-  await WorkerFactory.restart(name);
-}
-
 export async function toggleAutoSwitch(name: string, enabled: boolean): Promise<void> {
   await WorkerFactory.setAutoStart(name, enabled);
 }

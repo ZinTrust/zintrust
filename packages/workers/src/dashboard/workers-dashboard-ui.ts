@@ -110,7 +110,54 @@ const getHeaderStyles = (): string => `
   display: flex;
   gap: 12px;
   align-items: center;
-}`;
+}
+
+/* Navigation Bar */
+.nav-bar {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.nav-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.nav-link.active {
+  color: var(--primary);
+  background: rgba(14, 165, 233, 0.1);
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 2px;
+}
+`;
 
 const getButtonsAndInputsStyles = (): string => `
 /* Buttons & Inputs */
@@ -398,7 +445,7 @@ const getStatusBadgeStyles = (): string => `
   font-size: 12px;
 }`;
 
-const getPerformanceAndActionStyles = (): string => `
+const getPerformanceIconsStyles = (): string => `
 /* Performance Icons */
 .performance-icons {
   display: flex;
@@ -428,7 +475,9 @@ const getPerformanceAndActionStyles = (): string => `
 .perf-icon.memory {
   color: #8b5cf6;
 }
+`;
 
+const getActionButtonsStyles = (): string => `
 /* Action Buttons with SVGs */
 .actions-cell {
   display: flex;
@@ -466,7 +515,9 @@ const getPerformanceAndActionStyles = (): string => `
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+`;
 
+const getActionButtonHoverStyles = (): string => `
 /* Specific Action Colors On Hover */
 .action-btn.start:hover {
   color: var(--success);
@@ -487,7 +538,60 @@ const getPerformanceAndActionStyles = (): string => `
   color: var(--info);
   border-color: var(--info);
   background: rgba(59, 130, 246, 0.1);
-}`;
+}
+`;
+
+const getPerformanceAndActionStyles = (): string => `
+${getPerformanceIconsStyles()}
+${getActionButtonsStyles()}
+${getActionButtonHoverStyles()}
+`;
+
+const getRecentLogsStyles = (): string => `
+/* Recent Logs */
+.recent-logs {
+  margin-top: 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.recent-logs h4 {
+  background: var(--surface-hover);
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+}
+
+.log-entry {
+  padding: 10px 20px;
+  font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-entry.error {
+  background: rgba(239, 68, 68, 0.05);
+  color: var(--danger);
+  border-left: 2px solid var(--danger);
+}
+
+.log-time {
+  opacity: 0.6;
+  min-width: 60px;
+}
+`;
 
 const getExpandedRowStyles = (): string => `
 /* Expandable Rows */
@@ -559,49 +663,7 @@ const getExpandedRowStyles = (): string => `
   font-weight: 600;
 }
 
-/* Recent Logs */
-.recent-logs {
-  margin-top: 24px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.recent-logs h4 {
-  background: var(--surface-hover);
-  padding: 12px 20px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-  margin: 0;
-}
-
-.log-entry {
-  padding: 10px 20px;
-  font-family: 'SF Mono', 'Roboto Mono', Menlo, monospace;
-  font-size: 12px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  gap: 12px;
-}
-
-.log-entry:last-child {
-  border-bottom: none;
-}
-
-.log-entry.error {
-  background: rgba(239, 68, 68, 0.05);
-  color: var(--danger);
-  border-left: 2px solid var(--danger);
-}
-
-.log-time {
-  opacity: 0.6;
-  min-width: 60px;
-}
+${getRecentLogsStyles()}
 `;
 
 const getLogoAndIconStyles = (): string => `
@@ -622,8 +684,17 @@ const getLogoAndIconStyles = (): string => `
 }
 
 .logo-img {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  background: linear-gradient(180deg, rgba(14, 165, 233, 0.25), rgba(2, 132, 199, 0.12));
 }
 
 /* Icons Generic */
@@ -636,6 +707,60 @@ const getLogoAndIconStyles = (): string => `
   stroke-linecap: round;
   stroke-linejoin: round;
 }`;
+
+const getPageSizeSelectorStyles = (): string => `
+/* Page Size Selector */
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-size-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  padding-left: 16px;
+  border-left: 1px solid var(--border);
+}
+
+.page-size-selector label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.page-size-selector select {
+  padding: 0 32px 0 12px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background-color: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  transition: all 0.2s;
+}
+
+.page-size-selector select:hover {
+  background-color: var(--surface-hover);
+  border-color: var(--muted);
+}
+
+.page-size-selector select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+`;
 
 const getPaginationStyles = (): string => `
 /* Pagination */
@@ -695,57 +820,8 @@ const getPaginationStyles = (): string => `
   stroke-width: 2px;
 }
 
-/* Page Size Selector */
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.page-size-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 16px;
-  padding-left: 16px;
-  border-left: 1px solid var(--border);
-}
-
-.page-size-selector label {
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.page-size-selector select {
-  padding: 0 32px 0 12px;
-  height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background-color: var(--card);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 16px;
-  transition: all 0.2s;
-}
-
-.page-size-selector select:hover {
-  background-color: var(--surface-hover);
-  border-color: var(--muted);
-}
-
-.page-size-selector select:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
-}`;
+${getPageSizeSelectorStyles()}
+`;
 
 const getToggleSwitchStyles = (): string => `
 /* Toggle Switch */
@@ -804,8 +880,8 @@ input:checked + .toggle-slider:before {
   border-color: var(--muted);
 }`;
 
-const getResponsiveStyles = (): string => `
-/* Responsive Design */
+const getTabletResponsiveStyles = (): string => `
+/* Responsive Design - Tablet */
 @media (max-width: 1024px) {
   .filters-bar {
     gap: 12px;
@@ -827,7 +903,10 @@ const getResponsiveStyles = (): string => `
     flex-wrap: wrap;
   }
 }
+`;
 
+const getMobileResponsiveStyles = (): string => `
+/* Responsive Design - Mobile */
 @media (max-width: 768px) {
   .container {
     padding: 20px 16px;
@@ -889,7 +968,9 @@ const getResponsiveStyles = (): string => `
     border-top: 1px solid var(--border);
   }
 }
+`;
 
+const getMobileColumnHideStyles = (): string => `
 /* Hide/Show columns for mobile */
 @media (max-width: 768px) {
   .hide-mobile {
@@ -902,7 +983,9 @@ const getResponsiveStyles = (): string => `
     display: none;
   }
 }
+`;
 
+const getTableScrollHintStyles = (): string => `
 /* Mobile table scroll hint */
 @media (max-width: 992px) {
   .table-wrapper {
@@ -923,7 +1006,15 @@ const getResponsiveStyles = (): string => `
   .table-wrapper:hover::after {
     opacity: 1;
   }
-}`;
+}
+`;
+
+const getResponsiveStyles = (): string => `
+${getTabletResponsiveStyles()}
+${getMobileResponsiveStyles()}
+${getMobileColumnHideStyles()}
+${getTableScrollHintStyles()}
+`;
 
 const getWorkersDashboardStyles = (): string =>
   [
