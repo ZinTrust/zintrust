@@ -20,13 +20,14 @@ export const migration: Migration = {
       table.integer('attempts').default(0);
       table.integer('max_attempts').default(3);
       table.timestamp('reserved_at').nullable();
-      table.timestamp('available_at').default('NOW()');
+      table.timestamp('available_at').default('CURRENT_TIMESTAMP');
       table.timestamps();
       table.timestamp('failed_at').nullable();
       table.text('error_message').nullable();
 
       // Indexes for performance
-      table.index(['queue', 'available_at']);
+      table.index('queue');
+      table.index('available_at');
       table.index('reserved_at');
       table.index('failed_at');
     });

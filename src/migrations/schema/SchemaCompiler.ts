@@ -218,7 +218,7 @@ function buildCreateIndexSql(driver: SupportedDriver, table: string, idx: IndexD
   const unique = idx.type === ColumnType.UNIQUE ? `${ColumnType.UNIQUE} ` : '';
   const cols = idx.columns.map((c) => quoteIdent(driver, c)).join(', ');
 
-  return `${ColumnType.CREATE_INDEX_S} ${unique}${ColumnType.INDEX} ${quoteIdent(driver, idx.name)} ${ColumnType.ON} ${quoteIdent(driver, table)} (${cols})`;
+  return `${ColumnType.CREATE_INDEX_S} ${unique}${quoteIdent(driver, idx.name)} ${ColumnType.ON} ${quoteIdent(driver, table)} (${cols})`;
 }
 
 function buildDropIndexSql(driver: SupportedDriver, table: string, indexName: string): string {
