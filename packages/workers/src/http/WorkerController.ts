@@ -105,14 +105,15 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
       res.setStatus(400).json({ error: 'Worker name is required' });
       return;
     }
+    const persistenceOverride = resolvePersistenceOverride(req);
     const registered = WorkerRegistry.list().includes(name);
+
     if (!registered) {
-      const persistenceOverride = resolvePersistenceOverride(req);
       await WorkerFactory.startFromPersisted(name, persistenceOverride);
       res.json({ ok: true, message: `Worker ${name} registered and started` });
       return;
     }
-    await WorkerFactory.start(name);
+    await WorkerFactory.start(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} started` });
   } catch (error) {
     Logger.error('WorkerController.start failed', error);
@@ -188,7 +189,8 @@ async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
 async function pause(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.pause(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.pause(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} paused` });
   } catch (error) {
     Logger.error('WorkerController.pause failed', error);
@@ -204,7 +206,8 @@ async function pause(req: IRequest, res: IResponse): Promise<void> {
 async function resume(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.resume(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.resume(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} resumed` });
   } catch (error) {
     Logger.error('WorkerController.resume failed', error);
@@ -248,14 +251,17 @@ const resolvePersistenceOverride = (
   | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
   | { driver: 'db'; connection?: string; table?: string }
   | undefined => {
-  const storageRaw = normalizeQueryValue(req.getQueryParam?.('storage'));
-  const storage = storageRaw?.toLowerCase();
+  // Check for 'driver' parameter first (from frontend), then fallback to 'storage'
+  const driverRaw =
+    normalizeQueryValue(req.getQueryParam?.('driver')) ||
+    normalizeQueryValue(req.getQueryParam?.('storage'));
+  const driver = driverRaw?.toLowerCase();
 
-  if (storage === 'memory') {
+  if (driver === 'memory') {
     return { driver: 'memory' };
   }
 
-  if (storage === 'redis') {
+  if (driver === 'redis') {
     return {
       driver: 'redis',
       redis: { env: true },
@@ -263,7 +269,7 @@ const resolvePersistenceOverride = (
     };
   }
 
-  if (storage === 'db') {
+  if (driver === 'db') {
     return {
       driver: 'db',
       connection: normalizeQueryValue(req.getQueryParam?.('connection')),

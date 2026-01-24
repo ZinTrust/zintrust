@@ -358,20 +358,20 @@ const getWorkerRowTemplate = (): string => `
                 </td>
                 <td>
                     <div class="actions-cell">
-                        <button class="action-btn start" title="Start" onclick="event.stopPropagation(); startWorker('\${worker.name}')">
+                        <button class="action-btn start" title="Start" onclick="event.stopPropagation(); startWorker('\${worker.name}', '\${worker.driver}')">
                             <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                         </button>
-                        <button class="action-btn stop" title="Stop" onclick="event.stopPropagation(); stopWorker('\${worker.name}')">
+                        <button class="action-btn stop" title="Stop" onclick="event.stopPropagation(); stopWorker('\${worker.name}', '\${worker.driver}')">
                             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /></svg>
                         </button>
-                        <button class="action-btn restart" title="Restart" onclick="event.stopPropagation(); restartWorker('\${worker.name}')">
+                        <button class="action-btn restart" title="Restart" onclick="event.stopPropagation(); restartWorker('\${worker.name}', '\${worker.driver}')">
                             <svg viewBox="0 0 24 24">
                                 <polyline points="23 4 23 10 17 10" />
                                 <polyline points="1 20 1 14 7 14" />
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                             </svg>
                         </button>
-                        <button class="action-btn delete" title="Delete" onclick="event.stopPropagation(); deleteWorker('\${worker.name}')">
+                        <button class="action-btn delete" title="Delete" onclick="event.stopPropagation(); deleteWorker('\${worker.name}', '\${worker.driver}')">
                             <svg viewBox="0 0 24 24">
                                 <polyline points="3 6 5 6 21 6" />
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -406,7 +406,7 @@ const getDetailRowTemplate = (): string => `
                                     <div class="detail-item">
                                         <span>Auto Start</span>
                                         <label class="auto-switch-toggle" onclick="event.stopPropagation()">
-                                            <input type="checkbox" \${worker.autoSwitch ? 'checked' : ''} onchange="toggleAutoSwitch('\${worker.name}', this.checked)">
+                                            <input type="checkbox" \${worker.autoSwitch ? 'checked' : ''} onchange="toggleAutoSwitch('\${worker.name}', '\${worker.driver}', this.checked)">
                                             <span class="toggle-slider"></span>
                                         </label>
                                     </div>
@@ -449,7 +449,7 @@ const getDetailRowTemplate = (): string => `
                 </td>
 `;
 
-const getDetailRenderingScripts = (): string => `
+const getDetailRenderingScripts = (): string => String.raw`
         function bindDetailTabs(detailRow) {
             const tabs = detailRow.querySelectorAll('.details-tab');
             tabs.forEach((tab) => {
@@ -733,39 +733,39 @@ const getWorkerActionScripts = (): string => `
 
 const getWorkerLifecycleScripts = (): string => `
         // Worker actions
-        async function startWorker(name) {
+        async function startWorker(name, driver) {
             try {
-                await fetch(\`\${API_BASE}/api/workers/\${name}/start\`, { method: 'POST' });
+                await fetch(\`\${API_BASE}/api/workers/\${name}/start?driver=\${driver}\`, { method: 'POST' });
                 fetchData();
             } catch (err) {
                 console.error('Failed to start worker:', err);
             }
         }
 
-        async function stopWorker(name) {
+        async function stopWorker(name, driver) {
             try {
-                await fetch(\`\${API_BASE}/api/workers/\${name}/stop\`, { method: 'POST' });
+                await fetch(\`\${API_BASE}/api/workers/\${name}/stop?driver=\${driver}\`, { method: 'POST' });
                 fetchData();
             } catch (err) {
                 console.error('Failed to stop worker:', err);
             }
         }
 
-        async function restartWorker(name) {
+        async function restartWorker(name, driver) {
             try {
-                await fetch(\`\${API_BASE}/api/workers/\${name}/restart\`, { method: 'POST' });
+                await fetch(\`\${API_BASE}/api/workers/\${name}/restart?driver=\${driver}\`, { method: 'POST' });
                 fetchData();
             } catch (err) {
                 console.error('Failed to restart worker:', err);
             }
         }
 
-        async function deleteWorker(name) {
+        async function deleteWorker(name, driver) {
             if (!confirm(\`Are you sure you want to delete worker "\${name}"? This action cannot be undone.\`)) {
                 return;
             }
             try {
-                const response = await fetch(\`\${API_BASE}/api/workers/\${name}\`, { method: 'DELETE' });
+                const response = await fetch(\`\${API_BASE}/api/workers/\${name}?driver=\${driver}\`, { method: 'DELETE' });
                 if (!response.ok) throw new Error('Failed to delete worker');
                 fetchData();
             } catch (err) {
@@ -776,9 +776,9 @@ const getWorkerLifecycleScripts = (): string => `
 `;
 
 const getWorkerAutoSwitchScripts = (): string => `
-        async function toggleAutoSwitch(name, enabled) {
+        async function toggleAutoSwitch(name, driver, enabled) {
             try {
-                await fetch(\`\${API_BASE}/api/workers/\${name}/auto-switch\`, {
+                await fetch(\`\${API_BASE}/api/workers/\${name}/auto-switch?driver=\${driver}\`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ enabled })
@@ -894,7 +894,13 @@ const getEventListenersScripts = (options: WorkersDashboardUiOptions): string =>
 
             // Initialize auto-refresh
             const storedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);
-            setAutoRefresh(storedAutoRefresh === 'true' || ${options.autoRefresh});
+            if (storedAutoRefresh === null) {
+                // Only use default if no value is stored
+                setAutoRefresh(${options.autoRefresh});
+            } else {
+                // Use stored value
+                setAutoRefresh(storedAutoRefresh === 'true');
+            }
 
             const storedBulkAutoSwitch = localStorage.getItem(BULK_AUTO_SWITCH_KEY);
             if (storedBulkAutoSwitch === 'true') {
