@@ -1,4 +1,4 @@
-import { Router, type IRouter } from '@zintrust/core';
+import { queueConfig, Router, type IRouter } from '@zintrust/core';
 import { type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
@@ -227,7 +227,9 @@ function createRegisterRoutes(
     if (!settings.enabled) return;
 
     const routeOptions =
-      settings.middleware.length > 0 ? { middleware: settings.middleware } : undefined;
+      settings.middleware.length > 0
+        ? { middleware: settings.middleware }
+        : { ...queueConfig.monitor };
 
     const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
       res.html(

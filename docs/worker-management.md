@@ -107,14 +107,9 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_DATADOG_ENABLED        | Enable Datadog            | false                 |
 | WORKER_DATADOG_API_KEY        | Datadog API key           | (empty)               |
 
-**Redis (Metrics/DLQ/Queues/Persistence when using Redis)**
+**Redis Configuration**
 
-| Key            | Description          | Default   |
-| -------------- | -------------------- | --------- |
-| REDIS_HOST     | Redis host           | localhost |
-| REDIS_PORT     | Redis port           | 6379      |
-| REDIS_PASSWORD | Redis password       | (empty)   |
-| REDIS_DB       | Redis database index | 0         |
+Redis configuration is now managed through the queue configuration system. See `config/queue.ts` for Redis driver settings including host, port, password, and database configuration.
 
 **Persistence**
 
@@ -138,10 +133,10 @@ These environment variables control worker behavior. Set only what you need.
 ```bash
 # Worker lifecycle
 zin worker:list
-zin worker:status <name>
-zin worker:start <name>
-zin worker:stop <name>
-zin worker:restart <name>
+zin worker:status my-worker
+zin worker:start my-worker
+zin worker:stop my-worker
+zin worker:restart my-worker
 zin worker:summary
 
 # Resource monitoring
@@ -337,12 +332,7 @@ WORKER_AUTO_START=true
 {
   "name": "example-test-redis6",
   "persistence": {
-    "driver": "redis", // Matches WORKER_PERSISTENCE_DRIVER
-    "redis": {
-      "env": true,
-      "host": "REDIS_HOST",
-      "port": "REDIS_PORT"
-    }
+    "driver": "redis" // Uses queueConfig.drivers.redis from config/queue.ts
   },
   "autoStart": true // Optional: explicit auto-start flag
 }
@@ -529,24 +519,51 @@ Queues store jobs and provide them to workers:
 
 ## Configuration
 
-### Core Config (`src/config/workers.ts`)
+### Queue Configuration (`config/queue.ts`)
 
-Type definitions and interfaces for worker configuration.
+Redis and other queue driver configurations are now managed through the queue configuration system:
+
+```typescript
+import { type QueueConfigWithDrivers } from '@config/type';
+
+export const queueConfig: QueueConfigWithDrivers = {
+  default: 'redis',
+  drivers: {
+    redis: {
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD,
+      db: Number(process.env.REDIS_DB) || 0,
+      // Additional Redis options
+      maxRetriesPerRequest: 3,
+      retryDelayOnFailover: 100,
+      lazyConnect: true,
+    },
+    // Other drivers can be configured here
+    memory: {},
+    mongodb: {
+      url: process.env.MONGODB_URL,
+      dbName: 'zintrust_workers',
+    },
+  },
+  // Queue processing settings
+  processing: {
+    timeout: 60,
+    retries: 3,
+    backoff: 2000,
+    workers: 5,
+  },
+};
+```
 
 ### Developer Config (`config/workers.ts`)
 
-Runtime configuration for your workers:
+Runtime configuration for your workers (Redis config removed - use queue config):
 
 ```typescript
 import { type IWorkerConfig } from '@config/workers';
 
 export const workerConfig: IWorkerConfig = {
-  redis: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD,
-    db: Number(process.env.REDIS_DB) || 0,
-  },
   workers: {
     'email-sender': {
       queueName: 'emails',
@@ -667,7 +684,7 @@ await WorkerFactory.create({
 - `client`: The connected `IDatabase` instance to use for `db` persistence. If omitted, the worker system will try to resolve a registered connection using `WORKER_PERSISTENCE_DB_CONNECTION`.
 - `connection`: Optional name of a registered database connection (for example `default`). Used only when `client` is not supplied. Connection names come from the keys in `config/database.ts` (for example `sqlite`, `mysql`, `postgresql`, `sqlserver`, `d1`, `d1-remote`) and any custom keys you define.
 - `table`: DB table used to store worker records (defaults to `zintrust_workers`).
-- `redis`: Optional Redis config for the persistence store when `driver=redis`. Use `{ env: true }` to read `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB`.
+- `redis`: Redis configuration for persistence when `driver=redis`. Uses `queueConfig.drivers.redis` from `config/queue.ts`. See the Queue Configuration section for Redis settings.
 - `keyPrefix`: Redis hash key prefix for persisted worker records. Defaults to `APP_NAME` with spaces replaced by `_` when `WORKER_PERSISTENCE_REDIS_KEY_PREFIX` is not set.
 
 ## CLI Commands
@@ -692,7 +709,7 @@ Output:
 └──────────────┴──────────┴─────────┴───────────┴─────────────┘
 ```
 
-### worker:status <name>
+### worker:status my-worker
 
 Get detailed status for a specific worker:
 
@@ -718,7 +735,7 @@ Metrics:
   Avg Duration:    1.2s
 ```
 
-### worker:start <name>
+### worker:start my-worker
 
 Start a stopped worker:
 
@@ -726,7 +743,7 @@ Start a stopped worker:
 zintrust worker:start email-sender
 ```
 
-### worker:stop <name>
+### worker:stop my-worker
 
 Stop a running worker gracefully:
 
@@ -734,7 +751,7 @@ Stop a running worker gracefully:
 zintrust worker:stop email-sender
 ```
 
-### worker:restart <name>
+### worker:restart my-worker
 
 Restart a worker:
 
@@ -1342,7 +1359,7 @@ $ zin rm pause
 #### Related Commands
 
 - `zin worker:list` - List all workers
-- `zin worker:status <name>` - Check worker health
+- `zin worker:status my-worker` - Check worker health
 - `zin start --verbose` - Start with verbose logging
 - `zin logs` - View application logs
 

@@ -590,6 +590,7 @@ export type WorkersGlobalConfig = {
 };
 
 export type WorkersConfigOverrides = Partial<{
+  middleware: ReadonlyArray<string>;
   enabled: boolean;
   healthCheckInterval: number;
   clusterMode: boolean;

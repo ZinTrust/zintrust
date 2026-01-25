@@ -1,28 +1,14 @@
 import type { IRouter } from '@zintrust/core';
 import { Logger, MIME_TYPES, NodeSingletons, Router } from '@zintrust/core';
 
-export const uiResolver = async (): Promise<string> => {
+export const uiResolver = async (uiBasePath: string): Promise<string> => {
   // Resolve base path for UI assets
-  const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
-  const __dirname = NodeSingletons.path.dirname(__filename);
-  const uiPath = NodeSingletons.path.resolve(__dirname, '../workers/index.html');
+  // const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
+  // const __dirname = NodeSingletons.path.dirname(__filename);
+  const uiPath = NodeSingletons.path.resolve(uiBasePath, 'workers/index.html');
   const html = await NodeSingletons.fs.readFile(uiPath, 'utf8');
 
   return html;
-};
-
-export const registerUiStaticPage = (router: IRouter): void => {
-  const handler = async (_req: unknown, res: { html: (value: string) => void }): Promise<void> => {
-    try {
-      const html = await uiResolver();
-      res.html(html);
-    } catch (err) {
-      Logger.error('Failed to load static UI page', err);
-      // Fallback to generated dashboard if static file unavailable
-    }
-  };
-
-  Router.get(router, '/workers/ui', handler);
 };
 
 // MIME type mapping for static files
@@ -45,12 +31,23 @@ const getMimeType = (filePath: string): string => {
 };
 
 // Static file serving for workers assets
-export const registerStaticAssets = (router: IRouter): void => {
+export const registerStaticAssets = (router: IRouter, middleware: ReadonlyArray<string>): void => {
   // Resolve base path for UI assets
   const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
   const __dirname = NodeSingletons.path.dirname(__filename);
   const uiBasePath = NodeSingletons.path.resolve(__dirname, '../');
 
+  const handler = async (_req: unknown, res: { html: (value: string) => void }): Promise<void> => {
+    try {
+      const html = await uiResolver(uiBasePath);
+      res.html(html);
+    } catch (err) {
+      Logger.error('Failed to load static UI page', err);
+      // Fallback to generated dashboard if static file unavailable
+    }
+  };
+
+  Router.get(router, '/workers/ui', handler, { middleware });
   const serveStaticFile = async (
     req: { getPath: () => string },
     res: {

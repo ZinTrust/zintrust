@@ -219,13 +219,7 @@ const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => {
   if (driver === 'redis') {
     config.infrastructure = {
       ...config.infrastructure,
-      redis: {
-        env: true,
-        host: Env.get('REDIS_HOST', 'localhost'),
-        port: Env.getInt('REDIS_PORT', 6379),
-        db: Env.getInt('REDIS_DB', 0),
-        password: Env.get('REDIS_PASSWORD', ''),
-      },
+      redis: queueConfig.drivers.redis,
     };
   }
 
