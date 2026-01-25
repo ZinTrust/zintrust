@@ -396,7 +396,7 @@ const getConfigSection = (): string => `
                         </div>
                         <div class="detail-item">
                           <span>Auto Start</span>
-                          <label class="auto-switch-toggle" onclick="event.stopPropagation()">
+                          <label class="auto-start-toggle" onclick="event.stopPropagation()">
                             <input type="checkbox" \${worker.autoStart ? 'checked' : ''} onchange="toggleAutoStart('\${worker.name}', '\${worker.driver}', this.checked)">
                             <span class="toggle-slider"></span>
                           </label>
@@ -519,7 +519,7 @@ const getDetailFormattingScripts = (): string => String.raw`
                         else if (log.toLowerCase().includes('success')) color = 'var(--success)';
                         else if (log.toLowerCase().includes('processing')) color = 'var(--info)';
 
-                        return \`<div style="color: \${color}">\${log}</div>\`;
+                        return '<div style="color: ' + color + '">' + log + '</div>';
                     }).join('');
                 }
             } else if (logsContainer) {

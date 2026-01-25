@@ -408,6 +408,7 @@ export type { MiddlewaresType } from '@config/middleware';
 // Redis config
 export * from '@config/redis';
 
+export type * from '@app/Types/controller';
 export type * from '@config/type';
 
 // Workers config

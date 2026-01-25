@@ -159,8 +159,18 @@ async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
       res.setStatus(400).json({ error: 'Worker name is required' });
       return;
     }
-    const enabledRaw = normalizeQueryValue(req.getQueryParam?.('enabled')) ?? '';
-    const enabled = ['true', '1', 'yes', 'on'].includes(enabledRaw.toLowerCase());
+    const body = getBody(req);
+    const param = req.getQueryParam?.('enabled');
+
+    let enabled: boolean;
+    if (typeof body.enabled === 'boolean') {
+      enabled = body.enabled;
+    } else {
+      const val = body.enabled === undefined ? param : String(body.enabled);
+      const enabledRaw = normalizeQueryValue(val as string | string[] | undefined) ?? '';
+      enabled = ['true', '1', 'yes', 'on'].includes(enabledRaw.toLowerCase());
+    }
+
     const persistenceOverride = resolvePersistenceOverride(req);
 
     await WorkerFactory.setAutoStart(name, enabled, persistenceOverride);

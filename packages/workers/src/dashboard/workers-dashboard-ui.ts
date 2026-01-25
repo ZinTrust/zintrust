@@ -837,7 +837,8 @@ ${getPageSizeSelectorStyles()}
 
 const getToggleStartStyles = (): string => `
 /* Toggle Switch */
-.auto-start-toggle {
+.auto-start-toggle,
+.auto-switch-toggle {
   position: relative;
   display: inline-block;
   width: 44px;
@@ -845,7 +846,8 @@ const getToggleStartStyles = (): string => `
   cursor: pointer;
 }
 
-.auto-start-toggle input {
+.auto-start-toggle input,
+.auto-switch-toggle input {
   opacity: 0;
   width: 0;
   height: 0;
@@ -888,7 +890,8 @@ input:checked + .toggle-slider:before {
 }
 
 /* Hover generic for toggles */
-.auto-start-toggle:hover .toggle-slider {
+.auto-start-toggle:hover .toggle-slider,
+.auto-switch-toggle:hover .toggle-slider {
   border-color: var(--muted);
 }`;
 
