@@ -12,7 +12,7 @@
         <div class="header-top">
           <div style="display: flex; align-items: center; gap: 16px">
             <div class="logo-frame">
-              <img src="/zintrust.svg" alt="ZinTrust" class="logo logo-img" />
+              <img src="/zintrust.svg" alt="ZinTrust" class="logo-img" />
             </div>
             <h1>Workers Dashboard</h1>
           </div>
@@ -60,7 +60,7 @@
 
         <div class="filters-bar">
           <div class="filter-group">
-            <label>Status:</label>
+            <span>Status:</span>
             <select id="status-filter">
               <option value="">All Status</option>
               <option value="running">Running</option>
@@ -70,13 +70,13 @@
             </select>
           </div>
           <div class="filter-group">
-            <label>Driver:</label>
+            <span>Driver:</span>
             <select id="driver-filter">
               <option value="">All Drivers</option>
             </select>
           </div>
           <div class="filter-group">
-            <label>Sort:</label>
+            <span>Sort:</span>
             <select id="sort-select">
               <option value="name">Sort by Name</option>
               <option value="status">Sort by Status</option>
@@ -184,7 +184,7 @@
               </button>
 
               <div class="page-size-selector">
-                <label>Show:</label>
+                <span>Show:</span>
                 <select id="limit-select" onchange="changeLimit(this.value)">
                   <option value="10">10</option>
                   <option value="25">25</option>

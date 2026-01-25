@@ -117,6 +117,23 @@ describe('Request', () => {
     const rawReq = createMockRequest();
     const req = Request.create(rawReq);
     expect(req.getRaw()).toBe(rawReq);
+
+    // Test that getRaw returns the exact same instance
+    const rawAgain = req.getRaw();
+    expect(rawAgain).toBe(rawReq);
+  });
+
+  it('should get raw request from file helpers', () => {
+    const rawReq = createMockRequest({
+      headers: { 'content-type': 'multipart/form-data' },
+    });
+    const req = Request.create(rawReq);
+
+    // Access file property to trigger file helpers creation
+    req.file('test');
+
+    // The getRaw method should be accessible through the file helpers
+    expect(req.getRaw()).toBe(rawReq);
   });
 
   describe('data helpers', () => {

@@ -67,6 +67,7 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_TIMEOUT               | Job timeout (seconds)           | 60        |
 | WORKER_RETRIES               | Retry attempts                  | 3         |
 | WORKER_AUTO_START            | Auto-start worker               | false     |
+| WORKER_RESOURCE_MONITORING   | Global resource monitoring gate | true      |
 | WORKER_PRIORITY              | Default priority                | 1         |
 | WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds) | 60        |
 | WORKER_CLUSTER_MODE          | Enable cluster mode             | true      |
@@ -243,6 +244,56 @@ Workers that use **different persistence drivers** than `WORKER_PERSISTENCE_DRIV
 
 - **Via API:** `POST /api/workers/{workerName}/start`
 - **Via CLI:** `zin worker:start {workerName}`
+
+### Resource Monitoring Environment Gate
+
+Resource monitoring is controlled by both a global environment variable and worker-level settings:
+
+```bash
+# Global environment gate
+WORKER_RESOURCE_MONITORING=true    # Default: true
+```
+
+#### Logic Flow:
+
+1. **Environment Gate Check:** If `WORKER_RESOURCE_MONITORING=false`, resource monitoring is **completely disabled**
+2. **Worker-Level Check:** If environment allows, checks if any worker has `"resourceMonitoring": true`
+3. **Startup Decision:** Resource monitor starts only if **both conditions are met**
+
+#### Scenarios:
+
+| WORKER_RESOURCE_MONITORING | Worker resourceMonitoring | Result                       |
+| -------------------------- | ------------------------- | ---------------------------- |
+| `true` (default)           | `true`                    | ✅ Starts                    |
+| `true` (default)           | `false`                   | ⏸️ Doesn't start             |
+| `false`                    | `true`                    | ❌ Blocked by env            |
+| `false`                    | `false`                   | ❌ Blocked by env            |
+| `unset`                    | `true`                    | ✅ Starts (defaults to true) |
+
+#### Example:
+
+```bash
+# Environment
+WORKER_RESOURCE_MONITORING=true
+
+# Worker 1 - Will start monitoring
+{
+  "name": "monitoring-worker",
+  "features": {
+    "resourceMonitoring": true
+  }
+}
+
+# Worker 2 - Won't affect monitoring
+{
+  "name": "quiet-worker",
+  "features": {
+    "resourceMonitoring": false
+  }
+}
+
+# Result: Resource monitoring starts (Worker 1 requested it)
+```
 
 ### Configuration Examples
 

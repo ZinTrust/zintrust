@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { Logger, NodeSingletons } from '@zintrust/core';
+import { Env, Logger, NodeSingletons } from '@zintrust/core';
 
 const getOsModule = (): typeof NodeSingletons.os => NodeSingletons?.os ?? null;
 
@@ -556,6 +556,11 @@ export const ResourceMonitor = Object.freeze({
    * Start monitoring
    */
   start(intervalSeconds = 30): void {
+    const globalResourceMonitoring = Env.getBool('WORKER_RESOURCE_MONITORING', false);
+    if (!globalResourceMonitoring) {
+      Logger.warn('ResourceMonitor disabled (WORKER_RESOURCE_MONITORING=false)');
+      return;
+    }
     if (monitoringInterval) {
       Logger.warn('ResourceMonitor already running');
       return;

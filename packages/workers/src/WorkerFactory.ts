@@ -201,11 +201,36 @@ const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
 
-const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => ({
-  name: '__persistence_bootstrap__',
-  queueName: '__bootstrap__',
-  processor: async () => undefined,
-});
+const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => {
+  const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') as 'memory' | 'redis' | 'db';
+
+  const config: WorkerFactoryConfig = {
+    name: '__zintrust_persistence_bootstrap__',
+    queueName: '__zintrust_bootstrap__',
+    processor: async () => undefined,
+    infrastructure: {
+      persistence: {
+        driver,
+      },
+    },
+  };
+
+  // Add Redis config if using Redis persistence
+  if (driver === 'redis') {
+    config.infrastructure = {
+      ...config.infrastructure,
+      redis: {
+        env: true,
+        host: Env.get('REDIS_HOST', 'localhost'),
+        port: Env.getInt('REDIS_PORT', 6379),
+        db: Env.getInt('REDIS_DB', 0),
+        password: Env.get('REDIS_PASSWORD', ''),
+      },
+    };
+  }
+
+  return config;
+};
 
 const registerProcessor = (name: string, processor: WorkerFactoryConfig['processor']): void => {
   processorRegistry.set(name, processor);

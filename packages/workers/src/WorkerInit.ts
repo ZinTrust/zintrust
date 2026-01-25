@@ -8,7 +8,7 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Logger, workersConfig } from '@zintrust/core';
+import { Env, Logger, workersConfig } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
@@ -76,6 +76,51 @@ const state: IInitState = {
 // ============================================================================
 
 /**
+ * Initialize resource monitoring based on environment and worker settings
+ */
+function initializeResourceMonitoring(
+  enableResourceMonitoring: boolean,
+  resourceMonitoringInterval: number
+): boolean {
+  // Check global environment gate first
+  const globalResourceMonitoring = Env.getBool('WORKER_RESOURCE_MONITORING', false);
+
+  if (enableResourceMonitoring && globalResourceMonitoring) {
+    // Check if any workers have resourceMonitoring enabled
+    const shouldStart = shouldStartResourceMonitoring();
+
+    if (shouldStart) {
+      if (ResourceMonitor.isRunning() === false) {
+        ResourceMonitor.start(resourceMonitoringInterval / 1000);
+      }
+      Logger.debug('✓ Resource monitoring started (worker requested)');
+      return true;
+    } else {
+      Logger.debug('⏸️ Resource monitoring disabled (no workers requested it)');
+    }
+  } else if (!globalResourceMonitoring) {
+    Logger.debug('⏸️ Resource monitoring disabled (WORKER_RESOURCE_MONITORING=false)');
+  }
+
+  return false;
+}
+
+/**
+ * Check if any workers have resource monitoring enabled
+ */
+function shouldStartResourceMonitoring(): boolean {
+  try {
+    const workerNames = WorkerFactory.list();
+    return workerNames.some((name) => {
+      const worker = WorkerFactory.get(name);
+      return worker?.config?.features?.resourceMonitoring === true;
+    });
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Initialize the worker management system
  */
 async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
@@ -108,13 +153,10 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
     }
 
     // 2. Start resource monitoring (important for scaling decisions)
-    if (enableResourceMonitoring) {
-      if (ResourceMonitor.isRunning() === false) {
-        ResourceMonitor.start(resourceMonitoringInterval / 1000);
-      }
-      state.resourceMonitoring = true;
-      Logger.debug('✓ Resource monitoring started');
-    }
+    state.resourceMonitoring = initializeResourceMonitoring(
+      enableResourceMonitoring,
+      resourceMonitoringInterval
+    );
 
     // 3. Enable health monitoring (depends on workers being created)
     if (enableHealthMonitoring) {
@@ -144,10 +186,23 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 
 async function autoStartPersistedWorkers(): Promise<void> {
   // Check if auto-start is enabled globally via environment variable
-  if (workersConfig.defaultWorker?.autoStart !== true) return;
+  Logger.debug('Auto-start check', {
+    envAutoStart: process.env['WORKER_AUTO_START'],
+    configAutoStart: workersConfig.defaultWorker?.autoStart,
+  });
+
+  if (workersConfig.defaultWorker?.autoStart !== true) {
+    Logger.debug('Auto-start disabled - WORKER_AUTO_START is not true');
+    return;
+  }
 
   try {
     const records = await WorkerFactory.listPersistedRecords();
+    Logger.debug('Found persisted records', {
+      count: records.length,
+      records: records.map((r) => ({ name: r.name, autoStart: r.autoStart })),
+    });
+
     const candidates = records.filter((record) => {
       // If autoStart is explicitly true, always include
       if (record.autoStart === true) {
@@ -162,6 +217,11 @@ async function autoStartPersistedWorkers(): Promise<void> {
       }
 
       return false;
+    });
+
+    Logger.debug('Auto-start candidates', {
+      count: candidates.length,
+      candidates: candidates.map((c) => c.name),
     });
     const results = await Promise.all(
       candidates.map(async (record) => {
