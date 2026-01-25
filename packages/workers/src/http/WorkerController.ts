@@ -154,21 +154,22 @@ async function restart(req: IRequest, res: IResponse): Promise<void> {
  */
 async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
   try {
-    const name = getParam(req, 'name');
+    const data = req.data();
+    const name = data['name'] as string;
+
     if (!name) {
       res.setStatus(400).json({ error: 'Worker name is required' });
       return;
     }
-    const body = getBody(req);
-    const param = req.getQueryParam?.('enabled');
 
+    const rawEnabled = data['enabled'] as boolean;
     let enabled: boolean;
-    if (typeof body.enabled === 'boolean') {
-      enabled = body.enabled;
+
+    if (typeof rawEnabled === 'boolean') {
+      enabled = rawEnabled;
     } else {
-      const val = body.enabled === undefined ? param : String(body.enabled);
-      const enabledRaw = normalizeQueryValue(val as string | string[] | undefined) ?? '';
-      enabled = ['true', '1', 'yes', 'on'].includes(enabledRaw.toLowerCase());
+      const enabledStr = normalizeQueryValue(rawEnabled as string | string[]) ?? '';
+      enabled = ['true', '1', 'yes', 'on'].includes(enabledStr.toLowerCase());
     }
 
     const persistenceOverride = resolvePersistenceOverride(req);

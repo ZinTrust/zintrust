@@ -42,6 +42,17 @@ export interface IRequest {
   files(fieldName: string, options?: FileUploadOptions): UploadedFile[];
   hasFile(fieldName: string): boolean;
   fileUpload(): IFileUploadHandler;
+
+  /**
+   * Unified data access
+   * Returns merged object from Body > Path Params > Query Params
+   */
+  data(): Record<string, unknown>;
+
+  /**
+   * Get specific field from unified data
+   */
+  get<T = unknown>(key: string, defaultValue?: T): T;
 }
 
 export type ValidatedRequest<
@@ -101,6 +112,7 @@ type RequestState = {
     params?: unknown;
     headers?: unknown;
   };
+  _cachedData?: Record<string, unknown>;
 };
 
 const createRequestState = (req: http.IncomingMessage): RequestState => {
@@ -111,12 +123,14 @@ const createRequestState = (req: http.IncomingMessage): RequestState => {
     body: null,
     bodyRecord: {},
     validated: {},
+    _cachedData: undefined,
   };
 };
 
 const setBodyState = (state: RequestState, newBody: unknown): void => {
   state.body = newBody;
   state.bodyRecord = toBodyRecord(newBody);
+  state._cachedData = undefined; // Clear cache when body changes
 };
 
 const createRequestProperties = (
@@ -163,11 +177,16 @@ const createRequestProperties = (
   };
 };
 
-const createRequestMethods = (
-  req: http.IncomingMessage,
-  query: Record<string, string | string[]>,
-  state: RequestState
-): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'validated' | 'context'> => {
+/**
+ * Create HTTP method helpers
+ */
+function createHttpHelpers(req: http.IncomingMessage): {
+  getMethod: () => string;
+  getPath: () => string;
+  getHeaders: () => http.IncomingHttpHeaders;
+  headers: http.IncomingHttpHeaders;
+  getHeader: (name: string) => HeadParam;
+} {
   return {
     getMethod(): string {
       return req.method ?? 'GET';
@@ -185,7 +204,23 @@ const createRequestMethods = (
     getHeader(name: string): HeadParam {
       return req.headers[name.toLowerCase()];
     },
+  };
+}
 
+/**
+ * Create parameter helpers
+ */
+function createParameterHelpers(
+  state: RequestState,
+  query: Record<string, string | string[]>
+): {
+  getParams: () => Record<string, string>;
+  getParam: (key: string) => string | undefined;
+  setParams: (newParams: Record<string, string>) => void;
+  getQuery: () => Record<string, string | string[]>;
+  getQueryParam: (key: string) => HeadParam;
+} {
+  return {
     getParams(): Record<string, string> {
       return state.params;
     },
@@ -194,46 +229,125 @@ const createRequestMethods = (
     },
     setParams(newParams: Record<string, string>): void {
       state.params = newParams;
+      state._cachedData = undefined; // Clear cache when params change
     },
-
     getQuery(): Record<string, string | string[]> {
       return query;
     },
     getQueryParam(key: string): HeadParam {
       return query[key];
     },
+  };
+}
 
+/**
+ * Create body helpers
+ */
+function createBodyHelpers(
+  state: RequestState,
+  req: http.IncomingMessage
+): {
+  setBody: (newBody: unknown) => void;
+  getBody: () => unknown;
+  isJson: () => boolean;
+} {
+  return {
     setBody(newBody: unknown): void {
       setBodyState(state, newBody);
     },
     getBody(): unknown {
       return state.body;
     },
-
     isJson(): boolean {
-      const contentType = this.getHeader('content-type');
+      const contentType = req.headers['content-type'];
       return typeof contentType === 'string' && contentType.includes('application/json');
     },
+  };
+}
 
-    file(fieldName: string, options) {
-      const handler = FileUpload.createHandler(this as unknown as IRequest);
+/**
+ * Create file upload helpers
+ */
+function createFileHelpers(getCompleteRequest: () => IRequest): {
+  file: (fieldName: string, options?: FileUploadOptions) => UploadedFile | undefined;
+  files: (fieldName: string, options?: FileUploadOptions) => UploadedFile[];
+  hasFile: (fieldName: string) => boolean;
+  fileUpload: () => IFileUploadHandler;
+} {
+  return {
+    file(fieldName: string, options?: FileUploadOptions) {
+      const handler = FileUpload.createHandler(getCompleteRequest());
       return handler.file(fieldName, options);
     },
-
-    files(fieldName: string, options) {
-      const handler = FileUpload.createHandler(this as unknown as IRequest);
+    files(fieldName: string, options?: FileUploadOptions) {
+      const handler = FileUpload.createHandler(getCompleteRequest());
       return handler.files(fieldName, options);
     },
-
     hasFile(fieldName: string): boolean {
-      const handler = FileUpload.createHandler(this as unknown as IRequest);
+      const handler = FileUpload.createHandler(getCompleteRequest());
       return handler.hasFile(fieldName);
     },
-
     fileUpload() {
-      return FileUpload.createHandler(this as unknown as IRequest);
+      return FileUpload.createHandler(getCompleteRequest());
     },
+  };
+}
 
+/**
+ * Create unified data helpers
+ */
+function createDataHelpers(
+  state: RequestState,
+  query: Record<string, string | string[]>
+): {
+  data: () => Record<string, unknown>;
+  get: <T>(key: string, defaultValue?: T) => T;
+} {
+  return {
+    data(): Record<string, unknown> {
+      // Precedence: Body > Path Params > Query Params
+      state._cachedData ??= {
+        ...query,
+        ...state.params,
+        ...state.bodyRecord,
+      };
+      return state._cachedData;
+    },
+    get<T = unknown>(key: string, defaultValue?: T): T {
+      const data = this.data();
+      return (data[key] as T) ?? (defaultValue as T);
+    },
+  };
+}
+
+const createRequestMethods = (
+  req: http.IncomingMessage,
+  query: Record<string, string | string[]>,
+  state: RequestState,
+  context: Record<string, unknown>
+): Omit<IRequest, 'sessionId' | 'user' | 'params' | 'body' | 'validated' | 'context'> => {
+  return {
+    ...createHttpHelpers(req),
+    ...createParameterHelpers(state, query),
+    ...createBodyHelpers(state, req),
+    ...createFileHelpers(() => {
+      // Create a complete request object for file handlers
+      const completeRequest = {
+        ...createHttpHelpers(req),
+        ...createParameterHelpers(state, query),
+        ...createBodyHelpers(state, req),
+        ...createDataHelpers(state, query),
+        getRaw: () => req,
+        sessionId: state.sessionId,
+        user: state.user,
+        params: state.params,
+        body: state.body,
+        validated: state.validated,
+        context,
+      } as IRequest;
+      return completeRequest;
+    }),
+    ...createDataHelpers(state, query),
     getRaw(): http.IncomingMessage {
       return req;
     },
@@ -248,7 +362,7 @@ const createRequestApi = (
 ): IRequest => {
   return {
     ...createRequestProperties(state, context),
-    ...createRequestMethods(req, query, state),
+    ...createRequestMethods(req, query, state, context),
   };
 };
 

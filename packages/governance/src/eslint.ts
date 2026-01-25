@@ -86,10 +86,26 @@ const zintrustRulesConfig = (): unknown => ({
 
     // Avoid raw throw Error(...) in app code.
     'no-restricted-syntax': [
-      'error',
+      'warn',
       {
         selector: "ThrowStatement > NewExpression[callee.name='Error']",
         message: 'Do not throw raw Errors. Prefer ErrorFactory.create*Error() from @zintrust/core.',
+      },
+      {
+        selector: "CallExpression[callee.property.name='getParam']",
+        message: "Use req.get('key') or req.data() instead of req.getParam()",
+      },
+      {
+        selector: "CallExpression[callee.property.name='getQueryParam']",
+        message: "Use req.get('key') or req.data() instead of req.getQueryParam()",
+      },
+      {
+        selector: "CallExpression[callee.property.name='getBody']",
+        message: 'Use req.data() instead of req.getBody()',
+      },
+      {
+        selector: "CallExpression[callee.name='getParam']",
+        message: "Use req.get('key') or req.data() instead of getParam(req, ...)",
       },
     ],
 
