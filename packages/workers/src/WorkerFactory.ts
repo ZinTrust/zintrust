@@ -1639,7 +1639,13 @@ export const WorkerFactory = Object.freeze({
 
     try {
       const store = await getStoreForWorker(
-        instance?.config ?? ({ name, queueName: 'unknown' } as any)
+        instance?.config ?? {
+          name,
+          queueName: 'unknown',
+          processor: async (): Promise<unknown> => {
+            return Promise.resolve(); //NOSONAR
+          },
+        }
       );
       const errorMessage = typeof error === 'string' ? error : error?.message;
       await store.update(name, {

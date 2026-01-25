@@ -6,8 +6,10 @@
 
 import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
 import { CanaryController } from '../CanaryController';
+import { getWorkers } from '../dashboard/workers-api';
 import { HealthMonitor } from '../HealthMonitor';
 import { getParam } from '../helper';
+import { SLAMonitor } from '../index';
 import { ResourceMonitor } from '../ResourceMonitor';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerRegistry } from '../WorkerRegistry';
@@ -471,6 +473,26 @@ async function healthTrend(req: IRequest, res: IResponse): Promise<void> {
   } catch (error) {
     Logger.error('WorkerController.healthTrend failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
+ * Get SLA status for a worker
+ * @param req.params.name - Worker name
+ * @returns SLA compliance status with checks and metrics
+ */
+async function getSlaStatus(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const name = getParam(req, 'name');
+    const slaStatus = await SLAMonitor.checkCompliance(name);
+    res.json({ ok: true, status: slaStatus });
+  } catch (error) {
+    Logger.error('WorkerController.getSlaStatus failed', error);
+    if ((error as Error).message.includes('SLA config not found')) {
+      res.setStatus(404).json({ error: 'SLA config not found for worker' });
+    } else {
+      res.setStatus(500).json({ error: (error as Error).message });
+    }
   }
 }
 
@@ -1135,6 +1157,67 @@ async function monitoringSummary(_req: IRequest, res: IResponse): Promise<void> 
 }
 
 /**
+ * SSE endpoint: stream worker and monitoring events
+ * GET /api/workers/events
+ */
+const eventsStream = async (_req: IRequest, res: IResponse): Promise<void> => {
+  const raw = res.getRaw();
+
+  raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  let closed = false;
+
+  const send = async (payload: unknown) => {
+    try {
+      const data = JSON.stringify(payload);
+      raw.write(`data: ${data}\n\n`);
+    } catch (err) {
+      Logger.error('WorkerController.eventsStream failed', err);
+      // ignore serialization errors
+    }
+  };
+
+  // Send initial hello
+  await send({ type: 'hello', ts: new Date().toISOString() });
+
+  // Periodic snapshot sender
+  const intervalMs = 5000;
+  const interval = setInterval(async () => {
+    try {
+      const monitoring = await HealthMonitor.getSummary();
+      // include full workers listing with metrics/pagination to allow clients to patch the UI
+      const workersPayload = await getWorkers({ page: 1, limit: 200 });
+      await send({
+        type: 'snapshot',
+        ts: new Date().toISOString(),
+        monitoring,
+        workers: workersPayload,
+      });
+    } catch (err) {
+      // send error event
+      await send({ type: 'error', ts: new Date().toISOString(), message: (err as Error).message });
+    }
+  }, intervalMs);
+
+  // Heartbeat to keep connection alive
+  const hb = setInterval(() => {
+    if (!closed) raw.write(': ping\n\n');
+  }, 15000);
+
+  // Clean up when client disconnects
+  raw.on('close', () => {
+    closed = true;
+    clearInterval(interval);
+    clearInterval(hb);
+  });
+};
+
+/**
  * Builders that group related handlers to keep the create() method small.
  * Each builder returns a plain object with the relevant handler references.
  */
@@ -1162,6 +1245,8 @@ const buildHealthMonitoring = () => ({
   healthHistory,
   healthTrend,
   updateMonitoringConfig,
+  eventsStream,
+  getSlaStatus,
 });
 
 const buildVersioning = () => ({

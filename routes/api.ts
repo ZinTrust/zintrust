@@ -9,7 +9,7 @@ import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-import { registerDevRoutes } from '@routes/apiDev';
+// import { registerDevRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerHealthRoutes } from '@routes/health';
 import { registerMailUiPag } from '@routes/mail';
@@ -25,7 +25,7 @@ export function registerRoutes(router: IRouter): void {
   registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
   registerMailUiPag(router);
-  registerDevRoutes(router);
+  // registerDevRoutes(router);
 }
 
 /**

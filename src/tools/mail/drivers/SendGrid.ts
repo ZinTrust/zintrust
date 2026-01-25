@@ -1,3 +1,4 @@
+import { MIME_TYPES } from '@/config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 export type SendGridConfig = {
@@ -45,10 +46,10 @@ export const SendGridDriver = Object.freeze({
     ];
 
     const content: Array<{ type: string; value: string }> = [
-      { type: 'text/plain', value: message.text },
+      { type: MIME_TYPES.TEXT, value: message.text },
     ];
     if (typeof message.html === 'string' && message.html !== '') {
-      content.push({ type: 'text/html', value: message.html });
+      content.push({ type: MIME_TYPES.HTML, value: message.html });
     }
 
     type SendGridAttachment = { content: string; filename: string };
@@ -80,7 +81,7 @@ export const SendGridDriver = Object.freeze({
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
-        'content-type': 'application/json',
+        'content-type': MIME_TYPES.JSON,
       },
       body: JSON.stringify(body),
     });

@@ -144,9 +144,9 @@ This reduces information disclosure to unauthenticated callers and keeps probes 
 ## Example probe commands
 
 ```bash
-curl -sS http://localhost:3000/health | jq
-curl -sS http://localhost:3000/health/live | jq
-curl -sS http://localhost:3000/health/ready | jq
+curl -sS http://localhost:7777/health | jq
+curl -sS http://localhost:7777/health/live | jq
+curl -sS http://localhost:7777/health/ready | jq
 ```
 
 ## Kubernetes example

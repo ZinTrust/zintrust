@@ -10,6 +10,7 @@ Enterprise-grade worker management system for ZinTrust Framework with comprehens
 - [CLI Quick List](#cli-quick-list)
 - [Core Concepts](#core-concepts)
 - [Configuration](#configuration)
+- [Worker Auto-Start Configuration](#worker-auto-start-configuration)
 - [CLI Commands](#cli-commands)
 - [HTTP API](#http-api)
 - [Features](#features)
@@ -136,10 +137,10 @@ These environment variables control worker behavior. Set only what you need.
 ```bash
 # Worker lifecycle
 zin worker:list
-zin worker:status &lt;name&gt;
-zin worker:start &lt;name&gt;
-zin worker:stop &lt;name&gt;
-zin worker:restart &lt;name&gt;
+zin worker:status <name>
+zin worker:start <name>
+zin worker:stop <name>
+zin worker:restart <name>
 zin worker:summary
 
 # Resource monitoring
@@ -211,6 +212,171 @@ Workers start automatically when you call `WorkerFactory.create()` based on the 
 
 Set `autoStart: false` to register a worker without starting it, then use CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
 
+## Worker Auto-Start Configuration
+
+### Overview
+
+Worker auto-start functionality in ZinTrust is designed to provide controlled initialization of workers based on persistence driver compatibility. This is a security and resource management feature to prevent uncontrolled worker initialization.
+
+### Auto-Start Behavior
+
+Only workers that use the **WORKER_PERSISTENCE_DRIVER** are eligible for automatic startup when auto-start is enabled. Workers with different persistence drivers must be started manually.
+
+```bash
+# Environment configuration
+WORKER_PERSISTENCE_DRIVER=redis  # or mongodb, memory, etc.
+WORKER_AUTO_START=true           # Enable auto-start for persistence driver workers
+```
+
+### Supported Persistence Drivers
+
+The following persistence drivers support auto-start:
+
+- **Redis** (`redis`) - Workers using Redis backend
+- **MongoDB** (`mongodb`) - Workers using MongoDB backend
+- **Memory** (`memory`) - Workers using in-memory backend
+- **Cloudflare D1** (`cloudflare-d1`) - Workers using Cloudflare D1 backend
+
+### Workers Requiring Manual Start
+
+Workers that use **different persistence drivers** than `WORKER_PERSISTENCE_DRIVER` must be started manually:
+
+- **Via API:** `POST /api/workers/{workerName}/start`
+- **Via CLI:** `zin worker:start {workerName}`
+
+### Configuration Examples
+
+#### Redis Auto-Start Example
+
+```bash
+# .env configuration
+WORKER_PERSISTENCE_DRIVER=redis
+WORKER_AUTO_START=true
+
+# Workers with Redis persistence will auto-start:
+# - example-test-redis6 (persistence: { driver: "redis" })
+# - email-queue-worker (persistence: { driver: "redis" })
+
+# Workers with other persistence need manual start:
+# - mysql-worker (persistence: { driver: "mysql" }) → Manual start required
+# - postgres-worker (persistence: { driver: "postgres" }) → Manual start required
+```
+
+#### MongoDB Auto-Start Example
+
+```bash
+# .env configuration
+WORKER_PERSISTENCE_DRIVER=mongodb
+WORKER_AUTO_START=true
+
+# Workers with MongoDB persistence will auto-start:
+# - analytics-worker (persistence: { driver: "mongodb" })
+# - report-generator (persistence: { driver: "mongodb" })
+
+# Workers with other persistence need manual start:
+# - redis-worker (persistence: { driver: "redis" }) → Manual start required
+# - memory-worker (persistence: { driver: "memory" }) → Manual start required
+```
+
+### Worker Configuration Format
+
+#### Auto-Start Eligible Worker
+
+```json
+{
+  "name": "example-test-redis6",
+  "persistence": {
+    "driver": "redis", // Matches WORKER_PERSISTENCE_DRIVER
+    "redis": {
+      "env": true,
+      "host": "REDIS_HOST",
+      "port": "REDIS_PORT"
+    }
+  },
+  "autoStart": true // Optional: explicit auto-start flag
+}
+```
+
+#### Manual Start Required Worker
+
+```json
+{
+  "name": "mysql-worker",
+  "persistence": {
+    "driver": "mysql" // Different from WORKER_PERSISTENCE_DRIVER
+  },
+  "autoStart": false // Explicitly disabled
+}
+```
+
+### Manual Worker Control
+
+#### API Endpoints
+
+```bash
+# Start a worker manually
+POST /api/workers/{workerName}/start
+
+# Stop a worker
+POST /api/workers/{workerName}/stop
+
+# Check worker status
+GET /api/workers/{workerName}/status
+
+# List all workers
+GET /api/workers
+```
+
+#### CLI Commands
+
+```bash
+# Start a worker manually
+zin worker:start {workerName}
+
+# Stop a worker
+zin worker:stop {workerName}
+
+# List workers
+zin worker:list
+
+# Show worker details
+zin worker:show {workerName}
+```
+
+### Security Considerations
+
+1. **Resource Control:** Auto-start is limited to one persistence driver to prevent resource exhaustion
+2. **Explicit Control:** Non-standard persistence drivers require explicit manual start
+3. **Configuration Validation:** Workers are validated before auto-start
+4. **Error Handling:** Failed auto-starts are logged but don't block other workers
+
+### Troubleshooting
+
+#### Worker Not Auto-Starting
+
+Check the following:
+
+1. `WORKER_AUTO_START=true` is set in environment
+2. Worker's `persistence.driver` matches `WORKER_PERSISTENCE_DRIVER`
+3. Worker configuration is valid
+4. Persistence backend is accessible
+
+#### Manual Start Failing
+
+Check:
+
+1. Worker exists in registry
+2. Persistence backend is available
+3. Required environment variables are set
+4. Worker configuration is correct
+
+### Best Practices
+
+1. **Use Consistent Persistence:** Keep most workers on the same persistence driver for easier management
+2. **Explicit Configuration:** Always specify `persistence.driver` in worker configs
+3. **Monitor Auto-Start:** Check logs for auto-start failures
+4. **Resource Planning:** Consider resource needs when enabling auto-start
+
 **Processor registration (start from persistence)**
 
 If you want `POST /api/workers/:name/start` to auto-register a worker from persistence, register its processor at boot. You can do this with a direct function, bulk registration, or a file-based resolver.
@@ -268,18 +434,18 @@ zintrust worker:summary
 
 ```bash
 # Create a worker
-curl -X POST http://localhost:3000/api/workers \\
+curl -X POST http://localhost:7777/api/workers \\
   -H "Content-Type: application/json" \\
   -d '{"name": "email-sender", "queueName": "emails", "concurrency": 5}'
 
 # Start a worker
-curl -X POST http://localhost:3000/api/workers/email-sender/start
+curl -X POST http://localhost:7777/api/workers/email-sender/start
 
 # Get worker status
-curl http://localhost:3000/api/workers/email-sender/status
+curl http://localhost:7777/api/workers/email-sender/status
 
 # Get health metrics
-curl http://localhost:3000/api/workers/email-sender/health
+curl http://localhost:7777/api/workers/email-sender/health
 ```
 
 ## Core Concepts
@@ -475,7 +641,7 @@ Output:
 └──────────────┴──────────┴─────────┴───────────┴─────────────┘
 ```
 
-### worker:status &lt;name&gt;
+### worker:status <name>
 
 Get detailed status for a specific worker:
 
@@ -501,7 +667,7 @@ Metrics:
   Avg Duration:    1.2s
 ```
 
-### worker:start &lt;name&gt;
+### worker:start <name>
 
 Start a stopped worker:
 
@@ -509,7 +675,7 @@ Start a stopped worker:
 zintrust worker:start email-sender
 ```
 
-### worker:stop &lt;name&gt;
+### worker:stop <name>
 
 Stop a running worker gracefully:
 
@@ -517,7 +683,7 @@ Stop a running worker gracefully:
 zintrust worker:stop email-sender
 ```
 
-### worker:restart &lt;name&gt;
+### worker:restart <name>
 
 Restart a worker:
 
@@ -586,9 +752,9 @@ zin rm stop --host 192.168.1.100
 
 **Options:**
 
-- `&lt;action&gt;` - Required: `start` or `stop`
-- `--port &lt;port&gt;` - Worker service port (default: 7777)
-- `--host &lt;host&gt;` - Worker service host (default: 127.0.0.1)
+- `<action>` - Required: `start` or `stop`
+- `--port <port>` - Worker service port (default: 7777)
+- `--host <host>` - Worker service host (default: 127.0.0.1)
 
 **Examples:**
 
@@ -1125,7 +1291,7 @@ $ zin rm pause
 #### Related Commands
 
 - `zin worker:list` - List all workers
-- `zin worker:status &lt;name&gt;` - Check worker health
+- `zin worker:status <name>` - Check worker health
 - `zin start --verbose` - Start with verbose logging
 - `zin logs` - View application logs
 

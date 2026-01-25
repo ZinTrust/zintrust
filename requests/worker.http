@@ -84,7 +84,7 @@ Content-Type: application/json
     "autoScaling": true,
     "circuitBreaker": true,
     "deadLetterQueue": true,
-    "resourceMonitoring": true,
+    "resourceMonitoring": false,
     "compliance": true,
     "observability": true,
     "plugins": false,

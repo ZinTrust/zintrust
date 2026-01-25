@@ -1,4 +1,4 @@
-import { Logger } from '@zintrust/core';
+import { ErrorFactory, Logger } from '@zintrust/core';
 import type { Worker } from 'bullmq';
 import { WorkerCreationStatus, WorkerFactory } from './WorkerFactory';
 
@@ -7,7 +7,7 @@ export type HealthCheckResult = {
   status: 'healthy' | 'degraded' | 'critical';
   latency: number;
   message?: string;
-  meta?: any;
+  meta?: Record<string, unknown>;
 };
 
 type HealthMonitorConfig = {
@@ -24,7 +24,7 @@ type HealthMonitorConfig = {
 type WorkerMonitorConfig = {
   degradedCallback?: (name: string, result: HealthCheckResult) => void;
   criticalCallback?: (name: string, result: HealthCheckResult) => void;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 type WorkerHealthState = {
@@ -51,331 +51,340 @@ const DEFAULT_CONFIG: HealthMonitorConfig = {
   historyLimit: 50,
 };
 
-export class HealthMonitor {
-  private static instance: HealthMonitor;
-  private registry = new Map<string, WorkerHealthState>();
-  private config: HealthMonitorConfig = { ...DEFAULT_CONFIG };
-  private timer: NodeJS.Timeout | null = null;
-  private runningChecks = 0;
+// Module-level state (Singleton by nature of ESM)
+const registry = new Map<string, WorkerHealthState>();
+let config: HealthMonitorConfig = { ...DEFAULT_CONFIG };
+let timer: NodeJS.Timeout | null = null;
+let runningChecks = 0;
 
-  private constructor() {
-    this.scheduleTick();
+// Internal Helpers
+const persistStatusChange = async (
+  name: string,
+  status: WorkerCreationStatus,
+  lastError?: string
+): Promise<void> => {
+  try {
+    await WorkerFactory.updateStatus(name, status, lastError);
+  } catch (err) {
+    Logger.error(`Failed to persist status change for ${name}`, err);
+  }
+};
+
+const verifyWorkerHealth = async (
+  worker: Worker,
+  _name: string,
+  _queueName: string
+): Promise<boolean> => {
+  // Check if isClosing exists (isClosing check safe for mocks)
+  const workerAny = worker as unknown as Record<string, unknown>;
+  const isClosingFn = workerAny['isClosing'];
+
+  if (
+    worker.isPaused() ||
+    (typeof isClosingFn === 'function' && (isClosingFn as () => boolean)())
+  ) {
+    return false;
   }
 
-  public static getInstance(): HealthMonitor {
-    if (!HealthMonitor.instance) {
-      HealthMonitor.instance = new HealthMonitor();
-    }
-    return HealthMonitor.instance;
+  const isRunning = await worker.isRunning();
+  if (!isRunning) return false;
+
+  const client = await worker.client;
+  const pingResult = await client.ping();
+  if (pingResult !== 'PONG') {
+    throw ErrorFactory.createWorkerError(`Redis ping failed: ${pingResult}`);
+  }
+  Logger.debug(`Worker health verification passed for ${_name} ${_queueName}`);
+  return true;
+};
+
+const updateState = (
+  state: WorkerHealthState,
+  isHealthy: boolean,
+  errorMsg: string | undefined,
+  latency: number
+): void => {
+  const now = new Date();
+  state.lastCheck = now;
+
+  // Determine status (healthy > degraded > critical)
+  let status: 'healthy' | 'degraded' | 'critical';
+  if (isHealthy) {
+    status = 'healthy';
+  } else if (state.consecutiveFailures < config.failureThreshold) {
+    status = 'degraded';
+  } else {
+    status = 'critical';
   }
 
-  public static configure(config: Partial<HealthMonitorConfig>): void {
-    const instance = HealthMonitor.getInstance();
-    instance.config = { ...instance.config, ...config };
-    if (instance.timer) {
-      instance.stop();
-      instance.start();
-    }
+  // Create Check Result
+  const result: HealthCheckResult = {
+    timestamp: now,
+    status,
+    latency,
+    message: errorMsg,
+  };
+
+  // Add to history
+  state.history.push(result);
+  if (state.history.length > config.historyLimit) {
+    state.history.shift();
   }
 
-  /**
-   * Register a worker instance (Called by WorkerFactory)
-   */
-  public static register(name: string, worker: Worker, queueName: string): void {
-    const instance = HealthMonitor.getInstance();
-    let state = instance.registry.get(name);
-
-    if (state) {
-      // update existing entry (maybe created by startMonitoring)
-      state.worker = worker;
-      state.queueName = queueName;
-      // Reset checks if needed, or keep existing schedule
-    } else {
-      // Add jitter
-      const initialDelay = Math.floor(Math.random() * 5000);
-      state = {
-        name,
-        worker,
-        queueName,
-        status: WorkerCreationStatus.STARTING,
-        lastCheck: new Date(),
-        nextCheck: new Date(Date.now() + initialDelay),
-        consecutiveFailures: 0,
-        inProgress: false,
-        history: [],
-      };
-      instance.registry.set(name, state);
-    }
-
-    if (!instance.timer) {
-      instance.start();
-    }
+  // Callbacks
+  if (!isHealthy && state.config?.degradedCallback) {
+    state.config.degradedCallback(state.name, result);
+  }
+  if (result.status === 'critical' && state.config?.criticalCallback) {
+    state.config.criticalCallback(state.name, result);
   }
 
-  /**
-   * Start or configure monitoring for a worker (External API)
-   */
-  public static startMonitoring(name: string, config?: WorkerMonitorConfig): void {
-    const instance = HealthMonitor.getInstance();
-    const state = instance.registry.get(name);
+  if (isHealthy) {
+    state.consecutiveFailures = 0;
+    if (state.status !== WorkerCreationStatus.RUNNING) {
+      persistStatusChange(state.name, WorkerCreationStatus.RUNNING);
+      state.status = WorkerCreationStatus.RUNNING;
+      Logger.info(`Worker ${state.name} recovered to RUNNING`);
+    }
+    const jitter = Math.floor(Math.random() * 500); //NOSONAR
+    state.nextCheck = new Date(now.getTime() + config.intervalHealthyMs + jitter);
+  } else {
+    state.consecutiveFailures++;
 
-    if (state) {
-      if (config) state.config = { ...state.config, ...config };
-    } else {
-      // Worker instance not yet registered, create placeholder
-      const initialDelay = Math.floor(Math.random() * 5000);
-      instance.registry.set(name, {
-        name,
-        status: WorkerCreationStatus.STARTING,
-        lastCheck: new Date(),
-        nextCheck: new Date(Date.now() + initialDelay),
-        consecutiveFailures: 0,
-        inProgress: false,
-        history: [],
-        config,
+    if (
+      state.consecutiveFailures >= config.failureThreshold &&
+      state.status !== WorkerCreationStatus.FAILED
+    ) {
+      persistStatusChange(state.name, WorkerCreationStatus.FAILED, errorMsg);
+      state.status = WorkerCreationStatus.FAILED;
+      Logger.warn(`Worker ${state.name} marked FAILED after ${state.consecutiveFailures} checks`, {
+        error: errorMsg,
       });
     }
 
-    if (!instance.timer) instance.start();
+    const jitter = Math.floor(Math.random() * 500); //NOSONAR
+    state.nextCheck = new Date(now.getTime() + config.intervalSuspectMs + jitter);
+  }
+};
+
+const performCheck = async (state: WorkerHealthState): Promise<void> => {
+  const startTime = Date.now();
+  let isHealthy = false;
+  let errorMsg: string | undefined;
+
+  try {
+    if (!state.worker) {
+      throw ErrorFactory.createWorkerError('Worker instance not available');
+    }
+
+    isHealthy = await Promise.race([
+      verifyWorkerHealth(state.worker, state.name, state.queueName || 'unknown'),
+      new Promise<boolean>((_, reject) => {
+        // eslint-disable-next-line
+        const id = setTimeout(() => {
+          reject(ErrorFactory.createWorkerError('Health check timeout'));
+        }, config.checkTimeoutMs);
+        // Unref to prevent holding event loop if everything else finishes
+        id.unref();
+      }),
+    ]);
+  } catch (err) {
+    isHealthy = false;
+    errorMsg = (err as Error).message;
   }
 
-  public static stopMonitoring(name: string): void {
-    HealthMonitor.unregister(name);
-  }
+  const duration = Date.now() - startTime;
+  updateState(state, isHealthy, errorMsg, duration);
+};
 
-  public static unregister(name: string): void {
-    const instance = HealthMonitor.getInstance();
-    instance.registry.delete(name);
-    // don't stop loops eagerly if other workers might join, but maybe?
-    if (instance.registry.size === 0) {
-      instance.stop();
+const scheduleCheck = async (state: WorkerHealthState): Promise<void> => {
+  state.inProgress = true;
+  runningChecks++;
+
+  performCheck(state).finally(() => {
+    state.inProgress = false;
+    runningChecks--;
+  });
+};
+
+const tick = async (): Promise<void> => {
+  const now = new Date();
+  const candidates: WorkerHealthState[] = [];
+
+  for (const state of registry.values()) {
+    if (runningChecks >= config.concurrencyLimit) break;
+    // Skip if checks are paused or if worker instance is missing (wait for register)
+    if (!state.worker && !state.queueName) continue;
+
+    if (!state.inProgress && state.nextCheck <= now) {
+      candidates.push(state);
     }
   }
 
-  public static updateConfig(name: string, config: WorkerMonitorConfig): void {
-    HealthMonitor.startMonitoring(name, config);
+  for (const candidate of candidates) {
+    if (runningChecks >= config.concurrencyLimit) break;
+    scheduleCheck(candidate);
   }
+};
 
-  public static getCurrentHealth(name: string): HealthCheckResult | null {
-    const instance = HealthMonitor.getInstance();
-    const state = instance.registry.get(name);
-    if (!state || state.history.length === 0) return null;
-    return state.history[state.history.length - 1];
+const start = (): void => {
+  if (timer) return;
+  timer = setInterval(() => tick(), config.tickIntervalMs);
+  Logger.debug('HealthMonitor started');
+};
+
+const stop = (): void => {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
   }
+  Logger.debug('HealthMonitor stopped');
+};
 
-  public static getHealthHistory(name: string, limit?: number): HealthCheckResult[] {
-    const instance = HealthMonitor.getInstance();
-    const state = instance.registry.get(name);
-    if (!state) return [];
-    const history = state.history;
-    return limit ? history.slice(-limit) : history;
+// Exported Public Methods
+
+const configure = (newConfig: Partial<HealthMonitorConfig>): void => {
+  config = { ...config, ...newConfig };
+  if (timer) {
+    stop();
+    start();
   }
+};
 
-  public static getHealthTrend(name: string): any {
-    // Simple implementation
-    const history = HealthMonitor.getHealthHistory(name, 10);
-    const uptime = history.filter((h) => h.status === 'healthy').length / (history.length || 1);
-    return { uptime, samples: history.length };
-  }
+const register = (name: string, worker: Worker, queueName: string): void => {
+  let state = registry.get(name);
 
-  public static async getSummary(): Promise<any> {
-    const instance = HealthMonitor.getInstance();
-    const summary: any = {
-      total: instance.registry.size,
-      healthy: 0,
-      degraded: 0,
-      critical: 0,
-      details: [],
+  if (state) {
+    // update existing entry (maybe created by startMonitoring)
+    state.worker = worker;
+    state.queueName = queueName;
+  } else {
+    // Add jitter
+    const initialDelay = Math.floor(Math.random() * 5000); //NOSONAR
+    state = {
+      name,
+      worker,
+      queueName,
+      status: WorkerCreationStatus.STARTING,
+      lastCheck: new Date(),
+      nextCheck: new Date(Date.now() + initialDelay),
+      consecutiveFailures: 0,
+      inProgress: false,
+      history: [],
     };
-
-    for (const [name, state] of instance.registry) {
-      const lastResult = state.history[state.history.length - 1];
-      const status = lastResult?.status || 'unknown';
-      if (status === 'healthy') summary.healthy++;
-      else if (status === 'degraded') summary.degraded++;
-      else if (status === 'critical') summary.critical++;
-
-      summary.details.push({
-        name,
-        status,
-        lastCheck: state.lastCheck,
-      });
-    }
-    return summary;
+    registry.set(name, state);
   }
 
-  public static shutdown(): void {
-    const instance = HealthMonitor.getInstance();
-    instance.stop();
-    instance.registry.clear();
+  if (!timer) {
+    start();
   }
+};
 
-  public start(): void {
-    this.scheduleTick();
-    Logger.debug('HealthMonitor started');
-  }
+const startMonitoring = (name: string, monitorConfig?: WorkerMonitorConfig): void => {
+  const state = registry.get(name);
 
-  private scheduleTick() {
-    if (this.timer) return;
-    this.timer = setInterval(() => this.tick(), this.config.tickIntervalMs);
-  }
-
-  public stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-    Logger.debug('HealthMonitor stopped');
-  }
-
-  private async tick(): Promise<void> {
-    const now = new Date();
-    const candidates: WorkerHealthState[] = [];
-
-    for (const state of this.registry.values()) {
-      if (this.runningChecks >= this.config.concurrencyLimit) break;
-      // Skip if checks are paused or if worker instance is missing (wait for register)
-      if (!state.worker && !state.queueName) continue;
-
-      if (!state.inProgress && state.nextCheck <= now) {
-        candidates.push(state);
-      }
-    }
-
-    for (const candidate of candidates) {
-      if (this.runningChecks >= this.config.concurrencyLimit) break;
-      this.scheduleCheck(candidate);
-    }
-  }
-
-  private async scheduleCheck(state: WorkerHealthState): Promise<void> {
-    state.inProgress = true;
-    this.runningChecks++;
-
-    this.performCheck(state).finally(() => {
-      state.inProgress = false;
-      this.runningChecks--;
+  if (state) {
+    if (monitorConfig) state.config = { ...state.config, ...monitorConfig };
+  } else {
+    // Worker instance not yet registered, create placeholder
+    const initialDelay = Math.floor(Math.random() * 5000); //NOSONAR
+    registry.set(name, {
+      name,
+      status: WorkerCreationStatus.STARTING,
+      lastCheck: new Date(),
+      nextCheck: new Date(Date.now() + initialDelay),
+      consecutiveFailures: 0,
+      inProgress: false,
+      history: [],
+      config: monitorConfig,
     });
   }
 
-  private async performCheck(state: WorkerHealthState): Promise<void> {
-    const startTime = Date.now();
-    let isHealthy = false;
-    let errorMsg: string | undefined;
+  if (!timer) start();
+};
 
-    try {
-      if (!state.worker) throw new Error('Worker instance not available');
+const unregister = (name: string): void => {
+  registry.delete(name);
+  if (registry.size === 0) {
+    stop();
+  }
+};
 
-      isHealthy = await Promise.race([
-        this.verifyWorkerHealth(state.worker, state.name, state.queueName || 'unknown'),
-        new Promise<boolean>((_, reject) =>
-          setTimeout(() => reject(new Error('Health check timeout')), this.config.checkTimeoutMs)
-        ),
-      ]);
-    } catch (err) {
-      isHealthy = false;
-      errorMsg = (err as Error).message;
-    }
+const stopMonitoring = (name: string): void => {
+  unregister(name);
+};
 
-    const duration = Date.now() - startTime;
-    this.updateState(state, isHealthy, errorMsg, duration);
+const updateConfig = (name: string, monitorConfig: WorkerMonitorConfig): void => {
+  startMonitoring(name, monitorConfig);
+};
+
+const getCurrentHealth = (name: string): HealthCheckResult | null => {
+  const state = registry.get(name);
+  if (!state || state.history.length === 0) return null;
+  return state.history[state.history.length - 1];
+};
+
+const getHealthHistory = (name: string, limit?: number): HealthCheckResult[] => {
+  const state = registry.get(name);
+  if (!state) return [];
+  const history = state.history;
+  return limit ? history.slice(-limit) : history;
+};
+
+const getHealthTrend = (name: string): { uptime: number; samples: number } => {
+  const history = getHealthHistory(name, 10);
+  const uptime = history.filter((h) => h.status === 'healthy').length / (history.length || 1);
+  return { uptime, samples: history.length };
+};
+
+const getSummary = async (): Promise<unknown> => {
+  interface SummaryDetail {
+    name: string;
+    status: string;
+    lastCheck: Date;
   }
 
-  private updateState(
-    state: WorkerHealthState,
-    isHealthy: boolean,
-    errorMsg: string | undefined,
-    latency: number
-  ): void {
-    const now = new Date();
-    state.lastCheck = now;
+  const summary = {
+    total: registry.size,
+    healthy: 0,
+    degraded: 0,
+    critical: 0,
+    details: [] as SummaryDetail[],
+  };
 
-    // Create Check Result
-    const result: HealthCheckResult = {
-      timestamp: now,
-      status: isHealthy
-        ? 'healthy'
-        : state.consecutiveFailures < this.config.failureThreshold
-          ? 'degraded'
-          : 'critical',
-      latency,
-      message: errorMsg,
-    };
+  for (const [name, state] of registry) {
+    const lastResult = state.history[state.history.length - 1];
+    const status = lastResult?.status || 'unknown';
+    if (status === 'healthy') summary.healthy++;
+    else if (status === 'degraded') summary.degraded++;
+    else if (status === 'critical') summary.critical++;
 
-    // Add to history
-    state.history.push(result);
-    if (state.history.length > this.config.historyLimit) {
-      state.history.shift();
-    }
-
-    // Callbacks
-    if (!isHealthy && state.config?.degradedCallback) {
-      state.config.degradedCallback(state.name, result);
-    }
-    if (result.status === 'critical' && state.config?.criticalCallback) {
-      state.config.criticalCallback(state.name, result);
-    }
-
-    if (isHealthy) {
-      state.consecutiveFailures = 0;
-      if (state.status !== WorkerCreationStatus.RUNNING) {
-        this.persistStatusChange(state.name, WorkerCreationStatus.RUNNING);
-        state.status = WorkerCreationStatus.RUNNING;
-        Logger.info(`Worker ${state.name} recovered to RUNNING`);
-      }
-      const jitter = Math.floor(Math.random() * 500);
-      state.nextCheck = new Date(now.getTime() + this.config.intervalHealthyMs + jitter);
-    } else {
-      state.consecutiveFailures++;
-
-      if (
-        state.consecutiveFailures >= this.config.failureThreshold &&
-        state.status !== WorkerCreationStatus.FAILED
-      ) {
-        this.persistStatusChange(state.name, WorkerCreationStatus.FAILED, errorMsg);
-        state.status = WorkerCreationStatus.FAILED;
-        Logger.warn(
-          `Worker ${state.name} marked FAILED after ${state.consecutiveFailures} checks`,
-          { error: errorMsg }
-        );
-      }
-
-      const jitter = Math.floor(Math.random() * 500);
-      state.nextCheck = new Date(now.getTime() + this.config.intervalSuspectMs + jitter);
-    }
+    summary.details.push({
+      name,
+      status,
+      lastCheck: state.lastCheck,
+    });
   }
+  return summary;
+};
 
-  private async persistStatusChange(
-    name: string,
-    status: WorkerCreationStatus,
-    lastError?: string
-  ): Promise<void> {
-    try {
-      await WorkerFactory.updateStatus(name, status, lastError);
-    } catch (err) {
-      Logger.error(`Failed to persist status change for ${name}`, err);
-    }
-  }
+const shutdown = (): void => {
+  stop();
+  registry.clear();
+};
 
-  private async verifyWorkerHealth(
-    worker: Worker,
-    _name: string,
-    _queueName: string
-  ): Promise<boolean> {
-    // Check if isClosing exists (isClosing check safe)
-    if (
-      worker.isPaused() ||
-      (typeof (worker as any).isClosing === 'function' && (worker as any).isClosing())
-    )
-      return false;
-
-    const isRunning = await worker.isRunning();
-    if (!isRunning) return false;
-
-    const client = await worker.client;
-    const pingResult = await client.ping();
-    if (pingResult !== 'PONG') throw new Error(`Redis ping failed: ${pingResult}`);
-
-    return true;
-  }
-}
+export const HealthMonitor = Object.freeze({
+  configure,
+  register,
+  unregister,
+  start,
+  stop,
+  startMonitoring,
+  stopMonitoring,
+  updateConfig,
+  getCurrentHealth,
+  getHealthHistory,
+  getHealthTrend,
+  getSummary,
+  shutdown,
+});

@@ -9,6 +9,7 @@ import { createWorkersDashboard, type WorkersDashboardUiOptions } from '../dashb
 import { WorkerApiController } from '../http/WorkerApiController';
 import { WorkerController } from '../http/WorkerController';
 import { withDriverValidation } from '../http/middleware/ValidateDriver';
+import { registerStaticAssets, registerUiStaticPage } from '../ui/router/ui';
 
 type WorkerUiOptions = WorkersDashboardUiOptions;
 type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
@@ -61,6 +62,12 @@ function registerWorkerLifecycleRoutes(router: IRouter): void {
     Router.get(r, '/:name/monitoring/trend', controller.healthTrend);
     Router.put(r, '/:name/monitoring/config', controller.updateMonitoringConfig);
 
+    // SLA monitoring
+    Router.get(r, '/:name/sla/status', controller.getSlaStatus);
+
+    // SSE events stream for monitoring + workers snapshot
+    Router.get(r, '/events', controller.eventsStream);
+
     // Versioning
     Router.post(r, '/:name/versions', controller.registerVersion);
     Router.get(r, '/:name/versions', controller.listVersions);
@@ -85,6 +92,8 @@ export function registerWorkerRoutes(
   routeOptions?: RouteOptions
 ): void {
   registerWorkerUiPage(router, options, routeOptions);
+  registerUiStaticPage(router);
+  registerStaticAssets(router);
   registerWorkerLifecycleRoutes(router);
   Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
 }

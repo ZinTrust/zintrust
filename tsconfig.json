@@ -106,6 +106,7 @@
     "tests/cli/test-factories-*",
     ".next",
     ".git",
+    ".js",
     ".vscode",
     ".github",
     ".idea",

@@ -118,4 +118,45 @@ describe('Request', () => {
     const req = Request.create(rawReq);
     expect(req.getRaw()).toBe(rawReq);
   });
+
+  describe('data helpers', () => {
+    it('should merge data with precedence: body > params > query', () => {
+      const req = Request.create(createMockRequest({ url: '/users?query=value' }));
+      req.setParams({ param: 'value' });
+      req.setBody({ body: 'value' });
+
+      const data = req.data();
+      expect(data).toEqual({
+        query: 'value',
+        param: 'value',
+        body: 'value',
+      });
+    });
+
+    it('should cache data result', () => {
+      const req = Request.create(createMockRequest());
+      req.setParams({ id: '123' });
+
+      const data1 = req.data();
+      const data2 = req.data();
+      expect(data1).toBe(data2); // Same reference (cached)
+    });
+
+    it('should get typed value with default', () => {
+      const req = Request.create(createMockRequest());
+      req.setParams({ count: '42' });
+
+      expect(req.get('count')).toBe('42');
+      expect(req.get('missing', 'default')).toBe('default');
+      expect(req.get<number>('count')).toBe('42');
+      expect(req.get<number>('missing', 0)).toBe(0);
+    });
+
+    it('should handle empty data gracefully', () => {
+      const req = Request.create(createMockRequest());
+      const data = req.data();
+      expect(data).toEqual({});
+      expect(req.get('missing', 'fallback')).toBe('fallback');
+    });
+  });
 });

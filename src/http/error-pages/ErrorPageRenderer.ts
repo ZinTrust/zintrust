@@ -1,3 +1,4 @@
+import { MIME_TYPES } from '@/config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import * as fs from '@node-singletons/fs';
@@ -39,7 +40,7 @@ const prefersHtml = (request: IRequest): boolean => {
   if (accept === '') return false;
 
   // Browser Accept values almost always include one of these.
-  return accept.includes('text/html') || accept.includes('application/xhtml+xml');
+  return accept.includes(MIME_TYPES.HTML) || accept.includes(MIME_TYPES.XHTML);
 };
 
 const prefersJson = (request: IRequest): boolean => {
@@ -48,9 +49,9 @@ const prefersJson = (request: IRequest): boolean => {
   const accept = getAcceptHeader(request).toLowerCase();
 
   // If the client explicitly accepts HTML, treat it as an HTML preference.
-  if (accept.includes('text/html') || accept.includes('application/xhtml+xml')) return false;
+  if (accept.includes(MIME_TYPES.TEXT) || accept.includes(MIME_TYPES.XHTML)) return false;
 
-  if (accept.includes('application/json')) return true;
+  if (accept.includes(MIME_TYPES.JSON)) return true;
 
   // Default to JSON when the client doesn't express a preference.
   return accept === '' || accept.includes('*/*');
