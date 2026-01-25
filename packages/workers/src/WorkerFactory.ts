@@ -970,10 +970,11 @@ const resolvePersistenceConfig = (
   if (driver === 'memory') return { driver: 'memory' };
 
   if (driver === 'redis') {
+    const keyPrefix = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', ''));
     return {
       driver: 'redis',
       redis: { env: true },
-      keyPrefix: normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')),
+      keyPrefix: `${keyPrefix}_worker_${appConfig.prefix}`,
     };
   }
 

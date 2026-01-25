@@ -41,8 +41,8 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "example-test-redis2",
-  "queueName": "example-redis2",
+  "name": "example-test-redis4",
+  "queueName": "example-redis4",
   "processor": "app/Workers/EmailWorker.ts",
   "version": "1.0.0",
   "options": {
