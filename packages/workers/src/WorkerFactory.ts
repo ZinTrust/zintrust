@@ -187,7 +187,6 @@ type ObservabilityConfigInput =
 
 // Internal state
 const workers = new Map<string, WorkerInstance>();
-const healthCheckIntervals = new Map<string, NodeJS.Timeout>();
 let workerStore: WorkerStore = InMemoryWorkerStore.create();
 let workerStoreConfigured = false;
 let workerStoreConfig: WorkerPersistenceConfig | null = null;
@@ -238,7 +237,12 @@ const decodeProcessorPathEntities = (value: string): string =>
     .replaceAll('&#47;', '/')
     .replaceAll(/&sol;/gi, '/');
 
-const waitForWorkerConnection = async (worker: Worker, timeoutMs: number): Promise<void> => {
+const waitForWorkerConnection = async (
+  worker: Worker,
+  name: string,
+  queueName: string,
+  timeoutMs: number
+): Promise<void> => {
   const startTime = Date.now();
   const checkInterval = 100; // 100ms between checks
   let timeoutId: NodeJS.Timeout | null = null;
@@ -248,33 +252,48 @@ const waitForWorkerConnection = async (worker: Worker, timeoutMs: number): Promi
       try {
         // Check if worker is actually running
         const isRunning = await worker.isRunning();
-        if (isRunning) {
-          Logger.debug('Worker connection established');
-          if (timeoutId) clearTimeout(timeoutId);
-          resolve();
-          return;
+        if (!isRunning) {
+          throw ErrorFactory.createWorkerError('Worker not running');
         }
+
+        // Check Redis connection
+        const client = await worker.client;
+        const pingResult = await client.ping();
+        if (pingResult !== 'PONG') {
+          throw ErrorFactory.createWorkerError('Redis ping failed');
+        }
+
+        // Check queue accessibility
+        const { Queue } = await import('bullmq');
+        const prefix = getBullMQSafeQueueName();
+        const queue = new Queue(queueName, { prefix, connection: client });
+        const queueInfo = await queue.getJobCounts();
+        await queue.close(); // Clean up queue instance
+
+        Logger.debug(`Worker health verification passed for ${name}`, {
+          isRunning,
+          pingResult,
+          queueInfo,
+        });
+
+        if (timeoutId) clearTimeout(timeoutId);
+        resolve();
+        return;
+      } catch (error) {
+        Logger.debug(`Worker health verification failed for ${name}, retrying...`, error);
 
         // Check timeout
         if (Date.now() - startTime >= timeoutMs) {
           if (timeoutId) clearTimeout(timeoutId);
-          reject(ErrorFactory.createWorkerError('Worker failed to connect within timeout period'));
+          reject(
+            ErrorFactory.createWorkerError(
+              'Worker failed health verification within timeout period'
+            )
+          );
           return;
         }
 
         // Schedule next check
-        timeoutId = globalThis.setTimeout(checkConnection, checkInterval);
-      } catch (error) {
-        Logger.debug('Worker connection check failed, retrying...', error);
-
-        // Check timeout on error
-        if (Date.now() - startTime >= timeoutMs) {
-          if (timeoutId) clearTimeout(timeoutId);
-          reject(ErrorFactory.createWorkerError('Worker failed to connect within timeout period'));
-          return;
-        }
-
-        // Schedule next check on error
         timeoutId = globalThis.setTimeout(checkConnection, checkInterval);
       }
     };
@@ -284,60 +303,8 @@ const waitForWorkerConnection = async (worker: Worker, timeoutMs: number): Promi
   });
 };
 
-// TODO why we running verifyWorkerHealth  ??
-const verifyWorkerHealth = async (
-  worker: Worker,
-  name: string,
-  queueName: string
-): Promise<boolean> => {
-  try {
-    // Check BullMQ worker status
-    const isRunning = await worker.isRunning();
-
-    // Check Redis connection
-    const client = await worker.client;
-    const pingResult = await client.ping();
-
-    // Check queue accessibility
-    const { Queue } = await import('bullmq');
-    const prefix = getBullMQSafeQueueName();
-    const queue = new Queue(queueName, { prefix, connection: client });
-    const queueInfo = await queue.getJobCounts();
-    await queue.close(); // Clean up queue instance
-
-    Logger.debug(`Worker health check passed for ${name}`, {
-      isRunning,
-      pingResult,
-      queueInfo,
-    });
-
-    return isRunning && pingResult === 'PONG';
-  } catch (error) {
-    Logger.error(`Worker health check failed for ${name}`, error);
-    return false;
-  }
-};
-
 const startHealthMonitoring = (name: string, worker: Worker, queueName: string): void => {
-  const healthCheckInterval = setInterval(async () => {
-    const isHealthy = await verifyWorkerHealth(worker, name, queueName);
-    const currentStatus = await workerStore.get(name);
-
-    if (currentStatus) {
-      const newStatus = isHealthy ? WorkerCreationStatus.RUNNING : WorkerCreationStatus.FAILED;
-      if (currentStatus.status !== newStatus) {
-        await workerStore.update(name, {
-          status: newStatus,
-          updatedAt: new Date(),
-        });
-
-        Logger.info(`Worker ${name} status changed to ${newStatus}`);
-      }
-    }
-  }, 30000); // Check every 30 seconds
-
-  // Store interval for cleanup
-  healthCheckIntervals.set(name, healthCheckInterval);
+  HealthMonitor.register(name, worker, queueName);
 };
 
 const sanitizeProcessorPath = (value: string): string => {
@@ -905,9 +872,7 @@ const normalizeAppName = (value: string | undefined): string => {
   return normalized.length > 0 ? normalized : 'zintrust';
 };
 
-const resolveDefaultRedisKeyPrefix = (): string =>
-  normalizeAppName(appConfig.name ?? Env.get('APP_NAME', 'zintrust'));
-
+const resolveDefaultRedisKeyPrefix = (): string => 'worker_' + normalizeAppName(appConfig.prefix);
 const resolveDefaultPersistenceTable = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ?? 'zintrust_workers';
 
@@ -1588,8 +1553,8 @@ export const WorkerFactory = Object.freeze({
         updatedAt: new Date(),
       });
 
-      // Wait for actual connection
-      await waitForWorkerConnection(worker, 5000); // 5 second timeout
+      // Wait for actual connection and health verification
+      await waitForWorkerConnection(worker, name, queueName, 5000); // 5 second timeout
 
       // Update status to "running" only after successful connection
       await store.update(name, {
@@ -1664,6 +1629,30 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Update worker status directly (used by HealthMonitor)
+   */
+  async updateStatus(name: string, status: string, error?: Error | string): Promise<void> {
+    const instance = workers.get(name);
+    if (instance) {
+      instance.status = status as WorkerCreationStatus;
+    }
+
+    try {
+      const store = await getStoreForWorker(
+        instance?.config ?? ({ name, queueName: 'unknown' } as any)
+      );
+      const errorMessage = typeof error === 'string' ? error : error?.message;
+      await store.update(name, {
+        status: status as WorkerCreationStatus,
+        updatedAt: new Date(),
+        lastError: errorMessage,
+      });
+    } catch (err) {
+      Logger.warn(`Failed to update status for ${name} to ${status}`, err as Error);
+    }
+  },
+
+  /**
    * Stop worker
    */
   async stop(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
@@ -1709,12 +1698,7 @@ export const WorkerFactory = Object.freeze({
     instance.status = WorkerCreationStatus.STOPPED;
 
     // Stop health monitoring for this worker
-    const healthInterval = healthCheckIntervals.get(name);
-    if (healthInterval) {
-      clearInterval(healthInterval);
-      healthCheckIntervals.delete(name);
-      Logger.debug(`Stopped health monitoring for worker: ${name}`);
-    }
+    HealthMonitor.unregister(name);
 
     try {
       await store.update(name, {
@@ -1968,12 +1952,7 @@ export const WorkerFactory = Object.freeze({
       await Observability.clearWorkerMetrics(name);
 
       // Stop health monitoring for this worker
-      const healthInterval = healthCheckIntervals.get(name);
-      if (healthInterval) {
-        clearInterval(healthInterval);
-        healthCheckIntervals.delete(name);
-        Logger.debug(`Stopped health monitoring for worker: ${name}`);
-      }
+      HealthMonitor.unregister(name);
 
       workers.delete(name);
     }

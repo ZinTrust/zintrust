@@ -42,12 +42,6 @@ const getHeaderTopSection = (): string => `
               </svg>
               <span id="auto-refresh-label">Auto Refresh</span>
             </button>
-            <button id="bulk-auto-start-toggle" class="btn" onclick="toggleBulkAutoStart()">
-              <svg id="bulk-auto-start-icon" class="icon" viewBox="0 0 24 24">
-                <path d="M12 2v20M2 12h20" />
-              </svg>
-              <span id="bulk-auto-start-label">Auto Start: Off</span>
-            </button>
             <button class="btn" onclick="fetchData()">
               <svg class="icon" viewBox="0 0 24 24">
                 <path d="M23 4v6h-6" />
@@ -607,21 +601,6 @@ const getSummaryRenderingScripts = (): string => `
                 list.appendChild(chip);
             });
         }
-
-        function syncBulkAutoStartState(workers) {
-            if (!Array.isArray(workers)) return;
-            lastWorkers = workers;
-            const enabledCount = workers.filter((worker) => worker.autoStart).length;
-            if (enabledCount === workers.length && workers.length > 0) {
-                bulkAutoStartEnabled = true;
-                updateBulkAutoStartButton('Auto Start: On');
-            } else if (enabledCount === 0) {
-                bulkAutoStartEnabled = false;
-                updateBulkAutoStartButton('Auto Start: Off');
-            } else {
-                updateBulkAutoStartButton('Auto Start: Mixed');
-            }
-        }
 `;
 
 const getTableRenderingScripts = (): string => `
@@ -665,7 +644,6 @@ const getTableRenderingScripts = (): string => `
                 updateQueueSummary(data.queueData);
                 updateDriverFilter(data.drivers);
                 updateDriversList(data.drivers);
-                syncBulkAutoStartState([]);
                 updatePagination(data.pagination);
                 return;
             }
@@ -687,7 +665,6 @@ const getTableRenderingScripts = (): string => `
             updateQueueSummary(data.queueData);
             updateDriverFilter(data.drivers);
             updateDriversList(data.drivers);
-            syncBulkAutoStartState(data.workers);
             updatePagination(data.pagination);
         }
 
@@ -760,7 +737,6 @@ const getPaginationScripts = (): string => `
 const getWorkerActionScripts = (): string => `
         ${getWorkerLifecycleScripts()}
         ${getWorkerAutoStartScripts()}
-        ${getWorkerBulkScripts()}
         ${getWorkerModalScripts()}
 `;
 
@@ -818,40 +794,6 @@ const getWorkerAutoStartScripts = (): string => `
                 });
             } catch (err) {
                 console.error('Failed to toggle auto-start:', err);
-            }
-        }
-`;
-
-const getWorkerBulkScripts = (): string => `
-        function updateBulkAutoStartButton(label) {
-            const buttonLabel = document.getElementById('bulk-auto-start-label');
-            if (buttonLabel) {
-                buttonLabel.textContent = label;
-            }
-        }
-
-        async function toggleBulkAutoStart() {
-            if (!Array.isArray(lastWorkers) || lastWorkers.length === 0) return;
-            const nextEnabled = !bulkAutoStartEnabled;
-            bulkAutoStartEnabled = nextEnabled;
-            localStorage.setItem(BULK_AUTO_START_KEY, nextEnabled.toString());
-            updateBulkAutoStartButton(nextEnabled ? 'Auto Start: On' : 'Auto Start: Off');
-
-            try {
-                const CHUNK_SIZE = 10;
-                const workersToUpdate = lastWorkers.map(w => w.name);
-
-                for (let i = 0; i < workersToUpdate.length; i += CHUNK_SIZE) {
-                    const chunk = workersToUpdate.slice(i, i + CHUNK_SIZE);
-                    await fetch(API_BASE + '/api/workers/auto-start/bulk', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ workers: chunk, enabled: nextEnabled })
-                    });
-                }
-                fetchData();
-            } catch (err) {
-                console.error('Failed to toggle bulk auto-start:', err);
             }
         }
 `;

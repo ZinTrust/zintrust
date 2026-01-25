@@ -8,7 +8,7 @@ import { Router, type IRouter } from '@zintrust/core';
 export const registerMailUiPag = (router: IRouter): void => {
   /* istanbul ignore next */
   const handler = async (req: IRequest, res: IResponse): Promise<void> => {
-    await EmailJobService.sendWelcome('test@zintrust.com', 'Redis User', 'example-redis2');
+    await EmailJobService.sendWelcome('test@zintrust.com', 'Redis User', 'example-redis6');
     // Enterprise BullMQ worker (example-test-mysql2) is already running and will process this job
     const templateName = req.getParam('template') ?? 'welcome';
     const html = await Mail.render({
