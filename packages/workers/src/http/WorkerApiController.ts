@@ -12,7 +12,7 @@ import type {
   WorkerSortOrder,
   WorkerStatus,
 } from '../dashboard/types';
-import { getWorkerDetails, getWorkers, toggleAutoStart } from '../dashboard/workers-api';
+import { getWorkerDetails, getWorkers } from '../dashboard/workers-api';
 import { getParam } from '../helper';
 
 /**
@@ -154,54 +154,6 @@ export const getWorkerDetailsHandler = async (req: IRequest, res: IResponse): Pr
 };
 
 /**
- * POST /api/workers/auto-start/bulk - Bulk toggle auto-start for multiple workers
- */
-export const bulkToggleAutoStartHandler = async (req: IRequest, res: IResponse): Promise<void> => {
-  try {
-    const { workers, enabled } = req.body;
-
-    if (!Array.isArray(workers) || typeof enabled !== 'boolean') {
-      res.status(400).json({
-        error: 'Invalid request',
-        message: 'workers must be an array and enabled must be a boolean',
-      });
-      return;
-    }
-
-    const results = await Promise.allSettled(
-      workers.map(async (workerName: string) => {
-        await toggleAutoStart(workerName, enabled);
-        return { worker: workerName, success: true };
-      })
-    );
-
-    const successful = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected').length;
-
-    res.json({
-      success: true,
-      message: `Auto-start ${enabled ? 'enabled' : 'disabled'} for ${successful} workers`,
-      summary: {
-        total: workers.length,
-        successful,
-        failed,
-      },
-      results: results.map((r, i) => ({
-        worker: workers[i],
-        success: r.status === 'fulfilled',
-        error: r.status === 'rejected' ? (r as PromiseRejectedResult).reason.message : null,
-      })),
-    });
-  } catch (error) {
-    Logger.error('Error in bulk auto-start toggle:', error);
-    res.status(500).json({
-      error: 'Failed to toggle auto-start for workers',
-      message: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-};
-
-/**
  * GET /api/workers/drivers - Get available worker drivers
  */
 export const getDriversHandler = async (_req: IRequest, res: IResponse): Promise<void> => {
@@ -275,7 +227,6 @@ export const WorkerApiController = Object.freeze({
       getHealthSummaryHandler,
       listWorkers,
       getWorkerDetailsHandler,
-      bulkToggleAutoStartHandler,
     };
   },
 });

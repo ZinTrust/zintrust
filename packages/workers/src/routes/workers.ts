@@ -8,7 +8,12 @@ import { Logger, Router } from '@zintrust/core';
 import { createWorkersDashboard, type WorkersDashboardUiOptions } from '../dashboard';
 import { WorkerApiController } from '../http/WorkerApiController';
 import { WorkerController } from '../http/WorkerController';
+import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';
 import { withDriverValidation } from '../http/middleware/ValidateDriver';
+import {
+  withCreateWorkerValidation,
+  withWorkerOperationValidation,
+} from '../http/middleware/WorkerValidationChain';
 import { registerStaticAssets } from '../ui/router/ui';
 
 type WorkerUiOptions = WorkersDashboardUiOptions;
@@ -30,7 +35,7 @@ const registerWorkerUiPage = (
 };
 
 const controller = WorkerController.create();
-const newController = WorkerApiController.create();
+const apiController = WorkerApiController.create();
 
 function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArray<string>): void {
   Router.group(
@@ -40,23 +45,61 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
       // Core worker operations
       Logger.info('Registering Worker Management Routes');
 
-      Router.post(r, '/create', controller.create);
-      Router.post(r, '/:name/start', withDriverValidation(controller.start));
-      Router.post(r, '/:name/auto-start', withDriverValidation(controller.setAutoStart));
-      Router.post(r, '/:name/stop', withDriverValidation(controller.stop));
-      Router.post(r, '/:name/restart', withDriverValidation(controller.restart));
-      Router.post(r, '/:name/pause', withDriverValidation(controller.pause));
-      Router.post(r, '/:name/resume', withDriverValidation(controller.resume));
-      Router.del(r, '/:name', withDriverValidation(controller.remove));
+      Router.post(r, '/create', withCreateWorkerValidation(controller.create));
+      Router.post(
+        r,
+        '/:name/start',
+        withDriverValidation(withWorkerOperationValidation(controller.start))
+      );
+      Router.post(
+        r,
+        '/:name/auto-start',
+        withDriverValidation(withWorkerOperationValidation(controller.setAutoStart))
+      );
+      Router.post(
+        r,
+        '/:name/stop',
+        withDriverValidation(withWorkerOperationValidation(controller.stop))
+      );
+      Router.post(
+        r,
+        '/:name/restart',
+        withDriverValidation(withWorkerOperationValidation(controller.restart))
+      );
+      Router.post(
+        r,
+        '/:name/pause',
+        withDriverValidation(withWorkerOperationValidation(controller.pause))
+      );
+      Router.post(
+        r,
+        '/:name/resume',
+        withDriverValidation(withWorkerOperationValidation(controller.resume))
+      );
+      Router.del(
+        r,
+        '/:name',
+        withDriverValidation(withWorkerOperationValidation(controller.remove))
+      );
 
       // Worker listing and filtering
-      Router.get(r, '/', withDriverValidation(newController.listWorkers));
+      Router.get(
+        r,
+        '/',
+        withDriverValidation(
+          withCustomValidation(ValidationSchemas.workerFilter, apiController.listWorkers)
+        )
+      );
 
-      Router.get(r, '/:name', withDriverValidation(controller.get));
-      Router.get(r, '/:name/status', controller.status);
-      Router.get(r, '/:name/creation-status', controller.getCreationStatus);
-      Router.get(r, '/:name/metrics', controller.metrics);
-      Router.get(r, '/:name/health', controller.health);
+      Router.get(r, '/:name', withDriverValidation(withWorkerOperationValidation(controller.get)));
+      Router.get(r, '/:name/status', withWorkerOperationValidation(controller.status));
+      Router.get(
+        r,
+        '/:name/creation-status',
+        withWorkerOperationValidation(controller.getCreationStatus)
+      );
+      Router.get(r, '/:name/metrics', withWorkerOperationValidation(controller.metrics));
+      Router.get(r, '/:name/health', withWorkerOperationValidation(controller.health));
 
       // Health monitoring
       Router.post(r, '/:name/monitoring/start', controller.startMonitoring);
@@ -77,15 +120,12 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
       Router.get(r, '/:name/versions/:version', controller.getVersion);
 
       // Worker details
-      Router.get(r, '/:name/details', withDriverValidation(newController.getWorkerDetailsHandler));
-
-      // Bulk operations
-      Router.post(r, '/auto-start/bulk', newController.bulkToggleAutoStartHandler);
+      Router.get(r, '/:name/details', withDriverValidation(apiController.getWorkerDetailsHandler));
 
       // Utility endpoints
-      Router.get(r, '/drivers', newController.getDriversHandler);
-      Router.get(r, '/queue-data', newController.getQueueDataHandler);
-      Router.get(r, '/health', newController.getHealthSummaryHandler);
+      Router.get(r, '/drivers', apiController.getDriversHandler);
+      Router.get(r, '/queue-data', apiController.getQueueDataHandler);
+      Router.get(r, '/health', apiController.getHealthSummaryHandler);
     },
     { middleware: middleware }
   );

@@ -88,6 +88,8 @@ export type {
 } from './ChaosEngineering';
 export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
 
+export type * from './type';
+
 /**
  * Package version and build metadata
  * Available at runtime for debugging and health checks

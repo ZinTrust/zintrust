@@ -1097,9 +1097,58 @@ Health monitoring includes:
 - Health score calculation (0-100)
 - Failure detection and alerting
 - Historical health tracking
-- Auto-recovery on failures
 
-### 2. Auto-Scaling
+### 2. Worker Failure Behavior
+
+**Workers do NOT automatically restart themselves when they crash or hang.** The system provides:
+
+✅ **Failure Detection**: Health monitoring detects failures through periodic health checks
+✅ **Status Tracking**: Failed workers are marked as `FAILED` and remain visible for debugging
+✅ **Manual Recovery**: Restart APIs and dashboard controls for manual intervention
+✅ **Boot Recovery**: Auto-start on application restart for workers with `autoStart: true`
+❌ **No Auto-Restart**: No automatic restart during runtime to prevent cascade failures
+
+This design prioritizes **stability and observability** over automatic recovery, requiring manual intervention for failed workers.
+
+#### What Happens When Workers Fail:
+
+1. **Detection**: HealthMonitor detects consecutive failures (default threshold: 2)
+2. **Status Change**: Worker status changes from `RUNNING` to `FAILED`
+3. **Logging**: Detailed error information is logged for debugging
+4. **No Restart**: Worker remains stopped until manual restart or application reboot
+
+#### Recovery Options:
+
+```bash
+# Manual restart via CLI
+zin worker:restart my-worker
+
+# Manual restart via HTTP API
+POST /api/workers/my-worker/restart
+
+# Dashboard restart
+# Use the worker dashboard UI restart button
+```
+
+#### Custom Auto-Restart Implementation:
+
+```typescript
+// Example: Implement custom auto-restart with health monitoring
+HealthMonitor.startMonitoring('my-worker', {
+  criticalCallback: async (name: string, result: HealthCheckResult) => {
+    Logger.warn(`Worker ${name} failed, attempting restart...`);
+    try {
+      await WorkerFactory.restart(name);
+      Logger.info(`Worker ${name} restarted successfully`);
+    } catch (error) {
+      Logger.error(`Failed to restart worker ${name}`, error);
+      // Implement escalation logic here
+    }
+  },
+});
+```
+
+### 3. Auto-Scaling
 
 Automatic scaling based on queue depth and resources:
 
@@ -1549,6 +1598,88 @@ Plugin hooks:
 - onScale, onFailover
 - And more...
 
+### 6. Security & Validation
+
+Comprehensive input validation and security middleware for all worker API endpoints:
+
+#### **Security Features Implemented:**
+
+**Input Sanitization:**
+✅ **Worker Names**: `^[a-zA-Z0-9_-]{3,50}$` pattern with sanitization
+✅ **Queue Names**: Same pattern as worker names
+✅ **Versions**: Semantic versioning `^\d+\.\d+\.\d+$`
+✅ **Processor Paths**: File extension validation + path traversal prevention
+✅ **Infrastructure**: Driver validation, persistence config validation
+✅ **Features**: Boolean-only validation with allowed feature list
+✅ **Datacenter**: Region format validation, topology validation
+
+**Error Handling:**
+✅ **Standardized Error Codes**: `INVALID_WORKER_NAME`, `MISSING_REQUIRED_FIELD`, etc.
+✅ **Detailed Error Messages**: Clear validation feedback
+✅ **Type Safety**: Full TypeScript support with proper typing
+✅ **Consistent Response Format**: Standardized JSON error responses
+
+**Middleware Architecture:**
+✅ **Composable**: Chain multiple validators together
+✅ **Reusable**: Individual validators can be used independently
+✅ **Extensible**: Custom validation schemas for any use case
+✅ **Performance**: Efficient validation with early returns
+
+#### **Validation Examples:**
+
+**Worker Creation with Full Validation:**
+
+```typescript
+POST /api/workers/create
+{
+  "name": "email-worker",
+  "queueName": "emails",
+  "version": "1.0.0",
+  "processor": "./processors/EmailProcessor.ts",
+  "infrastructure": {
+    "driver": "redis",
+    "persistence": { "driver": "db" }
+  },
+  "features": {
+    "observability": true,
+    "healthMonitoring": true
+  }
+}
+```
+
+**Custom Validation Schema:**
+
+```typescript
+const schema = {
+  page: { type: 'number', min: 1, default: 1 },
+  limit: { type: 'number', min: 1, max: 100 },
+  status: { type: 'string', allowedValues: ['active', 'inactive'] },
+};
+
+Router.get(r, '/workers', withCustomValidation(schema, handler));
+```
+
+**Validation Middleware Usage:**
+
+```typescript
+// Individual validators
+Router.post(r, '/create', withCreateWorkerValidation(controller.create));
+Router.post(r, '/:name/start', withWorkerOperationValidation(controller.start));
+
+// Composite validation chains
+Router.get(r, '/', withCustomValidation(ValidationSchemas.workerFilter, handler));
+```
+
+**Error Response Format:**
+
+```json
+{
+  "error": "Invalid worker name",
+  "message": "Worker name must be 3-50 characters long and contain only letters, numbers, hyphens, and underscores",
+  "code": "INVALID_WORKER_NAME"
+}
+```
+
 ## Architecture
 
 ### Components
@@ -1744,6 +1875,73 @@ if (status.health > 95) {
 ```
 
 ## Troubleshooting
+
+### Worker Crashed or Hung - Not Auto-Restarting
+
+**Symptoms**: Worker status shows "FAILED" and doesn't restart automatically
+
+**Expected Behavior**: This is normal. Workers do NOT automatically restart themselves when they crash or hang.
+
+**Why This Happens**: The system prioritizes stability and observability over automatic recovery to prevent cascade failures.
+
+**Solutions**:
+
+1. **Manual Restart**:
+
+   ```bash
+   # CLI
+   zin worker:restart my-worker
+
+   # HTTP API
+   POST /api/workers/my-worker/restart
+
+   # Dashboard
+   # Click restart button in worker UI
+   ```
+
+2. **Check Health Status**:
+
+   ```bash
+   # Check worker health
+   zin worker:status my-worker
+
+   # View health history
+   curl "http://localhost:7777/api/workers/my-worker/monitoring/history"
+   ```
+
+3. **Investigate Failure**:
+
+   ```bash
+   # Check logs for error details
+   tail -f storage/logs/zintrust.log | grep "my-worker"
+
+   # View worker metrics
+   curl "http://localhost:7777/api/workers/my-worker/metrics"
+   ```
+
+4. **Implement Custom Auto-Restart** (if needed):
+
+   ```typescript
+   // Add to your worker initialization
+   HealthMonitor.startMonitoring('my-worker', {
+     criticalCallback: async (name: string, result: HealthCheckResult) => {
+       Logger.warn(`Worker ${name} failed, attempting restart...`);
+       try {
+         await WorkerFactory.restart(name);
+         Logger.info(`Worker ${name} restarted successfully`);
+       } catch (error) {
+         Logger.error(`Failed to restart worker ${name}`, error);
+         // Implement escalation logic (alerts, notifications, etc.)
+       }
+     },
+   });
+   ```
+
+5. **Use External Process Managers** (for production):
+   - **PM2**: Configure auto-restart policies
+   - **Docker**: Set restart policies (`--restart=unless-stopped`)
+   - **Kubernetes**: Configure liveness probes and restart policies
+   - **Systemd**: Set service restart on failure
 
 ### Worker Not Starting
 

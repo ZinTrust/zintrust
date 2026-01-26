@@ -5,12 +5,14 @@
  */
 
 import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
+import type { Job } from 'bullmq';
 import { CanaryController } from '../CanaryController';
 import { getWorkers } from '../dashboard/workers-api';
 import { HealthMonitor } from '../HealthMonitor';
 import { getParam } from '../helper';
 import { SLAMonitor } from '../index';
 import { ResourceMonitor } from '../ResourceMonitor';
+import type { WorkerFactoryConfig } from '../WorkerFactory';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerRegistry } from '../WorkerRegistry';
 import { WorkerShutdown } from '../WorkerShutdown';
@@ -45,10 +47,19 @@ const getBody = (req: IRequest): Record<string, unknown> => {
 async function create(req: IRequest, res: IResponse): Promise<void> {
   Logger.info('WorkerController.create called');
   try {
-    const body = getBody(req);
+    const body = req.data() as unknown as WorkerFactoryConfig;
 
-    const rawProcessor = (body as { processor?: unknown }).processor;
-    let processor = rawProcessor as Parameters<typeof WorkerFactory.create>[0]['processor'];
+    // Validate required fields
+    if (!body.name || !body.queueName || !body.processor || !body.version) {
+      return res.setStatus(400).json({
+        error: 'Missing required fields',
+        message: 'name, queueName, processor, and version are required',
+        code: 'MISSING_REQUIRED_FIELDS',
+      });
+    }
+
+    const rawProcessor = body.processor;
+    let processor: (job: Job) => Promise<unknown>;
     let processorPath: string | undefined;
 
     if (typeof rawProcessor === 'string') {
@@ -59,6 +70,8 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
         return;
       }
       processor = resolved;
+    } else {
+      processor = rawProcessor as (job: Job) => Promise<unknown>;
     }
 
     if (typeof processor !== 'function') {
@@ -67,7 +80,7 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
     }
 
     const config = {
-      ...(body as Parameters<typeof WorkerFactory.create>[0]),
+      ...(body as WorkerFactoryConfig),
       processor,
       processorPath,
     };
