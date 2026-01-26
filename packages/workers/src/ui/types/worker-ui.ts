@@ -127,7 +127,7 @@ export interface WorkerInstance {
   name: string;
   status: 'running' | 'stopped' | 'failed' | 'paused';
   queueName: string;
-  driver: 'db' | 'redis' | 'memory';
+  driver: 'database' | 'redis' | 'memory';
   concurrency: number;
   autoStart: boolean;
   createdAt: string;

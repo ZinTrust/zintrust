@@ -127,77 +127,117 @@ const getDashboardStyles = (): string =>
     getInteractiveStyles(),
   ].join('\n');
 
+const getHeaderSection = (): string => `
+    <header>
+        <div class="brand">
+            <div class="logo-frame">
+                ${getLogoSvg()}
+            </div>
+            <div>
+                <b>ZinTrust</b>
+                <span>Queue Monitor</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+            <span id="last-updated" style="color: var(--muted); font-size: 12px;"></span>
+            <div class="nav-links">
+                <a class="nav-link" href="/queue-monitor/">Queue monitor</a>
+                <a class="nav-link" href="/workers">Workers</a>
+                <a class="nav-link" href="/telemetry">Telemetry</a>
+                <a class="nav-link" href="/metrics">Metrics</a>
+            </div>
+            <button id="theme-toggle" class="refresh-btn" type="button">Light mode</button>
+            <button id="auto-refresh-toggle" class="refresh-btn" type="button">Pause auto refresh</button>
+            <button class="refresh-btn" onclick="fetchData()" type="button">Refresh</button>
+        </div>
+    </header>
+`;
+
+const getLogoSvg = (): string => `
+<svg width="26" height="26" viewBox="0 0 100 100" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="zt-g2d" x1="10" y1="50" x2="90" y2="50" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#22c55e" />
+            <stop offset="1" stop-color="#38bdf8" />
+        </linearGradient>
+    </defs>
+    <circle cx="50" cy="50" r="34" stroke="rgba(255,255,255,0.16)" stroke-width="4" />
+    <ellipse cx="50" cy="50" rx="40" ry="18" stroke="url(#zt-g2d)" stroke-width="4" />
+    <ellipse cx="50" cy="50" rx="18" ry="40" stroke="url(#zt-g2d)" stroke-width="4" opacity="0.75" />
+    <circle cx="50" cy="50" r="6" fill="url(#zt-g2d)" />
+    <path d="M40 52C35 52 32 49 32 44C32 39 35 36 40 36H48" stroke="white" stroke-width="6" stroke-linecap="round" />
+    <path d="M60 48C65 48 68 51 68 56C68 61 65 64 60 64H52" stroke="white" stroke-width="6" stroke-linecap="round" />
+    <path d="M44 50H56" stroke="rgba(255,255,255,0.22)" stroke-width="6" stroke-linecap="round" />
+</svg>
+`;
+
+const getStatsSection = (): string => `
+    <div class="grid" id="stats-grid">
+        <!-- Stats inserted here -->
+    </div>
+`;
+
+const getLocksSection = (): string => `
+    <div class="tile" style="margin-top: 24px; padding: 0;">
+        <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap;">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Active Locks</h3>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input id="lock-pattern" placeholder="Pattern (e.g. email-*)" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px; min-width: 220px;" />
+                <button id="lock-refresh" class="refresh-btn" type="button">Refresh locks</button>
+            </div>
+        </div>
+        <div style="overflow-x: auto;">
+            <table id="locks-table">
+                <thead>
+                    <tr>
+                        <th>Lock Key</th>
+                        <th>TTL</th>
+                        <th>Expires</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+`;
+
+const getJobsSection = (): string => `
+    <div class="tile" style="margin-top: 24px; padding: 0;">
+        <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Recent Jobs</h3>
+            <select id="queue-select">
+                <!-- Queues inserted here -->
+            </select>
+        </div>
+        <div style="overflow-x: auto;">
+            <table id="jobs-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Job Name</th>
+                        <th>Queue</th>
+                        <th>Status</th>
+                        <th>Attempts</th>
+                        <th>Time</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+`;
+
 const getDashboardBody = (): string => `
     <div class="page">
         <div class="shell">
-            <header>
-                <div class="brand">
-                    <div class="logo-frame">
-                        <svg width="26" height="26" viewBox="0 0 100 100" fill="none" class="logo-img" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="zt-g2d" x1="10" y1="50" x2="90" y2="50" gradientUnits="userSpaceOnUse">
-                                    <stop stop-color="#22c55e" />
-                                    <stop offset="1" stop-color="#38bdf8" />
-                                </linearGradient>
-                            </defs>
-                            <circle cx="50" cy="50" r="34" stroke="rgba(255,255,255,0.16)" stroke-width="4" />
-                            <ellipse cx="50" cy="50" rx="40" ry="18" stroke="url(#zt-g2d)" stroke-width="4" />
-                            <ellipse cx="50" cy="50" rx="18" ry="40" stroke="url(#zt-g2d)" stroke-width="4" opacity="0.75" />
-                            <circle cx="50" cy="50" r="6" fill="url(#zt-g2d)" />
-                            <path d="M40 52C35 52 32 49 32 44C32 39 35 36 40 36H48" stroke="white" stroke-width="6" stroke-linecap="round" />
-                            <path d="M60 48C65 48 68 51 68 56C68 61 65 64 60 64H52" stroke="white" stroke-width="6" stroke-linecap="round" />
-                            <path d="M44 50H56" stroke="rgba(255,255,255,0.22)" stroke-width="6" stroke-linecap="round" />
-                        </svg>
-                    </div>
-                    <div>
-                        <b>ZinTrust</b>
-                        <span>Queue Monitor</span>
-                    </div>
-                </div>
-                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
-                    <span id="last-updated" style="color: var(--muted); font-size: 12px;"></span>
-                    <div class="nav-links">
-                        <a class="nav-link" href="/queue-monitor/">Queue monitor</a>
-                        <a class="nav-link" href="/workers">Workers</a>
-                        <a class="nav-link" href="/telemetry">Telemetry</a>
-                        <a class="nav-link" href="/metrics">Metrics</a>
-                    </div>
-                    <button id="theme-toggle" class="refresh-btn" type="button">Light mode</button>
-                    <button id="auto-refresh-toggle" class="refresh-btn" type="button">Pause auto refresh</button>
-                    <button class="refresh-btn" onclick="fetchData()" type="button">Refresh</button>
-                </div>
-            </header>
+            ${getHeaderSection()}
 
             <section id="error-container"></section>
 
-            <div class="grid" id="stats-grid">
-                <!-- Stats inserted here -->
-            </div>
-
-            <div class="tile" style="margin-top: 24px; padding: 0;">
-                <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);">
-                    <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Recent Jobs</h3>
-                    <select id="queue-select">
-                        <!-- Queues inserted here -->
-                    </select>
-                </div>
-                <div style="overflow-x: auto;">
-                    <table id="jobs-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Job Name</th>
-                                <th>Queue</th>
-                                <th>Status</th>
-                                <th>Attempts</th>
-                                <th>Time</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
+            ${getStatsSection()}
+            ${getLocksSection()}
+            ${getJobsSection()}
         </div>
     </div>
 `;
@@ -403,6 +443,28 @@ const getRenderJobsFunction = (): string => `
             });
         }`;
 
+const getRenderLocksFunction = (): string => `
+        function renderLocks(locks) {
+            const tbody = document.querySelector('#locks-table tbody');
+            tbody.innerHTML = '';
+
+            if (!locks || locks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--muted)">No active locks found</td></tr>';
+                return;
+            }
+
+            locks.forEach(lock => {
+                const tr = document.createElement('tr');
+                const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
+                const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
+                tr.innerHTML =
+                    '<td><code>' + lock.key + '</code></td>' +
+                    '<td>' + ttl + '</td>' +
+                    '<td>' + expires + '</td>';
+                tbody.appendChild(tr);
+            });
+        }`;
+
 const getErrorAndTooltipFunctions = (): string => `
         function showError(msg) {
             const el = document.getElementById('error-container');
@@ -485,6 +547,7 @@ const getDashboardScriptFetch = (): string => `
                      renderJobs([]);
                 }
 
+                await fetchLocks();
                 document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
             } catch (e) {
                 showError(e.message);
@@ -500,6 +563,18 @@ const getDashboardScriptFetch = (): string => `
                 console.error('Failed to fetch jobs', e);
             }
         }
+
+        async function fetchLocks() {
+            try {
+                const patternInput = document.getElementById('lock-pattern');
+                const pattern = patternInput && patternInput.value ? patternInput.value : '*';
+                const res = await fetch(API_BASE + '/api/locks?pattern=' + encodeURIComponent(pattern));
+                const data = await res.json();
+                renderLocks(data.locks || []);
+            } catch (e) {
+                console.error('Failed to fetch locks', e);
+            }
+        }
 `;
 
 const getDashboardScriptRender = (): string =>
@@ -507,6 +582,7 @@ const getDashboardScriptRender = (): string =>
     getRenderStatsFunction(),
     getUpdateQueueSelectFunction(),
     getRenderJobsFunction(),
+    getRenderLocksFunction(),
     getErrorAndTooltipFunctions(),
     getRetryJobFunction(),
   ].join('\n');
@@ -529,6 +605,11 @@ const getDashboardScriptBootstrap = (): string => `
                 localStorage.setItem(QUEUE_KEY, currentQueue);
                 fetchJobs(currentQueue);
             });
+        }
+
+        const lockRefresh = document.getElementById('lock-refresh');
+        if (lockRefresh) {
+            lockRefresh.addEventListener('click', fetchLocks);
         }
 
         const storedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);

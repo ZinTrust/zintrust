@@ -173,7 +173,6 @@ type RedisConfigInput = RedisConfig | RedisEnvConfig;
 export type WorkerPersistenceConfig =
   | { driver: 'memory' }
   | { driver: 'redis'; redis?: RedisConfigInput; keyPrefix?: string }
-  | { driver: 'db'; client?: IDatabase | string; connection?: string; table?: string }
   | { driver: 'database'; client?: IDatabase | string; connection?: string; table?: string };
 
 type ObservabilityConfigInput =
@@ -202,7 +201,7 @@ const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
 
 const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => {
-  const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') as 'memory' | 'redis' | 'db';
+  const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') as 'memory' | 'redis' | 'database';
 
   const config: WorkerFactoryConfig = {
     name: '__zintrust_persistence_bootstrap__',
@@ -927,7 +926,7 @@ const normalizeExplicitPersistence = (
     resolveDefaultPersistenceConnection();
 
   return {
-    driver: 'db',
+    driver: 'database',
     client: clientIsConnection ? undefined : persistence.client,
     connection: resolvedConnection,
     table:
@@ -959,14 +958,14 @@ const resolvePersistenceConfig = (
 
   if (driver === 'db' || driver === 'database') {
     return {
-      driver: 'db',
+      driver: 'database',
       connection: resolveDefaultPersistenceConnection(),
       table: resolveDefaultPersistenceTable(),
     };
   }
 
   throw ErrorFactory.createConfigError(
-    'WORKER_PERSISTENCE_DRIVER must be one of memory, redis, or db'
+    'WORKER_PERSISTENCE_DRIVER must be one of memory, redis, or database'
   );
 };
 
@@ -1008,7 +1007,7 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
     );
     const client = createRedisConnection(redisConfig);
     next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
-  } else if (persistence.driver === 'db' || persistence.driver === 'database') {
+  } else if (persistence.driver === 'database') {
     const explicitConnection =
       typeof persistence.client === 'string' ? persistence.client : persistence.connection;
     const client =

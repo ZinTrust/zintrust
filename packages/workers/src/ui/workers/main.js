@@ -156,7 +156,7 @@ globalThis.toggleDetails = toggleDetails;
 
 // Helper functions to reduce complexity
 function validateDriver(driver) {
-  return !driver || ['db', 'redis', 'memory'].includes(driver);
+  return !driver || ['database', 'redis', 'memory'].includes(driver);
 }
 
 async function fetchWorkerData(workerName, driver) {

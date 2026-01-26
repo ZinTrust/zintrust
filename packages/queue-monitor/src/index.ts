@@ -1,5 +1,5 @@
 import { queueConfig, Router, type IRouter } from '@zintrust/core';
-import { type RedisConfig } from './connection';
+import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
@@ -34,9 +34,16 @@ export type QueueMonitorSnapshot = {
   }>;
 };
 
+export type LockSummary = {
+  key: string;
+  ttl?: number;
+  expires?: string;
+};
+
 export type QueueMonitorApi = {
   registerRoutes: (router: IRouter) => void;
   getSnapshot: () => Promise<QueueMonitorSnapshot>;
+  getLocks: (pattern?: string) => Promise<LockSummary[]>;
   driver: QueueDriver;
   metrics: Metrics;
 };
@@ -77,6 +84,52 @@ function extractQueueParam(req: RequestWithParams): string | undefined {
 
 function fieldError(key: string, message: string): { error: string } {
   return { error: `[${key}] ${message}` };
+}
+
+const DEFAULT_LOCK_PREFIX = 'zintrust:locks:';
+
+function createGetLocks(redisConfig: RedisConfig) {
+  let redisConnection: ReturnType<typeof createRedisConnection> | null = null;
+
+  const resolveRedisConnection = (): ReturnType<typeof createRedisConnection> => {
+    if (!redisConnection) {
+      redisConnection = createRedisConnection(redisConfig);
+    }
+    return redisConnection;
+  };
+
+  const resolveLockPrefix = (): string => {
+    const fromEnv = String(process.env['QUEUE_LOCK_PREFIX'] ?? '').trim();
+    return fromEnv.length > 0 ? fromEnv : DEFAULT_LOCK_PREFIX;
+  };
+
+  return async (pattern: string = '*'): Promise<LockSummary[]> => {
+    const client = resolveRedisConnection();
+    const prefix = resolveLockPrefix();
+    const searchPattern = `${prefix}${pattern}`;
+
+    const keys: string[] = [];
+    let cursor = '0';
+
+    do {
+      // eslint-disable-next-line no-await-in-loop
+      const [nextCursor, batch] = await client.scan(cursor, 'MATCH', searchPattern, 'COUNT', '200');
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
+
+    const statuses = await Promise.all(keys.map((key) => client.pttl(key)));
+
+    return keys.map((key, index) => {
+      const ttl = statuses[index];
+      const exists = typeof ttl === 'number' && ttl > 0;
+      return {
+        key: key.replace(prefix, ''),
+        ttl: exists ? ttl : undefined,
+        expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
+      };
+    });
+  };
 }
 
 async function handleJobsEndpoint(
@@ -221,7 +274,8 @@ function createRegisterRoutes(
   },
   metrics: Metrics,
   driver: QueueDriver,
-  getSnapshot: () => Promise<QueueMonitorSnapshot>
+  getSnapshot: () => Promise<QueueMonitorSnapshot>,
+  getLocks: (pattern?: string) => Promise<LockSummary[]>
 ) {
   return (router: IRouter): void => {
     if (!settings.enabled) return;
@@ -265,6 +319,22 @@ function createRegisterRoutes(
       routeOptions
     );
 
+    // API: Locks
+    Router.get(
+      router,
+      `${settings.basePath}/api/locks`,
+      async (req, res) => {
+        const query =
+          typeof (req as { getQuery?: () => Record<string, string> }).getQuery === 'function'
+            ? (req as { getQuery: () => Record<string, string> }).getQuery()
+            : ((req as { query?: Record<string, string> }).query ?? {});
+        const pattern = query['pattern'] ?? '*';
+        const locks = await getLocks(pattern);
+        res.json({ locks });
+      },
+      routeOptions
+    );
+
     // API: Retry Failed Job
     Router.post(
       router,
@@ -285,11 +355,13 @@ export const QueueMonitor = Object.freeze({
     const startedAt = new Date().toISOString();
 
     const getSnapshot = createGetSnapshot(driver, startedAt);
-    const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot);
+    const getLocks = createGetLocks(config.redis);
+    const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
     return Object.freeze({
       registerRoutes,
       getSnapshot,
+      getLocks,
       driver,
       metrics,
     });

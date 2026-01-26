@@ -107,7 +107,7 @@ async function getWorkersFromPersistence(
   const offset = (page - 1) * limit;
 
   const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'] ?? 'memory';
-  const isMixedPersistence = persistenceDriver === 'db' || persistenceDriver === 'database';
+  const isMixedPersistence = persistenceDriver === 'database' || persistenceDriver === 'db';
 
   if (driverFilter) {
     return getWorkersByDriverFilter(driverFilter, offset, limit);
@@ -156,14 +156,17 @@ async function getWorkersFromMixedPersistence(
   limit: number
 ): Promise<PersistenceResult> {
   try {
-    const dbRecords = await WorkerFactory.listPersistedRecords({ driver: 'db' }, { offset, limit });
+    const dbRecords = await WorkerFactory.listPersistedRecords(
+      { driver: 'database' },
+      { offset, limit }
+    );
     const redisRecords = await WorkerFactory.listPersistedRecords(
       { driver: 'redis' },
       { offset, limit }
     );
 
     const workers = [
-      ...transformToWorkerData(dbRecords, 'db'),
+      ...transformToWorkerData(dbRecords, 'database'),
       ...transformToWorkerData(redisRecords, 'redis'),
     ];
 
@@ -173,7 +176,7 @@ async function getWorkersFromMixedPersistence(
         dbRecords.length + redisRecords.length >= limit
           ? offset + limit * 2
           : offset + dbRecords.length + redisRecords.length,
-      drivers: getAvailableDriversFromDrivers(['db', 'redis']),
+      drivers: getAvailableDriversFromDrivers(['database', 'redis']),
       effectiveLimit: Math.min(MAX_PAGE_SIZE, limit * 2),
       prePaginated: true,
     };
@@ -182,7 +185,7 @@ async function getWorkersFromMixedPersistence(
     return {
       workers: [],
       total: 0,
-      drivers: getAvailableDriversFromDrivers(['db', 'redis']),
+      drivers: getAvailableDriversFromDrivers(['database', 'redis']),
       effectiveLimit: Math.min(MAX_PAGE_SIZE, limit * 2),
       prePaginated: true,
     };
@@ -222,7 +225,7 @@ async function getWorkersFromSinglePersistence(
 }
 
 const normalizeDriver = (driver: string): WorkerDriver => {
-  if (driver === 'db' || driver === 'database') return 'db';
+  if (driver === 'db' || driver === 'database') return 'database';
   if (driver === 'redis') return 'redis';
   return 'memory';
 };
@@ -506,7 +509,7 @@ async function getDatabaseQueueData(): Promise<QueueData> {
     };
 
     return {
-      driver: 'db',
+      driver: 'database',
       totalQueues: Number(stats.totalQueues) || 0,
       totalJobs: Number(stats.totalJobs) || 0,
       processingJobs: Number(stats.processingJobs) || 0,
@@ -515,7 +518,7 @@ async function getDatabaseQueueData(): Promise<QueueData> {
   } catch (error) {
     Logger.error('Error fetching database queue data:', error);
     return {
-      driver: 'db',
+      driver: 'database',
       totalQueues: 0,
       totalJobs: 0,
       processingJobs: 0,
@@ -665,7 +668,7 @@ function buildWorkerConfiguration(
 }
 
 const resolvePersistenceOverride = (driver: WorkerDriver): { driver: WorkerDriver } => {
-  if (driver === 'db') return { driver: 'db' } as const;
+  if (driver === 'database') return { driver: 'database' } as const;
   if (driver === 'redis') return { driver: 'redis' } as const;
   return { driver: 'memory' } as const;
 };
@@ -751,14 +754,14 @@ export async function toggleAutoStart(name: string, enabled: boolean): Promise<v
 
 export async function getWorkerDetails(name: string, driver?: string): Promise<WorkerData> {
   const persistenceDriver = (driver || process.env['WORKER_PERSISTENCE_DRIVER']) ?? 'memory';
-  const isMixedPersistence = persistenceDriver === 'db' || persistenceDriver === 'database';
+  const isMixedPersistence = persistenceDriver === 'database';
 
   let worker: WorkerData | undefined;
 
   if (isMixedPersistence) {
-    const dbRecord = await WorkerFactory.getPersisted(name, { driver: 'db' });
+    const dbRecord = await WorkerFactory.getPersisted(name, { driver: 'database' });
     if (dbRecord) {
-      worker = buildWorkerFromRecord(dbRecord, 'db');
+      worker = buildWorkerFromRecord(dbRecord, 'database');
     } else {
       const redisRecord = await WorkerFactory.getPersisted(name, { driver: 'redis' });
       if (redisRecord) {

@@ -106,7 +106,7 @@ export const listWorkers = async (req: IRequest, res: IResponse): Promise<void> 
         'paused',
       ] as const),
       driver: getOptionalEnumParam<WorkerDriver>(query, 'driver', [
-        'db',
+        'database',
         'redis',
         'memory',
       ] as const),

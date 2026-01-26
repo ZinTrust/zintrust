@@ -268,7 +268,7 @@ const resolvePersistenceOverride = (
 ):
   | { driver: 'memory' }
   | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
-  | { driver: 'db'; connection?: string; table?: string }
+  | { driver: 'database'; connection?: string; table?: string }
   | undefined => {
   // Check for 'driver' parameter first (from frontend), then fallback to 'storage'
   const driverRaw =
@@ -276,9 +276,9 @@ const resolvePersistenceOverride = (
     normalizeQueryValue(req.getQueryParam?.('storage'));
   const driver = driverRaw?.toLowerCase();
 
-  // Validate driver parameter
-  if (driver && !['memory', 'redis', 'db'].includes(driver)) {
-    Logger.error(`Invalid driver parameter: ${driver}. Must be one of: memory, redis, db`);
+  // Validate driver parameter (accept 'db' as transitional alias)
+  if (driver && !['memory', 'redis', 'db', 'database'].includes(driver)) {
+    Logger.error(`Invalid driver parameter: ${driver}. Must be one of: memory, redis, database`);
     return undefined;
   }
 
@@ -294,9 +294,9 @@ const resolvePersistenceOverride = (
     };
   }
 
-  if (driver === 'db') {
+  if (driver === 'db' || driver === 'database') {
     return {
-      driver: 'db',
+      driver: 'database',
       connection: normalizeQueryValue(req.getQueryParam?.('connection')),
       table: normalizeQueryValue(req.getQueryParam?.('table')),
     };

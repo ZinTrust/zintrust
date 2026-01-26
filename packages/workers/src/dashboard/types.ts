@@ -3,7 +3,7 @@ export interface WorkerConfiguration {
   [key: string]: string | number | boolean | null | undefined | object;
 }
 
-export type WorkerDriver = 'db' | 'redis' | 'memory';
+export type WorkerDriver = 'database' | 'redis' | 'memory';
 
 export type WorkerStatus = 'running' | 'stopped' | 'error' | 'paused';
 

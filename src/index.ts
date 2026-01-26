@@ -359,9 +359,10 @@ export { GcsDriver } from '@tools/storage/drivers/Gcs';
 export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 
 // Queue drivers (for external registration packages)
-export { RedisQueue } from '@tools/queue/drivers/Redis';
-export { Queue } from '@tools/queue/Queue';
-export type { QueueMessage } from '@tools/queue/Queue';
+export { RedisQueue } from '@queue/drivers/Redis';
+export { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
+export { Queue } from '@queue/Queue';
+export type { QueueMessage } from '@queue/Queue';
 
 // Seeders (for database seeding)
 export { SeederLoader } from '@/seeders/SeederLoader';
@@ -409,6 +410,8 @@ export type { MiddlewaresType } from '@config/middleware';
 export * from '@config/redis';
 
 export type * from '@config/type';
+
+export { ZintrustLang } from '@lang/lang';
 
 // Workers config
 export { createRedisConnection, workersConfig } from '@config/workers';

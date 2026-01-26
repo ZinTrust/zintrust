@@ -7,7 +7,7 @@ import type { IRequest, IResponse } from '@zintrust/core';
 
 export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
 
-const VALID_DRIVERS = new Set(['db', 'redis', 'memory']);
+const VALID_DRIVERS = new Set(['database', 'redis', 'memory']);
 
 export const withDriverValidation = (handler: RouteHandler): RouteHandler => {
   return async (req: IRequest, res: IResponse): Promise<void> => {
@@ -19,7 +19,7 @@ export const withDriverValidation = (handler: RouteHandler): RouteHandler => {
     if (driverValue && !VALID_DRIVERS.has(driverValue)) {
       res.setStatus(400).json({
         error: 'Invalid driver parameter',
-        message: 'Driver must be one of: db, redis, memory',
+        message: 'Driver must be one of: database, redis, memory',
       });
       return;
     }

@@ -43,7 +43,7 @@ const WorkerValidationSchemas = {
       },
       driver: {
         type: 'string',
-        allowedValues: ['db', 'redis', 'memory'],
+        allowedValues: ['database', 'redis', 'memory'],
         optional: true,
       },
       concurrency: {
@@ -62,7 +62,7 @@ const WorkerValidationSchemas = {
         fields: {
           driver: {
             type: 'string',
-            allowedValues: ['db', 'redis', 'memory'],
+            allowedValues: ['database', 'redis', 'memory'],
           },
           persistence: {
             type: 'object',
@@ -70,7 +70,7 @@ const WorkerValidationSchemas = {
             fields: {
               driver: {
                 type: 'string',
-                allowedValues: ['memory', 'redis', 'db'],
+                allowedValues: ['memory', 'redis', 'database'],
               },
             },
           },

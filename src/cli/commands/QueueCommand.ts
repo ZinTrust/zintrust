@@ -4,6 +4,7 @@
  */
 
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
+import { setupQueueLockCommands } from '@cli/commands/QueueLockCommand';
 import { QueueWorkCommandUtils } from '@cli/commands/QueueWorkCommandUtils';
 import { QueueWorkRunner } from '@cli/workers/QueueWorkRunner';
 import type { Command } from 'commander';
@@ -134,6 +135,7 @@ export const QueueCommand = Object.freeze({
 
         setupWorkCommand(command);
         setupPruneCommand(command);
+        setupQueueLockCommands(command);
       },
       execute: executeQueueWork,
     });

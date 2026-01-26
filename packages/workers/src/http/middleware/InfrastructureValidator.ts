@@ -2,7 +2,7 @@ import { Logger, type IRequest, type IResponse } from '@zintrust/core';
 
 export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | void;
 
-const VALID_DRIVERS = new Set(['db', 'redis', 'memory']);
+const VALID_DRIVERS = new Set(['database', 'redis', 'memory']);
 const VALID_DEAD_LETTER_POLICIES = new Set(['expire', 'retry', 'dead-letter']);
 
 export interface InfrastructureConfig {
@@ -43,7 +43,7 @@ const validatePersistence = (persistence: InfrastructureConfig['persistence']): 
   }
 
   if (!VALID_DRIVERS.has(persistence.driver)) {
-    return 'Persistence driver must be one of: db, redis, memory';
+    return 'Persistence driver must be one of: database, redis, memory';
   }
 
   return null;
