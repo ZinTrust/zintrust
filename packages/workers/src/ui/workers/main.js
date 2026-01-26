@@ -545,12 +545,11 @@ function createWorkerRow(worker) {
 
   const row = document.createElement('tr');
   row.className = 'expander';
-  row.setAttribute('onclick', `toggleDetails('${detailsId}')`);
   row.dataset.workerName = worker.name;
   row.dataset.workerDriver = worker.driver;
 
   // Create cells using helper functions
-  const nameCell = createNameCell(worker);
+  const nameCell = createNameCell(worker, detailsId);
   const statusCell = createStatusCell(worker);
   const healthCell = createHealthCell(worker);
   const driverCell = createDriverCell(worker);
@@ -570,15 +569,51 @@ function createWorkerRow(worker) {
   return { row, detailsId };
 }
 
-function createNameCell(worker) {
+function createNameCell(worker, detailsId) {
   const nameCell = document.createElement('td');
+
+  // Create expandable container
+  const nameContainer = document.createElement('div');
+  nameContainer.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  `;
+  nameContainer.setAttribute('onclick', `toggleDetails('${detailsId}')`);
+  nameContainer.setAttribute('title', 'Click to expand worker details');
+
+  // Add expand/collapse icon
+  const expandIcon = document.createElement('div');
+  expandIcon.className = 'expand-icon';
+  expandIcon.id = `expand-icon-${detailsId}`;
+  expandIcon.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  `;
+  expandIcon.style.cssText = `
+    transition: transform 0.2s ease;
+    color: var(--muted);
+    flex-shrink: 0;
+  `;
+
+  // Add worker name
   const nameDiv = document.createElement('div');
   nameDiv.className = 'worker-name';
   nameDiv.textContent = worker.name; // Safe: textContent
+
+  // Add queue name
   const queueDiv = document.createElement('div');
   queueDiv.className = 'worker-queue';
   queueDiv.textContent = worker.queueName; // Safe: textContent
-  nameCell.appendChild(nameDiv);
+  queueDiv.style.marginLeft = '24px'; // Align with worker name
+
+  // Assemble the structure
+  nameContainer.appendChild(expandIcon);
+  nameContainer.appendChild(nameDiv);
+
+  nameCell.appendChild(nameContainer);
   nameCell.appendChild(queueDiv);
   return nameCell;
 }
@@ -1146,6 +1181,13 @@ function toggleDetails(rowId) {
   const row = document.getElementById(rowId);
   if (row) {
     const isOpen = row.classList.toggle('open');
+
+    // Rotate expand icon
+    const expandIcon = document.getElementById(`expand-icon-${rowId}`);
+    if (expandIcon) {
+      expandIcon.style.transform = isOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+    }
+
     if (isOpen) {
       const workerName = row.dataset.workerName || rowId.replace('details-', '');
       const workerDriver = row.dataset.workerDriver;
@@ -1440,19 +1482,8 @@ function createCopyButton(jsonContent) {
 
 // Helper function to setup modal event handlers
 function setupModalHandlers(modal) {
-  // Close on backdrop click
-  modal.onclick = (e) => {
-    if (e.target === modal) modal.remove();
-  };
-
-  // Close on ESC key
-  const handleEscape = (e) => {
-    if (e.key === 'Escape') {
-      modal.remove();
-      document.removeEventListener('keydown', handleEscape);
-    }
-  };
-  document.addEventListener('keydown', handleEscape);
+  // Only close on explicit close button click - not on backdrop click or ESC
+  // This ensures developers intentionally close the modal
 
   // Prevent body scroll when modal is open
   document.body.style.overflow = 'hidden';
@@ -1464,7 +1495,7 @@ function setupModalHandlers(modal) {
 // View worker JSON data
 async function viewWorkerJson(name, driver) {
   try {
-    const response = await fetch(`${API_BASE}/api/workers/${name}?driver=${driver}`);
+    const response = await fetch(`${API_BASE}/api/workers/${name}/details?driver=${driver}`);
     if (!response.ok) {
       throw new Error('Failed to fetch worker data');
     }
@@ -1564,7 +1595,8 @@ function createEditButtons(modal, textarea, name, driver) {
   saveBtn.onclick = async () => {
     try {
       const updatedData = JSON.parse(textarea.value);
-      const updateResponse = await fetch(`${API_BASE}/api/workers/${name}?driver=${driver}`, {
+      // Use the new edit endpoint that has withCreateWorkerValidation
+      const updateResponse = await fetch(`${API_BASE}/api/workers/${name}/edit?driver=${driver}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData),
@@ -1590,13 +1622,14 @@ function createEditButtons(modal, textarea, name, driver) {
 // Edit worker JSON data
 async function editWorkerJson(name, driver) {
   try {
-    const response = await fetch(`${API_BASE}/api/workers/${name}?driver=${driver}`);
+    // Get direct driver data for editing (raw persisted data without enrichment)
+    const response = await fetch(`${API_BASE}/api/workers/${name}/driver-data?driver=${driver}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch worker data');
+      throw new Error('Failed to fetch worker driver data');
     }
 
     const data = await response.json();
-    const jsonContent = JSON.stringify(data, null, 2);
+    const jsonContent = JSON.stringify(data.data, null, 2);
 
     // Create modal components
     const modal = createModal();
@@ -1605,20 +1638,41 @@ async function editWorkerJson(name, driver) {
     title.textContent = `Edit Worker JSON: ${name}`;
     title.style.marginBottom = '15px';
 
+    // Add warning about immutable fields
+    const warning = document.createElement('div');
+    warning.style.cssText = `
+      background-color: var(--warning-bg, #fff3cd);
+      border: 1px solid var(--warning-border, #ffeaa7);
+      color: var(--warning-text, #856404);
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      font-size: 14px;
+    `;
+    warning.innerHTML = `
+      <strong>⚠️ Note:</strong> Worker name (<code>${name}</code>) and driver (<code>${driver}</code>) cannot be changed.
+      Only other configuration fields can be modified.
+    `;
+
     const textarea = createJsonTextarea(jsonContent);
     const buttonDiv = createEditButtons(modal, textarea, name, driver);
 
     // Assemble modal
     content.appendChild(title);
+    content.appendChild(warning);
     content.appendChild(textarea);
     content.appendChild(buttonDiv);
     modal.appendChild(content);
     document.body.appendChild(modal);
 
-    // Close on backdrop click
-    modal.onclick = (e) => {
-      if (e.target === modal) modal.remove();
-    };
+    // Only close on explicit close button click - not on backdrop click or ESC
+    // This ensures developers intentionally close the modal
+
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    modal.addEventListener('remove', () => {
+      document.body.style.overflow = '';
+    });
   } catch (err) {
     console.error('Failed to edit worker JSON:', err);
     alert('Failed to load worker JSON: ' + err.message);

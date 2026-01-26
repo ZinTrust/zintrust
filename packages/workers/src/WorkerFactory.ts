@@ -1572,8 +1572,10 @@ export const WorkerFactory = Object.freeze({
         updatedAt: new Date(),
       });
 
+      const timeoutMs = Env.getInt('WORKER_CONNECTION_TIMEOUT', 5000);
+
       // Wait for actual connection and health verification
-      await waitForWorkerConnection(worker, name, queueName, 5000); // 5 second timeout
+      await waitForWorkerConnection(worker, name, queueName, timeoutMs);
 
       // Update status to "running" only after successful connection
       await store.update(name, {
@@ -1849,6 +1851,49 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Update persisted worker record and in-memory config if running.
+   */
+  async update(
+    name: string,
+    patch: Partial<WorkerRecord> | WorkerRecord,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<void> {
+    const instance = workers.get(name);
+    const store = await getStoreForWorker(instance?.config, persistenceOverride);
+
+    const current = await store.get(name);
+    if (!current) {
+      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
+    }
+
+    const merged: WorkerRecord = {
+      ...current,
+      ...(patch as Partial<WorkerRecord>),
+      updatedAt: (patch as Partial<WorkerRecord>).updatedAt ?? new Date(),
+    };
+
+    // Use save() which will insert or update appropriately for each store
+    await store.save(merged);
+
+    // If the worker is running in memory, update its runtime config so restarts use the new config
+    if (instance) {
+      const cfg = instance.config;
+      instance.config = {
+        ...cfg,
+        version: merged.version ?? cfg.version,
+        queueName: merged.queueName ?? cfg.queueName,
+        options: {
+          ...cfg.options,
+          concurrency: merged.concurrency ?? cfg.options?.concurrency,
+        },
+        infrastructure: (merged.infrastructure as unknown) ?? cfg.infrastructure,
+        features: (merged.features as unknown) ?? cfg.features,
+        datacenter: (merged.datacenter as unknown) ?? cfg.datacenter,
+      } as WorkerFactoryConfig;
+    }
+  },
+
+  /**
    * Start worker
    */
   async start(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
@@ -1936,7 +1981,7 @@ export const WorkerFactory = Object.freeze({
       version: record.version ?? undefined,
       processor,
       processorPath: record.processorPath ?? undefined,
-      autoStart: record.autoStart,
+      autoStart: true, // Override to true when manually starting
       options: { concurrency: record.concurrency } as WorkerOptions,
       infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],
       features: record.features as WorkerFactoryConfig['features'],

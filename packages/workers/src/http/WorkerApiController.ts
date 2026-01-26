@@ -14,6 +14,7 @@ import type {
 } from '../dashboard/types';
 import { getWorkerDetails, getWorkers } from '../dashboard/workers-api';
 import { getParam } from '../helper';
+import { WorkerFactory } from '../WorkerFactory';
 
 /**
  * Helper to safely get a single string value from query params
@@ -250,6 +251,46 @@ const getWorkerJsonHandler = async (req: IRequest, res: IResponse): Promise<void
   }
 };
 
+/**
+ * GET /api/workers/:name/driver-data - Get direct driver data for editing
+ * This retrieves the raw persisted data without enrichment for editing purposes
+ */
+const getWorkerDriverDataHandler = async (req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    const name = getParam(req, 'name');
+    if (!name) {
+      return res.setStatus(400).json({
+        error: 'Worker name is required',
+        code: 'MISSING_WORKER_NAME',
+      });
+    }
+
+    const driver = getQueryParam(req.getQuery?.() || {}, 'driver') as WorkerDriver;
+    const persistenceOverride = driver ? { driver } : undefined;
+
+    // Get direct driver data without enrichment
+    const persistedData = await WorkerFactory.getPersisted(name, persistenceOverride);
+
+    if (!persistedData) {
+      return res.setStatus(404).json({
+        error: 'Worker not found in driver',
+        code: 'WORKER_NOT_FOUND',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: persistedData,
+    });
+  } catch (error) {
+    Logger.error('Failed to get worker driver data', error);
+    return res.setStatus(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+};
+
 const updateWorkerJsonHandler = async (req: IRequest, res: IResponse): Promise<void> => {
   try {
     const workerData = req.data();
@@ -319,6 +360,7 @@ export const WorkerApiController = Object.freeze({
       listWorkers,
       getWorkerDetailsHandler,
       getWorkerJsonHandler,
+      getWorkerDriverDataHandler,
       updateWorkerJsonHandler,
     };
   },

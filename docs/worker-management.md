@@ -65,6 +65,7 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_ENABLED               | Default worker enabled flag     | true      |
 | WORKER_CONCURRENCY           | Default concurrency             | 5         |
 | WORKER_TIMEOUT               | Job timeout (seconds)           | 60        |
+| WORKER_CONNECTION_TIMEOUT    | Worker connection timeout (ms)  | 5000      |
 | WORKER_RETRIES               | Retry attempts                  | 3         |
 | WORKER_AUTO_START            | Auto-start worker               | false     |
 | WORKER_RESOURCE_MONITORING   | Global resource monitoring gate | true      |

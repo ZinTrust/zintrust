@@ -5,7 +5,7 @@ export type RouteHandler = (req: IRequest, res: IResponse) => Promise<void> | vo
 const VALID_DRIVERS = new Set(['db', 'redis', 'memory']);
 const VALID_DEAD_LETTER_POLICIES = new Set(['expire', 'retry', 'dead-letter']);
 
-interface InfrastructureConfig {
+export interface InfrastructureConfig {
   persistence: {
     driver: string;
   };

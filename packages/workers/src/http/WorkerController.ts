@@ -12,11 +12,13 @@ import { HealthMonitor } from '../HealthMonitor';
 import { getParam } from '../helper';
 import { SLAMonitor } from '../index';
 import { ResourceMonitor } from '../ResourceMonitor';
+import type { WorkerRecord } from '../storage/WorkerStore';
 import type { WorkerFactoryConfig } from '../WorkerFactory';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerRegistry } from '../WorkerRegistry';
 import { WorkerShutdown } from '../WorkerShutdown';
 import { WorkerVersioning } from '../WorkerVersioning';
+import type { InfrastructureConfig } from './middleware/InfrastructureValidator';
 
 /**
  * Helper to get request body
@@ -328,6 +330,87 @@ async function get(req: IRequest, res: IResponse): Promise<void> {
     res.json({ ok: true, worker: instance });
   } catch (error) {
     Logger.error('WorkerController.get failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
+ * Update worker configuration
+ * @param req.params.name - Worker name
+ * @param req.body - Updated worker configuration
+ * @returns Success message
+ */
+async function update(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const reqData = req.data();
+    const name = reqData['name'] as string;
+    const driver = reqData['driver'] as string;
+    const persistenceOverride = resolvePersistenceOverride(req);
+
+    // Get current worker record
+    const currentRecord = await WorkerFactory.getPersisted(name, persistenceOverride);
+    if (!currentRecord) {
+      res.setStatus(404).json({ error: `Worker ${name} not found` });
+      return;
+    }
+
+    // Validate and merge updates (excluding immutable fields)
+    const { name: _name, driver: _driver, ...updateData } = reqData; // Remove immutable fields
+
+    // Note: driver is determined by persistence configuration, not stored in worker record
+    const updatedRecord = {
+      ...currentRecord,
+      ...updateData,
+      name,
+      updatedAt: new Date(),
+    };
+
+    (updatedRecord.infrastructure as unknown as InfrastructureConfig).persistence.driver = driver;
+
+    // Update persistence store with the complete updated record
+    try {
+      // Persist merged record via WorkerFactory API
+      await WorkerFactory.update(
+        name,
+        updatedRecord as unknown as WorkerRecord,
+        persistenceOverride
+      );
+      Logger.info(`Worker ${name} persistence updated with fields:`, Object.keys(updateData));
+    } catch (persistError) {
+      Logger.warn(`Failed to persist some updates for ${name}`, persistError as Error);
+      // Continue with restart even if persistence update partially fails
+    }
+
+    // If worker is currently running, restart it to apply new configuration changes
+    // This ensures new concurrency, queue settings, and other config take effect
+    const currentInstance = WorkerFactory.get(name);
+    if (currentInstance && currentInstance.status === 'running') {
+      try {
+        Logger.info(`Restarting worker ${name} to apply configuration changes`);
+        await WorkerFactory.restart(name, persistenceOverride);
+      } catch (restartError) {
+        Logger.warn(`Failed to restart worker ${name} after update`, restartError as Error);
+        // Don't fail the update, but warn about restart failure
+      }
+    } else {
+      Logger.info(
+        `Worker ${name} is not running (status: ${currentInstance?.status || 'not found'}), skipping restart`
+      );
+    }
+
+    // Worker configuration updated in persistence and memory
+    Logger.info(`Worker configuration updated: ${name}`, {
+      updatedFields: Object.keys(updateData),
+      driver: persistenceOverride?.driver || 'default',
+    });
+    res.json({
+      ok: true,
+      message: `Worker ${name} updated successfully`,
+      worker: updatedRecord,
+      updatedFields: Object.keys(updateData),
+    });
+  } catch (error) {
+    Logger.error('WorkerController.update failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
   }
 }
@@ -1245,6 +1328,7 @@ const buildCoreOperations = () => ({
   resume,
   remove,
   get,
+  update,
   status,
   getCreationStatus,
   metrics,
