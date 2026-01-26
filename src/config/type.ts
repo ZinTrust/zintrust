@@ -590,6 +590,7 @@ export type WorkersGlobalConfig = {
 };
 
 export type WorkersConfigOverrides = Partial<{
+  driver: string;
   middleware: ReadonlyArray<string>;
   enabled: boolean;
   healthCheckInterval: number;

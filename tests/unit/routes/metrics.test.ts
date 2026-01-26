@@ -35,8 +35,8 @@ describe('routes/metrics', () => {
 
   it('registers /metrics and serves content when enabled', async () => {
     (Env.getBool as unknown as Mock).mockReturnValue(true);
-    (Env.get as unknown as Mock).mockImplementation((_key: string, defaultVal?: string) =>
-      defaultVal === undefined ? '' : defaultVal
+    (Env.get as unknown as Mock).mockImplementation(
+      (_key: string, defaultVal?: string) => defaultVal ?? ''
     );
 
     const router = Router.createRouter();

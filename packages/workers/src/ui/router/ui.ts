@@ -84,6 +84,7 @@ export const registerStaticAssets = (router: IRouter, middleware: ReadonlyArray<
   Router.get(router, '/workers/styles.css', serveStaticFile);
   Router.get(router, '/workers/main.js', serveStaticFile);
   Router.get(router, '/workers/:filename', serveStaticFile);
+  Router.get(router, '/integration/:filename', serveStaticFile);
 
   // Serve components CSS files
   Router.get(router, '/components/styles.css', serveStaticFile);

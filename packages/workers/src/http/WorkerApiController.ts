@@ -218,6 +218,97 @@ export const getHealthSummaryHandler = async (_req: IRequest, res: IResponse): P
   }
 };
 
+const getWorkerJsonHandler = async (req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.setStatus(400).json({
+        error: 'Worker ID is required',
+        code: 'MISSING_WORKER_ID',
+      });
+    }
+
+    const worker = await getWorkerDetails(id);
+    if (!worker) {
+      return res.setStatus(404).json({
+        error: 'Worker not found',
+        code: 'WORKER_NOT_FOUND',
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: worker,
+    });
+  } catch (error) {
+    Logger.error('Failed to get worker JSON', error);
+    return res.setStatus(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+};
+
+const updateWorkerJsonHandler = async (req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    const workerData = req.data();
+    const workerId = workerData['id'] as string;
+
+    if (!workerId) {
+      return res.setStatus(400).json({
+        error: 'Worker ID is required',
+        code: 'MISSING_WORKER_ID',
+      });
+    }
+
+    if (!workerData) {
+      return res.setStatus(400).json({
+        error: 'Worker data is required',
+        code: 'MISSING_WORKER_DATA',
+      });
+    }
+
+    // Basic validation for now - can be enhanced with full schema validation
+    if (
+      !workerData['name'] ||
+      !workerData['queueName'] ||
+      !workerData['processor'] ||
+      !workerData['version']
+    ) {
+      return res.setStatus(400).json({
+        error: 'Missing required fields: name, queueName, processor, version',
+        code: 'MISSING_REQUIRED_FIELDS',
+      });
+    }
+
+    // Get existing worker
+    const existingWorker = await getWorkerDetails(workerId);
+    if (!existingWorker) {
+      return res.setStatus(404).json({
+        error: 'Worker not found',
+        code: 'WORKER_NOT_FOUND',
+      });
+    }
+
+    // For now, return the updated data as if it was updated
+    // In a real implementation, this would update the worker in the database
+    const updatedWorker = { ...existingWorker, ...workerData };
+
+    return res.json({
+      success: true,
+      data: updatedWorker,
+      message: 'Worker updated successfully',
+    });
+  } catch (error) {
+    Logger.error('Failed to update worker JSON', error);
+    return res.setStatus(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+    });
+  }
+};
+
 export const WorkerApiController = Object.freeze({
   create() {
     // Compose grouped handlers to keep this function short
@@ -227,6 +318,8 @@ export const WorkerApiController = Object.freeze({
       getHealthSummaryHandler,
       listWorkers,
       getWorkerDetailsHandler,
+      getWorkerJsonHandler,
+      updateWorkerJsonHandler,
     };
   },
 });

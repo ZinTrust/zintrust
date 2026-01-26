@@ -43,66 +43,95 @@ function toggleTheme() {
   applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
 }
 
+// Helper function to get DOM elements
+function getDomElements() {
+  return {
+    loading: document.getElementById('loading'),
+    error: document.getElementById('error'),
+    content: document.getElementById('workers-content'),
+    searchBtn: document.getElementById('search-btn'),
+  };
+}
+
+// Helper function to show loading state
+function showLoadingState(elements) {
+  if (elements.content.style.display === 'none') {
+    elements.loading.style.display = 'block';
+  } else {
+    elements.content.style.opacity = '0.5';
+  }
+  elements.error.style.display = 'none';
+  if (elements.searchBtn) elements.searchBtn.disabled = true;
+}
+
+// Helper function to hide loading state
+function hideLoadingState(elements) {
+  elements.loading.style.display = 'none';
+  elements.content.style.display = 'block';
+  elements.content.style.opacity = '1';
+  if (elements.searchBtn) elements.searchBtn.disabled = false;
+}
+
+// Helper function to handle fetch error
+function handleFetchError(elements, error) {
+  console.error('Error fetching workers:', error);
+  hideLoadingState(elements);
+  elements.error.style.display = 'block';
+}
+
+// Helper function to validate worker data
+function validateWorkerData(data) {
+  if (!data || !data.workers || !Array.isArray(data.workers)) {
+    console.error('Invalid worker data structure:', data);
+    return false;
+  }
+  return true;
+}
+
 // Data fetching
 async function fetchData() {
-  const loading = document.getElementById('loading');
-  const error = document.getElementById('error');
-  const content = document.getElementById('workers-content');
-  const searchBtn = document.getElementById('search-btn');
+  const elements = getDomElements();
 
-  // Only show full loading state if we have no content yet
-  if (content.style.display === 'none') {
-    loading.style.display = 'block';
-  } else {
-    content.style.opacity = '0.5';
-  }
-
-  error.style.display = 'none';
-  if (searchBtn) searchBtn.disabled = true;
+  showLoadingState(elements);
 
   try {
+    const query = elements.searchBtn
+      ? elements.searchBtn.parentElement?.parentElement?.querySelector('input')?.value
+      : '';
     const limit = localStorage.getItem(PAGE_SIZE_KEY) || '100';
-    // Update limit select if needed
-    const limitSelect = document.getElementById('limit-select');
-    if (limitSelect && limitSelect.value !== limit) limitSelect.value = limit;
-
-    const statusFilter = document.getElementById('status-filter');
-    const driverFilter = document.getElementById('driver-filter');
-    const sortSelect = document.getElementById('sort-select');
-    const searchInput = document.getElementById('search-input');
 
     const params = new URLSearchParams({
       page: currentPage.toString(),
       limit: limit,
-      status: statusFilter ? statusFilter.value : '',
-      driver: driverFilter ? driverFilter.value : '',
-      sortBy: sortSelect ? sortSelect.value : 'name',
+      status: document.getElementById('status-filter')?.value || '',
+      driver: document.getElementById('driver-filter')?.value || '',
+      sortBy: document.getElementById('sort-select')?.value || 'name',
       sortOrder: 'asc',
-      search: searchInput ? searchInput.value : '',
+      search: query,
     });
 
     const response = await fetch(API_BASE + '/api/workers?' + params.toString());
     if (!response.ok) {
       console.error('Failed to fetch workers:', response.statusText);
-      loading.style.display = 'none';
-      error.style.display = 'block';
-      content.style.opacity = '1';
+      hideLoadingState(elements);
+      elements.error.style.display = 'block';
       return;
     }
 
     const data = await response.json();
-    renderWorkers(data);
+    console.log('Worker data received:', data);
 
-    loading.style.display = 'none';
-    content.style.display = 'block';
-    content.style.opacity = '1';
+    if (!validateWorkerData(data)) {
+      elements.error.style.display = 'block';
+      hideLoadingState(elements);
+      return;
+    }
+
+    console.log('Rendering', data.workers.length, 'workers');
+    renderWorkers(data);
+    hideLoadingState(elements);
   } catch (err) {
-    console.error('Error fetching workers:', err);
-    loading.style.display = 'none';
-    error.style.display = 'block';
-    content.style.opacity = '1';
-  } finally {
-    if (searchBtn) searchBtn.disabled = false;
+    handleFetchError(elements, err);
   }
 }
 
@@ -219,30 +248,88 @@ async function ensureWorkerDetails(workerName, detailRow, driver) {
   updateDetailViews(detailRow, detailsData);
 }
 
+// Helper to safe access nested properties (shared across functions)
+const get = (obj, path) => path.split('.').reduce((o, i) => (o ? o[i] : null), obj);
+
+// Helper function to resolve metric value from different data sources
+function resolveMetricValue(details, key, originalValue) {
+  if (!key.startsWith('metrics.')) return originalValue;
+
+  const metricKey = key.replace('metrics.', '');
+  // Try to get from details.metrics first, then from details directly, then from worker
+  return (
+    get(details, `metrics.${metricKey}`) ||
+    get(details, metricKey) ||
+    get(details, `details.metrics.${metricKey}`) ||
+    originalValue
+  );
+}
+
+// Helper function to format metric values
+function formatMetricValue(key, value) {
+  if (value === null || value === undefined) return value;
+
+  switch (key) {
+    case 'metrics.processed':
+      return Number(value).toLocaleString();
+    case 'metrics.avgTime':
+      return value + 'ms';
+    case 'metrics.memory':
+      return value + 'MB';
+    case 'metrics.cpu':
+      return value + '%';
+    case 'metrics.uptime':
+      return formatUptime(value);
+    case 'health.lastCheck':
+      return formatTimeAgo(value);
+    default:
+      return value;
+  }
+}
+
+// Helper function to update a single element
+function updateDetailElement(el, details) {
+  const key = el.dataset.key;
+  let value = get(details, key);
+
+  // Resolve metric values from different sources
+  value = resolveMetricValue(details, key, value);
+
+  // Format the value
+  value = formatMetricValue(key, value);
+
+  // Update element if value is valid
+  if (value !== null && value !== undefined && value !== '') {
+    el.textContent = value;
+  }
+}
+
 function updateDetailViews(detailRow, details) {
   if (!details) return;
 
-  // Helper to safe access nested properties
-  const get = (obj, path) => path.split('.').reduce((o, i) => (o ? o[i] : null), obj);
-
-  // Update simple data attributes
-  detailRow.querySelectorAll('[data-key]').forEach((el) => {
-    const key = el.dataset.key;
-    let value = get(details, key);
-
-    // Format specific fields
-    if (key === 'metrics.processed' && value !== null) value = Number(value).toLocaleString();
-    if (key === 'metrics.avgTime' && value !== null) value = value + 'ms';
-    if (key === 'metrics.memory' && value !== null) value = value + 'MB';
-
-    if (value !== null && value !== undefined) {
-      el.textContent = value;
-    }
-  });
+  // Update all data-key elements
+  detailRow.querySelectorAll('[data-key]').forEach(updateDetailElement);
 
   // Delegate to specialized functions
   updateLogsContainer(detailRow, details);
   updateSLAContainer(detailRow, details);
+}
+
+// Helper function to format uptime
+function formatUptime(seconds) {
+  if (!seconds || seconds === 'N/A') return 'N/A';
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  } else if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else {
+    return `${minutes}m`;
+  }
 }
 
 function updateLogsContainer(detailRow, details) {
@@ -544,35 +631,78 @@ function createVersionCell(worker) {
   return versionCell;
 }
 
-function createPerformanceCell() {
+// Helper function to safely extract performance metrics
+function getPerformanceMetrics(worker) {
+  if (!worker) return { processed: 0, avgTime: 0, memory: 0 };
+
+  const metrics = worker.metrics || {};
+  return {
+    processed: metrics.processed || worker.processed || 0,
+    avgTime: metrics.avgTime || worker.avgTime || 0,
+    memory: metrics.memory || worker.memory || 0,
+  };
+}
+
+// Helper function to create performance icon HTML
+function createPerformanceIconHtml(type, value, unit) {
+  const icons = {
+    processed: `
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="20" x2="12" y2="10" />
+        <line x1="18" y1="20" x2="18" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="16" />
+      </svg>
+    `,
+    time: `
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    `,
+    memory: `
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+        <rect x="9" y="9" width="6" height="6" />
+        <line x1="9" y1="1" x2="9" y2="4" />
+        <line x1="15" y1="1" x2="15" y2="4" />
+        <line x1="9" y1="20" x2="9" y2="23" />
+        <line x1="15" y1="20" x2="15" y2="23" />
+        <line x1="20" y1="9" x2="23" y2="9" />
+        <line x1="20" y1="14" x2="23" y2="14" />
+        <line x1="1" y1="9" x2="4" y2="9" />
+        <line x1="1" y1="14" x2="4" y2="14" />
+      </svg>
+    `,
+  };
+
+  const titles = {
+    processed: 'Processed Jobs',
+    time: 'Avg Time',
+    memory: 'Memory Usage',
+  };
+
+  return `
+    <div class="perf-icon ${type}" title="${titles[type]}">
+      ${icons[type]}
+      <span>${value}${unit}</span>
+    </div>
+  `;
+}
+
+function createPerformanceCell(worker) {
   const perfCell = document.createElement('td');
   const perfDiv = document.createElement('div');
   perfDiv.className = 'performance-icons';
 
-  // Add performance icons (SVG is safe as it's static)
+  const metrics = getPerformanceMetrics(worker);
+  const processedValue = metrics.processed ? metrics.processed.toLocaleString() : '0';
+
   perfDiv.innerHTML = `
-    <div class="perf-icon processed" title="Processed Jobs">
-      <svg class="icon" viewBox="0 0 24 24">
-        <line x1="12" y1="20" x2="12" y2="10" />
-        <line x1="18" y1="20" x2="18" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="16" />
-        <polyline points="23 6 23 12 17 12" />
-        <polyline points="1 18 1 12 7 12" />
-      </svg>
-    </div>
-    <div class="perf-icon avg-time" title="Average Time">
-      <svg class="icon" viewBox="0 0 24 24">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 12 12" />
-      </svg>
-    </div>
-    <div class="perf-icon memory" title="Memory Usage">
-      <svg class="icon" viewBox="0 0 24 24">
-        <path d="M13 2H3a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-6-6z" />
-        <polyline points="13 2 13 8 20 8" />
-      </svg>
-    </div>
+    ${createPerformanceIconHtml('processed', processedValue, '')}
+    ${createPerformanceIconHtml('time', metrics.avgTime, 'ms')}
+    ${createPerformanceIconHtml('memory', metrics.memory, 'MB')}
   `;
+
   perfCell.appendChild(perfDiv);
   return perfCell;
 }
@@ -582,22 +712,38 @@ function createActionCell(worker) {
   const actionDiv = document.createElement('div');
   actionDiv.className = 'actions-cell';
 
-  const startBtn = createActionButton('start', 'Start', () =>
-    startWorker(worker.name, worker.driver)
-  );
-  const stopBtn = createActionButton('stop', 'Stop', () => stopWorker(worker.name, worker.driver));
+  // Toggle visibility based on status
+  if (worker.status === 'running') {
+    const stopBtn = createActionButton('stop', 'Stop', () =>
+      stopWorker(worker.name, worker.driver)
+    );
+    actionDiv.appendChild(stopBtn);
+  } else {
+    const startBtn = createActionButton('start', 'Start', () =>
+      startWorker(worker.name, worker.driver)
+    );
+    actionDiv.appendChild(startBtn);
+  }
+
   const restartBtn = createActionButton('restart', 'Restart', () =>
     restartWorker(worker.name, worker.driver)
   );
   const deleteBtn = createActionButton('delete', 'Delete', () =>
     deleteWorker(worker.name, worker.driver)
   );
+  const viewJsonBtn = createActionButton('view', 'View JSON', () =>
+    viewWorkerJson(worker.name, worker.driver)
+  );
+  const editJsonBtn = createActionButton('edit', 'Edit JSON', () =>
+    editWorkerJson(worker.name, worker.driver)
+  );
 
-  actionDiv.appendChild(startBtn);
-  actionDiv.appendChild(stopBtn);
   actionDiv.appendChild(restartBtn);
   actionDiv.appendChild(deleteBtn);
+  actionDiv.appendChild(viewJsonBtn);
+  actionDiv.appendChild(editJsonBtn);
   actionCell.appendChild(actionDiv);
+
   return actionCell;
 }
 
@@ -617,65 +763,124 @@ function createActionButton(type, title, onClickHandler) {
   return button;
 }
 
-function createButtonIcon(type) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.viewBox = '0 0 24 24';
-
-  switch (type) {
-    case 'start': {
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.points = '5 3 19 12 5 21 5 3';
-      svg.appendChild(polygon);
-      break;
-    }
-    case 'stop': {
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.x = '3';
-      rect.y = '3';
-      rect.width = '18';
-      rect.height = '18';
-      rect.rx = '2';
-      rect.ry = '2';
-      svg.appendChild(rect);
-      break;
-    }
-    case 'restart': {
-      const polyline1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-      polyline1.points = '23 4 23 10 17 10';
-      const polyline2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-      polyline2.points = '1 20 1 14 7 14';
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.d = 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15';
-      svg.appendChild(polyline1);
-      svg.appendChild(polyline2);
-      svg.appendChild(path);
-      break;
-    }
-    case 'delete': {
-      const deletePolyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-      deletePolyline.points = '3 6 5 6 21 6';
-      const deletePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      deletePath.d =
-        'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2';
-      const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line1.x1 = '10';
-      line1.y1 = '11';
-      line1.x2 = '10';
-      line1.y2 = '17';
-      const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line2.x1 = '14';
-      line2.y1 = '11';
-      line2.x2 = '14';
-      line2.y2 = '17';
-      svg.appendChild(deletePolyline);
-      svg.appendChild(deletePath);
-      svg.appendChild(line1);
-      svg.appendChild(line2);
-      break;
-    }
-  }
-
+// Helper functions for creating specific SVG icons
+function createStartIcon() {
+  const svg = createSvgElement();
+  const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  polygon.setAttribute('points', '5 3 19 12 5 21 5 3');
+  polygon.setAttribute('fill', 'currentColor');
+  svg.appendChild(polygon);
   return svg;
+}
+
+function createStopIcon() {
+  const svg = createSvgElement();
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', '3');
+  rect.setAttribute('y', '3');
+  rect.setAttribute('width', '18');
+  rect.setAttribute('height', '18');
+  rect.setAttribute('rx', '2');
+  rect.setAttribute('ry', '2');
+  rect.setAttribute('fill', 'currentColor');
+  svg.appendChild(rect);
+  return svg;
+}
+
+function createRestartIcon() {
+  const svg = createSvgElement();
+  const polyline1 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline1.setAttribute('points', '23 4 23 10 17 10');
+  const polyline2 = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline2.setAttribute('points', '1 20 1 14 7 14');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15');
+  svg.appendChild(polyline1);
+  svg.appendChild(polyline2);
+  svg.appendChild(path);
+  return svg;
+}
+
+function createDeleteIcon() {
+  const svg = createSvgElement();
+  const deletePolyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  deletePolyline.setAttribute('points', '3 6 5 6 21 6');
+  const deletePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  deletePath.setAttribute(
+    'd',
+    'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'
+  );
+  const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line1.setAttribute('x1', '10');
+  line1.setAttribute('y1', '11');
+  line1.setAttribute('x2', '10');
+  line1.setAttribute('y2', '17');
+  const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line2.setAttribute('x1', '14');
+  line2.setAttribute('y1', '11');
+  line2.setAttribute('x2', '14');
+  line2.setAttribute('y2', '17');
+  svg.appendChild(deletePolyline);
+  svg.appendChild(deletePath);
+  svg.appendChild(line1);
+  svg.appendChild(line2);
+  return svg;
+}
+
+function createViewIcon() {
+  const svg = createSvgElement();
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z');
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '12');
+  circle.setAttribute('cy', '12');
+  circle.setAttribute('r', '3');
+  svg.appendChild(path);
+  svg.appendChild(circle);
+  return svg;
+}
+
+function createEditIcon() {
+  const svg = createSvgElement();
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7');
+  const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path2.setAttribute('d', 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z');
+  svg.appendChild(path);
+  svg.appendChild(path2);
+  return svg;
+}
+
+// Create base SVG element with common attributes
+function createSvgElement() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'icon');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  return svg;
+}
+
+function createButtonIcon(type) {
+  switch (type) {
+    case 'start':
+      return createStartIcon();
+    case 'stop':
+      return createStopIcon();
+    case 'restart':
+      return createRestartIcon();
+    case 'delete':
+      return createDeleteIcon();
+    case 'view':
+      return createViewIcon();
+    case 'edit':
+      return createEditIcon();
+    default:
+      return createSvgElement();
+  }
 }
 
 function createDetailRow(worker, detailsId) {
@@ -691,88 +896,199 @@ function createDetailRow(worker, detailsId) {
   return detailRow;
 }
 
+// Helper function to create Configuration section HTML
+function createConfigurationSection(worker) {
+  return `
+    <div class="detail-section">
+      <h4>Configuration</h4>
+      <div class="detail-item">
+        <span>Queue Name</span>
+        <span data-key="configuration.queueName">${worker.queueName}</span>
+      </div>
+      <div class="detail-item">
+        <span>Worker Name</span>
+        <span data-key="configuration.name">${worker.name}</span>
+      </div>
+      <div class="detail-item">
+        <span>Driver</span>
+        <span data-key="configuration.driver">${worker.driver}</span>
+      </div>
+      <div class="detail-item">
+        <span>Version</span>
+        <span data-key="configuration.version">v${worker.version}</span>
+      </div>
+      <div class="detail-item">
+        <span>Auto Start</span>
+        <label class="auto-start-toggle" onclick="event.stopPropagation()">
+          <input type="checkbox" ${worker.autoStart ? 'checked' : ''} onchange="toggleAutoStart('${worker.name}', '${worker.driver}', this.checked)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="detail-item">
+        <span>Status</span>
+        <span data-key="configuration.status">${worker.status}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Helper function to create Performance Metrics section HTML
+function createPerformanceMetricsSection(worker) {
+  return `
+    <div class="detail-section">
+      <h4>Performance Metrics</h4>
+      <div class="detail-item">
+        <span>Processed Jobs</span>
+        <span data-key="metrics.processed">${worker.processed.toLocaleString()}</span>
+      </div>
+      <div class="detail-item">
+        <span>Failed Jobs</span>
+        <span data-key="metrics.failed">${worker.failed || 0}</span>
+      </div>
+      <div class="detail-item">
+        <span>Average Time</span>
+        <span data-key="metrics.avgTime">${worker.avgTime}ms</span>
+      </div>
+      <div class="detail-item">
+        <span>Memory Usage</span>
+        <span data-key="metrics.memory">${worker.memory}MB</span>
+      </div>
+      <div class="detail-item">
+        <span>CPU Usage</span>
+        <span data-key="metrics.cpu">${worker.cpu || 'N/A'}</span>
+      </div>
+      <div class="detail-item">
+        <span>Uptime</span>
+        <span data-key="metrics.uptime">${worker.uptime || 'N/A'}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Helper function to create Health & Status section HTML
+function createHealthStatusSection(worker) {
+  return `
+    <div class="detail-section">
+      <h4>Health & Status</h4>
+      <div class="detail-item">
+        <span>Health Status</span>
+        <span data-key="health.status">${worker.health?.status || 'unknown'}</span>
+      </div>
+      <div class="detail-item">
+        <span>Last Check</span>
+        <span data-key="health.lastCheck" class="last-check">${formatTimeAgo(worker.health?.lastCheck)}</span>
+      </div>
+      <div class="detail-item">
+        <span>Health Checks</span>
+        <div class="health-checks">
+          ${renderHealthChecks(worker.health?.checks)}
+        </div>
+      </div>
+      <div class="detail-item">
+        <span>Worker Status</span>
+        <span data-key="status" class="status-badge status-${worker.status}">${worker.status}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Helper function to render health checks
+function renderHealthChecks(checks) {
+  if (!checks || !Array.isArray(checks) || checks.length === 0) {
+    return '<span class="no-checks">No health checks available</span>';
+  }
+
+  return checks
+    .map(
+      (check) => `
+    <div class="health-check">
+      <span class="check-name">${check.name}</span>
+      <span class="check-status status-${check.status}">${check.status}</span>
+      ${check.message ? `<span class="check-message">${check.message}</span>` : ''}
+    </div>
+  `
+    )
+    .join('');
+}
+
+// Helper function to format time as "ago"
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return 'Never';
+
+  const now = new Date();
+  const checkTime = new Date(timestamp);
+  const diffMs = now - checkTime;
+
+  if (diffMs < 0) return 'Just now';
+
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSeconds < 60) {
+    return diffSeconds <= 1 ? 'Just now' : `${diffSeconds}s ago`;
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  } else if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  } else {
+    return checkTime.toLocaleDateString();
+  }
+}
+
+// Helper function to create Recent Logs section HTML
+function createRecentLogsSection(worker) {
+  return `
+    <div class="detail-section">
+      <h4>Recent Logs (History)</h4>
+      <div class="recent-logs-container" style="
+          font-family: monospace;
+          font-size: 11px;
+          line-height: 1.6;
+          color: var(--text);
+          background: var(--input-bg);
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          max-height: 200px;
+          overflow-y: auto;
+        ">
+        <div class="logs-content">
+          ${
+            worker.details?.recentLogs
+              ?.map(
+                (log) => `
+            <div class="log-entry log-${log.level.toLowerCase()}">
+              <span class="log-timestamp">[${log.timestamp}]</span>
+              <span class="log-level">${log.level.toUpperCase()}</span>
+              <span class="log-message">${log.message}</span>
+            </div>
+          `
+              )
+              .join('') || '<div class="no-logs">No recent logs available</div>'
+          }
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function createDetailRowHTML(worker) {
   return `
           <td colspan="7" class="details-cell">
             <div class="details-content">
               <div class="details-grid">
-
-                <div class="detail-section">
-                  <h4>Configuration</h4>
-                  <div class="detail-item">
-                    <span>Queue Name</span>
-                    <span data-key="configuration.queueName">${worker.queueName}</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Concurrency</span>
-                    <span data-key="configuration.concurrency">-</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Auto Start</span>
-                    <label class="auto-start-toggle" onclick="event.stopPropagation()">
-                      <input type="checkbox" ${worker.autoStart ? 'checked' : ''} onchange="toggleAutoStart('${worker.name}', '${worker.driver}', this.checked)">
-                      <span class="toggle-slider"></span>
-                    </label>
-                  </div>
-                  <div class="detail-item">
-                    <span>Driver</span>
-                    <span data-key="configuration.driver">${worker.driver}</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Version</span>
-                    <span data-key="configuration.version">v${worker.version}</span>
-                  </div>
-                </div>
-
-                <div class="detail-section">
-                  <h4>Metrics</h4>
-                  <div class="detail-item">
-                    <span>Processed</span>
-                    <span data-key="metrics.processed">-</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Failed</span>
-                    <span data-key="metrics.failed">-</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Avg Time</span>
-                    <span data-key="metrics.avgTime">-</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Memory</span>
-                    <span data-key="metrics.memory">-</span>
-                  </div>
-                  <div class="detail-item">
-                    <span>Uptime Trend</span>
-                    <span data-key="metrics.uptimeTrend">-</span>
-                  </div>
-                  </div>
-                  <!-- Added via new plan logic: Trend (via JS update only for now) -->
-                </div>
-
-
-                <div class="detail-section">
-                  <h4>Recent Logs (History)</h4>
-                  <div class="recent-logs-container" style="
-                      font-family: monospace;
-                      font-size: 11px;
-                      line-height: 1.6;
-                      color: var(--text);
-                      background: var(--input-bg);
-                      padding: 12px;
-                      border-radius: 8px;
-                      border: 1px solid var(--border);
-                      max-height: 200px;
-                      overflow-y: auto;
-                    ">
-                    <div class="logs-content">Loading logs...</div>
-                  </div>
-                </div>
-
+                ${createConfigurationSection(worker)}
+                ${createPerformanceMetricsSection(worker)}
+                ${createHealthStatusSection(worker)}
+                ${createRecentLogsSection(worker)}
               </div>
             </div>
           </td>
-`;
+  `;
 }
 
 function renderWorkers(data) {
@@ -947,6 +1263,232 @@ async function toggleAutoStart(name, driver, enabled) {
 function showAddWorkerModal() {
   // TODO: Implement add worker modal
   alert('Add Worker functionality coming soon!');
+}
+
+// View worker JSON data
+async function viewWorkerJson(name, driver) {
+  try {
+    const response = await fetch(`${API_BASE}/api/workers/${name}?driver=${driver}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch worker data');
+    }
+
+    const data = await response.json();
+    const jsonContent = JSON.stringify(data, null, 2);
+
+    // Create a simple modal to display JSON
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    `;
+
+    const content = document.createElement('div');
+    content.style.cssText = `
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 80%;
+      max-height: 80%;
+      overflow: auto;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = `Worker JSON: ${name}`;
+    title.style.marginBottom = '15px';
+
+    const pre = document.createElement('pre');
+    pre.textContent = jsonContent;
+    pre.style.cssText = `
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow: auto;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 400px;
+    `;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.style.cssText = `
+      margin-top: 15px;
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    `;
+    closeBtn.onclick = () => modal.remove();
+
+    content.appendChild(title);
+    content.appendChild(pre);
+    content.appendChild(closeBtn);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    // Close on backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.remove();
+    };
+  } catch (err) {
+    console.error('Failed to view worker JSON:', err);
+    alert('Failed to load worker JSON: ' + err.message);
+  }
+}
+
+// Create modal element with basic styling
+function createModal() {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  `;
+  return modal;
+}
+
+// Create modal content container
+function createModalContent() {
+  const content = document.createElement('div');
+  content.style.cssText = `
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 80%;
+    max-height: 80%;
+    overflow: auto;
+  `;
+  return content;
+}
+
+// Create JSON textarea for editing
+function createJsonTextarea(jsonContent) {
+  const textarea = document.createElement('textarea');
+  textarea.value = jsonContent;
+  textarea.style.cssText = `
+    width: 100%;
+    height: 400px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+  `;
+  return textarea;
+}
+
+// Create save and cancel buttons
+function createEditButtons(modal, textarea, name, driver) {
+  const buttonDiv = document.createElement('div');
+  buttonDiv.style.cssText = `
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+  `;
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save';
+  saveBtn.style.cssText = `
+    padding: 8px 16px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  `;
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = `
+    padding: 8px 16px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  `;
+  cancelBtn.onclick = () => modal.remove();
+
+  saveBtn.onclick = async () => {
+    try {
+      const updatedData = JSON.parse(textarea.value);
+      const updateResponse = await fetch(`${API_BASE}/api/workers/${name}?driver=${driver}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData),
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update worker');
+      }
+
+      alert('Worker updated successfully!');
+      modal.remove();
+      fetchData(); // Refresh the data
+    } catch (error) {
+      alert('Invalid JSON: ' + error.message);
+    }
+  };
+
+  buttonDiv.appendChild(saveBtn);
+  buttonDiv.appendChild(cancelBtn);
+  return buttonDiv;
+}
+
+// Edit worker JSON data
+async function editWorkerJson(name, driver) {
+  try {
+    const response = await fetch(`${API_BASE}/api/workers/${name}?driver=${driver}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch worker data');
+    }
+
+    const data = await response.json();
+    const jsonContent = JSON.stringify(data, null, 2);
+
+    // Create modal components
+    const modal = createModal();
+    const content = createModalContent();
+    const title = document.createElement('h3');
+    title.textContent = `Edit Worker JSON: ${name}`;
+    title.style.marginBottom = '15px';
+
+    const textarea = createJsonTextarea(jsonContent);
+    const buttonDiv = createEditButtons(modal, textarea, name, driver);
+
+    // Assemble modal
+    content.appendChild(title);
+    content.appendChild(textarea);
+    content.appendChild(buttonDiv);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    // Close on backdrop click
+    modal.onclick = (e) => {
+      if (e.target === modal) modal.remove();
+    };
+  } catch (err) {
+    console.error('Failed to edit worker JSON:', err);
+    alert('Failed to load worker JSON: ' + err.message);
+  }
 }
 
 function toggleAutoRefresh() {

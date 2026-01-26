@@ -337,16 +337,24 @@ export const ValidationSchemas = {
   workerFilter: {
     status: {
       type: 'string' as const,
-      allowedValues: ['running', 'stopped', 'failed', 'paused'],
+      allowedValues: ['running', 'stopped', 'failed', 'paused', ''],
+      optional: true,
     },
     queueName: {
       type: 'string' as const,
       minLength: 3,
       maxLength: 50,
+      optional: true,
     },
     driver: {
       type: 'string' as const,
-      allowedValues: ['db', 'redis', 'memory'],
+      allowedValues: ['db', 'redis', 'memory', ''],
+      optional: true,
+    },
+    search: {
+      type: 'string' as const,
+      maxLength: 100,
+      optional: true,
     },
   },
 };
