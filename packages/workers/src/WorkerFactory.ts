@@ -259,7 +259,7 @@ const decodeProcessorPathEntities = (value: string): string =>
 const waitForWorkerConnection = async (
   worker: Worker,
   name: string,
-  queueName: string,
+  _queueName: string,
   timeoutMs: number
 ): Promise<void> => {
   const startTime = Date.now();
@@ -282,17 +282,12 @@ const waitForWorkerConnection = async (
           throw ErrorFactory.createWorkerError('Redis ping failed');
         }
 
-        // Check queue accessibility
-        const { Queue } = await import('bullmq');
-        const prefix = getBullMQSafeQueueName();
-        const queue = new Queue(queueName, { prefix, connection: client });
-        const queueInfo = await queue.getJobCounts();
-        await queue.close(); // Clean up queue instance
+        // Removed heavy Queue instantiation loop - relying on Redis ping for connectivity check
+        // The queue instance creation was causing memory pressure and potential connection leaks in this retry loop
 
         Logger.debug(`Worker health verification passed for ${name}`, {
           isRunning,
           pingResult,
-          queueInfo,
         });
 
         if (timeoutId) clearTimeout(timeoutId);

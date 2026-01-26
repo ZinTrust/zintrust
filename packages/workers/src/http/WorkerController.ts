@@ -384,12 +384,15 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
     // If worker is currently running, restart it to apply new configuration changes
     // This ensures new concurrency, queue settings, and other config take effect
     const currentInstance = WorkerFactory.get(name);
+    let restartError: string | undefined;
+
     if (currentInstance && currentInstance.status === 'running') {
       try {
         Logger.info(`Restarting worker ${name} to apply configuration changes`);
         await WorkerFactory.restart(name, persistenceOverride);
-      } catch (restartError) {
-        Logger.warn(`Failed to restart worker ${name} after update`, restartError as Error);
+      } catch (error) {
+        restartError = (error as Error).message;
+        Logger.warn(`Failed to restart worker ${name} after update`, error as Error);
         // Don't fail the update, but warn about restart failure
       }
     } else {
@@ -402,12 +405,14 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
     Logger.info(`Worker configuration updated: ${name}`, {
       updatedFields: Object.keys(updateData),
       driver: persistenceOverride?.driver || 'default',
+      restartError,
     });
     res.json({
       ok: true,
       message: `Worker ${name} updated successfully`,
       worker: updatedRecord,
       updatedFields: Object.keys(updateData),
+      restartError,
     });
   } catch (error) {
     Logger.error('WorkerController.update failed', error);
