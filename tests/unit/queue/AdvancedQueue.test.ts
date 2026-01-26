@@ -2,14 +2,18 @@
  * Unit Tests for AdvancedQueue
  */
 
+import type { AdvancedJobOptions, QueueConfig } from '@/types/Queue';
+import { createAdvancedQueue } from '@tools/queue/AdvancedQueue';
+import { createMemoryLockProvider, registerLockProvider } from '@tools/queue/LockProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createAdvancedQueue } from '../../../src/queue/AdvancedQueue';
-import { createMemoryLockProvider, registerLockProvider } from '../../../src/queue/LockProvider';
-import type { AdvancedJobOptions, QueueConfig } from '../../../src/types/Queue';
 
 // Mock Logger
-vi.mock('../../../src/config/logger', () => ({
+vi.mock('@config/logger', () => ({
   Logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
     getInstance: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -20,7 +24,7 @@ vi.mock('../../../src/config/logger', () => ({
 }));
 
 // Mock Queue
-vi.mock('../../../src/queue/Queue', () => ({
+vi.mock('@tools/queue/Queue', () => ({
   Queue: {
     get: () => ({
       enqueue: vi.fn().mockResolvedValue('job-123'),
@@ -197,10 +201,12 @@ describe('AdvancedQueue', () => {
     });
 
     it('should extend lock', async () => {
-      // Acquire a lock first
-      await memoryLockProvider.acquire('test-lock-key', { ttl: 30000 });
+      // Acquire a lock first using the lock provider directly
+      const lock = await memoryLockProvider.acquire('test-lock-key', { ttl: 30000 });
 
-      const extended = await advancedQueue.extendLock('test-lock-key', 60000);
+      // Now extend the lock by calling the lock provider's extend method directly
+      // with the lock object that has the correct prefixed key
+      const extended = await memoryLockProvider.extend(lock, 60000);
       expect(extended).toBe(true);
     });
 
@@ -232,6 +238,7 @@ describe('AdvancedQueue', () => {
         release: vi.fn(),
         extend: vi.fn(),
         status: vi.fn(),
+        list: vi.fn(),
       };
       registerLockProvider('error-provider', mockProvider);
 

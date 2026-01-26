@@ -10,12 +10,16 @@ import {
   createRedisLockProvider,
   getLockProvider,
   registerLockProvider,
-} from '@queue/LockProvider';
+} from '@tools/queue/LockProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock Logger
 vi.mock('@config/logger', () => ({
   Logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
     getInstance: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -23,6 +27,29 @@ vi.mock('@config/logger', () => ({
       error: vi.fn(),
     }),
   },
+}));
+
+// Mock Redis connection
+vi.mock('@config/workers', () => ({
+  createRedisConnection: () => ({
+    set: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+    pttl: vi.fn().mockResolvedValue(300000),
+    pexpire: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(true),
+  }),
+}));
+
+// Mock queue config
+vi.mock('@config/queue', () => ({
+  createBaseDrivers: () => ({
+    redis: {
+      host: 'localhost',
+      port: 6379,
+      password: undefined,
+      database: 0,
+    },
+  }),
 }));
 
 describe('MemoryLockProvider', () => {

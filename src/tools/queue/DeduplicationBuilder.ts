@@ -81,7 +81,7 @@ export function createDeduplicationBuilder(): DeduplicationBuilder {
      * @returns {DeduplicationOptions} Configured deduplication options
      */
     build(): DeduplicationOptions {
-      if (state.id === null || state.id === undefined || state.id === '') {
+      if (state.id === null || state.id === undefined) {
         throw createValidationError('Deduplication ID is required. Call .id() before .build()');
       }
 

@@ -2,8 +2,8 @@
  * Unit Tests for DeduplicationBuilder
  */
 
+import { createDeduplicationBuilder } from '@tools/queue/DeduplicationBuilder';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDeduplicationBuilder } from '../../../src/queue/DeduplicationBuilder';
 
 describe('DeduplicationBuilder', () => {
   let builder: ReturnType<typeof createDeduplicationBuilder>;
