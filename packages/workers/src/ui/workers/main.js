@@ -1265,6 +1265,202 @@ function showAddWorkerModal() {
   alert('Add Worker functionality coming soon!');
 }
 
+// Helper function to create modal overlay
+function createModalOverlay() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  `;
+  return modal;
+}
+
+// Helper function to create modal content
+function createModalContent() {
+  const content = document.createElement('div');
+  content.className = 'modal-content json-modal';
+  content.style.cssText = `
+    background: var(--card);
+    padding: 24px;
+    border-radius: 12px;
+    max-width: 90%;
+    max-height: 90%;
+    overflow: auto;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border);
+    min-width: 400px;
+  `;
+  return content;
+}
+
+// Helper function to create modal header
+function createModalHeader(name, onClose) {
+  const header = document.createElement('div');
+  header.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  `;
+
+  const title = document.createElement('h3');
+  title.textContent = `Worker JSON: ${name}`;
+  title.style.cssText = `
+    margin: 0;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 600;
+  `;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  `;
+  closeBtn.className = 'btn-close';
+  closeBtn.style.cssText = `
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+  `;
+  closeBtn.onmouseover = function () {
+    closeBtn.style.color = 'var(--text)';
+  };
+  closeBtn.onmouseout = function () {
+    closeBtn.style.color = 'var(--muted)';
+  };
+  closeBtn.onclick = onClose;
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  return header;
+}
+
+// Helper function to create JSON display
+function createJsonDisplay(jsonContent) {
+  const pre = document.createElement('pre');
+  pre.textContent = jsonContent;
+  pre.style.cssText = `
+    background: var(--input-bg);
+    color: var(--text);
+    padding: 16px;
+    border-radius: 8px;
+    overflow: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    max-height: 500px;
+    border: 1px solid var(--border);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  `;
+  return pre;
+}
+
+// Helper function to create copy button
+function createCopyButton(jsonContent) {
+  const actions = document.createElement('div');
+  actions.style.cssText = `
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  `;
+
+  const copyBtn = document.createElement('button');
+  copyBtn.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+    </svg>
+    Copy JSON
+  `;
+  copyBtn.className = 'btn';
+  copyBtn.style.cssText = `
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+  `;
+  copyBtn.onmouseover = function () {
+    copyBtn.style.background = 'var(--accent-hover)';
+  };
+  copyBtn.onmouseout = function () {
+    copyBtn.style.background = 'var(--accent)';
+  };
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(jsonContent);
+      const originalText = copyBtn.innerHTML;
+      copyBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Copied!
+      `;
+      setTimeout(() => {
+        copyBtn.innerHTML = originalText;
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  actions.appendChild(copyBtn);
+  return actions;
+}
+
+// Helper function to setup modal event handlers
+function setupModalHandlers(modal) {
+  // Close on backdrop click
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.remove();
+  };
+
+  // Close on ESC key
+  const handleEscape = (e) => {
+    if (e.key === 'Escape') {
+      modal.remove();
+      document.removeEventListener('keydown', handleEscape);
+    }
+  };
+  document.addEventListener('keydown', handleEscape);
+
+  // Prevent body scroll when modal is open
+  document.body.style.overflow = 'hidden';
+  modal.addEventListener('remove', () => {
+    document.body.style.overflow = '';
+  });
+}
+
 // View worker JSON data
 async function viewWorkerJson(name, driver) {
   try {
@@ -1276,70 +1472,22 @@ async function viewWorkerJson(name, driver) {
     const data = await response.json();
     const jsonContent = JSON.stringify(data, null, 2);
 
-    // Create a simple modal to display JSON
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    `;
+    // Create modal components
+    const modal = createModalOverlay();
+    const content = createModalContent();
+    const header = createModalHeader(name, () => modal.remove());
+    const jsonDisplay = createJsonDisplay(jsonContent);
+    const copyButton = createCopyButton(jsonContent);
 
-    const content = document.createElement('div');
-    content.style.cssText = `
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      max-width: 80%;
-      max-height: 80%;
-      overflow: auto;
-    `;
-
-    const title = document.createElement('h3');
-    title.textContent = `Worker JSON: ${name}`;
-    title.style.marginBottom = '15px';
-
-    const pre = document.createElement('pre');
-    pre.textContent = jsonContent;
-    pre.style.cssText = `
-      background: #f5f5f5;
-      padding: 15px;
-      border-radius: 4px;
-      overflow: auto;
-      font-family: monospace;
-      font-size: 12px;
-      max-height: 400px;
-    `;
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
-    closeBtn.style.cssText = `
-      margin-top: 15px;
-      padding: 8px 16px;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    `;
-    closeBtn.onclick = () => modal.remove();
-
-    content.appendChild(title);
-    content.appendChild(pre);
-    content.appendChild(closeBtn);
+    // Assemble modal
+    content.appendChild(header);
+    content.appendChild(jsonDisplay);
+    content.appendChild(copyButton);
     modal.appendChild(content);
     document.body.appendChild(modal);
 
-    // Close on backdrop click
-    modal.onclick = (e) => {
-      if (e.target === modal) modal.remove();
-    };
+    // Setup event handlers
+    setupModalHandlers(modal);
   } catch (err) {
     console.error('Failed to view worker JSON:', err);
     alert('Failed to load worker JSON: ' + err.message);
@@ -1362,20 +1510,6 @@ function createModal() {
     z-index: 1000;
   `;
   return modal;
-}
-
-// Create modal content container
-function createModalContent() {
-  const content = document.createElement('div');
-  content.style.cssText = `
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    max-width: 80%;
-    max-height: 80%;
-    overflow: auto;
-  `;
-  return content;
 }
 
 // Create JSON textarea for editing
