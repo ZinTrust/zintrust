@@ -48,15 +48,23 @@ const fakeRedis: FakeRedis = {
   pttl: async (key) => {
     return fakeRedis.ttl.get(key) ?? -1;
   },
-  scan: async (_cursor, _match, pattern) => {
+  scan: async (cursor, ...args) => {
+    // Parse the SCAN command arguments to find the MATCH pattern
+    let pattern = '*';
+    for (let i = 0; i < args.length; i += 2) {
+      if (args[i] === 'MATCH') {
+        pattern = args[i + 1];
+        break;
+      }
+    }
+
     // Convert a Redis-style glob pattern to a safe regular expression
-    const escapeRegex = (s: string) =>
-      s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapeRegex = (s: string) => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     const escaped = escapeRegex(pattern);
-    const regexPattern = '^' + escaped.replace(/\*/g, '.*') + '$';
+    const regexPattern = '^' + escaped.replaceAll(String.raw`\*`, '.*') + '$';
     const regex = new RegExp(regexPattern);
     const keys = Array.from(fakeRedis.store.keys()).filter((k) => regex.test(k));
-    return ['0', keys];
+    return [cursor, keys];
   },
   incr: async (key) => {
     const current = Number(fakeRedis.store.get(key) ?? 0);
