@@ -198,6 +198,13 @@ export function createRedisLockProvider(config: LockProviderConfig): LockProvide
 /**
  * Memory-based Lock Provider (for testing/sync driver)
  */
+function globToRegExp(pattern: string): RegExp {
+  // Escape all regex metacharacters, then turn '*' into '.*' as a wildcard
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regexSource = escaped.replace(/\\\*/g, '.*');
+  return new RegExp(`^${regexSource}$`);
+}
+
 export function createMemoryLockProvider(config: LockProviderConfig): LockProvider {
   const locks = new Map<string, Lock>();
   const prefix = config.prefix ?? ZintrustLang.MEMORY_LOCKS;
@@ -277,8 +284,8 @@ export function createMemoryLockProvider(config: LockProviderConfig): LockProvid
     },
 
     async list(pattern: string = '*'): Promise<string[]> {
-      // Simple regex match for memory provider
-      const regex = new RegExp(pattern.replace('*', '.*'));
+      // Simple glob-style match for memory provider ('*' as wildcard)
+      const regex = globToRegExp(pattern);
       const keys: string[] = [];
 
       for (const key of locks.keys()) {
