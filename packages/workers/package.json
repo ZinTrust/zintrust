@@ -37,7 +37,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm --prefix ../queue-redis run -s build && npm --prefix ../queue-monitor run -s build && tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

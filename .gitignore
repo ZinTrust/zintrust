@@ -84,3 +84,4 @@ test-email-templates.ts
 test-email-simple.ts
 app/Jobs/EmailJobService.ts
 tests/unit/app/Jobs/EmailJobService.coverage.test.ts
+routes/mail.ts
