@@ -37,6 +37,7 @@ import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
 import { WorkerCommands } from '@cli/commands/WorkerCommands';
 import { ErrorHandler } from '@cli/ErrorHandler';
+import { VersionChecker } from '@cli/services/VersionChecker';
 import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -225,6 +226,12 @@ const runCLI = async (program: Command, version: string, args: string[]): Promis
 
     // Always show banner for normal commands
     ErrorHandler.banner(version);
+
+    // Run version check in background (non-blocking)
+    VersionChecker.runVersionCheck().catch((error: unknown) => {
+      // Version check should never crash the CLI
+      Logger.debug('Version check encountered an error', error);
+    });
 
     // Show help if no arguments provided
     if (args.length === 0) {

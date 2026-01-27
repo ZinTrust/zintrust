@@ -106,7 +106,8 @@
     "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist",
     "release:sync-versions": "node scripts/release/sync-package-versions.mjs",
     "release:publish-packages": "node scripts/release/publish-packages.mjs",
-    "release:publish-all": "npm run release:sync-versions && npm run release:publish-packages"
+    "release:publish-all": "npm run release:sync-versions && npm run release:publish-packages",
+    "cag": "npm run cleanup:github-actions"
   },
   "lint-staged": {
     "src/**/*.ts": [
