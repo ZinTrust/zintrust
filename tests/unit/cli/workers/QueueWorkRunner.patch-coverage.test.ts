@@ -26,7 +26,7 @@ vi.mock('@config/logger', () => ({
 vi.mock('@config/env', () => ({
   Env: {
     get: vi.fn((key: string, defaultValue?: string) =>
-      process.env[key] !== undefined ? String(process.env[key]) : (defaultValue ?? '')
+      process.env[key] === undefined ? (defaultValue ?? '') : String(process.env[key])
     ),
     getInt: vi.fn((key: string, defaultValue?: number) => {
       const raw = process.env[key];
@@ -313,9 +313,9 @@ describe('QueueWorkRunner (patch coverage)', () => {
     const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
 
     clearLockProviders();
-    process.env.QUEUE_LOCK_PROVIDER = 'memory';
-    process.env.QUEUE_LOCK_PREFIX = 'test:';
-    process.env.QUEUE_DEFAULT_DEDUP_TTL = '1000';
+    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_LOCK_PREFIX'] = 'test:';
+    process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
 
     const provider = createLockProvider({
       type: 'memory',
@@ -351,9 +351,9 @@ describe('QueueWorkRunner (patch coverage)', () => {
     const registerSpy = vi.spyOn(lockProviders, 'registerLockProvider');
 
     lockProviders.clearLockProviders();
-    process.env.QUEUE_LOCK_PROVIDER = 'memory';
-    process.env.QUEUE_LOCK_PREFIX = '';
-    process.env.QUEUE_DEFAULT_DEDUP_TTL = '1000';
+    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_LOCK_PREFIX'] = '';
+    process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
 
     const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
 
