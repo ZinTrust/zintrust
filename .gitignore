@@ -82,3 +82,4 @@ app/Workers/EmailWorker.ts
 test-all-templates.ts
 test-email-templates.ts
 test-email-simple.ts
+app/Jobs/EmailJobService.ts
