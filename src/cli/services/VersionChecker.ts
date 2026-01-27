@@ -53,7 +53,7 @@ export const VersionChecker = Object.freeze({
   getConfig(): VersionCheckConfig {
     return {
       enabled: process.env['ZINTRUST_VERSION_CHECK'] !== 'false',
-      checkInterval: parseInt(process.env['ZINTRUST_VERSION_CHECK_INTERVAL'] ?? '24', 10),
+      checkInterval: Number.parseInt(process.env['ZINTRUST_VERSION_CHECK_INTERVAL'] ?? '24', 10),
       skipVersionCheck: process.env['ZINTRUST_SKIP_VERSION_CHECK'] === 'true',
     };
   },
@@ -70,8 +70,8 @@ export const VersionChecker = Object.freeze({
     }
 
     // Skip for version commands
-    const args = process.argv.slice(2);
-    if (args.includes('-v') || args.includes('--version') || args.includes('help')) {
+    const args = new Set(process.argv.slice(2));
+    if (args.has('-v') || args.has('--version') || args.has('help')) {
       return false;
     }
 
@@ -80,7 +80,7 @@ export const VersionChecker = Object.freeze({
     const lastCheck = globalThis.localStorage?.getItem?.(lastCheckKey);
 
     if (lastCheck !== null && lastCheck !== undefined) {
-      const lastCheckTime = parseInt(lastCheck, 10);
+      const lastCheckTime = Number.parseInt(lastCheck, 10);
       const now = Date.now();
       const hoursSinceLastCheck = (now - lastCheckTime) / (1000 * 60 * 60);
 
@@ -123,7 +123,11 @@ export const VersionChecker = Object.freeze({
    * Compare versions using semver-like comparison
    */
   compareVersions(current: string, latest: string): number {
-    const cleanVersion = (version: string): string => version.replace(/^v/, '').replace(/-.*$/, '');
+    const cleanVersion = (version: string): string => {
+      // Remove leading 'v' and trailing pre-release identifiers safely
+      // Using specific patterns instead of greedy quantifiers to prevent ReDoS
+      return version.replace(/^v/, '').replace(/-[^-]*$/, '');
+    };
 
     const currentParts = cleanVersion(current).split('.').map(Number);
     const latestParts = cleanVersion(latest).split('.').map(Number);

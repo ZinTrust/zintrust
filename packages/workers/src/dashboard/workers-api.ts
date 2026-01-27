@@ -609,7 +609,7 @@ async function enrichWithMetrics(workers: WorkerData[]): Promise<WorkerData[]> {
 }
 
 async function enrichWithDetails(workers: WorkerData[]): Promise<WorkerData[]> {
-  return Promise.all(workers.map(buildWorkerDetails));
+  return Promise.all(workers.map((worker) => buildWorkerDetails(worker)));
 }
 
 async function buildWorkerDetails(worker: WorkerData): Promise<WorkerData> {
