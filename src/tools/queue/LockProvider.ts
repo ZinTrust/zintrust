@@ -35,6 +35,27 @@ function getRedisClient(): Redis {
   return redisClient;
 }
 
+const METRICS_SUFFIX = {
+  attempts: 'metrics:attempts',
+  acquired: 'metrics:acquired',
+  collisions: 'metrics:collisions',
+} as const;
+
+const recordLockAttempt = async (prefix: string, acquired: boolean): Promise<void> => {
+  const client = getRedisClient();
+  try {
+    const attemptsKey = `${prefix}${METRICS_SUFFIX.attempts}`;
+    const acquiredKey = `${prefix}${METRICS_SUFFIX.acquired}`;
+    const collisionsKey = `${prefix}${METRICS_SUFFIX.collisions}`;
+
+    const operations = [client.incr(attemptsKey)];
+    operations.push(acquired ? client.incr(acquiredKey) : client.incr(collisionsKey));
+    await Promise.allSettled(operations);
+  } catch (error) {
+    Logger.debug('Lock metrics update failed', { error });
+  }
+};
+
 function createAcquireMethod(prefix: string, defaultTtl: number) {
   return async function acquire(key: string, options: LockOptions = {}): Promise<Lock> {
     const lockKey = `${prefix}${key}`;
@@ -48,6 +69,7 @@ function createAcquireMethod(prefix: string, defaultTtl: number) {
       const expires = new Date(Date.now() + ttl);
 
       Logger.debug(`Lock acquisition attempt`, { key: lockKey, ttl, acquired });
+      void recordLockAttempt(prefix, acquired);
 
       return {
         key: lockKey,
@@ -62,12 +84,17 @@ function createAcquireMethod(prefix: string, defaultTtl: number) {
   };
 }
 
-function createReleaseMethod() {
+function normalizeLockKey(prefix: string, key: string): string {
+  return key.startsWith(prefix) ? key : `${prefix}${key}`;
+}
+
+function createReleaseMethod(prefix: string) {
   return async function release(lock: Lock): Promise<void> {
     try {
       const client = getRedisClient();
-      await client.del(lock.key);
-      Logger.debug(`Lock release`, { key: lock.key });
+      const lockKey = normalizeLockKey(prefix, lock.key);
+      await client.del(lockKey);
+      Logger.debug(`Lock release`, { key: lockKey });
     } catch (error) {
       Logger.error(`Failed to release lock`, { key: lock.key, error });
       throw error;
@@ -75,17 +102,18 @@ function createReleaseMethod() {
   };
 }
 
-function createExtendMethod() {
+function createExtendMethod(prefix: string) {
   return async function extend(lock: Lock, ttl: number): Promise<boolean> {
     try {
       const client = getRedisClient();
+      const lockKey = normalizeLockKey(prefix, lock.key);
       // Use PEXPIRE to extend
-      const result = await client.pexpire(lock.key, ttl);
+      const result = await client.pexpire(lockKey, ttl);
       const success = result === 1;
 
       if (success) {
         const newExpires = new Date(Date.now() + ttl);
-        Logger.debug(`Lock extension`, { key: lock.key, ttl, newExpires });
+        Logger.debug(`Lock extension`, { key: lockKey, ttl, newExpires });
         lock.ttl = ttl;
         lock.expires = newExpires;
       }
@@ -160,8 +188,8 @@ export function createRedisLockProvider(config: LockProviderConfig): LockProvide
 
   return {
     acquire: createAcquireMethod(prefix, defaultTtl),
-    release: createReleaseMethod(),
-    extend: createExtendMethod(),
+    release: createReleaseMethod(prefix),
+    extend: createExtendMethod(prefix),
     status: createStatusMethod(prefix),
     list: createListMethod(prefix),
   };
@@ -209,19 +237,21 @@ export function createMemoryLockProvider(config: LockProviderConfig): LockProvid
     },
 
     async release(lock: Lock): Promise<void> {
-      locks.delete(lock.key);
-      Logger.debug(`Memory lock released`, { key: lock.key });
+      const lockKey = normalizeLockKey(prefix, lock.key);
+      locks.delete(lockKey);
+      Logger.debug(`Memory lock released`, { key: lockKey });
     },
 
     async extend(lock: Lock, ttl: number): Promise<boolean> {
-      const existingLock = locks.get(lock.key);
+      const lockKey = normalizeLockKey(prefix, lock.key);
+      const existingLock = locks.get(lockKey);
       if (!existingLock) {
         return false;
       }
 
       existingLock.ttl = ttl;
       existingLock.expires = new Date(Date.now() + ttl);
-      Logger.debug(`Memory lock extended`, { key: lock.key, ttl });
+      Logger.debug(`Memory lock extended`, { key: lockKey, ttl });
 
       return true;
     },

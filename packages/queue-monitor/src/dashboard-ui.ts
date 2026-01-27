@@ -179,13 +179,17 @@ const getStatsSection = (): string => `
 
 const getLocksSection = (): string => `
     <div class="tile" style="margin-top: 24px; padding: 0;">
-        <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap;">
-            <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Active Locks</h3>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <input id="lock-pattern" placeholder="Pattern (e.g. email-*)" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px; min-width: 220px;" />
-                <button id="lock-refresh" class="refresh-btn" type="button">Refresh locks</button>
-            </div>
-        </div>
+                <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <h3 style="margin: 0; font-size: 14px; font-weight: 800; color: var(--text);">Active Locks</h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input id="lock-pattern" placeholder="Pattern (e.g. email-*)" style="background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 12px; min-width: 220px;" />
+                            <button id="lock-refresh" class="refresh-btn" type="button">Refresh locks</button>
+                        </div>
+                    </div>
+                    <div id="locks-summary" style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted);"></div>
+                    <div id="locks-histogram" style="font-size: 12px;"></div>
+                </div>
         <div style="overflow-x: auto;">
             <table id="locks-table">
                 <thead>
@@ -444,9 +448,43 @@ const getRenderJobsFunction = (): string => `
         }`;
 
 const getRenderLocksFunction = (): string => `
-        function renderLocks(locks) {
+        function renderLocks(payload) {
             const tbody = document.querySelector('#locks-table tbody');
             tbody.innerHTML = '';
+
+            const locks = payload && payload.locks ? payload.locks : [];
+            const metrics = payload && payload.metrics ? payload.metrics : null;
+            const histogram = payload && payload.histogram ? payload.histogram : [];
+
+            const summary = document.getElementById('locks-summary');
+            const histogramEl = document.getElementById('locks-histogram');
+            if (summary) {
+                if (metrics) {
+                    const rate = metrics.attempts > 0
+                        ? (metrics.collisionRate * 100).toFixed(1) + '%'
+                        : '0%';
+                    summary.innerHTML =
+                        '<span><strong>Active</strong> ' + metrics.active + '</span>' +
+                        '<span><strong>Attempts</strong> ' + metrics.attempts + '</span>' +
+                        '<span><strong>Collisions</strong> ' + metrics.collisions + '</span>' +
+                        '<span><strong>Collision rate</strong> ' + rate + '</span>';
+                } else {
+                    summary.textContent = 'No metrics available.';
+                }
+            }
+
+            if (histogramEl) {
+                if (histogram.length === 0) {
+                    histogramEl.textContent = 'No TTL data available.';
+                } else {
+                    histogramEl.innerHTML = histogram.map(bucket => {
+                        return '<div style="display:flex; justify-content: space-between; gap: 12px; margin: 4px 0;">' +
+                            '<span style="color: var(--muted);">' + bucket.label + '</span>' +
+                            '<span>' + bucket.count + '</span>' +
+                            '</div>';
+                    }).join('');
+                }
+            }
 
             if (!locks || locks.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--muted)">No active locks found</td></tr>';
@@ -570,7 +608,7 @@ const getDashboardScriptFetch = (): string => `
                 const pattern = patternInput && patternInput.value ? patternInput.value : '*';
                 const res = await fetch(API_BASE + '/api/locks?pattern=' + encodeURIComponent(pattern));
                 const data = await res.json();
-                renderLocks(data.locks || []);
+                renderLocks(data);
             } catch (e) {
                 console.error('Failed to fetch locks', e);
             }

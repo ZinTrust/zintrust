@@ -12,10 +12,7 @@ import { createDeduplicationBuilder } from '@queue/DeduplicationBuilder';
 import { createLockProvider, registerLockProvider } from '@queue/LockProvider';
 import { Queue } from '@queue/Queue';
 
-// Type for extended Queue with advanced capabilities
-interface ExtendedQueue {
-  _advancedQueue: AdvancedQueue | null;
-}
+let advancedQueueRef: AdvancedQueue | null = null;
 
 /**
  * Extend existing Queue with advanced capabilities
@@ -25,8 +22,7 @@ export function extendQueue(config: QueueConfig): void {
   try {
     const advancedQueue = createAdvancedQueue(config);
 
-    // Store reference for backward compatibility
-    (Queue as unknown as ExtendedQueue)._advancedQueue = advancedQueue;
+    advancedQueueRef = advancedQueue;
 
     Logger.info(`Queue extended with advanced capabilities`, { queueName: config.name });
   } catch (error) {
@@ -44,14 +40,12 @@ export async function enqueueAdvanced(
   payload: unknown,
   options: AdvancedJobOptions = {}
 ): Promise<string> {
-  const advancedQueue = (Queue as unknown as ExtendedQueue)._advancedQueue;
-
-  if (advancedQueue === null) {
+  if (advancedQueueRef === null) {
     Logger.warn(`Advanced queue not initialized, falling back to standard enqueue`);
     return Queue.enqueue(name, payload);
   }
 
-  return advancedQueue.enqueue(name, payload, options);
+  return advancedQueueRef.enqueue(name, payload, options);
 }
 
 /**
@@ -101,9 +95,8 @@ export const QueueLocks: {
    * Release a lock by key
    */
   async release(key: string): Promise<void> {
-    const advancedQueue = (Queue as unknown as ExtendedQueue)._advancedQueue;
-    if (advancedQueue !== null && advancedQueue !== undefined) {
-      return advancedQueue.releaseLock(key);
+    if (advancedQueueRef !== null) {
+      return advancedQueueRef.releaseLock(key);
     }
     throw createValidationError('Advanced queue not initialized. Call extendQueue() first.');
   },
@@ -112,9 +105,8 @@ export const QueueLocks: {
    * Extend a lock's TTL
    */
   async extend(key: string, ttl: number): Promise<boolean> {
-    const advancedQueue = (Queue as unknown as ExtendedQueue)._advancedQueue;
-    if (advancedQueue !== null && advancedQueue !== undefined) {
-      return advancedQueue.extendLock(key, ttl);
+    if (advancedQueueRef !== null) {
+      return advancedQueueRef.extendLock(key, ttl);
     }
     throw createValidationError('Advanced queue not initialized. Call extendQueue() first.');
   },

@@ -3,6 +3,7 @@
  */
 
 import type { AdvancedJobOptions, QueueConfig } from '@/types/Queue';
+import { Logger } from '@config/logger';
 import { createAdvancedQueue } from '@tools/queue/AdvancedQueue';
 import { createMemoryLockProvider, registerLockProvider } from '@tools/queue/LockProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,6 +96,54 @@ describe('AdvancedQueue', () => {
 
       await expect(advancedQueue.enqueue('test-queue', { data: 'test' }, options)).rejects.toThrow(
         'Invalid uniqueId'
+      );
+    });
+
+    it('should reject non-string uniqueId values', async () => {
+      const options: AdvancedJobOptions = {
+        uniqueId: 123 as unknown as string,
+      };
+
+      await expect(advancedQueue.enqueue('test-queue', { data: 'test' }, options)).rejects.toThrow(
+        'uniqueId must be a non-empty string'
+      );
+    });
+
+    it('should reject uniqueId that is too long', async () => {
+      const options: AdvancedJobOptions = {
+        uniqueId: 'a'.repeat(256),
+      };
+
+      await expect(advancedQueue.enqueue('test-queue', { data: 'test' }, options)).rejects.toThrow(
+        'uniqueId must be less than 255 characters'
+      );
+    });
+
+    it('should reject uniqueId with invalid characters', async () => {
+      const options: AdvancedJobOptions = {
+        uniqueId: 'bad|id',
+      };
+
+      await expect(advancedQueue.enqueue('test-queue', { data: 'test' }, options)).rejects.toThrow(
+        'uniqueId contains invalid characters'
+      );
+    });
+
+    it('warns when releaseAfter metadata cannot be attached to non-object payload', async () => {
+      const options: AdvancedJobOptions = {
+        deduplication: {
+          id: 'meta-attach',
+          ttl: 30000,
+          releaseAfter: { condition: 'job.result.status === "completed"' },
+        },
+      };
+
+      const jobId = await advancedQueue.enqueue('test-queue', 'not-an-object', options);
+
+      expect(jobId).toBe('job-123');
+      expect(Logger.warn).toHaveBeenCalledWith(
+        'releaseAfter condition metadata could not be attached; payload is not an object',
+        expect.objectContaining({ queueName: 'test-queue' })
       );
     });
 
@@ -210,9 +259,95 @@ describe('AdvancedQueue', () => {
       expect(extended).toBe(true);
     });
 
+    it('should extend lock and log success when lock exists', async () => {
+      await memoryLockProvider.acquire('test-lock-key', { ttl: 30000 });
+
+      const result = await advancedQueue.extendLock('test-lock-key', 60000);
+
+      expect(result).toBe(true);
+      expect(Logger.info).toHaveBeenCalledWith('Lock extended successfully', {
+        key: 'test-lock-key',
+        ttl: 60000,
+      });
+    });
+
     it('should handle extension of non-existent lock', async () => {
       const extended = await advancedQueue.extendLock('non-existent', 60000);
       expect(extended).toBe(false);
+    });
+
+    it('should report failed extension when provider returns false', async () => {
+      const failingProvider = {
+        acquire: vi.fn(),
+        release: vi.fn(),
+        extend: vi.fn().mockResolvedValue(false),
+        status: vi.fn().mockResolvedValue({ exists: true, ttl: 1000, expires: new Date() }),
+        list: vi.fn(),
+      };
+      registerLockProvider('extend-fail', failingProvider as any);
+
+      const config: QueueConfig = {
+        name: 'extend-fail-queue',
+        lockProvider: 'extend-fail',
+      };
+      const queue = createAdvancedQueue(config);
+
+      const result = await queue.extendLock('lock-key', 1000);
+
+      expect(result).toBe(false);
+      expect(Logger.warn).toHaveBeenCalledWith('Failed to extend lock', {
+        key: 'lock-key',
+        ttl: 1000,
+      });
+    });
+
+    it('returns false when extend throws', async () => {
+      const errorProvider = {
+        acquire: vi.fn(),
+        release: vi.fn(),
+        extend: vi.fn().mockRejectedValue(new Error('extend boom')),
+        status: vi.fn().mockResolvedValue({ exists: true, ttl: 1000, expires: new Date() }),
+        list: vi.fn(),
+      };
+      registerLockProvider('extend-error', errorProvider as any);
+
+      const config: QueueConfig = {
+        name: 'extend-error-queue',
+        lockProvider: 'extend-error',
+      };
+      const queue = createAdvancedQueue(config);
+
+      const result = await queue.extendLock('lock-key', 1000);
+
+      expect(result).toBe(false);
+      expect(Logger.error).toHaveBeenCalledWith('Error extending lock', {
+        key: 'lock-key',
+        ttl: 1000,
+        error: expect.any(Error),
+      });
+    });
+
+    it('throws when release fails for an existing lock', async () => {
+      const releaseErrorProvider = {
+        acquire: vi.fn(),
+        release: vi.fn().mockRejectedValue(new Error('release boom')),
+        extend: vi.fn(),
+        status: vi.fn().mockResolvedValue({ exists: true, ttl: 1000, expires: new Date() }),
+        list: vi.fn(),
+      };
+      registerLockProvider('release-error', releaseErrorProvider as any);
+
+      const config: QueueConfig = {
+        name: 'release-error-queue',
+        lockProvider: 'release-error',
+      };
+      const queue = createAdvancedQueue(config);
+
+      await expect(queue.releaseLock('lock-key')).rejects.toThrow('release boom');
+      expect(Logger.error).toHaveBeenCalledWith('Failed to release lock', {
+        key: 'lock-key',
+        error: expect.any(Error),
+      });
     });
   });
 
@@ -280,6 +415,54 @@ describe('AdvancedQueue', () => {
 
       const jobId = await advancedQueue.enqueue('test-queue', { data: 'test' }, options);
       expect(jobId).toBe('job-123');
+    });
+
+    it('logs release-after delay failures', async () => {
+      vi.useFakeTimers();
+
+      const delayProvider = {
+        acquire: vi.fn().mockResolvedValue({
+          key: 'test:delay-key',
+          ttl: 1000,
+          acquired: true,
+          expires: new Date(),
+        }),
+        release: vi.fn().mockRejectedValue(new Error('release delay boom')),
+        extend: vi.fn(),
+        status: vi
+          .fn()
+          .mockResolvedValueOnce({ exists: false })
+          .mockResolvedValueOnce({ exists: true, ttl: 1000, expires: new Date() }),
+        list: vi.fn(),
+      };
+      registerLockProvider('delay-error', delayProvider as any);
+
+      const config: QueueConfig = {
+        name: 'delay-queue',
+        lockProvider: 'delay-error',
+      };
+      const queue = createAdvancedQueue(config);
+
+      await queue.enqueue(
+        'test-queue',
+        { data: 'test' },
+        {
+          deduplication: {
+            id: 'delay-key',
+            ttl: 1000,
+            releaseAfter: 10,
+          },
+        }
+      );
+
+      await vi.runAllTimersAsync();
+
+      expect(Logger.error).toHaveBeenCalledWith('Failed to release lock after delay', {
+        lockId: 'delay-key',
+        error: expect.any(Error),
+      });
+
+      vi.useRealTimers();
     });
 
     it('should handle multiple jobs with different deduplication strategies', async () => {

@@ -40,10 +40,29 @@ export type LockSummary = {
   expires?: string;
 };
 
+export type LockMetrics = {
+  active: number;
+  attempts: number;
+  acquired: number;
+  collisions: number;
+  collisionRate: number;
+};
+
+export type LockHistogramBucket = {
+  label: string;
+  count: number;
+};
+
+export type LockAnalytics = {
+  locks: LockSummary[];
+  metrics: LockMetrics;
+  histogram: LockHistogramBucket[];
+};
+
 export type QueueMonitorApi = {
   registerRoutes: (router: IRouter) => void;
   getSnapshot: () => Promise<QueueMonitorSnapshot>;
-  getLocks: (pattern?: string) => Promise<LockSummary[]>;
+  getLocks: (pattern?: string) => Promise<LockAnalytics>;
   driver: QueueDriver;
   metrics: Metrics;
 };
@@ -87,6 +106,19 @@ function fieldError(key: string, message: string): { error: string } {
 }
 
 const DEFAULT_LOCK_PREFIX = 'zintrust:locks:';
+const METRICS_KEYS = {
+  attempts: 'metrics:attempts',
+  acquired: 'metrics:acquired',
+  collisions: 'metrics:collisions',
+} as const;
+
+const HISTOGRAM_BUCKETS: Array<{ label: string; min?: number; max?: number }> = [
+  { label: '<30s', max: 30_000 },
+  { label: '30s-2m', max: 120_000 },
+  { label: '2-10m', max: 600_000 },
+  { label: '10-60m', max: 3_600_000 },
+  { label: '>60m', min: 3_600_000 },
+];
 
 function createGetLocks(redisConfig: RedisConfig) {
   let redisConnection: ReturnType<typeof createRedisConnection> | null = null;
@@ -103,7 +135,7 @@ function createGetLocks(redisConfig: RedisConfig) {
     return fromEnv.length > 0 ? fromEnv : DEFAULT_LOCK_PREFIX;
   };
 
-  return async (pattern: string = '*'): Promise<LockSummary[]> => {
+  return async (pattern: string = '*'): Promise<LockAnalytics> => {
     const client = resolveRedisConnection();
     const prefix = resolveLockPrefix();
     const searchPattern = `${prefix}${pattern}`;
@@ -120,7 +152,7 @@ function createGetLocks(redisConfig: RedisConfig) {
 
     const statuses = await Promise.all(keys.map((key) => client.pttl(key)));
 
-    return keys.map((key, index) => {
+    const locks = keys.map((key, index) => {
       const ttl = statuses[index];
       const exists = typeof ttl === 'number' && ttl > 0;
       return {
@@ -129,6 +161,47 @@ function createGetLocks(redisConfig: RedisConfig) {
         expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
       };
     });
+
+    const metricsKeys = [
+      `${prefix}${METRICS_KEYS.attempts}`,
+      `${prefix}${METRICS_KEYS.acquired}`,
+      `${prefix}${METRICS_KEYS.collisions}`,
+    ];
+    const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
+    const parseMetric = (value: string | null): number =>
+      Number.isFinite(Number(value)) ? Number(value) : 0;
+    const attempts = parseMetric(attemptsRaw);
+    const acquired = parseMetric(acquiredRaw);
+    const collisions = parseMetric(collisionsRaw);
+    const collisionRate = attempts > 0 ? collisions / attempts : 0;
+
+    const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
+      label: bucket.label,
+      count: 0,
+    }));
+
+    locks.forEach((lock) => {
+      if (typeof lock.ttl !== 'number') return;
+      const ttl = lock.ttl;
+      const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
+        if (typeof bucket.min === 'number') return ttl >= bucket.min;
+        if (typeof bucket.max === 'number') return ttl < bucket.max;
+        return false;
+      });
+      if (idx >= 0) histogram[idx].count += 1;
+    });
+
+    return {
+      locks,
+      metrics: {
+        active: locks.length,
+        attempts,
+        acquired,
+        collisions,
+        collisionRate,
+      },
+      histogram,
+    };
   };
 }
 
@@ -275,7 +348,7 @@ function createRegisterRoutes(
   metrics: Metrics,
   driver: QueueDriver,
   getSnapshot: () => Promise<QueueMonitorSnapshot>,
-  getLocks: (pattern?: string) => Promise<LockSummary[]>
+  getLocks: (pattern?: string) => Promise<LockAnalytics>
 ) {
   return (router: IRouter): void => {
     if (!settings.enabled) return;
@@ -330,7 +403,7 @@ function createRegisterRoutes(
             : ((req as { query?: Record<string, string> }).query ?? {});
         const pattern = query['pattern'] ?? '*';
         const locks = await getLocks(pattern);
-        res.json({ locks });
+        res.json(locks);
       },
       routeOptions
     );
