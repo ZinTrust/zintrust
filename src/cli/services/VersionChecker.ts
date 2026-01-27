@@ -7,6 +7,7 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { HttpClient, type IHttpResponse } from '@httpClient/Http';
 import { readFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 
@@ -15,14 +16,6 @@ interface VersionCheckResult {
   latestVersion: string;
   isOutdated: boolean;
   updateAvailable: boolean;
-}
-
-interface NpmRegistryResponse {
-  'dist-tags': {
-    latest: string;
-    [tag: string]: string;
-  };
-  version: string;
 }
 
 interface VersionCheckConfig {
@@ -97,26 +90,104 @@ export const VersionChecker = Object.freeze({
    */
   async fetchLatestVersion(): Promise<string> {
     try {
-      const response = await fetch('https://registry.npmjs.org/@zintrust/core/latest', {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'ZinTrust-CLI-Version-Check',
-        },
-        signal: AbortSignal.timeout(5000), // 5 second timeout
-      });
+      const response = await this.fetchFromNpmRegistry();
 
       if (!response.ok) {
-        throw ErrorFactory.createConfigError(`HTTP ${response.status}: ${response.statusText}`);
+        return this.handleHttpError(response);
       }
 
-      const data = (await response.json()) as NpmRegistryResponse;
-      return data['dist-tags'].latest || data.version;
+      const data = await response.json();
+      return this.extractVersionFromResponse(data);
     } catch (error) {
-      // Silently fail for network issues - don't block CLI usage
+      // For network errors or other issues, don't block CLI usage
       Logger.debug('Failed to fetch latest version from npm registry', error);
-      throw ErrorFactory.createConfigError('Failed to check for updates', error);
+      return this.getCurrentVersion();
     }
+  },
+
+  /**
+   * Make request to npm registry
+   */
+  async fetchFromNpmRegistry(): Promise<IHttpResponse> {
+    return HttpClient.get('https://registry.npmjs.org/@zintrust/core/latest')
+      .withHeader('Accept', 'application/json')
+      .withHeader('User-Agent', 'ZinTrust-CLI-Version-Check')
+      .withTimeout(5000) // 5 second timeout
+      .send();
+  },
+
+  /**
+   * Handle HTTP errors from npm registry
+   */
+  handleHttpError(response: IHttpResponse): string {
+    // If package doesn't exist (404), return current version
+    if (response.status === 404) {
+      Logger.debug('Package not found on npm registry, assuming development version');
+      return this.getCurrentVersion();
+    }
+
+    throw ErrorFactory.createConfigError(`HTTP ${response.status}: Failed to fetch version`);
+  },
+
+  /**
+   * Extract version from npm registry response
+   */
+  extractVersionFromResponse(data: unknown): string {
+    if (!this.isValidResponseData(data)) {
+      Logger.debug('Unexpected npm registry response structure, using current version');
+      return this.getCurrentVersion();
+    }
+
+    const dataRecord = data;
+
+    // Try to get version from dist-tags.latest (standard npm response)
+    const latestVersion = this.getVersionFromDistTags(dataRecord);
+    if (latestVersion !== null && latestVersion !== undefined && latestVersion !== '') {
+      return latestVersion;
+    }
+
+    // Fallback to version field
+    const fallbackVersion = this.getVersionFromField(dataRecord);
+    if (fallbackVersion !== null && fallbackVersion !== undefined && fallbackVersion !== '') {
+      return fallbackVersion;
+    }
+
+    // Final fallback
+    Logger.debug('Could not extract version from response, using current version');
+    return this.getCurrentVersion();
+  },
+
+  /**
+   * Check if response data is valid object
+   */
+  isValidResponseData(data: unknown): data is Record<string, unknown> {
+    return data !== null && data !== undefined && typeof data === 'object';
+  },
+
+  /**
+   * Extract version from dist-tags
+   */
+  getVersionFromDistTags(dataRecord: Record<string, unknown>): string | null {
+    const distTags = dataRecord['dist-tags'];
+    if (distTags !== null && distTags !== undefined) {
+      const distTagsRecord = distTags as Record<string, unknown>;
+      const latest = distTagsRecord['latest'];
+      if (typeof latest === 'string' && latest !== '') {
+        return latest;
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Extract version from version field
+   */
+  getVersionFromField(dataRecord: Record<string, unknown>): string | null {
+    const version = dataRecord['version'];
+    if (typeof version === 'string' && version !== '') {
+      return version;
+    }
+    return null;
   },
 
   /**
