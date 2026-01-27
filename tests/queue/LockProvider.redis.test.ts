@@ -49,7 +49,12 @@ const fakeRedis: FakeRedis = {
     return fakeRedis.ttl.get(key) ?? -1;
   },
   scan: async (_cursor, _match, pattern) => {
-    const regex = new RegExp(pattern.replace('*', '.*'));
+    // Convert a Redis-style glob pattern to a safe regular expression
+    const escapeRegex = (s: string) =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = escapeRegex(pattern);
+    const regexPattern = '^' + escaped.replace(/\*/g, '.*') + '$';
+    const regex = new RegExp(regexPattern);
     const keys = Array.from(fakeRedis.store.keys()).filter((k) => regex.test(k));
     return ['0', keys];
   },
