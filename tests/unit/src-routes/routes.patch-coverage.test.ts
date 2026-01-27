@@ -203,7 +203,7 @@ describe('src/routes/* patch coverage', () => {
         })
       );
 
-      const payload = (res.json as any).mock.calls[0][0];
+      const payload = res.json.mock.calls[0][0];
       expect(payload.dependencies.cache).toBeUndefined();
     });
 
@@ -224,7 +224,7 @@ describe('src/routes/* patch coverage', () => {
 
       expect(connect).toHaveBeenCalledTimes(1);
 
-      const payload = (res.json as any).mock.calls[0][0];
+      const payload = res.json.mock.calls[0][0];
       expect(payload.dependencies.cache).toBeDefined();
       expect(payload.dependencies.cache.responseTime).toBe(12);
     });

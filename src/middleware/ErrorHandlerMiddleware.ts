@@ -1,3 +1,4 @@
+import ErrorRouting from '@/routing/error';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorResponse } from '@http/ErrorResponse';
@@ -27,14 +28,21 @@ export const ErrorHandlerMiddleware = Object.freeze({
         const includeStack = Env.NODE_ENV !== 'production';
 
         if (!isWritableEnded(res)) {
+          const errorMode = Env.get('ERROR_MODE', 'html');
           res.setStatus(500);
-          res.json(
-            ErrorResponse.internalServerError(
-              'Internal server error',
-              requestId,
-              includeStack ? (error as Error)?.stack : undefined
-            )
-          );
+
+          if (errorMode === 'html') {
+            // Use HTML error page instead of JSON
+            ErrorRouting.handleInternalServerErrorWithWrappers(req, res, error, requestId);
+          } else {
+            res.json(
+              ErrorResponse.internalServerError(
+                'Internal server error',
+                requestId,
+                includeStack ? (error as Error)?.stack : undefined
+              )
+            );
+          }
         }
       }
     };

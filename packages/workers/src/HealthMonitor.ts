@@ -1,666 +1,390 @@
-/**
- * Health Monitor
- * Comprehensive health monitoring for workers
- * Sealed namespace for immutability
- */
-
 import { ErrorFactory, Logger } from '@zintrust/core';
-import { CircuitBreaker } from './CircuitBreaker';
-import { ResourceMonitor } from './ResourceMonitor';
-import { WorkerMetrics, type MetricEntry } from './WorkerMetrics';
-import { WorkerRegistry } from './WorkerRegistry';
-
-export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'critical';
-
-type HealthTrend = 'improving' | 'stable' | 'degrading';
+import type { Worker } from 'bullmq';
+import { WorkerCreationStatus, WorkerFactory } from './WorkerFactory';
 
 export type HealthCheckResult = {
-  status: HealthStatus;
-  score: number; // 0-100
   timestamp: Date;
-  checks: {
-    errorRate: { status: HealthStatus; value: number; threshold: number };
-    latency: { status: HealthStatus; value: number; threshold: number };
-    throughput: { status: HealthStatus; value: number; threshold: number };
-    resources: { status: HealthStatus; cpu: number; memory: number };
-    circuitBreaker: { status: HealthStatus; state: string };
-    queueHealth: { status: HealthStatus; waiting: number; active: number };
-  };
-  recommendations: string[];
+  status: 'healthy' | 'degraded' | 'critical';
+  latency: number;
+  message?: string;
+  meta?: Record<string, unknown>;
 };
 
-export type HealthMonitorConfig = {
-  checkInterval: number; // Seconds between health checks
-  thresholds: {
-    errorRate: { warning: number; critical: number }; // 0-1
-    latency: { warning: number; critical: number }; // ms
-    throughput: { warning: number; critical: number }; // jobs/sec
-    cpu: { warning: number; critical: number }; // 0-100%
-    memory: { warning: number; critical: number }; // 0-100%
-    queueSize: { warning: number; critical: number }; // absolute count
-  };
-  alerting: {
-    enabled: boolean;
-    degradedCallback?: (workerName: string, result: HealthCheckResult) => void;
-    criticalCallback?: (workerName: string, result: HealthCheckResult) => void;
-  };
+type HealthMonitorConfig = {
+  enabled: boolean;
+  tickIntervalMs: number;
+  concurrencyLimit: number;
+  checkTimeoutMs: number;
+  intervalHealthyMs: number;
+  intervalSuspectMs: number;
+  failureThreshold: number;
+  historyLimit: number;
 };
 
-// Internal state
-const healthChecks = new Map<string, HealthCheckResult[]>(); // Keep history
-const monitoringIntervals = new Map<string, NodeJS.Timeout>();
-const workerConfigs = new Map<string, HealthMonitorConfig>();
+type WorkerMonitorConfig = {
+  degradedCallback?: (name: string, result: HealthCheckResult) => void;
+  criticalCallback?: (name: string, result: HealthCheckResult) => void;
+  [key: string]: unknown;
+};
 
-/**
- * Default health monitor config
- */
+type WorkerHealthState = {
+  name: string;
+  worker?: Worker; // Optional because startMonitoring might be called before register
+  queueName?: string;
+  status: WorkerCreationStatus;
+  lastCheck: Date;
+  nextCheck: Date;
+  consecutiveFailures: number;
+  inProgress: boolean;
+  config?: WorkerMonitorConfig;
+  history: HealthCheckResult[];
+};
+
 const DEFAULT_CONFIG: HealthMonitorConfig = {
-  checkInterval: 30,
-  thresholds: {
-    errorRate: { warning: 0.05, critical: 0.1 }, // 5% warning, 10% critical
-    latency: { warning: 1000, critical: 3000 }, // 1s warning, 3s critical
-    throughput: { warning: 10, critical: 5 }, // 10 jobs/sec warning, 5 critical
-    cpu: { warning: 70, critical: 90 },
-    memory: { warning: 75, critical: 85 },
-    queueSize: { warning: 1000, critical: 5000 },
-  },
-  alerting: {
-    enabled: true,
-  },
+  enabled: true,
+  tickIntervalMs: 1000,
+  concurrencyLimit: 50,
+  checkTimeoutMs: 5000,
+  intervalHealthyMs: 30000,
+  intervalSuspectMs: 5000,
+  failureThreshold: 2,
+  historyLimit: 50,
 };
 
-/**
- * Helper: Calculate health status from score
- */
-const getStatusFromScore = (score: number): HealthStatus => {
-  if (score >= 80) return 'healthy';
-  if (score >= 60) return 'degraded';
-  if (score >= 30) return 'unhealthy';
-  return 'critical';
-};
+// Module-level state (Singleton by nature of ESM)
+const registry = new Map<string, WorkerHealthState>();
+let config: HealthMonitorConfig = { ...DEFAULT_CONFIG };
+let timer: NodeJS.Timeout | null = null;
+let runningChecks = 0;
 
-const sumMetricEntry = (entry: MetricEntry): number =>
-  entry.points.reduce((sum, point) => sum + point.value, 0);
-
-const averageMetricEntry = (entry: MetricEntry): number =>
-  entry.points.length > 0 ? sumMetricEntry(entry) / entry.points.length : 0;
-
-const queryMetricEntry = async (
-  workerName: string,
-  metricType: MetricEntry['metricType'],
-  startDate: Date,
-  endDate: Date
-): Promise<MetricEntry> =>
-  WorkerMetrics.query({
-    workerName,
-    metricType,
-    granularity: 'hourly',
-    startDate,
-    endDate,
-  });
-
-const buildErrorRateCheck = async (
-  workerName: string,
-  startDate: Date,
-  endDate: Date,
-  config: HealthMonitorConfig
-): Promise<{
-  status: HealthStatus;
-  score: number;
-  errorRate: number;
-  totalProcessed: number;
-  recommendations: string[];
-}> => {
-  const [errorEntry, processedEntry] = await Promise.all([
-    queryMetricEntry(workerName, 'errors', startDate, endDate),
-    queryMetricEntry(workerName, 'processed', startDate, endDate),
-  ]);
-
-  const totalErrors = sumMetricEntry(errorEntry);
-  const totalProcessed = sumMetricEntry(processedEntry);
-  const errorRate = totalProcessed > 0 ? totalErrors / totalProcessed : 0;
-
-  let status: HealthStatus = 'healthy';
-  let score = 100;
-  const recommendations: string[] = [];
-
-  if (errorRate >= config.thresholds.errorRate.critical) {
-    status = 'critical';
-    score = 20;
-    recommendations.push(
-      `Critical error rate: ${(errorRate * 100).toFixed(2)}%. Investigate failures immediately.`
-    );
-  } else if (errorRate >= config.thresholds.errorRate.warning) {
-    status = 'degraded';
-    score = 60;
-    recommendations.push(`Elevated error rate: ${(errorRate * 100).toFixed(2)}%. Monitor closely.`);
+// Internal Helpers
+const persistStatusChange = async (
+  name: string,
+  status: WorkerCreationStatus,
+  lastError?: string
+): Promise<void> => {
+  try {
+    await WorkerFactory.updateStatus(name, status, lastError);
+  } catch (err) {
+    Logger.error(`Failed to persist status change for ${name}`, err);
   }
-
-  return { status, score, errorRate, totalProcessed, recommendations };
 };
 
-const buildLatencyCheck = async (
-  workerName: string,
-  startDate: Date,
-  endDate: Date,
-  config: HealthMonitorConfig
-): Promise<{
-  status: HealthStatus;
-  score: number;
-  avgLatency: number;
-  recommendations: string[];
-}> => {
-  const latencyEntry = await queryMetricEntry(workerName, 'duration', startDate, endDate);
-  const avgLatency = averageMetricEntry(latencyEntry);
-
-  let status: HealthStatus = 'healthy';
-  let score = 100;
-  const recommendations: string[] = [];
-
-  if (avgLatency >= config.thresholds.latency.critical) {
-    status = 'critical';
-    score = 20;
-    recommendations.push(
-      `Critical latency: ${avgLatency.toFixed(0)}ms. Consider scaling up or optimizing.`
-    );
-  } else if (avgLatency >= config.thresholds.latency.warning) {
-    status = 'degraded';
-    score = 60;
-    recommendations.push(`High latency: ${avgLatency.toFixed(0)}ms. Monitor performance.`);
-  }
-
-  return { status, score, avgLatency, recommendations };
-};
-
-const buildThroughputCheck = (
-  totalProcessed: number,
-  config: HealthMonitorConfig
-): { status: HealthStatus; score: number; throughput: number; recommendations: string[] } => {
-  const throughput = totalProcessed / 3600;
-  let status: HealthStatus = 'healthy';
-  let score = 100;
-  const recommendations: string[] = [];
-
-  if (throughput < config.thresholds.throughput.critical) {
-    status = 'critical';
-    score = 20;
-    recommendations.push(
-      `Low throughput: ${throughput.toFixed(2)} jobs/sec. Check worker availability.`
-    );
-  } else if (throughput < config.thresholds.throughput.warning) {
-    status = 'degraded';
-    score = 60;
-    recommendations.push(
-      `Reduced throughput: ${throughput.toFixed(2)} jobs/sec. Consider scaling.`
-    );
-  }
-
-  return { status, score, throughput, recommendations };
-};
-
-const buildResourceCheck = (
-  workerName: string,
-  config: HealthMonitorConfig
-): {
-  status: HealthStatus;
-  score: number;
-  cpu: number;
-  memory: number;
-  recommendations: string[];
-} => {
-  const usage = ResourceMonitor.getCurrentUsage(workerName);
-  const cpuPercent = usage.resourceSnapshot.cpu.usage;
-  const memPercent = usage.resourceSnapshot.memory.usage;
-
-  let status: HealthStatus = 'healthy';
-  let score = 100;
-  const recommendations: string[] = [];
+const verifyWorkerHealth = async (
+  worker: Worker,
+  _name: string,
+  _queueName: string
+): Promise<boolean> => {
+  // Check if isClosing exists (isClosing check safe for mocks)
+  const workerAny = worker as unknown as Record<string, unknown>;
+  const isClosingFn = workerAny['isClosing'];
 
   if (
-    cpuPercent >= config.thresholds.cpu.critical ||
-    memPercent >= config.thresholds.memory.critical
+    worker.isPaused() ||
+    (typeof isClosingFn === 'function' && (isClosingFn as () => boolean)())
   ) {
-    status = 'critical';
-    score = 20;
-    recommendations.push(
-      `Critical resource usage: CPU ${cpuPercent.toFixed(1)}%, Memory ${memPercent.toFixed(1)}%`
-    );
-  } else if (
-    cpuPercent >= config.thresholds.cpu.warning ||
-    memPercent >= config.thresholds.memory.warning
-  ) {
-    status = 'degraded';
-    score = 60;
-    recommendations.push(
-      `High resource usage: CPU ${cpuPercent.toFixed(1)}%, Memory ${memPercent.toFixed(1)}%`
-    );
+    return false;
   }
 
-  return { status, score, cpu: cpuPercent, memory: memPercent, recommendations };
-};
+  const isRunning = await worker.isRunning();
+  if (!isRunning) return false;
 
-const buildCircuitCheck = (
-  workerName: string,
-  version: string
-): { status: HealthStatus; score: number; state: string; recommendations: string[] } => {
-  const circuitState = CircuitBreaker.getState(workerName, version);
-  let status: HealthStatus = 'healthy';
-  let score = 100;
-  const recommendations: string[] = [];
-
-  if (circuitState?.state === 'open') {
-    status = 'critical';
-    score = 0;
-    recommendations.push('Circuit breaker is OPEN. Worker is rejecting all jobs.');
-  } else if (circuitState?.state === 'half-open') {
-    status = 'degraded';
-    score = 50;
-    recommendations.push('Circuit breaker is HALF-OPEN. Testing recovery.');
+  const client = await worker.client;
+  const pingResult = await client.ping();
+  if (pingResult !== 'PONG') {
+    throw ErrorFactory.createWorkerError(`Redis ping failed: ${pingResult}`);
   }
-
-  return { status, score, state: circuitState?.state ?? 'closed', recommendations };
+  Logger.debug(`Worker health verification passed for ${_name} ${_queueName}`);
+  return true;
 };
 
-const buildQueueCheck = async (
-  workerName: string,
-  startDate: Date,
-  endDate: Date,
-  config: HealthMonitorConfig
-): Promise<{
-  status: HealthStatus;
-  score: number;
-  waiting: number;
-  active: number;
-  recommendations: string[];
-}> => {
-  const [waitingAgg, activeAgg] = await Promise.all([
-    WorkerMetrics.aggregate({
-      workerName,
-      metricType: 'waiting-jobs',
-      granularity: 'hourly',
-      startDate,
-      endDate,
-    }),
-    WorkerMetrics.aggregate({
-      workerName,
-      metricType: 'active-jobs',
-      granularity: 'hourly',
-      startDate,
-      endDate,
-    }),
-  ]);
-
-  const waiting = waitingAgg.total;
-  const active = activeAgg.total;
-  let status: HealthStatus = 'healthy';
-  let score = 100;
-  const recommendations: string[] = [];
-
-  if (waiting >= config.thresholds.queueSize.critical) {
-    status = 'critical';
-    score = 20;
-    recommendations.push(`Critical queue backlog: ${waiting} jobs waiting. Scale up immediately.`);
-  } else if (waiting >= config.thresholds.queueSize.warning) {
-    status = 'degraded';
-    score = 60;
-    recommendations.push(`Large queue backlog: ${waiting} jobs waiting. Consider scaling.`);
-  }
-
-  return { status, score, waiting, active, recommendations };
-};
-
-const buildHealthCheckResult = (params: {
-  workerName: string;
-  config: HealthMonitorConfig;
-  errorCheck: Awaited<ReturnType<typeof buildErrorRateCheck>>;
-  latencyCheck: Awaited<ReturnType<typeof buildLatencyCheck>>;
-  throughputCheck: ReturnType<typeof buildThroughputCheck>;
-  resourceCheck: ReturnType<typeof buildResourceCheck>;
-  circuitCheck: ReturnType<typeof buildCircuitCheck>;
-  queueCheck: Awaited<ReturnType<typeof buildQueueCheck>>;
-  recommendations: string[];
-}): HealthCheckResult => {
-  const {
-    config,
-    errorCheck,
-    latencyCheck,
-    throughputCheck,
-    resourceCheck,
-    circuitCheck,
-    queueCheck,
-    recommendations,
-  } = params;
-
-  const checks = [
-    errorCheck.score,
-    latencyCheck.score,
-    throughputCheck.score,
-    resourceCheck.score,
-    circuitCheck.score,
-    queueCheck.score,
-  ];
-
-  const overallScore = Math.round(checks.reduce((sum, score) => sum + score, 0) / checks.length);
-  const overallStatus = getStatusFromScore(overallScore);
-
-  return {
-    status: overallStatus,
-    score: overallScore,
-    timestamp: new Date(),
-    checks: {
-      errorRate: {
-        status: errorCheck.status,
-        value: errorCheck.errorRate,
-        threshold: config.thresholds.errorRate.warning,
-      },
-      latency: {
-        status: latencyCheck.status,
-        value: latencyCheck.avgLatency,
-        threshold: config.thresholds.latency.warning,
-      },
-      throughput: {
-        status: throughputCheck.status,
-        value: throughputCheck.throughput,
-        threshold: config.thresholds.throughput.warning,
-      },
-      resources: {
-        status: resourceCheck.status,
-        cpu: resourceCheck.cpu,
-        memory: resourceCheck.memory,
-      },
-      circuitBreaker: { status: circuitCheck.status, state: circuitCheck.state },
-      queueHealth: {
-        status: queueCheck.status,
-        waiting: queueCheck.waiting,
-        active: queueCheck.active,
-      },
-    },
-    recommendations,
-  };
-};
-
-const storeHealthCheckResult = (
-  workerName: string,
-  config: HealthMonitorConfig,
-  result: HealthCheckResult
+const updateState = (
+  state: WorkerHealthState,
+  isHealthy: boolean,
+  errorMsg: string | undefined,
+  latency: number
 ): void => {
-  let history = healthChecks.get(workerName);
-  if (!history) {
-    history = [];
-    healthChecks.set(workerName, history);
-  }
-
-  history.push(result);
-
-  if (history.length > 100) {
-    history.shift();
-  }
-
-  if (config.alerting.enabled) {
-    if (result.status === 'critical' && config.alerting.criticalCallback) {
-      config.alerting.criticalCallback(workerName, result);
-    } else if (result.status === 'degraded' && config.alerting.degradedCallback) {
-      config.alerting.degradedCallback(workerName, result);
-    }
-  }
-};
-
-/**
- * Helper: Perform comprehensive health check
- */
-const performHealthCheck = async (
-  workerName: string,
-  config: HealthMonitorConfig
-): Promise<HealthCheckResult> => {
-  const workerStatus = WorkerRegistry.status(workerName);
-  if (!workerStatus) {
-    throw ErrorFactory.createNotFoundError(`Worker "${workerName}" not found`);
-  }
-
   const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 3600 * 1000);
+  state.lastCheck = now;
 
-  const [errorCheck, latencyCheck, queueCheck] = await Promise.all([
-    buildErrorRateCheck(workerName, oneHourAgo, now, config),
-    buildLatencyCheck(workerName, oneHourAgo, now, config),
-    buildQueueCheck(workerName, oneHourAgo, now, config),
-  ]);
+  // Determine status (healthy > degraded > critical)
+  let status: 'healthy' | 'degraded' | 'critical';
+  if (isHealthy) {
+    status = 'healthy';
+  } else if (state.consecutiveFailures < config.failureThreshold) {
+    status = 'degraded';
+  } else {
+    status = 'critical';
+  }
 
-  const throughputCheck = buildThroughputCheck(errorCheck.totalProcessed, config);
-  const resourceCheck = buildResourceCheck(workerName, config);
-  const circuitCheck = buildCircuitCheck(workerName, workerStatus.version);
-  const recommendations = [
-    ...errorCheck.recommendations,
-    ...latencyCheck.recommendations,
-    ...throughputCheck.recommendations,
-    ...resourceCheck.recommendations,
-    ...circuitCheck.recommendations,
-    ...queueCheck.recommendations,
-  ];
+  // Create Check Result
+  const result: HealthCheckResult = {
+    timestamp: now,
+    status,
+    latency,
+    message: errorMsg,
+  };
 
-  const result = buildHealthCheckResult({
-    workerName,
-    config,
-    errorCheck,
-    latencyCheck,
-    throughputCheck,
-    resourceCheck,
-    circuitCheck,
-    queueCheck,
-    recommendations,
-  });
+  // Add to history
+  state.history.push(result);
+  if (state.history.length > config.historyLimit) {
+    state.history.shift();
+  }
 
-  storeHealthCheckResult(workerName, config, result);
+  // Callbacks
+  if (!isHealthy && state.config?.degradedCallback) {
+    state.config.degradedCallback(state.name, result);
+  }
+  if (result.status === 'critical' && state.config?.criticalCallback) {
+    state.config.criticalCallback(state.name, result);
+  }
 
-  Logger.debug(`Health check completed: ${workerName}`, {
-    status: result.status,
-    score: result.score,
-  });
+  if (isHealthy) {
+    state.consecutiveFailures = 0;
+    if (state.status !== WorkerCreationStatus.RUNNING) {
+      persistStatusChange(state.name, WorkerCreationStatus.RUNNING);
+      state.status = WorkerCreationStatus.RUNNING;
+      Logger.info(`Worker ${state.name} recovered to RUNNING`);
+    }
+    const jitter = Math.floor(Math.random() * 500); //NOSONAR
+    state.nextCheck = new Date(now.getTime() + config.intervalHealthyMs + jitter);
+  } else {
+    state.consecutiveFailures++;
 
-  return result;
+    if (
+      state.consecutiveFailures >= config.failureThreshold &&
+      state.status !== WorkerCreationStatus.FAILED
+    ) {
+      persistStatusChange(state.name, WorkerCreationStatus.FAILED, errorMsg);
+      state.status = WorkerCreationStatus.FAILED;
+      Logger.warn(`Worker ${state.name} marked FAILED after ${state.consecutiveFailures} checks`, {
+        error: errorMsg,
+      });
+    }
+
+    const jitter = Math.floor(Math.random() * 500); //NOSONAR
+    state.nextCheck = new Date(now.getTime() + config.intervalSuspectMs + jitter);
+  }
 };
 
-/**
- * Health Monitor - Sealed namespace
- */
-export const HealthMonitor = Object.freeze({
-  /**
-   * Start monitoring worker health
-   */
-  startMonitoring(workerName: string, config?: Partial<HealthMonitorConfig>): void {
-    if (monitoringIntervals.has(workerName)) {
-      throw ErrorFactory.createConnectionError(`Already monitoring worker: ${workerName}`);
+const performCheck = async (state: WorkerHealthState): Promise<void> => {
+  const startTime = Date.now();
+  let isHealthy = false;
+  let errorMsg: string | undefined;
+
+  try {
+    if (!state.worker) {
+      throw ErrorFactory.createWorkerError('Worker instance not available');
     }
 
-    const fullConfig: HealthMonitorConfig = {
-      ...DEFAULT_CONFIG,
-      ...config,
-      thresholds: {
-        ...DEFAULT_CONFIG.thresholds,
-        ...config?.thresholds,
-      },
-      alerting: {
-        ...DEFAULT_CONFIG.alerting,
-        ...config?.alerting,
-      },
+    isHealthy = await Promise.race([
+      verifyWorkerHealth(state.worker, state.name, state.queueName || 'unknown'),
+      new Promise<boolean>((_, reject) => {
+        // eslint-disable-next-line
+        const id = setTimeout(() => {
+          reject(ErrorFactory.createWorkerError('Health check timeout'));
+        }, config.checkTimeoutMs);
+        // Unref to prevent holding event loop if everything else finishes
+        id.unref();
+      }),
+    ]);
+  } catch (err) {
+    isHealthy = false;
+    errorMsg = (err as Error).message;
+  }
+
+  const duration = Date.now() - startTime;
+  updateState(state, isHealthy, errorMsg, duration);
+};
+
+const scheduleCheck = async (state: WorkerHealthState): Promise<void> => {
+  state.inProgress = true;
+  runningChecks++;
+
+  performCheck(state).finally(() => {
+    state.inProgress = false;
+    runningChecks--;
+  });
+};
+
+const tick = async (): Promise<void> => {
+  const now = new Date();
+  const candidates: WorkerHealthState[] = [];
+
+  for (const state of registry.values()) {
+    if (runningChecks >= config.concurrencyLimit) break;
+    // Skip if checks are paused or if worker instance is missing (wait for register)
+    if (!state.worker && !state.queueName) continue;
+
+    if (!state.inProgress && state.nextCheck <= now) {
+      candidates.push(state);
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (runningChecks >= config.concurrencyLimit) break;
+    scheduleCheck(candidate);
+  }
+};
+
+const start = (): void => {
+  if (timer) return;
+  timer = setInterval(() => tick(), config.tickIntervalMs);
+  Logger.debug('HealthMonitor started');
+};
+
+const stop = (): void => {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  Logger.debug('HealthMonitor stopped');
+};
+
+// Exported Public Methods
+
+const configure = (newConfig: Partial<HealthMonitorConfig>): void => {
+  config = { ...config, ...newConfig };
+  if (timer) {
+    stop();
+    start();
+  }
+};
+
+const register = (name: string, worker: Worker, queueName: string): void => {
+  let state = registry.get(name);
+
+  if (state) {
+    // update existing entry (maybe created by startMonitoring)
+    state.worker = worker;
+    state.queueName = queueName;
+  } else {
+    // Add jitter
+    const initialDelay = Math.floor(Math.random() * 5000); //NOSONAR
+    state = {
+      name,
+      worker,
+      queueName,
+      status: WorkerCreationStatus.STARTING,
+      lastCheck: new Date(),
+      nextCheck: new Date(Date.now() + initialDelay),
+      consecutiveFailures: 0,
+      inProgress: false,
+      history: [],
     };
+    registry.set(name, state);
+  }
 
-    workerConfigs.set(workerName, fullConfig);
+  if (!timer) {
+    start();
+  }
+};
 
-    // Perform initial check immediately
-    performHealthCheck(workerName, fullConfig);
+const startMonitoring = (name: string, monitorConfig?: WorkerMonitorConfig): void => {
+  const state = registry.get(name);
 
-    // Schedule periodic checks
-    const interval = setInterval(() => {
-      performHealthCheck(workerName, fullConfig);
-    }, fullConfig.checkInterval * 1000);
-
-    monitoringIntervals.set(workerName, interval);
-
-    Logger.info(`Health monitoring started: ${workerName}`, {
-      checkInterval: fullConfig.checkInterval,
+  if (state) {
+    if (monitorConfig) state.config = { ...state.config, ...monitorConfig };
+  } else {
+    // Worker instance not yet registered, create placeholder
+    const initialDelay = Math.floor(Math.random() * 5000); //NOSONAR
+    registry.set(name, {
+      name,
+      status: WorkerCreationStatus.STARTING,
+      lastCheck: new Date(),
+      nextCheck: new Date(Date.now() + initialDelay),
+      consecutiveFailures: 0,
+      inProgress: false,
+      history: [],
+      config: monitorConfig,
     });
-  },
+  }
 
-  /**
-   * Stop monitoring worker health
-   */
-  stopMonitoring(workerName: string): void {
-    const interval = monitoringIntervals.get(workerName);
+  if (!timer) start();
+};
 
-    if (!interval) {
-      throw ErrorFactory.createNotFoundError(`Not monitoring worker: ${workerName}`);
-    }
+const unregister = (name: string): void => {
+  registry.delete(name);
+  if (registry.size === 0) {
+    stop();
+  }
+};
 
-    clearInterval(interval);
-    monitoringIntervals.delete(workerName);
-    workerConfigs.delete(workerName);
+const stopMonitoring = (name: string): void => {
+  unregister(name);
+};
 
-    Logger.info(`Health monitoring stopped: ${workerName}`);
-  },
+const updateConfig = (name: string, monitorConfig: WorkerMonitorConfig): void => {
+  startMonitoring(name, monitorConfig);
+};
 
-  /**
-   * Get current health status
-   */
-  async getCurrentHealth(workerName: string): Promise<HealthCheckResult> {
-    const config = workerConfigs.get(workerName) ?? DEFAULT_CONFIG;
-    return performHealthCheck(workerName, config);
-  },
+const getCurrentHealth = (name: string): HealthCheckResult | null => {
+  const state = registry.get(name);
+  if (!state || state.history.length === 0) return null;
+  return state.history[state.history.length - 1];
+};
 
-  /**
-   * Get health history
-   */
-  getHealthHistory(workerName: string, limit?: number): ReadonlyArray<HealthCheckResult> {
-    const history = healthChecks.get(workerName) ?? [];
+const getHealthHistory = (name: string, limit?: number): HealthCheckResult[] => {
+  const state = registry.get(name);
+  if (!state) return [];
+  const history = state.history;
+  return limit ? history.slice(-limit) : history;
+};
 
-    if (limit !== undefined && limit > 0) {
-      return history.slice(-limit);
-    }
+const getHealthTrend = (name: string): { uptime: number; samples: number } => {
+  const history = getHealthHistory(name, 10);
+  const uptime = history.filter((h) => h.status === 'healthy').length / (history.length || 1);
+  return { uptime, samples: history.length };
+};
 
-    return history;
-  },
-
-  /**
-   * Get health trend (improving/stable/degrading)
-   */
-  getHealthTrend(workerName: string): {
-    trend: HealthTrend;
-    scoreChange: number;
-    periodChecks: number;
-  } {
-    const history = healthChecks.get(workerName) ?? [];
-
-    if (history.length < 2) {
-      return { trend: 'stable', scoreChange: 0, periodChecks: history.length };
-    }
-
-    // Compare recent checks (last 10) with previous period
-    const recentChecks = history.slice(-10);
-    const previousChecks = history.slice(-20, -10);
-
-    const recentAvg = recentChecks.reduce((sum, c) => sum + c.score, 0) / recentChecks.length;
-    const previousAvg =
-      previousChecks.length > 0
-        ? previousChecks.reduce((sum, c) => sum + c.score, 0) / previousChecks.length
-        : recentAvg;
-
-    const scoreChange = recentAvg - previousAvg;
-
-    let trend: 'improving' | 'stable' | 'degrading' = 'stable';
-
-    if (scoreChange > 5) {
-      trend = 'improving';
-    } else if (scoreChange < -5) {
-      trend = 'degrading';
-    }
-
-    return { trend, scoreChange, periodChecks: history.length };
-  },
-
-  /**
-   * Get summary for all monitored workers
-   */
-  getSummary(): Array<{
-    workerName: string;
-    status: HealthStatus;
-    score: number;
+const getSummary = async (): Promise<unknown> => {
+  interface SummaryDetail {
+    name: string;
+    status: string;
     lastCheck: Date;
-    trend: 'improving' | 'stable' | 'degrading';
-  }> {
-    const summary = [];
+  }
 
-    for (const workerName of monitoringIntervals.keys()) {
-      const history = healthChecks.get(workerName) ?? [];
-      const latest = history.at(-1);
-      const trend = HealthMonitor.getHealthTrend(workerName);
+  const summary = {
+    total: registry.size,
+    healthy: 0,
+    degraded: 0,
+    critical: 0,
+    details: [] as SummaryDetail[],
+  };
 
-      if (latest) {
-        summary.push({
-          workerName,
-          status: latest.status,
-          score: latest.score,
-          lastCheck: latest.timestamp,
-          trend: trend.trend,
-        });
-      }
-    }
+  for (const [name, state] of registry) {
+    const lastResult = state.history[state.history.length - 1];
+    const status = lastResult?.status || 'unknown';
+    if (status === 'healthy') summary.healthy++;
+    else if (status === 'degraded') summary.degraded++;
+    else if (status === 'critical') summary.critical++;
 
-    return summary;
-  },
+    summary.details.push({
+      name,
+      status,
+      lastCheck: state.lastCheck,
+    });
+  }
+  return summary;
+};
 
-  /**
-   * Update monitoring config
-   */
-  updateConfig(workerName: string, config: Partial<HealthMonitorConfig>): void {
-    const existing = workerConfigs.get(workerName);
+const shutdown = (): void => {
+  stop();
+  registry.clear();
+};
 
-    if (!existing) {
-      throw ErrorFactory.createNotFoundError(`Not monitoring worker: ${workerName}`);
-    }
-
-    const updated: HealthMonitorConfig = {
-      ...existing,
-      ...config,
-      thresholds: {
-        ...existing.thresholds,
-        ...config.thresholds,
-      },
-      alerting: {
-        ...existing.alerting,
-        ...config.alerting,
-      },
-    };
-
-    workerConfigs.set(workerName, updated);
-
-    Logger.info(`Health monitoring config updated: ${workerName}`);
-  },
-
-  /**
-   * Clear health history
-   */
-  clearHistory(workerName: string): void {
-    healthChecks.delete(workerName);
-
-    Logger.info(`Health history cleared: ${workerName}`);
-  },
-
-  /**
-   * Shutdown health monitor
-   */
-  shutdown(): void {
-    Logger.info('HealthMonitor shutting down...');
-
-    for (const interval of monitoringIntervals.values()) {
-      clearInterval(interval);
-    }
-
-    monitoringIntervals.clear();
-    workerConfigs.clear();
-    healthChecks.clear();
-
-    Logger.info('HealthMonitor shutdown complete');
-  },
+export const HealthMonitor = Object.freeze({
+  configure,
+  register,
+  unregister,
+  start,
+  stop,
+  startMonitoring,
+  stopMonitoring,
+  updateConfig,
+  getCurrentHealth,
+  getHealthHistory,
+  getHealthTrend,
+  getSummary,
+  shutdown,
 });
-
-// Graceful shutdown handled by WorkerShutdown

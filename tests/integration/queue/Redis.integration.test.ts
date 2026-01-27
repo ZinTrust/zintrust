@@ -1,5 +1,5 @@
 import Queue from '@queue/Queue';
-import RedisQueue from '@queue/drivers/Redis';
+import RedisQueue from '../../../packages/queue-redis/src/RedisQueue';
 import { describe, expect, it } from 'vitest';
 
 const run = typeof process.env['REDIS_URL'] === 'string' && process.env['REDIS_URL'] !== '';

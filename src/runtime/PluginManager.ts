@@ -5,12 +5,12 @@
  * Handles installation and removal of framework plugins.
  */
 
-import { execSync } from '@/node-singletons/child-process';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import { esmDirname, resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { execSync } from '@node-singletons/child-process';
 import { existsSync, fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import type { PluginDefinition } from '@runtime/PluginRegistry';

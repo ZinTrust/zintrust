@@ -274,6 +274,7 @@ Defaults:
 ## Queue / Work Commands
 
 - `zin queue <queueName> [--timeout <seconds>] [--retry <count>] [--max-items <count>]`
+- `zin queue prune [--hours <count>]`: Prune failed jobs from database (default: 168h / 7 days)
 - `zin queue work <kind> <queueName>` (kind: broadcast|notification)
 - `zin broadcast:work <queueName>`
 - `zin notification:work <queueName>`

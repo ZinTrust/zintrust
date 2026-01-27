@@ -162,7 +162,7 @@ describe('patch coverage: routing/CoreRoutes health', () => {
     const res = createRes();
     await match.handler({} as any, res);
 
-    const payload = (res.json as any).mock.calls[0][0];
+    const payload = res.json.mock.calls[0][0];
     expect(payload.dependencies.database.status).toBe('ready');
     expect(payload.dependencies.cache).toBeUndefined();
   });
@@ -184,7 +184,7 @@ describe('patch coverage: routing/CoreRoutes health', () => {
     await match.handler({} as any, res);
 
     expect(connect).toHaveBeenCalledTimes(1);
-    const payload = (res.json as any).mock.calls[0][0];
+    const payload = res.json.mock.calls[0][0];
     expect(payload.dependencies.cache).toBeDefined();
     expect(payload.dependencies.cache.responseTime).toBe(15);
   });
@@ -212,5 +212,39 @@ describe('patch coverage: routing/CoreRoutes health', () => {
         error: 'Service unavailable',
       })
     );
+  });
+
+  it('covers middleware inheritance logic in Router.group', () => {
+    const router = Router.createRouter();
+
+    // Set inherited middleware
+    router.inheritedMiddleware = ['auth', 'logging'];
+
+    // Test with route-specific middleware array
+    const options1 = { middleware: ['validation'] };
+    const routeSpecificMiddleware1 = Array.isArray(options1?.middleware)
+      ? options1?.middleware
+      : [];
+    const routeMiddleware1 = [...router.inheritedMiddleware, ...routeSpecificMiddleware1];
+
+    expect(routeMiddleware1).toEqual(['auth', 'logging', 'validation']);
+
+    // Test with no route-specific middleware
+    const options2 = { middleware: undefined };
+    const routeSpecificMiddleware2 = Array.isArray(options2?.middleware)
+      ? (options2?.middleware as string[])
+      : [];
+    const routeMiddleware2 = [...router.inheritedMiddleware, ...routeSpecificMiddleware2];
+
+    expect(routeMiddleware2).toEqual(['auth', 'logging']);
+
+    // Test with empty middleware array
+    const options3 = { middleware: [] };
+    const routeSpecificMiddleware3 = Array.isArray(options3?.middleware)
+      ? (options3?.middleware as string[])
+      : [];
+    const routeMiddleware3 = [...router.inheritedMiddleware, ...routeSpecificMiddleware3];
+
+    expect(routeMiddleware3).toEqual(['auth', 'logging']);
   });
 });

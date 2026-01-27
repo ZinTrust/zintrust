@@ -419,6 +419,16 @@ const createLifecycle = (params: {
       Logger.error('Shutdown hook failed:', error as Error);
     }
 
+    // Ensure FileLogWriter.flush is attempted even if dynamic registration failed.
+    try {
+      const fileLogWriter = await tryImportOptional<{ FileLogWriter: { flush: () => void } }>(
+        '@config/FileLogWriter'
+      );
+      fileLogWriter?.FileLogWriter?.flush?.();
+    } catch {
+      /* best-effort */
+    }
+
     params.setBooted(false);
     Logger.info('✅ Application shut down successfully');
   };

@@ -30,5 +30,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "ioredis": "^5.9.2",
+    "redis": "^4.7.1"
   }
 }

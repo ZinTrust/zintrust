@@ -8,6 +8,7 @@ const DEFAULT_TARGETS = [
   // Compiled framework app/ + routes/ are runtime-loaded by Node and must be valid ESM.
   path.join(DEFAULT_ROOT, 'dist', 'app'),
   path.join(DEFAULT_ROOT, 'dist', 'routes'),
+  path.join(DEFAULT_ROOT, 'dist', 'packages'),
 ];
 
 const KNOWN_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json', '.node'];

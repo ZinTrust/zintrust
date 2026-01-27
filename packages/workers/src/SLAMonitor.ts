@@ -128,7 +128,7 @@ const calculateRecoveryTime = (checks: HealthCheckResult[]): number => {
   let maxRecoverySeconds = 0;
 
   for (const check of sorted) {
-    const isDown = check.status === 'unhealthy' || check.status === 'critical';
+    const isDown = check.status === 'critical';
     if (isDown && currentDownAt === null) {
       currentDownAt = check.timestamp;
     }
@@ -157,8 +157,8 @@ const loadHealthChecks = async (
   if (filtered.length > 0) return filtered;
 
   try {
-    const current = await HealthMonitor.getCurrentHealth(workerName);
-    return [current];
+    const current = HealthMonitor.getCurrentHealth(workerName);
+    return current ? [current] : [];
   } catch (error) {
     Logger.debug('Failed to get current health for SLA check', error as Error);
     return [];

@@ -358,20 +358,32 @@ const executeNodeStart = async (
       const bootstrap = resolveBootstrapEntryTs(cwd);
       const args = bootstrap === undefined ? ['src/index.ts'] : [bootstrap];
 
-      const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+      const exitCode = await SpawnUtil.spawnAndWait({
+        command: 'tsx',
+        args,
+        forwardSignals: false,
+      });
       process.exit(exitCode);
     }
 
     const packageJson = readPackageJson(cwd);
     const dev = resolveNodeDevCommand(cwd, packageJson);
     cmd.info('Starting in development mode (watch enabled)...');
-    const exitCode = await SpawnUtil.spawnAndWait({ command: dev.command, args: dev.args });
+    const exitCode = await SpawnUtil.spawnAndWait({
+      command: dev.command,
+      args: dev.args,
+      forwardSignals: false,
+    });
     process.exit(exitCode);
   }
 
   const prod = resolveNodeProdCommand(cwd);
   cmd.info('Starting in production mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: prod.command, args: prod.args });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: prod.command,
+    args: prod.args,
+    forwardSignals: false,
+  });
   process.exit(exitCode);
 };
 

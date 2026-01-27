@@ -34,7 +34,8 @@ export const Queue = Object.freeze({
 
   async enqueue<T = unknown>(queue: string, payload: T, driverName?: string): Promise<string> {
     const driver = Queue.get(driverName);
-    return driver.enqueue(queue, payload);
+    const jobId = await driver.enqueue(queue, payload);
+    return jobId;
   },
 
   async dequeue<T = unknown>(

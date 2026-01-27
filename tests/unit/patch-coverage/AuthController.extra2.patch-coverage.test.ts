@@ -15,7 +15,7 @@ describe('AuthController (branches)', () => {
         query: () => ({ insert: async () => ({ id: null }) }),
       },
     }));
-    vi.doMock('@/features/Auth', () => ({
+    vi.doMock('@auth/Auth', () => ({
       Auth: { compare: async () => false, hash: async () => 'h' },
     }));
     vi.doMock('@security/JwtManager', () => ({ JwtManager: { signAccessToken: () => 'tok' } }));

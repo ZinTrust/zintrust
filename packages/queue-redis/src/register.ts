@@ -3,12 +3,8 @@ type QueueApi = {
 };
 
 export async function registerRedisQueueDriver(queue: QueueApi): Promise<void> {
-  const core = (await importCore()) as unknown as {
-    RedisQueue?: unknown;
-  };
-
-  if (core.RedisQueue === undefined) return;
-  queue.register('redis', core.RedisQueue);
+  const mod = await import('./BullMQRedisQueue');
+  queue.register('redis', mod.default);
 }
 
 const importCore = async (): Promise<unknown> => {
@@ -25,7 +21,6 @@ const importCore = async (): Promise<unknown> => {
 
 const core = (await importCore()) as unknown as {
   Queue?: QueueApi;
-  RedisQueue?: unknown;
 };
 
 if (core.Queue !== undefined) {

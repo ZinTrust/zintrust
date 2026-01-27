@@ -16,9 +16,24 @@ const notificationMock = {
 
 vi.mock('@config/logger', () => ({
   Logger: {
+    debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+  },
+}));
+
+vi.mock('@config/env', () => ({
+  Env: {
+    get: vi.fn((key: string, defaultValue?: string) =>
+      process.env[key] === undefined ? (defaultValue ?? '') : String(process.env[key])
+    ),
+    getInt: vi.fn((key: string, defaultValue?: number) => {
+      const raw = process.env[key];
+      if (raw === undefined || raw === '') return defaultValue ?? 0;
+      const parsed = Number.parseInt(String(raw), 10);
+      return Number.isFinite(parsed) ? parsed : (defaultValue ?? 0);
+    }),
   },
 }));
 
@@ -43,10 +58,14 @@ vi.mock('@notification/Notification', () => ({
   default: notificationMock,
 }));
 
+const envBackup = { ...process.env };
+
 describe('QueueWorkRunner (patch coverage)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+
+    process.env = { ...envBackup };
 
     queueMock.dequeue.mockResolvedValue(undefined);
     queueMock.enqueue.mockResolvedValue('msg-1');
@@ -220,5 +239,141 @@ describe('QueueWorkRunner (patch coverage)', () => {
 
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm6', undefined);
     expect(result.unknown).toBe(1);
+  });
+
+  it('re-queues not-due jobs with meta attached', async () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
+
+    queueMock.dequeue.mockResolvedValueOnce({
+      id: 'm7',
+      payload: {
+        type: 'broadcast',
+        channel: 'c',
+        event: 'e',
+        data: {},
+        timestamp: 2_000,
+        __zintrustQueueMeta: {
+          deduplicationId: 'job-meta',
+          releaseAfter: 'success',
+        },
+      },
+      attempts: 0,
+    });
+
+    await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      'broadcasts',
+      expect.objectContaining({
+        __zintrustQueueMeta: expect.objectContaining({ deduplicationId: 'job-meta' }),
+      }),
+      undefined
+    );
+
+    nowSpy.mockRestore();
+  });
+
+  it('retries failed jobs while preserving meta', async () => {
+    const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
+
+    queueMock.dequeue.mockResolvedValueOnce({
+      id: 'm8',
+      payload: {
+        type: 'broadcast',
+        channel: 'c',
+        event: 'e',
+        data: {},
+        attempts: 0,
+        __zintrustQueueMeta: {
+          deduplicationId: 'job-retry',
+          releaseAfter: 'failed',
+        },
+      },
+      attempts: 0,
+    });
+
+    broadcastMock.send.mockRejectedValueOnce(new Error('boom'));
+
+    await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
+
+    expect(queueMock.enqueue).toHaveBeenCalledWith(
+      'broadcasts',
+      expect.objectContaining({
+        attempts: 1,
+        __zintrustQueueMeta: expect.objectContaining({ deduplicationId: 'job-retry' }),
+      }),
+      undefined
+    );
+  });
+
+  it('uses regex condition parsing and avoids release when condition is unknown', async () => {
+    const { createLockProvider, registerLockProvider, clearLockProviders } =
+      await import('@queue/LockProvider');
+    const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
+
+    clearLockProviders();
+    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_LOCK_PREFIX'] = 'test:';
+    process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
+
+    const provider = createLockProvider({
+      type: 'memory',
+      prefix: 'test:',
+      defaultTtl: 1000,
+    });
+    registerLockProvider('memory', provider);
+    await provider.acquire('job-regex', { ttl: 1000 });
+
+    queueMock.dequeue.mockResolvedValueOnce({
+      id: 'm9',
+      payload: {
+        type: 'broadcast',
+        channel: 'c',
+        event: 'e',
+        data: {},
+        __zintrustQueueMeta: {
+          deduplicationId: 'job-regex',
+          releaseAfter: 'job.result.status === "ok"',
+        },
+      },
+      attempts: 0,
+    });
+
+    await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
+
+    const after = await provider.status('job-regex');
+    expect(after.exists).toBe(true);
+  });
+
+  it('creates a lock provider when missing and handles string releaseAfter', async () => {
+    const lockProviders = await import('@queue/LockProvider');
+    const registerSpy = vi.spyOn(lockProviders, 'registerLockProvider');
+
+    lockProviders.clearLockProviders();
+    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_LOCK_PREFIX'] = '';
+    process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
+
+    const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
+
+    queueMock.dequeue.mockResolvedValueOnce({
+      id: 'm10',
+      payload: {
+        type: 'broadcast',
+        channel: 'c',
+        event: 'e',
+        data: {},
+        __zintrustQueueMeta: {
+          deduplicationId: 'job-create-provider',
+          releaseAfter: 'completed',
+        },
+      },
+      attempts: 0,
+    });
+
+    await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
+
+    expect(registerSpy).toHaveBeenCalledWith('memory', expect.any(Object));
   });
 });

@@ -72,7 +72,7 @@ export type ForeignKeyBuilder = {
 };
 
 export type Blueprint = {
-  uuid(arg0: string): unknown;
+  uuid(name: string): ColumnBuilder;
   string(name: string, length?: number): ColumnBuilder;
   integer(name: string): ColumnBuilder;
   bigInteger(name: string): ColumnBuilder;

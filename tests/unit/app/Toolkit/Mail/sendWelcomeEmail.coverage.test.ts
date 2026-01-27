@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const send = vi.fn(async () => ({ ok: true }));
 
-vi.mock('@mail/Mail', () => ({
+vi.mock('@/tools/mail', () => ({
   Mail: {
     send,
   },

@@ -1,7 +1,11 @@
-import { RedisQueue as CoreRedisQueue } from '@zintrust/core';
+export { BullMQRedisQueue } from './BullMQRedisQueue';
+export {
+  createRedisPublishClient,
+  resetPublishClient,
+  type RedisPublishClient,
+} from './RedisPublishClient';
+export { RedisQueue } from './RedisQueue';
 
-const RedisQueue = CoreRedisQueue;
-export { RedisQueue };
 export type { QueueMessage } from '@zintrust/core';
 
 /**

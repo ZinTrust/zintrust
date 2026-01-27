@@ -50,6 +50,7 @@ export { registerWorkerRoutes } from './routes/workers';
 // Queue Workers
 export { BroadcastWorker } from './BroadcastWorker';
 export { createQueueWorker } from './createQueueWorker';
+export type { CreateQueueWorkerOptions } from './createQueueWorker';
 
 export { NotificationWorker } from './NotificationWorker';
 
@@ -61,11 +62,14 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkerStatus,
-  WorkerVersioningConfig,
   WorkersConfigOverrides,
   WorkersGlobalConfig,
+  WorkerStatus,
+  WorkerVersioningConfig,
 } from '@zintrust/core';
+
+// Re-export bullmq types for type compatibility
+export type { Job, Worker, WorkerOptions } from 'bullmq';
 
 export type {
   IAnomaly,
@@ -83,6 +87,8 @@ export type {
   IChaosStatus,
 } from './ChaosEngineering';
 export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
+
+export type * from './type';
 
 /**
  * Package version and build metadata

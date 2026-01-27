@@ -1,22 +1,24 @@
+import { ZintrustLang } from '@/lang/lang';
+
 const isNodeRuntime = (): boolean => {
   // Avoid importing any `node:*` modules so this file remains Worker-safe.
   // In Workers/Deno, `process` is typically undefined.
 
   return (
-    typeof process !== 'undefined' &&
-    typeof process === 'object' &&
+    typeof process !== ZintrustLang.UNDEFINED &&
+    typeof process === ZintrustLang.OBJECT &&
     process !== null &&
-    typeof (process as unknown as { versions?: unknown }).versions === 'object'
+    typeof (process as unknown as { versions?: unknown }).versions === ZintrustLang.OBJECT
   );
 };
 
 const fileUrlToPathLike = (value: string): string => {
-  if (!value.startsWith('file://')) return value;
+  if (!value.startsWith(ZintrustLang.FILE_PROTOCOL)) return value;
   // Basic file URL decoding (sufficient for macOS/Linux paths).
   try {
-    return decodeURIComponent(value.slice('file://'.length));
+    return decodeURIComponent(value.slice(ZintrustLang.FILE_PROTOCOL.length));
   } catch {
-    return value.slice('file://'.length);
+    return value.slice(ZintrustLang.FILE_PROTOCOL.length);
   }
 };
 
@@ -45,7 +47,7 @@ export const start = async (): Promise<void> => {
   // Compiled output places bootstrap at `dist/src/boot/bootstrap.js`.
   // This file compiles to `dist/src/start.js`, so relative import is stable.
   // In unit tests, importing bootstrap has heavy side effects (starts server + exits).
-  await import('./boot/' + 'bootstrap.js');
+  await import('./boot/' + ZintrustLang.BOOTSTRAPJS);
 };
 
 /**

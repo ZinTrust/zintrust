@@ -243,7 +243,7 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
 
       const payload = JSON.stringify({ code, timestamp: Date.now() }, null, 2);
       scheduleCacheWrite(state, key, payload);
-      return Promise.resolve();
+      return Promise.resolve(); // NOSONAR
     },
 
     /**

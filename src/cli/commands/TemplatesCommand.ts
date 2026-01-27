@@ -1,7 +1,7 @@
 import { BaseCommand } from '@cli/BaseCommand';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { listTemplates as listMail, renderTemplate as renderMail } from '@mail/templates/markdown';
+import { listTemplates as listMail, renderTemplate as renderMail } from '@mail/templates';
 import {
   listTemplates as listNotification,
   renderTemplate as renderNotification,

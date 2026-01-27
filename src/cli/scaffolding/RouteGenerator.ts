@@ -21,22 +21,22 @@ export interface RouteDefinition {
 // Escape characters that can cause issues when embedding JSON.stringify output
 // into generated JavaScript source (e.g., inside <script> tags).
 const unsafeCharMap: { [ch: string]: string } = {
-  '<': '\\u003C',
-  '>': '\\u003E',
-  '/': '\\u002F',
+  '<': String.raw`\u003C`,
+  '>': String.raw`\u003E`,
+  '/': String.raw`\u002F`,
   '\\': '\\\\',
-  '\b': '\\b',
-  '\f': '\\f',
-  '\n': '\\n',
-  '\r': '\\r',
-  '\t': '\\t',
-  '\0': '\\0',
-  '\u2028': '\\u2028',
-  '\u2029': '\\u2029',
+  '\b': String.raw`\b`,
+  '\f': String.raw`\f`,
+  '\n': String.raw`\n`,
+  '\r': String.raw`\r`,
+  '\t': String.raw`\t`,
+  '\0': String.raw`\0`,
+  '\u2028': String.raw`\u2028`,
+  '\u2029': String.raw`\u2029`,
 };
 
 function escapeUnsafeChars(str: string): string {
-  return str.replace(/[<>/\\\b\f\n\r\t\0\u2028\u2029]/g, (ch) => unsafeCharMap[ch] ?? ch);
+  return str.replaceAll(/[<>/\\\b\f\n\r\t\0\u2028\u2029]/g, (ch) => unsafeCharMap[ch] ?? ch);
 }
 
 export interface RouteOptions {
@@ -241,6 +241,21 @@ function buildRouteCode(
 }
 
 /**
+ * Build middleware property string for routes
+ */
+function buildMiddlewareProp(route: RouteDefinition, groupMiddlewareList: string): string {
+  const localMiddlewareList = (route.middleware ?? []).map((m) => `'${m}'`).join(', ');
+  const hasGroup = groupMiddlewareList.trim() !== '';
+  const hasLocal = localMiddlewareList.trim() !== '';
+
+  return hasGroup || hasLocal
+    ? `middleware: [${[hasGroup ? groupMiddlewareList : '', hasLocal ? localMiddlewareList : '']
+        .filter((v) => v.trim() !== '')
+        .join(', ')}]`
+    : '';
+}
+
+/**
  * Build standard method route (GET, POST, etc.)
  */
 function buildMethodRoute(
@@ -257,16 +272,7 @@ function buildMethodRoute(
   const summary = `${method.toUpperCase()} ${routePath}`;
   const controllerVar = toControllerVar(controller);
 
-  const localMiddlewareList = (route.middleware ?? []).map((m) => `'${m}'`).join(', ');
-  const hasGroup = groupMiddlewareList.trim() !== '';
-  const hasLocal = localMiddlewareList.trim() !== '';
-
-  const middlewareProp =
-    hasGroup || hasLocal
-      ? `middleware: [${[hasGroup ? groupMiddlewareList : '', hasLocal ? localMiddlewareList : '']
-          .filter((v) => v.trim() !== '')
-          .join(', ')}]`
-      : '';
+  const middlewareProp = buildMiddlewareProp(route, groupMiddlewareList);
 
   const metaProp = `meta: { summary: ${escapeUnsafeChars(JSON.stringify(summary))}, tags: [${escapeUnsafeChars(
     JSON.stringify(tag)
@@ -290,16 +296,7 @@ function buildResourceRoute(
   const tag = toTag(controller);
   const controllerVar = toControllerVar(controller);
 
-  const localMiddlewareList = (route.middleware ?? []).map((m) => `'${m}'`).join(', ');
-  const hasGroup = groupMiddlewareList.trim() !== '';
-  const hasLocal = localMiddlewareList.trim() !== '';
-
-  const middlewareProp =
-    hasGroup || hasLocal
-      ? `middleware: [${[hasGroup ? groupMiddlewareList : '', hasLocal ? localMiddlewareList : '']
-          .filter((v) => v.trim() !== '')
-          .join(', ')}]`
-      : '';
+  const middlewareProp = buildMiddlewareProp(route, groupMiddlewareList);
 
   const resourceMeta = (action: string, routePattern: string): string =>
     `meta: { summary: ${escapeUnsafeChars(

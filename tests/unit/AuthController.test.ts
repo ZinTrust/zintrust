@@ -27,7 +27,7 @@ describe('AuthController.login', () => {
     }));
 
     const compareSpy = vi.fn().mockResolvedValue(true);
-    vi.doMock('@features/Auth', () => ({ Auth: { compare: compareSpy } }));
+    vi.doMock('@auth/Auth', () => ({ Auth: { compare: compareSpy } }));
 
     const jwtSpy = vi.fn().mockReturnValue('tok');
     vi.doMock('@security/JwtManager', () => ({ JwtManager: { signAccessToken: jwtSpy } }));

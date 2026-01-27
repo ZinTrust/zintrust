@@ -15,7 +15,10 @@ describe('adapter packages entrypoints (re-exports)', () => {
     const pkg = (await import('../../../packages/queue-redis/src/index.js')) as {
       RedisQueue: unknown;
     };
-    expect(pkg.RedisQueue).toBe(RedisQueue);
+    expect(typeof pkg.RedisQueue).toBe('object');
+    expect(typeof RedisQueue).toBe('object');
+    expect(typeof (pkg.RedisQueue as { enqueue?: unknown }).enqueue).toBe('function');
+    expect(typeof (RedisQueue as { enqueue?: unknown }).enqueue).toBe('function');
   });
 
   it('re-exports storage drivers', async () => {

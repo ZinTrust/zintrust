@@ -26,7 +26,7 @@ describe('adapter packages /register', () => {
 
   it('registers queue sqs', async () => {
     expect(() => Queue.get('sqs')).toThrow();
-    await import('../../../packages/queue-sqs/src/register.js');
+    await import('../../../packages/queue-redis/queue-sqs/src/register.js');
     expect(() => Queue.get('sqs')).not.toThrow();
   });
 

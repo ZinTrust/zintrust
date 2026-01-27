@@ -81,7 +81,7 @@ describe.sequential('Plugin provisioning integration', () => {
       expect.objectContaining({ cwd: tempDir, stdio: 'inherit' })
     );
 
-    const authPath = join(tempDir, 'src/features/Auth.ts');
+    const authPath = join(tempDir, 'src/auth/Auth.ts');
     const authText = await readFile(authPath, 'utf-8');
     expect(authText).toContain('export const Auth');
   });

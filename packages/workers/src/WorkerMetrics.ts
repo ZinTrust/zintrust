@@ -4,8 +4,16 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, createRedisConnection, type RedisConfig } from '@zintrust/core';
+import {
+  ErrorFactory,
+  Logger,
+  appConfig,
+  createRedisConnection,
+  type RedisConfig,
+} from '@zintrust/core';
 import type IORedis from 'ioredis';
+
+const PREFIX = appConfig.prefix;
 
 export type MetricType =
   | 'processed'
@@ -69,8 +77,8 @@ export type WorkerHealthScore = {
 };
 
 // Redis key prefixes
-const METRICS_PREFIX = 'worker:metrics:';
-const HEALTH_PREFIX = 'worker:health:';
+const METRICS_PREFIX = `${PREFIX}:worker:metrics:`;
+const HEALTH_PREFIX = `${PREFIX}:worker:health:`;
 
 // Retention periods (in seconds)
 const RETENTION = {
@@ -361,6 +369,81 @@ export const WorkerMetrics = Object.freeze({
       max,
       count: values.length,
     };
+  },
+
+  async aggregateBatch(optionsList: MetricQueryOptions[]): Promise<AggregatedMetrics[]> {
+    if (!redisClient) {
+      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
+    }
+    if (optionsList.length === 0) return [];
+
+    const pipeline = redisClient.pipeline();
+
+    for (const options of optionsList) {
+      const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
+      const key = getMetricsKey(workerName, metricType, granularity);
+      const minScore = startDate ? startDate.getTime() : '-inf';
+      const maxScore = endDate ? endDate.getTime() : '+inf';
+      pipeline.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
+    }
+
+    const results = await pipeline.exec();
+
+    if (!results) {
+      throw ErrorFactory.createWorkerError('Failed to execute metrics pipeline');
+    }
+
+    return optionsList.map((options, index) => {
+      const [err, data] = results[index];
+      if (err) {
+        Logger.error(`Error querying metrics for ${options.workerName}/${options.metricType}`, err);
+        return {
+          workerName: options.workerName,
+          metricType: options.metricType,
+          period: { start: options.startDate ?? new Date(), end: options.endDate ?? new Date() },
+          total: 0,
+          average: 0,
+          min: 0,
+          max: 0,
+          count: 0,
+        };
+      }
+
+      const points: MetricPoint[] = (data as string[]).map((d) => JSON.parse(d) as MetricPoint);
+
+      if (points.length === 0) {
+        return {
+          workerName: options.workerName,
+          metricType: options.metricType,
+          period: { start: options.startDate ?? new Date(0), end: options.endDate ?? new Date() },
+          total: 0,
+          average: 0,
+          min: 0,
+          max: 0,
+          count: 0,
+        };
+      }
+
+      const values = points.map((p) => p.value);
+      const total = values.reduce((sum, val) => sum + val, 0);
+      const average = total / values.length;
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+
+      return {
+        workerName: options.workerName,
+        metricType: options.metricType,
+        period: {
+          start: points[0].timestamp,
+          end: points.at(-1)?.timestamp ?? new Date(),
+        },
+        total,
+        average,
+        min,
+        max,
+        count: values.length,
+      };
+    });
   },
 
   /**

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZinTrust Workers Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div class="header-top">
+          <div style="display: flex; align-items: center; gap: 16px">
+            <div class="logo-frame">
+              <img src="/zintrust.svg" alt="ZinTrust" class="logo-img" />
+            </div>
+            <h1>ZinTrust Workers</h1>
+          </div>
+          <div class="header-actions">
+            <button id="theme-toggle" class="theme-toggle">
+              <svg class="icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="5" />
+                <path
+                  d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                />
+              </svg>
+              Theme
+            </button>
+            <button id="auto-refresh-toggle" class="btn" onclick="toggleAutoRefresh()">
+              <svg id="auto-refresh-icon" class="icon" viewBox="0 0 24 24">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              <span id="auto-refresh-label">Auto Refresh</span>
+            </button>
+            <button class="btn" onclick="fetchData()">
+              <svg class="icon" viewBox="0 0 24 24">
+                <path d="M23 4v6h-6" />
+                <path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary" onclick="showAddWorkerModal()">
+              <svg class="icon" viewBox="0 0 24 24">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add Worker
+            </button>
+          </div>
+        </div>
+
+        <div class="nav-bar">
+          <nav class="nav-links">
+            <a href="/queue-monitor" class="nav-link">Queue Monitor</a>
+            <a href="/telemetry" class="nav-link">Telemetry</a>
+            <a href="/metrics" class="nav-link">Metrics</a>
+          </nav>
+        </div>
+
+        <div class="filters-bar">
+          <div class="filter-group">
+            <span>Status:</span>
+            <select id="status-filter">
+              <option value="">All Status</option>
+              <option value="running">Running</option>
+              <option value="stopped">Stopped</option>
+              <option value="error">Error</option>
+              <option value="paused">Paused</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <span>Driver:</span>
+            <select id="driver-filter">
+              <option value="">All Drivers</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <span>Sort:</span>
+            <select id="sort-select">
+              <option value="name">Sort by Name</option>
+              <option value="status">Sort by Status</option>
+              <option value="driver">Sort by Driver</option>
+              <option value="health">Sort by Health</option>
+              <option value="version">Sort by Version</option>
+              <option value="processed">Sort by Performance</option>
+            </select>
+          </div>
+          <div style="flex-grow: 1"></div>
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" placeholder="Search workers..." />
+          </div>
+        </div>
+      </div>
+
+      <div id="loading" style="text-align: center; padding: 40px; color: var(--muted)">
+        <div>Loading workers...</div>
+      </div>
+
+      <div
+        id="error"
+        style="display: none; text-align: center; padding: 40px; color: var(--danger)"
+      >
+        <div>Failed to load workers data</div>
+        <button class="btn" onclick="fetchData()" style="margin-top: 16px">Retry</button>
+      </div>
+
+      <div id="workers-content" style="display: none">
+        <div class="summary-bar" id="queue-summary">
+          <div class="summary-item">
+            <span class="summary-label">Queue Driver</span>
+            <span class="summary-value" id="queue-driver">-</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Queues</span>
+            <span class="summary-value" id="queue-total">0</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Jobs</span>
+            <span class="summary-value" id="queue-jobs">0</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Processing</span>
+            <span class="summary-value" id="queue-processing">0</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Failed</span>
+            <span class="summary-value" id="queue-failed">0</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Drivers</span>
+            <div class="drivers-list" id="drivers-list"></div>
+          </div>
+        </div>
+        <div class="table-container">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 250px">Worker</th>
+                  <th style="width: 120px">Status</th>
+                  <th style="width: 120px">Health</th>
+                  <th style="width: 100px">Driver</th>
+                  <th style="width: 100px">Version</th>
+                  <th style="width: 320px">Performance</th>
+                  <th style="width: 180px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="workers-tbody">
+                <!-- Workers will be populated here -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <div class="pagination-info" id="pagination-info">Showing 0-0 of 0 workers</div>
+            <div class="pagination-controls">
+              <button class="page-btn" id="prev-btn" onclick="loadPage('prev')" disabled>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+              <div id="page-numbers" style="display: flex; gap: 8px"></div>
+              <button class="page-btn" id="next-btn" onclick="loadPage('next')" disabled>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+
+              <div class="page-size-selector">
+                <span>Show:</span>
+                <select id="limit-select" onchange="changeLimit(this.value)">
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>

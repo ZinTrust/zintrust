@@ -6,6 +6,23 @@ import { Env, type QueueConfigOverrides, type QueueDriverName } from '@zintrust/
  * Keep this file declarative:
  * - Core owns env parsing/default logic.
  * - Projects can override config by editing values below.
+ *
+ * BullMQ Redis Driver Environment Variables:
+ * When QUEUE_DRIVER=redis, the system uses BullMQ for enterprise features.
+ * Additional BullMQ-specific settings can be configured via environment variables:
+ *
+ * | Environment Variable | Default | Description | Example |
+ * |---------------------|---------|-------------|---------|
+ * | BULLMQ_REMOVE_ON_COMPLETE | 100 | Number of completed jobs to keep in Redis | 200 |
+ * | BULLMQ_REMOVE_ON_FAIL | 50 | Number of failed jobs to keep in Redis | 25 |
+ * | BULLMQ_DEFAULT_ATTEMPTS | 3 | Default retry attempts for jobs | 5 |
+ * | BULLMQ_BACKOFF_DELAY | 2000 | Delay between retries (milliseconds) | 5000 |
+ * | BULLMQ_BACKOFF_TYPE | exponential | Backoff strategy: 'exponential', 'fixed', 'custom' | fixed |
+ *
+ * Usage Examples:
+ * Development: BULLMQ_REMOVE_ON_COMPLETE=500 BULLMQ_DEFAULT_ATTEMPTS=2
+ * Production: BULLMQ_REMOVE_ON_COMPLETE=50 BULLMQ_DEFAULT_ATTEMPTS=5
+ * High-Volume: BULLMQ_REMOVE_ON_COMPLETE=10 BULLMQ_BACKOFF_DELAY=500
  */
 
 export default {
@@ -25,6 +42,8 @@ export default {
       port: Env.getInt('REDIS_PORT', 6379),
       password: Env.get('REDIS_PASSWORD'),
       database: Env.getInt('REDIS_QUEUE_DB', 1),
+      // Note: Redis driver uses BullMQ for enterprise features
+      // See BullMQ environment variables in file header for customization
     },
     rabbitmq: {
       driver: 'rabbitmq' as const,

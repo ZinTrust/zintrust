@@ -4,15 +4,11 @@
  * Command-line interface for managing workers
  */
 
+import { ErrorFactory } from '@/exceptions/ZintrustError';
 import type { IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
-import {
-  HealthMonitor as HealthMonitorAny,
-  ResourceMonitor as ResourceMonitorAny,
-  WorkerFactory as WorkerFactoryAny,
-  WorkerRegistry as WorkerRegistryAny,
-} from '@zintrust/workers';
+type WorkersModule = typeof import('@zintrust/workers');
 
 type WorkerRegistryStatus = {
   status?: string;
@@ -51,28 +47,57 @@ type ResourceMonitorApi = {
 };
 
 // Lazy initialization to prevent temporal dead zone issues
-let WorkerFactory: WorkerFactoryApi;
-let WorkerRegistry: WorkerRegistryApi;
-let HealthMonitor: HealthMonitorApi;
-let ResourceMonitor: ResourceMonitorApi;
+let WorkerFactory: WorkerFactoryApi | undefined;
+let WorkerRegistry: WorkerRegistryApi | undefined;
+let HealthMonitor: HealthMonitorApi | undefined;
+let ResourceMonitor: ResourceMonitorApi | undefined;
+let workersModulePromise: Promise<WorkersModule> | undefined;
 
-const getWorkerFactory = (): WorkerFactoryApi => {
-  WorkerFactory ??= WorkerFactoryAny as unknown as WorkerFactoryApi;
+const loadWorkersModule = async (): Promise<WorkersModule> => {
+  workersModulePromise ??= import('@zintrust/workers');
+
+  try {
+    return await workersModulePromise;
+  } catch (error) {
+    Logger.error(
+      'Failed to load optional package "@zintrust/workers"; worker commands require this package.',
+      error
+    );
+    throw ErrorFactory.createCliError(
+      'Optional package "@zintrust/workers" is required for worker commands. Install it to use worker:* commands.'
+    );
+  }
+};
+
+const getWorkerFactory = async (): Promise<WorkerFactoryApi> => {
+  if (!WorkerFactory) {
+    const mod = await loadWorkersModule();
+    WorkerFactory = mod.WorkerFactory as unknown as WorkerFactoryApi;
+  }
   return WorkerFactory;
 };
 
-const getWorkerRegistry = (): WorkerRegistryApi => {
-  WorkerRegistry ??= WorkerRegistryAny as unknown as WorkerRegistryApi;
+const getWorkerRegistry = async (): Promise<WorkerRegistryApi> => {
+  if (!WorkerRegistry) {
+    const mod = await loadWorkersModule();
+    WorkerRegistry = mod.WorkerRegistry as unknown as WorkerRegistryApi;
+  }
   return WorkerRegistry;
 };
 
-const getHealthMonitor = (): HealthMonitorApi => {
-  HealthMonitor ??= HealthMonitorAny as unknown as HealthMonitorApi;
+const getHealthMonitor = async (): Promise<HealthMonitorApi> => {
+  if (!HealthMonitor) {
+    const mod = await loadWorkersModule();
+    HealthMonitor = mod.HealthMonitor as unknown as HealthMonitorApi;
+  }
   return HealthMonitor;
 };
 
-const getResourceMonitor = (): ResourceMonitorApi => {
-  ResourceMonitor ??= ResourceMonitorAny as unknown as ResourceMonitorApi;
+const getResourceMonitor = async (): Promise<ResourceMonitorApi> => {
+  if (!ResourceMonitor) {
+    const mod = await loadWorkersModule();
+    ResourceMonitor = mod.ResourceMonitor as unknown as ResourceMonitorApi;
+  }
   return ResourceMonitor;
 };
 
@@ -100,7 +125,7 @@ const formatTable = (headers: string[], rows: string[][]): string => {
 const createWorkerListCommand = (): IBaseCommand => {
   const ext = async (): Promise<void> => {
     try {
-      const workers = await getWorkerFactory().listPersisted();
+      const workers = await (await getWorkerFactory()).listPersisted();
 
       console.log(`\nTotal Workers: ${workers.length}\n`);
 
@@ -109,8 +134,9 @@ const createWorkerListCommand = (): IBaseCommand => {
         return;
       }
 
+      const registry = await getWorkerRegistry();
       const rows = workers.map((name: string) => {
-        const status = getWorkerRegistry().status(name);
+        const status = registry.status(name);
         return [
           name,
           status?.status ?? 'unknown',
@@ -148,13 +174,13 @@ const createWorkerStatusCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      const status = getWorkerRegistry().status(name);
-      const health = await getWorkerFactory().getHealth(name);
+      const status = (await getWorkerRegistry()).status(name);
+      const health = await (await getWorkerFactory()).getHealth(name);
       const healthData =
         typeof health === 'object' && health !== null
           ? (health as { score?: number; status?: string })
           : {};
-      const metrics = await getWorkerFactory().getMetrics(name);
+      const metrics = await (await getWorkerFactory()).getMetrics(name);
 
       console.log(`\n=== Worker: ${name} ===\n`);
       console.log(`Status: ${status?.status}`);
@@ -197,7 +223,7 @@ const createWorkerStartCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await getWorkerFactory().start(name);
+      await (await getWorkerFactory()).start(name);
       Logger.info(`✓ Worker "${name}" started successfully`);
     } catch (error) {
       Logger.error('worker:start command failed', error);
@@ -228,7 +254,7 @@ const createWorkerStopCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await getWorkerFactory().stop(name);
+      await (await getWorkerFactory()).stop(name);
       console.log(`✓ Worker "${name}" stopped successfully`);
     } catch (error) {
       Logger.error('worker:stop command failed', error);
@@ -260,7 +286,7 @@ const createWorkerRestartCommand = (): IBaseCommand => {
         process.exit(1);
       }
 
-      await getWorkerFactory().restart(name);
+      await (await getWorkerFactory()).restart(name);
       console.log(`✓ Worker "${name}" restarted successfully`);
     } catch (error) {
       Logger.error('worker:restart command failed', error);
@@ -285,11 +311,11 @@ const createWorkerRestartCommand = (): IBaseCommand => {
  * Worker Summary Command
  */
 const createWorkerSummaryCommand = (): IBaseCommand => {
-  const ext = (): void => {
+  const ext = async (): Promise<void> => {
     try {
-      const workers = getWorkerFactory().list();
-      const monitoringSummary = getHealthMonitor().getSummary();
-      const resourceUsage = getResourceMonitor().getCurrentUsage('system');
+      const workers = (await getWorkerFactory()).list();
+      const monitoringSummary = (await getHealthMonitor()).getSummary();
+      const resourceUsage = (await getResourceMonitor()).getCurrentUsage('system');
 
       console.log(`\n=== Worker System Summary ===\n`);
       console.log(`Total Workers: ${workers.length}`);
@@ -328,7 +354,7 @@ const createWorkerSummaryCommand = (): IBaseCommand => {
   const cmd = BaseCommand.create({
     name: 'worker:summary',
     description: 'Get system-wide worker summary',
-    execute: () => ext(),
+    execute: async () => ext(),
   });
 
   return cmd;

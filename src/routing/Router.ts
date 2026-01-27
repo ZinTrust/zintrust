@@ -39,6 +39,10 @@ export interface Route {
 
 export type RouteGroupCallback = (router: IRouter) => void;
 
+export type GroupOptions<MiddlewareName extends string = string> = {
+  middleware?: ReadonlyArray<MiddlewareName>;
+};
+
 export interface ResourceController {
   index?: RouteHandler;
   show?: RouteHandler;
@@ -60,6 +64,7 @@ export type IRouter = {
   routes: Route[];
   prefix: string;
   routeIndex: Map<string, Route[]>;
+  inheritedMiddleware?: ReadonlyArray<string>;
 };
 
 export const createRouter = (): IRouter => ({
@@ -107,13 +112,29 @@ const registerRoute = (
   options?: RouteOptions
 ): void => {
   const { pattern, paramNames } = pathToRegex(path);
+
+  // Merge inherited middleware with route-specific middleware
+  let routeMiddleware: string[] | undefined;
+
+  if (router.inheritedMiddleware && router.inheritedMiddleware.length > 0) {
+    const routeSpecificMiddleware = Array.isArray(options?.middleware)
+      ? (options?.middleware as string[])
+      : [];
+    routeMiddleware = [...router.inheritedMiddleware, ...routeSpecificMiddleware];
+  } else {
+    const hasRouteSpecificMiddleware = Array.isArray(options?.middleware);
+    if (hasRouteSpecificMiddleware) {
+      routeMiddleware = options?.middleware as string[];
+    }
+  }
+
   const route: Route = {
     method,
     path,
     pattern,
     handler,
     paramNames,
-    middleware: Array.isArray(options?.middleware) ? (options?.middleware as string[]) : undefined,
+    middleware: routeMiddleware,
     meta: normalizeRouteMeta(options?.meta),
   };
 
@@ -224,14 +245,24 @@ const joinPaths = (prefix: string, path: string): string => {
   return `${pfx}${pth}`;
 };
 
-const scopeRouter = (router: IRouter, prefix: string): IRouter => ({
+const scopeRouter = (
+  router: IRouter,
+  prefix: string,
+  inheritedMiddleware?: ReadonlyArray<string>
+): IRouter => ({
   routes: router.routes,
   prefix: joinPaths(router.prefix, prefix),
   routeIndex: router.routeIndex,
+  inheritedMiddleware,
 });
 
-const group = (router: IRouter, prefix: string, callback: RouteGroupCallback): void => {
-  callback(scopeRouter(router, prefix));
+const group = <M extends string = string>(
+  router: IRouter,
+  prefix: string,
+  callback: RouteGroupCallback,
+  options?: GroupOptions<M>
+): void => {
+  callback(scopeRouter(router, prefix, options?.middleware));
 };
 
 function buildResourcePaths(prefix: string, path: string): { base: string; withId: string } {

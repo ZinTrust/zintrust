@@ -696,6 +696,9 @@ REDIS_PASSWORD=secret
 # Worker API URL (for HTTP clients)
 WORKER_API_URL=http://localhost:3001
 
+# Worker connection timeout (milliseconds)
+WORKER_CONNECTION_TIMEOUT=5000
+
 # Monitoring
 ENABLE_METRICS=true
 ENABLE_HEALTH_CHECKS=true

@@ -73,6 +73,28 @@ const userControllerMethods: IUserController = {
   },
 
   /**
+   * Fill user data
+   * POST /users/:id/fill
+   */
+  async fill(req: IRequest, res: IResponse): Promise<void> {
+    try {
+      const id = req.params['id'];
+      const user = await User.find(id);
+      if (user === null) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      const body = req.body;
+      user.fill(body);
+      await user.save();
+      res.json({ message: 'User data filled', user });
+    } catch (error) {
+      Logger.error('Error filling user data:', error);
+      res.status(500).json({ error: 'Failed to fill user data' });
+    }
+  },
+
+  /**
    * Show edit form
    * GET /users/:id/edit
    */

@@ -1,8 +1,22 @@
+/**
+ * Queue Work Runner
+ *
+ * Processes queued jobs via the framework CLI.
+ *
+ * BullMQ Compatibility:
+ * - Works with both basic queue drivers and BullMQ Redis driver
+ * - When QUEUE_DRIVER=redis, uses BullMQ enterprise features automatically
+ * - No changes needed - uses standard Queue API which is BullMQ-compatible
+ */
+import type { ReleaseCondition } from '@/types/Queue';
 import { Broadcast } from '@broadcast/Broadcast';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { queueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ZintrustLang } from '@lang/lang';
 import { Notification } from '@notification/Notification';
+import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 import { Queue } from '@tools/queue/Queue';
 import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
 
@@ -91,6 +105,132 @@ const shouldStop = (startedAtMs: number, timeoutSeconds?: number): boolean => {
 
 type ProcessOutcome = 'continue' | 'break';
 
+const QUEUE_META_KEY = '__zintrustQueueMeta';
+
+type QueueMeta = {
+  deduplicationId?: string;
+  releaseAfter?: string | number | ReleaseCondition;
+  uniqueId?: string;
+};
+
+let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
+
+const getLockProviderForQueue = (): ReturnType<typeof createLockProvider> => {
+  if (lockProviderCache) return lockProviderCache;
+
+  const providerName = Env.get('QUEUE_LOCK_PROVIDER', ZintrustLang.REDIS).trim();
+  const prefix = Env.get('QUEUE_LOCK_PREFIX', ZintrustLang.ZINTRUST_LOCKS_PREFIX).trim();
+  const defaultTtl = Env.getInt('QUEUE_DEFAULT_DEDUP_TTL', ZintrustLang.ZINTRUST_LOCKS_TTL);
+
+  const existing = getLockProvider(providerName);
+  if (existing) {
+    lockProviderCache = existing;
+    return existing;
+  }
+
+  const provider = createLockProvider({
+    type: providerName === ZintrustLang.REDIS ? ZintrustLang.REDIS : ZintrustLang.MEMORY,
+    prefix: prefix.length > 0 ? prefix : ZintrustLang.ZINTRUST_LOCKS_PREFIX,
+    defaultTtl,
+  });
+  registerLockProvider(providerName, provider);
+  lockProviderCache = provider;
+  return provider;
+};
+
+const extractQueueMeta = (
+  payload: Record<string, unknown>
+): { payload: Record<string, unknown>; meta?: QueueMeta } => {
+  const metaValue = payload[QUEUE_META_KEY];
+  if (metaValue !== undefined && metaValue !== null && typeof metaValue === 'object') {
+    const { [QUEUE_META_KEY]: metaRaw, ...rest } = payload;
+    return { payload: rest, meta: metaRaw as QueueMeta };
+  }
+
+  return { payload, meta: undefined };
+};
+
+const resolveConditionStatus = (condition: string): string | null => {
+  const normalized = condition.trim().toLowerCase();
+  if (normalized.includes('failed') || normalized.includes('error')) return 'failed';
+  if (normalized.includes('success') || normalized.includes('completed')) return 'success';
+
+  // Try to extract explicit comparison like: job.result.status === "completed"
+  const match = new RegExp(/status\s*={1,3}\s*['"]([a-z]+)['"]/).exec(normalized);
+  const capturedValue = match?.[1];
+  if (capturedValue !== null && capturedValue !== undefined && capturedValue.length > 0) {
+    const value = capturedValue;
+    if (value === 'failed' || value === 'error') return 'failed';
+    if (value === 'success' || value === 'completed') return 'success';
+  }
+
+  return null;
+};
+
+const shouldReleaseForOutcome = (
+  releaseAfter: QueueMeta['releaseAfter'],
+  outcome: 'success' | 'failed'
+): boolean => {
+  if (releaseAfter === 'success') return outcome === 'success';
+  if (releaseAfter === 'failed') return outcome === 'failed';
+  if (typeof releaseAfter === 'string') {
+    const normalized = releaseAfter.toLowerCase();
+    if (normalized.includes('failed') || normalized.includes('error')) return outcome === 'failed';
+    if (normalized.includes('success') || normalized.includes('completed'))
+      return outcome === 'success';
+    const fromCondition = resolveConditionStatus(normalized);
+    return fromCondition !== null && fromCondition === outcome;
+  }
+  if (releaseAfter !== null && releaseAfter !== undefined && typeof releaseAfter === 'object') {
+    const condition = String(releaseAfter.condition ?? '').toLowerCase();
+    const fromCondition = resolveConditionStatus(condition);
+    return fromCondition !== null && fromCondition === outcome;
+  }
+  return false;
+};
+
+const releaseLockAfterResult = async (
+  meta: QueueMeta | undefined,
+  outcome: 'success' | 'failed'
+): Promise<void> => {
+  if (meta === undefined) return;
+  const deduplicationId = meta.deduplicationId;
+  if (deduplicationId === undefined || deduplicationId === null) {
+    return;
+  }
+  const deduplicationKey = String(deduplicationId).trim();
+  if (deduplicationKey === '') return;
+  const releaseAfter = meta.releaseAfter;
+  if (releaseAfter === undefined || releaseAfter === null || releaseAfter === '') return;
+  if (!shouldReleaseForOutcome(releaseAfter, outcome)) return;
+
+  const provider = getLockProviderForQueue();
+  const doRelease = async (): Promise<void> => {
+    const status = await provider.status(deduplicationKey);
+    if (!status.exists) return;
+    await provider.release({
+      key: deduplicationKey,
+      ttl: status.ttl ?? 0,
+      acquired: true,
+      expires: status.expires ?? new Date(),
+    });
+  };
+
+  const delay =
+    typeof releaseAfter === 'object' && typeof releaseAfter.delay === 'number'
+      ? releaseAfter.delay
+      : 0;
+
+  if (delay > 0) {
+    const timeoutId = globalThis.setTimeout(() => {
+      void doRelease();
+    }, delay);
+    timeoutId.unref();
+  } else {
+    await doRelease();
+  }
+};
+
 const processMessage = async (
   options: QueueWorkRunnerOptions,
   msg: { id: string; payload: Record<string, unknown> },
@@ -98,7 +238,8 @@ const processMessage = async (
   result: QueueWorkRunnerResult
 ): Promise<ProcessOutcome> => {
   const payload = msg.payload ?? {};
-  const kind = options.kind ?? detectKindFromPayload(payload);
+  const { payload: payloadWithoutMeta, meta } = extractQueueMeta(payload);
+  const kind = options.kind ?? detectKindFromPayload(payloadWithoutMeta);
 
   if (kind === undefined) {
     Logger.warn('Queue worker: unknown job payload; dropping', {
@@ -111,25 +252,30 @@ const processMessage = async (
     return 'continue';
   }
 
-  const timestamp = getTimestamp(payload);
+  const timestamp = getTimestamp(payloadWithoutMeta);
   if (typeof timestamp === 'number' && timestamp > Date.now()) {
     // Not due yet: re-enqueue and stop after rotating the head once.
-    await Queue.enqueue(options.queueName, payload, options.driverName);
+    const payloadForRequeue = meta
+      ? { ...payloadWithoutMeta, [QUEUE_META_KEY]: meta }
+      : payloadWithoutMeta;
+    await Queue.enqueue(options.queueName, payloadForRequeue, options.driverName);
     await Queue.ack(options.queueName, msg.id, options.driverName);
     result.notDueRequeued++;
     return 'break';
   }
 
-  const attempts = getAttempts(payload);
+  const attempts = getAttempts(payloadWithoutMeta);
 
   try {
     if (kind === 'broadcast') {
-      const job = payload as unknown as BroadcastPayload;
+      const job = payloadWithoutMeta as unknown as BroadcastPayload;
       await Broadcast.send(job.channel, job.event, job.data);
     } else {
-      const job = payload as unknown as NotificationPayload;
+      const job = payloadWithoutMeta as unknown as NotificationPayload;
       await Notification.send(job.recipient, job.message, job.options ?? {});
     }
+
+    await releaseLockAfterResult(meta, 'success');
 
     await Queue.ack(options.queueName, msg.id, options.driverName);
     result.processed++;
@@ -148,13 +294,17 @@ const processMessage = async (
     });
 
     if (canRetry) {
+      const payloadForRetry = meta
+        ? { ...payloadWithoutMeta, [QUEUE_META_KEY]: meta }
+        : payloadWithoutMeta;
       await Queue.enqueue(
         options.queueName,
-        withAttempts(payload, nextAttempts),
+        withAttempts(payloadForRetry, nextAttempts),
         options.driverName
       );
       result.retried++;
     } else {
+      await releaseLockAfterResult(meta, 'failed');
       result.dropped++;
     }
 

@@ -5,13 +5,20 @@
  */
 
 import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
+import type { Job } from 'bullmq';
 import { CanaryController } from '../CanaryController';
+import { getWorkers } from '../dashboard/workers-api';
 import { HealthMonitor } from '../HealthMonitor';
+import { getParam } from '../helper';
+import { SLAMonitor } from '../index';
 import { ResourceMonitor } from '../ResourceMonitor';
+import type { WorkerRecord } from '../storage/WorkerStore';
+import type { WorkerFactoryConfig } from '../WorkerFactory';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerRegistry } from '../WorkerRegistry';
 import { WorkerShutdown } from '../WorkerShutdown';
 import { WorkerVersioning } from '../WorkerVersioning';
+import type { InfrastructureConfig } from './middleware/InfrastructureValidator';
 
 /**
  * Helper to get request body
@@ -23,16 +30,6 @@ const getBody = (req: IRequest): Record<string, unknown> => {
     (req.body as Record<string, unknown> | undefined) ??
     {}
   );
-};
-
-/**
- * Helper to get path parameter
- */
-const getParam = (req: IRequest, key: string): string => {
-  const direct = req.getParam?.(key);
-  if (typeof direct === 'string' && direct.length > 0) return direct;
-  const params = (req.params as Record<string, string> | undefined) ?? {};
-  return params[key] ?? '';
 };
 
 // ==================== Core Worker Operations ====================
@@ -52,10 +49,19 @@ const getParam = (req: IRequest, key: string): string => {
 async function create(req: IRequest, res: IResponse): Promise<void> {
   Logger.info('WorkerController.create called');
   try {
-    const body = getBody(req);
+    const body = req.data() as unknown as WorkerFactoryConfig;
 
-    const rawProcessor = (body as { processor?: unknown }).processor;
-    let processor = rawProcessor as Parameters<typeof WorkerFactory.create>[0]['processor'];
+    // Validate required fields
+    if (!body.name || !body.queueName || !body.processor || !body.version) {
+      return res.setStatus(400).json({
+        error: 'Missing required fields',
+        message: 'name, queueName, processor, and version are required',
+        code: 'MISSING_REQUIRED_FIELDS',
+      });
+    }
+
+    const rawProcessor = body.processor;
+    let processor: (job: Job) => Promise<unknown>;
     let processorPath: string | undefined;
 
     if (typeof rawProcessor === 'string') {
@@ -66,6 +72,8 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
         return;
       }
       processor = resolved;
+    } else {
+      processor = rawProcessor as (job: Job) => Promise<unknown>;
     }
 
     if (typeof processor !== 'function') {
@@ -74,14 +82,19 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
     }
 
     const config = {
-      ...(body as Parameters<typeof WorkerFactory.create>[0]),
+      ...(body as WorkerFactoryConfig),
       processor,
       processorPath,
     };
 
     await WorkerFactory.create(config);
 
-    res.json({ ok: true, workerName: config.name, message: 'Worker created successfully' });
+    res.json({
+      ok: true,
+      workerName: config.name,
+      status: 'creating',
+      message: 'Worker creation started. Check status endpoint for progress.',
+    });
   } catch (error) {
     Logger.error('WorkerController.create failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
@@ -100,14 +113,15 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
       res.setStatus(400).json({ error: 'Worker name is required' });
       return;
     }
+    const persistenceOverride = resolvePersistenceOverride(req);
     const registered = WorkerRegistry.list().includes(name);
+
     if (!registered) {
-      const persistenceOverride = resolvePersistenceOverride(req);
       await WorkerFactory.startFromPersisted(name, persistenceOverride);
       res.json({ ok: true, message: `Worker ${name} registered and started` });
       return;
     }
-    await WorkerFactory.start(name);
+    await WorkerFactory.start(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} started` });
   } catch (error) {
     Logger.error('WorkerController.start failed', error);
@@ -157,13 +171,24 @@ async function restart(req: IRequest, res: IResponse): Promise<void> {
  */
 async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
   try {
-    const name = getParam(req, 'name');
+    const data = req.data();
+    const name = data['name'] as string;
+
     if (!name) {
       res.setStatus(400).json({ error: 'Worker name is required' });
       return;
     }
-    const enabledRaw = normalizeQueryValue(req.getQueryParam?.('enabled')) ?? '';
-    const enabled = ['true', '1', 'yes', 'on'].includes(enabledRaw.toLowerCase());
+
+    const rawEnabled = data['enabled'] as boolean;
+    let enabled: boolean;
+
+    if (typeof rawEnabled === 'boolean') {
+      enabled = rawEnabled;
+    } else {
+      const enabledStr = normalizeQueryValue(rawEnabled as string | string[]) ?? '';
+      enabled = ['true', '1', 'yes', 'on'].includes(enabledStr.toLowerCase());
+    }
+
     const persistenceOverride = resolvePersistenceOverride(req);
 
     await WorkerFactory.setAutoStart(name, enabled, persistenceOverride);
@@ -183,7 +208,8 @@ async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
 async function pause(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.pause(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.pause(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} paused` });
   } catch (error) {
     Logger.error('WorkerController.pause failed', error);
@@ -199,7 +225,8 @@ async function pause(req: IRequest, res: IResponse): Promise<void> {
 async function resume(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
-    await WorkerFactory.resume(name);
+    const persistenceOverride = resolvePersistenceOverride(req);
+    await WorkerFactory.resume(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} resumed` });
   } catch (error) {
     Logger.error('WorkerController.resume failed', error);
@@ -236,26 +263,30 @@ const normalizeQueryValue = (value: string | string[] | undefined): string | und
   return undefined;
 };
 
-const parseBool = (value: string | undefined): boolean => {
-  if (!value) return false;
-  return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
-};
-
 const resolvePersistenceOverride = (
   req: IRequest
 ):
   | { driver: 'memory' }
   | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
-  | { driver: 'db'; connection?: string; table?: string }
+  | { driver: 'database'; connection?: string; table?: string }
   | undefined => {
-  const storageRaw = normalizeQueryValue(req.getQueryParam?.('storage'));
-  const storage = storageRaw?.toLowerCase();
+  // Check for 'driver' parameter first (from frontend), then fallback to 'storage'
+  const driverRaw =
+    normalizeQueryValue(req.getQueryParam?.('driver')) ||
+    normalizeQueryValue(req.getQueryParam?.('storage'));
+  const driver = driverRaw?.toLowerCase();
 
-  if (storage === 'memory') {
+  // Validate driver parameter (accept 'db' as transitional alias)
+  if (driver && !['memory', 'redis', 'db', 'database'].includes(driver)) {
+    Logger.error(`Invalid driver parameter: ${driver}. Must be one of: memory, redis, database`);
+    return undefined;
+  }
+
+  if (driver === 'memory') {
     return { driver: 'memory' };
   }
 
-  if (storage === 'redis') {
+  if (driver === 'redis') {
     return {
       driver: 'redis',
       redis: { env: true },
@@ -263,9 +294,9 @@ const resolvePersistenceOverride = (
     };
   }
 
-  if (storage === 'db') {
+  if (driver === 'db' || driver === 'database') {
     return {
-      driver: 'db',
+      driver: 'database',
       connection: normalizeQueryValue(req.getQueryParam?.('connection')),
       table: normalizeQueryValue(req.getQueryParam?.('table')),
     };
@@ -273,41 +304,6 @@ const resolvePersistenceOverride = (
 
   return undefined;
 };
-
-async function list(req: IRequest, res: IResponse): Promise<void> {
-  try {
-    const detail = parseBool(normalizeQueryValue(req.getQueryParam?.('detail')));
-
-    const persistenceOverride = resolvePersistenceOverride(req);
-
-    if (detail) {
-      const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
-      const workers = await Promise.all(
-        records.map(async (record) => {
-          const instance = WorkerFactory.get(record.name);
-          if (!instance) {
-            return { ...record, health: { status: 'unknown' } };
-          }
-
-          try {
-            const wHealth = await WorkerFactory.getHealth(record.name);
-            return { ...record, health: wHealth ?? { status: 'unknown' } };
-          } catch {
-            return { ...record, health: { status: 'unknown' } };
-          }
-        })
-      );
-      res.json({ ok: true, workers });
-      return;
-    }
-
-    const workers = await WorkerFactory.listPersisted(persistenceOverride);
-    res.json({ ok: true, workers });
-  } catch (error) {
-    Logger.error('WorkerController.list failed', error);
-    res.setStatus(500).json({ error: (error as Error).message });
-  }
-}
 
 /**
  * Get a specific worker instance
@@ -339,6 +335,92 @@ async function get(req: IRequest, res: IResponse): Promise<void> {
 }
 
 /**
+ * Update worker configuration
+ * @param req.params.name - Worker name
+ * @param req.body - Updated worker configuration
+ * @returns Success message
+ */
+async function update(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const reqData = req.data();
+    const name = reqData['name'] as string;
+    const driver = reqData['driver'] as string;
+    const persistenceOverride = resolvePersistenceOverride(req);
+
+    // Get current worker record
+    const currentRecord = await WorkerFactory.getPersisted(name, persistenceOverride);
+    if (!currentRecord) {
+      res.setStatus(404).json({ error: `Worker ${name} not found` });
+      return;
+    }
+
+    // Validate and merge updates (excluding immutable fields)
+    const { name: _name, driver: _driver, ...updateData } = reqData; // Remove immutable fields
+
+    // Note: driver is determined by persistence configuration, not stored in worker record
+    const updatedRecord = {
+      ...currentRecord,
+      ...updateData,
+      name,
+      updatedAt: new Date(),
+    };
+
+    (updatedRecord.infrastructure as unknown as InfrastructureConfig).persistence.driver = driver;
+
+    // Update persistence store with the complete updated record
+    try {
+      // Persist merged record via WorkerFactory API
+      await WorkerFactory.update(
+        name,
+        updatedRecord as unknown as WorkerRecord,
+        persistenceOverride
+      );
+      Logger.info(`Worker ${name} persistence updated with fields:`, Object.keys(updateData));
+    } catch (persistError) {
+      Logger.warn(`Failed to persist some updates for ${name}`, persistError as Error);
+      // Continue with restart even if persistence update partially fails
+    }
+
+    // If worker is currently running, restart it to apply new configuration changes
+    // This ensures new concurrency, queue settings, and other config take effect
+    const currentInstance = WorkerFactory.get(name);
+    let restartError: string | undefined;
+
+    if (currentInstance && currentInstance.status === 'running') {
+      try {
+        Logger.info(`Restarting worker ${name} to apply configuration changes`);
+        await WorkerFactory.restart(name, persistenceOverride);
+      } catch (error) {
+        restartError = (error as Error).message;
+        Logger.warn(`Failed to restart worker ${name} after update`, error as Error);
+        // Don't fail the update, but warn about restart failure
+      }
+    } else {
+      Logger.info(
+        `Worker ${name} is not running (status: ${currentInstance?.status || 'not found'}), skipping restart`
+      );
+    }
+
+    // Worker configuration updated in persistence and memory
+    Logger.info(`Worker configuration updated: ${name}`, {
+      updatedFields: Object.keys(updateData),
+      driver: persistenceOverride?.driver || 'default',
+      restartError,
+    });
+    res.json({
+      ok: true,
+      message: `Worker ${name} updated successfully`,
+      worker: updatedRecord,
+      updatedFields: Object.keys(updateData),
+      restartError,
+    });
+  } catch (error) {
+    Logger.error('WorkerController.update failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
  * Get worker status
  * @param req.params.name - Worker name
  * @returns Worker status information
@@ -350,6 +432,38 @@ async function status(req: IRequest, res: IResponse): Promise<void> {
     res.json({ ok: true, status: workerStatus });
   } catch (error) {
     Logger.error('WorkerController.status failed', error);
+    res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
+ * Get worker creation status for polling
+ * @param req.params.name - Worker name
+ * @returns Worker creation status with progress information
+ */
+async function getCreationStatus(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const name = getParam(req, 'name');
+    const persistenceOverride = resolvePersistenceOverride(req);
+    const record = await WorkerFactory.getPersisted(name, persistenceOverride);
+
+    if (!record) {
+      res.setStatus(404).json({ error: `Worker ${name} not found` });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      workerName: name,
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      lastError: record.lastError,
+      connectionState: record.connectionState,
+      lastHealthCheck: record.lastHealthCheck,
+    });
+  } catch (error) {
+    Logger.error('WorkerController.getCreationStatus failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
   }
 }
@@ -460,6 +574,26 @@ async function healthTrend(req: IRequest, res: IResponse): Promise<void> {
   } catch (error) {
     Logger.error('WorkerController.healthTrend failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+/**
+ * Get SLA status for a worker
+ * @param req.params.name - Worker name
+ * @returns SLA compliance status with checks and metrics
+ */
+async function getSlaStatus(req: IRequest, res: IResponse): Promise<void> {
+  try {
+    const name = getParam(req, 'name');
+    const slaStatus = await SLAMonitor.checkCompliance(name);
+    res.json({ ok: true, status: slaStatus });
+  } catch (error) {
+    Logger.error('WorkerController.getSlaStatus failed', error);
+    if ((error as Error).message.includes('SLA config not found')) {
+      res.setStatus(404).json({ error: 'SLA config not found for worker' });
+    } else {
+      res.setStatus(500).json({ error: (error as Error).message });
+    }
   }
 }
 
@@ -1124,6 +1258,67 @@ async function monitoringSummary(_req: IRequest, res: IResponse): Promise<void> 
 }
 
 /**
+ * SSE endpoint: stream worker and monitoring events
+ * GET /api/workers/events
+ */
+const eventsStream = async (_req: IRequest, res: IResponse): Promise<void> => {
+  const raw = res.getRaw();
+
+  raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  let closed = false;
+
+  const send = async (payload: unknown) => {
+    try {
+      const data = JSON.stringify(payload);
+      raw.write(`data: ${data}\n\n`);
+    } catch (err) {
+      Logger.error('WorkerController.eventsStream failed', err);
+      // ignore serialization errors
+    }
+  };
+
+  // Send initial hello
+  await send({ type: 'hello', ts: new Date().toISOString() });
+
+  // Periodic snapshot sender
+  const intervalMs = 5000;
+  const interval = setInterval(async () => {
+    try {
+      const monitoring = await HealthMonitor.getSummary();
+      // include full workers listing with metrics/pagination to allow clients to patch the UI
+      const workersPayload = await getWorkers({ page: 1, limit: 200 });
+      await send({
+        type: 'snapshot',
+        ts: new Date().toISOString(),
+        monitoring,
+        workers: workersPayload,
+      });
+    } catch (err) {
+      // send error event
+      await send({ type: 'error', ts: new Date().toISOString(), message: (err as Error).message });
+    }
+  }, intervalMs);
+
+  // Heartbeat to keep connection alive
+  const hb = setInterval(() => {
+    if (!closed) raw.write(': ping\n\n');
+  }, 15000);
+
+  // Clean up when client disconnects
+  raw.on('close', () => {
+    closed = true;
+    clearInterval(interval);
+    clearInterval(hb);
+  });
+};
+
+/**
  * Builders that group related handlers to keep the create() method small.
  * Each builder returns a plain object with the relevant handler references.
  */
@@ -1137,9 +1332,10 @@ const buildCoreOperations = () => ({
   setAutoStart,
   resume,
   remove,
-  list,
   get,
+  update,
   status,
+  getCreationStatus,
   metrics,
   health,
 });
@@ -1151,6 +1347,8 @@ const buildHealthMonitoring = () => ({
   healthHistory,
   healthTrend,
   updateMonitoringConfig,
+  eventsStream,
+  getSlaStatus,
 });
 
 const buildVersioning = () => ({

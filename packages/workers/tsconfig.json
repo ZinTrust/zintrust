@@ -12,8 +12,11 @@
     "sourceMap": false,
     "composite": false,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "paths": {}
+    "paths": {
+      "@zintrust/queue-monitor": ["../queue-monitor/dist/index.d.ts"],
+      "@zintrust/queue-redis": ["../queue-redis/dist/index.d.ts"]
+    }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist", "tests"]
 }

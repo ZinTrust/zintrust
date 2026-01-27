@@ -146,11 +146,22 @@ const normalizeMode = (): StartMode => {
   return 'development';
 };
 
+const Prefix = (): string => {
+  const app_name = (Env.APP_NAME || 'zintrust').toLowerCase().replaceAll(/\s/g, '_');
+  const env = Env.NODE_ENV;
+  return `${app_name}_zintrust_${env}`;
+};
+
 const appConfigObj = {
   /**
    * Application name
    */
   name: readEnvString('APP_NAME', Env.APP_NAME),
+
+  /**
+   * Application prefix
+   */
+  prefix: Prefix(),
 
   /**
    * Application environment

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Welcome to {{APP_NAME}}</title>
+    <!--[if mso]>
+      <style type="text/css">
+        table {
+          border-collapse: collapse;
+        }
+      </style>
+    <![endif]-->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #0b1220;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: 40px auto;
+        background-color: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .header {
+        padding: 40px 40px 30px;
+        text-align: center;
+        background: linear-gradient(180deg, rgba(14, 165, 233, 0.18), rgba(2, 132, 199, 0.1));
+        border-bottom: 1px solid #334155;
+      }
+
+      .icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(14, 165, 233, 0.35);
+        background: linear-gradient(180deg, rgba(14, 165, 233, 0.25), rgba(2, 132, 199, 0.15));
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .title {
+        margin: 0 0 8px;
+        font-size: 28px;
+        font-weight: 700;
+        color: #e2e8f0;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 16px;
+        color: #e2e8f0;
+        line-height: 1.5;
+      }
+
+      .content {
+        padding: 40px;
+      }
+
+      .getting-started {
+        margin: 0 0 20px;
+        font-size: 20px;
+        font-weight: 700;
+        color: #f1f5f9;
+      }
+
+      .steps {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+      }
+
+      .step-item {
+        padding: 16px;
+        background: rgba(14, 165, 233, 0.08);
+        border-left: 3px solid #0ea5e9;
+        border-radius: 6px;
+      }
+
+      .step-item p {
+        margin: 0 0 12px;
+        font-size: 14px;
+        color: #f1f5f9;
+        line-height: 1.6;
+      }
+
+      .message {
+        margin: 0 0 24px;
+        font-size: 15px;
+        color: #f1f5f9;
+        line-height: 1.6;
+      }
+
+      .button-container {
+        margin-bottom: 30px;
+        text-align: center;
+      }
+
+      .verify-button {
+        display: inline-block;
+        padding: 14px 32px;
+        background: linear-gradient(135deg, #1e3a8a, #1a2e4a);
+        color: #ffffff;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 15px;
+        border: 1px solid rgba(30, 58, 138, 0.5);
+      }
+
+      .expiry-notice {
+        margin: 0;
+        font-size: 13px;
+        color: #f1f5f9;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .expiry-notice em {
+        font-style: italic;
+      }
+
+      .divider {
+        margin: 30px 0;
+        border-top: 1px solid #334155;
+      }
+
+      .support {
+        margin: 0;
+        font-size: 14px;
+        color: #e2e8f0;
+        line-height: 1.6;
+      }
+
+      .support a {
+        color: #bae6fd;
+        text-decoration: none;
+      }
+
+      .footer {
+        padding: 30px 40px;
+        background: rgba(15, 23, 42, 0.65);
+        border-top: 1px solid #334155;
+        text-align: center;
+      }
+
+      .footer p {
+        margin: 0;
+        font-size: 12px;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <!-- Header with Logo -->
+      <div class="header">
+        <div class="icon">
+          <span style="font-size: 24px">🎉</span>
+        </div>
+        <h1 class="title">Welcome, {{name}}!</h1>
+        <p class="subtitle">
+          Thanks for joining {{APP_NAME}} — we're excited to have you on board.
+        </p>
+      </div>
+
+      <!-- Main Content -->
+      <div class="content">
+        <h2 class="getting-started">Getting Started</h2>
+
+        <table class="steps">
+          <tr>
+            <th
+              style="
+                text-align: left;
+                padding: 12px;
+                background: rgba(14, 165, 233, 0.12);
+                border-bottom: 2px solid #0ea5e9;
+                color: #ffffff;
+                font-weight: 600;
+              "
+            >
+              Getting Started Steps
+            </th>
+          </tr>
+          <tr>
+            <td>
+              <div class="step-item">
+                <p>
+                  ✓ Verify your email<br />
+                  ✓ Complete your profile<br />
+                  ✓ Explore features
+                </p>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <p class="message">To activate your account, please verify your email address:</p>
+
+        <!-- CTA Button -->
+        <div class="button-container">
+          <a href="{{confirmLink}}" class="verify-button">Verify Email Address</a>
+        </div>
+
+        <p class="expiry-notice">
+          <em>This link expires in {{expiryMinutes}} minutes.</em>
+        </p>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <p class="support">
+          If you have any questions, reply to this email or contact our
+          <a href="{{support_url}}">support team</a>. We're here to help!
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>&copy; {{year}} {{APP_NAME}}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

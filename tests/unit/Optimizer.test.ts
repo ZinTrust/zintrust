@@ -137,12 +137,7 @@ describe('GenerationCache', () => {
     await cache.save();
 
     expect(fsPromises.mkdir).toHaveBeenCalledWith('/cache-dir', { recursive: true });
-    expect(fsPromises.writeFile).toHaveBeenCalledTimes(2); // One for set(), one for save loop?
-    // Wait, set() also writes to disk now!
-    // The previous test assumed set is memory only until save()?
-    // Code says: set() calls fs.promises.writeFile.
-    // So expected calls = 1 (from set) + 1 (from save loop) = 2.
-    // Let's verify expectations.
+    expect(fsPromises.writeFile).toHaveBeenCalledTimes(2);
   });
 
   it('save skips mkdir when directory exists', async () => {

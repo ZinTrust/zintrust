@@ -20,11 +20,14 @@ export type WorkerRecord = {
   datacenter?: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
+  lastHealthCheck?: Date;
+  lastError?: string;
+  connectionState?: 'disconnected' | 'connecting' | 'connected' | 'error';
 };
 
 export type WorkerStore = {
   init(): Promise<void>;
-  list(): Promise<WorkerRecord[]>;
+  list(options?: { offset?: number; limit?: number; search?: string }): Promise<WorkerRecord[]>;
   get(name: string): Promise<WorkerRecord | null>;
   save(record: WorkerRecord): Promise<void>;
   update(name: string, patch: Partial<WorkerRecord>): Promise<void>;
@@ -53,7 +56,19 @@ const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
   created_at: record.createdAt,
   updated_at: record.updatedAt,
+  last_health_check: record.lastHealthCheck ?? null,
+  last_error: record.lastError ?? null,
+  connection_state: record.connectionState ?? null,
 });
+
+const getHealthCheck = (row: Record<string, unknown>): Date | undefined => {
+  if (!row['last_health_check']) {
+    return undefined;
+  }
+  return row['last_health_check'] instanceof Date
+    ? row['last_health_check']
+    : new Date(String(row['last_health_check']));
+};
 
 const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
   const parseJson = (value: unknown): Record<string, unknown> | null => {
@@ -81,6 +96,11 @@ const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
       row['created_at'] instanceof Date ? row['created_at'] : new Date(String(row['created_at'])),
     updatedAt:
       row['updated_at'] instanceof Date ? row['updated_at'] : new Date(String(row['updated_at'])),
+    lastHealthCheck: getHealthCheck(row),
+    lastError: row['last_error'] ? String(row['last_error']) : undefined,
+    connectionState: row['connection_state']
+      ? (String(row['connection_state']) as 'disconnected' | 'connecting' | 'connected' | 'error')
+      : undefined,
   };
 };
 
@@ -92,8 +112,14 @@ export const InMemoryWorkerStore = Object.freeze({
       async init(): Promise<void> {
         return undefined;
       },
-      async list(): Promise<WorkerRecord[]> {
-        return Array.from(store.values());
+      async list(options?: { offset?: number; limit?: number }): Promise<WorkerRecord[]> {
+        let values = Array.from(store.values());
+        if (options) {
+          const start = options.offset || 0;
+          const end = options.limit ? start + options.limit : undefined;
+          values = values.slice(start, end);
+        }
+        return values;
       },
       async get(name: string): Promise<WorkerRecord | null> {
         return store.get(name) ?? null;
@@ -140,9 +166,16 @@ export const RedisWorkerStore = Object.freeze({
       async init(): Promise<void> {
         return undefined;
       },
-      async list(): Promise<WorkerRecord[]> {
+      async list(options?: { offset?: number; limit?: number }): Promise<WorkerRecord[]> {
         const all = await client.hgetall(key);
-        return Object.values(all).map(deserialize);
+        let values = Object.values(all).map(deserialize);
+        values.sort((a, b) => a.name.localeCompare(b.name));
+        if (options) {
+          const start = options.offset || 0;
+          const end = options.limit ? start + options.limit : undefined;
+          values = values.slice(start, end);
+        }
+        return values;
       },
       async get(name: string): Promise<WorkerRecord | null> {
         const raw = await client.hget(key, name);
@@ -169,8 +202,11 @@ export const DbWorkerStore = Object.freeze({
       async init(): Promise<void> {
         return undefined;
       },
-      async list(): Promise<WorkerRecord[]> {
-        const rows = await db.table(table).get<Record<string, unknown>>();
+      async list(options?: { offset?: number; limit?: number }): Promise<WorkerRecord[]> {
+        const query = db.table(table);
+        if (options?.limit) query.limit(options.limit);
+        if (options?.offset) query.offset(options.offset);
+        const rows = await query.get<Record<string, unknown>>();
         return rows.map(deserializeDbWorker);
       },
       async get(name: string): Promise<WorkerRecord | null> {

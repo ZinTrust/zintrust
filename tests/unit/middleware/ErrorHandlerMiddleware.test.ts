@@ -14,6 +14,21 @@ describe('ErrorHandlerMiddleware', () => {
     process.env.NODE_ENV = 'development';
     vi.resetModules();
 
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
+
     vi.mock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
@@ -52,7 +67,21 @@ describe('ErrorHandlerMiddleware', () => {
 
   it('does not include stack in production', async () => {
     vi.resetModules();
-    vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'production' } }));
+
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'production',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
     vi.mock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
@@ -88,7 +117,20 @@ describe('ErrorHandlerMiddleware', () => {
   });
 
   it('skips writing when writableEnded is true', async () => {
-    vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'development' } }));
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
     vi.mock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
@@ -117,7 +159,20 @@ describe('ErrorHandlerMiddleware', () => {
   });
 
   it('handles non-object raw values and still writes', async () => {
-    vi.mock('@config/env', () => ({ Env: { NODE_ENV: 'development' } }));
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
     vi.mock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));

@@ -25,11 +25,100 @@ Notes:
 - The in-memory driver is NOT suitable for production — use Redis or another durable backend for PHASE 1.5 production work.
 - Drivers should be registered with `Queue.register('redis', RedisDriver)`.
 
-## Redis Driver (Quick Usage)
+## Sync Driver
 
-- The Redis queue driver stores messages as JSON strings in a Redis list and provides a minimal, reliable surface for enqueue/dequeue operations.
-- Configure via `REDIS_URL` (e.g., `redis://:password@host:6379`).
+When `QUEUE_DRIVER=sync`, jobs are processed synchronously and immediately. This is useful for testing and development but **requires explicit worker execution** after enqueuing.
+
+### Important: Manual Worker Execution Required
+
+With the sync driver, you must manually call the worker runner to process enqueued jobs:
+
+```typescript
+import { EmailQueue } from '@app/Workers/EmailWorker';
+
+// Enqueue a job
+await EmailJobService.sendWelcome('test@zintrust.com', 'Test User', 'example-mysql1');
+
+// IMPORTANT: Process the job immediately (required for sync driver)
+await EmailQueue.processOne('example-mysql1');
+
+// Or process all jobs
+await EmailQueue.processAll('example-mysql1');
+```
+
+### When to Use Sync Driver
+
+- ✅ **Development & Testing** - Immediate feedback and debugging
+- ✅ **Simple Applications** - No background processing needed
+- ✅ **Unit Tests** - Predictable, synchronous behavior
+
+### Limitations
+
+- ⚠️ **Blocking** - Jobs block the request/response cycle
+- ⚠️ **No Persistence** - Jobs are lost if application crashes
+- ⚠️ **No Retry** - Failed jobs are not retried automatically
+- ⚠️ **Manual Processing** - Must explicitly call worker methods
+
+### Migration to Production
+
+For production use, switch to Redis driver:
+
+```bash
+# Development (sync)
+QUEUE_DRIVER=sync
+
+# Production (Redis)
+QUEUE_DRIVER=redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+```
+
+## Redis Driver (BullMQ-Powered)
+
+- The Redis queue driver now uses **BullMQ** for enterprise-grade job processing with auto-scaling, circuit breaker, dead letter queue, and advanced monitoring.
+- Configure via standard Redis environment variables (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_QUEUE_DB`).
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
+
+### BullMQ Environment Variables
+
+When `QUEUE_DRIVER=redis`, the system uses BullMQ with these customizable settings:
+
+| Environment Variable        | Default     | Description                                        | Example |
+| --------------------------- | ----------- | -------------------------------------------------- | ------- |
+| `BULLMQ_REMOVE_ON_COMPLETE` | 100         | Number of completed jobs to keep in Redis          | 200     |
+| `BULLMQ_REMOVE_ON_FAIL`     | 50          | Number of failed jobs to keep in Redis             | 25      |
+| `BULLMQ_DEFAULT_ATTEMPTS`   | 3           | Default retry attempts for jobs                    | 5       |
+| `BULLMQ_BACKOFF_DELAY`      | 2000        | Delay between retries (milliseconds)               | 5000    |
+| `BULLMQ_BACKOFF_TYPE`       | exponential | Backoff strategy: 'exponential', 'fixed', 'custom' | fixed   |
+
+### Environment-Specific Examples
+
+**Development Environment:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=500
+BULLMQ_REMOVE_ON_FAIL=100
+BULLMQ_DEFAULT_ATTEMPTS=2
+BULLMQ_BACKOFF_DELAY=10000
+```
+
+**Production Environment:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=50
+BULLMQ_REMOVE_ON_FAIL=20
+BULLMQ_DEFAULT_ATTEMPTS=5
+BULLMQ_BACKOFF_DELAY=1000
+```
+
+**High-Volume Environment:**
+
+```bash
+BULLMQ_REMOVE_ON_COMPLETE=10
+BULLMQ_REMOVE_ON_FAIL=5
+BULLMQ_BACKOFF_DELAY=500
+```
 
 ### Install Redis driver
 

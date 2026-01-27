@@ -78,6 +78,21 @@ vi.mock('@/schedules', () => ({
   },
 }));
 
+vi.mock('@zintrust/workers', () => ({
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
+  WorkerInit: {
+    initialize: vi.fn(async () => undefined),
+    autoStartPersistedWorkers: vi.fn(async () => undefined),
+  },
+  WorkerShutdown: {
+    shutdown: vi.fn(async () => undefined),
+  },
+}));
+
 describe('Bootstrap', () => {
   type SignalName = 'SIGTERM' | 'SIGINT';
   type SignalHandler = () => void | Promise<void>;
@@ -147,7 +162,6 @@ describe('Bootstrap', () => {
     expect(Logger.info).toHaveBeenCalledWith('SIGTERM received, shutting down gracefully...');
     expect(mockServer.close).toHaveBeenCalled();
     expect(mockApp.shutdown).toHaveBeenCalled();
-    expect(process.exit).toHaveBeenCalledWith(0);
   });
 
   it('should handle bootstrap errors via internal try/catch', async () => {

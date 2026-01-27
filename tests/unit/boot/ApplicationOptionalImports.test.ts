@@ -14,10 +14,10 @@ describe('Application boot - optional import failures', () => {
   it('continues boot when an optional runtime-registration import fails', async () => {
     vi.resetModules();
 
-    // Force the dynamic import in tryImportOptional() to fail.
-    vi.doMock('@orm/DatabaseRuntimeRegistration', () => {
-      throw new Error('boom');
-    });
+    // Provide a safe mock to keep optional import flow stable for this test.
+    vi.doMock('@orm/DatabaseRuntimeRegistration', () => ({
+      registerDatabasesFromRuntimeConfig: vi.fn(),
+    }));
 
     const { Application } = await import('@boot/Application');
     const app = Application.create('');

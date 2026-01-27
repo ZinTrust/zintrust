@@ -445,6 +445,7 @@ export type RedisBroadcastDriverConfig = {
   port: number;
   password: string;
   channelPrefix: string;
+  database?: number;
 };
 
 export type RedisHttpsBroadcastDriverConfig = {
@@ -589,6 +590,8 @@ export type WorkersGlobalConfig = {
 };
 
 export type WorkersConfigOverrides = Partial<{
+  driver: string;
+  middleware: ReadonlyArray<string>;
   enabled: boolean;
   healthCheckInterval: number;
   clusterMode: boolean;

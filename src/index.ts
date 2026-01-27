@@ -3,6 +3,13 @@
  * Built for performance, type safety, and exceptional developer experience
  */
 
+/**
+ * Framework version and build metadata
+ * Available at runtime for debugging and health checks
+ */
+export const ZINTRUST_VERSION = '0.1.23';
+export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
+
 import { Application } from '@boot/Application';
 import { AwsSigV4 } from '@common/index';
 import { SignedRequest } from '@security/SignedRequest';
@@ -250,7 +257,7 @@ export { middlewareConfig, MiddlewareKeys } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
-export { queueConfig } from '@config/queue';
+export { createBaseDrivers, queueConfig } from '@config/queue';
 export type { QueueConfig, QueueConfigOverrides } from '@config/queue';
 
 export { default as broadcastConfig } from '@config/broadcast';
@@ -286,8 +293,8 @@ export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type'
 export { StartupConfigValidator } from '@config/StartupConfigValidator';
 
 // Mail
-export { Mail } from '@mail/Mail';
-export type { SendMailInput, SendMailResult } from '@mail/Mail';
+export { Mail } from '@/tools/mail';
+export type { SendMailInput, SendMailResult } from '@/tools/mail';
 
 export { MailTemplateRenderer, MailTemplates } from '@mail/templates';
 export type { MailTemplate, MailTemplateRegistry } from '@mail/templates';
@@ -352,9 +359,10 @@ export { GcsDriver } from '@tools/storage/drivers/Gcs';
 export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 
 // Queue drivers (for external registration packages)
-export { RedisQueue } from '@tools/queue/drivers/Redis';
-export { Queue } from '@tools/queue/Queue';
-export type { QueueMessage } from '@tools/queue/Queue';
+export { RedisQueue } from '@queue/drivers/Redis';
+export { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
+export { Queue } from '@queue/Queue';
+export type { QueueMessage } from '@queue/Queue';
 
 // Seeders (for database seeding)
 export { SeederLoader } from '@/seeders/SeederLoader';
@@ -367,7 +375,7 @@ export { default as logCleanup } from '@schedules/log-cleanup';
 export * as NodeSingletons from '@node-singletons/index';
 
 // Auth features
-export { Auth } from '@features/Auth';
+export { Auth } from '@/auth/Auth';
 
 // Microservice utilities
 export { MicroserviceGenerator } from '@microservices/MicroserviceGenerator';
@@ -394,33 +402,35 @@ export { nowIso } from '@common/utility';
 export type { SanitizerError } from '@exceptions/ZintrustError';
 export { randomBytes } from '@node-singletons/crypto';
 
-/**
- * Framework version and build metadata
- * Available at runtime for debugging and health checks
- */
-export const ZINTRUST_VERSION = '0.1.23';
-export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
-
 //New Start Confing
 
 export type { MiddlewaresType } from '@config/middleware';
 
+// Redis config
+export * from '@config/redis';
+
 export type * from '@config/type';
 
+export { ZintrustLang } from '@lang/lang';
+
 // Workers config
-export type {
-  RedisConfig,
-  WorkerAutoScalingConfig,
-  WorkerComplianceConfig,
-  WorkerConfig,
-  WorkerCostConfig,
-  WorkerObservabilityConfig,
-  WorkersConfigOverrides,
-  WorkersGlobalConfig,
-  WorkerStatus,
-  WorkerVersioningConfig,
-} from '@config/type';
 export { createRedisConnection, workersConfig } from '@config/workers';
+
+// Redis config key
+export {
+  createBullMQKey,
+  createCacheKey,
+  createKeyByType,
+  createQueueKey,
+  createRedisKey,
+  createSessionKey,
+  createWorkerKey,
+  extractOriginalKey,
+  getBullMQSafeQueueName,
+  getPrefix,
+  isAppKey,
+  type RedisKeyType,
+} from '@tools/redis/RedisKeyManager';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

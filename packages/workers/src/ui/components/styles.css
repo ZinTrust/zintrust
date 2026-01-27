@@ -1,0 +1,30 @@
+:root {
+  --zt-bg: #0b1220;
+  --zt-card: #0f1724;
+  --zt-text: #e6eef6;
+  --zt-muted: #94a3b8;
+  --zt-accent: #38bdf8;
+}
+.ui-loading {
+  color: var(--zt-muted);
+  padding: 12px;
+}
+.ui-detail-row td {
+  background: var(--zt-card);
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+.ui-sla-card {
+  border-radius: 8px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.08));
+  display: inline-block;
+}
+.ui-sla-score {
+  font-size: 20px;
+  font-weight: 800;
+}
+.ui-sla-status {
+  font-size: 11px;
+  color: var(--zt-muted);
+}

@@ -10,6 +10,7 @@ import {
   databaseConfig,
   Env,
   ErrorFactory,
+  getBullMQSafeQueueName,
   Logger,
   NodeSingletons,
   queueConfig,
@@ -46,6 +47,54 @@ import {
 } from './storage/WorkerStore';
 
 const path = NodeSingletons.path;
+
+const getStoreForWorker = async (
+  config: WorkerFactoryConfig | undefined,
+  persistenceOverride?: WorkerPersistenceConfig
+): Promise<WorkerStore> => {
+  if (persistenceOverride) {
+    return resolveWorkerStoreForPersistence(persistenceOverride);
+  }
+
+  // If worker has specific configuration, use it
+  if (config) {
+    const persistence = resolvePersistenceConfig(config);
+    if (persistence) {
+      return resolveWorkerStoreForPersistence(persistence);
+    }
+  }
+
+  // Fallback to default/global store
+  await ensureWorkerStoreConfigured();
+  return workerStore;
+};
+
+const validateAndGetStore = async (
+  name: string,
+  config: WorkerFactoryConfig | undefined,
+  persistenceOverride?: WorkerPersistenceConfig
+): Promise<WorkerStore> => {
+  const store = await getStoreForWorker(config, persistenceOverride);
+  const record = await store.get(name);
+  if (!record) {
+    throw ErrorFactory.createNotFoundError(
+      `Worker "${name}" not found in the specified driver. Ensure you are addressing the correct storage backend.`
+    );
+  }
+  return store;
+};
+
+// Worker creation status enum for proper lifecycle management
+export const WorkerCreationStatus = {
+  CREATING: 'creating', // Initial state - worker is being created
+  CONNECTING: 'connecting', // Connecting to Redis/Queue
+  STARTING: 'starting', // Starting BullMQ worker
+  RUNNING: 'running', // Actually processing jobs
+  FAILED: 'failed', // Connection/startup failed
+  STOPPED: 'stopped', // Intentionally stopped
+} as const;
+
+export type WorkerCreationStatus = (typeof WorkerCreationStatus)[keyof typeof WorkerCreationStatus];
 
 // Internal initialization state to prevent memory leaks and redundant calls
 let clusteringInitialized = false;
@@ -106,7 +155,9 @@ export type WorkerInstance = {
   worker: Worker;
   config: WorkerFactoryConfig;
   startedAt: Date;
-  status: 'running' | 'stopped' | 'sleeping' | 'draining';
+  status: WorkerCreationStatus;
+  lastHealthCheck?: Date;
+  connectionState?: 'disconnected' | 'connecting' | 'connected' | 'error';
 };
 
 type RedisEnvConfig = {
@@ -122,7 +173,7 @@ type RedisConfigInput = RedisConfig | RedisEnvConfig;
 export type WorkerPersistenceConfig =
   | { driver: 'memory' }
   | { driver: 'redis'; redis?: RedisConfigInput; keyPrefix?: string }
-  | { driver: 'db'; client?: IDatabase | string; connection?: string; table?: string };
+  | { driver: 'database'; client?: IDatabase | string; connection?: string; table?: string };
 
 type ObservabilityConfigInput =
   | ObservabilityConfig
@@ -149,11 +200,30 @@ const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
 
-const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => ({
-  name: '__persistence_bootstrap__',
-  queueName: '__bootstrap__',
-  processor: async () => undefined,
-});
+const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => {
+  const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') as 'memory' | 'redis' | 'database';
+
+  const config: WorkerFactoryConfig = {
+    name: '__zintrust_persistence_bootstrap__',
+    queueName: '__zintrust_bootstrap__',
+    processor: async () => undefined,
+    infrastructure: {
+      persistence: {
+        driver,
+      },
+    },
+  };
+
+  // Add Redis config if using Redis persistence
+  if (driver === 'redis') {
+    config.infrastructure = {
+      ...config.infrastructure,
+      redis: queueConfig.drivers.redis,
+    };
+  }
+
+  return config;
+};
 
 const registerProcessor = (name: string, processor: WorkerFactoryConfig['processor']): void => {
   processorRegistry.set(name, processor);
@@ -184,6 +254,71 @@ const decodeProcessorPathEntities = (value: string): string =>
     .replaceAll(/&#x2F;/gi, '/')
     .replaceAll('&#47;', '/')
     .replaceAll(/&sol;/gi, '/');
+
+const waitForWorkerConnection = async (
+  worker: Worker,
+  name: string,
+  _queueName: string,
+  timeoutMs: number
+): Promise<void> => {
+  const startTime = Date.now();
+  const checkInterval = 100; // 100ms between checks
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  return new Promise<void>((resolve, reject) => {
+    const checkConnection = async (): Promise<void> => {
+      try {
+        // Check if worker is actually running
+        const isRunning = await worker.isRunning();
+        if (!isRunning) {
+          throw ErrorFactory.createWorkerError('Worker not running');
+        }
+
+        // Check Redis connection
+        const client = await worker.client;
+        const pingResult = await client.ping();
+        if (pingResult !== 'PONG') {
+          throw ErrorFactory.createWorkerError('Redis ping failed');
+        }
+
+        // Removed heavy Queue instantiation loop - relying on Redis ping for connectivity check
+        // The queue instance creation was causing memory pressure and potential connection leaks in this retry loop
+
+        Logger.debug(`Worker health verification passed for ${name}`, {
+          isRunning,
+          pingResult,
+        });
+
+        if (timeoutId) clearTimeout(timeoutId);
+        resolve();
+        return;
+      } catch (error) {
+        Logger.debug(`Worker health verification failed for ${name}, retrying...`, error);
+
+        // Check timeout
+        if (Date.now() - startTime >= timeoutMs) {
+          if (timeoutId) clearTimeout(timeoutId);
+          reject(
+            ErrorFactory.createWorkerError(
+              'Worker failed health verification within timeout period'
+            )
+          );
+          return;
+        }
+
+        // Schedule next check
+        timeoutId = globalThis.setTimeout(checkConnection, checkInterval);
+      }
+    };
+
+    // Start checking
+    checkConnection();
+  });
+};
+
+const startHealthMonitoring = (name: string, worker: Worker, queueName: string): void => {
+  HealthMonitor.register(name, worker, queueName);
+};
 
 const sanitizeProcessorPath = (value: string): string => {
   const decoded = decodeProcessorPathEntities(value);
@@ -750,16 +885,21 @@ const normalizeAppName = (value: string | undefined): string => {
   return normalized.length > 0 ? normalized : 'zintrust';
 };
 
-const resolveDefaultRedisKeyPrefix = (): string =>
-  normalizeAppName(appConfig.name ?? Env.get('APP_NAME', 'zintrust'));
-
+const resolveDefaultRedisKeyPrefix = (): string => 'worker_' + normalizeAppName(appConfig.prefix);
 const resolveDefaultPersistenceTable = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ?? 'zintrust_workers';
 
 const resolveDefaultPersistenceConnection = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default')) ?? 'default';
 
-const resolveAutoStart = (config: WorkerFactoryConfig): boolean => config.autoStart ?? false;
+const resolveAutoStart = (config: WorkerFactoryConfig): boolean => {
+  // If explicitly set in config (not null/undefined), use that
+  if (config.autoStart !== undefined && config.autoStart !== null) {
+    return config.autoStart;
+  }
+  // Otherwise, use environment variable
+  return Env.getBool('WORKER_AUTO_START', false);
+};
 
 const normalizeExplicitPersistence = (
   persistence: WorkerPersistenceConfig
@@ -786,7 +926,7 @@ const normalizeExplicitPersistence = (
     resolveDefaultPersistenceConnection();
 
   return {
-    driver: 'db',
+    driver: 'database',
     client: clientIsConnection ? undefined : persistence.client,
     connection: resolvedConnection,
     table:
@@ -794,16 +934,6 @@ const normalizeExplicitPersistence = (
       normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ??
       resolveDefaultPersistenceTable(),
   };
-};
-
-const describePersistence = (persistence: WorkerPersistenceConfig): string => {
-  if (persistence.driver === 'memory') return 'memory';
-  if (persistence.driver === 'redis') {
-    return `redis:${persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix()}`;
-  }
-  return `db:${persistence.connection ?? resolveDefaultPersistenceConnection()}:${
-    persistence.table ?? resolveDefaultPersistenceTable()
-  }`;
 };
 
 const resolvePersistenceConfig = (
@@ -818,23 +948,24 @@ const resolvePersistenceConfig = (
   if (driver === 'memory') return { driver: 'memory' };
 
   if (driver === 'redis') {
+    const keyPrefix = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', ''));
     return {
       driver: 'redis',
       redis: { env: true },
-      keyPrefix: normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')),
+      keyPrefix: `${keyPrefix}_worker_${appConfig.prefix}`,
     };
   }
 
-  if (driver === 'db') {
+  if (driver === 'db' || driver === 'database') {
     return {
-      driver: 'db',
+      driver: 'database',
       connection: resolveDefaultPersistenceConnection(),
       table: resolveDefaultPersistenceTable(),
     };
   }
 
   throw ErrorFactory.createConfigError(
-    'WORKER_PERSISTENCE_DRIVER must be one of memory, redis, or db'
+    'WORKER_PERSISTENCE_DRIVER must be one of memory, redis, or database'
   );
 };
 
@@ -876,7 +1007,7 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
     );
     const client = createRedisConnection(redisConfig);
     next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
-  } else if (persistence.driver === 'db') {
+  } else if (persistence.driver === 'database') {
     const explicitConnection =
       typeof persistence.client === 'string' ? persistence.client : persistence.connection;
     const client =
@@ -892,17 +1023,34 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
   return next;
 };
 
-const resolveWorkerStoreForPersistence = async (
-  persistence: WorkerPersistenceConfig
-): Promise<WorkerStore> => {
-  let next: WorkerStore;
+// Store instance cache to reuse connections
+const storeInstanceCache = new Map<string, WorkerStore>();
 
+/**
+ * Generate cache key for persistence configuration
+ */
+const generateCacheKey = (persistence: WorkerPersistenceConfig): string => {
+  return JSON.stringify({
+    driver: persistence.driver,
+    redis: 'redis' in persistence ? persistence.redis : undefined,
+    keyPrefix: 'keyPrefix' in persistence ? persistence.keyPrefix : undefined,
+    connection: 'connection' in persistence ? persistence.connection : undefined,
+    table: 'table' in persistence ? persistence.table : undefined,
+  });
+};
+
+/**
+ * Create new store instance based on persistence configuration
+ */
+const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<WorkerStore> => {
   if (persistence.driver === 'memory') {
     if (workerStoreConfigured && workerStoreConfig?.driver === 'memory') {
       return workerStore;
     }
-    next = InMemoryWorkerStore.create();
-  } else if (persistence.driver === 'redis') {
+    return InMemoryWorkerStore.create();
+  }
+
+  if (persistence.driver === 'redis') {
     const redisConfig = resolveRedisConfigWithFallback(
       persistence.redis ?? { env: true },
       undefined,
@@ -910,19 +1058,38 @@ const resolveWorkerStoreForPersistence = async (
       'persistence.redis'
     );
     const client = createRedisConnection(redisConfig);
-    next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
-  } else {
-    const explicitConnection =
-      typeof persistence.client === 'string' ? persistence.client : persistence.connection;
-    const client =
-      typeof persistence.client === 'string'
-        ? await resolveDbClientFromEnv(explicitConnection)
-        : (persistence.client ?? (await resolveDbClientFromEnv(explicitConnection)));
-    next = DbWorkerStore.create(client, persistence.table);
+    return RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
   }
 
-  await next.init();
-  return next;
+  // Database driver
+  const explicitConnection =
+    typeof persistence.client === 'string' ? persistence.client : persistence.connection;
+  const client =
+    typeof persistence.client === 'string'
+      ? await resolveDbClientFromEnv(explicitConnection)
+      : (persistence.client ?? (await resolveDbClientFromEnv(explicitConnection)));
+  return DbWorkerStore.create(client, persistence.table);
+};
+
+const resolveWorkerStoreForPersistence = async (
+  persistence: WorkerPersistenceConfig
+): Promise<WorkerStore> => {
+  const cacheKey = generateCacheKey(persistence);
+
+  // Return cached instance if available
+  const cached = storeInstanceCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Create new store instance
+  const store = await createWorkerStore(persistence);
+  await store.init();
+
+  // Cache the store instance for reuse
+  storeInstanceCache.set(cacheKey, store);
+
+  return store;
 };
 
 const getPersistedRecord = async (
@@ -936,32 +1103,6 @@ const getPersistedRecord = async (
 
   const store = await resolveWorkerStoreForPersistence(persistenceOverride);
   return store.get(name);
-};
-
-const configureWorkerStore = async (config: WorkerFactoryConfig): Promise<void> => {
-  const persistence = resolvePersistenceConfig(config);
-  if (!persistence) return;
-
-  if (!workerStoreConfigured) {
-    workerStore = await resolveWorkerStore(config);
-    workerStoreConfigured = true;
-    workerStoreConfig = persistence;
-    return;
-  }
-
-  const current = workerStoreConfig ?? { driver: 'memory' };
-  const currentSignature = describePersistence(current);
-  const nextSignature = describePersistence(persistence);
-
-  if (currentSignature === nextSignature) return;
-
-  Logger.warn('Worker persistence configuration changed; reinitializing store.', {
-    previous: currentSignature,
-    next: nextSignature,
-  });
-
-  workerStore = await resolveWorkerStore(config);
-  workerStoreConfig = persistence;
 };
 
 const ensureWorkerStoreConfigured = async (): Promise<void> => {
@@ -993,6 +1134,9 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     datacenter: config.datacenter ? { ...config.datacenter } : null,
     createdAt: now,
     updatedAt: now,
+    lastHealthCheck: undefined,
+    lastError: undefined,
+    connectionState: undefined,
   };
 };
 
@@ -1063,6 +1207,11 @@ const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScale
 
 const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): WorkerOptions => {
   const options = config.options ? { ...config.options } : ({} as WorkerOptions);
+
+  if (options.prefix === undefined) {
+    options.prefix = getBullMQSafeQueueName();
+  }
+
   if (options.autorun === undefined) {
     options.autorun = autoStart;
   }
@@ -1349,6 +1498,22 @@ const registerWorkerInstance = (params: {
   });
 };
 
+const initializeWorkerFeatures = async (
+  config: WorkerFactoryConfig,
+  workerVersion: string
+): Promise<void> => {
+  initializeClustering(config);
+  initializeMetrics(config);
+  initializeAutoScaling(config);
+  initializeCircuitBreaker(config, workerVersion);
+  initializeDeadLetterQueue(config);
+  initializeResourceMonitoring(config);
+  initializeCompliance(config);
+  await initializeObservability(config);
+  initializeVersioning(config, workerVersion);
+  initializeDatacenter(config);
+};
+
 /**
  * Worker Factory - Sealed namespace
  */
@@ -1360,7 +1525,7 @@ export const WorkerFactory = Object.freeze({
   resolveProcessorPath,
 
   /**
-   * Create worker with all features
+   * Create new worker with full setup
    */
   async create(config: WorkerFactoryConfig): Promise<Worker> {
     const { name, version, queueName, features } = config;
@@ -1371,68 +1536,103 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createWorkerError(`Worker "${name}" already exists`);
     }
 
-    await configureWorkerStore(config);
-    initializeClustering(config);
-    initializeMetrics(config);
-    initializeAutoScaling(config);
-    initializeCircuitBreaker(config, workerVersion);
-    initializeDeadLetterQueue(config);
-    initializeResourceMonitoring(config);
-    initializeCompliance(config);
-    await initializeObservability(config);
-    initializeVersioning(config, workerVersion);
-    initializeDatacenter(config);
+    // Resolve the correct store for this worker configuration
+    const store = await getStoreForWorker(config);
 
-    // Create enhanced processor
-    const enhancedProcessor = createEnhancedProcessor(config);
+    // Save initial status as "creating"
+    await store.save(buildWorkerRecord(config, WorkerCreationStatus.CREATING));
 
-    // Create BullMQ worker
-    const resolvedOptions = resolveWorkerOptions(config, autoStart);
-    const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
+    try {
+      await initializeWorkerFeatures(config, workerVersion);
 
-    setupWorkerEventListeners(worker, name, workerVersion, features);
-
-    // Store worker instance
-    const instance: WorkerInstance = {
-      worker,
-      config,
-      startedAt: new Date(),
-      status: autoStart ? 'running' : 'stopped',
-    };
-
-    workers.set(name, instance);
-
-    registerWorkerInstance({
-      worker,
-      config,
-      workerVersion,
-      queueName,
-      options: resolvedOptions,
-      autoStart,
-    });
-
-    if (autoStart) {
-      await WorkerRegistry.start(name, workerVersion);
-    }
-
-    // Execute afterStart hooks
-    if (features?.plugins === true) {
-      await PluginManager.executeHook('afterStart', {
-        workerName: name,
-        timestamp: new Date(),
+      // Update status to "connecting"
+      await store.update(name, {
+        status: WorkerCreationStatus.CONNECTING,
+        updatedAt: new Date(),
       });
+
+      // Create enhanced processor
+      const enhancedProcessor = createEnhancedProcessor(config);
+
+      // Create BullMQ worker
+      const resolvedOptions = resolveWorkerOptions(config, autoStart);
+      const worker = new Worker(queueName, enhancedProcessor, resolvedOptions);
+
+      setupWorkerEventListeners(worker, name, workerVersion, features);
+
+      // Update status to "starting"
+      await store.update(name, {
+        status: WorkerCreationStatus.STARTING,
+        updatedAt: new Date(),
+      });
+
+      const timeoutMs = Env.getInt('WORKER_CONNECTION_TIMEOUT', 5000);
+
+      // Wait for actual connection and health verification
+      await waitForWorkerConnection(worker, name, queueName, timeoutMs);
+
+      // Update status to "running" only after successful connection
+      await store.update(name, {
+        status: WorkerCreationStatus.RUNNING,
+        updatedAt: new Date(),
+      });
+
+      // Store worker instance
+      const instance: WorkerInstance = {
+        worker,
+        config,
+        startedAt: new Date(),
+        status: WorkerCreationStatus.RUNNING,
+        connectionState: 'connected',
+      };
+
+      workers.set(name, instance);
+
+      registerWorkerInstance({
+        worker,
+        config,
+        workerVersion,
+        queueName,
+        options: resolvedOptions,
+        autoStart,
+      });
+
+      if (autoStart) {
+        await WorkerRegistry.start(name, workerVersion);
+      }
+
+      // Execute afterStart hooks
+      if (features?.plugins === true) {
+        await PluginManager.executeHook('afterStart', {
+          workerName: name,
+          timestamp: new Date(),
+        });
+      }
+
+      // Start health monitoring for the worker
+      startHealthMonitoring(name, worker, queueName);
+
+      Logger.info(`Worker created: ${name}@${workerVersion}`, {
+        queueName,
+        features: Object.keys(features ?? {}).filter(
+          (k) => features?.[k as keyof typeof features] === true
+        ),
+      });
+
+      return worker;
+    } catch (error) {
+      // Handle failure - update status to "failed"
+      // Re-resolve store in case of error to be safe
+      const failStore = await getStoreForWorker(config);
+      await failStore.update(name, {
+        status: WorkerCreationStatus.FAILED,
+        updatedAt: new Date(),
+        lastError: (error as Error).message,
+      });
+
+      Logger.error(`Worker creation failed: ${name}`, error);
+      throw error;
     }
-
-    await workerStore.save(buildWorkerRecord(config, autoStart ? 'running' : 'stopped'));
-
-    Logger.info(`Worker created: ${name}@${workerVersion}`, {
-      queueName,
-      features: Object.keys(features ?? {}).filter(
-        (k) => features?.[k as keyof typeof features] === true
-      ),
-    });
-
-    return worker;
   },
 
   /**
@@ -1444,50 +1644,97 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Update worker status directly (used by HealthMonitor)
+   */
+  async updateStatus(name: string, status: string, error?: Error | string): Promise<void> {
+    const instance = workers.get(name);
+    if (instance) {
+      instance.status = status as WorkerCreationStatus;
+    }
+
+    try {
+      const store = await getStoreForWorker(
+        instance?.config ?? {
+          name,
+          queueName: 'unknown',
+          processor: async (): Promise<unknown> => {
+            return Promise.resolve(); //NOSONAR
+          },
+        }
+      );
+      const errorMessage = typeof error === 'string' ? error : error?.message;
+      await store.update(name, {
+        status: status as WorkerCreationStatus,
+        updatedAt: new Date(),
+        lastError: errorMessage,
+      });
+    } catch (err) {
+      Logger.warn(`Failed to update status for ${name} to ${status}`, err as Error);
+    }
+  },
+
+  /**
    * Stop worker
    */
   async stop(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
 
     if (!instance) {
-      if (!persistenceOverride) {
-        await ensureWorkerStoreConfigured();
-        const record = await workerStore.get(name);
-        if (!record) {
-          throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
-        }
-        await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
-        Logger.info(`Worker marked stopped (not running): ${name}`);
-        return;
-      }
-
-      const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-      const record = await store.get(name);
-      if (!record) {
-        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
-      }
       await store.update(name, { status: 'stopped', updatedAt: new Date() });
       Logger.info(`Worker marked stopped (not running): ${name}`);
       return;
     }
 
     // Execute beforeStop hooks
-    if (instance.config.features?.plugins !== undefined) {
+    if (instance.config.features?.plugins === true) {
       await PluginManager.executeHook('beforeStop', {
         workerName: name,
         timestamp: new Date(),
       });
     }
 
-    await instance.worker.close();
-    instance.status = 'stopped';
+    // Close worker with timeout to prevent hanging
+    const workerClosePromise = instance.worker.close();
+    let timeoutId: NodeJS.Timeout | undefined;
 
-    await workerStore.update(name, { status: 'stopped', updatedAt: new Date() });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      // eslint-disable-next-line no-restricted-syntax
+      timeoutId = setTimeout(() => {
+        reject(new Error('Worker close timeout'));
+      }, 5000);
+    });
+
+    try {
+      await Promise.race([workerClosePromise, timeoutPromise]);
+    } catch (error) {
+      Logger.warn(`Worker "${name}" close failed or timed out, continuing...`, error as Error);
+    } finally {
+      // Always clean up timeout to prevent memory leak
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    }
+    instance.status = WorkerCreationStatus.STOPPED;
+
+    // Stop health monitoring for this worker
+    HealthMonitor.unregister(name);
+
+    try {
+      await store.update(name, {
+        status: WorkerCreationStatus.STOPPED,
+        updatedAt: new Date(),
+      });
+      Logger.info(`Worker "${name}" status updated to stopped`);
+    } catch (error) {
+      Logger.error(`Failed to update worker "${name}" status`, error as Error);
+    }
 
     await WorkerRegistry.stop(name);
 
     // Execute afterStop hooks
-    if (instance.config.features?.plugins !== undefined) {
+    if (instance.config.features?.plugins === true) {
       await PluginManager.executeHook('afterStop', {
         workerName: name,
         timestamp: new Date(),
@@ -1520,7 +1767,7 @@ export const WorkerFactory = Object.freeze({
 
     const newWorker = await WorkerFactory.create(refreshed.config);
     refreshed.worker = newWorker;
-    refreshed.status = 'running';
+    refreshed.status = WorkerCreationStatus.RUNNING;
     refreshed.startedAt = new Date();
 
     Logger.info(`Worker restarted: ${name}`);
@@ -1529,17 +1776,19 @@ export const WorkerFactory = Object.freeze({
   /**
    * Pause worker
    */
-  async pause(name: string): Promise<void> {
+  async pause(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
 
-    if (!instance) {
-      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    if (instance) {
+      await instance.worker.pause();
+      instance.status = WorkerCreationStatus.STARTING; // Using STARTING as equivalent to sleeping/paused
     }
 
-    await instance.worker.pause();
-    instance.status = 'sleeping';
-
-    await workerStore.update(name, { status: 'sleeping', updatedAt: new Date() });
+    await store.update(name, {
+      status: WorkerCreationStatus.STARTING,
+      updatedAt: new Date(),
+    });
 
     Logger.info(`Worker paused: ${name}`);
   },
@@ -1547,19 +1796,20 @@ export const WorkerFactory = Object.freeze({
   /**
    * Resume worker
    */
-  resume(name: string): void {
+  async resume(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
 
-    if (!instance) {
-      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    if (instance) {
+      instance.worker.resume();
+      instance.status = WorkerCreationStatus.RUNNING;
     }
 
-    instance.worker.resume();
-    instance.status = 'running';
-
-    workerStore
-      .update(name, { status: 'running', updatedAt: new Date() })
-      .catch((error) => Logger.error('Failed to persist worker resume', error));
+    try {
+      await store.update(name, { status: WorkerCreationStatus.RUNNING, updatedAt: new Date() });
+    } catch (error) {
+      Logger.error('Failed to persist worker resume', error as Error);
+    }
 
     Logger.info(`Worker resumed: ${name}`);
   },
@@ -1573,32 +1823,20 @@ export const WorkerFactory = Object.freeze({
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<void> {
     const instance = workers.get(name);
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
+
     if (instance) {
       instance.config.autoStart = autoStart;
     }
 
-    if (persistenceOverride) {
-      const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-      const record = await store.get(name);
-      if (!record) {
-        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
-      }
-      await store.update(name, { autoStart, updatedAt: new Date() });
-    } else {
-      await ensureWorkerStoreConfigured();
-      const record = await workerStore.get(name);
-      if (!record) {
-        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
-      }
-      await workerStore.update(name, { autoStart, updatedAt: new Date() });
-    }
+    await store.update(name, { autoStart, updatedAt: new Date() });
 
     if (!autoStart) return;
 
     const refreshed = workers.get(name);
     if (refreshed) {
       if (refreshed.status !== 'running') {
-        await WorkerFactory.start(name);
+        await WorkerFactory.start(name, persistenceOverride);
       }
       return;
     }
@@ -1607,10 +1845,55 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Update persisted worker record and in-memory config if running.
+   */
+  async update(
+    name: string,
+    patch: Partial<WorkerRecord> | WorkerRecord,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<void> {
+    const instance = workers.get(name);
+    const store = await getStoreForWorker(instance?.config, persistenceOverride);
+
+    const current = await store.get(name);
+    if (!current) {
+      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
+    }
+
+    const merged: WorkerRecord = {
+      ...current,
+      ...(patch as Partial<WorkerRecord>),
+      updatedAt: (patch as Partial<WorkerRecord>).updatedAt ?? new Date(),
+    };
+
+    // Use save() which will insert or update appropriately for each store
+    await store.save(merged);
+
+    // If the worker is running in memory, update its runtime config so restarts use the new config
+    if (instance) {
+      const cfg = instance.config;
+      instance.config = {
+        ...cfg,
+        version: merged.version ?? cfg.version,
+        queueName: merged.queueName ?? cfg.queueName,
+        options: {
+          ...cfg.options,
+          concurrency: merged.concurrency ?? cfg.options?.concurrency,
+        },
+        infrastructure: (merged.infrastructure as unknown) ?? cfg.infrastructure,
+        features: (merged.features as unknown) ?? cfg.features,
+        datacenter: (merged.datacenter as unknown) ?? cfg.datacenter,
+      } as WorkerFactoryConfig;
+    }
+  },
+
+  /**
    * Start worker
    */
-  async start(name: string): Promise<void> {
+  async start(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
+    // Even if instance exists, we must validate against the requested driver
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
 
     if (!instance) {
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
@@ -1619,10 +1902,10 @@ export const WorkerFactory = Object.freeze({
     const version = instance.config.version ?? '1.0.0';
     await WorkerRegistry.start(name, version);
 
-    instance.status = 'running';
+    instance.status = WorkerCreationStatus.RUNNING;
     instance.startedAt = new Date();
 
-    await workerStore.update(name, { status: 'running', updatedAt: new Date() });
+    await store.update(name, { status: WorkerCreationStatus.RUNNING, updatedAt: new Date() });
 
     Logger.info(`Worker started: ${name}`);
   },
@@ -1637,21 +1920,25 @@ export const WorkerFactory = Object.freeze({
   /**
    * List all persisted workers
    */
-  async listPersisted(persistenceOverride?: WorkerPersistenceConfig): Promise<string[]> {
-    const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
+  async listPersisted(
+    persistenceOverride?: WorkerPersistenceConfig,
+    options?: { offset?: number; limit?: number; search?: string }
+  ): Promise<string[]> {
+    const records = await WorkerFactory.listPersistedRecords(persistenceOverride, options);
     return records.map((record) => record.name);
   },
 
   async listPersistedRecords(
-    persistenceOverride?: WorkerPersistenceConfig
+    persistenceOverride?: WorkerPersistenceConfig,
+    options?: { offset?: number; limit?: number; search?: string }
   ): Promise<WorkerRecord[]> {
     if (!persistenceOverride) {
       await ensureWorkerStoreConfigured();
-      return workerStore.list();
+      return workerStore.list(options);
     }
 
     const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-    return store.list();
+    return store.list(options);
   },
 
   /**
@@ -1688,7 +1975,7 @@ export const WorkerFactory = Object.freeze({
       version: record.version ?? undefined,
       processor,
       processorPath: record.processorPath ?? undefined,
-      autoStart: true,
+      autoStart: true, // Override to true when manually starting
       options: { concurrency: record.concurrency } as WorkerOptions,
       infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],
       features: record.features as WorkerFactoryConfig['features'],
@@ -1703,12 +1990,8 @@ export const WorkerFactory = Object.freeze({
     name: string,
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<WorkerRecord | null> {
-    if (!persistenceOverride) {
-      await ensureWorkerStoreConfigured();
-      return workerStore.get(name);
-    }
-
-    const store = await resolveWorkerStoreForPersistence(persistenceOverride);
+    const instance = workers.get(name);
+    const store = await getStoreForWorker(instance?.config, persistenceOverride);
     return store.get(name);
   },
 
@@ -1717,9 +2000,11 @@ export const WorkerFactory = Object.freeze({
    */
   async remove(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
     const instance = workers.get(name);
+    // Validate that worker exists in the store we are trying to remove from
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
 
     if (instance) {
-      await WorkerFactory.stop(name);
+      await WorkerFactory.stop(name, persistenceOverride);
       const registry = WorkerRegistry as { unregister?: (name: string) => void };
       registry.unregister?.(name);
       AutoScaler.clearHistory(name);
@@ -1729,25 +2014,13 @@ export const WorkerFactory = Object.freeze({
       WorkerVersioning.clear(name);
       DatacenterOrchestrator.removeWorker(name);
       await Observability.clearWorkerMetrics(name);
+
+      // Stop health monitoring for this worker
+      HealthMonitor.unregister(name);
+
       workers.delete(name);
     }
 
-    if (!persistenceOverride) {
-      await ensureWorkerStoreConfigured();
-      const persisted = await workerStore.get(name);
-      if (!instance && !persisted) {
-        throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
-      }
-      await workerStore.remove(name);
-      Logger.info(`Worker removed: ${name}`);
-      return;
-    }
-
-    const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-    const persisted = await store.get(name);
-    if (!instance && !persisted) {
-      throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
-    }
     await store.remove(name);
     Logger.info(`Worker removed: ${name}`);
   },

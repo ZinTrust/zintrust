@@ -23,7 +23,7 @@ describe('Mail external drivers', () => {
       const handler = vi.fn(async () => ({ ok: true, messageId: 'nm-1' }));
       MailDriverRegistry.register('nodemailer', handler);
 
-      const { Mail } = await import('@tools/mail/Mail');
+      const { Mail } = await import('@tools/mail');
 
       const res = await Mail.send({ to: 'a@b.com', subject: 's', text: 't' });
       expect(res.ok).toBe(true);

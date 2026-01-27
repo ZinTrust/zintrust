@@ -10,6 +10,7 @@ Enterprise-grade worker management system for ZinTrust Framework with comprehens
 - [CLI Quick List](#cli-quick-list)
 - [Core Concepts](#core-concepts)
 - [Configuration](#configuration)
+- [Worker Auto-Start Configuration](#worker-auto-start-configuration)
 - [CLI Commands](#cli-commands)
 - [HTTP API](#http-api)
 - [Features](#features)
@@ -64,8 +65,10 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_ENABLED               | Default worker enabled flag     | true      |
 | WORKER_CONCURRENCY           | Default concurrency             | 5         |
 | WORKER_TIMEOUT               | Job timeout (seconds)           | 60        |
+| WORKER_CONNECTION_TIMEOUT    | Worker connection timeout (ms)  | 5000      |
 | WORKER_RETRIES               | Retry attempts                  | 3         |
 | WORKER_AUTO_START            | Auto-start worker               | false     |
+| WORKER_RESOURCE_MONITORING   | Global resource monitoring gate | true      |
 | WORKER_PRIORITY              | Default priority                | 1         |
 | WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds) | 60        |
 | WORKER_CLUSTER_MODE          | Enable cluster mode             | true      |
@@ -105,14 +108,9 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_DATADOG_ENABLED        | Enable Datadog            | false                 |
 | WORKER_DATADOG_API_KEY        | Datadog API key           | (empty)               |
 
-**Redis (Metrics/DLQ/Queues/Persistence when using Redis)**
+**Redis Configuration**
 
-| Key            | Description          | Default   |
-| -------------- | -------------------- | --------- |
-| REDIS_HOST     | Redis host           | localhost |
-| REDIS_PORT     | Redis port           | 6379      |
-| REDIS_PASSWORD | Redis password       | (empty)   |
-| REDIS_DB       | Redis database index | 0         |
+Redis configuration is now managed through the queue configuration system. See `config/queue.ts` for Redis driver settings including host, port, password, and database configuration.
 
 **Persistence**
 
@@ -136,10 +134,10 @@ These environment variables control worker behavior. Set only what you need.
 ```bash
 # Worker lifecycle
 zin worker:list
-zin worker:status &lt;name&gt;
-zin worker:start &lt;name&gt;
-zin worker:stop &lt;name&gt;
-zin worker:restart &lt;name&gt;
+zin worker:status my-worker
+zin worker:start my-worker
+zin worker:stop my-worker
+zin worker:restart my-worker
 zin worker:summary
 
 # Resource monitoring
@@ -185,7 +183,241 @@ export async function initializeWorkers() {
 
 **Auto-start behavior**
 
-Workers start automatically when you call `WorkerFactory.create()` if `autoStart` (or `WORKER_AUTO_START`) is true. Set `autoStart: false` to register a worker without starting it, then use the CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
+Workers start automatically when you call `WorkerFactory.create()` based on the following logic:
+
+| Worker Config `autoStart` | `WORKER_AUTO_START` | Result                                                     |
+| ------------------------- | ------------------- | ---------------------------------------------------------- |
+| `true`                    | `true`              | **Starts** (both true)                                     |
+| `false`                   | `false`             | **Doesn't start** (both false)                             |
+| `true`                    | `false`             | **Doesn't start** (global override)                        |
+| `false`                   | `true`              | **Doesn't start** (worker config)                          |
+| `null`                    | `true`              | **Starts** (uses global setting)                           |
+| `null`                    | `false`             | **Doesn't start** (both false)                             |
+| `undefined`               | `true`              | **Starts** (uses global setting)                           |
+| `undefined`               | `false`             | **Doesn't start** (uses global setting)                    |
+| `undefined`               | `null`              | **Doesn't start** (uses global setting, defaults to false) |
+
+**Key Rules:**
+
+1. **`WORKER_AUTO_START` acts as a global kill switch** - when `false`, NO workers auto-start regardless of their individual config
+2. If `WORKER_AUTO_START` is `true`, then individual worker `autoStart` settings are respected:
+   - `autoStart: true` → Worker starts
+   - `autoStart: false` → Worker doesn't start
+   - `autoStart: null`/`undefined` → Worker starts (uses global setting)
+3. `WORKER_AUTO_START` defaults to `false` if not set
+4. `autoStart: null` and `autoStart: undefined` both behave the same - they use the global `WORKER_AUTO_START` setting
+
+Set `autoStart: false` to register a worker without starting it, then use CLI or HTTP start endpoints (`worker:start` or `POST /api/workers/:name/start`) when you are ready.
+
+## Worker Auto-Start Configuration
+
+### Overview
+
+Worker auto-start functionality in ZinTrust is designed to provide controlled initialization of workers based on persistence driver compatibility. This is a security and resource management feature to prevent uncontrolled worker initialization.
+
+### Auto-Start Behavior
+
+Only workers that use the **WORKER_PERSISTENCE_DRIVER** are eligible for automatic startup when auto-start is enabled. Workers with different persistence drivers must be started manually.
+
+```bash
+# Environment configuration
+WORKER_PERSISTENCE_DRIVER=redis  # or mongodb, memory, etc.
+WORKER_AUTO_START=true           # Enable auto-start for persistence driver workers
+```
+
+### Supported Persistence Drivers
+
+The following persistence drivers support auto-start:
+
+- **Redis** (`redis`) - Workers using Redis backend
+- **MongoDB** (`mongodb`) - Workers using MongoDB backend
+- **Memory** (`memory`) - Workers using in-memory backend
+- **Cloudflare D1** (`cloudflare-d1`) - Workers using Cloudflare D1 backend
+
+### Workers Requiring Manual Start
+
+Workers that use **different persistence drivers** than `WORKER_PERSISTENCE_DRIVER` must be started manually:
+
+- **Via API:** `POST /api/workers/{workerName}/start`
+- **Via CLI:** `zin worker:start {workerName}`
+
+### Resource Monitoring Environment Gate
+
+Resource monitoring is controlled by both a global environment variable and worker-level settings:
+
+```bash
+# Global environment gate
+WORKER_RESOURCE_MONITORING=true    # Default: true
+```
+
+#### Logic Flow:
+
+1. **Environment Gate Check:** If `WORKER_RESOURCE_MONITORING=false`, resource monitoring is **completely disabled**
+2. **Worker-Level Check:** If environment allows, checks if any worker has `"resourceMonitoring": true`
+3. **Startup Decision:** Resource monitor starts only if **both conditions are met**
+
+#### Scenarios:
+
+| WORKER_RESOURCE_MONITORING | Worker resourceMonitoring | Result                       |
+| -------------------------- | ------------------------- | ---------------------------- |
+| `true` (default)           | `true`                    | ✅ Starts                    |
+| `true` (default)           | `false`                   | ⏸️ Doesn't start             |
+| `false`                    | `true`                    | ❌ Blocked by env            |
+| `false`                    | `false`                   | ❌ Blocked by env            |
+| `unset`                    | `true`                    | ✅ Starts (defaults to true) |
+
+#### Example:
+
+```bash
+# Environment
+WORKER_RESOURCE_MONITORING=true
+
+# Worker 1 - Will start monitoring
+{
+  "name": "monitoring-worker",
+  "features": {
+    "resourceMonitoring": true
+  }
+}
+
+# Worker 2 - Won't affect monitoring
+{
+  "name": "quiet-worker",
+  "features": {
+    "resourceMonitoring": false
+  }
+}
+
+# Result: Resource monitoring starts (Worker 1 requested it)
+```
+
+### Configuration Examples
+
+#### Redis Auto-Start Example
+
+```bash
+# .env configuration
+WORKER_PERSISTENCE_DRIVER=redis
+WORKER_AUTO_START=true
+
+# Workers with Redis persistence will auto-start:
+# - example-test-redis6 (persistence: { driver: "redis" })
+# - email-queue-worker (persistence: { driver: "redis" })
+
+# Workers with other persistence need manual start:
+# - mysql-worker (persistence: { driver: "mysql" }) → Manual start required
+# - postgres-worker (persistence: { driver: "postgres" }) → Manual start required
+```
+
+#### MongoDB Auto-Start Example
+
+```bash
+# .env configuration
+WORKER_PERSISTENCE_DRIVER=mongodb
+WORKER_AUTO_START=true
+
+# Workers with MongoDB persistence will auto-start:
+# - analytics-worker (persistence: { driver: "mongodb" })
+# - report-generator (persistence: { driver: "mongodb" })
+
+# Workers with other persistence need manual start:
+# - redis-worker (persistence: { driver: "redis" }) → Manual start required
+# - memory-worker (persistence: { driver: "memory" }) → Manual start required
+```
+
+### Worker Configuration Format
+
+#### Auto-Start Eligible Worker
+
+```json
+{
+  "name": "example-test-redis6",
+  "persistence": {
+    "driver": "redis" // Uses queueConfig.drivers.redis from config/queue.ts
+  },
+  "autoStart": true // Optional: explicit auto-start flag
+}
+```
+
+#### Manual Start Required Worker
+
+```json
+{
+  "name": "mysql-worker",
+  "persistence": {
+    "driver": "mysql" // Different from WORKER_PERSISTENCE_DRIVER
+  },
+  "autoStart": false // Explicitly disabled
+}
+```
+
+### Manual Worker Control
+
+#### API Endpoints
+
+```bash
+# Start a worker manually
+POST /api/workers/{workerName}/start
+
+# Stop a worker
+POST /api/workers/{workerName}/stop
+
+# Check worker status
+GET /api/workers/{workerName}/status
+
+# List all workers
+GET /api/workers
+```
+
+#### CLI Commands
+
+```bash
+# Start a worker manually
+zin worker:start {workerName}
+
+# Stop a worker
+zin worker:stop {workerName}
+
+# List workers
+zin worker:list
+
+# Show worker details
+zin worker:show {workerName}
+```
+
+### Security Considerations
+
+1. **Resource Control:** Auto-start is limited to one persistence driver to prevent resource exhaustion
+2. **Explicit Control:** Non-standard persistence drivers require explicit manual start
+3. **Configuration Validation:** Workers are validated before auto-start
+4. **Error Handling:** Failed auto-starts are logged but don't block other workers
+
+### Troubleshooting
+
+#### Worker Not Auto-Starting
+
+Check the following:
+
+1. `WORKER_AUTO_START=true` is set in environment
+2. Worker's `persistence.driver` matches `WORKER_PERSISTENCE_DRIVER`
+3. Worker configuration is valid
+4. Persistence backend is accessible
+
+#### Manual Start Failing
+
+Check:
+
+1. Worker exists in registry
+2. Persistence backend is available
+3. Required environment variables are set
+4. Worker configuration is correct
+
+### Best Practices
+
+1. **Use Consistent Persistence:** Keep most workers on the same persistence driver for easier management
+2. **Explicit Configuration:** Always specify `persistence.driver` in worker configs
+3. **Monitor Auto-Start:** Check logs for auto-start failures
+4. **Resource Planning:** Consider resource needs when enabling auto-start
 
 **Processor registration (start from persistence)**
 
@@ -244,18 +476,18 @@ zintrust worker:summary
 
 ```bash
 # Create a worker
-curl -X POST http://localhost:3000/api/workers \\
+curl -X POST http://localhost:7777/api/workers \\
   -H "Content-Type: application/json" \\
   -d '{"name": "email-sender", "queueName": "emails", "concurrency": 5}'
 
 # Start a worker
-curl -X POST http://localhost:3000/api/workers/email-sender/start
+curl -X POST http://localhost:7777/api/workers/email-sender/start
 
 # Get worker status
-curl http://localhost:3000/api/workers/email-sender/status
+curl http://localhost:7777/api/workers/email-sender/status
 
 # Get health metrics
-curl http://localhost:3000/api/workers/email-sender/health
+curl http://localhost:7777/api/workers/email-sender/health
 ```
 
 ## Core Concepts
@@ -288,24 +520,51 @@ Queues store jobs and provide them to workers:
 
 ## Configuration
 
-### Core Config (`src/config/workers.ts`)
+### Queue Configuration (`config/queue.ts`)
 
-Type definitions and interfaces for worker configuration.
+Redis and other queue driver configurations are now managed through the queue configuration system:
+
+```typescript
+import { type QueueConfigWithDrivers } from '@config/type';
+
+export const queueConfig: QueueConfigWithDrivers = {
+  default: 'redis',
+  drivers: {
+    redis: {
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: Number(process.env.REDIS_PORT) || 6379,
+      password: process.env.REDIS_PASSWORD,
+      db: Number(process.env.REDIS_DB) || 0,
+      // Additional Redis options
+      maxRetriesPerRequest: 3,
+      retryDelayOnFailover: 100,
+      lazyConnect: true,
+    },
+    // Other drivers can be configured here
+    memory: {},
+    mongodb: {
+      url: process.env.MONGODB_URL,
+      dbName: 'zintrust_workers',
+    },
+  },
+  // Queue processing settings
+  processing: {
+    timeout: 60,
+    retries: 3,
+    backoff: 2000,
+    workers: 5,
+  },
+};
+```
 
 ### Developer Config (`config/workers.ts`)
 
-Runtime configuration for your workers:
+Runtime configuration for your workers (Redis config removed - use queue config):
 
 ```typescript
 import { type IWorkerConfig } from '@config/workers';
 
 export const workerConfig: IWorkerConfig = {
-  redis: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD,
-    db: Number(process.env.REDIS_DB) || 0,
-  },
   workers: {
     'email-sender': {
       queueName: 'emails',
@@ -426,7 +685,7 @@ await WorkerFactory.create({
 - `client`: The connected `IDatabase` instance to use for `db` persistence. If omitted, the worker system will try to resolve a registered connection using `WORKER_PERSISTENCE_DB_CONNECTION`.
 - `connection`: Optional name of a registered database connection (for example `default`). Used only when `client` is not supplied. Connection names come from the keys in `config/database.ts` (for example `sqlite`, `mysql`, `postgresql`, `sqlserver`, `d1`, `d1-remote`) and any custom keys you define.
 - `table`: DB table used to store worker records (defaults to `zintrust_workers`).
-- `redis`: Optional Redis config for the persistence store when `driver=redis`. Use `{ env: true }` to read `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `REDIS_DB`.
+- `redis`: Redis configuration for persistence when `driver=redis`. Uses `queueConfig.drivers.redis` from `config/queue.ts`. See the Queue Configuration section for Redis settings.
 - `keyPrefix`: Redis hash key prefix for persisted worker records. Defaults to `APP_NAME` with spaces replaced by `_` when `WORKER_PERSISTENCE_REDIS_KEY_PREFIX` is not set.
 
 ## CLI Commands
@@ -451,7 +710,7 @@ Output:
 └──────────────┴──────────┴─────────┴───────────┴─────────────┘
 ```
 
-### worker:status &lt;name&gt;
+### worker:status my-worker
 
 Get detailed status for a specific worker:
 
@@ -477,7 +736,7 @@ Metrics:
   Avg Duration:    1.2s
 ```
 
-### worker:start &lt;name&gt;
+### worker:start my-worker
 
 Start a stopped worker:
 
@@ -485,7 +744,7 @@ Start a stopped worker:
 zintrust worker:start email-sender
 ```
 
-### worker:stop &lt;name&gt;
+### worker:stop my-worker
 
 Stop a running worker gracefully:
 
@@ -493,7 +752,7 @@ Stop a running worker gracefully:
 zintrust worker:stop email-sender
 ```
 
-### worker:restart &lt;name&gt;
+### worker:restart my-worker
 
 Restart a worker:
 
@@ -528,6 +787,18 @@ Costs (24h):
   Total:     $13.34
 ```
 
+### queue:prune
+
+Prune failed job records from the database. This is essential for maintaining database performance when using DB persistence or failed job logging.
+
+```bash
+# Prune jobs older than 7 days (default)
+zin queue prune
+
+# Prune jobs older than 24 hours
+zin queue prune --hours 24
+```
+
 ### resource:monitor (rm)
 
 Control resource monitoring to start or stop CPU/memory snapshots:
@@ -550,9 +821,9 @@ zin rm stop --host 192.168.1.100
 
 **Options:**
 
-- `&lt;action&gt;` - Required: `start` or `stop`
-- `--port &lt;port&gt;` - Worker service port (default: 7777)
-- `--host &lt;host&gt;` - Worker service host (default: 127.0.0.1)
+- `<action>` - Required: `start` or `stop`
+- `--port <port>` - Worker service port (default: 7777)
+- `--host <host>` - Worker service host (default: 127.0.0.1)
 
 **Examples:**
 
@@ -827,9 +1098,58 @@ Health monitoring includes:
 - Health score calculation (0-100)
 - Failure detection and alerting
 - Historical health tracking
-- Auto-recovery on failures
 
-### 2. Auto-Scaling
+### 2. Worker Failure Behavior
+
+**Workers do NOT automatically restart themselves when they crash or hang.** The system provides:
+
+✅ **Failure Detection**: Health monitoring detects failures through periodic health checks
+✅ **Status Tracking**: Failed workers are marked as `FAILED` and remain visible for debugging
+✅ **Manual Recovery**: Restart APIs and dashboard controls for manual intervention
+✅ **Boot Recovery**: Auto-start on application restart for workers with `autoStart: true`
+❌ **No Auto-Restart**: No automatic restart during runtime to prevent cascade failures
+
+This design prioritizes **stability and observability** over automatic recovery, requiring manual intervention for failed workers.
+
+#### What Happens When Workers Fail:
+
+1. **Detection**: HealthMonitor detects consecutive failures (default threshold: 2)
+2. **Status Change**: Worker status changes from `RUNNING` to `FAILED`
+3. **Logging**: Detailed error information is logged for debugging
+4. **No Restart**: Worker remains stopped until manual restart or application reboot
+
+#### Recovery Options:
+
+```bash
+# Manual restart via CLI
+zin worker:restart my-worker
+
+# Manual restart via HTTP API
+POST /api/workers/my-worker/restart
+
+# Dashboard restart
+# Use the worker dashboard UI restart button
+```
+
+#### Custom Auto-Restart Implementation:
+
+```typescript
+// Example: Implement custom auto-restart with health monitoring
+HealthMonitor.startMonitoring('my-worker', {
+  criticalCallback: async (name: string, result: HealthCheckResult) => {
+    Logger.warn(`Worker ${name} failed, attempting restart...`);
+    try {
+      await WorkerFactory.restart(name);
+      Logger.info(`Worker ${name} restarted successfully`);
+    } catch (error) {
+      Logger.error(`Failed to restart worker ${name}`, error);
+      // Implement escalation logic here
+    }
+  },
+});
+```
+
+### 3. Auto-Scaling
 
 Automatic scaling based on queue depth and resources:
 
@@ -1089,7 +1409,7 @@ $ zin rm pause
 #### Related Commands
 
 - `zin worker:list` - List all workers
-- `zin worker:status &lt;name&gt;` - Check worker health
+- `zin worker:status my-worker` - Check worker health
 - `zin start --verbose` - Start with verbose logging
 - `zin logs` - View application logs
 
@@ -1278,6 +1598,88 @@ Plugin hooks:
 - onHealthCheck
 - onScale, onFailover
 - And more...
+
+### 6. Security & Validation
+
+Comprehensive input validation and security middleware for all worker API endpoints:
+
+#### **Security Features Implemented:**
+
+**Input Sanitization:**
+✅ **Worker Names**: `^[a-zA-Z0-9_-]{3,50}$` pattern with sanitization
+✅ **Queue Names**: Same pattern as worker names
+✅ **Versions**: Semantic versioning `^\d+\.\d+\.\d+$`
+✅ **Processor Paths**: File extension validation + path traversal prevention
+✅ **Infrastructure**: Driver validation, persistence config validation
+✅ **Features**: Boolean-only validation with allowed feature list
+✅ **Datacenter**: Region format validation, topology validation
+
+**Error Handling:**
+✅ **Standardized Error Codes**: `INVALID_WORKER_NAME`, `MISSING_REQUIRED_FIELD`, etc.
+✅ **Detailed Error Messages**: Clear validation feedback
+✅ **Type Safety**: Full TypeScript support with proper typing
+✅ **Consistent Response Format**: Standardized JSON error responses
+
+**Middleware Architecture:**
+✅ **Composable**: Chain multiple validators together
+✅ **Reusable**: Individual validators can be used independently
+✅ **Extensible**: Custom validation schemas for any use case
+✅ **Performance**: Efficient validation with early returns
+
+#### **Validation Examples:**
+
+**Worker Creation with Full Validation:**
+
+```typescript
+POST /api/workers/create
+{
+  "name": "email-worker",
+  "queueName": "emails",
+  "version": "1.0.0",
+  "processor": "./processors/EmailProcessor.ts",
+  "infrastructure": {
+    "driver": "redis",
+    "persistence": { "driver": "db" }
+  },
+  "features": {
+    "observability": true,
+    "healthMonitoring": true
+  }
+}
+```
+
+**Custom Validation Schema:**
+
+```typescript
+const schema = {
+  page: { type: 'number', min: 1, default: 1 },
+  limit: { type: 'number', min: 1, max: 100 },
+  status: { type: 'string', allowedValues: ['active', 'inactive'] },
+};
+
+Router.get(r, '/workers', withCustomValidation(schema, handler));
+```
+
+**Validation Middleware Usage:**
+
+```typescript
+// Individual validators
+Router.post(r, '/create', withCreateWorkerValidation(controller.create));
+Router.post(r, '/:name/start', withWorkerOperationValidation(controller.start));
+
+// Composite validation chains
+Router.get(r, '/', withCustomValidation(ValidationSchemas.workerFilter, handler));
+```
+
+**Error Response Format:**
+
+```json
+{
+  "error": "Invalid worker name",
+  "message": "Worker name must be 3-50 characters long and contain only letters, numbers, hyphens, and underscores",
+  "code": "INVALID_WORKER_NAME"
+}
+```
 
 ## Architecture
 
@@ -1474,6 +1876,73 @@ if (status.health > 95) {
 ```
 
 ## Troubleshooting
+
+### Worker Crashed or Hung - Not Auto-Restarting
+
+**Symptoms**: Worker status shows "FAILED" and doesn't restart automatically
+
+**Expected Behavior**: This is normal. Workers do NOT automatically restart themselves when they crash or hang.
+
+**Why This Happens**: The system prioritizes stability and observability over automatic recovery to prevent cascade failures.
+
+**Solutions**:
+
+1. **Manual Restart**:
+
+   ```bash
+   # CLI
+   zin worker:restart my-worker
+
+   # HTTP API
+   POST /api/workers/my-worker/restart
+
+   # Dashboard
+   # Click restart button in worker UI
+   ```
+
+2. **Check Health Status**:
+
+   ```bash
+   # Check worker health
+   zin worker:status my-worker
+
+   # View health history
+   curl "http://localhost:7777/api/workers/my-worker/monitoring/history"
+   ```
+
+3. **Investigate Failure**:
+
+   ```bash
+   # Check logs for error details
+   tail -f storage/logs/zintrust.log | grep "my-worker"
+
+   # View worker metrics
+   curl "http://localhost:7777/api/workers/my-worker/metrics"
+   ```
+
+4. **Implement Custom Auto-Restart** (if needed):
+
+   ```typescript
+   // Add to your worker initialization
+   HealthMonitor.startMonitoring('my-worker', {
+     criticalCallback: async (name: string, result: HealthCheckResult) => {
+       Logger.warn(`Worker ${name} failed, attempting restart...`);
+       try {
+         await WorkerFactory.restart(name);
+         Logger.info(`Worker ${name} restarted successfully`);
+       } catch (error) {
+         Logger.error(`Failed to restart worker ${name}`, error);
+         // Implement escalation logic (alerts, notifications, etc.)
+       }
+     },
+   });
+   ```
+
+5. **Use External Process Managers** (for production):
+   - **PM2**: Configure auto-restart policies
+   - **Docker**: Set restart policies (`--restart=unless-stopped`)
+   - **Kubernetes**: Configure liveness probes and restart policies
+   - **Systemd**: Set service restart on failure
 
 ### Worker Not Starting
 

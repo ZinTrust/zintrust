@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock('@http/ValidationHelper', () => ({ getValidatedBody: vi.fn() }));
-vi.mock('@features/Auth', () => ({ Auth: { hash: vi.fn(), compare: vi.fn() } }));
+vi.mock('@auth/Auth', () => ({ Auth: { hash: vi.fn(), compare: vi.fn() } }));
 vi.mock('@security/JwtManager', () => ({ JwtManager: { signAccessToken: vi.fn() } }));
 vi.mock('@security/TokenRevocation', () => ({ TokenRevocation: { revoke: vi.fn() } }));
 vi.mock('@app/Models/User', () => ({ User: { where: vi.fn(), query: vi.fn() } }));
@@ -58,13 +58,13 @@ describe('patch coverage: AuthController (new file)', () => {
   it('register: returns 201 on success', async () => {
     const { getValidatedBody } = await import('@http/ValidationHelper');
     const { User } = await import('@app/Models/User');
-    const { Auth } = await import('@features/Auth');
+    const { Auth } = await import('@auth/Auth');
 
     vi.mocked(getValidatedBody as any).mockReturnValue({ name: 'n', email: 'e', password: 'p' });
     vi.mocked(User.where as any).mockImplementation(() => ({
       limit: () => ({ first: async () => null }),
     }));
-    vi.mocked(Auth.hash as any).mockResolvedValue('h');
+    vi.mocked(Auth.hash).mockResolvedValue('h');
     vi.mocked(User.query as any).mockReturnValue({ insert: async () => ({ id: 42 }) });
 
     const { req, res } = makeReqRes();
@@ -78,7 +78,7 @@ describe('patch coverage: AuthController (new file)', () => {
   it('login: handles non-string/number user ids (subject undefined)', async () => {
     const { getValidatedBody } = await import('@http/ValidationHelper');
     const { User } = await import('@app/Models/User');
-    const { Auth } = await import('@features/Auth');
+    const { Auth } = await import('@auth/Auth');
     const { JwtManager } = await import('@security/JwtManager');
 
     vi.mocked(getValidatedBody as any).mockReturnValue({ email: 'a@b.com', password: 'pw' });

@@ -1,8 +1,8 @@
 import type { QueueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { DatabaseQueue } from '@tools/queue/drivers/Database';
 
 import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
-import { RedisQueue } from '@tools/queue/drivers/Redis';
 import { Queue } from '@tools/queue/Queue';
 
 /**
@@ -16,10 +16,9 @@ import { Queue } from '@tools/queue/Queue';
 export function registerQueuesFromRuntimeConfig(config: QueueConfig): void {
   // Built-in drivers (core)
   Queue.register('inmemory', InMemoryQueue);
+  Queue.register('db', DatabaseQueue);
   // Project templates use QUEUE_DRIVER=sync; treat this as an alias of in-memory.
   Queue.register('sync', InMemoryQueue);
-  Queue.register('redis', RedisQueue);
-
   const defaultName = (config.default ?? '').toString().trim().toLowerCase();
   if (defaultName.length === 0) {
     throw ErrorFactory.createConfigError('Queue default driver is not configured');

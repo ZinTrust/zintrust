@@ -40,7 +40,7 @@ describe('PluginManager postInstall', () => {
       aliases: [],
       dependencies: [],
       devDependencies: [],
-      templates: [{ source: 'features/Auth.ts.tpl', destination: 'src/features/Auth.ts' }],
+      templates: [{ source: 'auth/Auth.ts.tpl', destination: 'src/auth/Auth.ts' }],
       postInstall: { command: 'echo hello' },
     } as any;
 
@@ -61,7 +61,7 @@ describe('PluginManager postInstall', () => {
       aliases: [],
       dependencies: [],
       devDependencies: [],
-      templates: [{ source: 'features/Auth.ts.tpl', destination: 'src/features/Auth.ts' }],
+      templates: [{ source: 'auth/Auth.ts.tpl', destination: 'src/auth/Auth.ts' }],
       postInstall: { command: 'echo hello' },
     } as any;
 
