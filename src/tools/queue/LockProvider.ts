@@ -200,8 +200,8 @@ export function createRedisLockProvider(config: LockProviderConfig): LockProvide
  */
 function globToRegExp(pattern: string): RegExp {
   // Escape all regex metacharacters, then turn '*' into '.*' as a wildcard
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regexSource = escaped.replace(/\\\*/g, '.*');
+  const escaped = pattern.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const regexSource = escaped.replaceAll(String.raw`\*`, '.*');
   return new RegExp(`^${regexSource}$`);
 }
 
