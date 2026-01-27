@@ -17,6 +17,6 @@
       "@zintrust/queue-redis": ["../queue-redis/dist/index.d.ts"]
     }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist", "tests"]
 }

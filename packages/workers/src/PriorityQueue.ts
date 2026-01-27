@@ -58,7 +58,7 @@ const PRIORITY_VALUES: Record<PriorityLevel, number> = {
  * Helper: Get or create queue via shared driver
  */
 const getQueue = (queueName: string): Queue => {
-  return BullMQRedisQueue.getQueue(queueName);
+  return BullMQRedisQueue.getQueue(queueName) as Queue;
 };
 
 /**
