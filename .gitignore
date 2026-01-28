@@ -89,3 +89,4 @@ tests/unit/routes/mail.coverage.test.ts
 app/Workers/AdvancEmailWorker.ts
 app/Jobs/AdvancedEmailJobService.ts
 tests/unit/Jobs/AdvancedEmailJobService.test.ts
+tests/unit/EmailJobService.test.ts
