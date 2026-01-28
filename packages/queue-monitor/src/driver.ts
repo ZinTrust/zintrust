@@ -1,5 +1,6 @@
 import { ErrorFactory, getBullMQSafeQueueName } from '@zintrust/core';
-import { Queue, type Job, type JobsOptions } from 'bullmq';
+import type { ConnectionOptions, Job, JobsOptions } from 'bullmq';
+import { Queue } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 
 export type JobPayload<T = unknown> = T;
@@ -69,7 +70,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     if (!queues.has(name)) {
       const prefix = getBullMQSafeQueueName();
       const connection = createRedisConnection(config);
-      const queue = new Queue(name, { prefix, connection: connection });
+      const queue = new Queue(name, { prefix, connection: connection as ConnectionOptions });
       queues.set(name, queue);
     }
     const queue = queues.get(name);

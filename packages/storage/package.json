@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage",
-  "version": "0.1.19",
+  "version": "0.1.27",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "file:../../dist"
+    "@zintrust/core": "^0.1.27"
   },
   "dependencies": {
     "busboy": "^1.6.0"

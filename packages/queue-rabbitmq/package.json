@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/queue-rabbitmq",
-  "version": "0.1.15",
+  "version": "0.1.27",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -25,7 +25,7 @@
     "amqplib": "^0.10.3"
   },
   "peerDependencies": {
-    "@zintrust/core": "file:../../dist"
+    "@zintrust/core": "^0.1.27"
   },
   "publishConfig": {
     "access": "public"

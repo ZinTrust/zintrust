@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/cloudflare-d1-proxy",
-  "version": "0.1.15",
+  "version": "0.1.27",
   "type": "module",
   "private": true,
   "exports": {
@@ -16,7 +16,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "file:../../dist"
+    "@zintrust/core": "^0.1.27"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
