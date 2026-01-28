@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('OpenTelemetry patch coverage', () => {
+  afterEach(() => {
+    delete (globalThis as unknown as { __zintrustOpenTelemetryApi?: unknown })
+      .__zintrustOpenTelemetryApi;
+  });
+
   it('extracts header values, starts/ends spans, and injects trace headers (best-effort)', async () => {
     vi.resetModules();
 
@@ -34,31 +39,31 @@ describe('OpenTelemetry patch coverage', () => {
       },
     }));
 
-    vi.doMock('@opentelemetry/api', () => {
-      return {
-        SpanKind: { SERVER: 1, CLIENT: 2 },
-        SpanStatusCode: { OK: 1, ERROR: 2 },
-        context: {
-          active: () => activeCtxWithSpan,
-          with: async (_ctx: any, fn: any) => fn(),
+    const otelMock = {
+      SpanKind: { SERVER: 1, CLIENT: 2 },
+      SpanStatusCode: { OK: 1, ERROR: 2 },
+      context: {
+        active: () => activeCtxWithSpan,
+        with: async (_ctx: any, fn: any) => fn(),
+      },
+      propagation: {
+        extract: (_active: any, carrier: any, getter: any) => {
+          const v = getter.get(carrier, 'traceparent');
+          capturedExtractValue.push(v);
+          return { ..._active, extracted: v };
         },
-        propagation: {
-          extract: (_active: any, carrier: any, getter: any) => {
-            const v = getter.get(carrier, 'traceparent');
-            capturedExtractValue.push(v);
-            return { ..._active, extracted: v };
-          },
-          inject: (_ctx: any, headers: any) => {
-            headers.traceparent = '00-abc-123-01';
-          },
+        inject: (_ctx: any, headers: any) => {
+          headers.traceparent = '00-abc-123-01';
         },
-        trace: {
-          getTracer: () => tracer,
-          setSpan: (parent: any, _span: any) => ({ ...parent, __spanSet: true }),
-          getSpan: (ctx: any) => (ctx && ctx.__hasSpan ? ({ ok: true } as any) : null),
-        },
-      };
-    });
+      },
+      trace: {
+        getTracer: () => tracer,
+        setSpan: (parent: any, _span: any) => ({ ...parent, __spanSet: true }),
+        getSpan: (ctx: any) => (ctx && ctx.__hasSpan ? ({ ok: true } as any) : null),
+      },
+    };
+    (globalThis as unknown as { __zintrustOpenTelemetryApi?: unknown }).__zintrustOpenTelemetryApi =
+      otelMock as unknown;
 
     const { OpenTelemetry } = await import('@/observability/OpenTelemetry');
 
@@ -125,8 +130,8 @@ describe('OpenTelemetry patch coverage', () => {
       },
     }));
 
-    vi.doMock('@opentelemetry/api', () => {
-      return {
+    (globalThis as unknown as { __zintrustOpenTelemetryApi?: unknown }).__zintrustOpenTelemetryApi =
+      {
         SpanKind: { SERVER: 1, CLIENT: 2 },
         SpanStatusCode: { OK: 1, ERROR: 2 },
         context: {
@@ -142,8 +147,7 @@ describe('OpenTelemetry patch coverage', () => {
           setSpan: (parent: any) => parent,
           getSpan: () => null,
         },
-      };
-    });
+      } as unknown;
 
     const { OpenTelemetry } = await import('@/observability/OpenTelemetry');
 
@@ -171,8 +175,8 @@ describe('OpenTelemetry patch coverage', () => {
       },
     }));
 
-    vi.doMock('@opentelemetry/api', () => {
-      return {
+    (globalThis as unknown as { __zintrustOpenTelemetryApi?: unknown }).__zintrustOpenTelemetryApi =
+      {
         SpanKind: { SERVER: 1, CLIENT: 2 },
         SpanStatusCode: { OK: 1, ERROR: 2 },
         context: {
@@ -190,8 +194,7 @@ describe('OpenTelemetry patch coverage', () => {
           setSpan: (parent: any) => parent,
           getSpan: () => null,
         },
-      };
-    });
+      } as unknown;
 
     const { OpenTelemetry } = await import('@/observability/OpenTelemetry');
 

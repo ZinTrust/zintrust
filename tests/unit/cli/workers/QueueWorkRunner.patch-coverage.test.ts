@@ -386,4 +386,54 @@ describe('QueueWorkRunner (patch coverage)', () => {
     const status = await provider.status('job-create-provider');
     expect(status).toBeDefined();
   });
+
+  it('registers memory alias when provider name is not memory', async () => {
+    vi.resetModules();
+
+    const registerSpy = vi.fn();
+
+    vi.doMock('@queue/LockProvider', () => ({
+      createLockProvider: () => ({
+        status: async () => ({ exists: false }),
+        release: async () => {},
+        acquire: async () => ({ key: 'x', ttl: 1, acquired: true, expires: new Date() }),
+        extend: async () => true,
+        list: async () => [],
+      }),
+      getLockProvider: () => undefined,
+      registerLockProvider: registerSpy,
+      clearLockProviders: () => {},
+    }));
+
+    vi.doMock('@queue/Queue', () => ({
+      Queue: queueMock,
+      default: queueMock,
+      resolveLockPrefix: () => 'test:',
+    }));
+
+    process.env['QUEUE_LOCK_PROVIDER'] = 'redis';
+    process.env['QUEUE_LOCK_PREFIX'] = 'test:';
+    process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
+
+    const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
+
+    queueMock.dequeue.mockResolvedValueOnce({
+      id: 'm11',
+      payload: {
+        type: 'broadcast',
+        channel: 'c',
+        event: 'e',
+        data: {},
+        __zintrustQueueMeta: {
+          deduplicationId: 'job-alias',
+          releaseAfter: 'success',
+        },
+      },
+      attempts: 0,
+    });
+
+    await QueueWorkRunner.run({ queueName: 'broadcasts', kind: 'broadcast' });
+
+    expect(registerSpy).toHaveBeenCalledWith('memory', expect.any(Object));
+  });
 });

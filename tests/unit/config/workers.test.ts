@@ -45,9 +45,14 @@ describe('workers config', () => {
   afterEach(() => {
     registryGet.mockReset();
     vi.resetModules();
+    delete (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule;
   });
 
   it('handles redis error handler failures', async () => {
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: MockRedis,
+    };
+
     const { createRedisConnection } = await import('@config/workers');
 
     (Logger.error as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {

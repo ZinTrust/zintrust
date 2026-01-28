@@ -102,4 +102,18 @@ describe('AdvancedEmailJobService', () => {
 
     expect(jobId).toMatch(/^advanced-job-id-\d+$/);
   });
+
+  it('processOne delegates to AdvancEmailQueue', async () => {
+    const ok = await AdvancedEmailJobService.processOne('advanced-queue');
+    expect(ok).toBe(true);
+  });
+
+  it('processAll delegates to AdvancEmailQueue', async () => {
+    const count = await AdvancedEmailJobService.processAll('advanced-queue');
+    expect(count).toBe(5);
+  });
+
+  it('start delegates to AdvancEmailQueue', async () => {
+    await expect(AdvancedEmailJobService.start('advanced-queue')).resolves.toBeUndefined();
+  });
 });

@@ -21,6 +21,12 @@ import type IORedis from 'ioredis';
 let redisModule: typeof import('ioredis') | null | undefined;
 
 const resolveIORedis = (): typeof import('ioredis') => {
+  const injected = (globalThis as unknown as { __zintrustIoredisModule?: unknown })
+    .__zintrustIoredisModule;
+  if (injected !== undefined && injected !== null) {
+    redisModule = injected as typeof import('ioredis');
+  }
+
   if (redisModule !== undefined) {
     if (redisModule === null) {
       throw ErrorFactory.createConfigError(
