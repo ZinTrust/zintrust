@@ -2,7 +2,7 @@ import { ServiceContainer, type IServiceContainer } from '@/container/ServiceCon
 import { Kernel, type IKernel } from '@/http/Kernel';
 import { Request } from '@/http/Request';
 import { Response } from '@/http/Response';
-import { Router, type IRouter } from '@/routes/Router';
+import { Router, type IRouter } from '@core-routes/Router';
 import type * as http from '@node-singletons/http';
 
 export type TestHeaders = Record<string, string>;

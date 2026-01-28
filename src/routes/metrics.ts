@@ -5,8 +5,8 @@
  */
 
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';
-import { type IRouter, Router } from '@/routes/Router';
 import { Env } from '@config/env';
+import { type IRouter, Router } from '@core-routes/Router';
 
 export function registerMetricsRoutes(router: IRouter): void {
   if (Env.getBool('METRICS_ENABLED', false) === false) return;

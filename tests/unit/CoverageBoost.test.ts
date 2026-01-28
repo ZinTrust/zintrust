@@ -1,12 +1,12 @@
 import { CLI } from '@/cli/CLI';
 import { ErrorHandler } from '@/cli/ErrorHandler';
-import { Router } from '@/routes/Router';
 import type { IApplication } from '@boot/Application';
 import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';
+import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import type { IResponse } from '@http/Response';

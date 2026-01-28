@@ -13,13 +13,13 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    vi.doMock('@routing/RouteRegistry', () => ({
+    vi.doMock('@core-routes/RouteRegistry', () => ({
       RouteRegistry: {
         list: () => [{ method: 'GET', path: '/x' }],
       },
     }));
 
-    vi.doMock('@routing/Router', () => ({
+    vi.doMock('@core-routes/Router', () => ({
       Router: {
         get: routerGet,
       },
@@ -38,7 +38,7 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    const { registerOpenApiRoutes } = await import('@routes/openapi');
+    const { registerOpenApiRoutes } = await import('@/routes/openapi');
 
     registerOpenApiRoutes({} as any);
 
@@ -75,13 +75,13 @@ describe('routes/openapi patch coverage', () => {
       OpenApiGenerator: { generate },
     }));
 
-    vi.doMock('@routing/RouteRegistry', () => ({
+    vi.doMock('@core-routes/RouteRegistry', () => ({
       RouteRegistry: {
         list: () => [],
       },
     }));
 
-    vi.doMock('@routing/Router', () => ({
+    vi.doMock('@core-routes/Router', () => ({
       Router: {
         get: routerGet,
       },
@@ -100,7 +100,7 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    const { registerOpenApiRoutes } = await import('@routes/openapi');
+    const { registerOpenApiRoutes } = await import('@/routes/openapi');
 
     registerOpenApiRoutes({} as any);
 
@@ -127,13 +127,13 @@ describe('routes/openapi patch coverage', () => {
       OpenApiGenerator: { generate },
     }));
 
-    vi.doMock('@routing/RouteRegistry', () => ({
+    vi.doMock('@core-routes/RouteRegistry', () => ({
       RouteRegistry: {
         list: () => [],
       },
     }));
 
-    vi.doMock('@routing/Router', () => ({
+    vi.doMock('@core-routes/Router', () => ({
       Router: {
         get: routerGet,
       },
@@ -152,7 +152,7 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    const { registerOpenApiRoutes } = await import('@routes/openapi');
+    const { registerOpenApiRoutes } = await import('@/routes/openapi');
 
     registerOpenApiRoutes({} as any);
 

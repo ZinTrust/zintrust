@@ -1,6 +1,6 @@
 import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
-import { Router } from '@/routes/Router';
-import { RouteRegistry } from '@/routes/RouteRegistry';
+import { Router } from '@core-routes/Router';
+import { RouteRegistry } from '@core-routes/RouteRegistry';
 import { registerRoutes } from '@routes/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -74,6 +74,13 @@ describe('OpenAPI spec snapshot', () => {
       version: '0.0.0',
       excludePaths: ['/openapi.json', '/docs'],
     });
+
+    // Health endpoints moved to core routes; exclude them from this app-level snapshot
+    if (doc.paths) {
+      delete (doc.paths as Record<string, unknown>)['/health'];
+      delete (doc.paths as Record<string, unknown>)['/health/live'];
+      delete (doc.paths as Record<string, unknown>)['/health/ready'];
+    }
 
     expect(JSON.stringify(doc, null, 2)).toMatchSnapshot();
   });

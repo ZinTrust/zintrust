@@ -4,20 +4,20 @@ import * as nodeFs from 'node:fs';
 import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 
-import { Router } from '@/routes/Router';
 import { HTTP_HEADERS } from '@config/constants';
+import { Router } from '@core-routes/Router';
 
 const hoisted = vi.hoisted(() => ({
   publicRoot: '',
   handleNotFound: vi.fn(),
 }));
 
-vi.mock('@routing/publicRoot', () => ({
+vi.mock('@core-routes/publicRoot', () => ({
   getPublicRoot: () => hoisted.publicRoot,
   getPublicRootAsync: async () => hoisted.publicRoot,
 }));
 
-vi.mock('@routing/error', () => ({
+vi.mock('@core-routes/error', () => ({
   ErrorRouting: {
     handleNotFound: hoisted.handleNotFound,
   },
@@ -27,7 +27,7 @@ import {
   registerDocRoutes,
   serveDocumentationFileAsync,
   setDocumentationCSPHeaders,
-} from '@/routes/doc';
+} from '@core-routes/doc';
 
 type TestRes = {
   setStatus: Mock;

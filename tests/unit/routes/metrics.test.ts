@@ -1,6 +1,6 @@
+import { registerMetricsRoutes } from '@/routes/metrics';
 import { Env } from '@config/env';
 import { Router } from '@core-routes/Router';
-import { registerMetricsRoutes } from '@routes/metrics';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
 vi.mock('@config/env', () => ({

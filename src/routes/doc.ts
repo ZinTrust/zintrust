@@ -3,19 +3,19 @@
  * Serves static files from /doc/* paths with relaxed CSP headers.
  */
 
-import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@/routes/common';
-import { ErrorRouting } from '@/routes/error';
-import { getPublicRootAsync } from '@/routes/publicRoot';
-import type { IRouter } from '@/routes/Router';
-import { Router } from '@/routes/Router';
 import { HTTP_HEADERS } from '@config/constants';
+import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@core-routes/common';
+import { ErrorRouting } from '@core-routes/error';
+import { getPublicRootAsync } from '@core-routes/publicRoot';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
-export { MIME_TYPES_MAP } from '@/routes/common';
+export { MIME_TYPES_MAP } from '@core-routes/common';
 
 /**
  * Find the package root directory
@@ -28,7 +28,7 @@ export {
   getFrameworkPublicRootsAsync,
   getPublicRoot,
   getPublicRootAsync,
-} from '@/routes/publicRoot';
+} from '@core-routes/publicRoot';
 
 const mapStaticPathAsync = async (urlPath: string): Promise<string | undefined> => {
   const publicRoot = await getPublicRootAsync();

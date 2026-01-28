@@ -8,8 +8,9 @@
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { HttpClient, type IHttpResponse } from '@httpClient/Http';
-import { readFileSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
+import { existsSync, readFileSync } from '@node-singletons/fs';
+import { dirname, join } from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 interface VersionCheckResult {
   currentVersion: string;
@@ -26,11 +27,34 @@ interface VersionCheckConfig {
 
 export const VersionChecker = Object.freeze({
   /**
+   * Resolve the nearest package.json from a starting directory.
+   */
+  findNearestPackageJson(startDir: string): string | null {
+    let current = startDir;
+    for (let i = 0; i < 8; i++) {
+      const candidate = join(current, 'package.json');
+      if (existsSync(candidate)) return candidate;
+
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+
+    return null;
+  },
+
+  /**
    * Get current version from package.json
    */
   getCurrentVersion(): string {
     try {
-      const packagePath = join(process.cwd(), 'package.json');
+      const moduleDir = dirname(fileURLToPath(import.meta.url));
+      const modulePackagePath = this.findNearestPackageJson(moduleDir);
+      const cwdPackagePath = this.findNearestPackageJson(process.cwd());
+      const packagePath = modulePackagePath ?? cwdPackagePath;
+
+      if (packagePath === null) return '0.0.0';
+
       const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
         version?: string;
       };

@@ -1,11 +1,11 @@
 /* eslint-disable max-nested-callbacks */
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-import { Router } from '@/routes/Router';
-import { registerRoutes as registerFrameworkFallbackRoutes } from '@/routes/api';
-import { registerBroadcastRoutes } from '@/routes/broadcast';
-import { registerStorageRoutes } from '@/routes/storage';
-import { registerHealthRoutes } from '@routes/health';
+import { registerHealthRoutes } from '@/routes/health';
+import { Router } from '@core-routes/Router';
+import { registerRoutes as registerFrameworkFallbackRoutes } from '@routes/api';
+import { registerBroadcastRoutes } from '@routes/broadcast';
+import { registerStorageRoutes } from '@routes/storage';
 
 vi.mock('@config/env', () => ({
   Env: {

@@ -2,12 +2,12 @@
  * HTTP Kernel - Request handling and middleware pipeline
  */
 
-import { ErrorRouting } from '@/routes/error';
-import type { IRouter } from '@/routes/Router';
-import { Router } from '@/routes/Router';
 import { Logger } from '@config/logger';
 import { middlewareConfig } from '@config/middleware';
 import type { IServiceContainer } from '@container/ServiceContainer';
+import { ErrorRouting } from '@core-routes/error';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import { RequestContext, type IRequestContext } from '@http/RequestContext';

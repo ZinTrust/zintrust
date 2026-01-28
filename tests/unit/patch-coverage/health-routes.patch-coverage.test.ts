@@ -49,10 +49,10 @@ describe('patch coverage: health routes', () => {
     vi.mocked(useDatabase as any).mockReturnValue({});
     vi.mocked(QueryBuilder.ping as any).mockRejectedValue(new Error('db error'));
 
-    const { Router } = await import('@/routes/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@routes/health');
+    const { registerHealthRoutes } = await import('@/routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();
@@ -76,10 +76,10 @@ describe('patch coverage: health routes', () => {
     });
     vi.mocked(QueryBuilder.ping as any).mockResolvedValue(undefined);
 
-    const { Router } = await import('@/routes/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@routes/health');
+    const { registerHealthRoutes } = await import('@/routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();
@@ -100,10 +100,10 @@ describe('patch coverage: health routes', () => {
       { name: 'cache', status: 'fail', message: 'Cache down' },
     ]);
 
-    const { Router } = await import('@/routes/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
-    const { registerHealthRoutes } = await import('@routes/health');
+    const { registerHealthRoutes } = await import('@/routes/health');
     registerHealthRoutes(router);
 
     const { req, res } = makeReqRes();

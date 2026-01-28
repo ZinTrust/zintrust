@@ -10,11 +10,9 @@ import type { MiddlewareKey } from '@config/middleware';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 // import { registerDevRoutes } from '@routes/apiDev';
-import { type IRouter, Router } from '@/routes/Router';
+import { type IRouter, Router } from '@core-routes/Router';
 import { registerBroadcastRoutes } from '@routes/broadcast';
-import { registerHealthRoutes } from '@routes/health';
-import { registerMetricsRoutes } from '@routes/metrics';
-import { registerOpenApiRoutes } from '@routes/openapi';
+
 import { registerStorageRoutes } from '@routes/storage';
 
 export function registerRoutes(router: IRouter): void {
@@ -31,10 +29,7 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
-  registerHealthRoutes(router);
-  registerMetricsRoutes(router);
   registerBroadcastRoutes(router);
-  registerOpenApiRoutes(router);
   registerStorageRoutes(router);
 }
 

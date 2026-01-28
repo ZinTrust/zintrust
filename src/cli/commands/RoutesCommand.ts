@@ -5,8 +5,8 @@
 
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { Env } from '@config/env';
+import { Router } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { Router } from '@/routes/Router';
 import type { Command } from 'commander';
 
 type GroupByMode = 'group' | 'service' | 'none';

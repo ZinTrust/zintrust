@@ -3,12 +3,12 @@
  * Uses Node.js built-in HTTP server with no external dependencies
  */
 
-import { ErrorRouting } from '@/routes/error';
 import type { IApplication } from '@boot/Application';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS } from '@config/constants';
 import { Logger } from '@config/logger';
 import { ServiceContainer, type IServiceContainer } from '@container/ServiceContainer';
+import { ErrorRouting } from '@core-routes/error';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IKernel } from '@http/Kernel';
 import { Kernel } from '@http/Kernel';

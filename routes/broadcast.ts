@@ -5,7 +5,7 @@
  * Provider setup and secret provisioning remain CLI-only.
  */
 
-import { type IRouter, Router } from '@/routes/Router';
+import { type IRouter, Router } from '@core-routes/Router';
 
 export function registerBroadcastRoutes(router: IRouter): void {
   Router.get(router, '/broadcast/health', async (_req, res) => {

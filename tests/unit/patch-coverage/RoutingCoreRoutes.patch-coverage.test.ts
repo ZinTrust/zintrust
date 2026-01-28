@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-import { Router } from '@/routes/Router';
+import { Router } from '@core-routes/Router';
 
 const hoisted = vi.hoisted(() => ({
   env: {
@@ -53,9 +53,9 @@ vi.mock('@/health/RuntimeHealthProbes', () => ({
 }));
 
 // Keep CoreRoutes tests focused.
-vi.mock('@routing/doc', () => ({ registerDocRoutes: vi.fn() }));
-vi.mock('@routing/error', () => ({ registerErrorRoutes: vi.fn() }));
-vi.mock('@routing/errorPages', () => ({ registerErrorPagesRoutes: vi.fn() }));
+vi.mock('@core-routes/doc', () => ({ registerDocRoutes: vi.fn() }));
+vi.mock('@core-routes/error', () => ({ registerErrorRoutes: vi.fn() }));
+vi.mock('@core-routes/errorPages', () => ({ registerErrorPagesRoutes: vi.fn() }));
 
 import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 import { Env } from '@config/env';
@@ -63,7 +63,7 @@ import { Logger } from '@config/logger';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
-import { registerCoreRoutes } from '@/routes/CoreRoutes';
+import { registerCoreRoutes } from '@core-routes/CoreRoutes';
 
 const createRes = () =>
   ({

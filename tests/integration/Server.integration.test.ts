@@ -60,7 +60,7 @@ describe('Server integration - body parsing and oversized payloads', () => {
     vi.resetModules();
     vi.unmock('@node-singletons/http');
 
-    const { Router } = await import('@/routes/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     Router.post(router, '/test', (req: any, res: any) => {
@@ -116,7 +116,7 @@ describe('Server integration - body parsing and oversized payloads', () => {
 
     process.env['MAX_BODY_SIZE'] = '10';
 
-    const { Router } = await import('@/routes/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     Router.post(router, '/test', (req: any, res: any) => {
@@ -164,7 +164,7 @@ describe('Server integration - body parsing and oversized payloads', () => {
     vi.resetModules();
     vi.unmock('@node-singletons/http');
 
-    const { Router } = await import('@/routes/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     Router.post(router, '/test', (req: any, res: any) => {

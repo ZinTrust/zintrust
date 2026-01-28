@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Kernel } from '@/http/Kernel';
-import { Router } from '@/routes/Router';
+import { Router } from '@core-routes/Router';
 
 describe('Kernel schedules integration', () => {
   beforeEach(() => {

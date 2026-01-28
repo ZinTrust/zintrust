@@ -998,7 +998,7 @@ describe('QACommand', () => {
       const result = { status: 'pending', output: '' } as any;
       await command.runLint(result);
       expect(result.status).toBe('failed');
-      expect(result.output).toBe('Unknown error');
+      expect(result.output).toBe('String error');
     });
 
     it('should skip sonar during execute when --no-sonar is provided', async () => {

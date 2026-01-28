@@ -176,8 +176,9 @@ describe('VersionChecker', () => {
       });
 
       // Should return current version instead of throwing
+      const currentVersion = VersionChecker.getCurrentVersion();
       const result = await VersionChecker.fetchLatestVersion();
-      expect(result).toBe('0.1.27'); // Current version from package.json
+      expect(result).toBe(currentVersion); // Current version from package.json
     });
 
     it('should return current version when npm returns 404', async () => {
@@ -198,14 +199,9 @@ describe('VersionChecker', () => {
         send: vi.fn().mockResolvedValue(mockResponse),
       });
 
-      const currentVersionSpy = vi
-        .spyOn(VersionChecker, 'getCurrentVersion')
-        .mockReturnValue('0.0.0');
-
+      const currentVersion = VersionChecker.getCurrentVersion();
       const result = await VersionChecker.fetchLatestVersion();
-      expect(result).toBe('0.0.0');
-      expect(currentVersionSpy).toHaveBeenCalled();
-      currentVersionSpy.mockRestore();
+      expect(result).toBe(currentVersion);
     });
 
     it('should return current version when npm returns non-404 error', async () => {
@@ -226,27 +222,17 @@ describe('VersionChecker', () => {
         send: vi.fn().mockResolvedValue(mockResponse),
       });
 
-      const currentVersionSpy = vi
-        .spyOn(VersionChecker, 'getCurrentVersion')
-        .mockReturnValue('0.0.0');
-
+      const currentVersion = VersionChecker.getCurrentVersion();
       const result = await VersionChecker.fetchLatestVersion();
-      expect(result).toBe('0.0.0');
-      expect(currentVersionSpy).toHaveBeenCalled();
-      currentVersionSpy.mockRestore();
+      expect(result).toBe(currentVersion);
     });
   });
 
   describe('extractVersionFromResponse', () => {
     it('should return current version for invalid response data', () => {
-      const currentVersionSpy = vi
-        .spyOn(VersionChecker, 'getCurrentVersion')
-        .mockReturnValue('0.0.0');
-
+      const currentVersion = VersionChecker.getCurrentVersion();
       const result = VersionChecker.extractVersionFromResponse(null);
-      expect(result).toBe('0.0.0');
-      expect(currentVersionSpy).toHaveBeenCalled();
-      currentVersionSpy.mockRestore();
+      expect(result).toBe(currentVersion);
     });
 
     it('should fall back to version field when dist-tags are missing', () => {
@@ -257,17 +243,12 @@ describe('VersionChecker', () => {
     });
 
     it('should return current version when no usable version fields exist', () => {
-      const currentVersionSpy = vi
-        .spyOn(VersionChecker, 'getCurrentVersion')
-        .mockReturnValue('0.0.0');
-
+      const currentVersion = VersionChecker.getCurrentVersion();
       const result = VersionChecker.extractVersionFromResponse({
         'dist-tags': { latest: '' },
         version: '',
       });
-      expect(result).toBe('0.0.0');
-      expect(currentVersionSpy).toHaveBeenCalled();
-      currentVersionSpy.mockRestore();
+      expect(result).toBe(currentVersion);
     });
   });
 

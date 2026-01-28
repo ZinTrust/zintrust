@@ -3,11 +3,11 @@
  * Serves /error-pages/* assets (CSS/JS/SVG/etc) used by HTML error templates.
  */
 
-import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@/routes/common';
-import { getPublicRoot } from '@/routes/publicRoot';
-import type { IRouter } from '@/routes/Router';
-import { Router } from '@/routes/Router';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@core-routes/common';
+import { getPublicRoot } from '@core-routes/publicRoot';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';

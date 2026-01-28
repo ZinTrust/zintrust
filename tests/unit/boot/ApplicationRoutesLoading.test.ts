@@ -1,5 +1,5 @@
-import { Router } from '@/routes/Router';
 import { Application } from '@boot/Application';
+import { Router } from '@core-routes/Router';
 import { mkdir, mkdtemp, rm, writeFile } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';

@@ -6,8 +6,8 @@
 
 import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
 import { Env } from '@config/env';
-import { type IRouter, Router } from '@/routes/Router';
-import { RouteRegistry } from '@/routes/RouteRegistry';
+import { type IRouter, Router } from '@core-routes/Router';
+import { RouteRegistry } from '@core-routes/RouteRegistry';
 
 const getServerUrl = (): string | undefined => {
   const explicit = Env.BASE_URL;
@@ -53,7 +53,7 @@ export function registerOpenApiRoutes(router: IRouter): void {
   Router.get(
     router,
     '/openapi.json',
-    async (_req, res) => {
+    (_req, res) => {
       // Convert readonly to mutable array for OpenApiGenerator
       const routes = Array.from(RouteRegistry.list());
       const doc = OpenApiGenerator.generate(routes, {
@@ -77,7 +77,7 @@ export function registerOpenApiRoutes(router: IRouter): void {
   Router.get(
     router,
     '/docs',
-    async (_req, res) => {
+    (_req, res) => {
       res.html(getDocsHtml('/openapi.json'));
     },
     {

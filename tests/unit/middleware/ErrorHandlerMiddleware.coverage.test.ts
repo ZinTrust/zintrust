@@ -4,7 +4,7 @@ import { ErrorHandlerMiddleware } from '@/middleware/ErrorHandlerMiddleware';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the modules at the top level to avoid conflicts
-vi.mock('@/routing/error', () => ({
+vi.mock('@core-routes/error', () => ({
   default: {
     handleInternalServerErrorWithWrappers: vi.fn(),
   },
@@ -33,7 +33,7 @@ vi.mock('@/http/RequestContext', () => ({
   },
 }));
 
-const mockErrorRouting = vi.mocked(await import('@/routes/error')).default;
+const mockErrorRouting = vi.mocked(await import('@core-routes/error')).default;
 const mockEnv = vi.mocked(await import('@/config/env')).Env;
 const mockLogger = vi.mocked(await import('@/config/logger')).Logger;
 const mockRequestContext = vi.mocked(await import('@/http/RequestContext')).RequestContext;

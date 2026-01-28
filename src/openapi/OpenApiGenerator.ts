@@ -1,4 +1,4 @@
-import type { RouteRegistration, ValidationSchema } from '@/routes/RouteRegistry';
+import type { RouteRegistration, ValidationSchema } from '@core-routes/RouteRegistry';
 import type { ISchema, ValidationRule } from '@validation/Validator';
 
 type OpenApiSchema = {

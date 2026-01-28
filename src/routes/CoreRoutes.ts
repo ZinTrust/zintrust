@@ -6,13 +6,14 @@
 
 import type { IResponse } from '@/http/Response';
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';
-import { registerDocRoutes } from '@/routes/doc';
-import { registerErrorRoutes } from '@/routes/error';
-import { registerErrorPagesRoutes } from '@/routes/errorPages';
-import type { IRouter } from '@/routes/Router';
-import { Router } from '@/routes/Router';
+import { registerOpenApiRoutes } from '@/routes/openapi';
 import { registerHealthRoutes } from '@common/HealthRoutes';
 import { Env } from '@config/env';
+import { registerDocRoutes } from '@core-routes/doc';
+import { registerErrorRoutes } from '@core-routes/error';
+import { registerErrorPagesRoutes } from '@core-routes/errorPages';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 
 /**
@@ -40,6 +41,7 @@ export const registerCoreRoutes = (router: IRouter): void => {
   registerDocRoutes(router);
   registerErrorPagesRoutes(router);
   registerErrorRoutes(router);
+  registerOpenApiRoutes(router);
 };
 
 export default registerCoreRoutes;

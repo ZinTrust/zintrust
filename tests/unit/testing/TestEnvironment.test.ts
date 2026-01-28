@@ -1,5 +1,5 @@
-import { Router } from '@/routes/Router';
 import { ServiceContainer } from '@container/ServiceContainer';
+import { Router } from '@core-routes/Router';
 import { describe, expect, it } from 'vitest';
 
 import { TestEnvironment } from '@/testing/TestEnvironment';

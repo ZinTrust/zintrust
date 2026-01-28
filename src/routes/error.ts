@@ -3,11 +3,11 @@
  * Centralizes 404/500 handling and HTML error page rendering.
  */
 
-import { getPublicRoot } from '@/routes/publicRoot';
-import type { IRouter } from '@/routes/Router';
-import { Router } from '@/routes/Router';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { getPublicRoot } from '@core-routes/publicRoot';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ErrorPageRenderer } from '@http/error-pages/ErrorPageRenderer';
 import { ErrorResponse } from '@http/ErrorResponse';

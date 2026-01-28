@@ -1,4 +1,4 @@
-import { Router } from '@/routes/Router';
+import { Router } from '@core-routes/Router';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { describe, expect, it, vi } from 'vitest';
 
