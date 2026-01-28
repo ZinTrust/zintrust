@@ -34,13 +34,13 @@
     "clean": "rm -rf dist",
     "core:link-dist": "mkdir -p node_modules/@zintrust && rm -rf node_modules/@zintrust/core && ln -s ../../dist node_modules/@zintrust/core && ls -la node_modules/@zintrust/core && cat node_modules/@zintrust/core/package.json | head -n 8",
     "prebuild": "node scripts/toggle-dev-routes.mjs comment",
-    "build": "npm run clean && npm run -s coverage:patch && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
-    "core:build:dist": "npm run clean && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs",
+    "build": "npm run clean && npm run -s coverage:patch && npm run templates:check && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
+    "core:build:dist": "npm run clean && npm run templates:check && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs",
     "postbuild": "node scripts/toggle-dev-routes.mjs uncomment",
-    "build:ci": "export CI=true && npm run clean && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
+    "build:ci": "export CI=true && npm run clean && npm run templates:check && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
     "prebuild:ci": "node scripts/toggle-dev-routes.mjs comment",
     "prepro:build": "node scripts/toggle-dev-routes.mjs comment",
-    "pro:build": "npm run clean && npm test && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
+    "pro:build": "npm run clean && npm test && npm run templates:check && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
     "watch": "tsc --watch --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -107,7 +107,8 @@
     "release:sync-versions": "node scripts/release/sync-package-versions.mjs",
     "release:publish-packages": "node scripts/release/publish-packages.mjs",
     "release:publish-all": "npm run release:sync-versions && npm run release:publish-packages",
-    "cag": "npm run cleanup:github-actions"
+    "cag": "npm run cleanup:github-actions",
+    "core": "npm run core:build:dist"
   },
   "lint-staged": {
     "src/**/*.ts": [

@@ -1,7 +1,6 @@
 import { pathToFileURL } from '@/node-singletons/url';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
@@ -58,17 +57,6 @@ export const PluginAutoImports = Object.freeze({
         return { ok: true, loadedPath: candidate };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        Logger.warn('[plugins] Failed to import plugin auto-imports', {
-          candidate,
-          errorMessage,
-        });
-
-        // Keep error creation for consistent structure (but do not throw).
-        ErrorFactory.createTryCatchError('Failed to import project plugin auto-imports', {
-          candidate,
-          error,
-        });
-
         return { ok: false, loadedPath: candidate, reason: 'import-failed', errorMessage };
       }
     }

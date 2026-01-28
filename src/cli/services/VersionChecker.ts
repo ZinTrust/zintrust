@@ -5,8 +5,6 @@
  * when a newer version is available from npm registry.
  */
 
-import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { HttpClient, type IHttpResponse } from '@httpClient/Http';
 import { existsSync, readFileSync } from '@node-singletons/fs';
 import { dirname, join } from '@node-singletons/path';
@@ -88,7 +86,7 @@ export const VersionChecker = Object.freeze({
 
     // Skip for version commands
     const args = new Set(process.argv.slice(2));
-    if (args.has('-v') || args.has('--version') || args.has('help')) {
+    if (args.has('-v') || args.has('--version') || args.has('help') || args.has('new')) {
       return false;
     }
 
@@ -122,9 +120,8 @@ export const VersionChecker = Object.freeze({
 
       const data = await response.json();
       return this.extractVersionFromResponse(data);
-    } catch (error) {
+    } catch {
       // For network errors or other issues, don't block CLI usage
-      Logger.debug('Failed to fetch latest version from npm registry', error);
       return this.getCurrentVersion();
     }
   },
@@ -146,11 +143,10 @@ export const VersionChecker = Object.freeze({
   handleHttpError(response: IHttpResponse): string {
     // If package doesn't exist (404), return current version
     if (response.status === 404) {
-      Logger.debug('Package not found on npm registry, assuming development version');
       return this.getCurrentVersion();
     }
 
-    throw ErrorFactory.createConfigError(`HTTP ${response.status}: Failed to fetch version`);
+    return '';
   },
 
   /**
@@ -158,7 +154,6 @@ export const VersionChecker = Object.freeze({
    */
   extractVersionFromResponse(data: unknown): string {
     if (!this.isValidResponseData(data)) {
-      Logger.debug('Unexpected npm registry response structure, using current version');
       return this.getCurrentVersion();
     }
 
@@ -177,7 +172,6 @@ export const VersionChecker = Object.freeze({
     }
 
     // Final fallback
-    Logger.debug('Could not extract version from response, using current version');
     return this.getCurrentVersion();
   },
 
@@ -266,9 +260,8 @@ export const VersionChecker = Object.freeze({
         isOutdated,
         updateAvailable,
       };
-    } catch (error) {
+    } catch {
       // Silently fail - version check should never block CLI usage
-      Logger.debug('Version check failed, continuing with CLI execution', error);
       return null;
     }
   },
@@ -313,9 +306,8 @@ export const VersionChecker = Object.freeze({
       if (result) {
         this.displayUpdateNotification(result);
       }
-    } catch (error) {
+    } catch {
       // Version check should never crash the CLI
-      Logger.debug('Version check encountered an error', error);
     }
   },
 });
