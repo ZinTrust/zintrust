@@ -4,7 +4,7 @@ import * as nodeFs from 'node:fs';
 import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 
-import { Router } from '@/routing/Router';
+import { Router } from '@/routes/Router';
 import { HTTP_HEADERS } from '@config/constants';
 
 const hoisted = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ import {
   registerDocRoutes,
   serveDocumentationFileAsync,
   setDocumentationCSPHeaders,
-} from '@/routing/doc';
+} from '@/routes/doc';
 
 type TestRes = {
   setStatus: Mock;

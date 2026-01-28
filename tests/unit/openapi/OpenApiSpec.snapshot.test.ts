@@ -1,7 +1,7 @@
 import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
+import { Router } from '@/routes/Router';
+import { RouteRegistry } from '@/routes/RouteRegistry';
 import { registerRoutes } from '@routes/api';
-import { Router } from '@routing/Router';
-import { RouteRegistry } from '@routing/RouteRegistry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the dev routes to prevent test routes from being registered
@@ -69,7 +69,7 @@ describe('OpenAPI spec snapshot', () => {
     const router = Router.createRouter();
     registerRoutes(router);
 
-    const doc = OpenApiGenerator.generate(RouteRegistry.list(), {
+    const doc = OpenApiGenerator.generate([...RouteRegistry.list()], {
       title: 'ZinTrust Framework',
       version: '0.0.0',
       excludePaths: ['/openapi.json', '/docs'],

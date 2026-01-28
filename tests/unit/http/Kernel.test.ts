@@ -4,14 +4,14 @@ import { ServiceContainer } from '@/container/ServiceContainer';
 import type { IKernel } from '@/http/Kernel';
 import { Kernel } from '@/http/Kernel';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
-import { Router } from '@/routing/Router';
+import { Router } from '@/routes/Router';
 import type * as http from '@node-singletons/http';
 import { type Mock, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Env } from '@/config/env';
 import type { IRequest } from '@/http/Request';
 import type { IResponse } from '@/http/Response';
-import type { IRouter } from '@/routing/Router';
+import type { IRouter } from '@/routes/Router';
 
 const otelMock = vi.hoisted(() => ({
   OpenTelemetry: {
@@ -27,7 +27,7 @@ const otelMock = vi.hoisted(() => ({
 vi.mock('@/observability/OpenTelemetry', () => otelMock);
 
 vi.mock('@/routing/Router', async () => {
-  const actual = await vi.importActual<typeof import('@/routing/Router')>('@/routing/Router');
+  const actual = await vi.importActual<typeof import('@/routes/Router')>('@/routing/Router');
   return {
     ...actual,
     Router: {

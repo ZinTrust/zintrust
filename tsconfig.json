@@ -47,6 +47,7 @@
       "@time/*": ["./src/time/*"],
       "@app/*": ["./app/*"],
       "@routes/*": ["./routes/*"],
+      "@core-routes/*": ["./src/routes/*"],
       "@microservices/*": ["./src/microservices/*"],
       "@toolkit/*": ["./src/toolkit/*"],
       "@tools/*": ["./src/tools/*"],

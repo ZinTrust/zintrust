@@ -105,7 +105,7 @@ const distPackage = {
     z: 'bin/z.js',
     zt: 'bin/zt.js',
   },
-  files: ['bin', 'src', 'routes', 'public'],
+  files: ['bin', 'src', 'public'],
   engines: rootPackage.engines,
   keywords: rootPackage.keywords,
   author: rootPackage.author,

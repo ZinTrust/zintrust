@@ -4,16 +4,16 @@
  * Not customizable by developers; provide env-based configuration
  */
 
-import type { IRequest } from '@/http/Request';
 import type { IResponse } from '@/http/Response';
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';
-import type { IRouter } from '@/routing/Router';
-import { Router } from '@/routing/Router';
+import { registerDocRoutes } from '@/routes/doc';
+import { registerErrorRoutes } from '@/routes/error';
+import { registerErrorPagesRoutes } from '@/routes/errorPages';
+import type { IRouter } from '@/routes/Router';
+import { Router } from '@/routes/Router';
 import { registerHealthRoutes } from '@common/HealthRoutes';
 import { Env } from '@config/env';
-import { registerDocRoutes } from '@routing/doc';
-import { registerErrorRoutes } from '@routing/error';
-import { registerErrorPagesRoutes } from '@routing/errorPages';
+import type { IRequest } from '@http/Request';
 
 /**
  * Register metrics endpoint

@@ -316,7 +316,7 @@ describe('Server (coverage)', () => {
   });
 
   it('renders HTML error page on internal server error (and redacts headers)', async () => {
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@/routes/Router');
     const { ErrorPageRenderer } = await import('@http/error-pages/ErrorPageRenderer');
     const { Request } = await import('@http/Request');
     const { Response } = await import('@http/Response');

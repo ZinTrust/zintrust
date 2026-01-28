@@ -1,4 +1,4 @@
-import { Router } from '@/routing/Router';
+import { Router } from '@/routes/Router';
 import { ServiceContainer } from '@container/ServiceContainer';
 import { describe, expect, it } from 'vitest';
 

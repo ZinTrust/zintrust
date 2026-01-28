@@ -77,7 +77,7 @@ describe('patch coverage: Server', () => {
     await savedHandler(null, res);
 
     expect(headers['x-powered-by']).toBe('ZinTrust');
-    const mod = await import('@routing/error');
+    const mod = await import('@/routes/error');
     expect(mod.ErrorRouting.handleInternalServerErrorRaw).toHaveBeenCalled();
   });
 

@@ -1,9 +1,9 @@
+import type { IRouter } from '@/routes/Router';
+import { Router } from '@/routes/Router';
 import type { IServiceContainer } from '@container/ServiceContainer';
 import { Kernel } from '@http/Kernel';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-import type { IRouter } from '@routing/Router';
-import { Router } from '@routing/Router';
 import { Schema } from '@validation/Validator';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -26,7 +26,7 @@ vi.mock('@config/middleware', () => ({
 }));
 
 vi.mock('@routing/Router', async () => {
-  const actual = await vi.importActual<typeof import('@routing/Router')>('@routing/Router');
+  const actual = await vi.importActual<typeof import('@/routes/Router')>('@routing/Router');
   return {
     ...actual,
     Router: {

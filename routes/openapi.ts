@@ -6,8 +6,8 @@
 
 import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
 import { Env } from '@config/env';
-import { type IRouter, Router } from '@routing/Router';
-import { RouteRegistry } from '@routing/RouteRegistry';
+import { type IRouter, Router } from '@/routes/Router';
+import { RouteRegistry } from '@/routes/RouteRegistry';
 
 const getServerUrl = (): string | undefined => {
   const explicit = Env.BASE_URL;

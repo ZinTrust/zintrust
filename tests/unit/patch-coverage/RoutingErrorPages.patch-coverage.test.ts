@@ -16,7 +16,7 @@ vi.mock('@routing/publicRoot', () => ({
   getPublicRoot: () => hoisted.publicRoot,
 }));
 
-import { registerErrorPagesRoutes, serveErrorPagesFile } from '@/routing/errorPages';
+import { registerErrorPagesRoutes, serveErrorPagesFile } from '@/routes/errorPages';
 
 type TestRes = {
   setStatus: Mock;

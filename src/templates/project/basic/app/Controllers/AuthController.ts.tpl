@@ -3,20 +3,17 @@
  * Minimal, real auth endpoints backing the example API routes.
  */
 
-import {
-  getString,
-  Auth,
-  Logger,
-  getValidatedBody,
-  useDatabase,
-  QueryBuilder,
-  JwtManager,
-  TokenRevocation
-} from '@zintrust/core';
+import { User } from '@app/Models/User';
 import type { AuthControllerApi, JsonRecord, UserRow } from '@app/Types/controller';
 import type { IRequest, IResponse } from '@zintrust/core';
-import User from '@app/Models/User';
-
+import {
+  Auth,
+  JwtManager,
+  Logger,
+  TokenRevocation,
+  getString,
+  getValidatedBody,
+} from '@zintrust/core';
 
 const pickPublicUser = (row: UserRow): { id: unknown; name: string; email: string } => {
   return {
@@ -131,12 +128,7 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
   const ipAddress = req.getRaw().socket.remoteAddress ?? 'unknown';
 
   try {
-    const db = useDatabase();
-
-    const existing = await QueryBuilder.create('users', db)
-      .where('email', '=', email)
-      .limit(1)
-      .first<UserRow>();
+    const existing = await User.where('email', '=', email).limit(1).first<UserRow>();
 
     if (existing !== null) {
       Logger.warn('AuthController.register: duplicate email attempt', {
@@ -150,19 +142,26 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
 
     const passwordHash = await Auth.hash(password);
 
-    await QueryBuilder.create('users', db).insert({
+    const result = await User.query().insert({
       name,
       email,
       password: passwordHash,
     });
 
-    Logger.info('AuthController.register: successful registration', {
-      email,
-      ip: ipAddress,
-      timestamp: new Date().toISOString(),
-    });
+    if (result.id !== null && result.id !== undefined) {
+      Logger.info('AuthController.register: successful registration', {
+        user_id: result.id,
+        email,
+        ip: ipAddress,
+        timestamp: new Date().toISOString(),
+      });
 
-    res.setStatus(201).json({ message: 'Registered' });
+      res.setStatus(201).json({ message: 'Registered' });
+    } else {
+      Logger.error('Failed to retrieve inserted user ID');
+      res.setStatus(500).json({ error: 'Registration failed' });
+    }
+    return;
   } catch (error) {
     Logger.error('AuthController.register failed', error);
     res.setStatus(500).json({ error: 'Registration failed' });

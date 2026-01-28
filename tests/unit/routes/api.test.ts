@@ -1,8 +1,8 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { Router } from '@core-routes/Router';
 import { useDatabase } from '@orm/Database';
 import { registerRoutes } from '@routes/api';
-import { Router } from '@routing/Router';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 // Mock dependencies
@@ -291,12 +291,14 @@ describe('Routes API', () => {
       const previousGet = Env.get;
 
       // Helper to avoid deep nested callbacks inside inline mock
-      const cacheDriverMock = (prev: typeof previousGet) => (k: string, def?: string) =>
-        k === 'CACHE_DRIVER'
-          ? 'kv'
-          : (prev as unknown as (k: string, def?: string) => string)(k, def);
+      const createCacheDriverMock = (prev: typeof previousGet) => {
+        return (k: string, def?: string) =>
+          k === 'CACHE_DRIVER'
+            ? 'kv'
+            : (prev as unknown as (k: string, def?: string) => string)(k, def);
+      };
 
-      (Env as unknown as { get: unknown }).get = vi.fn(cacheDriverMock(previousGet));
+      (Env as unknown as { get: unknown }).get = vi.fn(createCacheDriverMock(previousGet));
 
       const previousEnv = (globalThis as unknown as { env?: unknown }).env;
       delete (globalThis as unknown as { env?: unknown }).env;

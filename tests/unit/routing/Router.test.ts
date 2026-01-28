@@ -1,4 +1,4 @@
-import { Router, type IRouter } from '@routing/Router';
+import { Router, type IRouter } from '@/routes/Router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('Router', (): void => {

@@ -6,8 +6,7 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { registerRoutes } from '@routes/api';
-import { Router } from '@routing/Router';
+import { Router } from '@/routes/Router';
 import type { Command } from 'commander';
 
 type GroupByMode = 'group' | 'service' | 'none';
@@ -206,7 +205,7 @@ const renderTable = (rows: RouteRow[]): void => {
   /* eslint-enable no-console */
 };
 
-const buildRows = (options: RoutesCommandOptions): RouteRow[] => {
+const buildRows = async (options: RoutesCommandOptions): Promise<RouteRow[]> => {
   const groupBy = parseGroupBy(options.groupBy);
   const filterText = typeof options.filter === 'string' ? options.filter.trim().toLowerCase() : '';
   const methodFilter = parseMethodFilter(options.method);
@@ -214,6 +213,9 @@ const buildRows = (options: RoutesCommandOptions): RouteRow[] => {
   const baseOrigin = getBaseOrigin();
 
   const router = Router.createRouter();
+
+  // Lazy load registerRoutes only when this command is actually executed
+  const { registerRoutes } = await import('@routes/api');
   registerRoutes(router);
 
   const routes = Router.getRoutes(router);
@@ -273,8 +275,8 @@ const addOptions = (command: Command): void => {
     .option('--json', 'Output machine-readable JSON instead of a table');
 };
 
-const execute = (cmd: IBaseCommand, options: RoutesCommandOptions): void => {
-  const rows = buildRows(options);
+const execute = async (cmd: IBaseCommand, options: RoutesCommandOptions): Promise<void> => {
+  const rows = await buildRows(options);
 
   if (options.json === true) {
     /* eslint-disable no-console */

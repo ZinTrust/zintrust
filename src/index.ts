@@ -90,11 +90,11 @@ export { Schema as MigrationSchema, type Blueprint } from '@migrations/schema';
 // Adapter registry (for external adapter packages)
 export { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
 export type { OpenApiGeneratorOptions } from '@/openapi/OpenApiGenerator';
+export { Router } from '@/routes/Router';
+export type { IRouter } from '@/routes/Router';
+export { normalizeRouteMeta, RouteRegistry } from '@/routes/RouteRegistry';
+export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@/routes/RouteRegistry';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
-export { Router } from '@routing/Router';
-export type { IRouter } from '@routing/Router';
-export { normalizeRouteMeta, RouteRegistry } from '@routing/RouteRegistry';
-export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@routing/RouteRegistry';
 
 // Common
 export {

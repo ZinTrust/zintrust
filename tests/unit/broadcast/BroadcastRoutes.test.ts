@@ -1,5 +1,5 @@
+import { Router } from '@/routes/Router';
 import { registerBroadcastRoutes } from '@routes/broadcast';
-import { Router } from '@routing/Router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockSend = vi.fn(async () => ({ ok: true }));

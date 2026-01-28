@@ -3,16 +3,16 @@
  * Serves /error-pages/* assets (CSS/JS/SVG/etc) used by HTML error templates.
  */
 
+import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@/routes/common';
+import { getPublicRoot } from '@/routes/publicRoot';
+import type { IRouter } from '@/routes/Router';
+import { Router } from '@/routes/Router';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@routing/common';
-import { getPublicRoot } from '@routing/publicRoot';
-import type { IRouter } from '@routing/Router';
-import { Router } from '@routing/Router';
 
 const servePublicRootFile = (
   relativePath: string,

@@ -1,4 +1,4 @@
-import { tryDecodeURIComponent } from '@routing/common';
+import { tryDecodeURIComponent } from '@/routes/common';
 import { describe, expect, it } from 'vitest';
 
 describe('routing common coverage', () => {

@@ -66,7 +66,7 @@ const execFileSyncOpenFails = (cmd: string): Buffer => {
 
 const throwNonErrorObject = (): never => {
   // Intentionally throwing a string to test error handling of non-Error objects
-  throw 'String error';
+  throw new Error('String error');
 };
 
 type QAStatus = 'pending' | 'passed' | 'failed' | 'skipped';

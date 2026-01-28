@@ -9,12 +9,12 @@ import { ServiceContainer } from '@/container/ServiceContainer';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import type { IMiddlewareStack } from '@/middleware/MiddlewareStack';
 import { MiddlewareStack } from '@/middleware/MiddlewareStack';
-import { type IRouter, Router } from '@/routing/Router';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
+import { type IRouter, Router } from '@core-routes/Router';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
@@ -232,13 +232,13 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
     if (typeof mod?.registerRoutes === 'function') {
       mod.registerRoutes(router);
     } else {
-      const { registerRoutes: registerFrameworkRoutes } = await import('../routes/api');
+      const { registerRoutes: registerFrameworkRoutes } = await import('@routes/api');
       registerFrameworkRoutes(router);
     }
 
     // Always register core framework routes (health, metrics, doc) after app routes
     // This ensures app can override but core routes always exist
-    const { registerCoreRoutes } = await import('../routing/CoreRoutes');
+    const { registerCoreRoutes } = await import('@core-routes/CoreRoutes');
     registerCoreRoutes(router);
   } catch (error: unknown) {
     Logger.error('Failed to register routes:', error as Error);

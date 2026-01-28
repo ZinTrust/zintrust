@@ -33,7 +33,7 @@ vi.mock('@/http/RequestContext', () => ({
   },
 }));
 
-const mockErrorRouting = vi.mocked(await import('@/routing/error')).default;
+const mockErrorRouting = vi.mocked(await import('@/routes/error')).default;
 const mockEnv = vi.mocked(await import('@/config/env')).Env;
 const mockLogger = vi.mocked(await import('@/config/logger')).Logger;
 const mockRequestContext = vi.mocked(await import('@/http/RequestContext')).RequestContext;

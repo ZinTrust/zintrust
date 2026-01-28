@@ -3,6 +3,7 @@
  * Uses Node.js built-in HTTP server with no external dependencies
  */
 
+import { ErrorRouting } from '@/routes/error';
 import type { IApplication } from '@boot/Application';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS } from '@config/constants';
@@ -17,7 +18,6 @@ import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
 import * as http from '@node-singletons/http';
 import type { Socket } from '@node-singletons/net';
-import { ErrorRouting } from '@routing/error';
 
 export interface IServer {
   listen(): Promise<void>;

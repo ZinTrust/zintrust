@@ -1,4 +1,4 @@
-import ErrorRouting from '@/routing/error';
+import ErrorRouting from '@/routes/error';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorResponse } from '@http/ErrorResponse';

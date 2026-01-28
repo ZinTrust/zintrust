@@ -1,11 +1,11 @@
-import type { IRequest } from '@http/Request';
-import type { IResponse } from '@http/Response';
 import {
   RouteRegistry,
   normalizeRouteMeta,
   type RouteMeta,
   type RouteMetaInput,
-} from '@routing/RouteRegistry';
+} from '@core-routes/RouteRegistry';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
 
 /**
  * Router - HTTP Routing Engine

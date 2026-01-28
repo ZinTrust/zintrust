@@ -3,6 +3,9 @@
  * Centralizes 404/500 handling and HTML error page rendering.
  */
 
+import { getPublicRoot } from '@/routes/publicRoot';
+import type { IRouter } from '@/routes/Router';
+import { Router } from '@/routes/Router';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -11,9 +14,6 @@ import { ErrorResponse } from '@http/ErrorResponse';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type * as http from '@node-singletons/http';
-import { getPublicRoot } from '@routing/publicRoot';
-import type { IRouter } from '@routing/Router';
-import { Router } from '@routing/Router';
 
 // Cache Set at module level to avoid repeated creation
 const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'x-api-key']);

@@ -1,7 +1,7 @@
 import { MiddlewareKeys } from '@config/middleware';
 import { registerRoutes } from '@routes/api';
-import { Router } from '@routing/Router';
-import { RouteRegistry } from '@routing/RouteRegistry';
+import { Router } from '@/routes/Router';
+import { RouteRegistry } from '@/routes/RouteRegistry';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('Architecture: route middleware registry', () => {

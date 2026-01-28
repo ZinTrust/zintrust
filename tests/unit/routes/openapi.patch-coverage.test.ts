@@ -44,8 +44,8 @@ describe('routes/openapi patch coverage', () => {
 
     expect(routerGet).toHaveBeenCalledTimes(2);
 
-    const openapiHandler = routerGet.mock.calls[0]?.[2] as any;
-    const docsHandler = routerGet.mock.calls[1]?.[2] as any;
+    const openapiHandler = routerGet.mock.calls[0]?.[2];
+    const docsHandler = routerGet.mock.calls[1]?.[2];
 
     const resJson = { json: vi.fn(), html: vi.fn() } as any;
 
@@ -104,7 +104,7 @@ describe('routes/openapi patch coverage', () => {
 
     registerOpenApiRoutes({} as any);
 
-    const openapiHandler = routerGet.mock.calls[0]?.[2] as any;
+    const openapiHandler = routerGet.mock.calls[0]?.[2];
     const resJson = { json: vi.fn() } as any;
 
     await openapiHandler({}, resJson);
@@ -156,7 +156,7 @@ describe('routes/openapi patch coverage', () => {
 
     registerOpenApiRoutes({} as any);
 
-    const openapiHandler = routerGet.mock.calls[0]?.[2] as any;
+    const openapiHandler = routerGet.mock.calls[0]?.[2];
     const resJson = { json: vi.fn() } as any;
 
     await openapiHandler({}, resJson);

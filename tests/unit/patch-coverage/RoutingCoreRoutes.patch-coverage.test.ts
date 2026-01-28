@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-import { Router } from '@/routing/Router';
+import { Router } from '@/routes/Router';
 
 const hoisted = vi.hoisted(() => ({
   env: {
@@ -63,7 +63,7 @@ import { Logger } from '@config/logger';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
-import { registerCoreRoutes } from '@/routing/CoreRoutes';
+import { registerCoreRoutes } from '@/routes/CoreRoutes';
 
 const createRes = () =>
   ({

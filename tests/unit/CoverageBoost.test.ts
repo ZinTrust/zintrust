@@ -1,5 +1,6 @@
 import { CLI } from '@/cli/CLI';
 import { ErrorHandler } from '@/cli/ErrorHandler';
+import { Router } from '@/routes/Router';
 import type { IApplication } from '@boot/Application';
 import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
@@ -16,7 +17,6 @@ import { Database } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 import { QueryLogger } from '@profiling/QueryLogger';
-import { Router } from '@routing/Router';
 import { XssProtection } from '@security/XssProtection';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

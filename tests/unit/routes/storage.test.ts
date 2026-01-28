@@ -1,5 +1,5 @@
 import { HTTP_HEADERS } from '@config/constants';
-import { Router } from '@routing/Router';
+import { Router } from '@core-routes/Router';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 vi.mock('@config/env', () => ({
