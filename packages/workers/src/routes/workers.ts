@@ -5,7 +5,7 @@
 
 import type { IRouter } from '@zintrust/core';
 import { Logger, Router } from '@zintrust/core';
-import { createWorkersDashboard, type WorkersDashboardUiOptions } from '../dashboard';
+import { type WorkersDashboardUiOptions } from '../dashboard';
 import { WorkerApiController } from '../http/WorkerApiController';
 import { WorkerController } from '../http/WorkerController';
 import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';
@@ -19,21 +19,6 @@ import { registerStaticAssets } from '../ui/router/ui';
 
 type WorkerUiOptions = WorkersDashboardUiOptions;
 type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
-
-const registerWorkerUiPage = (
-  router: IRouter,
-  options?: WorkerUiOptions,
-  routeOptions?: RouteOptions
-): void => {
-  const handler = (_req: unknown, res: { html: (value: string) => void }): void => {
-    const dashboard = createWorkersDashboard(options);
-    res.html(dashboard.html);
-  };
-
-  Router.get(router, `${options?.basePath || ''}/workers`, handler, routeOptions);
-  Router.get(router, '/workers', handler, routeOptions);
-  Router.get(router, '/workers/', handler, routeOptions);
-};
 
 const controller = WorkerController.create();
 const apiController = WorkerApiController.create();
@@ -158,10 +143,9 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
 
 export function registerWorkerRoutes(
   router: IRouter,
-  options?: WorkerUiOptions,
+  _options?: WorkerUiOptions,
   routeOptions?: RouteOptions
 ): void {
-  registerWorkerUiPage(router, options, routeOptions);
   registerStaticAssets(router, routeOptions?.middleware ?? []);
   registerWorkerLifecycleRoutes(router, routeOptions?.middleware);
   Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');

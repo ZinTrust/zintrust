@@ -189,7 +189,7 @@ describe('Server (coverage)', () => {
 
     const res = makeRes();
     expect(requestHandler).toBeDefined();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     // Body should be parsed as urlencoded
     expect(requestWrapper.setBody).toHaveBeenCalled();
@@ -249,7 +249,7 @@ describe('Server (coverage)', () => {
     Server.create(app, 3000, 'localhost', kernel);
 
     const res = makeRes();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(400);
     expect(responseWrapper.json).toHaveBeenCalledWith({ error: 'Invalid JSON body' });
@@ -309,7 +309,7 @@ describe('Server (coverage)', () => {
     Server.create(app, 3000, 'localhost', kernel);
 
     const res = makeRes();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(413);
     expect(responseWrapper.json).toHaveBeenCalledWith({ error: 'Payload Too Large' });
@@ -367,7 +367,7 @@ describe('Server (coverage)', () => {
     Server.create(app, 3000, 'localhost', kernel);
 
     const res = makeRes();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(500);
     expect(ErrorPageRenderer.shouldSendHtml).toHaveBeenCalled();

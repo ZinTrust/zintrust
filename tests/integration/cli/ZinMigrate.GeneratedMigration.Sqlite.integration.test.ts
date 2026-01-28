@@ -28,7 +28,7 @@ function runZin(args: string[], cwd: string, env: NodeJS.ProcessEnv): void {
   // When running from a temp CWD, `--import tsx` would try to resolve from that directory.
   // Instead, resolve tsx from this repo and pass an absolute file path.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const tsxImport = require.resolve('tsx') as string;
+  const tsxImport = require.resolve('tsx');
 
   const repoRoot = repoRootFromHere();
   const binPath = path.join(repoRoot, 'bin', 'zin.ts');
