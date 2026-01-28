@@ -124,15 +124,10 @@ describe('Architecture: import boundaries', () => {
     const srcDir = path.join(repoRoot, 'src');
     const files = await walkTsFiles(srcDir);
 
-    const violations = await findViolations(
-      files,
-      ['@app/', '@routes/', '@bin/'],
-      'src/ must not import',
-      {
-        // src/cli and src/routes are allowed to bridge to generated app + route entrypoints.
-        ignoreIf: (file) => isWithin(file, 'src/cli') || isWithin(file, 'src/routes'),
-      }
-    );
+    const violations = await findViolations(files, ['@app/', '@bin/'], 'src/ must not import', {
+      // src/cli and src/routes are allowed to bridge to generated app + route entrypoints.
+      ignoreIf: (file) => isWithin(file, 'src/cli') || isWithin(file, 'src/routes'),
+    });
 
     expect(violations).toEqual([]);
   });

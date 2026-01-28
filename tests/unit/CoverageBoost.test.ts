@@ -6,6 +6,7 @@ import { Server } from '@boot/Server';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ServiceContainer } from '@container/ServiceContainer';
+import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import type { IResponse } from '@http/Response';
@@ -16,7 +17,6 @@ import { Database } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { BelongsTo, BelongsToMany, HasMany, HasOne } from '@orm/Relationships';
 import { QueryLogger } from '@profiling/QueryLogger';
-import { Router } from '@routing/Router';
 import { XssProtection } from '@security/XssProtection';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

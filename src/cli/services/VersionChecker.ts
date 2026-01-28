@@ -5,24 +5,16 @@
  * when a newer version is available from npm registry.
  */
 
-import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { readFileSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
+import { HttpClient, type IHttpResponse } from '@httpClient/Http';
+import { existsSync, readFileSync } from '@node-singletons/fs';
+import { dirname, join } from '@node-singletons/path';
+import { fileURLToPath } from '@node-singletons/url';
 
 interface VersionCheckResult {
   currentVersion: string;
   latestVersion: string;
   isOutdated: boolean;
   updateAvailable: boolean;
-}
-
-interface NpmRegistryResponse {
-  'dist-tags': {
-    latest: string;
-    [tag: string]: string;
-  };
-  version: string;
 }
 
 interface VersionCheckConfig {
@@ -33,11 +25,34 @@ interface VersionCheckConfig {
 
 export const VersionChecker = Object.freeze({
   /**
+   * Resolve the nearest package.json from a starting directory.
+   */
+  findNearestPackageJson(startDir: string): string | null {
+    let current = startDir;
+    for (let i = 0; i < 8; i++) {
+      const candidate = join(current, 'package.json');
+      if (existsSync(candidate)) return candidate;
+
+      const parent = dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+
+    return null;
+  },
+
+  /**
    * Get current version from package.json
    */
   getCurrentVersion(): string {
     try {
-      const packagePath = join(process.cwd(), 'package.json');
+      const moduleDir = dirname(fileURLToPath(import.meta.url));
+      const modulePackagePath = this.findNearestPackageJson(moduleDir);
+      const cwdPackagePath = this.findNearestPackageJson(process.cwd());
+      const packagePath = modulePackagePath ?? cwdPackagePath;
+
+      if (packagePath === null) return '0.0.0';
+
       const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
         version?: string;
       };
@@ -71,7 +86,7 @@ export const VersionChecker = Object.freeze({
 
     // Skip for version commands
     const args = new Set(process.argv.slice(2));
-    if (args.has('-v') || args.has('--version') || args.has('help')) {
+    if (args.has('-v') || args.has('--version') || args.has('help') || args.has('new')) {
       return false;
     }
 
@@ -97,26 +112,95 @@ export const VersionChecker = Object.freeze({
    */
   async fetchLatestVersion(): Promise<string> {
     try {
-      const response = await fetch('https://registry.npmjs.org/@zintrust/core/latest', {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'ZinTrust-CLI-Version-Check',
-        },
-        signal: AbortSignal.timeout(5000), // 5 second timeout
-      });
+      const response = await this.fetchFromNpmRegistry();
 
       if (!response.ok) {
-        throw ErrorFactory.createConfigError(`HTTP ${response.status}: ${response.statusText}`);
+        return this.handleHttpError();
       }
 
-      const data = (await response.json()) as NpmRegistryResponse;
-      return data['dist-tags'].latest || data.version;
-    } catch (error) {
-      // Silently fail for network issues - don't block CLI usage
-      Logger.debug('Failed to fetch latest version from npm registry', error);
-      throw ErrorFactory.createConfigError('Failed to check for updates', error);
+      const data = await response.json();
+      return this.extractVersionFromResponse(data);
+    } catch {
+      // For network errors or other issues, don't block CLI usage
+      return this.getCurrentVersion();
     }
+  },
+
+  /**
+   * Make request to npm registry
+   */
+  async fetchFromNpmRegistry(): Promise<IHttpResponse> {
+    return HttpClient.get('https://registry.npmjs.org/@zintrust/core/latest')
+      .withHeader('Accept', 'application/json')
+      .withHeader('User-Agent', 'ZinTrust-CLI-Version-Check')
+      .withTimeout(5000) // 5 second timeout
+      .send();
+  },
+
+  /**
+   * Handle HTTP errors from npm registry
+   */
+  handleHttpError(): string {
+    return this.getCurrentVersion();
+  },
+
+  /**
+   * Extract version from npm registry response
+   */
+  extractVersionFromResponse(data: unknown): string {
+    if (!this.isValidResponseData(data)) {
+      return this.getCurrentVersion();
+    }
+
+    const dataRecord = data;
+
+    // Try to get version from dist-tags.latest (standard npm response)
+    const latestVersion = this.getVersionFromDistTags(dataRecord);
+    if (latestVersion !== null && latestVersion !== undefined && latestVersion !== '') {
+      return latestVersion;
+    }
+
+    // Fallback to version field
+    const fallbackVersion = this.getVersionFromField(dataRecord);
+    if (fallbackVersion !== null && fallbackVersion !== undefined && fallbackVersion !== '') {
+      return fallbackVersion;
+    }
+
+    // Final fallback
+    return this.getCurrentVersion();
+  },
+
+  /**
+   * Check if response data is valid object
+   */
+  isValidResponseData(data: unknown): data is Record<string, unknown> {
+    return data !== null && data !== undefined && typeof data === 'object';
+  },
+
+  /**
+   * Extract version from dist-tags
+   */
+  getVersionFromDistTags(dataRecord: Record<string, unknown>): string | null {
+    const distTags = dataRecord['dist-tags'];
+    if (distTags !== null && distTags !== undefined) {
+      const distTagsRecord = distTags as Record<string, unknown>;
+      const latest = distTagsRecord['latest'];
+      if (typeof latest === 'string' && latest !== '') {
+        return latest;
+      }
+    }
+    return null;
+  },
+
+  /**
+   * Extract version from version field
+   */
+  getVersionFromField(dataRecord: Record<string, unknown>): string | null {
+    const version = dataRecord['version'];
+    if (typeof version === 'string' && version !== '') {
+      return version;
+    }
+    return null;
   },
 
   /**
@@ -171,9 +255,8 @@ export const VersionChecker = Object.freeze({
         isOutdated,
         updateAvailable,
       };
-    } catch (error) {
+    } catch {
       // Silently fail - version check should never block CLI usage
-      Logger.debug('Version check failed, continuing with CLI execution', error);
       return null;
     }
   },
@@ -218,9 +301,8 @@ export const VersionChecker = Object.freeze({
       if (result) {
         this.displayUpdateNotification(result);
       }
-    } catch (error) {
+    } catch {
       // Version check should never crash the CLI
-      Logger.debug('Version check encountered an error', error);
     }
   },
 });

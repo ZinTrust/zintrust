@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe('patch coverage: storage routes', () => {
   it('/storage/download: returns 400 when token missing', async () => {
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerStorageRoutes } = await import('@/../routes/storage');
@@ -60,7 +60,7 @@ describe('patch coverage: storage routes', () => {
     const { Env } = await import('@config/env');
     vi.mocked(Env.get as any).mockReturnValue('');
 
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerStorageRoutes } = await import('@/../routes/storage');
@@ -81,7 +81,7 @@ describe('patch coverage: storage routes', () => {
     vi.mocked(Env.get as any).mockReturnValue('key');
     vi.mocked(LocalSignedUrl.verifyToken as any).mockReturnValue({ disk: 's3', key: 'file' });
 
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerStorageRoutes } = await import('@/../routes/storage');
@@ -104,7 +104,7 @@ describe('patch coverage: storage routes', () => {
       throw new Error('Invalid');
     });
 
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerStorageRoutes } = await import('@/../routes/storage');

@@ -1,8 +1,8 @@
 import { Application } from '@boot/Application';
+import { Router } from '@core-routes/Router';
 import { mkdir, mkdtemp, rm, writeFile } from '@node-singletons/fs';
 import { tmpdir } from '@node-singletons/os';
 import { join } from '@node-singletons/path';
-import { Router } from '@routing/Router';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 describe('Application route loading', () => {

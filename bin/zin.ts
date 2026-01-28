@@ -5,6 +5,6 @@
  * Mirrors bin/zintrust.ts for convenience
  */
 
-import { run } from './zintrust-main.js';
+import { run } from './zintrust-main';
 
 await run();

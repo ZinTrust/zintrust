@@ -14,6 +14,9 @@ vi.mock('@config/constants', () => {
       REFERRER_POLICY: 'referrer-policy',
       CONTENT_SECURITY_POLICY: 'content-security-policy',
     },
+    MIME_TYPES: {
+      JSON: 'application/json',
+    },
   };
 });
 
@@ -30,7 +33,7 @@ vi.mock('@http/Request', () => ({ Request: { create: vi.fn((r) => ({ raw: r })) 
 vi.mock('@http/Response', () => ({ Response: { create: vi.fn((r) => ({ raw: r })) } }));
 
 // ErrorRouting - mocked directly (avoid referencing hoisted variables)
-vi.mock('@routing/error', () => ({
+vi.mock('@core-routes/error', () => ({
   ErrorRouting: {
     handleInternalServerErrorWithWrappers: vi.fn(),
     handleInternalServerErrorRaw: vi.fn(),
@@ -77,7 +80,7 @@ describe('patch coverage: Server', () => {
     await savedHandler(null, res);
 
     expect(headers['x-powered-by']).toBe('ZinTrust');
-    const mod = await import('@routing/error');
+    const mod = await import('@core-routes/error');
     expect(mod.ErrorRouting.handleInternalServerErrorRaw).toHaveBeenCalled();
   });
 

@@ -1,7 +1,7 @@
 /* eslint-disable max-nested-callbacks */
 import { BundleOptimizer, runOptimizer } from '@/builder/BundleOptimizer';
 import { Logger } from '@config/logger';
-import { default as fs } from '@node-singletons/fs';
+import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

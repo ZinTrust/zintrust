@@ -4,16 +4,17 @@
  * Not customizable by developers; provide env-based configuration
  */
 
-import type { IRequest } from '@/http/Request';
 import type { IResponse } from '@/http/Response';
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';
-import type { IRouter } from '@/routing/Router';
-import { Router } from '@/routing/Router';
+import { registerOpenApiRoutes } from '@/routes/openapi';
 import { registerHealthRoutes } from '@common/HealthRoutes';
 import { Env } from '@config/env';
-import { registerDocRoutes } from '@routing/doc';
-import { registerErrorRoutes } from '@routing/error';
-import { registerErrorPagesRoutes } from '@routing/errorPages';
+import { registerDocRoutes } from '@core-routes/doc';
+import { registerErrorRoutes } from '@core-routes/error';
+import { registerErrorPagesRoutes } from '@core-routes/errorPages';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
+import type { IRequest } from '@http/Request';
 
 /**
  * Register metrics endpoint
@@ -40,6 +41,7 @@ export const registerCoreRoutes = (router: IRouter): void => {
   registerDocRoutes(router);
   registerErrorPagesRoutes(router);
   registerErrorRoutes(router);
+  registerOpenApiRoutes(router);
 };
 
 export default registerCoreRoutes;

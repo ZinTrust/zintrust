@@ -707,8 +707,8 @@ const hydrateRows = (
   hydrateModel: (attributes: Record<string, unknown>) => IModel & BoundModelMethods
 ): Array<IModel & BoundModelMethods> | null => {
   if (!Array.isArray(raw)) return null;
-  const rows = raw.filter(isRecord);
-  return rows.map(hydrateModel);
+  const rows = raw.filter((element) => isRecord(element));
+  return rows.map((element) => hydrateModel(element));
 };
 
 const loadEagerRelations = async (
@@ -939,7 +939,7 @@ const createDefinedModelInternal = (
         if (typeof hydrate !== 'function') continue;
 
         if (Array.isArray(data)) {
-          const relatedModels = data.filter(isRecord).map((d) => hydrate(d));
+          const relatedModels = data.filter((element) => isRecord(element)).map((d) => hydrate(d));
           model.setRelation(name, relatedModels);
           continue;
         }

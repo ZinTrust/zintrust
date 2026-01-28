@@ -1,5 +1,5 @@
+import { Router } from '@core-routes/Router';
 import { registerBroadcastRoutes } from '@routes/broadcast';
-import { Router } from '@routing/Router';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('Broadcast routes - health', () => {

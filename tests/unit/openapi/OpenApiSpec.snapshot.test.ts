@@ -1,7 +1,7 @@
 import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
+import { Router } from '@core-routes/Router';
+import { RouteRegistry } from '@core-routes/RouteRegistry';
 import { registerRoutes } from '@routes/api';
-import { Router } from '@routing/Router';
-import { RouteRegistry } from '@routing/RouteRegistry';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock the dev routes to prevent test routes from being registered
@@ -69,11 +69,18 @@ describe('OpenAPI spec snapshot', () => {
     const router = Router.createRouter();
     registerRoutes(router);
 
-    const doc = OpenApiGenerator.generate(RouteRegistry.list(), {
+    const doc = OpenApiGenerator.generate([...RouteRegistry.list()], {
       title: 'ZinTrust Framework',
       version: '0.0.0',
       excludePaths: ['/openapi.json', '/docs'],
     });
+
+    // Health endpoints moved to core routes; exclude them from this app-level snapshot
+    if (doc.paths) {
+      delete (doc.paths as Record<string, unknown>)['/health'];
+      delete (doc.paths as Record<string, unknown>)['/health/live'];
+      delete (doc.paths as Record<string, unknown>)['/health/ready'];
+    }
 
     expect(JSON.stringify(doc, null, 2)).toMatchSnapshot();
   });

@@ -13,7 +13,7 @@ vi.mock('@node-singletons/fs', () => {
 
 let observedBody: unknown;
 
-vi.mock('@routing/Router', () => {
+vi.mock('@core-routes/Router', () => {
   return {
     Router: {
       match: vi.fn(() => {

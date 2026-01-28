@@ -59,7 +59,7 @@ vi.mock('@http/error-pages/ErrorPageRenderer', () => ({
   },
 }));
 
-vi.mock('@routing/Router', () => ({
+vi.mock('@core-routes/Router', () => ({
   Router: {
     match: vi.fn(() => ({})),
   },
@@ -189,7 +189,7 @@ describe('Server (coverage)', () => {
 
     const res = makeRes();
     expect(requestHandler).toBeDefined();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     // Body should be parsed as urlencoded
     expect(requestWrapper.setBody).toHaveBeenCalled();
@@ -249,7 +249,7 @@ describe('Server (coverage)', () => {
     Server.create(app, 3000, 'localhost', kernel);
 
     const res = makeRes();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(400);
     expect(responseWrapper.json).toHaveBeenCalledWith({ error: 'Invalid JSON body' });
@@ -309,14 +309,14 @@ describe('Server (coverage)', () => {
     Server.create(app, 3000, 'localhost', kernel);
 
     const res = makeRes();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(413);
     expect(responseWrapper.json).toHaveBeenCalledWith({ error: 'Payload Too Large' });
   });
 
   it('renders HTML error page on internal server error (and redacts headers)', async () => {
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const { ErrorPageRenderer } = await import('@http/error-pages/ErrorPageRenderer');
     const { Request } = await import('@http/Request');
     const { Response } = await import('@http/Response');
@@ -367,7 +367,7 @@ describe('Server (coverage)', () => {
     Server.create(app, 3000, 'localhost', kernel);
 
     const res = makeRes();
-    await requestHandler?.(rawReq as any, res);
+    await requestHandler?.(rawReq as any, res); //NOSONAR
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(500);
     expect(ErrorPageRenderer.shouldSendHtml).toHaveBeenCalled();

@@ -1,5 +1,5 @@
-import { RouteRegistry } from '@routing/RouteRegistry';
-import { Router } from '@routing/Router';
+import { RouteRegistry } from '@core-routes/RouteRegistry';
+import { Router } from '@core-routes/Router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('RouteRegistry', () => {

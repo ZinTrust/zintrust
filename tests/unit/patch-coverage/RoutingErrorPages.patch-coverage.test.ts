@@ -4,19 +4,19 @@ import * as nodeFs from 'node:fs';
 import * as nodeOs from 'node:os';
 import * as nodePath from 'node:path';
 
-import { Router } from '@/routing/Router';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { Router } from '@core-routes/Router';
 import * as fsSingleton from '@node-singletons/fs';
 
 const hoisted = vi.hoisted(() => ({
   publicRoot: '',
 }));
 
-vi.mock('@routing/publicRoot', () => ({
+vi.mock('@core-routes/publicRoot', () => ({
   getPublicRoot: () => hoisted.publicRoot,
 }));
 
-import { registerErrorPagesRoutes, serveErrorPagesFile } from '@/routing/errorPages';
+import { registerErrorPagesRoutes, serveErrorPagesFile } from '@core-routes/errorPages';
 
 type TestRes = {
   setStatus: Mock;

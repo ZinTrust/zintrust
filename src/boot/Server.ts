@@ -8,6 +8,7 @@ import { appConfig } from '@config/app';
 import { HTTP_HEADERS } from '@config/constants';
 import { Logger } from '@config/logger';
 import { ServiceContainer, type IServiceContainer } from '@container/ServiceContainer';
+import { ErrorRouting } from '@core-routes/error';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IKernel } from '@http/Kernel';
 import { Kernel } from '@http/Kernel';
@@ -17,7 +18,6 @@ import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
 import * as http from '@node-singletons/http';
 import type { Socket } from '@node-singletons/net';
-import { ErrorRouting } from '@routing/error';
 
 export interface IServer {
   listen(): Promise<void>;

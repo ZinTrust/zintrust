@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Router } from '@/routing/Router';
+import { Router } from '@core-routes/Router';
 
 vi.mock('@config/app', () => ({
   appConfig: {
@@ -21,7 +21,7 @@ describe('patch coverage: routing/error (forced 404/500)', () => {
   });
 
   it('handles /404 forced route', async () => {
-    const { registerErrorRoutes } = await import('@/routing/error');
+    const { registerErrorRoutes } = await import('@core-routes/error');
 
     const router = Router.createRouter();
     registerErrorRoutes(router);
@@ -42,7 +42,7 @@ describe('patch coverage: routing/error (forced 404/500)', () => {
   });
 
   it('handles /500 forced route', async () => {
-    const { registerErrorRoutes } = await import('@/routing/error');
+    const { registerErrorRoutes } = await import('@core-routes/error');
 
     const router = Router.createRouter();
     registerErrorRoutes(router);

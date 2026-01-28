@@ -8,16 +8,25 @@ describe('UserQueryBuilderController (branches)', () => {
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
     vi.doMock('@orm/Database', () => ({ useDatabase: () => ({}) }));
+    const createSimpleQueryBuilderMock = () => {
+      const firstMock = async () => null;
+      const limitMock = () => ({ first: firstMock });
+      const whereMock = () => ({ limit: limitMock });
+      const selectMock = () => ({ where: whereMock });
+
+      return {
+        select: selectMock,
+        get: async () => [],
+        insert: async () => ({}),
+        update: async () => ({}),
+        delete: async () => ({}),
+        first: firstMock,
+      };
+    };
+
     vi.doMock('@orm/QueryBuilder', () => ({
       QueryBuilder: {
-        create: () => ({
-          select: () => ({ where: () => ({ limit: () => ({ first: async () => null }) }) }),
-          get: async () => [],
-          insert: async () => ({}),
-          update: async () => ({}),
-          delete: async () => ({}),
-          first: async () => null,
-        }),
+        create: createSimpleQueryBuilderMock,
       },
     }));
     vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: () => '' } }));
@@ -53,49 +62,47 @@ describe('UserQueryBuilderController (branches)', () => {
     vi.doMock('@orm/Database', () => ({ useDatabase: () => ({}) }));
 
     // QueryBuilder that reacts to the where value
+    const createQueryBuilderMock = () => {
+      let whereVal: unknown;
+
+      const firstMock = async () =>
+        whereVal === 'notfound'
+          ? null
+          : { id: whereVal, name: 'n', email: 'e', created_at: '', updated_at: '' };
+
+      const limitMock = () => ({ first: firstMock });
+
+      const whereMock = (_k: string, _op: string, val: unknown) => {
+        whereVal = val;
+        return { limit: limitMock };
+      };
+
+      const selectMock = () => ({ where: whereMock });
+
+      return {
+        select: selectMock,
+        where: whereMock,
+        limit: limitMock,
+        first: async () => null,
+        get: async () => [],
+        insert: async () => ({}),
+        update: async () => ({}),
+        delete: async () => ({}),
+      };
+    };
+
     vi.doMock('@orm/QueryBuilder', () => ({
       QueryBuilder: {
-        create: (_: string, __: any) => {
-          let whereVal: unknown;
-          return {
-            select: () => ({
-              where: (_k: string, _op: string, val: unknown) => {
-                whereVal = val;
-                return {
-                  limit: () => ({
-                    first: async () =>
-                      whereVal === 'notfound'
-                        ? null
-                        : { id: whereVal, name: 'n', email: 'e', created_at: '', updated_at: '' },
-                  }),
-                };
-              },
-            }),
-            where: (_k: string, _op: string, val: unknown) => {
-              whereVal = val;
-              return {
-                limit: () => ({
-                  first: async () => (whereVal === 'notfound' ? null : { id: whereVal }),
-                }),
-              };
-            },
-            limit: () => ({ first: async () => null }),
-            first: async () => null,
-            get: async () => [],
-            insert: async () => ({}),
-            update: async () => ({}),
-            delete: async () => ({}),
-          };
-        },
+        create: createQueryBuilderMock,
       },
     }));
 
     vi.doMock('@security/Sanitizer', () => ({
       Sanitizer: {
         digitsOnly: (v: any) => (typeof v === 'string' ? v : ''),
-        nameText: (v: any) => String(v),
-        email: (v: any) => String(v),
-        safePasswordChars: (v: any) => String(v),
+        nameText: String,
+        email: String,
+        safePasswordChars: String,
       },
     }));
     vi.doMock('@validation/Validator', () => ({
@@ -108,14 +115,23 @@ describe('UserQueryBuilderController (branches)', () => {
 
     const makeRes = () => {
       let last: any = {};
+
+      const statusJson = (b: any, s: number) => {
+        last = { status: s, body: b };
+        return last;
+      };
+
+      const statusJsonObj = (s: number) => ({
+        json: (b: any) => statusJson(b, s),
+      });
+
+      const status = statusJsonObj;
+
+      const json = (b: any) => (last = { status: 200, body: b });
+
       return {
-        status: (s: number) => ({
-          json: (b: any) => {
-            last = { status: s, body: b };
-            return last;
-          },
-        }),
-        json: (b: any) => (last = { status: 200, body: b }),
+        status,
+        json,
         getLast: () => last,
       } as any;
     };

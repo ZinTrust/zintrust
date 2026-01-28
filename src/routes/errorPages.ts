@@ -4,15 +4,15 @@
  */
 
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@core-routes/common';
+import { getPublicRoot } from '@core-routes/publicRoot';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@routing/common';
-import { getPublicRoot } from '@routing/publicRoot';
-import type { IRouter } from '@routing/Router';
-import { Router } from '@routing/Router';
 
 const servePublicRootFile = (
   relativePath: string,

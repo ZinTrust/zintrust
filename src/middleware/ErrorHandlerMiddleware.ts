@@ -1,6 +1,6 @@
-import ErrorRouting from '@/routing/error';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import ErrorRouting from '@core-routes/error';
 import { ErrorResponse } from '@http/ErrorResponse';
 import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';

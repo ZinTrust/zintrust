@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe('patch coverage: broadcast routes', () => {
   it('/broadcast/send: returns 400 when channel missing', async () => {
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerBroadcastRoutes } = await import('@/../routes/broadcast');
@@ -42,7 +42,7 @@ describe('patch coverage: broadcast routes', () => {
   });
 
   it('/broadcast/send: returns 400 when event missing', async () => {
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerBroadcastRoutes } = await import('@/../routes/broadcast');
@@ -63,7 +63,7 @@ describe('patch coverage: broadcast routes', () => {
     const { Broadcast } = await import('@broadcast/Broadcast');
     vi.mocked(Broadcast.send as any).mockResolvedValue({ messageId: '123' });
 
-    const { Router } = await import('@routing/Router');
+    const { Router } = await import('@core-routes/Router');
     const router = Router.createRouter();
 
     const { registerBroadcastRoutes } = await import('@/../routes/broadcast');

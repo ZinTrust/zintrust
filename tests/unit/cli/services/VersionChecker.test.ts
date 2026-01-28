@@ -2,12 +2,25 @@
  * VersionChecker Tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { VersionChecker } from '@cli/services/VersionChecker';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// Mock HttpClient with factory function to avoid hoisting issues
+vi.mock('@httpClient/Http', () => {
+  const mockHttpClient = {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  };
+  return {
+    HttpClient: mockHttpClient,
+  };
+});
+
+import { VersionChecker } from '@cli/services/VersionChecker';
+import { HttpClient } from '@httpClient/Http';
+const mockedHttpClient = vi.mocked(HttpClient);
 
 // Mock localStorage
 const mockLocalStorage = {
@@ -114,33 +127,136 @@ describe('VersionChecker', () => {
     it('should fetch latest version from npm registry', async () => {
       const mockResponse = {
         ok: true,
-        json: vi.fn().mockResolvedValue({
+        status: 200,
+        headers: {},
+        body: JSON.stringify({
           'dist-tags': { latest: '1.2.3' },
           version: '1.2.3',
         }),
+        json: vi.fn().mockReturnValue({
+          'dist-tags': { latest: '1.2.3' },
+          version: '1.2.3',
+        }),
+        text: vi.fn().mockReturnValue(
+          JSON.stringify({
+            'dist-tags': { latest: '1.2.3' },
+            version: '1.2.3',
+          })
+        ),
       };
 
-      mockFetch.mockResolvedValue(mockResponse);
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockResolvedValue(mockResponse),
+      });
 
       const result = await VersionChecker.fetchLatestVersion();
       expect(result).toBe('1.2.3');
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://registry.npmjs.org/@zintrust/core/latest',
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'ZinTrust-CLI-Version-Check',
-          },
-          signal: expect.any(AbortSignal),
-        }
+      expect(mockedHttpClient.get).toHaveBeenCalledWith(
+        'https://registry.npmjs.org/@zintrust/core/latest'
       );
     });
 
-    it('should handle network errors', async () => {
-      mockFetch.mockRejectedValue(new Error('Network error'));
+    it('should handle network errors gracefully', async () => {
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockRejectedValue(new Error('Network error')),
+      });
 
-      await expect(VersionChecker.fetchLatestVersion()).rejects.toThrow();
+      // Should return current version instead of throwing
+      const currentVersion = VersionChecker.getCurrentVersion();
+      const result = await VersionChecker.fetchLatestVersion();
+      expect(result).toBe(currentVersion); // Current version from package.json
+    });
+
+    it('should return current version when npm returns 404', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 404,
+        json: vi.fn(),
+      };
+
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockResolvedValue(mockResponse),
+      });
+
+      const currentVersion = VersionChecker.getCurrentVersion();
+      const result = await VersionChecker.fetchLatestVersion();
+      expect(result).toBe(currentVersion);
+    });
+
+    it('should return current version when npm returns non-404 error', async () => {
+      const mockResponse = {
+        ok: false,
+        status: 500,
+        json: vi.fn(),
+      };
+
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockResolvedValue(mockResponse),
+      });
+
+      const currentVersion = VersionChecker.getCurrentVersion();
+      const result = await VersionChecker.fetchLatestVersion();
+      expect(result).toBe(currentVersion);
+    });
+  });
+
+  describe('extractVersionFromResponse', () => {
+    it('should return current version for invalid response data', () => {
+      const currentVersion = VersionChecker.getCurrentVersion();
+      const result = VersionChecker.extractVersionFromResponse(null);
+      expect(result).toBe(currentVersion);
+    });
+
+    it('should fall back to version field when dist-tags are missing', () => {
+      const result = VersionChecker.extractVersionFromResponse({
+        version: '2.3.4',
+      });
+      expect(result).toBe('2.3.4');
+    });
+
+    it('should return current version when no usable version fields exist', () => {
+      const currentVersion = VersionChecker.getCurrentVersion();
+      const result = VersionChecker.extractVersionFromResponse({
+        'dist-tags': { latest: '' },
+        version: '',
+      });
+      expect(result).toBe(currentVersion);
+    });
+  });
+
+  describe('getVersionFromField', () => {
+    it('should return null when version is missing or empty', () => {
+      expect(VersionChecker.getVersionFromField({})).toBeNull();
+      expect(VersionChecker.getVersionFromField({ version: '' })).toBeNull();
+      expect(VersionChecker.getVersionFromField({ version: 123 })).toBeNull();
     });
   });
 
@@ -160,7 +276,16 @@ describe('VersionChecker', () => {
         }),
       };
 
-      mockFetch.mockResolvedValue(mockResponse);
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockResolvedValue(mockResponse),
+      });
 
       const result = await VersionChecker.checkVersion();
       expect(result).not.toBeNull();
@@ -214,7 +339,16 @@ describe('VersionChecker', () => {
   describe('runVersionCheck', () => {
     it('should run version check without throwing errors', async () => {
       // Should not throw even if network fails
-      mockFetch.mockRejectedValue(new Error('Network error'));
+      mockedHttpClient.get.mockReturnValue({
+        withHeader: vi.fn().mockReturnThis(),
+        withHeaders: vi.fn().mockReturnThis(),
+        withAuth: vi.fn().mockReturnThis(),
+        withBasicAuth: vi.fn().mockReturnThis(),
+        withTimeout: vi.fn().mockReturnThis(),
+        asJson: vi.fn().mockReturnThis(),
+        asForm: vi.fn().mockReturnThis(),
+        send: vi.fn().mockRejectedValue(new Error('Network error')),
+      });
 
       await expect(VersionChecker.runVersionCheck()).resolves.toBeUndefined();
     });

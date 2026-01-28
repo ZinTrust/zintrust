@@ -1,5 +1,5 @@
 import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
-import type { RouteRegistration } from '@routing/RouteRegistry';
+import type { RouteRegistration } from '@core-routes/RouteRegistry';
 import { Schema } from '@validation/Validator';
 import { describe, expect, it } from 'vitest';
 

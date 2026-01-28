@@ -7,11 +7,11 @@ import { appConfig } from '@/config/app';
 import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 import type { IRequest } from '@/http/Request';
 import type { IResponse } from '@/http/Response';
-import type { IRouter } from '@/routing/Router';
-import { Router } from '@/routing/Router';
 import { HealthUtils } from '@common/ExternalServiceUtils';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 

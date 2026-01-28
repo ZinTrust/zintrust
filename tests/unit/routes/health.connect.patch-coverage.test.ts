@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, type Mock } from 'vitest';
 
+import { registerHealthRoutes } from '@/routes/health';
+import { Router } from '@core-routes/Router';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
-import { registerHealthRoutes } from '@routes/health';
-import { Router } from '@routing/Router';
 
 vi.mock('@orm/Database');
 vi.mock('@orm/QueryBuilder', () => ({

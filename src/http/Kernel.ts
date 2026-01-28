@@ -5,6 +5,9 @@
 import { Logger } from '@config/logger';
 import { middlewareConfig } from '@config/middleware';
 import type { IServiceContainer } from '@container/ServiceContainer';
+import { ErrorRouting } from '@core-routes/error';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
 import { RequestContext, type IRequestContext } from '@http/RequestContext';
@@ -13,9 +16,6 @@ import { Response } from '@http/Response';
 import type { IMiddlewareStack, Middleware } from '@middleware/MiddlewareStack';
 import { MiddlewareStack } from '@middleware/MiddlewareStack';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
-import type { IRouter } from '@routing/Router';
-import { Router } from '@routing/Router';
-import { ErrorRouting } from '@routing/error';
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { PrometheusMetrics } from '@/observability/PrometheusMetrics';

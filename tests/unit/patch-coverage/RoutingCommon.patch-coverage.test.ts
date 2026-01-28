@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as nodePath from 'node:path';
 
-import { resolveSafePath, tryDecodeURIComponent } from '@/routing/common';
+import { resolveSafePath, tryDecodeURIComponent } from '@core-routes/common';
 
 describe('patch coverage: routing/common', () => {
   it('tryDecodeURIComponent returns original when invalid', () => {

@@ -3,6 +3,7 @@ import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
+const testPas = 'passwordpassword';
 beforeEach(() => {
   vi.resetModules();
 });
@@ -59,8 +60,8 @@ describe('AuthController', () => {
     const controller = AuthController.create();
 
     const req = {
-      body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' },
-      validated: { body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' } },
+      body: { name: 'A', email: 'a@example.com', password: testPas },
+      validated: { body: { name: 'A', email: 'a@example.com', password: testPas } },
       getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
@@ -98,15 +99,15 @@ describe('AuthController', () => {
     const controller = AuthController.create();
 
     const req = {
-      body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' },
-      validated: { body: { name: 'A', email: 'a@example.com', password: 'passwordpassword' } },
+      body: { name: 'A', email: 'a@example.com', password: testPas },
+      validated: { body: { name: 'A', email: 'a@example.com', password: testPas } },
       getRaw: vi.fn(() => ({ socket: { remoteAddress: '127.0.0.1' } })),
     } as any;
 
     const res = createRes();
     await controller.register(req, res as any);
 
-    expect(Auth.hash).toHaveBeenCalledWith('passwordpassword');
+    expect(Auth.hash).toHaveBeenCalledWith(testPas);
     expect(insertBuilder.insert).toHaveBeenCalledWith({
       name: 'A',
       email: 'a@example.com',
@@ -118,13 +119,14 @@ describe('AuthController', () => {
 
   it('login: returns 401 when user is not found', async () => {
     vi.resetModules();
+
+    const mockUserFirst = async () => null;
+    const mockUserLimit = () => ({ first: mockUserFirst });
+    const mockUserWhere = () => ({ limit: mockUserLimit });
+
     vi.doMock('@app/Models/User', () => ({
       User: {
-        where: () => ({
-          limit: () => ({
-            first: async () => null,
-          }),
-        }),
+        where: mockUserWhere,
       },
     }));
 
@@ -147,13 +149,14 @@ describe('AuthController', () => {
 
   it('login: returns 401 on invalid password', async () => {
     vi.resetModules();
+
+    const mockUserFirst = async () => ({ id: 1, email: 'a@example.com', password: 'hash' });
+    const mockUserLimit = () => ({ first: mockUserFirst });
+    const mockUserWhere = () => ({ limit: mockUserLimit });
+
     vi.doMock('@app/Models/User', () => ({
       User: {
-        where: () => ({
-          limit: () => ({
-            first: async () => ({ id: 1, email: 'a@example.com', password: 'hash' }),
-          }),
-        }),
+        where: mockUserWhere,
       },
     }));
 
@@ -178,18 +181,19 @@ describe('AuthController', () => {
 
   it('login: returns token + user when credentials are valid', async () => {
     vi.resetModules();
+
+    const mockUserFirst = async () => ({
+      id: 'u1',
+      name: 'A',
+      email: 'a@example.com',
+      password: 'hash',
+    });
+    const mockUserLimit = () => ({ first: mockUserFirst });
+    const mockUserWhere = () => ({ limit: mockUserLimit });
+
     vi.doMock('@app/Models/User', () => ({
       User: {
-        where: () => ({
-          limit: () => ({
-            first: async () => ({
-              id: 'u1',
-              name: 'A',
-              email: 'a@example.com',
-              password: 'hash',
-            }),
-          }),
-        }),
+        where: mockUserWhere,
       },
     }));
     (Auth.compare as unknown as Mock).mockResolvedValue(true);

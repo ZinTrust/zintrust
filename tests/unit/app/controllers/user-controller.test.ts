@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const pass123 = 'password123';
 const loggerError = vi.fn();
 const loggerWarn = vi.fn();
 const loggerInfo = vi.fn();
@@ -97,7 +98,7 @@ function createBuilder(overrides?: Partial<Record<string, unknown>>): Record<str
     insert: vi.fn(async () => undefined),
     update: vi.fn(async () => undefined),
     delete: vi.fn(async () => undefined),
-    ...(overrides ?? {}),
+    ...overrides,
   };
   return builder;
 }
@@ -228,7 +229,7 @@ describe('UserController', () => {
       })
     );
 
-    const body = { name: 'Alice', email: 'a@b.com', password: 'password123' };
+    const body = { name: 'Alice', email: 'a@b.com', password: pass123 };
     const req = createReq({
       body,
     });
@@ -253,7 +254,7 @@ describe('UserController', () => {
     );
 
     const req = createReq({
-      body: { name: 'Alice', email: 'alice@test.com', password: 'password123' },
+      body: { name: 'Alice', email: 'alice@test.com', password: pass123 },
     });
     const res = createRes();
 

@@ -13,13 +13,13 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    vi.doMock('@routing/RouteRegistry', () => ({
+    vi.doMock('@core-routes/RouteRegistry', () => ({
       RouteRegistry: {
         list: () => [{ method: 'GET', path: '/x' }],
       },
     }));
 
-    vi.doMock('@routing/Router', () => ({
+    vi.doMock('@core-routes/Router', () => ({
       Router: {
         get: routerGet,
       },
@@ -38,14 +38,14 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    const { registerOpenApiRoutes } = await import('@routes/openapi');
+    const { registerOpenApiRoutes } = await import('@/routes/openapi');
 
     registerOpenApiRoutes({} as any);
 
     expect(routerGet).toHaveBeenCalledTimes(2);
 
-    const openapiHandler = routerGet.mock.calls[0]?.[2] as any;
-    const docsHandler = routerGet.mock.calls[1]?.[2] as any;
+    const openapiHandler = routerGet.mock.calls[0]?.[2];
+    const docsHandler = routerGet.mock.calls[1]?.[2];
 
     const resJson = { json: vi.fn(), html: vi.fn() } as any;
 
@@ -75,13 +75,13 @@ describe('routes/openapi patch coverage', () => {
       OpenApiGenerator: { generate },
     }));
 
-    vi.doMock('@routing/RouteRegistry', () => ({
+    vi.doMock('@core-routes/RouteRegistry', () => ({
       RouteRegistry: {
         list: () => [],
       },
     }));
 
-    vi.doMock('@routing/Router', () => ({
+    vi.doMock('@core-routes/Router', () => ({
       Router: {
         get: routerGet,
       },
@@ -100,11 +100,11 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    const { registerOpenApiRoutes } = await import('@routes/openapi');
+    const { registerOpenApiRoutes } = await import('@/routes/openapi');
 
     registerOpenApiRoutes({} as any);
 
-    const openapiHandler = routerGet.mock.calls[0]?.[2] as any;
+    const openapiHandler = routerGet.mock.calls[0]?.[2];
     const resJson = { json: vi.fn() } as any;
 
     await openapiHandler({}, resJson);
@@ -127,13 +127,13 @@ describe('routes/openapi patch coverage', () => {
       OpenApiGenerator: { generate },
     }));
 
-    vi.doMock('@routing/RouteRegistry', () => ({
+    vi.doMock('@core-routes/RouteRegistry', () => ({
       RouteRegistry: {
         list: () => [],
       },
     }));
 
-    vi.doMock('@routing/Router', () => ({
+    vi.doMock('@core-routes/Router', () => ({
       Router: {
         get: routerGet,
       },
@@ -152,11 +152,11 @@ describe('routes/openapi patch coverage', () => {
       },
     }));
 
-    const { registerOpenApiRoutes } = await import('@routes/openapi');
+    const { registerOpenApiRoutes } = await import('@/routes/openapi');
 
     registerOpenApiRoutes({} as any);
 
-    const openapiHandler = routerGet.mock.calls[0]?.[2] as any;
+    const openapiHandler = routerGet.mock.calls[0]?.[2];
     const resJson = { json: vi.fn() } as any;
 
     await openapiHandler({}, resJson);

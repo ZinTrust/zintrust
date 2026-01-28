@@ -4,20 +4,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@config/logger', () => ({ Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('@orm/Database', () => ({ useDatabase: vi.fn().mockReturnValue({}) }));
 
-vi.mock('@orm/QueryBuilder', () => ({
-  QueryBuilder: {
-    create: vi.fn(() => ({
-      select: () => ({ where: () => ({ limit: () => ({ first: async () => null }) }) }),
-    })),
-  },
-}));
+vi.mock('@orm/QueryBuilder', () => {
+  const createQueryBuilderMock = () => {
+    const firstMock = async () => null;
+    const limitMock = () => ({ first: firstMock });
+    const whereMock = () => ({ limit: limitMock });
+    const selectMock = () => ({ where: whereMock });
+
+    return {
+      select: selectMock,
+    };
+  };
+
+  return {
+    QueryBuilder: {
+      create: vi.fn(createQueryBuilderMock),
+    },
+  };
+});
 
 vi.mock('@security/Sanitizer', () => ({
   Sanitizer: {
-    digitsOnly: (v: any) => String(v),
+    digitsOnly: String,
     nameText: (v: any) => (typeof v === 'string' ? v : ''),
-    email: (v: any) => String(v),
-    safePasswordChars: (v: any) => String(v),
+    email: String,
+    safePasswordChars: String,
   },
 }));
 
@@ -56,11 +67,17 @@ beforeEach(() => {
 });
 
 describe('patch coverage extra: UserQueryBuilderController forbidden/ownership', () => {
+  const createNestedMock = () => {
+    const firstMock = async () => ({ id: '2' });
+    const limitMock = () => ({ first: firstMock });
+    const whereMock = () => ({ limit: limitMock });
+    const selectMock = () => ({ where: whereMock });
+    return { select: selectMock };
+  };
+
   it('update: returns 403 when updating another user', async () => {
     // Mock QueryBuilder to find the target user
-    (QueryBuilder.create as any).mockReturnValueOnce({
-      select: () => ({ where: () => ({ limit: () => ({ first: async () => ({ id: '2' }) }) }) }),
-    });
+    (QueryBuilder.create as any).mockReturnValueOnce(createNestedMock());
 
     const { req, res } = makeReqRes();
     req.params = { id: '2' };
@@ -73,9 +90,7 @@ describe('patch coverage extra: UserQueryBuilderController forbidden/ownership',
   });
 
   it('destroy: returns 403 when deleting another user', async () => {
-    (QueryBuilder.create as any).mockReturnValueOnce({
-      select: () => ({ where: () => ({ limit: () => ({ first: async () => ({ id: '2' }) }) }) }),
-    });
+    (QueryBuilder.create as any).mockReturnValueOnce(createNestedMock());
 
     const { req, res } = makeReqRes();
     req.params = { id: '2' };

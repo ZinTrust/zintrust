@@ -2,7 +2,7 @@
 import { QACommand } from '@cli/commands/QACommand';
 import { Logger } from '@config/logger';
 import * as child_process from '@node-singletons/child-process';
-import { fs, fsPromises } from '@node-singletons/fs';
+import fs, { fsPromises } from '@node-singletons/fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@node-singletons/child-process', () => {
@@ -64,8 +64,9 @@ const execFileSyncOpenFails = (cmd: string): Buffer => {
   return Buffer.from('');
 };
 
-const throwStringError = (): never => {
-  throw 'String error';
+const throwNonErrorObject = (): never => {
+  // Intentionally throwing a string to test error handling of non-Error objects
+  throw new Error('String error');
 };
 
 type QAStatus = 'pending' | 'passed' | 'failed' | 'skipped';
@@ -993,11 +994,11 @@ describe('QACommand', () => {
     });
 
     it('should handle errorToMessage with non-Error object', async () => {
-      vi.mocked(child_process.execFileSync).mockImplementationOnce(throwStringError as any);
+      vi.mocked(child_process.execFileSync).mockImplementationOnce(throwNonErrorObject as any);
       const result = { status: 'pending', output: '' } as any;
       await command.runLint(result);
       expect(result.status).toBe('failed');
-      expect(result.output).toBe('Unknown error');
+      expect(result.output).toBe('String error');
     });
 
     it('should skip sonar during execute when --no-sonar is provided', async () => {
