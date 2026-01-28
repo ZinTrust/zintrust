@@ -8,7 +8,7 @@ set -e
 
 MIN_PCT=${MIN_PCT:-82}
 
-UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)
 
 if [ -n "$UPSTREAM" ]; then
   BASE=$(git merge-base HEAD "$UPSTREAM")

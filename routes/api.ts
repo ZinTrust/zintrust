@@ -7,10 +7,9 @@ import { AuthController } from '@app/Controllers/AuthController';
 import { UserQueryBuilderController } from '@app/Controllers/UserQueryBuilderController';
 import { Env } from '@config/env';
 import type { MiddlewareKey } from '@config/middleware';
+import { type IRouter, Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-// import { registerDevRoutes } from '@routes/apiDev';
-import { type IRouter, Router } from '@core-routes/Router';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
 
@@ -20,7 +19,6 @@ export function registerRoutes(router: IRouter): void {
   registerPublicRoutes(router);
   registerApiV1Routes(router, authController, userController);
   registerAdminRoutes(router);
-  // registerDevRoutes(router);
 }
 
 /**

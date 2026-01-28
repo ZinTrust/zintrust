@@ -141,18 +141,56 @@ function makeCollection<T>(items: readonly T[]): ICollection<T> {
     count: () => snapshot.length,
     isEmpty: () => snapshot.length === 0,
 
-    map: (fn) => makeCollection(snapshot.map(fn)),
-    filter: (fn) => makeCollection(snapshot.filter(fn)),
-    reduce: (fn, initial) => snapshot.reduce(fn, initial),
+    map: (fn) => {
+      if (typeof fn !== 'function') {
+        throw new TypeError('Map callback must be a function');
+      }
+      return makeCollection(snapshot.map((item, index) => fn(item, index)));
+    },
+    filter: (fn) => {
+      if (typeof fn !== 'function') {
+        throw new TypeError('Filter callback must be a function');
+      }
+      return makeCollection(snapshot.filter((item, index) => fn(item, index)));
+    },
+    reduce: (fn, initial) => {
+      if (typeof fn !== 'function') {
+        throw new TypeError('Reduce callback must be a function');
+      }
+      return snapshot.reduce(
+        (accumulator, element, index) => fn(accumulator, element, index),
+        initial
+      );
+    },
 
-    first: (fn) => firstMatch(snapshot, fn),
-    last: (fn) => lastMatch(snapshot, fn),
+    first: (fn) => {
+      if (fn && typeof fn !== 'function') {
+        throw new TypeError('First callback must be a function');
+      }
+      return firstMatch(snapshot, fn);
+    },
+    last: (fn) => {
+      if (fn && typeof fn !== 'function') {
+        throw new TypeError('Last callback must be a function');
+      }
+      return lastMatch(snapshot, fn);
+    },
 
     pluck: (key) => makeCollection(snapshot.map((item) => item[key])),
     where: (key, value) => makeCollection(snapshot.filter((item) => item[key] === value)),
 
-    unique: (keySelector) => makeCollection(uniqueItems(snapshot, keySelector)),
-    sortBy: (keySelector) => makeCollection(sortByKey(snapshot, keySelector)),
+    unique: (keySelector) => {
+      if (keySelector && typeof keySelector !== 'function') {
+        throw new TypeError('Unique key selector must be a function');
+      }
+      return makeCollection(uniqueItems(snapshot, keySelector));
+    },
+    sortBy: (keySelector) => {
+      if (typeof keySelector !== 'function') {
+        throw new TypeError('Sort key selector must be a function');
+      }
+      return makeCollection(sortByKey(snapshot, keySelector));
+    },
     chunk: (size) => makeCollection(chunkItems(snapshot, size)),
 
     take: (n) => {
