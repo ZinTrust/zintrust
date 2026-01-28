@@ -1,3 +1,4 @@
+import { ZintrustLang } from '@/lang/lang';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
@@ -10,6 +11,18 @@ interface IQueueDriver {
   length(queue: string): Promise<number>;
   drain(queue: string): Promise<void>;
 }
+
+let redis_key_prefix: string | undefined;
+
+export const resolveLockPrefix = (): string => {
+  if (redis_key_prefix !== undefined) {
+    return redis_key_prefix;
+  }
+
+  const prefix = Env.get('QUEUE_LOCK_PREFIX', ZintrustLang.ZINTRUST_LOCKS_PREFIX).trim();
+  redis_key_prefix = prefix.length > 0 ? prefix : ZintrustLang.ZINTRUST_LOCKS_PREFIX;
+  return redis_key_prefix;
+};
 
 const drivers = new Map<string, IQueueDriver>();
 

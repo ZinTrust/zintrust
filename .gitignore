@@ -86,3 +86,4 @@ app/Jobs/EmailJobService.ts
 tests/unit/app/Jobs/EmailJobService.coverage.test.ts
 routes/mail.ts
 tests/unit/routes/mail.coverage.test.ts
+app/Workers/AdvancEmailWorker.ts
