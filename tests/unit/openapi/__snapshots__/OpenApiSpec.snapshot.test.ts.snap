@@ -18,36 +18,6 @@ exports[`OpenAPI spec snapshot > matches a stable snapshot for routes/api.ts 1`]
         }
       }
     },
-    "/health": {
-      "get": {
-        "operationId": "get_health",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/health/live": {
-      "get": {
-        "operationId": "get_health_live",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/health/ready": {
-      "get": {
-        "operationId": "get_health_ready",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/broadcast/health": {
       "get": {
         "operationId": "get_broadcast_health",

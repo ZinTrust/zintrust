@@ -78,6 +78,9 @@ describe('Bootstrap additional branches', () => {
     await Promise.resolve();
     await new Promise((r) => setTimeout(r, 20));
 
+    // assert process.exit was called with 0 for immediate shutdown
+    expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
+
     vi.useFakeTimers();
   });
 

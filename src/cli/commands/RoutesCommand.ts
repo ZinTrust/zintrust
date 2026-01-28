@@ -214,9 +214,17 @@ const buildRows = async (options: RoutesCommandOptions): Promise<RouteRow[]> => 
 
   const router = Router.createRouter();
 
-  // Lazy load registerRoutes only when this command is actually executed
-  const { registerRoutes } = await import('@routes/api');
-  registerRoutes(router);
+  // 1. Always load core framework routes (health, metrics, doc, error pages)
+  const { registerCoreRoutes } = await import('@core-routes/CoreRoutes');
+  registerCoreRoutes(router);
+
+  // 2. Try to load application routes if available
+  try {
+    const { registerRoutes } = await import('@routes/api');
+    registerRoutes(router);
+  } catch {
+    // routes/api.ts not found, continue with just core routes
+  }
 
   const routes = Router.getRoutes(router);
 

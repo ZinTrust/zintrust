@@ -108,7 +108,6 @@ export default defineConfig({
         'app/Controllers/TestController.ts',
         'app/Workers/TestWorker.ts',
         'routes/apiDev.ts',
-        'src/routes/**/*.ts',
         'src/collections/index.ts',
         'src/events/index.ts',
         'src/session/index.ts',

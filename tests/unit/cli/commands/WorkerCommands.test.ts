@@ -328,6 +328,8 @@ describe('WorkerCommands', () => {
 
       const cmd = WorkerCommands.createWorkerStartCommand();
       await cmd.execute({ args: ['alpha'] });
+
+      expect(workerFactory.start).toHaveBeenCalledWith('alpha');
     });
 
     it('should handle worker:stop command success', async () => {

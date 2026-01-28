@@ -12,7 +12,6 @@ import type { IResponse } from '@http/Response';
 // import { registerDevRoutes } from '@routes/apiDev';
 import { type IRouter, Router } from '@core-routes/Router';
 import { registerBroadcastRoutes } from '@routes/broadcast';
-
 import { registerStorageRoutes } from '@routes/storage';
 
 export function registerRoutes(router: IRouter): void {

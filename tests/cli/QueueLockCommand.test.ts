@@ -8,9 +8,9 @@ describe('QueueLockCommand', () => {
   const envBackup = { ...process.env };
 
   beforeEach(() => {
-    process.env.QUEUE_LOCK_PROVIDER = 'memory';
-    process.env.QUEUE_LOCK_PREFIX = 'test:';
-    process.env.QUEUE_DEFAULT_DEDUP_TTL = '1000';
+    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_LOCK_PREFIX'] = 'test:';
+    process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
   });
 
   afterEach(() => {
@@ -31,6 +31,9 @@ describe('QueueLockCommand', () => {
     setupQueueLockCommands(program);
 
     await program.parseAsync(['lock:list', '--provider', 'memory'], { from: 'user' });
+
+    const status = await provider.status('job-1');
+    expect(status.exists).toBe(true);
   });
 
   it('releases lock via command', async () => {
