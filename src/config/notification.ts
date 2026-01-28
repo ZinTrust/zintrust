@@ -132,8 +132,8 @@ const createNotificationConfig = (): NotificationRuntimeConfig => {
       // Return a record of channels; can be extended by app-level config.
       return {
         ...(getBaseProviders() as unknown as NotificationDrivers),
-        ...(overrides.providers ?? {}),
-        ...(overrides.drivers ?? {}),
+        ...overrides.providers,
+        ...overrides.drivers,
       } as NotificationDrivers;
     },
 
@@ -143,7 +143,7 @@ const createNotificationConfig = (): NotificationRuntimeConfig => {
     get providers(): NotificationProviders {
       return {
         ...getBaseProviders(),
-        ...(overrides.providers ?? {}),
+        ...overrides.providers,
       };
     },
 
