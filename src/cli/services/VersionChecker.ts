@@ -115,7 +115,7 @@ export const VersionChecker = Object.freeze({
       const response = await this.fetchFromNpmRegistry();
 
       if (!response.ok) {
-        return this.handleHttpError(response);
+        return this.handleHttpError();
       }
 
       const data = await response.json();
@@ -140,13 +140,8 @@ export const VersionChecker = Object.freeze({
   /**
    * Handle HTTP errors from npm registry
    */
-  handleHttpError(response: IHttpResponse): string {
-    // If package doesn't exist (404), return current version
-    if (response.status === 404) {
-      return this.getCurrentVersion();
-    }
-
-    return '';
+  handleHttpError(): string {
+    return this.getCurrentVersion();
   },
 
   /**
