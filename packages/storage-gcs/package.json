@@ -25,7 +25,7 @@
     "@google-cloud/storage": "^7.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.1.27"
+    "@zintrust/core": "file:../../dist"
   },
   "publishConfig": {
     "access": "public"
