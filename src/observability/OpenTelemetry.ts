@@ -25,16 +25,68 @@
  */
 
 import { Env } from '@config/env';
+import { createRequire } from '@node-singletons/module';
+import type { Context, Span } from '@opentelemetry/api';
 
-import {
-  context,
-  propagation,
-  SpanKind,
-  SpanStatusCode,
-  trace,
-  type Context,
-  type Span,
-} from '@opentelemetry/api';
+type OpenTelemetryApi = typeof import('@opentelemetry/api');
+
+let cachedApi: OpenTelemetryApi | null | undefined;
+
+const resolveOpenTelemetryApi = (): OpenTelemetryApi | null => {
+  if (cachedApi !== undefined) return cachedApi;
+
+  try {
+    const require = createRequire(import.meta.url);
+
+    cachedApi = require('@opentelemetry/api') as OpenTelemetryApi;
+    return cachedApi;
+  } catch {
+    cachedApi = null;
+    return null;
+  }
+};
+
+const noopSpan: Span = {
+  setAttribute: () => undefined,
+  updateName: () => undefined,
+  setStatus: () => undefined,
+  end: () => undefined,
+} as unknown as Span;
+
+const fallbackContext = {
+  active: () => ({}) as Context,
+  with: <A extends unknown[], F extends (...args: A) => ReturnType<F>>(
+    _ctx: Context,
+    fn: F,
+    _thisArg?: ThisParameterType<F>,
+    ...args: A
+  ): ReturnType<F> => fn(...args),
+};
+
+const fallbackPropagation = {
+  extract: (_ctx: Context) => _ctx,
+  inject: () => undefined,
+};
+
+const fallbackTrace = {
+  getTracer: () => ({
+    startSpan: () => noopSpan,
+  }),
+  getSpan: () => undefined,
+  setSpan: (ctx: Context) => ctx,
+};
+
+const fallbackSpanKind = {
+  SERVER: 1,
+  CLIENT: 2,
+} as const;
+
+const fallbackSpanStatusCode = {
+  OK: 1,
+  ERROR: 2,
+} as const;
+
+const otel = (): OpenTelemetryApi | null => resolveOpenTelemetryApi();
 
 export interface StartHttpServerSpanInput {
   method: string;
@@ -71,11 +123,12 @@ const isEnabled = (): boolean => {
 };
 
 const extractContextFromHeaders = (req: HeaderGetter): Context => {
-  const active = context.active();
+  const active = otel()?.context?.active() ?? fallbackContext.active();
 
   try {
-    return propagation.extract(active, req, {
-      get(carrier, key) {
+    const extractor = otel()?.propagation?.extract ?? fallbackPropagation.extract;
+    return extractor(active, req, {
+      get(carrier: HeaderGetter, key: string) {
         const value = carrier.getHeader(key);
         if (typeof value === 'string') return value;
         if (Array.isArray(value)) return value.join(',');
@@ -92,12 +145,12 @@ const extractContextFromHeaders = (req: HeaderGetter): Context => {
 
 const startHttpServerSpan = (req: HeaderGetter, input: StartHttpServerSpanInput): StartedSpan => {
   const parent = extractContextFromHeaders(req);
-  const tracer = trace.getTracer('zintrust');
+  const tracer = (otel()?.trace ?? fallbackTrace).getTracer('zintrust');
 
   const span = tracer.startSpan(
     `${input.method} unmatched`,
     {
-      kind: SpanKind.SERVER,
+      kind: (otel()?.SpanKind ?? fallbackSpanKind).SERVER,
       attributes: {
         'http.method': input.method,
         'http.target': input.path,
@@ -111,12 +164,13 @@ const startHttpServerSpan = (req: HeaderGetter, input: StartHttpServerSpanInput)
     parent
   );
 
-  const spanContext = trace.setSpan(parent, span);
+  const spanContext = (otel()?.trace ?? fallbackTrace).setSpan(parent, span);
   return { span, context: spanContext };
 };
 
 const runWithContext = async <T>(ctx: Context, fn: () => Promise<T>): Promise<T> => {
-  return context.with(ctx, fn);
+  const runner = otel()?.context?.with ?? fallbackContext.with;
+  return runner(ctx, fn);
 };
 
 const setHttpRoute = (span: Span, method: string, route: string): void => {
@@ -138,9 +192,9 @@ const endHttpServerSpan = (span: Span, input: EndHttpServerSpanInput): void => {
       span.setAttribute('http.status_code', input.status);
 
       if (input.status >= 500) {
-        span.setStatus({ code: SpanStatusCode.ERROR });
+        span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).ERROR });
       } else {
-        span.setStatus({ code: SpanStatusCode.OK });
+        span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).OK });
       }
     }
 
@@ -150,7 +204,7 @@ const endHttpServerSpan = (span: Span, input: EndHttpServerSpanInput): void => {
         'zintrust.error',
         input.error instanceof Error ? input.error.message : String(input.error)
       );
-      span.setStatus({ code: SpanStatusCode.ERROR });
+      span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).ERROR });
     }
 
     span.end();
@@ -161,7 +215,8 @@ const endHttpServerSpan = (span: Span, input: EndHttpServerSpanInput): void => {
 
 const injectTraceHeaders = (headers: Record<string, string>): Record<string, string> => {
   try {
-    propagation.inject(context.active(), headers);
+    const injector = otel()?.propagation?.inject ?? fallbackPropagation.inject;
+    injector(otel()?.context?.active() ?? fallbackContext.active(), headers);
   } catch {
     // best-effort
   }
@@ -190,10 +245,11 @@ const recordDbQuerySpan = (input: RecordDbQuerySpanInput): void => {
 
   try {
     // Only create a DB span if we're already inside a request trace.
-    const parentSpan = trace.getSpan(context.active());
+    const traceApi = otel()?.trace ?? fallbackTrace;
+    const parentSpan = traceApi.getSpan(otel()?.context?.active() ?? fallbackContext.active());
     if (!parentSpan) return;
 
-    const tracer = trace.getTracer('zintrust');
+    const tracer = traceApi.getTracer('zintrust');
     const now = Date.now();
     const durationMs = Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0;
     const startTime = now - durationMs;
@@ -201,7 +257,7 @@ const recordDbQuerySpan = (input: RecordDbQuerySpanInput): void => {
     const span = tracer.startSpan(
       'db.query',
       {
-        kind: SpanKind.CLIENT,
+        kind: (otel()?.SpanKind ?? fallbackSpanKind).CLIENT,
         startTime,
         attributes: {
           'db.system': mapDbSystem(input.driver),
@@ -209,7 +265,7 @@ const recordDbQuerySpan = (input: RecordDbQuerySpanInput): void => {
           'zintrust.db.driver': input.driver,
         },
       },
-      context.active()
+      otel()?.context?.active() ?? fallbackContext.active()
     );
 
     span.end(now);

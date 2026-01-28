@@ -40,8 +40,7 @@ async function discoverQueuesFromRedis(
     let shouldContinue = true;
     const prefix = getBullMQSafeQueueName();
     const scanAsync = (cur: string): Promise<[string, string[]]> =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (redis as any).scan(cur, 'MATCH', prefix + ':*', 'COUNT', '100');
+      redis.scan(cur, 'MATCH', prefix + ':*', 'COUNT', '100');
 
     while (shouldContinue) {
       // eslint-disable-next-line no-await-in-loop

@@ -13,11 +13,60 @@ import type {
   WorkersConfigOverrides,
   WorkersGlobalConfig,
 } from '@config/type';
+import { ErrorFactory } from '@exceptions/ZintrustError';
+import { createRequire } from '@node-singletons/module';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
-import IORedis from 'ioredis';
+import type IORedis from 'ioredis';
+
+let redisModule: typeof import('ioredis') | null | undefined;
+
+const resolveIORedis = (): typeof import('ioredis') => {
+  if (redisModule !== undefined) {
+    if (redisModule === null) {
+      throw ErrorFactory.createConfigError(
+        "Workers Redis driver requires the 'ioredis' package. Install it with `npm i ioredis` to enable Redis workers."
+      );
+    }
+    return redisModule;
+  }
+
+  try {
+    const require = createRequire(import.meta.url);
+    const requiredModule: unknown = require('ioredis');
+
+    // For test environments, be more permissive - if it's an object with Redis or is a function, accept it
+    if (
+      requiredModule !== null &&
+      requiredModule !== undefined &&
+      (typeof requiredModule === 'object' || typeof requiredModule === 'function')
+    ) {
+      const moduleAsRecord = requiredModule as Record<string, unknown>;
+
+      // Check if it has Redis property or if it's directly the Redis constructor
+      if (typeof moduleAsRecord['Redis'] === 'function' || typeof requiredModule === 'function') {
+        redisModule = requiredModule as typeof import('ioredis');
+      } else {
+        redisModule = null;
+      }
+    } else {
+      redisModule = null;
+    }
+  } catch {
+    redisModule = null;
+  }
+
+  if (!redisModule) {
+    throw ErrorFactory.createConfigError(
+      "Workers Redis driver requires the 'ioredis' package. Install it with `npm i ioredis' to enable Redis workers."
+    );
+  }
+
+  return redisModule;
+};
 
 export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORedis => {
-  const client = new IORedis({
+  const { Redis } = resolveIORedis();
+  const client = new Redis({
     host: config.host,
     port: config.port,
     password: config.password,
