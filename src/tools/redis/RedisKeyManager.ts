@@ -10,9 +10,6 @@ import { Logger } from '@config/logger';
 
 const PREFIX = appConfig.prefix;
 
-export const METRICS_PREFIX = `${PREFIX}_worker:metrics:`;
-export const HEALTH_PREFIX = `${PREFIX}_worker:health:`;
-
 /**
  * Creates a prefixed Redis key
  * @param key - Original key name
@@ -37,50 +34,122 @@ export function createRedisKey(key: string): string {
 }
 
 /**
- * Creates a prefixed queue key
- * @param queueName - Original queue name
- * @returns Prefixed queue key
+ * Plain-object Redis Key Manager
+ * Uses module-scoped lazy variables and plain functions (no classes)
  */
-export function createQueueKey(queueName: string): string {
-  return createRedisKey(`queue:${queueName}`);
-}
 
-/**
- * Creates a prefixed BullMQ queue key
- * BullMQ uses specific patterns like 'bull:queue-name'
- * @param queueName - Original queue name
- * @returns Prefixed BullMQ queue key
- */
-export function createBullMQKey(queueName: string): string {
-  return createRedisKey(`bull:${queueName}`);
-}
+// Lazy cache for prefixes
+let _metricsPrefix: string | undefined;
+let _healthPrefix: string | undefined;
+let _workerPrefix: string | undefined;
+let _queuePrefix: string | undefined;
+let _bullmqPrefix: string | undefined;
+let _queueLockPrefix: string | undefined;
+let _cachePrefix: string | undefined;
+let _sessionPrefix: string | undefined;
 
-/**
- * Creates a prefixed worker key
- * @param workerName - Original worker name
- * @returns Prefixed worker key
- */
-export function createWorkerKey(workerName: string): string {
-  return createRedisKey(`worker:${workerName}`);
-}
+const getMetricsPrefix = (): string => {
+  _metricsPrefix ??= `${PREFIX}_worker:metrics:`;
+  return _metricsPrefix;
+};
 
-/**
- * Creates a prefixed session key
- * @param sessionId - Session ID
- * @returns Prefixed session key
- */
-export function createSessionKey(sessionId: string): string {
-  return createRedisKey(`session:${sessionId}`);
-}
+const getHealthPrefix = (): string => {
+  _healthPrefix ??= `${PREFIX}_worker:health:`;
+  return _healthPrefix;
+};
 
-/**
- * Creates a prefixed cache key
- * @param cacheKey - Cache key
- * @returns Prefixed cache key
- */
-export function createCacheKey(cacheKey: string): string {
-  return createRedisKey(`cache:${cacheKey}`);
-}
+const getWorkerPrefix = (): string => {
+  _workerPrefix ??= `${PREFIX}:worker:`;
+  return _workerPrefix;
+};
+
+const getQueuePrefix = (): string => {
+  _queuePrefix ??= `${PREFIX}:queue:`;
+  return _queuePrefix;
+};
+
+const getBullmqPrefix = (): string => {
+  _bullmqPrefix ??= `${PREFIX}:bull:`;
+  return _bullmqPrefix;
+};
+
+const getQueueLockPrefix = (): string => {
+  _queueLockPrefix ??= `${PREFIX}:lock:`;
+  return _queueLockPrefix;
+};
+
+const getCachePrefix = (): string => {
+  _cachePrefix ??= `${PREFIX}:cache:`;
+  return _cachePrefix;
+};
+
+const getSessionPrefix = (): string => {
+  _sessionPrefix ??= `${PREFIX}:session:`;
+  return _sessionPrefix;
+};
+
+export const RedisKeys = Object.freeze({
+  get metricsPrefix() {
+    return getMetricsPrefix();
+  },
+  get healthPrefix() {
+    return getHealthPrefix();
+  },
+  get workerPrefix() {
+    return getWorkerPrefix();
+  },
+  get queuePrefix() {
+    return getQueuePrefix();
+  },
+  get bullmqPrefix() {
+    return getBullmqPrefix();
+  },
+  get queueLockPrefix() {
+    return getQueueLockPrefix();
+  },
+  get cachePrefix() {
+    return getCachePrefix();
+  },
+  get sessionPrefix() {
+    return getSessionPrefix();
+  },
+  createMetricsKey(workerName: string, metricType: string, granularity: string) {
+    return `${getMetricsPrefix()}${workerName}:${metricType}:${granularity}`;
+  },
+  createHealthKey(workerName: string) {
+    return `${getHealthPrefix()}${workerName}`;
+  },
+  createWorkerKey(workerName: string) {
+    return `${getWorkerPrefix()}${workerName}`;
+  },
+  createQueueKey(queueName: string) {
+    return `${getQueuePrefix()}${queueName}`;
+  },
+  createBullMQKey(queueName: string) {
+    return `${getBullmqPrefix()}${queueName}`;
+  },
+  createQueueLockKey(lockName: string) {
+    return `${getQueueLockPrefix()}${lockName}`;
+  },
+  createCacheKey(cacheKey: string) {
+    return `${getCachePrefix()}${cacheKey}`;
+  },
+  createSessionKey(sessionId: string) {
+    return `${getSessionPrefix()}${sessionId}`;
+  },
+  reset(): void {
+    _metricsPrefix = undefined;
+    _healthPrefix = undefined;
+    _workerPrefix = undefined;
+    _queuePrefix = undefined;
+    _bullmqPrefix = undefined;
+    _queueLockPrefix = undefined;
+    _cachePrefix = undefined;
+    _sessionPrefix = undefined;
+  },
+});
+
+// Note: Legacy helpers removed. Use `RedisKeys` APIs directly.
 
 /**
  * Extracts original key from prefixed key
@@ -120,7 +189,8 @@ export const getBullMQSafeQueueName = (): string => {
 export type RedisKeyType = 'queue' | 'bullmq' | 'worker' | 'session' | 'cache' | 'custom';
 
 /**
- * Creates a prefixed key based on type
+ * Creates a prefixed key based on type (legacy function)
+ * @deprecated Use RedisKeys methods directly
  * @param type - Type of key
  * @param key - Original key
  * @returns Prefixed key
@@ -128,15 +198,15 @@ export type RedisKeyType = 'queue' | 'bullmq' | 'worker' | 'session' | 'cache' |
 export function createKeyByType(type: RedisKeyType, key: string): string {
   switch (type) {
     case 'queue':
-      return createQueueKey(key);
+      return RedisKeys.createQueueKey(key);
     case 'bullmq':
-      return createBullMQKey(key);
+      return RedisKeys.createBullMQKey(key);
     case 'worker':
-      return createWorkerKey(key);
+      return RedisKeys.createWorkerKey(key);
     case 'session':
-      return createSessionKey(key);
+      return RedisKeys.createSessionKey(key);
     case 'cache':
-      return createCacheKey(key);
+      return RedisKeys.createCacheKey(key);
     case 'custom':
       return createRedisKey(key);
     default:

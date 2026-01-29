@@ -416,19 +416,14 @@ export { ZintrustLang } from '@lang/lang';
 // Workers config
 export { createRedisConnection, workersConfig } from '@config/workers';
 
-// Redis config key
+// Redis config key - Singleton exports
 export {
-  createBullMQKey,
-  createCacheKey,
-  createKeyByType,
-  createQueueKey,
   createRedisKey,
-  createSessionKey,
-  createWorkerKey,
   extractOriginalKey,
   getBullMQSafeQueueName,
   getPrefix,
   isAppKey,
+  RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
 

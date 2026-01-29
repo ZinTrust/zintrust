@@ -1,6 +1,6 @@
-import { ZintrustLang } from '@/lang/lang';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { RedisKeys } from '@tools/redis/RedisKeyManager';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
 
@@ -14,13 +14,16 @@ interface IQueueDriver {
 
 let redis_key_prefix: string | undefined;
 
+/**
+ * Resolves the lock prefix for queue operations
+ * Uses singleton RedisKeys for consistent key management
+ */
 export const resolveLockPrefix = (): string => {
   if (redis_key_prefix !== undefined) {
     return redis_key_prefix;
   }
 
-  const prefix = Env.get('QUEUE_LOCK_PREFIX', ZintrustLang.ZINTRUST_LOCKS_PREFIX).trim();
-  redis_key_prefix = prefix.length > 0 ? prefix : ZintrustLang.ZINTRUST_LOCKS_PREFIX;
+  redis_key_prefix = RedisKeys.queueLockPrefix;
   return redis_key_prefix;
 };
 
