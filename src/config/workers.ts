@@ -63,7 +63,7 @@ const resolveIORedis = (): typeof import('ioredis') => {
 
   if (!redisModule) {
     throw ErrorFactory.createConfigError(
-      "Workers Redis driver requires the 'ioredis' package. Install it with `npm i ioredis' to enable Redis workers."
+      "Workers Redis driver requires the 'ioredis' package. Install it with `npm i ioredis` to enable Redis workers."
     );
   }
 

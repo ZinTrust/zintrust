@@ -837,7 +837,7 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
     context
   );
   const port = resolveEnvInt(String(config.port ?? 'REDIS_PORT'), fallback.port);
-  const db = resolveEnvInt(config.db ?? 'REDIS_DB', fallback.db);
+  const db = config.db ? Number(config.db) : Env.getInt('REDIS_DB', fallback.db);
   const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallback.password);
 
   return {

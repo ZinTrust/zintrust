@@ -131,8 +131,8 @@ function createGetLocks(redisConfig: RedisConfig) {
 
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
     const client = resolveRedisConnection();
-    const prefix = resolveLockPrefix();
-    const searchPattern = `${prefix}${pattern}`;
+    const prefix_lock = resolveLockPrefix();
+    const searchPattern = `${prefix_lock}${pattern}`;
 
     const keys: string[] = [];
     let cursor = '0';
@@ -150,16 +150,16 @@ function createGetLocks(redisConfig: RedisConfig) {
       const ttl = statuses[index];
       const exists = typeof ttl === 'number' && ttl > 0;
       return {
-        key: key.replace(prefix, ''),
+        key: key.replace(prefix_lock, ''),
         ttl: exists ? ttl : undefined,
         expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
       };
     });
 
     const metricsKeys = [
-      `${prefix}${METRICS_KEYS.attempts}`,
-      `${prefix}${METRICS_KEYS.acquired}`,
-      `${prefix}${METRICS_KEYS.collisions}`,
+      `${prefix_lock}${METRICS_KEYS.attempts}`,
+      `${prefix_lock}${METRICS_KEYS.acquired}`,
+      `${prefix_lock}${METRICS_KEYS.collisions}`,
     ];
     const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
     const parseMetric = (value: string | null): number =>
@@ -417,11 +417,11 @@ function createRegisterRoutes(
 export const QueueMonitor = Object.freeze({
   create(config: QueueMonitorConfig): QueueMonitorApi {
     const settings = buildSettings(config);
-    let redisCinfig: RedisConfig;
+    let redisConfig: RedisConfig;
     if (config?.redis) {
-      redisCinfig = config?.redis;
+      redisConfig = config?.redis;
     } else {
-      redisCinfig = {
+      redisConfig = {
         host: queueConfig.drivers.redis.host,
         port: queueConfig.drivers.redis.port,
         password: queueConfig.drivers.redis.password ?? '',
@@ -429,12 +429,12 @@ export const QueueMonitor = Object.freeze({
       };
     }
 
-    const driver = createBullMQDriver(redisCinfig);
-    const metrics = createMetrics(redisCinfig);
+    const driver = createBullMQDriver(redisConfig);
+    const metrics = createMetrics(redisConfig);
     const startedAt = new Date().toISOString();
 
     const getSnapshot = createGetSnapshot(driver, startedAt);
-    const getLocks = createGetLocks(redisCinfig);
+    const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
     return Object.freeze({

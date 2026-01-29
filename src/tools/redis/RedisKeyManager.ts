@@ -10,6 +10,9 @@ import { Logger } from '@config/logger';
 
 const PREFIX = appConfig.prefix;
 
+export const METRICS_PREFIX = `${PREFIX}_worker:metrics:`;
+export const HEALTH_PREFIX = `${PREFIX}_worker:health:`;
+
 /**
  * Creates a prefixed Redis key
  * @param key - Original key name

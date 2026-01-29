@@ -77,8 +77,8 @@ export type WorkerHealthScore = {
 };
 
 // Redis key prefixes
-const METRICS_PREFIX = `${PREFIX}:worker:metrics:`;
-const HEALTH_PREFIX = `${PREFIX}:worker:health:`;
+const METRICS_PREFIX = `${PREFIX}_worker:metrics:`;
+const HEALTH_PREFIX = `${PREFIX}_worker:health:`;
 
 // Retention periods (in seconds)
 const RETENTION = {
