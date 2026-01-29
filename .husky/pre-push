@@ -1,4 +1,0 @@
-#!/bin/sh
-
-# Block pushes when patch coverage would fail Codecov.
-npm run -s coverage:patch

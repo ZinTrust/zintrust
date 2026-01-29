@@ -1,4 +1,4 @@
-import { ZintrustLang } from '@/lang/lang';
+import { ZintrustLang } from '@lang/lang';
 
 const isNodeRuntime = (): boolean => {
   // Avoid importing any `node:*` modules so this file remains Worker-safe.

@@ -19,4 +19,6 @@ export const ZintrustLang = {
   FILE_PROTOCOL: 'file://',
   BOOTSTRAPJS: 'bootstrap.js',
   CLI_LOCKS: 'cli-locks',
+  REDIS_DEFAULT_DB: 1,
+  REDIS_DEFAULT_PORT: 6379,
 } as const;

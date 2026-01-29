@@ -17,6 +17,7 @@ import {
   registerDatabasesFromRuntimeConfig,
   useEnsureDbConnected,
   workersConfig,
+  ZintrustLang,
   type IDatabase,
   type RedisConfig,
   type WorkerStatus,
@@ -823,8 +824,14 @@ const resolveRedisFallbacks = (): {
   const queueRedis = queueConfig.drivers.redis;
   return {
     host: queueRedis?.driver === 'redis' ? queueRedis.host : Env.get('REDIS_HOST', '127.0.0.1'),
-    port: queueRedis?.driver === 'redis' ? queueRedis.port : Env.getInt('REDIS_PORT', 6379),
-    db: queueRedis?.driver === 'redis' ? queueRedis.database : Env.getInt('REDIS_DB', 0),
+    port:
+      queueRedis?.driver === 'redis'
+        ? queueRedis.port
+        : Env.getInt('REDIS_PORT', ZintrustLang.REDIS_DEFAULT_PORT),
+    db:
+      queueRedis?.driver === 'redis'
+        ? queueRedis.database
+        : Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
     password:
       queueRedis?.driver === 'redis' ? (queueRedis.password ?? '') : Env.get('REDIS_PASSWORD', ''),
   };
@@ -837,7 +844,9 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
     context
   );
   const port = resolveEnvInt(String(config.port ?? 'REDIS_PORT'), fallback.port);
-  const db = config.db ? Number(config.db) : Env.getInt('REDIS_DB', fallback.db);
+
+  const db = resolveEnvInt(config.db ?? 'REDIS_QUEUE_DB', fallback.db);
+
   const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallback.password);
 
   return {

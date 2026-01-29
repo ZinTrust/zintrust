@@ -216,7 +216,7 @@ const calculateHealthScore = (metrics: {
 /**
  * Worker Metrics Manager - Sealed namespace
  */
-export const WorkerMetrics = Object.freeze({
+const WorkerMetrics = Object.freeze({
   /**
    * Initialize the metrics manager with Redis connection
    */
@@ -297,7 +297,15 @@ export const WorkerMetrics = Object.freeze({
    */
   async query(options: MetricQueryOptions): Promise<MetricEntry> {
     if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
+      Logger.warn(
+        `[METRICS] WorkerMetrics not initialized for worker: ${options.workerName}. Please start the worker first to enable metrics collection.`
+      );
+      return {
+        workerName: options.workerName,
+        metricType: options.metricType,
+        granularity: options.granularity,
+        points: [],
+      };
     }
 
     const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
@@ -369,7 +377,23 @@ export const WorkerMetrics = Object.freeze({
 
   async aggregateBatch(optionsList: MetricQueryOptions[]): Promise<AggregatedMetrics[]> {
     if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
+      // Global initialization issue - log all workers
+      Logger.warn(
+        `[METRICS] WorkerMetrics not initialized globally. Make sure all workers running`
+      );
+      return optionsList.map((options) => ({
+        workerName: options.workerName,
+        metricType: options.metricType,
+        period: {
+          start: options.startDate ?? new Date(),
+          end: options.endDate ?? new Date(),
+        },
+        total: 0,
+        average: 0,
+        min: 0,
+        max: 0,
+        count: 0,
+      }));
     }
     if (optionsList.length === 0) return [];
 
@@ -701,5 +725,7 @@ export const WorkerMetrics = Object.freeze({
     Logger.info('WorkerMetrics shutdown complete');
   },
 });
+
+export { WorkerMetrics };
 
 // Graceful shutdown handled by WorkerShutdown

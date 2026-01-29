@@ -1,4 +1,4 @@
-import { Env, type QueueConfigOverrides, type QueueDriverName } from '@zintrust/core';
+import { Env, type QueueConfigOverrides, type QueueDriverName, ZintrustLang } from '@zintrust/core';
 
 /**
  * Queue Configuration (default override)
@@ -41,7 +41,7 @@ export default {
       host: Env.get('REDIS_HOST', 'localhost'),
       port: Env.getInt('REDIS_PORT', 6379),
       password: Env.get('REDIS_PASSWORD'),
-      database: Env.getInt('REDIS_QUEUE_DB', 1),
+      database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
       // Note: Redis driver uses BullMQ for enterprise features
       // See BullMQ environment variables in file header for customization
     },

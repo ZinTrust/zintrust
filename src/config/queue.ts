@@ -5,6 +5,7 @@
  */
 
 import { Env } from '@config/env';
+import { ZintrustLang } from '@lang/lang';
 
 import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
@@ -45,7 +46,7 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
     host: Env.get('REDIS_HOST', 'localhost'),
     port: Env.getInt('REDIS_PORT', 6379),
     password: Env.get('REDIS_PASSWORD'),
-    database: Env.getInt('REDIS_QUEUE_DB', 1),
+    database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
   },
   rabbitmq: {
     driver: 'rabbitmq' as const,
