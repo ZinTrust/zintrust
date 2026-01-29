@@ -33,15 +33,15 @@ type OpenTelemetryApi = typeof import('@opentelemetry/api');
 let cachedApi: OpenTelemetryApi | null | undefined;
 
 const resolveOpenTelemetryApi = (): OpenTelemetryApi | null => {
-  const injected = (
-    globalThis as unknown as { __zintrustOpenTelemetryApi?: OpenTelemetryApi | null }
-  ).__zintrustOpenTelemetryApi;
+  if (cachedApi !== undefined) return cachedApi;
+
+  // Check for injected API (used for testing)
+  const injected = (globalThis as unknown as { __zintrustOpenTelemetryApi?: unknown })
+    .__zintrustOpenTelemetryApi;
   if (injected !== undefined && injected !== null) {
-    cachedApi = injected;
+    cachedApi = injected as OpenTelemetryApi;
     return cachedApi;
   }
-
-  if (cachedApi !== undefined) return cachedApi;
 
   try {
     const require = createRequire(import.meta.url);
