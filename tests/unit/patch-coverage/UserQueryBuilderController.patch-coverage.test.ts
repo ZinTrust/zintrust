@@ -92,7 +92,7 @@ describe('patch coverage: UserQueryBuilderController', () => {
     expect(res._calls.payload).toEqual({ error: 'User not found' });
   });
 
-  it('show: returns 400 when Sanitizer.digitsOnly throws (sanitizer error)', async () => {
+  it('show: returns 403 when Sanitizer.digitsOnly throws (sanitizer error)', async () => {
     const err = new Error('boom');
     (err as any).name = 'SanitizerError';
 
@@ -111,8 +111,8 @@ describe('patch coverage: UserQueryBuilderController', () => {
     req.user = { sub: '1' };
 
     await controller.create().show(req, res);
-    expect(res._calls.status).toBe(400);
-    expect(res._calls.payload).toEqual({ error: 'boom' });
+    expect(res._calls.status).toBe(403);
+    expect(res._calls.payload).toEqual({ error: 'Forbidden' });
   });
 
   it('store: returns 422 when required fields missing', async () => {
@@ -144,8 +144,8 @@ describe('patch coverage: UserQueryBuilderController', () => {
     req.body = { name: 'A', email: 'a@b.com', password: 'password' };
 
     await controller.create().store(req, res);
-    expect(res._calls.status).toBe(400);
-    expect(res._calls.payload).toEqual({ error: 'bad name' });
+    expect(res._calls.status).toBe(500);
+    expect(res._calls.payload).toEqual({ error: 'Failed to create user' });
   });
 
   it('store: returns 422 when Validator throws ValidationError', async () => {

@@ -35,7 +35,12 @@ describe('patch coverage: routing/error (forced 404/500)', () => {
       html: vi.fn().mockReturnThis(),
     } as any;
 
-    await match.handler({} as any, res);
+    await match.handler(
+      {
+        getPath: () => '/404',
+      } as any,
+      res
+    );
 
     expect(res.setStatus).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalled();
@@ -56,7 +61,12 @@ describe('patch coverage: routing/error (forced 404/500)', () => {
       html: vi.fn().mockReturnThis(),
     } as any;
 
-    await match.handler({} as any, res);
+    await match.handler(
+      {
+        getPath: () => '/500',
+      } as any,
+      res
+    );
 
     expect(res.setStatus).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalled();

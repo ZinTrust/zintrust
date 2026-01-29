@@ -82,7 +82,11 @@ describe('Server', () => {
   });
 
   it('should handle request', async () => {
-    const mockReq = {} as any;
+    const mockReq = {
+      method: 'GET',
+      url: '/',
+      headers: {},
+    } as any;
     const mockRes = {
       setHeader: vi.fn(),
       writeHead: vi.fn(),

@@ -88,8 +88,8 @@ describe('patch coverage: Server', () => {
     const app = { getRouter: () => ({}), getContainer: () => ({}) } as any;
     Server.create(app, 0, '127.0.0.1', null);
 
-    const req = { method: 'GET', url: '/' } as any;
-    const res = { setHeader: vi.fn() } as any;
+    const req = { method: 'GET', url: '/', headers: {} } as any;
+    const res = { setHeader: vi.fn(), end: vi.fn() } as any;
 
     await savedHandler(req, res);
 

@@ -50,6 +50,7 @@ vi.mock('@node-singletons/path', () => ({
 vi.mock('@core-routes/publicRoot', () => ({
   getPublicRoot: vi.fn(() => '/public'),
   getPublicRootAsync: vi.fn(async () => '/public'),
+  getFrameworkPublicRoots: vi.fn(() => []),
 }));
 
 import * as Doc from '@/routes/doc';

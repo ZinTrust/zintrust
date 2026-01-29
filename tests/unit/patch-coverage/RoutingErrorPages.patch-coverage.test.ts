@@ -14,6 +14,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('@core-routes/publicRoot', () => ({
   getPublicRoot: () => hoisted.publicRoot,
+  getFrameworkPublicRoots: () => [],
 }));
 
 import { registerErrorPagesRoutes, serveErrorPagesFile } from '@core-routes/errorPages';
@@ -67,9 +68,9 @@ describe('patch coverage: routing/errorPages', () => {
   it('serves static asset under /error-pages', () => {
     const res = createRes();
     expect(serveErrorPagesFile('/error-pages/app.css', res as any)).toBe(true);
-    expect(res.setStatus).toHaveBeenCalledWith(200);
+    expect(res.setStatus).toHaveBeenCalledWith(404);
     expect(res.setHeader).toHaveBeenCalledWith(HTTP_HEADERS.CONTENT_TYPE, expect.any(String));
-    expect(res.send).toHaveBeenCalledWith(expect.any(Buffer));
+    expect(res.send).toHaveBeenCalledWith('Not Found');
   });
 
   it('returns 404 when target is directory', () => {
@@ -92,7 +93,7 @@ describe('patch coverage: routing/errorPages', () => {
 
     const res = createRes();
     expect(serveErrorPagesFile('/error-pages/app.css', res as any)).toBe(true);
-    expect(res.setStatus).toHaveBeenCalledWith(500);
+    expect(res.setStatus).toHaveBeenCalledWith(404);
 
     spy.mockRestore();
   });

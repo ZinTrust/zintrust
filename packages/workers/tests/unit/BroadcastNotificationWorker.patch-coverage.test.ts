@@ -31,6 +31,11 @@ vi.mock('@zintrust/core', () => ({
     path: {
       resolve: (...parts: string[]) => parts.join('/'),
     },
+    module: {
+      createRequire: vi.fn(() => ({
+        resolve: vi.fn(() => '/mocked/path'),
+      })),
+    },
     createCipheriv: vi.fn(),
     createDecipheriv: vi.fn(),
     pbkdf2Sync: vi.fn(),
