@@ -1,4 +1,4 @@
-import { queueConfig, Router, type IRouter } from '@zintrust/core';
+import { queueConfig, resolveLockPrefix, Router, type IRouter } from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
@@ -13,7 +13,7 @@ export type QueueMonitorConfig = {
   middleware?: ReadonlyArray<string>;
   autoRefresh?: boolean;
   refreshIntervalMs?: number;
-  redis: RedisConfig;
+  redis?: RedisConfig;
 };
 
 export type QueueCounts = {
@@ -105,7 +105,6 @@ function fieldError(key: string, message: string): { error: string } {
   return { error: `[${key}] ${message}` };
 }
 
-const DEFAULT_LOCK_PREFIX = 'zintrust:locks:';
 const METRICS_KEYS = {
   attempts: 'metrics:attempts',
   acquired: 'metrics:acquired',
@@ -130,15 +129,10 @@ function createGetLocks(redisConfig: RedisConfig) {
     return redisConnection;
   };
 
-  const resolveLockPrefix = (): string => {
-    const fromEnv = String(process.env['QUEUE_LOCK_PREFIX'] ?? '').trim();
-    return fromEnv.length > 0 ? fromEnv : DEFAULT_LOCK_PREFIX;
-  };
-
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
     const client = resolveRedisConnection();
-    const prefix = resolveLockPrefix();
-    const searchPattern = `${prefix}${pattern}`;
+    const prefix_lock = resolveLockPrefix();
+    const searchPattern = `${prefix_lock}${pattern}`;
 
     const keys: string[] = [];
     let cursor = '0';
@@ -156,16 +150,16 @@ function createGetLocks(redisConfig: RedisConfig) {
       const ttl = statuses[index];
       const exists = typeof ttl === 'number' && ttl > 0;
       return {
-        key: key.replace(prefix, ''),
+        key: key.replace(prefix_lock, ''),
         ttl: exists ? ttl : undefined,
         expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
       };
     });
 
     const metricsKeys = [
-      `${prefix}${METRICS_KEYS.attempts}`,
-      `${prefix}${METRICS_KEYS.acquired}`,
-      `${prefix}${METRICS_KEYS.collisions}`,
+      `${prefix_lock}${METRICS_KEYS.attempts}`,
+      `${prefix_lock}${METRICS_KEYS.acquired}`,
+      `${prefix_lock}${METRICS_KEYS.collisions}`,
     ];
     const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
     const parseMetric = (value: string | null): number =>
@@ -423,12 +417,24 @@ function createRegisterRoutes(
 export const QueueMonitor = Object.freeze({
   create(config: QueueMonitorConfig): QueueMonitorApi {
     const settings = buildSettings(config);
-    const driver = createBullMQDriver(config.redis);
-    const metrics = createMetrics(config.redis);
+    let redisConfig: RedisConfig;
+    if (config?.redis) {
+      redisConfig = config?.redis;
+    } else {
+      redisConfig = {
+        host: queueConfig.drivers.redis.host,
+        port: queueConfig.drivers.redis.port,
+        password: queueConfig.drivers.redis.password ?? '',
+        db: queueConfig.drivers.redis.database,
+      };
+    }
+
+    const driver = createBullMQDriver(redisConfig);
+    const metrics = createMetrics(redisConfig);
     const startedAt = new Date().toISOString();
 
     const getSnapshot = createGetSnapshot(driver, startedAt);
-    const getLocks = createGetLocks(config.redis);
+    const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
     return Object.freeze({

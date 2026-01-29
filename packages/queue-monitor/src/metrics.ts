@@ -25,7 +25,8 @@ export type Metrics = {
 };
 
 const getKey = (prefix: string, type: string, ...parts: string[]): string => {
-  return `${prefix}:${type}:${parts.join(':')}`;
+  const key = `${prefix}:${type}:${parts.join(':')}`;
+  return key; //TODO confirm the right config
 };
 
 const recordJobImpl = async (

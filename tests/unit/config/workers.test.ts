@@ -24,6 +24,11 @@ vi.mock('@runtime/StartupConfigFileRegistry', () => ({
 
 class MockRedis {
   public handlers: Record<string, (err: Error) => void> = {};
+  public config?: any;
+
+  constructor(config?: any) {
+    this.config = config;
+  }
 
   on(event: string, handler: (err: Error) => void): this {
     this.handlers[event] = handler;
@@ -33,15 +38,21 @@ class MockRedis {
 
 vi.mock('ioredis', () => ({
   default: MockRedis,
+  Redis: MockRedis,
 }));
 
 describe('workers config', () => {
   afterEach(() => {
     registryGet.mockReset();
     vi.resetModules();
+    delete (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule;
   });
 
   it('handles redis error handler failures', async () => {
+    (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule = {
+      Redis: MockRedis,
+    };
+
     const { createRedisConnection } = await import('@config/workers');
 
     (Logger.error as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
@@ -55,8 +66,11 @@ describe('workers config', () => {
       db: 0,
     });
 
-    const handler = (client as unknown as MockRedis).handlers['error'];
-    handler(new Error('NOAUTH invalid password'));
+    // Try to access the error handler directly from the MockRedis instance
+    const testHandler = (client as any).handlers?.['error'];
+    if (testHandler) {
+      testHandler(new Error('NOAUTH invalid password'));
+    }
 
     expect(Logger.error).toHaveBeenCalledWith(
       '[workers][redis] NOAUTH: Redis requires authentication. Provide `password` in the workers Redis config.'

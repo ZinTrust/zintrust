@@ -29,6 +29,7 @@ export * as process from '@node-singletons/process';
 // CLI-only (should not be imported in API code)
 export * as childProcess from '@node-singletons/child-process';
 export * as fs from '@node-singletons/fs';
+export * as module from '@node-singletons/module';
 export * as net from '@node-singletons/net';
 export * as os from '@node-singletons/os';
 export * as path from '@node-singletons/path';

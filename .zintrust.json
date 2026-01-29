@@ -1,0 +1,42 @@
+{
+  "name": "zintrust-app",
+  "version": "1.0.0",
+  "description": "A ZinTrust application",
+  "author": "Developer",
+  "database": {
+    "connection": "sqlite",
+    "charset": "utf8",
+    "collation": "utf8_unicode_ci",
+    "synchronize": true,
+    "logging": false
+  },
+  "server": {
+    "port": 7777,
+    "host": "0.0.0.0",
+    "environment": "development",
+    "debug": false,
+    "profiling": false,
+    "tracing": false
+  },
+  "auth": {
+    "enabled": false,
+    "strategy": "jwt",
+    "expiresIn": "7d"
+  },
+  "microservices": {
+    "enabled": false,
+    "port": 3001,
+    "discoveryType": "filesystem",
+    "healthCheckInterval": 30000
+  },
+  "features": {
+    "auth": true,
+    "database": true,
+    "cache": true,
+    "queue": true,
+    "storage": true,
+    "email": true,
+    "webhooks": false,
+    "monitoring": true
+  }
+}

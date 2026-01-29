@@ -118,7 +118,7 @@ async function main() {
   const packageDirs = entries
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
-    .filter(isDirSelected)
+    .filter((element) => isDirSelected(element))
     .sort();
 
   const publishableDirs = [];

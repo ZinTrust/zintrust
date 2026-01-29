@@ -606,6 +606,6 @@ export type WorkersConfigOverrides = Partial<{
 export type RedisConfig = {
   host: string;
   port: number;
+  db: number;
   password?: string;
-  db?: number;
 };
