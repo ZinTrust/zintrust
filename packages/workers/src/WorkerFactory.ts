@@ -161,9 +161,9 @@ export type WorkerInstance = {
 };
 
 type RedisEnvConfig = {
-  env: true;
+  env?: true;
   host?: string;
-  port?: string;
+  port?: number;
   password?: string;
   db?: string;
 };
@@ -836,7 +836,7 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
     resolveEnvString(config.host ?? 'REDIS_HOST', fallback.host),
     context
   );
-  const port = resolveEnvInt(config.port ?? 'REDIS_PORT', fallback.port);
+  const port = resolveEnvInt(String(config.port ?? 'REDIS_PORT'), fallback.port);
   const db = resolveEnvInt(config.db ?? 'REDIS_DB', fallback.db);
   const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallback.password);
 

@@ -13,7 +13,7 @@ export type QueueMonitorConfig = {
   middleware?: ReadonlyArray<string>;
   autoRefresh?: boolean;
   refreshIntervalMs?: number;
-  redis: RedisConfig;
+  redis?: RedisConfig;
 };
 
 export type QueueCounts = {
@@ -417,12 +417,24 @@ function createRegisterRoutes(
 export const QueueMonitor = Object.freeze({
   create(config: QueueMonitorConfig): QueueMonitorApi {
     const settings = buildSettings(config);
-    const driver = createBullMQDriver(config.redis);
-    const metrics = createMetrics(config.redis);
+    let redisCinfig: RedisConfig;
+    if (config?.redis) {
+      redisCinfig = config?.redis;
+    } else {
+      redisCinfig = {
+        host: queueConfig.drivers.redis.host,
+        port: queueConfig.drivers.redis.port,
+        password: queueConfig.drivers.redis.password ?? '',
+        db: queueConfig.drivers.redis.database,
+      };
+    }
+
+    const driver = createBullMQDriver(redisCinfig);
+    const metrics = createMetrics(redisCinfig);
     const startedAt = new Date().toISOString();
 
     const getSnapshot = createGetSnapshot(driver, startedAt);
-    const getLocks = createGetLocks(config.redis);
+    const getLocks = createGetLocks(redisCinfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
     return Object.freeze({
