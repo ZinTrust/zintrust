@@ -218,7 +218,7 @@ const getJobsSection = (): string => `
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Job Name</th>
+                        <th>Worker Name</th>
                         <th>Queue</th>
                         <th>Status</th>
                         <th>Attempts</th>

@@ -361,7 +361,7 @@ export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 // Queue drivers (for external registration packages)
 export { RedisQueue } from '@queue/drivers/Redis';
 export { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
-export { Queue } from '@queue/Queue';
+export { Queue, resolveLockPrefix } from '@queue/Queue';
 export type { QueueMessage } from '@queue/Queue';
 
 // Seeders (for database seeding)

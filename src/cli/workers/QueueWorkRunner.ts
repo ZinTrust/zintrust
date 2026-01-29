@@ -17,8 +17,8 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 import { Notification } from '@notification/Notification';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
-import { Queue } from '@tools/queue/Queue';
-import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
+import { Queue, resolveLockPrefix } from '@queue/Queue';
+import { registerQueuesFromRuntimeConfig } from '@queue/QueueRuntimeRegistration';
 
 export type QueueWorkKind = 'broadcast' | 'notification';
 
@@ -119,7 +119,7 @@ const getLockProviderForQueue = (): ReturnType<typeof createLockProvider> => {
   if (lockProviderCache) return lockProviderCache;
 
   const providerName = Env.get('QUEUE_LOCK_PROVIDER', ZintrustLang.REDIS).trim();
-  const prefix = Env.get('QUEUE_LOCK_PREFIX', ZintrustLang.ZINTRUST_LOCKS_PREFIX).trim();
+  const prefix = resolveLockPrefix();
   const defaultTtl = Env.getInt('QUEUE_DEFAULT_DEDUP_TTL', ZintrustLang.ZINTRUST_LOCKS_TTL);
 
   const existing = getLockProvider(providerName);
@@ -134,6 +134,15 @@ const getLockProviderForQueue = (): ReturnType<typeof createLockProvider> => {
     defaultTtl,
   });
   registerLockProvider(providerName, provider);
+  // Also register under the literal memory name to ensure callers that expect
+  // a 'memory'-named provider (tests or other runtime code) can find it.
+  if (providerName !== ZintrustLang.MEMORY) {
+    try {
+      registerLockProvider(ZintrustLang.MEMORY, provider);
+    } catch {
+      // Best-effort: ignore registration errors to avoid breaking runtime logic.
+    }
+  }
   lockProviderCache = provider;
   return provider;
 };

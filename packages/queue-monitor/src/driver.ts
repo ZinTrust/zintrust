@@ -1,5 +1,6 @@
 import { ErrorFactory, getBullMQSafeQueueName } from '@zintrust/core';
-import { Queue, type Job, type JobsOptions } from 'bullmq';
+import type { ConnectionOptions, Job, JobsOptions } from 'bullmq';
+import { Queue } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 
 export type JobPayload<T = unknown> = T;
@@ -37,10 +38,9 @@ async function discoverQueuesFromRedis(
   try {
     let cursor = '0';
     let shouldContinue = true;
-
+    const prefix = getBullMQSafeQueueName();
     const scanAsync = (cur: string): Promise<[string, string[]]> =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (redis as any).scan(cur, 'MATCH', 'bull:*', 'COUNT', '100');
+      redis.scan(cur, 'MATCH', prefix + ':*', 'COUNT', '100');
 
     while (shouldContinue) {
       // eslint-disable-next-line no-await-in-loop
@@ -49,7 +49,7 @@ async function discoverQueuesFromRedis(
       const keys = result[1] ?? [];
       keys.forEach((k) => {
         const parts = k.split(':');
-        if (parts.length >= 2 && parts[0] === 'bull') {
+        if (parts.length >= 2 && k.startsWith(prefix + ':')) {
           const name = parts[1];
           if (name) found.add(name);
         }
@@ -69,7 +69,7 @@ export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
     if (!queues.has(name)) {
       const prefix = getBullMQSafeQueueName();
       const connection = createRedisConnection(config);
-      const queue = new Queue(name, { prefix, connection: connection });
+      const queue = new Queue(name, { prefix, connection: connection as ConnectionOptions });
       queues.set(name, queue);
     }
     const queue = queues.get(name);

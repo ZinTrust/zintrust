@@ -1,4 +1,4 @@
-import { queueConfig, Router, type IRouter } from '@zintrust/core';
+import { queueConfig, resolveLockPrefix, Router, type IRouter } from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
@@ -13,7 +13,7 @@ export type QueueMonitorConfig = {
   middleware?: ReadonlyArray<string>;
   autoRefresh?: boolean;
   refreshIntervalMs?: number;
-  redis: RedisConfig;
+  redis?: RedisConfig;
 };
 
 export type QueueCounts = {
@@ -105,7 +105,6 @@ function fieldError(key: string, message: string): { error: string } {
   return { error: `[${key}] ${message}` };
 }
 
-const DEFAULT_LOCK_PREFIX = 'zintrust:locks:';
 const METRICS_KEYS = {
   attempts: 'metrics:attempts',
   acquired: 'metrics:acquired',
@@ -128,11 +127,6 @@ function createGetLocks(redisConfig: RedisConfig) {
       redisConnection = createRedisConnection(redisConfig);
     }
     return redisConnection;
-  };
-
-  const resolveLockPrefix = (): string => {
-    const fromEnv = String(process.env['QUEUE_LOCK_PREFIX'] ?? '').trim();
-    return fromEnv.length > 0 ? fromEnv : DEFAULT_LOCK_PREFIX;
   };
 
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
@@ -423,12 +417,24 @@ function createRegisterRoutes(
 export const QueueMonitor = Object.freeze({
   create(config: QueueMonitorConfig): QueueMonitorApi {
     const settings = buildSettings(config);
-    const driver = createBullMQDriver(config.redis);
-    const metrics = createMetrics(config.redis);
+    let redisCinfig: RedisConfig;
+    if (config?.redis) {
+      redisCinfig = config?.redis;
+    } else {
+      redisCinfig = {
+        host: queueConfig.drivers.redis.host,
+        port: queueConfig.drivers.redis.port,
+        password: queueConfig.drivers.redis.password ?? '',
+        db: queueConfig.drivers.redis.database,
+      };
+    }
+
+    const driver = createBullMQDriver(redisCinfig);
+    const metrics = createMetrics(redisCinfig);
     const startedAt = new Date().toISOString();
 
     const getSnapshot = createGetSnapshot(driver, startedAt);
-    const getLocks = createGetLocks(config.redis);
+    const getLocks = createGetLocks(redisCinfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
     return Object.freeze({

@@ -1,10 +1,21 @@
-import Queue from '@/tools/queue/Queue';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 describe('Queue', () => {
-  it('throws when asking for an unregistered driver', () => {
+  it('throws when asking for an unregistered driver', async () => {
+    const Queue = (await import('@/tools/queue/Queue')).default;
     expect(() => Queue.get('this-driver-does-not-exist')).toThrow(
       /Queue driver not registered: this-driver-does-not-exist/
     );
+  });
+
+  it('returns cached lock prefix on subsequent calls', async () => {
+    vi.resetModules();
+    process.env['QUEUE_LOCK_PREFIX'] = 'first:';
+    const mod = await import('@/tools/queue/Queue');
+    const first = mod.resolveLockPrefix();
+    process.env['QUEUE_LOCK_PREFIX'] = 'second:';
+    const second = mod.resolveLockPrefix();
+    expect(first).toBe('first:');
+    expect(second).toBe('first:');
   });
 });
