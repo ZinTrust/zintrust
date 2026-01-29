@@ -4,6 +4,16 @@ import path from 'node:path';
 const DEFAULT_ROOT = process.cwd();
 
 const KNOWN_IMPORT_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json', '.node'];
+const SPECIAL_PACKAGE_REWRITES = [
+  { packageName: '@zintrust/workers', distSuffix: '/packages/workers/src/index.js' },
+  { packageName: '@zintrust/queue-monitor', distSuffix: '/packages/queue-monitor/src/index.js' },
+  { packageName: '@zintrust/queue-redis', distSuffix: '/packages/queue-redis/src/index.js' },
+  {
+    packageName: '@zintrust/telemetry-dashboard',
+    distSuffix: '/packages/telemetry-dashboard/src/index.js',
+  },
+];
+const NO_ALIAS_REWRITE_PREFIXES = SPECIAL_PACKAGE_REWRITES.map((rule) => rule.packageName);
 
 function isFile(p) {
   try {
@@ -59,6 +69,17 @@ function posixify(p) {
 function hasKnownExtension(specifier) {
   const lower = specifier.toLowerCase();
   return KNOWN_IMPORT_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+function rewriteSpecialRelativeSpecifier(specifier) {
+  const normalized = posixify(specifier);
+  for (const rule of SPECIAL_PACKAGE_REWRITES) {
+    if (normalized.endsWith(rule.distSuffix)) {
+      return rule.packageName;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -206,6 +227,13 @@ function rewriteSpecifier({ filePath, specifier, outDir, aliases }) {
   if (specifier.startsWith('./') || specifier.startsWith('../')) return null;
   if (specifier.startsWith('node:')) return null;
   if (specifier.startsWith('http:') || specifier.startsWith('https:')) return null;
+  if (
+    NO_ALIAS_REWRITE_PREFIXES.some(
+      (prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`)
+    )
+  ) {
+    return null;
+  }
 
   for (const alias of aliases) {
     const resolved = resolveAliasToDistFile({ outDir, alias, specifier });
@@ -244,6 +272,11 @@ function patchFile({ file, outDir, aliases }) {
   next = next.replaceAll(
     /(\b(?:import|export)\b[\s\S]*?\bfrom\s*|\bimport\s*)(['"])([^'"\n]+?)\2/g,
     (match, prefix, quote, specifier) => {
+      const specialRewrite = rewriteSpecialRelativeSpecifier(specifier);
+      if (specialRewrite) {
+        replacements += 1;
+        return `${prefix}${quote}${specialRewrite}${quote}`;
+      }
       const rewritten = rewriteSpecifier({ filePath: file, specifier, outDir, aliases });
       if (!rewritten) return match;
       replacements += 1;
@@ -254,10 +287,28 @@ function patchFile({ file, outDir, aliases }) {
   next = next.replaceAll(
     /(\bimport\s*\(\s*)(['"])([^'"\n]+?)\2(\s*\))/g,
     (match, prefix, quote, specifier, suffix) => {
+      const specialRewrite = rewriteSpecialRelativeSpecifier(specifier);
+      if (specialRewrite) {
+        replacements += 1;
+        return `${prefix}${quote}${specialRewrite}${quote}${suffix}`;
+      }
       const rewritten = rewriteSpecifier({ filePath: file, specifier, outDir, aliases });
       if (!rewritten) return match;
       replacements += 1;
       return `${prefix}${quote}${rewritten}${quote}${suffix}`;
+    }
+  );
+
+  // require('...')
+  next = next.replaceAll(
+    /(\brequire\s*\(\s*)(['"])([^'"\n]+?)\2(\s*\))/g,
+    (match, prefix, quote, specifier, suffix) => {
+      const specialRewrite = rewriteSpecialRelativeSpecifier(specifier);
+      if (specialRewrite) {
+        replacements += 1;
+        return `${prefix}${quote}${specialRewrite}${quote}${suffix}`;
+      }
+      return match;
     }
   );
 

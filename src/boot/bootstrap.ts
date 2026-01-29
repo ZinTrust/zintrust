@@ -125,10 +125,16 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
         // Shutdown worker management system FIRST (before database closes)
         if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
           try {
-            const { WorkerShutdown } = await import('@zintrust/workers');
+            const { createRequire } = await import('@node-singletons/module');
+            const require = createRequire(import.meta.url);
+            const workers = require('@zintrust/workers') as typeof import('@zintrust/workers');
             const workerBudgetMs = Math.min(15000, remainingMs());
             await withTimeout(
-              WorkerShutdown.shutdown({ signal, timeout: workerBudgetMs, forceExit: false }),
+              workers.WorkerShutdown.shutdown({
+                signal,
+                timeout: workerBudgetMs,
+                forceExit: false,
+              }),
               workerBudgetMs,
               'Worker shutdown timed out'
             );
@@ -167,18 +173,22 @@ async function useWorkerStarter(): Promise<void> {
   // Initialize worker management system
   let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
   try {
-    const { WorkerInit } = await import('@zintrust/workers');
-    workerInit = WorkerInit;
-    await WorkerInit.initialize({
-      enableResourceMonitoring: true,
-      enableHealthMonitoring: true,
-      enableAutoScaling: false, // Disabled by default, enable via config
-      registerShutdownHandlers: true,
-      resourceMonitoringInterval: 60000,
-    });
-    Logger.info('Worker management system initialized');
-  } catch (error) {
-    Logger.warn('Worker management system initialization failed (non-fatal)', error as Error);
+    const { createRequire } = await import('@node-singletons/module');
+    const require = createRequire(import.meta.url);
+    const workers = require('@zintrust/workers') as typeof import('@zintrust/workers');
+    if (workers?.WorkerInit !== undefined) {
+      workerInit = workers.WorkerInit;
+      await workers.WorkerInit.initialize({
+        enableResourceMonitoring: true,
+        enableHealthMonitoring: true,
+        enableAutoScaling: false, // Disabled by default, enable via config
+        registerShutdownHandlers: true,
+        resourceMonitoringInterval: 60000,
+      });
+      Logger.info('Worker management system initialized');
+    }
+  } catch {
+    // Logger.warn('Worker management system initialization failed (non-fatal)', error as Error);
     // Non-fatal - application can still run without worker management
   }
   if (workerInit?.autoStartPersistedWorkers) {

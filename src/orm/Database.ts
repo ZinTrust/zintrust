@@ -3,7 +3,6 @@
  * Central database connection management and query execution
  */
 
-import Logger from '@/config/logger';
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -274,10 +273,6 @@ const createQueryHandlers = (
         );
       }
 
-      Logger.debug('Using DB adapter', {
-        type: adapter?.getType?.(),
-        hasRegistry: registry,
-      });
       return executeQuery(adapter, eventEmitter, sql, parameters, 'query');
     },
     async queryOne(sql: string, parameters: unknown[] = [], isRead = false) {

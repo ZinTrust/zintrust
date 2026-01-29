@@ -155,14 +155,11 @@ function registerShutdownHandlers(): void {
     process.exit(1);
   });
 
-  process.on('unhandledRejection', async (reason: unknown) => {
-    Logger.error('💥 Unhandled promise rejection during worker operations', reason);
-    try {
-      await shutdown({ signal: 'unhandledRejection', timeout: 10000, forceExit: true });
-    } catch {
-      // Ignore errors during emergency shutdown
-    }
-    process.exit(1);
+  process.on('unhandledRejection', (reason: unknown) => {
+    // Only log the error - don't shut down the entire application
+    Logger.error('💥 Unhandled promise rejection detected', reason);
+    Logger.warn('⚠️  This error has been logged but will not shut down the server');
+    Logger.warn('⚠️  Check the error context and fix the underlying issue');
   });
 
   shutdownHandlersRegistered = true;

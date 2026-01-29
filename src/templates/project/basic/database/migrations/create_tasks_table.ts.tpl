@@ -1,5 +1,5 @@
-import { Schema as MigrationSchema, type Blueprint } from '@zintrust/core/migrations';
-import type { IDatabase } from '@zintrust/core/orm';
+import { MigrationSchema, type Blueprint } from '@zintrust/core';
+import type { IDatabase } from '@zintrust/core';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;
@@ -15,7 +15,7 @@ export const migration: Migration = {
       table.string('title');
       table.text('description').nullable();
       table.string('status').default('pending');
-      table.unsignedBigInt('user_id');
+      table.integer('user_id');
       table.foreign('user_id').references('id').on('users').onDelete('CASCADE');
       table.timestamps();
     });

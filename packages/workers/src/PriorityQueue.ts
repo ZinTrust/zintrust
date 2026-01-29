@@ -4,8 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, type RedisConfig } from '@zintrust/core';
-import { BullMQRedisQueue } from '@zintrust/queue-redis';
+import { ErrorFactory, Logger, NodeSingletons, type RedisConfig } from '@zintrust/core';
 import type { Queue } from 'bullmq';
 
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low';
@@ -54,11 +53,41 @@ const PRIORITY_VALUES: Record<PriorityLevel, number> = {
   low: 0,
 };
 
+type QueueRedisModule = typeof import('@zintrust/queue-redis');
+
+const require = NodeSingletons.module.createRequire(import.meta.url);
+let queueRedisModule: QueueRedisModule | undefined;
+let hasWarnedMissingQueueRedis = false;
+
+const loadQueueRedisModule = (): QueueRedisModule | undefined => {
+  if (queueRedisModule) return queueRedisModule;
+
+  try {
+    queueRedisModule = require('@zintrust/queue-redis') as QueueRedisModule;
+    return queueRedisModule;
+  } catch (error) {
+    if (!hasWarnedMissingQueueRedis) {
+      hasWarnedMissingQueueRedis = true;
+      Logger.warn(
+        'Optional package "@zintrust/queue-redis" is not installed. PriorityQueue features are disabled until it is installed.',
+        error as Error
+      );
+    }
+    return undefined;
+  }
+};
+
 /**
  * Helper: Get or create queue via shared driver
  */
 const getQueue = (queueName: string): Queue => {
-  return BullMQRedisQueue.getQueue(queueName) as Queue;
+  const queueRedis = loadQueueRedisModule();
+  if (!queueRedis) {
+    throw ErrorFactory.createWorkerError(
+      'Optional package "@zintrust/queue-redis" is required for PriorityQueue. Install it to use queue features.'
+    );
+  }
+  return queueRedis.BullMQRedisQueue.getQueue(queueName) as Queue;
 };
 
 /**
@@ -269,7 +298,9 @@ export const PriorityQueue = Object.freeze({
    * Get all queue names
    */
   getQueueNames(): string[] {
-    return BullMQRedisQueue.getQueueNames();
+    const queueRedis = loadQueueRedisModule();
+    if (!queueRedis) return [];
+    return queueRedis.BullMQRedisQueue.getQueueNames();
   },
 
   /**
@@ -304,7 +335,10 @@ export const PriorityQueue = Object.freeze({
   async obliterate(queueName: string, force = false): Promise<void> {
     const queue = getQueue(queueName);
     await queue.obliterate({ force });
-    await BullMQRedisQueue.closeQueue(queueName);
+    const queueRedis = loadQueueRedisModule();
+    if (queueRedis) {
+      await queueRedis.BullMQRedisQueue.closeQueue(queueName);
+    }
 
     Logger.warn(`Obliterated queue "${queueName}"`);
   },
@@ -334,7 +368,9 @@ export const PriorityQueue = Object.freeze({
    * Close a queue
    */
   async closeQueue(queueName: string): Promise<void> {
-    await BullMQRedisQueue.closeQueue(queueName);
+    const queueRedis = loadQueueRedisModule();
+    if (!queueRedis) return;
+    await queueRedis.BullMQRedisQueue.closeQueue(queueName);
     Logger.info(`Closed queue "${queueName}"`);
   },
 
@@ -343,7 +379,9 @@ export const PriorityQueue = Object.freeze({
    */
   async shutdown(): Promise<void> {
     Logger.info('PriorityQueue shutting down via BullMQRedisQueue...');
-    await BullMQRedisQueue.shutdown();
+    const queueRedis = loadQueueRedisModule();
+    if (!queueRedis) return;
+    await queueRedis.BullMQRedisQueue.shutdown();
     Logger.info('PriorityQueue shutdown complete');
   },
 });

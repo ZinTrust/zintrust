@@ -232,8 +232,17 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
     if (typeof mod?.registerRoutes === 'function') {
       mod.registerRoutes(router);
     } else {
-      const { registerRoutes: registerFrameworkRoutes } = await import('@routes/api');
-      registerFrameworkRoutes(router);
+      const frameworkRoutes = await tryImportOptional<{
+        registerRoutes?: (router: IRouter) => void;
+      }>('@routes/api');
+
+      if (typeof frameworkRoutes?.registerRoutes === 'function') {
+        frameworkRoutes.registerRoutes(router);
+      } else {
+        Logger.warn(
+          'No app routes found and framework routes are unavailable. Ensure routes/api.ts exists in the project.'
+        );
+      }
     }
 
     // Always register core framework routes (health, metrics, doc) after app routes

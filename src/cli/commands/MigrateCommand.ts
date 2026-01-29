@@ -50,7 +50,8 @@ const getMigrationDirs = (): {
   extension: string;
   separateTracking: boolean;
 } => {
-  const globalDir = readEnvString('MIGRATIONS_GLOBAL_DIR', databaseConfig.migrations.directory);
+  const fromEnv = readEnvString('MIGRATIONS_GLOBAL_DIR', databaseConfig.migrations.directory);
+  const globalDir = fromEnv.trim() === '' ? databaseConfig.migrations.directory : fromEnv;
   const extension = databaseConfig.migrations.extension;
   const separateTrackingRaw = readEnvString('MIGRATIONS_SEPARATE_TRACKING', '').trim();
   const separateTracking =

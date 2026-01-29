@@ -18,6 +18,7 @@ export const migration: Migration = {
       table.string('name').unique();
       table.string('queue_name');
       table.string('version').nullable();
+      table.string('processor_path').nullable();
       table.string('status').default('running');
       table.boolean('auto_start').default(false);
       table.integer('concurrency').default(1);
@@ -25,6 +26,9 @@ export const migration: Migration = {
       table.json('features').nullable();
       table.json('infrastructure').nullable();
       table.json('datacenter').nullable();
+      table.text('last_error').nullable();
+      table.string('connection_state').nullable();
+      table.timestamp('last_health_check').nullable();
       table.timestamps();
     });
   },

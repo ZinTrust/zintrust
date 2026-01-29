@@ -339,10 +339,10 @@ export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 export { Broadcast } from '@tools/broadcast/Broadcast';
 export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
 export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
-export { BroadcastWorker } from '@zintrust/workers';
-
-// Notification Workers
-export { NotificationWorker } from '@zintrust/workers';
+// Broadcast workers and notification workers are provided by the optional
+// `@zintrust/workers` package. Import that package directly when you need
+// worker-specific APIs. Keeping these out of the static exports avoids
+// forcing resolution of `@zintrust/workers` for consumers that don't use it.
 
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';

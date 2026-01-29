@@ -1408,29 +1408,55 @@ const setupWorkerEventListeners = (
   features?: WorkerFactoryConfig['features']
 ): void => {
   worker.on('completed', (job: Job) => {
-    Logger.debug(`Job completed: ${workerName}`, { jobId: job.id });
+    try {
+      Logger.debug(`Job completed: ${workerName}`, { jobId: job.id });
 
-    if (features?.observability === true) {
-      Observability.incrementCounter('worker.jobs.completed', 1, {
-        worker: workerName,
-        version: workerVersion,
-      });
+      if (features?.observability === true) {
+        Observability.incrementCounter('worker.jobs.completed', 1, {
+          worker: workerName,
+          version: workerVersion,
+        });
+      }
+    } catch (error) {
+      // Isolate error - don't let it bubble up
+      Logger.error(`Error in worker completed event handler: ${workerName}`, error, 'workers');
     }
   });
 
   worker.on('failed', (job: Job | undefined, error: Error) => {
-    Logger.error(`Job failed: ${workerName}`, { error, jobId: job?.id }, 'workers');
+    try {
+      Logger.error(`Job failed: ${workerName}`, { error, jobId: job?.id }, 'workers');
 
-    if (features?.observability === true) {
-      Observability.incrementCounter('worker.jobs.failed', 1, {
-        worker: workerName,
-        version: workerVersion,
-      });
+      if (features?.observability === true) {
+        Observability.incrementCounter('worker.jobs.failed', 1, {
+          worker: workerName,
+          version: workerVersion,
+        });
+      }
+    } catch (handlerError) {
+      // Isolate error - don't let it bubble up
+      Logger.error(`Error in worker failed event handler: ${workerName}`, handlerError, 'workers');
     }
   });
 
   worker.on('error', (error: Error) => {
-    Logger.error(`Worker error: ${workerName}`, error);
+    try {
+      Logger.error(`Worker error: ${workerName}`, error);
+
+      // Check if this is a Redis connection error that should be handled gracefully
+      if (
+        error.message.includes('ERR value is not an integer') ||
+        error.message.includes('NOAUTH') ||
+        error.message.includes('ECONNREFUSED')
+      ) {
+        Logger.warn(
+          `Worker ${workerName} encountered Redis configuration error - worker will remain failed but server will continue running`
+        );
+      }
+    } catch (handlerError) {
+      // Isolate error - don't let it bubble up
+      Logger.error(`Error in worker error event handler: ${workerName}`, handlerError, 'workers');
+    }
   });
 };
 
