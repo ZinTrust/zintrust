@@ -327,9 +327,9 @@ const getDashboardScriptCharts = (): string => `
       let resourceChart = null;
 
       const updateCharts = (summary, resources) => {
-        const monitoring = summary?.monitoring || [];
-        const labels = monitoring.map((item) => item.workerName || 'worker');
-        const values = monitoring.map((item) => item.score || 0);
+        const monitoring = summary?.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
+        const labels = ['Healthy', 'Degraded', 'Critical'];
+        const values = [monitoring.healthy || 0, monitoring.degraded || 0, monitoring.critical || 0];
 
         if (healthChart) healthChart.destroy();
         healthChart = buildHealthChart(labels, values);
@@ -354,16 +354,49 @@ const getDashboardScriptFetch = (): string => `
           const payload = await response.json();
 
           const summary = payload.summary || {};
-          const total = summary.totalWorkers || 0;
-          const monitoring = summary.monitoring || [];
-          const healthyCount = monitoring.filter((item) => item.status === 'healthy').length;
-          const attentionCount = monitoring.filter((item) => ['degraded', 'critical'].includes(item.status)).length;
+          const total = summary.workers || 0;
+          const monitoring = summary.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
+          const healthyCount = monitoring.healthy || 0;
+          const attentionCount = (monitoring.degraded || 0) + (monitoring.critical || 0);
 
           totalEl.textContent = total;
           healthyEl.textContent = healthyCount;
           attentionEl.textContent = attentionCount;
-          if (costEl && payload.cost) {
-            costEl.textContent = payload.cost;
+          if (costEl && payload.resources?.cost) {
+            const cost = payload.resources.cost;
+            costEl.textContent = '$' + cost.hourly?.toFixed(4) + '/hr';
+          }
+
+          // Update alert history - FIXED: Correctly access alerts from summary.alerts
+          const alerts = summary.alerts || [];
+          console.log('Alerts found:', alerts.length, alerts); // Debug logging
+          const alertList = document.getElementById('alertList');
+          if (alertList) {
+            if (alerts.length === 0) {
+              alertList.innerHTML = '<li class="zt-alert-item">No alerts yet.</li>';
+            } else {
+              alertList.innerHTML = alerts.map(alert => {
+                // Handle both nested alert structure and direct alert structure
+                const alertData = alert.alert || alert;
+                console.log('Processing alert:', alertData); // Debug logging
+
+                const severity = alertData.severity || 'info';
+                const severityColor =
+                  severity === 'critical' ? 'var(--danger)' :
+                  severity === 'warning' ? 'var(--warn)' :
+                  severity === 'info' ? 'var(--accent)' : 'var(--text)';
+
+                return '<li class="zt-alert-item">' +
+                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                '<span style="font-weight: 600; color: ' + severityColor + '">' +
+                (alertData.message || 'Unknown alert') + '</span>' +
+                '<span style="font-size: 0.75rem; opacity: 0.7;">' +
+                (alertData.timestamp ? new Date(alertData.timestamp).toLocaleTimeString() : 'No timestamp') + '</span>' +
+                '</div>' +
+                (alertData.recommendation ? '<div style="font-size: 0.8rem; margin-top: 0.25rem; opacity: 0.8;">' + alertData.recommendation + '</div>' : '') +
+                '</li>';
+              }).join('');
+            }
           }
 
           updateCharts(summary, payload.resources);

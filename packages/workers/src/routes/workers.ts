@@ -17,9 +17,9 @@ import {
 import { WorkerApiController } from '../http/WorkerApiController';
 import { WorkerController } from '../http/WorkerController';
 import { ResourceMonitor } from '../ResourceMonitor';
+import { TelemetryDashboard } from '../telemetry';
 import { registerStaticAssets } from '../ui/router/ui';
 import { WorkerFactory } from '../WorkerFactory';
-
 type WorkerUiOptions = WorkersDashboardUiOptions;
 type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
 
@@ -198,7 +198,15 @@ export function registerWorkerRoutes(
   registerStaticAssets(router, routeOptions?.middleware ?? []);
   registerWorkerLifecycleRoutes(router, routeOptions?.middleware);
   registerWorkerTelemetryRoutes(router, routeOptions?.middleware);
+
+  // Register Telemetry Dashboard
+  const dashboard = TelemetryDashboard.create({
+    basePath: '/telemetry',
+  });
+  dashboard.registerRoutes(router);
+
   Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
+  Logger.info('Telemetry dashboard registered at http://127.0.0.1:7777/telemetry');
 }
 
 export default registerWorkerRoutes;
