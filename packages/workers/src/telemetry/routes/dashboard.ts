@@ -246,6 +246,8 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => {
       let autoRefresh = AUTO_REFRESH;
       let autoTimer = null;
       let currentTheme = 'dark';
+      let eventSource = null;
+      let sseActive = false;
 
       const readStorage = (key) => {
         try {
@@ -346,64 +348,110 @@ const getDashboardScriptCharts = (): string => `
   `;
 
 const getDashboardScriptFetch = (): string => `
+      const applySnapshot = (payload) => {
+        const summary = payload.summary || {};
+        const total = summary.workers || 0;
+        const monitoring = summary.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
+        const healthyCount = monitoring.healthy || 0;
+        const attentionCount = (monitoring.degraded || 0) + (monitoring.critical || 0);
+
+        totalEl.textContent = total;
+        healthyEl.textContent = healthyCount;
+        attentionEl.textContent = attentionCount;
+        if (costEl && payload.resources?.cost) {
+          const cost = payload.resources.cost;
+          costEl.textContent = '$' + cost.hourly?.toFixed(4) + '/hr';
+        }
+
+        // Update alert history - FIXED: Correctly access alerts from summary.alerts
+        const alerts = summary.alerts || [];
+        console.log('Alerts found:', alerts.length, alerts); // Debug logging
+        const alertList = document.getElementById('alertList');
+        if (alertList) {
+          if (alerts.length === 0) {
+            alertList.innerHTML = '<li class="zt-alert-item">No alerts yet.</li>';
+          } else {
+            alertList.innerHTML = alerts.map(alert => {
+              // Handle both nested alert structure and direct alert structure
+              const alertData = alert.alert || alert;
+              console.log('Processing alert:', alertData); // Debug logging
+
+              const severity = alertData.severity || 'info';
+              const severityColor =
+                severity === 'critical' ? 'var(--danger)' :
+                severity === 'warning' ? 'var(--warn)' :
+                severity === 'info' ? 'var(--accent)' : 'var(--text)';
+
+              return '<li class="zt-alert-item">' +
+              '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+              '<span style="font-weight: 600; color: ' + severityColor + '">' +
+              (alertData.message || 'Unknown alert') + '</span>' +
+              '<span style="font-size: 0.75rem; opacity: 0.7;">' +
+              (alertData.timestamp ? new Date(alertData.timestamp).toLocaleTimeString() : 'No timestamp') + '</span>' +
+              '</div>' +
+              (alertData.recommendation ? '<div style="font-size: 0.8rem; margin-top: 0.25rem; opacity: 0.8;">' + alertData.recommendation + '</div>' : '') +
+              '</li>';
+            }).join('');
+          }
+        }
+
+        updateCharts(summary, payload.resources);
+        lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+      };
+
       const fetchSummary = async () => {
         setError('');
         try {
           const response = await fetch(API_BASE + '/api/summary');
           if (!response.ok) throw new Error('Failed to load telemetry summary');
           const payload = await response.json();
-
-          const summary = payload.summary || {};
-          const total = summary.workers || 0;
-          const monitoring = summary.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
-          const healthyCount = monitoring.healthy || 0;
-          const attentionCount = (monitoring.degraded || 0) + (monitoring.critical || 0);
-
-          totalEl.textContent = total;
-          healthyEl.textContent = healthyCount;
-          attentionEl.textContent = attentionCount;
-          if (costEl && payload.resources?.cost) {
-            const cost = payload.resources.cost;
-            costEl.textContent = '$' + cost.hourly?.toFixed(4) + '/hr';
-          }
-
-          // Update alert history - FIXED: Correctly access alerts from summary.alerts
-          const alerts = summary.alerts || [];
-          console.log('Alerts found:', alerts.length, alerts); // Debug logging
-          const alertList = document.getElementById('alertList');
-          if (alertList) {
-            if (alerts.length === 0) {
-              alertList.innerHTML = '<li class="zt-alert-item">No alerts yet.</li>';
-            } else {
-              alertList.innerHTML = alerts.map(alert => {
-                // Handle both nested alert structure and direct alert structure
-                const alertData = alert.alert || alert;
-                console.log('Processing alert:', alertData); // Debug logging
-
-                const severity = alertData.severity || 'info';
-                const severityColor =
-                  severity === 'critical' ? 'var(--danger)' :
-                  severity === 'warning' ? 'var(--warn)' :
-                  severity === 'info' ? 'var(--accent)' : 'var(--text)';
-
-                return '<li class="zt-alert-item">' +
-                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
-                '<span style="font-weight: 600; color: ' + severityColor + '">' +
-                (alertData.message || 'Unknown alert') + '</span>' +
-                '<span style="font-size: 0.75rem; opacity: 0.7;">' +
-                (alertData.timestamp ? new Date(alertData.timestamp).toLocaleTimeString() : 'No timestamp') + '</span>' +
-                '</div>' +
-                (alertData.recommendation ? '<div style="font-size: 0.8rem; margin-top: 0.25rem; opacity: 0.8;">' + alertData.recommendation + '</div>' : '') +
-                '</li>';
-              }).join('');
-            }
-          }
-
-          updateCharts(summary, payload.resources);
-          lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+          applySnapshot(payload);
         } catch (error) {
           setError(error.message || 'Failed to load telemetry data');
         }
+      };
+
+      const connectSse = () => {
+        if (!window.EventSource) return false;
+
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+
+        eventSource = new EventSource(API_BASE + '/api/events');
+
+        eventSource.onopen = () => {
+          sseActive = true;
+          if (autoTimer) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+          }
+        };
+
+        eventSource.onmessage = (evt) => {
+          try {
+            const payload = JSON.parse(evt.data);
+            if (payload && payload.type === 'snapshot') {
+              applySnapshot(payload);
+            }
+          } catch (err) {
+            console.error('Failed to parse SSE payload', err);
+          }
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          sseActive = false;
+          if (autoRefresh && !autoTimer) {
+            autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          }
+        };
+
+        return true;
       };
   `;
 
@@ -413,10 +461,21 @@ const getDashboardScriptControls = (): string => `
         autoRefresh = !autoRefresh;
         setAutoLabel();
         writeStorage(STORAGE_KEYS.autoRefresh, String(autoRefresh));
-        if (autoRefresh) {
+        if (!autoRefresh) {
+          if (autoTimer) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+          }
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+            sseActive = false;
+          }
+          return;
+        }
+
+        if (!connectSse()) {
           autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
-        } else if (autoTimer) {
-          clearInterval(autoTimer);
         }
       });
 
@@ -438,10 +497,18 @@ const getDashboardScriptBootstrap = (): string => `
       applyTheme(initialTheme);
 
       if (autoRefresh) {
-        autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+        if (!connectSse()) {
+          autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+        }
       }
 
       fetchSummary();
+
+      window.addEventListener('beforeunload', () => {
+        if (eventSource) {
+          eventSource.close();
+        }
+      });
   `;
 
 const getDashboardScript = (options: DashboardUiOptions): string => `

@@ -103,6 +103,8 @@ export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORe
   return client;
 };
 
+const createIntervalConfig = (): number => Env.getInt('WORKER_INTERVAL_MS', 5000);
+
 /**
  * Helper: Create default worker configuration from environment
  */
@@ -116,6 +118,7 @@ const createDefaultWorkerConfig = (): Partial<WorkerConfig> => ({
   healthCheckInterval: Env.getInt('WORKER_HEALTH_CHECK_INTERVAL', 60),
   clusterMode: Env.getBool('WORKER_CLUSTER_MODE', true),
   region: Env.get('WORKER_REGION', 'us-east-1'),
+  intervalMs: createIntervalConfig(),
 });
 
 /**
@@ -180,10 +183,12 @@ const createWorkersConfig = (): WorkersGlobalConfig => {
     compliance: createComplianceConfig(),
     observability: createObservabilityConfig(),
     defaultWorker: createDefaultWorkerConfig(),
+    intervalMs: createIntervalConfig(),
   };
 
   const workersConfigObj: WorkersGlobalConfig = {
     enabled: overrides.enabled ?? baseConfig.enabled,
+    intervalMs: createIntervalConfig(),
     healthCheckInterval: overrides.healthCheckInterval ?? baseConfig.healthCheckInterval,
     clusterMode: overrides.clusterMode ?? baseConfig.clusterMode,
     autoScaling: {

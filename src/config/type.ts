@@ -551,6 +551,7 @@ export type WorkerConfig = {
   concurrency: number;
   timeout: number;
   retries: number;
+  intervalMs: number;
   autoStart: boolean;
   priority: number;
   queues: ReadonlyArray<string>;
@@ -588,6 +589,7 @@ export type WorkersGlobalConfig = {
   };
   observability: WorkerObservabilityConfig;
   defaultWorker: Partial<WorkerConfig>;
+  intervalMs: number;
 };
 
 export type WorkersConfigOverrides = Partial<{

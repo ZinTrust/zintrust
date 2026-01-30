@@ -1,4 +1,12 @@
-import { Logger, queueConfig, resolveLockPrefix, Router, type IRouter } from '@zintrust/core';
+import {
+  Logger,
+  queueConfig,
+  resolveLockPrefix,
+  Router,
+  type IRequest,
+  type IResponse,
+  type IRouter,
+} from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
@@ -275,18 +283,26 @@ async function handleJobsEndpoint(
     return;
   }
 
+  const jobs = await getRecentJobsForQueue(queueName, metrics, driver);
+  res.json(jobs);
+}
+
+async function getRecentJobsForQueue(
+  queueName: string,
+  metrics: Metrics,
+  driver: QueueDriver
+): Promise<JobSummary[]> {
   const recent = await metrics.getRecentJobs(queueName);
   const failed = await metrics.getFailedJobs(queueName);
   const all = [...recent, ...failed].sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
 
   if (all.length > 0) {
-    res.json(all);
-    return;
+    return all as JobSummary[];
   }
 
   const jobs = await driver.getRecentJobs(queueName, 100);
   const now = Date.now();
-  const fallback: JobSummary[] = jobs.map((job) => {
+  return jobs.map((job) => {
     // Use the actual state from BullMQ if available
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const jobState = (job as any)._state as string | undefined;
@@ -326,7 +342,6 @@ async function handleJobsEndpoint(
       finishedOn: job.finishedOn ?? undefined,
     };
   });
-  res.json(fallback);
 }
 
 async function handleRetryEndpoint(
@@ -412,66 +427,215 @@ function createRegisterRoutes(
         ? { middleware: settings.middleware }
         : { ...queueConfig.monitor };
 
-    const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
-      res.html(
-        getDashboardHtml({
-          autoRefresh: settings.autoRefresh,
-          refreshIntervalMs: settings.refreshIntervalMs,
-        })
-      );
-    };
+    registerDashboardRoutes(router, settings, routeOptions);
+    registerApiRoutes(router, settings, routeOptions, metrics, driver, getSnapshot, getLocks);
+  };
+}
 
-    // Dashboard HTML
-    Router.get(router, settings.basePath, renderDashboard, routeOptions);
-    Router.get(router, `${settings.basePath}/`, renderDashboard, routeOptions);
-
-    // API: Snapshot
-    Router.get(
-      router,
-      `${settings.basePath}/api/snapshot`,
-      async (_req, res) => {
-        const data = await getSnapshot();
-        res.json(data);
-      },
-      routeOptions
-    );
-
-    // API: Recent Jobs for Queue
-    Router.get(
-      router,
-      `${settings.basePath}/api/jobs/:queue`,
-      async (req, res) => {
-        await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
-      },
-      routeOptions
-    );
-
-    // API: Locks
-    Router.get(
-      router,
-      `${settings.basePath}/api/locks`,
-      async (req, res) => {
-        const query =
-          typeof (req as { getQuery?: () => Record<string, string> }).getQuery === 'function'
-            ? (req as { getQuery: () => Record<string, string> }).getQuery()
-            : ((req as { query?: Record<string, string> }).query ?? {});
-        const pattern = query['pattern'] ?? '*';
-        const locks = await getLocks(pattern);
-        res.json(locks);
-      },
-      routeOptions
-    );
-
-    // API: Retry Failed Job
-    Router.post(
-      router,
-      `${settings.basePath}/api/retry/:queue/:jobId`,
-      async (req, res) => {
-        await handleRetryEndpoint(req as RequestWithParams, res, driver);
-      },
-      routeOptions
+function registerDashboardRoutes(
+  router: IRouter,
+  settings: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  },
+  routeOptions: unknown
+): void {
+  const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
+    res.html(
+      getDashboardHtml({
+        autoRefresh: settings.autoRefresh,
+        refreshIntervalMs: settings.refreshIntervalMs,
+      })
     );
   };
+
+  // Dashboard HTML
+  Router.get(router, settings.basePath, renderDashboard, routeOptions);
+  Router.get(router, `${settings.basePath}/`, renderDashboard, routeOptions);
+}
+
+function registerApiRoutes(
+  router: IRouter,
+  settings: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  },
+  routeOptions: unknown,
+  metrics: Metrics,
+  driver: QueueDriver,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>,
+  getLocks: (pattern?: string) => Promise<LockAnalytics>
+): void {
+  registerSnapshotApi(router, settings, routeOptions, getSnapshot);
+  registerJobsApi(router, settings, routeOptions, metrics, driver);
+  registerLocksApi(router, settings, routeOptions, getLocks);
+  registerRetryApi(router, settings, routeOptions, driver);
+  registerEventsApi(router, settings, routeOptions, getSnapshot, getLocks, metrics, driver);
+}
+
+function registerSnapshotApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: unknown,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/snapshot`,
+    async (_req, res) => {
+      const data = await getSnapshot();
+      res.json(data);
+    },
+    routeOptions
+  );
+}
+
+function registerJobsApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: unknown,
+  metrics: Metrics,
+  driver: QueueDriver
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/jobs/:queue`,
+    async (req, res) => {
+      await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
+    },
+    routeOptions
+  );
+}
+
+function registerLocksApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: unknown,
+  getLocks: (pattern?: string) => Promise<LockAnalytics>
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/locks`,
+    async (req, res) => {
+      const query =
+        typeof (req as { getQuery?: () => Record<string, string> }).getQuery === 'function'
+          ? (req as { getQuery: () => Record<string, string> }).getQuery()
+          : ((req as { query?: Record<string, string> }).query ?? {});
+      const pattern = query['pattern'] ?? '*';
+      const locks = await getLocks(pattern);
+      res.json(locks);
+    },
+    routeOptions
+  );
+}
+
+function registerRetryApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: unknown,
+  driver: QueueDriver
+): void {
+  Router.post(
+    router,
+    `${settings.basePath}/api/retry/:queue/:jobId`,
+    async (req, res) => {
+      await handleRetryEndpoint(req as RequestWithParams, res, driver);
+    },
+    routeOptions
+  );
+}
+
+function registerEventsApi(
+  router: IRouter,
+  settings: {
+    basePath: string;
+    refreshIntervalMs: number;
+  },
+  routeOptions: unknown,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>,
+  getLocks: (pattern?: string) => Promise<LockAnalytics>,
+  metrics: Metrics,
+  driver: QueueDriver
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/events`,
+    async (req: IRequest, res: IResponse) => {
+      const raw = res.getRaw();
+
+      raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+
+      let closed = false;
+
+      const send = async (payload: unknown) => {
+        try {
+          const data = JSON.stringify(payload);
+          raw.write(`data: ${data}\n\n`);
+        } catch (err) {
+          Logger.error('QueueMonitor SSE send failed', err);
+        }
+      };
+
+      const getQuery = (): Record<string, string> =>
+        typeof req.getQuery === 'function'
+          ? (req.getQuery() as Record<string, string>)
+          : ({} as Record<string, string>);
+
+      const query = getQuery();
+      let queue = query['queue'] ?? '';
+      const pattern = query['pattern'] ?? '*';
+
+      await send({ type: 'hello', ts: new Date().toISOString() });
+
+      const interval = setInterval(async () => {
+        try {
+          const snapshot = await getSnapshot();
+          if (!queue && snapshot.queues.length > 0) {
+            queue = snapshot.queues[0].name;
+          }
+          const jobs = queue ? await getRecentJobsForQueue(queue, metrics, driver) : [];
+          const locks = await getLocks(pattern);
+
+          await send({
+            type: 'snapshot',
+            ts: new Date().toISOString(),
+            queue: queue || null,
+            snapshot,
+            jobs,
+            locks,
+          });
+        } catch (err) {
+          await send({
+            type: 'error',
+            ts: new Date().toISOString(),
+            message: (err as Error).message,
+          });
+        }
+      }, settings.refreshIntervalMs);
+
+      const hb = setInterval(() => {
+        if (!closed) raw.write(': ping\n\n');
+      }, 15000);
+
+      raw.on('close', () => {
+        closed = true;
+        clearInterval(interval);
+        clearInterval(hb);
+      });
+    },
+    routeOptions
+  );
 }
 
 export const QueueMonitor = Object.freeze({

@@ -7,7 +7,6 @@
 import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
 import type { Job } from 'bullmq';
 import { CanaryController } from '../CanaryController';
-import { getWorkers } from '../dashboard/workers-api';
 import { HealthMonitor } from '../HealthMonitor';
 import { getParam } from '../helper';
 import { SLAMonitor } from '../index';
@@ -19,6 +18,7 @@ import { WorkerRegistry } from '../WorkerRegistry';
 import { WorkerShutdown } from '../WorkerShutdown';
 import { WorkerVersioning } from '../WorkerVersioning';
 import type { InfrastructureConfig } from './middleware/InfrastructureValidator';
+import { WorkerMonitoringService } from './WorkerMonitoringService';
 
 /**
  * Helper to get request body
@@ -590,7 +590,7 @@ async function getSlaStatus(req: IRequest, res: IResponse): Promise<void> {
   } catch (error) {
     Logger.error('WorkerController.getSlaStatus failed', error);
     if ((error as Error).message.includes('SLA config not found')) {
-      res.setStatus(404).json({ error: 'SLA config not found for worker' });
+      res.setStatus(400).json({ error: 'SLA config not found for worker' });
     } else {
       res.setStatus(500).json({ error: (error as Error).message });
     }
@@ -1262,60 +1262,56 @@ async function monitoringSummary(_req: IRequest, res: IResponse): Promise<void> 
  * GET /api/workers/events
  */
 const eventsStream = async (_req: IRequest, res: IResponse): Promise<void> => {
-  const raw = res.getRaw();
+  try {
+    const raw = res.getRaw();
+    raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
 
-  raw.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
+    let closed = false;
 
-  let closed = false;
+    const send = (payload: unknown) => {
+      if (closed) return;
+      try {
+        const data = JSON.stringify(payload);
+        raw.write(`data: ${data}\n\n`);
+      } catch (err) {
+        Logger.error('WorkerController.eventsStream serialization failed', err);
+      }
+    };
 
-  const send = async (payload: unknown) => {
-    try {
-      const data = JSON.stringify(payload);
-      raw.write(`data: ${data}\n\n`);
-    } catch (err) {
-      Logger.error('WorkerController.eventsStream failed', err);
-      // ignore serialization errors
+    // Send hello immediately
+    send({ type: 'hello', ts: new Date().toISOString() });
+
+    // Defined subscription callback
+    const onSnapshot = (data: unknown) => {
+      send(data);
+    };
+
+    // Subscribe to centralized service
+    WorkerMonitoringService.subscribe(onSnapshot);
+
+    // Heartbeat to keep connection alive
+    const hb = setInterval(() => {
+      if (!closed) raw.write(': ping\n\n');
+    }, 15000);
+
+    // Clean up when client disconnects
+    raw.on('close', () => {
+      closed = true;
+      clearInterval(hb);
+      WorkerMonitoringService.unsubscribe(onSnapshot);
+    });
+  } catch (error) {
+    Logger.error('WorkerController.eventsStream failed', error);
+    const raw = res.getRaw && typeof res.getRaw === 'function' ? res.getRaw() : null;
+    if (!raw?.headersSent) {
+      res.setStatus(500).json({ error: (error as Error).message });
     }
-  };
-
-  // Send initial hello
-  await send({ type: 'hello', ts: new Date().toISOString() });
-
-  // Periodic snapshot sender
-  const intervalMs = 5000;
-  const interval = setInterval(async () => {
-    try {
-      const monitoring = await HealthMonitor.getSummary();
-      // include full workers listing with metrics/pagination to allow clients to patch the UI
-      const workersPayload = await getWorkers({ page: 1, limit: 200 });
-      await send({
-        type: 'snapshot',
-        ts: new Date().toISOString(),
-        monitoring,
-        workers: workersPayload,
-      });
-    } catch (err) {
-      // send error event
-      await send({ type: 'error', ts: new Date().toISOString(), message: (err as Error).message });
-    }
-  }, intervalMs);
-
-  // Heartbeat to keep connection alive
-  const hb = setInterval(() => {
-    if (!closed) raw.write(': ping\n\n');
-  }, 15000);
-
-  // Clean up when client disconnects
-  raw.on('close', () => {
-    closed = true;
-    clearInterval(interval);
-    clearInterval(hb);
-  });
+  }
 };
 
 /**

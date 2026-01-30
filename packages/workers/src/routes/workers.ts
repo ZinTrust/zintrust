@@ -99,6 +99,9 @@ function registerWorkerQueryRoutes(r: IRouter): void {
 }
 
 function registerMonitoringRoutes(r: IRouter): void {
+  // SSE events stream for monitoring + workers snapshot
+  Router.get(r, '/events', controller.eventsStream);
+
   // Health monitoring
   Router.post(r, '/:name/monitoring/start', controller.startMonitoring);
   Router.post(r, '/:name/monitoring/stop', controller.stopMonitoring);
@@ -108,9 +111,6 @@ function registerMonitoringRoutes(r: IRouter): void {
 
   // SLA monitoring
   Router.get(r, '/:name/sla/status', controller.getSlaStatus);
-
-  // SSE events stream for monitoring + workers snapshot
-  Router.get(r, '/events', controller.eventsStream);
 }
 
 function registerVersioningRoutes(r: IRouter): void {
@@ -134,9 +134,9 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
     (r: IRouter) => {
       Logger.info('Registering Worker Management Routes');
 
+      registerMonitoringRoutes(r); // ← Move FIRST - has /events
       registerCoreWorkerRoutes(r);
       registerWorkerQueryRoutes(r);
-      registerMonitoringRoutes(r);
       registerVersioningRoutes(r);
       registerUtilityRoutes(r);
     },
@@ -204,7 +204,6 @@ export function registerWorkerRoutes(
     basePath: '/telemetry',
   });
   dashboard.registerRoutes(router);
-
   Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
   Logger.info('Telemetry dashboard registered at http://127.0.0.1:7777/telemetry');
 }

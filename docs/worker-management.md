@@ -59,20 +59,21 @@ These environment variables control worker behavior. Set only what you need.
 
 **Core Worker Settings**
 
-| Key                          | Description                     | Default   |
-| ---------------------------- | ------------------------------- | --------- |
-| WORKERS_ENABLED              | Global worker system toggle     | true      |
-| WORKER_ENABLED               | Default worker enabled flag     | true      |
-| WORKER_CONCURRENCY           | Default concurrency             | 5         |
-| WORKER_TIMEOUT               | Job timeout (seconds)           | 60        |
-| WORKER_CONNECTION_TIMEOUT    | Worker connection timeout (ms)  | 5000      |
-| WORKER_RETRIES               | Retry attempts                  | 3         |
-| WORKER_AUTO_START            | Auto-start worker               | false     |
-| WORKER_RESOURCE_MONITORING   | Global resource monitoring gate | true      |
-| WORKER_PRIORITY              | Default priority                | 1         |
-| WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds) | 60        |
-| WORKER_CLUSTER_MODE          | Enable cluster mode             | true      |
-| WORKER_REGION                | Default region                  | us-east-1 |
+| Key                          | Description                        | Default   |
+| ---------------------------- | ---------------------------------- | --------- |
+| WORKERS_ENABLED              | Global worker system toggle        | true      |
+| WORKER_ENABLED               | Default worker enabled flag        | true      |
+| WORKER_CONCURRENCY           | Default concurrency                | 5         |
+| WORKER_TIMEOUT               | Job timeout (seconds)              | 60        |
+| WORKER_CONNECTION_TIMEOUT    | Worker connection timeout (ms)     | 5000      |
+| WORKER_RETRIES               | Retry attempts                     | 3         |
+| WORKER_AUTO_START            | Auto-start worker                  | false     |
+| WORKER_RESOURCE_MONITORING   | Global resource monitoring gate    | true      |
+| WORKER_PRIORITY              | Default priority                   | 1         |
+| WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds)    | 60        |
+| WORKER_INTERVAL_MS           | Monitoring interval (milliseconds) | 5000      |
+| WORKER_CLUSTER_MODE          | Enable cluster mode                | true      |
+| WORKER_REGION                | Default region                     | us-east-1 |
 
 **Auto-Scaling**
 

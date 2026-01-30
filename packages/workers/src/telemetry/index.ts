@@ -1,4 +1,4 @@
-import { Logger, Router, type IRouter } from '@zintrust/core';
+import { Logger, Router, type IRequest, type IResponse, type IRouter } from '@zintrust/core';
 import { TelemetryAPI } from './api/TelemetryAPI';
 import { getDashboardHtml } from './routes/dashboard';
 
@@ -43,6 +43,40 @@ export const TelemetryDashboard = Object.freeze({
           : DEFAULTS.refreshIntervalMs,
     };
 
+    const buildSnapshot = async (): Promise<{
+      ok: boolean;
+      summary: unknown;
+      resources: unknown;
+      cost: unknown;
+    }> => {
+      const [systemSummaryResult, resourceCurrentResult] = await Promise.allSettled([
+        TelemetryAPI.getSystemSummary(),
+        TelemetryAPI.getResourceCurrent(),
+      ]);
+
+      if (systemSummaryResult.status === 'rejected') {
+        Logger.error('Telemetry dashboard summary failed', systemSummaryResult.reason);
+      }
+
+      if (resourceCurrentResult.status === 'rejected') {
+        Logger.error('Telemetry resource summary failed', resourceCurrentResult.reason);
+      }
+
+      const systemSummary: SystemSummaryResponse =
+        systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value : { ok: false };
+      const resourceCurrent =
+        resourceCurrentResult.status === 'fulfilled'
+          ? resourceCurrentResult.value
+          : ({ ok: false } as ResourceCurrentResponse);
+
+      return {
+        ok: systemSummary.ok ?? false,
+        summary: isOkWithSummary(systemSummary) ? systemSummary.summary : {},
+        resources: isOkWithUsage(resourceCurrent) ? resourceCurrent.usage : null,
+        cost: null,
+      };
+    };
+
     const registerRoutes = (router: IRouter): void => {
       if (!settings.enabled) return;
 
@@ -68,31 +102,58 @@ export const TelemetryDashboard = Object.freeze({
         router,
         `${settings.basePath}/api/summary`,
         async (_req, res) => {
-          const [systemSummaryResult, resourceCurrentResult] = await Promise.allSettled([
-            TelemetryAPI.getSystemSummary(),
-            TelemetryAPI.getResourceCurrent(),
-          ]);
+          const snapshot = await buildSnapshot();
+          res.json(snapshot);
+        },
+        routeOptions
+      );
 
-          if (systemSummaryResult.status === 'rejected') {
-            Logger.error('Telemetry dashboard summary failed', systemSummaryResult.reason);
-          }
+      Router.get(
+        router,
+        `${settings.basePath}/api/events`,
+        async (_req: IRequest, res: IResponse) => {
+          const raw = res.getRaw();
 
-          if (resourceCurrentResult.status === 'rejected') {
-            Logger.error('Telemetry resource summary failed', resourceCurrentResult.reason);
-          }
+          raw.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            'X-Accel-Buffering': 'no',
+          });
 
-          const systemSummary: SystemSummaryResponse =
-            systemSummaryResult.status === 'fulfilled' ? systemSummaryResult.value : { ok: false };
-          const resourceCurrent =
-            resourceCurrentResult.status === 'fulfilled'
-              ? resourceCurrentResult.value
-              : ({ ok: false } as ResourceCurrentResponse);
+          let closed = false;
 
-          res.json({
-            ok: systemSummary.ok ?? false,
-            summary: isOkWithSummary(systemSummary) ? systemSummary.summary : {},
-            resources: isOkWithUsage(resourceCurrent) ? resourceCurrent.usage : null,
-            cost: null,
+          const send = async (payload: unknown) => {
+            try {
+              raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+            } catch (err) {
+              Logger.error('Telemetry SSE send failed', err);
+            }
+          };
+
+          await send({ type: 'hello', ts: new Date().toISOString() });
+
+          const interval = setInterval(async () => {
+            try {
+              const snapshot = await buildSnapshot();
+              await send({ type: 'snapshot', ts: new Date().toISOString(), ...snapshot });
+            } catch (err) {
+              await send({
+                type: 'error',
+                ts: new Date().toISOString(),
+                message: (err as Error).message,
+              });
+            }
+          }, settings.refreshIntervalMs);
+
+          const hb = setInterval(() => {
+            if (!closed) raw.write(': ping\n\n');
+          }, 15000);
+
+          raw.on('close', () => {
+            closed = true;
+            clearInterval(interval);
+            clearInterval(hb);
           });
         },
         routeOptions

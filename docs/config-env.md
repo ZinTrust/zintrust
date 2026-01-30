@@ -133,6 +133,9 @@ export const Env = Object.freeze({
   TOKEN_TTL: getInt('TOKEN_TTL', 3600000),
   TOKEN_LENGTH: getInt('TOKEN_LENGTH', 32),
 
+  // Worker
+  WORKER_INTERVAL_MS: getInt('WORKER_INTERVAL_MS', 5000),
+
   // Deployment
   ENVIRONMENT: get('ENVIRONMENT', 'development'),
   REQUEST_TIMEOUT: getInt('REQUEST_TIMEOUT', 30000),

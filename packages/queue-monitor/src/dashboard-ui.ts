@@ -80,6 +80,16 @@ table { width: 100%; border-collapse: collapse; margin-top: 4px; }
 th, td { text-align: left; padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
 th { color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
 tr:last-child td { border-bottom: none; }
+.expandable-row { cursor: pointer; transition: background 0.2s; }
+.expandable-row:hover { background: rgba(255,255,255,0.03); }
+.expandable-row code { cursor: pointer; color: var(--accent); }
+.expandable-row code:hover { text-decoration: underline; }
+.detail-row { background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); }
+.detail-cell { padding: 16px 20px !important; }
+.detail-content { font-family: monospace; font-size: 12px; line-height: 1.6; }
+.detail-content pre { margin: 0; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+.expand-icon { display: inline-block; margin-right: 6px; transition: transform 0.2s; user-select: none; }
+.expand-icon.expanded { transform: rotate(90deg); }
 
 .stat-value { font-size: 28px; font-weight: 800; color: var(--text); margin-top: 8px; line-height: 1; }
 .stat-label { font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }`;
@@ -147,7 +157,7 @@ const getHeaderSection = (): string => `
             </div>
             <button id="theme-toggle" class="refresh-btn" type="button">Light mode</button>
             <button id="auto-refresh-toggle" class="refresh-btn" type="button">Pause auto refresh</button>
-            <button class="refresh-btn" onclick="fetchData()" type="button">Refresh</button>
+            <button class="refresh-btn" onclick="console.log('HTTP refresh disabled - using SSE only')" type="button">Refresh (SSE Only)</button>
         </div>
     </header>
 `;
@@ -257,6 +267,10 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => String.
         let currentQueue = localStorage.getItem(QUEUE_KEY) || 'default';
         let autoRefreshEnabled = AUTO_REFRESH;
         let refreshTimer = null;
+        let eventSource = null;
+        let sseActive = false;
+        let lastSseQueue = null;
+        let lastSsePattern = null;
         let currentTheme = null;
 `;
 
@@ -296,8 +310,10 @@ const getDashboardScriptAutoRefresh = (): string => `
         }
 
         function startAutoRefresh() {
-            if (!autoRefreshEnabled || refreshTimer !== null) return;
-            refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+            if (!autoRefreshEnabled || refreshTimer !== null || sseActive) return;
+            // Disabled HTTP polling - SSE handles all updates
+            // refreshTimer = setInterval(fetchData, REFRESH_INTERVAL);
+            console.log('HTTP auto-refresh disabled - using SSE only');
         }
 
         function stopAutoRefresh() {
@@ -309,8 +325,20 @@ const getDashboardScriptAutoRefresh = (): string => `
         function setAutoRefresh(enabled) {
             autoRefreshEnabled = enabled;
             localStorage.setItem(AUTO_REFRESH_KEY, String(enabled));
-            if (autoRefreshEnabled) {
-                startAutoRefresh();
+            if (!enabled) {
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                sseActive = false;
+            }
+
+            if (autoRefreshEnabled && !sseActive) {
+                if (window.EventSource) {
+                    setupEventStream(currentQueue);
+                } else {
+                    startAutoRefresh();
+                }
             } else {
                 stopAutoRefresh();
             }
@@ -406,12 +434,14 @@ const getRenderJobsFunction = (): string => `
             tbody.innerHTML = '';
 
             if (!jobs || jobs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--muted)">No recent jobs found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--muted)">No recent jobs found</td></tr>';
                 return;
             }
 
-            jobs.forEach(job => {
+            jobs.forEach((job, idx) => {
                 const tr = document.createElement('tr');
+                tr.className = 'expandable-row';
+                tr.dataset.jobIndex = idx;
                 const status = (job.status || (job.failedReason ? 'failed' : 'completed')).toLowerCase();
                 const statusMap = {
                     failed: { label: 'Failed', cls: 'status-failed' },
@@ -428,7 +458,7 @@ const getRenderJobsFunction = (): string => `
                     : '<span style="color: var(--muted); font-size: 11px;">—</span>';
 
                 tr.innerHTML =
-                    '<td><code>' + job.id + '</code></td>' +
+                    '<td><span class="expand-icon">▶</span><code>' + job.id + '</code></td>' +
                     '<td>' + job.name + '</td>' +
                     '<td>' + currentQueue + '</td>' +
                     '<td><span class="status-badge ' +
@@ -440,8 +470,14 @@ const getRenderJobsFunction = (): string => `
                     '<td>' + new Date(job.timestamp).toLocaleTimeString() + '</td>' +
                     '<td>' + retryBtn + '</td>';
                 if (job.failedReason) {
-                    tr.title = job.failedReason;
+                    tr.title = 'Click to see error details';
                 }
+
+                tr.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('retry-btn')) return;
+                    toggleJobDetails(tr, job);
+                });
+
                 tbody.appendChild(tr);
             });
         }`;
@@ -490,14 +526,22 @@ const getRenderLocksFunction = (): string => `
                 return;
             }
 
-            locks.forEach(lock => {
+            locks.forEach((lock, idx) => {
                 const tr = document.createElement('tr');
+                tr.className = 'expandable-row';
+                tr.dataset.lockIndex = idx;
                 const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
                 const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
                 tr.innerHTML =
-                    '<td><code>' + lock.key + '</code></td>' +
+                    '<td><span class="expand-icon">▶</span><code>' + lock.key + '</code></td>' +
                     '<td>' + ttl + '</td>' +
                     '<td>' + expires + '</td>';
+                tr.title = 'Click to see lock details';
+
+                tr.addEventListener('click', () => {
+                    toggleLockDetails(tr, lock);
+                });
+
                 tbody.appendChild(tr);
             });
         }`;
@@ -534,6 +578,81 @@ const getErrorAndTooltipFunctions = (): string => `
             }
         }`;
 
+const getToggleDetailsFunctions = (): string => `
+        function toggleJobDetails(row, job) {
+            const expandIcon = row.querySelector('.expand-icon');
+            const existingDetail = row.nextElementSibling;
+
+            if (existingDetail && existingDetail.classList.contains('detail-row')) {
+                expandIcon.classList.remove('expanded');
+                existingDetail.remove();
+                return;
+            }
+
+            expandIcon.classList.add('expanded');
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'detail-row';
+
+            const jobData = {
+                id: job.id,
+                name: job.name,
+                queue: currentQueue,
+                status: job.status || (job.failedReason ? 'failed' : 'completed'),
+                attempts: job.attempts,
+                timestamp: new Date(job.timestamp).toISOString(),
+                data: job.data || {},
+                failedReason: job.failedReason || null,
+                processedOn: job.processedOn ? new Date(job.processedOn).toISOString() : null,
+                finishedOn: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
+                returnvalue: job.returnvalue
+            };
+
+            detailRow.innerHTML =
+                '<td colspan="7" class="detail-cell">' +
+                '<div class="detail-content">' +
+                '<strong style="color: var(--accent); display: block; margin-bottom: 8px;">Job Details:</strong>' +
+                '<pre>' + JSON.stringify(jobData, null, 2) + '</pre>' +
+                '</div>' +
+                '</td>';
+
+            row.parentNode.insertBefore(detailRow, row.nextSibling);
+        }
+
+        function toggleLockDetails(row, lock) {
+            const expandIcon = row.querySelector('.expand-icon');
+            const existingDetail = row.nextElementSibling;
+
+            if (existingDetail && existingDetail.classList.contains('detail-row')) {
+                expandIcon.classList.remove('expanded');
+                existingDetail.remove();
+                return;
+            }
+
+            expandIcon.classList.add('expanded');
+            const detailRow = document.createElement('tr');
+            detailRow.className = 'detail-row';
+
+            const lockData = {
+                key: lock.key,
+                ttl: lock.ttl,
+                ttlSeconds: typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) : null,
+                expires: lock.expires ? new Date(lock.expires).toISOString() : null,
+                expiresLocal: lock.expires ? new Date(lock.expires).toLocaleString() : null,
+                value: lock.value || null,
+                metadata: lock.metadata || {}
+            };
+
+            detailRow.innerHTML =
+                '<td colspan="3" class="detail-cell">' +
+                '<div class="detail-content">' +
+                '<strong style="color: var(--accent); display: block; margin-bottom: 8px;">Lock Details:</strong>' +
+                '<pre>' + JSON.stringify(lockData, null, 2) + '</pre>' +
+                '</div>' +
+                '</td>';
+
+            row.parentNode.insertBefore(detailRow, row.nextSibling);
+        }`;
+
 const getRetryJobFunction = (): string => `
         async function retryJob(jobId) {
             try {
@@ -548,7 +667,8 @@ const getRetryJobFunction = (): string => `
                 if (res.ok) {
                     btn.textContent = '✓ Retried';
                     setTimeout(() => {
-                        fetchJobs(currentQueue);
+                        console.log('HTTP jobs polling disabled - using SSE only');
+                        // fetchJobs(currentQueue);
                     }, 1000);
                 } else {
                     btn.textContent = '✗ Failed';
@@ -561,8 +681,87 @@ const getRetryJobFunction = (): string => `
             }
         }`;
 
+const getDashboardScriptHelpers = (): string => `
+        function getLockPattern() {
+            const patternInput = document.getElementById('lock-pattern');
+            return patternInput && patternInput.value ? patternInput.value : '*';
+        }
+
+        function buildEventsUrl(queue, pattern) {
+            const q = queue || '';
+            const p = pattern || '*';
+            return API_BASE + '/api/events?queue=' + encodeURIComponent(q) + '&pattern=' + encodeURIComponent(p);
+        }
+`;
+
+const getDashboardScriptEventStream = (): string => `
+        function setupEventStream(queueOverride) {
+            if (!window.EventSource) return;
+
+            const queue = queueOverride || currentQueue;
+            const pattern = getLockPattern();
+
+            if (eventSource && queue === lastSseQueue && pattern === lastSsePattern) return;
+
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
+            lastSseQueue = queue;
+            lastSsePattern = pattern;
+            eventSource = new EventSource(buildEventsUrl(queue, pattern));
+
+            eventSource.onopen = () => {
+                sseActive = true;
+                stopAutoRefresh();
+            };
+
+            eventSource.onmessage = (evt) => {
+                try {
+                    const payload = JSON.parse(evt.data);
+                    if (!payload || !payload.type) return;
+
+                    if (payload.type === 'snapshot') {
+                        if (payload.snapshot) {
+                            renderStats(payload.snapshot);
+                            updateQueueSelect(payload.snapshot.queues || []);
+                        }
+
+                        if (payload.queue && payload.queue !== currentQueue) {
+                            currentQueue = payload.queue;
+                            localStorage.setItem(QUEUE_KEY, currentQueue);
+                            const select = document.getElementById('queue-select');
+                            if (select) select.value = currentQueue;
+                        }
+
+                        if (payload.jobs) renderJobs(payload.jobs);
+                        if (payload.locks) renderLocks(payload.locks);
+
+                        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                    }
+                } catch (err) {
+                    console.error('Failed to parse SSE payload', err);
+                }
+            };
+
+            eventSource.onerror = () => {
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                sseActive = false;
+                if (autoRefreshEnabled) startAutoRefresh();
+            };
+        }
+`;
+
 const getDashboardScriptFetch = (): string => `
+        // HTTP polling disabled - 100% SSE reliance
         async function fetchData() {
+            console.log('HTTP polling disabled - using SSE only');
+            // Disabled to ensure 100% SSE streaming
+            /*
             try {
                 document.getElementById('error-container').style.display = 'none';
                 const res = await fetch(API_BASE + '/api/snapshot');
@@ -589,9 +788,14 @@ const getDashboardScriptFetch = (): string => `
             } catch (e) {
                 showError(e.message);
             }
+            */
         }
 
+        // HTTP polling disabled - 100% SSE reliance
         async function fetchJobs(queue) {
+            console.log('HTTP jobs polling disabled - using SSE only');
+            // Disabled to ensure 100% SSE streaming
+            /*
             try {
                 const res = await fetch(API_BASE + '/api/jobs/' + queue);
                 const jobs = await res.json();
@@ -599,18 +803,23 @@ const getDashboardScriptFetch = (): string => `
             } catch (e) {
                 console.error('Failed to fetch jobs', e);
             }
+            */
         }
 
+        // HTTP polling disabled - 100% SSE reliance
         async function fetchLocks() {
+            console.log('HTTP locks polling disabled - using SSE only');
+            // Disabled to ensure 100% SSE streaming
+            /*
             try {
-                const patternInput = document.getElementById('lock-pattern');
-                const pattern = patternInput && patternInput.value ? patternInput.value : '*';
+                const pattern = getLockPattern();
                 const res = await fetch(API_BASE + '/api/locks?pattern=' + encodeURIComponent(pattern));
                 const data = await res.json();
                 renderLocks(data);
             } catch (e) {
                 console.error('Failed to fetch locks', e);
             }
+            */
         }
 `;
 
@@ -621,6 +830,7 @@ const getDashboardScriptRender = (): string =>
     getRenderJobsFunction(),
     getRenderLocksFunction(),
     getErrorAndTooltipFunctions(),
+    getToggleDetailsFunctions(),
     getRetryJobFunction(),
   ].join('\n');
 
@@ -640,13 +850,19 @@ const getDashboardScriptBootstrap = (): string => `
             queueSelect.addEventListener('change', (e) => {
                 currentQueue = e.target.value;
                 localStorage.setItem(QUEUE_KEY, currentQueue);
-                fetchJobs(currentQueue);
+                console.log('Queue changed - SSE will update automatically');
+                // fetchJobs(currentQueue); // Disabled - SSE handles updates
+                setupEventStream(currentQueue);
             });
         }
 
         const lockRefresh = document.getElementById('lock-refresh');
         if (lockRefresh) {
-            lockRefresh.addEventListener('click', fetchLocks);
+            lockRefresh.addEventListener('click', () => {
+                console.log('Lock refresh disabled - SSE handles updates');
+                // fetchLocks(); // Disabled - SSE handles updates
+                setupEventStream(currentQueue);
+            });
         }
 
         const storedAutoRefresh = localStorage.getItem(AUTO_REFRESH_KEY);
@@ -655,8 +871,17 @@ const getDashboardScriptBootstrap = (): string => `
             : storedAutoRefresh === 'true';
 
         applyTheme(getPreferredTheme());
-        fetchData();
+        console.log('HTTP polling disabled - 100% SSE streaming active');
+        // fetchData(); // Disabled - SSE handles initial data
         setAutoRefresh(initialAutoRefresh);
+
+        setupEventStream(currentQueue);
+
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
 `;
 
 const getDashboardScript = (options: DashboardUiOptions): string =>
@@ -664,6 +889,8 @@ const getDashboardScript = (options: DashboardUiOptions): string =>
     getDashboardScriptState(options),
     getDashboardScriptTheme(),
     getDashboardScriptAutoRefresh(),
+    getDashboardScriptHelpers(),
+    getDashboardScriptEventStream(),
     getDashboardScriptFetch(),
     getDashboardScriptRender(),
     getDashboardScriptBootstrap(),
