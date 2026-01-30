@@ -49,42 +49,42 @@ let _cachePrefix: string | undefined;
 let _sessionPrefix: string | undefined;
 
 const getMetricsPrefix = (): string => {
-  _metricsPrefix ??= `${PREFIX}_worker:metrics:`;
+  _metricsPrefix ??= `${PREFIX}_metrics:`;
   return _metricsPrefix;
 };
 
 const getHealthPrefix = (): string => {
-  _healthPrefix ??= `${PREFIX}_worker:health:`;
+  _healthPrefix ??= `${PREFIX}_health:`;
   return _healthPrefix;
 };
 
 const getWorkerPrefix = (): string => {
-  _workerPrefix ??= `${PREFIX}:worker:`;
+  _workerPrefix ??= `${PREFIX}_worker:`;
   return _workerPrefix;
 };
 
 const getQueuePrefix = (): string => {
-  _queuePrefix ??= `${PREFIX}:queue:`;
+  _queuePrefix ??= `${PREFIX}_queue:`;
   return _queuePrefix;
 };
 
 const getBullmqPrefix = (): string => {
-  _bullmqPrefix ??= `${PREFIX}:bull:`;
+  _bullmqPrefix ??= `${PREFIX}_bull:`;
   return _bullmqPrefix;
 };
 
 const getQueueLockPrefix = (): string => {
-  _queueLockPrefix ??= `${PREFIX}:lock:`;
+  _queueLockPrefix ??= `${PREFIX}_lock:`;
   return _queueLockPrefix;
 };
 
 const getCachePrefix = (): string => {
-  _cachePrefix ??= `${PREFIX}:cache:`;
+  _cachePrefix ??= `${PREFIX}_cache:`;
   return _cachePrefix;
 };
 
 const getSessionPrefix = (): string => {
-  _sessionPrefix ??= `${PREFIX}:session:`;
+  _sessionPrefix ??= `${PREFIX}_session:`;
   return _sessionPrefix;
 };
 
