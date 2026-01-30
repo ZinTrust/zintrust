@@ -4,7 +4,6 @@ import {
   GcsDriver,
   MailgunDriver,
   R2Driver,
-  RedisQueue,
   S3Driver,
   SendGridDriver,
   SmtpDriver,
@@ -13,12 +12,10 @@ import {
 describe('adapter packages entrypoints (re-exports)', () => {
   it('re-exports queue-redis', async () => {
     const pkg = (await import('../../../packages/queue-redis/src/index.js')) as {
-      RedisQueue: unknown;
+      BullMQRedisQueue: unknown;
     };
-    expect(typeof pkg.RedisQueue).toBe('object');
-    expect(typeof RedisQueue).toBe('object');
-    expect(typeof (pkg.RedisQueue as { enqueue?: unknown }).enqueue).toBe('function');
-    expect(typeof (RedisQueue as { enqueue?: unknown }).enqueue).toBe('function');
+    expect(typeof pkg.BullMQRedisQueue).toBe('object');
+    expect(typeof (pkg.BullMQRedisQueue as { enqueue?: unknown }).enqueue).toBe('function');
   });
 
   it('re-exports storage drivers', async () => {

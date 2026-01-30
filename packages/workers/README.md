@@ -844,7 +844,7 @@ MIT © ZinTrust
 
 ## Support
 
-- Documentation: https://docs.zintrust.dev/workers
+- Documentation: https://doc.zintrust.com/workers
 - Issues: https://github.com/ZinTrust/zintrust/issues
 - Discord: https://discord.gg/zintrust
 

@@ -3,11 +3,10 @@
  * HTTP API for managing workers with dashboard functionality
  */
 
-import type { IRouter } from '@zintrust/core';
+import type { IRequest, IResponse, IRouter } from '@zintrust/core';
 import { Logger, Router } from '@zintrust/core';
 import { type WorkersDashboardUiOptions } from '../dashboard';
-import { WorkerApiController } from '../http/WorkerApiController';
-import { WorkerController } from '../http/WorkerController';
+import { HealthMonitor } from '../HealthMonitor';
 import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';
 import { withEditWorkerValidation } from '../http/middleware/EditWorkerValidation';
 import { withDriverValidation } from '../http/middleware/ValidateDriver';
@@ -15,7 +14,11 @@ import {
   withCreateWorkerValidation,
   withWorkerOperationValidation,
 } from '../http/middleware/WorkerValidationChain';
+import { WorkerApiController } from '../http/WorkerApiController';
+import { WorkerController } from '../http/WorkerController';
+import { ResourceMonitor } from '../ResourceMonitor';
 import { registerStaticAssets } from '../ui/router/ui';
+import { WorkerFactory } from '../WorkerFactory';
 
 type WorkerUiOptions = WorkersDashboardUiOptions;
 type RouteOptions = { middleware?: ReadonlyArray<string> } | undefined;
@@ -141,6 +144,52 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
   );
 }
 
+function registerWorkerTelemetryRoutes(router: IRouter, middleware?: ReadonlyArray<string>): void {
+  const options = middleware ? { middleware } : undefined;
+
+  Router.group(
+    router,
+    '/api',
+    (r: IRouter) => {
+      Router.get(r, '/workers/system/summary', async (_req: IRequest, res: IResponse) => {
+        const workers = WorkerFactory.list();
+        const monitoringSummary = await HealthMonitor.getSummary();
+        const resourceUsage = ResourceMonitor.getCurrentUsage('system');
+
+        res.json({
+          ok: true,
+          summary: {
+            workers: workers.length,
+            monitoring: monitoringSummary,
+            resources: resourceUsage,
+          },
+        });
+      });
+
+      Router.get(
+        r,
+        '/workers/system/monitoring/summary',
+        async (_req: IRequest, res: IResponse) => {
+          const summary = await HealthMonitor.getSummary();
+          res.json({ ok: true, summary });
+        }
+      );
+
+      Router.get(r, '/resources/current', async (_req: IRequest, res: IResponse) => {
+        const usage = ResourceMonitor.getCurrentUsage('system');
+        res.json({ ok: true, usage });
+      });
+
+      Router.get(r, '/resources/trends', async (req: IRequest, res: IResponse) => {
+        const period = (req.getParam('period') ?? 'day') as 'hour' | 'day' | 'week';
+        const trends = ResourceMonitor.getAllTrends('system', period);
+        res.json({ ok: true, trends });
+      });
+    },
+    options
+  );
+}
+
 export function registerWorkerRoutes(
   router: IRouter,
   _options?: WorkerUiOptions,
@@ -148,6 +197,7 @@ export function registerWorkerRoutes(
 ): void {
   registerStaticAssets(router, routeOptions?.middleware ?? []);
   registerWorkerLifecycleRoutes(router, routeOptions?.middleware);
+  registerWorkerTelemetryRoutes(router, routeOptions?.middleware);
   Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
 }
 

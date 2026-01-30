@@ -173,7 +173,6 @@ const getDashboardHeader = (): string => `
             <nav class="zt-nav">
               <a class="zt-nav-link" href="/queue-monitor/">Queue monitor</a>
               <a class="zt-nav-link" href="/workers">Workers</a>
-              <a class="zt-nav-link" href="/telemetry">Telemetry</a>
               <a class="zt-nav-link" href="/metrics">Metrics</a>
             </nav>
             <button id="refresh-btn" class="zt-button">Refresh</button>

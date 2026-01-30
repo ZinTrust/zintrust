@@ -141,7 +141,6 @@ const getHeaderSection = (): string => `
         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
             <span id="last-updated" style="color: var(--muted); font-size: 12px;"></span>
             <div class="nav-links">
-                <a class="nav-link" href="/queue-monitor/">Queue monitor</a>
                 <a class="nav-link" href="/workers">Workers</a>
                 <a class="nav-link" href="/telemetry">Telemetry</a>
                 <a class="nav-link" href="/metrics">Metrics</a>

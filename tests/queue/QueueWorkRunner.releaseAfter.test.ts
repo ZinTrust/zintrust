@@ -49,6 +49,11 @@ describe('QueueWorkRunner releaseAfter handling', () => {
     process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
     process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
+
+    // Register the memory driver for tests
+    const { InMemoryQueue } = await import('@tools/queue/drivers/InMemory');
+    const { Queue } = await import('@tools/queue/Queue');
+    Queue.register('memory', InMemoryQueue);
   });
 
   afterEach(() => {
