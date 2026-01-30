@@ -76,7 +76,7 @@ export const PromptHelper = Object.freeze({
       },
     ]);
 
-    return answer.database;
+    return answer['database'];
   },
 
   /**
@@ -174,7 +174,7 @@ export const PromptHelper = Object.freeze({
       },
     ]);
 
-    return answer.choice;
+    return answer['choice'];
   },
 
   /**

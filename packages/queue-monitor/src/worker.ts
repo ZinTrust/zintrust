@@ -21,11 +21,11 @@ export const createWorker = (
     prefix,
   });
 
-  const onCompleted = async (job: Job) => {
+  const onCompleted = async (job: Job): Promise<void> => {
     await metrics.recordJob(queueName, 'completed', job);
   };
 
-  const onFailed = async (job: Job | undefined, err: Error) => {
+  const onFailed = async (job: Job | undefined, err: Error): Promise<void> => {
     if (job) {
       await metrics.recordJob(queueName, 'failed', job, err);
     }

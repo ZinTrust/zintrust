@@ -41,7 +41,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "npm --prefix ../queue-redis run -s build && npm --prefix ../queue-monitor run -s build && npm --prefix telemetry run -s build && tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

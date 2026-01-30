@@ -122,84 +122,130 @@ const HISTOGRAM_BUCKETS: Array<{ label: string; min?: number; max?: number }> = 
 
 const MAX_LOCK_KEYS = 10_000;
 
+// Helper function to scan lock keys with pagination
+const scanLockKeys = async (
+  client: ReturnType<typeof createRedisConnection>,
+  searchPattern: string,
+  maxKeys: number
+): Promise<string[]> => {
+  const keys: string[] = [];
+  let cursor = '0';
+
+  do {
+    // Redis scan must be sequential
+    // eslint-disable-next-line no-await-in-loop
+    const [nextCursor, batch] = await client.scan(cursor, 'MATCH', searchPattern, 'COUNT', '200');
+    cursor = nextCursor;
+    keys.push(...batch);
+
+    if (keys.length >= maxKeys) {
+      Logger.warn('Lock scan limit reached', {
+        pattern: searchPattern,
+        keysFound: keys.length,
+      });
+      break;
+    }
+  } while (cursor !== '0');
+
+  return keys;
+};
+
+// Helper function to get TTL statuses for keys
+const getLockStatuses = async (
+  client: ReturnType<typeof createRedisConnection>,
+  keys: string[]
+): Promise<number[]> => {
+  return Promise.all(keys.map((key) => client.pttl(key)));
+};
+
+// Helper function to build lock objects from keys and statuses
+const buildLockObjects = (
+  keys: string[],
+  statuses: number[],
+  prefixLock: string
+): Array<{ key: string; ttl?: number; expires?: string }> => {
+  return keys.map((key, index) => {
+    const ttl = statuses[index];
+    const exists = typeof ttl === 'number' && ttl > 0;
+    return {
+      key: key.replace(prefixLock, ''),
+      ttl: exists ? ttl : undefined,
+      expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
+    };
+  });
+};
+
+// Helper function to calculate lock metrics
+const calculateLockMetrics = async (
+  client: ReturnType<typeof createRedisConnection>,
+  prefixLock: string
+): Promise<{ attempts: number; acquired: number; collisions: number; collisionRate: number }> => {
+  const metricsKeys = [
+    `${prefixLock}${METRICS_KEYS.attempts}`,
+    `${prefixLock}${METRICS_KEYS.acquired}`,
+    `${prefixLock}${METRICS_KEYS.collisions}`,
+  ];
+  const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
+
+  const parseMetric = (value: string | null): number =>
+    Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  const attempts = parseMetric(attemptsRaw);
+  const acquired = parseMetric(acquiredRaw);
+  const collisions = parseMetric(collisionsRaw);
+  const collisionRate = attempts > 0 ? collisions / attempts : 0;
+
+  return { attempts, acquired, collisions, collisionRate };
+};
+
+// Helper function to build histogram from locks
+const buildLockHistogram = (locks: Array<{ ttl?: number }>): LockHistogramBucket[] => {
+  const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
+    label: bucket.label,
+    count: 0,
+  }));
+
+  locks.forEach((lock) => {
+    if (typeof lock.ttl !== 'number') return;
+    const ttl = lock.ttl;
+    const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
+      if (typeof bucket.min === 'number') return ttl >= bucket.min;
+      if (typeof bucket.max === 'number') return ttl < bucket.max;
+      return false;
+    });
+    if (idx >= 0) histogram[idx].count += 1;
+  });
+
+  return histogram;
+};
+
 function createGetLocks(redisConfig: RedisConfig) {
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
     const client = createRedisConnection(redisConfig);
     const prefix_lock = resolveLockPrefix();
     const searchPattern = `${prefix_lock}${pattern}`;
 
-    const keys: string[] = [];
-    let cursor = '0';
     try {
-      do {
-        const [nextCursor, batch] = await client.scan(
-          cursor,
-          'MATCH',
-          searchPattern,
-          'COUNT',
-          '200'
-        );
-        cursor = nextCursor;
-        keys.push(...batch);
+      // Scan for lock keys
+      const keys = await scanLockKeys(client, searchPattern, MAX_LOCK_KEYS);
 
-        if (keys.length >= MAX_LOCK_KEYS) {
-          Logger.warn('Lock scan limit reached', {
-            pattern: searchPattern,
-            keysFound: keys.length,
-          });
-          break;
-        }
-      } while (cursor !== '0');
+      // Get TTL statuses
+      const statuses = await getLockStatuses(client, keys);
 
-      const statuses = await Promise.all(keys.map((key) => client.pttl(key)));
+      // Build lock objects
+      const locks = buildLockObjects(keys, statuses, prefix_lock);
 
-      const locks = keys.map((key, index) => {
-        const ttl = statuses[index];
-        const exists = typeof ttl === 'number' && ttl > 0;
-        return {
-          key: key.replace(prefix_lock, ''),
-          ttl: exists ? ttl : undefined,
-          expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
-        };
-      });
+      // Calculate metrics
+      const metrics = await calculateLockMetrics(client, prefix_lock);
 
-      const metricsKeys = [
-        `${prefix_lock}${METRICS_KEYS.attempts}`,
-        `${prefix_lock}${METRICS_KEYS.acquired}`,
-        `${prefix_lock}${METRICS_KEYS.collisions}`,
-      ];
-      const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
-      const parseMetric = (value: string | null): number =>
-        Number.isFinite(Number(value)) ? Number(value) : 0;
-      const attempts = parseMetric(attemptsRaw);
-      const acquired = parseMetric(acquiredRaw);
-      const collisions = parseMetric(collisionsRaw);
-      const collisionRate = attempts > 0 ? collisions / attempts : 0;
-
-      const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
-        label: bucket.label,
-        count: 0,
-      }));
-
-      locks.forEach((lock) => {
-        if (typeof lock.ttl !== 'number') return;
-        const ttl = lock.ttl;
-        const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
-          if (typeof bucket.min === 'number') return ttl >= bucket.min;
-          if (typeof bucket.max === 'number') return ttl < bucket.max;
-          return false;
-        });
-        if (idx >= 0) histogram[idx].count += 1;
-      });
+      // Build histogram
+      const histogram = buildLockHistogram(locks);
 
       return {
         locks,
         metrics: {
           active: locks.length,
-          attempts,
-          acquired,
-          collisions,
-          collisionRate,
+          ...metrics,
         },
         histogram,
       };

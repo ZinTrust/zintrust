@@ -35,6 +35,21 @@ function getRedisClient(): Redis {
   return redisClient;
 }
 
+/**
+ * Close Redis connection and cleanup resources
+ */
+export async function closeLockProvider(): Promise<void> {
+  if (redisClient) {
+    try {
+      await redisClient.quit();
+    } catch (error) {
+      Logger.warn('Error closing Redis lock provider connection', error);
+    } finally {
+      redisClient = null;
+    }
+  }
+}
+
 const METRICS_SUFFIX = {
   attempts: 'metrics:attempts',
   acquired: 'metrics:acquired',
@@ -159,6 +174,7 @@ function createListMethod(prefix: string) {
 
       do {
         // SCAN to avoid blocking Redis in production environments
+        // eslint-disable-next-line no-await-in-loop
         const [nextCursor, batch] = await client.scan(
           cursor,
           'MATCH',

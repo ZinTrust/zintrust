@@ -41,7 +41,7 @@ const servePublicRootFile = (
   const filePath = findFirstExistingFile(candidates);
 
   try {
-    if (!filePath) {
+    if (filePath === undefined || filePath === null) {
       response.setStatus(404);
       response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
       response.send('Not Found');

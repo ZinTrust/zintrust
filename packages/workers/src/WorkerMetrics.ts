@@ -88,6 +88,8 @@ const runInBatches = async <T>(
 ): Promise<void> => {
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
+    // Batch processing is intentionally sequential to avoid overwhelming the system
+    // eslint-disable-next-line no-await-in-loop
     await Promise.all(batch.map((item) => handler(item)));
   }
 };

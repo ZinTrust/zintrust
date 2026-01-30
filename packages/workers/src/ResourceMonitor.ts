@@ -182,6 +182,10 @@ let monitoringInterval: NodeJS.Timeout | null = null;
 const resourceHistory = new Map<string, ResourceSnapshot[]>();
 const alertHistory = new Map<string, ResourceAlert[]>();
 
+// Memory management constants
+const MAX_HISTORY_SIZE = 1000; // Keep last 1000 snapshots per worker
+const MAX_ALERT_HISTORY = 100; // Keep last 100 alerts per worker
+
 // Resource thresholds
 const THRESHOLDS = {
   cpu: { warning: 70, critical: 90 },
@@ -439,9 +443,9 @@ const storeAlert = (alert: ResourceAlert): void => {
 
   history.push(alert);
 
-  // Keep only last 1000 alerts
-  if (history.length > 1000) {
-    history.shift();
+  // Trim alert history to prevent memory leaks
+  if (history.length > MAX_ALERT_HISTORY) {
+    alertHistory.set(alert.workerName, history.slice(-MAX_ALERT_HISTORY));
   }
 
   Logger.warn(`Resource alert: ${alert.workerName}`, {
@@ -611,14 +615,16 @@ export const ResourceMonitor = Object.freeze({
 
     history.push(snapshot);
 
-    // Keep only last 1000 snapshots
-    if (history.length > 1000) {
-      history.shift();
+    // Trim resource history to prevent memory leaks
+    if (history.length > MAX_HISTORY_SIZE) {
+      resourceHistory.set(workerName, history.slice(-MAX_HISTORY_SIZE));
     }
 
     // Check thresholds
     const alerts = checkThresholds(workerName, snapshot, cost);
-    alerts.forEach(storeAlert);
+    alerts.forEach((element) => {
+      storeAlert(element);
+    });
 
     return {
       workerName,

@@ -1,4 +1,3 @@
-import type { TemplateFile } from '@cli/scaffolding/TemplateEngine';
 import { BUILT_IN_TEMPLATES, TemplateEngine } from '@cli/scaffolding/TemplateEngine';
 import { describe, expect, it } from 'vitest';
 
@@ -235,7 +234,7 @@ describe('TemplateEngine Built-in Templates', () => {
       const files = BUILT_IN_TEMPLATES['basic'].files;
       const fileNames: string[] = [];
       for (const file of files) {
-        fileNames.push((file as TemplateFile).path);
+        fileNames.push(file.path);
       }
 
       expect(fileNames).toContain('package.json');
@@ -245,17 +244,12 @@ describe('TemplateEngine Built-in Templates', () => {
 
     it('template files should be valid', () => {
       for (const template of Object.values(BUILT_IN_TEMPLATES)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        expect((template as any).name).toBeDefined();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        expect((template as any).description).toBeDefined();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        expect(Array.isArray((template as any).directories)).toBe(true);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        expect(Array.isArray((template as any).files)).toBe(true);
+        expect(template.name).toBeDefined();
+        expect(template.description).toBeDefined();
+        expect(Array.isArray(template.directories)).toBe(true);
+        expect(Array.isArray(template.files)).toBe(true);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const file of (template as any).files) {
+        for (const file of template.files) {
           expect(file.path).toBeDefined();
           expect(file.source).toBeDefined();
           expect(typeof file.path).toBe('string');

@@ -85,7 +85,8 @@ const createProcessOne = <TPayload>(
       }
 
       await Queue.ack(queueName, message.id, driverName);
-      return false;
+      // We processed the message (even if it failed), so return true to continue processing
+      return true;
     }
   };
 };
@@ -99,6 +100,7 @@ const createProcessAll = (
     let hasMore = true;
 
     while (hasMore) {
+      // eslint-disable-next-line no-await-in-loop
       hasMore = await processOne(queueName, driverName);
       if (hasMore) processed++;
     }
@@ -115,32 +117,44 @@ const createRunOnce = (
   driverName?: string;
   maxItems?: number;
   maxDurationMs?: number;
+  concurrency?: number;
 }) => Promise<number>) => {
   return async (opts = {}): Promise<number> => {
-    const { queueName = defaultQueueName, driverName, maxItems, maxDurationMs = 30000 } = opts;
-    let processed = 0;
+    const {
+      queueName = defaultQueueName,
+      driverName,
+      maxItems,
+      maxDurationMs = 30000,
+      concurrency = 1,
+    } = opts;
     const startTime = Date.now();
+    let totalProcessed = 0;
 
-    if (maxItems === undefined) {
+    // Helper for single worker loop
+    const runWorker = async (): Promise<number> => {
+      let workerProcessed = 0;
       while (true) {
         if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
-          Logger.warn('Queue processing timeout reached', { queueName, processed });
           break;
         }
+        if (maxItems !== undefined && totalProcessed >= maxItems) {
+          break;
+        }
+
+        // eslint-disable-next-line no-await-in-loop
         const didProcess = await processOne(queueName, driverName);
         if (!didProcess) break;
-        processed++;
+
+        workerProcessed++;
+        totalProcessed++; // Shared counter (approximation in parallel)
       }
-      return processed;
-    }
+      return workerProcessed;
+    };
 
-    for (let i = 0; i < maxItems; i++) {
-      const didProcess = await processOne(queueName, driverName);
-      if (!didProcess) break;
-      processed++;
-    }
+    // Run workers in parallel
+    await Promise.all(Array.from({ length: Math.max(1, concurrency) }).map(() => runWorker()));
 
-    return processed;
+    return totalProcessed;
   };
 };
 
@@ -153,26 +167,41 @@ const createStartWorker = (
   driverName?: string;
   signal?: AbortSignal;
   maxDurationMs?: number;
+  concurrency?: number;
 }) => Promise<number>) => {
   return async (opts = {}): Promise<number> => {
-    const { queueName = defaultQueueName, driverName, signal, maxDurationMs = 300000 } = opts;
+    const {
+      queueName = defaultQueueName,
+      driverName,
+      signal,
+      maxDurationMs = 300000,
+      concurrency = 1,
+    } = opts;
 
-    Logger.info(`Starting ${kindLabel} worker (drain-until-empty)`, { queueName });
+    Logger.info(`Starting ${kindLabel} worker (drain-until-empty)`, { queueName, concurrency });
 
-    let processedCount = 0;
     const startTime = Date.now();
-    while (signal?.aborted !== true) {
-      if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
-        Logger.warn(`${kindLabel} worker timeout reached`, { queueName, processedCount });
-        break;
-      }
-      const didProcess = await processOne(queueName, driverName);
-      if (!didProcess) break;
-      processedCount++;
-    }
+    let totalProcessed = 0;
 
-    Logger.info(`${kindLabel} worker finished (queue drained)`, { queueName, processedCount });
-    return processedCount;
+    const runWorker = async (): Promise<void> => {
+      while (signal?.aborted !== true) {
+        if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
+          Logger.warn(`${kindLabel} worker timeout reached`, { queueName, totalProcessed });
+          break;
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        const didProcess = await processOne(queueName, driverName);
+        if (!didProcess) break;
+        totalProcessed++;
+      }
+    };
+
+    // Run workers in parallel
+    await Promise.all(Array.from({ length: Math.max(1, concurrency) }).map(() => runWorker()));
+
+    Logger.info(`${kindLabel} worker finished (queue drained)`, { queueName, totalProcessed });
+    return totalProcessed;
   };
 };
 

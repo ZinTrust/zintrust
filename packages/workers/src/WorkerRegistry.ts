@@ -76,6 +76,51 @@ type Rego = { workers: string[]; count: number };
 const workers = new Map<string, WorkerInstance>();
 const registrations = new Map<string, RegisterWorkerOptions>();
 
+// Cleanup configuration
+const STOPPED_WORKER_CLEANUP_DELAY = 5 * 60 * 1000; // 5 minutes
+const cleanupTimers = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Helper: Schedule cleanup of stopped worker
+ */
+const scheduleStoppedWorkerCleanup = (name: string): void => {
+  // Clear existing timer if any
+  const existingTimer = cleanupTimers.get(name);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  // Schedule new cleanup with proper cleanup handling
+  // eslint-disable-next-line no-restricted-syntax
+  const timer = setTimeout(() => {
+    try {
+      const instance = workers.get(name);
+      if (instance && instance.metadata.status === 'stopped') {
+        Logger.info(`Auto-cleaning up stopped worker: ${name}`);
+        workers.delete(name);
+        registrations.delete(name);
+      }
+    } catch (error) {
+      Logger.error(`Error during auto-cleanup of worker ${name}`, error);
+    } finally {
+      cleanupTimers.delete(name);
+    }
+  }, STOPPED_WORKER_CLEANUP_DELAY);
+
+  cleanupTimers.set(name, timer);
+};
+
+/**
+ * Helper: Cancel cleanup timer
+ */
+const cancelCleanupTimer = (name: string): void => {
+  const timer = cleanupTimers.get(name);
+  if (timer) {
+    clearTimeout(timer);
+    cleanupTimers.delete(name);
+  }
+};
+
 /**
  * Helper: Calculate uptime in seconds
  */
@@ -144,6 +189,9 @@ export const WorkerRegistry = Object.freeze({
       instance.metadata.status = 'starting';
       instance.metadata.version = version ?? '1.0.0';
 
+      // Cancel any pending cleanup timer when worker restarts
+      cancelCleanupTimer(name);
+
       workers.set(name, instance);
 
       instance.start();
@@ -185,6 +233,9 @@ export const WorkerRegistry = Object.freeze({
       instance.metadata.stoppedAt = new Date();
 
       AnomalyDetection.cleanup(name);
+
+      // Schedule automatic cleanup for stopped worker
+      scheduleStoppedWorkerCleanup(name);
 
       Logger.info(`Worker "${name}" stopped successfully`);
     } catch (error) {
@@ -415,6 +466,9 @@ export const WorkerRegistry = Object.freeze({
     if (instance?.metadata.status === 'running') {
       Logger.warn(`Worker "${name}" is still running during unregister`);
     }
+
+    // Cancel any pending cleanup timer
+    cancelCleanupTimer(name);
 
     workers.delete(name);
     registrations.delete(name);

@@ -122,7 +122,7 @@ function registerShutdownHandlers(): void {
   Logger.debug('Registering worker management system shutdown handlers');
 
   // SIGTERM - graceful shutdown (Docker, systemd, etc.)
-  signalHandlers.sigterm = async () => {
+  signalHandlers.sigterm = async (): Promise<void> => {
     Logger.info('📨 Received SIGTERM signal');
     try {
       await shutdown({ signal: 'SIGTERM', timeout: 30000, forceExit: true });
@@ -143,7 +143,7 @@ function registerShutdownHandlers(): void {
   // });
 
   // SIGHUP - terminal closed
-  signalHandlers.sighup = async () => {
+  signalHandlers.sighup = async (): Promise<void> => {
     Logger.info('📨 Received SIGHUP signal');
     try {
       await shutdown({ signal: 'SIGHUP', timeout: 30000, forceExit: true });
@@ -154,7 +154,7 @@ function registerShutdownHandlers(): void {
   process.on('SIGHUP', signalHandlers.sighup);
 
   // Handle uncaught errors during shutdown
-  signalHandlers.uncaughtException = async (error: Error) => {
+  signalHandlers.uncaughtException = async (error: Error): Promise<void> => {
     Logger.error('💥 Uncaught exception during worker operations', error);
     try {
       await shutdown({ signal: 'uncaughtException', timeout: 10000, forceExit: true });
@@ -165,7 +165,7 @@ function registerShutdownHandlers(): void {
   };
   process.on('uncaughtException', signalHandlers.uncaughtException);
 
-  signalHandlers.unhandledRejection = (reason: unknown) => {
+  signalHandlers.unhandledRejection = (reason: unknown): void => {
     // Only log the error - don't shut down the entire application
     Logger.error('💥 Unhandled promise rejection detected', reason);
     Logger.warn('⚠️  This error has been logged but will not shut down the server');
