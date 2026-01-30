@@ -4,7 +4,7 @@
  * HTTP handlers for worker management API
  */
 
-import { Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
+import { Env, Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
 import type { Job } from 'bullmq';
 import { CanaryController } from '../CanaryController';
 import { HealthMonitor } from '../HealthMonitor';
@@ -1257,6 +1257,8 @@ async function monitoringSummary(_req: IRequest, res: IResponse): Promise<void> 
   }
 }
 
+const SSE_HEARTBEAT_INTERVAL = Env.SSE_HEARTBEAT_INTERVAL;
+
 /**
  * SSE endpoint: stream worker and monitoring events
  * GET /api/workers/events
@@ -1297,7 +1299,7 @@ const eventsStream = async (_req: IRequest, res: IResponse): Promise<void> => {
     // Heartbeat to keep connection alive
     const hb = setInterval(() => {
       if (!closed) raw.write(': ping\n\n');
-    }, 15000);
+    }, SSE_HEARTBEAT_INTERVAL);
 
     // Clean up when client disconnects
     raw.on('close', () => {

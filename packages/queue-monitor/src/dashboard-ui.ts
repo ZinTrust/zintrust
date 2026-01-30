@@ -157,7 +157,6 @@ const getHeaderSection = (): string => `
             </div>
             <button id="theme-toggle" class="refresh-btn" type="button">Light mode</button>
             <button id="auto-refresh-toggle" class="refresh-btn" type="button">Pause auto refresh</button>
-            <button class="refresh-btn" onclick="console.log('HTTP refresh disabled - using SSE only')" type="button">Refresh (SSE Only)</button>
         </div>
     </header>
 `;
@@ -429,8 +428,22 @@ const getUpdateQueueSelectFunction = (): string => `
         }`;
 
 const getRenderJobsFunction = (): string => `
+        // Track expanded job IDs to preserve state during SSE updates
+        let expandedJobIds = new Set();
+
         function renderJobs(jobs) {
             const tbody = document.querySelector('#jobs-table tbody');
+
+            // Store currently expanded job IDs before clearing
+            const currentExpanded = document.querySelectorAll('.expand-icon.expanded');
+            currentExpanded.forEach(icon => {
+                const row = icon.closest('tr');
+                if (row) {
+                    const jobId = row.querySelector('code')?.textContent;
+                    if (jobId) expandedJobIds.add(jobId);
+                }
+            });
+
             tbody.innerHTML = '';
 
             if (!jobs || jobs.length === 0) {
@@ -457,8 +470,11 @@ const getRenderJobsFunction = (): string => `
                     ? '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ')" title="Retry this job">↻ Retry</button>'
                     : '<span style="color: var(--muted); font-size: 11px;">—</span>';
 
+                // Check if this job was previously expanded
+                const isExpanded = expandedJobIds.has(job.id);
+
                 tr.innerHTML =
-                    '<td><span class="expand-icon">▶</span><code>' + job.id + '</code></td>' +
+                    '<td><span class="expand-icon' + (isExpanded ? ' expanded' : '') + '">▶</span><code>' + job.id + '</code></td>' +
                     '<td>' + job.name + '</td>' +
                     '<td>' + currentQueue + '</td>' +
                     '<td><span class="status-badge ' +
@@ -479,7 +495,18 @@ const getRenderJobsFunction = (): string => `
                 });
 
                 tbody.appendChild(tr);
+
+                // Auto-expand if this job was previously expanded
+                if (isExpanded) {
+                    setTimeout(() => {
+                        toggleJobDetails(tr, job);
+                    }, 10); // Small delay to ensure DOM is ready
+                }
             });
+
+            // Clean up expanded job IDs that are no longer in the current jobs list
+            const currentJobIds = new Set(jobs.map(job => job.id));
+            expandedJobIds = new Set([...expandedJobIds].filter(id => currentJobIds.has(id)));
         }`;
 
 const getRenderLocksFunction = (): string => `
@@ -586,10 +613,15 @@ const getToggleDetailsFunctions = (): string => `
             if (existingDetail && existingDetail.classList.contains('detail-row')) {
                 expandIcon.classList.remove('expanded');
                 existingDetail.remove();
+                // Remove from expanded set
+                expandedJobIds.delete(job.id);
                 return;
             }
 
             expandIcon.classList.add('expanded');
+            // Add to expanded set
+            expandedJobIds.add(job.id);
+
             const detailRow = document.createElement('tr');
             detailRow.className = 'detail-row';
 

@@ -9,6 +9,7 @@ export type JobSummary = {
   name: string;
   data: unknown;
   attempts: number;
+  status?: string;
   failedReason?: string;
   timestamp: number;
   processedOn?: number;

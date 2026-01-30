@@ -6,11 +6,13 @@ import {
   type IRequest,
   type IResponse,
   type IRouter,
+  type RouteOptions,
 } from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
+import { getRecentJobsForQueue, QueueMonitoringStream } from './QueueMonitoringService';
 
 export type { JobPayload } from './driver';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker';
@@ -74,18 +76,6 @@ export type QueueMonitorApi = {
   driver: QueueDriver;
   metrics: Metrics;
   close: () => Promise<void>;
-};
-
-type JobSummary = {
-  id: string | undefined;
-  name: string;
-  data: unknown;
-  attempts: number;
-  status?: string;
-  failedReason?: string;
-  timestamp: number;
-  processedOn?: number;
-  finishedOn?: number;
 };
 
 const DEFAULTS = {
@@ -287,63 +277,6 @@ async function handleJobsEndpoint(
   res.json(jobs);
 }
 
-async function getRecentJobsForQueue(
-  queueName: string,
-  metrics: Metrics,
-  driver: QueueDriver
-): Promise<JobSummary[]> {
-  const recent = await metrics.getRecentJobs(queueName);
-  const failed = await metrics.getFailedJobs(queueName);
-  const all = [...recent, ...failed].sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
-
-  if (all.length > 0) {
-    return all as JobSummary[];
-  }
-
-  const jobs = await driver.getRecentJobs(queueName, 100);
-  const now = Date.now();
-  return jobs.map((job) => {
-    // Use the actual state from BullMQ if available
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const jobState = (job as any)._state as string | undefined;
-
-    // Fallback detection if state is not available
-    const isFailed = Boolean(job.failedReason) || jobState === 'failed';
-    const isCompleted = Boolean(job.finishedOn) || jobState === 'completed';
-    const isActive =
-      Boolean(job.processedOn && !job.finishedOn && !job.failedReason) || jobState === 'active';
-    const isDelayed = jobState === 'delayed';
-    const isPaused = jobState === 'paused';
-
-    let status: string;
-    if (isFailed) {
-      status = 'failed';
-    } else if (isCompleted) {
-      status = 'completed';
-    } else if (isActive) {
-      status = 'active';
-    } else if (isDelayed) {
-      status = 'delayed';
-    } else if (isPaused) {
-      status = 'paused';
-    } else {
-      status = 'waiting';
-    }
-
-    return {
-      id: job.id,
-      name: job.name,
-      data: job.data,
-      attempts: job.attemptsMade,
-      status,
-      failedReason: job.failedReason || undefined,
-      timestamp: job.timestamp ?? now,
-      processedOn: job.processedOn ?? undefined,
-      finishedOn: job.finishedOn ?? undefined,
-    };
-  });
-}
-
 async function handleRetryEndpoint(
   req: RequestWithParams,
   res: {
@@ -441,7 +374,7 @@ function registerDashboardRoutes(
     autoRefresh: boolean;
     refreshIntervalMs: number;
   },
-  routeOptions: unknown
+  routeOptions: RouteOptions
 ): void {
   const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
     res.html(
@@ -466,7 +399,7 @@ function registerApiRoutes(
     autoRefresh: boolean;
     refreshIntervalMs: number;
   },
-  routeOptions: unknown,
+  routeOptions: RouteOptions,
   metrics: Metrics,
   driver: QueueDriver,
   getSnapshot: () => Promise<QueueMonitorSnapshot>,
@@ -482,7 +415,7 @@ function registerApiRoutes(
 function registerSnapshotApi(
   router: IRouter,
   settings: { basePath: string },
-  routeOptions: unknown,
+  routeOptions: RouteOptions,
   getSnapshot: () => Promise<QueueMonitorSnapshot>
 ): void {
   Router.get(
@@ -499,7 +432,7 @@ function registerSnapshotApi(
 function registerJobsApi(
   router: IRouter,
   settings: { basePath: string },
-  routeOptions: unknown,
+  routeOptions: RouteOptions,
   metrics: Metrics,
   driver: QueueDriver
 ): void {
@@ -516,7 +449,7 @@ function registerJobsApi(
 function registerLocksApi(
   router: IRouter,
   settings: { basePath: string },
-  routeOptions: unknown,
+  routeOptions: RouteOptions,
   getLocks: (pattern?: string) => Promise<LockAnalytics>
 ): void {
   Router.get(
@@ -538,7 +471,7 @@ function registerLocksApi(
 function registerRetryApi(
   router: IRouter,
   settings: { basePath: string },
-  routeOptions: unknown,
+  routeOptions: RouteOptions,
   driver: QueueDriver
 ): void {
   Router.post(
@@ -557,7 +490,7 @@ function registerEventsApi(
     basePath: string;
     refreshIntervalMs: number;
   },
-  routeOptions: unknown,
+  routeOptions: RouteOptions,
   getSnapshot: () => Promise<QueueMonitorSnapshot>,
   getLocks: (pattern?: string) => Promise<LockAnalytics>,
   metrics: Metrics,
@@ -567,72 +500,7 @@ function registerEventsApi(
     router,
     `${settings.basePath}/api/events`,
     async (req: IRequest, res: IResponse) => {
-      const raw = res.getRaw();
-
-      raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      });
-
-      let closed = false;
-
-      const send = async (payload: unknown) => {
-        try {
-          const data = JSON.stringify(payload);
-          raw.write(`data: ${data}\n\n`);
-        } catch (err) {
-          Logger.error('QueueMonitor SSE send failed', err);
-        }
-      };
-
-      const getQuery = (): Record<string, string> =>
-        typeof req.getQuery === 'function'
-          ? (req.getQuery() as Record<string, string>)
-          : ({} as Record<string, string>);
-
-      const query = getQuery();
-      let queue = query['queue'] ?? '';
-      const pattern = query['pattern'] ?? '*';
-
-      await send({ type: 'hello', ts: new Date().toISOString() });
-
-      const interval = setInterval(async () => {
-        try {
-          const snapshot = await getSnapshot();
-          if (!queue && snapshot.queues.length > 0) {
-            queue = snapshot.queues[0].name;
-          }
-          const jobs = queue ? await getRecentJobsForQueue(queue, metrics, driver) : [];
-          const locks = await getLocks(pattern);
-
-          await send({
-            type: 'snapshot',
-            ts: new Date().toISOString(),
-            queue: queue || null,
-            snapshot,
-            jobs,
-            locks,
-          });
-        } catch (err) {
-          await send({
-            type: 'error',
-            ts: new Date().toISOString(),
-            message: (err as Error).message,
-          });
-        }
-      }, settings.refreshIntervalMs);
-
-      const hb = setInterval(() => {
-        if (!closed) raw.write(': ping\n\n');
-      }, 15000);
-
-      raw.on('close', () => {
-        closed = true;
-        clearInterval(interval);
-        clearInterval(hb);
-      });
+      QueueMonitoringStream(res, req, getSnapshot, getLocks, metrics, driver, settings);
     },
     routeOptions
   );

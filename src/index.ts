@@ -416,6 +416,8 @@ export { ZintrustLang } from '@lang/lang';
 // Workers config
 export { createRedisConnection, workersConfig } from '@config/workers';
 
+export type { RouteOptions } from '@core-routes/Router';
+
 // Redis config key - Singleton exports
 export {
   createRedisKey,

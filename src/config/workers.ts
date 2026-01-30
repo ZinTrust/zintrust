@@ -103,7 +103,7 @@ export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORe
   return client;
 };
 
-const createIntervalConfig = (): number => Env.getInt('WORKER_INTERVAL_MS', 5000);
+const createIntervalConfig = (): number => Env.SSE_SNAPSHOT_INTERVAL;
 
 /**
  * Helper: Create default worker configuration from environment

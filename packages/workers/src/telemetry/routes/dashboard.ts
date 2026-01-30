@@ -347,7 +347,7 @@ const getDashboardScriptCharts = (): string => `
       };
   `;
 
-const getDashboardScriptFetch = (): string => `
+const getDashboardScriptApplySnapshot = (): string => `
       const applySnapshot = (payload) => {
         const summary = payload.summary || {};
         const total = summary.workers || 0;
@@ -363,8 +363,14 @@ const getDashboardScriptFetch = (): string => `
           costEl.textContent = '$' + cost.hourly?.toFixed(4) + '/hr';
         }
 
-        // Update alert history - FIXED: Correctly access alerts from summary.alerts
-        const alerts = summary.alerts || [];
+        updateAlerts(summary.alerts || []);
+        updateCharts(summary, payload.resources);
+        lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+      };
+`;
+
+const getDashboardScriptUpdateAlerts = (): string => `
+      const updateAlerts = (alerts) => {
         console.log('Alerts found:', alerts.length, alerts); // Debug logging
         const alertList = document.getElementById('alertList');
         if (alertList) {
@@ -394,11 +400,10 @@ const getDashboardScriptFetch = (): string => `
             }).join('');
           }
         }
-
-        updateCharts(summary, payload.resources);
-        lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
       };
+`;
 
+const getDashboardScriptFetch = (): string => `
       const fetchSummary = async () => {
         setError('');
         try {
@@ -412,14 +417,14 @@ const getDashboardScriptFetch = (): string => `
       };
 
       const connectSse = () => {
-        if (!window.EventSource) return false;
+        if (!globalThis.window.EventSource) return false;
 
         if (eventSource) {
           eventSource.close();
           eventSource = null;
         }
 
-        eventSource = new EventSource(API_BASE + '/api/events');
+        eventSource = new globalThis.window.EventSource(API_BASE + '/api/events');
 
         eventSource.onopen = () => {
           sseActive = true;
@@ -446,9 +451,11 @@ const getDashboardScriptFetch = (): string => `
             eventSource = null;
           }
           sseActive = false;
-          if (autoRefresh && !autoTimer) {
-            autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
-          }
+          // HTTP fallback disabled - 100% SSE reliance
+          // if (autoRefresh && !autoTimer) {
+          //   autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          // }
+          console.log('SSE connection lost - please refresh page to reconnect');
         };
 
         return true;
@@ -456,7 +463,13 @@ const getDashboardScriptFetch = (): string => `
   `;
 
 const getDashboardScriptControls = (): string => `
-      refreshBtn.addEventListener('click', () => fetchSummary());
+      refreshBtn.addEventListener('click', () => {
+        console.log('Manual refresh - SSE only mode');
+        // SSE handles all updates, no HTTP fallback
+        if (!sseActive) {
+          connectSse();
+        }
+      });
       autoBtn.addEventListener('click', () => {
         autoRefresh = !autoRefresh;
         setAutoLabel();
@@ -475,7 +488,9 @@ const getDashboardScriptControls = (): string => `
         }
 
         if (!connectSse()) {
-          autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          // HTTP fallback disabled - 100% SSE reliance
+          // autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          console.log('SSE connection failed - please check server');
         }
       });
 
@@ -498,11 +513,14 @@ const getDashboardScriptBootstrap = (): string => `
 
       if (autoRefresh) {
         if (!connectSse()) {
-          autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          // HTTP fallback disabled - 100% SSE reliance
+          // autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          console.log('SSE connection failed - please check server');
         }
       }
 
-      fetchSummary();
+      // Initial data load via SSE only - no HTTP fallback
+      // fetchSummary(); // Disabled - SSE handles initial data
 
       window.addEventListener('beforeunload', () => {
         if (eventSource) {
@@ -515,6 +533,8 @@ const getDashboardScript = (options: DashboardUiOptions): string => `
     <script>
 ${getDashboardScriptState(options)}
 ${getDashboardScriptCharts()}
+${getDashboardScriptApplySnapshot()}
+${getDashboardScriptUpdateAlerts()}
 ${getDashboardScriptFetch()}
 ${getDashboardScriptControls()}
 ${getDashboardScriptBootstrap()}
