@@ -174,7 +174,16 @@ const incrementTraffic = (workerName: string): void => {
 
     // eslint-disable-next-line no-restricted-syntax
     const timer = setTimeout(() => {
-      CanaryController.complete(workerName);
+      try {
+        CanaryController.complete(workerName);
+      } catch (error) {
+        Logger.error('Error during canary completion callback', error);
+      } finally {
+        const current = canaryTimers.get(`${workerName}:complete`);
+        if (current === timer) {
+          canaryTimers.delete(`${workerName}:complete`);
+        }
+      }
     }, config.monitoringDuration * 1000);
 
     canaryTimers.set(`${workerName}:complete`, timer);
@@ -188,7 +197,16 @@ const incrementTraffic = (workerName: string): void => {
 
     // eslint-disable-next-line no-restricted-syntax
     const timer = setTimeout(() => {
-      incrementTraffic(workerName);
+      try {
+        incrementTraffic(workerName);
+      } catch (error) {
+        Logger.error('Error during canary increment callback', error);
+      } finally {
+        const current = canaryTimers.get(workerName);
+        if (current === timer) {
+          canaryTimers.delete(workerName);
+        }
+      }
     }, config.incrementInterval * 1000);
 
     canaryTimers.set(workerName, timer);
@@ -201,7 +219,7 @@ const appendHistory = (
 ): void => {
   deployment.history.push(entry);
   if (deployment.history.length > MAX_HISTORY) {
-    deployment.history.shift();
+    deployment.history.splice(0, deployment.history.length - MAX_HISTORY);
   }
 };
 
@@ -269,7 +287,16 @@ export const CanaryController = Object.freeze({
 
     // eslint-disable-next-line no-restricted-syntax
     const timer = setTimeout(() => {
-      incrementTraffic(workerName);
+      try {
+        incrementTraffic(workerName);
+      } catch (error) {
+        Logger.error('Error during canary start callback', error);
+      } finally {
+        const current = canaryTimers.get(workerName);
+        if (current === timer) {
+          canaryTimers.delete(workerName);
+        }
+      }
     }, config.monitoringDuration * 1000);
 
     canaryTimers.set(workerName, timer);
@@ -314,7 +341,16 @@ export const CanaryController = Object.freeze({
 
     // eslint-disable-next-line no-restricted-syntax
     const timer = setTimeout(() => {
-      incrementTraffic(workerName);
+      try {
+        incrementTraffic(workerName);
+      } catch (error) {
+        Logger.error('Error during canary resume callback', error);
+      } finally {
+        const current = canaryTimers.get(workerName);
+        if (current === timer) {
+          canaryTimers.delete(workerName);
+        }
+      }
     }, deployment.config.incrementInterval * 1000);
 
     canaryTimers.set(workerName, timer);

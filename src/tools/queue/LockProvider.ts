@@ -159,7 +159,6 @@ function createListMethod(prefix: string) {
 
       do {
         // SCAN to avoid blocking Redis in production environments
-        // eslint-disable-next-line no-await-in-loop
         const [nextCursor, batch] = await client.scan(
           cursor,
           'MATCH',

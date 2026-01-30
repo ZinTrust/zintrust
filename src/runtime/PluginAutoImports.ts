@@ -52,7 +52,6 @@ export const PluginAutoImports = Object.freeze({
 
       try {
         const url = pathToFileURL(candidate).href;
-        // eslint-disable-next-line no-await-in-loop
         await import(url);
         return { ok: true, loadedPath: candidate };
       } catch (error: unknown) {

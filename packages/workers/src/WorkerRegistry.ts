@@ -5,6 +5,7 @@
  */
 
 import { ErrorFactory, Logger, type WorkerConfig, type WorkerStatus } from '@zintrust/core';
+import { AnomalyDetection } from './AnomalyDetection';
 
 export type WorkerMetadata = {
   name: string;
@@ -182,6 +183,8 @@ export const WorkerRegistry = Object.freeze({
       await instance.stop();
       instance.metadata.status = 'stopped';
       instance.metadata.stoppedAt = new Date();
+
+      AnomalyDetection.cleanup(name);
 
       Logger.info(`Worker "${name}" stopped successfully`);
     } catch (error) {
@@ -415,6 +418,8 @@ export const WorkerRegistry = Object.freeze({
 
     workers.delete(name);
     registrations.delete(name);
+
+    AnomalyDetection.cleanup(name);
 
     Logger.info(`Worker "${name}" unregistered`);
   },

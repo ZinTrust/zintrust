@@ -52,7 +52,6 @@ const ShutdownManager = Object.freeze({
       },
       async run(): Promise<void> {
         for (const hook of hooks) {
-          // eslint-disable-next-line no-await-in-loop
           await hook();
         }
       },
@@ -216,7 +215,6 @@ const tryImportRoutesFromAppBase = async (
   for (const candidate of candidates) {
     try {
       const url = pathToFileURL(candidate).href;
-      // eslint-disable-next-line no-await-in-loop
       return (await import(url)) as RoutesModule;
     } catch {
       // keep trying

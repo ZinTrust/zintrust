@@ -1,4 +1,4 @@
-import { queueConfig, resolveLockPrefix, Router, type IRouter } from '@zintrust/core';
+import { Logger, queueConfig, resolveLockPrefix, Router, type IRouter } from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
@@ -65,6 +65,7 @@ export type QueueMonitorApi = {
   getLocks: (pattern?: string) => Promise<LockAnalytics>;
   driver: QueueDriver;
   metrics: Metrics;
+  close: () => Promise<void>;
 };
 
 type JobSummary = {
@@ -119,83 +120,96 @@ const HISTOGRAM_BUCKETS: Array<{ label: string; min?: number; max?: number }> = 
   { label: '>60m', min: 3_600_000 },
 ];
 
+const MAX_LOCK_KEYS = 10_000;
+
 function createGetLocks(redisConfig: RedisConfig) {
-  let redisConnection: ReturnType<typeof createRedisConnection> | null = null;
-
-  const resolveRedisConnection = (): ReturnType<typeof createRedisConnection> => {
-    if (!redisConnection) {
-      redisConnection = createRedisConnection(redisConfig);
-    }
-    return redisConnection;
-  };
-
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
-    const client = resolveRedisConnection();
+    const client = createRedisConnection(redisConfig);
     const prefix_lock = resolveLockPrefix();
     const searchPattern = `${prefix_lock}${pattern}`;
 
     const keys: string[] = [];
     let cursor = '0';
+    try {
+      do {
+        const [nextCursor, batch] = await client.scan(
+          cursor,
+          'MATCH',
+          searchPattern,
+          'COUNT',
+          '200'
+        );
+        cursor = nextCursor;
+        keys.push(...batch);
 
-    do {
-      // eslint-disable-next-line no-await-in-loop
-      const [nextCursor, batch] = await client.scan(cursor, 'MATCH', searchPattern, 'COUNT', '200');
-      cursor = nextCursor;
-      keys.push(...batch);
-    } while (cursor !== '0');
+        if (keys.length >= MAX_LOCK_KEYS) {
+          Logger.warn('Lock scan limit reached', {
+            pattern: searchPattern,
+            keysFound: keys.length,
+          });
+          break;
+        }
+      } while (cursor !== '0');
 
-    const statuses = await Promise.all(keys.map((key) => client.pttl(key)));
+      const statuses = await Promise.all(keys.map((key) => client.pttl(key)));
 
-    const locks = keys.map((key, index) => {
-      const ttl = statuses[index];
-      const exists = typeof ttl === 'number' && ttl > 0;
-      return {
-        key: key.replace(prefix_lock, ''),
-        ttl: exists ? ttl : undefined,
-        expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
-      };
-    });
-
-    const metricsKeys = [
-      `${prefix_lock}${METRICS_KEYS.attempts}`,
-      `${prefix_lock}${METRICS_KEYS.acquired}`,
-      `${prefix_lock}${METRICS_KEYS.collisions}`,
-    ];
-    const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
-    const parseMetric = (value: string | null): number =>
-      Number.isFinite(Number(value)) ? Number(value) : 0;
-    const attempts = parseMetric(attemptsRaw);
-    const acquired = parseMetric(acquiredRaw);
-    const collisions = parseMetric(collisionsRaw);
-    const collisionRate = attempts > 0 ? collisions / attempts : 0;
-
-    const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
-      label: bucket.label,
-      count: 0,
-    }));
-
-    locks.forEach((lock) => {
-      if (typeof lock.ttl !== 'number') return;
-      const ttl = lock.ttl;
-      const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
-        if (typeof bucket.min === 'number') return ttl >= bucket.min;
-        if (typeof bucket.max === 'number') return ttl < bucket.max;
-        return false;
+      const locks = keys.map((key, index) => {
+        const ttl = statuses[index];
+        const exists = typeof ttl === 'number' && ttl > 0;
+        return {
+          key: key.replace(prefix_lock, ''),
+          ttl: exists ? ttl : undefined,
+          expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
+        };
       });
-      if (idx >= 0) histogram[idx].count += 1;
-    });
 
-    return {
-      locks,
-      metrics: {
-        active: locks.length,
-        attempts,
-        acquired,
-        collisions,
-        collisionRate,
-      },
-      histogram,
-    };
+      const metricsKeys = [
+        `${prefix_lock}${METRICS_KEYS.attempts}`,
+        `${prefix_lock}${METRICS_KEYS.acquired}`,
+        `${prefix_lock}${METRICS_KEYS.collisions}`,
+      ];
+      const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
+      const parseMetric = (value: string | null): number =>
+        Number.isFinite(Number(value)) ? Number(value) : 0;
+      const attempts = parseMetric(attemptsRaw);
+      const acquired = parseMetric(acquiredRaw);
+      const collisions = parseMetric(collisionsRaw);
+      const collisionRate = attempts > 0 ? collisions / attempts : 0;
+
+      const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
+        label: bucket.label,
+        count: 0,
+      }));
+
+      locks.forEach((lock) => {
+        if (typeof lock.ttl !== 'number') return;
+        const ttl = lock.ttl;
+        const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
+          if (typeof bucket.min === 'number') return ttl >= bucket.min;
+          if (typeof bucket.max === 'number') return ttl < bucket.max;
+          return false;
+        });
+        if (idx >= 0) histogram[idx].count += 1;
+      });
+
+      return {
+        locks,
+        metrics: {
+          active: locks.length,
+          attempts,
+          acquired,
+          collisions,
+          collisionRate,
+        },
+        histogram,
+      };
+    } finally {
+      if (typeof client.quit === 'function') {
+        await client.quit();
+      } else if (typeof client.disconnect === 'function') {
+        client.disconnect();
+      }
+    }
   };
 }
 
@@ -437,12 +451,17 @@ export const QueueMonitor = Object.freeze({
     const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
+    const close = async (): Promise<void> => {
+      await Promise.all([driver.close(), metrics.close()]);
+    };
+
     return Object.freeze({
       registerRoutes,
       getSnapshot,
       getLocks,
       driver,
       metrics,
+      close,
     });
   },
 });

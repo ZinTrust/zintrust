@@ -81,6 +81,17 @@ const RETENTION = {
   monthly: 365 * 24 * 60 * 60, // 1 year
 };
 
+const runInBatches = async <T>(
+  items: ReadonlyArray<T>,
+  handler: (item: T) => Promise<void>,
+  batchSize = 10
+): Promise<void> => {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map((item) => handler(item)));
+  }
+};
+
 // Internal state
 let redisClient: IORedis | null = null;
 
@@ -287,9 +298,9 @@ const WorkerMetrics = Object.freeze({
     workerName: string,
     metrics: Array<{ metricType: MetricType; value: number; metadata?: Record<string, unknown> }>
   ): Promise<void> {
-    await Promise.all(
-      metrics.map(async (m) => WorkerMetrics.record(workerName, m.metricType, m.value, m.metadata))
-    );
+    await runInBatches(metrics, async (m) => {
+      await WorkerMetrics.record(workerName, m.metricType, m.value, m.metadata);
+    });
   },
 
   /**

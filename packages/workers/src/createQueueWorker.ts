@@ -8,11 +8,13 @@ type QueueWorker = {
     queueName?: string;
     driverName?: string;
     maxItems?: number;
+    maxDurationMs?: number;
   }) => Promise<number>;
   startWorker: (opts?: {
     queueName?: string;
     driverName?: string;
     signal?: AbortSignal;
+    maxDurationMs?: number;
   }) => Promise<number>;
 };
 
@@ -97,7 +99,6 @@ const createProcessAll = (
     let hasMore = true;
 
     while (hasMore) {
-      // eslint-disable-next-line no-await-in-loop
       hasMore = await processOne(queueName, driverName);
       if (hasMore) processed++;
     }
@@ -109,14 +110,23 @@ const createProcessAll = (
 const createRunOnce = (
   defaultQueueName: string,
   processOne: (queueName?: string, driverName?: string) => Promise<boolean>
-): ((opts?: { queueName?: string; driverName?: string; maxItems?: number }) => Promise<number>) => {
+): ((opts?: {
+  queueName?: string;
+  driverName?: string;
+  maxItems?: number;
+  maxDurationMs?: number;
+}) => Promise<number>) => {
   return async (opts = {}): Promise<number> => {
-    const { queueName = defaultQueueName, driverName, maxItems } = opts;
+    const { queueName = defaultQueueName, driverName, maxItems, maxDurationMs = 30000 } = opts;
     let processed = 0;
+    const startTime = Date.now();
 
     if (maxItems === undefined) {
       while (true) {
-        // eslint-disable-next-line no-await-in-loop
+        if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
+          Logger.warn('Queue processing timeout reached', { queueName, processed });
+          break;
+        }
         const didProcess = await processOne(queueName, driverName);
         if (!didProcess) break;
         processed++;
@@ -125,7 +135,6 @@ const createRunOnce = (
     }
 
     for (let i = 0; i < maxItems; i++) {
-      // eslint-disable-next-line no-await-in-loop
       const didProcess = await processOne(queueName, driverName);
       if (!didProcess) break;
       processed++;
@@ -143,15 +152,20 @@ const createStartWorker = (
   queueName?: string;
   driverName?: string;
   signal?: AbortSignal;
+  maxDurationMs?: number;
 }) => Promise<number>) => {
   return async (opts = {}): Promise<number> => {
-    const { queueName = defaultQueueName, driverName, signal } = opts;
+    const { queueName = defaultQueueName, driverName, signal, maxDurationMs = 300000 } = opts;
 
     Logger.info(`Starting ${kindLabel} worker (drain-until-empty)`, { queueName });
 
     let processedCount = 0;
+    const startTime = Date.now();
     while (signal?.aborted !== true) {
-      // eslint-disable-next-line no-await-in-loop
+      if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
+        Logger.warn(`${kindLabel} worker timeout reached`, { queueName, processedCount });
+        break;
+      }
       const didProcess = await processOne(queueName, driverName);
       if (!didProcess) break;
       processedCount++;

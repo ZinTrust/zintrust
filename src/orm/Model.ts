@@ -216,7 +216,6 @@ const runObservers = async (
     const fn = observer[hook];
     if (typeof fn === 'function') {
       // Observers intentionally run sequentially.
-      // eslint-disable-next-line no-await-in-loop
       await fn(model);
     }
   }

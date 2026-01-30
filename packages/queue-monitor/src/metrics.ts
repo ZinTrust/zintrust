@@ -23,6 +23,7 @@ export type Metrics = {
   ): Promise<Array<{ time: string; completed: number; failed: number }>>;
   getRecentJobs(queue: string): Promise<JobSummary[]>;
   getFailedJobs(queue: string): Promise<JobSummary[]>;
+  close: () => Promise<void>;
 };
 
 /**
@@ -128,6 +129,14 @@ export const createMetrics = (config: RedisConfig): Metrics => {
     getFailedJobs: async (queue: string): Promise<JobSummary[]> => {
       const list = await redis.lrange(getKey('failed', queue), 0, -1);
       return list.map((item) => JSON.parse(item) as JobSummary);
+    },
+
+    close: async (): Promise<void> => {
+      if (typeof redis.quit === 'function') {
+        await redis.quit();
+      } else if (typeof redis.disconnect === 'function') {
+        redis.disconnect();
+      }
     },
   });
 };

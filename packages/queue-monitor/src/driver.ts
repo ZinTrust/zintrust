@@ -43,7 +43,6 @@ async function discoverQueuesFromRedis(
       redis.scan(cur, 'MATCH', prefix + ':*', 'COUNT', '100');
 
     while (shouldContinue) {
-      // eslint-disable-next-line no-await-in-loop
       const result = await scanAsync(cursor);
       cursor = result[0];
       const keys = result[1] ?? [];

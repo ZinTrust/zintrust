@@ -49,6 +49,13 @@ const state: IShutdownState = {
 
 let shutdownHandlersRegistered = false;
 
+const signalHandlers: {
+  sigterm?: () => Promise<void>;
+  sighup?: () => Promise<void>;
+  uncaughtException?: (error: Error) => Promise<void>;
+  unhandledRejection?: (reason: unknown) => void;
+} = {};
+
 /**
  * Perform graceful shutdown of all worker modules
  */
@@ -115,14 +122,15 @@ function registerShutdownHandlers(): void {
   Logger.debug('Registering worker management system shutdown handlers');
 
   // SIGTERM - graceful shutdown (Docker, systemd, etc.)
-  process.on('SIGTERM', async () => {
+  signalHandlers.sigterm = async () => {
     Logger.info('📨 Received SIGTERM signal');
     try {
       await shutdown({ signal: 'SIGTERM', timeout: 30000, forceExit: true });
     } catch (error) {
       Logger.error('Error during SIGTERM shutdown', error);
     }
-  });
+  };
+  process.on('SIGTERM', signalHandlers.sigterm);
 
   // SIGINT - user interrupt (Ctrl+C) - REMOVED: handled by bootstrap.ts to prevent race condition
   // process.on('SIGINT', async () => {
@@ -135,17 +143,18 @@ function registerShutdownHandlers(): void {
   // });
 
   // SIGHUP - terminal closed
-  process.on('SIGHUP', async () => {
+  signalHandlers.sighup = async () => {
     Logger.info('📨 Received SIGHUP signal');
     try {
       await shutdown({ signal: 'SIGHUP', timeout: 30000, forceExit: true });
     } catch (error) {
       Logger.error('Error during SIGHUP shutdown', error);
     }
-  });
+  };
+  process.on('SIGHUP', signalHandlers.sighup);
 
   // Handle uncaught errors during shutdown
-  process.on('uncaughtException', async (error: Error) => {
+  signalHandlers.uncaughtException = async (error: Error) => {
     Logger.error('💥 Uncaught exception during worker operations', error);
     try {
       await shutdown({ signal: 'uncaughtException', timeout: 10000, forceExit: true });
@@ -153,17 +162,41 @@ function registerShutdownHandlers(): void {
       // Ignore errors during emergency shutdown
     }
     process.exit(1);
-  });
+  };
+  process.on('uncaughtException', signalHandlers.uncaughtException);
 
-  process.on('unhandledRejection', (reason: unknown) => {
+  signalHandlers.unhandledRejection = (reason: unknown) => {
     // Only log the error - don't shut down the entire application
     Logger.error('💥 Unhandled promise rejection detected', reason);
     Logger.warn('⚠️  This error has been logged but will not shut down the server');
     Logger.warn('⚠️  Check the error context and fix the underlying issue');
-  });
+  };
+  process.on('unhandledRejection', signalHandlers.unhandledRejection);
 
   shutdownHandlersRegistered = true;
   Logger.debug('Worker management system shutdown handlers registered');
+}
+
+/**
+ * Unregister process signal handlers (for hot reload/testing)
+ */
+function unregisterShutdownHandlers(): void {
+  if (!shutdownHandlersRegistered) return;
+
+  if (signalHandlers.sigterm) process.off('SIGTERM', signalHandlers.sigterm);
+  if (signalHandlers.sighup) process.off('SIGHUP', signalHandlers.sighup);
+  if (signalHandlers.uncaughtException)
+    process.off('uncaughtException', signalHandlers.uncaughtException);
+  if (signalHandlers.unhandledRejection)
+    process.off('unhandledRejection', signalHandlers.unhandledRejection);
+
+  signalHandlers.sigterm = undefined;
+  signalHandlers.sighup = undefined;
+  signalHandlers.uncaughtException = undefined;
+  signalHandlers.unhandledRejection = undefined;
+
+  shutdownHandlersRegistered = false;
+  Logger.debug('Worker management system shutdown handlers unregistered');
 }
 
 /**
@@ -194,6 +227,11 @@ export const WorkerShutdown = Object.freeze({
    * Register process signal handlers for graceful shutdown
    */
   registerShutdownHandlers,
+
+  /**
+   * Unregister process signal handlers (for hot reload/testing)
+   */
+  unregisterShutdownHandlers,
 
   /**
    * Check if system is currently shutting down

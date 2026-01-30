@@ -195,6 +195,15 @@ export const AnomalyDetection = Object.freeze({
   },
 
   /**
+   * Cleanup anomaly models for a worker
+   */
+  cleanup(workerName: string): void {
+    configs.delete(workerName);
+    models.delete(workerName);
+    Logger.debug(`Anomaly detection cleanup completed for ${workerName}`);
+  },
+
+  /**
    * Train baseline model
    */
   trainModel(workerName: string, historicalData: IMetric[]): void {
