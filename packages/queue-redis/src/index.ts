@@ -4,7 +4,6 @@ export {
   resetPublishClient,
   type RedisPublishClient,
 } from './RedisPublishClient';
-export { RedisQueue } from './RedisQueue';
 
 export type { QueueMessage } from '@zintrust/core';
 

@@ -17,7 +17,7 @@ describe('QueueExtensions', () => {
   beforeEach(() => {
     vi.resetModules();
     process.env.QUEUE_DRIVER = 'inmemory';
-    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
   });
 

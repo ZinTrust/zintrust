@@ -2,6 +2,7 @@ export const ZintrustLang = {
   DATABASE: 'database',
   REDIS: 'redis',
   MEMORY: 'memory',
+  INMEMORY: 'inmemory',
   ZINTRUST_LOCKS_PREFIX: 'zintrust:locks:',
   ZINTRUST_LOCKS_TTL: 300000,
   ZINTRUST_LOCKS_EXPIRE_AFTER: 300000,

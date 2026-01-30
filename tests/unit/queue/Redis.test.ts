@@ -27,18 +27,14 @@ const makeFakeQueueDriver = () => {
   };
 };
 
-describe('RedisQueue', () => {
+describe('Queue API with Redis driver', () => {
   beforeEach(() => {
     vi.resetModules();
     Queue.reset();
-    vi.doMock('../../../packages/queue-redis/src/RedisQueue', () => ({
-      default: makeFakeQueueDriver(),
-    }));
+    Queue.register('redis', makeFakeQueueDriver() as any);
   });
 
   it('enqueues and dequeues messages', async () => {
-    const { default: RedisQueue } = await import('../../../packages/queue-redis/src/RedisQueue');
-    Queue.register('redis', RedisQueue as any);
     const id = await Queue.enqueue('jobs', { work: 123 }, 'redis');
     expect(typeof id).toBe('string');
 
@@ -48,15 +44,11 @@ describe('RedisQueue', () => {
   });
 
   it('returns undefined when queue empty', async () => {
-    const { default: RedisQueue } = await import('../../../packages/queue-redis/src/RedisQueue');
-    Queue.register('redis', RedisQueue as any);
     const msg = await Queue.dequeue('nothing', 'redis');
     expect(msg).toBeUndefined();
   });
 
   it('returns length and drains', async () => {
-    const { default: RedisQueue } = await import('../../../packages/queue-redis/src/RedisQueue');
-    Queue.register('redis', RedisQueue as any);
     await Queue.enqueue('jobs2', { a: 1 }, 'redis');
     await Queue.enqueue('jobs2', { a: 2 }, 'redis');
     const len = await Queue.length('jobs2', 'redis');

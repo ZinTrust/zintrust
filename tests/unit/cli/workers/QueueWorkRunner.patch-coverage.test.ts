@@ -313,7 +313,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
     const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
 
     clearLockProviders();
-    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
     process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
 
@@ -352,7 +352,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
     const { QueueWorkRunner } = await import('@cli/workers/QueueWorkRunner');
 
     clearLockProviders();
-    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = '';
     process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
 
@@ -411,7 +411,7 @@ describe('QueueWorkRunner (patch coverage)', () => {
       resolveLockPrefix: () => 'test:',
     }));
 
-    process.env['QUEUE_LOCK_PROVIDER'] = 'redis';
+    process.env['QUEUE_DRIVER'] = 'redis';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
     process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
 

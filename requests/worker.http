@@ -41,9 +41,9 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "example-test-mysql2",
-  "queueName": "example-mysql2",
-  "processor": "app/Workers/EmailWorker.ts",
+  "name": "advanced-test-mysql",
+  "queueName": "advanced-queue",
+  "processor": "app/Workers/AdvancEmailWorker.ts",
   "version": "1.0.0",
   "options": {
     "concurrency": 5,

@@ -15,10 +15,22 @@ vi.mock('@notification/Notification', () => ({
 import { Broadcast } from '@broadcast/Broadcast';
 import { Notification } from '@notification/Notification';
 
-const makeDriver = (messages: Array<{ id: string; payload: Record<string, unknown> }>) => {
+import type { IQueueDriver } from '@tools/queue/Queue';
+
+const makeDriver = (
+  messages: Array<{ id: string; payload: Record<string, unknown> }>
+): IQueueDriver => {
   return {
     enqueue: vi.fn(async () => 'enqueued'),
-    dequeue: vi.fn(async () => messages.shift()),
+    dequeue: vi.fn(async () => {
+      const message = messages.shift();
+      if (!message) return undefined;
+      return {
+        id: message.id,
+        payload: message.payload,
+        attempts: 1, // Add the missing attempts property
+      } as any; // Type assertion to bypass generic constraints in test
+    }),
     ack: vi.fn(async () => undefined),
     length: vi.fn(async () => messages.length),
     drain: vi.fn(async () => {
@@ -34,7 +46,7 @@ describe('QueueWorkRunner releaseAfter handling', () => {
     vi.resetModules();
     vi.mocked(Broadcast.send).mockReset();
     vi.mocked(Notification.send).mockReset();
-    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
     process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
   });

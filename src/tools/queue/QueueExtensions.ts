@@ -10,6 +10,7 @@ import { ZintrustLang } from '@lang/lang';
 import { createAdvancedQueue, type AdvancedQueue } from '@queue/AdvancedQueue';
 import { createDeduplicationBuilder } from '@queue/DeduplicationBuilder';
 import { createLockProvider, registerLockProvider } from '@queue/LockProvider';
+import type { BullMQPayload } from '@queue/Queue';
 import { Queue } from '@queue/Queue';
 
 let advancedQueueRef: AdvancedQueue | null = null;
@@ -37,7 +38,7 @@ export function extendQueue(config: QueueConfig): void {
  */
 export async function enqueueAdvanced(
   name: string,
-  payload: unknown,
+  payload: BullMQPayload,
   options: AdvancedJobOptions = {}
 ): Promise<string> {
   if (advancedQueueRef === null) {

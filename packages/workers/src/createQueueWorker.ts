@@ -1,4 +1,4 @@
-import type { QueueMessage } from '@zintrust/core';
+import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import { Logger, Queue } from '@zintrust/core';
 
 type QueueWorker = {
@@ -54,7 +54,7 @@ const createProcessOne = <TPayload>(
         dueAt: new Date(timestamp).toISOString(),
       });
       // Re-queue original payload
-      await Queue.enqueue(queueName, message.payload, driverName);
+      await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
       await Queue.ack(queueName, message.id, driverName);
       return false;
     }
@@ -75,7 +75,7 @@ const createProcessOne = <TPayload>(
       });
 
       if (attempts < options.maxAttempts) {
-        await Queue.enqueue(queueName, message.payload, driverName);
+        await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
         Logger.info(`${options.kindLabel} re-queued for retry`, {
           ...baseLogFields,
           attempts: attempts + 1,

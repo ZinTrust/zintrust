@@ -45,7 +45,7 @@ vi.mock('@config/env', () => ({
   Env: {
     get: vi.fn((key: string, defaultValue?: string) => {
       switch (key) {
-        case 'QUEUE_LOCK_PROVIDER':
+        case 'QUEUE_DRIVER':
           return 'redis';
         case 'QUEUE_LOCK_PREFIX':
           return 'test:locks:';

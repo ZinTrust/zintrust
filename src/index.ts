@@ -362,7 +362,7 @@ export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 export { RedisQueue } from '@queue/drivers/Redis';
 export { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 export { Queue, resolveLockPrefix } from '@queue/Queue';
-export type { QueueMessage } from '@queue/Queue';
+export type { BullMQPayload, IQueueDriver, QueueMessage } from '@queue/Queue';
 
 // Seeders (for database seeding)
 export { SeederLoader } from '@/seeders/SeederLoader';

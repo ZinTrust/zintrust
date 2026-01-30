@@ -24,9 +24,11 @@ export type QueueConfigOverrides = Partial<{
   };
 }>;
 
-const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
-  const driverName = config.default;
-  return config.drivers[driverName];
+const getQueueDriver = (
+  driverConfig: QueueConfigWithDrivers
+): QueueDriversConfig[QueueDriverName] => {
+  const driverName = driverConfig.default;
+  return driverConfig.drivers[driverName];
 };
 
 /**
@@ -35,6 +37,10 @@ const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[Queu
 export const createBaseDrivers = (): QueueDriversConfig => ({
   sync: {
     driver: 'sync' as const,
+  },
+  memory: {
+    driver: 'memory' as const,
+    ttl: Env.getInt('QUEUE_MEMORY_TTL', 3600000), // 1 hour default
   },
   database: {
     driver: 'database' as const,
@@ -88,7 +94,7 @@ const createBaseMonitor = (): {
 const createQueueConfig = (): {
   default: QueueDriverName;
   drivers: QueueDriversConfig;
-  getDriver: (this: QueueConfigWithDrivers) => QueueDriversConfig[QueueDriverName];
+  getDriver: (driverConfig: QueueConfigWithDrivers) => QueueDriversConfig[QueueDriverName];
   failed: { database: string; table: string };
   processing: { timeout: number; retries: number; backoff: number; workers: number };
   monitor: {
@@ -138,8 +144,8 @@ const createQueueConfig = (): {
     /**
      * Get queue driver config
      */
-    getDriver(): QueueDriversConfig[QueueDriverName] {
-      return getQueueDriver(this);
+    getDriver(driverConfig: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] {
+      return getQueueDriver(driverConfig);
     },
 
     /**

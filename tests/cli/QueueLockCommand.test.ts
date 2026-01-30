@@ -8,7 +8,7 @@ describe('QueueLockCommand', () => {
   const envBackup = { ...process.env };
 
   beforeEach(() => {
-    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
     process.env['QUEUE_DEFAULT_DEDUP_TTL'] = '1000';
   });

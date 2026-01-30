@@ -12,6 +12,102 @@ ZinTrust provides powerful advanced queue patterns that enable:
 - **Cross-Service Coordination**: Coordinate tasks across multiple services
 - **CLI Management**: Monitor and manage locks via command-line tools
 
+## 📋 BullMQ JobOptions Reference
+
+ZinTrust's BullMQ implementation supports all standard BullMQ JobOptions. These options are extracted from the payload and passed directly to BullMQ for processing.
+
+| **Option**           | **Type**            | **Description**                                                                                                                                   | **Default**               | **Example**               |
+| -------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------- |
+| **jobId**            | `string`            | **Unique job identifier**. If specified, prevents duplicate jobs with same ID. Uses `uniqueId` from payload if present, otherwise generates UUID. | Auto-generated            | `jobId: 'custom-job-123'` |
+| **delay**            | `number`            | **Delay in milliseconds** before job becomes available for processing. Used for scheduling future jobs.                                           | `undefined` (immediate)   | `delay: 3600000` (1 hour) |
+| **attempts**         | `number`            | **Maximum retry attempts** before job is marked as failed.                                                                                        | `3` (BullMQ default)      | `attempts: 5`             |
+| **priority**         | `number`            | **Job priority level** (1-10). Higher numbers = higher priority. Controls processing order.                                                       | `0` (normal)              | `priority: 10` (highest)  |
+| **removeOnComplete** | `number \| boolean` | **Number of completed jobs to keep** in Redis. `0` = remove all, `true` = keep all, `false` = remove all.                                         | `100`                     | `removeOnComplete: 50`    |
+| **removeOnFail**     | `number \| boolean` | **Number of failed jobs to keep** in Redis. `0` = remove all, `true` = keep all, `false` = remove all.                                            | `50`                      | `removeOnFail: 25`        |
+| **backoff**          | `object`            | **Retry delay strategy**. Controls how long to wait between retries.                                                                              | Exponential with 2s delay | See below                 |
+| **repeat**           | `object`            | **Recurring job configuration**. Supports cron patterns, intervals, or repeat every X times.                                                      | `undefined`               | See below                 |
+| **lifo**             | `boolean`           | **Last-In-First-Out processing**. If `true`, processes newest jobs first.                                                                         | `false` (FIFO)            | `lifo: true`              |
+
+### 🔄 Backoff Strategy Options
+
+| **Type**        | **Description**                                 | **Example**                                           |
+| --------------- | ----------------------------------------------- | ----------------------------------------------------- |
+| **fixed**       | **Fixed delay** between retries.                | `{ type: 'fixed', delay: 5000 }` (5 seconds)          |
+| **exponential** | **Exponential backoff** with increasing delays. | `{ type: 'exponential', delay: 2000 }` (starts at 2s) |
+
+### ⏰ Repeat Job Options
+
+| **Property** | **Type** | **Description**                             | **Example**                       |
+| ------------ | -------- | ------------------------------------------- | --------------------------------- |
+| **every**    | `number` | **Repeat every N milliseconds**.            | `every: 86400000` (daily)         |
+| **cron**     | `string` | **Cron expression** for complex scheduling. | `cron: '0 9 * * 1'` (Monday 9 AM) |
+| **limit**    | `number` | **Maximum number of repetitions**.          | `limit: 10` (repeat 10 times)     |
+
+### 🎯 Usage Examples
+
+#### **Basic Job with Delay**
+
+```typescript
+await Queue.enqueue('email', {
+  to: 'user@example.com',
+  subject: 'Welcome!',
+  template: 'welcome',
+  delay: 60000, // 1 minute delay
+  uniqueId: 'welcome-123',
+});
+```
+
+#### **High Priority Job with Custom Retry**
+
+```typescript
+await Queue.enqueue('urgent', {
+  task: 'process-payment',
+  priority: 10, // Highest priority
+  attempts: 5, // 5 retry attempts
+  backoff: {
+    type: 'fixed',
+    delay: 10000, // 10 second fixed delay
+  },
+  uniqueId: 'payment-456',
+});
+```
+
+#### **Recurring Job**
+
+```typescript
+await Queue.enqueue('cleanup', {
+  task: 'daily-cleanup',
+  repeat: {
+    every: 86400000, // Daily
+  },
+  removeOnComplete: 10, // Keep last 10 completions
+  uniqueId: 'cleanup-daily',
+});
+```
+
+#### **Cron-Scheduled Job**
+
+```typescript
+await Queue.enqueue('reports', {
+  task: 'generate-report',
+  repeat: {
+    cron: '0 9 * * 1', // Every Monday at 9 AM
+  },
+  priority: 5,
+  uniqueId: 'weekly-report',
+});
+```
+
+#### **LIFO Processing (Stack-like)**
+
+```typescript
+await Queue.enqueue('stack', {
+  task: 'process-latest-first',
+  lifo: true, // Process newest jobs first
+  uniqueId: 'stack-job',
+});
+```
+
 ## Features
 
 ### 1. uniqueId Pattern
@@ -591,17 +687,16 @@ Configure default behavior via environment variables:
 # Queue Configuration
 QUEUE_DRIVER=redis
 QUEUE_DEFAULT_DEDUP_TTL=300000
+# Lock Provider Settings
+QUEUE_LOCK_PREFIX=zintrust:locks:
+QUEUE_MAX_LOCK_TTL=86400000
+
 
 # Redis Configuration (for lock provider)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=secret
 REDIS_QUEUE_DB=1
-
-# Lock Provider Settings
-QUEUE_LOCK_PROVIDER=redis
-QUEUE_LOCK_PREFIX=zintrust:locks:
-QUEUE_MAX_LOCK_TTL=86400000
 ```
 
 ## API Reference
