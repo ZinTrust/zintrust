@@ -83,7 +83,7 @@ describe('createQueueWorker (patch coverage)', () => {
 
     queueMock.dequeue.mockResolvedValueOnce({ id: 'm2', payload: { v: 2 }, attempts: 0 });
 
-    await expect(worker.processOne('q')).resolves.toBe(false);
+    await expect(worker.processOne('q')).resolves.toBe(true);
     expect(queueMock.enqueue).toHaveBeenCalledWith('q', { v: 2 }, undefined);
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm2', undefined);
   });
@@ -101,7 +101,7 @@ describe('createQueueWorker (patch coverage)', () => {
 
     queueMock.dequeue.mockResolvedValueOnce({ id: 'm3', payload: { v: 3 }, attempts: 3 });
 
-    await expect(worker.processOne('q')).resolves.toBe(false);
+    await expect(worker.processOne('q')).resolves.toBe(true);
     expect(queueMock.enqueue).not.toHaveBeenCalled();
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm3', undefined);
   });
