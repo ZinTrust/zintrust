@@ -173,8 +173,12 @@ export const AwsSecretsManager = Object.freeze({
   doctorEnv(): string[] {
     const missing: string[] = [];
 
-    const region = (readEnvString('AWS_REGION') || readEnvString('AWS_DEFAULT_REGION')).trim();
-    if (region === '') missing.push('AWS_REGION');
+    const awsRegion = readEnvString('AWS_REGION').trim();
+    const awsDefaultRegion = readEnvString('AWS_DEFAULT_REGION').trim();
+
+    if (awsRegion === '' && awsDefaultRegion === '') {
+      missing.push('AWS_REGION');
+    }
 
     const accessKeyId = readEnvString('AWS_ACCESS_KEY_ID').trim();
     if (accessKeyId === '') missing.push('AWS_ACCESS_KEY_ID');

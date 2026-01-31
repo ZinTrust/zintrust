@@ -85,11 +85,6 @@ const applyToProcessEnv = (values: EnvMap, overrideExisting: boolean): void => {
   if (typeof process.env['PORT'] !== 'string' && typeof process.env['APP_PORT'] === 'string') {
     process.env['PORT'] = process.env['APP_PORT'];
   }
-
-  if (typeof process.env['NODE_ENV'] !== 'string' && typeof process.env['APP_MODE'] === 'string') {
-    const mode = normalizeAppMode(process.env['APP_MODE']);
-    process.env['NODE_ENV'] = mode === 'production' ? 'production' : 'development';
-  }
 };
 
 const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined => {
@@ -100,11 +95,11 @@ const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined 
 };
 
 const resolveAppMode = (cwd: string): string | undefined => {
-  const existing = process.env['APP_MODE'];
+  const existing = process.env['NODE_ENV'];
   if (typeof existing === 'string' && existing.trim() !== '') return normalizeAppMode(existing);
 
   const fromDotEnv = readEnvFileIfExists(cwd, '.env');
-  const value = fromDotEnv?.['APP_MODE'];
+  const value = fromDotEnv?.['NODE_ENV'];
   if (typeof value === 'string' && value.trim() !== '') return normalizeAppMode(value);
 
   return undefined;

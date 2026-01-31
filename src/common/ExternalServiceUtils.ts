@@ -11,14 +11,20 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
  * Handles both Env.get() and process.env for maximum compatibility
  */
 export const readEnvString = (key: string, fallback = ''): string => {
-  const anyEnv = Env as { get?: (k: string, d?: string) => string };
+  const anyEnv = Env as { get?: (k: string, d?: string) => string; [key: string]: unknown };
   const fromEnv = typeof anyEnv.get === 'function' ? anyEnv.get(key, '') : '';
-  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') return fromEnv;
+  if (typeof fromEnv === 'string' && fromEnv.trim() !== '') {
+    return fromEnv;
+  }
+  const getEnv = anyEnv[key];
+  if (typeof getEnv === 'string' && getEnv.trim() !== '') {
+    return getEnv;
+  }
   if (typeof process !== 'undefined') {
     const raw = process.env?.[key];
     if (typeof raw === 'string') return raw;
   }
-  return fromEnv ?? fallback;
+  return fallback;
 };
 
 /**

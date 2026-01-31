@@ -15,14 +15,13 @@ ZinTrust includes a small `.env` loader for the CLI and Node tooling (`src/cli/u
 Load order (when present):
 
 1. `.env`
-2. `.env.<mode>` (only when `APP_MODE` is set and not `production`; e.g. `.env.dev`)
+2. `.env.<mode>` (only when `NODE_ENV` is set and not `production`; e.g. `.env.dev`)
 3. `.env.local`
 4. `.env.<mode>.local`
 
 Notes:
 
 - If `APP_PORT` is set but `PORT` is not, the loader sets `PORT=APP_PORT`.
-- If `APP_MODE` is set but `NODE_ENV` is not, the loader derives `NODE_ENV`.
 
 If you run the framework via the CLI, this is handled for you. If you run your own Node entrypoint, you can call `EnvFileLoader.ensureLoaded()` early.
 

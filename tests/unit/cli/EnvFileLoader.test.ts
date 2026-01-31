@@ -51,7 +51,7 @@ describe('EnvFileLoader', () => {
 
   it('.env overrides existing OS env (overrideExisting=true)', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=dev', 'APP_PORT=7777', 'FOO=from_env'].join('\n'),
+      '.env': ['NODE_ENV=dev', 'APP_PORT=7777', 'FOO=from_env'].join('\n'),
     });
 
     delete process.env['NODE_ENV'];
@@ -74,7 +74,7 @@ describe('EnvFileLoader', () => {
 
   it('overlays never override base .env values (but may fill missing)', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=dev', 'FOO=base'].join('\n'),
+      '.env': ['NODE_ENV=dev', 'FOO=base'].join('\n'),
       '.env.dev': ['FOO=overlay', 'BAR=from_overlay'].join('\n'),
     });
 
@@ -93,7 +93,7 @@ describe('EnvFileLoader', () => {
 
   it('production mode uses .env and does not load .env.production', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=prod', 'FOO=base'].join('\n'),
+      '.env': ['NODE_ENV=prod', 'FOO=base'].join('\n'),
       '.env.production': ['FOO=should_not_apply'].join('\n'),
     });
 
@@ -113,9 +113,9 @@ describe('EnvFileLoader', () => {
     await project.dispose();
   });
 
-  it('unknown APP_MODE values normalize to dev and load .env.dev', async () => {
+  it('unknown NODE_ENV values normalize to dev and load .env.dev', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=staging', 'FOO=base'].join('\n'),
+      '.env': ['NODE_ENV=staging', 'FOO=base'].join('\n'),
       '.env.dev': ['BAR=from_env_dev'].join('\n'),
     });
 
@@ -129,14 +129,14 @@ describe('EnvFileLoader', () => {
     expect(state.mode).toBe('dev');
     expect(process.env['FOO']).toBe('base');
     expect(process.env['BAR']).toBe('from_env_dev');
-    expect(process.env['NODE_ENV']).toBe('development');
+    expect(process.env['NODE_ENV']).toBe('dev');
 
     await project.dispose();
   });
 
   it('CLI overrides win over .env (port, NODE_ENV, runtime)', async () => {
     const project = await createTempProject({
-      '.env': ['APP_MODE=dev', 'APP_PORT=7777', 'FOO=from_env'].join('\n'),
+      '.env': ['NODE_ENV=dev', 'APP_PORT=7777', 'FOO=from_env'].join('\n'),
     });
 
     process.env['FOO'] = 'from_os';
@@ -209,11 +209,11 @@ describe('EnvFileLoader', () => {
     await project.dispose();
   });
 
-  it('handles APP_MODE from process.env', async () => {
+  it('handles NODE_ENV from process.env', async () => {
     const project = await createTempProject({ '.env': '' });
     process.chdir(project.dir);
     delete process.env['NODE_ENV'];
-    process.env['APP_MODE'] = 'production';
+    process.env['NODE_ENV'] = 'production';
     vi.resetModules();
 
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
@@ -228,7 +228,7 @@ describe('EnvFileLoader', () => {
   it('handles missing .env files gracefully', async () => {
     const project = await createTempProject({});
     process.chdir(project.dir);
-    delete process.env['APP_MODE'];
+    delete process.env['NODE_ENV'];
     vi.resetModules();
 
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
@@ -243,7 +243,7 @@ describe('EnvFileLoader', () => {
   it('syncs PORT and APP_PORT in applyCliOverrides', async () => {
     const project = await createTempProject({});
     process.chdir(project.dir);
-    delete process.env['APP_MODE'];
+    delete process.env['NODE_ENV'];
     delete process.env['PORT'];
     delete (process.env as any)['APP_PORT'];
     vi.resetModules();
@@ -270,7 +270,7 @@ describe('EnvFileLoader', () => {
       '.env.dev.local': 'DEV_LOCAL=true',
     });
     process.chdir(project.dir);
-    delete process.env['APP_MODE'];
+    delete process.env['NODE_ENV'];
     vi.resetModules();
 
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
@@ -286,7 +286,7 @@ describe('EnvFileLoader', () => {
     // Test with mode
     vi.resetModules();
     const { EnvFileLoader: EnvFileLoader2 } = await import('@cli/utils/EnvFileLoader');
-    process.env['APP_MODE'] = 'dev';
+    process.env['NODE_ENV'] = 'development';
     EnvFileLoader2.load();
     expect(process.env['DEV_LOCAL']).toBe('true');
 

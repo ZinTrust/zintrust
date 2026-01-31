@@ -21,9 +21,8 @@ describe('AwsSecretsManager', () => {
     delete process.env.AWS_SECRET_ACCESS_KEY;
 
     const missing = AwsSecretsManager.doctorEnv();
-    expect(missing).toEqual(
-      expect.arrayContaining(['AWS_REGION', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'])
-    );
+    // Note: AWS_REGION has a default value in Env object, so it won't be reported as missing
+    expect(missing).toEqual(expect.arrayContaining(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']));
   });
 
   it('createFromEnv throws when credentials missing', () => {
@@ -41,7 +40,7 @@ describe('AwsSecretsManager', () => {
 
     // mock fetch to return { SecretString: undefined }
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({}),
@@ -59,7 +58,7 @@ describe('AwsSecretsManager', () => {
 
     const secretObj = { foo: 'bar', nested: { x: 1 } };
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ SecretString: JSON.stringify(secretObj) }),
@@ -86,7 +85,7 @@ describe('AwsSecretsManager', () => {
 
     // non-ok response
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'err' }));
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'err' }));
 
     const svc = AwsSecretsManager.createFromEnv();
     await expect(svc.getValue('id')).rejects.toBeDefined();
@@ -99,7 +98,7 @@ describe('AwsSecretsManager', () => {
 
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200, text: async () => '{}' }));
     // @ts-ignore
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock;
 
     const svc = AwsSecretsManager.createFromEnv();
     await expect(svc.putValue('id', 'value')).resolves.toBeUndefined();

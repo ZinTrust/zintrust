@@ -212,7 +212,7 @@ async function toggleWorker(req: IRequest, res: IResponse) {
 
   // input.name comes from Path (:name)
   // input.enabled comes from Query (?enabled=true)
-  console.log(data); // { name: 'email-worker', enabled: 'true' }
+  Logger.info(data); // { name: 'email-worker', enabled: 'true' }
 
   // Or use destructing
   const { name, enabled } = req.data();

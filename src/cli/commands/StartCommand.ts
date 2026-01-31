@@ -41,14 +41,14 @@ const normalizeMode = (value: StartModeInput): StartMode => {
 };
 
 const resolveModeFromAppMode = (): StartMode => {
-  const raw = readEnvString('APP_MODE').trim();
+  const raw = readEnvString('NODE_ENV').trim();
   const normalized = raw.toLowerCase();
 
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod') {
     return 'production';
   }
 
-  // Per spec: any other APP_MODE is treated as development.
+  // Per spec: any other NODE_ENV is treated as development.
   return 'development';
 };
 

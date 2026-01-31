@@ -178,9 +178,9 @@ const response = await HttpClient.get('https://api.example.com/users/999').send(
 if (response.successful) {
   Logger.info('Success:', response.json());
 } else if (response.clientError) {
-  console.error('Client error:', response.status);
+  Logger.error('Client error:', response.status);
 } else if (response.serverError) {
-  console.error('Server error:', response.status);
+  Logger.error('Server error:', response.status);
 }
 ```
 
