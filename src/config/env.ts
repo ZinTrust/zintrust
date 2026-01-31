@@ -163,6 +163,9 @@ export const Env = Object.freeze({
   ENABLE_MICROSERVICES: getBool('ENABLE_MICROSERVICES', false),
   TOKEN_TTL: getInt('TOKEN_TTL', 3600000),
   TOKEN_LENGTH: getInt('TOKEN_LENGTH', 32),
+  CSRF_STORE: get('CSRF_STORE', ''),
+  CSRF_DRIVER: get('CSRF_DRIVER', ''),
+  CSRF_REDIS_DB: getInt('CSRF_REDIS_DB', 1),
 
   // Encryption interop
   ENCRYPTION_CIPHER: get('ENCRYPTION_CIPHER', ''),

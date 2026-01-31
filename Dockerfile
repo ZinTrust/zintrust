@@ -22,8 +22,8 @@ COPY app ./app
 COPY routes ./routes
 COPY bin ./bin
 
-# Build TypeScript to JavaScript (CI build skips tests)
-RUN npm run build:ci
+# Build TypeScript to JavaScript (Docker build includes packages)
+RUN npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
