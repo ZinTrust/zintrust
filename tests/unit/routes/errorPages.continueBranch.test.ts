@@ -17,7 +17,7 @@ describe('errorPages continue branch', () => {
     // Mock path and fs behavior: resolveSafePath returns undefined to force continue
     vi.doMock('@node-singletons/path', () => ({
       join: (...parts: string[]) => parts.join('/'),
-      extname: (_p: string) => '.html',
+      extname: () => '.html',
     }));
     vi.doMock('@node-singletons/fs', () => ({
       existsSync: () => false,
