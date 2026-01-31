@@ -19,9 +19,14 @@ describe('Logger', () => {
         get: (k: string, d?: string) => {
           if (k === 'LOG_FORMAT') return 'json';
           if (k === 'LOG_CHANNEL') return 'file';
+          if (k === 'LOG_LEVEL') return 'debug';
           return d ?? '';
         },
-        getBool: (_k: string, _d?: boolean) => true,
+        getBool: (k: string, d?: boolean) => {
+          if (k === 'DISABLE_LOGGING') return false;
+          if (k === 'LOG_TO_FILE') return true;
+          return d ?? false;
+        },
       },
     }));
 
@@ -51,8 +56,16 @@ describe('Logger', () => {
     }));
     vi.doMock('@config/env', () => ({
       Env: {
-        get: (k: string, d?: string) => (k === 'LOG_CHANNEL' ? 'file' : (d ?? '')),
-        getBool: (_k: string, _d?: boolean) => true,
+        get: (k: string, d?: string) => {
+          if (k === 'LOG_CHANNEL') return 'file';
+          if (k === 'LOG_LEVEL') return 'debug';
+          return d ?? '';
+        },
+        getBool: (k: string, d?: boolean) => {
+          if (k === 'DISABLE_LOGGING') return false;
+          if (k === 'LOG_TO_FILE') return true;
+          return d ?? false;
+        },
       },
     }));
 
@@ -76,8 +89,14 @@ describe('Logger', () => {
     }));
     vi.doMock('@config/env', () => ({
       Env: {
-        get: (_k: string, d?: string) => d ?? '',
-        getBool: (_k: string, _d?: boolean) => false,
+        get: (k: string, d?: string) => {
+          if (k === 'LOG_LEVEL') return 'debug';
+          return d ?? '';
+        },
+        getBool: (k: string, d?: boolean) => {
+          if (k === 'DISABLE_LOGGING') return false;
+          return d ?? false;
+        },
       },
     }));
 

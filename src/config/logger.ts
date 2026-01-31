@@ -5,6 +5,7 @@
  */
 import { appConfig } from '@config/app';
 import { Env } from '@config/env';
+import type { LogLevel } from '@config/type';
 
 interface ILogger {
   debug(message: string, data?: unknown, category?: string): void;
@@ -14,12 +15,43 @@ interface ILogger {
   fatal(message: string, error?: unknown, category?: string): void;
 }
 
-const isDevelopment = (): boolean => appConfig.isDevelopment();
 const isProduction = (): boolean => appConfig.isProduction();
 
 const getLogFormat = (): string => Env.get('LOG_FORMAT', 'text');
 const isJsonFormat = (value: unknown): value is 'json' => value === 'json';
 
+// Log level priority: lower means more verbose
+const levelPriority: Record<string, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+  fatal: 4,
+};
+
+const getConfiguredLogLevel = (): LogLevel => {
+  const raw = Env.get('LOG_LEVEL', Env.LOG_LEVEL ?? 'debug')
+    .trim()
+    .toLowerCase();
+  if (raw === 'debug') return 'debug';
+  if (raw === 'info') return 'info';
+  if (raw === 'warn') return 'warn';
+  if (raw === 'error') return 'error';
+  return 'info';
+};
+
+const shouldEmit = (level: LogLevel): boolean => {
+  // If global disable, never emit
+  if (Env.getBool('DISABLE_LOGGING', false)) return false;
+
+  // Respect configured LOG_LEVEL
+  const configured = getConfiguredLogLevel();
+  const lp = levelPriority[level];
+  const configuredLp = levelPriority[configured] ?? levelPriority['info'];
+  return lp >= configuredLp;
+};
+
+// TODO developers should be able to customize sensitive fields via config
 const SENSITIVE_FIELDS = new Set<string>([
   'password',
   'token',
@@ -99,6 +131,9 @@ const getFileWriter = (): void => {
 };
 
 const shouldLogToFile = (): boolean => {
+  // Respect global disable
+  if (Env.getBool('DISABLE_LOGGING', false)) return false;
+
   // Prefer dynamic lookup so late-bound env (tests, some runtimes) is respected.
   const channel = Env.get('LOG_CHANNEL', '').trim().toLowerCase();
   const channelWantsFile = channel === 'file' || channel === 'all';
@@ -136,7 +171,7 @@ const writeToFile = (line: string): void => {
 };
 
 const formatLogMessage = (params: {
-  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  level: LogLevel;
   message: string;
   data?: unknown;
   category?: string;
@@ -183,7 +218,7 @@ const getErrorMessage = (error?: unknown): string => {
 
 type CloudLogEvent = {
   timestamp: string;
-  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  level: LogLevel;
   message: string;
   category?: string;
   data?: unknown;
@@ -222,28 +257,28 @@ const emitCloudLogs = (event: CloudLogEvent): void => {
 
 // Private helper functions
 const logDebug = (message: string, data?: unknown, category?: string): void => {
+  if (!shouldEmit('debug')) return;
   String(category);
-  if (isDevelopment()) {
-    const timestamp = new Date().toISOString();
-    const out = formatLogMessage({ level: 'debug', message, data, category });
-    writeToFile(buildFileLine({ formatted: out, data }));
-    if (isJsonFormat(getLogFormat())) {
-      console.debug(out); // eslint-disable-line no-console
-      return;
-    }
+  const timestamp = new Date().toISOString();
+  const out = formatLogMessage({ level: 'debug', message, data, category });
+  writeToFile(buildFileLine({ formatted: out, data }));
+  if (isJsonFormat(getLogFormat())) {
+    console.debug(out); // eslint-disable-line no-console
+  } else {
     console.debug(out, data ?? ''); // eslint-disable-line no-console
-
-    emitCloudLogs({
-      timestamp,
-      level: 'debug',
-      message,
-      category,
-      data: redactSensitiveData(data),
-    });
   }
+
+  emitCloudLogs({
+    timestamp,
+    level: 'debug',
+    message,
+    category,
+    data: redactSensitiveData(data),
+  });
 };
 
 const logInfo = (message: string, data?: unknown, category?: string): void => {
+  if (!shouldEmit('info')) return;
   String(category);
   const timestamp = new Date().toISOString();
   const out = formatLogMessage({ level: 'info', message, data, category });
@@ -264,6 +299,7 @@ const logInfo = (message: string, data?: unknown, category?: string): void => {
 };
 
 const logWarn = (message: string, data?: unknown, category?: string): void => {
+  if (!shouldEmit('warn')) return;
   String(category);
   const timestamp = new Date().toISOString();
   const out = formatLogMessage({ level: 'warn', message, data, category });
@@ -284,6 +320,7 @@ const logWarn = (message: string, data?: unknown, category?: string): void => {
 };
 
 const logError = (message: string, error?: unknown, category?: string): void => {
+  if (!shouldEmit('error')) return;
   const errorMessage = getErrorMessage(error);
   String(category);
   const timestamp = new Date().toISOString();
@@ -310,6 +347,7 @@ const logError = (message: string, error?: unknown, category?: string): void => 
 };
 
 const logFatal = (message: string, error?: unknown, category?: string): void => {
+  if (!shouldEmit('fatal')) return;
   const errorMessage = getErrorMessage(error);
   String(category);
   const timestamp = new Date().toISOString();

@@ -13,10 +13,10 @@ const normalizeAppMode = (value: string): string => {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod')
     return 'production';
-  if (normalized === 'dev' || normalized === 'development') return 'dev';
+  if (normalized === 'dev' || normalized === 'development') return 'development';
 
   // Per spec: any other value is treated as development.
-  return 'dev';
+  return 'development';
 };
 
 const stripInlineComment = (value: string): string => {

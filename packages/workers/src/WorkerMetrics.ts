@@ -12,6 +12,7 @@ import {
   type RedisConfig,
 } from '@zintrust/core';
 import type IORedis from 'ioredis';
+import type { ChainableCommander } from 'ioredis';
 
 export type MetricType =
   | 'processed'
@@ -96,6 +97,8 @@ const runInBatches = async <T>(
 
 // Internal state
 let redisClient: IORedis | null = null;
+
+let keepLoggin = 0;
 
 /**
  * Helper: Get Redis key for metrics
@@ -224,6 +227,99 @@ const calculateHealthScore = (metrics: {
       resourceUsage: Math.round(resourceFactor),
     },
   };
+};
+
+/**
+ * Helper: Create empty metrics result for error cases
+ */
+const createEmptyMetrics = (
+  options: MetricQueryOptions,
+  defaultStartDate?: Date
+): AggregatedMetrics => ({
+  workerName: options.workerName,
+  metricType: options.metricType,
+  period: {
+    start: options.startDate ?? defaultStartDate ?? new Date(),
+    end: options.endDate ?? new Date(),
+  },
+  total: 0,
+  average: 0,
+  min: 0,
+  max: 0,
+  count: 0,
+});
+
+/**
+ * Helper: Handle uninitialized Redis client
+ */
+const handleUninitializedMetrics = (optionsList: MetricQueryOptions[]): AggregatedMetrics[] => {
+  if (keepLoggin === 0) {
+    keepLoggin = 1;
+    Logger.warn(`[METRICS] WorkerMetrics not initialized globally. Make sure all workers running`);
+  }
+  return optionsList.map((options) => createEmptyMetrics(options));
+};
+
+/**
+ * Helper: Build Redis pipeline for batch metrics query
+ */
+const buildMetricsPipeline = (optionsList: MetricQueryOptions[]): ChainableCommander => {
+  if (redisClient) {
+    const pipeline = redisClient.pipeline();
+
+    for (const options of optionsList) {
+      const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
+      const key = getMetricsKey(workerName, metricType, granularity);
+      const minScore = startDate ? startDate.getTime() : '-inf';
+      const maxScore = endDate ? endDate.getTime() : '+inf';
+      pipeline.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
+    }
+
+    return pipeline;
+  }
+  return null;
+};
+
+/**
+ * Helper: Process batch results and calculate aggregations
+ */
+const processBatchResults = (
+  optionsList: MetricQueryOptions[],
+  results: [Error | null, unknown][]
+): AggregatedMetrics[] => {
+  return optionsList.map((options, index) => {
+    const [err, data] = results[index];
+    if (err) {
+      Logger.error(`Error querying metrics for ${options.workerName}/${options.metricType}`, err);
+      return createEmptyMetrics(options);
+    }
+
+    const points: MetricPoint[] = (data as string[]).map((d) => JSON.parse(d) as MetricPoint);
+
+    if (points.length === 0) {
+      return createEmptyMetrics(options, new Date(0));
+    }
+
+    const values = points.map((p) => p.value);
+    const total = values.reduce((sum, val) => sum + val, 0);
+    const average = total / values.length;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+
+    return {
+      workerName: options.workerName,
+      metricType: options.metricType,
+      period: {
+        start: points[0].timestamp,
+        end: points.at(-1)?.timestamp ?? new Date(),
+      },
+      total,
+      average,
+      min,
+      max,
+      count: values.length,
+    };
+  });
 };
 
 /**
@@ -390,93 +486,21 @@ const WorkerMetrics = Object.freeze({
 
   async aggregateBatch(optionsList: MetricQueryOptions[]): Promise<AggregatedMetrics[]> {
     if (!redisClient) {
-      // Global initialization issue - log all workers
-      Logger.warn(
-        `[METRICS] WorkerMetrics not initialized globally. Make sure all workers running`
-      );
-      return optionsList.map((options) => ({
-        workerName: options.workerName,
-        metricType: options.metricType,
-        period: {
-          start: options.startDate ?? new Date(),
-          end: options.endDate ?? new Date(),
-        },
-        total: 0,
-        average: 0,
-        min: 0,
-        max: 0,
-        count: 0,
-      }));
+      return handleUninitializedMetrics(optionsList);
     }
     if (optionsList.length === 0) return [];
 
-    const pipeline = redisClient.pipeline();
-
-    for (const options of optionsList) {
-      const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
-      const key = getMetricsKey(workerName, metricType, granularity);
-      const minScore = startDate ? startDate.getTime() : '-inf';
-      const maxScore = endDate ? endDate.getTime() : '+inf';
-      pipeline.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
+    const pipeline = buildMetricsPipeline(optionsList);
+    if (!pipeline) {
+      return handleUninitializedMetrics(optionsList);
     }
-
     const results = await pipeline.exec();
 
     if (!results) {
       throw ErrorFactory.createWorkerError('Failed to execute metrics pipeline');
     }
 
-    return optionsList.map((options, index) => {
-      const [err, data] = results[index];
-      if (err) {
-        Logger.error(`Error querying metrics for ${options.workerName}/${options.metricType}`, err);
-        return {
-          workerName: options.workerName,
-          metricType: options.metricType,
-          period: { start: options.startDate ?? new Date(), end: options.endDate ?? new Date() },
-          total: 0,
-          average: 0,
-          min: 0,
-          max: 0,
-          count: 0,
-        };
-      }
-
-      const points: MetricPoint[] = (data as string[]).map((d) => JSON.parse(d) as MetricPoint);
-
-      if (points.length === 0) {
-        return {
-          workerName: options.workerName,
-          metricType: options.metricType,
-          period: { start: options.startDate ?? new Date(0), end: options.endDate ?? new Date() },
-          total: 0,
-          average: 0,
-          min: 0,
-          max: 0,
-          count: 0,
-        };
-      }
-
-      const values = points.map((p) => p.value);
-      const total = values.reduce((sum, val) => sum + val, 0);
-      const average = total / values.length;
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-
-      return {
-        workerName: options.workerName,
-        metricType: options.metricType,
-        period: {
-          start: points[0].timestamp,
-          end: points.at(-1)?.timestamp ?? new Date(),
-        },
-        total,
-        average,
-        min,
-        max,
-        count: values.length,
-      };
-    });
+    return processBatchResults(optionsList, results);
   },
 
   /**

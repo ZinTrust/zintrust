@@ -63,19 +63,19 @@ describe('EnvFileLoader', () => {
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
     const state = EnvFileLoader.load({ overrideExisting: true });
 
-    expect(state.mode).toBe('dev');
+    expect(state.mode).toBe('development');
     expect(process.env['FOO']).toBe('from_env');
     expect(process.env['APP_PORT']).toBe('7777');
     expect(process.env['PORT']).toBe('7777');
-    expect(process.env['NODE_ENV']).toBe('dev');
+    expect(process.env['NODE_ENV']).toBe('development');
 
     await project.dispose();
   });
 
   it('overlays never override base .env values (but may fill missing)', async () => {
     const project = await createTempProject({
-      '.env': ['NODE_ENV=dev', 'FOO=base'].join('\n'),
-      '.env.dev': ['FOO=overlay', 'BAR=from_overlay'].join('\n'),
+      '.env': ['NODE_ENV=development', 'FOO=base'].join('\n'),
+      '.env.development': ['FOO=overlay', 'BAR=from_overlay'].join('\n'),
     });
 
     process.chdir(project.dir);
@@ -84,7 +84,7 @@ describe('EnvFileLoader', () => {
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
     const state = EnvFileLoader.load({ overrideExisting: true });
 
-    expect(state.mode).toBe('dev');
+    expect(state.mode).toBe('development');
     expect(process.env['FOO']).toBe('base');
     expect(process.env['BAR']).toBe('from_overlay');
 
@@ -116,7 +116,7 @@ describe('EnvFileLoader', () => {
   it('unknown NODE_ENV values normalize to dev and load .env.dev', async () => {
     const project = await createTempProject({
       '.env': ['NODE_ENV=staging', 'FOO=base'].join('\n'),
-      '.env.dev': ['BAR=from_env_dev'].join('\n'),
+      '.env.development': ['BAR=from_env_dev'].join('\n'),
     });
 
     delete process.env['NODE_ENV'];
@@ -126,10 +126,10 @@ describe('EnvFileLoader', () => {
     const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
     const state = EnvFileLoader.load({ overrideExisting: true });
 
-    expect(state.mode).toBe('dev');
+    expect(state.mode).toBe('development');
     expect(process.env['FOO']).toBe('base');
     expect(process.env['BAR']).toBe('from_env_dev');
-    expect(process.env['NODE_ENV']).toBe('dev');
+    expect(process.env['NODE_ENV']).toBe('development');
 
     await project.dispose();
   });
@@ -267,7 +267,7 @@ describe('EnvFileLoader', () => {
     const project = await createTempProject({
       '.env': 'KEY=val\n=invalid\n \n',
       '.env.local': 'LOCAL=true',
-      '.env.dev.local': 'DEV_LOCAL=true',
+      '.env.development.local': 'DEV_LOCAL=true',
     });
     process.chdir(project.dir);
     delete process.env['NODE_ENV'];

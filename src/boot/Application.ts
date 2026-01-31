@@ -99,8 +99,10 @@ const registerCoreInstances = (params: {
   params.container.singleton('shutdownManager', params.shutdownManager);
 };
 
-const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void => {
-  // Register framework-level shutdown hooks for long-lived resources
+/**
+ * Helper: Register ConnectionManager shutdown hook
+ */
+const registerConnectionManagerHook = (shutdownManager: IShutdownManager): void => {
   // ConnectionManager may not be initialized; shutdownIfInitialized is safe
   // Use dynamic import without top-level await to avoid transforming the module into an async module
   import('@orm/ConnectionManager')
@@ -110,7 +112,54 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+};
 
+/**
+ * Helper: Register Worker management system shutdown hook
+ */
+const registerWorkerShutdownHook = async (shutdownManager: IShutdownManager): Promise<void> => {
+  // Ensure worker management system is asked to shutdown BEFORE databases are reset.
+  // This prevents workers from trying to access DB connections that have already
+  // been closed by subsequent shutdown hooks.
+  return import('@zintrust/workers')
+    .then(
+      (mod: {
+        WorkerShutdown: {
+          shutdown: (opts: {
+            signal?: string;
+            timeout?: number;
+            forceExit?: boolean;
+          }) => Promise<void>;
+          isShuttingDown?: () => boolean;
+          getShutdownState?: () => { isShuttingDown?: boolean; completedAt?: Date | null };
+        };
+      }) => {
+        shutdownManager.add(async () => {
+          const isShuttingDown =
+            typeof mod.WorkerShutdown.isShuttingDown === 'function'
+              ? mod.WorkerShutdown.isShuttingDown()
+              : (mod.WorkerShutdown.getShutdownState?.().isShuttingDown ?? false);
+          const completedAt = mod.WorkerShutdown.getShutdownState?.().completedAt ?? null;
+
+          if (isShuttingDown || completedAt !== null) return;
+
+          await mod.WorkerShutdown.shutdown({
+            signal: 'APP_SHUTDOWN',
+            timeout: 5000,
+            forceExit: false,
+          });
+        });
+      }
+    )
+    .catch(() => {
+      /* ignore import failures in restrictive runtimes */
+    });
+};
+
+/**
+ * Helper: Register Database reset hook
+ */
+const registerDatabaseResetHook = (shutdownManager: IShutdownManager): void => {
   import('@orm/Database')
     .then((mod: { resetDatabase: () => void }) => {
       shutdownManager.add(() => mod.resetDatabase());
@@ -118,15 +167,32 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+};
 
-  import('@cache/Cache')
-    .then((mod: { Cache: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.Cache.reset());
+/**
+ * Helper: Register generic reset hook for modules with reset() method
+ */
+const registerResetHook = (
+  shutdownManager: IShutdownManager,
+  modulePath: string,
+  exportName: string
+): void => {
+  import(modulePath)
+    .then((mod: Record<string, { reset?: () => void }>) => {
+      const resetModule = mod[exportName];
+      if (resetModule?.reset) {
+        shutdownManager.add(() => (resetModule.reset as () => void)());
+      }
     })
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+};
 
+/**
+ * Helper: Register FileLogWriter flush hook
+ */
+const registerFileLogFlushHook = (shutdownManager: IShutdownManager): void => {
   // Flush file logging streams
   import('@config/FileLogWriter')
     .then((mod: { FileLogWriter: { flush: () => void } }) => {
@@ -135,7 +201,23 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
+};
 
+const registerFrameworkShutdownHooks = async (shutdownManager: IShutdownManager): Promise<void> => {
+  // Register framework-level shutdown hooks for long-lived resources
+  registerConnectionManagerHook(shutdownManager);
+
+  // Ensure worker management system is asked to shutdown BEFORE databases are reset
+  await registerWorkerShutdownHook(shutdownManager);
+
+  // Database and cache reset
+  registerDatabaseResetHook(shutdownManager);
+  registerResetHook(shutdownManager, '@cache/Cache', 'Cache');
+
+  // File logging
+  registerFileLogFlushHook(shutdownManager);
+
+  // Registry resets
   import('@broadcast/BroadcastRegistry')
     .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
       shutdownManager.add(() => mod.BroadcastRegistry.reset());
@@ -172,26 +254,6 @@ const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void
     .then((mod: { Queue: { reset: () => void } }) => {
       shutdownManager.add(() => mod.Queue.reset());
     })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@zintrust/workers')
-    .then(
-      (mod: {
-        WorkerShutdown: {
-          shutdown: (opts: {
-            signal?: string;
-            timeout?: number;
-            forceExit?: boolean;
-          }) => Promise<void>;
-        };
-      }) => {
-        shutdownManager.add(async () =>
-          mod.WorkerShutdown.shutdown({ signal: 'APP_SHUTDOWN', timeout: 5000, forceExit: false })
-        );
-      }
-    )
     .catch(() => {
       /* ignore import failures in restrictive runtimes */
     });
