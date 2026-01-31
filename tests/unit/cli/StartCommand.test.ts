@@ -117,6 +117,9 @@ describe('StartCommand', () => {
     readFileSync.mockReturnValue(JSON.stringify({ name: '@zintrust/core', scripts: {} }));
     spawnAndWait.mockResolvedValue(0);
 
+    // Set NODE_ENV to ensure development mode
+    process.env['NODE_ENV'] = 'development';
+
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
     const cmd = StartCommand.create().getCommand();
 

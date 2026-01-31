@@ -6,6 +6,7 @@ import { join } from '@node-singletons/path';
 // during application initialization. This is the only location where
 // such mutations should occur - all other code should use Env.get().
 
+type node_env = 'development' | 'production' | 'testing';
 type EnvMap = Record<string, string>;
 
 const normalizeAppMode = (value: string): string => {
@@ -116,7 +117,7 @@ type LoadState = {
 };
 
 type CliOverrides = {
-  nodeEnv?: 'development' | 'production' | 'testing';
+  nodeEnv?: node_env;
   port?: number;
   runtime?: string;
 };
@@ -168,6 +169,11 @@ const load = (options: LoadOptions = {}): LoadState => {
 
     // .env is primary: overlays only fill missing values and never override base.
     applyToProcessEnv(parsed, baseApplied ? false : overrideExisting);
+  }
+
+  // Set NODE_ENV to the normalized mode if we have one (after applying files)
+  if (mode !== undefined) {
+    process.env['NODE_ENV'] = mode as node_env;
   }
 
   cached = { loadedFiles: files, mode };

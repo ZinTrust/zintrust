@@ -67,7 +67,7 @@ describe('EnvFileLoader', () => {
     expect(process.env['FOO']).toBe('from_env');
     expect(process.env['APP_PORT']).toBe('7777');
     expect(process.env['PORT']).toBe('7777');
-    expect(process.env['NODE_ENV']).toBe('development');
+    expect(process.env['NODE_ENV']).toBe('dev');
 
     await project.dispose();
   });
@@ -93,7 +93,7 @@ describe('EnvFileLoader', () => {
 
   it('production mode uses .env and does not load .env.production', async () => {
     const project = await createTempProject({
-      '.env': ['NODE_ENV=prod', 'FOO=base'].join('\n'),
+      '.env': ['NODE_ENV=production', 'FOO=base'].join('\n'),
       '.env.production': ['FOO=should_not_apply'].join('\n'),
     });
 
