@@ -7,7 +7,7 @@ import type { CacheDriver } from '@cache/CacheDriver';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import * as net from '@node-singletons/net';
-import { createCacheKey } from '@tools/redis/RedisKeyManager';
+import { RedisKeys } from '@tools/redis/RedisKeyManager';
 
 /**
  * Create a new Redis driver instance
@@ -46,7 +46,7 @@ const create = (): CacheDriver => {
   return {
     async get<T>(key: string): Promise<T | null> {
       try {
-        const prefixedKey = createCacheKey(key);
+        const prefixedKey = RedisKeys.createCacheKey(key);
         const response = await sendCommand(`GET ${prefixedKey}\r\n`);
         if (response.startsWith('$-1')) return null;
 
@@ -61,7 +61,7 @@ const create = (): CacheDriver => {
     },
 
     async set<T>(key: string, value: T, ttl?: number): Promise<void> {
-      const prefixedKey = createCacheKey(key);
+      const prefixedKey = RedisKeys.createCacheKey(key);
       const jsonValue = JSON.stringify(value);
       let command = `SET ${prefixedKey} ${jsonValue}\r\n`;
       if (ttl !== undefined) {
@@ -71,7 +71,7 @@ const create = (): CacheDriver => {
     },
 
     async delete(key: string): Promise<void> {
-      const prefixedKey = createCacheKey(key);
+      const prefixedKey = RedisKeys.createCacheKey(key);
       await sendCommand(`DEL ${prefixedKey}\r\n`);
     },
 
@@ -80,7 +80,7 @@ const create = (): CacheDriver => {
     },
 
     async has(key: string): Promise<boolean> {
-      const prefixedKey = createCacheKey(key);
+      const prefixedKey = RedisKeys.createCacheKey(key);
       const response = await sendCommand(`EXISTS ${prefixedKey}\r\n`);
       return response.includes(':1');
     },

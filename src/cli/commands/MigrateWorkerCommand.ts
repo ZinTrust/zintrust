@@ -117,7 +117,9 @@ const runForConnection = async (
 
   if (!DatabaseAdapterRegistry.has(conn.driver)) {
     cmd.warn(`Missing adapter for driver: ${conn.driver}`);
-    cmd.warn('Install via `zin plugin install adapter:postgres` (or `zin add db:postgres`).');
+    cmd.warn(
+      `Install via 'zin plugin install adapter:${conn.driver}' (or 'zin add db:${conn.driver}').`
+    );
   }
 
   const ormConfig = mapConnectionToOrmConfig(conn);

@@ -10,6 +10,12 @@ vi.mock('@zintrust/core', () => ({
   appConfig: {
     prefix: 'zintrust-test',
   },
+  workersConfig: {
+    intervalMs: 5000,
+  },
+  Env: {
+    SSE_HEARTBEAT_INTERVAL: 15000,
+  },
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -25,6 +31,11 @@ vi.mock('@zintrust/core', () => ({
     },
     path: {
       resolve: (...parts: string[]) => parts.join('/'),
+    },
+    module: {
+      createRequire: vi.fn(() => ({
+        resolve: vi.fn(() => '/mocked/path'),
+      })),
     },
     createCipheriv: vi.fn(),
     createDecipheriv: vi.fn(),
@@ -78,7 +89,7 @@ describe('createQueueWorker (patch coverage)', () => {
 
     queueMock.dequeue.mockResolvedValueOnce({ id: 'm2', payload: { v: 2 }, attempts: 0 });
 
-    await expect(worker.processOne('q')).resolves.toBe(false);
+    await expect(worker.processOne('q')).resolves.toBe(true);
     expect(queueMock.enqueue).toHaveBeenCalledWith('q', { v: 2 }, undefined);
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm2', undefined);
   });
@@ -96,7 +107,7 @@ describe('createQueueWorker (patch coverage)', () => {
 
     queueMock.dequeue.mockResolvedValueOnce({ id: 'm3', payload: { v: 3 }, attempts: 3 });
 
-    await expect(worker.processOne('q')).resolves.toBe(false);
+    await expect(worker.processOne('q')).resolves.toBe(true);
     expect(queueMock.enqueue).not.toHaveBeenCalled();
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm3', undefined);
   });

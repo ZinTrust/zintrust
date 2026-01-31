@@ -5,6 +5,7 @@
 
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
+import { serveErrorPagesFile, serveZintrustSvgFile } from '@core-routes/errorPages';
 import { getPublicRoot } from '@core-routes/publicRoot';
 import type { IRouter } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
@@ -72,6 +73,17 @@ const trySendHtmlErrorPage = (
 };
 
 const handleNotFound = (request: IRequest, response: IResponse, requestId?: string): void => {
+  const path = request.getPath();
+  if (path.startsWith('/error-pages/')) {
+    serveErrorPagesFile(path, response);
+    return;
+  }
+
+  if (path === '/zintrust.svg') {
+    serveZintrustSvgFile(response);
+    return;
+  }
+
   response.setStatus(404);
 
   if (

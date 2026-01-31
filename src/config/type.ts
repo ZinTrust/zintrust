@@ -115,10 +115,15 @@ export interface SecretsManagerInstance {
   clearCache(key?: string): void;
 }
 
-export type QueueDriverName = 'sync' | 'database' | 'redis' | 'rabbitmq' | 'sqs';
+export type QueueDriverName = 'sync' | 'database' | 'redis' | 'rabbitmq' | 'sqs' | 'memory';
 
 export type SyncQueueDriverConfig = {
   driver: 'sync';
+};
+
+export type MemoryCacheDriverConfig = {
+  driver: 'memory';
+  ttl: number;
 };
 
 export type DatabaseQueueDriverConfig = {
@@ -154,6 +159,7 @@ export type SqsQueueDriverConfig = {
 
 export type QueueDriversConfig = {
   sync: SyncQueueDriverConfig;
+  memory: MemoryCacheDriverConfig;
   database: DatabaseQueueDriverConfig;
   redis: RedisQueueDriverConfig;
   rabbitmq: RabbitMqQueueDriverConfig;
@@ -381,11 +387,6 @@ export type KVNamespace = {
   delete(key: string): Promise<void>;
 };
 
-export type MemoryCacheDriverConfig = {
-  driver: 'memory';
-  ttl: number;
-};
-
 export type RedisCacheDriverConfig = {
   driver: 'redis';
   host: string;
@@ -550,6 +551,7 @@ export type WorkerConfig = {
   concurrency: number;
   timeout: number;
   retries: number;
+  intervalMs: number;
   autoStart: boolean;
   priority: number;
   queues: ReadonlyArray<string>;
@@ -587,6 +589,7 @@ export type WorkersGlobalConfig = {
   };
   observability: WorkerObservabilityConfig;
   defaultWorker: Partial<WorkerConfig>;
+  intervalMs: number;
 };
 
 export type WorkersConfigOverrides = Partial<{

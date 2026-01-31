@@ -1,18 +1,24 @@
-import type { QueueMessage } from '@zintrust/core';
+import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import {
   createBaseDrivers,
+  createLockProvider,
   createRedisConnection,
   Env,
   ErrorFactory,
   generateUuid,
   getBullMQSafeQueueName,
+  getLockProvider,
   Logger,
+  queueConfig,
+  registerLockProvider,
+  resolveLockPrefix,
+  ZintrustLang,
 } from '@zintrust/core';
 import { Queue, type JobsOptions, type QueueOptions } from 'bullmq';
 import type { Redis as IoRedis } from 'ioredis';
 
 interface IQueueDriver {
-  enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
+  enqueue(queue: string, payload: BullMQPayload): Promise<string>;
   dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
   ack(queue: string, id: string): Promise<void>;
   length(queue: string): Promise<number>;
@@ -35,6 +41,40 @@ interface IBullMQRedisQueue extends IQueueDriver {
 export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const queues = new Map<string, Queue>();
   let sharedConnection: IoRedis | null = null;
+  let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
+
+  const getDefaultLockDriveName = (): string => {
+    const driver = queueConfig.default;
+    return driver.length > 0 ? driver : ZintrustLang.REDIS;
+  };
+
+  const getLockProviderForQueue = (name?: string): ReturnType<typeof createLockProvider> => {
+    const providerName = (name ?? getDefaultLockDriveName()).trim().toLowerCase();
+    const existing = getLockProvider(providerName);
+    if (existing) return existing;
+
+    if (lockProviderCache && providerName === getDefaultLockDriveName()) {
+      return lockProviderCache;
+    }
+
+    if (providerName !== ZintrustLang.REDIS && providerName !== ZintrustLang.MEMORY) {
+      throw ErrorFactory.createConfigError(`Lock provider not found: ${providerName}`);
+    }
+
+    const prefix = resolveLockPrefix();
+    const defaultTtl = Env.getInt('QUEUE_DEFAULT_DEDUP_TTL', 86_400_000);
+    const provider = createLockProvider({
+      type: providerName === ZintrustLang.REDIS ? ZintrustLang.REDIS : ZintrustLang.MEMORY,
+      prefix: prefix.length > 0 ? prefix : ZintrustLang.ZINTRUST_LOCKS_PREFIX,
+      defaultTtl,
+    });
+
+    registerLockProvider(providerName, provider);
+    if (providerName === getDefaultLockDriveName()) {
+      lockProviderCache = provider;
+    }
+    return provider;
+  };
 
   const getSharedConnection = (): IoRedis => {
     if (sharedConnection) return sharedConnection;
@@ -144,22 +184,223 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     return Array.from(queues.keys());
   };
 
+  const createJobOptions = (payloadData: BullMQPayload): JobsOptions => {
+    return {
+      // Use uniqueId if present, otherwise generated
+      jobId: payloadData?.uniqueId ?? generateUuid(),
+
+      // CRITICAL: Delay scheduling
+      delay: payloadData.delay,
+
+      // IMPORTANT: Retry configuration
+      attempts: payloadData.attempts,
+
+      // MEDIUM: Job prioritization
+      priority: payloadData.priority,
+
+      // CLEANUP: Job retention
+      removeOnComplete: payloadData.removeOnComplete || 100,
+      removeOnFail: payloadData.removeOnFail || 50,
+
+      // RETRY: Backoff strategy
+      backoff: payloadData.backoff || {
+        type: 'exponential',
+        delay: 2000,
+      },
+
+      // SCHEDULING: Recurring jobs
+      repeat: payloadData.repeat,
+
+      // ORDERING: LIFO vs FIFO
+      lifo: payloadData.lifo ?? false,
+    };
+  };
+
+  const validateDeduplicationId = (
+    deduplication: BullMQPayload['deduplication']
+  ): string | null => {
+    if (!deduplication?.id) return null;
+    const deduplicationId = String(deduplication.id).trim();
+    return deduplicationId.length > 0 ? deduplicationId : null;
+  };
+
+  const checkExistingLock = async (
+    deduplicationId: string,
+    provider: ReturnType<typeof getLockProviderForQueue>,
+    replace: boolean,
+    queue: string,
+    jobId: string
+  ): Promise<boolean> => {
+    const status = await provider.status(deduplicationId);
+    if (status.exists && !replace) {
+      Logger.info('BullMQ: Job deduplicated', {
+        queue,
+        deduplicationId,
+        jobId,
+      });
+      return true;
+    }
+    return false;
+  };
+
+  const acquireDeduplicationLock = async (
+    deduplicationId: string,
+    provider: ReturnType<typeof getLockProviderForQueue>,
+    ttl: number | undefined,
+    queue: string,
+    jobId: string
+  ): Promise<boolean> => {
+    const lockOptions = ttl ? { ttl } : {};
+    const lock = await provider.acquire(deduplicationId, lockOptions);
+    if (!lock.acquired) {
+      Logger.info('BullMQ: Job deduplicated (lock collision)', {
+        queue,
+        deduplicationId,
+        jobId,
+      });
+      return false;
+    }
+
+    Logger.debug('BullMQ: Deduplication lock acquired', {
+      queue,
+      deduplicationId,
+      ttl,
+    });
+    return true;
+  };
+
+  const scheduleLockRelease = (
+    deduplicationId: string,
+    provider: ReturnType<typeof getLockProviderForQueue>,
+    ttl: number | undefined,
+    releaseAfter: number
+  ): void => {
+    const timeoutId = globalThis.setTimeout(() => {
+      provider.release({
+        key: deduplicationId,
+        ttl: ttl ?? 0,
+        acquired: true,
+        expires: new Date(Date.now() + (ttl ?? 0)),
+      });
+    }, releaseAfter);
+    timeoutId.unref();
+  };
+
+  const attachWorkerSideReleaseMeta = (
+    payload: BullMQPayload,
+    deduplicationId: string,
+    releaseAfter: Exclude<BullMQPayload['deduplication'], undefined>['releaseAfter'],
+    uniqueId: string | undefined
+  ): BullMQPayload => {
+    return {
+      ...payload,
+      __zintrustQueueMeta: {
+        deduplicationId,
+        releaseAfter,
+        uniqueId,
+      },
+    };
+  };
+
+  const handleDeduplication = async (
+    payloadData: BullMQPayload,
+    jobOptions: JobsOptions,
+    queue: string
+  ): Promise<{ payloadToSend: BullMQPayload; shouldReturn: boolean; returnValue?: string }> => {
+    const deduplicationId = validateDeduplicationId(payloadData.deduplication);
+    if (!deduplicationId) {
+      return { payloadToSend: payloadData, shouldReturn: false };
+    }
+
+    const deduplication = payloadData.deduplication;
+    if (!deduplication) {
+      return { payloadToSend: payloadData, shouldReturn: false };
+    }
+    const provider = getLockProviderForQueue(payloadData.uniqueVia);
+    const ttl =
+      typeof deduplication.ttl === 'number' && deduplication.ttl > 0
+        ? deduplication.ttl
+        : undefined;
+    const replace = (deduplication as { replace?: boolean }).replace === true;
+
+    // Check existing lock
+    const hasExistingLock = await checkExistingLock(
+      deduplicationId,
+      provider,
+      replace,
+      queue,
+      jobOptions.jobId as string
+    );
+    if (hasExistingLock) {
+      return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
+    }
+
+    // Acquire lock
+    const lockAcquired = await acquireDeduplicationLock(
+      deduplicationId,
+      provider,
+      ttl,
+      queue,
+      jobOptions.jobId as string
+    );
+    if (!lockAcquired) {
+      return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
+    }
+
+    // Keep jobs for deduplication tracking
+    jobOptions.removeOnFail = 0;
+    jobOptions.removeOnComplete = 0;
+
+    let payloadToSend: BullMQPayload = payloadData;
+
+    // Handle releaseAfter numeric
+    if (typeof deduplication.releaseAfter === 'number' && deduplication.releaseAfter > 0) {
+      scheduleLockRelease(deduplicationId, provider, ttl, deduplication.releaseAfter);
+    }
+
+    // Handle releaseAfter non-numeric
+    if (
+      deduplication.releaseAfter !== undefined &&
+      deduplication.releaseAfter !== null &&
+      typeof deduplication.releaseAfter !== 'number'
+    ) {
+      payloadToSend = attachWorkerSideReleaseMeta(
+        payloadToSend,
+        deduplicationId,
+        deduplication.releaseAfter,
+        payloadData.uniqueId
+      );
+    }
+
+    return { payloadToSend, shouldReturn: false };
+  };
+
   return {
     getQueue,
     shutdown,
     closeQueue,
     getQueueNames,
 
-    async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
+    async enqueue(queue: string, payload: BullMQPayload): Promise<string> {
       try {
         const q = getQueue(queue);
-        const id = generateUuid();
 
-        const jobOptions: JobsOptions = {
-          jobId: id,
-        };
+        // Extract BullMQ options from payload with proper typing
+        const payloadData = payload as BullMQPayload;
+        const jobOptions = createJobOptions(payloadData);
 
-        const job = await q.add(`${queue}-job`, payload, jobOptions);
+        // Handle deduplication
+        const deduplicationResult = await handleDeduplication(payloadData, jobOptions, queue);
+        if (deduplicationResult.shouldReturn && deduplicationResult.returnValue) {
+          return deduplicationResult.returnValue;
+        }
+
+        // 🎯 Custom lock provider support (ensure provider exists for uniqueVia)
+        if (payloadData.uniqueVia) {
+          getLockProviderForQueue(payloadData.uniqueVia);
+        }
+
+        const job = await q.add(`${queue}-job`, deduplicationResult.payloadToSend, jobOptions);
         Logger.debug(`BullMQ: Job enqueued to ${queue}`, { jobId: job.id, queue });
 
         return String(job.id);

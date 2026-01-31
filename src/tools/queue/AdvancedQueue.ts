@@ -13,14 +13,17 @@ import type {
 } from '@/types/Queue';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { queueConfig } from '@config/queue';
+import type { QueueDriverName } from '@config/type';
 import { createValidationError } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 import { type DeduplicationBuilder } from '@queue/DeduplicationBuilder';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
+import type { BullMQPayload } from '@queue/Queue';
 import { Queue } from '@queue/Queue';
 
 export interface AdvancedQueue {
-  enqueue(name: string, payload: unknown, options: AdvancedJobOptions): Promise<string>;
+  enqueue(name: string, payload: BullMQPayload, options: AdvancedJobOptions): Promise<string>;
   deduplicate(id: string, builder: DeduplicationBuilder): Promise<JobResult>;
   releaseLock(key: string): Promise<void>;
   extendLock(key: string, ttl: number): Promise<boolean>;
@@ -36,7 +39,7 @@ export function createAdvancedQueue(config: QueueConfig): AdvancedQueue {
   const lockProvider = initializeLockProvider(lockProviderName, config);
 
   return {
-    enqueue: async (name: string, payload: unknown, options: AdvancedJobOptions) =>
+    enqueue: async (name: string, payload: BullMQPayload, options: AdvancedJobOptions) =>
       enqueueWithDeduplication(name, payload, options, lockProvider),
     // eslint-disable-next-line @typescript-eslint/require-await
     deduplicate: async (_id: string, _builder: DeduplicationBuilder): Promise<JobResult> => {
@@ -74,7 +77,7 @@ function initializeLockProvider(lockProviderName: string, config: QueueConfig): 
 }
 
 function resolveLockProviderName(config: QueueConfig): string {
-  const envProvider = Env.get('QUEUE_LOCK_PROVIDER', '').trim();
+  const envProvider: QueueDriverName = queueConfig.default;
   if (
     config.lockProvider !== undefined &&
     config.lockProvider !== null &&
@@ -144,9 +147,9 @@ function shouldAttachReleaseAfterMeta(options: AdvancedJobOptions): boolean {
 }
 
 function attachQueueMeta(
-  payload: unknown,
+  payload: BullMQPayload,
   options: AdvancedJobOptions
-): { payload: unknown; metaAttached: boolean } {
+): { payload: BullMQPayload; metaAttached: boolean } {
   if (!shouldAttachReleaseAfterMeta(options)) {
     return { payload, metaAttached: false };
   }
@@ -163,7 +166,7 @@ function attachQueueMeta(
 
   return {
     payload: {
-      ...(payload as Record<string, unknown>),
+      ...payload,
       [QUEUE_META_KEY]: meta,
     },
     metaAttached: true,
@@ -254,7 +257,7 @@ async function handleDeduplicationLogic(
  */
 async function enqueueWithDeduplication(
   name: string,
-  payload: unknown,
+  payload: BullMQPayload,
   options: AdvancedJobOptions,
   defaultLockProvider: LockProvider
 ): Promise<string> {

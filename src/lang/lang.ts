@@ -2,6 +2,7 @@ export const ZintrustLang = {
   DATABASE: 'database',
   REDIS: 'redis',
   MEMORY: 'memory',
+  INMEMORY: 'inmemory',
   ZINTRUST_LOCKS_PREFIX: 'zintrust:locks:',
   ZINTRUST_LOCKS_TTL: 300000,
   ZINTRUST_LOCKS_EXPIRE_AFTER: 300000,
@@ -19,4 +20,6 @@ export const ZintrustLang = {
   FILE_PROTOCOL: 'file://',
   BOOTSTRAPJS: 'bootstrap.js',
   CLI_LOCKS: 'cli-locks',
+  REDIS_DEFAULT_DB: 1,
+  REDIS_DEFAULT_PORT: 6379,
 } as const;

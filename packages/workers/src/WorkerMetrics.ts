@@ -7,13 +7,11 @@
 import {
   ErrorFactory,
   Logger,
-  appConfig,
+  RedisKeys,
   createRedisConnection,
   type RedisConfig,
 } from '@zintrust/core';
 import type IORedis from 'ioredis';
-
-const PREFIX = appConfig.prefix;
 
 export type MetricType =
   | 'processed'
@@ -76,10 +74,6 @@ export type WorkerHealthScore = {
   status: 'healthy' | 'degraded' | 'unhealthy';
 };
 
-// Redis key prefixes
-const METRICS_PREFIX = `${PREFIX}_worker:metrics:`;
-const HEALTH_PREFIX = `${PREFIX}_worker:health:`;
-
 // Retention periods (in seconds)
 const RETENTION = {
   hourly: 7 * 24 * 60 * 60, // 7 days
@@ -87,25 +81,40 @@ const RETENTION = {
   monthly: 365 * 24 * 60 * 60, // 1 year
 };
 
+const runInBatches = async <T>(
+  items: ReadonlyArray<T>,
+  handler: (item: T) => Promise<void>,
+  batchSize = 10
+): Promise<void> => {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    // Batch processing is intentionally sequential to avoid overwhelming the system
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(batch.map((item) => handler(item)));
+  }
+};
+
 // Internal state
 let redisClient: IORedis | null = null;
 
 /**
  * Helper: Get Redis key for metrics
+ * Uses singleton RedisKeys for consistent key management
  */
 const getMetricsKey = (
   workerName: string,
   metricType: MetricType,
   granularity: MetricGranularity
 ): string => {
-  return `${METRICS_PREFIX}${workerName}:${metricType}:${granularity}`;
+  return RedisKeys.createMetricsKey(workerName, metricType, granularity);
 };
 
 /**
  * Helper: Get Redis key for health scores
+ * Uses singleton RedisKeys for consistent key management
  */
 const getHealthKey = (workerName: string): string => {
-  return `${HEALTH_PREFIX}${workerName}`;
+  return RedisKeys.createHealthKey(workerName);
 };
 
 /**
@@ -220,7 +229,7 @@ const calculateHealthScore = (metrics: {
 /**
  * Worker Metrics Manager - Sealed namespace
  */
-export const WorkerMetrics = Object.freeze({
+const WorkerMetrics = Object.freeze({
   /**
    * Initialize the metrics manager with Redis connection
    */
@@ -291,9 +300,9 @@ export const WorkerMetrics = Object.freeze({
     workerName: string,
     metrics: Array<{ metricType: MetricType; value: number; metadata?: Record<string, unknown> }>
   ): Promise<void> {
-    await Promise.all(
-      metrics.map(async (m) => WorkerMetrics.record(workerName, m.metricType, m.value, m.metadata))
-    );
+    await runInBatches(metrics, async (m) => {
+      await WorkerMetrics.record(workerName, m.metricType, m.value, m.metadata);
+    });
   },
 
   /**
@@ -301,7 +310,15 @@ export const WorkerMetrics = Object.freeze({
    */
   async query(options: MetricQueryOptions): Promise<MetricEntry> {
     if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
+      Logger.warn(
+        `[METRICS] WorkerMetrics not initialized for worker: ${options.workerName}. Please start the worker first to enable metrics collection.`
+      );
+      return {
+        workerName: options.workerName,
+        metricType: options.metricType,
+        granularity: options.granularity,
+        points: [],
+      };
     }
 
     const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
@@ -373,7 +390,23 @@ export const WorkerMetrics = Object.freeze({
 
   async aggregateBatch(optionsList: MetricQueryOptions[]): Promise<AggregatedMetrics[]> {
     if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
+      // Global initialization issue - log all workers
+      Logger.warn(
+        `[METRICS] WorkerMetrics not initialized globally. Make sure all workers running`
+      );
+      return optionsList.map((options) => ({
+        workerName: options.workerName,
+        metricType: options.metricType,
+        period: {
+          start: options.startDate ?? new Date(),
+          end: options.endDate ?? new Date(),
+        },
+        total: 0,
+        average: 0,
+        min: 0,
+        max: 0,
+        count: 0,
+      }));
     }
     if (optionsList.length === 0) return [];
 
@@ -613,9 +646,9 @@ export const WorkerMetrics = Object.freeze({
 
     try {
       // Find all unique worker names from health keys
-      const pattern = `${HEALTH_PREFIX}*`;
+      const pattern = `${RedisKeys.healthPrefix}*`;
       const keys = await redisClient.keys(pattern);
-      const workerNames = keys.map((key) => key.replace(HEALTH_PREFIX, ''));
+      const workerNames = keys.map((key) => key.replace(RedisKeys.healthPrefix, ''));
 
       const summaries = await Promise.all(
         workerNames.map(async (workerName) => {
@@ -671,7 +704,7 @@ export const WorkerMetrics = Object.freeze({
     }
 
     try {
-      const pattern = `${METRICS_PREFIX}${workerName}:*`;
+      const pattern = `${RedisKeys.metricsPrefix}${workerName}:*`;
       const keys = await redisClient.keys(pattern);
 
       if (keys.length > 0) {
@@ -705,5 +738,7 @@ export const WorkerMetrics = Object.freeze({
     Logger.info('WorkerMetrics shutdown complete');
   },
 });
+
+export { WorkerMetrics };
 
 // Graceful shutdown handled by WorkerShutdown

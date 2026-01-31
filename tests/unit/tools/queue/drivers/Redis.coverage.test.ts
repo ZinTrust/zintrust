@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-describe('RedisQueue extra coverage', () => {
+describe('Queue API coverage tests', () => {
   beforeEach(() => {
     vi.resetModules();
     delete (globalThis as any).__fakeRedisClient;
@@ -11,23 +11,22 @@ describe('RedisQueue extra coverage', () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
-      default: {
-        enqueue: async () => {
-          // eslint-disable-next-line no-console
-          console.warn('Redis client connect failed: connect failed');
-          return 'mock-id';
-        },
-        dequeue: async () => undefined,
-        ack: async () => undefined,
-        length: async () => 0,
-        drain: async () => undefined,
+    const fakeDriver = {
+      enqueue: async () => {
+        // eslint-disable-next-line no-console
+        console.warn('Redis client connect failed: connect failed');
+        return 'mock-id';
       },
-    }));
+      dequeue: async () => undefined,
+      ack: async () => undefined,
+      length: async () => 0,
+      drain: async () => undefined,
+    };
 
-    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('redis', fakeDriver);
 
-    await expect(RedisQueue.enqueue('q', { a: 1 })).resolves.toEqual(expect.any(String));
+    await expect(Queue.enqueue('q', { a: 1 }, 'redis')).resolves.toEqual(expect.any(String));
     expect(warn).toHaveBeenCalled();
 
     warn.mockRestore();
@@ -35,72 +34,75 @@ describe('RedisQueue extra coverage', () => {
 
   it('marks connected when connect() is not present', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
-    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
-      default: {
-        enqueue: async () => 'mock-id',
-        dequeue: async () => undefined,
-        ack: async () => undefined,
-        length: async () => 0,
-        drain: async () => undefined,
-      },
-    }));
 
-    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
+    const fakeDriver = {
+      enqueue: async () => 'mock-id',
+      dequeue: async () => undefined,
+      ack: async () => undefined,
+      length: async () => 0,
+      drain: async () => undefined,
+    };
 
-    await RedisQueue.enqueue('q', { a: 1 });
-    await expect(RedisQueue.length('q')).resolves.toBeTypeOf('number');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('redis', fakeDriver);
+
+    await Queue.enqueue('q', { a: 1 }, 'redis');
+    await expect(Queue.length('q', 'redis')).resolves.toBeTypeOf('number');
   });
 
-  it('throws TRY_CATCH_ERROR when a dequeued message is invalid JSON (via injected fake client)', async () => {
+  it('throws TRY_CATCH_ERROR when a dequeued message is invalid JSON', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
-    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
-      default: {
-        enqueue: async () => 'mock-id',
-        dequeue: async () => {
-          const error = new Error('Failed to parse queue message');
-          (error as any).code = 'TRY_CATCH_ERROR';
-          throw error;
-        },
-        ack: async () => undefined,
-        length: async () => 0,
-        drain: async () => undefined,
+
+    const fakeDriver = {
+      enqueue: async () => 'mock-id',
+      dequeue: async () => {
+        const error = new Error('Failed to parse queue message');
+        (error as any).code = 'TRY_CATCH_ERROR';
+        throw error;
       },
-    }));
+      ack: async () => undefined,
+      length: async () => 0,
+      drain: async () => undefined,
+    };
 
-    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('redis', fakeDriver);
 
-    await expect(RedisQueue.dequeue('q')).rejects.toHaveProperty('code', 'TRY_CATCH_ERROR');
+    await expect(Queue.dequeue('q', 'redis')).rejects.toHaveProperty('code', 'TRY_CATCH_ERROR');
   });
 
   it('throws CONFIG_ERROR when redis package is missing and no injected fake exists', async () => {
     process.env['REDIS_URL'] = 'redis://localhost:6379';
-    vi.doMock('packages/queue-redis/src/RedisQueue', () => ({
-      default: {
-        enqueue: async () => {
-          const error = new Error('Redis queue driver requires redis');
-          (error as any).code = 'CONFIG_ERROR';
-          throw error;
-        },
-        dequeue: async () => undefined,
-        ack: async () => undefined,
-        length: async () => 0,
-        drain: async () => undefined,
+
+    const fakeDriver = {
+      enqueue: async () => {
+        const error = new Error('Redis queue driver requires redis');
+        (error as any).code = 'CONFIG_ERROR';
+        throw error;
       },
-    }));
+      dequeue: async () => undefined,
+      ack: async () => undefined,
+      length: async () => 0,
+      drain: async () => undefined,
+    };
 
-    const { default: RedisQueue } = await import('packages/queue-redis/src/RedisQueue');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('redis', fakeDriver);
 
-    await expect(RedisQueue.enqueue('q', { a: 1 })).rejects.toHaveProperty('code', 'CONFIG_ERROR');
+    await expect(Queue.enqueue('q', { a: 1 }, 'redis')).rejects.toHaveProperty(
+      'code',
+      'CONFIG_ERROR'
+    );
   });
 });
 
-describe('RedisQueue driver coverage', () => {
+describe('Queue driver coverage', () => {
   beforeEach(() => {
     vi.resetModules();
     delete (globalThis as any).__fakeRedisClient;
   });
 
-  it('covers all RedisQueue driver methods', async () => {
+  it('covers all Queue driver methods', async () => {
     const fakeDriver = {
       enqueue: vi.fn().mockResolvedValue('job-id'),
       dequeue: vi.fn().mockResolvedValue({ id: '1', payload: { data: 'test' } }),
@@ -109,33 +111,30 @@ describe('RedisQueue driver coverage', () => {
       drain: vi.fn().mockResolvedValue(undefined),
     };
 
-    vi.doMock('@/config/redis', () => ({
-      ensureDriver: vi.fn().mockResolvedValue(fakeDriver),
-    }));
-
-    const { RedisQueue } = await import('@/tools/queue/drivers/Redis');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('test-driver', fakeDriver);
 
     // Test enqueue
-    const jobId = await RedisQueue.enqueue('test-queue', { message: 'hello' });
+    const jobId = await Queue.enqueue('test-queue', { message: 'hello' }, 'test-driver');
     expect(jobId).toBe('job-id');
     expect(fakeDriver.enqueue).toHaveBeenCalledWith('test-queue', { message: 'hello' });
 
     // Test dequeue
-    const message = await RedisQueue.dequeue('test-queue');
+    const message = await Queue.dequeue('test-queue', 'test-driver');
     expect(message).toEqual({ id: '1', payload: { data: 'test' } });
     expect(fakeDriver.dequeue).toHaveBeenCalledWith('test-queue');
 
     // Test ack
-    await RedisQueue.ack('test-queue', 'job-id');
+    await Queue.ack('test-queue', 'job-id', 'test-driver');
     expect(fakeDriver.ack).toHaveBeenCalledWith('test-queue', 'job-id');
 
     // Test length
-    const length = await RedisQueue.length('test-queue');
+    const length = await Queue.length('test-queue', 'test-driver');
     expect(length).toBe(5);
     expect(fakeDriver.length).toHaveBeenCalledWith('test-queue');
 
     // Test drain
-    await RedisQueue.drain('test-queue');
+    await Queue.drain('test-queue', 'test-driver');
     expect(fakeDriver.drain).toHaveBeenCalledWith('test-queue');
   });
 
@@ -153,17 +152,18 @@ describe('RedisQueue driver coverage', () => {
       drain: vi.fn().mockResolvedValue(undefined),
     };
 
-    vi.doMock('@/config/redis', () => ({
-      ensureDriver: vi.fn().mockResolvedValue(fakeDriver),
-    }));
-
-    const { RedisQueue } = await import('@/tools/queue/drivers/Redis');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('typed-driver', fakeDriver);
 
     // Test with generic types
-    const jobId = await RedisQueue.enqueue<TestPayload>('typed-queue', { id: 1, name: 'test' });
+    const jobId = await Queue.enqueue<TestPayload>(
+      'typed-queue',
+      { id: 1, name: 'test' },
+      'typed-driver'
+    );
     expect(jobId).toBe('job-id');
 
-    const message = await RedisQueue.dequeue<TestPayload>('typed-queue');
+    const message = await Queue.dequeue<TestPayload>('typed-queue', 'typed-driver');
     expect(message?.payload).toEqual({ id: 1, name: 'test' });
   });
 
@@ -176,17 +176,14 @@ describe('RedisQueue driver coverage', () => {
       drain: vi.fn().mockRejectedValue(new Error('Drain failed')),
     };
 
-    vi.doMock('@/config/redis', () => ({
-      ensureDriver: vi.fn().mockResolvedValue(fakeDriver),
-    }));
-
-    const { RedisQueue } = await import('@/tools/queue/drivers/Redis');
+    const Queue = (await import('@queue/Queue')).default;
+    Queue.register('error-driver', fakeDriver);
 
     // Test error propagation
-    await expect(RedisQueue.enqueue('test-queue', {})).rejects.toThrow('Enqueue failed');
-    await expect(RedisQueue.dequeue('test-queue')).rejects.toThrow('Dequeue failed');
-    await expect(RedisQueue.ack('test-queue', 'job-id')).rejects.toThrow('Ack failed');
-    await expect(RedisQueue.length('test-queue')).rejects.toThrow('Length failed');
-    await expect(RedisQueue.drain('test-queue')).rejects.toThrow('Drain failed');
+    await expect(Queue.enqueue('test-queue', {}, 'error-driver')).rejects.toThrow('Enqueue failed');
+    await expect(Queue.dequeue('test-queue', 'error-driver')).rejects.toThrow('Dequeue failed');
+    await expect(Queue.ack('test-queue', 'job-id', 'error-driver')).rejects.toThrow('Ack failed');
+    await expect(Queue.length('test-queue', 'error-driver')).rejects.toThrow('Length failed');
+    await expect(Queue.drain('test-queue', 'error-driver')).rejects.toThrow('Drain failed');
   });
 });

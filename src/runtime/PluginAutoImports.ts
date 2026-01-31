@@ -47,21 +47,59 @@ export const PluginAutoImports = Object.freeze({
     const projectRoot = resolveProjectRoot();
     const candidates = getCandidates(projectRoot);
 
-    for (const candidate of candidates) {
-      if (!existsSync(candidate)) continue;
+    // Filter out non-existent candidates first
+    const existingCandidates = candidates.filter((candidate) => existsSync(candidate));
 
-      try {
-        const url = pathToFileURL(candidate).href;
-        // eslint-disable-next-line no-await-in-loop
-        await import(url);
-        return { ok: true, loadedPath: candidate };
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return { ok: false, loadedPath: candidate, reason: 'import-failed', errorMessage };
-      }
+    if (existingCandidates.length === 0) {
+      Logger.debug('[plugins] No plugin auto-imports file found', { projectRoot, candidates });
+      return { ok: false, reason: 'not-found' };
     }
 
-    Logger.debug('[plugins] No plugin auto-imports file found', { projectRoot, candidates });
-    return { ok: false, reason: 'not-found' };
+    // Try all existing candidates in parallel
+    const importPromises = existingCandidates.map(async (candidate) => {
+      try {
+        const url = pathToFileURL(candidate).href;
+        await import(url);
+        return { ok: true, loadedPath: candidate } as ImportResult;
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+          ok: false,
+          loadedPath: candidate,
+          reason: 'import-failed',
+          errorMessage,
+        } as ImportResult;
+      }
+    });
+
+    // Return the first successful import, or the first failure if none succeed
+    try {
+      const results = await Promise.allSettled(importPromises);
+      const successfulResult = results.find(
+        (result): result is PromiseFulfilledResult<ImportResult> =>
+          result.status === 'fulfilled' && result.value.ok
+      );
+
+      if (successfulResult) {
+        return successfulResult.value;
+      }
+
+      // Return the first failed result if no success
+      const firstFailedResult = results.find(
+        (result): result is PromiseFulfilledResult<ImportResult> =>
+          result.status === 'fulfilled' && !result.value.ok
+      );
+
+      return (
+        firstFailedResult?.value ?? {
+          ok: false,
+          reason: 'import-failed',
+          errorMessage: 'All candidates failed',
+        }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { ok: false, reason: 'import-failed', errorMessage };
+    }
   },
 });

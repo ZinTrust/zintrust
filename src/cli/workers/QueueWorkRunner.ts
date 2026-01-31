@@ -8,6 +8,7 @@
  * - When QUEUE_DRIVER=redis, uses BullMQ enterprise features automatically
  * - No changes needed - uses standard Queue API which is BullMQ-compatible
  */
+import type { QueueDriverName } from '@/config/type';
 import type { ReleaseCondition } from '@/types/Queue';
 import { Broadcast } from '@broadcast/Broadcast';
 import { Env } from '@config/env';
@@ -118,25 +119,25 @@ let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
 const getLockProviderForQueue = (): ReturnType<typeof createLockProvider> => {
   if (lockProviderCache) return lockProviderCache;
 
-  const providerName = Env.get('QUEUE_LOCK_PROVIDER', ZintrustLang.REDIS).trim();
+  const providerDrive: QueueDriverName = queueConfig.default;
   const prefix = resolveLockPrefix();
   const defaultTtl = Env.getInt('QUEUE_DEFAULT_DEDUP_TTL', ZintrustLang.ZINTRUST_LOCKS_TTL);
 
-  const existing = getLockProvider(providerName);
+  const existing = getLockProvider(providerDrive);
   if (existing) {
     lockProviderCache = existing;
     return existing;
   }
 
   const provider = createLockProvider({
-    type: providerName === ZintrustLang.REDIS ? ZintrustLang.REDIS : ZintrustLang.MEMORY,
+    type: providerDrive === ZintrustLang.REDIS ? ZintrustLang.REDIS : ZintrustLang.MEMORY,
     prefix: prefix.length > 0 ? prefix : ZintrustLang.ZINTRUST_LOCKS_PREFIX,
     defaultTtl,
   });
-  registerLockProvider(providerName, provider);
+  registerLockProvider(providerDrive, provider);
   // Also register under the literal memory name to ensure callers that expect
   // a 'memory'-named provider (tests or other runtime code) can find it.
-  if (providerName !== ZintrustLang.MEMORY) {
+  if (providerDrive !== ZintrustLang.MEMORY) {
     try {
       registerLockProvider(ZintrustLang.MEMORY, provider);
     } catch {

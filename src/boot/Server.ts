@@ -33,19 +33,25 @@ const getContentSecurityPolicyForPath = (): string => {
   return (
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline'; " +
-    "style-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "img-src 'self' data:; " +
-    "font-src 'self';"
+    "font-src 'self' https://fonts.gstatic.com;"
   );
 };
 
-const setSecurityHeaders = (res: http.ServerResponse): void => {
+const setSecurityHeaders = (res: http.ServerResponse, contentType?: string): void => {
   res.setHeader(HTTP_HEADERS.X_POWERED_BY, 'ZinTrust');
   res.setHeader(HTTP_HEADERS.X_CONTENT_TYPE_OPTIONS, 'nosniff');
   res.setHeader(HTTP_HEADERS.X_FRAME_OPTIONS, 'DENY');
   res.setHeader(HTTP_HEADERS.X_XSS_PROTECTION, '1; mode=block');
   res.setHeader(HTTP_HEADERS.REFERRER_POLICY, 'strict-origin-when-cross-origin');
-  res.setHeader(HTTP_HEADERS.CONTENT_SECURITY_POLICY, getContentSecurityPolicyForPath());
+
+  // Only apply CSP to HTML responses, not API endpoints
+  // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
+  if (contentType !== undefined && contentType !== null && contentType.includes('text/html')) {
+    res.setHeader(HTTP_HEADERS.CONTENT_SECURITY_POLICY, getContentSecurityPolicyForPath());
+  }
 };
 
 const handleRequest = async (
@@ -57,7 +63,8 @@ const handleRequest = async (
   let response: IResponse | undefined;
 
   try {
-    setSecurityHeaders(res);
+    const contentType = req?.headers['content-type'];
+    setSecurityHeaders(res, contentType);
 
     if (!req) {
       throw ErrorFactory.createConnectionError('Request object is missing');

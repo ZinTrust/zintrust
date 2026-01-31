@@ -70,9 +70,14 @@ export type DLQStats = {
   retentionViolations: number;
 };
 
-// Redis key prefixes
-const DLQ_PREFIX = 'worker:dlq:';
-const AUDIT_PREFIX = 'worker:dlq:audit:';
+// Redis key prefixes - using workers package prefix system
+const getDLQPrefix = (): string => {
+  return 'worker:dlq:';
+};
+
+const getAuditPrefix = (): string => {
+  return 'worker:dlq:audit:';
+};
 
 // Internal state
 let redisClient: IORedis | null = null;
@@ -83,14 +88,14 @@ let cleanupInterval: NodeJS.Timeout | null = null;
  * Helper: Get DLQ key
  */
 const getDLQKey = (queueName: string): string => {
-  return `${DLQ_PREFIX}${queueName}`;
+  return `${getDLQPrefix()}${queueName}`;
 };
 
 /**
  * Helper: Get audit key
  */
 const getAuditKey = (failedJobId: string): string => {
-  return `${AUDIT_PREFIX}${failedJobId}`;
+  return `${getAuditPrefix()}${failedJobId}`;
 };
 
 /**
@@ -184,7 +189,7 @@ const cleanupOldEntries = async (): Promise<number> => {
   try {
     const cutoffTimestamp = Date.now() - policy.autoDeleteAfterDays * 24 * 60 * 60 * 1000;
     // Find all DLQ keys
-    const pattern = `${DLQ_PREFIX}*`;
+    const pattern = `${getDLQPrefix()}*`;
     const keys = await client.keys(pattern);
 
     const cleanedCounts = await Promise.all(
@@ -587,12 +592,12 @@ export const DeadLetterQueue = Object.freeze({
 
     try {
       const client = redisClient;
-      const pattern = `${DLQ_PREFIX}*`;
+      const pattern = `${getDLQPrefix()}*`;
       const keys = await client.keys(pattern);
 
       const entriesByQueue = await Promise.all(
         keys.map(async (key) => {
-          const queueName = key.replace(DLQ_PREFIX, '');
+          const queueName = key.replace(getDLQPrefix(), '');
           const entries = await client.zrange(key, 0, -1);
           return {
             queueName,

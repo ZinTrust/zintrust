@@ -424,7 +424,7 @@
             'zin new my-api',
             'cd my-api',
             'zin start',
-            'curl http://localhost:3000/health',
+            'curl http://localhost:7777/health',
             'zin debug',
           ],
         },
@@ -434,7 +434,7 @@
           lines: [
             'docker build -t my-api:latest .',
             'docker run --rm -p 3000:3000 my-api:latest',
-            'curl http://localhost:3000/health',
+            'curl http://localhost:7777/health',
           ],
         },
       };

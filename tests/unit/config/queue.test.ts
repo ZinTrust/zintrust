@@ -15,8 +15,10 @@ describe('Queue Config', () => {
   });
 
   it('should get current driver', () => {
-    const driver = queueConfig.getDriver();
+    const driver = queueConfig.getDriver(queueConfig);
     expect(driver).toBeDefined();
     expect(driver.driver).toBeDefined();
+    // The default driver should be one of the valid drivers
+    expect(['sync', 'memory', 'database', 'redis', 'rabbitmq', 'sqs']).toContain(driver.driver);
   });
 });

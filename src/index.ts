@@ -293,8 +293,8 @@ export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type'
 export { StartupConfigValidator } from '@config/StartupConfigValidator';
 
 // Mail
-export { Mail } from '@/tools/mail';
 export type { SendMailInput, SendMailResult } from '@/tools/mail';
+export { Mail } from '@tools/mail';
 
 export { MailTemplateRenderer, MailTemplates } from '@mail/templates';
 export type { MailTemplate, MailTemplateRegistry } from '@mail/templates';
@@ -339,10 +339,10 @@ export { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 export { Broadcast } from '@tools/broadcast/Broadcast';
 export { BroadcastRegistry } from '@tools/broadcast/BroadcastRegistry';
 export { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
-export { BroadcastWorker } from '@zintrust/workers';
-
-// Notification Workers
-export { NotificationWorker } from '@zintrust/workers';
+// Broadcast workers and notification workers are provided by the optional
+// `@zintrust/workers` package. Import that package directly when you need
+// worker-specific APIs. Keeping these out of the static exports avoids
+// forcing resolution of `@zintrust/workers` for consumers that don't use it.
 
 // Storage (for file management and signed URLs)
 export { Storage } from '@tools/storage/index';
@@ -362,7 +362,7 @@ export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 export { RedisQueue } from '@queue/drivers/Redis';
 export { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 export { Queue, resolveLockPrefix } from '@queue/Queue';
-export type { QueueMessage } from '@queue/Queue';
+export type { BullMQPayload, IQueueDriver, QueueMessage } from '@queue/Queue';
 
 // Seeders (for database seeding)
 export { SeederLoader } from '@/seeders/SeederLoader';
@@ -416,19 +416,16 @@ export { ZintrustLang } from '@lang/lang';
 // Workers config
 export { createRedisConnection, workersConfig } from '@config/workers';
 
-// Redis config key
+export type { RouteOptions } from '@core-routes/Router';
+
+// Redis config key - Singleton exports
 export {
-  createBullMQKey,
-  createCacheKey,
-  createKeyByType,
-  createQueueKey,
   createRedisKey,
-  createSessionKey,
-  createWorkerKey,
   extractOriginalKey,
   getBullMQSafeQueueName,
   getPrefix,
   isAppKey,
+  RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
 

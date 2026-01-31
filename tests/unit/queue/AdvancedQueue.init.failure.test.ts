@@ -4,6 +4,7 @@ vi.mock('@config/env', () => ({
   Env: {
     get: vi.fn((_key: string, defaultValue?: string) => defaultValue ?? ''),
     getInt: vi.fn((_key: string, defaultValue?: number) => defaultValue ?? 0),
+    getBool: vi.fn((_key: string, defaultValue?: boolean) => defaultValue ?? false),
   },
 }));
 

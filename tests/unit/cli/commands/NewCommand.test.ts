@@ -40,7 +40,7 @@ vi.mock('@node-singletons/path', () => ({
     const parts = String(value)
       .split(/[/\\]+/)
       .filter(Boolean);
-    return parts.length > 0 ? parts[parts.length - 1] : '';
+    return parts.length > 0 ? parts.at(-1) : '';
   }),
   dirname: vi.fn((value: string) => {
     const str = String(value);
@@ -1353,7 +1353,7 @@ describe('NewCommand', () => {
       expect(config.port).toBe(5000);
 
       vi.mocked(PromptHelper.prompt).mockResolvedValue({
-        port: NaN,
+        port: Number.NaN,
       });
       config = await command.promptForConfig('port-project', options);
       expect(config.port).toBe(7777);

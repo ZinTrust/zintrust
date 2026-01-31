@@ -17,6 +17,7 @@ import {
   registerDatabasesFromRuntimeConfig,
   useEnsureDbConnected,
   workersConfig,
+  ZintrustLang,
   type IDatabase,
   type RedisConfig,
   type WorkerStatus,
@@ -823,8 +824,14 @@ const resolveRedisFallbacks = (): {
   const queueRedis = queueConfig.drivers.redis;
   return {
     host: queueRedis?.driver === 'redis' ? queueRedis.host : Env.get('REDIS_HOST', '127.0.0.1'),
-    port: queueRedis?.driver === 'redis' ? queueRedis.port : Env.getInt('REDIS_PORT', 6379),
-    db: queueRedis?.driver === 'redis' ? queueRedis.database : Env.getInt('REDIS_DB', 0),
+    port:
+      queueRedis?.driver === 'redis'
+        ? queueRedis.port
+        : Env.getInt('REDIS_PORT', ZintrustLang.REDIS_DEFAULT_PORT),
+    db:
+      queueRedis?.driver === 'redis'
+        ? queueRedis.database
+        : Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
     password:
       queueRedis?.driver === 'redis' ? (queueRedis.password ?? '') : Env.get('REDIS_PASSWORD', ''),
   };
@@ -837,7 +844,9 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
     context
   );
   const port = resolveEnvInt(String(config.port ?? 'REDIS_PORT'), fallback.port);
-  const db = config.db ? Number(config.db) : Env.getInt('REDIS_DB', fallback.db);
+
+  const db = resolveEnvInt(config.db ?? 'REDIS_QUEUE_DB', fallback.db);
+
   const password = resolveEnvString(config.password ?? 'REDIS_PASSWORD', fallback.password);
 
   return {
@@ -1408,29 +1417,55 @@ const setupWorkerEventListeners = (
   features?: WorkerFactoryConfig['features']
 ): void => {
   worker.on('completed', (job: Job) => {
-    Logger.debug(`Job completed: ${workerName}`, { jobId: job.id });
+    try {
+      Logger.debug(`Job completed: ${workerName}`, { jobId: job.id });
 
-    if (features?.observability === true) {
-      Observability.incrementCounter('worker.jobs.completed', 1, {
-        worker: workerName,
-        version: workerVersion,
-      });
+      if (features?.observability === true) {
+        Observability.incrementCounter('worker.jobs.completed', 1, {
+          worker: workerName,
+          version: workerVersion,
+        });
+      }
+    } catch (error) {
+      // Isolate error - don't let it bubble up
+      Logger.error(`Error in worker completed event handler: ${workerName}`, error, 'workers');
     }
   });
 
   worker.on('failed', (job: Job | undefined, error: Error) => {
-    Logger.error(`Job failed: ${workerName}`, { error, jobId: job?.id }, 'workers');
+    try {
+      Logger.error(`Job failed: ${workerName}`, { error, jobId: job?.id }, 'workers');
 
-    if (features?.observability === true) {
-      Observability.incrementCounter('worker.jobs.failed', 1, {
-        worker: workerName,
-        version: workerVersion,
-      });
+      if (features?.observability === true) {
+        Observability.incrementCounter('worker.jobs.failed', 1, {
+          worker: workerName,
+          version: workerVersion,
+        });
+      }
+    } catch (handlerError) {
+      // Isolate error - don't let it bubble up
+      Logger.error(`Error in worker failed event handler: ${workerName}`, handlerError, 'workers');
     }
   });
 
   worker.on('error', (error: Error) => {
-    Logger.error(`Worker error: ${workerName}`, error);
+    try {
+      Logger.error(`Worker error: ${workerName}`, error);
+
+      // Check if this is a Redis connection error that should be handled gracefully
+      if (
+        error.message.includes('ERR value is not an integer') ||
+        error.message.includes('NOAUTH') ||
+        error.message.includes('ECONNREFUSED')
+      ) {
+        Logger.warn(
+          `Worker ${workerName} encountered Redis configuration error - worker will remain failed but server will continue running`
+        );
+      }
+    } catch (handlerError) {
+      // Isolate error - don't let it bubble up
+      Logger.error(`Error in worker error event handler: ${workerName}`, handlerError, 'workers');
+    }
   });
 };
 
@@ -1611,13 +1646,6 @@ export const WorkerFactory = Object.freeze({
 
       // Start health monitoring for the worker
       startHealthMonitoring(name, worker, queueName);
-
-      Logger.info(`Worker created: ${name}@${workerVersion}`, {
-        queueName,
-        features: Object.keys(features ?? {}).filter(
-          (k) => features?.[k as keyof typeof features] === true
-        ),
-      });
 
       return worker;
     } catch (error) {

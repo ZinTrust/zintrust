@@ -1,5 +1,5 @@
-import { Schema as MigrationSchema, type Blueprint } from '@zintrust/core/migrations';
-import type { IDatabase } from '@zintrust/core/orm';
+import { MigrationSchema, type Blueprint } from '@zintrust/core';
+import type { IDatabase } from '@zintrust/core';
 
 export interface Migration {
   up(db: IDatabase): Promise<void>;

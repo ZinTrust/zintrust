@@ -21,18 +21,28 @@ export const createWorker = (
     prefix,
   });
 
-  worker.on('completed', async (job: Job) => {
+  const onCompleted = async (job: Job): Promise<void> => {
     await metrics.recordJob(queueName, 'completed', job);
-  });
+  };
 
-  worker.on('failed', async (job: Job | undefined, err: Error) => {
+  const onFailed = async (job: Job | undefined, err: Error): Promise<void> => {
     if (job) {
       await metrics.recordJob(queueName, 'failed', job, err);
     }
-  });
+  };
+
+  worker.on('completed', onCompleted);
+  worker.on('failed', onFailed);
 
   const close = async (): Promise<void> => {
+    worker.off('completed', onCompleted);
+    worker.off('failed', onFailed);
     await worker.close();
+    if (typeof connection.quit === 'function') {
+      await connection.quit();
+    } else if (typeof connection.disconnect === 'function') {
+      connection.disconnect();
+    }
   };
 
   return Object.freeze({

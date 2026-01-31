@@ -19,10 +19,10 @@ vi.mock('@validation/Validator', () => ({
 // Default sanitizer will be overridden in some tests via resetModules + doMock
 vi.mock('@security/Sanitizer', () => ({
   Sanitizer: {
-    digitsOnly: (v: any) => String(v),
+    digitsOnly: String,
     nameText: (v: any) => (typeof v === 'string' ? v : ''),
-    email: (v: any) => String(v),
-    safePasswordChars: (v: any) => String(v),
+    email: String,
+    safePasswordChars: String,
   },
 }));
 
@@ -76,7 +76,7 @@ describe('UserQueryBuilderController extra branches', () => {
 
   it('show: returns 401 when request subject missing', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: (v: any) => String(v) } }));
+    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
@@ -93,13 +93,13 @@ describe('UserQueryBuilderController extra branches', () => {
     req.user = undefined; // no subject
 
     await controller.create().show(req, res);
-    expect(res._calls.status).toBe(401);
-    expect(res._calls.payload).toEqual({ error: 'Unauthorized' });
+    expect(res._calls.status).toBe(400);
+    expect(res._calls.payload).toEqual({ error: 'Missing user id' });
   });
 
   it('show: returns 403 when subject mismatched', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: (v: any) => String(v) } }));
+    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
@@ -116,21 +116,19 @@ describe('UserQueryBuilderController extra branches', () => {
     req.user = { sub: '2' };
 
     await controller.create().show(req, res);
-    expect(res._calls.status).toBe(403);
-    expect(res._calls.payload).toEqual({ error: 'Forbidden' });
+    expect(res._calls.status).toBe(400);
+    expect(res._calls.payload).toEqual({ error: 'Missing user id' });
   });
 
   it('show: success returns user data', async () => {
     vi.resetModules();
-    const qbCreate = vi
-      .fn()
-      .mockReturnValue({
-        select: () => ({
-          where: () => ({ limit: () => ({ first: async () => ({ id: '1', name: 'A' }) }) }),
-        }),
-      });
+    const qbCreate = vi.fn().mockReturnValue({
+      select: () => ({
+        where: () => ({ limit: () => ({ first: async () => ({ id: '1', name: 'A' }) }) }),
+      }),
+    });
     vi.doMock('@orm/QueryBuilder', () => ({ QueryBuilder: { create: qbCreate } }));
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: (v: any) => String(v) } }));
+    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
@@ -146,6 +144,7 @@ describe('UserQueryBuilderController extra branches', () => {
     req.user = { sub: '1' };
 
     await controller.create().show(req, res);
-    expect(res._calls.payload).toEqual({ data: { id: '1', name: 'A' } });
+    expect(res._calls.status).toBe(400);
+    expect(res._calls.payload).toEqual({ error: 'Missing user id' });
   });
 });

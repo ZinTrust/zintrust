@@ -1,4 +1,4 @@
-import { ErrorFactory } from '@zintrust/core';
+import { ErrorFactory, ZintrustLang } from '@zintrust/core';
 
 export type RedisPublishClient = {
   connect?: () => Promise<void>;
@@ -39,9 +39,9 @@ const getRedisUrlFromEnv = (): string | null => {
  */
 const buildRedisUrlFromComponents = (): string => {
   const host = process.env?.['REDIS_HOST'] ?? 'localhost';
-  const port = Number.parseInt(process.env?.['REDIS_PORT'] ?? '6379', 10);
+  const port = Number(process.env?.['REDIS_PORT'] ?? ZintrustLang.REDIS_DEFAULT_PORT);
   const password = process.env?.['REDIS_PASSWORD'];
-  const database = Number.parseInt(process.env?.['REDIS_QUEUE_DB'] ?? '1', 10);
+  const database = Number(process.env?.['REDIS_QUEUE_DB'] ?? ZintrustLang.REDIS_DEFAULT_DB);
 
   let redisUrl = `redis://`;
   if (password) redisUrl += `:${password}@`;

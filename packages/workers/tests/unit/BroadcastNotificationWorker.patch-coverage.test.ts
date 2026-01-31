@@ -13,6 +13,12 @@ vi.mock('@zintrust/core', () => ({
   appConfig: {
     prefix: 'zintrust-test',
   },
+  workersConfig: {
+    intervalMs: 5000,
+  },
+  Env: {
+    SSE_HEARTBEAT_INTERVAL: 15000,
+  },
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -30,6 +36,11 @@ vi.mock('@zintrust/core', () => ({
     },
     path: {
       resolve: (...parts: string[]) => parts.join('/'),
+    },
+    module: {
+      createRequire: vi.fn(() => ({
+        resolve: vi.fn(() => '/mocked/path'),
+      })),
     },
     createCipheriv: vi.fn(),
     createDecipheriv: vi.fn(),

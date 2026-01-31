@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const pwd = 'pwd';
 // Patch String.prototype.replaceAll to accept non-global RegExp (tests-only)
 const _origReplaceAll = String.prototype.replaceAll;
 // @ts-ignore
@@ -324,7 +325,7 @@ describe('SmtpDriver', () => {
 
     await expect(
       SmtpDriver.send(
-        { host: 'localhost', port: 25, secure: false, username: 'user', password: 'pass' },
+        { host: 'localhost', port: 25, secure: false, username: 'user', password: pwd },
         {
           to: 'a@b.com',
           from: { email: 'from@ex.com' },
@@ -407,7 +408,7 @@ describe('SmtpDriver', () => {
     vi.mocked(netConnect).mockReturnValue(socket);
 
     const res = await SmtpDriver.send(
-      { host: 'localhost', port: 25, secure: false, username: 'u', password: 'p' },
+      { host: 'localhost', port: 25, secure: false, username: 'u', password: pwd },
       {
         to: 'a@b.com',
         from: { email: 'from@ex.com' },
@@ -438,7 +439,7 @@ describe('SmtpDriver', () => {
     vi.mocked(netConnect).mockReturnValue(socket);
 
     const res = await SmtpDriver.send(
-      { host: 'localhost', port: 25, secure: false, username: 'u', password: 'p' },
+      { host: 'localhost', port: 25, secure: false, username: 'u', password: pwd },
       {
         to: 'a@b.com',
         from: { email: 'from@ex.com' },

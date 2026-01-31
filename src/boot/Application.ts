@@ -51,10 +51,8 @@ const ShutdownManager = Object.freeze({
         hooks.push(hook);
       },
       async run(): Promise<void> {
-        for (const hook of hooks) {
-          // eslint-disable-next-line no-await-in-loop
-          await hook();
-        }
+        // Run hooks in parallel for better performance
+        await Promise.all(hooks.map(async (hook) => hook()));
       },
     });
   },
@@ -216,6 +214,7 @@ const tryImportRoutesFromAppBase = async (
   for (const candidate of candidates) {
     try {
       const url = pathToFileURL(candidate).href;
+      // Intentionally sequential to find the first working candidates
       // eslint-disable-next-line no-await-in-loop
       return (await import(url)) as RoutesModule;
     } catch {
@@ -232,8 +231,17 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
     if (typeof mod?.registerRoutes === 'function') {
       mod.registerRoutes(router);
     } else {
-      const { registerRoutes: registerFrameworkRoutes } = await import('@routes/api');
-      registerFrameworkRoutes(router);
+      const frameworkRoutes = await tryImportOptional<{
+        registerRoutes?: (router: IRouter) => void;
+      }>('@routes/api');
+
+      if (typeof frameworkRoutes?.registerRoutes === 'function') {
+        frameworkRoutes.registerRoutes(router);
+      } else {
+        Logger.warn(
+          'No app routes found and framework routes are unavailable. Ensure routes/api.ts exists in the project.'
+        );
+      }
     }
 
     // Always register core framework routes (health, metrics, doc) after app routes

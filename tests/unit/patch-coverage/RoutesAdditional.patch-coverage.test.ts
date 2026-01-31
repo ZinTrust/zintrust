@@ -59,6 +59,7 @@ vi.mock('@node-singletons/fs', () => ({
 vi.mock('@core-routes/publicRoot', () => ({
   getPublicRoot: vi.fn(() => '/public'),
   getPublicRootAsync: vi.fn(async () => '/public'),
+  getFrameworkPublicRoots: vi.fn(() => []),
 }));
 
 import { serveDocumentationFileAsync, setDocumentationCSPHeaders } from '@core-routes/doc';
@@ -137,7 +138,7 @@ describe('Routes additional coverage', () => {
       setStatus: vi.fn(() => res),
     };
 
-    await serveErrorPagesFile('/error-pages/404.html', res);
+    serveErrorPagesFile('/error-pages/404.html', res);
     expect(res.send).toHaveBeenCalled();
   });
 

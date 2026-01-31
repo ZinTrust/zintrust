@@ -70,11 +70,11 @@ describe('RedisDriver', () => {
 
   it('handles basic commands (get/set/setex/delete/clear/has) and reuses connection', async () => {
     const responses: Record<string, string> = {
-      'GET zintrust_zintrust_test:cache:myKey\r\n': '$4\r\n"hi"\r\n',
-      'EXISTS zintrust_zintrust_test:cache:myKey\r\n': ':1\r\n',
-      'SET zintrust_zintrust_test:cache:myKey "hi"\r\n': '+OK\r\n',
-      'SETEX zintrust_zintrust_test:cache:myKey 5 "hi"\r\n': '+OK\r\n',
-      'DEL zintrust_zintrust_test:cache:myKey\r\n': ':1\r\n',
+      'GET zintrust_zintrust_test_cache:myKey\r\n': '$5\r\n"hi"\r\n',
+      'SET zintrust_zintrust_test_cache:myKey "hi"\r\n': '+OK\r\n',
+      'EXISTS zintrust_zintrust_test_cache:myKey\r\n': ':1\r\n',
+      'SETEX zintrust_zintrust_test_cache:myKey 5 "hi"\r\n': '+OK\r\n',
+      'DEL zintrust_zintrust_test_cache:myKey\r\n': ':1\r\n',
       'FLUSHDB\r\n': '+OK\r\n',
     };
 
@@ -92,27 +92,27 @@ describe('RedisDriver', () => {
 
     await expect(driver.get<string>('myKey')).resolves.toBe('hi');
     await driver.set('myKey', 'hi');
+    await expect(driver.has('myKey')).resolves.toBe(true);
     await driver.set('myKey', 'hi', 5);
     await driver.delete('myKey');
     await driver.clear();
-    await expect(driver.has('myKey')).resolves.toBe(true);
 
     // connect() should only run once due to cached socket
     expect(connectMock).toHaveBeenCalledTimes(1);
 
     expect(socket.writes).toEqual([
-      'GET zintrust_zintrust_test:cache:myKey\r\n',
-      'SET zintrust_zintrust_test:cache:myKey "hi"\r\n',
-      'SETEX zintrust_zintrust_test:cache:myKey 5 "hi"\r\n',
-      'DEL zintrust_zintrust_test:cache:myKey\r\n',
+      'GET zintrust_zintrust_test_cache:myKey\r\n',
+      'SET zintrust_zintrust_test_cache:myKey "hi"\r\n',
+      'EXISTS zintrust_zintrust_test_cache:myKey\r\n',
+      'SETEX zintrust_zintrust_test_cache:myKey 5 "hi"\r\n',
+      'DEL zintrust_zintrust_test_cache:myKey\r\n',
       'FLUSHDB\r\n',
-      'EXISTS zintrust_zintrust_test:cache:myKey\r\n',
     ]);
   });
 
   it('returns null when Redis reports missing key', async () => {
     const socket = new FakeSocket({
-      'GET zintrust_zintrust_test:cache:missing\r\n': '$-1\r\n',
+      'GET zintrust_zintrust_test_cache:missing\r\n': '$-1\r\n',
     });
 
     connectMock.mockImplementation((_port: number, _host: string, cb: () => void) => {

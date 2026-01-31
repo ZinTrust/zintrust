@@ -1,4 +1,4 @@
-import type { QueueMessage } from '@zintrust/core';
+import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import { Logger, Queue } from '@zintrust/core';
 
 type QueueWorker = {
@@ -8,11 +8,13 @@ type QueueWorker = {
     queueName?: string;
     driverName?: string;
     maxItems?: number;
+    maxDurationMs?: number;
   }) => Promise<number>;
   startWorker: (opts?: {
     queueName?: string;
     driverName?: string;
     signal?: AbortSignal;
+    maxDurationMs?: number;
   }) => Promise<number>;
 };
 
@@ -54,7 +56,7 @@ const createProcessOne = <TPayload>(
         dueAt: new Date(timestamp).toISOString(),
       });
       // Re-queue original payload
-      await Queue.enqueue(queueName, message.payload, driverName);
+      await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
       await Queue.ack(queueName, message.id, driverName);
       return false;
     }
@@ -75,7 +77,7 @@ const createProcessOne = <TPayload>(
       });
 
       if (attempts < options.maxAttempts) {
-        await Queue.enqueue(queueName, message.payload, driverName);
+        await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
         Logger.info(`${options.kindLabel} re-queued for retry`, {
           ...baseLogFields,
           attempts: attempts + 1,
@@ -83,7 +85,8 @@ const createProcessOne = <TPayload>(
       }
 
       await Queue.ack(queueName, message.id, driverName);
-      return false;
+      // We processed the message (even if it failed), so return true to continue processing
+      return true;
     }
   };
 };
@@ -109,29 +112,49 @@ const createProcessAll = (
 const createRunOnce = (
   defaultQueueName: string,
   processOne: (queueName?: string, driverName?: string) => Promise<boolean>
-): ((opts?: { queueName?: string; driverName?: string; maxItems?: number }) => Promise<number>) => {
+): ((opts?: {
+  queueName?: string;
+  driverName?: string;
+  maxItems?: number;
+  maxDurationMs?: number;
+  concurrency?: number;
+}) => Promise<number>) => {
   return async (opts = {}): Promise<number> => {
-    const { queueName = defaultQueueName, driverName, maxItems } = opts;
-    let processed = 0;
+    const {
+      queueName = defaultQueueName,
+      driverName,
+      maxItems,
+      maxDurationMs = 30000,
+      concurrency = 1,
+    } = opts;
+    const startTime = Date.now();
+    let totalProcessed = 0;
 
-    if (maxItems === undefined) {
+    // Helper for single worker loop
+    const runWorker = async (): Promise<number> => {
+      let workerProcessed = 0;
       while (true) {
+        if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
+          break;
+        }
+        if (maxItems !== undefined && totalProcessed >= maxItems) {
+          break;
+        }
+
         // eslint-disable-next-line no-await-in-loop
         const didProcess = await processOne(queueName, driverName);
         if (!didProcess) break;
-        processed++;
+
+        workerProcessed++;
+        totalProcessed++; // Shared counter (approximation in parallel)
       }
-      return processed;
-    }
+      return workerProcessed;
+    };
 
-    for (let i = 0; i < maxItems; i++) {
-      // eslint-disable-next-line no-await-in-loop
-      const didProcess = await processOne(queueName, driverName);
-      if (!didProcess) break;
-      processed++;
-    }
+    // Run workers in parallel
+    await Promise.all(Array.from({ length: Math.max(1, concurrency) }).map(() => runWorker()));
 
-    return processed;
+    return totalProcessed;
   };
 };
 
@@ -143,22 +166,42 @@ const createStartWorker = (
   queueName?: string;
   driverName?: string;
   signal?: AbortSignal;
+  maxDurationMs?: number;
+  concurrency?: number;
 }) => Promise<number>) => {
   return async (opts = {}): Promise<number> => {
-    const { queueName = defaultQueueName, driverName, signal } = opts;
+    const {
+      queueName = defaultQueueName,
+      driverName,
+      signal,
+      maxDurationMs = 300000,
+      concurrency = 1,
+    } = opts;
 
-    Logger.info(`Starting ${kindLabel} worker (drain-until-empty)`, { queueName });
+    Logger.info(`Starting ${kindLabel} worker (drain-until-empty)`, { queueName, concurrency });
 
-    let processedCount = 0;
-    while (signal?.aborted !== true) {
-      // eslint-disable-next-line no-await-in-loop
-      const didProcess = await processOne(queueName, driverName);
-      if (!didProcess) break;
-      processedCount++;
-    }
+    const startTime = Date.now();
+    let totalProcessed = 0;
 
-    Logger.info(`${kindLabel} worker finished (queue drained)`, { queueName, processedCount });
-    return processedCount;
+    const runWorker = async (): Promise<void> => {
+      while (signal?.aborted !== true) {
+        if (maxDurationMs > 0 && Date.now() - startTime > maxDurationMs) {
+          Logger.warn(`${kindLabel} worker timeout reached`, { queueName, totalProcessed });
+          break;
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        const didProcess = await processOne(queueName, driverName);
+        if (!didProcess) break;
+        totalProcessed++;
+      }
+    };
+
+    // Run workers in parallel
+    await Promise.all(Array.from({ length: Math.max(1, concurrency) }).map(() => runWorker()));
+
+    Logger.info(`${kindLabel} worker finished (queue drained)`, { queueName, totalProcessed });
+    return totalProcessed;
   };
 };
 

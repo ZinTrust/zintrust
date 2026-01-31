@@ -1,8 +1,18 @@
-import { queueConfig, resolveLockPrefix, Router, type IRouter } from '@zintrust/core';
+import {
+  Logger,
+  queueConfig,
+  resolveLockPrefix,
+  Router,
+  type IRequest,
+  type IResponse,
+  type IRouter,
+  type RouteOptions,
+} from '@zintrust/core';
 import { createRedisConnection, type RedisConfig } from './connection';
 import { getDashboardHtml } from './dashboard-ui';
 import { createBullMQDriver, type QueueDriver } from './driver';
 import { createMetrics, type Metrics } from './metrics';
+import { getRecentJobsForQueue, QueueMonitoringStream } from './QueueMonitoringService';
 
 export type { JobPayload } from './driver';
 export { createWorker as createQueueWorker, type QueueWorker } from './worker';
@@ -65,18 +75,7 @@ export type QueueMonitorApi = {
   getLocks: (pattern?: string) => Promise<LockAnalytics>;
   driver: QueueDriver;
   metrics: Metrics;
-};
-
-type JobSummary = {
-  id: string | undefined;
-  name: string;
-  data: unknown;
-  attempts: number;
-  status?: string;
-  failedReason?: string;
-  timestamp: number;
-  processedOn?: number;
-  finishedOn?: number;
+  close: () => Promise<void>;
 };
 
 const DEFAULTS = {
@@ -119,83 +118,142 @@ const HISTOGRAM_BUCKETS: Array<{ label: string; min?: number; max?: number }> = 
   { label: '>60m', min: 3_600_000 },
 ];
 
-function createGetLocks(redisConfig: RedisConfig) {
-  let redisConnection: ReturnType<typeof createRedisConnection> | null = null;
+const MAX_LOCK_KEYS = 10_000;
 
-  const resolveRedisConnection = (): ReturnType<typeof createRedisConnection> => {
-    if (!redisConnection) {
-      redisConnection = createRedisConnection(redisConfig);
+// Helper function to scan lock keys with pagination
+const scanLockKeys = async (
+  client: ReturnType<typeof createRedisConnection>,
+  searchPattern: string,
+  maxKeys: number
+): Promise<string[]> => {
+  const keys: string[] = [];
+  let cursor = '0';
+
+  do {
+    // Redis scan must be sequential
+    // eslint-disable-next-line no-await-in-loop
+    const [nextCursor, batch] = await client.scan(cursor, 'MATCH', searchPattern, 'COUNT', '200');
+    cursor = nextCursor;
+    keys.push(...batch);
+
+    if (keys.length >= maxKeys) {
+      Logger.warn('Lock scan limit reached', {
+        pattern: searchPattern,
+        keysFound: keys.length,
+      });
+      break;
     }
-    return redisConnection;
-  };
+  } while (cursor !== '0');
 
+  return keys;
+};
+
+// Helper function to get TTL statuses for keys
+const getLockStatuses = async (
+  client: ReturnType<typeof createRedisConnection>,
+  keys: string[]
+): Promise<number[]> => {
+  return Promise.all(keys.map((key) => client.pttl(key)));
+};
+
+// Helper function to build lock objects from keys and statuses
+const buildLockObjects = (
+  keys: string[],
+  statuses: number[],
+  prefixLock: string
+): Array<{ key: string; ttl?: number; expires?: string }> => {
+  return keys.map((key, index) => {
+    const ttl = statuses[index];
+    const exists = typeof ttl === 'number' && ttl > 0;
+    return {
+      key: key.replace(prefixLock, ''),
+      ttl: exists ? ttl : undefined,
+      expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
+    };
+  });
+};
+
+// Helper function to calculate lock metrics
+const calculateLockMetrics = async (
+  client: ReturnType<typeof createRedisConnection>,
+  prefixLock: string
+): Promise<{ attempts: number; acquired: number; collisions: number; collisionRate: number }> => {
+  const metricsKeys = [
+    `${prefixLock}${METRICS_KEYS.attempts}`,
+    `${prefixLock}${METRICS_KEYS.acquired}`,
+    `${prefixLock}${METRICS_KEYS.collisions}`,
+  ];
+  const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
+
+  const parseMetric = (value: string | null): number =>
+    Number.isFinite(Number(value)) ? Number(value) : 0;
+
+  const attempts = parseMetric(attemptsRaw);
+  const acquired = parseMetric(acquiredRaw);
+  const collisions = parseMetric(collisionsRaw);
+  const collisionRate = attempts > 0 ? collisions / attempts : 0;
+
+  return { attempts, acquired, collisions, collisionRate };
+};
+
+// Helper function to build histogram from locks
+const buildLockHistogram = (locks: Array<{ ttl?: number }>): LockHistogramBucket[] => {
+  const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
+    label: bucket.label,
+    count: 0,
+  }));
+
+  locks.forEach((lock) => {
+    if (typeof lock.ttl !== 'number') return;
+    const ttl = lock.ttl;
+    const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
+      if (typeof bucket.min === 'number') return ttl >= bucket.min;
+      if (typeof bucket.max === 'number') return ttl < bucket.max;
+      return false;
+    });
+    if (idx >= 0) histogram[idx].count += 1;
+  });
+
+  return histogram;
+};
+
+function createGetLocks(redisConfig: RedisConfig) {
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
-    const client = resolveRedisConnection();
+    const client = createRedisConnection(redisConfig);
     const prefix_lock = resolveLockPrefix();
     const searchPattern = `${prefix_lock}${pattern}`;
 
-    const keys: string[] = [];
-    let cursor = '0';
+    try {
+      // Scan for lock keys
+      const keys = await scanLockKeys(client, searchPattern, MAX_LOCK_KEYS);
 
-    do {
-      // eslint-disable-next-line no-await-in-loop
-      const [nextCursor, batch] = await client.scan(cursor, 'MATCH', searchPattern, 'COUNT', '200');
-      cursor = nextCursor;
-      keys.push(...batch);
-    } while (cursor !== '0');
+      // Get TTL statuses
+      const statuses = await getLockStatuses(client, keys);
 
-    const statuses = await Promise.all(keys.map((key) => client.pttl(key)));
+      // Build lock objects
+      const locks = buildLockObjects(keys, statuses, prefix_lock);
 
-    const locks = keys.map((key, index) => {
-      const ttl = statuses[index];
-      const exists = typeof ttl === 'number' && ttl > 0;
+      // Calculate metrics
+      const metrics = await calculateLockMetrics(client, prefix_lock);
+
+      // Build histogram
+      const histogram = buildLockHistogram(locks);
+
       return {
-        key: key.replace(prefix_lock, ''),
-        ttl: exists ? ttl : undefined,
-        expires: exists ? new Date(Date.now() + ttl).toISOString() : undefined,
+        locks,
+        metrics: {
+          active: locks.length,
+          ...metrics,
+        },
+        histogram,
       };
-    });
-
-    const metricsKeys = [
-      `${prefix_lock}${METRICS_KEYS.attempts}`,
-      `${prefix_lock}${METRICS_KEYS.acquired}`,
-      `${prefix_lock}${METRICS_KEYS.collisions}`,
-    ];
-    const [attemptsRaw, acquiredRaw, collisionsRaw] = await client.mget(...metricsKeys);
-    const parseMetric = (value: string | null): number =>
-      Number.isFinite(Number(value)) ? Number(value) : 0;
-    const attempts = parseMetric(attemptsRaw);
-    const acquired = parseMetric(acquiredRaw);
-    const collisions = parseMetric(collisionsRaw);
-    const collisionRate = attempts > 0 ? collisions / attempts : 0;
-
-    const histogram: LockHistogramBucket[] = HISTOGRAM_BUCKETS.map((bucket) => ({
-      label: bucket.label,
-      count: 0,
-    }));
-
-    locks.forEach((lock) => {
-      if (typeof lock.ttl !== 'number') return;
-      const ttl = lock.ttl;
-      const idx = HISTOGRAM_BUCKETS.findIndex((bucket) => {
-        if (typeof bucket.min === 'number') return ttl >= bucket.min;
-        if (typeof bucket.max === 'number') return ttl < bucket.max;
-        return false;
-      });
-      if (idx >= 0) histogram[idx].count += 1;
-    });
-
-    return {
-      locks,
-      metrics: {
-        active: locks.length,
-        attempts,
-        acquired,
-        collisions,
-        collisionRate,
-      },
-      histogram,
-    };
+    } finally {
+      if (typeof client.quit === 'function') {
+        await client.quit();
+      } else if (typeof client.disconnect === 'function') {
+        client.disconnect();
+      }
+    }
   };
 }
 
@@ -215,58 +273,8 @@ async function handleJobsEndpoint(
     return;
   }
 
-  const recent = await metrics.getRecentJobs(queueName);
-  const failed = await metrics.getFailedJobs(queueName);
-  const all = [...recent, ...failed].sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
-
-  if (all.length > 0) {
-    res.json(all);
-    return;
-  }
-
-  const jobs = await driver.getRecentJobs(queueName, 100);
-  const now = Date.now();
-  const fallback: JobSummary[] = jobs.map((job) => {
-    // Use the actual state from BullMQ if available
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const jobState = (job as any)._state as string | undefined;
-
-    // Fallback detection if state is not available
-    const isFailed = Boolean(job.failedReason) || jobState === 'failed';
-    const isCompleted = Boolean(job.finishedOn) || jobState === 'completed';
-    const isActive =
-      Boolean(job.processedOn && !job.finishedOn && !job.failedReason) || jobState === 'active';
-    const isDelayed = jobState === 'delayed';
-    const isPaused = jobState === 'paused';
-
-    let status: string;
-    if (isFailed) {
-      status = 'failed';
-    } else if (isCompleted) {
-      status = 'completed';
-    } else if (isActive) {
-      status = 'active';
-    } else if (isDelayed) {
-      status = 'delayed';
-    } else if (isPaused) {
-      status = 'paused';
-    } else {
-      status = 'waiting';
-    }
-
-    return {
-      id: job.id,
-      name: job.name,
-      data: job.data,
-      attempts: job.attemptsMade,
-      status,
-      failedReason: job.failedReason || undefined,
-      timestamp: job.timestamp ?? now,
-      processedOn: job.processedOn ?? undefined,
-      finishedOn: job.finishedOn ?? undefined,
-    };
-  });
-  res.json(fallback);
+  const jobs = await getRecentJobsForQueue(queueName, metrics, driver);
+  res.json(jobs);
 }
 
 async function handleRetryEndpoint(
@@ -352,66 +360,150 @@ function createRegisterRoutes(
         ? { middleware: settings.middleware }
         : { ...queueConfig.monitor };
 
-    const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
-      res.html(
-        getDashboardHtml({
-          autoRefresh: settings.autoRefresh,
-          refreshIntervalMs: settings.refreshIntervalMs,
-        })
-      );
-    };
+    registerDashboardRoutes(router, settings, routeOptions);
+    registerApiRoutes(router, settings, routeOptions, metrics, driver, getSnapshot, getLocks);
+  };
+}
 
-    // Dashboard HTML
-    Router.get(router, settings.basePath, renderDashboard, routeOptions);
-    Router.get(router, `${settings.basePath}/`, renderDashboard, routeOptions);
-
-    // API: Snapshot
-    Router.get(
-      router,
-      `${settings.basePath}/api/snapshot`,
-      async (_req, res) => {
-        const data = await getSnapshot();
-        res.json(data);
-      },
-      routeOptions
-    );
-
-    // API: Recent Jobs for Queue
-    Router.get(
-      router,
-      `${settings.basePath}/api/jobs/:queue`,
-      async (req, res) => {
-        await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
-      },
-      routeOptions
-    );
-
-    // API: Locks
-    Router.get(
-      router,
-      `${settings.basePath}/api/locks`,
-      async (req, res) => {
-        const query =
-          typeof (req as { getQuery?: () => Record<string, string> }).getQuery === 'function'
-            ? (req as { getQuery: () => Record<string, string> }).getQuery()
-            : ((req as { query?: Record<string, string> }).query ?? {});
-        const pattern = query['pattern'] ?? '*';
-        const locks = await getLocks(pattern);
-        res.json(locks);
-      },
-      routeOptions
-    );
-
-    // API: Retry Failed Job
-    Router.post(
-      router,
-      `${settings.basePath}/api/retry/:queue/:jobId`,
-      async (req, res) => {
-        await handleRetryEndpoint(req as RequestWithParams, res, driver);
-      },
-      routeOptions
+function registerDashboardRoutes(
+  router: IRouter,
+  settings: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  },
+  routeOptions: RouteOptions
+): void {
+  const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
+    res.html(
+      getDashboardHtml({
+        autoRefresh: settings.autoRefresh,
+        refreshIntervalMs: settings.refreshIntervalMs,
+      })
     );
   };
+
+  // Dashboard HTML
+  Router.get(router, settings.basePath, renderDashboard, routeOptions);
+  Router.get(router, `${settings.basePath}/`, renderDashboard, routeOptions);
+}
+
+function registerApiRoutes(
+  router: IRouter,
+  settings: {
+    enabled: boolean;
+    basePath: string;
+    middleware: ReadonlyArray<string>;
+    autoRefresh: boolean;
+    refreshIntervalMs: number;
+  },
+  routeOptions: RouteOptions,
+  metrics: Metrics,
+  driver: QueueDriver,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>,
+  getLocks: (pattern?: string) => Promise<LockAnalytics>
+): void {
+  registerSnapshotApi(router, settings, routeOptions, getSnapshot);
+  registerJobsApi(router, settings, routeOptions, metrics, driver);
+  registerLocksApi(router, settings, routeOptions, getLocks);
+  registerRetryApi(router, settings, routeOptions, driver);
+  registerEventsApi(router, settings, routeOptions, getSnapshot, getLocks, metrics, driver);
+}
+
+function registerSnapshotApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: RouteOptions,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/snapshot`,
+    async (_req, res) => {
+      const data = await getSnapshot();
+      res.json(data);
+    },
+    routeOptions
+  );
+}
+
+function registerJobsApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: RouteOptions,
+  metrics: Metrics,
+  driver: QueueDriver
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/jobs/:queue`,
+    async (req, res) => {
+      await handleJobsEndpoint(req as RequestWithParams, res, metrics, driver);
+    },
+    routeOptions
+  );
+}
+
+function registerLocksApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: RouteOptions,
+  getLocks: (pattern?: string) => Promise<LockAnalytics>
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/locks`,
+    async (req, res) => {
+      const query =
+        typeof (req as { getQuery?: () => Record<string, string> }).getQuery === 'function'
+          ? (req as { getQuery: () => Record<string, string> }).getQuery()
+          : ((req as { query?: Record<string, string> }).query ?? {});
+      const pattern = query['pattern'] ?? '*';
+      const locks = await getLocks(pattern);
+      res.json(locks);
+    },
+    routeOptions
+  );
+}
+
+function registerRetryApi(
+  router: IRouter,
+  settings: { basePath: string },
+  routeOptions: RouteOptions,
+  driver: QueueDriver
+): void {
+  Router.post(
+    router,
+    `${settings.basePath}/api/retry/:queue/:jobId`,
+    async (req, res) => {
+      await handleRetryEndpoint(req as RequestWithParams, res, driver);
+    },
+    routeOptions
+  );
+}
+
+function registerEventsApi(
+  router: IRouter,
+  settings: {
+    basePath: string;
+    refreshIntervalMs: number;
+  },
+  routeOptions: RouteOptions,
+  getSnapshot: () => Promise<QueueMonitorSnapshot>,
+  getLocks: (pattern?: string) => Promise<LockAnalytics>,
+  metrics: Metrics,
+  driver: QueueDriver
+): void {
+  Router.get(
+    router,
+    `${settings.basePath}/api/events`,
+    async (req: IRequest, res: IResponse) => {
+      QueueMonitoringStream(res, req, getSnapshot, getLocks, metrics, driver, settings);
+    },
+    routeOptions
+  );
 }
 
 export const QueueMonitor = Object.freeze({
@@ -437,12 +529,17 @@ export const QueueMonitor = Object.freeze({
     const getLocks = createGetLocks(redisConfig);
     const registerRoutes = createRegisterRoutes(settings, metrics, driver, getSnapshot, getLocks);
 
+    const close = async (): Promise<void> => {
+      await Promise.all([driver.close(), metrics.close()]);
+    };
+
     return Object.freeze({
       registerRoutes,
       getSnapshot,
       getLocks,
       driver,
       metrics,
+      close,
     });
   },
 });

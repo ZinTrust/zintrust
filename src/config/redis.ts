@@ -1,6 +1,7 @@
 import { Env } from '@config/env';
 import type { RedisBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ZintrustLang } from '@lang/lang';
 import type { QueueMessage } from '@tools/queue/Queue';
 import { Queue } from '@tools/queue/Queue';
 
@@ -20,9 +21,9 @@ export type RedisPublishClient = {
 export const buildRedisUrl = (config?: RedisBroadcastDriverConfig): string => {
   // Otherwise build URL from individual settings (like cache driver)
   const host = config?.host ?? Env.get('REDIS_HOST', 'localhost');
-  const port = config?.port ?? Env.getInt('REDIS_PORT', 6379);
+  const port = config?.port ?? Env.getInt('REDIS_PORT', ZintrustLang.REDIS_DEFAULT_PORT);
   const password = config?.password ?? Env.get('REDIS_PASSWORD');
-  const database = config?.database ?? Env.getInt('REDIS_QUEUE_DB', 1);
+  const database = config?.database ?? Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
   let redisUrl = `redis://`;
   if (password) redisUrl += `:${password}@`;
   redisUrl += `${host}:${port}`;

@@ -16,6 +16,9 @@ let totalWorkers = 0;
 let autoRefreshEnabled = true;
 let refreshTimer = null;
 let currentTheme = null;
+let eventSource = null;
+let sseActive = false;
+let lastSseRefresh = 0;
 const _bulkAutoStartEnabled = false;
 const _lastWorkers = [];
 const detailsCache = new Map();
@@ -88,7 +91,7 @@ function validateWorkerData(data) {
   return true;
 }
 
-// Data fetching
+// Data fetching - only for search and pagination, SSE handles regular updates
 async function fetchData() {
   const elements = getDomElements();
 
@@ -138,7 +141,7 @@ async function fetchData() {
 function changeLimit(_newLimit) {
   localStorage.setItem(PAGE_SIZE_KEY, _newLimit);
   currentPage = 1;
-  fetchData();
+  fetchData(); // Enable for pagination
 }
 
 // Make functions globally available for HTML onclick/onchange handlers
@@ -308,7 +311,9 @@ function updateDetailViews(detailRow, details) {
   if (!details) return;
 
   // Update all data-key elements
-  detailRow.querySelectorAll('[data-key]').forEach(updateDetailElement);
+  detailRow.querySelectorAll('[data-key]').forEach((element) => {
+    updateDetailElement(element);
+  });
 
   // Delegate to specialized functions
   updateLogsContainer(detailRow, details);
@@ -1236,41 +1241,79 @@ function loadPage(direction) {
   } else if (direction === 'next' && currentPage < totalPages) {
     currentPage++;
   }
-  fetchData();
+  fetchData(); // Enable for pagination
 }
 
 function goToPage(page) {
   currentPage = page;
-  fetchData();
+  fetchData(); // Enable for pagination
 }
 
 // Worker actions
 async function startWorker(name, driver) {
+  // Find and disable the start button to prevent multiple clicks
+  const startBtn = document.querySelector(`button[onclick="startWorker('${name}', '${driver}')"]`);
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.textContent = 'Starting...';
+  }
+
   try {
     await fetch(`${API_BASE}/api/workers/${name}/start?driver=${driver}`, { method: 'POST' });
-    fetchData();
+    fetchData(); // Refresh data after action
   } catch (err) {
     console.error('Failed to start worker:', err);
+    // Re-enable button on error
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = 'Start';
+    }
   }
 }
 
 async function stopWorker(name, driver) {
+  // Find and disable the stop button to prevent multiple clicks
+  const stopBtn = document.querySelector(`button[onclick="stopWorker('${name}', '${driver}')"]`);
+  if (stopBtn) {
+    stopBtn.disabled = true;
+    stopBtn.textContent = 'Stopping...';
+  }
+
   try {
     await fetch(`${API_BASE}/api/workers/${name}/stop?driver=${driver}`, { method: 'POST' });
-    fetchData();
+    fetchData(); // Refresh data after action
   } catch (err) {
     console.error('Failed to stop worker:', err);
+    // Re-enable button on error
+    if (stopBtn) {
+      stopBtn.disabled = false;
+      stopBtn.textContent = 'Stop';
+    }
   }
 }
 
 async function restartWorker(name, driver) {
+  // Find and disable the restart button to prevent multiple clicks
+  const restartBtn = document.querySelector(
+    `button[onclick="restartWorker('${name}', '${driver}')"]`
+  );
+  if (restartBtn) {
+    restartBtn.disabled = true;
+    restartBtn.textContent = 'Restarting...';
+  }
+
   try {
     await fetch(`${API_BASE}/api/workers/${name}/restart?driver=${driver}`, {
       method: 'POST',
     });
-    fetchData();
+    fetchData(); // Refresh data after action
   } catch (err) {
     console.error('Failed to restart worker:', err);
+    // Re-enable button on error
+    if (restartBtn) {
+      restartBtn.disabled = false;
+      restartBtn.textContent = 'Restart';
+    }
   }
 }
 
@@ -1283,7 +1326,7 @@ async function deleteWorker(name, driver) {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete worker');
-    fetchData();
+    fetchData(); // Refresh data after action
   } catch (err) {
     console.error('Failed to delete worker:', err);
     alert('Failed to delete worker: ' + err.message);
@@ -1608,7 +1651,7 @@ function createEditButtons(modal, textarea, name, driver) {
 
       alert('Worker updated successfully!');
       modal.remove();
-      fetchData(); // Refresh the data
+      fetchData(); // Refresh data after action
     } catch (error) {
       alert('Invalid JSON: ' + error.message);
     }
@@ -1683,62 +1726,154 @@ function toggleAutoRefresh() {
   setAutoRefresh(!autoRefreshEnabled);
 }
 
-// Auto-refresh
-function setAutoRefresh(enabled) {
-  autoRefreshEnabled = enabled;
-  localStorage.setItem(AUTO_REFRESH_KEY, enabled.toString());
+function setupEventStream() {
+  if (!globalThis.window.EventSource) return;
 
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+
+  eventSource = new globalThis.window.EventSource(API_BASE + '/api/workers/events');
+
+  eventSource.onopen = () => {
+    sseActive = true;
+    if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  };
+
+  eventSource.onmessage = (evt) => {
+    const elements = getDomElements();
+
+    try {
+      const payload = JSON.parse(evt.data);
+      if (payload && payload.type === 'snapshot') {
+        const now = Date.now();
+        if (now - lastSseRefresh < 4000) return;
+        lastSseRefresh = now;
+        // Use SSE data to update the page
+        if (payload.workers) {
+          renderWorkers(payload.workers);
+          // Hide loading state if it's showing
+        } else if (payload.snapshot) {
+          // Handle queue snapshot events (different format)
+          // console.log('Queue snapshot received, not updating workers UI');
+        }
+        if (payload.monitoring) {
+          // Handle queue monitoring events (different format)
+        }
+      }
+      hideLoadingState(elements);
+    } catch (err) {
+      hideLoadingState(elements);
+      console.error('Failed to parse SSE payload', err);
+    }
+  };
+
+  eventSource.onerror = () => {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    sseActive = false;
+  };
+}
+
+// Helper functions to reduce complexity
+function clearRefreshTimer() {
   if (refreshTimer) {
     clearInterval(refreshTimer);
     refreshTimer = null;
   }
+}
 
-  if (enabled) {
-    refreshTimer = setInterval(fetchData, 30000);
+function disableEventStream() {
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
   }
+  sseActive = false;
+}
 
+function enableEventStreamOrPolling() {
+  if (globalThis.window.EventSource) {
+    setupEventStream();
+  } else if (!sseActive && autoRefreshEnabled) {
+    refreshTimer = setInterval(fetchData, 30000); // Commented out - SSE should be primary
+  }
+}
+
+function createPauseIcon(icon) {
+  // Clear existing content
+  while (icon.firstChild) {
+    icon.firstChild.remove();
+  }
+  // Create pause icon
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  const rect1 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect1.setAttribute('x', '6');
+  rect1.setAttribute('y', '4');
+  rect1.setAttribute('width', '4');
+  rect1.setAttribute('height', '16');
+  const rect2 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect2.setAttribute('x', '14');
+  rect2.setAttribute('y', '4');
+  rect2.setAttribute('width', '4');
+  rect2.setAttribute('height', '16');
+  svg.appendChild(rect1);
+  svg.appendChild(rect2);
+  icon.appendChild(svg);
+}
+
+function createPlayIcon(icon) {
+  // Clear existing content
+  while (icon.firstChild) {
+    icon.firstChild.remove();
+  }
+  // Create play icon
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  polygon.setAttribute('points', '5 3 19 12 5 21 5 3');
+  svg.appendChild(polygon);
+  icon.appendChild(svg);
+}
+
+function updateRefreshButton(enabled) {
   const btn = document.getElementById('auto-refresh-toggle');
   const icon = document.getElementById('auto-refresh-icon');
   const label = document.getElementById('auto-refresh-label');
 
-  if (btn && icon && label) {
-    if (enabled) {
-      label.textContent = 'Pause Refresh';
-      // Clear existing content
-      while (icon.firstChild) {
-        icon.firstChild.remove();
-      }
-      // Create pause icon
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('viewBox', '0 0 24 24');
-      const rect1 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect1.setAttribute('x', '6');
-      rect1.setAttribute('y', '4');
-      rect1.setAttribute('width', '4');
-      rect1.setAttribute('height', '16');
-      const rect2 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect2.setAttribute('x', '14');
-      rect2.setAttribute('y', '4');
-      rect2.setAttribute('width', '4');
-      rect2.setAttribute('height', '16');
-      svg.appendChild(rect1);
-      svg.appendChild(rect2);
-      icon.appendChild(svg);
-    } else {
-      label.textContent = 'Auto Refresh';
-      // Clear existing content
-      while (icon.firstChild) {
-        icon.firstChild.remove();
-      }
-      // Create play icon
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('viewBox', '0 0 24 24');
-      const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-      polygon.setAttribute('points', '5 3 19 12 5 21 5 3');
-      svg.appendChild(polygon);
-      icon.appendChild(svg);
-    }
+  if (!btn || !icon || !label) return;
+
+  if (enabled) {
+    label.textContent = 'Pause Refresh';
+    createPauseIcon(icon);
+  } else {
+    label.textContent = 'Auto Refresh';
+    createPlayIcon(icon);
   }
+}
+
+// Auto-refresh - Refactored to reduce complexity
+function setAutoRefresh(enabled) {
+  autoRefreshEnabled = enabled;
+  localStorage.setItem(AUTO_REFRESH_KEY, enabled.toString());
+
+  clearRefreshTimer();
+
+  if (!enabled) {
+    disableEventStream();
+  }
+
+  if (enabled) {
+    enableEventStreamOrPolling();
+  }
+
+  updateRefreshButton(enabled);
 }
 
 // Event listeners
@@ -1749,21 +1884,30 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
   // Set up event listeners
-  document.getElementById('status-filter').addEventListener('change', fetchData);
-  document.getElementById('driver-filter').addEventListener('change', fetchData);
-  document.getElementById('sort-select').addEventListener('change', fetchData);
+  document.getElementById('status-filter').addEventListener('change', () => {
+    currentPage = 1;
+    fetchData(); // Enable for search/filter
+  });
+  document.getElementById('driver-filter').addEventListener('change', () => {
+    currentPage = 1;
+    fetchData(); // Enable for search/filter
+  });
+  document.getElementById('sort-select').addEventListener('change', () => {
+    currentPage = 1;
+    fetchData(); // Enable for sorting
+  });
 
   const searchBtn = document.getElementById('search-btn');
   if (searchBtn) {
     searchBtn.addEventListener('click', () => {
       currentPage = 1;
-      fetchData();
+      fetchData(); // Enable for search
     });
   }
   document.getElementById('search-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       currentPage = 1;
-      fetchData();
+      fetchData(); // Enable for search
     }
   });
 
@@ -1776,6 +1920,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Use stored value
     setAutoRefresh(storedAutoRefresh === 'true');
   }
-  // Load initial data
-  fetchData();
+  setupEventStream();
+  // SSE should handle initial data loading
+  globalThis.window.addEventListener('beforeunload', () => {
+    if (eventSource) {
+      eventSource.close();
+    }
+  });
 });

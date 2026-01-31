@@ -86,7 +86,13 @@ export const VersionChecker = Object.freeze({
 
     // Skip for version commands
     const args = new Set(process.argv.slice(2));
-    if (args.has('-v') || args.has('--version') || args.has('help') || args.has('new')) {
+    if (
+      args.has('-v') ||
+      args.has('--version') ||
+      args.has('help') ||
+      args.has('new') ||
+      args.has('migrate')
+    ) {
       return false;
     }
 
@@ -108,18 +114,76 @@ export const VersionChecker = Object.freeze({
   },
 
   /**
+   * Fetch cached version if available and fresh
+   */
+  getCachedVersion(checkInterval: number): string | null {
+    const LAST_CHECK_KEY = 'zintrust_last_version_check';
+    const CACHED_VERSION_KEY = 'zintrust_cached_latest_version';
+
+    try {
+      const ls = globalThis.localStorage as Storage | undefined;
+      if (!ls?.getItem) return null;
+
+      const last = ls.getItem(LAST_CHECK_KEY);
+      const cached = ls.getItem(CACHED_VERSION_KEY);
+
+      if (last === null || cached === null) return null;
+
+      const lastTime = Number.parseInt(last, 10);
+      if (Number.isNaN(lastTime)) return null;
+
+      const hoursSince = (Date.now() - lastTime) / (1000 * 60 * 60);
+      return hoursSince < checkInterval ? cached : null;
+    } catch {
+      // Ignore localStorage failures
+      return null;
+    }
+  },
+
+  /**
+   * Cache the latest version and timestamp
+   */
+  cacheLatestVersion(version: string): void {
+    const LAST_CHECK_KEY = 'zintrust_last_version_check';
+    const CACHED_VERSION_KEY = 'zintrust_cached_latest_version';
+
+    try {
+      const ls = globalThis.localStorage as Storage | undefined;
+      if (ls?.setItem) {
+        ls.setItem(CACHED_VERSION_KEY, version);
+        ls.setItem(LAST_CHECK_KEY, Date.now().toString());
+      }
+    } catch {
+      // Best-effort caching
+    }
+  },
+
+  /**
    * Fetch latest version from npm registry
    */
   async fetchLatestVersion(): Promise<string> {
     try {
-      const response = await this.fetchFromNpmRegistry();
+      const cfg = this.getConfig();
 
+      // Try to get cached version first
+      const cachedVersion = this.getCachedVersion(cfg.checkInterval);
+      if (cachedVersion !== null) {
+        return cachedVersion;
+      }
+
+      // Fetch from network
+      const response = await this.fetchFromNpmRegistry();
       if (!response.ok) {
         return this.handleHttpError();
       }
 
       const data = await response.json();
-      return this.extractVersionFromResponse(data);
+      const latest = this.extractVersionFromResponse(data);
+
+      // Cache for future use
+      this.cacheLatestVersion(latest);
+
+      return latest;
     } catch {
       // For network errors or other issues, don't block CLI usage
       return this.getCurrentVersion();
@@ -244,10 +308,6 @@ export const VersionChecker = Object.freeze({
       const comparison = this.compareVersions(currentVersion, latestVersion);
       const isOutdated = comparison < 0;
       const updateAvailable = isOutdated;
-
-      // Update last check time
-      const lastCheckKey = 'zintrust_last_version_check';
-      globalThis.localStorage?.setItem?.(lastCheckKey, Date.now().toString());
 
       return {
         currentVersion,

@@ -5,6 +5,7 @@
  */
 
 import { Env } from '@config/env';
+import { ZintrustLang } from '@lang/lang';
 
 import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
@@ -23,9 +24,11 @@ export type QueueConfigOverrides = Partial<{
   };
 }>;
 
-const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] => {
-  const driverName = config.default;
-  return config.drivers[driverName];
+const getQueueDriver = (
+  driverConfig: QueueConfigWithDrivers
+): QueueDriversConfig[QueueDriverName] => {
+  const driverName = driverConfig.default;
+  return driverConfig.drivers[driverName];
 };
 
 /**
@@ -34,6 +37,10 @@ const getQueueDriver = (config: QueueConfigWithDrivers): QueueDriversConfig[Queu
 export const createBaseDrivers = (): QueueDriversConfig => ({
   sync: {
     driver: 'sync' as const,
+  },
+  memory: {
+    driver: 'memory' as const,
+    ttl: Env.getInt('QUEUE_MEMORY_TTL', 3600000), // 1 hour default
   },
   database: {
     driver: 'database' as const,
@@ -45,7 +52,7 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
     host: Env.get('REDIS_HOST', 'localhost'),
     port: Env.getInt('REDIS_PORT', 6379),
     password: Env.get('REDIS_PASSWORD'),
-    database: Env.getInt('REDIS_QUEUE_DB', 1),
+    database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
   },
   rabbitmq: {
     driver: 'rabbitmq' as const,
@@ -87,7 +94,7 @@ const createBaseMonitor = (): {
 const createQueueConfig = (): {
   default: QueueDriverName;
   drivers: QueueDriversConfig;
-  getDriver: (this: QueueConfigWithDrivers) => QueueDriversConfig[QueueDriverName];
+  getDriver: (driverConfig: QueueConfigWithDrivers) => QueueDriversConfig[QueueDriverName];
   failed: { database: string; table: string };
   processing: { timeout: number; retries: number; backoff: number; workers: number };
   monitor: {
@@ -137,8 +144,8 @@ const createQueueConfig = (): {
     /**
      * Get queue driver config
      */
-    getDriver(): QueueDriversConfig[QueueDriverName] {
-      return getQueueDriver(this);
+    getDriver(driverConfig: QueueConfigWithDrivers): QueueDriversConfig[QueueDriverName] {
+      return getQueueDriver(driverConfig);
     },
 
     /**

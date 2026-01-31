@@ -212,14 +212,29 @@ const runObservers = async (
   const observers = config.observers;
   if (observers === undefined || observers.length === 0) return;
 
-  for (const observer of observers) {
-    const fn = observer[hook];
-    if (typeof fn === 'function') {
-      // Observers intentionally run sequentially.
-      // eslint-disable-next-line no-await-in-loop
-      await fn(model);
+  // Run "before" hooks sequentially to ensure safety and consistent state changes.
+  // This allows observers to modify the model or throw errors to cancel the operation.
+  const isBeforeHook = ['saving', 'creating', 'updating', 'deleting'].includes(hook);
+
+  if (isBeforeHook) {
+    for (const observer of observers) {
+      const fn = observer[hook];
+      if (typeof fn === 'function') {
+        // eslint-disable-next-line no-await-in-loop
+        await fn(model);
+      }
     }
+    return;
   }
+
+  // Run "after" hooks in parallel for better performance.
+  // These are typically side effects (logging, notifications) that don't depend on each other.
+  await Promise.all(
+    observers.map(async (observer) => {
+      const fn = observer[hook];
+      return typeof fn === 'function' ? Promise.resolve(fn(model)) : Promise.resolve();
+    })
+  );
 };
 
 const createModelJSON = (

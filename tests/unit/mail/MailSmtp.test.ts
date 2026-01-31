@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+const pas = 'pass';
 
 describe('Mail (SMTP)', () => {
   beforeEach(() => {
@@ -9,7 +10,7 @@ describe('Mail (SMTP)', () => {
     process.env['MAIL_HOST'] = 'smtp.example.com';
     process.env['MAIL_PORT'] = '587';
     process.env['MAIL_USERNAME'] = 'user';
-    process.env['MAIL_PASSWORD'] = 'pass';
+    process.env['MAIL_PASSWORD'] = pas;
     process.env['MAIL_SECURE'] = 'false';
     process.env['MAIL_FROM_ADDRESS'] = 'no-reply@example.com';
     process.env['MAIL_FROM_NAME'] = 'ZinTrust';
@@ -32,7 +33,7 @@ describe('Mail (SMTP)', () => {
     const { SmtpDriver } = await import('@mail/drivers/Smtp');
     MailDriverRegistry.register('smtp', async (cfg, message) => {
       const { driver: _d, ...rest } = (cfg as any) ?? {};
-      return SmtpDriver.send(rest as any, message as any);
+      return SmtpDriver.send(rest, message as any);
     });
 
     const { Mail } = await import('@mail/Mail');
@@ -60,7 +61,7 @@ describe('Mail (SMTP)', () => {
     const { SmtpDriver } = await import('@mail/drivers/Smtp');
     MailDriverRegistry.register('smtp', async (cfg, message) => {
       const { driver: _d, ...rest } = (cfg as any) ?? {};
-      return SmtpDriver.send(rest as any, message as any);
+      return SmtpDriver.send(rest, message as any);
     });
 
     const { Mail } = await import('@mail/Mail');
@@ -88,7 +89,7 @@ describe('Mail (SMTP)', () => {
     const { SmtpDriver } = await import('@mail/drivers/Smtp');
     MailDriverRegistry.register('smtp', async (cfg, message) => {
       const { driver: _d, ...rest } = (cfg as any) ?? {};
-      return SmtpDriver.send(rest as any, message as any);
+      return SmtpDriver.send(rest, message as any);
     });
 
     const { Mail } = await import('@mail/Mail');

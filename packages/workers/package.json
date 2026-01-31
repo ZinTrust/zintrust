@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/workers",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -22,9 +22,13 @@
       "types": "./dist/ResourceMonitor.d.ts",
       "default": "./dist/ResourceMonitor.js"
     },
-    "./WorkerFactory": {
-      "types": "./dist/WorkerFactory.d.ts",
-      "default": "./dist/WorkerFactory.js"
+    "./telemetry": {
+      "types": "./telemetry/dist/index.d.ts",
+      "default": "./telemetry/dist/index.js"
+    },
+    "./telemetry/*": {
+      "types": "./telemetry/dist/*.d.ts",
+      "default": "./telemetry/dist/*.js"
     }
   },
   "engines": {
@@ -37,17 +41,19 @@
     "access": "public"
   },
   "scripts": {
-    "build": "npm --prefix ../queue-redis run -s build && npm --prefix ../queue-monitor run -s build && tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@zintrust/queue-redis": "file:../queue-redis",
-    "@zintrust/queue-monitor": "file:../queue-monitor",
     "hot-shots": "^10.2.1",
     "ioredis": "^5.9.2",
     "ml.js": "^0.0.1",
     "prom-client": "^15.1.3",
     "simple-statistics": "^7.8.8"
+  },
+  "optionalDependencies": {
+    "@zintrust/queue-redis": "^0.1.27",
+    "@zintrust/queue-monitor": "^0.1.27"
   }
 }

@@ -71,7 +71,7 @@ describe('UserQueryBuilderController.update - sanitizer errors', () => {
           throw err;
         },
         safePasswordChars: (v: any) => v,
-        digitsOnly: (v: any) => String(v),
+        digitsOnly: String,
       },
     }));
 
@@ -84,6 +84,8 @@ describe('UserQueryBuilderController.update - sanitizer errors', () => {
     await mockedController.create().update(req, res);
 
     expect(res._calls.status).toBe(400);
-    expect(res._calls.payload).toEqual({ error: err.message });
+    expect(res._calls.payload).toEqual({
+      error: 'Sanitizer.email() failed: Missing @ symbol in email (value: not-an-email)',
+    });
   });
 });

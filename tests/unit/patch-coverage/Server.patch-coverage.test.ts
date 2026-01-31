@@ -43,8 +43,8 @@ vi.mock('@core-routes/error', () => ({
 // Mock http server factory to capture handler
 let savedHandler: any = null;
 const fakeServer = {
-  listen: vi.fn((_port, _host, cb) => cb && cb()),
-  close: vi.fn((cb) => cb && cb()),
+  listen: vi.fn((_port, _host, cb) => cb?.()),
+  close: vi.fn((cb) => cb?.()),
   on: vi.fn((_ev, _cb) => {}),
 };
 vi.mock('@node-singletons/http', () => ({
@@ -88,11 +88,19 @@ describe('patch coverage: Server', () => {
     const app = { getRouter: () => ({}), getContainer: () => ({}) } as any;
     Server.create(app, 0, '127.0.0.1', null);
 
-    const req = { method: 'GET', url: '/' } as any;
-    const res = { setHeader: vi.fn() } as any;
+    const req = { method: 'GET', url: '/', headers: {} } as any;
+    const res = { setHeader: vi.fn(), end: vi.fn() } as any;
 
     await savedHandler(req, res);
 
     expect(kernelMock.handleRequest).toHaveBeenCalled();
+  });
+
+  it('covers getHttpServer functionality', () => {
+    const app = { getRouter: () => ({}), getContainer: () => ({}) } as any;
+    const server = Server.create(app, 0, '127.0.0.1', null);
+
+    const httpServer = server.getHttpServer();
+    expect(httpServer).toBeDefined();
   });
 });

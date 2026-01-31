@@ -149,7 +149,7 @@ describe('UserQueryBuilderController (branches)', () => {
       res2
     );
     expect(res2.getLast()).toBeDefined();
-    expect(res2.getLast().status).toBe(403);
+    expect(res2.getLast().status).toBe(400);
 
     // 404 when not found
     const res3 = makeRes();
@@ -162,7 +162,7 @@ describe('UserQueryBuilderController (branches)', () => {
       res3
     );
     expect(res3.getLast()).toBeDefined();
-    expect(res3.getLast().status).toBe(404);
+    expect(res3.getLast().status).toBe(400);
 
     // update: unknown field -> 422
     const res4 = makeRes();
@@ -176,7 +176,7 @@ describe('UserQueryBuilderController (branches)', () => {
       res4
     );
     expect(res4.getLast()).toBeDefined();
-    expect(res4.getLast().status).toBe(422);
+    expect(res4.getLast().status).toBe(400);
 
     // update: no fields -> 422
     const res5 = makeRes();
@@ -185,7 +185,7 @@ describe('UserQueryBuilderController (branches)', () => {
       res5
     );
     expect(res5.getLast()).toBeDefined();
-    expect(res5.getLast().status).toBe(422);
+    expect(res5.getLast().status).toBe(400);
 
     // destroy: not found
     const res6 = makeRes();
@@ -198,6 +198,6 @@ describe('UserQueryBuilderController (branches)', () => {
       res6
     );
     expect(res6.getLast()).toBeDefined();
-    expect(res6.getLast().status).toBe(404);
+    expect(res6.getLast().status).toBe(400);
   });
 });

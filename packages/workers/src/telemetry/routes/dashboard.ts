@@ -104,6 +104,7 @@ const getDashboardLayoutStyles = (): string => `
   .zt-card-title { font-size: 0.875rem; font-weight: 600; color: var(--text); margin: 0; }
   .zt-card-meta { font-size: 0.75rem; color: var(--muted); }
   .zt-card-value { margin-top: 0.75rem; font-size: 1.875rem; font-weight: 600; }
+  .zt-card-subvalue { margin-top: 0.35rem; font-size: 0.875rem; color: var(--muted); }
   .zt-card-body { margin-top: 1rem; }
   .zt-chart { margin-top: 1rem; height: 10rem; width: 100%; }
   .zt-cost-value { font-size: 1.875rem; font-weight: 600; color: var(--success); margin: 0; }
@@ -173,7 +174,6 @@ const getDashboardHeader = (): string => `
             <nav class="zt-nav">
               <a class="zt-nav-link" href="/queue-monitor/">Queue monitor</a>
               <a class="zt-nav-link" href="/workers">Workers</a>
-              <a class="zt-nav-link" href="/telemetry">Telemetry</a>
               <a class="zt-nav-link" href="/metrics">Metrics</a>
             </nav>
             <button id="refresh-btn" class="zt-button">Refresh</button>
@@ -195,6 +195,11 @@ const getDashboardStats = (): string => `
           <div class="zt-card">
             <p class="zt-kicker">Needs Attention</p>
             <p id="attention-workers" class="zt-card-value zt-text-amber">0</p>
+          </div>
+          <div class="zt-card">
+            <p class="zt-kicker">CPU (System / Process)</p>
+            <p id="system-cpu" class="zt-card-value">0%</p>
+            <p id="process-cpu" class="zt-card-subvalue">Process: 0% (0 ms)</p>
           </div>
         </section>`;
 
@@ -220,33 +225,43 @@ ${getDashboardCharts()}
       </div>
     </div>`;
 
-const getDashboardScriptState = (options: DashboardUiOptions): string => {
-  let basePath = options.basePath;
-  while (basePath.endsWith('/')) {
-    basePath = basePath.slice(0, -1);
-  }
-  return `
-      const API_BASE = '${basePath}';
-      const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
-      const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
-      const STORAGE_KEYS = {
-        autoRefresh: 'zintrust.telemetry.autoRefresh',
-        theme: 'zintrust.telemetry.theme',
+const getDashboardScriptHelpers = (): string => `
+      const formatPercent = (value) => {
+        if (!Number.isFinite(value)) return '0%';
+        return value.toFixed(1) + '%';
       };
 
-      const errorEl = document.getElementById('error');
-      const totalEl = document.getElementById('total-workers');
-      const healthyEl = document.getElementById('healthy-workers');
-      const attentionEl = document.getElementById('attention-workers');
-      const costEl = document.getElementById('costTotal');
-      const refreshBtn = document.getElementById('refresh-btn');
-      const autoBtn = document.getElementById('auto-refresh-btn');
-      const themeBtn = document.getElementById('theme-toggle');
-      const lastUpdated = document.getElementById('last-updated');
+      const formatMs = (value) => {
+        if (!Number.isFinite(value)) return '0 ms';
+        return Math.max(0, Math.round(value)) + ' ms';
+      };
 
-      let autoRefresh = AUTO_REFRESH;
-      let autoTimer = null;
-      let currentTheme = 'dark';
+      const getProcessCpuPercent = (cpuUsage, timestamp, cores) => {
+        if (!cpuUsage || !timestamp || !cores) return { percent: 0, deltaMs: 0 };
+
+        const currentTotal = (cpuUsage.user || 0) + (cpuUsage.system || 0);
+        const currentTs = Number.isFinite(timestamp) ? timestamp : Date.parse(timestamp);
+
+        if (!Number.isFinite(currentTs)) {
+          return { percent: 0, deltaMs: 0 };
+        }
+
+        if (!lastProcessCpu || !Number.isFinite(lastProcessTs)) {
+          lastProcessCpu = currentTotal;
+          lastProcessTs = currentTs;
+          return { percent: 0, deltaMs: 0 };
+        }
+
+        const deltaUsage = currentTotal - lastProcessCpu;
+        const deltaMs = Math.max(0, currentTs - lastProcessTs);
+        const normalized = deltaMs > 0 ? (deltaUsage / 1000) / (deltaMs * Math.max(1, cores)) : 0;
+        const percent = Math.max(0, Math.min(100, normalized * 100));
+
+        lastProcessCpu = currentTotal;
+        lastProcessTs = currentTs;
+
+        return { percent, deltaMs: deltaUsage / 1000 };
+      };
 
       const readStorage = (key) => {
         try {
@@ -274,6 +289,43 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => {
         themeBtn.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
         writeStorage(STORAGE_KEYS.theme, theme);
       };
+`;
+
+const getDashboardScriptState = (options: DashboardUiOptions): string => {
+  let basePath = options.basePath;
+  while (basePath.endsWith('/')) {
+    basePath = basePath.slice(0, -1);
+  }
+  return `
+      const API_BASE = '${basePath}';
+      const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
+      const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
+      const STORAGE_KEYS = {
+        autoRefresh: 'zintrust.telemetry.autoRefresh',
+        theme: 'zintrust.telemetry.theme',
+      };
+
+      const errorEl = document.getElementById('error');
+      const totalEl = document.getElementById('total-workers');
+      const healthyEl = document.getElementById('healthy-workers');
+      const attentionEl = document.getElementById('attention-workers');
+      const systemCpuEl = document.getElementById('system-cpu');
+      const processCpuEl = document.getElementById('process-cpu');
+      const costEl = document.getElementById('costTotal');
+      const refreshBtn = document.getElementById('refresh-btn');
+      const autoBtn = document.getElementById('auto-refresh-btn');
+      const themeBtn = document.getElementById('theme-toggle');
+      const lastUpdated = document.getElementById('last-updated');
+
+      let autoRefresh = AUTO_REFRESH;
+      let autoTimer = null;
+      let currentTheme = 'dark';
+      let eventSource = null;
+      let sseActive = false;
+      let lastProcessCpu = null;
+      let lastProcessTs = null;
+
+${getDashboardScriptHelpers()}
   `;
 };
 
@@ -328,9 +380,9 @@ const getDashboardScriptCharts = (): string => `
       let resourceChart = null;
 
       const updateCharts = (summary, resources) => {
-        const monitoring = summary?.monitoring || [];
-        const labels = monitoring.map((item) => item.workerName || 'worker');
-        const values = monitoring.map((item) => item.score || 0);
+        const monitoring = summary?.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
+        const labels = ['Healthy', 'Degraded', 'Critical'];
+        const values = [monitoring.healthy || 0, monitoring.degraded || 0, monitoring.critical || 0];
 
         if (healthChart) healthChart.destroy();
         healthChart = buildHealthChart(labels, values);
@@ -346,6 +398,78 @@ const getDashboardScriptCharts = (): string => `
       };
   `;
 
+const getDashboardScriptApplySnapshot = (): string => `
+      const applySnapshot = (payload) => {
+        const summary = payload.summary || {};
+        const total = summary.workers || 0;
+        const monitoring = summary.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
+        const healthyCount = monitoring.healthy || 0;
+        const attentionCount = (monitoring.degraded || 0) + (monitoring.critical || 0);
+        const resources = payload.resources || {};
+        const snapshot = resources.resourceSnapshot || {};
+        const cpuSnapshot = snapshot.cpu || {};
+        const processSnapshot = snapshot.process || {};
+
+        totalEl.textContent = total;
+        healthyEl.textContent = healthyCount;
+        attentionEl.textContent = attentionCount;
+        if (systemCpuEl) {
+          systemCpuEl.textContent = formatPercent(cpuSnapshot.usage || 0);
+        }
+        if (processCpuEl) {
+          const processMetrics = getProcessCpuPercent(
+            processSnapshot.cpuUsage,
+            snapshot.timestamp,
+            cpuSnapshot.cores || 1
+          );
+          processCpuEl.textContent =
+            'Process: ' + formatPercent(processMetrics.percent) + ' (' + formatMs(processMetrics.deltaMs) + ')';
+        }
+        if (costEl && payload.resources?.cost) {
+          const cost = payload.resources.cost;
+          costEl.textContent = '$' + cost.hourly?.toFixed(4) + '/hr';
+        }
+
+        updateAlerts(summary.alerts || []);
+        updateCharts(summary, resources);
+        lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+      };
+`;
+
+const getDashboardScriptUpdateAlerts = (): string => `
+      const updateAlerts = (alerts) => {
+        console.log('Alerts found:', alerts.length, alerts); // Debug logging
+        const alertList = document.getElementById('alertList');
+        if (alertList) {
+          if (alerts.length === 0) {
+            alertList.innerHTML = '<li class="zt-alert-item">No alerts yet.</li>';
+          } else {
+            alertList.innerHTML = alerts.map(alert => {
+              // Handle both nested alert structure and direct alert structure
+              const alertData = alert.alert || alert;
+              console.log('Processing alert:', alertData); // Debug logging
+
+              const severity = alertData.severity || 'info';
+              const severityColor =
+                severity === 'critical' ? 'var(--danger)' :
+                severity === 'warning' ? 'var(--warn)' :
+                severity === 'info' ? 'var(--accent)' : 'var(--text)';
+
+              return '<li class="zt-alert-item">' +
+              '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+              '<span style="font-weight: 600; color: ' + severityColor + '">' +
+              (alertData.message || 'Unknown alert') + '</span>' +
+              '<span style="font-size: 0.75rem; opacity: 0.7;">' +
+              (alertData.timestamp ? new Date(alertData.timestamp).toLocaleTimeString() : 'No timestamp') + '</span>' +
+              '</div>' +
+              (alertData.recommendation ? '<div style="font-size: 0.8rem; margin-top: 0.25rem; opacity: 0.8;">' + alertData.recommendation + '</div>' : '') +
+              '</li>';
+            }).join('');
+          }
+        }
+      };
+`;
+
 const getDashboardScriptFetch = (): string => `
       const fetchSummary = async () => {
         setError('');
@@ -353,38 +477,87 @@ const getDashboardScriptFetch = (): string => `
           const response = await fetch(API_BASE + '/api/summary');
           if (!response.ok) throw new Error('Failed to load telemetry summary');
           const payload = await response.json();
-
-          const summary = payload.summary || {};
-          const total = summary.totalWorkers || 0;
-          const monitoring = summary.monitoring || [];
-          const healthyCount = monitoring.filter((item) => item.status === 'healthy').length;
-          const attentionCount = monitoring.filter((item) => ['degraded', 'critical'].includes(item.status)).length;
-
-          totalEl.textContent = total;
-          healthyEl.textContent = healthyCount;
-          attentionEl.textContent = attentionCount;
-          if (costEl && payload.cost) {
-            costEl.textContent = payload.cost;
-          }
-
-          updateCharts(summary, payload.resources);
-          lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+          applySnapshot(payload);
         } catch (error) {
           setError(error.message || 'Failed to load telemetry data');
         }
       };
+
+      const connectSse = () => {
+        if (!globalThis.window.EventSource) return false;
+
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+
+        eventSource = new globalThis.window.EventSource(API_BASE + '/api/events');
+
+        eventSource.onopen = () => {
+          sseActive = true;
+          if (autoTimer) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+          }
+        };
+
+        eventSource.onmessage = (evt) => {
+          try {
+            const payload = JSON.parse(evt.data);
+            if (payload && payload.type === 'snapshot') {
+              applySnapshot(payload);
+            }
+          } catch (err) {
+            console.error('Failed to parse SSE payload', err);
+          }
+        };
+
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          sseActive = false;
+          // HTTP fallback disabled - 100% SSE reliance
+          // if (autoRefresh && !autoTimer) {
+          //   autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          // }
+          console.log('SSE connection lost - please refresh page to reconnect');
+        };
+
+        return true;
+      };
   `;
 
 const getDashboardScriptControls = (): string => `
-      refreshBtn.addEventListener('click', () => fetchSummary());
+      refreshBtn.addEventListener('click', () => {
+        console.log('Manual refresh - SSE only mode');
+        // SSE handles all updates, no HTTP fallback
+        if (!sseActive) {
+          connectSse();
+        }
+      });
       autoBtn.addEventListener('click', () => {
         autoRefresh = !autoRefresh;
         setAutoLabel();
         writeStorage(STORAGE_KEYS.autoRefresh, String(autoRefresh));
-        if (autoRefresh) {
-          autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
-        } else if (autoTimer) {
-          clearInterval(autoTimer);
+        if (!autoRefresh) {
+          if (autoTimer) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+          }
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+            sseActive = false;
+          }
+          return;
+        }
+
+        if (!connectSse()) {
+          // HTTP fallback disabled - 100% SSE reliance
+          // autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          console.log('SSE connection failed - please check server');
         }
       });
 
@@ -406,16 +579,29 @@ const getDashboardScriptBootstrap = (): string => `
       applyTheme(initialTheme);
 
       if (autoRefresh) {
-        autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+        if (!connectSse()) {
+          // HTTP fallback disabled - 100% SSE reliance
+          // autoTimer = setInterval(fetchSummary, REFRESH_INTERVAL);
+          console.log('SSE connection failed - please check server');
+        }
       }
 
-      fetchSummary();
+      // Initial data load via SSE only - no HTTP fallback
+      // fetchSummary(); // Disabled - SSE handles initial data
+
+      window.addEventListener('beforeunload', () => {
+        if (eventSource) {
+          eventSource.close();
+        }
+      });
   `;
 
 const getDashboardScript = (options: DashboardUiOptions): string => `
     <script>
 ${getDashboardScriptState(options)}
 ${getDashboardScriptCharts()}
+${getDashboardScriptApplySnapshot()}
+${getDashboardScriptUpdateAlerts()}
 ${getDashboardScriptFetch()}
 ${getDashboardScriptControls()}
 ${getDashboardScriptBootstrap()}

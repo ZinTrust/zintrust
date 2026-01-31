@@ -14,11 +14,16 @@ const makeDriver = (capture: Array<unknown>) => ({
 describe('QueueExtensions', () => {
   const envBackup = { ...process.env };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
-    process.env.QUEUE_DRIVER = 'inmemory';
-    process.env['QUEUE_LOCK_PROVIDER'] = 'memory';
+    process.env.QUEUE_DRIVER = 'memory';
+    process.env['QUEUE_DRIVER'] = 'memory';
     process.env['QUEUE_LOCK_PREFIX'] = 'test:';
+
+    // Register the memory driver for tests
+    const { InMemoryQueue } = await import('@tools/queue/drivers/InMemory');
+    const { Queue } = await import('@tools/queue/Queue');
+    Queue.register('memory', InMemoryQueue);
   });
 
   afterEach(() => {
@@ -30,7 +35,7 @@ describe('QueueExtensions', () => {
     const { Queue } = await import('@tools/queue/Queue');
     const { enqueueAdvanced } = await import('@queue/QueueExtensions');
     const payloads: Array<unknown> = [];
-    Queue.register('inmemory', makeDriver(payloads));
+    Queue.register('memory', makeDriver(payloads));
     await enqueueAdvanced('queue', { foo: 'bar' });
 
     expect(payloads).toHaveLength(1);
@@ -40,7 +45,7 @@ describe('QueueExtensions', () => {
     const { Queue } = await import('@tools/queue/Queue');
     const { extendQueue, enqueueAdvanced } = await import('@queue/QueueExtensions');
     const payloads: Array<unknown> = [];
-    Queue.register('inmemory', makeDriver(payloads));
+    Queue.register('memory', makeDriver(payloads));
 
     extendQueue({
       name: 'test',

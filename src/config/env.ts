@@ -174,6 +174,10 @@ export const Env = Object.freeze({
   MAX_BODY_SIZE: getInt('MAX_BODY_SIZE', 10485760),
   SHUTDOWN_TIMEOUT: getInt('SHUTDOWN_TIMEOUT', 10000),
 
+  // SSE
+  SSE_HEARTBEAT_INTERVAL: getInt('SSE_HEARTBEAT_INTERVAL', 15000),
+  SSE_SNAPSHOT_INTERVAL: getInt('SSE_SNAPSHOT_INTERVAL', 5000),
+
   // Logging
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
   LOG_FORMAT: get('LOG_FORMAT', 'text'),

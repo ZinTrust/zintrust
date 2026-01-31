@@ -61,6 +61,18 @@ type ExperimentRecord = {
 };
 
 const experiments = new Map<string, ExperimentRecord>();
+const EXPERIMENT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+const cleanupExpiredExperiments = (): void => {
+  const cutoff = Date.now() - EXPERIMENT_RETENTION_MS;
+  for (const [id, record] of experiments.entries()) {
+    if (record.status.state !== 'completed') continue;
+    const endedAt = record.status.endedAt?.getTime() ?? 0;
+    if (endedAt > 0 && endedAt < cutoff) {
+      experiments.delete(id);
+    }
+  }
+};
 
 const getTargetWorkers = (config: IChaosExperiment): string[] => {
   const candidates = config.target.workers ?? WorkerRegistry.listRunning();
@@ -224,6 +236,8 @@ export const ChaosEngineering = Object.freeze({
       id: experimentId,
       duration: record.config.duration,
     });
+
+    cleanupExpiredExperiments();
   },
 
   /**

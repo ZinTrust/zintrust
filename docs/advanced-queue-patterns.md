@@ -12,6 +12,102 @@ ZinTrust provides powerful advanced queue patterns that enable:
 - **Cross-Service Coordination**: Coordinate tasks across multiple services
 - **CLI Management**: Monitor and manage locks via command-line tools
 
+## 📋 BullMQ JobOptions Reference
+
+ZinTrust's BullMQ implementation supports all standard BullMQ JobOptions. These options are extracted from the payload and passed directly to BullMQ for processing.
+
+| **Option**           | **Type**            | **Description**                                                                                                                                   | **Default**               | **Example**               |
+| -------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------- |
+| **jobId**            | `string`            | **Unique job identifier**. If specified, prevents duplicate jobs with same ID. Uses `uniqueId` from payload if present, otherwise generates UUID. | Auto-generated            | `jobId: 'custom-job-123'` |
+| **delay**            | `number`            | **Delay in milliseconds** before job becomes available for processing. Used for scheduling future jobs.                                           | `undefined` (immediate)   | `delay: 3600000` (1 hour) |
+| **attempts**         | `number`            | **Maximum retry attempts** before job is marked as failed.                                                                                        | `3` (BullMQ default)      | `attempts: 5`             |
+| **priority**         | `number`            | **Job priority level** (1-10). Higher numbers = higher priority. Controls processing order.                                                       | `0` (normal)              | `priority: 10` (highest)  |
+| **removeOnComplete** | `number \| boolean` | **Number of completed jobs to keep** in Redis. `0` = remove all, `true` = keep all, `false` = remove all.                                         | `100`                     | `removeOnComplete: 50`    |
+| **removeOnFail**     | `number \| boolean` | **Number of failed jobs to keep** in Redis. `0` = remove all, `true` = keep all, `false` = remove all.                                            | `50`                      | `removeOnFail: 25`        |
+| **backoff**          | `object`            | **Retry delay strategy**. Controls how long to wait between retries.                                                                              | Exponential with 2s delay | See below                 |
+| **repeat**           | `object`            | **Recurring job configuration**. Supports cron patterns, intervals, or repeat every X times.                                                      | `undefined`               | See below                 |
+| **lifo**             | `boolean`           | **Last-In-First-Out processing**. If `true`, processes newest jobs first.                                                                         | `false` (FIFO)            | `lifo: true`              |
+
+### 🔄 Backoff Strategy Options
+
+| **Type**        | **Description**                                 | **Example**                                           |
+| --------------- | ----------------------------------------------- | ----------------------------------------------------- |
+| **fixed**       | **Fixed delay** between retries.                | `{ type: 'fixed', delay: 5000 }` (5 seconds)          |
+| **exponential** | **Exponential backoff** with increasing delays. | `{ type: 'exponential', delay: 2000 }` (starts at 2s) |
+
+### ⏰ Repeat Job Options
+
+| **Property** | **Type** | **Description**                             | **Example**                       |
+| ------------ | -------- | ------------------------------------------- | --------------------------------- |
+| **every**    | `number` | **Repeat every N milliseconds**.            | `every: 86400000` (daily)         |
+| **cron**     | `string` | **Cron expression** for complex scheduling. | `cron: '0 9 * * 1'` (Monday 9 AM) |
+| **limit**    | `number` | **Maximum number of repetitions**.          | `limit: 10` (repeat 10 times)     |
+
+### 🎯 Usage Examples
+
+#### **Basic Job with Delay**
+
+```typescript
+await Queue.enqueue('email', {
+  to: 'user@example.com',
+  subject: 'Welcome!',
+  template: 'welcome',
+  delay: 60000, // 1 minute delay
+  uniqueId: 'welcome-123',
+});
+```
+
+#### **High Priority Job with Custom Retry**
+
+```typescript
+await Queue.enqueue('urgent', {
+  task: 'process-payment',
+  priority: 10, // Highest priority
+  attempts: 5, // 5 retry attempts
+  backoff: {
+    type: 'fixed',
+    delay: 10000, // 10 second fixed delay
+  },
+  uniqueId: 'payment-456',
+});
+```
+
+#### **Recurring Job**
+
+```typescript
+await Queue.enqueue('cleanup', {
+  task: 'daily-cleanup',
+  repeat: {
+    every: 86400000, // Daily
+  },
+  removeOnComplete: 10, // Keep last 10 completions
+  uniqueId: 'cleanup-daily',
+});
+```
+
+#### **Cron-Scheduled Job**
+
+```typescript
+await Queue.enqueue('reports', {
+  task: 'generate-report',
+  repeat: {
+    cron: '0 9 * * 1', // Every Monday at 9 AM
+  },
+  priority: 5,
+  uniqueId: 'weekly-report',
+});
+```
+
+#### **LIFO Processing (Stack-like)**
+
+```typescript
+await Queue.enqueue('stack', {
+  task: 'process-latest-first',
+  lifo: true, // Process newest jobs first
+  uniqueId: 'stack-job',
+});
+```
+
 ## Features
 
 ### 1. uniqueId Pattern
@@ -591,17 +687,16 @@ Configure default behavior via environment variables:
 # Queue Configuration
 QUEUE_DRIVER=redis
 QUEUE_DEFAULT_DEDUP_TTL=300000
+# Lock Provider Settings
+QUEUE_LOCK_PREFIX=zintrust:locks:
+QUEUE_MAX_LOCK_TTL=86400000
+
 
 # Redis Configuration (for lock provider)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=secret
 REDIS_QUEUE_DB=1
-
-# Lock Provider Settings
-QUEUE_LOCK_PROVIDER=redis
-QUEUE_LOCK_PREFIX=zintrust:locks:
-QUEUE_MAX_LOCK_TTL=86400000
 ```
 
 ## API Reference
@@ -668,9 +763,782 @@ zin queue lock:list --pattern "*"
 - [CLI Reference](./cli-reference.md)
 - [Workers Guide](./worker-management.md)
 
+## Complete Implementation Examples
+
+### 1. Refactored Route Handler (routes/mail.ts)
+
+This example shows how to properly structure advanced queue patterns in a route handler with focused functions:
+
+```typescript
+/* istanbul ignore file */
+import AdvancedEmailJobService from '@app/Jobs/AdvancedEmailJobService';
+import EmailJobService from '@app/Jobs/EmailJobService';
+import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
+import { Mail } from '@mail/Mail';
+import { Router, type IRouter } from '@zintrust/core';
+
+// Focused helper functions for each scenario
+const demonstrateDelayScheduling = async (): Promise<void> => {
+  // Schedule email for 1 hour from now - job won't process until delay expires
+  await AdvancedEmailJobService.sendScheduledLock(
+    'scheduled@zintrust.com',
+    'Meeting Reminder',
+    'welcome',
+    { meetingTime: '2026-02-01T10:00:00Z' },
+    3600000 // 1 hour delay in milliseconds
+  );
+};
+
+const demonstratePriorityJobOrdering = async (): Promise<void> => {
+  // High priority urgent email - processes before lower priority jobs
+  await AdvancedEmailJobService.sendHighPriority(
+    'urgent@zintrust.com',
+    'URGENT: System Alert',
+    'welcome',
+    { alertType: 'critical' },
+    { priority: 10, attempts: 5 } // Higher number = higher priority
+  );
+};
+
+const demonstrateRetryControl = async (): Promise<void> => {
+  // Email with custom retry attempts and exponential backoff
+  await AdvancedEmailJobService.sendHighPriority(
+    'retry@zintrust.com',
+    'Retry Test',
+    'welcome',
+    { test: 'retry-logic' },
+    { attempts: 7, delay: 0 } // Will retry 7 times with exponential backoff
+  );
+};
+
+const demonstrateDeduplication = async (): Promise<void> => {
+  // Prevents duplicate emails from being sent within 24-hour window
+  await AdvancedEmailJobService.sendWithDeduplication(
+    'dedup@zintrust.com',
+    'Welcome Email',
+    'welcome',
+    { name: 'User' },
+    'welcome-user-123', // Same uniqueId = same job
+    'example-redis1'
+  );
+
+  await AdvancedEmailJobService.sendWithDeduplication(
+    'dedup-2@zintrust.com',
+    'Weekly Digest',
+    'welcome',
+    { digest: 'week-1', delay: 300000 },
+    'weekly-digest-001',
+    'example-redis1'
+  );
+
+  await AdvancedEmailJobService.sendWithDeduplication(
+    'dedup-3@zintrust.com',
+    'Invoice Ready',
+    'welcome',
+    { invoiceId: 'inv-8899', delay: 300000 },
+    'invoice-inv-8899',
+    'example-redis1'
+  );
+};
+
+const demonstrateCustomLockProvider = async (): Promise<void> => {
+  // Use custom lock provider (redis/database/memory) for uniqueness
+  await AdvancedEmailJobService.sendWithUniqueLock(
+    'unique@zintrust.com',
+    'Password Reset',
+    'welcome',
+    { token: 'abc123' },
+    'redis', // uniqueVia: 'redis' | 'database' | 'memory'
+    'example-redis1'
+  );
+
+  await AdvancedEmailJobService.sendWithUniqueLock(
+    'unique-2@zintrust.com',
+    'Email Verification',
+    'welcome',
+    { token: 'verify-456' },
+    'memory',
+    'example-redis1'
+  );
+
+  await AdvancedEmailJobService.sendWithUniqueLock(
+    'unique-3@zintrust.com',
+    'Account Recovery',
+    'welcome',
+    { token: 'recover-789' },
+    'database',
+    'example-redis1'
+  );
+};
+
+const demonstrateBulkProcessing = async (): Promise<void> => {
+  // Send bulk emails with batch ID and per-recipient deduplication
+  await AdvancedEmailJobService.sendBulk(
+    ['bulk1@zintrust.com', 'bulk2@zintrust.com', 'bulk3@zintrust.com'],
+    'Monthly Newsletter',
+    'welcome',
+    { campaign: 'Q1-2026', issue: 'January' },
+    'batch-newsletter-202601', // batchId for tracking
+    'example-redis1'
+  );
+};
+
+const demonstrateMetadataTracking = async (): Promise<void> => {
+  // Email with campaign tracking metadata
+  await AdvancedEmailJobService.sendWithMetadata(
+    'metadata@zintrust.com',
+    'Campaign Email',
+    'welcome',
+    { userName: 'Alice' },
+    {
+      campaign: 'winter-sale',
+      source: 'web-signup',
+      priority: 'high',
+      tags: ['marketing', 'promotion', 'new-user'],
+    },
+    'example-redis1'
+  );
+};
+
+const demonstrateCombinedAdvancedOptions = async (): Promise<void> => {
+  // High-priority scheduled email with retry logic
+  await AdvancedEmailJobService.sendHighPriority(
+    'combined@zintrust.com',
+    'VIP Scheduled Notification',
+    'welcome',
+    { vipLevel: 'platinum' },
+    {
+      priority: 10, // High priority
+      delay: 300000, // 5 minutes delay
+      attempts: 5, // Retry up to 5 times
+    },
+    'example-redis1'
+  );
+};
+
+// Main orchestrator function - clean and readable
+const TestAdvancedJob = async (): Promise<void> => {
+  // ====================================================================
+  // SCENARIO 1: Delay Scheduling (delay option)
+  // ====================================================================
+  await demonstrateDelayScheduling();
+
+  // ====================================================================
+  // SCENARIO 2: Priority Job Ordering (priority option)
+  // ====================================================================
+  await demonstratePriorityJobOrdering();
+
+  // ====================================================================
+  // SCENARIO 3: Retry Control (attempts + backoff options)
+  // ====================================================================
+  await demonstrateRetryControl();
+
+  // ====================================================================
+  // SCENARIO 4: Deduplication Support (uniqueId + deduplication options)
+  // ====================================================================
+  await demonstrateDeduplication();
+
+  // ====================================================================
+  // SCENARIO 5: Custom Lock Provider (uniqueVia option)
+  // ====================================================================
+  await demonstrateCustomLockProvider();
+
+  // ====================================================================
+  // SCENARIO 6: Bulk Processing with Deduplication
+  // ====================================================================
+  await demonstrateBulkProcessing();
+
+  // ====================================================================
+  // SCENARIO 7: Metadata Tracking (custom envelope data)
+  // ====================================================================
+  await demonstrateMetadataTracking();
+
+  // ====================================================================
+  // SCENARIO 8: Combined Advanced Options
+  // ====================================================================
+  await demonstrateCombinedAdvancedOptions();
+};
+
+export const registerMailUiPag = async (router: IRouter): Promise<void> => {
+  /* istanbul ignore next */
+  // const { EmailJobService } = await import('@app/Jobs/EmailJobService');
+
+  const handler = async (req: IRequest, res: IResponse): Promise<void> => {
+    TestAdvancedJob();
+    // Enterprise BullMQ worker (example-test-mysql2) is already running and will process this job
+    const templateName = req.getParam('template') ?? 'welcome';
+    const html = await Mail.render({
+      template: templateName,
+      variables:
+        templateName === 'general'
+          ? {
+              name: 'Alice',
+              headline: 'Hello Alice',
+              message: 'Welcome to ZinTrust platform.',
+              primary_color: '#0ea5e9',
+            }
+          : { name: 'Alice' },
+    });
+    res.html(html);
+  };
+
+  Router.get(router, '/mail/:template', handler);
+};
+```
+
+**Key Benefits of This Structure:**
+
+- ✅ **Single Responsibility**: Each function demonstrates one specific pattern
+- ✅ **Maintainable**: Easy to modify individual scenarios
+- ✅ **Testable**: Each function can be tested independently
+- ✅ **Readable**: Clear function names describe the purpose
+- ✅ **Lint Compliant**: All functions under 80 lines
+
+### 2. Advanced Email Job Service (app/Jobs/AdvancedEmailJobService.ts)
+
+This service provides a comprehensive API for advanced queue patterns:
+
+```typescript
+import { AdvancEmailQueue, type AdvancedEmailJobPayload } from '@app/Workers/AdvancEmailWorker';
+import { generateUuid, Logger } from '@zintrust/core';
+
+export const AdvancedEmailJobService = Object.freeze({
+  async sendScheduledLock(
+    to: string,
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    delayMs: number,
+    queueName = 'advanced-queue'
+  ): Promise<string> {
+    const payload: AdvancedEmailJobPayload = {
+      to,
+      subject,
+      template,
+      templateData,
+      uniqueId: `scheduled-${Date.now()}-${generateUuid()}`,
+    };
+
+    const queueOptions = {
+      delay: delayMs, // ✅ This passes delay to BullMQ
+    };
+
+    const jobId = await AdvancEmailQueue.add(payload, queueName, queueOptions);
+    const scheduledTime = new Date(Date.now() + delayMs).toISOString();
+    Logger.info('Scheduled advanced email queued', { jobId, to, subject, scheduledTime });
+    return jobId;
+  },
+
+  /**
+   * Send an advanced email with deduplication support
+   */
+  async sendWithDeduplication(
+    to: string,
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    deduplicationId: string,
+    queueName = 'advanced-queue'
+  ): Promise<string> {
+    const payload: AdvancedEmailJobPayload = {
+      to,
+      subject,
+      template,
+      templateData,
+      uniqueId: deduplicationId,
+      deduplication: {
+        id: deduplicationId,
+        ttl: 86400000, // 24 hours
+        releaseAfter: 3600000, // 1 hour
+      },
+    };
+
+    const jobId = await AdvancEmailQueue.add(payload, queueName);
+    Logger.info('Advanced email with deduplication queued', {
+      jobId,
+      to,
+      subject,
+      deduplicationId,
+    });
+    return jobId;
+  },
+
+  /**
+   * Send an email with unique lock to prevent duplicates
+   */
+  async sendWithUniqueLock(
+    to: string,
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    uniqueVia: string,
+    queueName = 'advanced-queue'
+  ): Promise<string> {
+    const payload: AdvancedEmailJobPayload = {
+      to,
+      subject,
+      template,
+      templateData,
+      uniqueId: `unique-${Date.now()}-${generateUuid()}`,
+      uniqueVia,
+    };
+
+    const jobId = await AdvancEmailQueue.add(payload, queueName);
+    Logger.info('Advanced email with unique lock queued', { jobId, to, subject, uniqueVia });
+    return jobId;
+  },
+
+  /**
+   * Send a high-priority email with custom options
+   */
+  async sendHighPriority(
+    to: string,
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    options: {
+      priority?: number;
+      delay?: number;
+      attempts?: number;
+    } = {},
+    queueName = 'advanced-queue'
+  ): Promise<string> {
+    const payload: AdvancedEmailJobPayload = {
+      to,
+      subject,
+      template,
+      templateData,
+      timestamp: Date.now(),
+      attempts: options.attempts ?? 3,
+    };
+
+    const queueOptions = {
+      priority: options.priority ?? 10,
+      delay: options.delay ?? 0,
+    };
+
+    const jobId = await AdvancEmailQueue.add(payload, queueName, queueOptions);
+    Logger.info('High priority advanced email queued', {
+      jobId,
+      to,
+      subject,
+      priority: queueOptions.priority,
+    });
+    return jobId;
+  },
+
+  /**
+   * Send a bulk email with batch processing support
+   */
+  async sendBulk(
+    recipients: string[],
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    batchId?: string,
+    queueName = 'advanced-queue'
+  ): Promise<string[]> {
+    const batchIdentifier = batchId ?? `batch-${Date.now()}-${generateUuid()}`;
+
+    const jobPromises = recipients.map(async (to, index) => {
+      const payload: AdvancedEmailJobPayload = {
+        to,
+        subject,
+        template,
+        templateData: {
+          ...templateData,
+          batch_id: batchIdentifier,
+          recipient_index: index + 1,
+          total_recipients: recipients.length,
+        },
+        uniqueId: `${batchIdentifier}-${to}`,
+        deduplication: {
+          id: `${batchIdentifier}-${to}`,
+          ttl: 86400000, // 24 hours
+        },
+      };
+
+      return AdvancEmailQueue.add(payload, queueName);
+    });
+
+    const jobIds = await Promise.all(jobPromises);
+
+    Logger.info('Bulk advanced emails queued', {
+      batchId: batchIdentifier,
+      recipientCount: recipients.length,
+      jobIds: jobIds.length,
+    });
+    return jobIds;
+  },
+
+  /**
+   * Send an email with custom envelope metadata
+   */
+  async sendWithMetadata(
+    to: string,
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    metadata: {
+      campaign?: string;
+      source?: string;
+      priority?: string;
+      tags?: string[];
+    },
+    queueName = 'advanced-queue'
+  ): Promise<string> {
+    const payload: AdvancedEmailJobPayload = {
+      to,
+      subject,
+      template,
+      templateData: {
+        ...templateData,
+        campaign: metadata.campaign,
+        source: metadata.source,
+        priority: metadata.priority,
+        tags: metadata.tags,
+      },
+      uniqueId: `meta-${Date.now()}-${generateUuid()}`,
+    };
+
+    const jobId = await AdvancEmailQueue.add(payload, queueName);
+    Logger.info('Advanced email with metadata queued', { jobId, to, subject, metadata });
+    return jobId;
+  },
+
+  /**
+   * Send a scheduled email with delay
+   */
+  async sendScheduled(
+    to: string,
+    subject: string,
+    template: string,
+    templateData: Record<string, unknown>,
+    delayMs: number,
+    queueName = 'advanced-queue'
+  ): Promise<string> {
+    const payload: AdvancedEmailJobPayload = {
+      to,
+      subject,
+      template,
+      templateData,
+      uniqueId: `scheduled-${Date.now()}-${generateUuid()}`,
+    };
+
+    const queueOptions = {
+      delay: delayMs,
+    };
+
+    const jobId = await AdvancEmailQueue.add(payload, queueName, queueOptions);
+    const scheduledTime = new Date(Date.now() + delayMs).toISOString();
+    Logger.info('Scheduled advanced email queued', { jobId, to, subject, scheduledTime });
+    return jobId;
+  },
+
+  /**
+   * Process a single advanced email job
+   */
+  async processOne(queueName = 'advanced-queue'): Promise<boolean> {
+    return AdvancEmailQueue.processOne(queueName);
+  },
+
+  /**
+   * Process all advanced email jobs in queue
+   */
+  async processAll(queueName = 'advanced-queue'): Promise<number> {
+    return AdvancEmailQueue.processAll(queueName);
+  },
+
+  /**
+   * Start the advanced email worker
+   */
+  async start(queueName = 'advanced-queue'): Promise<void> {
+    return AdvancEmailQueue.start(queueName);
+  },
+});
+
+export default AdvancedEmailJobService;
+
+// Test samples for advanced queue patterns
+export const testSamples = Object.freeze({
+  advancedQueuePatternsHeadline: 'Advanced Queue Patterns',
+  uniqueIdExample:
+    "await AdvancedEmailJobService.sendWithDeduplication('user@example.com', 'Welcome', 'welcome', { name: 'User' }, 'welcome-user-123')",
+  uniqueViaExample:
+    "await AdvancedEmailJobService.sendWithUniqueLock('user@example.com', 'Reset Password', 'password-reset', { token: 'abc123' }, 'user-email')",
+  bulkExample:
+    "await AdvancedEmailJobService.sendBulk(['user1@example.com', 'user2@example.com'], 'Newsletter', 'newsletter', { issue: 'Q1-2024' })",
+  scheduledExample:
+    "await AdvancedEmailJobService.sendScheduled('user@example.com', 'Reminder', 'reminder', { event: 'meeting' }, 3600000)",
+});
+```
+
+**Key Features:**
+
+- ✅ **Comprehensive API**: All advanced queue patterns covered
+- ✅ **Type Safety**: Full TypeScript support with proper interfaces
+- ✅ **Logging**: Detailed logging for debugging and monitoring
+- ✅ **Flexible**: Configurable queue names and options
+- ✅ **Batch Processing**: Built-in support for bulk operations
+- ✅ **Metadata Support**: Envelope metadata for tracking
+
+### 3. Advanced Email Worker (app/Workers/AdvancEmailWorker.ts)
+
+This worker handles the processing of advanced email jobs with full BullMQ integration:
+
+```typescript
+import type { BullMQPayload } from '@zintrust/core';
+import { generateUuid, Logger, Mail, Queue } from '@zintrust/core';
+import type { CreateQueueWorkerOptions, Job } from '@zintrust/workers';
+import { createQueueWorker } from '@zintrust/workers';
+
+// Type guard function to check if argument is a Job
+function isJob<T extends object>(arg: T | Job<T>): arg is Job<T> {
+  return 'data' in arg && typeof arg.data !== 'undefined';
+}
+
+// Extended email job payload for advanced queue testing
+export type AdvancedEmailJobPayload = {
+  to: string;
+  subject?: string;
+  body?: string;
+  template?: string;
+  templateData?: Record<string, unknown>;
+  // Advanced options used for testing deduplication/unique locks
+  uniqueId?: string;
+  uniqueVia?: string;
+  deduplication?: Record<string, unknown> | null;
+  // envelope metadata
+  timestamp?: number;
+  attempts?: number;
+};
+
+function buildBaseVariables(
+  payload: AdvancedEmailJobPayload,
+  jobId: string
+): Record<string, unknown> {
+  const { to, subject } = payload;
+
+  return {
+    email: to ?? 'test@zintrust.com',
+    subject: subject ?? 'Worker Notification',
+    processed_at: new Date().toISOString(),
+    job_id: jobId,
+    timestamp: new Date().toISOString(),
+    status: 'success',
+  };
+}
+
+function buildTemplateWithCustomData(
+  payload: AdvancedEmailJobPayload,
+  baseVars: Record<string, unknown>
+): { template: string; variables: Record<string, unknown> } {
+  return {
+    template: (payload.template as string) || 'general',
+    variables: {
+      ...baseVars,
+      ...payload.templateData,
+    },
+  };
+}
+
+function buildTemplateWithDefaultData(
+  payload: AdvancedEmailJobPayload,
+  baseVars: Record<string, unknown>
+): { template: string; variables: Record<string, unknown> } {
+  const { subject, body } = payload;
+
+  return {
+    template: (payload.template as string) || 'general',
+    variables: {
+      ...baseVars,
+      headline: subject ?? 'Worker Notification',
+      message: body ?? 'Worker job completed successfully.',
+      primary_color: '#3b82f6',
+    },
+  };
+}
+
+function buildGeneralTemplate(
+  payload: AdvancedEmailJobPayload,
+  baseVars: Record<string, unknown>
+): { template: string; variables: Record<string, unknown> } {
+  const { subject, body } = payload;
+
+  return {
+    template: 'general',
+    variables: {
+      ...baseVars,
+      headline: subject ?? 'Worker Job Completed',
+      message: body ?? 'Worker job has been processed successfully.',
+      primary_color: '#3b82f6',
+      action_url: payload.templateData?.['action_url'] ?? null,
+      action_text: payload.templateData?.['action_text'] ?? 'View Details',
+    },
+  };
+}
+
+function buildTemplateVariables(
+  payload: AdvancedEmailJobPayload,
+  jobId: string
+): { template: string; variables: Record<string, unknown> } {
+  const baseVars = buildBaseVariables(payload, jobId);
+
+  if (payload.template !== null && payload.template !== undefined && payload.templateData) {
+    return buildTemplateWithCustomData(payload, baseVars);
+  }
+
+  if (payload.template !== null && payload.template !== undefined) {
+    return buildTemplateWithDefaultData(payload, baseVars);
+  }
+
+  return buildGeneralTemplate(payload, baseVars);
+}
+
+async function sendEmail(
+  payload: AdvancedEmailJobPayload,
+  selectedTemplate: string,
+  templateVars: Record<string, unknown>
+): Promise<void> {
+  const { to, subject, body } = payload;
+
+  const htmlContent = await Mail.render({
+    template: selectedTemplate,
+    variables: templateVars,
+  });
+
+  const result = await Mail.send({
+    to: to ?? 'test@zintrust.com',
+    subject: subject ?? 'Worker Notification from ZinTrust',
+    text: body ?? `Worker job completed successfully.`,
+    html: htmlContent,
+    from: {
+      address: 'no-reply@engage.vizo.app',
+      name: 'ZinTrust Advanced Worker',
+    },
+  });
+
+  Logger.info('Advanced email sent', {
+    template: selectedTemplate,
+    to: to ?? 'test@zintrust.com',
+    messageId: result.messageId,
+    driver: result.driver,
+    ok: result.ok,
+  });
+}
+
+async function processAdvancedEmailJob(
+  arg: AdvancedEmailJobPayload | Job<AdvancedEmailJobPayload>
+): Promise<void> {
+  const payload = isJob(arg) ? arg.data : arg;
+
+  const jobId =
+    'id' in arg && typeof arg.id === 'string'
+      ? arg.id
+      : `adv-email-${Date.now()}-${generateUuid()}`;
+
+  Logger.info('Processing advanced email job', {
+    jobId,
+    to: payload.to,
+    subject: payload.subject,
+    template: payload.template,
+  });
+
+  try {
+    const { template: selectedTemplate, variables: templateVars } = buildTemplateVariables(
+      payload,
+      jobId
+    );
+
+    // For advanced testing, log deduplication metadata if provided
+    if (payload.uniqueId !== undefined) {
+      Logger.info('Advanced job uniqueId provided', {
+        uniqueId: payload.uniqueId,
+        uniqueVia: payload.uniqueVia,
+        deduplication: payload.deduplication,
+      });
+    }
+
+    await sendEmail(payload, selectedTemplate, templateVars);
+  } catch (error) {
+    Logger.error('Advanced email send failed', {
+      jobId,
+      to: payload.to ?? 'test@zintrust.com',
+      template: payload.template ?? 'general',
+      error: error as Error,
+    });
+
+    throw error;
+  }
+}
+
+const advancedWorkerOptions: CreateQueueWorkerOptions<AdvancedEmailJobPayload> = {
+  kindLabel: 'Advanced Email Job',
+  defaultQueueName: 'advanced-queue',
+  maxAttempts: 3,
+  getLogFields: (payload: AdvancedEmailJobPayload) => ({
+    to: payload.to,
+    subject: payload.subject,
+    template: payload.template ?? 'general',
+  }),
+  handle: processAdvancedEmailJob,
+};
+
+export const AdvancEmailWorker = createQueueWorker(advancedWorkerOptions);
+
+export const AdvancEmailQueue = {
+  async add(
+    payload: AdvancedEmailJobPayload,
+    queueName = 'advanced-queue',
+    options?: Record<string, unknown>
+  ): Promise<string> {
+    // Merge payload envelope with options for advanced tests
+    const queuePayload = {
+      ...payload,
+      ...options,
+      timestamp: Date.now(),
+      attempts: 0,
+    };
+    Logger.info('queuePayload :', queuePayload);
+
+    return Queue.enqueue(queueName, queuePayload as BullMQPayload);
+  },
+
+  async processOne(queueName = 'advanced-queue'): Promise<boolean> {
+    return AdvancEmailWorker.processOne(queueName);
+  },
+
+  async processAll(queueName = 'advanced-queue'): Promise<number> {
+    return AdvancEmailWorker.processAll(queueName);
+  },
+
+  async start(queueName = 'advanced-queue'): Promise<void> {
+    void AdvancEmailWorker.startWorker({ queueName });
+  },
+};
+
+export { AdvancEmailWorker as AdvancEmailWorkerInstance };
+
+export default async function advancedEmailJobProcessor(
+  job: Job<AdvancedEmailJobPayload>
+): Promise<void> {
+  await processAdvancedEmailJob(job);
+}
+```
+
+**Key Features:**
+
+- ✅ **Type Safety**: Full TypeScript interfaces and type guards
+- ✅ **Template Handling**: Flexible template rendering with fallbacks
+- ✅ **Error Handling**: Comprehensive error handling and logging
+- ✅ **BullMQ Integration**: Full integration with BullMQ queue system
+- ✅ **Metadata Support**: Handles advanced job metadata and deduplication
+- ✅ **Worker Management**: Built-in worker lifecycle management
+
 ## Support
 
 For issues or questions:
 
 - GitHub Issues: [ZinTrust/zintrust](https://github.com/ZinTrust/zintrust/issues)
-- Documentation: [docs.zintrust.dev](https://docs.zintrust.dev)
+- Documentation: [doc.zintrust.com](https://doc.zintrust.com)

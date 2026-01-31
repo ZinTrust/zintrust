@@ -815,7 +815,7 @@ const isKeyValue = (value: unknown): value is string | number =>
   typeof value === 'string' || typeof value === 'number';
 
 const getModelIds = (models: IModel[], key: string): Array<string | number> =>
-  models.map((model) => model.getAttribute(key)).filter(isKeyValue);
+  models.map((model) => model.getAttribute(key)).filter((element) => isKeyValue(element));
 
 const applyConstraint = (query: IQueryBuilder, constraint?: EagerLoadConstraint): IQueryBuilder => {
   if (typeof constraint === 'function') {

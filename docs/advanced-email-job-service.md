@@ -1,6 +1,7 @@
 # AdvancedEmailJobService Usage Examples
 
-The `AdvancedEmailJobService` provides advanced email queue functionality with support for deduplication, unique locks, bulk processing, and scheduling.
+The `AdvancedEmailJobService` provides advanced email queue functionality with
+support for deduplication, unique locks, bulk processing, and scheduling.
 
 ## Basic Usage
 
@@ -76,7 +77,7 @@ await AdvancedEmailJobService.sendWithMetadata(
     campaign: 'spring-sale',
     source: 'email-marketing',
     priority: 'high',
-    tags: ['promotion', 'spring', 'discount']
+    tags: ['promotion', 'spring', 'discount'],
   }
 );
 ```
@@ -99,6 +100,7 @@ await AdvancedEmailJobService.start();
 ## Advanced Features
 
 ### Deduplication
+
 Prevents duplicate emails with the same deduplication ID for 24 hours:
 
 ```typescript
@@ -113,7 +115,8 @@ await AdvancedEmailJobService.sendWithDeduplication(
 ```
 
 ### Unique Locks
-Ensures only one email per unique constraint:
+
+This section demonstrates unique lock functionality.
 
 ```typescript
 // Only one email will be sent per user, regardless of template
@@ -127,6 +130,7 @@ await AdvancedEmailJobService.sendWithUniqueLock(
 ```
 
 ### Bulk Processing with Parallel Queuing
+
 Bulk emails are queued in parallel for better performance:
 
 ```typescript
@@ -146,7 +150,8 @@ console.log(`Queued ${jobIds.length} emails in ${endTime - startTime}ms`);
 
 ## Error Handling
 
-All methods return a Promise<string> (job ID) or Promise<string[]> for bulk operations:
+All methods return a `Promise<string>` (job ID) or
+`Promise<string[]>` for bulk operations:
 
 ```typescript
 try {

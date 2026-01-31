@@ -1,3 +1,4 @@
+import { RedisKeys } from '@zintrust/core';
 import { type Job } from 'bullmq';
 import { createRedisConnection, type RedisConfig } from './connection';
 
@@ -8,6 +9,7 @@ export type JobSummary = {
   name: string;
   data: unknown;
   attempts: number;
+  status?: string;
   failedReason?: string;
   timestamp: number;
   processedOn?: number;
@@ -22,23 +24,29 @@ export type Metrics = {
   ): Promise<Array<{ time: string; completed: number; failed: number }>>;
   getRecentJobs(queue: string): Promise<JobSummary[]>;
   getFailedJobs(queue: string): Promise<JobSummary[]>;
+  close: () => Promise<void>;
 };
 
-const getKey = (prefix: string, type: string, ...parts: string[]): string => {
-  const key = `${prefix}:${type}:${parts.join(':')}`;
-  return key; //TODO confirm the right config
+/**
+ * Creates a queue monitoring key using singleton RedisKeys
+ * @param type - Type of monitoring key (stats, recent, failed)
+ * @param parts - Additional key parts
+ * @returns Prefixed Redis key for queue monitoring
+ */
+const getKey = (type: string, ...parts: string[]): string => {
+  const suffix = parts.length > 0 ? `:${parts.join(':')}` : '';
+  return `${RedisKeys.queuePrefix}monitor:${type}${suffix}`;
 };
 
 const recordJobImpl = async (
   redis: ReturnType<typeof createRedisConnection>,
-  prefix: string,
   queue: string,
   status: JobStatus,
   job: Job,
   error?: Error
 ): Promise<void> => {
   const minute = Math.floor(Date.now() / 60000);
-  const dateKey = getKey(prefix, 'stats', queue, minute.toString());
+  const dateKey = getKey('stats', queue, minute.toString());
 
   await redis.hincrby(dateKey, status, 1);
   await redis.expire(dateKey, 86400);
@@ -54,12 +62,12 @@ const recordJobImpl = async (
     finishedOn: job.finishedOn,
   };
 
-  const listKey = getKey(prefix, 'recent', queue);
+  const listKey = getKey('recent', queue);
   await redis.lpush(listKey, JSON.stringify(jobData));
   await redis.ltrim(listKey, 0, 99);
 
   if (status === 'failed') {
-    const failedKey = getKey(prefix, 'failed', queue);
+    const failedKey = getKey('failed', queue);
     await redis.lpush(failedKey, JSON.stringify(jobData));
     await redis.ltrim(failedKey, 0, 99);
   }
@@ -67,7 +75,6 @@ const recordJobImpl = async (
 
 const getStatsImpl = async (
   redis: ReturnType<typeof createRedisConnection>,
-  prefix: string,
   queue: string,
   minutes: number
 ): Promise<Array<{ time: string; completed: number; failed: number }>> => {
@@ -78,7 +85,7 @@ const getStatsImpl = async (
   for (let i = 0; i < minutes; i++) {
     const m = currentMinute - i;
     timestamps.push(m);
-    keys.push(getKey(prefix, 'stats', queue, m.toString()));
+    keys.push(getKey('stats', queue, m.toString()));
   }
 
   if (keys.length === 0) return [];
@@ -109,22 +116,28 @@ const getStatsImpl = async (
 
 export const createMetrics = (config: RedisConfig): Metrics => {
   const redis = createRedisConnection(config);
-  const prefix = 'monitor';
 
   return Object.freeze({
-    recordJob: (queue, status, job, error) =>
-      recordJobImpl(redis, prefix, queue, status, job, error),
+    recordJob: (queue, status, job, error) => recordJobImpl(redis, queue, status, job, error),
 
-    getStats: (queue, minutes = 60) => getStatsImpl(redis, prefix, queue, minutes),
+    getStats: (queue, minutes = 60) => getStatsImpl(redis, queue, minutes),
 
     getRecentJobs: async (queue: string): Promise<JobSummary[]> => {
-      const list = await redis.lrange(getKey(prefix, 'recent', queue), 0, -1);
+      const list = await redis.lrange(getKey('recent', queue), 0, -1);
       return list.map((item) => JSON.parse(item) as JobSummary);
     },
 
     getFailedJobs: async (queue: string): Promise<JobSummary[]> => {
-      const list = await redis.lrange(getKey(prefix, 'failed', queue), 0, -1);
+      const list = await redis.lrange(getKey('failed', queue), 0, -1);
       return list.map((item) => JSON.parse(item) as JobSummary);
+    },
+
+    close: async (): Promise<void> => {
+      if (typeof redis.quit === 'function') {
+        await redis.quit();
+      } else if (typeof redis.disconnect === 'function') {
+        redis.disconnect();
+      }
     },
   });
 };
