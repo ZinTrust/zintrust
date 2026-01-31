@@ -12,6 +12,7 @@ import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
+import { registerDevRoutes } from '@routes/apiDev';
 
 export function registerRoutes(router: IRouter): void {
   const authController = AuthController.create();
@@ -28,6 +29,7 @@ function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
   registerBroadcastRoutes(router);
   registerStorageRoutes(router);
+  registerDevRoutes(router);
 }
 
 function registerRootRoute(router: IRouter): void {

@@ -22,7 +22,10 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.0.0"
+    "@google-cloud/storage": "^7.18.0"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.4"
   },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
