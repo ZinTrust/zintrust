@@ -21,15 +21,15 @@ describe('RedisKeyManager (coverage)', () => {
     expect(getPrefix()).toBe('zintrust_zintrust_test');
 
     expect(createRedisKey('cache:myKey')).toBe('zintrust_zintrust_test:cache:myKey');
-    expect(RedisKeys.createQueueKey('jobs')).toBe('zintrust_zintrust_test:queue:jobs');
-    expect(RedisKeys.createBullMQKey('emails')).toBe('zintrust_zintrust_test:bull:emails');
+    expect(RedisKeys.createQueueKey('jobs')).toBe('zintrust_zintrust_test_queue:jobs');
+    expect(RedisKeys.createBullMQKey('emails')).toBe('zintrust_zintrust_test_bull:emails');
     expect(RedisKeys.createWorkerKey('email-worker')).toBe(
-      'zintrust_zintrust_test:worker:email-worker'
+      'zintrust_zintrust_test_worker:email-worker'
     );
     expect(RedisKeys.createSessionKey('session-1')).toBe(
-      'zintrust_zintrust_test:session:session-1'
+      'zintrust_zintrust_test_session:session-1'
     );
-    expect(RedisKeys.createCacheKey('hot')).toBe('zintrust_zintrust_test:cache:hot');
+    expect(RedisKeys.createCacheKey('hot')).toBe('zintrust_zintrust_test_cache:hot');
 
     expect(extractOriginalKey('zintrust_zintrust_test:cache:hot')).toBe('cache:hot');
     expect(extractOriginalKey('other_prefix_cache:hot')).toBe('other_prefix_cache:hot');
@@ -42,12 +42,26 @@ describe('RedisKeyManager (coverage)', () => {
   it('creates keys by type', async () => {
     // createKeyByType was removed. Test equivalent RedisKeys methods instead.
     const { RedisKeys: RK, createRedisKey: crk } = await import('@tools/redis/RedisKeyManager');
-    expect(RK.createQueueKey('jobs')).toBe('zintrust_zintrust_test:queue:jobs');
-    expect(RK.createBullMQKey('emails')).toBe('zintrust_zintrust_test:bull:emails');
-    expect(RK.createWorkerKey('email-worker')).toBe('zintrust_zintrust_test:worker:email-worker');
-    expect(RK.createSessionKey('session-1')).toBe('zintrust_zintrust_test:session:session-1');
-    expect(RK.createCacheKey('hot')).toBe('zintrust_zintrust_test:cache:hot');
+    expect(RK.createQueueKey('jobs')).toBe('zintrust_zintrust_test_queue:jobs');
+    expect(RK.createBullMQKey('emails')).toBe('zintrust_zintrust_test_bull:emails');
+    expect(RK.createWorkerKey('email-worker')).toBe('zintrust_zintrust_test_worker:email-worker');
+    expect(RK.createSessionKey('session-1')).toBe('zintrust_zintrust_test_session:session-1');
+    expect(RK.createCacheKey('hot')).toBe('zintrust_zintrust_test_cache:hot');
     expect(crk('misc')).toBe('zintrust_zintrust_test:misc');
+  });
+
+  it('covers lazy prefix initialization', async () => {
+    const { RedisKeys } = await import('@tools/redis/RedisKeyManager');
+
+    // These should trigger lazy initialization of the prefixes
+    expect(RedisKeys.metricsPrefix).toBe('zintrust_zintrust_test_metrics:');
+    expect(RedisKeys.healthPrefix).toBe('zintrust_zintrust_test_health:');
+    expect(RedisKeys.workerPrefix).toBe('zintrust_zintrust_test_worker:');
+    expect(RedisKeys.queuePrefix).toBe('zintrust_zintrust_test_queue:');
+    expect(RedisKeys.bullmqPrefix).toBe('zintrust_zintrust_test_bull:');
+    expect(RedisKeys.queueLockPrefix).toBe('zintrust_zintrust_test_lock:');
+    expect(RedisKeys.cachePrefix).toBe('zintrust_zintrust_test_cache:');
+    expect(RedisKeys.sessionPrefix).toBe('zintrust_zintrust_test_session:');
   });
 
   it('sanitizes colon-wrapped keys and warns on empty key', async () => {

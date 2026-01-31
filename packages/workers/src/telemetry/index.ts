@@ -1,7 +1,8 @@
 import type { IRequest, IResponse, IRouter, RouteOptions } from '@zintrust/core';
 import { Router } from '@zintrust/core';
 import type { TelemetrySettings } from './api/TelemetryAPI';
-import { createSnapshotBuilder, teleStream } from './api/TelemetryAPI';
+import { createSnapshotBuilder } from './api/TelemetryAPI';
+import { teleStream } from './api/TelemetryMonitoringService';
 import { getDashboardHtml } from './routes/dashboard';
 
 export type TelemetryDashboardConfig = {

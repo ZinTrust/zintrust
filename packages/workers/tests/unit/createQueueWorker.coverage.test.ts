@@ -10,6 +10,12 @@ vi.mock('@zintrust/core', () => ({
   appConfig: {
     prefix: 'zintrust-test',
   },
+  workersConfig: {
+    intervalMs: 5000,
+  },
+  Env: {
+    SSE_HEARTBEAT_INTERVAL: 15000,
+  },
   Logger: {
     info: vi.fn(),
     error: vi.fn(),
@@ -42,7 +48,8 @@ describe('createQueueWorker coverage', () => {
   it('processes one item using maxItems loop', async () => {
     vi.unmock('@zintrust/workers');
     const { Queue } = await import('@zintrust/core');
-    (Queue.dequeue as unknown as { mockResolvedValueOnce: (v: unknown) => void })
+    const queueDequeueMock = Queue.dequeue as any;
+    queueDequeueMock
       .mockResolvedValueOnce({ id: '1', payload: { ok: true }, attempts: 0 })
       .mockResolvedValueOnce(undefined);
 

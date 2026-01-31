@@ -10,6 +10,12 @@ vi.mock('@zintrust/core', () => ({
   appConfig: {
     prefix: 'zintrust-test',
   },
+  workersConfig: {
+    intervalMs: 5000,
+  },
+  Env: {
+    SSE_HEARTBEAT_INTERVAL: 15000,
+  },
   Logger: {
     info: vi.fn(),
     warn: vi.fn(),

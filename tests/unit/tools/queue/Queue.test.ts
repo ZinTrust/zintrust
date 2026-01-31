@@ -14,9 +14,9 @@ describe('Queue', () => {
     const first = mod.resolveLockPrefix();
     // Call it again to verify caching works
     const second = mod.resolveLockPrefix();
-    // Both should return the same cached value (zintrust_zintrust_test:lock:)
-    expect(first).toBe('zintrust_zintrust_test:lock:');
-    expect(second).toBe('zintrust_zintrust_test:lock:');
+    // Both should return the same cached value (zintrust_zintrust_test_lock:)
+    expect(first).toBe('zintrust_zintrust_test_lock:');
+    expect(second).toBe('zintrust_zintrust_test_lock:');
     expect(first).toBe(second); // Verify they're the same (cached)
   });
 });
