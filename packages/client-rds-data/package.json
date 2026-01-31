@@ -24,6 +24,9 @@
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
   },
+  "overrides": {
+    "fast-xml-parser": "^5.3.4"
+  },
   "publishConfig": {
     "access": "public"
   },
