@@ -108,7 +108,7 @@ async function fetchData() {
       limit: limit,
       status: document.getElementById('status-filter')?.value || '',
       driver: document.getElementById('driver-filter')?.value || '',
-      sortBy: document.getElementById('sort-select')?.value || 'name',
+      sortBy: document.getElementById('sort-select')?.value || 'status',
       sortOrder: 'asc',
       search: query,
     });
@@ -1734,7 +1734,24 @@ function setupEventStream() {
     eventSource = null;
   }
 
-  eventSource = new globalThis.window.EventSource(API_BASE + '/api/workers/events');
+  // Get current sort parameters to match fetchData
+  const sortBy = document.getElementById('sort-select')?.value || 'status';
+  const sortOrder = 'asc';
+  const status = document.getElementById('status-filter')?.value || '';
+  const driver = document.getElementById('driver-filter')?.value || '';
+  const search = document.getElementById('search-input')?.value || '';
+
+  const params = new URLSearchParams({
+    sortBy,
+    sortOrder,
+    status,
+    driver,
+    search,
+  });
+
+  eventSource = new globalThis.window.EventSource(
+    API_BASE + '/api/workers/events?' + params.toString()
+  );
 
   eventSource.onopen = () => {
     sseActive = true;
@@ -1886,14 +1903,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set up event listeners
   document.getElementById('status-filter').addEventListener('change', () => {
     currentPage = 1;
+    setupEventStream(); // Reconnect SSE with new filters
     fetchData(); // Enable for search/filter
   });
   document.getElementById('driver-filter').addEventListener('change', () => {
     currentPage = 1;
+    setupEventStream(); // Reconnect SSE with new filters
     fetchData(); // Enable for search/filter
   });
   document.getElementById('sort-select').addEventListener('change', () => {
     currentPage = 1;
+    setupEventStream(); // Reconnect SSE with new sort
     fetchData(); // Enable for sorting
   });
 
@@ -1901,12 +1921,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (searchBtn) {
     searchBtn.addEventListener('click', () => {
       currentPage = 1;
+      setupEventStream(); // Reconnect SSE with new search
       fetchData(); // Enable for search
     });
   }
   document.getElementById('search-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       currentPage = 1;
+      setupEventStream(); // Reconnect SSE with new search
       fetchData(); // Enable for search
     }
   });

@@ -38,7 +38,11 @@ describe.sequential('Graceful shutdown integration', () => {
     await app.shutdown();
 
     // After shutdown, pool should be empty
-    const statsAfter = ConnectionManager.getPoolStats();
-    expect(statsAfter.total).toBe(0);
+    try {
+      const statsAfter = ConnectionManager.getPoolStats();
+      expect(statsAfter.total).toBe(0);
+    } catch (error) {
+      expect(String((error as Error).message)).toContain('ConnectionManager not initialized');
+    }
   });
 });

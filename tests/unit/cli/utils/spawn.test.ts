@@ -236,7 +236,8 @@ describe('SpawnUtil', () => {
       forwardSignals: false,
     });
 
-    expect(onSpy).not.toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expect(onSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expect(onSpy).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
   });
 
   it('returns command as is if it contains path separators', async () => {

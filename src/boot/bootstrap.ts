@@ -125,9 +125,7 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
         // Shutdown worker management system FIRST (before database closes)
         if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
           try {
-            const { createRequire } = await import('@node-singletons/module');
-            const require = createRequire(import.meta.url);
-            const workers = require('@zintrust/workers') as typeof import('@zintrust/workers');
+            const workers = await import('@zintrust/workers');
             const workerBudgetMs = Math.min(15000, remainingMs());
             await withTimeout(
               workers.WorkerShutdown.shutdown({
@@ -173,9 +171,7 @@ async function useWorkerStarter(): Promise<void> {
   // Initialize worker management system
   let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
   try {
-    const { createRequire } = await import('@node-singletons/module');
-    const require = createRequire(import.meta.url);
-    const workers = require('@zintrust/workers') as typeof import('@zintrust/workers');
+    const workers = await import('@zintrust/workers');
     if (workers?.WorkerInit !== undefined) {
       workerInit = workers.WorkerInit;
       await workers.WorkerInit.initialize({

@@ -263,7 +263,7 @@ const handleUninitializedMetrics = (optionsList: MetricQueryOptions[]): Aggregat
 /**
  * Helper: Build Redis pipeline for batch metrics query
  */
-const buildMetricsPipeline = (optionsList: MetricQueryOptions[]): ChainableCommander => {
+const buildMetricsPipeline = (optionsList: MetricQueryOptions[]): ChainableCommander | null => {
   if (redisClient) {
     const pipeline = redisClient.pipeline();
 
