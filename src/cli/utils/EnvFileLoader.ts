@@ -6,16 +6,17 @@ import { join } from '@node-singletons/path';
 // during application initialization. This is the only location where
 // such mutations should occur - all other code should use Env.get().
 
+type node_env = 'development' | 'production' | 'testing';
 type EnvMap = Record<string, string>;
 
 const normalizeAppMode = (value: string): string => {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod')
     return 'production';
-  if (normalized === 'dev' || normalized === 'development') return 'dev';
+  if (normalized === 'dev' || normalized === 'development') return 'development';
 
   // Per spec: any other value is treated as development.
-  return 'dev';
+  return 'development';
 };
 
 const stripInlineComment = (value: string): string => {
@@ -85,11 +86,6 @@ const applyToProcessEnv = (values: EnvMap, overrideExisting: boolean): void => {
   if (typeof process.env['PORT'] !== 'string' && typeof process.env['APP_PORT'] === 'string') {
     process.env['PORT'] = process.env['APP_PORT'];
   }
-
-  if (typeof process.env['NODE_ENV'] !== 'string' && typeof process.env['APP_MODE'] === 'string') {
-    const mode = normalizeAppMode(process.env['APP_MODE']);
-    process.env['NODE_ENV'] = mode === 'production' ? 'production' : 'development';
-  }
 };
 
 const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined => {
@@ -100,11 +96,11 @@ const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined 
 };
 
 const resolveAppMode = (cwd: string): string | undefined => {
-  const existing = process.env['APP_MODE'];
+  const existing = process.env['NODE_ENV'];
   if (typeof existing === 'string' && existing.trim() !== '') return normalizeAppMode(existing);
 
   const fromDotEnv = readEnvFileIfExists(cwd, '.env');
-  const value = fromDotEnv?.['APP_MODE'];
+  const value = fromDotEnv?.['NODE_ENV'];
   if (typeof value === 'string' && value.trim() !== '') return normalizeAppMode(value);
 
   return undefined;
@@ -121,7 +117,7 @@ type LoadState = {
 };
 
 type CliOverrides = {
-  nodeEnv?: 'development' | 'production' | 'testing';
+  nodeEnv?: node_env;
   port?: number;
   runtime?: string;
 };
@@ -173,6 +169,11 @@ const load = (options: LoadOptions = {}): LoadState => {
 
     // .env is primary: overlays only fill missing values and never override base.
     applyToProcessEnv(parsed, baseApplied ? false : overrideExisting);
+  }
+
+  // Set NODE_ENV to the normalized mode if we have one (after applying files)
+  if (mode !== undefined) {
+    process.env['NODE_ENV'] = mode as node_env;
   }
 
   cached = { loadedFiles: files, mode };

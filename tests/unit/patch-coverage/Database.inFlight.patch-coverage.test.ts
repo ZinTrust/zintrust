@@ -1,21 +1,59 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const registerSqliteStub = async (): Promise<() => void> => {
+  const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
+  const { SQLiteAdapter } = await import('@orm/adapters/SQLiteAdapter');
+
+  const prevFactory = DatabaseAdapterRegistry.get('sqlite');
+  let connected = false;
+
+  DatabaseAdapterRegistry.register('sqlite', () => ({
+    connect: async () => {
+      connected = true;
+    },
+    disconnect: async () => {
+      connected = false;
+    },
+    isConnected: () => connected,
+    query: async () => ({ rows: [] }),
+    queryOne: async () => null,
+    transaction: async <T>(fn: (adapter: any) => Promise<T>) => fn({} as any),
+    rawQuery: async () => [],
+    getType: () => 'sqlite',
+    getConfig: () => ({ driver: 'sqlite' }) as any,
+    dispose: () => undefined,
+  }));
+
+  return () => {
+    if (prevFactory) {
+      DatabaseAdapterRegistry.register('sqlite', prevFactory);
+    } else {
+      DatabaseAdapterRegistry.register('sqlite', SQLiteAdapter.create);
+    }
+  };
+};
+
 describe('patch coverage: Database in-flight connect/disconnect', () => {
   it('awaits an in-flight connect when called twice concurrently', async () => {
-    const core = await import('../../../src/index');
+    const restore = await registerSqliteStub();
+    try {
+      const core = await import('../../../src/index');
 
-    const db = core.Database.create({
-      driver: 'sqlite',
-      database: ':memory:',
-    } as any);
+      const db = core.Database.create({
+        driver: 'sqlite',
+        database: ':memory:',
+      } as any);
 
-    const p1 = db.connect();
-    const p2 = db.connect();
+      const p1 = db.connect();
+      const p2 = db.connect();
 
-    const results = await Promise.all([p1, p2]);
-    expect(results.length).toBe(2);
+      const results = await Promise.all([p1, p2]);
+      expect(results.length).toBe(2);
 
-    await db.disconnect();
+      await db.disconnect();
+    } finally {
+      restore();
+    }
   });
 
   it('disconnect ignores a rejected connect-in-flight and still disconnects adapters', async () => {

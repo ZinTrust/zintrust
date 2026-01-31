@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 describe('Http Client', () => {
   beforeEach(() => {
     // Mock fetch for all tests
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   afterEach(() => {
@@ -25,14 +25,14 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('{"id": 1, "name": "Test"}'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       const response = await HttpClient.get('https://api.example.com/users/1').send();
 
       expect(response.status).toBe(200);
       expect(response.ok).toBe(true);
       expect(response.body).toBe('{"id": 1, "name": "Test"}');
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         'https://api.example.com/users/1',
         expect.objectContaining({
           method: 'GET',
@@ -48,7 +48,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('{"id": 1, "name": "Alice"}'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       const response = await HttpClient.get('https://api.example.com/users/1').send();
       const data = response.json<{ id: number; name: string }>();
@@ -65,11 +65,11 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.get('https://api.example.com/users').send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.headers).toHaveProperty('User-Agent', 'ZinTrust/1.0');
     });
   });
@@ -83,7 +83,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('{"id": 2, "name": "New User"}'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       const response = await HttpClient.post('https://api.example.com/users', {
         name: 'New User',
@@ -91,7 +91,7 @@ describe('Http Client', () => {
       }).send();
 
       expect(response.status).toBe(201);
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.body).toBe('{"name":"New User","email":"user@example.com"}');
       expect(init?.headers).toHaveProperty('Content-Type', 'application/json');
     });
@@ -104,11 +104,11 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('{}'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.post('https://api.example.com/users', { name: 'Test' }).send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.headers).toHaveProperty('Content-Type', 'application/json');
     });
   });
@@ -122,14 +122,14 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.get('https://api.example.com/users')
         .withHeader('X-Custom-Header', 'custom-value')
         .withHeader('X-Another', 'another-value')
         .send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.headers).toMatchObject({
         'X-Custom-Header': 'custom-value',
         'X-Another': 'another-value',
@@ -144,7 +144,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.get('https://api.example.com/users')
         .withHeaders({
@@ -153,7 +153,7 @@ describe('Http Client', () => {
         })
         .send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.headers).toMatchObject({
         'X-API-Key': 'secret-key',
         'X-Request-ID': '12345',
@@ -168,13 +168,13 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.get('https://api.example.com/users')
         .withAuth('my-secret-token', 'Bearer')
         .send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.headers).toHaveProperty('Authorization', 'Bearer my-secret-token');
     });
 
@@ -186,13 +186,13 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.get('https://api.example.com/users')
         .withBasicAuth('user', 'password')
         .send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       const expectedAuth = Buffer.from('user:password').toString('base64');
       expect(init?.headers).toHaveProperty('Authorization', `Basic ${expectedAuth}`);
     });
@@ -208,7 +208,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       let response = await HttpClient.get('https://api.example.com/users').send();
       expect(response.successful).toBe(true);
@@ -224,7 +224,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       response = await HttpClient.get('https://api.example.com/notfound').send();
       expect(response.successful).toBe(false);
@@ -240,7 +240,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       response = await HttpClient.get('https://api.example.com/error').send();
       expect(response.successful).toBe(false);
@@ -252,7 +252,7 @@ describe('Http Client', () => {
 
   describe('Error handling', () => {
     it('should handle network errors', async () => {
-      vi.mocked(global.fetch).mockRejectedValue(new Error('Network error'));
+      vi.mocked(globalThis.fetch).mockRejectedValue(new Error('Network error'));
 
       await expect(HttpClient.get('https://api.example.com/users').send()).rejects.toThrow(
         'HTTP request failed'
@@ -267,7 +267,7 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('invalid json'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       const response = await HttpClient.get('https://api.example.com/users').send();
 
@@ -292,11 +292,11 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('{}'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.put('https://api.example.com/users/1', { name: 'Updated' }).send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.method).toBe('PUT');
     });
 
@@ -308,11 +308,11 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue('{}'),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.patch('https://api.example.com/users/1', { name: 'Updated' }).send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.method).toBe('PATCH');
     });
 
@@ -324,11 +324,11 @@ describe('Http Client', () => {
         text: vi.fn().mockResolvedValue(''),
       };
 
-      vi.mocked(global.fetch).mockResolvedValue(mockResponse as any);
+      vi.mocked(globalThis.fetch).mockResolvedValue(mockResponse as any);
 
       await HttpClient.delete('https://api.example.com/users/1').send();
 
-      const [, init] = vi.mocked(global.fetch).mock.calls[0] ?? [];
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
       expect(init?.method).toBe('DELETE');
     });
   });

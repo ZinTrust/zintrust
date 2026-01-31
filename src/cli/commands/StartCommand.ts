@@ -41,14 +41,14 @@ const normalizeMode = (value: StartModeInput): StartMode => {
 };
 
 const resolveModeFromAppMode = (): StartMode => {
-  const raw = readEnvString('APP_MODE').trim();
+  const raw = readEnvString('NODE_ENV').trim();
   const normalized = raw.toLowerCase();
 
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod') {
     return 'production';
   }
 
-  // Per spec: any other APP_MODE is treated as development.
+  // Per spec: any other NODE_ENV is treated as development.
   return 'development';
 };
 
@@ -215,14 +215,29 @@ const resolveNodeDevCommand = (
 const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] } => {
   const compiledBoot = path.join(cwd, 'dist/src/boot/bootstrap.js');
 
+  const runFromSourceEnv = process.env['ZINTRUST_RUN_FROM_SOURCE'] ?? '';
+  const runFromSource = runFromSourceEnv === '1' || runFromSourceEnv.toLowerCase() === 'true';
+
   let compiled: string | undefined;
-  if (existsSync(compiledBoot)) {
+  if (existsSync(compiledBoot) && !runFromSource) {
     compiled = 'dist/src/boot/bootstrap.js';
   }
 
+  // If compiled app isn't available (or the env forces running from source),
+  // fall back to running the source entry with `tsx` so developers can test
+  // core files with production semantics without building.
   if (compiled === undefined) {
+    const bootstrap = resolveBootstrapEntryTs(cwd);
+    if (bootstrap !== undefined) {
+      return { command: 'tsx', args: [bootstrap] };
+    }
+
+    if (existsSync(path.join(cwd, 'src/index.ts'))) {
+      return { command: 'tsx', args: ['src/index.ts'] };
+    }
+
     throw ErrorFactory.createCliError(
-      "Error: Compiled app not found at dist/src/boot/bootstrap.js Run 'npm run build' first."
+      "Error: Compiled app not found at dist/src/boot/bootstrap.js. Run 'npm run build' first or set ZINTRUST_RUN_FROM_SOURCE=1 to run source in production."
     );
   }
 

@@ -441,7 +441,7 @@ Router.post(router, '/upload', async (req: IRequest, res: IResponse) => {
 
     return res.json({ success: true });
   } catch (error) {
-    console.error('Upload error:', error);
+    Logger.error('Upload error:', error);
     return res.setStatus(500).json({
       error: 'UPLOAD_FAILED',
       message: 'File upload failed',

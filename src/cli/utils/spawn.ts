@@ -77,13 +77,22 @@ export const SpawnUtil = Object.freeze({
       }
     };
 
-    const onSigint = (): void => forwardSignal('SIGINT');
-    const onSigterm = (): void => forwardSignal('SIGTERM');
+    const onSigint = (): void => {
+      if (forwardSignals) {
+        forwardSignal('SIGINT');
+      }
+      // If not forwarding, handle to prevent the parent from exiting before the child
+      // finishes its graceful shutdown (child receives SIGINT directly in TTY).
+    };
+    const onSigterm = (): void => {
+      if (forwardSignals) {
+        forwardSignal('SIGTERM');
+      }
+      // Same rationale as SIGINT: keep parent alive while waiting for child to exit.
+    };
 
-    if (forwardSignals) {
-      process.on('SIGINT', onSigint);
-      process.on('SIGTERM', onSigterm);
-    }
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
 
     try {
       const result = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
@@ -107,10 +116,8 @@ export const SpawnUtil = Object.freeze({
 
       throw ErrorFactory.createTryCatchError('Failed to spawn child process', error);
     } finally {
-      if (forwardSignals) {
-        process.off('SIGINT', onSigint);
-        process.off('SIGTERM', onSigterm);
-      }
+      process.off('SIGINT', onSigint);
+      process.off('SIGTERM', onSigterm);
     }
   },
 });

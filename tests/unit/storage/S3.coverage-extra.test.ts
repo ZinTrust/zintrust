@@ -54,7 +54,9 @@ describe('S3Driver extra coverage', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => Promise.reject(new Error('boom')))
+      vi.fn(async () => {
+        throw new Error('boom');
+      })
     );
 
     const ok = await S3Driver.exists(

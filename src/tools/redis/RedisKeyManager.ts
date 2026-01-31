@@ -47,6 +47,7 @@ let _bullmqPrefix: string | undefined;
 let _queueLockPrefix: string | undefined;
 let _cachePrefix: string | undefined;
 let _sessionPrefix: string | undefined;
+let _csrfPrefix: string | undefined;
 
 const getMetricsPrefix = (): string => {
   _metricsPrefix ??= `${PREFIX}_metrics:`;
@@ -88,6 +89,11 @@ const getSessionPrefix = (): string => {
   return _sessionPrefix;
 };
 
+const getCsrfPrefix = (): string => {
+  _csrfPrefix ??= `${PREFIX}_csrf:`;
+  return _csrfPrefix;
+};
+
 export const RedisKeys = Object.freeze({
   get metricsPrefix() {
     return getMetricsPrefix();
@@ -113,6 +119,13 @@ export const RedisKeys = Object.freeze({
   get sessionPrefix() {
     return getSessionPrefix();
   },
+
+  get csrfPrefix() {
+    return getCsrfPrefix();
+  },
+  getCsrfPrefix(): string {
+    return getCsrfPrefix();
+  },
   createMetricsKey(workerName: string, metricType: string, granularity: string) {
     return `${getMetricsPrefix()}${workerName}:${metricType}:${granularity}`;
   },
@@ -137,6 +150,9 @@ export const RedisKeys = Object.freeze({
   createSessionKey(sessionId: string) {
     return `${getSessionPrefix()}${sessionId}`;
   },
+  createCsrfKey(sessionId: string) {
+    return `${getCsrfPrefix()}${sessionId}`;
+  },
   reset(): void {
     _metricsPrefix = undefined;
     _healthPrefix = undefined;
@@ -146,6 +162,7 @@ export const RedisKeys = Object.freeze({
     _queueLockPrefix = undefined;
     _cachePrefix = undefined;
     _sessionPrefix = undefined;
+    _csrfPrefix = undefined;
   },
 });
 

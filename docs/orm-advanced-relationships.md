@@ -753,7 +753,7 @@ await Comment.query().load([comment], 'commentable');
 const parent = comment.getAttribute('commentable') as IModel | undefined;
 
 if (!parent) {
-  console.warn('Comment has no valid parent');
+  Logger.warn('Comment has no valid parent');
   return;
 }
 

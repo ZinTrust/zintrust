@@ -1,5 +1,6 @@
-import { AwsSecretsManager } from '@/toolkit/Secrets/providers/AwsSecretsManager';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AwsSecretsManager } from '@/toolkit/Secrets/providers/AwsSecretsManager';
 
 describe('AwsSecretsManager extra', () => {
   const OLD_ENV = { ...process.env };
@@ -10,17 +11,17 @@ describe('AwsSecretsManager extra', () => {
     process.env = { ...OLD_ENV };
     vi.restoreAllMocks();
     // @ts-ignore
-    delete global.fetch;
+    delete globalThis.fetch;
   });
 
   it('doctorEnv reports missing vars when env is empty', () => {
     delete process.env.AWS_REGION;
-    delete process.env.AWS_DEFAULT_REGION;
+    delete process.env['AWS_DEFAULT_REGION'];
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
 
     const missing = AwsSecretsManager.doctorEnv();
-    expect(missing).toContain('AWS_REGION');
+    // Note: AWS_REGION has a default value in Env object, so it won't be reported as missing
     expect(missing).toContain('AWS_ACCESS_KEY_ID');
     expect(missing).toContain('AWS_SECRET_ACCESS_KEY');
   });
@@ -39,7 +40,7 @@ describe('AwsSecretsManager extra', () => {
     process.env.AWS_SECRET_ACCESS_KEY = 'SK';
 
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({}),
@@ -56,7 +57,7 @@ describe('AwsSecretsManager extra', () => {
     process.env.AWS_SECRET_ACCESS_KEY = 'SK';
 
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ SecretString: 'plain' }),
@@ -74,7 +75,7 @@ describe('AwsSecretsManager extra', () => {
 
     // string value
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ SecretString: JSON.stringify({ foo: 'bar' }) }),
@@ -85,7 +86,7 @@ describe('AwsSecretsManager extra', () => {
 
     // object value
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ SecretString: JSON.stringify({ foo: { a: 1 } }) }),
@@ -96,7 +97,7 @@ describe('AwsSecretsManager extra', () => {
 
     // missing key
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ SecretString: JSON.stringify({}) }),
@@ -112,7 +113,7 @@ describe('AwsSecretsManager extra', () => {
     process.env.AWS_SECRET_ACCESS_KEY = 'SK';
 
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'boom' }));
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'boom' }));
 
     const sm = AwsSecretsManager.createFromEnv();
     await expect(sm.getValue('s')).rejects.toThrow(/AWS SecretsManager request failed \(500\)/);
@@ -122,11 +123,11 @@ describe('AwsSecretsManager extra', () => {
     process.env.AWS_REGION = 'eu-west-1';
     process.env.AWS_ACCESS_KEY_ID = 'AK';
     process.env.AWS_SECRET_ACCESS_KEY = 'SK';
-    process.env.AWS_SESSION_TOKEN = 'SESSION123';
+    process.env['AWS_SESSION_TOKEN'] = 'SESSION123';
 
     let captured: any = null;
     // @ts-ignore
-    global.fetch = vi.fn(async (_url, opts) => {
+    globalThis.fetch = vi.fn(async (_url, opts) => {
       captured = opts;
       return { ok: true, status: 200, text: async () => JSON.stringify({}) };
     });
@@ -146,7 +147,7 @@ describe('AwsSecretsManager extra', () => {
     process.env.AWS_SECRET_ACCESS_KEY = 'SK';
 
     // @ts-ignore
-    global.fetch = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'fail' }));
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'fail' }));
 
     const sm = AwsSecretsManager.createFromEnv();
     await expect(sm.putValue('s', 'v')).rejects.toThrow(

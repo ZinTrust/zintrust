@@ -8,6 +8,7 @@ import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
+import type { ICsrfTokenManager } from '@security/CsrfTokenManager';
 import { CsrfTokenManager } from '@security/CsrfTokenManager';
 import { SessionManager } from '@session/SessionManager';
 
@@ -35,6 +36,30 @@ const DEFAULT_OPTIONS: CsrfOptions = {
   ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
 };
 
+// Global cleanup registry to avoid leaking intervals per middleware instance
+// We use WeakRef so the manager (and middleware) can be garbage collected
+// when no longer in use, even if this interval keeps running.
+const managerRegistry = new Set<WeakRef<ICsrfTokenManager>>();
+
+// Single process-wide timer
+const globalCleanupTimer = setInterval(() => {
+  if (managerRegistry.size === 0) return;
+
+  for (const ref of managerRegistry) {
+    const mgr = ref.deref();
+    if (mgr) {
+      void mgr.cleanup().catch(() => undefined);
+    } else {
+      managerRegistry.delete(ref);
+    }
+  }
+}, 3600000);
+
+// Use helper to handle runtime differences (Node vs others)
+if (isUnrefableTimer(globalCleanupTimer)) {
+  globalCleanupTimer.unref();
+}
+
 export const CsrfMiddleware = Object.freeze({
   /**
    * Create CSRF protection middleware
@@ -44,16 +69,8 @@ export const CsrfMiddleware = Object.freeze({
     const manager = CsrfTokenManager.create();
     const sessions = SessionManager.create();
 
-    // Periodic cleanup to prevent memory leaks
-    // Run every hour (matching default token TTL)
-    const cleanupTimer = setInterval(() => {
-      manager.cleanup();
-    }, 3600000);
-
-    // Node: allow process to exit; other runtimes may not support unref()
-    if (isUnrefableTimer(cleanupTimer)) {
-      cleanupTimer.unref();
-    }
+    // Register for global cleanup instead of creating a local timer
+    managerRegistry.add(new WeakRef(manager));
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       if (shouldSkipCsrfForRequest(req, config)) {
@@ -72,7 +89,7 @@ export const CsrfMiddleware = Object.freeze({
 
       // 1. Token Generation (for safe methods)
       if (config.ignoreMethods?.includes(method) ?? false) {
-        const token = manager.generateToken(sessionId);
+        const token = await manager.generateToken(sessionId);
 
         // Set cookie for Double Submit Cookie pattern (readable by frontend)
         appendSetCookie(res, `${config.cookieName}=${token}; Path=/; SameSite=Strict`);
@@ -91,7 +108,7 @@ export const CsrfMiddleware = Object.freeze({
 
       const token = tokenFromHeader || tokenFromBody || tokenFromCookie;
 
-      if (!token || !manager.validateToken(sessionId, token)) {
+      if (!token || !(await manager.validateToken(sessionId, token))) {
         Logger.warn(`CSRF validation failed for session ${sessionId}`);
         res.setStatus(403);
         res.json({

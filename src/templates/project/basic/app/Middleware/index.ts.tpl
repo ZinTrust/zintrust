@@ -220,7 +220,7 @@ export const csrfMiddleware = (csrfManager: CsrfManagerInput) => {
       return;
     }
 
-    const isValid = resolveCsrfManager(csrfManager).validateToken(
+    const isValid = await resolveCsrfManager(csrfManager).validateToken(
       String(sessionId),
       String(csrfToken)
     );

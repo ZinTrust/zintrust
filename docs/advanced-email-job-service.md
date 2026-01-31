@@ -40,7 +40,7 @@ const jobIds = await AdvancedEmailJobService.sendBulk(
   'newsletter-april-2024' // optional batch ID
 );
 
-console.log(`Queued ${jobIds.length} emails`);
+Logger.info(`Queued ${jobIds.length} emails`);
 ```
 
 ## High Priority and Scheduled Emails
@@ -87,11 +87,11 @@ await AdvancedEmailJobService.sendWithMetadata(
 ```typescript
 // Process a single job
 const processed = await AdvancedEmailJobService.processOne();
-console.log(`Processed ${processed ? '1' : '0'} job`);
+Logger.info(`Processed ${processed ? '1' : '0'} job`);
 
 // Process all jobs in queue
 const processedCount = await AdvancedEmailJobService.processAll();
-console.log(`Processed ${processedCount} jobs`);
+Logger.info(`Processed ${processedCount} jobs`);
 
 // Start worker for continuous processing
 await AdvancedEmailJobService.start();
@@ -145,7 +145,7 @@ const jobIds = await AdvancedEmailJobService.sendBulk(
 );
 
 const endTime = Date.now();
-console.log(`Queued ${jobIds.length} emails in ${endTime - startTime}ms`);
+Logger.info(`Queued ${jobIds.length} emails in ${endTime - startTime}ms`);
 ```
 
 ## Error Handling
@@ -161,9 +161,9 @@ try {
     'test',
     {}
   );
-  console.log(`Email queued with job ID: ${jobId}`);
+  Logger.info(`Email queued with job ID: ${jobId}`);
 } catch (error) {
-  console.error('Failed to queue email:', error);
+  Logger.error('Failed to queue email:', error);
 }
 ```
 
@@ -174,7 +174,7 @@ The service includes test samples for documentation and testing:
 ```typescript
 import { testSamples } from '@app/Jobs/AdvancedEmailJobService';
 
-console.log(testSamples.advancedQueuePatternsHeadline);
-console.log(testSamples.uniqueIdExample);
-console.log(testSamples.bulkExample);
+Logger.info(testSamples.advancedQueuePatternsHeadline);
+Logger.info(testSamples.uniqueIdExample);
+Logger.info(testSamples.bulkExample);
 ```

@@ -175,16 +175,21 @@ describe('ConnectionManager coverage', () => {
   });
 
   it('creates connections for sqlite adapter', async () => {
+    const restore = await registerSqliteStub();
     const { ConnectionManager } = await import('@/orm/ConnectionManager');
 
-    const instance = ConnectionManager.getInstance({
-      adapter: 'sqlite',
-      database: ':memory:',
-      maxConnections: 2,
-    });
+    try {
+      const instance = ConnectionManager.getInstance({
+        adapter: 'sqlite',
+        database: ':memory:',
+        maxConnections: 2,
+      });
 
-    const conn = await instance.getConnection('sqlite');
-    expect(conn.getType()).toBe('sqlite');
+      const conn = await instance.getConnection('sqlite');
+      expect(conn.getType()).toBe('sqlite');
+    } finally {
+      restore();
+    }
   });
 
   it('rejects queued waiters when shutting down', async () => {
@@ -224,22 +229,27 @@ describe('ConnectionManager coverage', () => {
 
   it('cleans up idle connections on interval', async () => {
     vi.useFakeTimers();
+    const restore = await registerSqliteStub();
     const { ConnectionManager } = await import('@/orm/ConnectionManager');
 
-    const instance = ConnectionManager.getInstance({
-      adapter: 'sqlite',
-      database: ':memory:',
-      idleTimeout: 1,
-    });
+    try {
+      const instance = ConnectionManager.getInstance({
+        adapter: 'sqlite',
+        database: ':memory:',
+        idleTimeout: 1,
+      });
 
-    await instance.getConnection('idle');
-    await instance.releaseConnection('idle');
+      await instance.getConnection('idle');
+      await instance.releaseConnection('idle');
 
-    await vi.advanceTimersByTimeAsync(300000);
+      await vi.advanceTimersByTimeAsync(300000);
 
-    const stats = instance.getPoolStats();
-    expect(stats.total).toBe(0);
-    vi.useRealTimers();
+      const stats = instance.getPoolStats();
+      expect(stats.total).toBe(0);
+    } finally {
+      restore();
+      vi.useRealTimers();
+    }
   });
 
   it('uses Aurora Data API client module for execute and batch', async () => {

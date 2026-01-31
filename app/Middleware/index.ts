@@ -3,12 +3,12 @@
  * Common middleware patterns for ZinTrust
  */
 
-import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
-import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
-import { TokenRevocation } from '@security/TokenRevocation';
 import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import type { CsrfTokenManagerType, ICsrfTokenManager } from '@security/CsrfTokenManager';
+import type { IJwtManager, JwtAlgorithm, JwtManagerType } from '@security/JwtManager';
+import { TokenRevocation } from '@security/TokenRevocation';
 import { XssProtection } from '@security/XssProtection';
 import type { ISchema, SchemaType } from '@validation/Validator';
 import { Validator } from '@validation/Validator';
@@ -231,7 +231,7 @@ export const csrfMiddleware = (csrfManager: CsrfManagerInput) => {
       return;
     }
 
-    const isValid = resolveCsrfManager(csrfManager).validateToken(
+    const isValid = await resolveCsrfManager(csrfManager).validateToken(
       String(sessionId),
       String(csrfToken)
     );

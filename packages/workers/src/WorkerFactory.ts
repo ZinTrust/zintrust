@@ -1704,13 +1704,20 @@ export const WorkerFactory = Object.freeze({
   /**
    * Stop worker
    */
-  async stop(name: string, persistenceOverride?: WorkerPersistenceConfig): Promise<void> {
+  async stop(
+    name: string,
+    persistenceOverride?: WorkerPersistenceConfig,
+    options?: { skipPersistedUpdate?: boolean }
+  ): Promise<void> {
+    const skipPersistedUpdate = options?.skipPersistedUpdate === true;
     const instance = workers.get(name);
     const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
 
     if (!instance) {
-      await store.update(name, { status: 'stopped', updatedAt: new Date() });
-      Logger.info(`Worker marked stopped (not running): ${name}`);
+      if (!skipPersistedUpdate) {
+        await store.update(name, { status: 'stopped', updatedAt: new Date() });
+        Logger.info(`Worker marked stopped (not running): ${name}`);
+      }
       return;
     }
 
@@ -1749,14 +1756,16 @@ export const WorkerFactory = Object.freeze({
     // Stop health monitoring for this worker
     HealthMonitor.unregister(name);
 
-    try {
-      await store.update(name, {
-        status: WorkerCreationStatus.STOPPED,
-        updatedAt: new Date(),
-      });
-      Logger.info(`Worker "${name}" status updated to stopped`);
-    } catch (error) {
-      Logger.error(`Failed to update worker "${name}" status`, error as Error);
+    if (!skipPersistedUpdate) {
+      try {
+        await store.update(name, {
+          status: WorkerCreationStatus.STOPPED,
+          updatedAt: new Date(),
+        });
+        Logger.info(`Worker "${name}" status updated to stopped`);
+      } catch (error) {
+        Logger.error(`Failed to update worker "${name}" status`, error as Error);
+      }
     }
 
     await WorkerRegistry.stop(name);
@@ -2106,9 +2115,47 @@ export const WorkerFactory = Object.freeze({
   async shutdown(): Promise<void> {
     Logger.info('WorkerFactory shutting down...');
 
-    const workerNames = Array.from(workers.keys());
+    const workerEntries = Array.from(workers.entries());
+    const workerNames = workerEntries.map(([name]) => name);
 
-    await Promise.all(workerNames.map(async (name) => WorkerFactory.stop(name)));
+    // Bulk-update persisted statuses before stopping workers to avoid per-worker DB updates
+    // during shutdown (which can fail if DB connections are closing).
+    const storeGroups = new Map<WorkerStore, string[]>();
+
+    // Parallel get stores for all workers
+    const storePromises = workerEntries.map(async ([name, instance]) => {
+      const store = await getStoreForWorker(instance.config);
+      return { name, store };
+    });
+
+    const storeMappings = await Promise.all(storePromises);
+
+    for (const { name, store } of storeMappings) {
+      const existing = storeGroups.get(store);
+      if (existing) {
+        existing.push(name);
+      } else {
+        storeGroups.set(store, [name]);
+      }
+    }
+
+    // Parallel bulk updates for all store groups
+    const updatePromises = Array.from(storeGroups.entries()).map(async ([store, names]) => {
+      if (typeof store.updateMany === 'function') {
+        await store.updateMany(names, {
+          status: WorkerCreationStatus.STOPPED,
+          updatedAt: new Date(),
+        });
+      }
+    });
+
+    await Promise.all(updatePromises);
+
+    await Promise.all(
+      workerNames.map(async (name) =>
+        WorkerFactory.stop(name, undefined, { skipPersistedUpdate: true })
+      )
+    );
 
     // Shutdown all modules
     ResourceMonitor.stop();

@@ -36,7 +36,7 @@ describe('S3Driver', () => {
       'content'
     );
     expect(url).toContain('mybucket');
-    const fetchMock = vi.mocked(global.fetch as any);
+    const fetchMock = vi.mocked(globalThis.fetch as any);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const called = fetchMock.mock.calls[0];
     const hdrs = called[1].headers;

@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.39",
+  "version": "0.1.40",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -38,6 +38,7 @@
     "core:build:dist": "npm run clean && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs",
     "postbuild": "node scripts/toggle-dev-routes.mjs uncomment",
     "build:ci": "export CI=true && npm run clean && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
+    "build:dk": "export CI=true && npm run clean && npm run templates:check && npm run packages:build:all && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs",
     "prebuild:ci": "node scripts/toggle-dev-routes.mjs comment",
     "prepro:build": "node scripts/toggle-dev-routes.mjs comment",
     "pro:build": "npm run clean && npm test && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",

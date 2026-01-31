@@ -99,102 +99,138 @@ const registerCoreInstances = (params: {
   params.container.singleton('shutdownManager', params.shutdownManager);
 };
 
-const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void => {
-  // Register framework-level shutdown hooks for long-lived resources
-  // ConnectionManager may not be initialized; shutdownIfInitialized is safe
-  // Use dynamic import without top-level await to avoid transforming the module into an async module
-  import('@orm/ConnectionManager')
-    .then((mod: { ConnectionManager: { shutdownIfInitialized: () => Promise<void> } }) => {
-      shutdownManager.add(async () => mod.ConnectionManager.shutdownIfInitialized());
-    })
-    .catch(() => {
+/**
+ * Helper: Register ConnectionManager shutdown hook
+ */
+const registerConnectionManagerHook = (shutdownManager: IShutdownManager): void => {
+  shutdownManager.add(async () => {
+    try {
+      const mod = await import('@orm/ConnectionManager');
+      await mod.ConnectionManager.shutdownIfInitialized();
+    } catch {
       /* ignore import failures in restrictive runtimes */
-    });
+    }
+  });
+};
 
-  import('@orm/Database')
-    .then((mod: { resetDatabase: () => void }) => {
-      shutdownManager.add(() => mod.resetDatabase());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@cache/Cache')
-    .then((mod: { Cache: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.Cache.reset());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  // Flush file logging streams
-  import('@config/FileLogWriter')
-    .then((mod: { FileLogWriter: { flush: () => void } }) => {
-      shutdownManager.add(() => mod.FileLogWriter.flush());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@broadcast/BroadcastRegistry')
-    .then((mod: { BroadcastRegistry: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.BroadcastRegistry.reset());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@storage/StorageDiskRegistry')
-    .then((mod: { StorageDiskRegistry: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.StorageDiskRegistry.reset());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@notification/NotificationChannelRegistry')
-    .then((mod: { NotificationChannelRegistry: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.NotificationChannelRegistry.reset());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@mail/MailDriverRegistry')
-    .then((mod: { MailDriverRegistry: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.MailDriverRegistry.reset());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@tools/queue/Queue')
-    .then((mod: { Queue: { reset: () => void } }) => {
-      shutdownManager.add(() => mod.Queue.reset());
-    })
-    .catch(() => {
-      /* ignore import failures in restrictive runtimes */
-    });
-
-  import('@zintrust/workers')
-    .then(
-      (mod: {
+/**
+ * Helper: Register Worker management system shutdown hook
+ */
+const registerWorkerShutdownHook = async (shutdownManager: IShutdownManager): Promise<void> => {
+  // Ensure worker management system is asked to shutdown BEFORE databases are reset.
+  // This prevents workers from trying to access DB connections that have already
+  // been closed by subsequent shutdown hooks.
+  shutdownManager.add(async () => {
+    try {
+      const mod = (await import('@zintrust/workers')) as {
         WorkerShutdown: {
           shutdown: (opts: {
             signal?: string;
             timeout?: number;
             forceExit?: boolean;
           }) => Promise<void>;
+          isShuttingDown?: () => boolean;
+          getShutdownState?: () => { isShuttingDown?: boolean; completedAt?: Date | null };
         };
-      }) => {
-        shutdownManager.add(async () =>
-          mod.WorkerShutdown.shutdown({ signal: 'APP_SHUTDOWN', timeout: 5000, forceExit: false })
-        );
-      }
-    )
-    .catch(() => {
+      };
+
+      const isShuttingDown =
+        typeof mod.WorkerShutdown.isShuttingDown === 'function'
+          ? mod.WorkerShutdown.isShuttingDown()
+          : (mod.WorkerShutdown.getShutdownState?.().isShuttingDown ?? false);
+      const completedAt = mod.WorkerShutdown.getShutdownState?.().completedAt ?? null;
+
+      if (isShuttingDown || completedAt !== null) return;
+
+      await mod.WorkerShutdown.shutdown({
+        signal: 'APP_SHUTDOWN',
+        timeout: 5000,
+        forceExit: false,
+      });
+    } catch {
       /* ignore import failures in restrictive runtimes */
-    });
+    }
+  });
+  return Promise.resolve(); // NOSONAR
+};
+
+/**
+ * Helper: Register Database reset hook
+ */
+const registerDatabaseResetHook = (shutdownManager: IShutdownManager): void => {
+  shutdownManager.add(async () => {
+    try {
+      const mod = await import('@orm/Database');
+      mod.resetDatabase();
+    } catch {
+      /* ignore import failures in restrictive runtimes */
+    }
+  });
+};
+
+/**
+ * Helper: Register generic reset hook for modules with reset() method
+ */
+const registerResetHook = (
+  shutdownManager: IShutdownManager,
+  modulePath: string,
+  exportName: string
+): void => {
+  shutdownManager.add(async () => {
+    try {
+      const mod = (await import(modulePath)) as Record<string, { reset?: () => void }>;
+      const resetModule = mod[exportName];
+      if (resetModule?.reset) {
+        resetModule.reset();
+      }
+    } catch {
+      /* ignore import failures in restrictive runtimes */
+    }
+  });
+};
+
+/**
+ * Helper: Register FileLogWriter flush hook
+ */
+const registerFileLogFlushHook = (shutdownManager: IShutdownManager): void => {
+  shutdownManager.add(async () => {
+    try {
+      const mod = await import('@config/FileLogWriter');
+      mod.FileLogWriter.flush();
+    } catch {
+      /* ignore import failures in restrictive runtimes */
+    }
+  });
+};
+
+const registerFrameworkShutdownHooks = (shutdownManager: IShutdownManager): void => {
+  // Register framework-level shutdown hooks for long-lived resources
+  registerConnectionManagerHook(shutdownManager);
+
+  // Ensure worker management system is asked to shutdown BEFORE databases are reset
+  void registerWorkerShutdownHook(shutdownManager);
+
+  // Database and cache reset
+  registerDatabaseResetHook(shutdownManager);
+  registerResetHook(shutdownManager, '@cache/Cache', 'Cache');
+
+  // File logging
+  registerFileLogFlushHook(shutdownManager);
+
+  // Registry resets
+  registerResetHook(shutdownManager, '@broadcast/BroadcastRegistry', 'BroadcastRegistry');
+
+  registerResetHook(shutdownManager, '@storage/StorageDiskRegistry', 'StorageDiskRegistry');
+
+  registerResetHook(
+    shutdownManager,
+    '@notification/NotificationChannelRegistry',
+    'NotificationChannelRegistry'
+  );
+
+  registerResetHook(shutdownManager, '@mail/MailDriverRegistry', 'MailDriverRegistry');
+
+  registerResetHook(shutdownManager, '@tools/queue/Queue', 'Queue');
 };
 
 const tryImportRoutesFromAppBase = async (

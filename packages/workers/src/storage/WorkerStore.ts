@@ -31,6 +31,7 @@ export type WorkerStore = {
   get(name: string): Promise<WorkerRecord | null>;
   save(record: WorkerRecord): Promise<void>;
   update(name: string, patch: Partial<WorkerRecord>): Promise<void>;
+  updateMany?: (names: string[], patch: Partial<WorkerRecord>) => Promise<void>;
   remove(name: string): Promise<void>;
 };
 
@@ -132,6 +133,13 @@ export const InMemoryWorkerStore = Object.freeze({
         if (!current) return;
         store.set(name, mergeRecord(current, patch));
       },
+      async updateMany(names: string[], patch: Partial<WorkerRecord>): Promise<void> {
+        for (const name of names) {
+          const current = store.get(name);
+          if (!current) continue;
+          store.set(name, mergeRecord(current, patch));
+        }
+      },
       async remove(name: string): Promise<void> {
         store.delete(name);
       },
@@ -168,7 +176,7 @@ export const RedisWorkerStore = Object.freeze({
       },
       async list(options?: { offset?: number; limit?: number }): Promise<WorkerRecord[]> {
         const all = await client.hgetall(key);
-        let values = Object.values(all).map(deserialize);
+        let values = Object.values(all).map((element) => deserialize(element));
         values.sort((a, b) => a.name.localeCompare(b.name));
         if (options) {
           const start = options.offset || 0;
@@ -189,6 +197,19 @@ export const RedisWorkerStore = Object.freeze({
         if (!current) return;
         await client.hset(key, name, serialize(mergeRecord(current, patch)));
       },
+      async updateMany(names: string[], patch: Partial<WorkerRecord>): Promise<void> {
+        if (names.length === 0) return;
+        const entries = await client.hmget(key, ...names);
+        const updates: Array<string> = [];
+        entries.forEach((raw, index) => {
+          if (!raw) return;
+          const current = deserialize(raw);
+          const updated = mergeRecord(current, patch);
+          updates.push(names[index] as string, serialize(updated));
+        });
+        if (updates.length === 0) return;
+        await client.hset(key, ...updates);
+      },
       async remove(name: string): Promise<void> {
         await client.hdel(key, name);
       },
@@ -207,7 +228,7 @@ export const DbWorkerStore = Object.freeze({
         if (options?.limit) query.limit(options.limit);
         if (options?.offset) query.offset(options.offset);
         const rows = await query.get<Record<string, unknown>>();
-        return rows.map(deserializeDbWorker);
+        return rows.map((element) => deserializeDbWorker(element));
       },
       async get(name: string): Promise<WorkerRecord | null> {
         const row = await db.table(table).where('name', '=', name).first<Record<string, unknown>>();
@@ -231,6 +252,21 @@ export const DbWorkerStore = Object.freeze({
         if (!current) return;
         const updated = mergeRecord(current, patch);
         await db.table(table).where('name', '=', name).update(serializeDbWorker(updated));
+      },
+      async updateMany(names: string[], patch: Partial<WorkerRecord>): Promise<void> {
+        if (names.length === 0) return;
+        const update: Record<string, unknown> = {
+          updated_at: patch.updatedAt ?? now(),
+        };
+
+        if (patch.status !== undefined) update['status'] = patch.status;
+        if (patch.lastError !== undefined) update['last_error'] = patch.lastError ?? null;
+        if (patch.lastHealthCheck !== undefined)
+          update['last_health_check'] = patch.lastHealthCheck ?? null;
+        if (patch.connectionState !== undefined)
+          update['connection_state'] = patch.connectionState ?? null;
+
+        await db.table(table).whereIn('name', names).update(update);
       },
       async remove(name: string): Promise<void> {
         await db.table(table).where('name', '=', name).delete();

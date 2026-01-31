@@ -279,9 +279,9 @@ describe('StartCommand', () => {
     await expect(command.execute({})).rejects.toThrow(/process.exit/);
   });
 
-  it('should resolve mode from APP_MODE env', async () => {
+  it('should resolve mode from NODE_ENV env', async () => {
     const command = StartCommand.create();
-    process.env['APP_MODE'] = 'production';
+    process.env['NODE_ENV'] = 'production';
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       if (p.toString().endsWith('bootstrap.js')) return true;
       return false;

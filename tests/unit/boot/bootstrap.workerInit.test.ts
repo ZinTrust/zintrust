@@ -49,7 +49,6 @@ describe('bootstrap useWorkerStarter path', () => {
       appConfig: { detectRuntime: () => 'nodejs', port: 0, host: '127.0.0.1' },
     }));
 
-    // Mock node-singletons module createRequire to return a require that yields fake workers
     const fakeWorkers = {
       WorkerInit: {
         initialize: vi.fn().mockResolvedValue(undefined),
@@ -58,7 +57,7 @@ describe('bootstrap useWorkerStarter path', () => {
       WorkerShutdown: { shutdown: vi.fn().mockResolvedValue(undefined) },
     };
 
-    vi.doMock('@node-singletons/module', () => ({ createRequire: () => () => fakeWorkers }));
+    vi.doMock('@zintrust/workers', () => fakeWorkers);
 
     // Import bootstrap (it runs start on import)
     await import('@/boot/bootstrap');

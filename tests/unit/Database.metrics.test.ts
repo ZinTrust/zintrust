@@ -18,7 +18,7 @@ describe('Database metrics & tracing integration', () => {
     const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
 
     // Register a simple test adapter
-    DatabaseAdapterRegistry.register('d1', () => {
+    DatabaseAdapterRegistry.register('test', () => {
       return {
         connect: async () => {},
         disconnect: async () => {},

@@ -163,6 +163,9 @@ export const Env = Object.freeze({
   ENABLE_MICROSERVICES: getBool('ENABLE_MICROSERVICES', false),
   TOKEN_TTL: getInt('TOKEN_TTL', 3600000),
   TOKEN_LENGTH: getInt('TOKEN_LENGTH', 32),
+  CSRF_STORE: get('CSRF_STORE', ''),
+  CSRF_DRIVER: get('CSRF_DRIVER', ''),
+  CSRF_REDIS_DB: getInt('CSRF_REDIS_DB', 1),
 
   // Encryption interop
   ENCRYPTION_CIPHER: get('ENCRYPTION_CIPHER', ''),
@@ -218,7 +221,7 @@ export const Env = Object.freeze({
   // Template/Misc
   TEMPLATE_COPYRIGHT: get('TEMPLATE_COPYRIGHT', '© 2025 ZinTrust Framework. All rights reserved.'),
   SERVICE_NAME: get('SERVICE_NAME', ''),
-  APP_MODE: get('APP_MODE', ''),
+  APP_MODE: get('APP_MODE', get('NODE_ENV', 'development')),
   APP_PORT: getInt('APP_PORT', 3000),
   RUNTIME: get('RUNTIME', ''),
 
