@@ -47,6 +47,20 @@ export const middlewareConfig = Object.freeze(middlewareConfigObj);
 export default middlewareConfig;
 ```
 
+### CSRF Redis Store (new)
+
+- **What changed**: `CsrfTokenManager` now supports a Redis-backed store in addition to the in-memory Map. The implementation uses the project's `RedisKeys.getCsrfPrefix()` for key namespacing and stores token payloads with Redis TTLs so Redis expiry is relied upon for cleanup.
+- **How to enable**: Set `CSRF_STORE=redis` (or `CSRF_DRIVER=redis`) in your environment. Optionally set `CSRF_REDIS_DB` to choose a Redis DB index; otherwise the queue/cache Redis DB settings are used. The manager will create/connect to Redis using the existing `REDIS_*` env settings (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`).
+- **Key format**: Keys are created via `RedisKeys.createCsrfKey(sessionId)` (prefix from `RedisKeys.getCsrfPrefix()`), e.g. `{appPrefix}_csrf:{sessionId}`.
+- **Behavioral notes**:
+  - Tokens are stored as JSON blobs and saved with a TTL (PX) matching the configured token TTL (`TOKEN_TTL`).
+  - Cleanup operations are effectively no-ops for Redis (expiry handled by Redis). The `cleanup()` method returns 0 for Redis but the API remains compatible.
+  - Scanning/clear operations use `SCAN` with `MATCH {csrfPrefix}*` and `DEL` for explicit removal; avoid clearing large datasets in production without care.
+- **Security & performance**:
+  - Using Redis allows CSRF tokens to be shared across multiple app instances (horizontal scale) and avoids reliance on sticky sessions.
+  - Monitor Redis keyspace and avoid storing unnecessarily long TTLs; token TTL defaults are driven by `TOKEN_TTL`.
+- **Tests & templates**: Middleware and tests were updated to the async API (`generateToken`/`validateToken` now return Promises). Ensure any custom code calling the CSRF manager is updated to `await` the async calls.
+
 ## CSRF skip paths
 
 ZinTrust CSRF uses a Double Submit Cookie pattern (cookie + header). If your application is a pure API

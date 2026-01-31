@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * CSRF Token Manager
  * Generate, validate, and bind CSRF tokens to sessions
@@ -137,16 +138,11 @@ const createMemoryManager = (tokenLength: number, tokenTtl: number): ICsrfTokenM
   };
 };
 
-const createRedisManager = (
-  tokenLength: number,
-  tokenTtl: number,
-  options?: CsrfTokenManagerOptions
-): ICsrfTokenManager => {
-  const keyPrefix = options?.keyPrefix ?? RedisKeys.getCsrfPrefix();
-
+// Helper functions for Redis CSRF manager
+const createRedisClientFactory = (options?: CsrfTokenManagerOptions) => {
   let redisClient: Redis | null = options?.redis ?? null;
 
-  const getRedisClient = (): Redis => {
+  return (): Redis => {
     if (redisClient) return redisClient;
 
     const dbFromEnv = Env.CSRF_REDIS_DB;
@@ -162,14 +158,25 @@ const createRedisManager = (
 
     return redisClient;
   };
+};
 
+const createRedisTokenOperations = (
+  keyPrefix: string,
+  tokenTtl: number,
+  getRedisClient: () => Redis
+): {
+  fetchTokenData: (sessionId: string) => Promise<CsrfTokenData | null>;
+  saveTokenData: (data: CsrfTokenData) => Promise<void>;
+  deleteToken: (sessionId: string) => Promise<void>;
+  scanKeys: () => Promise<string[]>;
+} => {
   const buildKey = (sessionId: string): string => `${keyPrefix}${sessionId}`;
 
   const fetchTokenData = async (sessionId: string): Promise<CsrfTokenData | null> => {
     try {
       const client = getRedisClient();
       const payload = await client.get(buildKey(sessionId));
-      if (!payload) return null;
+      if (payload === null || payload === '') return null;
       const parsed = JSON.parse(payload) as StoredCsrfTokenData;
       return toTokenData(parsed);
     } catch (error) {
@@ -205,22 +212,39 @@ const createRedisManager = (
   const scanKeys = async (): Promise<string[]> => {
     const client = getRedisClient();
     const keys: string[] = [];
-    let cursor = '0';
+    const stream = client.scanStream({ match: `${keyPrefix}*`, count: 200 });
 
-    do {
-      const [nextCursor, batchKeys] = await client.scan(
-        cursor,
-        'MATCH',
-        `${keyPrefix}*`,
-        'COUNT',
-        200
-      );
-      keys.push(...batchKeys);
-      cursor = nextCursor;
-    } while (cursor !== '0');
-
-    return keys;
+    return new Promise<string[]>((resolve, reject) => {
+      stream.on('data', (resultKeys: string[]) => {
+        if (Array.isArray(resultKeys) && resultKeys.length) {
+          keys.push(...resultKeys);
+        }
+      });
+      stream.on('end', () => resolve(keys));
+      stream.on('error', (err) => reject(err));
+    });
   };
+
+  return {
+    fetchTokenData,
+    saveTokenData,
+    deleteToken,
+    scanKeys,
+  };
+};
+
+const createRedisManager = (
+  tokenLength: number,
+  tokenTtl: number,
+  options?: CsrfTokenManagerOptions
+): ICsrfTokenManager => {
+  const keyPrefix = options?.keyPrefix ?? RedisKeys.getCsrfPrefix();
+  const getRedisClient = createRedisClientFactory(options);
+  const { fetchTokenData, saveTokenData, deleteToken, scanKeys } = createRedisTokenOperations(
+    keyPrefix,
+    tokenTtl,
+    getRedisClient
+  );
 
   return {
     async generateToken(sessionId: string): Promise<string> {
@@ -262,7 +286,7 @@ const createRedisManager = (
     },
     async cleanup(): Promise<number> {
       // Redis handles expiry via TTL, so nothing to do here.
-      return 0;
+      return Promise.resolve(0); // NOSONAR
     },
     async clear(): Promise<void> {
       try {

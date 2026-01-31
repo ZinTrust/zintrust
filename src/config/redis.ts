@@ -2,8 +2,8 @@ import { Env } from '@config/env';
 import type { RedisBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
-import type { QueueMessage } from '@tools/queue/Queue';
-import { Queue } from '@tools/queue/Queue';
+import type { QueueMessage } from '@queue/Queue';
+import { Queue } from '@queue/Queue';
 
 export type QueueDriver = {
   enqueue<T = unknown>(queue: string, payload: T): Promise<string>;

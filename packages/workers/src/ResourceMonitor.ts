@@ -194,8 +194,15 @@ const THRESHOLDS = {
   costPerHour: { warning: 10, critical: 50 },
 };
 
+// Store previous CPU measurements for calculating real-time usage
+let previousCpuTimes: {
+  idle: number;
+  total: number;
+  timestamp: number;
+} | null = null;
+
 /**
- * Helper: Calculate CPU usage percentage
+ * Helper: Calculate CPU usage percentage (real-time)
  */
 const calculateCpuUsage = (): number => {
   const os = getOsModule();
@@ -213,10 +220,34 @@ const calculateCpuUsage = (): number => {
       totalIdle += cpu.times.idle;
     });
 
-    const totalUsed = totalTick - totalIdle;
-    const cpuPercentage = (totalUsed / totalTick) * 100;
+    const now = Date.now();
 
-    return Math.min(100, Math.max(0, cpuPercentage));
+    // If we have previous measurements, calculate real-time usage
+    if (previousCpuTimes) {
+      const timeDiff = now - previousCpuTimes.timestamp;
+
+      // Only calculate if enough time has passed (minimum 100ms)
+      if (timeDiff >= 100) {
+        const idleDiff = totalIdle - previousCpuTimes.idle;
+        const totalDiff = totalTick - previousCpuTimes.total;
+
+        // Calculate CPU usage percentage for this interval
+        const cpuPercentage = totalDiff > 0 ? ((totalDiff - idleDiff) / totalDiff) * 100 : 0;
+
+        // Update previous measurements
+        previousCpuTimes = { idle: totalIdle, total: totalTick, timestamp: now };
+
+        return Math.min(100, Math.max(0, cpuPercentage));
+      }
+    }
+
+    // First measurement or not enough time passed
+    previousCpuTimes = { idle: totalIdle, total: totalTick, timestamp: now };
+
+    // For first call, return a reasonable estimate or use load average
+    const loadAvg = safeLoadAverage();
+    const cpuCount = safeCpuCount();
+    return Math.min(100, Math.max(0, (loadAvg[0] / cpuCount) * 100));
   } catch (error) {
     Logger.error('Failed to calculate system CPU usage', error as Error);
     return 0;
@@ -494,7 +525,7 @@ const calculateTrend = (
 
   // Simple linear regression for trend
   const firstValue = values[0];
-  const lastValue = values.at(-1) ?? values[0];
+  const lastValue = values[values.length - 1] ?? values[0];
   const changePercentage = ((lastValue - firstValue) / firstValue) * 100;
 
   let trend: ResourceTrend['trend'];

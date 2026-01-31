@@ -8,6 +8,7 @@ import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
+import type { ICsrfTokenManager } from '@security/CsrfTokenManager';
 import { CsrfTokenManager } from '@security/CsrfTokenManager';
 import { SessionManager } from '@session/SessionManager';
 
@@ -38,7 +39,7 @@ const DEFAULT_OPTIONS: CsrfOptions = {
 // Global cleanup registry to avoid leaking intervals per middleware instance
 // We use WeakRef so the manager (and middleware) can be garbage collected
 // when no longer in use, even if this interval keeps running.
-const managerRegistry = new Set<WeakRef<ReturnType<(typeof CsrfTokenManager)['create']>>>();
+const managerRegistry = new Set<WeakRef<ICsrfTokenManager>>();
 
 // Single process-wide timer
 const globalCleanupTimer = setInterval(() => {

@@ -2121,8 +2121,16 @@ export const WorkerFactory = Object.freeze({
     // Bulk-update persisted statuses before stopping workers to avoid per-worker DB updates
     // during shutdown (which can fail if DB connections are closing).
     const storeGroups = new Map<WorkerStore, string[]>();
-    for (const [name, instance] of workerEntries) {
+
+    // Parallel get stores for all workers
+    const storePromises = workerEntries.map(async ([name, instance]) => {
       const store = await getStoreForWorker(instance.config);
+      return { name, store };
+    });
+
+    const storeMappings = await Promise.all(storePromises);
+
+    for (const { name, store } of storeMappings) {
       const existing = storeGroups.get(store);
       if (existing) {
         existing.push(name);
@@ -2131,14 +2139,17 @@ export const WorkerFactory = Object.freeze({
       }
     }
 
-    for (const [store, names] of storeGroups.entries()) {
+    // Parallel bulk updates for all store groups
+    const updatePromises = Array.from(storeGroups.entries()).map(async ([store, names]) => {
       if (typeof store.updateMany === 'function') {
         await store.updateMany(names, {
           status: WorkerCreationStatus.STOPPED,
           updatedAt: new Date(),
         });
       }
-    }
+    });
+
+    await Promise.all(updatePromises);
 
     await Promise.all(
       workerNames.map(async (name) =>

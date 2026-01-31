@@ -263,7 +263,7 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => String.
         const THEME_KEY = 'zintrust-queue-monitor-theme';
         const AUTO_REFRESH_KEY = 'zintrust-queue-monitor-auto-refresh';
         const QUEUE_KEY = 'zintrust-queue-monitor-selected-queue';
-        let currentQueue = localStorage.getItem(QUEUE_KEY) || 'default';
+        let currentQueue = localStorage.getItem(QUEUE_KEY) || 'all';
         let autoRefreshEnabled = AUTO_REFRESH;
         let refreshTimer = null;
         let eventSource = null;
@@ -418,6 +418,13 @@ const getUpdateQueueSelectFunction = (): string => `
 
             if (queues.length === 0) return;
 
+            // Add "All" option first
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Queues';
+            allOpt.selected = currentSelection === 'all';
+            select.appendChild(allOpt);
+
             queues.forEach(q => {
                 const opt = document.createElement('option');
                 opt.value = q.name;
@@ -467,7 +474,7 @@ const getRenderJobsFunction = (): string => `
                 const statusInfo = statusMap[status] || statusMap.completed;
 
                 const retryBtn = status === 'failed'
-                    ? '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ')" title="Retry this job">↻ Retry</button>'
+                    ? '<button class="retry-btn" onclick="retryJob(' + "'" + job.id + "'" + ', ' + "'" + (job.queue || currentQueue) + "'" + ')" title="Retry this job">↻ Retry</button>'
                     : '<span style="color: var(--muted); font-size: 11px;">—</span>';
 
                 // Check if this job was previously expanded
@@ -476,7 +483,7 @@ const getRenderJobsFunction = (): string => `
                 tr.innerHTML =
                     '<td><span class="expand-icon' + (isExpanded ? ' expanded' : '') + '">▶</span><code>' + job.id + '</code></td>' +
                     '<td>' + job.name + '</td>' +
-                    '<td>' + currentQueue + '</td>' +
+                    '<td>' + (job.queue || currentQueue) + '</td>' +
                     '<td><span class="status-badge ' +
                     statusInfo.cls +
                     '">' +
@@ -686,13 +693,13 @@ const getToggleDetailsFunctions = (): string => `
         }`;
 
 const getRetryJobFunction = (): string => `
-        async function retryJob(jobId) {
+        async function retryJob(jobId, queueName) {
             try {
                 const btn = event.target;
                 btn.disabled = true;
                 btn.textContent = '⏳ Retrying...';
 
-                const res = await fetch(API_BASE + '/api/retry/' + currentQueue + '/' + jobId, {
+                const res = await fetch(API_BASE + '/api/retry/' + queueName + '/' + jobId, {
                     method: 'POST'
                 });
 
@@ -707,9 +714,10 @@ const getRetryJobFunction = (): string => `
                     btn.disabled = false;
                 }
             } catch (e) {
-                console.error('Retry failed', e);
-                event.target.textContent = '↻ Retry';
-                event.target.disabled = false;
+                console.error('Failed to retry job', e);
+                const btn = event.target;
+                btn.textContent = '✗ Failed';
+                btn.disabled = false;
             }
         }`;
 
@@ -788,7 +796,7 @@ const getDashboardScriptEventStream = (): string => `
         }
 `;
 
-const getDashboardScriptFetch = (): string => `
+const getFetchDataFunction = (): string => `
         // HTTP polling disabled - 100% SSE reliance
         async function fetchData() {
             console.log('HTTP polling disabled - using SSE only');
@@ -802,19 +810,7 @@ const getDashboardScriptFetch = (): string => `
 
                 renderStats(data);
                 updateQueueSelect(data.queues);
-
-                if (data.queues.length > 0) {
-                     if (!data.queues.find(q => q.name === currentQueue)) {
-                         currentQueue = data.queues[0].name;
-                         localStorage.setItem(QUEUE_KEY, currentQueue);
-                     }
-                     document.getElementById('queue-select').value = currentQueue;
-                     await fetchJobs(currentQueue);
-                } else {
-                     document.getElementById('queue-select').innerHTML = '<option>No Queues</option>';
-                     renderJobs([]);
-                }
-
+                handleQueueSelection(data);
                 await fetchLocks();
                 document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
             } catch (e) {
@@ -823,6 +819,75 @@ const getDashboardScriptFetch = (): string => `
             */
         }
 
+        function handleQueueSelection(data) {
+            if (data.queues.length > 0) {
+                // Handle "All" selection or default to first queue
+                if (currentQueue === 'all' || !data.queues.find(q => q.name === currentQueue)) {
+                    if (currentQueue !== 'all') {
+                        currentQueue = 'all';
+                        localStorage.setItem(QUEUE_KEY, currentQueue);
+                    }
+                }
+                document.getElementById('queue-select').value = currentQueue;
+
+                // Fetch all jobs if "All" is selected, otherwise fetch single queue
+                if (currentQueue === 'all') {
+                    fetchAllJobs();
+                } else {
+                    fetchJobs(currentQueue);
+                }
+            } else {
+                document.getElementById('queue-select').innerHTML = '<option>No Queues</option>';
+                renderJobs([]);
+            }
+        }
+    `;
+
+const getFetchAllJobsFunction = (): string => `
+        // Fetch jobs from all queues when "All" is selected
+        async function fetchAllJobs() {
+            console.log('Fetching jobs from all queues...');
+            try {
+                const allJobs = [];
+
+                // Get all available queues from the current snapshot
+                const snapshotResponse = await fetch(API_BASE + '/api/snapshot');
+                const snapshot = await snapshotResponse.json();
+
+                if (snapshot.queues && snapshot.queues.length > 0) {
+                    // Fetch jobs from each queue
+                    for (const queue of snapshot.queues) {
+                        try {
+                            const response = await fetch(API_BASE + '/api/jobs/' + queue.name);
+                            const jobs = await response.json();
+
+                            // Add queue name to each job
+                            const jobsWithQueue = jobs.map(job => ({
+                                ...job,
+                                queue: queue.name
+                            }));
+                            allJobs.push(...jobsWithQueue);
+                        } catch (e) {
+                            console.error('Failed to fetch jobs for queue:', queue.name, e);
+                        }
+                    }
+
+                    // Sort by timestamp (most recent first)
+                    allJobs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                    renderJobs(allJobs);
+                    console.log('Fetched', allJobs.length, 'jobs from all queues');
+                } else {
+                    renderJobs([]);
+                }
+            } catch (e) {
+                console.error('Failed to fetch all jobs:', e);
+                renderJobs([]);
+            }
+        }
+    `;
+
+const getDashboardScriptFetch = (): string => `
         // HTTP polling disabled - 100% SSE reliance
         async function fetchJobs(queue) {
             console.log('HTTP jobs polling disabled - using SSE only');
@@ -883,7 +948,12 @@ const getDashboardScriptBootstrap = (): string => `
                 currentQueue = e.target.value;
                 localStorage.setItem(QUEUE_KEY, currentQueue);
                 console.log('Queue changed - SSE will update automatically');
-                // fetchJobs(currentQueue); // Disabled - SSE handles updates
+
+                // Fetch all jobs if "All" is selected
+                if (currentQueue === 'all') {
+                    fetchAllJobs();
+                }
+
                 setupEventStream(currentQueue);
             });
         }
@@ -923,6 +993,8 @@ const getDashboardScript = (options: DashboardUiOptions): string =>
     getDashboardScriptAutoRefresh(),
     getDashboardScriptHelpers(),
     getDashboardScriptEventStream(),
+    getFetchDataFunction(),
+    getFetchAllJobsFunction(),
     getDashboardScriptFetch(),
     getDashboardScriptRender(),
     getDashboardScriptBootstrap(),

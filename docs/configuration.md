@@ -242,6 +242,9 @@ CSRF:
 - `CSRF_COOKIE_HTTP_ONLY` (default `true`)
 - `CSRF_COOKIE_SECURE` (default `true`)
 - `CSRF_COOKIE_SAME_SITE` (default `strict`; `strict`, `lax`, `none`)
+- `CSRF_STORE` (default ``)
+- `CSRF_DRIVER` (default ``)
+- `CSRF_REDIS_DB` (default ``)
 
 API key:
 

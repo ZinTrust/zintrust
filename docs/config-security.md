@@ -157,6 +157,9 @@ const securityConfigObj = {
     tokenName: Env.get('CSRF_TOKEN_NAME', '_csrf'),
     cookieName: Env.get('CSRF_COOKIE_NAME', 'XSRF-TOKEN'),
     cookieHttpOnly: Env.getBool('CSRF_COOKIE_HTTP_ONLY', true),
+    CSRF_STORE: get('CSRF_STORE', ''),
+    CSRF_DRIVER: get('CSRF_DRIVER', ''),
+    CSRF_REDIS_DB: getInt('CSRF_REDIS_DB', 1),
 ```
 
 ## Snapshot (bottom)
