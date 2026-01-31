@@ -62,6 +62,8 @@ describe('RedisKeyManager (coverage)', () => {
     expect(RedisKeys.queueLockPrefix).toBe('zintrust_zintrust_test_lock:');
     expect(RedisKeys.cachePrefix).toBe('zintrust_zintrust_test_cache:');
     expect(RedisKeys.sessionPrefix).toBe('zintrust_zintrust_test_session:');
+    expect(RedisKeys.csrfPrefix).toBe('zintrust_zintrust_test_csrf:');
+    expect(RedisKeys.getCsrfPrefix()).toBe('zintrust_zintrust_test_csrf:');
   });
 
   it('sanitizes colon-wrapped keys and warns on empty key', async () => {
@@ -85,6 +87,9 @@ describe('RedisKeyManager (coverage)', () => {
 
     // Test createQueueLockKey
     expect(RedisKeys.createQueueLockKey('job123')).toBe('zintrust_zintrust_test_lock:job123');
+
+    // Test createCsrfKey
+    expect(RedisKeys.createCsrfKey('session-123')).toBe('zintrust_zintrust_test_csrf:session-123');
   });
 
   it('covers RedisKeys reset functionality', async () => {

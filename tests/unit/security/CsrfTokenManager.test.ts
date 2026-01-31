@@ -1,5 +1,6 @@
 import type { ICsrfTokenManager } from '@/security/CsrfTokenManager';
 import { CsrfTokenManager } from '@/security/CsrfTokenManager';
+import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('CsrfTokenManager', () => {
@@ -133,5 +134,69 @@ describe('CsrfTokenManager', () => {
 
     await csrfManager.clear();
     expect(await csrfManager.getTokenCount()).toBe(0);
+  });
+});
+
+describe('CsrfTokenManager with Redis', () => {
+  let csrfManager: ICsrfTokenManager;
+  let mockRedis: any;
+
+  beforeEach(() => {
+    mockRedis = {
+      get: vi.fn(),
+      set: vi.fn(),
+      del: vi.fn(),
+      scanStream: vi.fn(),
+    };
+
+    csrfManager = CsrfTokenManager.create({
+      store: 'redis',
+      redis: mockRedis,
+    });
+  });
+
+  it('should handle Redis fetch errors gracefully', async () => {
+    mockRedis.get.mockRejectedValue(new Error('Redis connection failed'));
+
+    const result = await csrfManager.getTokenData('session-123');
+    expect(result).toBeNull();
+  });
+
+  it('should handle Redis save errors gracefully', async () => {
+    mockRedis.set.mockRejectedValue(new Error('Redis write failed'));
+
+    const token = await csrfManager.generateToken('session-123');
+    expect(token).toBeDefined();
+    expect(token.length).toBeGreaterThan(0);
+  });
+
+  it('should handle Redis delete errors gracefully', async () => {
+    mockRedis.del.mockRejectedValue(new Error('Redis delete failed'));
+
+    await csrfManager.invalidateToken('session-123');
+    // Should not throw
+  });
+
+  it('should handle Redis clear errors gracefully', async () => {
+    const stream = new EventEmitter(); // Use imported EventEmitter
+    mockRedis.scanStream.mockReturnValue(stream);
+
+    // Simulate stream events
+    setTimeout(() => {
+      stream.emit('data', ['csrf:test1', 'csrf:test2']);
+      stream.emit('end');
+    }, 0);
+
+    mockRedis.del.mockRejectedValue(new Error('Redis clear failed'));
+
+    await csrfManager.clear();
+    // Should not throw
+  });
+
+  it('should handle Redis count errors gracefully', async () => {
+    mockRedis.scanStream.mockRejectedValue(new Error('Redis scan failed'));
+
+    const count = await csrfManager.getTokenCount();
+    expect(count).toBe(0);
   });
 });
