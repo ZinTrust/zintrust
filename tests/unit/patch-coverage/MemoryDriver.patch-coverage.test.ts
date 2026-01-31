@@ -10,7 +10,7 @@ describe('MemoryDriver', () => {
       return id as unknown as number;
     });
 
-    const clearSpy = vi.spyOn(global as any, 'clearInterval');
+    const clearSpy = vi.spyOn(globalThis as any, 'clearInterval');
 
     const mod = await import('@cache/drivers/MemoryDriver');
     const driver = mod.MemoryDriver.create();

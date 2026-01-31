@@ -27,7 +27,7 @@ describe('Logger', () => {
 
     const { Logger } = await import('@config/logger');
 
-    Logger.info('test', { password: 'secret', other: 'ok' });
+    Logger.info('test', { password: 'secret', other: 'ok' }); //NOSONAR
 
     // allow async file writer promise chain to resolve
     await new Promise((r) => setTimeout(r, 50));

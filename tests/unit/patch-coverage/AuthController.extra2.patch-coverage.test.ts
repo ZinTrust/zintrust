@@ -35,11 +35,11 @@ describe('AuthController (branches)', () => {
     } as any;
 
     // login with no validated body -> 500
-    const loginResult = await ctl.login({ ...badReq, validated: undefined } as any, res);
+    const loginResult = await ctl.login({ ...badReq, validated: undefined }, res);
     expect(loginResult).toBeDefined();
 
     // register with no validated body -> 500 (register returns nothing)
-    const registerResult = await ctl.register({ ...badReq, validated: undefined } as any, res);
+    const registerResult = await ctl.register({ ...badReq, validated: undefined }, res);
     expect(registerResult).toBeUndefined();
   });
 

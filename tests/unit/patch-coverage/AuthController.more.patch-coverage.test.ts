@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const passD = 'b';
+
 const makeReqRes = (overrides: any = {}) => {
   const calls: any = {};
   const res: any = {
@@ -12,7 +14,7 @@ const makeReqRes = (overrides: any = {}) => {
   const req: any = {
     body: overrides.body,
     getRaw: () => ({ socket: { remoteAddress: '1.2.3.4' } }),
-    getHeader: (k: string) => (overrides.headers || {})[k],
+    getHeader: (k: string) => overrides.headers?.[k],
     user: overrides.user,
   };
   return { req, res, calls };
@@ -37,7 +39,7 @@ describe('AuthController extra branches', () => {
   it('login: returns 401 when user not found', async () => {
     vi.resetModules();
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ email: 'a', password: 'b' }),
+      getValidatedBody: () => ({ email: 'a', password: passD }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: { where: () => ({ limit: () => ({ first: async () => null }) }) },
@@ -48,7 +50,7 @@ describe('AuthController extra branches', () => {
     }));
 
     const { AuthController } = await import('@app/Controllers/AuthController');
-    const { req, res, calls } = makeReqRes({ body: { email: 'a', password: 'b' } });
+    const { req, res, calls } = makeReqRes({ body: { email: 'a', password: passD } });
 
     await AuthController.create().login(req, res);
     expect(calls.status).toBe(401);
@@ -58,12 +60,14 @@ describe('AuthController extra branches', () => {
   it('login: returns 401 when password invalid', async () => {
     vi.resetModules();
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ email: 'a', password: 'b' }),
+      getValidatedBody: () => ({ email: 'a', password: passD }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: {
         where: () => ({
-          limit: () => ({ first: async () => ({ id: '1', name: 'A', email: 'e', password: 'h' }) }),
+          limit: () => ({
+            first: async () => ({ id: '1', name: 'A', email: 'e', password: passD }),
+          }),
         }),
       },
     }));
@@ -73,7 +77,7 @@ describe('AuthController extra branches', () => {
     }));
 
     const { AuthController } = await import('@app/Controllers/AuthController');
-    const { req, res, calls } = makeReqRes({ body: { email: 'a', password: 'b' } });
+    const { req, res, calls } = makeReqRes({ body: { email: 'a', password: passD } });
 
     await AuthController.create().login(req, res);
     expect(calls.status).toBe(401);
@@ -83,12 +87,14 @@ describe('AuthController extra branches', () => {
   it('login: success with numeric id produces token and user', async () => {
     vi.resetModules();
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ email: 'a', password: 'b' }),
+      getValidatedBody: () => ({ email: 'a', password: passD }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: {
         where: () => ({
-          limit: () => ({ first: async () => ({ id: 123, name: 'A', email: 'e', password: 'h' }) }),
+          limit: () => ({
+            first: async () => ({ id: 123, name: 'A', email: 'e', password: passD }),
+          }),
         }),
       },
     }));
@@ -99,7 +105,7 @@ describe('AuthController extra branches', () => {
     }));
 
     const { AuthController } = await import('@app/Controllers/AuthController');
-    const { req, res, calls } = makeReqRes({ body: { email: 'a', password: 'b' } });
+    const { req, res, calls } = makeReqRes({ body: { email: 'a', password: passD } });
 
     await AuthController.create().login(req, res);
     if (calls.status === undefined) {
@@ -142,7 +148,7 @@ describe('AuthController extra branches', () => {
         query: () => ({ insert: async () => ({ id: '10' }) }),
       },
     }));
-    vi.doMock('@security/Auth', () => ({ Auth: { hash: async () => 'h' } }));
+    vi.doMock('@security/Auth', () => ({ Auth: { hash: async () => passD } }));
     vi.doMock('@config/logger', () => ({
       Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     }));

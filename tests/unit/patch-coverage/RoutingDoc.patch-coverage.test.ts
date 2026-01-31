@@ -85,7 +85,9 @@ describe('patch coverage: routing/doc', () => {
     expect(await serveDocumentationFileAsync('/doc/assets%2Fapp.js', res1 as any)).toBe(true);
 
     const res2 = createRes();
-    expect(await serveDocumentationFileAsync('/doc/assets\\app.js', res2 as any)).toBe(true);
+    expect(await serveDocumentationFileAsync(String.raw`/doc/assets\app.js`, res2 as any)).toBe(
+      true
+    );
   });
 
   it('returns false when path traversal escapes public root', async () => {

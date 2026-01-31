@@ -21,9 +21,11 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "dependencies": {},
-  "devDependencies": {
-    "@aws-sdk/client-sqs": "^3.500.0"
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.893.0"
+  },
+  "overrides": {
+    "fast-xml-parser": "5.3.4"
   },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"

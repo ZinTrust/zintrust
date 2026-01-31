@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const passD = 'p';
+
 vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock('@http/ValidationHelper', () => ({ getValidatedBody: vi.fn() }));
 vi.mock('@auth/Auth', () => ({ Auth: { hash: vi.fn(), compare: vi.fn() } }));
@@ -42,7 +44,7 @@ describe('patch coverage: AuthController (new file)', () => {
     const { getValidatedBody } = await import('@http/ValidationHelper');
     const { User } = await import('@app/Models/User');
 
-    vi.mocked(getValidatedBody as any).mockReturnValue({ name: 'n', email: 'e', password: 'p' });
+    vi.mocked(getValidatedBody as any).mockReturnValue({ name: 'n', email: 'e', password: passD });
     vi.mocked(User.where as any).mockImplementation(() => ({
       limit: () => ({ first: async () => ({ id: 1 }) }),
     }));
@@ -60,7 +62,7 @@ describe('patch coverage: AuthController (new file)', () => {
     const { User } = await import('@app/Models/User');
     const { Auth } = await import('@auth/Auth');
 
-    vi.mocked(getValidatedBody as any).mockReturnValue({ name: 'n', email: 'e', password: 'p' });
+    vi.mocked(getValidatedBody as any).mockReturnValue({ name: 'n', email: 'e', password: passD });
     vi.mocked(User.where as any).mockImplementation(() => ({
       limit: () => ({ first: async () => null }),
     }));

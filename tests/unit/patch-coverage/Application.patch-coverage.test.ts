@@ -78,4 +78,15 @@ describe('patch coverage: Application lifecycle', () => {
     expect(app.isTesting()).toBe(true);
     expect(app.isDevelopment()).toBe(false);
   });
+
+  it('covers getBasePath functionality', () => {
+    const app = Application.create('/test/path');
+    expect(app.getBasePath()).toBe('/test/path');
+  });
+
+  it('covers getContainer functionality', () => {
+    const app = Application.create('');
+    const container = app.getContainer();
+    expect(container).toBeDefined();
+  });
 });

@@ -88,7 +88,7 @@ describe('SesDriver', () => {
     expect(result.provider).toBe('ses');
     expect(result.messageId).toBe('abc-123');
 
-    const fetchMock = vi.mocked(global.fetch as any);
+    const fetchMock = vi.mocked(globalThis.fetch as any);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const called = fetchMock.mock.calls[0];
     expect(called[0]).toContain('email.us-east-1.amazonaws.com');

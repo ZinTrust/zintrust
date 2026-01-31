@@ -353,4 +353,103 @@ describe('VersionChecker', () => {
       await expect(VersionChecker.runVersionCheck()).resolves.toBeUndefined();
     });
   });
+
+  describe('getCachedVersion', () => {
+    // Helper function to create mock getItem implementation
+    const createMockGetItem = (cachedVersion: string, lastCheck: number) =>
+      vi.fn((key: string) => {
+        if (key === 'zintrust_cached_latest_version') return cachedVersion;
+        if (key === 'zintrust_last_version_check') return lastCheck.toString();
+        return null;
+      });
+
+    it('should return cached version when within check interval', () => {
+      const mockGetItem = createMockGetItem('1.2.4', Date.now() - 1000 * 60 * 60); // 1 hour ago
+      mockLocalStorage.getItem = mockGetItem;
+
+      const result = VersionChecker.getCachedVersion(24); // 24 hour check interval
+      expect(result).toBe('1.2.4');
+    });
+
+    it('should return null when check interval has passed', () => {
+      const mockGetItem = createMockGetItem('1.2.4', Date.now() - 1000 * 60 * 60 * 25); // 25 hours ago
+      mockLocalStorage.getItem = mockGetItem;
+
+      const result = VersionChecker.getCachedVersion(24); // 24 hour check interval
+      expect(result).toBeNull();
+    });
+
+    it('should return null when cached version is null', () => {
+      const mockGetItem = vi.fn();
+      mockGetItem.mockImplementation((key) => {
+        if (key === 'zintrust_cached_latest_version') return null;
+        if (key === 'zintrust_last_version_check') return (Date.now() - 1000 * 60 * 60).toString();
+        return null;
+      });
+      mockLocalStorage.getItem = mockGetItem;
+
+      const result = VersionChecker.getCachedVersion(24);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when last check timestamp is invalid', () => {
+      const mockGetItem = vi.fn();
+      mockGetItem.mockImplementation((key) => {
+        if (key === 'zintrust_cached_latest_version') return '1.2.4';
+        if (key === 'zintrust_last_version_check') return 'invalid-timestamp';
+        return null;
+      });
+      mockLocalStorage.getItem = mockGetItem;
+
+      const result = VersionChecker.getCachedVersion(24);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when localStorage fails', () => {
+      const mockGetItem = vi.fn();
+      mockGetItem.mockImplementation(() => {
+        throw new Error('localStorage error');
+      });
+      mockLocalStorage.getItem = mockGetItem;
+
+      const result = VersionChecker.getCachedVersion(24);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('cacheLatestVersion', () => {
+    it('should cache version and timestamp in localStorage', () => {
+      VersionChecker.cacheLatestVersion('1.2.4');
+
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'zintrust_cached_latest_version',
+        '1.2.4'
+      );
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        'zintrust_last_version_check',
+        expect.any(String)
+      );
+    });
+
+    it('should handle localStorage errors gracefully', () => {
+      const mockSetItem = vi.fn();
+      mockSetItem.mockImplementation(() => {
+        throw new Error('localStorage error');
+      });
+      mockLocalStorage.setItem = mockSetItem;
+
+      // Should not throw
+      expect(() => VersionChecker.cacheLatestVersion('1.2.4')).not.toThrow();
+    });
+
+    it('should handle missing localStorage gracefully', () => {
+      Object.defineProperty(globalThis, 'localStorage', {
+        value: undefined,
+        writable: true,
+      });
+
+      // Should not throw
+      expect(() => VersionChecker.cacheLatestVersion('1.2.4')).not.toThrow();
+    });
+  });
 });

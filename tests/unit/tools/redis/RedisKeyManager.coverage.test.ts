@@ -71,4 +71,57 @@ describe('RedisKeyManager (coverage)', () => {
     expect(createRedisKey('')).toBe('zintrust_zintrust_test');
     // Warning is logged but not tested here to avoid mock complexity
   });
+
+  it('covers RedisKeys create methods', async () => {
+    const { RedisKeys } = await import('@tools/redis/RedisKeyManager');
+
+    // Test createMetricsKey
+    expect(RedisKeys.createMetricsKey('worker1', 'cpu', '1m')).toBe(
+      'zintrust_zintrust_test_metrics:worker1:cpu:1m'
+    );
+
+    // Test createHealthKey
+    expect(RedisKeys.createHealthKey('worker1')).toBe('zintrust_zintrust_test_health:worker1');
+
+    // Test createQueueLockKey
+    expect(RedisKeys.createQueueLockKey('job123')).toBe('zintrust_zintrust_test_lock:job123');
+  });
+
+  it('covers RedisKeys reset functionality', async () => {
+    const { RedisKeys } = await import('@tools/redis/RedisKeyManager');
+
+    // First access to initialize prefixes
+    expect(RedisKeys.metricsPrefix).toBe('zintrust_zintrust_test_metrics:');
+    expect(RedisKeys.healthPrefix).toBe('zintrust_zintrust_test_health:');
+
+    // Reset all prefixes
+    RedisKeys.reset();
+
+    // After reset, accessing should reinitialize
+    expect(RedisKeys.metricsPrefix).toBe('zintrust_zintrust_test_metrics:');
+    expect(RedisKeys.healthPrefix).toBe('zintrust_zintrust_test_health:');
+    expect(RedisKeys.workerPrefix).toBe('zintrust_zintrust_test_worker:');
+    expect(RedisKeys.queuePrefix).toBe('zintrust_zintrust_test_queue:');
+    expect(RedisKeys.bullmqPrefix).toBe('zintrust_zintrust_test_bull:');
+    expect(RedisKeys.queueLockPrefix).toBe('zintrust_zintrust_test_lock:');
+    expect(RedisKeys.cachePrefix).toBe('zintrust_zintrust_test_cache:');
+    expect(RedisKeys.sessionPrefix).toBe('zintrust_zintrust_test_session:');
+  });
+
+  it('covers createKeyByType legacy function', async () => {
+    const { createKeyByType } = await import('@tools/redis/RedisKeyManager');
+
+    // Note: createKeyByType is deprecated but we test it for backward compatibility
+    expect(createKeyByType('queue', 'jobs')).toBe('zintrust_zintrust_test_queue:jobs');
+    expect(createKeyByType('bullmq', 'emails')).toBe('zintrust_zintrust_test_bull:emails');
+    expect(createKeyByType('worker', 'email-worker')).toBe(
+      'zintrust_zintrust_test_worker:email-worker'
+    );
+    expect(createKeyByType('session', 'session-1')).toBe(
+      'zintrust_zintrust_test_session:session-1'
+    );
+    expect(createKeyByType('cache', 'hot')).toBe('zintrust_zintrust_test_cache:hot');
+    expect(createKeyByType('custom', 'misc')).toBe('zintrust_zintrust_test:misc');
+    expect(createKeyByType('unknown' as any, 'fallback')).toBe('zintrust_zintrust_test:fallback');
+  });
 });

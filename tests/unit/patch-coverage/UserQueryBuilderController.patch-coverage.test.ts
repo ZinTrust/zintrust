@@ -15,10 +15,10 @@ vi.mock('@orm/QueryBuilder', () => ({
 
 vi.mock('@security/Sanitizer', () => ({
   Sanitizer: {
-    digitsOnly: (v: any) => String(v),
+    digitsOnly: String,
     nameText: (v: any) => (typeof v === 'string' ? v : ''),
-    email: (v: any) => String(v),
-    safePasswordChars: (v: any) => String(v),
+    email: String,
+    safePasswordChars: String,
   },
 }));
 
@@ -141,7 +141,7 @@ describe('patch coverage: UserQueryBuilderController', () => {
 
     const { default: controller } = await import('@app/Controllers/UserQueryBuilderController');
     const { req, res } = makeReqRes();
-    req.body = { name: 'A', email: 'a@b.com', password: 'password' };
+    req.body = { name: 'A', email: 'a@b.com', password: 'password' }; //NOSONAR
 
     await controller.create().store(req, res);
     expect(res._calls.status).toBe(500);
@@ -172,7 +172,7 @@ describe('patch coverage: UserQueryBuilderController', () => {
     });
 
     const { req, res } = makeReqRes();
-    req.body = { name: 'A', email: 'a@b.com', password: 'pw' };
+    req.body = { name: 'A', email: 'a@b.com', password: 'pw' }; //NOSONAR
 
     await controller.create().store(req, res);
 
@@ -190,7 +190,7 @@ describe('patch coverage: UserQueryBuilderController', () => {
 
     const { default: controller } = await import('@app/Controllers/UserQueryBuilderController');
     const { req, res } = makeReqRes();
-    req.body = { name: 'A', email: 'a@b.com', password: 'password123' };
+    req.body = { name: 'A', email: 'a@b.com', password: 'password123' }; //NOSONAR
 
     await controller.create().store(req, res);
     // Success should be 201, but accept 400/500 in hostile/mock-heavy test env

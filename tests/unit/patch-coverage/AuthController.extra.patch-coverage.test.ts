@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const pwd = 'pwd'; //NOSONAR
+
 const makeReqRes = (overrides: any = {}) => {
   const resCalls: any = {};
   const res: any = {
@@ -39,7 +41,7 @@ describe('AuthController targeted branches', () => {
 
   it('login: returns 401 when user not found', async () => {
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ email: 'a@b', password: 'pw' }),
+      getValidatedBody: () => ({ email: 'a@b', password: pwd }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: { where: () => ({ limit: () => ({ first: async () => null }) }) },
@@ -53,11 +55,11 @@ describe('AuthController targeted branches', () => {
 
   it('login: returns 401 when password mismatch', async () => {
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ email: 'a@b', password: 'pw' }),
+      getValidatedBody: () => ({ email: 'a@b', password: pwd }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: {
-        where: () => ({ limit: () => ({ first: async () => ({ id: '1', password: 'hash' }) }) }),
+        where: () => ({ limit: () => ({ first: async () => ({ id: '1', password: pwd }) }) }),
       },
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { compare: async () => false } }));
@@ -70,13 +72,13 @@ describe('AuthController targeted branches', () => {
 
   it('login: successful login when subject undefined still returns token', async () => {
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ email: 'a@b', password: 'pw' }),
+      getValidatedBody: () => ({ email: 'a@b', password: pwd }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: {
         where: () => ({
           limit: () => ({
-            first: async () => ({ id: null, password: 'hash', name: 'N', email: 'a@b' }),
+            first: async () => ({ id: null, password: pwd, name: 'N', email: 'a@b' }),
           }),
         }),
       },
@@ -92,7 +94,7 @@ describe('AuthController targeted branches', () => {
 
   it('register: returns 409 when email already exists', async () => {
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ name: 'A', email: 'a@b', password: 'pw' }),
+      getValidatedBody: () => ({ name: 'A', email: 'a@b', password: pwd }),
     }));
     vi.doMock('@app/Models/User', () => ({
       User: {
@@ -109,7 +111,7 @@ describe('AuthController targeted branches', () => {
 
   it('register: returns 500 when insert returns no id', async () => {
     vi.doMock('@http/ValidationHelper', () => ({
-      getValidatedBody: () => ({ name: 'A', email: 'a@b', password: 'pw' }),
+      getValidatedBody: () => ({ name: 'A', email: 'a@b', password: pwd }),
     }));
     vi.doMock('@auth/Auth', () => ({ Auth: { hash: async () => 'h' } }));
     vi.doMock('@app/Models/User', () => ({

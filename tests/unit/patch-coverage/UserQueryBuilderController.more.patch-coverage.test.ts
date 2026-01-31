@@ -19,10 +19,10 @@ vi.mock('@validation/Validator', () => ({
 // Default sanitizer will be overridden in some tests via resetModules + doMock
 vi.mock('@security/Sanitizer', () => ({
   Sanitizer: {
-    digitsOnly: (v: any) => String(v),
+    digitsOnly: String,
     nameText: (v: any) => (typeof v === 'string' ? v : ''),
-    email: (v: any) => String(v),
-    safePasswordChars: (v: any) => String(v),
+    email: String,
+    safePasswordChars: String,
   },
 }));
 
@@ -76,7 +76,7 @@ describe('UserQueryBuilderController extra branches', () => {
 
   it('show: returns 401 when request subject missing', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: (v: any) => String(v) } }));
+    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
@@ -99,7 +99,7 @@ describe('UserQueryBuilderController extra branches', () => {
 
   it('show: returns 403 when subject mismatched', async () => {
     vi.resetModules();
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: (v: any) => String(v) } }));
+    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
@@ -128,7 +128,7 @@ describe('UserQueryBuilderController extra branches', () => {
       }),
     });
     vi.doMock('@orm/QueryBuilder', () => ({ QueryBuilder: { create: qbCreate } }));
-    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: (v: any) => String(v) } }));
+    vi.doMock('@security/Sanitizer', () => ({ Sanitizer: { digitsOnly: String } }));
     vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
     }));
