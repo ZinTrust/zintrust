@@ -1647,13 +1647,6 @@ export const WorkerFactory = Object.freeze({
       // Start health monitoring for the worker
       startHealthMonitoring(name, worker, queueName);
 
-      Logger.info(`Worker created: ${name}@${workerVersion}`, {
-        queueName,
-        features: Object.keys(features ?? {}).filter(
-          (k) => features?.[k as keyof typeof features] === true
-        ),
-      });
-
       return worker;
     } catch (error) {
       // Handle failure - update status to "failed"

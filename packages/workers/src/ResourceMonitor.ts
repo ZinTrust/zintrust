@@ -194,36 +194,33 @@ const THRESHOLDS = {
   costPerHour: { warning: 10, critical: 50 },
 };
 
-// Previous CPU usage for delta calculation
-let previousCpuUsage: NodeJS.CpuUsage | null = null;
-let previousCpuTimestamp: number | null = null;
-
 /**
  * Helper: Calculate CPU usage percentage
  */
 const calculateCpuUsage = (): number => {
-  const currentCpuUsage = process.cpuUsage();
-  const currentTimestamp = Date.now();
+  const os = getOsModule();
+  if (!os?.cpus) return 0;
 
-  if (previousCpuUsage === null || previousCpuTimestamp === null) {
-    previousCpuUsage = currentCpuUsage;
-    previousCpuTimestamp = currentTimestamp;
+  try {
+    const cpus = os.cpus();
+    let totalIdle = 0;
+    let totalTick = 0;
+
+    cpus.forEach((cpu) => {
+      for (const type in cpu.times) {
+        totalTick += cpu.times[type as keyof typeof cpu.times];
+      }
+      totalIdle += cpu.times.idle;
+    });
+
+    const totalUsed = totalTick - totalIdle;
+    const cpuPercentage = (totalUsed / totalTick) * 100;
+
+    return Math.min(100, Math.max(0, cpuPercentage));
+  } catch (error) {
+    Logger.error('Failed to calculate system CPU usage', error as Error);
     return 0;
   }
-
-  const userDelta = currentCpuUsage.user - previousCpuUsage.user;
-  const systemDelta = currentCpuUsage.system - previousCpuUsage.system;
-  const timeDelta = (currentTimestamp - previousCpuTimestamp) * 1000; // Convert ms to microseconds
-
-  previousCpuUsage = currentCpuUsage;
-  previousCpuTimestamp = currentTimestamp;
-
-  if (timeDelta === 0) return 0;
-
-  const totalCpuDelta = userDelta + systemDelta;
-  const cpuPercentage = (totalCpuDelta / timeDelta) * 100;
-
-  return Math.min(100, Math.max(0, cpuPercentage));
 };
 
 /**
@@ -447,13 +444,6 @@ const storeAlert = (alert: ResourceAlert): void => {
   if (history.length > MAX_ALERT_HISTORY) {
     alertHistory.set(alert.workerName, history.slice(-MAX_ALERT_HISTORY));
   }
-
-  Logger.warn(`Resource alert: ${alert.workerName}`, {
-    type: alert.alertType,
-    severity: alert.severity,
-    message: alert.message,
-    recommendation: alert.recommendation,
-  });
 };
 
 /**
@@ -569,10 +559,6 @@ export const ResourceMonitor = Object.freeze({
       Logger.warn('ResourceMonitor already running');
       return;
     }
-
-    // Initial snapshot
-    previousCpuUsage = process.cpuUsage();
-    previousCpuTimestamp = Date.now();
 
     monitoringInterval = setInterval(() => {
       const snapshot = captureSnapshot();

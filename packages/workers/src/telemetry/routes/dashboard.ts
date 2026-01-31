@@ -104,6 +104,7 @@ const getDashboardLayoutStyles = (): string => `
   .zt-card-title { font-size: 0.875rem; font-weight: 600; color: var(--text); margin: 0; }
   .zt-card-meta { font-size: 0.75rem; color: var(--muted); }
   .zt-card-value { margin-top: 0.75rem; font-size: 1.875rem; font-weight: 600; }
+  .zt-card-subvalue { margin-top: 0.35rem; font-size: 0.875rem; color: var(--muted); }
   .zt-card-body { margin-top: 1rem; }
   .zt-chart { margin-top: 1rem; height: 10rem; width: 100%; }
   .zt-cost-value { font-size: 1.875rem; font-weight: 600; color: var(--success); margin: 0; }
@@ -195,6 +196,11 @@ const getDashboardStats = (): string => `
             <p class="zt-kicker">Needs Attention</p>
             <p id="attention-workers" class="zt-card-value zt-text-amber">0</p>
           </div>
+          <div class="zt-card">
+            <p class="zt-kicker">CPU (System / Process)</p>
+            <p id="system-cpu" class="zt-card-value">0%</p>
+            <p id="process-cpu" class="zt-card-subvalue">Process: 0% (0 ms)</p>
+          </div>
         </section>`;
 
 const getDashboardCharts = (): string => `
@@ -219,35 +225,43 @@ ${getDashboardCharts()}
       </div>
     </div>`;
 
-const getDashboardScriptState = (options: DashboardUiOptions): string => {
-  let basePath = options.basePath;
-  while (basePath.endsWith('/')) {
-    basePath = basePath.slice(0, -1);
-  }
-  return `
-      const API_BASE = '${basePath}';
-      const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
-      const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
-      const STORAGE_KEYS = {
-        autoRefresh: 'zintrust.telemetry.autoRefresh',
-        theme: 'zintrust.telemetry.theme',
+const getDashboardScriptHelpers = (): string => `
+      const formatPercent = (value) => {
+        if (!Number.isFinite(value)) return '0%';
+        return value.toFixed(1) + '%';
       };
 
-      const errorEl = document.getElementById('error');
-      const totalEl = document.getElementById('total-workers');
-      const healthyEl = document.getElementById('healthy-workers');
-      const attentionEl = document.getElementById('attention-workers');
-      const costEl = document.getElementById('costTotal');
-      const refreshBtn = document.getElementById('refresh-btn');
-      const autoBtn = document.getElementById('auto-refresh-btn');
-      const themeBtn = document.getElementById('theme-toggle');
-      const lastUpdated = document.getElementById('last-updated');
+      const formatMs = (value) => {
+        if (!Number.isFinite(value)) return '0 ms';
+        return Math.max(0, Math.round(value)) + ' ms';
+      };
 
-      let autoRefresh = AUTO_REFRESH;
-      let autoTimer = null;
-      let currentTheme = 'dark';
-      let eventSource = null;
-      let sseActive = false;
+      const getProcessCpuPercent = (cpuUsage, timestamp, cores) => {
+        if (!cpuUsage || !timestamp || !cores) return { percent: 0, deltaMs: 0 };
+
+        const currentTotal = (cpuUsage.user || 0) + (cpuUsage.system || 0);
+        const currentTs = Number.isFinite(timestamp) ? timestamp : Date.parse(timestamp);
+
+        if (!Number.isFinite(currentTs)) {
+          return { percent: 0, deltaMs: 0 };
+        }
+
+        if (!lastProcessCpu || !Number.isFinite(lastProcessTs)) {
+          lastProcessCpu = currentTotal;
+          lastProcessTs = currentTs;
+          return { percent: 0, deltaMs: 0 };
+        }
+
+        const deltaUsage = currentTotal - lastProcessCpu;
+        const deltaMs = Math.max(0, currentTs - lastProcessTs);
+        const normalized = deltaMs > 0 ? (deltaUsage / 1000) / (deltaMs * Math.max(1, cores)) : 0;
+        const percent = Math.max(0, Math.min(100, normalized * 100));
+
+        lastProcessCpu = currentTotal;
+        lastProcessTs = currentTs;
+
+        return { percent, deltaMs: deltaUsage / 1000 };
+      };
 
       const readStorage = (key) => {
         try {
@@ -275,6 +289,43 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => {
         themeBtn.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
         writeStorage(STORAGE_KEYS.theme, theme);
       };
+`;
+
+const getDashboardScriptState = (options: DashboardUiOptions): string => {
+  let basePath = options.basePath;
+  while (basePath.endsWith('/')) {
+    basePath = basePath.slice(0, -1);
+  }
+  return `
+      const API_BASE = '${basePath}';
+      const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
+      const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
+      const STORAGE_KEYS = {
+        autoRefresh: 'zintrust.telemetry.autoRefresh',
+        theme: 'zintrust.telemetry.theme',
+      };
+
+      const errorEl = document.getElementById('error');
+      const totalEl = document.getElementById('total-workers');
+      const healthyEl = document.getElementById('healthy-workers');
+      const attentionEl = document.getElementById('attention-workers');
+      const systemCpuEl = document.getElementById('system-cpu');
+      const processCpuEl = document.getElementById('process-cpu');
+      const costEl = document.getElementById('costTotal');
+      const refreshBtn = document.getElementById('refresh-btn');
+      const autoBtn = document.getElementById('auto-refresh-btn');
+      const themeBtn = document.getElementById('theme-toggle');
+      const lastUpdated = document.getElementById('last-updated');
+
+      let autoRefresh = AUTO_REFRESH;
+      let autoTimer = null;
+      let currentTheme = 'dark';
+      let eventSource = null;
+      let sseActive = false;
+      let lastProcessCpu = null;
+      let lastProcessTs = null;
+
+${getDashboardScriptHelpers()}
   `;
 };
 
@@ -354,17 +405,33 @@ const getDashboardScriptApplySnapshot = (): string => `
         const monitoring = summary.monitoring || { total: 0, healthy: 0, degraded: 0, critical: 0, details: [] };
         const healthyCount = monitoring.healthy || 0;
         const attentionCount = (monitoring.degraded || 0) + (monitoring.critical || 0);
+        const resources = payload.resources || {};
+        const snapshot = resources.resourceSnapshot || {};
+        const cpuSnapshot = snapshot.cpu || {};
+        const processSnapshot = snapshot.process || {};
 
         totalEl.textContent = total;
         healthyEl.textContent = healthyCount;
         attentionEl.textContent = attentionCount;
+        if (systemCpuEl) {
+          systemCpuEl.textContent = formatPercent(cpuSnapshot.usage || 0);
+        }
+        if (processCpuEl) {
+          const processMetrics = getProcessCpuPercent(
+            processSnapshot.cpuUsage,
+            snapshot.timestamp,
+            cpuSnapshot.cores || 1
+          );
+          processCpuEl.textContent =
+            'Process: ' + formatPercent(processMetrics.percent) + ' (' + formatMs(processMetrics.deltaMs) + ')';
+        }
         if (costEl && payload.resources?.cost) {
           const cost = payload.resources.cost;
           costEl.textContent = '$' + cost.hourly?.toFixed(4) + '/hr';
         }
 
         updateAlerts(summary.alerts || []);
-        updateCharts(summary, payload.resources);
+        updateCharts(summary, resources);
         lastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
       };
 `;
