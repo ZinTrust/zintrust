@@ -1,6 +1,6 @@
 {
   "name": "zintrust-api",
-  "main": "./src/functions/cloudflare.ts",
+  "main": "./src/start.ts",
   "compatibility_date": "2025-04-21",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,

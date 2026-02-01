@@ -2,6 +2,8 @@
  * Runtime adapter for Cloudflare Workers
  */
 import { appConfig } from '@/config';
+import { Cloudflare } from '@config/cloudflare';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import type {
@@ -22,6 +24,10 @@ export const CloudflareAdapter = Object.freeze({
    * Create a new Cloudflare adapter instance
    */
   create(config: AdapterConfig): RuntimeAdapter {
+    const workersEnv = Cloudflare.getWorkersEnv();
+    if (workersEnv !== null) {
+      Env.setSource(() => workersEnv);
+    }
     const logger = config.logger ?? createDefaultLogger();
 
     return {

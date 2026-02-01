@@ -263,7 +263,7 @@ const getDashboardScriptState = (options: DashboardUiOptions): string => String.
         const THEME_KEY = 'zintrust-queue-monitor-theme';
         const AUTO_REFRESH_KEY = 'zintrust-queue-monitor-auto-refresh';
         const QUEUE_KEY = 'zintrust-queue-monitor-selected-queue';
-        let currentQueue = localStorage.getItem(QUEUE_KEY) || 'all';
+        let currentQueue = localStorage.getItem(QUEUE_KEY);
         let autoRefreshEnabled = AUTO_REFRESH;
         let refreshTimer = null;
         let eventSource = null;
@@ -416,14 +416,7 @@ const getUpdateQueueSelectFunction = (): string => `
             const currentSelection = select.value || currentQueue;
             select.innerHTML = '';
 
-            if (queues.length === 0) return;
-
-            // Add "All" option first
-            const allOpt = document.createElement('option');
-            allOpt.value = 'all';
-            allOpt.textContent = 'All Queues';
-            allOpt.selected = currentSelection === 'all';
-            select.appendChild(allOpt);
+            if (queues.length === 0) return
 
             queues.forEach(q => {
                 const opt = document.createElement('option');
@@ -515,70 +508,151 @@ const getRenderJobsFunction = (): string => `
             const currentJobIds = new Set(jobs.map(job => job.id));
             expandedJobIds = new Set([...expandedJobIds].filter(id => currentJobIds.has(id)));
         }`;
-
 const getRenderLocksFunction = (): string => `
-        function renderLocks(payload) {
-            const tbody = document.querySelector('#locks-table tbody');
-            tbody.innerHTML = '';
+    // Track expanded lock keys to preserve state during SSE updates
+    let expandedLockKeys = new Set();
 
-            const locks = payload && payload.locks ? payload.locks : [];
-            const metrics = payload && payload.metrics ? payload.metrics : null;
-            const histogram = payload && payload.histogram ? payload.histogram : [];
+    function renderLocks(payload) {
+        const tbody = document.querySelector('#locks-table tbody');
+        const locks = payload && payload.locks ? payload.locks : [];
+        const metrics = payload && payload.metrics ? payload.metrics : null;
+        const histogram = payload && payload.histogram ? payload.histogram : [];
 
-            const summary = document.getElementById('locks-summary');
-            const histogramEl = document.getElementById('locks-histogram');
-            if (summary) {
-                if (metrics) {
-                    const rate = metrics.attempts > 0
-                        ? (metrics.collisionRate * 100).toFixed(1) + '%'
-                        : '0%';
-                    summary.innerHTML =
-                        '<span><strong>Active</strong> ' + metrics.active + '</span>' +
-                        '<span><strong>Attempts</strong> ' + metrics.attempts + '</span>' +
-                        '<span><strong>Collisions</strong> ' + metrics.collisions + '</span>' +
-                        '<span><strong>Collision rate</strong> ' + rate + '</span>';
-                } else {
-                    summary.textContent = 'No metrics available.';
-                }
-            }
+        // Update summary and histogram (these don't cause layout shifts)
+        updateLocksSummary(document.getElementById('locks-summary'), metrics);
+        updateLocksHistogram(document.getElementById('locks-histogram'), histogram);
 
-            if (histogramEl) {
-                if (histogram.length === 0) {
-                    histogramEl.textContent = 'No TTL data available.';
-                } else {
-                    histogramEl.innerHTML = histogram.map(bucket => {
-                        return '<div style="display:flex; justify-content: space-between; gap: 12px; margin: 4px 0;">' +
-                            '<span style="color: var(--muted);">' + bucket.label + '</span>' +
-                            '<span>' + bucket.count + '</span>' +
-                            '</div>';
-                    }).join('');
-                }
-            }
-
-            if (!locks || locks.length === 0) {
+        if (!locks || locks.length === 0) {
+            // Only clear if we have content to replace
+            if (tbody.children.length > 0) {
                 tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: var(--muted)">No active locks found</td></tr>';
-                return;
             }
+            expandedLockKeys.clear();
+            return;
+        }
 
-            locks.forEach((lock, idx) => {
-                const tr = document.createElement('tr');
-                tr.className = 'expandable-row';
-                tr.dataset.lockIndex = idx;
-                const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
-                const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
-                tr.innerHTML =
-                    '<td><span class="expand-icon">▶</span><code>' + lock.key + '</code></td>' +
-                    '<td>' + ttl + '</td>' +
-                    '<td>' + expires + '</td>';
-                tr.title = 'Click to see lock details';
+        // Create a map of current lock keys for efficient lookup
+        const currentLockKeys = new Set(locks.map(lock => lock.key));
 
-                tr.addEventListener('click', () => {
-                    toggleLockDetails(tr, lock);
-                });
+        // Remove rows for locks that no longer exist
+        removeObsoleteLockRows(tbody, currentLockKeys);
 
+        // Get map of existing rows
+        const existingRows = getExistingLockRows(tbody);
+
+        // Update existing rows and add new ones
+        locks.forEach((lock, idx) => {
+            const existingRow = existingRows.get(lock.key);
+            if (existingRow) {
+                updateExistingLockRow(existingRow, lock, idx);
+            } else {
+                const tr = createNewLockRow(lock, idx);
                 tbody.appendChild(tr);
-            });
-        }`;
+
+                // Auto-expand if this lock was previously expanded
+                if (expandedLockKeys.has(lock.key)) {
+                    setTimeout(() => {
+                        toggleLockDetails(tr, lock);
+                    }, 10);
+                }
+            }
+        });
+
+        // Clean up expanded lock keys that are no longer in the current locks list
+        expandedLockKeys = new Set([...expandedLockKeys].filter(key => currentLockKeys.has(key)));
+    }
+`;
+
+const getLockHelperFunctions = (): string => `
+    function updateLocksSummary(summary, metrics) {
+        if (!summary) return;
+        if (metrics) {
+            const rate = metrics.attempts > 0
+                ? (metrics.collisionRate * 100).toFixed(1) + '%'
+                : '0%';
+            summary.innerHTML =
+                '<span><strong>Active</strong> ' + metrics.active + '</span>' +
+                '<span><strong>Attempts</strong> ' + metrics.attempts + '</span>' +
+                '<span><strong>Collisions</strong> ' + metrics.collisions + '</span>' +
+                '<span><strong>Collision rate</strong> ' + rate + '</span>';
+        } else {
+            summary.textContent = 'No metrics available.';
+        }
+    }
+
+    function updateLocksHistogram(histogramEl, histogram) {
+        if (!histogramEl) return;
+        if (histogram.length === 0) {
+            histogramEl.textContent = 'No TTL data available.';
+        } else {
+            histogramEl.innerHTML = histogram.map(bucket => {
+                return '<div style="display:flex; justify-content: space-between; gap: 12px; margin: 4px 0;">' +
+                    '<span style="color: var(--muted);">' + bucket.label + '</span>' +
+                    '<span>' + bucket.count + '</span>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    function removeObsoleteLockRows(tbody, currentLockKeys) {
+        const rowsToRemove = [];
+        for (let i = 0; i < tbody.children.length; i++) {
+            const row = tbody.children[i];
+            const lockKey = row.querySelector('code')?.textContent;
+            if (lockKey && !currentLockKeys.has(lockKey)) {
+                rowsToRemove.push(row);
+                expandedLockKeys.delete(lockKey);
+            }
+        }
+        rowsToRemove.forEach(row => row.remove());
+    }
+
+    function getExistingLockRows(tbody) {
+        const existingRows = new Map();
+        for (let i = 0; i < tbody.children.length; i++) {
+            const row = tbody.children[i];
+            const lockKey = row.querySelector('code')?.textContent;
+            if (lockKey) {
+                existingRows.set(lockKey, row);
+            }
+        }
+        return existingRows;
+    }
+
+    function updateExistingLockRow(row, lock, idx) {
+        const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
+        const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
+
+        const ttlCell = row.children[1];
+        const expiresCell = row.children[2];
+        if (ttlCell) ttlCell.textContent = ttl;
+        if (expiresCell) expiresCell.textContent = expires;
+
+        row.dataset.lockIndex = idx;
+    }
+
+    function createNewLockRow(lock, idx) {
+        const tr = document.createElement('tr');
+        tr.className = 'expandable-row';
+        tr.dataset.lockIndex = idx;
+
+        const ttl = typeof lock.ttl === 'number' ? Math.round(lock.ttl / 1000) + 's' : '—';
+        const expires = lock.expires ? new Date(lock.expires).toLocaleTimeString() : '—';
+        const isExpanded = expandedLockKeys.has(lock.key);
+
+        tr.innerHTML =
+            '<td><span class="expand-icon' + (isExpanded ? ' expanded' : '') + '">▶</span><code>' + lock.key + '</code></td>' +
+            '<td>' + ttl + '</td>' +
+            '<td>' + expires + '</td>';
+        tr.title = 'Click to see lock details';
+
+        tr.addEventListener('click', () => {
+            toggleLockDetails(tr, lock);
+        });
+
+        return tr;
+    }
+`;
 
 const getErrorAndTooltipFunctions = (): string => `
         function showError(msg) {
@@ -664,10 +738,15 @@ const getToggleDetailsFunctions = (): string => `
             if (existingDetail && existingDetail.classList.contains('detail-row')) {
                 expandIcon.classList.remove('expanded');
                 existingDetail.remove();
+                // Remove from expanded set
+                expandedLockKeys.delete(lock.key);
                 return;
             }
 
             expandIcon.classList.add('expanded');
+            // Add to expanded set
+            expandedLockKeys.add(lock.key);
+
             const detailRow = document.createElement('tr');
             detailRow.className = 'detail-row';
 
@@ -821,67 +900,9 @@ const getFetchDataFunction = (): string => `
 
         function handleQueueSelection(data) {
             if (data.queues.length > 0) {
-                // Handle "All" selection or default to first queue
-                if (currentQueue === 'all' || !data.queues.find(q => q.name === currentQueue)) {
-                    if (currentQueue !== 'all') {
-                        currentQueue = 'all';
-                        localStorage.setItem(QUEUE_KEY, currentQueue);
-                    }
-                }
                 document.getElementById('queue-select').value = currentQueue;
-
-                // Fetch all jobs if "All" is selected, otherwise fetch single queue
-                if (currentQueue === 'all') {
-                    fetchAllJobs();
-                } else {
-                    fetchJobs(currentQueue);
-                }
             } else {
                 document.getElementById('queue-select').innerHTML = '<option>No Queues</option>';
-                renderJobs([]);
-            }
-        }
-    `;
-
-const getFetchAllJobsFunction = (): string => `
-        // Fetch jobs from all queues when "All" is selected
-        async function fetchAllJobs() {
-            console.log('Fetching jobs from all queues...');
-            try {
-                const allJobs = [];
-
-                // Get all available queues from the current snapshot
-                const snapshotResponse = await fetch(API_BASE + '/api/snapshot');
-                const snapshot = await snapshotResponse.json();
-
-                if (snapshot.queues && snapshot.queues.length > 0) {
-                    // Fetch jobs from each queue
-                    for (const queue of snapshot.queues) {
-                        try {
-                            const response = await fetch(API_BASE + '/api/jobs/' + queue.name);
-                            const jobs = await response.json();
-
-                            // Add queue name to each job
-                            const jobsWithQueue = jobs.map(job => ({
-                                ...job,
-                                queue: queue.name
-                            }));
-                            allJobs.push(...jobsWithQueue);
-                        } catch (e) {
-                            console.error('Failed to fetch jobs for queue:', queue.name, e);
-                        }
-                    }
-
-                    // Sort by timestamp (most recent first)
-                    allJobs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-                    renderJobs(allJobs);
-                    console.log('Fetched', allJobs.length, 'jobs from all queues');
-                } else {
-                    renderJobs([]);
-                }
-            } catch (e) {
-                console.error('Failed to fetch all jobs:', e);
                 renderJobs([]);
             }
         }
@@ -926,6 +947,7 @@ const getDashboardScriptRender = (): string =>
     getUpdateQueueSelectFunction(),
     getRenderJobsFunction(),
     getRenderLocksFunction(),
+    getLockHelperFunctions(),
     getErrorAndTooltipFunctions(),
     getToggleDetailsFunctions(),
     getRetryJobFunction(),
@@ -948,11 +970,6 @@ const getDashboardScriptBootstrap = (): string => `
                 currentQueue = e.target.value;
                 localStorage.setItem(QUEUE_KEY, currentQueue);
                 console.log('Queue changed - SSE will update automatically');
-
-                // Fetch all jobs if "All" is selected
-                if (currentQueue === 'all') {
-                    fetchAllJobs();
-                }
 
                 setupEventStream(currentQueue);
             });
@@ -994,7 +1011,6 @@ const getDashboardScript = (options: DashboardUiOptions): string =>
     getDashboardScriptHelpers(),
     getDashboardScriptEventStream(),
     getFetchDataFunction(),
-    getFetchAllJobsFunction(),
     getDashboardScriptFetch(),
     getDashboardScriptRender(),
     getDashboardScriptBootstrap(),

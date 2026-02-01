@@ -8,9 +8,28 @@
 
 import type { ProcessLike } from '@config/type';
 
+export type EnvSource = Record<string, unknown> | (() => Record<string, unknown>);
+
 // Cache process check once at module load time
 const processLike: ProcessLike | undefined =
   typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
+
+let externalEnvSource: EnvSource | null = null;
+
+const getEnvSource = (): Record<string, unknown> => {
+  if (typeof externalEnvSource === 'function') return externalEnvSource();
+  if (externalEnvSource !== null) return externalEnvSource;
+  return processLike?.env ?? {};
+};
+
+const normalizeEnvValue = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  return '';
+};
 
 export const getProcessLike = (): ProcessLike | undefined => processLike;
 
@@ -23,31 +42,42 @@ export const dirnameFromExecPath = (execPath: string, platform?: string): string
 
 // Private helper functions
 export const get = (key: string, defaultValue?: string): string => {
-  const env = processLike?.env ?? {};
-  return env[key] ?? defaultValue ?? '';
+  const env = getEnvSource();
+  const value = normalizeEnvValue(env[key]);
+  return value === '' ? (defaultValue ?? '') : value;
 };
 
 export const getInt = (key: string, defaultValue?: number): number => {
-  const env = processLike?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? 0;
-  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
+  const value = get(key, String(defaultValue ?? 0));
+  if (value.trim() === '') return defaultValue ?? 0;
   return Number.parseInt(value, 10);
 };
 
 export const getFloat = (key: string, defaultValue?: number): number => {
-  const env = processLike?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? 0;
-  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
+  const value = get(key, String(defaultValue ?? 0));
+  if (value.trim() === '') return defaultValue ?? 0;
   return Number.parseFloat(value);
 };
 
 export const getBool = (key: string, defaultValue?: boolean): boolean => {
-  const env = processLike?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? false;
+  const value = get(key, defaultValue === true ? 'true' : 'false');
+  if (value.trim() === '') return defaultValue ?? false;
   return value.toLowerCase() === 'true' || value === '1';
+};
+
+export const set = (key: string, value: string): void => {
+  if (processLike?.env === undefined) return;
+  processLike.env[key] = value;
+};
+
+export const unset = (key: string): void => {
+  if (processLike?.env === undefined) return;
+  // Use Reflect.deleteProperty to avoid deleting dynamically computed property keys
+  Reflect.deleteProperty(processLike.env, key);
+};
+
+export const setSource = (source: EnvSource | null): void => {
+  externalEnvSource = source;
 };
 
 export const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
@@ -64,6 +94,9 @@ export const Env = Object.freeze({
   getInt,
   getBool,
   getFloat,
+  set,
+  unset,
+  setSource,
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],

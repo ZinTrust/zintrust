@@ -20,7 +20,7 @@ import { ZintrustLang } from '@lang/lang';
 import { type DeduplicationBuilder } from '@queue/DeduplicationBuilder';
 import { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 import type { BullMQPayload } from '@queue/Queue';
-import { Queue } from '@queue/Queue';
+import { Queue, resolveLockPrefix } from '@queue/Queue';
 
 export interface AdvancedQueue {
   enqueue(name: string, payload: BullMQPayload, options: AdvancedJobOptions): Promise<string>;
@@ -86,11 +86,6 @@ function resolveLockProviderName(config: QueueConfig): string {
     return config.lockProvider;
   if (envProvider.length > 0) return envProvider;
   return ZintrustLang.MEMORY;
-}
-
-function resolveLockPrefix(): string {
-  const fromEnv = Env.get('QUEUE_LOCK_PREFIX', '').trim();
-  return fromEnv.length > 0 ? fromEnv : ZintrustLang.ZINTRUST_LOCKS_PREFIX;
 }
 
 function resolveDefaultLockTtl(config: QueueConfig): number {

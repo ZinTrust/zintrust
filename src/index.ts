@@ -197,6 +197,17 @@ export { ZintrustSignedRequest as SignedRequest };
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
 
+// Runtime services
+export {
+  RuntimeServices,
+  type RuntimeCrypto,
+  type RuntimeEnvReader,
+  type RuntimeFs,
+  type RuntimePlatform,
+  type RuntimeServices as RuntimeServicesType,
+  type RuntimeTimers,
+} from '@runtime/RuntimeServices';
+
 // Events
 export { EventDispatcher } from '@events/EventDispatcher';
 export type { EventListener, EventMap, IEventDispatcher } from '@events/EventDispatcher';
