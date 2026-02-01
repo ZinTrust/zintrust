@@ -146,7 +146,7 @@
     "undici": "^6.23.0"
   },
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "inquirer": "^13.2.2",
@@ -161,6 +161,7 @@
     "@opentelemetry/semantic-conventions": "^1.39.0",
     "@resvg/resvg-js": "^2.6.2",
     "@types/bcrypt": "^6.0.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.1.0",

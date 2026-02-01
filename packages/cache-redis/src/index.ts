@@ -1,4 +1,4 @@
-import { Logger } from '@zintrust/core';
+import { Cloudflare, ErrorFactory, Logger } from '@zintrust/core';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {
@@ -36,6 +36,12 @@ async function importRedis(): Promise<{
 
 export const RedisCacheDriver = Object.freeze({
   create(config: RedisCacheConfig): CacheDriver {
+    if (Cloudflare.getWorkersEnv() !== null) {
+      throw ErrorFactory.createConfigError(
+        'Redis cache driver is not supported on Cloudflare Workers. Use a Workers-compatible cache driver (e.g. cache-kv).'
+      );
+    }
+
     let client: RedisClient | undefined;
     let connected = false;
 

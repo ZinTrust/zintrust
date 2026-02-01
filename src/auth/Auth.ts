@@ -1,5 +1,5 @@
 // TEMPLATE_START
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 
 const { sign, verify } = jwt;
