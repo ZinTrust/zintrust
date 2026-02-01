@@ -104,6 +104,8 @@ const resolveWithinProjectRoot = (projectRoot: string, relativePath: string): st
   const rootAbs = resolve(projectRoot);
   const candidateAbs = resolve(projectRoot, relativePath);
 
+  if (rootAbs === sep) return candidateAbs;
+
   if (candidateAbs === rootAbs) return candidateAbs;
 
   if (!candidateAbs.startsWith(rootAbs + sep)) {
@@ -167,6 +169,21 @@ const importModule = async (filePath: string): Promise<UnknownModule> => {
 };
 
 export const useFileLoader = (...args: [string] | [string, ...string[]]): FileLoader => {
+  const isWorkersRuntime = (): boolean => {
+    const g = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
+    return g.CF !== undefined || g.caches !== undefined || g.WebSocketPair !== undefined;
+  };
+  if (isWorkersRuntime()) {
+    return Object.freeze({
+      candidates: () => [],
+      path: () => '',
+      exists: () => false,
+      get<T = unknown>(): T {
+        throw ErrorFactory.createConfigError('File loading is not supported in Workers runtime');
+      },
+    });
+  }
+
   const relativePath =
     args.length === 1
       ? normalizeProjectRelativePath(args[0])

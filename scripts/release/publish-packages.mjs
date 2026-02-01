@@ -364,14 +364,38 @@ export declare const MailDriverRegistry: any;
 export declare const FeatureFlags: any;
 export declare const QueryBuilder: any;
 export declare const Cloudflare: any;
+export declare const Router: any;
+export declare const Queue: any;
+export declare const Broadcast: any;
+export declare const Notification: any;
+export declare const NodeSingletons: any;
+export declare const RedisKeys: any;
+export declare const MIME_TYPES: any;
+export declare const appConfig: any;
+export declare const databaseConfig: any;
+export declare const queueConfig: any;
+export declare const workersConfig: any;
+export declare const ZintrustLang: any;
+export declare const MigrationSchema: any;
 
 export declare function generateUuid(): string;
 export declare function generateSecureJobId(): string;
 export declare function delay(ms: number): Promise<void>;
 export declare function ensureDirSafe(path: string): Promise<void>;
+export declare function resolveLockPrefix(): string;
+export declare function getBullMQSafeQueueName(name?: string): string;
+export declare function getValidatedBody(...args: any[]): any;
+export declare function registerDatabasesFromRuntimeConfig(...args: any[]): any;
+export declare function createBaseDrivers(...args: any[]): any;
+export declare function createLockProvider(...args: any[]): any;
+export declare function getLockProvider(...args: any[]): any;
+export declare function registerLockProvider(...args: any[]): any;
+export declare function createRedisConnection(...args: any[]): any;
+export declare function useEnsureDbConnected(...args: any[]): any;
 
 export declare const RedisQueue: any;
 export type QueueMessage<T = unknown> = any;
+export type BullMQPayload = any;
 
 export declare const S3Driver: any;
 export type S3Config = any;
@@ -392,6 +416,16 @@ export declare const MailgunDriver: any;
 export type MailgunConfig = any;
 export type MailgunMessage = any;
 export type MailgunResult = any;
+
+export type RedisConfig = any;
+export type IRouter = any;
+export type IRequest = any;
+export type IResponse = any;
+export type RouteOptions = any;
+export type WorkerConfig = any;
+export type WorkerStatus = any;
+export type IDatabase = any;
+export type Blueprint = any;
 `;
   await fs.writeFile(path.join(shimDir, 'index.d.ts'), dts);
 
@@ -405,6 +439,19 @@ export const MailDriverRegistry = {};
 export const FeatureFlags = {};
 export const QueryBuilder = {};
 export const Cloudflare = {};
+export const Router = {};
+export const Queue = {};
+export const Broadcast = {};
+export const Notification = {};
+export const NodeSingletons = {};
+export const RedisKeys = {};
+export const MIME_TYPES = {};
+export const appConfig = {};
+export const databaseConfig = {};
+export const queueConfig = {};
+export const workersConfig = {};
+export const ZintrustLang = {};
+export const MigrationSchema = {};
 
 export function generateUuid() {
   return '00000000-0000-0000-0000-000000000000';
@@ -419,6 +466,46 @@ export async function delay(_ms) {
 }
 
 export async function ensureDirSafe(_path) {
+  return undefined;
+}
+
+export function resolveLockPrefix() {
+  return '';
+}
+
+export function getBullMQSafeQueueName(name = '') {
+  return name;
+}
+
+export function getValidatedBody() {
+  return undefined;
+}
+
+export function registerDatabasesFromRuntimeConfig() {
+  return undefined;
+}
+
+export function createBaseDrivers() {
+  return {};
+}
+
+export function createLockProvider() {
+  return {};
+}
+
+export function getLockProvider() {
+  return {};
+}
+
+export function registerLockProvider() {
+  return {};
+}
+
+export function createRedisConnection() {
+  return {};
+}
+
+export function useEnsureDbConnected() {
   return undefined;
 }
 

@@ -48,7 +48,7 @@
     "test:coverage": "vitest run --coverage",
     "coverage:diff": "tsx dev/coverage-diff.ts",
     "coverage:patch": "sh scripts/coverage-patch.sh",
-    "lint": "eslint .",
+    "lint": "eslint \"src/**/*.ts\" \"app/**/*.ts\" \"routes/**/*.ts\" \"packages/**/*.ts\" \"tests/**/*.ts\" \"bin/**/*.ts\" \"database/**/*.ts\"",
     "format": "prettier --write 'src/**/*.ts'",
     "packages:build": "node scripts/build-all-packages.mjs",
     "packages:build:all": "node scripts/build-all-packages.mjs --all",
@@ -59,7 +59,7 @@
     "env:generate": "tsx src/scripts/GenerateEnvArtifacts.ts",
     "git-reload": "git rm -r --cached .  && git add .",
     "start": "node dist/src/bootstrap.js",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit -p tsconfig.json",
     "test:sonar": "vitest run --coverage && tsx dev/sonar-scan.ts",
     "sonarqube": "tsx dev/sonar-scan.ts",
     "sonarqube:setup": "node dev/sonarqube-setup.js",
@@ -112,7 +112,14 @@
     "core": "npm run core:build:dist"
   },
   "lint-staged": {
+    "ignore": [
+      "**/node_modules/**",
+      "dist/**"
+    ],
     "src/**/*.ts": [
+      "eslint --fix"
+    ],
+    "packages/*/src/**/*.ts": [
       "eslint --fix"
     ]
   },

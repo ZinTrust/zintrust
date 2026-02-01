@@ -62,7 +62,17 @@ const normalizeStoreName = (name: unknown): CsrfStoreName => {
   return 'memory';
 };
 
+const isWorkersRuntime = (): boolean => {
+  const globalAny = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
+  if (globalAny.CF !== undefined) return true;
+  if (typeof globalAny.WebSocketPair === 'function') return true;
+  if (globalAny.caches !== 'undefined') return true;
+  return false;
+};
+
 const resolveStoreName = (options?: CsrfTokenManagerOptions): CsrfStoreName => {
+  if (isWorkersRuntime()) return 'memory';
+
   return normalizeStoreName(
     options?.store ?? Env.CSRF_STORE ?? Env.CSRF_DRIVER ?? Env.get('CSRF_STORE', 'memory')
   );

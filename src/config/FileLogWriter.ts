@@ -15,7 +15,13 @@ import type { PathLike, WriteStream, WriteStreamOptions } from 'node:fs';
 const streamCache = new Map<string, WriteStream>();
 const pendingWrites = new Map<string, string[]>();
 
+const isWorkersRuntime = (): boolean => {
+  const g = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
+  return g.CF !== undefined || g.caches !== undefined || g.WebSocketPair !== undefined;
+};
+
 const canUseWriteStreams = (): boolean => {
+  if (isWorkersRuntime()) return false;
   try {
     // Vitest's ESM module mocks can throw when accessing missing exports.
     // Treat missing createWriteStream as "no stream support".
@@ -28,6 +34,7 @@ const canUseWriteStreams = (): boolean => {
 };
 
 const appendFileSafe = (logFile: string, content: string): void => {
+  if (isWorkersRuntime()) return;
   try {
     // Some tests/mock environments provide only appendFileSync (no streams).
     fs.appendFileSync(logFile, content);
@@ -280,19 +287,23 @@ const flushPendingWrites = (logFile: string): void => {
     return;
   }
 
-  const stream = getOrCreateStream(logFile);
-
-  stream.write(lines, (error: Error | null | undefined) => {
-    if (error !== null && error !== undefined) {
-      // Silent failure for best-effort logging
-    }
-  });
+  try {
+    const stream = getOrCreateStream(logFile);
+    stream.write(lines, (error: Error | null | undefined) => {
+      if (error !== null && error !== undefined) {
+        // Silent failure for best-effort logging
+      }
+    });
+  } catch {
+    appendFileSafe(logFile, lines);
+  }
 
   pendingWrites.delete(logFile);
 };
 
 export const FileLogWriter = Object.freeze({
   write(line: string): void {
+    if (isWorkersRuntime()) return;
     const cwd = getCwdSafe();
     if (cwd === '') return;
 

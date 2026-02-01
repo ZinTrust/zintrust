@@ -154,7 +154,11 @@ async function handleCloudflareRequest(
 
     return response.toResponse();
   } catch (error) {
-    Logger.error('Cloudflare handler error', error as Error);
+    const err = error as Error;
+    Logger.error('Cloudflare handler error', err);
+    if (typeof err?.stack === 'string' && err.stack.trim() !== '') {
+      Logger.error('Cloudflare handler stack', err.stack);
+    }
     const errorResponse = ErrorResponse.create(
       500,
       'Internal Server Error',

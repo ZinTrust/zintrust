@@ -1,10 +1,15 @@
 {
   "name": "zintrust-api",
-  "main": "./src/start.ts",
+  "main": "./src/functions/cloudflare.ts",
   "compatibility_date": "2025-04-21",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "minify": false,
+  "alias": {
+    "@zintrust/core": "./src/index.ts",
+    "@zintrust/workers": "./packages/workers/src/index.ts",
+    "@routes/api": "./routes/api.ts",
+  },
   "observability": {
     "enabled": true,
     "head_sampling_rate": 0.1,

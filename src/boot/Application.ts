@@ -261,22 +261,71 @@ const tryImportRoutesFromAppBase = async (
   return undefined;
 };
 
+const registerAppRoutes = async (resolvedBasePath: string, router: IRouter): Promise<void> => {
+  const mod = await tryImportRoutesFromAppBase(resolvedBasePath);
+  if (mod && typeof mod.registerRoutes === 'function') {
+    mod.registerRoutes(router);
+  }
+};
+
+const registerFrameworkRoutes = async (router: IRouter): Promise<void> => {
+  const frameworkRoutes = await tryImportOptional<{
+    registerRoutes?: (router: IRouter) => void;
+  }>('@routes/api');
+
+  if (frameworkRoutes && typeof frameworkRoutes.registerRoutes === 'function') {
+    frameworkRoutes.registerRoutes(router);
+  }
+};
+
+const getRelativeModulePath = (): string => {
+  const metaUrl = typeof import.meta?.url === 'string' ? import.meta.url : '';
+  const relativePath = isCompiledJsModule() ? '../../routes/api.js' : '../../routes/api.ts';
+
+  if (metaUrl === '') {
+    return isCompiledJsModule() ? '../../routes/api.js' : '../../routes/api';
+  } else {
+    return new URL(relativePath, metaUrl).href;
+  }
+};
+
+const registerRelativeRoutes = async (router: IRouter): Promise<void> => {
+  const relativeModule = getRelativeModulePath();
+  const relativeRoutes = await tryImportOptional<{
+    registerRoutes?: (router: IRouter) => void;
+  }>(relativeModule);
+
+  if (relativeRoutes && typeof relativeRoutes.registerRoutes === 'function') {
+    relativeRoutes.registerRoutes(router);
+  }
+};
+
+const registerGlobalRoutes = (router: IRouter): void => {
+  const globalRoutes = (
+    globalThis as unknown as {
+      __zintrustRoutes?: RoutesModule;
+    }
+  ).__zintrustRoutes;
+
+  if (globalRoutes && typeof globalRoutes.registerRoutes === 'function') {
+    globalRoutes.registerRoutes(router);
+  } else {
+    Logger.warn(
+      'No app routes found and framework routes are unavailable. Ensure routes/api.ts exists in the project.'
+    );
+  }
+};
+
 const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promise<void> => {
   try {
-    const mod = await tryImportRoutesFromAppBase(resolvedBasePath);
-    if (typeof mod?.registerRoutes === 'function') {
-      mod.registerRoutes(router);
-    } else {
-      const frameworkRoutes = await tryImportOptional<{
-        registerRoutes?: (router: IRouter) => void;
-      }>('@routes/api');
-
-      if (typeof frameworkRoutes?.registerRoutes === 'function') {
-        frameworkRoutes.registerRoutes(router);
-      } else {
-        Logger.warn(
-          'No app routes found and framework routes are unavailable. Ensure routes/api.ts exists in the project.'
-        );
+    await registerAppRoutes(resolvedBasePath, router);
+    if (router.routes.length === 0) {
+      await registerFrameworkRoutes(router);
+      if (router.routes.length === 0) {
+        await registerRelativeRoutes(router);
+        if (router.routes.length === 0) {
+          registerGlobalRoutes(router);
+        }
       }
     }
 
@@ -292,6 +341,10 @@ const registerRoutes = async (resolvedBasePath: string, router: IRouter): Promis
 const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<void> => {
   if (resolvedBasePath === '') return;
   if (typeof process === 'undefined') return;
+  const globalAny = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
+  if (globalAny.CF !== undefined) return;
+  if (typeof globalAny.WebSocketPair === 'function') return;
+  if (globalAny.caches !== 'undefined') return;
 
   let nodeFs:
     | {
@@ -331,7 +384,8 @@ const tryImportOptional = async <T>(modulePath: string): Promise<T | undefined> 
 const isCompiledJsModule = (): boolean => {
   // When running from dist, this module is compiled to .js and Node ESM resolution
   // requires explicit file extensions for relative imports.
-  return import.meta.url.endsWith('.js');
+  const metaUrl = typeof import.meta?.url === 'string' ? import.meta.url : '';
+  return metaUrl.endsWith('.js');
 };
 
 const dbLoader = async (): Promise<void> => {
