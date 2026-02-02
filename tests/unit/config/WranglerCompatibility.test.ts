@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 const parseJsonc = (value: string): Record<string, unknown> => {
   const withoutBlock = value.replace(/\/\*[\s\S]*?\*\//g, '');
   const withoutLine = withoutBlock.replace(/^\s*\/\/.*$/gm, '');
-  return JSON.parse(withoutLine) as Record<string, unknown>;
+  const withoutTrailingCommas = withoutLine.replace(/,\s*([}\]])/g, '$1');
+  return JSON.parse(withoutTrailingCommas) as Record<string, unknown>;
 };
 
 describe('wrangler compatibility settings', () => {

@@ -7,6 +7,7 @@ const hoisted = vi.hoisted(() => ({
     NODE_ENV: 'test' as string | undefined,
     getBool: vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false),
     get: vi.fn((_key: string, defaultVal?: string) => defaultVal ?? ''),
+    getInt: vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0),
   },
   app: {
     environment: 'test',

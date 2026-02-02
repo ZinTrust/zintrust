@@ -18,7 +18,7 @@ vi.mock('bullmq', () => {
   return { Queue };
 });
 
-import { BullMQRedisQueue } from 'packages/queue-redis/src/BullMQRedisQueue';
+import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {
   it('requires ENABLE_CLOUDFLARE_SOCKETS in Workers', async () => {
@@ -30,7 +30,9 @@ describe('BullMQ Redis queue (Workers)', () => {
         payload: { ok: true },
       } as any)
     ).rejects.toMatchObject({
-      message: expect.stringContaining('ENABLE_CLOUDFLARE_SOCKETS'),
+      details: expect.objectContaining({
+        message: expect.stringContaining('ENABLE_CLOUDFLARE_SOCKETS'),
+      }),
     });
 
     if (originalEnv === undefined) {

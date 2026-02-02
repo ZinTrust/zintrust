@@ -7,9 +7,32 @@
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import bcrypt from 'bcryptjs';
-
 const BCRYPT_HASH_RE = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+type BcryptModule = {
+  hash: (plaintext: string, rounds: number) => Promise<string>;
+  compare: (plaintext: string, hashed: string) => Promise<boolean>;
+};
+
+let bcryptModule: BcryptModule | null = null;
+
+const loadBcrypt = async (): Promise<BcryptModule> => {
+  if (bcryptModule !== null) return bcryptModule;
+
+  try {
+    const mod = (await import('bcryptjs')) as unknown as { default?: unknown };
+    const resolved = (mod.default ?? mod) as BcryptModule;
+
+    if (typeof resolved?.hash !== 'function' || typeof resolved?.compare !== 'function') {
+      throw ErrorFactory.createConfigError('Invalid bcryptjs module shape');
+    }
+
+    bcryptModule = resolved;
+    return resolved;
+  } catch (error: unknown) {
+    throw ErrorFactory.createConfigError('bcryptjs module unavailable', error);
+  }
+};
 
 export const Hash = Object.freeze({
   isValidHash(hash: string): boolean {
@@ -18,9 +41,14 @@ export const Hash = Object.freeze({
 
   async hash(plaintext: string): Promise<string> {
     try {
+      const bcrypt = await loadBcrypt();
       return await bcrypt.hash(plaintext, 12);
     } catch (error: unknown) {
       Logger.error('Password hashing failed', error);
+      const err = error as { name?: string; code?: string } | undefined;
+      if (err?.name === 'ConfigError' || err?.code === 'CONFIG_ERROR') {
+        throw ErrorFactory.createConfigError('Password hashing failed', error as Error);
+      }
       throw ErrorFactory.createSecurityError('Password hashing failed', error);
     }
   },
@@ -32,9 +60,14 @@ export const Hash = Object.freeze({
     }
 
     try {
+      const bcrypt = await loadBcrypt();
       return await bcrypt.hash(plaintext, normalizedRounds);
     } catch (error: unknown) {
       Logger.error('Password hashing failed', error);
+      const err = error as { name?: string; code?: string } | undefined;
+      if (err?.name === 'ConfigError' || err?.code === 'CONFIG_ERROR') {
+        throw ErrorFactory.createConfigError('Password hashing failed', error as Error);
+      }
       throw ErrorFactory.createSecurityError('Password hashing failed', error);
     }
   },
@@ -43,6 +76,7 @@ export const Hash = Object.freeze({
     if (!Hash.isValidHash(hashed)) return false;
 
     try {
+      const bcrypt = await loadBcrypt();
       return await bcrypt.compare(plaintext, hashed);
     } catch (error: unknown) {
       Logger.error('Password verify failed', error);

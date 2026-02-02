@@ -35,6 +35,25 @@ import { MySQLAdapter } from '../../../../packages/db-mysql/src/index';
 
 describe('MySQL adapter (Workers)', () => {
   it('parses connection string and uses stream option in Workers', async () => {
+    const injectedMysqlModule = {
+      createPool: (config: Record<string, unknown>) => {
+        poolConfig.push(config);
+        return {
+          execute: async () => [[], []],
+          end: async () => undefined,
+          getConnection: async () => ({
+            execute: async () => [[], []],
+            beginTransaction: async () => undefined,
+            commit: async () => undefined,
+            rollback: async () => undefined,
+            release: () => undefined,
+          }),
+        };
+      },
+    };
+    (globalThis as unknown as { __zintrustMysqlModule?: unknown }).__zintrustMysqlModule =
+      injectedMysqlModule;
+
     const originalEnv = (globalThis as unknown as { env?: unknown }).env;
     (globalThis as unknown as { env?: unknown }).env = {
       ENABLE_CLOUDFLARE_SOCKETS: 'true',
@@ -62,5 +81,7 @@ describe('MySQL adapter (Workers)', () => {
     } else {
       (globalThis as unknown as { env?: unknown }).env = originalEnv;
     }
+
+    delete (globalThis as unknown as { __zintrustMysqlModule?: unknown }).__zintrustMysqlModule;
   });
 });

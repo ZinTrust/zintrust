@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { describe, expect, it, vi } from 'vitest';
 
 const createWorkersSocket = (responses: string[][]) => {
   class MockSocket extends EventEmitter {
@@ -31,7 +31,7 @@ const createWorkersSocket = (responses: string[][]) => {
   const socket = new MockSocket();
   setTimeout(() => {
     socket.emit('connect');
-    socket.emitNext();
+    setTimeout(() => socket.emitNext(), 0);
   }, 0);
 
   return socket;

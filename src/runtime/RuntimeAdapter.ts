@@ -252,6 +252,7 @@ export function createMockHttpObjects(request: PlatformRequest): {
     method: request.method,
     url: request.path,
     headers: request.headers,
+    body: request.body ?? undefined,
     remoteAddress,
     socket: {
       remoteAddress,

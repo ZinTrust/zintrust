@@ -66,7 +66,7 @@ const isWorkersRuntime = (): boolean => {
   const globalAny = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
   if (globalAny.CF !== undefined) return true;
   if (typeof globalAny.WebSocketPair === 'function') return true;
-  if (globalAny.caches !== 'undefined') return true;
+  if (globalAny.caches !== undefined) return true;
   return false;
 };
 

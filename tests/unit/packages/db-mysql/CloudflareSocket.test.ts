@@ -51,6 +51,9 @@ const flushMicrotasks = async (): Promise<void> => {
   await Promise.resolve();
 };
 
+const waitForConnect = async (socket: { once: (event: string, cb: () => void) => void }) =>
+  new Promise<void>((resolve) => socket.once('connect', () => resolve()));
+
 describe('CloudflareSocket (db-mysql)', () => {
   it('emits connect and data events', async () => {
     const socket = CloudflareSocket.create('localhost', 3306);
@@ -65,7 +68,7 @@ describe('CloudflareSocket (db-mysql)', () => {
       dataEvents.push(data);
     });
 
-    await flushMicrotasks();
+    await waitForConnect(socket);
 
     mockState.controller?.enqueue(new Uint8Array([1, 2, 3]));
     await flushMicrotasks();
@@ -83,7 +86,7 @@ describe('CloudflareSocket (db-mysql)', () => {
       dataEvents.push(data);
     });
 
-    await flushMicrotasks();
+    await waitForConnect(socket);
 
     socket.pause();
     mockState.controller?.enqueue(new Uint8Array([9]));
@@ -106,7 +109,7 @@ describe('CloudflareSocket (db-mysql)', () => {
       errors.push(error);
     });
 
-    await flushMicrotasks();
+    await waitForConnect(socket);
     const error = new Error('stream failure');
     mockState.controller?.error(error);
     await flushMicrotasks();

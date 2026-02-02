@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RequestInfo } from 'miniflare';
-import { RabbitMqQueue } from 'packages/queue-rabbitmq/src/index';
+import { RabbitMqQueue } from '../../../../packages/queue-rabbitmq/src/index';
 
 type FetchCall = { url: string; init?: RequestInit };
 

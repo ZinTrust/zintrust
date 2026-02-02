@@ -116,6 +116,7 @@ async function handleCloudflareRequest(
     // Read request body
     const body =
       request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : null;
+    platformRequest.body = body;
 
     // Create mock Node.js request/response objects
     const { req, res, responseData } = createMockHttpObjects(platformRequest);

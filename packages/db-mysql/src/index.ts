@@ -56,6 +56,11 @@ type MySqlModule = {
   createPool: (config: unknown) => MySqlPool;
 };
 
+const getInjectedMysqlModule = (): MySqlModule | undefined => {
+  const globalAny = globalThis as { __zintrustMysqlModule?: MySqlModule };
+  return globalAny.__zintrustMysqlModule;
+};
+
 type CloudflareSocketFactory = (options: {
   host: string;
   port: number;
@@ -82,6 +87,8 @@ function isMissingEsmPackage(error: unknown, packageName: string): boolean {
 }
 
 async function loadMysql(): Promise<MySqlModule> {
+  const injected = getInjectedMysqlModule();
+  if (injected) return injected;
   return (await import('mysql2/promise')) as unknown as MySqlModule;
 }
 

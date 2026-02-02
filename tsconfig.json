@@ -38,6 +38,7 @@
       "@deployment/*": ["./src/deployment/*"],
       "@cache/*": ["./src/cache/*"],
       "@config/*": ["./src/config/*"],
+      "@runtime-config/*": ["./config/*"],
       "@common/*": ["./src/common/*"],
       "@scheduler/*": ["./src/scheduler/*"],
       "@schedules/*": ["./src/schedules/*"],

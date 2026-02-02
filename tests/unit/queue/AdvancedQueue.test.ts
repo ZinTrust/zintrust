@@ -32,6 +32,7 @@ vi.mock('@tools/queue/Queue', () => ({
     }),
     enqueue: vi.fn().mockResolvedValue('job-123'),
   },
+  resolveLockPrefix: () => 'test:locks:',
 }));
 
 describe('AdvancedQueue', () => {

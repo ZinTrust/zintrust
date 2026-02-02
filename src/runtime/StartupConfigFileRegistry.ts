@@ -1,5 +1,6 @@
 import useFileLoader from '@runtime/useFileLoader';
 
+// NOTE runtime config loader
 export const StartupConfigFile = {
   Broadcast: 'config/broadcast.ts',
   Cache: 'config/cache.ts',
@@ -12,7 +13,7 @@ export const StartupConfigFile = {
   Workers: 'config/workers.ts',
 } as const;
 
-export type StartupConfigFileTyps =
+export type StartupConfigFileTypes =
   | typeof StartupConfigFile.Broadcast
   | typeof StartupConfigFile.Cache
   | typeof StartupConfigFile.Database
@@ -23,12 +24,26 @@ export type StartupConfigFileTyps =
   | typeof StartupConfigFile.Storage
   | typeof StartupConfigFile.Workers;
 
-const cache = new Map<StartupConfigFileTyps, unknown>();
+const cache = new Map<StartupConfigFileTypes, unknown>();
 let preloaded = false;
 
+const getWorkersStartupOverrides = (): Map<StartupConfigFileTypes, unknown> | undefined => {
+  if (typeof globalThis === 'undefined') return undefined;
+  const globalAny = globalThis as {
+    __zintrustStartupConfigOverrides?: Map<StartupConfigFileTypes, unknown>;
+  };
+  return globalAny.__zintrustStartupConfigOverrides;
+};
+
 export const StartupConfigFileRegistry = Object.freeze({
-  async preload(files: readonly StartupConfigFileTyps[]): Promise<void> {
+  async preload(files: readonly StartupConfigFileTypes[]): Promise<void> {
     const tasks = files.map(async (file) => {
+      const overrides = getWorkersStartupOverrides();
+      if (overrides?.has(file) === true) {
+        cache.set(file, overrides.get(file));
+        return;
+      }
+
       const loader = useFileLoader(file);
       if (!loader.exists()) {
         cache.delete(file);
@@ -46,11 +61,11 @@ export const StartupConfigFileRegistry = Object.freeze({
     return preloaded;
   },
 
-  get<T>(file: StartupConfigFileTyps): T | undefined {
+  get<T>(file: StartupConfigFileTypes): T | undefined {
     return cache.get(file) as T | undefined;
   },
 
-  has(file: StartupConfigFileTyps): boolean {
+  has(file: StartupConfigFileTypes): boolean {
     return cache.has(file);
   },
 

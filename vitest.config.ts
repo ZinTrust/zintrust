@@ -59,6 +59,7 @@ export default defineConfig({
       '@deployment': path.resolve(__dirname, './src/deployment'),
       '@cache': path.resolve(__dirname, './src/cache'),
       '@config': path.resolve(__dirname, './src/config'),
+      '@runtime-config': path.resolve(__dirname, './config'),
       '@common': path.resolve(__dirname, './src/common'),
       '@scheduler': path.resolve(__dirname, './src/scheduler'),
       '@schedules': path.resolve(__dirname, './src/schedules'),

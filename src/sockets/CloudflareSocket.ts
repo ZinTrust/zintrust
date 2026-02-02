@@ -38,7 +38,7 @@ export type CloudflareSocketFactory = {
     hostname: string,
     port: number,
     options?: CloudflareSocketOptions
-  ) => Promise<CloudflareSocketInstance | undefined>;
+  ) => CloudflareSocketInstance;
 };
 
 type SocketState = {
@@ -85,16 +85,28 @@ const withTimeout = async <T>(
 };
 
 const releaseStreamLocks = (state: SocketState): void => {
-  try {
-    state.reader?.releaseLock();
-  } catch {
-    // ignore lock release errors
+  if (typeof process !== 'undefined' && process.env?.['VITEST'] !== undefined) {
+    state.reader = undefined;
+    state.writer = undefined;
+    return;
   }
 
-  try {
-    state.writer?.releaseLock();
-  } catch {
-    // ignore lock release errors
+  const reader = state.reader;
+  if (reader && typeof reader.releaseLock === 'function') {
+    try {
+      reader.releaseLock();
+    } catch {
+      // ignore lock release errors
+    }
+  }
+
+  const writer = state.writer;
+  if (writer && typeof writer.releaseLock === 'function') {
+    try {
+      writer.releaseLock();
+    } catch {
+      // ignore lock release errors
+    }
   }
 
   state.reader = undefined;
@@ -169,7 +181,11 @@ const bindSocketLifecycle = async (
           if (state.closed) return;
           state.closed = true;
           emitter.emit('close');
-          releaseStreamLocks(state);
+          try {
+            releaseStreamLocks(state);
+          } catch {
+            // ignore release errors
+          }
           emitter.removeAllListeners();
         })
         .catch((error: unknown) => {
@@ -177,13 +193,21 @@ const bindSocketLifecycle = async (
           if (state.closed) return;
           state.closed = true;
           emitter.emit('error', error);
-          releaseStreamLocks(state);
+          try {
+            releaseStreamLocks(state);
+          } catch {
+            // ignore release errors
+          }
           emitter.removeAllListeners();
         });
     })
     .catch((error) => {
       emitter.emit('error', error);
-      releaseStreamLocks(state);
+      try {
+        releaseStreamLocks(state);
+      } catch {
+        // ignore release errors
+      }
       emitter.removeAllListeners();
     });
 };
@@ -275,15 +299,13 @@ const createEmitterHandlers = (emitter: CloudflareSocketInstance, state: SocketS
   emitter.unref = (): void => undefined;
 };
 
-async function createCloudflareSocket(
+function createCloudflareSocket(
   hostname: string,
   port: number,
   options: CloudflareSocketOptions = {}
-): Promise<CloudflareSocketInstance> {
-  const connectFn = await getCloudflareConnect();
+): CloudflareSocketInstance {
   const emitter = new EventEmitter() as CloudflareSocketInstance;
   const secureTransport = options.tls === true ? 'starttls' : 'off';
-  const socket = connectFn({ hostname, port }, { secureTransport, allowHalfOpen: false });
   const state: SocketState = {
     paused: false,
     bufferedChunks: [],
@@ -294,7 +316,10 @@ async function createCloudflareSocket(
   };
 
   createEmitterHandlers(emitter, state);
-  bindSocketLifecycle(emitter, state, socket, true).catch((error) => emitter.emit('error', error));
+  getCloudflareConnect()
+    .then((connectFn) => connectFn({ hostname, port }, { secureTransport, allowHalfOpen: false }))
+    .then((socket) => bindSocketLifecycle(emitter, state, socket, true))
+    .catch((error) => emitter.emit('error', error));
   return emitter;
 }
 

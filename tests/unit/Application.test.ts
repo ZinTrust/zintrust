@@ -29,6 +29,13 @@ vi.mock('@config/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+  default: Object.freeze({
+    initialize: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  }),
 }));
 vi.mock('@config/env', () => ({
   Env: {
