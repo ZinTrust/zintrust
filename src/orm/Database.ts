@@ -12,6 +12,7 @@ import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
+import { MySQLProxyAdapter } from '@orm/adapters/MySQLProxyAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
@@ -48,6 +49,12 @@ export interface IDatabase {
  */
 const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
   if (Cloudflare.getWorkersEnv() !== null) {
+    if (cfg.driver === 'mysql') {
+      const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
+      if (proxyUrl.length > 0) {
+        return MySQLProxyAdapter.create(cfg);
+      }
+    }
     const isSocketDriver = cfg.driver === 'postgresql' || cfg.driver === 'mysql';
     if (isSocketDriver && Cloudflare.isCloudflareSocketsEnabled() === false) {
       throw ErrorFactory.createConfigError(

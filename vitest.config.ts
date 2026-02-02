@@ -35,6 +35,14 @@ export default defineConfig({
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
+      '@zintrust/cloudflare-kv-proxy': path.resolve(
+        __dirname,
+        './packages/cloudflare-kv-proxy/src/index.ts'
+      ),
+      '@zintrust/cloudflare-d1-proxy': path.resolve(
+        __dirname,
+        './packages/cloudflare-d1-proxy/src/index.ts'
+      ),
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),

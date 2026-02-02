@@ -1,5 +1,7 @@
+import { Logger } from '@config/logger';
 import type { QueueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { detectRuntime } from '@runtime/detectRuntime';
 import { DatabaseQueue } from '@tools/queue/drivers/Database';
 
 import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
@@ -24,6 +26,19 @@ export function registerQueuesFromRuntimeConfig(config: QueueConfig): void {
     throw ErrorFactory.createConfigError('Queue default driver is not configured');
   }
 
-  const drv = Queue.get(defaultName);
-  Queue.register('default', drv);
+  try {
+    const drv = Queue.get(defaultName);
+    Queue.register('default', drv);
+  } catch (error) {
+    const { isCloudflare } = detectRuntime();
+    if (isCloudflare) {
+      Logger.warn(
+        `[queue] Default driver '${defaultName}' is unavailable in Cloudflare runtime; falling back to 'sync'.`
+      );
+      Queue.register('default', Queue.get('sync'));
+      return;
+    }
+
+    throw error;
+  }
 }

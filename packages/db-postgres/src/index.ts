@@ -143,7 +143,8 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
         database,
         user,
         password,
-        stream: (): unknown => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+        stream: (): unknown =>
+          createSocket({ host, port, tls: tlsEnabled, timeoutMs: Number(timeoutMs) }),
       });
     } else {
       state.pool = new Pool({ host, port, database, user, password });

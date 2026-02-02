@@ -1,0 +1,132 @@
+# MySQL Proxy for Cloudflare Workers
+
+Cloudflare Workers cannot open raw TCP sockets. That means MySQL drivers that rely on TCP (like `mysql2`) do not work inside Workers. ZinTrust ships a **MySQL HTTP proxy** that runs in a normal Node.js environment and forwards SQL requests to MySQL over TCP.
+
+This document explains when you need the proxy, how it works, and how to run it in development and production.
+
+## When you need this
+
+Use the MySQL proxy when **all** of the following are true:
+
+- Your app runs on Cloudflare Workers (`zin s --wg` or Wrangler deploy).
+- Your database driver is MySQL (`DB_CONNECTION=mysql`).
+- You are **not** using D1.
+
+If you use D1, you do not need this proxy.
+
+## Architecture (high level)
+
+```
+Workers app (fetch)  ──HTTP──>  MySQL Proxy (Node.js)  ──TCP──>  MySQL
+```
+
+The proxy exposes three HTTP endpoints:
+
+- `POST /zin/mysql/query`
+- `POST /zin/mysql/queryOne`
+- `POST /zin/mysql/exec`
+
+ZinTrust sends JSON payloads of the form:
+
+```json
+{ "sql": "SELECT ...", "params": [ ... ] }
+```
+
+## Quick start (local development)
+
+1. Start the proxy in one terminal:
+
+```bash
+zin proxy:mysql
+```
+
+2. Configure your Worker environment (`.env` or `wrangler.jsonc`):
+
+```env
+DB_CONNECTION=mysql
+MYSQL_PROXY_URL=http://127.0.0.1:8789
+```
+
+3. Start the Worker dev server:
+
+```bash
+zin s --wg
+```
+
+If `MYSQL_PROXY_URL` is missing, the CLI will warn and print a copy‑paste command to start the proxy.
+
+## CLI options
+
+The proxy command accepts overrides so you can run it without changing `.env`:
+
+```bash
+zin proxy:mysql \
+  --host 0.0.0.0 \
+  --port 8789 \
+  --db-host 127.0.0.1 \
+  --db-port 3306 \
+  --db-name zintrust \
+  --db-user root \
+  --db-pass secret \
+  --connection-limit 10 \
+  --max-body-bytes 131072
+```
+
+## Required environment variables (Worker)
+
+| Variable          | Purpose               | Example                 |
+| ----------------- | --------------------- | ----------------------- |
+| `DB_CONNECTION`   | Must be `mysql`       | `mysql`                 |
+| `MYSQL_PROXY_URL` | Base URL of the proxy | `http://127.0.0.1:8789` |
+
+## Proxy server environment variables (Node)
+
+| Variable                     | Purpose          | Default     |
+| ---------------------------- | ---------------- | ----------- |
+| `MYSQL_PROXY_HOST`           | Bind host        | `127.0.0.1` |
+| `MYSQL_PROXY_PORT`           | Bind port        | `8789`      |
+| `MYSQL_PROXY_MAX_BODY_BYTES` | Max request size | `131072`    |
+| `MYSQL_PROXY_POOL_LIMIT`     | MySQL pool size  | `10`        |
+| `DB_HOST`                    | MySQL host       | `localhost` |
+| `DB_PORT`                    | MySQL port       | `3306`      |
+| `DB_DATABASE`                | MySQL database   | `zintrust`  |
+| `DB_USERNAME`                | MySQL username   | `root`      |
+| `DB_PASSWORD`                | MySQL password   | ``          |
+
+## Optional request signing (recommended for production)
+
+The proxy can require signed requests using ZinTrust’s `SignedRequest` headers.
+
+1. Set credentials on the proxy **and** in the Worker:
+
+```env
+MYSQL_PROXY_KEY_ID=my-key
+MYSQL_PROXY_SECRET=my-secret
+MYSQL_PROXY_REQUIRE_SIGNING=true
+```
+
+2. (Optional) tighten the time window:
+
+```env
+MYSQL_PROXY_SIGNING_WINDOW_MS=60000
+```
+
+When signing is enabled, the Worker will send signed requests automatically. Any unsigned or invalid request is rejected by the proxy.
+
+## Production deployment
+
+Deploy the proxy anywhere that can reach your MySQL server over TCP:
+
+- A small VM (Linux)
+- A container in ECS/Fly/Render
+- A private service inside your VPC
+
+Then set `MYSQL_PROXY_URL` in your Worker environment to point at that service over HTTPS.
+
+> You can also run **your own** proxy implementation as long as it respects the endpoint contract above.
+
+## Troubleshooting
+
+- **401/403 from proxy**: signing headers missing or invalid. Check `MYSQL_PROXY_KEY_ID` / `MYSQL_PROXY_SECRET` and clock skew.
+- **ECONNREFUSED**: the proxy is not reachable at `MYSQL_PROXY_URL`.
+- **MySQL access denied**: verify `DB_USERNAME` / `DB_PASSWORD` on the proxy side.

@@ -16,6 +16,8 @@ import workersOverrides from '@runtime-config/workers';
 
 import { getKernel } from '@runtime/getKernel';
 
+import '@runtime/WorkerAdapterImports';
+
 const applyStartupConfigOverrides = (): void => {
   const globalAny = globalThis as {
     __zintrustStartupConfigOverrides?: Map<string, unknown>;

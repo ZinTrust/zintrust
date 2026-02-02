@@ -21,6 +21,7 @@ import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { MigrateWorkerCommand } from '@cli/commands/MigrateWorkerCommand';
+import { MySqlProxyCommand } from '@cli/commands/MySqlProxyCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
@@ -118,6 +119,7 @@ const registerCommands = (program: Command): void => {
     MakeNotificationTemplateCommand.create(),
     RoutesCommand.create(),
     JwtDevCommand,
+    MySqlProxyCommand.create(),
     // Worker management commands
     WorkerCommands.createWorkerListCommand(),
     WorkerCommands.createWorkerStatusCommand(),

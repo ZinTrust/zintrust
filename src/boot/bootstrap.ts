@@ -240,6 +240,12 @@ const BootstrapFunctions = Object.freeze({
         await useWorkerStarter();
       }
     } catch (error) {
+      try {
+        Logger.error('Failed to bootstrap application:', error as Error);
+      } catch {
+        // best-effort logging
+      }
+
       Logger.debug('[bootstrap] start: failed', {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,

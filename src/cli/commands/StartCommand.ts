@@ -110,6 +110,31 @@ const resolveStartVariant = (options: StartCommandOptions): StartVariant => {
   return 'node';
 };
 
+const getMySqlProxyHint = (): { command: string; url: string } | null => {
+  const connection = readEnvString('DB_CONNECTION', '').toLowerCase();
+  if (connection !== 'mysql') return null;
+
+  const proxyUrl = readEnvString('MYSQL_PROXY_URL', '').trim();
+  if (proxyUrl !== '') return null;
+
+  const host = readEnvString('MYSQL_PROXY_HOST', '127.0.0.1').trim() || '127.0.0.1';
+  const port = readEnvString('MYSQL_PROXY_PORT', '8789').trim() || '8789';
+
+  return {
+    command: `zin proxy:mysql --host ${host} --port ${port}`,
+    url: `http://${host}:${port}`,
+  };
+};
+
+const logMySqlProxyHint = (cmd: IBaseCommand): void => {
+  const hint = getMySqlProxyHint();
+  if (!hint) return;
+
+  cmd.warn('MySQL proxy not configured for Cloudflare Workers. Start it in another terminal:');
+  cmd.warn(hint.command);
+  cmd.warn(`Then set MYSQL_PROXY_URL=${hint.url}`);
+};
+
 const hasFlag = (flag: string): boolean => process.argv.includes(flag);
 
 const resolveWatchPreference = (options: StartCommandOptions, mode: StartMode): boolean => {
@@ -274,6 +299,7 @@ const executeWranglerStart = async (
     wranglerArgs.push('--port', String(port));
   }
 
+  logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
   const exitCode = await SpawnUtil.spawnAndWait({ command: 'wrangler', args: wranglerArgs });
   process.exit(exitCode);

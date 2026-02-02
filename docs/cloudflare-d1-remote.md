@@ -59,6 +59,11 @@ Shape (example):
 }
 ```
 
+### Source location in this repo
+
+- Core proxy entry (re-export): [src/proxy/d1/ZintrustD1Proxy.ts](src/proxy/d1/ZintrustD1Proxy.ts)
+- Implementation (package): [packages/cloudflare-d1-proxy/src/index.ts](packages/cloudflare-d1-proxy/src/index.ts)
+
 Notes:
 
 - Keep secrets out of source control.

@@ -163,6 +163,16 @@ export { Schema, Validator } from '@validation/Validator';
 export type { ISchema, SchemaType } from '@validation/Validator';
 
 // Security
+export {
+  _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE,
+  _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION,
+  ZintrustD1Proxy,
+} from '@/proxy/d1/ZintrustD1Proxy';
+export {
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE,
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION,
+  ZintrustKvProxy,
+} from '@/proxy/kv/ZintrustKvProxy';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type {
   CsrfTokenData,

@@ -78,5 +78,74 @@
       ],
       "minify": true,
     },
+    "d1-proxy": {
+      "name": "zintrust-d1-proxy",
+      "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {},
+      // D1 binding for the proxy
+      // "d1_databases": [
+      //   {
+      //     "binding": "DB",
+      //     "database_name": "your_db_name",
+      //     "database_id": "your_database_id",
+      //   },
+      // ],
+      // Optional KV namespace for nonce replay protection
+      // "kv_namespaces": [
+      //   {
+      //     "binding": "ZT_NONCES",
+      //     "id": "your-kv-id-here",
+      //     "preview_id": "your-kv-preview-id-here",
+      //   },
+      // ],
+      "routes": [
+        {
+          "pattern": "d1-proxy.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+
+    "kv-proxy": {
+      "name": "zintrust-kv-proxy",
+      "main": "./src/proxy/kv/ZintrustKvProxy.ts",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {},
+      // KV binding for the proxy
+      // "kv_namespaces": [
+      //   {
+      //     "binding": "CACHE",
+      //     "id": "your-kv-id-here",
+      //     "preview_id": "your-kv-preview-id-here",
+      //   },
+      // ],
+      "routes": [
+        {
+          "pattern": "kv-proxy.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+    "mysql-proxy": {
+      "name": "zintrust-mysql-proxy",
+      "main": "./src/proxy/mysql/MySqlProxyServer.ts",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {},
+      // KV binding for the proxy
+      // "kv_namespaces": [
+      //   {
+      //     "binding": "CACHE",
+      //     "id": "your-kv-id-here",
+      //     "preview_id": "your-kv-preview-id-here",
+      //   },
+      // ],
+      "routes": [
+        {
+          "pattern": "mysql-proxy.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+    },
   },
 }

@@ -84,6 +84,12 @@ CACHE_DRIVER=kv
 
 The KV driver expects the KV namespace binding name to be `CACHE` (as shown in the Wrangler config above).
 
+## MySQL outside Cloudflare (HTTP Proxy)
+
+Workers cannot open raw TCP connections, so MySQL must be accessed through an HTTP proxy.
+
+See **[docs/cloudflare-mysql-proxy.md](cloudflare-mysql-proxy.md)** for the full setup, CLI usage, and production guidance.
+
 ## Using D1/KV outside Cloudflare (Proxy Services)
 
 D1 and KV are Cloudflare Workers bindings (there is no standard direct TCP connection string like Postgres/Redis).
