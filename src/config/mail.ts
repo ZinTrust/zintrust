@@ -48,23 +48,11 @@ const getMailDriver = (config: MailConfigInput, name?: string): MailDriverConfig
   throw ErrorFactory.createConfigError(`Mail driver not configured: ${selected}`);
 };
 
-const createMailConfig = (): {
-  default: string;
-  from: { address: string; name: string };
-  drivers: Record<string, MailDriverConfig>;
-  getDriver: (this: MailConfigInput, name?: string) => MailDriverConfig;
-} => {
-  const overrides: MailConfigOverrides =
-    StartupConfigFileRegistry.get<MailConfigOverrides>(StartupConfigFile.Mail) ?? {};
-
-  const baseDefault = Env.get('MAIL_CONNECTION', Env.get('MAIL_DRIVER', 'disabled'))
-    .trim()
-    .toLowerCase();
-  const baseFrom = {
-    address: Env.get('MAIL_FROM_ADDRESS', ''),
-    name: Env.get('MAIL_FROM_NAME', ''),
-  };
-  const baseDrivers: Record<string, MailDriverConfig> = {
+/**
+ * Create base mail drivers configuration
+ */
+const createMailDrivers = (): Record<string, MailDriverConfig> => {
+  return {
     disabled: {
       driver: 'disabled' as const,
     },
@@ -116,6 +104,25 @@ const createMailConfig = (): {
       region: Env.get('AWS_REGION', 'us-east-1'),
     },
   };
+};
+
+const createMailConfig = (): {
+  default: string;
+  from: { address: string; name: string };
+  drivers: Record<string, MailDriverConfig>;
+  getDriver: (this: MailConfigInput, name?: string) => MailDriverConfig;
+} => {
+  const overrides: MailConfigOverrides =
+    StartupConfigFileRegistry.get<MailConfigOverrides>(StartupConfigFile.Mail) ?? {};
+
+  const baseDefault = Env.get('MAIL_CONNECTION', Env.get('MAIL_DRIVER', 'disabled'))
+    .trim()
+    .toLowerCase();
+  const baseFrom = {
+    address: Env.get('MAIL_FROM_ADDRESS', ''),
+    name: Env.get('MAIL_FROM_NAME', ''),
+  };
+  const baseDrivers = createMailDrivers();
 
   const mailConfigObj = {
     /**

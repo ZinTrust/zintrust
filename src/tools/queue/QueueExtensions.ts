@@ -43,7 +43,8 @@ export async function enqueueAdvanced(
 ): Promise<string> {
   if (advancedQueueRef === null) {
     Logger.warn(`Advanced queue not initialized, falling back to standard enqueue`);
-    return Queue.enqueue(name, payload);
+    const getQueue = await Queue?.enqueue(name, payload);
+    return getQueue ?? '';
   }
 
   return advancedQueueRef.enqueue(name, payload, options);

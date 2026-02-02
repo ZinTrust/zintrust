@@ -6,6 +6,7 @@
 
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { Cloudflare } from '@config/cloudflare';
 import type {
   RedisConfig,
   WorkerConfig,
@@ -71,6 +72,12 @@ const resolveIORedis = (): typeof import('ioredis') => {
 };
 
 export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORedis => {
+  if (Cloudflare.getWorkersEnv() !== null && Cloudflare.isCloudflareSocketsEnabled() === false) {
+    throw ErrorFactory.createConfigError(
+      'Redis connections in Cloudflare Workers require ENABLE_CLOUDFLARE_SOCKETS=true.'
+    );
+  }
+
   const { Redis } = resolveIORedis();
   const client = new Redis({
     host: config.host,

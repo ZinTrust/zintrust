@@ -5,7 +5,11 @@
 
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
-import { serveErrorPagesFile, serveZintrustSvgFile } from '@core-routes/errorPages';
+import {
+  serveErrorPagesFileAsync,
+  serveZintrustSvgFile,
+  serveZintrustSvgFileAsync,
+} from '@core-routes/errorPages';
 import { getPublicRoot } from '@core-routes/publicRoot';
 import type { IRouter } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
@@ -39,7 +43,7 @@ const safeJsonStringify = (value: unknown): string => {
   }
 };
 
-const trySendHtmlErrorPage = (
+const trySendHtmlErrorPage = async (
   request: IRequest,
   response: IResponse,
   input: {
@@ -51,11 +55,11 @@ const trySendHtmlErrorPage = (
     requestPretty?: string;
     requestRaw?: string;
   }
-): boolean => {
+): Promise<boolean> => {
   if (!ErrorPageRenderer.shouldSendHtml(request)) return false;
 
   const publicRoot = getPublicRoot();
-  const html = ErrorPageRenderer.renderHtml(publicRoot, {
+  const html = await ErrorPageRenderer.renderHtmlAsync(publicRoot, {
     statusCode: input.statusCode,
     errorName: input.errorName,
     errorMessage: input.errorMessage,
@@ -72,22 +76,28 @@ const trySendHtmlErrorPage = (
   return true;
 };
 
-const handleNotFound = (request: IRequest, response: IResponse, requestId?: string): void => {
+const handleNotFound = async (
+  request: IRequest,
+  response: IResponse,
+  requestId?: string
+): Promise<void> => {
   const path = request.getPath();
   if (path.startsWith('/error-pages/')) {
-    serveErrorPagesFile(path, response);
+    await serveErrorPagesFileAsync(path, response);
     return;
   }
 
   if (path === '/zintrust.svg') {
-    serveZintrustSvgFile(response);
+    if (!(await serveZintrustSvgFileAsync(response))) {
+      serveZintrustSvgFile(response);
+    }
     return;
   }
 
   response.setStatus(404);
 
   if (
-    trySendHtmlErrorPage(request, response, {
+    await trySendHtmlErrorPage(request, response, {
       statusCode: 404,
       errorName: 'Not Found',
       errorMessage: 'The page you requested could not be found.',
@@ -99,12 +109,12 @@ const handleNotFound = (request: IRequest, response: IResponse, requestId?: stri
   response.json(ErrorResponse.notFound('Route', requestId));
 };
 
-const handleInternalServerErrorWithWrappers = (
+const handleInternalServerErrorWithWrappers = async (
   request: IRequest,
   response: IResponse,
   error: unknown,
   requestId?: string
-): void => {
+): Promise<void> => {
   response.setStatus(500);
 
   const isDev = appConfig.isDevelopment();
@@ -140,7 +150,7 @@ const handleInternalServerErrorWithWrappers = (
     : undefined;
 
   if (
-    trySendHtmlErrorPage(request, response, {
+    await trySendHtmlErrorPage(request, response, {
       statusCode: 500,
       errorName,
       errorMessage,
@@ -167,15 +177,15 @@ const handleInternalServerErrorRaw = (res: http.ServerResponse): void => {
   res.end(JSON.stringify(ErrorResponse.internalServerError('Internal server error')));
 };
 
-const handleForced404 = (req: IRequest, res: IResponse): void => {
-  handleNotFound(req, res);
+const handleForced404 = async (req: IRequest, res: IResponse): Promise<void> => {
+  await handleNotFound(req, res);
 };
 
-const handleForced500 = (req: IRequest, res: IResponse): void => {
+const handleForced500 = async (req: IRequest, res: IResponse): Promise<void> => {
   const forced = ErrorFactory.createGeneralError('Forced 500 route', {
     route: '/500',
   });
-  handleInternalServerErrorWithWrappers(req, res, forced);
+  await handleInternalServerErrorWithWrappers(req, res, forced);
 };
 
 /**
@@ -186,7 +196,20 @@ export const registerErrorRoutes = (router: IRouter): void => {
   Router.get(router, '/500', handleForced500);
 };
 
-export const ErrorRouting = Object.freeze({
+type ErrorRoutingApi = {
+  getPublicRoot: () => string;
+  registerErrorRoutes: (router: IRouter) => void;
+  handleNotFound: (request: IRequest, response: IResponse, requestId?: string) => Promise<void>;
+  handleInternalServerErrorWithWrappers: (
+    request: IRequest,
+    response: IResponse,
+    error: unknown,
+    requestId?: string
+  ) => Promise<void>;
+  handleInternalServerErrorRaw: (res: http.ServerResponse) => void;
+};
+
+export const ErrorRouting: ErrorRoutingApi = Object.freeze({
   getPublicRoot,
   registerErrorRoutes,
   handleNotFound,

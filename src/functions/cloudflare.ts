@@ -32,3 +32,5 @@ export default {
     }
   },
 };
+
+export { WorkerShutdownDurableObject } from '@zintrust/workers';

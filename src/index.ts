@@ -199,6 +199,9 @@ export { ErrorFactory } from '@exceptions/ZintrustError';
 
 // Runtime services
 export {
+  detectCloudflareWorkers,
+  detectRuntimePlatform,
+  RUNTIME_PLATFORM,
   RuntimeServices,
   type RuntimeCrypto,
   type RuntimeEnvReader,
@@ -439,6 +442,8 @@ export {
   RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
+
+export { CloudflareSocket } from '@sockets/CloudflareSocket';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

@@ -16,6 +16,7 @@
       "@zintrust/queue-redis": ["./packages/queue-redis/src/index.ts"],
       "@zintrust/queue-redis/*": ["./packages/queue-redis/src/*"],
       "@/*": ["./src/*"],
+      "@registry/*": ["./src/boot/registry/*"],
       "@boot/*": ["./src/boot/*"],
       "@cli/*": ["./src/cli/*"],
       "@orm/*": ["./src/orm/*"],
@@ -23,6 +24,7 @@
       "@utils/*": ["./src/utils/*"],
       "@routing/*": ["./src/routing/*"],
       "@workers/*": ["./src/workers/*"],
+      "@sockets/*": ["./src/sockets/*"],
       "@migrations/*": ["./src/migrations/*"],
       "@middleware/*": ["./src/middleware/*"],
       "@container/*": ["./src/container/*"],
@@ -96,6 +98,7 @@
     "bin/**/*",
     "database/**/*",
     "packages/workers/src/**/*",
+    "packages/queue-redis/src/**/*",
     "env.d.ts",
     "processors"
   ],

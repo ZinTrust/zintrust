@@ -83,7 +83,7 @@ Notes:
 - disabled — no sends
 - sendgrid — HTTP API (encodes attachments base64)
 - mailgun — HTTP API (multipart form upload)
-- smtp — Node.js SMTP implementation (supports STARTTLS / SMTPS, and attachments via multipart/mixed)
+- smtp — SMTP implementation for Node.js + Workers (STARTTLS / SMTPS, multipart/mixed attachments). In Workers, use port 587/465.
 - ses — AWS SES (SigV4 signed)
 
 Driver selection is via `MAIL_DRIVER` (see env vars below).

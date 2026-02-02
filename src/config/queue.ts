@@ -5,6 +5,7 @@
  */
 
 import { Env } from '@config/env';
+import { Cloudflare } from '@config/cloudflare';
 import { ZintrustLang } from '@lang/lang';
 
 import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
@@ -31,6 +32,33 @@ const getQueueDriver = (
   return driverConfig.drivers[driverName];
 };
 
+const readWorkersEnvString = (key: string): string => {
+  const workerValue = Cloudflare.getWorkersVar(key);
+  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
+  return '';
+};
+
+const readWorkersFallbackString = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback = ''
+): string => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') return workerValue;
+  return Env.get(fallbackKey, fallback);
+};
+
+const readWorkersFallbackInt = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: number
+): number => {
+  const raw = readWorkersFallbackString(workersKey, fallbackKey, String(fallback));
+  if (raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 /**
  * Helper: Create base driver configurations from environment
  */
@@ -49,18 +77,35 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
   },
   redis: {
     driver: 'redis' as const,
-    host: Env.get('REDIS_HOST', 'localhost'),
-    port: Env.getInt('REDIS_PORT', 6379),
-    password: Env.get('REDIS_PASSWORD'),
-    database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
+    host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+    port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+    password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
+    database: readWorkersFallbackInt(
+      'WORKERS_REDIS_QUEUE_DB',
+      'REDIS_QUEUE_DB',
+      ZintrustLang.REDIS_DEFAULT_DB
+    ),
   },
   rabbitmq: {
     driver: 'rabbitmq' as const,
-    host: Env.get('RABBITMQ_HOST', 'localhost'),
-    port: Env.getInt('RABBITMQ_PORT', 5672),
-    username: Env.get('RABBITMQ_USER', 'guest'),
-    password: Env.get('RABBITMQ_PASSWORD', 'guest'),
-    vhost: Env.get('RABBITMQ_VHOST', '/'),
+    host: readWorkersFallbackString('WORKERS_RABBITMQ_HOST', 'RABBITMQ_HOST', 'localhost'),
+    port: readWorkersFallbackInt('WORKERS_RABBITMQ_PORT', 'RABBITMQ_PORT', 5672),
+    username: readWorkersFallbackString('WORKERS_RABBITMQ_USER', 'RABBITMQ_USER', 'guest'),
+    password: readWorkersFallbackString('WORKERS_RABBITMQ_PASSWORD', 'RABBITMQ_PASSWORD', 'guest'),
+    vhost: readWorkersFallbackString('WORKERS_RABBITMQ_VHOST', 'RABBITMQ_VHOST', '/'),
+    httpGatewayUrl: readWorkersFallbackString(
+      'WORKERS_RABBITMQ_HTTP_GATEWAY_URL',
+      'RABBITMQ_HTTP_GATEWAY_URL'
+    ),
+    httpGatewayToken: readWorkersFallbackString(
+      'WORKERS_RABBITMQ_HTTP_GATEWAY_TOKEN',
+      'RABBITMQ_HTTP_GATEWAY_TOKEN'
+    ),
+    httpGatewayTimeoutMs: readWorkersFallbackInt(
+      'WORKERS_RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
+      'RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
+      15000
+    ),
   },
   sqs: {
     driver: 'sqs' as const,

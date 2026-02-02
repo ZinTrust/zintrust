@@ -60,6 +60,17 @@ export type RuntimeServices = {
   fetch: typeof fetch;
 };
 
+export const detectCloudflareWorkers = (): boolean => {
+  return Cloudflare.getWorkersEnv() !== null;
+};
+
+export const detectRuntimePlatform = (): RuntimePlatform => {
+  if (detectCloudflareWorkers()) return 'cloudflare';
+  return 'nodejs';
+};
+
+export const RUNTIME_PLATFORM: RuntimePlatform = detectRuntimePlatform();
+
 const normalizeEnvValue = (value: unknown): string => {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;

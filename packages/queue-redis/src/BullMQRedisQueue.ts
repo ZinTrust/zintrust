@@ -1,5 +1,6 @@
 import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import {
+  Cloudflare,
   createBaseDrivers,
   createLockProvider,
   createRedisConnection,
@@ -78,6 +79,12 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
   const getSharedConnection = (): IoRedis => {
     if (sharedConnection) return sharedConnection;
+
+    if (Cloudflare.getWorkersEnv() !== null && Cloudflare.isCloudflareSocketsEnabled() === false) {
+      throw ErrorFactory.createConfigError(
+        'BullMQ Redis requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers.'
+      );
+    }
 
     const redisConfig = createBaseDrivers().redis;
     sharedConnection = createRedisConnection({

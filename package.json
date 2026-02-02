@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.1.40",
+  "version": "0.1.41",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -44,6 +44,7 @@
     "pro:build": "npm run clean && npm test && npm run templates:check && tsc && tsc-alias && node scripts/rewrite-dist-tsconfig-aliases.mjs && node scripts/fix-dist-esm-imports.mjs && node scripts/copy-docs-public-to-dist.mjs && node scripts/copy-cli-templates-to-dist.mjs && node scripts/copy-getting-started-to-dist-readme.mjs && node scripts/generate-dist-package.mjs && node scripts/replace-build-placeholders.mjs && node scripts/add-version-banner.mjs && node scripts/generate-build-manifest.mjs && npm run packages:build:all",
     "watch": "tsc --watch --noEmit",
     "test": "vitest run",
+    "test:workers": "vitest run tests/workers",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "coverage:diff": "tsx dev/coverage-diff.ts",
@@ -112,14 +113,7 @@
     "core": "npm run core:build:dist"
   },
   "lint-staged": {
-    "ignore": [
-      "**/node_modules/**",
-      "dist/**"
-    ],
     "src/**/*.ts": [
-      "eslint --fix"
-    ],
-    "packages/*/src/**/*.ts": [
       "eslint --fix"
     ]
   },
@@ -177,6 +171,7 @@
     "ioredis": "^5.9.2",
     "jscpd": "^4.0.8",
     "lint-staged": "^16.2.7",
+    "miniflare": "^3.20240115.0",
     "prettier": "^3.8.1",
     "prom-client": "^15.1.3",
     "sonarqube-scanner": "^4.3.4",

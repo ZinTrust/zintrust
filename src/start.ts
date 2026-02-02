@@ -1,16 +1,6 @@
 import { ZintrustLang } from '@lang/lang';
 
-const isNodeRuntime = (): boolean => {
-  // Avoid importing any `node:*` modules so this file remains Worker-safe.
-  // In Workers/Deno, `process` is typically undefined.
-
-  return (
-    typeof process !== ZintrustLang.UNDEFINED &&
-    typeof process === ZintrustLang.OBJECT &&
-    process !== null &&
-    typeof (process as unknown as { versions?: unknown }).versions === ZintrustLang.OBJECT
-  );
-};
+import { isNodeRuntime } from '@runtime/detectRuntime';
 
 const fileUrlToPathLike = (value: string): string => {
   if (!value.startsWith(ZintrustLang.FILE_PROTOCOL)) return value;

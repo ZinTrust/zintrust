@@ -77,6 +77,7 @@ const getDrivers = (): StorageDrivers => ({
     bucket: Env.get('R2_BUCKET', ''),
     endpoint: Env.get('R2_ENDPOINT', ''),
     url: Env.get('R2_URL', ''),
+    binding: Env.get('R2_BINDING', ''),
   },
   gcs: {
     driver: 'gcs' as const,

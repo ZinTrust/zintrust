@@ -79,6 +79,7 @@ REDIS_PASSWORD=your-password
 - The Redis queue driver now uses **BullMQ** for enterprise-grade job processing with auto-scaling, circuit breaker, dead letter queue, and advanced monitoring.
 - Configure via standard Redis environment variables (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_QUEUE_DB`).
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
+- For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
 
 ### BullMQ Environment Variables
 
@@ -140,6 +141,22 @@ Install:
 ```bash
 zin add queue:rabbitmq
 ```
+
+### Cloudflare Workers (HTTP Gateway)
+
+RabbitMQ AMQP TCP connections are not available in Workers without an HTTP gateway. Use a gateway service that exposes the following endpoints and configure the gateway URL:
+
+- `POST /enqueue` → `{ id: string }`
+- `POST /dequeue` → `{ message?: { id: string; payload: unknown; attempts: number } | null }`
+- `POST /ack` → `{ ok: true }`
+- `POST /length` → `{ length: number }`
+- `POST /drain` → `{ ok: true }`
+
+Set environment variables:
+
+- `RABBITMQ_HTTP_GATEWAY_URL`
+- `RABBITMQ_HTTP_GATEWAY_TOKEN` (optional)
+- `RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS` (optional, default 15000)
 
 ## AWS SQS Driver
 

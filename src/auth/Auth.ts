@@ -9,7 +9,7 @@ export const Auth = Object.freeze({
    * Hash a password
    */
   async hash(password: string): Promise<string> {
-    const salt = await bcrypt.genSalt(10);
+    const salt: string = await bcrypt.genSalt(10);
     return bcrypt.hash(password, salt);
   },
 

@@ -5,6 +5,7 @@
  */
 
 import { Env } from '@config/env';
+import { Cloudflare } from '@config/cloudflare';
 import type {
   DatabaseConfigShape,
   DatabaseConnectionConfig,
@@ -36,6 +37,29 @@ const readEnvString = (key: string, fallback: string = ''): string => {
   }
 
   return fromEnv ?? '';
+};
+
+const readWorkersEnvString = (key: string): string => {
+  const workerValue = Cloudflare.getWorkersVar(key);
+  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
+  return '';
+};
+
+const readWorkersFallbackString = (workersKey: string, fallbackKey: string): string => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') return workerValue;
+  return readEnvString(fallbackKey, '');
+};
+
+const readWorkersFallbackInt = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: number
+): number => {
+  const raw = readWorkersFallbackString(workersKey, fallbackKey);
+  if (raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 const isExplicitEnvValue = (key: string): boolean => {
@@ -187,13 +211,22 @@ const connections = {
   },
   postgresql: {
     driver: 'postgresql' as const,
-    host: Env.DB_HOST,
-    port: Env.DB_PORT_POSTGRESQL,
-    database: Env.DB_DATABASE_POSTGRESQL,
-    username: Env.DB_USERNAME_POSTGRESQL,
-    password: Env.DB_PASSWORD_POSTGRESQL,
+    host: readWorkersFallbackString('WORKERS_PG_HOST', 'DB_HOST') || Env.DB_HOST,
+    port: readWorkersFallbackInt('WORKERS_PG_PORT', 'DB_PORT_POSTGRESQL', Env.DB_PORT_POSTGRESQL),
+    database:
+      readWorkersFallbackString('WORKERS_PG_DATABASE', 'DB_DATABASE_POSTGRESQL') ||
+      Env.DB_DATABASE_POSTGRESQL,
+    username:
+      readWorkersFallbackString('WORKERS_PG_USER', 'DB_USERNAME_POSTGRESQL') ||
+      Env.DB_USERNAME_POSTGRESQL,
+    password:
+      readWorkersFallbackString('WORKERS_PG_PASSWORD', 'DB_PASSWORD_POSTGRESQL') ||
+      Env.DB_PASSWORD_POSTGRESQL,
     ssl: Env.getBool('DB_SSL', false),
-    readHosts: parseReadHosts(Env.DB_READ_HOSTS_POSTGRESQL),
+    readHosts: parseReadHosts(
+      readWorkersFallbackString('WORKERS_PG_READ_HOSTS', 'DB_READ_HOSTS_POSTGRESQL') ||
+        Env.DB_READ_HOSTS_POSTGRESQL
+    ),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
       min: Env.getInt('DB_POOL_MIN', 5),
@@ -204,12 +237,14 @@ const connections = {
   },
   mysql: {
     driver: 'mysql' as const,
-    host: Env.DB_HOST,
-    port: Env.DB_PORT,
-    database: Env.DB_DATABASE,
-    username: Env.DB_USERNAME,
-    password: Env.DB_PASSWORD,
-    readHosts: parseReadHosts(Env.DB_READ_HOSTS),
+    host: readWorkersFallbackString('WORKERS_MYSQL_HOST', 'DB_HOST') || Env.DB_HOST,
+    port: readWorkersFallbackInt('WORKERS_MYSQL_PORT', 'DB_PORT', Env.DB_PORT),
+    database: readWorkersFallbackString('WORKERS_MYSQL_DATABASE', 'DB_DATABASE') || Env.DB_DATABASE,
+    username: readWorkersFallbackString('WORKERS_MYSQL_USER', 'DB_USERNAME') || Env.DB_USERNAME,
+    password: readWorkersFallbackString('WORKERS_MYSQL_PASSWORD', 'DB_PASSWORD') || Env.DB_PASSWORD,
+    readHosts: parseReadHosts(
+      readWorkersFallbackString('WORKERS_MYSQL_READ_HOSTS', 'DB_READ_HOSTS') || Env.DB_READ_HOSTS
+    ),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
       min: Env.getInt('DB_POOL_MIN', 5),

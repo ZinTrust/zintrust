@@ -68,10 +68,13 @@ export const ensureDriver = async <T = QueueDriver>(type?: 'queue' | 'publish'):
     try {
       const mod = (await import('@zintrust/queue-redis')) as unknown as {
         RedisQueue?: QueueDriver;
+        BullMQRedisQueue?: QueueDriver;
       };
 
       if (mod.RedisQueue !== undefined) {
         Queue.register('redis', mod.RedisQueue);
+      } else if (mod.BullMQRedisQueue !== undefined) {
+        Queue.register('redis', mod.BullMQRedisQueue);
       }
 
       return Queue.get('redis') as T;

@@ -29,7 +29,7 @@ export const Notification = Object.freeze({
       timestamp,
       attempts: 0,
     });
-    return messageId;
+    return messageId ?? '';
   },
 
   queue(queueName: string) {

@@ -4,6 +4,7 @@
  */
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
+import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { SupportedDriver } from '@migrations/enum';
@@ -46,6 +47,14 @@ export interface IDatabase {
  * Create appropriate adapter based on driver
  */
 const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
+  if (Cloudflare.getWorkersEnv() !== null) {
+    const isSocketDriver = cfg.driver === 'postgresql' || cfg.driver === 'mysql';
+    if (isSocketDriver && Cloudflare.isCloudflareSocketsEnabled() === false) {
+      throw ErrorFactory.createConfigError(
+        'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use SQL adapters on Workers.'
+      );
+    }
+  }
   const registered = DatabaseAdapterRegistry.get(cfg.driver);
   if (registered !== undefined) {
     return registered(cfg);

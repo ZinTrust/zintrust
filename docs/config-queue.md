@@ -63,6 +63,9 @@ const queueConfigObj = {
       username: Env.get('RABBITMQ_USER', 'guest'),
       password: Env.get('RABBITMQ_PASSWORD', 'guest'),
       vhost: Env.get('RABBITMQ_VHOST', '/'),
+      httpGatewayUrl: Env.get('RABBITMQ_HTTP_GATEWAY_URL'),
+      httpGatewayToken: Env.get('RABBITMQ_HTTP_GATEWAY_TOKEN'),
+      httpGatewayTimeoutMs: Env.getInt('RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS', 15000),
     },
     sqs: {
       driver: 'sqs' as const,

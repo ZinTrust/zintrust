@@ -139,7 +139,12 @@ const runKernelPipeline = async (
   if (!route) {
     const routeLabel = 'not_found';
     maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
-    ErrorRouting.handleNotFound(req, res, context.requestId);
+    const handleNotFound = ErrorRouting.handleNotFound as (
+      request: IRequest,
+      response: IResponse,
+      requestId?: string
+    ) => Promise<void>;
+    await handleNotFound(req, res, context.requestId);
     return routeLabel;
   }
 

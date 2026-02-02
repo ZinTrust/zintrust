@@ -5,6 +5,7 @@
  */
 
 import { Env } from '@config/env';
+import { Cloudflare } from '@config/cloudflare';
 import type { CacheConfigInput, CacheDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
@@ -40,6 +41,33 @@ const getCacheDriver = (config: CacheConfigInput, name?: string): CacheDriverCon
   );
 };
 
+const readWorkersEnvString = (key: string): string => {
+  const workerValue = Cloudflare.getWorkersVar(key);
+  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
+  return '';
+};
+
+const readWorkersFallbackString = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback = ''
+): string => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') return workerValue;
+  return Env.get(fallbackKey, fallback);
+};
+
+const readWorkersFallbackInt = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: number
+): number => {
+  const raw = readWorkersFallbackString(workersKey, fallbackKey, String(fallback));
+  if (raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const createCacheConfig = (): {
   default: string;
   drivers: CacheConfigInput['drivers'];
@@ -66,8 +94,8 @@ const createCacheConfig = (): {
     },
     redis: {
       driver: 'redis' as const,
-      host: Env.get('REDIS_HOST', 'localhost'),
-      port: Env.getInt('REDIS_PORT', 6379),
+      host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+      port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
       ttl: Env.getInt('CACHE_REDIS_TTL', 3600),
     },
     mongodb: {

@@ -3,6 +3,7 @@
  * Serves /error-pages/* assets (CSS/JS/SVG/etc) used by HTML error templates.
  */
 
+import { Cloudflare } from '@config/cloudflare';
 import { HTTP_HEADERS, MIME_TYPES } from '@config/constants';
 import { MIME_TYPES_MAP, resolveSafePath, tryDecodeURIComponent } from '@core-routes/common';
 import { getFrameworkPublicRoots } from '@core-routes/publicRoot';
@@ -62,6 +63,29 @@ const servePublicRootFile = (
   }
 };
 
+const serveAssetsFileAsync = async (urlPath: string, response: IResponse): Promise<boolean> => {
+  const assets = Cloudflare.getAssetsBinding();
+  if (!assets) return false;
+
+  try {
+    const url = new URL(urlPath, 'https://assets.local');
+    const res = await assets.fetch(url.toString());
+    const contentType = res.headers.get(HTTP_HEADERS.CONTENT_TYPE) ?? MIME_TYPES.TEXT;
+    const body = Buffer.from(await res.arrayBuffer());
+
+    response.setStatus(res.status);
+    response.setHeader(HTTP_HEADERS.CONTENT_TYPE, contentType);
+    response.send(body);
+    return true;
+  } catch (error) {
+    ErrorFactory.createTryCatchError(`Error serving asset ${urlPath}`, error);
+    response.setStatus(500);
+    response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+    response.send('Internal Server Error');
+    return true;
+  }
+};
+
 export const serveErrorPagesFile = (urlPath: string, response: IResponse): boolean => {
   if (urlPath === '/error-pages' || urlPath === '/error-pages/') {
     response.setStatus(404);
@@ -114,21 +138,52 @@ export const serveErrorPagesFile = (urlPath: string, response: IResponse): boole
   return true;
 };
 
-const handleErrorPagesRequest = (req: IRequest, res: IResponse): void => {
+export const serveErrorPagesFileAsync = async (
+  urlPath: string,
+  response: IResponse
+): Promise<boolean> => {
+  if (urlPath === '/error-pages' || urlPath === '/error-pages/') {
+    response.setStatus(404);
+    response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+    response.send('Not Found');
+    return true;
+  }
+
+  if (!urlPath.startsWith('/error-pages/')) return false;
+
+  if (Cloudflare.getWorkersEnv() !== null) {
+    return serveAssetsFileAsync(urlPath, response);
+  }
+
+  return serveErrorPagesFile(urlPath, response);
+};
+
+const handleErrorPagesRequest = async (req: IRequest, res: IResponse): Promise<void> => {
   const urlPath = req.getPath();
-  if (serveErrorPagesFile(urlPath, res)) return;
+  if (await serveErrorPagesFileAsync(urlPath, res)) return;
 
   res.setStatus(404);
   res.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
   res.send('Not Found');
 };
 
-const handleZintrustSvgRequest = (_req: IRequest, res: IResponse): void => {
+const handleZintrustSvgRequest = async (_req: IRequest, res: IResponse): Promise<void> => {
+  if (Cloudflare.getWorkersEnv() !== null) {
+    await serveAssetsFileAsync('/zintrust.svg', res);
+    return;
+  }
   servePublicRootFile('zintrust.svg', res, MIME_TYPES.SVG);
 };
 
 export const serveZintrustSvgFile = (response: IResponse): boolean => {
   return servePublicRootFile('zintrust.svg', response, MIME_TYPES.SVG);
+};
+
+export const serveZintrustSvgFileAsync = async (response: IResponse): Promise<boolean> => {
+  if (Cloudflare.getWorkersEnv() !== null) {
+    return serveAssetsFileAsync('/zintrust.svg', response);
+  }
+  return serveZintrustSvgFile(response);
 };
 
 export const registerErrorPagesRoutes = (router: IRouter): void => {

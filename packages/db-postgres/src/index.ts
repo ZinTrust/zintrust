@@ -1,4 +1,4 @@
-import { ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
 
 export type DatabaseConfig = {
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
@@ -68,6 +68,13 @@ type AdapterState = {
   pool?: PgPool;
 };
 
+type CloudflareSocketFactory = (options: {
+  host: string;
+  port: number;
+  tls: boolean;
+  timeoutMs: number;
+}) => unknown;
+
 function getConnectionParams(config: DatabaseConfig): {
   host: string;
   port: number;
@@ -89,6 +96,19 @@ async function loadPgPoolCtor(): Promise<{ Pool: new (cfg: unknown) => PgPool }>
   return (await import('pg')) as unknown as { Pool: new (cfg: unknown) => PgPool };
 }
 
+async function loadCloudflareSocketFactory(): Promise<CloudflareSocketFactory> {
+  try {
+    const { CloudflareSocket } = await import('@zintrust/core');
+    return ({ host, port, tls, timeoutMs }) =>
+      CloudflareSocket.create(host, port, { tls, timeoutMs });
+  } catch (error) {
+    throw ErrorFactory.createConfigError(
+      'Cloudflare Workers socket support requires cloudflare:sockets compatibility (set compatibility_date >= 2024-01-15).',
+      error
+    );
+  }
+}
+
 function ensurePool(state: AdapterState): PgPool {
   if (!state.connected || state.pool === undefined) {
     throw ErrorFactory.createConnectionError('Database not connected');
@@ -102,8 +122,32 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
   try {
     const { Pool } = await loadPgPoolCtor();
     const { host, port, database, user, password } = getConnectionParams(config);
+    const workersEnv = Cloudflare.getWorkersEnv();
+    const isWorkersRuntime = workersEnv !== null;
+    const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
+    const timeoutMs =
+      typeof (config as { socketTimeoutMs?: number }).socketTimeoutMs === 'number'
+        ? (config as { socketTimeoutMs?: number }).socketTimeoutMs
+        : 30000;
 
-    state.pool = new Pool({ host, port, database, user, password });
+    if (isWorkersRuntime) {
+      if (!Cloudflare.isCloudflareSocketsEnabled()) {
+        throw ErrorFactory.createConfigError(
+          'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use PostgreSQL sockets on Workers.'
+        );
+      }
+      const createSocket = await loadCloudflareSocketFactory();
+      state.pool = new Pool({
+        host,
+        port,
+        database,
+        user,
+        password,
+        stream: (): unknown => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+      });
+    } else {
+      state.pool = new Pool({ host, port, database, user, password });
+    }
     await state.pool.query('SELECT 1');
     state.connected = true;
 

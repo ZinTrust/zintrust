@@ -58,6 +58,7 @@ export type R2StorageDriverConfig = {
   bucket: EnvGetValue;
   endpoint: EnvGetValue;
   url: EnvGetValue;
+  binding?: EnvGetValue;
 };
 
 export type GcsStorageDriverConfig = {

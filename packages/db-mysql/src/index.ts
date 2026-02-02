@@ -1,8 +1,9 @@
-import { ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
 
 export type DatabaseConfig = {
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
   database?: string;
+  connectionString?: string;
   host?: string;
   port?: number;
   username?: string;
@@ -55,6 +56,13 @@ type MySqlModule = {
   createPool: (config: unknown) => MySqlPool;
 };
 
+type CloudflareSocketFactory = (options: {
+  host: string;
+  port: number;
+  tls: boolean;
+  timeoutMs: number;
+}) => unknown;
+
 function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   if (error === null || typeof error !== 'object') return false;
   const maybe = error as { code?: unknown; message?: unknown };
@@ -77,6 +85,19 @@ async function loadMysql(): Promise<MySqlModule> {
   return (await import('mysql2/promise')) as unknown as MySqlModule;
 }
 
+async function loadCloudflareSocketFactory(): Promise<CloudflareSocketFactory> {
+  try {
+    const { CloudflareSocket } = await import('@zintrust/core');
+    return ({ host, port, tls, timeoutMs }) =>
+      CloudflareSocket.create(host, port, { tls, timeoutMs });
+  } catch (error) {
+    throw ErrorFactory.createConfigError(
+      'Cloudflare Workers socket support requires cloudflare:sockets compatibility (set compatibility_date >= 2024-01-15).',
+      error
+    );
+  }
+}
+
 function getConnectionParams(config: DatabaseConfig): {
   host: string;
   port: number;
@@ -84,6 +105,22 @@ function getConnectionParams(config: DatabaseConfig): {
   user: string;
   password: string;
 } {
+  if (config.connectionString !== undefined && config.connectionString.trim() !== '') {
+    try {
+      const url = new URL(config.connectionString);
+      const database = url.pathname.replace(/^\//, '') || 'mysql';
+      return {
+        host: url.hostname || 'localhost',
+        port: url.port ? Number.parseInt(url.port, 10) : 3306,
+        database,
+        user: decodeURIComponent(url.username || 'root'),
+        password: decodeURIComponent(url.password || ''),
+      };
+    } catch (error) {
+      throw ErrorFactory.createConfigError('Invalid MySQL connection string', error);
+    }
+  }
+
   return {
     host: config.host ?? 'localhost',
     port: config.port ?? 3306,
@@ -140,17 +177,42 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
   try {
     const mysql = await loadMysql();
     const { host, port, database, user, password } = getConnectionParams(config);
-
-    state.pool = mysql.createPool({
-      host,
-      port,
-      database,
-      user,
-      password,
-      waitForConnections: true,
-      connectionLimit: 10,
-      namedPlaceholders: false,
-    });
+    const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+    const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
+    const timeoutMs =
+      typeof (config as { socketTimeoutMs?: number }).socketTimeoutMs === 'number'
+        ? (config as { socketTimeoutMs?: number }).socketTimeoutMs
+        : 30000;
+    if (isWorkersRuntime) {
+      if (!Cloudflare.isCloudflareSocketsEnabled()) {
+        throw ErrorFactory.createConfigError(
+          'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use MySQL sockets on Workers.'
+        );
+      }
+      const createSocket = await loadCloudflareSocketFactory();
+      state.pool = mysql.createPool({
+        host,
+        port,
+        database,
+        user,
+        password,
+        waitForConnections: true,
+        connectionLimit: 10,
+        namedPlaceholders: false,
+        stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+      });
+    } else {
+      state.pool = mysql.createPool({
+        host,
+        port,
+        database,
+        user,
+        password,
+        waitForConnections: true,
+        connectionLimit: 10,
+        namedPlaceholders: false,
+      });
+    }
 
     // Probe.
     await state.pool.execute('SELECT 1');

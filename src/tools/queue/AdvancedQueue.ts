@@ -306,7 +306,7 @@ async function enqueueWithDeduplication(
       duration: Date.now() - startTime,
     });
 
-    return jobId;
+    return jobId ?? '';
   } catch (error) {
     Logger.error('Failed to enqueue job', {
       queueName: name,

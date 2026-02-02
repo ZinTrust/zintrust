@@ -121,7 +121,7 @@ const handleDocRequest = async (req: IRequest, res: IResponse): Promise<void> =>
   setDocumentationCSPHeaders(res);
   const urlPath = req.getPath();
   if (await serveDocumentationFileAsync(urlPath, res)) return;
-  ErrorRouting.handleNotFound(req, res);
+  await ErrorRouting.handleNotFound(req, res);
 };
 
 export const registerDocRoutes = (router: IRouter): void => {

@@ -14,6 +14,10 @@
     "enabled": true,
     "head_sampling_rate": 0.1,
   },
+  // "assets": {
+  //   "directory": "./public",
+  //   "binding": "ASSETS",
+  // },
   // Note: Documentation is deployed separately via docs-website/wrangler.jsonc
   // This Worker handles the API/application logic only
   // Production routes (uncomment and adjust for production deployment)
@@ -41,6 +45,20 @@
   //     "preview_id": "your-kv-preview-id-here",
   //   },
   // ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WORKER_SHUTDOWN",
+        "class_name": "WorkerShutdownDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["WorkerShutdownDurableObject"],
+    },
+  ],
   // Local development settings
   "env": {
     "development": {

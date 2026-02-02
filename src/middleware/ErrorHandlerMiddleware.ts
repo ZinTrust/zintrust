@@ -33,7 +33,14 @@ export const ErrorHandlerMiddleware = Object.freeze({
 
           if (errorMode === 'html') {
             // Use HTML error page instead of JSON
-            ErrorRouting.handleInternalServerErrorWithWrappers(req, res, error, requestId);
+            const handleInternalServerErrorWithWrappers =
+              ErrorRouting.handleInternalServerErrorWithWrappers as (
+                request: IRequest,
+                response: IResponse,
+                error: unknown,
+                requestId?: string
+              ) => Promise<void>;
+            await handleInternalServerErrorWithWrappers(req, res, error, requestId);
           } else {
             res.json(
               ErrorResponse.internalServerError(

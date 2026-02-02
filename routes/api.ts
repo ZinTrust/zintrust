@@ -13,13 +13,22 @@ import type { IResponse } from '@http/Response';
 // import { registerDevRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
+import { ErrorFactory } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
-  const authController = AuthController.create();
-  const userController = UserQueryBuilderController.create();
-  registerPublicRoutes(router);
-  registerApiV1Routes(router, authController, userController);
-  registerAdminRoutes(router);
+  try {
+    const authController = AuthController.create();
+    const userController = UserQueryBuilderController.create();
+    registerPublicRoutes(router);
+    registerApiV1Routes(router, authController, userController);
+    registerAdminRoutes(router);
+  } catch (error: unknown) {
+    throw ErrorFactory.createConfigError(
+      `Failed to register routes: ${(error as Error).message}`,
+      error as Error
+    );
+  }
+
   // registerDevRoutes(router);
 }
 

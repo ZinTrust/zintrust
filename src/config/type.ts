@@ -40,6 +40,7 @@ export type R2StorageDriverConfig = {
   bucket: EnvGetValue;
   endpoint: EnvGetValue;
   url: EnvGetValue;
+  binding?: EnvGetValue;
 };
 
 export type GcsStorageDriverConfig = {
@@ -147,6 +148,9 @@ export type RabbitMqQueueDriverConfig = {
   username: string;
   password: string;
   vhost: string;
+  httpGatewayUrl?: string;
+  httpGatewayToken?: string;
+  httpGatewayTimeoutMs?: number;
 };
 
 export type SqsQueueDriverConfig = {

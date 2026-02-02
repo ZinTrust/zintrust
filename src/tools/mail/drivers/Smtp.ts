@@ -1,6 +1,7 @@
 import { generateUuid } from '@/common/utility';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
+import { Cloudflare } from '@config/cloudflare';
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
 
@@ -46,9 +47,11 @@ const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString(
 const isNodeRuntime = (): boolean =>
   typeof process !== 'undefined' && typeof process.versions?.node === 'string';
 
+const isWorkersRuntime = (): boolean => Cloudflare.getWorkersEnv() !== null;
+
 const validateConfig = (config: SmtpConfig): void => {
-  if (!isNodeRuntime()) {
-    throw ErrorFactory.createConfigError('SMTP driver requires Node.js runtime');
+  if (!isNodeRuntime() && !isWorkersRuntime()) {
+    throw ErrorFactory.createConfigError('SMTP driver requires Node.js or Workers runtime');
   }
 
   if (config.host.trim() === '') {
@@ -60,7 +63,35 @@ const validateConfig = (config: SmtpConfig): void => {
   }
 };
 
-const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<net.Socket> => {
+type SmtpSocket = {
+  write: (data: string, cb?: (err?: Error | null) => void) => unknown;
+  end: () => void;
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+  once: (event: string, listener: (...args: unknown[]) => void) => void;
+  off?: (event: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+  startTls?: () => Promise<void>;
+};
+
+type CloudflareSocketFactory = {
+  create: (
+    hostname: string,
+    port: number,
+    options?: { tls?: boolean; timeoutMs?: number }
+  ) => SmtpSocket | undefined;
+};
+
+const loadCloudflareSocketFactory = async (): Promise<CloudflareSocketFactory> => {
+  const mod = (await import('@sockets/CloudflareSocket')) as unknown;
+  const record = mod as { CloudflareSocket?: unknown };
+  const socketFactory = record.CloudflareSocket as { create?: unknown } | undefined;
+  if (!socketFactory || typeof socketFactory.create !== 'function') {
+    throw ErrorFactory.createConnectionError('Cloudflare socket factory unavailable');
+  }
+  return socketFactory as CloudflareSocketFactory;
+};
+
+const createNodeSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<SmtpSocket> => {
   validateConfig(config);
 
   return new Promise((resolve, reject) => {
@@ -93,9 +124,82 @@ const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<n
   });
 };
 
-const upgradeToStartTls = async (socket: net.Socket, host: string): Promise<net.Socket> => {
+const createWorkersSocket = async (
+  config: SmtpConfig,
+  implicitTls: boolean
+): Promise<SmtpSocket> => {
+  validateConfig(config);
+
   return new Promise((resolve, reject) => {
-    const tlsSocket = tls.connect({ socket, servername: host });
+    let cleanup: (target?: SmtpSocket) => void = () => undefined;
+
+    const onError = (err: unknown): void => {
+      cleanup();
+      reject(
+        ErrorFactory.createConnectionError('SMTP connection failed', {
+          host: config.host,
+          port: config.port,
+          secure: implicitTls,
+          error: err,
+        })
+      );
+    };
+
+    const socketFactoryPromise = loadCloudflareSocketFactory();
+
+    socketFactoryPromise
+      .then((socketFactory) => {
+        const socket = socketFactory.create(config.host, config.port, {
+          tls: implicitTls,
+        });
+
+        if (!socket) {
+          reject(ErrorFactory.createConnectionError('SMTP socket initialization failed'));
+          return;
+        }
+
+        const onConnect = (): void => {
+          cleanup(socket);
+          resolve(socket);
+        };
+
+        cleanup = (target?: SmtpSocket): void => {
+          if (!target) return;
+          if (typeof target.off === 'function') {
+            target.off('connect', onConnect);
+            target.off('error', onError);
+          } else if (typeof target.removeListener === 'function') {
+            target.removeListener('connect', onConnect);
+            target.removeListener('error', onError);
+          }
+        };
+
+        socket.once('connect', onConnect);
+        socket.once('error', onError);
+      })
+      .catch((err: unknown) => {
+        reject(
+          ErrorFactory.createConnectionError('SMTP socket initialization failed', {
+            error: err as Error,
+          })
+        );
+      });
+  });
+};
+
+const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<SmtpSocket> => {
+  if (isWorkersRuntime()) return createWorkersSocket(config, implicitTls);
+  return createNodeSocket(config, implicitTls);
+};
+
+const upgradeToStartTls = async (socket: SmtpSocket, host: string): Promise<SmtpSocket> => {
+  if (typeof socket.startTls === 'function') {
+    await socket.startTls();
+    return socket;
+  }
+
+  return new Promise((resolve, reject) => {
+    const tlsSocket = tls.connect({ socket: socket as net.Socket, servername: host });
 
     tlsSocket.once('secureConnect', () => {
       resolve(tlsSocket as unknown as net.Socket);
@@ -113,7 +217,7 @@ const upgradeToStartTls = async (socket: net.Socket, host: string): Promise<net.
 };
 
 const createLineReader = (
-  socket: net.Socket
+  socket: SmtpSocket
 ): {
   readResponse: () => Promise<SmtpResponse>;
   close: () => void;
@@ -128,8 +232,9 @@ const createLineReader = (
     }
   };
 
-  const onData = (data: Buffer): void => {
-    buffer += data.toString('utf8');
+  const onData = (data: unknown): void => {
+    const chunk = data instanceof Uint8Array ? data : Buffer.from(String(data));
+    buffer += Buffer.from(chunk).toString('utf8');
     wake();
   };
 
@@ -180,19 +285,39 @@ const createLineReader = (
   };
 
   const close = (): void => {
-    socket.off('data', onData);
+    if (typeof socket.off === 'function') {
+      socket.off('data', onData);
+    }
   };
 
   return { readResponse, close };
 };
 
-const writeLine = async (socket: net.Socket, line: string): Promise<void> => {
+const writeRaw = async (socket: SmtpSocket, data: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    socket.write(`${line}\r\n`, (err?: Error | null) => {
+    let settled = false;
+    const finish = (err?: Error | null): void => {
+      if (settled) return;
+      settled = true;
       if (err) reject(err);
       else resolve();
-    });
+    };
+
+    try {
+      const writer = socket as unknown as { write: (...args: unknown[]) => unknown };
+      writer.write(data, (err?: Error | null) => finish(err));
+
+      if (writer.write.length < 2) {
+        finish();
+      }
+    } catch (err) {
+      finish(err as Error);
+    }
   });
+};
+
+const writeLine = async (socket: SmtpSocket, line: string): Promise<void> => {
+  return writeRaw(socket, `${line}\r\n`);
 };
 
 const assertCode = (res: SmtpResponse, expected: number | number[], context: string): void => {
@@ -217,7 +342,7 @@ const hasCapability = (res: SmtpResponse, capability: string): boolean => {
 };
 
 const doEhlo = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>
 ): Promise<SmtpResponse> => {
   await writeLine(socket, 'EHLO zintrust');
@@ -227,7 +352,7 @@ const doEhlo = async (
 };
 
 const doAuthLoginIfNeeded = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   config: SmtpConfig
 ): Promise<void> => {
@@ -276,7 +401,7 @@ const doAuthLoginIfNeeded = async (
 };
 
 const doMailFrom = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   fromEmail: string
 ): Promise<void> => {
@@ -286,7 +411,7 @@ const doMailFrom = async (
 };
 
 const doRcptToAll = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   recipients: string[]
 ): Promise<void> => {
@@ -303,7 +428,7 @@ const doRcptToAll = async (
 };
 
 const doData = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   message: MailMessage
 ): Promise<void> => {
@@ -314,19 +439,14 @@ const doData = async (
   const raw = buildRfc2822Message(message);
   const stuffed = dotStuff(raw);
 
-  await new Promise<void>((resolve, reject) => {
-    socket.write(`${stuffed}\r\n.\r\n`, (err?: Error | null) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+  await writeRaw(socket, `${stuffed}\r\n.\r\n`);
 
   const queued = await reader.readResponse();
   assertCode(queued, 250, 'message body');
 };
 
 const doQuit = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>
 ): Promise<void> => {
   await writeLine(socket, 'QUIT');

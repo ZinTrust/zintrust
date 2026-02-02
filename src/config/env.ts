@@ -283,3 +283,19 @@ export const Env = Object.freeze({
     }
   })(),
 });
+
+export const buildRedisUrl = (): string => {
+  const raw = get('REDIS_URL', '').trim();
+  if (raw !== '') return raw;
+
+  const host = get('REDIS_HOST', 'localhost');
+  const port = getInt('REDIS_PORT', 6379);
+  const password = get('REDIS_PASSWORD', '');
+  const db = getInt('REDIS_QUEUE_DB', 0);
+
+  let url = 'redis://';
+  if (password.trim() !== '') url += `:${encodeURIComponent(password)}@`;
+  url += `${host}:${port}`;
+  if (db > 0) url += `/${db}`;
+  return url;
+};

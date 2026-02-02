@@ -1,6 +1,6 @@
+import Logger from '@/config/logger';
 import { ZintrustLang } from '@/lang/lang';
 import { Env } from '@config/env';
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { RedisKeys } from '@tools/redis/RedisKeyManager';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
@@ -90,8 +90,10 @@ export const Queue = Object.freeze({
       .trim()
       .toLowerCase();
     const driver = drivers.get(driverName);
-    if (!driver) throw ErrorFactory.createConfigError(`Queue driver not registered: ${driverName}`);
-    return driver;
+    if (!driver) {
+      Logger.error(`Queue driver not registered: ${driverName}`);
+    }
+    return driver as IQueueDriver;
   },
 
   async enqueue(queue: string, payload: BullMQPayload, driverName?: string): Promise<string> {
