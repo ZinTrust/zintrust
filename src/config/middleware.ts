@@ -321,6 +321,14 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
 
 let cached: MiddlewareConfigType | null = null;
 
+/**
+ * Clear the middleware configuration cache
+ * This ensures fresh config loading in watch mode
+ */
+export const clearMiddlewareConfigCache = (): void => {
+  cached = null;
+};
+
 // Proxy target must satisfy JS Proxy invariants.
 // When we lazily create a frozen config object (with non-configurable properties),
 // we mirror its property descriptors onto this target so reflective operations

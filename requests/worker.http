@@ -41,8 +41,8 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "advanced-test-mysql",
-  "queueName": "advanced-queue",
+  "name": "advanced-test-redis",
+  "queueName": "advanced-queue-red",
   "processor": "app/Workers/AdvancEmailWorker.ts",
   "version": "1.0.0",
   "options": {
@@ -53,7 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
-  "persistence": { "driver": "database"},
+  "persistence": { "driver": "redis"},
     "redis": {
       "env": true,
       "host": "REDIS_HOST",

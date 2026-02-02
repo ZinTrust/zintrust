@@ -3,6 +3,9 @@ import type { IRouter } from '@core-routes/Router';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import type { RoutesModule } from '@registry/type';
+import { detectRuntime } from '@runtime/detectRuntime';
+
+const isCloudflare = detectRuntime().isCloudflare;
 
 export const isCompiledJsModule = (): boolean => {
   // When running from dist, this module is compiled to .js and Node ESM resolution
@@ -94,12 +97,14 @@ export const registerMasterRoutes = async (
   router: IRouter
 ): Promise<void> => {
   try {
-    await registerAppRoutes(resolvedBasePath, router);
+    if (isCloudflare) {
+      registerGlobalRoutes(router);
+    }
+    if (!isCloudflare) {
+      await registerAppRoutes(resolvedBasePath, router);
+    }
     if (router.routes.length === 0) {
       await registerFrameworkRoutes(router);
-      if (router.routes.length === 0) {
-        registerGlobalRoutes(router);
-      }
     }
 
     // Always register core framework routes (health, metrics, doc) after app routes

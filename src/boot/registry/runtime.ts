@@ -246,6 +246,12 @@ export const createLifecycle = (params: {
 
     Logger.info(`🚀 Booting ZinTrust Application in ${params.environment} mode...`);
 
+    if (process.env.NODE_ENV === 'development') {
+      // Clear config registry cache to ensure fresh config loading in watch mode
+      // This fixes the issue where config/middleware.ts changes are ignored in watch mode
+      StartupConfigFileRegistry.clear();
+    }
+
     StartupConfigValidator.assertValid();
 
     // Preload project-owned config overrides that must be available synchronously.

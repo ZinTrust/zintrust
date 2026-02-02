@@ -267,7 +267,7 @@ export type {
   IServiceHealthMonitor,
 } from '@microservices/ServiceHealthMonitor';
 
-export { middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export { clearMiddlewareConfigCache, middlewareConfig, MiddlewareKeys } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 

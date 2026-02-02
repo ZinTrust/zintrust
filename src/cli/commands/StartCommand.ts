@@ -439,7 +439,7 @@ export const StartCommand = Object.freeze({
     const addOptions = (command: Command): void => {
       command.alias('s');
       command
-        .option('-w, --wrangler', 'Start with Wrangler dev mode (Cloudflare Workers)')
+        .option('--wrangler', 'Start with Wrangler dev mode (Cloudflare Workers)')
         .option('--wg', 'Alias for --wrangler')
         .option('--deno', 'Start a local server using the Deno runtime adapter')
         .option('--lambda', 'Start a local server using the AWS Lambda runtime adapter')
