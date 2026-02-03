@@ -42,7 +42,7 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
   const settings: D1RemoteSettings = {
     baseUrl: Env.get('D1_REMOTE_URL'),
     keyId: Env.get('D1_REMOTE_KEY_ID'),
-    secret: Env.get('D1_REMOTE_SECRET'),
+    secret: Env.get('D1_REMOTE_SECRET', Env.APP_KEY),
     mode: (Env.get('D1_REMOTE_MODE', 'registry') as D1RemoteMode) ?? 'registry',
     timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
   };

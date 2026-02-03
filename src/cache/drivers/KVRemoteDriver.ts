@@ -31,7 +31,7 @@ export const KVRemoteDriver = Object.freeze({
     const settings: KvRemoteSettings = {
       baseUrl: Env.get('KV_REMOTE_URL'),
       keyId: Env.get('KV_REMOTE_KEY_ID'),
-      secret: Env.get('KV_REMOTE_SECRET'),
+      secret: Env.get('KV_REMOTE_SECRET', Env.APP_KEY),
       defaultNamespace: Env.get('KV_REMOTE_NAMESPACE'),
       timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
     };

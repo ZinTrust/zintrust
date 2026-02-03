@@ -3,8 +3,8 @@
  * These routes test packages/db-mysql adapter directly with Cloudflare Workers
  */
 
-import type { IRouter } from '@/routes/Router';
-import { Router } from '@/routes/Router';
+import type { IRouter } from '@core-routes/Router';
+import { Router } from '@core-routes/Router';
 import { testDirectMysqlConnection, testDirectMysqlCrud } from '@routes/DirectMysqlTestRoutes';
 
 /**

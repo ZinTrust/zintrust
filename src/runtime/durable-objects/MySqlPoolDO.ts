@@ -1,8 +1,6 @@
 /* eslint-disable no-restricted-syntax */
-import type { QueryResult } from '@/orm/DatabaseAdapter';
-import { CloudflareSocket } from '@/sockets/CloudflareSocket';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
+import { PoolDurableObject } from '@runtime/durable-objects/PoolDurableObject';
 
 type DurableObjectState = {
   waitUntil: (promise: Promise<unknown>) => void;
@@ -16,174 +14,46 @@ type DurableObjectState = {
   id: { toString: () => string };
 };
 
-type MySqlPool = {
-  execute: (sql: string, params: unknown[]) => Promise<[unknown]>;
-  query: (sql: string, params: unknown[]) => Promise<[unknown]>;
-  end: () => Promise<void>;
-  createPool: (config: unknown) => MySqlPool;
+const parseBoolean = (value: unknown): boolean =>
+  value === true || value === 'true' || value === 1 || value === '1';
+
+const buildConfig = (env: Record<string, unknown>): Record<string, unknown> => {
+  const host = (env['DB_HOST'] as string) ?? Env.DB_HOST ?? '127.0.0.1';
+  const port = Number(env['DB_PORT'] ?? Env.DB_PORT ?? 3306);
+  const user = (env['DB_USERNAME'] as string) ?? Env.DB_USERNAME ?? 'root';
+  const password = (env['DB_PASSWORD'] as string) ?? Env.DB_PASSWORD ?? '';
+  const database = (env['DB_DATABASE'] as string) ?? Env.DB_DATABASE ?? 'zintrust';
+  const ssl = parseBoolean(env['DB_SSL'] ?? env['DB_TLS'] ?? false);
+
+  return { host, port, user, password, database, ssl };
+};
+
+const normalizeEnv = (env: Record<string, unknown>): Record<string, unknown> => {
+  const existingConfig =
+    typeof env['ZT_POOL_CONFIG_JSON'] === 'string' && env['ZT_POOL_CONFIG_JSON'].trim() !== ''
+      ? String(env['ZT_POOL_CONFIG_JSON'])
+      : JSON.stringify(buildConfig(env));
+
+  return {
+    ...env,
+    ZT_POOL_DRIVER: 'mysql',
+    ZT_POOL_CONFIG_JSON: existingConfig,
+  };
 };
 
 /**
  * ZinTrustMySqlPoolDurableObject
  *
- * Maintains a persistent MySQL connection pool that allows multiple Worker requests
- * to execute queries without triggering cross-request I/O errors.
+ * Backwards-compatible wrapper that delegates to PoolDurableObject using the mysql driver.
  */
 export class ZinTrustMySqlPoolDurableObject {
-  private readonly env: Record<string, unknown>;
-  private mysqlModule: { createPool: (config: unknown) => MySqlPool } | null = null;
+  private readonly delegate: PoolDurableObject;
 
-  constructor(_state: DurableObjectState, env: Record<string, unknown>) {
-    this.env = env;
+  constructor(state: DurableObjectState, env: Record<string, unknown>) {
+    this.delegate = new PoolDurableObject(state, normalizeEnv(env));
   }
 
   async fetch(request: Request): Promise<Response> {
-    try {
-      if (request.method !== 'POST') {
-        return new Response('Method Not Allowed', { status: 405 });
-      }
-
-      const url = new URL(request.url);
-
-      switch (url.pathname) {
-        case '/query':
-          return await this.handleQuery(request);
-        case '/health':
-          return new Response(JSON.stringify({ connected: false }), { status: 200 });
-        default:
-          return new Response('Not Found', { status: 404 });
-      }
-    } catch (error) {
-      Logger.error('[MySqlPoolDO] Unhandled error', error);
-      return new Response(
-        JSON.stringify({
-          error: String(error),
-          code: 'DO_ERROR',
-        }),
-        { status: 500 }
-      );
-    }
-  }
-
-  private async createPool(): Promise<MySqlPool> {
-    Logger.info('[MySqlPoolDO] Initializing pool...');
-
-    try {
-      if (!this.mysqlModule) {
-        const mysqlModule = await import('mysql2/promise');
-        this.mysqlModule = mysqlModule.default as unknown as {
-          createPool: (config: unknown) => MySqlPool;
-        };
-      }
-
-      const createSocket = CloudflareSocket.create;
-      const host = (this.env['DB_HOST'] as string) ?? Env.get('DB_HOST', '127.0.0.1');
-      const port = Number(this.env['DB_PORT'] ?? Env.getInt('DB_PORT', 3306));
-      const user = (this.env['DB_USERNAME'] as string) ?? Env.get('DB_USERNAME', 'root');
-      const password = (this.env['DB_PASSWORD'] as string) ?? Env.get('DB_PASSWORD', '');
-      const database = (this.env['DB_DATABASE'] as string) ?? Env.get('DB_DATABASE', 'zintrust');
-      const tls = Boolean(this.env['DB_SSL'] === 'true');
-
-      const pool = this.mysqlModule.createPool({
-        host,
-        port,
-        user,
-        password,
-        database,
-        waitForConnections: true,
-        connectionLimit: 1,
-        namedPlaceholders: false,
-        disableEval: true, // Critical for Workers
-        // @ts-ignore
-        stream: () => createSocket(host, port, tls),
-      });
-
-      await pool.execute('SELECT 1', []);
-      Logger.info(`[MySqlPoolDO] Connected to ${host}:${port}`);
-      return pool;
-    } catch (error: unknown) {
-      Logger.error('[MySqlPoolDO] Connection failed', error);
-      throw error;
-    }
-  }
-
-  private async handleQuery(request: Request): Promise<Response> {
-    let pool: MySqlPool | null = null;
-    try {
-      pool = await this.createPool();
-
-      const body = (await request.json()) as {
-        sql: string;
-        params?: unknown[];
-        method?: 'query' | 'execute';
-      };
-
-      const { sql, params, method } = body;
-      const queryParams = params ?? [];
-
-      // Execute query using a per-request pool
-      let result: QueryResult;
-      if (method === 'execute') {
-        const [res] = await pool.execute(sql, queryParams);
-        result = this.normalizeResult(res);
-      } else {
-        const [rows] = await pool.query(sql, queryParams);
-        result = this.normalizeResult(rows);
-      }
-
-      // Serialize BigInts
-      const json =
-        JSON.stringify(result, (_key: string, value: unknown): unknown =>
-          typeof value === 'bigint' ? value.toString() : value
-        ) ?? '{}';
-
-      return new Response(json, { headers: { 'Content-Type': 'application/json' } });
-    } catch (error: unknown) {
-      const err = error as { message?: string | null; code?: string | null };
-      return new Response(
-        JSON.stringify({
-          error: err.message ?? 'Unknown error',
-          code: err.code ?? 'QUERY_ERROR',
-        }) ?? '{}',
-        { status: 500 }
-      );
-    } finally {
-      if (pool) {
-        try {
-          await pool.end();
-        } catch (error) {
-          Logger.warn('[MySqlPoolDO] Failed to close pool', error);
-        }
-      }
-    }
-  }
-
-  private normalizeResult(raw: unknown): QueryResult {
-    if (Array.isArray(raw)) {
-      return {
-        rows: raw as Record<string, unknown>[],
-        rowCount: raw.length,
-      };
-    }
-
-    if (raw !== null && typeof raw === 'object') {
-      const maybe = raw as { affectedRows?: unknown; insertId?: unknown };
-      const affectedRows =
-        typeof maybe.affectedRows === 'number' && Number.isFinite(maybe.affectedRows)
-          ? maybe.affectedRows
-          : 0;
-
-      const insertId =
-        (typeof maybe.insertId === 'number' ||
-          typeof maybe.insertId === 'string' ||
-          typeof maybe.insertId === 'bigint') &&
-        maybe.insertId !== 0
-          ? maybe.insertId
-          : undefined;
-
-      return { rows: [], rowCount: affectedRows, lastInsertId: insertId };
-    }
-
-    return { rows: [], rowCount: 0 };
+    return this.delegate.fetch(request);
   }
 }

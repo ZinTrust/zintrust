@@ -1,10 +1,10 @@
-import { MySqlProxyServer } from '@/proxy/mysql/MySqlProxyServer';
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
+import { MySqlProxyServer } from '@proxy/mysql/MySqlProxyServer';
 import type { Command } from 'commander';
 
 type MySqlProxyOptions = CommandOptions & {

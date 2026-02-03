@@ -5,7 +5,7 @@
 
 export { BaseCommand, type CommandOptions } from '@cli/BaseCommand';
 export { CLI } from '@cli/CLI';
-export { EXIT_CODES, ErrorHandler } from '@cli/ErrorHandler';
+export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
 export { PromptHelper, type PromptOptions } from '@cli/PromptHelper';
 
 // Export commands
@@ -15,4 +15,5 @@ export { DebugCommand } from '@cli/commands/DebugCommand';
 export { MigrateCommand } from '@cli/commands/MigrateCommand';
 export { MySqlProxyCommand } from '@cli/commands/MySqlProxyCommand';
 export { NewCommand } from '@cli/commands/NewCommand';
+export { ProxyCommand } from '@cli/commands/ProxyCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';

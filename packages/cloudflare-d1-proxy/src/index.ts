@@ -1,4 +1,8 @@
-import { SignedRequest } from './SignedRequest';
+import {
+  ProxyErrorHandler as ErrorHandler,
+  RequestValidator,
+  SigningService,
+} from '@zintrust/core';
 
 type KvGetType = 'text' | 'json' | 'arrayBuffer';
 
@@ -62,6 +66,11 @@ const json = (status: number, body: unknown): Response =>
     },
   });
 
+const toErrorResponse = (status: number, code: string, message: string): Response => {
+  const error = ErrorHandler.toProxyError(status, code, message);
+  return json(error.status, error.body);
+};
+
 const getEnvInt = (env: D1Env, name: keyof D1Env, fallback: number): number => {
   const raw = env[name];
   if (typeof raw !== 'string') return fallback;
@@ -84,7 +93,7 @@ const readBodyBytes = async (
   if (buf.byteLength > maxBytes) {
     return {
       ok: false,
-      response: json(413, { code: 'PAYLOAD_TOO_LARGE', message: 'Body too large' }),
+      response: toErrorResponse(413, 'PAYLOAD_TOO_LARGE', 'Body too large'),
     };
   }
 
@@ -93,13 +102,23 @@ const readBodyBytes = async (
   return { ok: true, bytes, text };
 };
 
-const parseJsonOrNull = (text: string): unknown | null | { __error: 'INVALID_JSON' } => {
-  if (text.trim() === '') return null;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return { __error: 'INVALID_JSON' };
+const parseOptionalJson = (
+  text: string
+): { ok: true; payload: Record<string, unknown> | null } | { ok: false; response: Response } => {
+  if (text.trim() === '') return { ok: true, payload: null };
+
+  const parsed = RequestValidator.parseJson(text);
+  if (!parsed.ok) {
+    const message =
+      parsed.error.code === 'INVALID_JSON'
+        ? 'Invalid JSON body'
+        : parsed.error.code === 'VALIDATION_ERROR'
+          ? 'Invalid body'
+          : parsed.error.message;
+    return { ok: false, response: toErrorResponse(400, parsed.error.code, message) };
   }
+
+  return { ok: true, payload: parsed.value };
 };
 
 const loadKeys = (env: D1Env): KeysJson | null => {
@@ -157,15 +176,15 @@ const verifySignedRequest = async (
   request: Request,
   env: D1Env,
   bodyBytes: Uint8Array
-): Promise<Response | { ok: true; keyId: string }> => {
+): Promise<Response | { ok: true }> => {
   const keys = loadKeys(env);
   if (keys === null) {
-    return json(500, { code: 'CONFIG_ERROR', message: 'Missing or invalid ZT_KEYS_JSON' });
+    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_KEYS_JSON');
   }
 
   const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', DEFAULT_SIGNING_WINDOW_MS);
 
-  const verifyResult = await SignedRequest.verify({
+  const verifyResult = await SigningService.verifyWithKeyProvider({
     method: request.method,
     url: request.url,
     body: bodyBytes,
@@ -180,15 +199,15 @@ const verifySignedRequest = async (
   });
 
   if (verifyResult.ok === false) {
-    return json(401, { code: verifyResult.code, message: verifyResult.message });
+    return toErrorResponse(verifyResult.status, verifyResult.code, verifyResult.message);
   }
 
-  return { ok: true, keyId: verifyResult.keyId };
+  return { ok: true };
 };
 
 const requireDb = (env: D1Env): Response | D1Database => {
   if (env.DB === undefined) {
-    return json(500, { code: 'CONFIG_ERROR', message: 'Missing D1 binding (DB)' });
+    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing D1 binding (DB)');
   }
   return env.DB;
 };
@@ -199,7 +218,7 @@ const parseSqlPayload = (
   if (!isRecord(payload)) {
     return {
       ok: false,
-      response: json(400, { code: 'VALIDATION_ERROR', message: 'Invalid body' }),
+      response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body'),
     };
   }
 
@@ -208,7 +227,7 @@ const parseSqlPayload = (
   if (!isString(sql)) {
     return {
       ok: false,
-      response: json(400, { code: 'VALIDATION_ERROR', message: 'sql must be a string' }),
+      response: toErrorResponse(400, 'VALIDATION_ERROR', 'sql must be a string'),
     };
   }
   return { ok: true, sql, params: isArray(params) ? params : [] };
@@ -219,10 +238,10 @@ const enforceSqlLimits = (env: D1Env, sql: string, params: unknown[]): Response 
   const maxParams = getEnvInt(env, 'ZT_MAX_PARAMS', DEFAULT_MAX_PARAMS);
 
   if (new TextEncoder().encode(sql).byteLength > maxSqlBytes) {
-    return json(413, { code: 'PAYLOAD_TOO_LARGE', message: 'SQL too large' });
+    return toErrorResponse(413, 'PAYLOAD_TOO_LARGE', 'SQL too large');
   }
   if (params.length > maxParams) {
-    return json(400, { code: 'VALIDATION_ERROR', message: 'Too many params' });
+    return toErrorResponse(400, 'VALIDATION_ERROR', 'Too many params');
   }
 
   return null;
@@ -241,15 +260,10 @@ const readAndVerifyJson = async (
   const auth = await verifySignedRequest(request, env, bodyResult.bytes);
   if (auth instanceof Response) return { ok: false, response: auth };
 
-  const parsed = parseJsonOrNull(bodyResult.text);
-  if (isRecord(parsed) && parsed['__error'] === 'INVALID_JSON') {
-    return {
-      ok: false,
-      response: json(400, { code: 'INVALID_JSON', message: 'Invalid JSON body' }),
-    };
-  }
+  const parsed = parseOptionalJson(bodyResult.text);
+  if (parsed.ok === false) return { ok: false, response: parsed.response };
 
-  return { ok: true, payload: parsed, bodyBytes: bodyResult.bytes };
+  return { ok: true, payload: parsed.payload, bodyBytes: bodyResult.bytes };
 };
 
 const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
@@ -313,7 +327,7 @@ const parseStatementPayload = (
   if (!isRecord(payload)) {
     return {
       ok: false,
-      response: json(400, { code: 'VALIDATION_ERROR', message: 'Invalid body' }),
+      response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body'),
     };
   }
 
@@ -322,7 +336,7 @@ const parseStatementPayload = (
   if (!isString(statementId) || statementId.trim() === '') {
     return {
       ok: false,
-      response: json(400, { code: 'VALIDATION_ERROR', message: 'statementId must be a string' }),
+      response: toErrorResponse(400, 'VALIDATION_ERROR', 'statementId must be a string'),
     };
   }
 
@@ -338,7 +352,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
 
   const statements = loadStatements(env);
   if (statements === null) {
-    return json(500, { code: 'CONFIG_ERROR', message: 'Missing or invalid ZT_D1_STATEMENTS_JSON' });
+    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_D1_STATEMENTS_JSON');
   }
 
   const parsed = parseStatementPayload(check.payload);
@@ -346,7 +360,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
 
   const sql = statements[parsed.statementId];
   if (!isString(sql) || sql.trim() === '') {
-    return json(404, { code: 'NOT_FOUND', message: 'Unknown statementId' });
+    return toErrorResponse(404, 'NOT_FOUND', 'Unknown statementId');
   }
 
   if (isMutatingSql(sql)) {
@@ -369,8 +383,9 @@ export const ZintrustD1Proxy = Object.freeze({
   async fetch(request: Request, env: D1Env): Promise<Response> {
     const url = new URL(request.url);
 
-    if (request.method !== 'POST') {
-      return json(405, { code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed' });
+    const methodError = RequestValidator.requirePost(request.method);
+    if (methodError !== null) {
+      return toErrorResponse(405, methodError.code, 'Method not allowed');
     }
 
     switch (url.pathname) {
@@ -383,7 +398,7 @@ export const ZintrustD1Proxy = Object.freeze({
       case '/zin/d1/statement':
         return handleStatement(request, env);
       default:
-        return json(404, { code: 'NOT_FOUND', message: 'Not found' });
+        return toErrorResponse(404, 'NOT_FOUND', 'Not found');
     }
   },
 });

@@ -36,10 +36,10 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJmbGFyZUBleGFtcGxlLmNvbSIsImlhdCI6MTc3MDExMzI1NiwiZXhwIjoxNzcwMTE2ODU2LCJpc3MiOiJ6aW50cnVzdCIsImF1ZCI6InppbnRydXN0LWFwaSIsImp0aSI6ImRiNjE1MzlhMTcxYTg2OGNhNzk1M2M4ZDg1N2JlMjBhIn0.vPyGewFin36pM_xX-I_VpeIZKK5sFhaLbIc1LkY4iL8
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwiZW1haWwiOiJmbGFyZTVAZXhhbXBsZS5jb20iLCJpYXQiOjE3NzAxMjI1MzQsImV4cCI6MTc3MDEyNjEzNCwiaXNzIjoiemludHJ1c3QiLCJhdWQiOiJ6aW50cnVzdC1hcGkiLCJqdGkiOiJkNWM0MTI3ZDI0ZDNhNDQ1NTM2OWZjZmQ0ZjQzZWQ1NSJ9.yPUDxNoj9zwdiXwrperyZzK9gfBxck_Ns7g441cxPTw
 @csrf =
 @cookie =
-@userId = 1
+@userId = 5
 
 ### Root
 GET {{baseUrl}}/

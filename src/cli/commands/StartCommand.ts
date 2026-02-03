@@ -301,7 +301,11 @@ const executeWranglerStart = async (
 
   logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'wrangler', args: wranglerArgs });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: 'wrangler',
+    args: wranglerArgs,
+    env: process.env,
+  });
   process.exit(exitCode);
 };
 
@@ -348,7 +352,7 @@ const executeDenoStart = async (
   args.push(denoRunner);
 
   cmd.info('Starting in Deno adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
   process.exit(exitCode);
 };
 
@@ -377,7 +381,7 @@ const executeLambdaStart = async (
   args.push(lambdaRunner);
 
   cmd.info('Starting in Lambda adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
   process.exit(exitCode);
 };
 
@@ -385,7 +389,8 @@ const executeNodeStart = async (
   cmd: IBaseCommand,
   cwd: string,
   mode: StartMode,
-  watchEnabled: boolean
+  watchEnabled: boolean,
+  _port: number | undefined
 ): Promise<void> => {
   if (mode === 'testing') {
     throw ErrorFactory.createCliError(
@@ -403,6 +408,7 @@ const executeNodeStart = async (
         command: 'tsx',
         args,
         forwardSignals: false,
+        env: process.env,
       });
       process.exit(exitCode);
     }
@@ -414,6 +420,7 @@ const executeNodeStart = async (
       command: dev.command,
       args: dev.args,
       forwardSignals: false,
+      env: process.env,
     });
     process.exit(exitCode);
   }
@@ -424,6 +431,7 @@ const executeNodeStart = async (
     command: prod.command,
     args: prod.args,
     forwardSignals: false,
+    env: process.env,
   });
   process.exit(exitCode);
 };
@@ -457,7 +465,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
     await executeLambdaStart(cmd, cwd, mode, watchEnabled, port, runtime);
     return;
   }
-  await executeNodeStart(cmd, cwd, mode, watchEnabled);
+  await executeNodeStart(cmd, cwd, mode, watchEnabled, port);
 };
 
 export const StartCommand = Object.freeze({
@@ -473,7 +481,7 @@ export const StartCommand = Object.freeze({
         .option('--no-watch', 'Disable watch mode (Node only)')
         .option('--mode <development|production|testing>', 'Override app mode')
         .option('--runtime <nodejs|cloudflare|lambda|deno|auto>', 'Set RUNTIME for spawned Node')
-        .option('--port <number>', 'Override server port');
+        .option('-p, --port <number>', 'Override server port');
     };
 
     const cmd: IBaseCommand = BaseCommand.create({

@@ -1,23 +1,21 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { createServer, type IncomingMessage, type ServerResponse } from '@node-singletons/http';
-import { SignedRequest } from '@security/SignedRequest';
+import { type IncomingMessage } from '@node-singletons/http';
+import { ErrorHandler } from '@proxy/ErrorHandler';
+import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
+import type { ProxySigningConfig } from '@proxy/ProxyConfig';
+import { createProxyServer } from '@proxy/ProxyServer';
+import { RequestValidator } from '@proxy/RequestValidator';
+import { SigningService } from '@proxy/SigningService';
 import { createPool, type Pool, type PoolOptions } from 'mysql2/promise';
-
-type SigningConfig = {
-  keyId: string;
-  secret: string;
-  require: boolean;
-  windowMs: number;
-};
 
 type ProxyConfig = {
   host: string;
   port: number;
   maxBodyBytes: number;
   poolOptions: PoolOptions;
-  signing: SigningConfig;
+  signing: ProxySigningConfig;
 };
 
 type ProxyOverrides = Partial<{
@@ -48,9 +46,10 @@ const resolveProxyConfig = (
   port: number;
   maxBodyBytes: number;
 } => {
-  const host = overrides?.host ?? Env.MYSQL_PROXY_HOST ?? '127.0.0.1';
-  const port = overrides.port ?? Env.MYSQL_PROXY_PORT;
-  const maxBodyBytes = overrides.maxBodyBytes ?? Env.MYSQL_PROXY_MAX_BODY_BYTES;
+  const host = overrides?.host ?? Env.MYSQL_PROXY_HOST ?? Env.HOST ?? '127.0.0.1';
+  const port = overrides.port ?? Env.MYSQL_PROXY_PORT ?? Env.PORT;
+  const maxBodyBytes =
+    overrides.maxBodyBytes ?? Env.MYSQL_PROXY_MAX_BODY_BYTES ?? Env.MAX_BODY_SIZE;
 
   return { host, port, maxBodyBytes };
 };
@@ -84,7 +83,8 @@ const resolveSigningConfig = (
   signingWindowMs: number;
 } => {
   const keyId = overrides.keyId ?? Env.MYSQL_PROXY_KEY_ID;
-  const secret = overrides.secret ?? Env.MYSQL_PROXY_SECRET;
+  const secretRaw = overrides.secret ?? Env.MYSQL_PROXY_SECRET ?? '';
+  const secret = secretRaw.trim() === '' ? (Env.APP_KEY ?? '') : secretRaw;
   const requireSigning = overrides.requireSigning ?? Env.MYSQL_PROXY_REQUIRE_SIGNING;
   const signingWindowMs = overrides.signingWindowMs ?? Env.MYSQL_PROXY_SIGNING_WINDOW_MS;
 
@@ -124,30 +124,6 @@ const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
   };
 };
 
-const readBody = async (req: IncomingMessage, maxBodyBytes: number): Promise<string> => {
-  const chunks: Buffer[] = [];
-  let size = 0;
-
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : (Buffer.from(chunk) as Buffer<ArrayBufferLike>);
-    size += buffer.length;
-    if (size > maxBodyBytes) {
-      throw ErrorFactory.createValidationError('Body too large');
-    }
-    chunks.push(buffer);
-  }
-
-  return Buffer.concat(chunks).toString('utf8');
-};
-
-const respondJson = (res: ServerResponse, status: number, body: unknown): void => {
-  res.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
-  res.end(JSON.stringify(body));
-};
-
 const normalizeResult = (
   rows: unknown
 ): {
@@ -171,94 +147,6 @@ const normalizeResult = (
   return { rows: [], rowCount: 0 };
 };
 
-const shouldVerifySignature = (
-  signing: SigningConfig,
-  headers: Record<string, string | undefined>
-): boolean => {
-  const hasSigningHeader = Boolean(
-    (headers['x-zt-key-id'] ?? '') ||
-    (headers['x-zt-timestamp'] ?? '') ||
-    (headers['x-zt-nonce'] ?? '') ||
-    (headers['x-zt-body-sha256'] ?? '') ||
-    headers['x-zt-signature']
-  );
-
-  if (signing.require) return true;
-  if (signing.keyId.trim() !== '' && signing.secret.trim() !== '' && hasSigningHeader) return true;
-
-  return false;
-};
-
-const verifyRequestSignature = async (
-  req: IncomingMessage,
-  body: string,
-  signing: SigningConfig
-): Promise<{ ok: true } | { ok: false; status: number; message: string }> => {
-  if (signing.require && (signing.keyId.trim() === '' || signing.secret.trim() === '')) {
-    return { ok: false, status: 500, message: 'Proxy signing is required but not configured' };
-  }
-
-  const headers: Record<string, string | undefined> = {
-    'x-zt-key-id': normalizeHeaderValue(req.headers['x-zt-key-id']),
-    'x-zt-timestamp': normalizeHeaderValue(req.headers['x-zt-timestamp']),
-    'x-zt-nonce': normalizeHeaderValue(req.headers['x-zt-nonce']),
-    'x-zt-body-sha256': normalizeHeaderValue(req.headers['x-zt-body-sha256']),
-    'x-zt-signature': normalizeHeaderValue(req.headers['x-zt-signature']),
-  };
-
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-  const result = await SignedRequest.verify({
-    method: req.method ?? 'POST',
-    url,
-    body,
-    headers,
-    // eslint-disable-next-line @typescript-eslint/require-await
-    getSecretForKeyId: async (keyId: string) =>
-      keyId === signing.keyId ? signing.secret : undefined,
-    windowMs: signing.windowMs,
-  });
-
-  if (result.ok) return { ok: true };
-
-  if (result.code === 'MISSING_HEADER' || result.code === 'INVALID_TIMESTAMP') {
-    return { ok: false, status: 401, message: result.message };
-  }
-
-  if (result.code === 'EXPIRED') {
-    return { ok: false, status: 401, message: result.message };
-  }
-
-  if (result.code === 'UNKNOWN_KEY') {
-    return { ok: false, status: 403, message: result.message };
-  }
-
-  if (result.code === 'REPLAYED') {
-    return { ok: false, status: 409, message: result.message };
-  }
-
-  return { ok: false, status: 403, message: result.message };
-};
-
-const validateRequest = (
-  req: IncomingMessage,
-  payload: unknown
-): { valid: boolean; error?: { code: string; message: string } } => {
-  if (req.method !== 'POST') {
-    return { valid: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'POST only' } };
-  }
-
-  if (
-    payload === undefined ||
-    payload === null ||
-    typeof payload !== 'object' ||
-    Object.keys(payload).length === 0
-  ) {
-    return { valid: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid body' } };
-  }
-
-  return { valid: true };
-};
-
 const verifySignatureIfNeeded = async (
   req: IncomingMessage,
   body: string,
@@ -272,8 +160,15 @@ const verifySignatureIfNeeded = async (
     'x-zt-signature': normalizeHeaderValue(req.headers['x-zt-signature']),
   };
 
-  if (shouldVerifySignature(config.signing, headers)) {
-    const verified = await verifyRequestSignature(req, body, config.signing);
+  if (SigningService.shouldVerify(config.signing, headers)) {
+    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    const verified = await SigningService.verify({
+      method: req.method ?? 'POST',
+      url,
+      body,
+      headers,
+      signing: config.signing,
+    });
     if (!verified.ok) {
       return { ok: false, error: { status: verified.status, message: verified.message } };
     }
@@ -300,96 +195,70 @@ const validateSqlPayload = (
   return { valid: true, sql, params };
 };
 
-const handleEndpoint = (path: string, rows: unknown, res: ServerResponse): void => {
+const handleEndpoint = (path: string, rows: unknown): ProxyResponse => {
   if (path === '/zin/mysql/query') {
-    respondJson(res, 200, normalizeResult(rows));
-    return;
+    return { status: 200, body: normalizeResult(rows) };
   }
 
   if (path === '/zin/mysql/queryOne') {
     if (Array.isArray(rows)) {
-      respondJson(res, 200, { row: (rows[0] as unknown) ?? null });
-      return;
+      return { status: 200, body: { row: (rows[0] as unknown) ?? null } };
     }
-    respondJson(res, 200, { row: null });
-    return;
+    return { status: 200, body: { row: null } };
   }
 
   if (path === '/zin/mysql/exec') {
     const normalized = normalizeResult(rows);
-    respondJson(res, 200, {
-      ok: true,
-      meta: { changes: normalized.rowCount, lastRowId: normalized.lastInsertId },
-    });
-    return;
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        meta: { changes: normalized.rowCount, lastRowId: normalized.lastInsertId },
+      },
+    };
   }
 
-  respondJson(res, 404, { code: 'NOT_FOUND', message: 'Unknown endpoint' });
+  return ErrorHandler.toProxyError(404, 'NOT_FOUND', 'Unknown endpoint');
 };
 
-const handleRequest = async (
-  req: IncomingMessage,
-  res: ServerResponse,
-  pool: Pool,
-  config: ProxyConfig
-): Promise<void> => {
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-  const path = url.pathname;
+const createBackend = (pool: Pool): ProxyBackend => ({
+  name: 'mysql',
+  async handle(request): Promise<ProxyResponse> {
+    const methodError = RequestValidator.requirePost(request.method);
+    if (methodError) {
+      return ErrorHandler.toProxyError(405, methodError.code, methodError.message);
+    }
 
-  let payload: Record<string, unknown> | null = null;
-  let body = '';
+    const parsed = RequestValidator.parseJson(request.body);
+    if (!parsed.ok) {
+      return ErrorHandler.toProxyError(400, parsed.error.code, parsed.error.message);
+    }
 
-  try {
-    body = await readBody(req, config.maxBodyBytes);
-    payload = body.trim() === '' ? null : (JSON.parse(body) as Record<string, unknown>);
-  } catch (error) {
-    respondJson(res, 400, { code: 'INVALID_JSON', message: String(error) });
-    return;
-  }
+    const sqlValidation = validateSqlPayload(parsed.value);
+    if (!sqlValidation.valid) {
+      const error = sqlValidation.error ?? {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid SQL payload',
+      };
+      return ErrorHandler.toProxyError(400, error.code, error.message);
+    }
 
-  // Validate request
-  const validation = validateRequest(req, payload);
-  if (!validation.valid) {
-    respondJson(
-      res,
-      400,
-      validation.error ?? { code: 'VALIDATION_ERROR', message: 'Invalid request' }
-    );
-    return;
-  }
-
-  // Verify signature if needed
-  const signatureResult = await verifySignatureIfNeeded(req, body, config);
-  if (!signatureResult.ok) {
-    const error = signatureResult.error ?? { status: 401, message: 'Unauthorized' };
-    respondJson(res, error.status, {
-      code: 'UNAUTHORIZED',
-      message: error.message,
-    });
-    return;
-  }
-
-  // Validate SQL payload
-  const sqlValidation = validateSqlPayload(payload ?? ({} as Record<string, unknown>));
-  if (!sqlValidation.valid) {
-    respondJson(
-      res,
-      400,
-      sqlValidation.error ?? { code: 'VALIDATION_ERROR', message: 'Invalid SQL payload' }
-    );
-    return;
-  }
-
-  // Execute SQL
-  try {
-    // optimization: use .query() instead of .execute() to avoid prepared statement caching/roundtrips
-    // which can cause memory leaks on the server and performance bottlenecks in proxy scenarios.
-    const [rows] = await pool.query(sqlValidation.sql ?? '', sqlValidation.params ?? []);
-    handleEndpoint(path, rows, res);
-  } catch (error) {
-    respondJson(res, 500, { code: 'MYSQL_ERROR', message: String(error) });
-  }
-};
+    try {
+      const [rows] = await pool.query(sqlValidation.sql ?? '', sqlValidation.params ?? []);
+      return handleEndpoint(request.path, rows);
+    } catch (error) {
+      return ErrorHandler.toProxyError(500, 'MYSQL_ERROR', String(error));
+    }
+  },
+  async health(): Promise<ProxyResponse> {
+    try {
+      await pool.query('SELECT 1');
+      return { status: 200, body: { status: 'healthy' } };
+    } catch (error) {
+      return ErrorHandler.toProxyError(503, 'UNHEALTHY', String(error));
+    }
+  },
+});
 
 export const MySqlProxyServer = Object.freeze({
   async start(overrides: ProxyOverrides = {}): Promise<void> {
@@ -418,17 +287,24 @@ export const MySqlProxyServer = Object.freeze({
     }
 
     const pool = createPool(config.poolOptions);
+    const backend = createBackend(pool);
 
-    const server = createServer((req, res) => {
-      handleRequest(req, res, pool, config).catch((error) => {
-        respondJson(res, 500, { code: 'UNHANDLED', message: String(error) });
-      });
+    const proxy = createProxyServer({
+      host: config.host,
+      port: config.port,
+      maxBodyBytes: config.maxBodyBytes,
+      backend,
+      verify: async (req, body) => {
+        const verified = await verifySignatureIfNeeded(req, body, config);
+        if (!verified.ok) {
+          const error = verified.error ?? { status: 401, message: 'Unauthorized' };
+          return { ok: false, status: error.status, message: error.message };
+        }
+        return { ok: true };
+      },
     });
 
-    await new Promise<void>((resolve, reject) => {
-      server.once('error', (error) => reject(error));
-      server.listen(config.port, config.host, () => resolve());
-    });
+    await proxy.start();
 
     Logger.info(`MySQL proxy listening on http://${config.host}:${config.port}`);
   },

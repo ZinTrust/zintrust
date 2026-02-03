@@ -47,7 +47,7 @@ export const get = (key: string, defaultValue?: string): string => {
   return value === '' ? (defaultValue ?? '') : value;
 };
 
-export const getInt = (key: string, defaultValue?: number): number => {
+export const getInt = (key: string, defaultValue: number): number => {
   const value = get(key, String(defaultValue ?? 0));
   if (value.trim() === '') return defaultValue ?? 0;
   return Number.parseInt(value, 10);
@@ -86,6 +86,7 @@ export const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
   if (NODE_ENV_VALUE === 'testing') return 'error';
   return 'debug';
 };
+export const ZT_PROXY_TIMEOUT_MS = getInt('ZT_PROXY_TIMEOUT_MS', 30000);
 
 // Sealed namespace with all environment configuration
 export const Env = Object.freeze({
@@ -150,7 +151,7 @@ export const Env = Object.freeze({
   MYSQL_PROXY_POOL_LIMIT: getInt('MYSQL_PROXY_POOL_LIMIT', 10),
   MYSQL_PROXY_KEY_ID: get('MYSQL_PROXY_KEY_ID', ''),
   MYSQL_PROXY_SECRET: get('MYSQL_PROXY_SECRET', ''),
-  MYSQL_PROXY_TIMEOUT_MS: getInt('MYSQL_PROXY_TIMEOUT_MS', 30000),
+  MYSQL_PROXY_TIMEOUT_MS: getInt('MYSQL_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
   MYSQL_PROXY_REQUIRE_SIGNING: getBool('MYSQL_PROXY_REQUIRE_SIGNING', false),
   MYSQL_PROXY_SIGNING_WINDOW_MS: getInt(
     'MYSQL_PROXY_SIGNING_WINDOW_MS',

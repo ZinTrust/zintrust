@@ -22,18 +22,28 @@ const createSendQueryFunction = (
   ): Promise<QueryResult> => {
     await connect();
     const stub = getStub();
-
-    const response = await stub.fetch('http://do/query', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sql,
-        params,
-        method,
-      }),
+    const executePath = 'http://do/execute'; //NOSONAR
+    const queryPath = 'http://do/query'; //NOSONAR
+    const payload = JSON.stringify({
+      command: sql,
+      sql,
+      params,
+      method,
     });
+
+    const send = async (path: string): Promise<Response> =>
+      stub.fetch(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: payload,
+      });
+
+    let response = await send(executePath);
+    if (!response.ok && (response.status === 404 || response.status === 405)) {
+      response = await send(queryPath);
+    }
 
     if (!response.ok) {
       const text = await response.text();
@@ -50,7 +60,11 @@ const createSendQueryFunction = (
       throw ErrorFactory.createGeneralError(`DO Query Failed: ${msg}`);
     }
 
-    return (await response.json()) as QueryResult;
+    const json = (await response.json()) as unknown;
+    if (json !== null && typeof json === 'object' && 'result' in (json as { result?: unknown })) {
+      return (json as { result: QueryResult }).result;
+    }
+    return json as QueryResult;
   };
 };
 
@@ -81,7 +95,8 @@ const createConnectionManager = (
 
     try {
       const stub = getStub();
-      const res = await stub.fetch('http://do/health', {
+      const health = 'http://do/health'; //NOSONAR
+      const res = await stub.fetch(health, {
         method: 'POST',
       });
 

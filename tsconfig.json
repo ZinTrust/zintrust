@@ -26,6 +26,7 @@
       "@orm/*": ["./src/orm/*"],
       "@types/*": ["./src/types/*"],
       "@utils/*": ["./src/utils/*"],
+      "@proxy/*": ["./src/proxy/*"],
       "@routing/*": ["./src/routing/*"],
       "@workers/*": ["./src/workers/*"],
       "@sockets/*": ["./src/sockets/*"],

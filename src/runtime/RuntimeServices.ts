@@ -112,8 +112,8 @@ const createWorkersEnvReader = (): RuntimeEnvReader => {
 const createNodeEnvReader = (): RuntimeEnvReader => {
   return {
     get: (key: string, defaultValue?: string) => Env.get(key, defaultValue),
-    getInt: (key: string, defaultValue?: number) => Env.getInt(key, defaultValue),
-    getFloat: (key: string, defaultValue?: number) => Env.getFloat(key, defaultValue),
+    getInt: (key: string, defaultValue?: number) => Env.getInt(key, defaultValue ?? 0),
+    getFloat: (key: string, defaultValue?: number) => Env.getFloat(key, defaultValue ?? 0),
     getBool: (key: string, defaultValue?: boolean) => Env.getBool(key, defaultValue),
   };
 };

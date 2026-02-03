@@ -167,12 +167,12 @@ export {
   _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE,
   _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION,
   ZintrustD1Proxy,
-} from '@/proxy/d1/ZintrustD1Proxy';
+} from '@proxy/d1/ZintrustD1Proxy';
 export {
   _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE,
   _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION,
   ZintrustKvProxy,
-} from '@/proxy/kv/ZintrustKvProxy';
+} from '@proxy/kv/ZintrustKvProxy';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type {
   CsrfTokenData,
@@ -413,6 +413,11 @@ export { BaseCommand } from '@cli/BaseCommand';
 export type { CommandOptions } from '@cli/BaseCommand';
 export { CLI } from '@cli/CLI';
 export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
+
+// Proxy utilities (shared across proxy servers)
+export { ErrorHandler as ProxyErrorHandler } from '@proxy/ErrorHandler';
+export { RequestValidator } from '@proxy/RequestValidator';
+export { SigningService } from '@proxy/SigningService';
 
 // Runtime detection and kernel
 export { getKernel } from '@runtime/getKernel';

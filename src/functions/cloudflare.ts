@@ -68,4 +68,5 @@ export default {
 };
 
 export { ZinTrustMySqlPoolDurableObject } from '@runtime/durable-objects/MySqlPoolDO';
+export { PoolDurableObject } from '@runtime/durable-objects/PoolDurableObject';
 export { ZinTrustWorkerShutdownDurableObject } from '@zintrust/workers';

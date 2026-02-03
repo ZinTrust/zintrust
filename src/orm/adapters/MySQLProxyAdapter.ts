@@ -38,10 +38,10 @@ type ProxySettings = {
 };
 
 const buildProxySettings = (): ProxySettings => {
-  const baseUrl = Env.get('MYSQL_PROXY_URL');
-  const keyId = Env.get('MYSQL_PROXY_KEY_ID') || undefined;
-  const secret = Env.get('MYSQL_PROXY_SECRET') || undefined;
-  const timeoutMs = Env.getInt('MYSQL_PROXY_TIMEOUT_MS', Env.getInt('ZT_PROXY_TIMEOUT_MS', 30000));
+  const baseUrl = Env.MYSQL_PROXY_URL;
+  const keyId = Env.MYSQL_PROXY_KEY_ID || undefined;
+  const secret = Env.MYSQL_PROXY_SECRET || Env.APP_KEY || undefined;
+  const timeoutMs = Env.MYSQL_PROXY_TIMEOUT_MS;
 
   return { baseUrl, keyId, secret, timeoutMs };
 };

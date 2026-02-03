@@ -1,7 +1,7 @@
 // Worker-only adapter auto-imports for bundler-based runtimes (e.g. Cloudflare Workers).
 // Keep this list limited to database adapters needed by runtime config.
 
-// TODO make sure this read the developer version
+import '@/runtime/durable-objects/drivers/MySqlPoolDriver';
 import '@/zintrust.plugins.ts';
 
 export const WorkerAdapterImports = Object.freeze({
