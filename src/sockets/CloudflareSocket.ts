@@ -1,5 +1,5 @@
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { EventEmitter } from '@node-singletons';
-import { ErrorFactory } from '@zintrust/core';
 
 type connectType = typeof import('cloudflare:sockets').connect;
 
@@ -23,6 +23,7 @@ export type CloudflareSocketInstance = EventEmitter & {
   write: (data: Buffer | Uint8Array) => boolean;
   end: () => void;
   destroy: () => void;
+  connect: (..._args: unknown[]) => CloudflareSocketInstance;
   startTls: () => Promise<void>;
   pause: () => void;
   resume: () => void;
@@ -253,6 +254,14 @@ const createEmitterHandlers = (emitter: CloudflareSocketInstance, state: SocketS
   };
 
   emitter.destroy = emitter.end;
+
+  emitter.connect = (...args: unknown[]): CloudflareSocketInstance => {
+    const last = args.at(-1);
+    if (typeof last === 'function') {
+      emitter.once('connect', last as () => void);
+    }
+    return emitter;
+  };
 
   emitter.startTls = async (): Promise<void> => {
     const socket = state.socket;

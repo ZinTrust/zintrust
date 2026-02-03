@@ -396,7 +396,7 @@ zin start --lambda
 Notes:
 
 - `--runtime` affects the spawned **Node** process only; it does not change Wrangler’s runtime.
-- If you see “Address already in use”, pass a different port: `zin start --wg --port 8787`.
+- If you see “Address already in use”, pass a different port: `zin start --wg --port 7777`.
 
 ## Troubleshooting
 

@@ -50,10 +50,17 @@
       {
         "name": "WORKER_SHUTDOWN",
         "class_name": "ZinTrustWorkerShutdownDurableObject",
+        "script_name": "@zintrust/core",
       },
       {
         "name": "MYSQL_POOL",
         "class_name": "ZinTrustMySqlPoolDurableObject",
+        "script_name": "@zintrust/core",
+      },
+      {
+        "name": "POSTGRES_POOL",
+        "class_name": "ZinTrustPostgresPoolDurableObject",
+        "script_name": "@zintrust/core",
       },
     ],
   },
@@ -65,6 +72,10 @@
     {
       "tag": "v2",
       "new_classes": ["ZinTrustMySqlPoolDurableObject"],
+    },
+    {
+      "tag": "v3",
+      "new_classes": ["ZinTrustPostgresPoolDurableObject"],
     },
   ],
   // Local development settings

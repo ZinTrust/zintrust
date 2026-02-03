@@ -138,9 +138,9 @@ services:
       ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
     volumes:
       - ./packages/cloudflare-d1-proxy:/work
-    command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 8787"
+    command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 7777"
     ports:
-      - '${D1_PROXY_PORT:-8787}:8787'
+      - '${D1_PROXY_PORT:-7777}:7777'
     networks:
       - zintrust-network
     profiles:

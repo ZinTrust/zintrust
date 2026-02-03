@@ -25,6 +25,7 @@ import { MySqlProxyCommand } from '@cli/commands/MySqlProxyCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
+import { PostgresProxyCommand } from '@cli/commands/PostgresProxyCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { ProxyCommand } from '@cli/commands/ProxyCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
@@ -122,6 +123,7 @@ const registerCommands = (program: Command): void => {
     JwtDevCommand,
     ProxyCommand.create(),
     MySqlProxyCommand.create(),
+    PostgresProxyCommand.create(),
     // Worker management commands
     WorkerCommands.createWorkerListCommand(),
     WorkerCommands.createWorkerStatusCommand(),

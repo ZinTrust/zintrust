@@ -14,6 +14,7 @@ import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { MySQLProxyAdapter } from '@orm/adapters/MySQLProxyAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
+import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
@@ -47,22 +48,54 @@ export interface IDatabase {
 /**
  * Create appropriate adapter based on driver
  */
-const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
-  if (Cloudflare.getWorkersEnv() !== null) {
-    if (cfg.driver === 'mysql') {
-      const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
-      const USE_MYSQL_PROXY = Env.getBool('USE_MYSQL_PROXY', false);
-      if (USE_MYSQL_PROXY && proxyUrl.length > 0) {
-        return MySQLProxyAdapter.create(cfg);
-      }
-    }
-    const isSocketDriver = cfg.driver === 'postgresql' || cfg.driver === 'mysql';
-    if (isSocketDriver && Cloudflare.isCloudflareSocketsEnabled() === false) {
-      throw ErrorFactory.createConfigError(
-        'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use SQL adapters on Workers.'
-      );
-    }
+const resolveMySqlProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
+  if (cfg.driver !== 'mysql') return null;
+  const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
+  const useProxy = Env.getBool('USE_MYSQL_PROXY', false);
+  if (useProxy && proxyUrl.length > 0) {
+    return MySQLProxyAdapter.create(cfg);
   }
+  return null;
+};
+
+const resolvePostgresProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
+  if (cfg.driver !== 'postgresql') return null;
+  const proxyUrl = Env.get('POSTGRES_PROXY_URL', '').trim();
+  const host = Env.get('POSTGRES_PROXY_HOST', '127.0.0.1').trim() || '127.0.0.1';
+  const port = Env.get('POSTGRES_PROXY_PORT', '8790').trim() || '8790';
+  const derivedUrl = proxyUrl === '' ? `http://${host}:${port}` : proxyUrl;
+  const useProxy = Env.getBool('USE_POSTGRES_PROXY', false);
+  if (useProxy && derivedUrl.length > 0) {
+    return PostgreSQLProxyAdapter.create(cfg);
+  }
+  return null;
+};
+
+const ensureCloudflareSocketSupport = (cfg: DatabaseConfig): void => {
+  const isSocketDriver = cfg.driver === 'postgresql' || cfg.driver === 'mysql';
+  if (!isSocketDriver) return;
+  if (Cloudflare.isCloudflareSocketsEnabled()) return;
+  throw ErrorFactory.createConfigError(
+    'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use SQL adapters on Workers.'
+  );
+};
+
+const resolveWorkersAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
+  if (Cloudflare.getWorkersEnv() === null) return null;
+
+  const mysqlProxy = resolveMySqlProxyAdapter(cfg);
+  if (mysqlProxy) return mysqlProxy;
+
+  const postgresProxy = resolvePostgresProxyAdapter(cfg);
+  if (postgresProxy) return postgresProxy;
+
+  ensureCloudflareSocketSupport(cfg);
+  return null;
+};
+
+const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
+  const workersAdapter = resolveWorkersAdapter(cfg);
+  if (workersAdapter) return workersAdapter;
   const registered = DatabaseAdapterRegistry.get(cfg.driver);
   if (registered !== undefined) {
     return registered(cfg);

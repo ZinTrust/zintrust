@@ -123,14 +123,21 @@ function getAutoIncrementColumnSql(
   throw ErrorFactory.createValidationError(`Auto-increment not supported for driver: ${driver}`);
 }
 
-function formatDefaultValueSql(table: string, def: ColumnDefinition): string | null {
+function formatDefaultValueSql(
+  driver: SupportedDriver,
+  table: string,
+  def: ColumnDefinition
+): string | null {
   if (def.defaultValue === undefined) return null;
 
   const dv = def.defaultValue;
 
   if (dv === null) return ColumnType.DEFAULT_NULL;
   if (typeof dv === 'number' && Number.isFinite(dv)) return `DEFAULT ${dv}`;
-  if (typeof dv === 'boolean') return `DEFAULT ${dv ? 1 : 0}`;
+  if (typeof dv === 'boolean') {
+    if (driver === AdaptersEnum.postgresql) return `DEFAULT ${dv ? 'true' : 'false'}`;
+    return `DEFAULT ${dv ? 1 : 0}`;
+  }
   if (typeof dv === 'string') {
     if (dv === ColumnType.CURRENT_TIMESTAMP) return `DEFAULT ${ColumnType.CURRENT_TIMESTAMP}`;
     const escaped = dv.replaceAll("'", "''");
@@ -171,7 +178,7 @@ function buildColumnSql(driver: SupportedDriver, table: string, def: ColumnDefin
   if (def.unique === true) parts.push(ColumnType.UNIQUE);
   if (def.primary === true) parts.push(ColumnType.PRIMARY_KEY);
 
-  const defaultSql = formatDefaultValueSql(table, def);
+  const defaultSql = formatDefaultValueSql(driver, table, def);
   if (defaultSql !== null) parts.push(defaultSql);
 
   return parts.join(' ');

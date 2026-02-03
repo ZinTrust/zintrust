@@ -1,4 +1,5 @@
 import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import { PostgresWorkersDurableObjectAdapter } from './PostgresWorkersDurableObjectAdapter.js';
 
 export type DatabaseConfig = {
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
@@ -234,6 +235,12 @@ async function rawQuery<T>(
 }
 
 function createPostgresAdapter(config: DatabaseConfig): IDatabaseAdapter {
+  const globalEnv = (globalThis as { env?: Record<string, unknown> }).env;
+  if (Cloudflare.getWorkersEnv() !== null && globalEnv?.['POSTGRES_POOL']) {
+    Logger.info('[PostgreSQL] Using Durable Object pool adapter');
+    return PostgresWorkersDurableObjectAdapter.create(config);
+  }
+
   const state: AdapterState = { connected: false, pool: undefined };
 
   const adapter: IDatabaseAdapter = {

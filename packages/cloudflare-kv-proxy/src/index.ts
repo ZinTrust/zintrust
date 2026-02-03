@@ -102,16 +102,20 @@ const parseOptionalJson = (
 
   const parsed = RequestValidator.parseJson(text);
   if (!parsed.ok) {
-    const message =
-      parsed.error.code === 'INVALID_JSON'
-        ? 'Invalid JSON body'
-        : parsed.error.code === 'VALIDATION_ERROR'
-          ? 'Invalid body'
-          : parsed.error.message;
-    return { ok: false, response: toErrorResponse(400, parsed.error.code, message) };
+    // Type guard: we know parsed has 'error' property when ok is false
+    const errorResult = parsed as { ok: false; error: Readonly<{ code: string; message: string }> };
+    let message = errorResult.error.message;
+    if (errorResult.error.code === 'INVALID_JSON') {
+      message = 'Invalid JSON body';
+    } else if (errorResult.error.code === 'VALIDATION_ERROR') {
+      message = 'Invalid body';
+    }
+    return { ok: false, response: toErrorResponse(400, errorResult.error.code, message) };
   }
 
-  return { ok: true, payload: parsed.value };
+  // Type guard: we know parsed has 'value' property when ok is true
+  const successResult = parsed as { ok: true; value: Record<string, unknown> };
+  return { ok: true, payload: successResult.value };
 };
 
 const loadKeys = (env: KvEnv): KeysJson | null => {

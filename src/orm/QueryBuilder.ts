@@ -569,7 +569,9 @@ const compileInsert = (
     }
   }
 
-  const sql = `INSERT INTO ${escapeIdentifier(tableName, dialect)} (${colsSql}) VALUES ${placeholders}`;
+  const baseSql = `INSERT INTO ${escapeIdentifier(tableName, dialect)} (${colsSql}) VALUES ${placeholders}`;
+  const wantsReturning = dialect === 'postgresql' && items.length === 1;
+  const sql = wantsReturning ? `${baseSql} RETURNING id` : baseSql;
   return { sql, parameters };
 };
 

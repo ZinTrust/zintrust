@@ -145,7 +145,8 @@
     "commander": "^14.0.2",
     "inquirer": "^13.2.2",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.16.2"
+    "mysql2": "^3.16.2",
+    "pg": "^8.18.0"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "^1.9.1",

@@ -36,7 +36,7 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwiZW1haWwiOiJmbGFyZTVAZXhhbXBsZS5jb20iLCJpYXQiOjE3NzAxMjI1MzQsImV4cCI6MTc3MDEyNjEzNCwiaXNzIjoiemludHJ1c3QiLCJhdWQiOiJ6aW50cnVzdC1hcGkiLCJqdGkiOiJkNWM0MTI3ZDI0ZDNhNDQ1NTM2OWZjZmQ0ZjQzZWQ1NSJ9.yPUDxNoj9zwdiXwrperyZzK9gfBxck_Ns7g441cxPTw
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwiZW1haWwiOiJmbGFyZTVAZXhhbXBsZS5jb20iLCJpYXQiOjE3NzAxMzgwNzYsImV4cCI6MTc3MDE0MTY3NiwiaXNzIjoiemludHJ1c3QiLCJhdWQiOiJ6aW50cnVzdC1hcGkiLCJqdGkiOiI4ODQ0NmZmMzllZTU3YzFjNmIwNjBlMDYwNGNiNmE4YiJ9.sDJ5wz40JkbjU5-SqQeV7RHdBru4yRLrG4eVdJKOAk0
 @csrf =
 @cookie =
 @userId = 5
@@ -83,8 +83,8 @@ Content-Type: application/json
 # X-CSRF-Token: {{csrf}}
 
 {
-  "name": "Do User2",
-  "email": "flare5@example.com",
+  "name": "Do Userr2",
+  "email": "flarr5@example.com",
   "password": "password"
 }
 
@@ -96,7 +96,7 @@ Content-Type: application/json
 # X-CSRF-Token: {{csrf}}
 
 {
-  "email": "flare5@example.com",
+  "email": "flarrer5@example.com",
   "password": "password"
 }
 
