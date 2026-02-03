@@ -1,4 +1,6 @@
 import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import { MySqlWorkersDurableObjectAdapter } from './MySqlWorkersDurableObjectAdapter.js';
+import { CREATE_MIGRATIONS_TABLE_SQL, MYSQL_PLACEHOLDER, MYSQL_TYPE } from './common.js';
 
 export type DatabaseConfig = {
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
@@ -211,6 +213,7 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
         waitForConnections: true,
         connectionLimit: 10,
         namedPlaceholders: false,
+        disableEval: true,
         stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
       });
     } else {
@@ -270,12 +273,49 @@ async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknow
   }
 }
 
+const createTransactionAdapter = (
+  baseAdapter: IDatabaseAdapter,
+  conn: unknown
+): IDatabaseAdapter => {
+  return {
+    ...baseAdapter,
+    query: async (sql: string, parameters: unknown[]): Promise<QueryResult> => {
+      try {
+        const connection = conn as {
+          execute: (sql: string, params: unknown[]) => Promise<[unknown]>;
+        };
+        const [rows] = await connection.execute(sql, parameters);
+        return normalizeQueryResult(rows);
+      } catch (error) {
+        throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
+      }
+    },
+    queryOne: async (
+      sql: string,
+      parameters: unknown[]
+    ): Promise<Record<string, unknown> | null> => {
+      const res = await baseAdapter.query(sql, parameters);
+      return res.rows[0] ?? null;
+    },
+  };
+};
+
+const createMigrationsTable = async (adapter: IDatabaseAdapter): Promise<void> => {
+  await adapter.query(CREATE_MIGRATIONS_TABLE_SQL, []);
+};
+
 function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
+  const globalEnv = (globalThis as { env?: Record<string, unknown> }).env;
+  if (Cloudflare.getWorkersEnv() !== null && globalEnv?.['MYSQL_POOL']) {
+    Logger.info('[MySQL] Using Durable Object pool adapter');
+    return MySqlWorkersDurableObjectAdapter.create(config);
+  }
+
   const state: AdapterState = { connected: false };
 
   const adapter: IDatabaseAdapter = {
-    connect: async () => connect(state, config),
-    disconnect: async () => disconnect(state),
+    connect: async (): Promise<void> => connect(state, config),
+    disconnect: async (): Promise<void> => disconnect(state),
     query: async (sql: string, parameters: unknown[]) => {
       const pool = ensurePool(state);
       try {
@@ -285,32 +325,18 @@ function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
         throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
       }
     },
-    queryOne: async (sql, parameters) => {
+    queryOne: async (sql: string, parameters: unknown[]) => {
       const result = await adapter.query(sql, parameters);
       return result.rows[0] ?? null;
     },
-    ping: async () => {
+    ping: async (): Promise<void> => {
       await adapter.query(QueryBuilder.create('').select('1').toSQL(), []);
     },
-    transaction: async (callback) => {
+    transaction: async <T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
       const pool = ensurePool(state);
       const conn = await pool.getConnection();
 
-      const txAdapter: IDatabaseAdapter = {
-        ...adapter,
-        query: async (sql: string, parameters: unknown[]) => {
-          try {
-            const [rows] = await conn.execute(sql, parameters);
-            return normalizeQueryResult(rows);
-          } catch (error) {
-            throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
-          }
-        },
-        queryOne: async (sql: string, parameters: unknown[]) => {
-          const res = await txAdapter.query(sql, parameters);
-          return res.rows[0] ?? null;
-        },
-      };
+      const txAdapter = createTransactionAdapter(adapter, conn);
 
       try {
         await conn.beginTransaction();
@@ -328,27 +354,14 @@ function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
         conn.release();
       }
     },
-    ensureMigrationsTable: async () => {
-      await adapter.query(
-        `CREATE TABLE IF NOT EXISTS migrations (
-            id BIGINT PRIMARY KEY AUTO_INCREMENT,
-            name VARCHAR(255) NOT NULL,
-            scope VARCHAR(255) NOT NULL DEFAULT 'global',
-            service VARCHAR(255) NOT NULL DEFAULT '',
-            batch INTEGER NOT NULL,
-            status VARCHAR(255) NOT NULL,
-            applied_at DATETIME NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(name, scope, service)
-          )`,
-        []
-      );
+    ensureMigrationsTable: async (): Promise<void> => {
+      await createMigrationsTable(adapter);
     },
-    getType: () => 'mysql',
-    isConnected: () => state.connected,
+    getType: (): string => MYSQL_TYPE,
+    isConnected: (): boolean => state.connected,
     rawQuery: async <T = unknown>(sql: string, parameters?: unknown[]) =>
       rawQuery<T>(state, sql, parameters),
-    getPlaceholder: (_index: number) => '?',
+    getPlaceholder: (_index: number): string => MYSQL_PLACEHOLDER,
   };
 
   return adapter;

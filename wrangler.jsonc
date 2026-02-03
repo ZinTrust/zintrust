@@ -49,14 +49,22 @@
     "bindings": [
       {
         "name": "WORKER_SHUTDOWN",
-        "class_name": "WorkerShutdownDurableObject",
+        "class_name": "ZinTrustWorkerShutdownDurableObject",
+      },
+      {
+        "name": "MYSQL_POOL",
+        "class_name": "ZinTrustMySqlPoolDurableObject",
       },
     ],
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": ["WorkerShutdownDurableObject"],
+      "new_classes": ["ZinTrustWorkerShutdownDurableObject"],
+    },
+    {
+      "tag": "v2",
+      "new_classes": ["ZinTrustMySqlPoolDurableObject"],
     },
   ],
   // Local development settings

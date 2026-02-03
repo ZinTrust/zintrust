@@ -18,26 +18,22 @@ import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegist
 import { registerDisksFromRuntimeConfig } from '@tools/storage/StorageRuntimeRegistration';
 import type { IRouter } from '@zintrust/core';
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const dbLoader = async (): Promise<void> => {
-  Logger.debug('[bootstrap] runtime: databases registration start');
   registerDatabasesFromRuntimeConfig(databaseConfig);
-  Logger.debug('[bootstrap] runtime: databases registration done');
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const queuesLoader = async (): Promise<void> => {
-  Logger.debug('[bootstrap] runtime: queues registration start');
-  await registerQueuesFromRuntimeConfig(queueConfig);
-  Logger.debug('[bootstrap] runtime: queues registration done');
+  registerQueuesFromRuntimeConfig(queueConfig);
 };
 
+// eslint-disable-next-line @typescript-eslint/require-await
 const cachesLoader = async (): Promise<void> => {
-  Logger.debug('[bootstrap] runtime: caches registration start');
   registerCachesFromRuntimeConfig(cacheConfig);
-  Logger.debug('[bootstrap] runtime: caches registration done');
 };
 
 const registerFromRuntimeConfig = async (): Promise<void> => {
-  Logger.debug('[bootstrap] runtime: register start');
   await dbLoader();
   await queuesLoader();
   await cachesLoader();
@@ -45,16 +41,12 @@ const registerFromRuntimeConfig = async (): Promise<void> => {
     default: broadcastConfig.default,
     drivers: broadcastConfig.drivers,
   });
-  Logger.debug('[bootstrap] runtime: broadcasters registration done');
 
   registerDisksFromRuntimeConfig(storageConfig);
-  Logger.debug('[bootstrap] runtime: storage registration done');
   registerNotificationChannelsFromRuntimeConfig({
     default: notificationConfig.default,
     drivers: notificationConfig.drivers,
   });
-  Logger.debug('[bootstrap] runtime: notifications registration done');
-  Logger.debug('[bootstrap] runtime: register done');
 };
 
 /**

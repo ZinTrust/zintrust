@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
 import { Cloudflare } from '@config/cloudflare';
+import { Env } from '@config/env';
 import type {
   DatabaseConfigShape,
   DatabaseConnectionConfig,
@@ -48,6 +48,11 @@ const readWorkersEnvString = (key: string): string => {
 const readWorkersFallbackString = (workersKey: string, fallbackKey: string): string => {
   const workerValue = readWorkersEnvString(workersKey);
   if (workerValue.trim() !== '') return workerValue;
+
+  // Also check if the fallback key is present in the Workers bindings (e.g. DB_PASSWORD)
+  const fallbackWorkerValue = readWorkersEnvString(fallbackKey);
+  if (fallbackWorkerValue.trim() !== '') return fallbackWorkerValue;
+
   return readEnvString(fallbackKey, '');
 };
 
@@ -167,6 +172,16 @@ const parseReadHosts = (raw: string): string[] | undefined => {
   return list.length > 0 ? list : undefined;
 };
 
+const normalizeReadHosts = (
+  primaryHost: string | undefined,
+  hosts?: string[]
+): string[] | undefined => {
+  if (hosts === undefined || hosts.length === 0) return undefined;
+  const primary = String(primaryHost ?? '').trim();
+  const filtered = hosts.filter((host) => host !== '' && host !== primary);
+  return filtered.length > 0 ? filtered : undefined;
+};
+
 const getDefaultConnection = (connections: DatabaseConnections): string => {
   const envSelectedRaw = Env.get('DB_CONNECTION', '');
   const value = String(envSelectedRaw ?? '').trim();
@@ -223,9 +238,12 @@ const connections = {
       readWorkersFallbackString('WORKERS_PG_PASSWORD', 'DB_PASSWORD_POSTGRESQL') ||
       Env.DB_PASSWORD_POSTGRESQL,
     ssl: Env.getBool('DB_SSL', false),
-    readHosts: parseReadHosts(
-      readWorkersFallbackString('WORKERS_PG_READ_HOSTS', 'DB_READ_HOSTS_POSTGRESQL') ||
-        Env.DB_READ_HOSTS_POSTGRESQL
+    readHosts: normalizeReadHosts(
+      readWorkersFallbackString('WORKERS_PG_HOST', 'DB_HOST') || Env.DB_HOST,
+      parseReadHosts(
+        readWorkersFallbackString('WORKERS_PG_READ_HOSTS', 'DB_READ_HOSTS_POSTGRESQL') ||
+          Env.DB_READ_HOSTS_POSTGRESQL
+      )
     ),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
@@ -242,8 +260,11 @@ const connections = {
     database: readWorkersFallbackString('WORKERS_MYSQL_DATABASE', 'DB_DATABASE') || Env.DB_DATABASE,
     username: readWorkersFallbackString('WORKERS_MYSQL_USER', 'DB_USERNAME') || Env.DB_USERNAME,
     password: readWorkersFallbackString('WORKERS_MYSQL_PASSWORD', 'DB_PASSWORD') || Env.DB_PASSWORD,
-    readHosts: parseReadHosts(
-      readWorkersFallbackString('WORKERS_MYSQL_READ_HOSTS', 'DB_READ_HOSTS') || Env.DB_READ_HOSTS
+    readHosts: normalizeReadHosts(
+      readWorkersFallbackString('WORKERS_MYSQL_HOST', 'DB_HOST') || Env.DB_HOST,
+      parseReadHosts(
+        readWorkersFallbackString('WORKERS_MYSQL_READ_HOSTS', 'DB_READ_HOSTS') || Env.DB_READ_HOSTS
+      )
     ),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
@@ -258,7 +279,7 @@ const connections = {
     database: Env.DB_DATABASE_MSSQL,
     username: Env.DB_USERNAME_MSSQL,
     password: Env.DB_PASSWORD_MSSQL,
-    readHosts: parseReadHosts(Env.DB_READ_HOSTS_MSSQL),
+    readHosts: normalizeReadHosts(Env.DB_HOST_MSSQL, parseReadHosts(Env.DB_READ_HOSTS_MSSQL)),
   },
 } satisfies DatabaseConnections;
 

@@ -11,7 +11,6 @@ import { testDirectMysqlConnection, testDirectMysqlCrud } from '@routes/DirectMy
  * Register direct MySQL test routes
  */
 export const registerDirectMysqlTestRoutes = (router: IRouter): void => {
-  console.log('registerDirectMysqlTestRoutes :', true);
   // Basic connection test
   Router.get(router, '/test/direct-mysql/connection', testDirectMysqlConnection);
 

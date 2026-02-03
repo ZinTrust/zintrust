@@ -10,6 +10,7 @@ Use the MySQL proxy when **all** of the following are true:
 
 - Your app runs on Cloudflare Workers (`zin s --wg` or Wrangler deploy).
 - Your database driver is MySQL (`DB_CONNECTION=mysql`).
+- Your database proxy is enabled (`USE_MYSQL_PROXY=true`).
 - You are **not** using D1.
 
 If you use D1, you do not need this proxy.

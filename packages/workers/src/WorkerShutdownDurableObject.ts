@@ -22,15 +22,14 @@ const saveState = async (state: DurableObjectState, value: ShutdownState): Promi
   await state.storage.put('shutdown', value);
 };
 
-class WorkerShutdownDurableObjectBase {
-  protected readonly state: DurableObjectState;
+// eslint-disable-next-line no-restricted-syntax
+export class ZinTrustWorkerShutdownDurableObject {
+  private readonly state: DurableObjectState;
 
   constructor(state: DurableObjectState) {
     this.state = state;
   }
-}
 
-export class WorkerShutdownDurableObject extends WorkerShutdownDurableObjectBase {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;

@@ -3,17 +3,19 @@
  * Tests packages/db-mysql adapter directly with Cloudflare Workers TCP sockets
  */
 
-import type { IResponse } from '@/http/Response';
-import { Database } from '@/orm/Database';
+import { databaseConfig } from '@config/database';
 import type { IRequest } from '@http/Request';
+import type { IResponse } from '@http/Response';
+import { Database } from '@orm/Database';
 
 /**
  * Test direct MySQL connection using packages/db-mysql adapter
  */
 export const testDirectMysqlConnection = async (_req: IRequest, res: IResponse): Promise<void> => {
   try {
-    // Use Database with MySQL adapter directly
-    const db = Database.create({ driver: 'mysql' });
+    // Use Database with MySQL adapter directly (pull full config from databaseConfig)
+    const mysqlConfig = { ...databaseConfig.connections['mysql'] };
+    const db = Database.create(mysqlConfig);
 
     // Test basic query
     const result = await db.query('SELECT 1 as test_value, NOW() as current_time');
@@ -43,7 +45,8 @@ export const testDirectMysqlConnection = async (_req: IRequest, res: IResponse):
  */
 export const testDirectMysqlCrud = async (_req: IRequest, res: IResponse): Promise<void> => {
   try {
-    const db = Database.create({ driver: 'mysql' });
+    const mysqlConfig = { ...databaseConfig.connections['mysql'] };
+    const db = Database.create(mysqlConfig);
     const tableName = `test_direct_${Date.now()}`;
 
     // Create table

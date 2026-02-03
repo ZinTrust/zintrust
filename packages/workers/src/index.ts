@@ -42,7 +42,7 @@ export { WorkerFactory } from './WorkerFactory';
 export type { WorkerPersistenceConfig } from './WorkerFactory';
 export { WorkerInit } from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
-export { WorkerShutdownDurableObject } from './WorkerShutdownDurableObject';
+export { ZinTrustWorkerShutdownDurableObject } from './WorkerShutdownDurableObject';
 
 // HTTP Controllers & Routes
 export { WorkerController } from './http/WorkerController';

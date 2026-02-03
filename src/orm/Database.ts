@@ -92,15 +92,7 @@ const initializeAdapters = (
   dbConfig: DatabaseConfig
 ): { writeAdapter: IDatabaseAdapter; readAdapters: IDatabaseAdapter[] } => {
   const writeAdapter = createAdapter(dbConfig);
-  const readAdapters: IDatabaseAdapter[] = [];
-
-  if (dbConfig.readHosts !== undefined && dbConfig.readHosts.length > 0) {
-    for (const host of dbConfig.readHosts) {
-      readAdapters.push(createAdapter({ ...dbConfig, host }));
-    }
-  } else {
-    readAdapters.push(writeAdapter);
-  }
+  const readAdapters: IDatabaseAdapter[] = [writeAdapter];
 
   return { writeAdapter, readAdapters };
 };
