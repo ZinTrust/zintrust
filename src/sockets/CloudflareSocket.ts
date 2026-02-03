@@ -318,7 +318,7 @@ function createCloudflareSocket(
   createEmitterHandlers(emitter, state);
   getCloudflareConnect()
     .then((connectFn) => connectFn({ hostname, port }, { secureTransport, allowHalfOpen: false }))
-    .then((socket) => bindSocketLifecycle(emitter, state, socket, true))
+    .then(async (socket) => bindSocketLifecycle(emitter, state, socket, true))
     .catch((error) => emitter.emit('error', error));
   return emitter;
 }

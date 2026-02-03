@@ -51,7 +51,8 @@ const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
   if (Cloudflare.getWorkersEnv() !== null) {
     if (cfg.driver === 'mysql') {
       const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
-      if (proxyUrl.length > 0) {
+      const USE_MYSQL_PROXY = Env.getBool('USE_MYSQL_PROXY', false);
+      if (USE_MYSQL_PROXY && proxyUrl.length > 0) {
         return MySQLProxyAdapter.create(cfg);
       }
     }

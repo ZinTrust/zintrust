@@ -36,10 +36,10 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt =
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJmbGFyZUBleGFtcGxlLmNvbSIsImlhdCI6MTc3MDExMzI1NiwiZXhwIjoxNzcwMTE2ODU2LCJpc3MiOiJ6aW50cnVzdCIsImF1ZCI6InppbnRydXN0LWFwaSIsImp0aSI6ImRiNjE1MzlhMTcxYTg2OGNhNzk1M2M4ZDg1N2JlMjBhIn0.vPyGewFin36pM_xX-I_VpeIZKK5sFhaLbIc1LkY4iL8
 @csrf =
 @cookie =
-@userId = 82
+@userId = 1
 
 ### Root
 GET {{baseUrl}}/
@@ -83,8 +83,8 @@ Content-Type: application/json
 # X-CSRF-Token: {{csrf}}
 
 {
-  "name": "flare User",
-  "email": "flare@example.com",
+  "name": "flare User2",
+  "email": "flare2@example.com",
   "password": "password"
 }
 

@@ -41,44 +41,85 @@ const normalizeHeaderValue = (value: string | string[] | undefined): string | un
   return value;
 };
 
+const resolveProxyConfig = (
+  overrides: ProxyOverrides = {}
+): {
+  host: string;
+  port: number;
+  maxBodyBytes: number;
+} => {
+  const host = overrides?.host ?? Env.MYSQL_PROXY_HOST ?? '127.0.0.1';
+  const port = overrides.port ?? Env.MYSQL_PROXY_PORT;
+  const maxBodyBytes = overrides.maxBodyBytes ?? Env.MYSQL_PROXY_MAX_BODY_BYTES;
+
+  return { host, port, maxBodyBytes };
+};
+
+const resolveDatabaseConfig = (
+  overrides: ProxyOverrides = {}
+): {
+  dbHost: string;
+  dbPort: number;
+  dbName: string;
+  dbUser: string;
+  dbPass: string;
+  connectionLimit: number;
+} => {
+  const dbHost = overrides.dbHost ?? Env.get('DB_HOST', '127.0.0.1');
+  const dbPort = overrides.dbPort ?? Env.getInt('DB_PORT', 3306);
+  const dbName = overrides.dbName ?? Env.get('DB_DATABASE', 'zintrust');
+  const dbUser = overrides.dbUser ?? Env.get('DB_USERNAME', 'root');
+  const dbPass = overrides.dbPass ?? Env.get('DB_PASSWORD', 'pass');
+  const connectionLimit = overrides.connectionLimit ?? Env.MYSQL_PROXY_POOL_LIMIT;
+
+  return { dbHost, dbPort, dbName, dbUser, dbPass, connectionLimit };
+};
+
+const resolveSigningConfig = (
+  overrides: ProxyOverrides = {}
+): {
+  keyId: string;
+  secret: string;
+  requireSigning: boolean;
+  signingWindowMs: number;
+} => {
+  const keyId = overrides.keyId ?? Env.MYSQL_PROXY_KEY_ID;
+  const secret = overrides.secret ?? Env.MYSQL_PROXY_SECRET;
+  const requireSigning = overrides.requireSigning ?? Env.MYSQL_PROXY_REQUIRE_SIGNING;
+  const signingWindowMs = overrides.signingWindowMs ?? Env.MYSQL_PROXY_SIGNING_WINDOW_MS;
+
+  return { keyId, secret, requireSigning, signingWindowMs };
+};
+
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
-  const host = overrides?.host ?? (Env.MYSQL_PROXY_HOST as string) ?? '127.0.0.1';
-  const port = overrides.port ?? (Env.MYSQL_PROXY_PORT as number);
-  const maxBodyBytes = overrides.maxBodyBytes ?? (Env.MYSQL_PROXY_MAX_BODY_BYTES as number);
-
-  const dbHost = overrides.dbHost ?? (Env.DB_HOST as string) ?? 'localhost';
-  const dbPort = overrides.dbPort ?? (Env.DB_PORT as number);
-  const dbName = overrides.dbName ?? (Env.DB_DATABASE as string) ?? 'zintrust';
-  const dbUser = overrides.dbUser ?? (Env.DB_USERNAME as string) ?? 'postgres';
-  const dbPass = overrides.dbPass ?? (Env.DB_PASSWORD as string); // Password can be empty
-  const connectionLimit = overrides.connectionLimit ?? (Env.MYSQL_PROXY_POOL_LIMIT as number);
-
-  const keyId = overrides.keyId ?? (Env.MYSQL_PROXY_KEY_ID as string);
-  const secret = overrides.secret ?? (Env.MYSQL_PROXY_SECRET as string);
-  const requireSigning = overrides.requireSigning ?? (Env.MYSQL_PROXY_REQUIRE_SIGNING as boolean);
-  const signingWindowMs =
-    overrides.signingWindowMs ?? (Env.MYSQL_PROXY_SIGNING_WINDOW_MS as number);
+  const proxyConfig = resolveProxyConfig(overrides);
+  const dbConfig = resolveDatabaseConfig(overrides);
+  const signingConfig = resolveSigningConfig(overrides);
 
   const poolOptions: PoolOptions = {
-    host: dbHost,
-    port: dbPort,
-    database: dbName,
-    user: dbUser,
-    password: dbPass,
+    host: dbConfig.dbHost,
+    port: dbConfig.dbPort,
+    database: dbConfig.dbName,
+    user: dbConfig.dbUser,
+    password: dbConfig.dbPass,
     waitForConnections: true,
-    connectionLimit: connectionLimit <= 0 ? 10 : connectionLimit,
+    connectionLimit: dbConfig.connectionLimit <= 0 ? 50 : dbConfig.connectionLimit,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0,
+    namedPlaceholders: true,
   };
 
   return {
-    host,
-    port,
-    maxBodyBytes,
+    host: proxyConfig.host,
+    port: proxyConfig.port,
+    maxBodyBytes: proxyConfig.maxBodyBytes,
     poolOptions,
     signing: {
-      keyId,
-      secret,
-      require: requireSigning,
-      windowMs: signingWindowMs,
+      keyId: signingConfig.keyId,
+      secret: signingConfig.secret,
+      require: signingConfig.requireSigning,
+      windowMs: signingConfig.signingWindowMs,
     },
   };
 };
@@ -88,7 +129,7 @@ const readBody = async (req: IncomingMessage, maxBodyBytes: number): Promise<str
   let size = 0;
 
   for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    const buffer = Buffer.isBuffer(chunk) ? chunk : (Buffer.from(chunk) as Buffer<ArrayBufferLike>);
     size += buffer.length;
     if (size > maxBodyBytes) {
       throw ErrorFactory.createValidationError('Body too large');
@@ -117,7 +158,7 @@ const normalizeResult = (
   if (Array.isArray(rows)) {
     return { rows: rows as Record<string, unknown>[], rowCount: rows.length };
   }
-  if (rows && typeof rows === 'object') {
+  if (rows !== null && rows !== undefined && typeof rows === 'object') {
     const input = rows as { affectedRows?: number; insertId?: number | string | bigint };
     const affectedRows = Number.isFinite(input.affectedRows) ? Number(input.affectedRows) : 0;
     const insertId = input.insertId;
@@ -171,6 +212,7 @@ const verifyRequestSignature = async (
     url,
     body,
     headers,
+    // eslint-disable-next-line @typescript-eslint/require-await
     getSecretForKeyId: async (keyId: string) =>
       keyId === signing.keyId ? signing.secret : undefined,
     windowMs: signing.windowMs,
@@ -205,7 +247,12 @@ const validateRequest = (
     return { valid: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'POST only' } };
   }
 
-  if (!payload || typeof payload !== 'object') {
+  if (
+    payload === undefined ||
+    payload === null ||
+    typeof payload !== 'object' ||
+    Object.keys(payload).length === 0
+  ) {
     return { valid: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid body' } };
   }
 
@@ -335,7 +382,9 @@ const handleRequest = async (
 
   // Execute SQL
   try {
-    const [rows] = await pool.execute(sqlValidation.sql ?? '', sqlValidation.params ?? []);
+    // optimization: use .query() instead of .execute() to avoid prepared statement caching/roundtrips
+    // which can cause memory leaks on the server and performance bottlenecks in proxy scenarios.
+    const [rows] = await pool.query(sqlValidation.sql ?? '', sqlValidation.params ?? []);
     handleEndpoint(path, rows, res);
   } catch (error) {
     respondJson(res, 500, { code: 'MYSQL_ERROR', message: String(error) });
@@ -345,6 +394,19 @@ const handleRequest = async (
 export const MySqlProxyServer = Object.freeze({
   async start(overrides: ProxyOverrides = {}): Promise<void> {
     const config = resolveConfig(overrides);
+
+    // Debug: surface resolved config so we can compare watch vs non-watch runs
+    try {
+      Logger.info(
+        `MySQL proxy config: proxyHost=${config.host} proxyPort=${config.port} dbHost=${String(
+          config.poolOptions.host
+        )} dbPort=${String(config.poolOptions.port)} dbName=${String(
+          config.poolOptions.database
+        )} dbUser=${String(config.poolOptions.user)}`
+      );
+    } catch {
+      // noop - logging must not block startup
+    }
 
     if (
       config.signing.require &&

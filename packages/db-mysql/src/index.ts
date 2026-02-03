@@ -10,6 +10,8 @@ export type DatabaseConfig = {
   password?: string;
   synchronize?: boolean;
   logging?: boolean;
+  ssl?: boolean;
+  socketTimeoutMs?: number;
   readHosts?: string[];
 };
 
@@ -186,10 +188,13 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     const { host, port, database, user, password } = getConnectionParams(config);
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
     const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
-    const timeoutMs =
-      typeof (config as { socketTimeoutMs?: number }).socketTimeoutMs === 'number'
-        ? (config as { socketTimeoutMs?: number }).socketTimeoutMs
-        : 30000;
+    let timeoutMs: number;
+
+    if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
+      timeoutMs = config.socketTimeoutMs;
+    } else {
+      timeoutMs = 30000; // default 30s
+    }
     if (isWorkersRuntime) {
       if (!Cloudflare.isCloudflareSocketsEnabled()) {
         throw ErrorFactory.createConfigError(
@@ -224,7 +229,7 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
     // Probe.
     await state.pool.execute('SELECT 1');
     state.connected = true;
-    Logger.info(`✓ MySQL connected (${host}:${port})`);
+    Logger.info(`✓ Cloudflare sockets MySQL connected (${host}:${port})`);
   } catch (error) {
     if (isMissingEsmPackage(error, 'mysql2')) {
       throw ErrorFactory.createConfigError(

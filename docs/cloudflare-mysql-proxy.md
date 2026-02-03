@@ -38,6 +38,8 @@ ZinTrust sends JSON payloads of the form:
 
 ```bash
 zin proxy:mysql
+
+zin proxy:mysql --watch
 ```
 
 2. Configure your Worker environment (`.env` or `wrangler.jsonc`):

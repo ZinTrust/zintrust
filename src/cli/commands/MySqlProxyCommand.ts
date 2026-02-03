@@ -1,8 +1,10 @@
 import { MySqlProxyServer } from '@/proxy/mysql/MySqlProxyServer';
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
+import { SpawnUtil } from '@cli/utils/spawn';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import * as path from '@node-singletons/path';
 import type { Command } from 'commander';
 
 type MySqlProxyOptions = CommandOptions & {
@@ -19,6 +21,7 @@ type MySqlProxyOptions = CommandOptions & {
   keyId?: string;
   secret?: string;
   signingWindowMs?: string;
+  watch?: boolean;
 };
 
 const parseIntOption = (raw: string | undefined, name: string): number | undefined => {
@@ -38,17 +41,15 @@ const addOptions = (command: Command): void => {
     'Max request size in bytes',
     String(Env.MYSQL_PROXY_MAX_BODY_BYTES)
   );
+  command.option('--watch', 'Auto-restart proxy on file changes');
 
-  command.option('--db-host <host>', 'MySQL host', Env.DB_HOST);
-  command.option('--db-port <port>', 'MySQL port', String(Env.DB_PORT));
-  command.option('--db-name <name>', 'MySQL database', Env.DB_DATABASE);
-  command.option('--db-user <user>', 'MySQL username', Env.DB_USERNAME);
-  command.option('--db-pass <pass>', 'MySQL password', Env.DB_PASSWORD);
-  command.option(
-    '--connection-limit <max>',
-    'MySQL connection pool limit',
-    String(Env.MYSQL_PROXY_POOL_LIMIT)
-  );
+  // Do not evaluate Env.* defaults at module-load time; resolve at runtime in execute
+  command.option('--db-host <host>', 'MySQL host');
+  command.option('--db-port <port>', 'MySQL port');
+  command.option('--db-name <name>', 'MySQL database');
+  command.option('--db-user <user>', 'MySQL username');
+  command.option('--db-pass <pass>', 'MySQL password');
+  command.option('--connection-limit <max>', 'MySQL connection pool limit');
 
   command.option('--require-signing', 'Require signed requests');
   command.option('--key-id <id>', 'Signing key id', Env.MYSQL_PROXY_KEY_ID);
@@ -60,6 +61,14 @@ const addOptions = (command: Command): void => {
   );
 };
 
+const isWatchChild = (): boolean => process.env['ZINTRUST_PROXY_WATCH_CHILD'] === '1';
+
+const buildWatchArgs = (): string[] => {
+  const rawArgs = process.argv.slice(2);
+  const filtered = rawArgs.filter((arg) => arg !== '--watch');
+  return ['watch', path.join('bin', 'zin.ts'), ...filtered];
+};
+
 export const MySqlProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
@@ -68,6 +77,20 @@ export const MySqlProxyCommand = Object.freeze({
       description: 'Start the MySQL HTTP proxy for Cloudflare Workers',
       addOptions,
       execute: async (options: MySqlProxyOptions) => {
+        if (options.watch === true && !isWatchChild()) {
+          const args = buildWatchArgs();
+          const exitCode = await SpawnUtil.spawnAndWait({
+            command: 'tsx',
+            args,
+            env: {
+              ...process.env,
+              ZINTRUST_PROXY_WATCH_CHILD: '1',
+            },
+            forwardSignals: false,
+          });
+          process.exit(exitCode);
+        }
+
         const host = options.host?.trim();
         const port = parseIntOption(options.port, 'port');
         const maxBodyBytes = parseIntOption(options.maxBodyBytes, 'max-body-bytes');
