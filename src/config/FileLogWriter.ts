@@ -9,10 +9,9 @@ import { ensureDirSafe } from '@common/index';
 import { Env } from '@config/env';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import type { PathLike, WriteStream, WriteStreamOptions } from 'node:fs';
 
 // Write stream cache to avoid recreating streams
-const streamCache = new Map<string, WriteStream>();
+const streamCache = new Map<string, fs.WriteStream>();
 const pendingWrites = new Map<string, string[]>();
 
 const isWorkersRuntime = (): boolean => {
@@ -253,11 +252,11 @@ const rotateIfNeeded = (logFile: string, maxSizeBytes: number): void => {
   }
 };
 
-const getOrCreateStream = (logFile: string): WriteStream => {
+const getOrCreateStream = (logFile: string): fs.WriteStream => {
   let stream = streamCache.get(logFile);
 
   if (stream === undefined || stream.destroyed) {
-    type CreateWriteStream = (path: PathLike, options: WriteStreamOptions) => WriteStream;
+    type CreateWriteStream = (path: fs.PathLike, options: fs.WriteStreamOptions) => fs.WriteStream;
 
     const createWriteStream = (fs as unknown as { createWriteStream: CreateWriteStream })
       .createWriteStream;

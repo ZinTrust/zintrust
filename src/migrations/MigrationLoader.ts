@@ -1,7 +1,7 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
+import { pathToFileURL } from '@node-singletons/url';
 import type { IDatabase } from '@orm/Database';
-import { pathToFileURL } from 'node:url';
 
 import type { LoadedMigration, MigrationHandler, MigrationModule } from '@migrations/types';
 

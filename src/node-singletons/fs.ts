@@ -30,7 +30,7 @@ export {
   writeFileSync,
 } from 'node:fs';
 
-export type { ReadStream, Stats, WriteStream } from 'node:fs';
+export type { PathLike, ReadStream, Stats, WriteStream, WriteStreamOptions } from 'node:fs';
 
 export { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 

@@ -1,6 +1,5 @@
 import type { IResponse } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
-import { EventEmitter } from 'node:events';
+import { Logger, NodeSingletons } from '@zintrust/core';
 import type { createSnapshotBuilder, TelemetrySettings } from './TelemetryAPI';
 
 export type TelemetrySnapshotData = {
@@ -13,7 +12,7 @@ export type TelemetrySnapshotData = {
 };
 
 // Internal state for singleton service
-const emitter = new EventEmitter();
+const emitter = new NodeSingletons.EventEmitter();
 emitter.setMaxListeners(Infinity);
 let interval: NodeJS.Timeout | null = null;
 let subscribers = 0;

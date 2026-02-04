@@ -1,5 +1,4 @@
-import { Logger, workersConfig } from '@zintrust/core';
-import { EventEmitter } from 'node:events';
+import { Logger, NodeSingletons, workersConfig } from '@zintrust/core';
 import { HealthMonitor } from '../HealthMonitor';
 import { getWorkers } from '../dashboard/workers-api';
 
@@ -11,7 +10,7 @@ type SnapshotData = {
 };
 
 // Internal state
-const emitter = new EventEmitter();
+const emitter = new NodeSingletons.EventEmitter();
 emitter.setMaxListeners(Infinity);
 let interval: NodeJS.Timeout | null = null;
 let subscribers = 0;

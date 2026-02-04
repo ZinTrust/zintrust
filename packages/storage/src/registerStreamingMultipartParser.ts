@@ -1,3 +1,4 @@
+import type { Readable } from '@node-singletons/stream';
 import {
   MultipartParserRegistry,
   NodeSingletons,
@@ -7,7 +8,6 @@ import {
   type UploadedFile,
 } from '@zintrust/core';
 import Busboy from 'busboy';
-import type { Readable } from 'node:stream';
 
 export type StreamingMultipartParserOptions = {
   /**

@@ -53,8 +53,8 @@ import { ErrorFactory } from '@/exceptions/ZintrustError';
  * These exports provide backward compatibility for CLI and node.ts exports.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync } from '@node-singletons/fs';
+import { join } from '@node-singletons/path';
 
 export interface MarkdownTemplateMetadata {
   subject?: string;
