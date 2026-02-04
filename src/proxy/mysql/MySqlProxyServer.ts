@@ -1,6 +1,5 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
 import { type IncomingMessage } from '@node-singletons/http';
 import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
@@ -85,7 +84,8 @@ const resolveSigningConfig = (
   const keyId = overrides.keyId ?? Env.MYSQL_PROXY_KEY_ID;
   const secretRaw = overrides.secret ?? Env.MYSQL_PROXY_SECRET ?? '';
   const secret = secretRaw.trim() === '' ? (Env.APP_KEY ?? '') : secretRaw;
-  const requireSigning = overrides.requireSigning ?? Env.MYSQL_PROXY_REQUIRE_SIGNING;
+  const requireSigningEnv = Env.MYSQL_PROXY_REQUIRE_SIGNING;
+  const requireSigning = requireSigningEnv ? true : overrides.requireSigning === true;
   const signingWindowMs = overrides.signingWindowMs ?? Env.MYSQL_PROXY_SIGNING_WINDOW_MS;
 
   return { keyId, secret, requireSigning, signingWindowMs };
@@ -275,15 +275,6 @@ export const MySqlProxyServer = Object.freeze({
       );
     } catch {
       // noop - logging must not block startup
-    }
-
-    if (
-      config.signing.require &&
-      (config.signing.keyId.trim() === '' || config.signing.secret === '')
-    ) {
-      throw ErrorFactory.createConfigError(
-        'MYSQL_PROXY_REQUIRE_SIGNING is enabled but MYSQL_PROXY_KEY_ID/SECRET are missing'
-      );
     }
 
     const pool = createPool(config.poolOptions);

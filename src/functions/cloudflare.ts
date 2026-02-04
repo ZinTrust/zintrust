@@ -70,4 +70,5 @@ export default {
 export { ZinTrustMySqlPoolDurableObject } from '@runtime/durable-objects/MySqlPoolDO';
 export { PoolDurableObject } from '@runtime/durable-objects/PoolDurableObject';
 export { ZinTrustPostgresPoolDurableObject } from '@runtime/durable-objects/PostgresPoolDO';
+export { ZinTrustRedisPoolDurableObject } from '@runtime/durable-objects/RedisPoolDO';
 export { ZinTrustWorkerShutdownDurableObject } from '@zintrust/workers';

@@ -51,7 +51,7 @@ const addOptions = (command: Command): void => {
   command.option('--db-pass <pass>', 'MySQL password');
   command.option('--connection-limit <max>', 'MySQL connection pool limit');
 
-  command.option('--require-signing', 'Require signed requests');
+  command.option('--require-signing', 'Require signed requests', Env.MYSQL_PROXY_REQUIRE_SIGNING);
   command.option('--key-id <id>', 'Signing key id', Env.MYSQL_PROXY_KEY_ID);
   command.option('--secret <secret>', 'Signing secret', Env.MYSQL_PROXY_SECRET);
   command.option(

@@ -62,6 +62,11 @@
         "class_name": "ZinTrustPostgresPoolDurableObject",
         "script_name": "@zintrust/core",
       },
+      {
+        "name": "REDIS_POOL",
+        "class_name": "ZinTrustRedisPoolDurableObject",
+        "script_name": "@zintrust/core",
+      },
     ],
   },
   "migrations": [
@@ -76,6 +81,10 @@
     {
       "tag": "v3",
       "new_classes": ["ZinTrustPostgresPoolDurableObject"],
+    },
+    {
+      "tag": "v4",
+      "new_classes": ["ZinTrustRedisPoolDurableObject"],
     },
   ],
   // Local development settings

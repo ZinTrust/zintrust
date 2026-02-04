@@ -1,4 +1,6 @@
-import { Cloudflare, ErrorFactory, Logger, createRedisConnection } from '@zintrust/core';
+import { Cloudflare, Env, ErrorFactory, Logger, createRedisConnection } from '@zintrust/core';
+import { RedisProxyAdapter } from './RedisProxyAdapter.js';
+import { RedisWorkersDurableObjectAdapter } from './RedisWorkersDurableObjectAdapter.js';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {
@@ -199,9 +201,27 @@ const createNodeCacheDriver = (config: RedisCacheConfig): CacheDriver => {
   );
 };
 
+const hasRedisDurableObjectBinding = (): boolean => {
+  const globalEnv = (globalThis as { env?: Record<string, unknown> }).env;
+  return Boolean(globalEnv?.['REDIS_POOL']);
+};
+
+const shouldUseProxy = (): boolean => {
+  if (Env.REDIS_PROXY_URL.trim() !== '') return true;
+  return Env.USE_REDIS_PROXY === true;
+};
+
 export const RedisCacheDriver = Object.freeze({
   create(config: RedisCacheConfig): CacheDriver {
     const isWorkers = Cloudflare.getWorkersEnv() !== null;
+    if (isWorkers && hasRedisDurableObjectBinding()) {
+      return RedisWorkersDurableObjectAdapter.create();
+    }
+
+    if (shouldUseProxy()) {
+      return RedisProxyAdapter.create();
+    }
+
     if (isWorkers && Cloudflare.isCloudflareSocketsEnabled() === false) {
       throw ErrorFactory.createConfigError(
         'Redis cache driver requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers.'
@@ -213,6 +233,9 @@ export const RedisCacheDriver = Object.freeze({
 });
 
 export default RedisCacheDriver;
+
+export { RedisProxyAdapter } from './RedisProxyAdapter.js';
+export { RedisWorkersDurableObjectAdapter } from './RedisWorkersDurableObjectAdapter.js';
 
 /**
  * Package version and build metadata

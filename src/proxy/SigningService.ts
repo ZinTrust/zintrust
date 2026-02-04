@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import type { SignedRequestVerifyResult } from '@security/SignedRequest';
 import { SignedRequest } from '@security/SignedRequest';
@@ -7,6 +8,27 @@ export type SigningHeaders = Headers | Record<string, string | undefined>;
 export type SigningVerificationResult =
   | { ok: true }
   | { ok: false; status: number; code: string; message: string };
+
+type SigningServiceApi = Readonly<{
+  normalizeConfig: (signing: ProxySigningConfig) => ProxySigningConfig;
+  shouldVerify: (signing: ProxySigningConfig, headers: SigningHeaders) => boolean;
+  verify: (params: {
+    method: string;
+    url: string | URL;
+    body: string | Uint8Array;
+    headers: SigningHeaders;
+    signing: ProxySigningConfig;
+  }) => Promise<SigningVerificationResult>;
+  verifyWithKeyProvider: (params: {
+    method: string;
+    url: string | URL;
+    body: string | Uint8Array;
+    headers: SigningHeaders;
+    windowMs: number;
+    getSecretForKeyId: (keyId: string) => string | undefined | Promise<string | undefined>;
+    verifyNonce?: (keyId: string, nonce: string, ttlMs: number) => Promise<boolean>;
+  }) => Promise<SigningVerificationResult>;
+}>;
 
 const getHeader = (headers: SigningHeaders, name: string): string | undefined => {
   if (typeof (headers as Headers).get === 'function') {
@@ -25,9 +47,40 @@ const hasSigningHeaders = (headers: SigningHeaders): boolean =>
     getHeader(headers, 'x-zt-signature')
   );
 
+const normalizeKeyId = (keyId: string): string => {
+  const trimmed = keyId.trim();
+  if (trimmed !== '') return trimmed;
+  const appNameRaw = Env.APP_NAME ?? 'zintrust';
+  const normalized = (appNameRaw.trim() === '' ? 'zintrust' : appNameRaw)
+    .toLowerCase()
+    .replaceAll(/\s+/g, '_');
+  return normalized;
+};
+
+const normalizeSecret = (secret: string): string => {
+  const trimmed = secret.trim();
+  if (trimmed !== '') return trimmed;
+  return Env.APP_KEY ?? '';
+};
+
+const normalizeConfig = (signing: ProxySigningConfig): ProxySigningConfig => ({
+  ...signing,
+  keyId: normalizeKeyId(signing.keyId),
+  secret: normalizeSecret(signing.secret),
+});
+
+export const normalizeSigningConfig: (signing: ProxySigningConfig) => ProxySigningConfig = (
+  signing
+): ProxySigningConfig => normalizeConfig(signing);
+
 const shouldVerify = (signing: ProxySigningConfig, headers: SigningHeaders): boolean => {
-  if (signing.require) return true;
-  if (signing.keyId.trim() !== '' && signing.secret.trim() !== '' && hasSigningHeaders(headers)) {
+  const normalized = normalizeConfig(signing);
+  if (normalized.require) return true;
+  if (
+    normalized.keyId.trim() !== '' &&
+    normalized.secret.trim() !== '' &&
+    hasSigningHeaders(headers)
+  ) {
     return true;
   }
   return false;
@@ -62,7 +115,7 @@ const verify = async (params: {
   headers: SigningHeaders;
   signing: ProxySigningConfig;
 }): Promise<SigningVerificationResult> => {
-  const signing = params.signing;
+  const signing = normalizeConfig(params.signing);
   if (signing.require && (signing.keyId.trim() === '' || signing.secret.trim() === '')) {
     return {
       ok: false,
@@ -108,7 +161,8 @@ const verifyWithKeyProvider = async (params: {
   return mapVerifyResult(result);
 };
 
-export const SigningService = Object.freeze({
+export const SigningService: SigningServiceApi = Object.freeze({
+  normalizeConfig,
   shouldVerify,
   verify,
   verifyWithKeyProvider,

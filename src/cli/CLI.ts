@@ -21,6 +21,7 @@ import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { MigrateWorkerCommand } from '@cli/commands/MigrateWorkerCommand';
+import { MongoDBProxyCommand } from '@cli/commands/MongoDBProxyCommand';
 import { MySqlProxyCommand } from '@cli/commands/MySqlProxyCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
@@ -31,10 +32,12 @@ import { ProxyCommand } from '@cli/commands/ProxyCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
+import { SqlServerProxyCommand } from '@cli/commands/SqlServerProxyCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
@@ -124,6 +127,9 @@ const registerCommands = (program: Command): void => {
     ProxyCommand.create(),
     MySqlProxyCommand.create(),
     PostgresProxyCommand.create(),
+    MongoDBProxyCommand.create(),
+    SqlServerProxyCommand.create(),
+    RedisProxyCommand.create(),
     // Worker management commands
     WorkerCommands.createWorkerListCommand(),
     WorkerCommands.createWorkerStatusCommand(),
@@ -134,7 +140,15 @@ const registerCommands = (program: Command): void => {
   ];
 
   for (const command of commands) {
-    program.addCommand(command.getCommand());
+    if (
+      typeof command === 'object' &&
+      'getCommand' in command &&
+      typeof command.getCommand === 'function'
+    ) {
+      program.addCommand(command.getCommand());
+    } else {
+      program.addCommand(command as Command);
+    }
   }
 
   // Help command

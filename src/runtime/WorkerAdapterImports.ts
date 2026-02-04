@@ -4,6 +4,7 @@
 import '@/zintrust.plugins.ts';
 import '@runtime/durable-objects/drivers/MySqlPoolDriver';
 import '@runtime/durable-objects/drivers/PostgresPoolDriver';
+import '@runtime/durable-objects/drivers/RedisPoolDriver';
 
 export const WorkerAdapterImports = Object.freeze({
   loaded: true,

@@ -4,19 +4,17 @@ import { SpawnUtil } from '@cli/utils/spawn';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
-import { PostgresProxyServer } from '@proxy/postgres/PostgresProxyServer';
+import { RedisProxyServer } from '@proxy/redis/RedisProxyServer';
 import type { Command } from 'commander';
 
-type PostgresProxyOptions = CommandOptions & {
+type RedisProxyOptions = CommandOptions & {
   host?: string;
   port?: string;
   maxBodyBytes?: string;
-  dbHost?: string;
-  dbPort?: string;
-  dbName?: string;
-  dbUser?: string;
-  dbPass?: string;
-  connectionLimit?: string;
+  redisHost?: string;
+  redisPort?: string;
+  redisPassword?: string;
+  redisDb?: string;
   requireSigning?: boolean;
   keyId?: string;
   secret?: string;
@@ -27,41 +25,36 @@ type PostgresProxyOptions = CommandOptions & {
 const parseIntOption = (raw: string | undefined, name: string): number | undefined => {
   if (raw === undefined) return undefined;
   const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw ErrorFactory.createCliError(`Invalid --${name} '${raw}'. Expected a positive number.`);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw ErrorFactory.createCliError(
+      `Invalid --${name} '${raw}'. Expected a non-negative number.`
+    );
   }
   return parsed;
 };
 
 const addOptions = (command: Command): void => {
-  command.option('--host <host>', 'Host to bind', Env.POSTGRES_PROXY_HOST);
-  command.option('--port <port>', 'Port to bind', String(Env.POSTGRES_PROXY_PORT));
+  command.option('--host <host>', 'Host to bind', Env.get('REDIS_PROXY_HOST', '127.0.0.1'));
+  command.option('--port <port>', 'Port to bind', String(Env.getInt('REDIS_PROXY_PORT', 8791)));
   command.option(
     '--max-body-bytes <bytes>',
     'Max request size in bytes',
-    String(Env.POSTGRES_PROXY_MAX_BODY_BYTES)
+    String(Env.getInt('REDIS_PROXY_MAX_BODY_BYTES', 131072))
   );
   command.option('--watch', 'Auto-restart proxy on file changes');
 
-  // Do not evaluate Env.* defaults at module-load time; resolve at runtime in execute
-  command.option('--db-host <host>', 'PostgreSQL host');
-  command.option('--db-port <port>', 'PostgreSQL port');
-  command.option('--db-name <name>', 'PostgreSQL database');
-  command.option('--db-user <user>', 'PostgreSQL username');
-  command.option('--db-pass <pass>', 'PostgreSQL password');
-  command.option('--connection-limit <max>', 'PostgreSQL connection pool limit');
+  command.option('--redis-host <host>', 'Redis host');
+  command.option('--redis-port <port>', 'Redis port');
+  command.option('--redis-password <password>', 'Redis password');
+  command.option('--redis-db <db>', 'Redis database');
 
-  command.option(
-    '--require-signing',
-    'Require signed requests',
-    Env.POSTGRES_PROXY_REQUIRE_SIGNING
-  );
-  command.option('--key-id <id>', 'Signing key id', Env.POSTGRES_PROXY_KEY_ID);
-  command.option('--secret <secret>', 'Signing secret', Env.POSTGRES_PROXY_SECRET);
+  command.option('--require-signing', 'Require signed requests', Env.REDIS_PROXY_REQUIRE_SIGNING);
+  command.option('--key-id <id>', 'Signing key id', Env.get('REDIS_PROXY_KEY_ID', ''));
+  command.option('--secret <secret>', 'Signing secret', Env.get('REDIS_PROXY_SECRET', ''));
   command.option(
     '--signing-window-ms <ms>',
     'Signing time window in ms',
-    String(Env.POSTGRES_PROXY_SIGNING_WINDOW_MS)
+    String(Env.getInt('REDIS_PROXY_SIGNING_WINDOW_MS', 60000))
   );
 };
 
@@ -73,14 +66,14 @@ const buildWatchArgs = (): string[] => {
   return ['watch', path.join('bin', 'zin.ts'), ...filtered];
 };
 
-export const PostgresProxyCommand = Object.freeze({
+export const RedisProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
-      name: 'proxy:postgres',
-      aliases: ['postgres:proxy', 'postgres-proxy', 'proxy:pg', 'pg:proxy', 'pg-proxy'],
-      description: 'Start the PostgreSQL HTTP proxy for Cloudflare Workers',
+      name: 'proxy:redis',
+      aliases: ['redis:proxy', 'redis-proxy'],
+      description: 'Start the Redis HTTP proxy for Cloudflare Workers',
       addOptions,
-      execute: async (options: PostgresProxyOptions) => {
+      execute: async (options: RedisProxyOptions) => {
         if (options.watch === true && !isWatchChild()) {
           const args = buildWatchArgs();
           const exitCode = await SpawnUtil.spawnAndWait({
@@ -99,25 +92,21 @@ export const PostgresProxyCommand = Object.freeze({
         const port = parseIntOption(options.port, 'port');
         const maxBodyBytes = parseIntOption(options.maxBodyBytes, 'max-body-bytes');
 
-        const dbHost = options.dbHost?.trim();
-        const dbPort = parseIntOption(options.dbPort, 'db-port');
-        const dbName = options.dbName?.trim();
-        const dbUser = options.dbUser?.trim();
-        const dbPass = options.dbPass;
+        const redisHost = options.redisHost?.trim();
+        const redisPort = parseIntOption(options.redisPort, 'redis-port');
+        const redisPassword = options.redisPassword;
+        const redisDb = parseIntOption(options.redisDb, 'redis-db');
 
-        const connectionLimit = parseIntOption(options.connectionLimit, 'connection-limit');
         const signingWindowMs = parseIntOption(options.signingWindowMs, 'signing-window-ms');
 
-        await PostgresProxyServer.start({
+        await RedisProxyServer.start({
           host,
           port,
           maxBodyBytes,
-          dbHost,
-          dbPort,
-          dbName,
-          dbUser,
-          dbPass,
-          connectionLimit,
+          redisHost,
+          redisPort,
+          redisPassword,
+          redisDb,
           requireSigning: options.requireSigning === true,
           keyId: options.keyId,
           secret: options.secret,
@@ -128,4 +117,4 @@ export const PostgresProxyCommand = Object.freeze({
   },
 });
 
-export default PostgresProxyCommand;
+export default RedisProxyCommand;
