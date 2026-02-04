@@ -248,3 +248,8 @@ declare namespace NodeJS {
     XSS_REPORT_URI?: string | undefined;
   }
 }
+
+declare module '*.html' {
+  const content: string;
+  export default content;
+}

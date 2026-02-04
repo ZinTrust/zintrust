@@ -41,8 +41,8 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "advanced-test-redis",
-  "queueName": "advanced-queue-red",
+  "name": "advanced-test-pg",
+  "queueName": "advanced-queue-pg",
   "processor": "app/Workers/AdvancEmailWorker.ts",
   "version": "1.0.0",
   "options": {

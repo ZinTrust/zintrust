@@ -21,8 +21,32 @@ const getSafeCwd = (): string => {
   return '';
 };
 
+/**
+ * Get the base directory for templates.
+ * In Cloudflare Workers, import.meta.url may be undefined, so we handle that case.
+ */
+function getBaseDir(): string {
+  try {
+    // Check if import.meta.url is available (Node.js, Deno, modern bundlers)
+    if (typeof import.meta.url === 'string' && import.meta.url.trim() !== '') {
+      return dirname(fileURLToPath(import.meta.url));
+    }
+  } catch {
+    // Fallback for environments where fileURLToPath fails
+  }
+
+  // Fallback: use cwd if available
+  const cwd = getSafeCwd();
+  if (cwd.trim() !== '') {
+    return join(cwd, 'src', 'tools', 'mail');
+  }
+
+  // Last resort: return a relative path that might work
+  return './src/tools/mail';
+}
+
 function resolveTemplatePath(templateName: string): string {
-  const baseDir = dirname(fileURLToPath(import.meta.url));
+  const baseDir = getBaseDir();
   const isPath = templateName.includes('/') || templateName.endsWith('.html');
 
   if (!isPath) {
@@ -44,7 +68,7 @@ async function loadTemplateContent(templateName: string): Promise<string> {
     return await readFile(templatePath, 'utf-8');
   } catch {
     // Fallback to built-in directory if the supplied name looked like a file but wasn't found
-    const baseDir = dirname(fileURLToPath(import.meta.url));
+    const baseDir = getBaseDir();
     const fallbackPath = join(
       baseDir,
       'templates',

@@ -48,7 +48,6 @@ function registerRootRoute(router: IRouter): void {
       version: '0.1.0',
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
-      Env,
     });
   });
 }
