@@ -2,7 +2,7 @@
   "name": "zintrust-api",
   "main": "./src/functions/cloudflare.ts",
   "compatibility_date": "2025-04-21",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat_v2"],
   "workers_dev": true,
   "minify": false,
   "alias": {
@@ -28,7 +28,7 @@
   //   },
   // ],
   // Environment variable bindings (auto-injected from .env)
-  "vars": {},
+  // "vars": {},
   // Uncomment to enable D1 database bindings
   // "d1_databases": [
   //   {
@@ -50,22 +50,18 @@
       {
         "name": "WORKER_SHUTDOWN",
         "class_name": "ZinTrustWorkerShutdownDurableObject",
-        "script_name": "@zintrust/core",
       },
       {
         "name": "MYSQL_POOL",
         "class_name": "ZinTrustMySqlPoolDurableObject",
-        "script_name": "@zintrust/core",
       },
       {
         "name": "POSTGRES_POOL",
         "class_name": "ZinTrustPostgresPoolDurableObject",
-        "script_name": "@zintrust/core",
       },
       {
         "name": "REDIS_POOL",
         "class_name": "ZinTrustRedisPoolDurableObject",
-        "script_name": "@zintrust/core",
       },
     ],
   },

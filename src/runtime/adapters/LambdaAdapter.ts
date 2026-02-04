@@ -80,7 +80,7 @@ export const LambdaAdapter = Object.freeze({
         return {
           nodeEnv: Env.NODE_ENV,
           runtime: 'lambda',
-          dbConnection: Env.DB_CONNECTION,
+          dbConnection: Env.get('DB_CONNECTION', 'sqlite'),
           dbHost: Env.DB_HOST,
           dbPort: Env.DB_PORT,
         };

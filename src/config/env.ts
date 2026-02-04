@@ -80,6 +80,15 @@ export const setSource = (source: EnvSource | null): void => {
   externalEnvSource = source;
 };
 
+export const snapshot = (): Record<string, string> => {
+  const env = getEnvSource();
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    out[key] = normalizeEnvValue(value);
+  }
+  return out;
+};
+
 export const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
   const NODE_ENV_VALUE = get('NODE_ENV', 'development');
   if (NODE_ENV_VALUE === 'production') return 'info';
@@ -98,6 +107,7 @@ export const Env = Object.freeze({
   set,
   unset,
   setSource,
+  snapshot,
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],

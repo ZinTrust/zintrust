@@ -7,6 +7,53 @@ import { Env } from '@config/env';
 import type { TemplateVariables } from '@mail/template-utils';
 import { interpolate } from '@mail/template-utils';
 
+const looksLikeHtml = (value: string): boolean => /<\s*html\b|<!doctype\b|<\s*body\b/i.test(value);
+
+const getSafeCwd = (): string => {
+  try {
+    if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+      const cwd = process.cwd();
+      if (typeof cwd === 'string' && cwd.trim() !== '') return cwd;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+};
+
+function resolveTemplatePath(templateName: string): string {
+  const baseDir = dirname(fileURLToPath(import.meta.url));
+  const isPath = templateName.includes('/') || templateName.endsWith('.html');
+
+  if (!isPath) {
+    return join(baseDir, 'templates', `${templateName}.html`);
+  }
+
+  if (templateName.startsWith('/')) {
+    return templateName;
+  }
+
+  const cwd = getSafeCwd();
+  return cwd.trim() === '' ? join(baseDir, templateName) : join(cwd, templateName);
+}
+
+async function loadTemplateContent(templateName: string): Promise<string> {
+  const templatePath = resolveTemplatePath(templateName);
+
+  try {
+    return await readFile(templatePath, 'utf-8');
+  } catch {
+    // Fallback to built-in directory if the supplied name looked like a file but wasn't found
+    const baseDir = dirname(fileURLToPath(import.meta.url));
+    const fallbackPath = join(
+      baseDir,
+      'templates',
+      templateName.endsWith('.html') ? templateName : `${templateName}.html`
+    );
+    return readFile(fallbackPath, 'utf-8');
+  }
+}
+
 /**
  * Load and render email template with variable substitution
  */
@@ -15,30 +62,9 @@ export async function loadTemplate(
   variables: TemplateVariables = {}
 ): Promise<string> {
   try {
-    const baseDir = dirname(fileURLToPath(import.meta.url));
-    const isPath = templateName.includes('/') || templateName.endsWith('.html');
-    let templatePath: string;
-    if (isPath) {
-      if (templateName.startsWith('/')) {
-        templatePath = templateName;
-      } else {
-        templatePath = join(process.cwd(), templateName);
-      }
-    } else {
-      templatePath = join(baseDir, 'templates', `${templateName}.html`);
-    }
-    let template: string;
-    try {
-      template = await readFile(templatePath, 'utf-8');
-    } catch {
-      // Fallback to built-in directory if the supplied name looked like a file but wasn't found
-      const fallbackPath = join(
-        baseDir,
-        'templates',
-        templateName.endsWith('.html') ? templateName : `${templateName}.html`
-      );
-      template = await readFile(fallbackPath, 'utf-8');
-    }
+    const template = looksLikeHtml(templateName)
+      ? templateName
+      : await loadTemplateContent(templateName);
 
     // Replace variables using shared interpolate util
     const mergedVars: TemplateVariables = {

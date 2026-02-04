@@ -3,6 +3,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { SupportedDriver } from '@migrations/enum';
 import type { IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { normalizeSigningCredentials } from '@proxy/SigningService';
 import { SignedRequest } from '@security/SignedRequest';
 
 type CacheEntry = {
@@ -44,11 +45,15 @@ const createSignedRequest = async (
   url: string,
   body: string
 ): Promise<{ headers: Record<string, string>; body: string }> => {
-  const keyId = Env.get('SQLSERVER_PROXY_KEY_ID', '');
-  const secret = Env.get('SQLSERVER_PROXY_SECRET', '').trim() || Env.APP_KEY || '';
+  const creds = normalizeSigningCredentials({
+    keyId: Env.get('SQLSERVER_PROXY_KEY_ID', ''),
+    secret: Env.get('SQLSERVER_PROXY_SECRET', ''),
+  });
 
-  if (!keyId || !secret) {
-    return { headers: { 'content-type': 'application/json' }, body };
+  if (creds.keyId.trim() === '' || creds.secret.trim() === '') {
+    throw ErrorFactory.createConfigError(
+      'SQL Server proxy signing credentials are missing (SQLSERVER_PROXY_KEY_ID / SQLSERVER_PROXY_SECRET)'
+    );
   }
 
   const urlObj = new URL(url);
@@ -56,8 +61,8 @@ const createSignedRequest = async (
     method: 'POST',
     url: urlObj,
     body,
-    keyId,
-    secret,
+    keyId: creds.keyId,
+    secret: creds.secret,
   });
 
   return {

@@ -45,7 +45,7 @@ export const StartupHealthChecks = Object.freeze({
 
     if (startupConfig.checkDatabase === true) {
       // Minimal config derived from Env. For Workers D1, the adapter will resolve the binding via Cloudflare helpers.
-      const driver = (Env.DB_CONNECTION || 'sqlite') as DatabaseConfig['driver'];
+      const driver = Env.get('DB_CONNECTION', 'sqlite') as DatabaseConfig['driver'];
       const readHosts =
         Env.DB_READ_HOSTS.trim().length > 0 ? Env.DB_READ_HOSTS.split(',') : undefined;
 

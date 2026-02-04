@@ -1,182 +1,304 @@
-# env config
+# Env configuration
 
-- Source: `src/config/env.ts`
+Source: src/config/env.ts
+
+This document lists all supported environment variables, their defaults, and what they control.
 
 ## Usage
-
-Import from the framework:
 
 ```ts
 import { Env } from '@zintrust/core';
 
-// Example (if supported by the module):
-// Env.*
+// Example
+// Env.NODE_ENV
 ```
 
-## BASE_URL
+## Core application
 
-`BASE_URL` is an optional base origin (for example: `http://127.0.0.1` or `https://api.example.com`).
+| Key                 | Default       | Description                                                         |
+| ------------------- | ------------- | ------------------------------------------------------------------- |
+| `NODE_ENV`          | `development` | Runtime mode: development, staging, production.                     |
+| `APP_MODE`          | `NODE_ENV`    | App mode override (defaults to `NODE_ENV`).                         |
+| `APP_PORT`          | `3000`        | Alternate port; `PORT` wins when set.                               |
+| `PORT`              | `3000`        | HTTP server port.                                                   |
+| `HOST`              | `localhost`   | Bind address for server listeners.                                  |
+| `BASE_URL`          | empty         | Base origin used to build fully-qualified URLs.                     |
+| `APP_NAME`          | `ZinTrust`    | Application name (also used for proxy signing fallback).            |
+| `APP_KEY`           | empty         | Primary app secret (base64 or raw) used for encryption and signing. |
+| `APP_PREVIOUS_KEYS` | empty         | Optional rotation keys (comma-separated or JSON array).             |
+| `APP_TIMEZONE`      | `UTC`         | Default timezone for the app runtime.                               |
+| `RUNTIME`           | empty         | Optional runtime identifier.                                        |
 
-It is used anywhere the framework needs to construct fully-qualified URLs, including the `zin routes` table output (URL column), which computes:
+## Database (generic)
 
-- `BASE_URL` + `PORT` + route path
+| Key             | Default     | Description                                                |
+| --------------- | ----------- | ---------------------------------------------------------- |
+| `DB_CONNECTION` | `sqlite`    | Database driver: sqlite, postgresql, mysql, sqlserver, d1. |
+| `DB_HOST`       | `localhost` | Default database host.                                     |
+| `DB_PORT`       | `5432`      | Default database port.                                     |
+| `DB_DATABASE`   | `zintrust`  | Default database name.                                     |
+| `DB_USERNAME`   | `postgres`  | Default database user.                                     |
+| `DB_PASSWORD`   | empty       | Default database password.                                 |
+| `DB_READ_HOSTS` | empty       | Optional read replica hosts (comma-separated).             |
 
-## Aurora Data API env vars
+## PostgreSQL-specific
 
-When using the Aurora Data API (for serverless PostgreSQL/MySQL), install `@zintrust/client-rds-data` and set:
+| Key                        | Default    | Description                    |
+| -------------------------- | ---------- | ------------------------------ |
+| `DB_PORT_POSTGRESQL`       | `5432`     | PostgreSQL port.               |
+| `DB_DATABASE_POSTGRESQL`   | `postgres` | PostgreSQL database name.      |
+| `DB_USERNAME_POSTGRESQL`   | `postgres` | PostgreSQL user.               |
+| `DB_PASSWORD_POSTGRESQL`   | empty      | PostgreSQL password.           |
+| `DB_READ_HOSTS_POSTGRESQL` | empty      | PostgreSQL read replica hosts. |
 
-- `AURORA_RESOURCE_ARN` (required)
-- `AURORA_SECRET_ARN` (required)
-- `AURORA_DATABASE` (optional; falls back to `DB_DATABASE`)
+## SQL Server (MSSQL)
 
-## Encryption interoperability env vars
+| Key                   | Default    | Description                    |
+| --------------------- | ---------- | ------------------------------ |
+| `DB_HOST_MSSQL`       | `DB_HOST`  | SQL Server host override.      |
+| `DB_PORT_MSSQL`       | `1433`     | SQL Server port.               |
+| `DB_DATABASE_MSSQL`   | `zintrust` | SQL Server database name.      |
+| `DB_USERNAME_MSSQL`   | `sa`       | SQL Server user.               |
+| `DB_PASSWORD_MSSQL`   | empty      | SQL Server password.           |
+| `DB_READ_HOSTS_MSSQL` | empty      | SQL Server read replica hosts. |
 
-These env vars enable cross-framework encrypted payload compatibility (used by `EncryptedEnvelope`):
+## Cloudflare & remote services
 
-- `ENCRYPTION_CIPHER`: `aes-256-cbc` or `aes-256-gcm` (case-insensitive). Required in production when startup secret validation is enabled.
-- `APP_KEY`: Base64 key (32 bytes). Supports `base64:...` prefix.
-- `APP_PREVIOUS_KEYS`: Optional key rotation list (comma-separated or JSON array).
+| Key                          | Default    | Description                           |
+| ---------------------------- | ---------- | ------------------------------------- |
+| `D1_DATABASE_ID`             | empty      | D1 database binding ID.               |
+| `KV_NAMESPACE_ID`            | empty      | KV namespace binding ID.              |
+| `D1_REMOTE_URL`              | empty      | Remote D1 proxy URL.                  |
+| `D1_REMOTE_KEY_ID`           | empty      | Remote D1 key id for request signing. |
+| `D1_REMOTE_SECRET`           | empty      | Remote D1 secret for request signing. |
+| `D1_REMOTE_MODE`             | `registry` | Remote D1 mode: registry or proxy.    |
+| `KV_REMOTE_URL`              | empty      | Remote KV proxy URL.                  |
+| `KV_REMOTE_KEY_ID`           | empty      | Remote KV key id.                     |
+| `KV_REMOTE_SECRET`           | empty      | Remote KV secret.                     |
+| `KV_REMOTE_NAMESPACE`        | empty      | Remote KV namespace.                  |
+| `CLOUDFLARE_ACCOUNT_ID`      | empty      | Cloudflare account id.                |
+| `CLOUDFLARE_API_TOKEN`       | empty      | Cloudflare API token.                 |
+| `CLOUDFLARE_KV_NAMESPACE_ID` | empty      | Optional Cloudflare KV namespace id.  |
 
-## Snapshot (top)
+## Proxy client defaults
 
-```ts
-/**
- * Environment Configuration
- * Type-safe access to environment variables
- *
- * Sealed namespace pattern - all exports through Env namespace
- * Safe for both Node.js and serverless runtimes (Cloudflare Workers, Deno, Lambda)
- */
+| Key                          | Default | Description                                    |
+| ---------------------------- | ------- | ---------------------------------------------- |
+| `ZT_PROXY_TIMEOUT_MS`        | `30000` | Default proxy request timeout in milliseconds. |
+| `ZT_PROXY_SIGNING_WINDOW_MS` | `60000` | Default signing window in milliseconds.        |
 
-import { ProcessLike } from '@zintrust/core';
+## MySQL proxy (HTTP)
 
-const getProcessLike = (): ProcessLike | undefined => {
-  return typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
-};
+| Key                             | Default                      | Description                                         |
+| ------------------------------- | ---------------------------- | --------------------------------------------------- |
+| `MYSQL_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
+| `MYSQL_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
+| `MYSQL_PROXY_PORT`              | `8789`                       | Proxy port.                                         |
+| `MYSQL_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
+| `MYSQL_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
+| `MYSQL_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
+| `MYSQL_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
+| `MYSQL_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
+| `MYSQL_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
+| `MYSQL_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
 
-const dirnameFromExecPath = (execPath: string, platform?: string): string => {
-  const separator = platform === 'win32' ? '\\' : '/';
-  const lastSep = execPath.lastIndexOf(separator);
-  if (lastSep <= 0) return '';
-  return execPath.slice(0, lastSep);
-};
+## Postgres proxy (HTTP)
 
-// Private helper functions
-const get = (key: string, defaultValue?: string): string => {
-  const proc = getProcessLike();
-  const env = proc?.env ?? {};
-  return env[key] ?? defaultValue ?? '';
-};
+| Key                                | Default                      | Description                                         |
+| ---------------------------------- | ---------------------------- | --------------------------------------------------- |
+| `POSTGRES_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
+| `POSTGRES_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
+| `POSTGRES_PROXY_PORT`              | `8790`                       | Proxy port.                                         |
+| `POSTGRES_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
+| `POSTGRES_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
+| `POSTGRES_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
+| `POSTGRES_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
+| `POSTGRES_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
+| `POSTGRES_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
+| `POSTGRES_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
 
-const getInt = (key: string, defaultValue?: number): number => {
-  const proc = getProcessLike();
-  const env = proc?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? 0;
-  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
-  return Number.parseInt(value, 10);
-};
+## Redis proxy (HTTP)
 
-const getBool = (key: string, defaultValue?: boolean): boolean => {
-  const proc = getProcessLike();
-  const env = proc?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? false;
-  return value.toLowerCase() === 'true' || value === '1';
-};
+| Key                             | Default                      | Description                                         |
+| ------------------------------- | ---------------------------- | --------------------------------------------------- |
+| `REDIS_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
+| `REDIS_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
+| `REDIS_PROXY_PORT`              | `8791`                       | Proxy port.                                         |
+| `REDIS_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
+| `REDIS_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
+| `REDIS_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
+| `REDIS_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
+| `REDIS_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
+| `REDIS_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| `USE_REDIS_PROXY`               | `false`                      | Enable Redis proxy.                                 |
 
-const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
-  const NODE_ENV_VALUE = get('NODE_ENV', 'development');
-  if (NODE_ENV_VALUE === 'production') return 'info';
-  if (NODE_ENV_VALUE === 'testing') return 'error';
-  return 'debug';
-};
+## MongoDB proxy (HTTP)
 
-// Sealed namespace with all environment configuration
-export const Env = Object.freeze({
-  // Helper functions
-  get,
-  getInt,
-  getBool,
+| Key                               | Default                      | Description                                         |
+| --------------------------------- | ---------------------------- | --------------------------------------------------- |
+| `MONGODB_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
+| `MONGODB_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
+| `MONGODB_PROXY_PORT`              | `8792`                       | Proxy port.                                         |
+| `MONGODB_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
+| `MONGODB_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
+| `MONGODB_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
+| `MONGODB_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
+| `MONGODB_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
+| `MONGODB_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| `USE_MONGODB_PROXY`               | `false`                      | Enable MongoDB proxy.                               |
 
-  // Core
-  NODE_ENV: get('NODE_ENV', 'development'),
-  // Prefer PORT, fallback to APP_PORT for compatibility
-  PORT: getInt('PORT', getInt('APP_PORT', 3000)),
-  HOST: get('HOST', 'localhost'),
-  BASE_URL: get('BASE_URL', ''),
-  APP_NAME: get('APP_NAME', 'ZinTrust '),
-  APP_KEY: get('APP_KEY', ''),
+## SQL Server proxy (HTTP)
 
-  // Database
-  DB_CONNECTION: get('DB_CONNECTION', 'sqlite'),
-  DB_HOST: get('DB_HOST', 'localhost'),
-```
+| Key                                 | Default                      | Description                                         |
+| ----------------------------------- | ---------------------------- | --------------------------------------------------- |
+| `SQLSERVER_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
+| `SQLSERVER_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
+| `SQLSERVER_PROXY_PORT`              | `8793`                       | Proxy port.                                         |
+| `SQLSERVER_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
+| `SQLSERVER_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
+| `SQLSERVER_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
+| `SQLSERVER_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
+| `SQLSERVER_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
+| `SQLSERVER_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
+| `SQLSERVER_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| `USE_SQLSERVER_PROXY`               | `false`                      | Enable SQL Server proxy.                            |
 
-## Snapshot (bottom)
+## Cache
 
-```ts
-  LAMBDA_TASK_ROOT: get('LAMBDA_TASK_ROOT'),
+| Key              | Default          | Description                               |
+| ---------------- | ---------------- | ----------------------------------------- |
+| `CACHE_DRIVER`   | `memory`         | Cache driver: memory, redis, mongodb, kv. |
+| `REDIS_HOST`     | `localhost`      | Redis host.                               |
+| `REDIS_PORT`     | `6379`           | Redis port.                               |
+| `REDIS_PASSWORD` | empty            | Redis password.                           |
+| `REDIS_DB`       | `0`              | Redis database index.                     |
+| `REDIS_URL`      | empty            | Optional full Redis URL.                  |
+| `MONGO_URI`      | empty            | MongoDB Data API endpoint (cache).        |
+| `MONGO_DB`       | `zintrust_cache` | MongoDB cache database name.              |
 
-  // Microservices
-  MICROSERVICES: get('MICROSERVICES'),
-  SERVICES: get('SERVICES'),
-  MICROSERVICES_TRACING: getBool('MICROSERVICES_TRACING'),
-  MICROSERVICES_TRACING_RATE: Number.parseFloat(get('MICROSERVICES_TRACING_RATE', '1.0')),
-  DATABASE_ISOLATION: get('DATABASE_ISOLATION', 'shared'),
-  SERVICE_API_KEY: get('SERVICE_API_KEY'),
-  SERVICE_JWT_SECRET: get('SERVICE_JWT_SECRET'),
+## Queue
 
-  // Security
-  DEBUG: getBool('DEBUG', false),
-  ENABLE_MICROSERVICES: getBool('ENABLE_MICROSERVICES', false),
-  TOKEN_TTL: getInt('TOKEN_TTL', 3600000),
-  TOKEN_LENGTH: getInt('TOKEN_LENGTH', 32),
+| Key                | Default | Description            |
+| ------------------ | ------- | ---------------------- |
+| `QUEUE_CONNECTION` | empty   | Queue connection name. |
+| `QUEUE_DRIVER`     | empty   | Queue driver.          |
 
-  // Worker
-  WORKER_INTERVAL_MS: getInt('WORKER_INTERVAL_MS', 5000),
+## Rate limiting
 
-  // Deployment
-  ENVIRONMENT: get('ENVIRONMENT', 'development'),
-  REQUEST_TIMEOUT: getInt('REQUEST_TIMEOUT', 30000),
-  MAX_BODY_SIZE: getInt('MAX_BODY_SIZE', 10485760),
-  SHUTDOWN_TIMEOUT: getInt('SHUTDOWN_TIMEOUT', 10000),
+| Key                     | Default               | Description                       |
+| ----------------------- | --------------------- | --------------------------------- |
+| `RATE_LIMIT_STORE`      | empty                 | Store type for rate limiting.     |
+| `RATE_LIMIT_DRIVER`     | empty                 | Rate limit driver implementation. |
+| `RATE_LIMIT_KEY_PREFIX` | `zintrust:ratelimit:` | Key prefix used by rate limiter.  |
 
-  // Logging
-  LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
-  LOG_FORMAT: get('LOG_FORMAT', 'text'),
-  DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
-  LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
-  LOG_TO_FILE: getBool('LOG_TO_FILE', false),
-  LOG_ROTATION_SIZE: getInt('LOG_ROTATION_SIZE', 10485760),
-  LOG_ROTATION_DAYS: getInt('LOG_ROTATION_DAYS', 7),
+## Notifications
 
-  // Paths (safely constructed for Node.js environments)
-  NODE_BIN_DIR: (() => {
-    try {
-      const proc = getProcessLike();
-      if (proc?.execPath === null || proc?.execPath === undefined) return '';
-      return dirnameFromExecPath(proc.execPath, proc.platform);
-    } catch {
-      // Fallback for non-Node environments
-      return '';
-    }
-  })(),
-  SAFE_PATH: (() => {
-    try {
-      const proc = getProcessLike();
-      if (proc?.execPath === null || proc?.execPath === undefined) return '';
+| Key                   | Default    | Description          |
+| --------------------- | ---------- | -------------------- |
+| `NOTIFICATION_DRIVER` | empty      | Notification driver. |
+| `TERMII_API_KEY`      | empty      | Termii API key.      |
+| `TERMII_SENDER`       | `ZinTrust` | Termii sender name.  |
 
-      const binDir = dirnameFromExecPath(proc.execPath, proc.platform);
-      if (proc.platform === 'win32') {
-        return [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, binDir].join(';');
-      }
-      return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', binDir].join(':');
-    } catch {
-      // Fallback for non-Node environments
-      return '';
-    }
-  })(),
-});
+## AWS
 
-```
+| Key                           | Default     | Description                   |
+| ----------------------------- | ----------- | ----------------------------- |
+| `AWS_REGION`                  | `us-east-1` | AWS region.                   |
+| `AWS_DEFAULT_REGION`          | empty       | AWS default region override.  |
+| `AWS_ACCESS_KEY_ID`           | empty       | AWS access key.               |
+| `AWS_SECRET_ACCESS_KEY`       | empty       | AWS secret key.               |
+| `AWS_SESSION_TOKEN`           | empty       | AWS session token.            |
+| `AWS_LAMBDA_FUNCTION_NAME`    | empty       | Lambda function name.         |
+| `AWS_LAMBDA_FUNCTION_VERSION` | empty       | Lambda function version.      |
+| `AWS_EXECUTION_ENV`           | empty       | Lambda execution environment. |
+| `LAMBDA_TASK_ROOT`            | empty       | Lambda task root path.        |
+
+## Microservices
+
+| Key                          | Default  | Description                             |
+| ---------------------------- | -------- | --------------------------------------- |
+| `MICROSERVICES`              | empty    | Comma-separated list of microservices.  |
+| `SERVICES`                   | empty    | Service names to load.                  |
+| `MICROSERVICES_TRACING`      | `false`  | Enable distributed tracing.             |
+| `MICROSERVICES_TRACING_RATE` | `1.0`    | Trace sampling rate.                    |
+| `DATABASE_ISOLATION`         | `shared` | Database isolation mode.                |
+| `SERVICE_API_KEY`            | empty    | Service API key for inter-service auth. |
+| `SERVICE_JWT_SECRET`         | empty    | Service JWT secret.                     |
+
+## Security
+
+| Key                    | Default   | Description                                                      |
+| ---------------------- | --------- | ---------------------------------------------------------------- |
+| `DEBUG`                | `false`   | Enable debug mode.                                               |
+| `ENABLE_MICROSERVICES` | `false`   | Global microservices feature flag.                               |
+| `TOKEN_TTL`            | `3600000` | Access token TTL in milliseconds.                                |
+| `TOKEN_LENGTH`         | `32`      | Token length (random bytes/characters).                          |
+| `CSRF_STORE`           | empty     | CSRF store (e.g., redis).                                        |
+| `CSRF_DRIVER`          | empty     | CSRF driver implementation.                                      |
+| `CSRF_REDIS_DB`        | `1`       | Redis DB index for CSRF store.                                   |
+| `ENCRYPTION_CIPHER`    | empty     | Cipher used by `EncryptedEnvelope` (aes-256-cbc or aes-256-gcm). |
+
+## Deployment
+
+| Key                | Default       | Description                     |
+| ------------------ | ------------- | ------------------------------- |
+| `ENVIRONMENT`      | `development` | Deployment environment label.   |
+| `REQUEST_TIMEOUT`  | `30000`       | Global request timeout (ms).    |
+| `MAX_BODY_SIZE`    | `10485760`    | Max request body size in bytes. |
+| `SHUTDOWN_TIMEOUT` | `10000`       | Graceful shutdown timeout (ms). |
+
+## SSE
+
+| Key                      | Default | Description                   |
+| ------------------------ | ------- | ----------------------------- |
+| `SSE_HEARTBEAT_INTERVAL` | `15000` | SSE heartbeat interval in ms. |
+| `SSE_SNAPSHOT_INTERVAL`  | `5000`  | SSE snapshot interval in ms.  |
+
+## Logging
+
+| Key                 | Default                | Description                                |
+| ------------------- | ---------------------- | ------------------------------------------ |
+| `LOG_LEVEL`         | `debug`/`info`/`error` | Log level (depends on `NODE_ENV`).         |
+| `LOG_FORMAT`        | `text`                 | Log format (text or json).                 |
+| `LOG_CHANNEL`       | empty                  | Log channel override (console/file/cloud). |
+| `DISABLE_LOGGING`   | `false`                | Disable logging entirely.                  |
+| `LOG_HTTP_REQUEST`  | `false`                | Enable request logging middleware.         |
+| `LOG_TO_FILE`       | `false`                | Enable file logging output.                |
+| `LOG_ROTATION_SIZE` | `10485760`             | Max log file size in bytes.                |
+| `LOG_ROTATION_DAYS` | `7`                    | Days to keep rotated logs.                 |
+
+## ZinTrust tooling
+
+| Key                           | Default                 | Description                            |
+| ----------------------------- | ----------------------- | -------------------------------------- |
+| `ZINTRUST_PROJECT_ROOT`       | empty                   | Project root override.                 |
+| `ZINTRUST_ALLOW_POSTINSTALL`  | empty                   | Allow postinstall scripts (CLI).       |
+| `ZINTRUST_ENV_FILE`           | `.env.pull`             | Pull env file name.                    |
+| `ZINTRUST_SECRETS_MANIFEST`   | `secrets.manifest.json` | Secrets manifest file.                 |
+| `ZINTRUST_ENV_IN_FILE`        | `.env`                  | Env input file name.                   |
+| `ZINTRUST_SECRETS_PROVIDER`   | empty                   | Secrets provider (vault, cloud, etc.). |
+| `ZINTRUST_ALLOW_AUTO_INSTALL` | empty                   | Allow auto-install of dependencies.    |
+
+## CI / system
+
+| Key           | Default | Description                       |
+| ------------- | ------- | --------------------------------- |
+| `CI`          | empty   | CI indicator.                     |
+| `HOME`        | empty   | User home directory (system).     |
+| `USERPROFILE` | empty   | User profile directory (Windows). |
+
+## Templates
+
+| Key                  | Default                                           | Description                          |
+| -------------------- | ------------------------------------------------- | ------------------------------------ |
+| `TEMPLATE_COPYRIGHT` | `© 2025 ZinTrust Framework. All rights reserved.` | Template copyright text.             |
+| `SERVICE_NAME`       | empty                                             | Service name override for templates. |
+
+## Computed values (read-only)
+
+These are derived at runtime and do not need to be set:
+
+| Key            | Description                                                     |
+| -------------- | --------------------------------------------------------------- |
+| `NODE_BIN_DIR` | Derived from the runtime `execPath`.                            |
+| `SAFE_PATH`    | Safe PATH constructed from system defaults and runtime bin dir. |

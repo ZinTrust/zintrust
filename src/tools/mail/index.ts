@@ -173,14 +173,22 @@ const createMailer = (
   });
 
 export interface RenderMailInput {
-  template: string; // template filename without .html extension
+  template: string; // template name (without .html) or raw HTML content
   variables?: Record<string, unknown>;
 }
+
+const looksLikeHtml = (value: string): boolean => /<\s*html\b|<!doctype\b|<\s*body\b/i.test(value);
 
 async function renderTemplateToHtml(input: RenderMailInput): Promise<string> {
   const { template, variables } = input;
   // Import lazily to avoid circular deps
   const { loadTemplate } = await import('./template-loader.js');
+  if (looksLikeHtml(template)) {
+    return loadTemplate(
+      template,
+      (variables ?? {}) as import('@mail/template-utils').TemplateVariables
+    );
+  }
   // template-loader expects full filename
   const fileName = template.endsWith('.html') ? template : `${template}.html`;
   return loadTemplate(

@@ -7,11 +7,11 @@
 
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
+import { normalizeSigningCredentials } from '@proxy/SigningService';
 
 type ProxyQueryResponse = {
   rows: Record<string, unknown>[];
@@ -46,18 +46,22 @@ const resolveBaseUrl = (): string => {
 
 const buildProxySettings = (): ProxySettings => {
   const baseUrl = resolveBaseUrl();
-  const keyId = Env.POSTGRES_PROXY_KEY_ID || undefined;
-  const secret = Env.POSTGRES_PROXY_SECRET || Env.APP_KEY || undefined;
+  const keyId = Env.POSTGRES_PROXY_KEY_ID ?? '';
+  const secret = Env.POSTGRES_PROXY_SECRET ?? '';
   const timeoutMs = Env.POSTGRES_PROXY_TIMEOUT_MS;
 
   return { baseUrl, keyId, secret, timeoutMs };
 };
 
 const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
-  return {
-    baseUrl: settings.baseUrl,
+  const creds = normalizeSigningCredentials({
     keyId: settings.keyId ?? '',
     secret: settings.secret ?? '',
+  });
+  return {
+    baseUrl: settings.baseUrl,
+    keyId: creds.keyId,
+    secret: creds.secret,
     timeoutMs: settings.timeoutMs,
     missingUrlMessage: 'PostgreSQL proxy URL is missing (POSTGRES_PROXY_URL)',
     missingCredentialsMessage:
@@ -71,6 +75,19 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
       timedOut: 'PostgreSQL proxy request timed out',
     },
   };
+};
+
+const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
+  const signedSettings = buildSignedSettings(settings);
+  if (signedSettings.baseUrl.trim() === '') {
+    throw ErrorFactory.createConfigError('PostgreSQL proxy URL is missing (POSTGRES_PROXY_URL)');
+  }
+  if (signedSettings.keyId.trim() === '' || signedSettings.secret.trim() === '') {
+    throw ErrorFactory.createConfigError(
+      'PostgreSQL proxy signing credentials are missing (POSTGRES_PROXY_KEY_ID / POSTGRES_PROXY_SECRET)'
+    );
+  }
+  return signedSettings;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -133,28 +150,8 @@ const requestProxy = async <T>(
     throw ErrorFactory.createConfigError('PostgreSQL proxy URL is missing (POSTGRES_PROXY_URL)');
   }
 
-  if (settings.keyId !== undefined && settings.secret !== undefined) {
-    const signedSettings = buildSignedSettings(settings);
-    return RemoteSignedJson.request<T>(signedSettings, path, payload);
-  }
-
-  Logger.warn('[postgres-proxy] Proxy signing disabled; sending unsigned request.');
-
-  const response = await fetch(`${settings.baseUrl}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw ErrorFactory.createTryCatchError(
-      `PostgreSQL proxy request failed (${response.status})`,
-      text
-    );
-  }
-
-  return (await response.json()) as T;
+  const signedSettings = ensureSignedSettings(settings);
+  return RemoteSignedJson.request<T>(signedSettings, path, payload);
 };
 
 export const PostgreSQLProxyAdapter = Object.freeze({
@@ -164,11 +161,7 @@ export const PostgreSQLProxyAdapter = Object.freeze({
 
     return {
       async connect(): Promise<void> {
-        if (settings.baseUrl.trim() === '') {
-          throw ErrorFactory.createConfigError(
-            'PostgreSQL proxy URL is missing (POSTGRES_PROXY_URL)'
-          );
-        }
+        ensureSignedSettings(settings);
         connected = true;
       },
 

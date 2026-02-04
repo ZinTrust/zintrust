@@ -9,6 +9,11 @@ export type SigningVerificationResult =
   | { ok: true }
   | { ok: false; status: number; code: string; message: string };
 
+export type SigningCredentials = Readonly<{
+  keyId: string;
+  secret: string;
+}>;
+
 type SigningServiceApi = Readonly<{
   normalizeConfig: (signing: ProxySigningConfig) => ProxySigningConfig;
   shouldVerify: (signing: ProxySigningConfig, headers: SigningHeaders) => boolean;
@@ -72,6 +77,13 @@ const normalizeConfig = (signing: ProxySigningConfig): ProxySigningConfig => ({
 export const normalizeSigningConfig: (signing: ProxySigningConfig) => ProxySigningConfig = (
   signing
 ): ProxySigningConfig => normalizeConfig(signing);
+
+export const normalizeSigningCredentials: (input: SigningCredentials) => SigningCredentials = (
+  input
+): SigningCredentials => ({
+  keyId: normalizeKeyId(input.keyId),
+  secret: normalizeSecret(input.secret),
+});
 
 const shouldVerify = (signing: ProxySigningConfig, headers: SigningHeaders): boolean => {
   const normalized = normalizeConfig(signing);

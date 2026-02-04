@@ -7,11 +7,11 @@
 
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
+import { normalizeSigningCredentials } from '@proxy/SigningService';
 
 type ProxyQueryResponse = {
   rows: Record<string, unknown>[];
@@ -39,18 +39,22 @@ type ProxySettings = {
 
 const buildProxySettings = (): ProxySettings => {
   const baseUrl = Env.MYSQL_PROXY_URL;
-  const keyId = Env.MYSQL_PROXY_KEY_ID || undefined;
-  const secret = Env.MYSQL_PROXY_SECRET || Env.APP_KEY || undefined;
+  const keyId = Env.MYSQL_PROXY_KEY_ID ?? '';
+  const secret = Env.MYSQL_PROXY_SECRET ?? '';
   const timeoutMs = Env.MYSQL_PROXY_TIMEOUT_MS;
 
   return { baseUrl, keyId, secret, timeoutMs };
 };
 
 const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
-  return {
-    baseUrl: settings.baseUrl,
+  const creds = normalizeSigningCredentials({
     keyId: settings.keyId ?? '',
     secret: settings.secret ?? '',
+  });
+  return {
+    baseUrl: settings.baseUrl,
+    keyId: creds.keyId,
+    secret: creds.secret,
     timeoutMs: settings.timeoutMs,
     missingUrlMessage: 'MySQL proxy URL is missing (MYSQL_PROXY_URL)',
     missingCredentialsMessage:
@@ -64,6 +68,19 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
       timedOut: 'MySQL proxy request timed out',
     },
   };
+};
+
+const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
+  const signedSettings = buildSignedSettings(settings);
+  if (signedSettings.baseUrl.trim() === '') {
+    throw ErrorFactory.createConfigError('MySQL proxy URL is missing (MYSQL_PROXY_URL)');
+  }
+  if (signedSettings.keyId.trim() === '' || signedSettings.secret.trim() === '') {
+    throw ErrorFactory.createConfigError(
+      'MySQL proxy signing credentials are missing (MYSQL_PROXY_KEY_ID / MYSQL_PROXY_SECRET)'
+    );
+  }
+  return signedSettings;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -93,25 +110,8 @@ const requestProxy = async <T>(
     throw ErrorFactory.createConfigError('MySQL proxy URL is missing (MYSQL_PROXY_URL)');
   }
 
-  if (settings.keyId !== undefined && settings.secret !== undefined) {
-    const signedSettings = buildSignedSettings(settings);
-    return RemoteSignedJson.request<T>(signedSettings, path, payload);
-  }
-
-  Logger.warn('[mysql-proxy] Proxy signing disabled; sending unsigned request.');
-
-  const response = await fetch(`${settings.baseUrl}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw ErrorFactory.createTryCatchError(`MySQL proxy request failed (${response.status})`, text);
-  }
-
-  return (await response.json()) as T;
+  const signedSettings = ensureSignedSettings(settings);
+  return RemoteSignedJson.request<T>(signedSettings, path, payload);
 };
 
 export const MySQLProxyAdapter = Object.freeze({
@@ -121,16 +121,12 @@ export const MySQLProxyAdapter = Object.freeze({
 
     return {
       async connect(): Promise<void> {
-        if (settings.baseUrl.trim() === '') {
-          throw ErrorFactory.createConfigError('MySQL proxy URL is missing (MYSQL_PROXY_URL)');
-        }
+        ensureSignedSettings(settings);
         connected = true;
-        Logger.info('✓ MySQL proxy connected');
       },
 
       async disconnect(): Promise<void> {
         connected = false;
-        Logger.info('✓ MySQL proxy disconnected');
       },
 
       async query(sql: string, parameters: unknown[]): Promise<QueryResult> {

@@ -96,6 +96,25 @@ const tpl = MailTemplates.auth.welcome;
 const rendered = MailTemplateRenderer.render(tpl, { name: 'Jane' });
 ```
 
+You can also import templates as HTML (useful in Workers/Wrangler dev) and pass the HTML
+string directly to `Mail.render`:
+
+```ts
+import { Mail } from '@zintrust/core';
+import welcome from '@mail/templates/welcome.html';
+
+const html = await Mail.render({
+  template: welcome,
+  variables: {
+    name: 'Ada',
+    action_url: 'https://example.com/start',
+    next_step_1: 'Verify your email',
+    next_step_2: 'Complete your profile',
+    next_step_3: 'Explore features',
+  },
+});
+```
+
 ## Design System
 
 All templates follow the ZinTrust design system:

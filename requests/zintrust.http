@@ -36,10 +36,10 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwiZW1haWwiOiJmbGFyZTVAZXhhbXBsZS5jb20iLCJpYXQiOjE3NzAxMzgwNzYsImV4cCI6MTc3MDE0MTY3NiwiaXNzIjoiemludHJ1c3QiLCJhdWQiOiJ6aW50cnVzdC1hcGkiLCJqdGkiOiI4ODQ0NmZmMzllZTU3YzFjNmIwNjBlMDYwNGNiNmE4YiJ9.sDJ5wz40JkbjU5-SqQeV7RHdBru4yRLrG4eVdJKOAk0
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4IiwiZW1haWwiOiJmbGFycmVyNUBleGFtcGxlLmNvbSIsImlhdCI6MTc3MDIxNzIyMCwiZXhwIjoxNzcwMjIwODIwLCJpc3MiOiJ6aW50cnVzdCIsImF1ZCI6InppbnRydXN0LWFwaSIsImp0aSI6IjRmYTkyMTZkNGYwMGZkZTcyZmNmMjFlNzAxZjY3NjgwIn0.iq_7gzhYkVw0ch7MZ1vJapEZsiWWvFZQAl6A2DBNVLk
 @csrf =
 @cookie =
-@userId = 5
+@userId = 8
 
 ### Root
 GET {{baseUrl}}/
@@ -84,7 +84,7 @@ Content-Type: application/json
 
 {
   "name": "Do Userr2",
-  "email": "flarr5@example.com",
+  "email": "flarrer5@example.com",
   "password": "password"
 }
 

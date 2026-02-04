@@ -159,7 +159,7 @@ function getNodeEnvironment(): {
   return {
     nodeEnv: Env.NODE_ENV,
     runtime: 'nodejs',
-    dbConnection: Env.DB_CONNECTION,
+    dbConnection: Env.get('DB_CONNECTION', 'sqlite'),
     dbHost: Env.DB_HOST,
     dbPort: Env.DB_PORT,
   };
