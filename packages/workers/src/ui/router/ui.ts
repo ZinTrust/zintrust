@@ -1,10 +1,64 @@
-import type { IRouter } from '@zintrust/core';
-import { Logger, MIME_TYPES, NodeSingletons, Router } from '@zintrust/core';
+import type { AssetsBinding, IRouter } from '@zintrust/core';
+import {
+  Cloudflare,
+  Logger,
+  MIME_TYPES,
+  NodeSingletons,
+  Router,
+  detectRuntime,
+} from '@zintrust/core';
+
+const isCloudflare = detectRuntime().isCloudflare;
+
+const safeFileUrlToPath = (url: string | undefined): string => {
+  if (typeof url !== 'string' || url.trim() === '') return '';
+  try {
+    return NodeSingletons.url.fileURLToPath(url);
+  } catch {
+    return '';
+  }
+};
+
+const safeCwd = (): string => {
+  try {
+    const cwd = NodeSingletons.process?.cwd?.();
+    if (typeof cwd === 'string' && cwd.trim() !== '') return cwd;
+  } catch {
+    // ignore
+  }
+  return '';
+};
+
+const getAssetsBinding = (): AssetsBinding | null => Cloudflare.getAssetsBinding();
+
+const fetchAssetText = async (assetPath: string): Promise<string> => {
+  const assets = getAssetsBinding();
+  if (!assets) return '';
+  const url = new URL(assetPath, 'http://assets');
+  const response = await assets.fetch(url);
+  if (!response.ok) return '';
+  return response.text();
+};
+
+const fetchAssetBytes = async (assetPath: string): Promise<Uint8Array | null> => {
+  const assets = getAssetsBinding();
+  if (!assets) return null;
+  const url = new URL(assetPath, 'http://assets');
+  const response = await assets.fetch(url);
+  if (!response.ok) return null;
+  const buffer = await response.arrayBuffer();
+  return new Uint8Array(buffer);
+};
 
 export const uiResolver = async (uiBasePath: string): Promise<string> => {
   // Resolve base path for UI assets
   // const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
   // const __dirname = NodeSingletons.path.dirname(__filename);
+  const assetHtml = await fetchAssetText('/workers/index.html');
+  if (assetHtml !== '') return assetHtml;
+
+  if (isCloudflare) return '';
+
   const uiPath = NodeSingletons.path.resolve(uiBasePath, 'workers/index.html');
   const html = await NodeSingletons.fs.readFile(uiPath, 'utf8');
 
@@ -35,9 +89,20 @@ const getUiBase = (): string => {
   // Resolve base path for UI assets
   if (uiBasePath.length > 0) return uiBasePath;
 
-  const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
-  const __dirname = NodeSingletons.path.dirname(__filename);
-  uiBasePath = NodeSingletons.path.resolve(__dirname, '../');
+  const __filename = safeFileUrlToPath(import.meta.url);
+  if (__filename !== '') {
+    const __dirname = NodeSingletons.path.dirname(__filename);
+    uiBasePath = NodeSingletons.path.resolve(__dirname, '../');
+    return uiBasePath;
+  }
+
+  const cwd = safeCwd();
+  if (cwd !== '') {
+    uiBasePath = NodeSingletons.path.resolve(cwd, 'packages', 'workers', 'src', 'ui');
+    return uiBasePath;
+  }
+
+  uiBasePath = '';
   return uiBasePath;
 };
 const serveStaticFile = async (
@@ -50,6 +115,21 @@ const serveStaticFile = async (
 ): Promise<void> => {
   try {
     const filePath = req.getPath();
+    const assetBytes = await fetchAssetBytes(filePath);
+    if (assetBytes) {
+      const mimeType = getMimeType(filePath);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+      res.send(Buffer.from(assetBytes));
+      return;
+    }
+
+    if (isCloudflare) {
+      res.setStatus(404);
+      res.send(Buffer.from('Not Found'));
+      return;
+    }
+
     const fullPath = NodeSingletons.path.resolve(getUiBase(), filePath.replace(/^\//, ''));
 
     // Security check - prevent directory traversal

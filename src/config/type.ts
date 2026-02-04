@@ -618,3 +618,7 @@ export type RedisConfig = {
 };
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+
+export type AssetsBinding = {
+  fetch: (input: string | URL, init?: RequestInit) => Promise<Response>;
+};

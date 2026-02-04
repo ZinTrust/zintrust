@@ -37,6 +37,18 @@ const applyStartupConfigOverrides = (): void => {
   globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Workers, workersOverrides);
 };
 
+const injectIoredisModule = async (): Promise<void> => {
+  const globalAny = globalThis as { __zintrustIoredisModule?: unknown };
+  if (globalAny.__zintrustIoredisModule !== undefined) return;
+
+  try {
+    const module = await import('ioredis');
+    globalAny.__zintrustIoredisModule = module;
+  } catch {
+    // Best-effort: leave undefined so resolveIORedis can surface a config error.
+  }
+};
+
 applyStartupConfigOverrides();
 
 export default {
@@ -45,6 +57,8 @@ export default {
       // Make bindings available to framework code in Workers
       (globalThis as unknown as { env?: unknown }).env = _env;
       (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
+
+      await injectIoredisModule();
 
       const kernel = await getKernel();
 

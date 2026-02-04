@@ -460,5 +460,7 @@ export {
 
 export { CloudflareSocket } from '@sockets/CloudflareSocket';
 
+export { detectRuntime } from '@runtime/detectRuntime';
+
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

@@ -5,7 +5,7 @@
  * This keeps runtime-specific globals out of adapters/drivers.
  */
 
-import type { KVNamespace, WorkersEnv } from '@config/type';
+import type { AssetsBinding, KVNamespace, WorkersEnv } from '@config/type';
 import type { DatabaseConfig, ID1Database } from '@orm/DatabaseAdapter';
 
 const getWorkersEnv = (): WorkersEnv | null => {
@@ -60,10 +60,6 @@ const getWorkersVar = (key: string): string | null => {
   if (value === undefined || value === null) return null;
   if (typeof value === 'string') return value;
   return String(value);
-};
-
-type AssetsBinding = {
-  fetch: (input: string | URL, init?: RequestInit) => Promise<Response>;
 };
 
 const getAssetsBinding = (): AssetsBinding | null => {
