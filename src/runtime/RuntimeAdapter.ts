@@ -243,7 +243,7 @@ export function createMockHttpObjects(request: PlatformRequest): {
 
   const responseData = {
     statusCode: 200,
-    headers: { 'Content-Type': 'application/json' } as Record<string, string | string[]>,
+    headers: { 'content-type': 'application/json' } as Record<string, string | string[]>,
     body: null as Tbody,
   };
 
@@ -268,7 +268,22 @@ export function createMockHttpObjects(request: PlatformRequest): {
     writeHead: function (statusCode: number, headers?: Record<string, string | string[]>): object {
       responseData.statusCode = statusCode;
       if (headers) {
-        responseData.headers = { ...responseData.headers, ...headers };
+        const normalizedHeaders: Record<string, string | string[]> = {};
+        for (const [key, value] of Object.entries(headers)) {
+          normalizedHeaders[key.toLowerCase()] = value;
+        }
+        responseData.headers = { ...responseData.headers, ...normalizedHeaders };
+      }
+
+      // Auto-detect streaming for SSE
+      if (responseData.headers['content-type'] === 'text/event-stream') {
+        // @ts-ignore - ReadableStream/TransformStream might not be in all TS envs type definitions
+        if (typeof TransformStream !== 'undefined') {
+          // @ts-ignore
+          const stream = new TransformStream();
+          responseData.body = stream.readable;
+          this._writer = stream.writable.getWriter();
+        }
       }
       return this;
     },
@@ -277,15 +292,27 @@ export function createMockHttpObjects(request: PlatformRequest): {
       return this;
     },
     end: function (chunk?: string | Buffer): object {
+      if (this._writer) {
+        if (chunk) this._writer.write(new TextEncoder().encode(String(chunk)));
+        this._writer.close();
+        return this;
+      }
+
       if (chunk !== undefined) {
         responseData.body = chunk;
       }
       return this;
     },
     write: function (chunk: string | Buffer): boolean {
+      if (this._writer) {
+        this._writer.write(new TextEncoder().encode(String(chunk)));
+        return true;
+      }
+
       responseData.body = chunk;
       return true;
     },
+    _writer: null as unknown,
   };
 
   return { req, res, responseData };

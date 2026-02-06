@@ -69,9 +69,9 @@ const resolveRedisConfig = (
   password: string;
   db: number;
 } => {
-  const host = overrides.redisHost ?? Env.REDIS_HOST ?? '127.0.0.1';
-  const port = overrides.redisPort ?? Env.REDIS_PORT ?? 6379;
-  const password = overrides.redisPassword ?? Env.REDIS_PASSWORD ?? '';
+  const host = overrides.redisHost ?? Env.get('REDIS_HOST', '127.0.0.1');
+  const port = overrides.redisPort ?? Env.getInt('REDIS_PORT', 6379);
+  const password = overrides.redisPassword ?? Env.get('REDIS_PASSWORD', '');
   const db = overrides.redisDb ?? Env.getInt('REDIS_DB', 0);
 
   return { host, port, password, db };
@@ -87,9 +87,10 @@ const resolveSigningConfig = (
 } => {
   const keyId = overrides.keyId ?? Env.get('REDIS_PROXY_KEY_ID', '');
   const secretRaw = overrides.secret ?? Env.get('REDIS_PROXY_SECRET', '');
-  const secret = secretRaw.trim() === '' ? (Env.APP_KEY ?? '') : secretRaw;
-  const requireSigningEnv = Env.REDIS_PROXY_REQUIRE_SIGNING;
-  const requireSigning = requireSigningEnv ? true : overrides.requireSigning === true;
+  const secret = secretRaw.trim() === '' ? Env.get('APP_KEY', '') : secretRaw;
+  const requireSigningEnv = Env.getBool('REDIS_PROXY_REQUIRE_SIGNING', true);
+  const hasCredentials = keyId.trim() !== '' && secret.trim() !== '';
+  const requireSigning = requireSigningEnv ? hasCredentials : overrides.requireSigning === true;
   const signingWindowMs =
     overrides.signingWindowMs ?? Env.getInt('REDIS_PROXY_SIGNING_WINDOW_MS', 60000);
 
@@ -169,8 +170,25 @@ const getRedisModule = async (): Promise<typeof import('ioredis')> => {
 };
 
 const createClient = async (config: ProxyConfig): Promise<RedisClient> => {
-  const module = await getRedisModule();
-  const client = new module.default({
+  const module = (await getRedisModule()) as unknown as Record<string, unknown>;
+  const moduleDefault = module['default'] as Record<string, unknown> | undefined;
+  const candidates = [
+    module['Redis'],
+    module['default'],
+    moduleDefault?.['Redis'],
+    moduleDefault?.['default'],
+    module,
+  ];
+  const RedisCtor = candidates.find((candidate) => typeof candidate === 'function') as
+    | (new (options: unknown) => RedisClient)
+    | undefined;
+  if (typeof RedisCtor !== 'function') {
+    throw ErrorFactory.createConfigError(
+      "Redis proxy could not resolve a Redis constructor from 'ioredis'."
+    );
+  }
+
+  const client = new RedisCtor({
     host: config.redis.host,
     port: config.redis.port,
     password: config.redis.password,
@@ -178,7 +196,8 @@ const createClient = async (config: ProxyConfig): Promise<RedisClient> => {
     maxRetriesPerRequest: null,
   }) as RedisClient;
 
-  if (typeof client.connect === 'function') {
+  const status = (client as { status?: string }).status;
+  if (typeof client.connect === 'function' && (status === 'end' || status === 'close')) {
     await client.connect();
   }
 
@@ -195,7 +214,7 @@ const executeCommand = async (
   const candidate = (client as unknown as Record<string, unknown>)[lower];
 
   if (typeof candidate === 'function') {
-    return (candidate as (...input: unknown[]) => Promise<unknown>)(...args);
+    return (candidate as (...input: unknown[]) => Promise<unknown>).apply(client, args);
   }
 
   if (typeof client.call === 'function') {
@@ -261,7 +280,7 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
       const client = await createClient(config);
       const pingFn = (client as unknown as { ping?: () => Promise<unknown> }).ping;
       if (typeof pingFn === 'function') {
-        await pingFn();
+        await pingFn.apply(client);
       } else {
         await executeCommand(client, 'PING', []);
       }

@@ -1,39 +1,62 @@
 /**
- * Direct MySQL Test Route
- * Tests packages/db-mysql adapter directly with Cloudflare Workers TCP sockets
+ * Redis Test Routes
+ * Tests Redis connectivity via Durable Object pool and proxy from Cloudflare Workers
  */
 
-import { databaseConfig } from '@config/database';
+import { Cloudflare } from '@config/cloudflare';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-import { Database } from '@orm/Database';
+import type { CacheDriver } from 'packages/cache-redis/src';
+import { RedisProxyAdapter, RedisWorkersDurableObjectAdapter } from 'packages/cache-redis/src';
+
+const runRedisTest = async (driver: CacheDriver, label: string) => {
+  const key = `zt:redis-test:${label}:${Date.now()}`;
+  const value = { ok: true, ts: new Date().toISOString() };
+
+  await driver.set(key, value, 30);
+  const read = await driver.get<typeof value>(key);
+  const exists = await driver.has(key);
+  await driver.delete(key);
+  const existsAfterDelete = await driver.has(key);
+
+  return {
+    key,
+    wrote: value,
+    read,
+    exists,
+    existsAfterDelete,
+  };
+};
 
 /**
- * Test direct MySQL connection using packages/db-mysql adapter
+ * Test Redis via Durable Object pool binding (REDIS_POOL)
  */
-export const testDirectMysqlConnection = async (_req: IRequest, res: IResponse): Promise<void> => {
+export const testRedisDurableObject = async (_req: IRequest, res: IResponse): Promise<void> => {
   try {
-    // Use Database with MySQL adapter directly (pull full config from databaseConfig)
-    const mysqlConfig = { ...databaseConfig.connections['mysql'] };
-    const db = Database.create(mysqlConfig);
+    if (Cloudflare.getWorkersEnv() === null) {
+      throw ErrorFactory.createConfigError(
+        'Durable Object test requires Cloudflare Workers runtime.'
+      );
+    }
 
-    // Test basic query
-    const result = await db.query('SELECT 1 as test_value, NOW() as current_time');
+    const driver = RedisWorkersDurableObjectAdapter.create();
+    const result = await runRedisTest(driver, 'do');
 
     res.json({
       success: true,
-      message: 'Direct MySQL connection test successful',
-      data: result,
-      adapter: 'packages/db-mysql',
+      message: 'Redis Durable Object test successful',
+      adapter: 'packages/cache-redis (Durable Object pool)',
       runtime: 'Cloudflare Workers',
+      data: result,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: 'Direct MySQL connection failed',
+      error: 'Redis Durable Object test failed',
       details: String(error),
-      adapter: 'packages/db-mysql',
+      adapter: 'packages/cache-redis (Durable Object pool)',
       runtime: 'Cloudflare Workers',
       timestamp: new Date().toISOString(),
     });
@@ -41,45 +64,28 @@ export const testDirectMysqlConnection = async (_req: IRequest, res: IResponse):
 };
 
 /**
- * Test direct MySQL CRUD operations
+ * Test Redis via HTTP proxy
  */
-export const testDirectMysqlCrud = async (_req: IRequest, res: IResponse): Promise<void> => {
+export const testRedisProxy = async (_req: IRequest, res: IResponse): Promise<void> => {
   try {
-    const mysqlConfig = { ...databaseConfig.connections['mysql'] };
-    const db = Database.create(mysqlConfig);
-    const tableName = `test_direct_${Date.now()}`;
-
-    // Create table
-    await db.execute(
-      `CREATE TEMPORARY TABLE ${tableName} (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`
-    );
-
-    // Insert data
-    await db.execute(`INSERT INTO ${tableName} (name) VALUES (?)`, ['direct_test']);
-
-    // Query data
-    const result = await db.query(`SELECT * FROM ${tableName} WHERE name = ?`, ['direct_test']);
+    const driver = RedisProxyAdapter.create();
+    const result = await runRedisTest(driver, 'proxy');
 
     res.json({
       success: true,
-      message: 'Direct MySQL CRUD test successful',
-      data: {
-        created: true,
-        inserted: true,
-        queried: result,
-        tableName,
-      },
-      adapter: 'packages/db-mysql',
-      runtime: 'Cloudflare Workers',
+      message: 'Redis proxy test successful',
+      adapter: 'packages/cache-redis (proxy)',
+      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      data: result,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: 'Direct MySQL CRUD test failed',
+      error: 'Redis proxy test failed',
       details: String(error),
-      adapter: 'packages/db-mysql',
-      runtime: 'Cloudflare Workers',
+      adapter: 'packages/cache-redis (proxy)',
+      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });
   }

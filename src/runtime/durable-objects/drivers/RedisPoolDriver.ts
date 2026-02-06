@@ -57,7 +57,8 @@ const createClient = async (): Promise<RedisClient> => {
     db: cfg.db,
   }) as RedisClient;
 
-  if (typeof client.connect === 'function') {
+  const status = (client as { status?: string }).status;
+  if (typeof client.connect === 'function' && (status === 'end' || status === 'close')) {
     await client.connect();
   }
 
@@ -77,7 +78,7 @@ const executeCommand = async (
   const lower = trimmed.toLowerCase();
   const candidate = (client as unknown as Record<string, unknown>)[lower];
   if (typeof candidate === 'function') {
-    return (candidate as (...args: unknown[]) => Promise<unknown>)(...params);
+    return (candidate as (...args: unknown[]) => Promise<unknown>).apply(client, params);
   }
 
   if (typeof client.call === 'function') {
@@ -110,7 +111,7 @@ const health = async (): Promise<PoolDriverHealth> => {
     const client = await createClient();
     const pingFn = (client as unknown as { ping?: () => Promise<unknown> }).ping;
     if (typeof pingFn === 'function') {
-      await pingFn();
+      await pingFn.apply(client);
     } else {
       await executeCommand(client, 'PING', []);
     }

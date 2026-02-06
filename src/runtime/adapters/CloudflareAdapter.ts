@@ -204,10 +204,16 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
     }
   }
 
-  let body: string = '';
+  let body: BodyInit | null = null;
   if (response.body !== null && response.body !== undefined) {
     if (typeof response.body === 'string') {
       body = response.body;
+    } else if (
+      typeof ReadableStream !== 'undefined' &&
+      (response.body instanceof ReadableStream ||
+        response.body?.constructor?.name === 'ReadableStream')
+    ) {
+      body = response.body as ReadableStream;
     } else {
       body = response.body.toString();
     }

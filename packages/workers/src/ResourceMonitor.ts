@@ -88,6 +88,15 @@ const safeUptime = (): number => {
   }
 };
 
+const safeProcessCpuUsage = (): NodeJS.CpuUsage => {
+  if (!process?.cpuUsage) return { user: 0, system: 0 };
+  try {
+    return process.cpuUsage();
+  } catch {
+    return { user: 0, system: 0 };
+  }
+};
+
 export type ResourceSnapshot = {
   timestamp: Date;
   cpu: {
@@ -300,7 +309,7 @@ const captureSnapshot = (): ResourceSnapshot => {
       pid: process.pid,
       uptime: process.uptime(),
       memoryUsage: process.memoryUsage(),
-      cpuUsage: process.cpuUsage(),
+      cpuUsage: safeProcessCpuUsage(),
     },
   };
 };

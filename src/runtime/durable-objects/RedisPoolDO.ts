@@ -49,6 +49,7 @@ export class ZinTrustRedisPoolDurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    // console.log('[ZinTrustRedisPoolDurableObject] fetch request:', request.url);
     return this.delegate.fetch(request);
   }
 }

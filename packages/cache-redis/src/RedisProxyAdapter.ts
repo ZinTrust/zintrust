@@ -22,7 +22,9 @@ const resolveBaseUrl = (): string => {
 
 const buildProxySettings = (): ProxySettings => {
   const baseUrl = resolveBaseUrl();
-  const keyId = Env.get('REDIS_PROXY_KEY_ID', '') || undefined;
+  const rawKeyId = Env.get('REDIS_PROXY_KEY_ID', '').trim();
+  const fallbackKeyId = (Env.APP_NAME ?? 'zintrust').trim().toLowerCase().replaceAll(/\s+/g, '_');
+  const keyId = (rawKeyId !== '' ? rawKeyId : fallbackKeyId) || undefined;
   const secret = Env.get('REDIS_PROXY_SECRET', '') || Env.APP_KEY || undefined;
   const timeoutMs = Env.getInt('REDIS_PROXY_TIMEOUT_MS', Env.ZT_PROXY_TIMEOUT_MS);
 

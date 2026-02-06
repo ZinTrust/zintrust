@@ -5,17 +5,17 @@
 
 import type { IRouter } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
-import { testDirectMysqlConnection, testDirectMysqlCrud } from '@routes/DirectMysqlTestRoutes';
+import { testRedisDurableObject, testRedisProxy } from '@routes/DirectMysqlTestRoutes';
 
 /**
  * Register direct MySQL test routes
  */
 export const registerDirectMysqlTestRoutes = (router: IRouter): void => {
   // Basic connection test
-  Router.get(router, '/test/direct-mysql/connection', testDirectMysqlConnection);
+  Router.get(router, '/test/wg-do', testRedisDurableObject);
 
   // CRUD operations test
-  Router.get(router, '/test/direct-mysql/crud', testDirectMysqlCrud);
+  Router.get(router, '/test/wg-pr', testRedisProxy);
 };
 
 export default registerDirectMysqlTestRoutes;

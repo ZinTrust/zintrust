@@ -4,9 +4,9 @@
  * Sealed namespace for immutability
  */
 
+import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { Cloudflare } from '@config/cloudflare';
 import type {
   RedisConfig,
   WorkerConfig,
@@ -78,8 +78,25 @@ export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORe
     );
   }
 
-  const { Redis } = resolveIORedis();
-  const client = new Redis({
+  const module = resolveIORedis() as unknown as Record<string, unknown>;
+  const moduleDefault = module['default'] as Record<string, unknown> | undefined;
+  const candidates = [
+    module['Redis'],
+    module['default'],
+    moduleDefault?.['Redis'],
+    moduleDefault?.['default'],
+    module,
+  ];
+  const RedisCtor = candidates.find((candidate) => typeof candidate === 'function') as
+    | (new (options: unknown) => IORedis)
+    | undefined;
+  if (typeof RedisCtor !== 'function') {
+    throw ErrorFactory.createConfigError(
+      "Workers Redis driver could not resolve a Redis constructor from 'ioredis'."
+    );
+  }
+
+  const client = new RedisCtor({
     host: config.host,
     port: config.port,
     password: config.password,
