@@ -1,4 +1,3 @@
-import type { Readable } from '@node-singletons/stream';
 import {
   MultipartParserRegistry,
   NodeSingletons,
@@ -133,7 +132,8 @@ const handleFileUpload = (
     encoding,
     size: 0,
     path: tmpPath,
-    stream: () => NodeSingletons.fs.createReadStream(tmpPath) as unknown as Readable,
+    stream: () =>
+      NodeSingletons.fs.createReadStream(tmpPath) as unknown as NodeSingletons.fs.ReadStream,
     cleanup: async () => {
       await safeUnlink(tmpPath);
       ctx.createdPaths.delete(tmpPath);
