@@ -348,7 +348,7 @@ export const ValidationSchemas = {
     },
     driver: {
       type: 'string' as const,
-      allowedValues: ['db', 'redis', 'memory', ''],
+      allowedValues: ['db', 'database', 'redis', 'memory', ''],
       optional: true,
     },
     search: {

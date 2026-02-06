@@ -1,4 +1,4 @@
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { Env, ErrorFactory, Logger } from '@zintrust/core';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import type { WorkerRecord } from '../storage/WorkerStore';
@@ -106,7 +106,7 @@ async function getWorkersFromPersistence(
 ): Promise<PersistenceResult> {
   const offset = (page - 1) * limit;
 
-  const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'] ?? 'memory';
+  const persistenceDriver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory');
   const isMixedPersistence = persistenceDriver === 'database' || persistenceDriver === 'db';
 
   if (driverFilter) {
@@ -157,7 +157,7 @@ async function getWorkersFromMixedPersistence(
 ): Promise<PersistenceResult> {
   try {
     const dbRecords = await WorkerFactory.listPersistedRecords(
-      { driver: 'database' },
+      { driver: 'database', connection: 'mysql' },
       { offset, limit }
     );
     const redisRecords = await WorkerFactory.listPersistedRecords(
@@ -410,7 +410,7 @@ function applySorting(
 }
 
 async function getQueueData(): Promise<QueueData> {
-  const queueDriver = process.env.QUEUE_DRIVER || 'redis';
+  const queueDriver = Env.get('QUEUE_DRIVER', 'redis');
 
   try {
     // Get queue statistics based on QUEUE_DRIVER
