@@ -529,6 +529,10 @@ export const useEnsureDbConnected = async (
 export function useDatabase(config?: DatabaseConfig, connection = 'default'): IDatabase {
   if (databaseInstances.has(connection) === false) {
     if (config === undefined) {
+      // Diagnostic logging
+      Logger.error('[DEBUG] Database instances keys:', Array.from(databaseInstances.keys()));
+      Logger.error('[DEBUG] Requesting connection:', connection);
+
       throw ErrorFactory.createConfigError(
         `Database connection '${connection}' is not registered. ` +
           `Call useDatabase(config, '${connection}') during startup to register it.`

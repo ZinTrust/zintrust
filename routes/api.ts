@@ -45,7 +45,7 @@ function registerRootRoute(router: IRouter): void {
     res.json({
       framework: 'ZinTrust Framework',
       app_name: Env.APP_NAME,
-      version: '0.1.0',
+      version: '0.1.41',
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
     });

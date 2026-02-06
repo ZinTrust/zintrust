@@ -1,3 +1,4 @@
+import { appConfig } from '@/config';
 import Logger from '@config/logger';
 import type { IRouter } from '@core-routes/Router';
 import * as path from '@node-singletons/path';
@@ -36,25 +37,18 @@ const tryImportRoutesFromAppBase = async (
 ): Promise<RoutesModule | undefined> => {
   if (resolvedBasePath === '') return undefined;
 
-  const candidates = [
-    // Dev (tsx)
-    path.join(resolvedBasePath, 'routes', 'api.ts'),
-    // Production build output
-    path.join(resolvedBasePath, 'dist', 'routes', 'api.js'),
-    // Fallback (in case someone transpiles without /dist)
-    path.join(resolvedBasePath, 'routes', 'api.js'),
-  ];
+  const routerPath = appConfig.isDevelopment()
+    ? path.join(resolvedBasePath, 'routes', 'api.ts')
+    : path.join(resolvedBasePath, 'dist', 'routes', 'api.js');
 
-  for (const candidate of candidates) {
-    try {
-      const url = pathToFileURL(candidate).href;
-      // eslint-disable-next-line no-await-in-loop
-      return (await import(url)) as RoutesModule;
-    } catch (error: unknown) {
-      Logger.error('error :', error);
-      // keep trying
-    }
+  try {
+    const url = pathToFileURL(routerPath).href;
+    return (await import(url)) as RoutesModule;
+  } catch (error: unknown) {
+    Logger.error('error :', error);
+    // keep trying
   }
+  // }
 
   return undefined;
 };
