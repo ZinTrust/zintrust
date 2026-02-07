@@ -14,7 +14,6 @@ const buildRecord = (overrides: Partial<WorkerRecord> = {}): WorkerRecord => ({
   autoStart: overrides.autoStart ?? false,
   concurrency: overrides.concurrency ?? 1,
   region: overrides.region ?? null,
-  processorPath: overrides.processorPath ?? null,
   features: overrides.features ?? null,
   infrastructure: overrides.infrastructure ?? null,
   datacenter: overrides.datacenter ?? null,

@@ -1,7 +1,6 @@
 // Worker Configuration Types
 export interface WorkerConfiguration {
   processorSpec?: string | null;
-  processorPath?: string | null;
   activeStatus?: boolean | null;
   [key: string]: string | number | boolean | null | undefined | object;
 }

@@ -186,7 +186,7 @@ const createObservabilityConfig = (): WorkerObservabilityConfig => ({
   },
   opentelemetry: {
     enabled: Env.getBool('WORKER_OPENTELEMETRY_ENABLED', false),
-    endpoint: Env.get('WORKER_OPENTELEMETRY_ENDPOINT', 'http://localhost:4318'),
+    endpoint: Env.get('WORKER_OPENTELEMETRY_ENDPOINT', 'http://localhost:7777'),
   },
   datadog: {
     enabled: Env.getBool('WORKER_DATADOG_ENABLED', false),
@@ -195,10 +195,7 @@ const createObservabilityConfig = (): WorkerObservabilityConfig => ({
 });
 
 const createProcessorSpecConfig = (): WorkersGlobalConfig['processorSpec'] => ({
-  remoteAllowlist: Env.get('REMOTE_PROCESSOR_ALLOWLIST', 'wk.zintrust.com')
-    .split(',')
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0),
+  remoteAllowlist: ['wk.zintrust.com'],
   fetchTimeoutMs: Env.getInt('PROCESSOR_FETCH_TIMEOUT', 30000),
   fetchMaxSizeBytes: Env.getInt('PROCESSOR_FETCH_MAX_SIZE', 512 * 1024),
   retryAttempts: Env.getInt('PROCESSOR_FETCH_RETRY_ATTEMPTS', 3),

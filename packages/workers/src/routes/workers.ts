@@ -31,7 +31,7 @@ function registerCoreWorkerRoutes(r: IRouter): void {
   Router.post(r, '/create', withCreateWorkerValidation(controller.create));
   Router.put(r, '/:name', withCreateWorkerValidation(controller.update));
 
-  // Worker editing with custom validation that handles processorPath mapping
+  // Worker editing with custom validation that handles mapping
   Router.put(r, '/:name/edit', withEditWorkerValidation(controller.update));
   Router.post(
     r,

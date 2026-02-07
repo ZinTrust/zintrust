@@ -14,7 +14,7 @@ import { withWorkerNameValidation } from './WorkerNameSanitizer';
 
 /**
  * Composite middleware for worker edit validation
- * Maps processorPath to processor for validation and validates all editable fields
+ * Maps processorSpec to processor for validation and validates all editable fields
  */
 export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler => {
   return async (req: IRequest, res: IResponse): Promise<void> => {
@@ -22,17 +22,12 @@ export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler =>
       const data = req.data();
       const currentBody = req.getBody() as Record<string, unknown>;
 
-      // Map processorSpec/processorPath to processor for validation if provided
+      // Map processorSpec/processorSpec to processor for validation if provided
       let mappedBody = { ...currentBody };
       if (data['processorSpec'] && !data['processor']) {
         mappedBody = {
           ...mappedBody,
           processor: data['processorSpec'],
-        };
-      } else if (data['processorPath'] && !data['processor']) {
-        mappedBody = {
-          ...mappedBody,
-          processor: data['processorPath'], // Map for validation
         };
       }
 
@@ -44,8 +39,7 @@ export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler =>
         [
           'name',
           'queueName',
-          'processor', // Validated field (mapped from processorPath)
-          'processorPath', // Original field
+          'processor', // Validated field (mapped from processorSpec)
           'processorSpec',
           'version',
           'options', // Skip strict validation for editing

@@ -111,7 +111,6 @@ export type WorkerFactoryConfig = {
   version?: string;
   queueName: string;
   processor: (job: Job) => Promise<unknown>;
-  processorPath?: string;
   processorSpec?: string;
   options?: WorkerOptions;
   autoStart?: boolean;
@@ -1486,12 +1485,10 @@ const ensureWorkerStoreConfigured = async (): Promise<void> => {
 
 const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerRecord => {
   const now = new Date();
-  const decodedProcessorPath = config.processorPath
-    ? decodeProcessorPathEntities(config.processorPath)
-    : null;
+
   const normalizedProcessorSpec = config.processorSpec
     ? normalizeProcessorSpec(config.processorSpec)
-    : decodedProcessorPath;
+    : null;
   return {
     name: config.name,
     queueName: config.queueName,
@@ -1501,7 +1498,6 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     concurrency: config.options?.concurrency ?? 1,
     region: config.datacenter?.primaryRegion ?? null,
     processorSpec: normalizedProcessorSpec ?? null,
-    processorPath: decodedProcessorPath,
     activeStatus: config.activeStatus ?? true,
     features: config.features ? { ...config.features } : null,
     infrastructure: config.infrastructure ? { ...config.infrastructure } : null,
@@ -1847,6 +1843,7 @@ const registerWorkerInstance = (params: {
   WorkerRegistry.register({
     name: config.name,
     config: {},
+    activeStatus: config.activeStatus ?? true,
     version: workerVersion,
     region: config.datacenter?.primaryRegion,
     queues: [queueName],
@@ -1860,6 +1857,7 @@ const registerWorkerInstance = (params: {
           region: config.datacenter?.primaryRegion ?? 'unknown',
           queueName,
           concurrency: options?.concurrency ?? 1,
+          activeStatus: config.activeStatus ?? true,
           startedAt: new Date(),
           stoppedAt: null,
           lastProcessedAt: null,
@@ -2248,6 +2246,47 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Update active status for a worker
+   */
+  async setWorkerActiveStatus(
+    name: string,
+    activeStatus: boolean,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<void> {
+    const instance = workers.get(name);
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
+
+    if (instance) {
+      instance.config.activeStatus = activeStatus;
+    }
+
+    await store.update(name, { activeStatus, updatedAt: new Date() });
+    WorkerRegistry.setActiveStatus(name, activeStatus);
+
+    if (activeStatus === false && instance) {
+      await WorkerFactory.stop(name, persistenceOverride);
+    }
+  },
+
+  /**
+   * Get active status for a worker
+   */
+  async getWorkerActiveStatus(
+    name: string,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<boolean | null> {
+    const instance = workers.get(name);
+    if (instance?.config.activeStatus !== undefined) {
+      return instance.config.activeStatus;
+    }
+
+    const store = await getStoreForWorker(instance?.config, persistenceOverride);
+    const record = await store.get(name);
+    if (!record) return null;
+    return record.activeStatus ?? true;
+  },
+
+  /**
    * Update persisted worker record and in-memory config if running.
    */
   async update(
@@ -2284,7 +2323,6 @@ export const WorkerFactory = Object.freeze({
           concurrency: merged.concurrency ?? cfg.options?.concurrency,
         },
         processorSpec: merged.processorSpec ?? cfg.processorSpec,
-        processorPath: merged.processorPath ?? cfg.processorPath,
         activeStatus: merged.activeStatus ?? cfg.activeStatus,
         infrastructure: (merged.infrastructure as unknown) ?? cfg.infrastructure,
         features: (merged.features as unknown) ?? cfg.features,
@@ -2303,6 +2341,15 @@ export const WorkerFactory = Object.freeze({
 
     if (!instance) {
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    }
+
+    if (instance.config.activeStatus === false) {
+      throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
+    }
+
+    const persisted = await store.get(name);
+    if (persisted?.activeStatus === false) {
+      throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
 
     const version = instance.config.version ?? '1.0.0';
@@ -2368,7 +2415,7 @@ export const WorkerFactory = Object.freeze({
 
     let processor = await resolveProcessor(name);
 
-    const spec = record.processorSpec ?? record.processorPath ?? undefined;
+    const spec = record.processorSpec ?? undefined;
     if (!processor && spec) {
       try {
         processor = await resolveProcessorSpec(spec);
@@ -2388,7 +2435,6 @@ export const WorkerFactory = Object.freeze({
       queueName: record.queueName,
       version: record.version ?? undefined,
       processor,
-      processorPath: record.processorPath ?? undefined,
       processorSpec: record.processorSpec ?? undefined,
       activeStatus: record.activeStatus ?? true,
       autoStart: true, // Override to true when manually starting

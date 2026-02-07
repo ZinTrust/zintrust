@@ -15,7 +15,6 @@ export type WorkerRecord = {
   concurrency: number;
   region: string | null;
   processorSpec?: string | null;
-  processorPath?: string | null;
   activeStatus?: boolean;
   features?: Record<string, unknown> | null;
   infrastructure?: Record<string, unknown> | null;
@@ -58,8 +57,7 @@ const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   auto_start: record.autoStart,
   concurrency: record.concurrency,
   region: record.region,
-  processor_spec: record.processorSpec ?? record.processorPath ?? null,
-  processor_path: record.processorPath ?? null,
+  processor_spec: record.processorSpec ?? null,
   active_status: record.activeStatus ?? true,
   features: record.features ? JSON.stringify(record.features) : null,
   infrastructure: record.infrastructure ? JSON.stringify(record.infrastructure) : null,
@@ -98,12 +96,7 @@ const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
     autoStart: Boolean(row['auto_start'] ?? false),
     concurrency: Number(row['concurrency'] ?? 0),
     region: row['region'] ? String(row['region']) : null,
-    processorSpec: row['processor_spec']
-      ? String(row['processor_spec'])
-      : row['processor_path']
-        ? String(row['processor_path'])
-        : null,
-    processorPath: row['processor_path'] ? String(row['processor_path']) : null,
+    processorSpec: String(row['processor_spec']),
     activeStatus: row['active_status'] === undefined ? true : Boolean(row['active_status']),
     features: parseJson(row['features']),
     infrastructure: parseJson(row['infrastructure']),

@@ -41,9 +41,9 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "advanced-test-pg",
-  "queueName": "advanced-queue-pg",
-  "processor": "app/Workers/AdvancEmailWorker.ts",
+  "name": "advanced-test-mysql2",
+  "queueName": "advanced-queue-mysql2",
+  "processor": "file:///opt/homebrew/var/www/Sites/zintrust/app/Workers/AdvancEmailWorker.ts",
   "version": "1.0.0",
   "options": {
     "concurrency": 5,
@@ -53,7 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
-  "persistence": { "driver": "redis"},
+  "persistence": { "driver": "database", "connection": "mysql"  },
     "redis": {
       "env": true,
       "host": "REDIS_HOST",

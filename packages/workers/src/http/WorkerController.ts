@@ -62,12 +62,10 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
 
     const rawProcessor = body.processor;
     let processor: (job: Job) => Promise<unknown>;
-    let processorPath: string | undefined;
     let processorSpec: string | undefined;
 
     if (typeof rawProcessor === 'string') {
       processorSpec = rawProcessor;
-      processorPath = rawProcessor;
       const resolved = await WorkerFactory.resolveProcessorSpec(rawProcessor);
       if (!resolved) {
         res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
@@ -86,7 +84,6 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
     const config = {
       ...(body as WorkerFactoryConfig),
       processor,
-      processorPath,
       processorSpec,
     };
 
@@ -404,12 +401,6 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
         res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
         return;
       }
-    } else if (typeof updateData['processorPath'] === 'string') {
-      const resolved = await WorkerFactory.resolveProcessorSpec(updateData['processorPath']);
-      if (!resolved) {
-        res.setStatus(400).json({ error: 'Processor path could not be resolved' });
-        return;
-      }
     }
 
     // Note: driver is determined by persistence configuration, not stored in worker record
@@ -419,10 +410,6 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
       name,
       updatedAt: new Date(),
     };
-
-    if (updatedRecord.processorSpec === undefined && updatedRecord.processorPath) {
-      updatedRecord.processorSpec = updatedRecord.processorPath;
-    }
 
     (updatedRecord.infrastructure as unknown as InfrastructureConfig).persistence.driver = driver;
 
