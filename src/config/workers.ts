@@ -194,6 +194,20 @@ const createObservabilityConfig = (): WorkerObservabilityConfig => ({
   },
 });
 
+const createProcessorSpecConfig = (): WorkersGlobalConfig['processorSpec'] => ({
+  remoteAllowlist: Env.get('REMOTE_PROCESSOR_ALLOWLIST', 'wk.zintrust.com')
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0),
+  fetchTimeoutMs: Env.getInt('PROCESSOR_FETCH_TIMEOUT', 30000),
+  fetchMaxSizeBytes: Env.getInt('PROCESSOR_FETCH_MAX_SIZE', 512 * 1024),
+  retryAttempts: Env.getInt('PROCESSOR_FETCH_RETRY_ATTEMPTS', 3),
+  retryBackoffMs: Env.getInt('PROCESSOR_FETCH_RETRY_BACKOFF_MS', 1000),
+  cacheDefaultTtlSeconds: Env.getInt('PROCESSOR_CACHE_DEFAULT_TTL', 60 * 60),
+  cacheMaxTtlSeconds: Env.getInt('PROCESSOR_CACHE_MAX_TTL', 7 * 24 * 60 * 60),
+  cacheMaxSizeBytes: Env.getInt('PROCESSOR_CACHE_MAX_SIZE', 50 * 1024 * 1024),
+});
+
 const createWorkersConfig = (): WorkersGlobalConfig => {
   const overrides: WorkersConfigOverrides =
     StartupConfigFileRegistry.get<WorkersConfigOverrides>(StartupConfigFile.Workers) ?? {};
@@ -202,6 +216,7 @@ const createWorkersConfig = (): WorkersGlobalConfig => {
     enabled: Env.getBool('WORKERS_ENABLED', true),
     healthCheckInterval: Env.getInt('WORKERS_HEALTH_CHECK_INTERVAL', 60),
     clusterMode: Env.getBool('WORKERS_CLUSTER_MODE', false),
+    processorSpec: createProcessorSpecConfig(),
     autoScaling: createAutoScalingConfig(),
     costOptimization: createCostOptimizationConfig(),
     compliance: createComplianceConfig(),
@@ -215,6 +230,10 @@ const createWorkersConfig = (): WorkersGlobalConfig => {
     intervalMs: createIntervalConfig(),
     healthCheckInterval: overrides.healthCheckInterval ?? baseConfig.healthCheckInterval,
     clusterMode: overrides.clusterMode ?? baseConfig.clusterMode,
+    processorSpec: {
+      ...baseConfig.processorSpec,
+      ...overrides.processorSpec,
+    },
     autoScaling: {
       ...baseConfig.autoScaling,
       ...overrides.autoScaling,

@@ -112,8 +112,10 @@ export type WorkerFactoryConfig = {
   queueName: string;
   processor: (job: Job) => Promise<unknown>;
   processorPath?: string;
+  processorSpec?: string;
   options?: WorkerOptions;
   autoStart?: boolean;
+  activeStatus?: boolean;
   infrastructure?: {
     redis?: RedisConfigInput;
     persistence?: WorkerPersistenceConfig;
@@ -201,6 +203,19 @@ const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
 
+type CachedProcessor = {
+  code: string;
+  processor: WorkerFactoryConfig['processor'];
+  etag?: string;
+  cachedAt: number;
+  expiresAt: number;
+  size: number;
+  lastAccess: number;
+};
+
+const processorCache = new Map<string, CachedProcessor>();
+let processorCacheSize = 0;
+
 const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => {
   const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') as 'memory' | 'redis' | 'database';
 
@@ -255,6 +270,99 @@ const decodeProcessorPathEntities = (value: string): string =>
     .replaceAll(/&#x2F;/gi, '/')
     .replaceAll('&#47;', '/')
     .replaceAll(/&sol;/gi, '/');
+
+const isUrlSpec = (spec: string): boolean => {
+  if (spec.startsWith('url:')) return true;
+  return spec.includes('://');
+};
+
+const normalizeProcessorSpec = (spec: string): string =>
+  spec.startsWith('url:') ? spec.slice(4) : spec;
+
+const parseCacheControl = (value: string | null): { maxAge?: number } => {
+  if (!value) return {};
+  const parts = value.split(',').map((part) => part.trim().toLowerCase());
+  const maxAge = parts.find((part) => part.startsWith('max-age='));
+  if (!maxAge) return {};
+  const raw = maxAge.split('=')[1];
+  const parsed = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) ? { maxAge: parsed } : {};
+};
+
+const getProcessorSpecConfig = (): typeof workersConfig.processorSpec =>
+  workersConfig.processorSpec;
+
+const computeSha256 = async (value: string): Promise<string> => {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
+    const data = new TextEncoder().encode(value);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  if (typeof NodeSingletons.createHash === 'function') {
+    return NodeSingletons.createHash('sha256').update(value).digest('hex');
+  }
+
+  return String(Math.random()).slice(2);
+};
+
+const toBase64 = (value: string): string => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf-8').toString('base64');
+  }
+
+  if (typeof globalThis !== 'undefined' && typeof globalThis.btoa === 'function') {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return globalThis.btoa(binary);
+  }
+
+  return value;
+};
+
+const getCachedProcessor = (key: string): CachedProcessor | null => {
+  const entry = processorCache.get(key);
+  if (!entry) return null;
+  const now = Date.now();
+  if (entry.expiresAt <= now) {
+    processorCache.delete(key);
+    processorCacheSize -= entry.size;
+    return null;
+  }
+  entry.lastAccess = now;
+  return entry;
+};
+
+const evictCacheIfNeeded = (maxSize: number): void => {
+  if (processorCacheSize <= maxSize) return;
+  const entries = Array.from(processorCache.entries());
+  entries.sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+  for (const [key, entry] of entries) {
+    if (processorCacheSize <= maxSize) break;
+    processorCache.delete(key);
+    processorCacheSize -= entry.size;
+  }
+};
+
+const setCachedProcessor = (key: string, entry: CachedProcessor, maxSize: number): void => {
+  const existing = processorCache.get(key);
+  if (existing) {
+    processorCacheSize -= existing.size;
+  }
+  processorCache.set(key, entry);
+  processorCacheSize += entry.size;
+  evictCacheIfNeeded(maxSize);
+};
+
+const isAllowedRemoteHost = (host: string): boolean => {
+  const allowlist = getProcessorSpecConfig().remoteAllowlist.map((value) => value.toLowerCase());
+  return allowlist.includes(host.toLowerCase());
+};
 
 const waitForWorkerConnection = async (
   worker: Worker,
@@ -330,6 +438,247 @@ const sanitizeProcessorPath = (value: string): string => {
   return isAbsolutePath ? base : path.resolve(process.cwd(), relativePath);
 };
 
+const stripProcessorExtension = (value: string): string => value.replace(/\.(ts|js)$/i, '');
+
+const normalizeModulePath = (value: string): string => value.replaceAll('\\', '/');
+
+const buildProcessorModuleCandidates = (modulePath: string, resolvedPath: string): string[] => {
+  const candidates: string[] = [];
+  const normalized = normalizeModulePath(modulePath.trim());
+  const normalizedResolved = normalizeModulePath(resolvedPath);
+
+  if (normalized.startsWith('/app/')) {
+    candidates.push(`@app/${stripProcessorExtension(normalized.slice(5))}`);
+  } else if (normalized.startsWith('app/')) {
+    candidates.push(`@app/${stripProcessorExtension(normalized.slice(4))}`);
+  }
+
+  const appIndex = normalizedResolved.lastIndexOf('/app/');
+  if (appIndex !== -1) {
+    const relative = normalizedResolved.slice(appIndex + 5);
+    if (relative) {
+      candidates.push(`@app/${stripProcessorExtension(relative)}`);
+    }
+  }
+
+  return Array.from(new Set(candidates));
+};
+
+const pickProcessorFromModule = (
+  mod: Record<string, unknown> | undefined,
+  source: string
+): WorkerFactoryConfig['processor'] | undefined => {
+  const candidate = mod?.['default'] ?? mod?.['processor'] ?? mod?.['handler'] ?? mod?.['handle'];
+  if (typeof candidate !== 'function') {
+    const keys = mod ? Object.keys(mod) : [];
+    Logger.warn(
+      `Module imported from ${source} but no valid processor function found (exported: ${keys.join(', ')})`
+    );
+    return undefined;
+  }
+
+  return candidate as WorkerFactoryConfig['processor'];
+};
+
+const extractZinTrustProcessor = (
+  mod: Record<string, unknown> | undefined,
+  source: string
+): WorkerFactoryConfig['processor'] | undefined => {
+  const candidate = mod?.['ZinTrustProcessor'];
+  if (typeof candidate !== 'function') {
+    const keys = mod ? Object.keys(mod) : [];
+    Logger.warn(
+      `Module imported from ${source} but missing ZinTrustProcessor export (exported: ${keys.join(', ')})`
+    );
+    return undefined;
+  }
+
+  return candidate as WorkerFactoryConfig['processor'];
+};
+
+const readResponseBody = async (response: Response, maxSize: number): Promise<string> => {
+  const contentLength = response.headers.get('content-length');
+  if (contentLength) {
+    const size = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(size) && size > maxSize) {
+      throw ErrorFactory.createConfigError('PROCESSOR_FETCH_SIZE_EXCEEDED');
+    }
+  }
+
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > maxSize) {
+    throw ErrorFactory.createConfigError('PROCESSOR_FETCH_SIZE_EXCEEDED');
+  }
+
+  return new TextDecoder().decode(buffer);
+};
+
+const computeCacheTtlSeconds = (
+  config: ReturnType<typeof getProcessorSpecConfig>,
+  cacheControl: { maxAge?: number }
+): number =>
+  Math.min(config.cacheMaxTtlSeconds, cacheControl.maxAge ?? config.cacheDefaultTtlSeconds);
+
+const refreshCachedProcessor = (
+  existing: CachedProcessor,
+  config: ReturnType<typeof getProcessorSpecConfig>,
+  cacheControl: { maxAge?: number }
+): WorkerFactoryConfig['processor'] => {
+  const ttl = computeCacheTtlSeconds(config, cacheControl);
+  const now = Date.now();
+  existing.expiresAt = now + ttl * 1000;
+  existing.lastAccess = now;
+  return existing.processor;
+};
+
+const cacheProcessorFromResponse = async (params: {
+  response: Response;
+  normalized: string;
+  config: ReturnType<typeof getProcessorSpecConfig>;
+  cacheKey: string;
+}): Promise<WorkerFactoryConfig['processor']> => {
+  const { response, normalized, config, cacheKey } = params;
+  const code = await readResponseBody(response, config.fetchMaxSizeBytes);
+  const dataUrl = `data:text/javascript;base64,${toBase64(code)}`;
+  const mod = await import(dataUrl);
+  const processor = extractZinTrustProcessor(mod as Record<string, unknown>, normalized);
+  if (!processor) {
+    throw ErrorFactory.createConfigError('INVALID_PROCESSOR_URL_EXPORT');
+  }
+
+  const cacheControl = parseCacheControl(response.headers.get('cache-control'));
+  const ttl = computeCacheTtlSeconds(config, cacheControl);
+  const size = new TextEncoder().encode(code).byteLength;
+  const now = Date.now();
+  setCachedProcessor(
+    cacheKey,
+    {
+      code,
+      processor,
+      etag: response.headers.get('etag') ?? undefined,
+      cachedAt: now,
+      expiresAt: now + ttl * 1000,
+      size,
+      lastAccess: now,
+    },
+    config.cacheMaxSizeBytes
+  );
+
+  return processor;
+};
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+
+const fetchProcessorAttempt = async (params: {
+  normalized: string;
+  config: ReturnType<typeof getProcessorSpecConfig>;
+  cacheKey: string;
+  existing: CachedProcessor | undefined;
+  attempt: number;
+  maxAttempts: number;
+}): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  const { normalized, config, cacheKey, existing, attempt, maxAttempts } = params;
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), config.fetchTimeoutMs);
+
+  try {
+    const headers: Record<string, string> = {};
+    if (existing?.etag) headers['If-None-Match'] = existing.etag;
+
+    const response = await fetch(normalized, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+
+    if (response.status === 304 && existing) {
+      const cacheControl = parseCacheControl(response.headers.get('cache-control'));
+      return refreshCachedProcessor(existing, config, cacheControl);
+    }
+
+    if (!response.ok) {
+      throw ErrorFactory.createConfigError(`PROCESSOR_FETCH_FAILED:${response.status}`);
+    }
+
+    return await cacheProcessorFromResponse({ response, normalized, config, cacheKey });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      Logger.error('Processor URL fetch timeout', error);
+    } else {
+      Logger.error('Processor URL fetch failed', error);
+    }
+
+    if (attempt >= maxAttempts) {
+      return undefined;
+    }
+
+    await delay(config.retryBackoffMs * attempt);
+    return fetchProcessorAttempt({
+      normalized,
+      config,
+      cacheKey,
+      existing,
+      attempt: attempt + 1,
+      maxAttempts,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const resolveProcessorFromUrl = async (
+  spec: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  const normalized = normalizeProcessorSpec(spec);
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch (error) {
+    Logger.error('Invalid processor URL spec', error);
+    return undefined;
+  }
+
+  if (parsed.protocol === 'file:') {
+    const filePath = decodeURIComponent(parsed.pathname);
+    return resolveProcessorFromPath(filePath);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    Logger.error('Invalid processor URL protocol', parsed.protocol);
+    return undefined;
+  }
+
+  if (!isAllowedRemoteHost(parsed.host)) {
+    Logger.error('Invalid processor URL host', parsed.host);
+    return undefined;
+  }
+
+  const config = getProcessorSpecConfig();
+  const cacheKey = await computeSha256(normalized);
+  const cached = getCachedProcessor(cacheKey);
+  if (cached) return cached.processor;
+
+  return fetchProcessorAttempt({
+    normalized,
+    config,
+    cacheKey,
+    existing: processorCache.get(cacheKey),
+    attempt: 1,
+    maxAttempts: Math.max(1, config.retryAttempts),
+  });
+};
+
+const resolveProcessorSpec = async (
+  spec: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  if (!spec) return undefined;
+  if (isUrlSpec(spec)) return resolveProcessorFromUrl(spec);
+  return resolveProcessorFromPath(spec);
+};
+
 const resolveProcessorFromPath = async (
   modulePath: string
 ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
@@ -339,23 +688,34 @@ const resolveProcessorFromPath = async (
   const resolved = sanitizeProcessorPath(trimmed);
   if (!resolved) return undefined;
 
-  try {
-    const mod = await import(resolved);
-    const candidate = mod?.default ?? mod?.processor ?? mod?.handler ?? mod?.handle;
-
-    if (typeof candidate !== 'function') {
-      Logger.warn(
-        `Module imported from ${resolved} but no valid processor function found (exported: ${Object.keys(mod)})`
-      );
+  const importProcessorFromCandidates = async (
+    candidates: string[]
+  ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+    if (candidates.length === 0) return undefined;
+    const [candidatePath, ...rest] = candidates;
+    try {
+      const mod = await import(candidatePath);
+      const candidate = pickProcessorFromModule(mod as Record<string, unknown>, candidatePath);
+      if (candidate) return candidate;
+    } catch (candidateError) {
+      Logger.debug(`Processor module candidate import failed: ${candidatePath}`, candidateError);
     }
 
-    return typeof candidate === 'function'
-      ? (candidate as WorkerFactoryConfig['processor'])
-      : undefined;
+    return importProcessorFromCandidates(rest);
+  };
+
+  try {
+    const mod = await import(resolved);
+    const candidate = pickProcessorFromModule(mod as Record<string, unknown>, resolved);
+    if (candidate) return candidate;
   } catch (err) {
+    const candidates = buildProcessorModuleCandidates(trimmed, resolved);
+    const resolvedCandidate = await importProcessorFromCandidates(candidates);
+    if (resolvedCandidate) return resolvedCandidate;
     Logger.error(`Failed to import processor from path: ${resolved}`, err);
-    return undefined;
   }
+
+  return undefined;
 };
 
 const resolveProcessor = async (
@@ -367,7 +727,7 @@ const resolveProcessor = async (
   const pathHint = processorPathRegistry.get(name);
   if (pathHint) {
     try {
-      const resolved = await resolveProcessorFromPath(pathHint);
+      const resolved = await resolveProcessorSpec(pathHint);
       if (resolved) return resolved;
     } catch (error) {
       Logger.error(`Failed to resolve processor module for "${name}"`, error);
@@ -1129,6 +1489,9 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
   const decodedProcessorPath = config.processorPath
     ? decodeProcessorPathEntities(config.processorPath)
     : null;
+  const normalizedProcessorSpec = config.processorSpec
+    ? normalizeProcessorSpec(config.processorSpec)
+    : decodedProcessorPath;
   return {
     name: config.name,
     queueName: config.queueName,
@@ -1137,7 +1500,9 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     autoStart: resolveAutoStart(config),
     concurrency: config.options?.concurrency ?? 1,
     region: config.datacenter?.primaryRegion ?? null,
+    processorSpec: normalizedProcessorSpec ?? null,
     processorPath: decodedProcessorPath,
+    activeStatus: config.activeStatus ?? true,
     features: config.features ? { ...config.features } : null,
     infrastructure: config.infrastructure ? { ...config.infrastructure } : null,
     datacenter: config.datacenter ? { ...config.datacenter } : null,
@@ -1558,6 +1923,7 @@ export const WorkerFactory = Object.freeze({
   registerProcessorPaths,
   registerProcessorResolver,
   resolveProcessorPath,
+  resolveProcessorSpec,
 
   /**
    * Create new worker with full setup
@@ -1917,6 +2283,9 @@ export const WorkerFactory = Object.freeze({
           ...cfg.options,
           concurrency: merged.concurrency ?? cfg.options?.concurrency,
         },
+        processorSpec: merged.processorSpec ?? cfg.processorSpec,
+        processorPath: merged.processorPath ?? cfg.processorPath,
+        activeStatus: merged.activeStatus ?? cfg.activeStatus,
         infrastructure: (merged.infrastructure as unknown) ?? cfg.infrastructure,
         features: (merged.features as unknown) ?? cfg.features,
         datacenter: (merged.datacenter as unknown) ?? cfg.datacenter,
@@ -1959,7 +2328,7 @@ export const WorkerFactory = Object.freeze({
    */
   async listPersisted(
     persistenceOverride?: WorkerPersistenceConfig,
-    options?: { offset?: number; limit?: number; search?: string }
+    options?: { offset?: number; limit?: number; search?: string; includeInactive?: boolean }
   ): Promise<string[]> {
     const records = await WorkerFactory.listPersistedRecords(persistenceOverride, options);
     return records.map((record) => record.name);
@@ -1967,15 +2336,18 @@ export const WorkerFactory = Object.freeze({
 
   async listPersistedRecords(
     persistenceOverride?: WorkerPersistenceConfig,
-    options?: { offset?: number; limit?: number; search?: string }
+    options?: { offset?: number; limit?: number; search?: string; includeInactive?: boolean }
   ): Promise<WorkerRecord[]> {
+    const includeInactive = options?.includeInactive === true;
     if (!persistenceOverride) {
       await ensureWorkerStoreConfigured();
-      return workerStore.list(options);
+      const records = await workerStore.list(options);
+      return includeInactive ? records : records.filter((record) => record.activeStatus !== false);
     }
 
     const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-    return store.list(options);
+    const records = await store.list(options);
+    return includeInactive ? records : records.filter((record) => record.activeStatus !== false);
   },
 
   /**
@@ -1990,11 +2362,16 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
     }
 
+    if (record.activeStatus === false) {
+      throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
+    }
+
     let processor = await resolveProcessor(name);
 
-    if (!processor && record.processorPath) {
+    const spec = record.processorSpec ?? record.processorPath ?? undefined;
+    if (!processor && spec) {
       try {
-        processor = await resolveProcessorFromPath(record.processorPath);
+        processor = await resolveProcessorSpec(spec);
       } catch (error) {
         Logger.error(`Failed to resolve processor module for "${name}"`, error);
       }
@@ -2002,7 +2379,7 @@ export const WorkerFactory = Object.freeze({
 
     if (!processor) {
       throw ErrorFactory.createConfigError(
-        `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorPath.`
+        `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`
       );
     }
 
@@ -2012,6 +2389,8 @@ export const WorkerFactory = Object.freeze({
       version: record.version ?? undefined,
       processor,
       processorPath: record.processorPath ?? undefined,
+      processorSpec: record.processorSpec ?? undefined,
+      activeStatus: record.activeStatus ?? true,
       autoStart: true, // Override to true when manually starting
       options: { concurrency: record.concurrency } as WorkerOptions,
       infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],

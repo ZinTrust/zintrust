@@ -13,7 +13,8 @@
     "../env.d.ts",
     "../packages/workers/tests/unit/createQueueWorker.patch-coverage.test.ts",
     "../packages/workers/tests/unit/createQueueWorker.coverage.test.ts",
-    "../packages/workers/tests/unit/BroadcastNotificationWorker.patch-coverage.test.ts"
+    "../packages/workers/tests/unit/BroadcastNotificationWorker.patch-coverage.test.ts",
+    "../packages/workers/tests/unit/ProcessorSpecResolver.test.ts"
   ],
   "exclude": [
     "../node_modules",

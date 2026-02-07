@@ -2,9 +2,7 @@
 // Keep this list limited to database adapters needed by runtime config.
 
 import '@/zintrust.plugins.ts';
-import '@runtime/durable-objects/drivers/MySqlPoolDriver';
-import '@runtime/durable-objects/drivers/PostgresPoolDriver';
-import '@runtime/durable-objects/drivers/RedisPoolDriver';
+import '@/zintrust.plugins.wg.ts';
 
 export const WorkerAdapterImports = Object.freeze({
   loaded: true,

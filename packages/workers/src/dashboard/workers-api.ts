@@ -33,7 +33,7 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
   const offset = (page - 1) * limit;
 
   // Get workers from persistence based on configuration
-  const persistence = await getWorkersFromPersistence(page, limit, query.driver);
+  const persistence = await getWorkersFromPersistence(page, limit, query.driver, query);
 
   // Apply filters
   let filteredWorkers = applyFilters(persistence.workers, query);
@@ -102,7 +102,8 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
 async function getWorkersFromPersistence(
   page: number,
   limit: number,
-  driverFilter?: WorkerDriver
+  driverFilter: WorkerDriver | undefined,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   const offset = (page - 1) * limit;
 
@@ -110,25 +111,26 @@ async function getWorkersFromPersistence(
   const isMixedPersistence = persistenceDriver === 'database' || persistenceDriver === 'db';
 
   if (driverFilter) {
-    return getWorkersByDriverFilter(driverFilter, offset, limit);
+    return getWorkersByDriverFilter(driverFilter, offset, limit, query);
   }
 
   if (isMixedPersistence) {
-    return getWorkersFromMixedPersistence(offset, limit);
+    return getWorkersFromMixedPersistence(offset, limit, query);
   }
 
-  return getWorkersFromSinglePersistence(persistenceDriver, offset, limit);
+  return getWorkersFromSinglePersistence(persistenceDriver, offset, limit, query);
 }
 
 async function getWorkersByDriverFilter(
   driverFilter: WorkerDriver,
   offset: number,
-  limit: number
+  limit: number,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   try {
     const driverRecords = await WorkerFactory.listPersistedRecords(
       { driver: driverFilter },
-      { offset, limit }
+      { offset, limit, includeInactive: query.includeInactive }
     );
     const workers = transformToWorkerData(driverRecords, driverFilter);
 
@@ -153,16 +155,17 @@ async function getWorkersByDriverFilter(
 
 async function getWorkersFromMixedPersistence(
   offset: number,
-  limit: number
+  limit: number,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   try {
     const dbRecords = await WorkerFactory.listPersistedRecords(
       { driver: 'database', connection: 'mysql' },
-      { offset, limit }
+      { offset, limit, includeInactive: query.includeInactive }
     );
     const redisRecords = await WorkerFactory.listPersistedRecords(
       { driver: 'redis' },
-      { offset, limit }
+      { offset, limit, includeInactive: query.includeInactive }
     );
 
     const workers = [
@@ -195,13 +198,14 @@ async function getWorkersFromMixedPersistence(
 async function getWorkersFromSinglePersistence(
   persistenceDriver: string,
   offset: number,
-  limit: number
+  limit: number,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   try {
     const normalizedDriver = normalizeDriver(persistenceDriver);
     const driverRecords = await WorkerFactory.listPersistedRecords(
       { driver: normalizedDriver },
-      { offset, limit }
+      { offset, limit, includeInactive: query.includeInactive }
     );
     const workers = transformToWorkerData(driverRecords, normalizedDriver);
 
@@ -265,6 +269,7 @@ const buildWorkerFromRecord = (record: WorkerRecord, driver: WorkerDriver): Work
     version: record.version ?? '1.0.0',
     autoStart: record.autoStart,
     lastError: record.lastError,
+    activeStatus: record.activeStatus ?? true,
   };
 
   return buildWorkerFromRaw(rawData, driver);
@@ -283,6 +288,7 @@ const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): Wo
     avgTime: workerData.avgTime || 0,
     memory: workerData.memory || 0,
     autoStart: workerData.autoStart || false,
+    activeStatus: workerData.activeStatus ?? true,
     details: workerData.details || {
       configuration: {} as WorkerConfiguration,
       health: {} as WorkerHealth,
@@ -648,6 +654,8 @@ function buildWorkerConfiguration(
       concurrency: null,
       region: null,
       processorPath: null,
+      processorSpec: null,
+      activeStatus: null,
       version: worker.version,
       features: null,
       infrastructure: null,
@@ -660,6 +668,8 @@ function buildWorkerConfiguration(
     concurrency: persisted.concurrency ?? null,
     region: persisted.region ?? null,
     processorPath: persisted.processorPath ?? null,
+    processorSpec: persisted.processorSpec ?? persisted.processorPath ?? null,
+    activeStatus: persisted.activeStatus ?? true,
     version: persisted.version ?? worker.version,
     features: persisted.features ?? null,
     infrastructure: persisted.infrastructure ?? null,

@@ -117,7 +117,7 @@ const createWorkersCacheDriver = (config: RedisCacheConfig): CacheDriver => {
         host: config.host,
         port: config.port,
         password: config.password,
-        db: config.database,
+        db: config.database ?? 0,
       }) as unknown as IoRedisClient;
     }
 

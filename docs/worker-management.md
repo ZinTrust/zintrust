@@ -130,6 +130,19 @@ Redis configuration is now managed through the queue configuration system. See `
 | LOG_CHANNEL | Output channel    | console |
 | LOG_FORMAT  | text or json      | text    |
 
+**Processor Specs**
+
+| Key                              | Description                     | Default         |
+| -------------------------------- | ------------------------------- | --------------- |
+| REMOTE_PROCESSOR_ALLOWLIST       | Allowed hostnames for URL specs | wk.zintrust.com |
+| PROCESSOR_FETCH_TIMEOUT          | URL fetch timeout (ms)          | 30000           |
+| PROCESSOR_FETCH_MAX_SIZE         | Max URL payload size (bytes)    | 524288          |
+| PROCESSOR_FETCH_RETRY_ATTEMPTS   | URL fetch retry attempts        | 3               |
+| PROCESSOR_FETCH_RETRY_BACKOFF_MS | URL fetch initial backoff (ms)  | 1000            |
+| PROCESSOR_CACHE_DEFAULT_TTL      | Default cache TTL (seconds)     | 3600            |
+| PROCESSOR_CACHE_MAX_TTL          | Max cache TTL (seconds)         | 604800          |
+| PROCESSOR_CACHE_MAX_SIZE         | Cache size limit (bytes)        | 52428800        |
+
 ## CLI Quick List
 
 ```bash
@@ -180,6 +193,29 @@ export async function initializeWorkers() {
     },
   });
 }
+```
+
+**Processor specs**
+
+You can register processors using file paths (legacy) or URL specs (recommended for production):
+
+```json
+{ "processor": "processors/email-sender.js" }
+```
+
+```json
+{ "processor": "https://wk.zintrust.com/app/AdvancEmailWorker.js" }
+```
+
+Remote processors must export a named `ZinTrustProcessor` function.
+
+**Worker active status**
+
+You can pause workers without deleting them by setting `activeStatus` to false. Inactive workers
+will not start automatically and are hidden by default in listings.
+
+```json
+{ "name": "email-sender", "activeStatus": false }
 ```
 
 **Auto-start behavior**

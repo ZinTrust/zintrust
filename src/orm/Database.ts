@@ -6,6 +6,7 @@
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { SupportedDriver } from '@migrations/enum';
 import { EventEmitter } from '@node-singletons/events';
@@ -22,6 +23,8 @@ import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
+export type RawValue = { __raw: string };
+
 export interface IDatabase {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -29,6 +32,7 @@ export interface IDatabase {
   query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
+  raw(value: string): RawValue;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
   table(name: string): IQueryBuilder;
   onBeforeQuery(handler: (query: string, params: unknown[]) => void): void;
@@ -413,6 +417,9 @@ const createDbFacade = (input: {
     query: queryHandlers.query,
     queryOne: queryHandlers.queryOne,
     execute: queryHandlers.execute,
+    raw(value: string): RawValue {
+      return { __raw: value };
+    },
     transaction: queryHandlers.transaction,
     table(name) {
       return QueryBuilder.create(name, db);

@@ -572,6 +572,16 @@ export type WorkersGlobalConfig = {
   enabled: boolean;
   healthCheckInterval: number;
   clusterMode: boolean;
+  processorSpec: {
+    remoteAllowlist: ReadonlyArray<string>;
+    fetchTimeoutMs: number;
+    fetchMaxSizeBytes: number;
+    retryAttempts: number;
+    retryBackoffMs: number;
+    cacheDefaultTtlSeconds: number;
+    cacheMaxTtlSeconds: number;
+    cacheMaxSizeBytes: number;
+  };
   autoScaling: {
     enabled: boolean;
     interval: number;
@@ -602,6 +612,7 @@ export type WorkersConfigOverrides = Partial<{
   enabled: boolean;
   healthCheckInterval: number;
   clusterMode: boolean;
+  processorSpec: Partial<WorkersGlobalConfig['processorSpec']>;
   autoScaling: Partial<WorkersGlobalConfig['autoScaling']>;
   costOptimization: Partial<WorkersGlobalConfig['costOptimization']>;
   compliance: Partial<WorkersGlobalConfig['compliance']>;

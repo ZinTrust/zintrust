@@ -1,6 +1,11 @@
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 
-type Tbody = string | Buffer | null;
+type StreamWriter = {
+  write: (chunk: Uint8Array) => void;
+  close: () => void;
+};
+
+type Tbody = string | Buffer | ReadableStream<Uint8Array> | null;
 
 /**
  * Request body type for handlers
@@ -217,6 +222,77 @@ export const ErrorResponse = Object.freeze({
 /**
  * Create mock Node.js request/response objects for platform compatibility
  */
+const coerceFirstForwardedFor = (value: unknown): string | undefined => {
+  if (Array.isArray(value)) {
+    const first = (value as unknown[])[0];
+    return typeof first === 'string' && first.trim() !== '' ? first.trim() : undefined;
+  }
+  if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  return undefined;
+};
+
+const resolveRemoteAddress = (request: PlatformRequest): string => {
+  const forwardedFor = coerceFirstForwardedFor(request.headers?.['x-forwarded-for']);
+  if (typeof request.remoteAddr === 'string' && request.remoteAddr.trim() !== '') {
+    return request.remoteAddr.trim();
+  }
+  return (forwardedFor?.split(',')[0]?.trim() ?? '') || '0.0.0.0';
+};
+
+const createResponseData = (): {
+  statusCode: number;
+  headers: Record<string, string | string[]>;
+  body: Tbody;
+} => ({
+  statusCode: 200,
+  headers: { 'content-type': 'application/json' },
+  body: null,
+});
+
+const createMockRequest = (
+  request: PlatformRequest,
+  remoteAddress: string
+): Record<string, unknown> => ({
+  method: request.method,
+  url: request.path,
+  headers: request.headers,
+  body: request.body ?? undefined,
+  remoteAddress,
+  socket: {
+    remoteAddress,
+  },
+  connection: {
+    remoteAddress,
+  },
+});
+
+const applyWriteHead = (
+  responseData: { statusCode: number; headers: Record<string, string | string[]>; body: Tbody },
+  statusCode: number,
+  headers?: Record<string, string | string[]>
+): StreamWriter | null => {
+  responseData.statusCode = statusCode;
+  if (headers) {
+    const normalizedHeaders: Record<string, string | string[]> = {};
+    for (const [key, value] of Object.entries(headers)) {
+      normalizedHeaders[key.toLowerCase()] = value;
+    }
+    responseData.headers = { ...responseData.headers, ...normalizedHeaders };
+  }
+
+  if (responseData.headers['content-type'] === 'text/event-stream') {
+    // @ts-ignore - ReadableStream/TransformStream might not be in all TS envs type definitions
+    if (typeof TransformStream !== 'undefined') {
+      // @ts-ignore
+      const stream = new TransformStream();
+      responseData.body = stream.readable;
+      return stream.writable.getWriter() as StreamWriter;
+    }
+  }
+
+  return null;
+};
+
 export function createMockHttpObjects(request: PlatformRequest): {
   req: Record<string, unknown>;
   res: Record<string, unknown>;
@@ -226,65 +302,15 @@ export function createMockHttpObjects(request: PlatformRequest): {
     body: Tbody;
   };
 } {
-  const coerceFirstForwardedFor = (value: unknown): string | undefined => {
-    if (Array.isArray(value)) {
-      const first = (value as unknown[])[0];
-      return typeof first === 'string' && first.trim() !== '' ? first.trim() : undefined;
-    }
-    if (typeof value === 'string' && value.trim() !== '') return value.trim();
-    return undefined;
-  };
-
-  const forwardedFor = coerceFirstForwardedFor(request.headers?.['x-forwarded-for']);
-  const remoteAddress =
-    typeof request.remoteAddr === 'string' && request.remoteAddr.trim() !== ''
-      ? request.remoteAddr.trim()
-      : (forwardedFor?.split(',')[0]?.trim() ?? '') || '0.0.0.0';
-
-  const responseData = {
-    statusCode: 200,
-    headers: { 'content-type': 'application/json' } as Record<string, string | string[]>,
-    body: null as Tbody,
-  };
-
-  // Create minimal mock objects for compatibility
-  const req = {
-    method: request.method,
-    url: request.path,
-    headers: request.headers,
-    body: request.body ?? undefined,
-    remoteAddress,
-    socket: {
-      remoteAddress,
-    },
-    connection: {
-      remoteAddress,
-    },
-  };
+  const remoteAddress = resolveRemoteAddress(request);
+  const responseData = createResponseData();
+  const req = createMockRequest(request, remoteAddress);
 
   const res = {
     statusCode: 200,
     headers: responseData.headers,
     writeHead: function (statusCode: number, headers?: Record<string, string | string[]>): object {
-      responseData.statusCode = statusCode;
-      if (headers) {
-        const normalizedHeaders: Record<string, string | string[]> = {};
-        for (const [key, value] of Object.entries(headers)) {
-          normalizedHeaders[key.toLowerCase()] = value;
-        }
-        responseData.headers = { ...responseData.headers, ...normalizedHeaders };
-      }
-
-      // Auto-detect streaming for SSE
-      if (responseData.headers['content-type'] === 'text/event-stream') {
-        // @ts-ignore - ReadableStream/TransformStream might not be in all TS envs type definitions
-        if (typeof TransformStream !== 'undefined') {
-          // @ts-ignore
-          const stream = new TransformStream();
-          responseData.body = stream.readable;
-          this._writer = stream.writable.getWriter();
-        }
-      }
+      this._writer = applyWriteHead(responseData, statusCode, headers);
       return this;
     },
     setHeader: function (name: string, value: string): object {
@@ -293,7 +319,9 @@ export function createMockHttpObjects(request: PlatformRequest): {
     },
     end: function (chunk?: string | Buffer): object {
       if (this._writer) {
-        if (chunk) this._writer.write(new TextEncoder().encode(String(chunk)));
+        if (chunk !== undefined && chunk !== null) {
+          this._writer.write(new TextEncoder().encode(String(chunk)));
+        }
         this._writer.close();
         return this;
       }
@@ -312,7 +340,7 @@ export function createMockHttpObjects(request: PlatformRequest): {
       responseData.body = chunk;
       return true;
     },
-    _writer: null as unknown,
+    _writer: null as StreamWriter | null,
   };
 
   return { req, res, responseData };

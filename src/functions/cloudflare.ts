@@ -18,6 +18,34 @@ import { getKernel } from '@runtime/getKernel';
 
 import '@runtime/WorkerAdapterImports';
 
+let workersAutoStartPromise: Promise<void> | null = null;
+
+const ensureWorkersAutoStart = async (): Promise<void> => {
+  if (workersAutoStartPromise !== null) return workersAutoStartPromise;
+
+  workersAutoStartPromise = (async () => {
+    try {
+      const workers = await import('@zintrust/workers');
+      if (workers?.WorkerInit?.initialize) {
+        await workers.WorkerInit.initialize({
+          enableResourceMonitoring: false,
+          enableHealthMonitoring: false,
+          enableAutoScaling: false,
+          registerShutdownHandlers: false,
+        });
+      }
+
+      if (workers?.WorkerInit?.autoStartPersistedWorkers) {
+        await workers.WorkerInit.autoStartPersistedWorkers();
+      }
+    } catch (error) {
+      Logger.warn('Worker auto-start skipped in Workers runtime', error as Error);
+    }
+  })();
+
+  return workersAutoStartPromise;
+};
+
 const applyStartupConfigOverrides = (): void => {
   const globalAny = globalThis as {
     __zintrustStartupConfigOverrides?: Map<string, unknown>;
@@ -61,6 +89,8 @@ export default {
       await injectIoredisModule();
 
       const kernel = await getKernel();
+
+      await ensureWorkersAutoStart();
 
       const adapter = CloudflareAdapter.create({
         handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {

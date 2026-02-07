@@ -204,7 +204,7 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
     }
   }
 
-  let body: BodyInit | null = null;
+  let body: string | ReadableStream<Uint8Array> | null = null;
   if (response.body !== null && response.body !== undefined) {
     if (typeof response.body === 'string') {
       body = response.body;
@@ -213,7 +213,7 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
       (response.body instanceof ReadableStream ||
         response.body?.constructor?.name === 'ReadableStream')
     ) {
-      body = response.body as ReadableStream;
+      body = response.body as unknown as ReadableStream;
     } else {
       body = response.body.toString();
     }

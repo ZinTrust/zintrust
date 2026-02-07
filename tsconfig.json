@@ -104,6 +104,7 @@
     "bin/**/*",
     "database/**/*",
     "packages/workers/src/**/*",
+    "packages/workers/migrations/**/*.ts",
     "packages/queue-redis/src/**/*",
     "env.d.ts",
     "processors"

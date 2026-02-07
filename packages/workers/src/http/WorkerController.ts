@@ -63,12 +63,14 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
     const rawProcessor = body.processor;
     let processor: (job: Job) => Promise<unknown>;
     let processorPath: string | undefined;
+    let processorSpec: string | undefined;
 
     if (typeof rawProcessor === 'string') {
+      processorSpec = rawProcessor;
       processorPath = rawProcessor;
-      const resolved = await WorkerFactory.resolveProcessorPath(rawProcessor);
+      const resolved = await WorkerFactory.resolveProcessorSpec(rawProcessor);
       if (!resolved) {
-        res.setStatus(400).json({ error: 'Processor path could not be resolved' });
+        res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
         return;
       }
       processor = resolved;
@@ -85,6 +87,7 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
       ...(body as WorkerFactoryConfig),
       processor,
       processorPath,
+      processorSpec,
     };
 
     await WorkerFactory.create(config);
@@ -114,6 +117,8 @@ async function start(req: IRequest, res: IResponse): Promise<void> {
       return;
     }
     const persistenceOverride = resolvePersistenceOverride(req);
+    const isActive = await ensureActiveWorker(name, persistenceOverride, res);
+    if (!isActive) return;
     const registered = WorkerRegistry.list().includes(name);
 
     if (!registered) {
@@ -138,6 +143,8 @@ async function stop(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
     const persistenceOverride = resolvePersistenceOverride(req);
+    const isActive = await ensureActiveWorker(name, persistenceOverride, res);
+    if (!isActive) return;
     await WorkerFactory.stop(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} stopped` });
   } catch (error) {
@@ -155,6 +162,8 @@ async function restart(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
     const persistenceOverride = resolvePersistenceOverride(req);
+    const isActive = await ensureActiveWorker(name, persistenceOverride, res);
+    if (!isActive) return;
     await WorkerFactory.restart(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} restarted` });
   } catch (error) {
@@ -190,6 +199,8 @@ async function setAutoStart(req: IRequest, res: IResponse): Promise<void> {
     }
 
     const persistenceOverride = resolvePersistenceOverride(req);
+    const isActive = await ensureActiveWorker(name, persistenceOverride, res);
+    if (!isActive) return;
 
     await WorkerFactory.setAutoStart(name, enabled, persistenceOverride);
 
@@ -209,6 +220,8 @@ async function pause(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
     const persistenceOverride = resolvePersistenceOverride(req);
+    const isActive = await ensureActiveWorker(name, persistenceOverride, res);
+    if (!isActive) return;
     await WorkerFactory.pause(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} paused` });
   } catch (error) {
@@ -226,6 +239,8 @@ async function resume(req: IRequest, res: IResponse): Promise<void> {
   try {
     const name = getParam(req, 'name');
     const persistenceOverride = resolvePersistenceOverride(req);
+    const isActive = await ensureActiveWorker(name, persistenceOverride, res);
+    if (!isActive) return;
     await WorkerFactory.resume(name, persistenceOverride);
     res.json({ ok: true, message: `Worker ${name} resumed` });
   } catch (error) {
@@ -305,6 +320,32 @@ const resolvePersistenceOverride = (
   return undefined;
 };
 
+const ensureActiveWorker = async (
+  name: string | undefined,
+  persistenceOverride:
+    | { driver: 'memory' }
+    | { driver: 'redis'; redis: { env: true }; keyPrefix?: string }
+    | { driver: 'database'; connection?: string; table?: string }
+    | undefined,
+  res: IResponse
+): Promise<boolean> => {
+  if (!name) return false;
+
+  const instance = WorkerFactory.get(name);
+  if (instance?.config?.activeStatus === false) {
+    res.setStatus(410).json({ error: 'Worker is inactive', code: 'WORKER_INACTIVE' });
+    return false;
+  }
+
+  const persisted = await WorkerFactory.getPersisted(name, persistenceOverride);
+  if (persisted?.activeStatus === false) {
+    res.setStatus(410).json({ error: 'Worker is inactive', code: 'WORKER_INACTIVE' });
+    return false;
+  }
+
+  return true;
+};
+
 /**
  * Get a specific worker instance
  * @param req.params.name - Worker name
@@ -357,6 +398,20 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
     // Validate and merge updates (excluding immutable fields)
     const { name: _name, driver: _driver, ...updateData } = reqData; // Remove immutable fields
 
+    if (typeof updateData['processorSpec'] === 'string') {
+      const resolved = await WorkerFactory.resolveProcessorSpec(updateData['processorSpec']);
+      if (!resolved) {
+        res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
+        return;
+      }
+    } else if (typeof updateData['processorPath'] === 'string') {
+      const resolved = await WorkerFactory.resolveProcessorSpec(updateData['processorPath']);
+      if (!resolved) {
+        res.setStatus(400).json({ error: 'Processor path could not be resolved' });
+        return;
+      }
+    }
+
     // Note: driver is determined by persistence configuration, not stored in worker record
     const updatedRecord = {
       ...currentRecord,
@@ -364,6 +419,10 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
       name,
       updatedAt: new Date(),
     };
+
+    if (updatedRecord.processorSpec === undefined && updatedRecord.processorPath) {
+      updatedRecord.processorSpec = updatedRecord.processorPath;
+    }
 
     (updatedRecord.infrastructure as unknown as InfrastructureConfig).persistence.driver = driver;
 
@@ -386,7 +445,11 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
     const currentInstance = WorkerFactory.get(name);
     let restartError: string | undefined;
 
-    if (currentInstance && currentInstance.status === 'running') {
+    if (
+      currentInstance &&
+      currentInstance.status === 'running' &&
+      (updatedRecord.activeStatus ?? currentRecord.activeStatus ?? true) !== false
+    ) {
       try {
         Logger.info(`Restarting worker ${name} to apply configuration changes`);
         await WorkerFactory.restart(name, persistenceOverride);

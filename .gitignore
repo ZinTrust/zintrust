@@ -94,3 +94,4 @@ tests/unit/EmailJobService.test.ts
 routes/DirectMysqlTestRoutes.ts
 routes/registerDirectMysqlTestRoutes.ts
 .wrangler
+src/zintrust.plugins.wg.ts

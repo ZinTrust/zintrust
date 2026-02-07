@@ -187,7 +187,7 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 async function autoStartPersistedWorkers(): Promise<void> {
   // Check if auto-start is enabled globally via environment variable
   Logger.debug('Auto-start check', {
-    envAutoStart: process.env['WORKER_AUTO_START'],
+    envAutoStart: Env.getBool('WORKER_AUTO_START', false),
     configAutoStart: workersConfig.defaultWorker?.autoStart,
   });
 
@@ -204,6 +204,9 @@ async function autoStartPersistedWorkers(): Promise<void> {
     });
 
     const candidates = records.filter((record) => {
+      if (record.activeStatus === false) {
+        return false;
+      }
       // If autoStart is explicitly true, always include
       if (record.autoStart === true) {
         return true;
