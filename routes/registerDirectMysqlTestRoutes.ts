@@ -5,7 +5,11 @@
 
 import type { IRouter } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
-import { testRedisDurableObject, testRedisProxy } from '@routes/DirectMysqlTestRoutes';
+import {
+  testRedisDurableObject,
+  testRedisProxy,
+  testWorkerProcessorUrl,
+} from '@routes/DirectMysqlTestRoutes';
 
 /**
  * Register direct MySQL test routes
@@ -16,6 +20,9 @@ export const registerDirectMysqlTestRoutes = (router: IRouter): void => {
 
   // CRUD operations test
   Router.get(router, '/test/wg-pr', testRedisProxy);
+
+  // Processor spec resolution test
+  Router.get(router, '/test/wg-ts', testWorkerProcessorUrl);
 };
 
 export default registerDirectMysqlTestRoutes;

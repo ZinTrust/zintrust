@@ -1,4 +1,5 @@
 {
+  "name": "zintrust-api",
   // Local development settings
   "env": {
     "worker": {
@@ -23,7 +24,6 @@
       ],
     },
     "development": {
-      "name": "zintrust-api",
       "main": "./src/functions/cloudflare.ts",
       "compatibility_date": "2025-04-21",
       "compatibility_flags": ["nodejs_compat"],

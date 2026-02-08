@@ -7,8 +7,11 @@ import { Cloudflare } from '@config/cloudflare';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import { WorkerFactory } from '@zintrust/workers';
 import type { CacheDriver } from 'packages/cache-redis/src';
 import { RedisProxyAdapter, RedisWorkersDurableObjectAdapter } from 'packages/cache-redis/src';
+
+const ADVANCED_WORKER_SPEC = 'https://wk.zintrust.com/AdvancEmailWorker.js';
 
 const runRedisTest = async (driver: CacheDriver, label: string) => {
   const key = `zt:redis-test:${label}:${Date.now()}`;
@@ -85,6 +88,35 @@ export const testRedisProxy = async (_req: IRequest, res: IResponse): Promise<vo
       error: 'Redis proxy test failed',
       details: String(error),
       adapter: 'packages/cache-redis (proxy)',
+      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      timestamp: new Date().toISOString(),
+    });
+  }
+};
+
+/**
+ * Test URL-based worker processor resolution (Cloudflare Workers)
+ */
+export const testWorkerProcessorUrl = async (_req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    const resolved = await WorkerFactory.resolveProcessorSpec(ADVANCED_WORKER_SPEC);
+    if (!resolved) {
+      throw ErrorFactory.createConfigError('PROCESSOR_SPEC_NOT_RESOLVED');
+    }
+
+    res.json({
+      success: true,
+      message: 'Processor spec resolved successfully',
+      spec: ADVANCED_WORKER_SPEC,
+      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Processor spec resolution failed',
+      spec: ADVANCED_WORKER_SPEC,
+      details: String(error),
       runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });

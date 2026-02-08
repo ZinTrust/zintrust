@@ -202,6 +202,7 @@ type ProcessorResolver = (
 const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
+const processorSpecRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 
 type CachedProcessor = {
   code: string;
@@ -263,6 +264,11 @@ const registerProcessorPaths = (paths: Record<string, string>): void => {
 
 const registerProcessorResolver = (resolver: ProcessorResolver): void => {
   processorResolvers.push(resolver);
+};
+
+const registerProcessorSpec = (spec: string, processor: WorkerFactoryConfig['processor']): void => {
+  if (!spec || typeof processor !== 'function') return;
+  processorSpecRegistry.set(normalizeProcessorSpec(spec), processor);
 };
 
 const decodeProcessorPathEntities = (value: string): string =>
@@ -675,6 +681,9 @@ const resolveProcessorSpec = async (
   spec: string
 ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
   if (!spec) return undefined;
+  const normalized = normalizeProcessorSpec(spec);
+  const prebuilt = processorSpecRegistry.get(normalized) ?? processorSpecRegistry.get(spec);
+  if (prebuilt) return prebuilt;
   if (isUrlSpec(spec)) return resolveProcessorFromUrl(spec);
   return resolveProcessorFromPath(spec);
 };
@@ -1929,6 +1938,7 @@ export const WorkerFactory = Object.freeze({
   registerProcessors,
   registerProcessorPaths,
   registerProcessorResolver,
+  registerProcessorSpec,
   resolveProcessorPath,
   resolveProcessorSpec,
 

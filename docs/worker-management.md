@@ -197,17 +197,45 @@ export async function initializeWorkers() {
 
 **Processor specs**
 
-You can register processors using file paths (legacy) or URL specs (recommended for production):
+Processor specs can be either file paths or URLs. Behavior differs by runtime:
+
+- **Node.js**: file paths and URL specs both work.
+- **Cloudflare Workers**: URL specs must be **prebuilt and registered** at build time. Dynamic
+  loading (like `import(data:...)` or `new Function()`) is blocked by the Workers runtime.
+
+**Examples**
 
 ```json
 { "processor": "processors/email-sender.js" }
 ```
 
 ```json
-{ "processor": "https://wk.zintrust.com/app/AdvancEmailWorker.js" }
+{ "processor": "https://wk.zintrust.com/AdvancEmailWorker.js" }
 ```
 
 Remote processors must export a named `ZinTrustProcessor` function.
+
+**Cloudflare Workers prebuild registry**
+
+When running on Workers, register all URL specs you expect to resolve in
+[src/zintrust.plugins.wg.ts](src/zintrust.plugins.wg.ts). The string stored in Redis/DB
+(`processor_spec`) must match the registered URL exactly.
+
+```typescript
+import { WorkerFactory } from '@zintrust/workers';
+import { ZinTrustProcessor as AdvancEmailProcessor } from '@app/Workers/AdvancEmailWorker';
+
+const PREBUILT_PROCESSOR_SPECS = [
+  {
+    spec: 'https://wk.zintrust.com/AdvancEmailWorker.js',
+    processor: AdvancEmailProcessor,
+  },
+];
+
+PREBUILT_PROCESSOR_SPECS.forEach(({ spec, processor }) => {
+  WorkerFactory.registerProcessorSpec(spec, processor);
+});
+```
 
 **Worker active status**
 
