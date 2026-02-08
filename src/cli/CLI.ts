@@ -37,6 +37,7 @@ import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
+import { SmtpProxyCommand } from '@cli/commands/SmtpProxyCommand';
 import { SqlServerProxyCommand } from '@cli/commands/SqlServerProxyCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
@@ -130,6 +131,7 @@ const registerCommands = (program: Command): void => {
     MongoDBProxyCommand.create(),
     SqlServerProxyCommand.create(),
     RedisProxyCommand.create(),
+    SmtpProxyCommand.create(),
     // Worker management commands
     WorkerCommands.createWorkerListCommand(),
     WorkerCommands.createWorkerStatusCommand(),

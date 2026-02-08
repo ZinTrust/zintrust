@@ -36,6 +36,84 @@ const decodeProcessorPath = (processor: string): string => {
     .replaceAll('%2D', '-'); // URL encoding for -
 };
 
+const validateUrlSpec = (
+  processor: string
+): { isValid: boolean; error?: { error: string; code: string } } => {
+  const normalized = normalizeUrlSpec(processor);
+  let parsed: URL;
+
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    return {
+      isValid: false,
+      error: { error: 'Invalid processor url', code: 'INVALID_PROCESSOR_URL' },
+    };
+  }
+
+  if (parsed.protocol === 'file:') {
+    const path = NodeSingletons.path;
+    const baseDir = path.resolve(process.cwd());
+    const resolved = path.resolve(baseDir, decodeURIComponent(parsed.pathname));
+
+    if (!resolved.startsWith(baseDir)) {
+      return {
+        isValid: false,
+        error: { error: 'Invalid processor path', code: 'INVALID_PROCESSOR_PATH_TRAVERSAL' },
+      };
+    }
+  } else {
+    if (parsed.protocol !== 'https:') {
+      return {
+        isValid: false,
+        error: { error: 'Invalid processor url', code: 'INVALID_PROCESSOR_URL' },
+      };
+    }
+
+    if (!isAllowedRemoteHost(parsed.host)) {
+      return {
+        isValid: false,
+        error: { error: 'Invalid processor url host', code: 'INVALID_PROCESSOR_URL_HOST' },
+      };
+    }
+  }
+
+  return { isValid: true };
+};
+
+const validateRelativePath = (
+  processor: string
+): { isValid: boolean; error?: { error: string; code: string } } => {
+  if (processor.includes('..') || processor.startsWith('/')) {
+    return {
+      isValid: false,
+      error: { error: 'Invalid processor path', code: 'INVALID_PROCESSOR_PATH' },
+    };
+  }
+
+  if (!PROCESSOR_PATH_PATTERN.test(processor)) {
+    return {
+      isValid: false,
+      error: { error: 'Invalid processor path', code: 'INVALID_PROCESSOR_EXTENSION' },
+    };
+  }
+
+  return { isValid: true };
+};
+
+const sanitizeAndResolvePath = (processor: string): { isValid: boolean; sanitized: string } => {
+  const sanitizedProcessor = processor.replaceAll(/[^a-zA-Z0-9/_.-]/g, '');
+  const path = NodeSingletons.path;
+  const baseDir = path.resolve(process.cwd());
+  const resolved = path.resolve(baseDir, sanitizedProcessor);
+
+  if (!resolved.startsWith(baseDir)) {
+    return { isValid: false, sanitized: processor };
+  }
+
+  return { isValid: true, sanitized: sanitizedProcessor };
+};
+
 export const withProcessorPathValidation = (handler: RouteHandler): RouteHandler => {
   return async (req: IRequest, res: IResponse): Promise<void> => {
     try {
@@ -56,86 +134,28 @@ export const withProcessorPathValidation = (handler: RouteHandler): RouteHandler
       processor = processor.trim();
 
       const isUrl = isUrlSpec(processor);
+      let validation: { isValid: boolean; error?: { error: string; code: string } };
 
       if (isUrl) {
-        const normalized = normalizeUrlSpec(processor);
-        let parsed: URL;
-        try {
-          parsed = new URL(normalized);
-        } catch {
-          return res.setStatus(400).json({
-            error: 'Invalid processor url',
-            message: 'Processor spec must be a valid URL',
-            code: 'INVALID_PROCESSOR_URL',
-          });
-        }
-
-        if (parsed.protocol === 'file:') {
-          const path = NodeSingletons.path;
-          const baseDir = path.resolve(process.cwd());
-          const resolved = path.resolve(baseDir, decodeURIComponent(parsed.pathname));
-          if (!resolved.startsWith(baseDir)) {
-            return res.setStatus(400).json({
-              error: 'Invalid processor path',
-              message: 'Processor path resolves outside of allowed base directory',
-              code: 'INVALID_PROCESSOR_PATH_TRAVERSAL',
-            });
-          }
-        } else {
-          if (parsed.protocol !== 'https:') {
-            return res.setStatus(400).json({
-              error: 'Invalid processor url',
-              message: 'Processor URL must use HTTPS',
-              code: 'INVALID_PROCESSOR_URL',
-            });
-          }
-
-          if (!isAllowedRemoteHost(parsed.host)) {
-            return res.setStatus(400).json({
-              error: 'Invalid processor url host',
-              message: 'Processor URL host is not allowed',
-              code: 'INVALID_PROCESSOR_URL_HOST',
-            });
-          }
-        }
+        validation = validateUrlSpec(processor);
       } else {
-        // Prevent path traversal
-        if (processor.includes('..') || processor.startsWith('/')) {
-          return res.setStatus(400).json({
-            error: 'Invalid processor path',
-            message: 'Processor path must be relative and cannot contain path traversal',
-            code: 'INVALID_PROCESSOR_PATH',
-          });
-        }
+        validation = validateRelativePath(processor);
 
-        if (!PROCESSOR_PATH_PATTERN.test(processor)) {
-          Logger.error('Processor path validation failed', {
-            processor,
-            pattern: PROCESSOR_PATH_PATTERN.toString(),
-            testResult: PROCESSOR_PATH_PATTERN.test(processor),
-          });
-          return res.setStatus(400).json({
-            error: 'Invalid processor path',
-            message: `Processor must be a TypeScript or JavaScript file. Got: "${processor}"`,
-            code: 'INVALID_PROCESSOR_EXTENSION',
-          });
+        if (validation.isValid) {
+          const pathValidation = sanitizeAndResolvePath(processor);
+          if (pathValidation.isValid) {
+            processor = pathValidation.sanitized;
+          } else {
+            validation = {
+              isValid: false,
+              error: { error: 'Invalid processor path', code: 'INVALID_PROCESSOR_PATH_TRAVERSAL' },
+            };
+          }
         }
+      }
 
-        // Sanitize the processor path (remove any invalid characters just in case)
-        const sanitizedProcessor = processor.replaceAll(/[^a-zA-Z0-9/_.-]/g, '');
-        const path = NodeSingletons.path;
-        // Ensure resolved path stays within repository/app scope
-        const baseDir = path.resolve(process.cwd());
-        const resolved = path.resolve(baseDir, sanitizedProcessor);
-        if (!resolved.startsWith(baseDir)) {
-          return res.setStatus(400).json({
-            error: 'Invalid processor path',
-            message: 'Processor path resolves outside of allowed base directory',
-            code: 'INVALID_PROCESSOR_PATH_TRAVERSAL',
-          });
-        }
-
-        processor = sanitizedProcessor;
+      if (!validation.isValid) {
+        return res.setStatus(400).json(validation.error);
       }
 
       const currentBody = req.getBody() as Record<string, unknown>;

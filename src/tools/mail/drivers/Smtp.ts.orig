@@ -2,12 +2,10 @@ import { generateUuid } from '@/common/utility';
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
-import { Logger } from '@config/logger';
 
 export type SmtpConfig = {
   host: string;
@@ -680,7 +678,6 @@ export const SmtpDriver = Object.freeze({
    */
   async send(config: SmtpConfig, message: MailMessage): Promise<SendResult> {
     if (shouldUseProxy()) {
-      Logger.debug('[SmtpDriver] Using SmtpProxy', { proxyUrl: Env.SMTP_PROXY_URL });
       const result = await sendViaProxy(message);
       return { ok: Boolean(result.ok), provider: 'smtp', messageId: result.messageId };
     }

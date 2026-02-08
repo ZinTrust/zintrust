@@ -294,20 +294,29 @@ const applyWriteHead = (
   return null;
 };
 
-export function createMockHttpObjects(request: PlatformRequest): {
-  req: Record<string, unknown>;
-  res: Record<string, unknown>;
-  responseData: {
-    statusCode: number;
-    headers: Record<string, string | string[]>;
-    body: Tbody;
-  };
-} {
-  const remoteAddress = resolveRemoteAddress(request);
-  const responseData = createResponseData();
-  const req = createMockRequest(request, remoteAddress);
+type ResData = {
+  statusCode: number;
+  headers: Record<string, string | string[]>;
+  body: Tbody;
+};
 
-  const res = {
+type MockResponse = {
+  statusCode: number;
+  headers: Record<string, string | string[]>;
+  writeHead: (statusCode: number, headers?: Record<string, string | string[]>) => object;
+  setHeader: (name: string, value: string) => object;
+  end: (chunk?: string | Buffer) => object;
+  write: (chunk: string | Buffer) => boolean;
+  on: (event: string, listener: () => void) => object;
+  once: (event: string, listener: (...args: unknown[]) => void) => object;
+  removeListener: (event: string, listener: () => void) => object;
+  emit: (event: string, ...args: unknown[]) => void;
+  _writer: StreamWriter | null;
+  _listeners: Record<string, unknown[]>;
+};
+
+const resData = (responseData: ResData, request: PlatformRequest): MockResponse => {
+  return {
     statusCode: 200,
     headers: responseData.headers,
     writeHead: function (statusCode: number, headers?: Record<string, string | string[]>): object {
@@ -362,33 +371,45 @@ export function createMockHttpObjects(request: PlatformRequest): {
       return true;
     },
     on: function (event: string, listener: () => void): object {
-      if (!this._listeners) this._listeners = {};
-      if (!this._listeners[event]) this._listeners[event] = [];
+      this._listeners ??= {};
+      this._listeners[event] ??= [];
       this._listeners[event].push(listener);
       return this;
     },
-    once: function (event: string, listener: () => void): object {
-      const wrapper = (...args: unknown[]) => {
+    once: function (event: string, listener: (...args: unknown[]) => void): object {
+      const wrapper = (...args: unknown[]): void => {
         this.removeListener(event, wrapper);
         listener(...args);
       };
       return this.on(event, wrapper);
     },
     removeListener: function (event: string, listener: () => void): object {
-      if (this._listeners && this._listeners[event]) {
-        this._listeners[event] = this._listeners[event].filter((l: Function) => l !== listener);
+      if (this._listeners?.[event] !== undefined) {
+        this._listeners[event] = this._listeners[event].filter((l: unknown) => l !== listener);
       }
       return this;
     },
     emit: function (event: string, ...args: unknown[]): void {
-      if (this._listeners && this._listeners[event]) {
+      if (this._listeners?.[event] !== undefined) {
         // Create a copy to avoid issues if listeners remove themselves
-        [...this._listeners[event]].forEach((fn: Function) => fn(...args));
+        [...this._listeners[event]].forEach((fn: unknown) => {
+          (fn as (...args: unknown[]) => void)(...args);
+        });
       }
     },
     _writer: null as StreamWriter | null,
-    _listeners: {} as Record<string, Function[]>,
+    _listeners: {} as Record<string, unknown[]>,
   };
+};
 
+export function createMockHttpObjects(request: PlatformRequest): {
+  req: Record<string, unknown>;
+  res: Record<string, unknown>;
+  responseData: ResData;
+} {
+  const remoteAddress = resolveRemoteAddress(request);
+  const responseData = createResponseData();
+  const req = createMockRequest(request, remoteAddress);
+  const res = resData(responseData, request);
   return { req, res, responseData };
 }

@@ -26,7 +26,7 @@ const ensureWorkersAutoStart = async (): Promise<void> => {
   workersAutoStartPromise = (async () => {
     try {
       const workers = await import('@zintrust/workers');
-      if (workers?.WorkerInit?.initialize) {
+      if (workers?.WorkerInit?.initialize !== undefined) {
         await workers.WorkerInit.initialize({
           enableResourceMonitoring: false,
           enableHealthMonitoring: false,
@@ -35,7 +35,7 @@ const ensureWorkersAutoStart = async (): Promise<void> => {
         });
       }
 
-      if (workers?.WorkerInit?.autoStartPersistedWorkers) {
+      if (workers?.WorkerInit?.autoStartPersistedWorkers !== undefined) {
         await workers.WorkerInit.autoStartPersistedWorkers();
       }
     } catch (error) {

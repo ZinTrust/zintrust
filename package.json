@@ -111,7 +111,8 @@
     "release:publish-packages": "node scripts/release/publish-packages.mjs",
     "release:publish-all": "npm run release:sync-versions && npm run release:publish-packages",
     "cag": "npm run cleanup:github-actions",
-    "core": "npm run core:build:dist"
+    "core": "npm run core:build:dist",
+    "wg": "zin s --wg --env development"
   },
   "lint-staged": {
     "src/**/*.ts": [

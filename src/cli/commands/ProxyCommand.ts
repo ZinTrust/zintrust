@@ -7,6 +7,7 @@ import '@proxy/kv/register';
 import '@proxy/mysql/register';
 import '@proxy/postgres/register';
 import '@proxy/redis/register';
+import '@proxy/smtp/register';
 
 export const ProxyCommand = Object.freeze({
   create(): IBaseCommand {

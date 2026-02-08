@@ -192,7 +192,8 @@ const workers = new Map<string, WorkerInstance>();
 let workerStore: WorkerStore = InMemoryWorkerStore.create();
 let workerStoreConfigured = false;
 let workerStoreConfig: WorkerPersistenceConfig | null = null;
-type ProcessorResolver = (
+
+export type ProcessorResolver = (
   name: string
 ) =>
   | WorkerFactoryConfig['processor']
@@ -323,7 +324,7 @@ const toBase64 = (value: string): string => {
     const bytes = new TextEncoder().encode(value);
     let binary = '';
     bytes.forEach((byte) => {
-      binary += String.fromCharCode(byte);
+      binary += String.fromCodePoint(byte);
     });
     return globalThis.btoa(binary);
   }

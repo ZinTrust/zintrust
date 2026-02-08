@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
@@ -91,7 +92,7 @@ const sendRequest = async (
 
   const timeout = Env.getInt('MONGODB_PROXY_TIMEOUT_MS', 30000);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeout);
 
   try {
     const response = await fetch(proxyUrl, {

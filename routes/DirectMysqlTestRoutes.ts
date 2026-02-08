@@ -7,6 +7,7 @@ import { Cloudflare } from '@config/cloudflare';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import welcome from '@mail/templates/welcome';
 import { Mail } from '@tools/mail';
 import { WorkerFactory } from '@zintrust/workers';
 import type { CacheDriver } from 'packages/cache-redis/src';
@@ -14,7 +15,21 @@ import { RedisProxyAdapter, RedisWorkersDurableObjectAdapter } from 'packages/ca
 
 const ADVANCED_WORKER_SPEC = 'https://wk.zintrust.com/AdvancEmailWorker.js';
 
-const runRedisTest = async (driver: CacheDriver, label: string) => {
+type TestS = Promise<{
+  key: string;
+  wrote: {
+    ok: boolean;
+    ts: string;
+  };
+  read: {
+    ok: boolean;
+    ts: string;
+  } | null;
+  exists: boolean;
+  existsAfterDelete: boolean;
+}>;
+
+const runRedisTest = async (driver: CacheDriver, label: string): TestS => {
   const key = `zt:redis-test:${label}:${Date.now()}`;
   const value = { ok: true, ts: new Date().toISOString() };
 
@@ -71,15 +86,16 @@ export const testRedisDurableObject = async (_req: IRequest, res: IResponse): Pr
  * Test Redis via HTTP proxy
  */
 export const testRedisProxy = async (_req: IRequest, res: IResponse): Promise<void> => {
+  const isFlare = Cloudflare?.getWorkersEnv() !== null;
+
   try {
     const driver = RedisProxyAdapter.create();
     const result = await runRedisTest(driver, 'proxy');
-
     res.json({
       success: true,
       message: 'Redis proxy test successful',
       adapter: 'packages/cache-redis (proxy)',
-      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      runtime: isFlare ? 'Cloudflare Workers' : 'Node',
       data: result,
       timestamp: new Date().toISOString(),
     });
@@ -89,7 +105,7 @@ export const testRedisProxy = async (_req: IRequest, res: IResponse): Promise<vo
       error: 'Redis proxy test failed',
       details: String(error),
       adapter: 'packages/cache-redis (proxy)',
-      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      runtime: isFlare ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });
   }
@@ -99,6 +115,8 @@ export const testRedisProxy = async (_req: IRequest, res: IResponse): Promise<vo
  * Test URL-based worker processor resolution (Cloudflare Workers)
  */
 export const testWorkerProcessorUrl = async (_req: IRequest, res: IResponse): Promise<void> => {
+  const isFlare = Cloudflare?.getWorkersEnv() !== null;
+
   try {
     const resolved = await WorkerFactory.resolveProcessorSpec(ADVANCED_WORKER_SPEC);
     if (!resolved) {
@@ -109,7 +127,7 @@ export const testWorkerProcessorUrl = async (_req: IRequest, res: IResponse): Pr
       success: true,
       message: 'Processor spec resolved successfully',
       spec: ADVANCED_WORKER_SPEC,
-      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      runtime: isFlare ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -118,45 +136,141 @@ export const testWorkerProcessorUrl = async (_req: IRequest, res: IResponse): Pr
       error: 'Processor spec resolution failed',
       spec: ADVANCED_WORKER_SPEC,
       details: String(error),
-      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      runtime: isFlare ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });
   }
 };
 
+const getMailConfig = (): {
+  mailHost: string;
+  mailUsername: string;
+  mailPassword: string;
+  mailDriver: string;
+  isConfigured: boolean;
+  configStatus: {
+    driver: string;
+    host: string;
+    username: string;
+    password: string;
+  };
+} => {
+  const mailHost = process.env['MAIL_HOST'] ?? '';
+  const mailUsername = process.env['MAIL_USERNAME'] ?? '';
+  const mailPassword = process.env['MAIL_PASSWORD'] ?? '';
+  const mailDriver = process.env['MAIL_DRIVER'] ?? process.env['MAIL_CONNECTION'] ?? 'smtp';
+
+  return {
+    mailHost,
+    mailUsername,
+    mailPassword,
+    mailDriver,
+    isConfigured: Boolean(mailHost) && Boolean(mailUsername) && Boolean(mailPassword),
+    configStatus: {
+      driver: mailDriver,
+      host: mailHost ? 'configured' : 'missing',
+      username: mailUsername ? 'configured' : 'missing',
+      password: mailPassword ? 'configured' : 'missing',
+    },
+  };
+};
+
+const getMailErrorDetails = (errorMessage: string): { errorType: string; suggestion: string } => {
+  const isConnectionError =
+    errorMessage.includes('ConnectionError') ||
+    errorMessage.includes('ECONNREFUSED') ||
+    errorMessage.includes('ETIMEDOUT');
+  const isAuthError =
+    errorMessage.includes('auth') || errorMessage.includes('535') || errorMessage.includes('530');
+  const isConfigError = errorMessage.includes('Configuration') || errorMessage.includes('config');
+
+  if (isConnectionError) {
+    return {
+      errorType: 'connection',
+      suggestion: 'Check MAIL_HOST, MAIL_PORT, and network connectivity',
+    };
+  }
+
+  if (isAuthError) {
+    return {
+      errorType: 'authentication',
+      suggestion: 'Verify MAIL_USERNAME and MAIL_PASSWORD are correct',
+    };
+  }
+
+  if (isConfigError) {
+    return {
+      errorType: 'configuration',
+      suggestion: 'Check mail driver configuration',
+    };
+  }
+
+  return {
+    errorType: 'unknown',
+    suggestion: 'Check mail service logs for more details',
+  };
+};
+
 /**
- * Test sending email using the configured mail driver
+ * Test sending email using configured mail driver
  */
 export const testMailSend = async (req: IRequest, res: IResponse): Promise<void> => {
+  const isFlare = Cloudflare?.getWorkersEnv() !== null;
+  const mailConfig = getMailConfig();
+
   try {
+    if (mailConfig.mailDriver === 'smtp' && !mailConfig.isConfigured) {
+      return res.status(400).json({
+        success: false,
+        error: 'Mail configuration incomplete',
+        message:
+          'SMTP mail driver requires MAIL_HOST, MAIL_USERNAME, and MAIL_PASSWORD environment variables',
+        config: mailConfig.configStatus,
+        runtime: isFlare ? 'Cloudflare Workers' : 'Node',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const to = req.getQueryParam?.('to') ?? 'test@zintrust.com';
-    const subject = req.getQueryParam?.('subject') ?? 'SMTP test from ZinTrust';
+    const subject = 'SMTP test from ZinTrust';
+
+    const htmlContent = await Mail.render({
+      template: welcome,
+      variables: { alertType: 'critical' },
+    });
 
     const result = await Mail.send({
-      to,
-      subject,
-      text: 'SMTP test',
-      html: '<p>SMTP test</p>',
+      to: to ?? 'test@zintrust.com',
+      subject: subject ?? 'Worker Notification from ZinTrust',
+      text: `Worker job completed successfully.`,
+      html: htmlContent,
       from: {
-        address: 'no-reply@zintrust.com',
-        name: 'ZinTrust Test',
+        address: 'no-reply@engage.vizo.app',
+        name: 'ZinTrust Advanced Worker',
       },
     });
 
     res.json({
       success: true,
-      message: 'Mail send test completed',
+      message: 'Mail send test completed successfully',
       to,
       result,
-      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      config: mailConfig.configStatus,
+      runtime: isFlare ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    const errorMessage = String(error);
+    const { errorType, suggestion } = getMailErrorDetails(errorMessage);
+
     res.status(500).json({
       success: false,
       error: 'Mail send test failed',
-      details: String(error),
-      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      errorType,
+      details: errorMessage,
+      suggestion,
+      config: mailConfig.configStatus,
+      runtime: isFlare ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),
     });
   }

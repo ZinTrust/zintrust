@@ -137,7 +137,7 @@ const sendWithDriver = async (
   // Config exists for future drivers, but implementations are intentionally CLI/runtime-safe and added incrementally.
   {
     const err = ErrorFactory.createConfigError(
-      `Mail driver not implemented: ${mailConfig.default}`
+      `Mail driver not registered: ${mailConfig.default}. Available drivers: ses, sendgrid, mailgun, smtp. Run \`zin add mail:${mailConfig.default}\` to install.`
     );
     throw err;
   }
