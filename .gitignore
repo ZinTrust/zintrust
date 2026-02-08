@@ -95,3 +95,4 @@ routes/DirectMysqlTestRoutes.ts
 routes/registerDirectMysqlTestRoutes.ts
 .wrangler
 src/zintrust.plugins.wg.ts
+packages/workers/src/ui/workers/Workers/

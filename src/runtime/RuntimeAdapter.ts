@@ -22,6 +22,7 @@ export interface PlatformRequest {
   body?: Tbody;
   query?: Record<string, string | string[]>;
   remoteAddr?: string;
+  signal?: AbortSignal;
 }
 
 export interface PlatformResponse {
@@ -311,6 +312,21 @@ export function createMockHttpObjects(request: PlatformRequest): {
     headers: responseData.headers,
     writeHead: function (statusCode: number, headers?: Record<string, string | string[]>): object {
       this._writer = applyWriteHead(responseData, statusCode, headers);
+
+      // Handle abortion if signal is present
+      if (request.signal && this._writer) {
+        request.signal.addEventListener('abort', () => {
+          if (this._writer) {
+            try {
+              this._writer.close();
+            } catch {
+              // Ignore close errors
+            }
+          }
+          this.emit('close');
+        });
+      }
+
       return this;
     },
     setHeader: function (name: string, value: string): object {
@@ -329,18 +345,49 @@ export function createMockHttpObjects(request: PlatformRequest): {
       if (chunk !== undefined) {
         responseData.body = chunk;
       }
+      this.emit('finish');
       return this;
     },
     write: function (chunk: string | Buffer): boolean {
       if (this._writer) {
-        this._writer.write(new TextEncoder().encode(String(chunk)));
-        return true;
+        try {
+          this._writer.write(new TextEncoder().encode(String(chunk)));
+          return true;
+        } catch {
+          return false;
+        }
       }
 
       responseData.body = chunk;
       return true;
     },
+    on: function (event: string, listener: () => void): object {
+      if (!this._listeners) this._listeners = {};
+      if (!this._listeners[event]) this._listeners[event] = [];
+      this._listeners[event].push(listener);
+      return this;
+    },
+    once: function (event: string, listener: () => void): object {
+      const wrapper = (...args: unknown[]) => {
+        this.removeListener(event, wrapper);
+        listener(...args);
+      };
+      return this.on(event, wrapper);
+    },
+    removeListener: function (event: string, listener: () => void): object {
+      if (this._listeners && this._listeners[event]) {
+        this._listeners[event] = this._listeners[event].filter((l: Function) => l !== listener);
+      }
+      return this;
+    },
+    emit: function (event: string, ...args: unknown[]): void {
+      if (this._listeners && this._listeners[event]) {
+        // Create a copy to avoid issues if listeners remove themselves
+        [...this._listeners[event]].forEach((fn: Function) => fn(...args));
+      }
+    },
     _writer: null as StreamWriter | null,
+    _listeners: {} as Record<string, Function[]>,
   };
 
   return { req, res, responseData };

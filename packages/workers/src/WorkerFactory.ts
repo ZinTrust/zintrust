@@ -6,6 +6,7 @@
 
 import {
   appConfig,
+  Cloudflare,
   createRedisConnection,
   databaseConfig,
   Env,
@@ -645,14 +646,14 @@ const resolveProcessorFromUrl = async (
     return resolveProcessorFromPath(filePath);
   }
 
-  if (parsed.protocol !== 'https:') {
-    Logger.error('Invalid processor URL protocol', parsed.protocol);
-    return undefined;
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'file:') {
+    Logger.warn(
+      `Invalid processor URL protocol: ${parsed.protocol}. Only https:// and file:// are supported.`
+    );
   }
 
-  if (!isAllowedRemoteHost(parsed.host)) {
-    Logger.error('Invalid processor URL host', parsed.host);
-    return undefined;
+  if (!isAllowedRemoteHost(parsed.host) && parsed.protocol !== 'file:') {
+    Logger.warn(`Invalid processor URL host: ${parsed.host}. Host is not in the allowlist.`);
   }
 
   const config = getProcessorSpecConfig();
@@ -681,6 +682,14 @@ const resolveProcessorSpec = async (
 const resolveProcessorFromPath = async (
   modulePath: string
 ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  // Cloudflare Workers cannot dynamically import arbitrary local paths
+  if (Cloudflare.getWorkersEnv() !== null) {
+    Logger.warn(
+      `Skipping local processor path on Cloudflare: ${modulePath}. Use a remote URL (https://wk.zintrust.com) or configure a build-time import.`
+    );
+    return undefined;
+  }
+
   const trimmed = modulePath.trim();
   if (!trimmed) return undefined;
 

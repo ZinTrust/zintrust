@@ -22,6 +22,7 @@ type StartCommandOptions = CommandOptions & {
   mode?: string;
   runtime?: string;
   port?: string;
+  env?: string;
 };
 
 type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
@@ -273,7 +274,8 @@ const executeWranglerStart = async (
   cmd: IBaseCommand,
   cwd: string,
   port: number | undefined,
-  runtime: string | undefined
+  runtime: string | undefined,
+  envName: string | undefined
 ): Promise<void> => {
   if (runtime !== undefined) {
     throw ErrorFactory.createCliError(
@@ -297,6 +299,10 @@ const executeWranglerStart = async (
 
   if (typeof port === 'number') {
     wranglerArgs.push('--port', String(port));
+  }
+
+  if (envName !== undefined && envName.trim() !== '') {
+    wranglerArgs.push('--env', envName.trim());
   }
 
   logMySqlProxyHint(cmd);
@@ -443,6 +449,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
   const variant = resolveStartVariant(options);
+  const envName = typeof options.env === 'string' ? options.env.trim() : '';
   let effectiveRuntime = runtime;
   if (variant === 'deno') effectiveRuntime = 'deno';
   if (variant === 'lambda') effectiveRuntime = 'lambda';
@@ -450,8 +457,12 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime: effectiveRuntime });
 
   if (variant === 'wrangler') {
-    await executeWranglerStart(cmd, cwd, port, runtime);
+    await executeWranglerStart(cmd, cwd, port, runtime, envName === '' ? undefined : envName);
     return;
+  }
+
+  if (envName !== '') {
+    throw ErrorFactory.createCliError('Error: --env is only supported with --wrangler/--wg.');
   }
 
   const watchEnabled = resolveWatchPreference(options, mode);
@@ -480,6 +491,7 @@ export const StartCommand = Object.freeze({
         .option('--watch', 'Force watch mode (Node only)')
         .option('--no-watch', 'Disable watch mode (Node only)')
         .option('--mode <development|production|testing>', 'Override app mode')
+        .option('--env <name>', 'Wrangler environment name (Wrangler mode only)')
         .option('--runtime <nodejs|cloudflare|lambda|deno|auto>', 'Set RUNTIME for spawned Node')
         .option('-p, --port <number>', 'Override server port');
     };

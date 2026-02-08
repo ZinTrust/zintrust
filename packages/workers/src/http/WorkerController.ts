@@ -392,15 +392,13 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
       return;
     }
 
-    // Validate and merge updates (excluding immutable fields)
+    // Remove immutable fields and prepare updates
     const { name: _name, driver: _driver, ...updateData } = reqData; // Remove immutable fields
 
-    if (typeof updateData['processorSpec'] === 'string') {
-      const resolved = await WorkerFactory.resolveProcessorSpec(updateData['processorSpec']);
-      if (!resolved) {
-        res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
-        return;
-      }
+    const processorValid = await validateProcessorSpecIfNeeded(updateData);
+    if (!processorValid) {
+      res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
+      return;
     }
 
     // Note: driver is determined by persistence configuration, not stored in worker record
@@ -413,43 +411,16 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
 
     (updatedRecord.infrastructure as unknown as InfrastructureConfig).persistence.driver = driver;
 
-    // Update persistence store with the complete updated record
-    try {
-      // Persist merged record via WorkerFactory API
-      await WorkerFactory.update(
-        name,
-        updatedRecord as unknown as WorkerRecord,
-        persistenceOverride
-      );
-      Logger.info(`Worker ${name} persistence updated with fields:`, Object.keys(updateData));
-    } catch (persistError) {
-      Logger.warn(`Failed to persist some updates for ${name}`, persistError as Error);
-      // Continue with restart even if persistence update partially fails
-    }
+    await persistUpdatedRecord(name, updatedRecord, persistenceOverride, updateData);
 
-    // If worker is currently running, restart it to apply new configuration changes
-    // This ensures new concurrency, queue settings, and other config take effect
     const currentInstance = WorkerFactory.get(name);
-    let restartError: string | undefined;
-
-    if (
-      currentInstance &&
-      currentInstance.status === 'running' &&
-      (updatedRecord.activeStatus ?? currentRecord.activeStatus ?? true) !== false
-    ) {
-      try {
-        Logger.info(`Restarting worker ${name} to apply configuration changes`);
-        await WorkerFactory.restart(name, persistenceOverride);
-      } catch (error) {
-        restartError = (error as Error).message;
-        Logger.warn(`Failed to restart worker ${name} after update`, error as Error);
-        // Don't fail the update, but warn about restart failure
-      }
-    } else {
-      Logger.info(
-        `Worker ${name} is not running (status: ${currentInstance?.status || 'not found'}), skipping restart`
-      );
-    }
+    const restartError = await restartIfNeeded(
+      name,
+      currentInstance,
+      updatedRecord,
+      currentRecord,
+      persistenceOverride
+    );
 
     // Worker configuration updated in persistence and memory
     Logger.info(`Worker configuration updated: ${name}`, {
@@ -467,6 +438,64 @@ async function update(req: IRequest, res: IResponse): Promise<void> {
   } catch (error) {
     Logger.error('WorkerController.update failed', error);
     res.setStatus(500).json({ error: (error as Error).message });
+  }
+}
+
+// Helpers extracted from update() to reduce complexity
+async function validateProcessorSpecIfNeeded(
+  updateData: Record<string, unknown>
+): Promise<boolean> {
+  if (typeof updateData['processorSpec'] === 'string') {
+    const resolved = await WorkerFactory.resolveProcessorSpec(
+      updateData['processorSpec'] as string
+    );
+    return Boolean(resolved);
+  }
+  return true;
+}
+
+async function persistUpdatedRecord(
+  name: string,
+  updatedRecord: WorkerRecord | unknown,
+  persistenceOverride: ReturnType<typeof resolvePersistenceOverride> | undefined,
+  updateData: Record<string, unknown>
+): Promise<void> {
+  try {
+    await WorkerFactory.update(name, updatedRecord as unknown as WorkerRecord, persistenceOverride);
+    Logger.info(`Worker ${name} persistence updated with fields:`, Object.keys(updateData));
+  } catch (persistError) {
+    Logger.warn(`Failed to persist some updates for ${name}`, persistError as Error);
+    // Continue execution even if persistence update partially fails
+  }
+}
+
+async function restartIfNeeded(
+  name: string,
+  currentInstance: ReturnType<typeof WorkerFactory.get> | undefined,
+  updatedRecord: WorkerRecord,
+  currentRecord: WorkerRecord,
+  persistenceOverride: ReturnType<typeof resolvePersistenceOverride> | undefined
+): Promise<string | undefined> {
+  if (
+    !currentInstance ||
+    currentInstance.status !== 'running' ||
+    updatedRecord.activeStatus === false ||
+    currentRecord.activeStatus === false
+  ) {
+    Logger.info(
+      `Worker ${name} is not running (status: ${currentInstance?.status || 'not found'}), skipping restart`
+    );
+    return undefined;
+  }
+
+  try {
+    Logger.info(`Restarting worker ${name} to apply configuration changes`);
+    await WorkerFactory.restart(name, persistenceOverride);
+    return undefined;
+  } catch (err) {
+    const restartError = (err as Error).message;
+    Logger.warn(`Failed to restart worker ${name} after update`, err as Error);
+    return restartError;
   }
 }
 

@@ -55,6 +55,7 @@
     "packages:build:all": "node scripts/build-all-packages.mjs --all",
     "dev": "./bin/z.ts s",
     "deploy": "cd docs-website && wrangler types && wrangler deploy --env ${WRANGLER_ENV:-production}",
+    "deploy:wk": "wrangler deploy --env ${WRANGLER_ENV:-worker}",
     "templates:sync": "npm run templates:check && node -e \"console.log('templates:sync is disabled for now (no auto-updates). Update src/templates manually.');\"",
     "templates:check": "tsx src/scripts/TemplateImportsCheck.ts",
     "env:generate": "tsx src/scripts/GenerateEnvArtifacts.ts",

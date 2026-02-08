@@ -1,94 +1,84 @@
 {
-  "name": "zintrust-api",
-  "main": "./src/functions/cloudflare.ts",
-  "compatibility_date": "2025-04-21",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "minify": false,
-  "alias": {
-    "@zintrust/core": "./src/index.ts",
-    "@zintrust/workers": "./packages/workers/src/index.ts",
-    "@routes/api": "./routes/api.ts",
-  },
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 0.1,
-  },
-  // "assets": {
-  //   "directory": "./public",
-  //   "binding": "ASSETS",
-  // },
-  // Note: Documentation is deployed separately via docs-website/wrangler.jsonc
-  // This Worker handles the API/application logic only
-  // Production routes (uncomment and adjust for production deployment)
-  // "routes": [
-  //   {
-  //     "pattern": "zintrust.com",
-  //     "custom_domain": true,
-  //   },
-  // ],
-  // Environment variable bindings (auto-injected from .env)
-  "vars": {},
-  // Uncomment to enable D1 database bindings
-  // "d1_databases": [
-  //   {
-  //     "binding": "DB",
-  //     "database_name": "zintrust_db",
-  //     "database_id": "your-d1-id-here",
-  //   },
-  // ],
-  // Uncomment to enable KV cache bindings
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "CACHE",
-  //     "id": "your-kv-id-here",
-  //     "preview_id": "your-kv-preview-id-here",
-  //   },
-  // ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "WORKER_SHUTDOWN",
-        "class_name": "ZinTrustWorkerShutdownDurableObject",
-      },
-      {
-        "name": "MYSQL_POOL",
-        "class_name": "ZinTrustMySqlPoolDurableObject",
-      },
-      {
-        "name": "POSTGRES_POOL",
-        "class_name": "ZinTrustPostgresPoolDurableObject",
-      },
-      {
-        "name": "REDIS_POOL",
-        "class_name": "ZinTrustRedisPoolDurableObject",
-      },
-    ],
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_classes": ["ZinTrustWorkerShutdownDurableObject"],
-    },
-    {
-      "tag": "v2",
-      "new_classes": ["ZinTrustMySqlPoolDurableObject"],
-    },
-    {
-      "tag": "v3",
-      "new_classes": ["ZinTrustPostgresPoolDurableObject"],
-    },
-    {
-      "tag": "v4",
-      "new_classes": ["ZinTrustRedisPoolDurableObject"],
-    },
-  ],
   // Local development settings
   "env": {
+    "worker": {
+      "name": "wk-zintrust",
+      "compatibility_date": "2025-04-21",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "minify": false,
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
+      "assets": {
+        "directory": "./app/Workers",
+        "not_found_handling": "single-page-application",
+      },
+      "routes": [
+        {
+          "pattern": "wk.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+    },
     "development": {
+      "name": "zintrust-api",
+      "main": "./src/functions/cloudflare.ts",
+      "compatibility_date": "2025-04-21",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "minify": false,
+      "alias": {
+        "@zintrust/core": "./src/index.ts",
+        "@zintrust/workers": "./packages/workers/src/index.ts",
+        "@routes/api": "./routes/api.ts",
+      },
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
       "vars": {
         "ENVIRONMENT": "development",
       },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "WORKER_SHUTDOWN",
+            "class_name": "ZinTrustWorkerShutdownDurableObject",
+          },
+          {
+            "name": "MYSQL_POOL",
+            "class_name": "ZinTrustMySqlPoolDurableObject",
+          },
+          {
+            "name": "POSTGRES_POOL",
+            "class_name": "ZinTrustPostgresPoolDurableObject",
+          },
+          {
+            "name": "REDIS_POOL",
+            "class_name": "ZinTrustRedisPoolDurableObject",
+          },
+        ],
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_classes": ["ZinTrustWorkerShutdownDurableObject"],
+        },
+        {
+          "tag": "v2",
+          "new_classes": ["ZinTrustMySqlPoolDurableObject"],
+        },
+        {
+          "tag": "v3",
+          "new_classes": ["ZinTrustPostgresPoolDurableObject"],
+        },
+        {
+          "tag": "v4",
+          "new_classes": ["ZinTrustRedisPoolDurableObject"],
+        },
+      ],
     },
     "production": {
       "vars": {

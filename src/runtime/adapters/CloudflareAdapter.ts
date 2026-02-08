@@ -187,6 +187,7 @@ function parseCloudflareRequest(event: CloudflareRequest): PlatformRequest {
     headers,
     query: Object.fromEntries(url.searchParams.entries()),
     remoteAddr: headers['cf-connecting-ip']?.toString() || '0.0.0.0',
+    signal: event.signal,
   };
 }
 
