@@ -49,6 +49,12 @@ const mergeRecord = (current: WorkerRecord, patch: Partial<WorkerRecord>): Worke
   updatedAt: patch.updatedAt ?? now(),
 });
 
+const toSqlDateTime = (value: Date | undefined | null): string | null => {
+  if (!value) return null;
+  // Use UTC and drop timezone for SQL DATETIME compatibility
+  return value.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   name: record.name,
   queue_name: record.queueName,
@@ -62,9 +68,9 @@ const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   features: record.features ? JSON.stringify(record.features) : null,
   infrastructure: record.infrastructure ? JSON.stringify(record.infrastructure) : null,
   datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
-  created_at: record.createdAt,
-  updated_at: record.updatedAt,
-  last_health_check: record.lastHealthCheck ?? null,
+  created_at: toSqlDateTime(record.createdAt),
+  updated_at: toSqlDateTime(record.updatedAt),
+  last_health_check: toSqlDateTime(record.lastHealthCheck ?? null),
   last_error: record.lastError ?? null,
   connection_state: record.connectionState ?? null,
 });
@@ -264,13 +270,13 @@ export const DbWorkerStore = Object.freeze({
       async updateMany(names: string[], patch: Partial<WorkerRecord>): Promise<void> {
         if (names.length === 0) return;
         const update: Record<string, unknown> = {
-          updated_at: patch.updatedAt ?? now(),
+          updated_at: toSqlDateTime(patch.updatedAt ?? now()),
         };
 
         if (patch.status !== undefined) update['status'] = patch.status;
         if (patch.lastError !== undefined) update['last_error'] = patch.lastError ?? null;
         if (patch.lastHealthCheck !== undefined)
-          update['last_health_check'] = patch.lastHealthCheck ?? null;
+          update['last_health_check'] = toSqlDateTime(patch.lastHealthCheck ?? null);
         if (patch.connectionState !== undefined)
           update['connection_state'] = patch.connectionState ?? null;
 

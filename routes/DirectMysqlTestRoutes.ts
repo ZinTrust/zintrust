@@ -7,6 +7,7 @@ import { Cloudflare } from '@config/cloudflare';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import { Mail } from '@tools/mail';
 import { WorkerFactory } from '@zintrust/workers';
 import type { CacheDriver } from 'packages/cache-redis/src';
 import { RedisProxyAdapter, RedisWorkersDurableObjectAdapter } from 'packages/cache-redis/src';
@@ -116,6 +117,44 @@ export const testWorkerProcessorUrl = async (_req: IRequest, res: IResponse): Pr
       success: false,
       error: 'Processor spec resolution failed',
       spec: ADVANCED_WORKER_SPEC,
+      details: String(error),
+      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      timestamp: new Date().toISOString(),
+    });
+  }
+};
+
+/**
+ * Test sending email using the configured mail driver
+ */
+export const testMailSend = async (req: IRequest, res: IResponse): Promise<void> => {
+  try {
+    const to = req.getQueryParam?.('to') ?? 'test@zintrust.com';
+    const subject = req.getQueryParam?.('subject') ?? 'SMTP test from ZinTrust';
+
+    const result = await Mail.send({
+      to,
+      subject,
+      text: 'SMTP test',
+      html: '<p>SMTP test</p>',
+      from: {
+        address: 'no-reply@zintrust.com',
+        name: 'ZinTrust Test',
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Mail send test completed',
+      to,
+      result,
+      runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Mail send test failed',
       details: String(error),
       runtime: Cloudflare.getWorkersEnv() !== null ? 'Cloudflare Workers' : 'Node',
       timestamp: new Date().toISOString(),

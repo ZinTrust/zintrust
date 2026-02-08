@@ -694,7 +694,7 @@ const resolveProcessorFromPath = async (
   // Cloudflare Workers cannot dynamically import arbitrary local paths
   if (Cloudflare.getWorkersEnv() !== null) {
     Logger.warn(
-      `Skipping local processor path on Cloudflare: ${modulePath}. Use a remote URL (https://wk.zintrust.com) or configure a build-time import.`
+      `Skipping local processor path on Cloudflare: ${modulePath}. Use a URL spec and register it in the prebuilt registry (src/zintrust.plugins.wg.ts).`
     );
     return undefined;
   }
@@ -1737,6 +1737,10 @@ const initializeDeadLetterQueue = (config: WorkerFactoryConfig): void => {
 
 const initializeResourceMonitoring = (config: WorkerFactoryConfig): void => {
   if (resourceMonitoringInitialized || !(config.features?.resourceMonitoring ?? false)) return;
+  if (Cloudflare.getWorkersEnv() !== null) {
+    Logger.debug('⏸️ Resource monitoring skipped (Cloudflare Workers runtime)');
+    return;
+  }
   ResourceMonitor.initialize();
   ResourceMonitor.start();
   resourceMonitoringInitialized = true;
@@ -1760,6 +1764,10 @@ const initializeCompliance = (config: WorkerFactoryConfig): void => {
 
 const initializeObservability = async (config: WorkerFactoryConfig): Promise<void> => {
   if (observabilityInitialized || !(config.features?.observability ?? false)) return;
+  if (Cloudflare.getWorkersEnv() !== null) {
+    Logger.debug('⏸️ Observability skipped (Cloudflare Workers runtime)');
+    return;
+  }
   const observabilityConfig = resolveObservabilityConfig(config.infrastructure?.observability);
   await Observability.initialize(observabilityConfig);
   observabilityInitialized = true;

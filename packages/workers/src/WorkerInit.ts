@@ -8,7 +8,7 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Env, Logger, workersConfig } from '@zintrust/core';
+import { Cloudflare, Env, Logger, workersConfig } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
@@ -82,6 +82,10 @@ function initializeResourceMonitoring(
   enableResourceMonitoring: boolean,
   resourceMonitoringInterval: number
 ): boolean {
+  if (Cloudflare.getWorkersEnv() !== null) {
+    Logger.debug('⏸️ Resource monitoring skipped (Cloudflare Workers runtime)');
+    return false;
+  }
   // Check global environment gate first
   const globalResourceMonitoring = Env.getBool('WORKER_RESOURCE_MONITORING', false);
 
@@ -235,7 +239,8 @@ async function autoStartPersistedWorkers(): Promise<void> {
           await WorkerFactory.startFromPersisted(record.name);
           return { name: record.name, started: true, skipped: false };
         } catch (error) {
-          Logger.warn(`Auto-start failed for worker ${record.name}`, error as Error);
+          const message = error instanceof Error ? error.message : String(error);
+          Logger.warn(`Auto-start failed for worker ${record.name}: ${message}`);
           return { name: record.name, started: false, skipped: false };
         }
       })
@@ -249,7 +254,8 @@ async function autoStartPersistedWorkers(): Promise<void> {
       skipped: skippedCount,
     });
   } catch (error) {
-    Logger.warn('Auto-start persisted workers failed', error as Error);
+    const message = error instanceof Error ? error.message : String(error);
+    Logger.warn(`Auto-start persisted workers failed: ${message}`);
   }
 }
 

@@ -6,6 +6,7 @@
 import type { IRouter } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
 import {
+  testMailSend,
   testRedisDurableObject,
   testRedisProxy,
   testWorkerProcessorUrl,
@@ -23,6 +24,9 @@ export const registerDirectMysqlTestRoutes = (router: IRouter): void => {
 
   // Processor spec resolution test
   Router.get(router, '/test/wg-ts', testWorkerProcessorUrl);
+
+  // Mail send test
+  Router.get(router, '/test/wg-ma', testMailSend);
 };
 
 export default registerDirectMysqlTestRoutes;
