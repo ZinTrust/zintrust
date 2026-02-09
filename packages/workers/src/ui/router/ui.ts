@@ -7,6 +7,7 @@ import {
   Router,
   detectRuntime,
 } from '@zintrust/core';
+import { INDEX_HTML, MAIN_JS, STYLES_CSS, ZINTRUST_SVG } from './EmbeddedAssets';
 
 const isCloudflare = detectRuntime().isCloudflare;
 
@@ -57,7 +58,9 @@ export const uiResolver = async (uiBasePath: string): Promise<string> => {
   const assetHtml = await fetchAssetText('/workers/index.html');
   if (assetHtml !== '') return assetHtml;
 
-  if (isCloudflare) return '';
+  if (isCloudflare) {
+    return Buffer.from(INDEX_HTML, 'base64').toString('utf-8');
+  }
 
   const uiPath = NodeSingletons.path.resolve(uiBasePath, 'workers/index.html');
   const html = await NodeSingletons.fs.readFile(uiPath, 'utf8');
@@ -125,6 +128,29 @@ const serveStaticFile = async (
     }
 
     if (isCloudflare) {
+      const normalizedPath = filePath.replace(/^\//, '');
+      if (normalizedPath === 'workers/styles.css') {
+        const mimeType = MIME_TYPES.CSS;
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.send(Buffer.from(STYLES_CSS, 'base64'));
+        return;
+      }
+      if (normalizedPath === 'workers/main.js') {
+        const mimeType = MIME_TYPES.JS;
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.send(Buffer.from(MAIN_JS, 'base64'));
+        return;
+      }
+      if (normalizedPath === 'workers/zintrust.svg') {
+        const mimeType = MIME_TYPES.SVG;
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        res.send(Buffer.from(ZINTRUST_SVG, 'base64'));
+        return;
+      }
+
       res.setStatus(404);
       res.send(Buffer.from('Not Found'));
       return;
@@ -169,6 +195,7 @@ export const registerStaticAssets = (router: IRouter, middleware: ReadonlyArray<
     // Serve workers CSS and JS files
     Router.get(r, '/styles.css', serveStaticFile);
     Router.get(r, '/main.js', serveStaticFile);
+    Router.get(r, '/zintrust.svg', serveStaticFile);
     Router.get(r, '/:filename', serveStaticFile);
     Router.get(r, '/integration/:filename', serveStaticFile);
 

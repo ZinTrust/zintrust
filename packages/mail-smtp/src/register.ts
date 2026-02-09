@@ -8,7 +8,6 @@ type Registry = {
 };
 
 export async function registerSmtpMailDriver(registry: Registry): Promise<void> {
-  Logger.debug('[SmtpDriver] Registering driver...');
   const core = (await importCore()) as unknown as {
     SmtpDriver?: { send: (config: unknown, message: unknown) => Promise<unknown> };
   };
@@ -22,7 +21,6 @@ export async function registerSmtpMailDriver(registry: Registry): Promise<void> 
   if (driver === undefined) return;
 
   registry.register('smtp', (config, message) => driver.send(config, message));
-  Logger.info('[SmtpDriver] Driver registered successfully');
 }
 
 const importCore = async (): Promise<unknown> => {
