@@ -31,7 +31,7 @@ type ProxyOverrides = Partial<{
   smtpPort: number;
   smtpUsername: string;
   smtpPassword: string;
-  smtpSecure: boolean | 'starttls' | string;
+  smtpSecure: boolean | string;
   requireSigning: boolean;
   keyId: string;
   secret: string;
@@ -93,12 +93,14 @@ const resolveSigningConfig = (
   requireSigning: boolean;
   signingWindowMs: number;
 } => {
-  const keyId = overrides.keyId ?? Env.get('SMTP_PROXY_KEY_ID', '');
+  const keyIdRaw = overrides.keyId ?? Env.get('SMTP_PROXY_KEY_ID', '');
+  const keyId = keyIdRaw.toLowerCase();
   const secretRaw = overrides.secret ?? Env.get('SMTP_PROXY_SECRET', '');
   const secret = secretRaw.trim() === '' ? Env.get('APP_KEY', '') : secretRaw;
   const requireSigningEnv = Env.getBool('SMTP_PROXY_REQUIRE_SIGNING', true);
   const hasCredentials = keyId.trim() !== '' && secret.trim() !== '';
-  const requireSigning = requireSigningEnv ? hasCredentials : overrides.requireSigning === true;
+  // Force requireSigning to true if env var or default says so, unless explicit override disables it
+  const requireSigning = overrides.requireSigning ?? (requireSigningEnv || hasCredentials);
   const signingWindowMs =
     overrides.signingWindowMs ?? Env.getInt('SMTP_PROXY_SIGNING_WINDOW_MS', 60000);
 
@@ -168,6 +170,19 @@ const verifySignatureIfNeeded = async (
       signing: config.signing,
     });
     if (!verified.ok) {
+      const normalizedSigning =
+        typeof SigningService['normalizeConfig'] === 'function'
+          ? (SigningService['normalizeConfig'] as (c: ProxySigningConfig) => ProxySigningConfig)(
+              config.signing
+            )
+          : config.signing;
+      Logger.warn('[SmtpProxy] Signing verification failed', {
+        code: verified.code,
+        message: verified.message,
+        keyId: headers['x-zt-key-id'],
+        expectedKeyId: normalizedSigning.keyId,
+        requireSigning: normalizedSigning.require,
+      });
       return { ok: false, error: { status: verified.status, message: verified.message } };
     }
   }
@@ -307,7 +322,7 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
   name: 'smtp',
   handle: async (request) => {
     const methodError = RequestValidator.requirePost(request.method);
-    Logger.debug('[SmtpProxy] Received request', { path: request.path, method: request.method });
+    Logger.info('[SmtpProxy] Received request', { path: request.path, method: request.method });
     if (methodError) {
       return ErrorHandler.toProxyError(405, methodError.code, methodError.message);
     }
@@ -332,9 +347,9 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
     }
 
     try {
-      Logger.debug('[SmtpProxy] Sending email via SmtpDriver', { to: messageValidation.value.to });
+      Logger.info('[SmtpProxy] Sending email via SmtpDriver', { to: messageValidation.value.to });
       await SmtpDriver.send(config.smtp, messageValidation.value);
-      Logger.debug('[SmtpProxy] Email sent successfully');
+      Logger.info('[SmtpProxy] Email sent successfully');
       return { status: 200, body: { ok: true } };
     } catch (error) {
       Logger.error('[SmtpProxy] Failed to send email', error);

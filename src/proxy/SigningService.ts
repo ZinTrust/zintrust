@@ -54,7 +54,7 @@ const hasSigningHeaders = (headers: SigningHeaders): boolean =>
 
 const normalizeKeyId = (keyId: string): string => {
   const trimmed = keyId.trim();
-  if (trimmed !== '') return trimmed;
+  if (trimmed !== '') return trimmed.toLowerCase();
   const appNameRaw = Env.APP_NAME ?? 'zintrust';
   const normalized = (appNameRaw.trim() === '' ? 'zintrust' : appNameRaw)
     .toLowerCase()
@@ -144,7 +144,7 @@ const verify = async (params: {
     headers: params.headers,
     // eslint-disable-next-line @typescript-eslint/require-await
     getSecretForKeyId: async (keyId: string) =>
-      keyId === signing.keyId ? signing.secret : undefined,
+      keyId.trim().toLowerCase() === signing.keyId ? signing.secret : undefined,
     windowMs: signing.windowMs,
   });
 

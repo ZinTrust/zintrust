@@ -1,5 +1,10 @@
 {
   "name": "zintrust-api",
+  "alias": {
+    "@zintrust/core": "./src/index.ts",
+    "@zintrust/workers": "./packages/workers/src/index.ts",
+    "@routes/api": "./routes/api.ts",
+  },
   // Local development settings
   "env": {
     "worker": {

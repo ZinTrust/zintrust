@@ -1,8 +1,0 @@
-@@ -697,6 +698,7 @@
-     const useProxy = shouldUseProxy();
- 
-     if (useProxy) {
-+      Logger.debug('[SmtpDriver] Using SmtpProxy', { proxyUrl: Env.SMTP_PROXY_URL });
-       try {
-         const result = await sendViaProxy(message);
-         if (!result.ok) {

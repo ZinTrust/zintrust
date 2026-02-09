@@ -7,7 +7,6 @@ import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
-import { Logger } from '@config/logger';
 
 export type SmtpConfig = {
   host: string;
