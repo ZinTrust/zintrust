@@ -14,7 +14,10 @@ import {
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
+import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
+import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
+import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
@@ -98,6 +101,9 @@ const registerCommands = (program: Command): void => {
     NewCommand.create(),
     UpgradeCommand.create(),
     PrepareCommand,
+    InitContainerCommand.create(),
+    InitProducerCommand.create(),
+    DoctorArchitectureCommand.create(),
     AddCommand.create(),
     CreateCommand.create(),
     CreateMigrationCommand.create(),

@@ -27,59 +27,134 @@ type PersistenceResult = {
   prePaginated: boolean;
 };
 
+// Helper for timeout handling
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMsg: string
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    // eslint-disable-next-line no-restricted-syntax
+    timer = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    if (timer) clearTimeout(timer);
+    return result;
+  } catch (error) {
+    if (timer) clearTimeout(timer);
+    throw error;
+  }
+}
+
+async function fetchPersistenceWithTimeout(
+  page: number,
+  limit: number,
+  query: GetWorkersQuery
+): Promise<PersistenceResult> {
+  const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory');
+  try {
+    const result = await withTimeout(
+      getWorkersFromPersistence(page, limit, query.driver, query),
+      5000,
+      'Persistence timeout'
+    );
+    return result;
+  } catch (err) {
+    Logger.error(
+      `[getWorkers] Persistence hung or failed (driver=${driver}), resetting connection state`,
+      err
+    );
+    if (typeof WorkerFactory.resetPersistence === 'function') {
+      await WorkerFactory.resetPersistence();
+    }
+    return {
+      workers: [],
+      total: 0,
+      drivers: ['memory'],
+      effectiveLimit: limit,
+      prePaginated: true,
+    };
+  }
+}
+
+async function fetchQueueDataSafe(): Promise<QueueData> {
+  const defaultData: QueueData = {
+    driver: 'memory',
+    totalQueues: 0,
+    totalJobs: 0,
+    processingJobs: 0,
+    failedJobs: 0,
+  };
+
+  try {
+    return await withTimeout(getQueueData(), 3000, 'Queue data timeout');
+  } catch (err) {
+    Logger.warn('[getWorkers] Queue data fetch failed or timed out', err);
+    return defaultData;
+  }
+}
+
+async function enrichWithMetricsSafe(workers: WorkerData[]): Promise<WorkerData[]> {
+  try {
+    return await withTimeout(enrichWithMetrics(workers), 5000, 'Metrics timeout');
+  } catch (err) {
+    Logger.warn('[getWorkers] Metrics fetch failed or timed out', err);
+
+    // Reset metrics connection to avoid hanging next request
+    // We use fire-and-forget here because the request is already delayed/timed-out
+    // and we want to ensure the NEXT request has a clean slate (redisClient=null)
+    WorkerMetricsManager.shutdown().catch((e) =>
+      Logger.error('Failed to reset metrics connection', e)
+    );
+
+    return workers;
+  }
+}
+
 export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListResponse> {
+  const start = Date.now();
+  Logger.debug('[getWorkers] Start', query);
+
   const page = Math.max(1, query.page || 1);
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, query.limit || DEFAULT_PAGE_SIZE));
   const offset = (page - 1) * limit;
 
   // Get workers from persistence based on configuration
-  const persistence = await getWorkersFromPersistence(page, limit, query.driver, query);
+  const persistenceStart = Date.now();
+  const persistence = await fetchPersistenceWithTimeout(page, limit, query);
+  Logger.debug('[getWorkers] Persistence took ' + (Date.now() - persistenceStart) + 'ms', {
+    count: persistence.workers.length,
+    total: persistence.total,
+  });
 
-  // Apply filters
+  // Apply filters/search/sorting
   let filteredWorkers = applyFilters(persistence.workers, query);
-
-  // Apply search
   if (query.search) {
     filteredWorkers = applySearch(filteredWorkers, query.search);
   }
-
-  // Apply sorting
   filteredWorkers = applySorting(filteredWorkers, query.sortBy, query.sortOrder);
 
   // Get queue data
-  const queueData = await getQueueData();
+  const queueStart = Date.now();
+  const queueData = await fetchQueueDataSafe();
+  Logger.debug('[getWorkers] Queue data took ' + (Date.now() - queueStart) + 'ms');
 
   // Apply pagination
   const paginatedWorkers = persistence.prePaginated
     ? filteredWorkers
     : filteredWorkers.slice(offset, offset + persistence.effectiveLimit);
 
-  const workersWithMetrics = await enrichWithMetrics(paginatedWorkers);
+  // Enrich with metrics
+  const metricsStart = Date.now();
+  const workersWithMetrics = await enrichWithMetricsSafe(paginatedWorkers);
+  Logger.debug('[getWorkers] Metrics took ' + (Date.now() - metricsStart) + 'ms');
 
-  // Include details if requested
-  if (query.includeDetails) {
-    const enrichedWorkers = await enrichWithDetails(workersWithMetrics);
-    return {
-      workers: enrichedWorkers,
-      queueData,
-      pagination: {
-        page,
-        limit: persistence.effectiveLimit,
-        total: persistence.prePaginated ? persistence.total : filteredWorkers.length,
-        totalPages: Math.ceil(
-          (persistence.prePaginated ? persistence.total : filteredWorkers.length) /
-            persistence.effectiveLimit
-        ),
-        hasNext:
-          offset + persistence.effectiveLimit <
-          (persistence.prePaginated ? persistence.total : filteredWorkers.length),
-        hasPrev: page > 1,
-      },
-      drivers: persistence.drivers,
-    };
-  }
-
-  return {
+  // Prepare result
+  const result: WorkersListResponse = {
     workers: workersWithMetrics,
     queueData,
     pagination: {
@@ -97,6 +172,20 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
     },
     drivers: persistence.drivers,
   };
+
+  // Include details if requested
+  if (query.includeDetails) {
+    const detailsStart = Date.now();
+    try {
+      result.workers = await enrichWithDetails(result.workers);
+    } catch (err) {
+      Logger.warn('[getWorkers] Details fetch failed', err);
+    }
+    Logger.debug('[getWorkers] Details took ' + (Date.now() - detailsStart) + 'ms');
+  }
+
+  Logger.debug('[getWorkers] Total took ' + (Date.now() - start) + 'ms');
+  return result;
 }
 
 async function getWorkersFromPersistence(

@@ -81,6 +81,18 @@ REDIS_PASSWORD=your-password
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
 - For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
 
+### Architecture: Producer vs Consumer (Cloudflare)
+
+If you deploy your API to Cloudflare Workers, **you cannot run Queue Consumers (Workers) in the same process** because BullMQ/Redis consumers require Node.js primitives not available in the Edge runtime.
+
+**The Solution:**
+Split your deployment into two services:
+
+1.  **Producer (Cloudflare Worker)**: Handles API requests, validates inputs, and **enqueues** jobs to Redis.
+2.  **Consumer (Container/Node.js)**: A separate Node.js service (e.g. Docker, Railway, Fly.io, EC2) that connects to the _same_ Redis instance, **consumes** jobs, and processes them.
+
+See [Architecture: Producer-Consumer Model](./architecture-producer-consumer.md) for setup details.
+
 ### BullMQ Environment Variables
 
 When `QUEUE_DRIVER=redis`, the system uses BullMQ with these customizable settings:

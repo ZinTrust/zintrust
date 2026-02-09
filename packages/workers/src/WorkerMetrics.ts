@@ -97,8 +97,24 @@ const runInBatches = async <T>(
 
 // Internal state
 let redisClient: IORedis | null = null;
-
+let cachedConfig: RedisConfig | null = null;
 let keepLoggin = 0;
+
+/**
+ * Helper: Get valid Redis client
+ */
+const getValidClient = async (): Promise<IORedis> => {
+  if (!cachedConfig) {
+    throw ErrorFactory.createWorkerError('WorkerMetrics not initialized. Call initialize() first.');
+  }
+
+  // If no client, create one
+  if (!redisClient) {
+    redisClient = createRedisConnection(cachedConfig);
+  }
+
+  return redisClient;
+};
 
 /**
  * Helper: Get Redis key for metrics
@@ -263,21 +279,21 @@ const handleUninitializedMetrics = (optionsList: MetricQueryOptions[]): Aggregat
 /**
  * Helper: Build Redis pipeline for batch metrics query
  */
-const buildMetricsPipeline = (optionsList: MetricQueryOptions[]): ChainableCommander | null => {
-  if (redisClient) {
-    const pipeline = redisClient.pipeline();
+const buildMetricsPipeline = (
+  client: IORedis,
+  optionsList: MetricQueryOptions[]
+): ChainableCommander => {
+  const pipeline = client.pipeline();
 
-    for (const options of optionsList) {
-      const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
-      const key = getMetricsKey(workerName, metricType, granularity);
-      const minScore = startDate ? startDate.getTime() : '-inf';
-      const maxScore = endDate ? endDate.getTime() : '+inf';
-      pipeline.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
-    }
-
-    return pipeline;
+  for (const options of optionsList) {
+    const { workerName, metricType, granularity, startDate, endDate, limit = 1000 } = options;
+    const key = getMetricsKey(workerName, metricType, granularity);
+    const minScore = startDate ? startDate.getTime() : '-inf';
+    const maxScore = endDate ? endDate.getTime() : '+inf';
+    pipeline.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
   }
-  return null;
+
+  return pipeline;
 };
 
 /**
@@ -335,7 +351,9 @@ const WorkerMetrics = Object.freeze({
       return;
     }
 
+    cachedConfig = config;
     redisClient = createRedisConnection(config);
+    lastActivity = Date.now();
     Logger.info('WorkerMetrics initialized');
   },
 
@@ -348,11 +366,7 @@ const WorkerMetrics = Object.freeze({
     value: number,
     metadata?: Record<string, unknown>
   ): Promise<void> {
-    if (!redisClient) {
-      throw ErrorFactory.createWorkerError(
-        'WorkerMetrics not initialized. Call initialize() first.'
-      );
-    }
+    const client = await getValidClient();
 
     const now = new Date();
 
@@ -374,11 +388,10 @@ const WorkerMetrics = Object.freeze({
         const score = roundedTimestamp.getTime();
         const data = JSON.stringify(point);
 
-        await redisClient?.zadd(key, score, data);
+        await client.zadd(key, score, data);
 
         // Cleanup old metrics (lightweight: ~1% based on time slice)
-        const client = redisClient;
-        if (client && Date.now() % 100 === 0) {
+        if (Date.now() % 100 === 0) {
           cleanupOldMetrics(client, key, granularity).catch((err) => {
             Logger.error('Failed to cleanup old metrics', err);
           });
@@ -405,7 +418,7 @@ const WorkerMetrics = Object.freeze({
    * Query metrics for a time range
    */
   async query(options: MetricQueryOptions): Promise<MetricEntry> {
-    if (!redisClient) {
+    if (!cachedConfig) {
       Logger.warn(
         `[METRICS] WorkerMetrics not initialized for worker: ${options.workerName}. Please start the worker first to enable metrics collection.`
       );
@@ -424,8 +437,9 @@ const WorkerMetrics = Object.freeze({
     const maxScore = endDate ? endDate.getTime() : '+inf';
 
     try {
+      const client = await getValidClient();
       // Get data from sorted set
-      const results = await redisClient.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
+      const results = await client.zrangebyscore(key, minScore, maxScore, 'LIMIT', 0, limit);
 
       const points: MetricPoint[] = results.map((data) => JSON.parse(data) as MetricPoint);
 
@@ -485,15 +499,14 @@ const WorkerMetrics = Object.freeze({
   },
 
   async aggregateBatch(optionsList: MetricQueryOptions[]): Promise<AggregatedMetrics[]> {
-    if (!redisClient) {
+    if (!cachedConfig) {
       return handleUninitializedMetrics(optionsList);
     }
     if (optionsList.length === 0) return [];
 
-    const pipeline = buildMetricsPipeline(optionsList);
-    if (!pipeline) {
-      return handleUninitializedMetrics(optionsList);
-    }
+    const client = await getValidClient();
+    const pipeline = buildMetricsPipeline(client, optionsList);
+
     const results = await pipeline.exec();
 
     if (!results) {
@@ -507,9 +520,7 @@ const WorkerMetrics = Object.freeze({
    * Calculate and store health score
    */
   async calculateHealth(workerName: string): Promise<WorkerHealthScore> {
-    if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
-    }
+    const client = await getValidClient();
 
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
@@ -582,14 +593,14 @@ const WorkerMetrics = Object.freeze({
       const score = now.getTime();
       const data = JSON.stringify(healthScore);
 
-      await redisClient.zadd(key, score, data);
+      await client.zadd(key, score, data);
 
       // Keep only last 24 hours
       const cutoff = now.getTime() - 24 * 60 * 60 * 1000;
-      await redisClient.zremrangebyscore(key, '-inf', cutoff);
+      await client.zremrangebyscore(key, '-inf', cutoff);
 
       // Set expiry (48 hours)
-      await redisClient.expire(key, 48 * 60 * 60);
+      await client.expire(key, 48 * 60 * 60);
 
       Logger.debug(`Health score for ${workerName}: ${healthScore.score} (${healthScore.status})`);
 
@@ -607,16 +618,13 @@ const WorkerMetrics = Object.freeze({
     workerName: string,
     hours = 24
   ): Promise<ReadonlyArray<WorkerHealthScore>> {
-    if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
-    }
-
     try {
+      const client = await getValidClient();
       const key = getHealthKey(workerName);
       const now = Date.now();
       const startTime = now - hours * 60 * 60 * 1000;
 
-      const results = await redisClient.zrangebyscore(key, startTime, now);
+      const results = await client.zrangebyscore(key, startTime, now);
 
       return results.map((data) => JSON.parse(data) as WorkerHealthScore);
     } catch (error) {
@@ -629,15 +637,12 @@ const WorkerMetrics = Object.freeze({
    * Get latest health score
    */
   async getLatestHealth(workerName: string): Promise<WorkerHealthScore | null> {
-    if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
-    }
-
     try {
+      const client = await getValidClient();
       const key = getHealthKey(workerName);
 
       // Get the most recent entry
-      const results = await redisClient.zrevrange(key, 0, 0);
+      const results = await client.zrevrange(key, 0, 0);
 
       if (results.length === 0) {
         return null;
@@ -664,14 +669,12 @@ const WorkerMetrics = Object.freeze({
       };
     }>
   > {
-    if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
-    }
-
     try {
+      const client = await getValidClient();
+
       // Find all unique worker names from health keys
       const pattern = `${RedisKeys.healthPrefix}*`;
-      const keys = await redisClient.keys(pattern);
+      const keys = await client.keys(pattern);
       const workerNames = keys.map((key) => key.replace(RedisKeys.healthPrefix, ''));
 
       const summaries = await Promise.all(
@@ -723,21 +726,19 @@ const WorkerMetrics = Object.freeze({
    * Delete all metrics for a worker
    */
   async deleteWorkerMetrics(workerName: string): Promise<void> {
-    if (!redisClient) {
-      throw ErrorFactory.createWorkerError('WorkerMetrics not initialized');
-    }
+    const client = await getValidClient();
 
     try {
       const pattern = `${RedisKeys.metricsPrefix}${workerName}:*`;
-      const keys = await redisClient.keys(pattern);
+      const keys = await client.keys(pattern);
 
       if (keys.length > 0) {
-        await redisClient.del(...keys);
+        await client.del(...keys);
       }
 
       // Also delete health scores
       const healthKey = getHealthKey(workerName);
-      await redisClient.del(healthKey);
+      await client.del(healthKey);
 
       Logger.info(`Deleted all metrics for worker "${workerName}"`);
     } catch (error) {
@@ -756,8 +757,23 @@ const WorkerMetrics = Object.freeze({
 
     Logger.info('WorkerMetrics shutting down...');
 
-    await redisClient.quit();
+    // Detach client immediately to allow re-initialization
+    const client = redisClient;
     redisClient = null;
+
+    try {
+      // Attempt graceful quit
+      await client.quit();
+    } catch (error) {
+      // If graceful quit fails, force disconnect
+      Logger.warn('WorkerMetrics graceful shutdown failed, forcing disconnect', error);
+      try {
+        client.disconnect();
+      } catch (disconnectError) {
+        Logger.error('WorkerMetrics forced disconnect failed', disconnectError);
+        // Ignore disconnect errors
+      }
+    }
 
     Logger.info('WorkerMetrics shutdown complete');
   },

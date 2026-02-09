@@ -72,7 +72,15 @@ const resolveIORedis = (): typeof import('ioredis') => {
 };
 
 export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORedis => {
-  if (Cloudflare.getWorkersEnv() !== null && Cloudflare.isCloudflareSocketsEnabled() === false) {
+  // Respect proxy settings first
+  const shouldUseProxy =
+    Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
+
+  if (
+    !shouldUseProxy &&
+    Cloudflare.getWorkersEnv() !== null &&
+    Cloudflare.isCloudflareSocketsEnabled() === false
+  ) {
     throw ErrorFactory.createConfigError(
       'Redis connections in Cloudflare Workers require ENABLE_CLOUDFLARE_SOCKETS=true.'
     );

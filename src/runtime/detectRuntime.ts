@@ -1,5 +1,7 @@
 import { ZintrustLang } from '@lang/lang';
 
+export type RuntimeMode = 'cloudflare-workers' | 'containers' | 'node-server';
+
 export const isNodeRuntime = (): boolean => {
   // Avoid importing any `node:*` modules so this file remains Worker-safe.
   // In Workers/Deno, `process` is typically undefined.
@@ -18,6 +20,36 @@ const getGlobalThis = (): typeof globalThis | undefined => {
   }
 
   return globalThis;
+};
+
+export const getRuntimeMode = (): RuntimeMode => {
+  // 1. Explicit override via env var (if available)
+  if (typeof process !== 'undefined' && process.env?.RUNTIME_MODE) {
+    return process.env.RUNTIME_MODE as RuntimeMode;
+  }
+
+  // 2. Detect Cloudflare Workers
+  // @ts-ignore - navigator is available in workers
+  if (typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers') {
+    return 'cloudflare-workers';
+  }
+
+  // 3. Detect Container (Docker/Kubernetes)
+  // Usually indicated by specific env vars or filesystem characteristics,
+  // but simpler to assume Node + invalidating CF check = Node/Container
+  if (isNodeRuntime()) {
+    // Check for Docker-specific env vars if possible, or default to containers/node-server
+    if (
+      typeof process !== 'undefined' &&
+      (process.env?.DOCKER || process.env?.KUBERNETES_SERVICE_HOST)
+    ) {
+      return 'containers';
+    }
+    return 'node-server';
+  }
+
+  // Default fallback
+  return 'node-server';
 };
 
 export const detectRuntime = (): {

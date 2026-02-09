@@ -41,6 +41,7 @@ If you want PR-specific “New Code” numbers in GitHub, rely on the SonarCloud
 ✅ **Memory Profiling** – Heap/GC tracking per request
 ✅ **SQL Injection Prevention** – Parameterized queries by default
 ✅ **Multi-Cloud Ready** – Docker, AWS, Cloudflare Wrangler, Deno
+✅ **Edge Compatible** – Run API on Cloudflare Workers, process jobs on Node.js
 ✅ **Production Quality** – SonarQube integration, 90%+ test coverage
 
 ## Quick Start

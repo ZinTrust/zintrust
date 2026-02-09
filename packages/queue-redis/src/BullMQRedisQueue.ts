@@ -80,9 +80,24 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const getSharedConnection = (): IoRedis => {
     if (sharedConnection) return sharedConnection;
 
-    if (Cloudflare.getWorkersEnv() !== null && Cloudflare.isCloudflareSocketsEnabled() === false) {
+    const shouldUseProxy =
+      Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
+
+    if (
+      !shouldUseProxy &&
+      Cloudflare.getWorkersEnv() !== null &&
+      Cloudflare.isCloudflareSocketsEnabled() === false
+    ) {
       throw ErrorFactory.createConfigError(
-        'BullMQ Redis requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers.'
+        'Redis driver in Cloudflare Workers requires either ENABLE_CLOUDFLARE_SOCKETS=true or USE_REDIS_PROXY=true.'
+      );
+    }
+
+    if (Cloudflare.getWorkersEnv() !== null) {
+      Logger.warn(
+        'BullMQ Workers (consumers) cannot run in Cloudflare Workers runtime. ' +
+          'Deploy Workers in containers (Fargate/Docker) instead. ' +
+          'Queue operations (producers) will continue to work.'
       );
     }
 

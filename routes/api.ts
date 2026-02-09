@@ -36,8 +36,20 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
+  registerHealthRoute(router);
   registerBroadcastRoutes(router);
   registerStorageRoutes(router);
+}
+
+function registerHealthRoute(router: IRouter): void {
+  Router.get(router, '/health', async (_req: IRequest, res: IResponse) => {
+    res.json({
+      status: 'ok',
+      mode: Env.get('RUNTIME_MODE', 'unknown'),
+      worker: Env.get('WORKER_ENABLED', 'false') === 'true',
+      timestamp: new Date().toISOString(),
+    });
+  });
 }
 
 function registerRootRoute(router: IRouter): void {

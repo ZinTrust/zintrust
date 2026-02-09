@@ -168,6 +168,13 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
 };
 
 async function useWorkerStarter(): Promise<void> {
+  // Check if workers are enabled in this environment
+  const workerEnabled = Env.getBool('WORKER_ENABLED', true);
+  if (!workerEnabled) {
+    Logger.info('Workers disabled in this runtime (WORKER_ENABLED=false)');
+    return;
+  }
+
   // Initialize worker management system
   let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
   try {

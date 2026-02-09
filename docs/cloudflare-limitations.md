@@ -15,6 +15,16 @@ This document captures Cloudflare Workers constraints relevant to ZinTrust adapt
 - **No process signals**: use Durable Objects for lifecycle events (e.g., `WorkerShutdownDurableObject`).
 - **Global scope restrictions**: sockets must be created in request handlers.
 
+## BullMQ / Queue Workers
+
+BullMQ Workers (job consumers) **cannot run** in Cloudflare Workers runtime due to:
+
+- Required persistent TCP connections
+- Background event loops
+- Global scope socket requirements
+
+**Solution:** Run BullMQ Workers in containers (Producer-Consumer Split). Cloudflare Workers can still enqueue jobs via `Queue.add()`.
+
 ## Operational guidance
 
 - Use **Hyperdrive** or **Durable Objects** for pooling if needed.

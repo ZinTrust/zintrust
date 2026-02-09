@@ -1,5 +1,6 @@
 services:
-  app:
+  # Web Application (Producer Only)
+  web:
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,6 +10,11 @@ services:
       NODE_ENV: development
       PORT: 3000
       HOST: 0.0.0.0
+      # Producer Configuration
+      RUNTIME_MODE: node-server
+      WORKER_ENABLED: false
+      QUEUE_ENABLED: true
+      # Database & Redis
       DB_CONNECTION: ${DB_CONNECTION:-postgresql}
       DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
@@ -17,6 +23,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-zintrust}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - .:/app
@@ -33,6 +41,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - zintrust-network
+
+  # Background Workers (Consumer Only)
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # No ports needed for workers usually
+    environment:
+      NODE_ENV: development
+      # Consumer Configuration
+      RUNTIME_MODE: containers
+      WORKER_ENABLED: true
+      WORKER_AUTO_START: true
+      QUEUE_ENABLED: true
+      # Database & Redis
+      DB_CONNECTION: ${DB_CONNECTION:-postgresql}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-zintrust}
+      DB_USERNAME: ${DB_USERNAME:-zintrust}
+      DB_PASSWORD: ${DB_PASSWORD:-zintrust}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    # Run workers using tsx in development
+    command: npx tsx bin/zin.ts worker:start-all
     networks:
       - zintrust-network
 

@@ -56,7 +56,7 @@ const resolveMySqlProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null 
   if (cfg.driver !== 'mysql') return null;
   const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
   const useProxy = Env.getBool('USE_MYSQL_PROXY', false);
-  if (useProxy && proxyUrl.length > 0) {
+  if (useProxy || proxyUrl.length > 0) {
     return MySQLProxyAdapter.create(cfg);
   }
   return null;
@@ -65,11 +65,8 @@ const resolveMySqlProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null 
 const resolvePostgresProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
   if (cfg.driver !== 'postgresql') return null;
   const proxyUrl = Env.get('POSTGRES_PROXY_URL', '').trim();
-  const host = Env.get('POSTGRES_PROXY_HOST', '127.0.0.1').trim() || '127.0.0.1';
-  const port = Env.get('POSTGRES_PROXY_PORT', '8790').trim() || '8790';
-  const derivedUrl = proxyUrl === '' ? `http://${host}:${port}` : proxyUrl;
   const useProxy = Env.getBool('USE_POSTGRES_PROXY', false);
-  if (useProxy && derivedUrl.length > 0) {
+  if (useProxy || proxyUrl.length > 0) {
     return PostgreSQLProxyAdapter.create(cfg);
   }
   return null;

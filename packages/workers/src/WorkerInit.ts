@@ -8,7 +8,7 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Cloudflare, Env, Logger, workersConfig } from '@zintrust/core';
+import { Env, Logger, workersConfig } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
@@ -82,10 +82,6 @@ function initializeResourceMonitoring(
   enableResourceMonitoring: boolean,
   resourceMonitoringInterval: number
 ): boolean {
-  if (Cloudflare.getWorkersEnv() !== null) {
-    Logger.debug('⏸️ Resource monitoring skipped (Cloudflare Workers runtime)');
-    return false;
-  }
   // Check global environment gate first
   const globalResourceMonitoring = Env.getBool('WORKER_RESOURCE_MONITORING', false);
 

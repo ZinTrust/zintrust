@@ -9,9 +9,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-single
 import * as path from '@node-singletons/path';
 import type { Command } from 'commander';
 
-type StartMode = 'development' | 'production' | 'testing';
+type StartMode = 'development' | 'production' | 'testing' | 'split';
 
-type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 'testing';
+type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 'testing' | 'split';
 
 type StartCommandOptions = CommandOptions & {
   wrangler?: boolean;
@@ -33,11 +33,13 @@ const isValidModeInput = (value: string): value is StartModeInput =>
   value === 'production' ||
   value === 'pro' ||
   value === 'prod' ||
-  value === 'testing';
+  value === 'testing' ||
+  value === 'split';
 
 const normalizeMode = (value: StartModeInput): StartMode => {
   if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
   if (value === 'testing') return 'testing';
+  if (value === 'split') return 'split';
   return 'development';
 };
 
@@ -442,6 +444,66 @@ const executeNodeStart = async (
   process.exit(exitCode);
 };
 
+const executeSplitStart = async (
+  cmd: IBaseCommand,
+  cwd: string,
+  options: StartCommandOptions
+): Promise<void> => {
+  cmd.info('🚀 Starting in split mode (Producer + Consumer)...');
+
+  const packageJson = readPackageJson(cwd);
+  const webDev = resolveNodeDevCommand(cwd, packageJson);
+
+  // Producer Environment
+  const producerEnv = {
+    ...process.env,
+    WORKER_ENABLED: 'false',
+    QUEUE_ENABLED: 'true',
+    RUNTIME_MODE: 'node-server',
+  };
+
+  // Consumer Environment
+  const consumerEnv = {
+    ...process.env,
+    WORKER_ENABLED: 'true',
+    QUEUE_ENABLED: 'true',
+    RUNTIME_MODE: 'containers',
+    WORKER_AUTO_START: 'true',
+    // Prevent consumer from binding to the web port
+    APP_PORT: '0',
+    PORT: '0',
+  };
+
+  // Resolve Consumer Command (zintrust worker:start-all)
+  // We try to use tsx against the source bin if possible
+  const workerArgs = existsSync(path.join(cwd, 'bin/zin.ts'))
+    ? ['bin/zin.ts', 'worker:start-all']
+    : ['dist/bin/zin.js', 'worker:start-all'];
+
+  const workerCommand = existsSync(path.join(cwd, 'bin/zin.ts')) ? 'tsx' : 'node';
+
+  cmd.info('-------------------------------------------');
+  cmd.info('🔹 [Producer] Web Server starting...');
+  cmd.info('🔸 [Consumer] Worker Process starting...');
+  cmd.info('-------------------------------------------');
+
+  const pProducer = SpawnUtil.spawnAndWait({
+    command: webDev.command,
+    args: webDev.args,
+    env: producerEnv,
+    forwardSignals: true,
+  });
+
+  const pConsumer = SpawnUtil.spawnAndWait({
+    command: workerCommand,
+    args: workerArgs,
+    env: consumerEnv,
+    forwardSignals: true,
+  });
+
+  await Promise.all([pProducer, pConsumer]);
+};
+
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
   const cwd = process.cwd();
   EnvFileLoader.ensureLoaded();
@@ -453,6 +515,11 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   let effectiveRuntime = runtime;
   if (variant === 'deno') effectiveRuntime = 'deno';
   if (variant === 'lambda') effectiveRuntime = 'lambda';
+
+  if (mode === 'split') {
+    await executeSplitStart(cmd, cwd, options);
+    return;
+  }
 
   EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime: effectiveRuntime });
 

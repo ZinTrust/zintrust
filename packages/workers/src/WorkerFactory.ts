@@ -6,7 +6,6 @@
 
 import {
   appConfig,
-  Cloudflare,
   createRedisConnection,
   databaseConfig,
   Env,
@@ -692,14 +691,6 @@ const resolveProcessorSpec = async (
 const resolveProcessorFromPath = async (
   modulePath: string
 ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
-  // Cloudflare Workers cannot dynamically import arbitrary local paths
-  if (Cloudflare.getWorkersEnv() !== null) {
-    Logger.warn(
-      `Skipping local processor path on Cloudflare: ${modulePath}. Use a URL spec and register it in the prebuilt registry (src/zintrust.plugins.wg.ts).`
-    );
-    return undefined;
-  }
-
   const trimmed = modulePath.trim();
   if (!trimmed) return undefined;
 
@@ -1738,10 +1729,6 @@ const initializeDeadLetterQueue = (config: WorkerFactoryConfig): void => {
 
 const initializeResourceMonitoring = (config: WorkerFactoryConfig): void => {
   if (resourceMonitoringInitialized || !(config.features?.resourceMonitoring ?? false)) return;
-  if (Cloudflare.getWorkersEnv() !== null) {
-    Logger.debug('⏸️ Resource monitoring skipped (Cloudflare Workers runtime)');
-    return;
-  }
   ResourceMonitor.initialize();
   ResourceMonitor.start();
   resourceMonitoringInitialized = true;
@@ -1765,10 +1752,6 @@ const initializeCompliance = (config: WorkerFactoryConfig): void => {
 
 const initializeObservability = async (config: WorkerFactoryConfig): Promise<void> => {
   if (observabilityInitialized || !(config.features?.observability ?? false)) return;
-  if (Cloudflare.getWorkersEnv() !== null) {
-    Logger.debug('⏸️ Observability skipped (Cloudflare Workers runtime)');
-    return;
-  }
   const observabilityConfig = resolveObservabilityConfig(config.infrastructure?.observability);
   await Observability.initialize(observabilityConfig);
   observabilityInitialized = true;
@@ -2630,6 +2613,17 @@ export const WorkerFactory = Object.freeze({
     workers.clear();
 
     Logger.info('WorkerFactory shutdown complete');
+  },
+
+  /**
+   * Reset persistence connection state.
+   * Useful when connections become stale in long-running processes or serverless environments.
+   */
+  async resetPersistence(): Promise<void> {
+    workerStoreConfigured = false;
+    workerStore = InMemoryWorkerStore.create();
+    storeInstanceCache.clear();
+    Logger.info('Worker persistence configuration reset');
   },
 });
 
