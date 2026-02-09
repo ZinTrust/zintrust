@@ -353,7 +353,6 @@ const WorkerMetrics = Object.freeze({
 
     cachedConfig = config;
     redisClient = createRedisConnection(config);
-    lastActivity = Date.now();
     Logger.info('WorkerMetrics initialized');
   },
 

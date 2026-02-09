@@ -447,7 +447,7 @@ const executeNodeStart = async (
 const executeSplitStart = async (
   cmd: IBaseCommand,
   cwd: string,
-  options: StartCommandOptions
+  _options: StartCommandOptions
 ): Promise<void> => {
   cmd.info('🚀 Starting in split mode (Producer + Consumer)...');
 

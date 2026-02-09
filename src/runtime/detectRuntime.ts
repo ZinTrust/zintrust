@@ -24,8 +24,8 @@ const getGlobalThis = (): typeof globalThis | undefined => {
 
 export const getRuntimeMode = (): RuntimeMode => {
   // 1. Explicit override via env var (if available)
-  if (typeof process !== 'undefined' && process.env?.RUNTIME_MODE) {
-    return process.env.RUNTIME_MODE as RuntimeMode;
+  if (typeof process !== 'undefined' && process.env?.['RUNTIME_MODE'] !== undefined) {
+    return process.env['RUNTIME_MODE'] as RuntimeMode;
   }
 
   // 2. Detect Cloudflare Workers
@@ -41,7 +41,8 @@ export const getRuntimeMode = (): RuntimeMode => {
     // Check for Docker-specific env vars if possible, or default to containers/node-server
     if (
       typeof process !== 'undefined' &&
-      (process.env?.DOCKER || process.env?.KUBERNETES_SERVICE_HOST)
+      (process.env?.['DOCKER'] !== undefined ||
+        process.env?.['KUBERNETES_SERVICE_HOST'] !== undefined)
     ) {
       return 'containers';
     }

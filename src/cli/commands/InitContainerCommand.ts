@@ -1,7 +1,7 @@
 import { BaseCommand, type IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
-import { existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, writeFileSync } from '@node-singletons/fs';
+import { join } from '@node-singletons/path';
 
 export const InitContainerCommand = Object.freeze({
   create(): IBaseCommand {
@@ -57,15 +57,16 @@ volumes:
 `;
 
         const composePath = join(cwd, 'docker-compose.workers.yml');
-        if (!existsSync(composePath)) {
-          writeFileSync(composePath, composeContent);
-          Logger.success('Created docker-compose.workers.yml');
-        } else {
+        if (existsSync(composePath)) {
           Logger.warn('docker-compose.workers.yml already exists, skipping');
+        } else {
+          writeFileSync(composePath, composeContent);
+          Logger.info('✅ Created docker-compose.workers.yml');
         }
 
         Logger.info('✅ Container worker scaffolding complete.');
         Logger.info('Run with: docker-compose -f docker-compose.workers.yml up');
+        await Promise.resolve();
       },
     });
   },

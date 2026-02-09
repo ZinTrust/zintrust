@@ -1,7 +1,7 @@
 import { BaseCommand, type IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync } from '@node-singletons/fs';
+import { join } from '@node-singletons/path';
 
 export const InitProducerCommand = Object.freeze({
   create(): IBaseCommand {
@@ -41,7 +41,7 @@ export const InitProducerCommand = Object.freeze({
 
         if (modified) {
           writeFileSync(wranglerPath, content);
-          Logger.success('Updated wrangler.jsonc: Set WORKER_ENABLED=false, QUEUE_ENABLED=true');
+          Logger.info('✅ Updated wrangler.jsonc: Set WORKER_ENABLED=false, QUEUE_ENABLED=true');
         } else {
           Logger.info(
             'wrangler.jsonc configuration appears correct or could not be automatically patched.'
@@ -49,6 +49,7 @@ export const InitProducerCommand = Object.freeze({
         }
 
         Logger.info('✅ Producer configuration check complete.');
+        await Promise.resolve();
       },
     });
   },

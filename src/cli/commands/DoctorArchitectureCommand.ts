@@ -57,6 +57,7 @@ export const DoctorArchitectureCommand = Object.freeze({
         } else {
           Logger.info('✅ Architecture configuration looks valid for this runtime.');
         }
+        await Promise.resolve();
       },
     });
   },
