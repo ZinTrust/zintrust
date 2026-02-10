@@ -14,6 +14,7 @@ import {
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
+import { DeployCommand } from '@cli/commands/DeployCommand';
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
@@ -122,6 +123,7 @@ const registerCommands = (program: Command): void => {
     ConfigCommand.create(),
     PluginCommand.create(),
     PublishCommand.create(),
+    DeployCommand.create(),
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
@@ -142,6 +144,7 @@ const registerCommands = (program: Command): void => {
     WorkerCommands.createWorkerListCommand(),
     WorkerCommands.createWorkerStatusCommand(),
     WorkerCommands.createWorkerStartCommand(),
+    WorkerCommands.createWorkerStartAllCommand(),
     WorkerCommands.createWorkerStopCommand(),
     WorkerCommands.createWorkerRestartCommand(),
     WorkerCommands.createWorkerSummaryCommand(),

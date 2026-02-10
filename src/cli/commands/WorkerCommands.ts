@@ -24,9 +24,11 @@ type WorkerFactoryApi = {
   listPersisted: () => Promise<string[]>;
   getHealth: (name: string) => Promise<unknown>;
   getMetrics: (name: string) => Promise<unknown>;
+  get: (name: string) => unknown | null;
   stop: (name: string) => Promise<void>;
   restart: (name: string) => Promise<void>;
   start: (name: string) => Promise<void>;
+  startFromPersisted: (name: string) => Promise<void>;
 };
 
 type WorkerRegistryApi = {
@@ -244,6 +246,62 @@ const createWorkerStartCommand = (): IBaseCommand => {
 };
 
 /**
+ * Worker Start All Command
+ */
+const createWorkerStartAllCommand = (): IBaseCommand => {
+  const ext = async (): Promise<void> => {
+    try {
+      const factory = await getWorkerFactory();
+      const workers = await factory.listPersisted();
+
+      if (workers.length === 0) {
+        Logger.info('No persisted workers found.');
+        return;
+      }
+
+      const results = await Promise.all(
+        workers.map(async (name) => {
+          const getFactory = await factory.get(name);
+          if (getFactory !== null && getFactory !== undefined) {
+            return { name, status: 'skipped' as const };
+          }
+
+          try {
+            await factory.startFromPersisted(name);
+            return { name, status: 'started' as const };
+          } catch (error) {
+            Logger.warn(`Failed to start worker "${name}"`, error);
+            return { name, status: 'failed' as const };
+          }
+        })
+      );
+
+      const started = results.filter((result) => result.status === 'started').length;
+      const skipped = results.filter((result) => result.status === 'skipped').length;
+      const failed = results.filter((result) => result.status === 'failed').length;
+
+      Logger.info('Worker start-all summary', {
+        total: results.length,
+        started,
+        skipped,
+        failed,
+      });
+    } catch (error) {
+      Logger.error('worker:start-all command failed', error);
+      process.exit(1);
+    }
+  };
+
+  const cmd = BaseCommand.create({
+    name: 'worker:start-all',
+    description: 'Start all persisted workers',
+    execute: async () => ext(),
+  });
+
+  return cmd;
+};
+
+/**
  * Worker Stop Command
  */
 const createWorkerStopCommand = (): IBaseCommand => {
@@ -367,6 +425,7 @@ export const WorkerCommands = {
   createWorkerListCommand,
   createWorkerStatusCommand,
   createWorkerStartCommand,
+  createWorkerStartAllCommand,
   createWorkerStopCommand,
   createWorkerRestartCommand,
   createWorkerSummaryCommand,

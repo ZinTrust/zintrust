@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/workers",
-  "version": "0.1.28",
+  "version": "0.1.31",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",

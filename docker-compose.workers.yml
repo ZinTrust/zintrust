@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_VARIANT: workers
     environment:
       - RUNTIME_MODE=containers
       - WORKER_ENABLED=true
@@ -38,10 +40,10 @@ services:
       - D1_PROXY_URL=${D1_PROXY_URL}
       - D1_DATABASE_ID=${D1_DATABASE_ID}
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     command: ['node', 'dist/bin/zin.js', 'worker:start-all']
+    restart: on-failure:5
     deploy:
       replicas: 2
       restart_policy:
         condition: any
-

@@ -10,13 +10,21 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN npm ci
+RUN npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+   && npm ci
 
 # Copy source code using COPY . . to handle optional folders automatically
 COPY . .
 
-# Build TypeScript to JavaScript (Docker build includes packages)
-RUN npm run build:dk
+# Build TypeScript to JavaScript (workers image can skip full packages build)
+ARG BUILD_VARIANT=full
+RUN if [ "$BUILD_VARIANT" = "workers" ]; then \
+      npm run core:build:dist; \
+    else \
+      npm run build:dk; \
+    fi
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
