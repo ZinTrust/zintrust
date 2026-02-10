@@ -9,26 +9,25 @@ services:
       - WORKER_ENABLED=true
       - WORKER_AUTO_START=true
       - QUEUE_ENABLED=true
-      # Redis
-      - REDIS_HOST=${REDIS_HOST:-redis}
+      # Redis (defaults to host, override in .env for external)
+      - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-      # Database Driver Selection
+      # Database Driver Selection (Connects to host DB via host.docker.internal or external IP)
       - DB_CONNECTION=${DB_CONNECTION:-postgres}
+      - DB_HOST=${DB_HOST:-host.docker.internal}
       # PostgreSQL
-      - DB_HOST_POSTGRESQL=${DB_HOST_POSTGRESQL:-postgres}
       - DB_PORT_POSTGRESQL=${DB_PORT_POSTGRESQL:-5432}
       - DB_DATABASE_POSTGRESQL=${DB_DATABASE_POSTGRESQL:-zintrust}
       - DB_USERNAME_POSTGRESQL=${DB_USERNAME_POSTGRESQL:-zintrust}
       - DB_PASSWORD_POSTGRESQL=${DB_PASSWORD_POSTGRESQL:-secret}
       # MySQL
-      - DB_HOST=${DB_HOST:-mysql}
       - DB_PORT=${DB_PORT:-3306}
       - DB_DATABASE=${DB_DATABASE:-zintrust}
       - DB_USERNAME=${DB_USERNAME:-zintrust}
       - DB_PASSWORD=${DB_PASSWORD:-secret}
       # SQL Server
-      - DB_HOST_SQLSERVER=${DB_HOST_SQLSERVER:-sqlserver}
+      - DB_HOST_SQLSERVER=${DB_HOST_SQLSERVER:-host.docker.internal}
       - DB_PORT_SQLSERVER=${DB_PORT_SQLSERVER:-1433}
       - DB_DATABASE_SQLSERVER=${DB_DATABASE_SQLSERVER:-zintrust}
       - DB_USERNAME_SQLSERVER=${DB_USERNAME_SQLSERVER:-sa}
@@ -38,62 +37,11 @@ services:
       # Cloudflare D1 Proxy
       - D1_PROXY_URL=${D1_PROXY_URL}
       - D1_DATABASE_ID=${D1_DATABASE_ID}
-    depends_on:
-      - redis
-      - postgres # Change to mysql or sqlserver as needed
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ['node', 'dist/bin/zin.js', 'worker:start-all']
     deploy:
       replicas: 2
       restart_policy:
         condition: any
 
-  # Redis for Queues
-  redis:
-    image: redis:7-alpine
-    ports:
-      - '6379:6379'
-    volumes:
-      - redis_data:/data
-
-  # PostgreSQL (default, enabled)
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: ${DB_DATABASE_POSTGRESQL:-zintrust}
-      POSTGRES_USER: ${DB_USERNAME_POSTGRESQL:-zintrust}
-      POSTGRES_PASSWORD: ${DB_PASSWORD_POSTGRESQL:-secret}
-    ports:
-      - '5432:5432'
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  # MySQL (uncomment to enable)
-  # mysql:
-  #   image: mysql:8.0
-  #   environment:
-  #     MYSQL_DATABASE: ${DB_DATABASE:-zintrust}
-  #     MYSQL_USER: ${DB_USERNAME:-zintrust}
-  #     MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
-  #     MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootsecret}
-  #   ports:
-  #     - "3306:3306"
-  #   volumes:
-  #     - mysql_data:/var/lib/mysql
-
-  # SQL Server (uncomment to enable)
-  # sqlserver:
-  #   image: mcr.microsoft.com/mssql/server:2022-latest
-  #   environment:
-  #     ACCEPT_EULA: Y
-  #     SA_PASSWORD: ${DB_PASSWORD_SQLSERVER:-YourStrong@Passw0rd}
-  #     MSSQL_DB: ${DB_DATABASE_SQLSERVER:-zintrust}
-  #   ports:
-  #     - "1433:1433"
-  #   volumes:
-  #     - sqlserver_data:/var/opt/mssql
-
-volumes:
-  redis_data:
-  postgres_data:
-  # mysql_data: # Uncomment if using MySQL
-  # sqlserver_data:  # Uncomment if using SQL Server

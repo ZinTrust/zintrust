@@ -2,7 +2,7 @@
   "name": "zintrust-kv-proxy",
   "main": "./src/index.ts",
   "compatibility_date": "2025-04-21",
-  "workers_dev": true,
+  "workers_dev": false,
   "minify": false,
 
   // Runtime configuration (non-secret)
@@ -21,12 +21,5 @@
       "id": "REPLACE_ME",
       "preview_id": "REPLACE_ME",
     },
-
-    // Optional (recommended): replay protection nonce store
-    // ,{
-    //   "binding": "ZT_NONCES",
-    //   "id": "REPLACE_ME",
-    //   "preview_id": "REPLACE_ME"
-    // }
   ],
 }
