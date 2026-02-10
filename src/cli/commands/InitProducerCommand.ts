@@ -7,6 +7,7 @@ export const InitProducerCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'init:producer',
+      aliases: ['init:p'],
       description: 'Configure Cloudflare Workers as producer-only',
       async execute(): Promise<void> {
         Logger.info('Configuring Cloudflare Workers project as Producer-only...');

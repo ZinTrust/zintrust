@@ -8,6 +8,7 @@ export const DoctorArchitectureCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'doctor:architecture',
+      aliases: ['d'],
       description: 'Validate producer/consumer architecture configuration',
       async execute(): Promise<void> {
         Logger.info('🩺 Diagnosing Architecture Configuration...');

@@ -12,15 +12,8 @@ COPY package.json package-lock.json ./
 # Install dependencies (including dev dependencies needed for build)
 RUN npm ci
 
-# Copy source code
-COPY tsconfig.json ./
-COPY env.d.ts ./
-COPY scripts ./scripts
-COPY public ./public
-COPY src ./src
-COPY app ./app
-COPY routes ./routes
-COPY bin ./bin
+# Copy source code using COPY . . to handle optional folders automatically
+COPY . .
 
 # Build TypeScript to JavaScript (Docker build includes packages)
 RUN npm run build:dk
@@ -32,7 +25,7 @@ WORKDIR /app
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=7772
 ENV HOST=0.0.0.0
 
 # Create non-root user for security
@@ -66,10 +59,10 @@ USER nodejs
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('node:http').get('http://localhost:7777/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD node -e "require('node:http').get('http://localhost:7772/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
 # Expose port
-EXPOSE 3000
+EXPOSE 7772
 
 # Start application (compiled JS; no tsx needed in runtime)
 CMD ["node", "dist/src/boot/bootstrap.js"]

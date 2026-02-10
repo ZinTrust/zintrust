@@ -247,16 +247,32 @@ async function getWorkersFromMixedPersistence(
   limit: number,
   query: GetWorkersQuery
 ): Promise<PersistenceResult> {
-  try {
-    const dbRecords = await WorkerFactory.listPersistedRecords(
-      { driver: 'database', connection: 'mysql' },
-      { offset, limit, includeInactive: query.includeInactive }
-    );
-    const redisRecords = await WorkerFactory.listPersistedRecords(
-      { driver: 'redis' },
-      { offset, limit, includeInactive: query.includeInactive }
-    );
+  const includeInactive = query.includeInactive;
+  let dbRecords: WorkerRecord[] = [];
+  let redisRecords: WorkerRecord[] = [];
 
+  try {
+    dbRecords = await WorkerFactory.listPersistedRecords(
+      { driver: 'database', connection: 'mysql' },
+      { offset, limit, includeInactive }
+    );
+  } catch (error) {
+    // In some environments (like Cloudflare), database access might not be available.
+    // We log this as debug instead of error to avoid noise.
+    Logger.debug('Failed to fetch from database persistence:', error);
+  }
+
+  try {
+    redisRecords = await WorkerFactory.listPersistedRecords(
+      { driver: 'redis' },
+      { offset, limit, includeInactive }
+    );
+  } catch (error) {
+    // Similarly for Redis if direct connection is not available.
+    Logger.debug('Failed to fetch from redis persistence:', error);
+  }
+
+  try {
     const workers = [
       ...transformToWorkerData(dbRecords, 'database'),
       ...transformToWorkerData(redisRecords, 'redis'),
@@ -273,7 +289,7 @@ async function getWorkersFromMixedPersistence(
       prePaginated: true,
     };
   } catch (error) {
-    Logger.error('Error fetching workers from mixed persistence:', error);
+    Logger.error('Error transforming workers from mixed persistence:', error);
     return {
       workers: [],
       total: 0,
