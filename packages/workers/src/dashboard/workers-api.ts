@@ -552,7 +552,14 @@ async function getRedisQueueData(): Promise<QueueData> {
       throw ErrorFactory.createConfigError('Redis driver not configured');
     }
 
-    const monitor = QueueMonitor.create({ redis: redisConfig });
+    const monitor = QueueMonitor.create({
+      redis: {
+        host: redisConfig.host || 'localhost',
+        port: redisConfig.port || 6379,
+        db: redisConfig.database || 1,
+        password: redisConfig.password,
+      },
+    });
     const snapshot = await monitor.getSnapshot();
 
     let totalJobs = 0;

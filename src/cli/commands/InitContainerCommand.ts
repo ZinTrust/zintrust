@@ -97,7 +97,7 @@ RUN npm ci
 COPY . .
 
 # Build TypeScript to JavaScript (Docker build includes packages)
-RUN npm run build:dk
+RUN npm run build
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime

@@ -146,13 +146,7 @@ const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings
   return signedSettings;
 };
 
-const shouldUseProxy = (): boolean => {
-  const useProxy = Env.USE_SMTP_PROXY;
-  const explicitUrl = Env.SMTP_PROXY_URL.trim();
-  if (useProxy) return true;
-  if (explicitUrl !== '') return true;
-  return false;
-};
+const shouldUseProxy = (): boolean => Env.USE_SMTP_PROXY === true;
 
 const serializeMessage = (message: MailMessage): ProxyMessagePayload => {
   const attachments = message.attachments?.map((attachment) => {
