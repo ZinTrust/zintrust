@@ -248,7 +248,29 @@ const createWorkerStartAllCommand = (): IBaseCommand => {
   const ext = async (): Promise<void> => {
     try {
       const factory = await getWorkerFactory();
-      const workers = await factory.listPersisted();
+      let workers = await factory.listPersisted();
+
+      if (workers.length === 0 && process.env['RUNTIME_MODE'] === 'containers') {
+        Logger.info(
+          'No persisted workers found. Waiting for workers to be registered... (Polling every 10s)'
+        );
+
+        // Loop until workers are found
+        while (workers.length === 0) {
+          await new Promise((resolve) => globalThis.setTimeout(resolve, 10000));
+          try {
+            workers = await factory.listPersisted();
+            if (workers.length > 0) {
+              Logger.info(`Found ${workers.length} workers. Proceeding to start.`);
+            }
+          } catch (e) {
+            Logger.warn(
+              'Error checking for persisted workers (retrying in 10s):',
+              e instanceof Error ? e.message : String(e)
+            );
+          }
+        }
+      }
 
       if (workers.length === 0) {
         Logger.info('No persisted workers found.');

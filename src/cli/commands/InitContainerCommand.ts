@@ -10,18 +10,40 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_VARIANT: workers
     environment:
       - RUNTIME_MODE=containers
       - WORKER_ENABLED=true
       - WORKER_AUTO_START=true
       - QUEUE_ENABLED=true
+      - ZINTRUST_SKIP_VERSION_CHECK=true
+      # Worker Persistence
+      - WORKER_PERSISTENCE_DRIVER=\${WORKER_PERSISTENCE_DRIVER:-database}
+      - WORKER_PERSISTENCE_DB_CONNECTION=\${WORKER_PERSISTENCE_DB_CONNECTION:-mysql}
+      # Core App
+      - APP_NAME=\${APP_NAME:-ZinTrust}
+      - APP_KEY=\${APP_KEY}
+      - RUN_FROM_SOURCE=\${ZINTRUST_RUN_FROM_SOURCE:-0}
+      - LOG_LEVEL=\${LOG_LEVEL:-info}
+      # Drivers
+      - QUEUE_DRIVER=\${QUEUE_DRIVER:-redis}
+      - CACHE_DRIVER=\${CACHE_DRIVER:-redis}
+      - MAIL_DRIVER=\${MAIL_DRIVER:-smtp}
+      # Mail Configuration
+      - MAIL_HOST=\${MAIL_HOST}
+      - MAIL_PORT=\${MAIL_PORT}
+      - MAIL_USERNAME=\${MAIL_USERNAME}
+      - MAIL_PASSWORD=\${MAIL_PASSWORD}
+      - MAIL_SECURE=\${MAIL_SECURE}
+      - MAIL_FROM_ADDRESS=\${MAIL_FROM_ADDRESS}
       # Redis (defaults to host, override in .env for external)
-      - REDIS_HOST=\${REDIS_HOST:-host.docker.internal}
+      - REDIS_HOST=\${DOCKER_REDIS_HOST:-host.docker.internal}
       - REDIS_PORT=\${REDIS_PORT:-6379}
       - REDIS_PASSWORD=\${REDIS_PASSWORD}
       # Database Driver Selection (Connects to host DB via host.docker.internal or external IP)
       - DB_CONNECTION=\${DB_CONNECTION:-postgres}
-      - DB_HOST=\${DB_HOST:-host.docker.internal}
+      - DB_HOST=\${DOCKER_DB_HOST:-host.docker.internal}
       # PostgreSQL
       - DB_PORT_POSTGRESQL=\${DB_PORT_POSTGRESQL:-5432}
       - DB_DATABASE_POSTGRESQL=\${DB_DATABASE_POSTGRESQL:-zintrust}
@@ -33,7 +55,7 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
       - DB_USERNAME=\${DB_USERNAME:-zintrust}
       - DB_PASSWORD=\${DB_PASSWORD:-secret}
       # SQL Server
-      - DB_HOST_SQLSERVER=\${DB_HOST_SQLSERVER:-host.docker.internal}
+      - DB_HOST_SQLSERVER=\${DOCKER_DB_HOST_SQLSERVER:-host.docker.internal}
       - DB_PORT_SQLSERVER=\${DB_PORT_SQLSERVER:-1433}
       - DB_DATABASE_SQLSERVER=\${DB_DATABASE_SQLSERVER:-zintrust}
       - DB_USERNAME_SQLSERVER=\${DB_USERNAME_SQLSERVER:-sa}
@@ -44,8 +66,10 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
       - D1_PROXY_URL=\${D1_PROXY_URL}
       - D1_DATABASE_ID=\${D1_DATABASE_ID}
     extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: ['node', 'dist/bin/zin.js', 'worker:start-all']
+      - 'host.docker.internal:host-gateway'
+    command:
+      ['node', '--experimental-specifier-resolution=node', 'dist/bin/zin.js', 'worker:start-all']
+    restart: on-failure:5
     deploy:
       replicas: 2
       restart_policy:

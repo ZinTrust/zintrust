@@ -21,7 +21,7 @@ const listJsFilesRecursive = (dir: string): string[] => {
 
   while (stack.length > 0) {
     const current = stack.pop();
-    if (!current) continue;
+    if (current === undefined) continue;
 
     let entries: Array<{ name: string; isDirectory: () => boolean; isFile: () => boolean }>;
     try {
@@ -88,7 +88,7 @@ const patchImportsInFile = (filePath: string): number => {
 
   const rewrite = (match: string, quote: string, specifier: string): string => {
     const next = resolveSpecifier(filePath, specifier);
-    if (!next) return match;
+    if (next === null) return match;
     replacements += 1;
     return match.replace(`${quote}${specifier}${quote}`, `${quote}${next}${quote}`);
   };
