@@ -24,12 +24,14 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
       # Core App
       - APP_NAME=\${APP_NAME:-ZinTrust}
       - APP_KEY=\${APP_KEY}
+      - NODE_ENV=\${NODE_ENV:-development}
       - RUN_FROM_SOURCE=\${ZINTRUST_RUN_FROM_SOURCE:-0}
       - LOG_LEVEL=\${LOG_LEVEL:-info}
       # Drivers
       - QUEUE_DRIVER=\${QUEUE_DRIVER:-redis}
       - CACHE_DRIVER=\${CACHE_DRIVER:-redis}
       - MAIL_DRIVER=\${MAIL_DRIVER:-smtp}
+      - WORKER_PERSISTENCE_REDIS_KEY_PREFIX=\${WORKER_PERSISTENCE_REDIS_KEY_PREFIX}
       # Mail Configuration
       - MAIL_HOST=\${MAIL_HOST}
       - MAIL_PORT=\${MAIL_PORT}

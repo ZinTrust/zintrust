@@ -1226,12 +1226,23 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
   };
 };
 
-const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => ({
-  host: requireRedisHost(config.host, context),
-  port: config.port,
-  db: config.db,
-  password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
-});
+const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => {
+  const fallbackDb = Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
+
+  let normalizedDb = fallbackDb;
+  if (typeof config.db === 'number') {
+    normalizedDb = config.db;
+  } else if (typeof (config as { database?: number }).database === 'number') {
+    normalizedDb = (config as { database?: number }).database as number;
+  }
+
+  return {
+    host: requireRedisHost(config.host, context),
+    port: config.port,
+    db: normalizedDb,
+    password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+  };
+};
 
 const resolveRedisConfig = (config: RedisConfigInput, context: string): RedisConfig =>
   isRedisEnvConfig(config)
@@ -1250,6 +1261,20 @@ const resolveRedisConfigWithFallback = (
   }
 
   return resolveRedisConfig(selected, context);
+};
+
+const logRedisPersistenceConfig = (
+  redisConfig: RedisConfig,
+  keyPrefix: string,
+  source: string
+): void => {
+  Logger.debug('Worker persistence redis config', {
+    source,
+    host: redisConfig.host,
+    port: redisConfig.port,
+    db: redisConfig.db,
+    keyPrefix,
+  });
 };
 
 const normalizeEnvValue = (value: string | undefined): string | undefined => {
@@ -1383,8 +1408,10 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
       'Worker persistence requires redis config (persistence.redis or infrastructure.redis)',
       'infrastructure.persistence.redis'
     );
+    const keyPrefix = persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix();
+    logRedisPersistenceConfig(redisConfig, keyPrefix, 'resolveWorkerStore');
     const client = createRedisConnection(redisConfig);
-    next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
+    next = RedisWorkerStore.create(client, keyPrefix);
   } else if (persistence.driver === 'database') {
     const explicitConnection =
       typeof persistence.client === 'string' ? persistence.client : persistence.connection;
@@ -1435,8 +1462,10 @@ const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<
       'Worker persistence requires redis config (persistence.redis or REDIS_* env values)',
       'persistence.redis'
     );
+    const keyPrefix = persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix();
+    logRedisPersistenceConfig(redisConfig, keyPrefix, 'createWorkerStore');
     const client = createRedisConnection(redisConfig);
-    return RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
+    return RedisWorkerStore.create(client, keyPrefix);
   }
 
   // Database driver

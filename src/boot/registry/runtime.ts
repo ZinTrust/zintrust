@@ -1,5 +1,6 @@
 import { cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
+import { loadWorkersModule } from '@/runtime/WorkersModule';
 import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
 import broadcastConfig from '@config/broadcast';
 import { FeatureFlags } from '@config/features';
@@ -11,6 +12,7 @@ import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistra
 import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute';
 import type { IShutdownManager } from '@registry/type';
 import { registerWorkerShutdownHook } from '@registry/worker';
+import runQueueConfig from '@runtime-config/queue';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
@@ -218,6 +220,29 @@ export const createLifecycle = (params: {
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerMasterRoutes(params.resolvedBasePath, params.router);
 
+    const workers = await loadWorkersModule();
+    if (workers?.WorkerInit !== undefined) {
+      workers.registerWorkerRoutes(params.router, undefined, { middleware: undefined });
+    }
+
+    const monitorConfig = runQueueConfig?.monitor;
+    if (monitorConfig.enabled !== false) {
+      const { QueueMonitor } = await import('@zintrust/queue-monitor');
+
+      const monitor = QueueMonitor.create({
+        ...monitorConfig,
+      });
+
+      try {
+        monitor.registerRoutes(params.router);
+      } catch (error) {
+        Logger.error('Failed to register Queue Monitor routes', error);
+      }
+      Logger.info(
+        `Queue Monitor routes registered at http://127.0.0.1:7777${runQueueConfig.monitor.basePath}`
+      );
+      Logger.info('Queue Monitor enqueue endpoint at http://127.0.0.1:7777/test/enqueue');
+    }
     // Register service providers
     // Bootstrap services
     Logger.info('✅ Application booted successfully');

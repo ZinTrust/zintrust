@@ -33,6 +33,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
+      '@zintrust/queue-monitor': path.resolve(__dirname, './packages/queue-monitor/src/index.ts'),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
       '@zintrust/queue-redis': path.resolve(__dirname, './packages/queue-redis/src/index.ts'),
       '@zintrust/cloudflare-kv-proxy': path.resolve(
