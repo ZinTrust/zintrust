@@ -12,39 +12,10 @@ import middlewareOverrides from '@runtime-config/middleware';
 import notificationOverrides from '@runtime-config/notification';
 import queueOverrides from '@runtime-config/queue';
 import storageOverrides from '@runtime-config/storage';
-import workersOverrides from '@runtime-config/workers';
 
 import { getKernel } from '@runtime/getKernel';
 
 import '@runtime/WorkerAdapterImports';
-
-let workersAutoStartPromise: Promise<void> | null = null;
-
-const ensureWorkersAutoStart = async (): Promise<void> => {
-  if (workersAutoStartPromise !== null) return workersAutoStartPromise;
-
-  workersAutoStartPromise = (async () => {
-    try {
-      const workers = await import('@zintrust/workers');
-      if (workers?.WorkerInit?.initialize !== undefined) {
-        await workers.WorkerInit.initialize({
-          enableResourceMonitoring: false,
-          enableHealthMonitoring: false,
-          enableAutoScaling: false,
-          registerShutdownHandlers: false,
-        });
-      }
-
-      if (workers?.WorkerInit?.autoStartPersistedWorkers !== undefined) {
-        await workers.WorkerInit.autoStartPersistedWorkers();
-      }
-    } catch (error) {
-      Logger.warn('Worker auto-start skipped in Workers runtime', error as Error);
-    }
-  })();
-
-  return workersAutoStartPromise;
-};
 
 const applyStartupConfigOverrides = (): void => {
   const globalAny = globalThis as {
@@ -62,7 +33,6 @@ const applyStartupConfigOverrides = (): void => {
   );
   globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Queue, queueOverrides);
   globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Storage, storageOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Workers, workersOverrides);
 };
 
 const injectIoredisModule = async (): Promise<void> => {
@@ -90,8 +60,6 @@ export default {
 
       const kernel = await getKernel();
 
-      await ensureWorkersAutoStart();
-
       const adapter = CloudflareAdapter.create({
         handler: async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
           await kernel.handle(req, res);
@@ -115,4 +83,3 @@ export { ZinTrustMySqlPoolDurableObject } from '@runtime/durable-objects/MySqlPo
 export { PoolDurableObject } from '@runtime/durable-objects/PoolDurableObject';
 export { ZinTrustPostgresPoolDurableObject } from '@runtime/durable-objects/PostgresPoolDO';
 export { ZinTrustRedisPoolDurableObject } from '@runtime/durable-objects/RedisPoolDO';
-export { ZinTrustWorkerShutdownDurableObject } from '@zintrust/workers';

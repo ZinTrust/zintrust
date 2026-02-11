@@ -141,7 +141,7 @@ const createIntervalConfig = (): number => Env.SSE_SNAPSHOT_INTERVAL;
  * Helper: Create default worker configuration from environment
  */
 const createDefaultWorkerConfig = (): Partial<WorkerConfig> => ({
-  enabled: Env.getBool('WORKER_ENABLED', true),
+  enabled: Env.getBool('WORKER_ENABLED', Cloudflare.getWorkersEnv() === null),
   concurrency: Env.getInt('WORKER_CONCURRENCY', 5),
   timeout: Env.getInt('WORKER_TIMEOUT', 60),
   retries: Env.getInt('WORKER_RETRIES', 3),

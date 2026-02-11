@@ -159,10 +159,10 @@ const resolveLocalWorkersModuleUrl = (): string | null => {
 
 const importLocalWorkersModule = async (): Promise<WorkersModule | null> => {
   const url = resolveLocalWorkersModuleUrl();
-  if (!url) return null;
+  if (url === null || url === '' || url === undefined) return null;
 
   try {
-    return await import(url);
+    return (await import(url)) as WorkersModule;
   } catch (error) {
     Logger.warn('Failed to import local @zintrust/workers fallback', error as Error);
     return null;

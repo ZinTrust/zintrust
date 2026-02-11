@@ -93,13 +93,13 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       );
     }
 
-    if (Cloudflare.getWorkersEnv() !== null) {
-      Logger.warn(
-        'BullMQ Workers (consumers) cannot run in Cloudflare Workers runtime. ' +
-          'Deploy Workers in containers (Fargate/Docker) instead. ' +
-          'Queue operations (producers) will continue to work.'
-      );
-    }
+    // if (Cloudflare.getWorkersEnv() !== null) {
+    //   Logger.warn(
+    //     'BullMQ Workers (consumers) cannot run in Cloudflare Workers runtime. ' +
+    //       'Deploy Workers in containers (Fargate/Docker) instead. ' +
+    //       'Queue operations (producers) will continue to work.'
+    //   );
+    // }
 
     const redisConfig = createBaseDrivers().redis;
     sharedConnection = createRedisConnection({

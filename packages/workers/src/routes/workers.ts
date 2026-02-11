@@ -4,7 +4,7 @@
  */
 
 import type { IRequest, IResponse, IRouter } from '@zintrust/core';
-import { Logger, Router } from '@zintrust/core';
+import { Cloudflare, Logger, Router } from '@zintrust/core';
 import { type WorkersDashboardUiOptions } from '../dashboard';
 import { HealthMonitor } from '../HealthMonitor';
 import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';
@@ -133,12 +133,13 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
     '/api/workers',
     (r: IRouter) => {
       Logger.info('Registering Worker Management Routes');
-
-      registerMonitoringRoutes(r); // ← Move FIRST - has /events
       registerCoreWorkerRoutes(r);
-      registerWorkerQueryRoutes(r);
-      registerVersioningRoutes(r);
-      registerUtilityRoutes(r);
+      if (Cloudflare.getWorkersEnv() === null) {
+        registerMonitoringRoutes(r); // ← Move FIRST - has /events
+        registerWorkerQueryRoutes(r);
+        registerVersioningRoutes(r);
+        registerUtilityRoutes(r);
+      }
     },
     { middleware: middleware }
   );

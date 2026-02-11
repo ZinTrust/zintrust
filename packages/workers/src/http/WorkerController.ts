@@ -4,7 +4,14 @@
  * HTTP handlers for worker management API
  */
 
-import { Env, Logger, getValidatedBody, type IRequest, type IResponse } from '@zintrust/core';
+import {
+  Cloudflare,
+  Env,
+  Logger,
+  getValidatedBody,
+  type IRequest,
+  type IResponse,
+} from '@zintrust/core';
 import type { Job } from 'bullmq';
 import { CanaryController } from '../CanaryController';
 import { HealthMonitor } from '../HealthMonitor';
@@ -60,25 +67,49 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
       });
     }
 
-    const rawProcessor = body.processor;
-    let processor: (job: Job) => Promise<unknown>;
-    let processorSpec: string | undefined;
+    // 1. Check if worker exists
+    const name = body.name;
+    const persistenceOverride = resolvePersistenceOverride(req);
+    const existing = await WorkerFactory.getPersisted(name, persistenceOverride);
 
-    if (typeof rawProcessor === 'string') {
-      processorSpec = rawProcessor;
-      const resolved = await WorkerFactory.resolveProcessorSpec(rawProcessor);
-      if (!resolved) {
-        res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
-        return;
-      }
-      processor = resolved;
-    } else {
-      processor = rawProcessor as (job: Job) => Promise<unknown>;
+    if (existing) {
+      res.status(409).json({
+        ok: false,
+        error: `Worker ${name} already exists`,
+        code: 'WORKER_EXISTS',
+        worker: existing,
+      });
+      return;
     }
 
-    if (typeof processor !== 'function') {
-      res.setStatus(400).json({ error: 'Processor must be a function or resolvable path' });
-      return;
+    const rawProcessor = body.processor;
+    let processor = rawProcessor as (job: Job) => Promise<unknown>;
+    let processorSpec: string | undefined;
+
+    if (Cloudflare.getWorkersEnv() === null) {
+      if (typeof rawProcessor === 'string') {
+        processorSpec = rawProcessor;
+        const resolved = await WorkerFactory.resolveProcessorSpec(rawProcessor);
+        if (!resolved) {
+          res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
+          return;
+        }
+        processor = resolved;
+      } else {
+        processor = rawProcessor as (job: Job) => Promise<unknown>;
+      }
+
+      if (typeof processor !== 'function') {
+        res.setStatus(400).json({ error: 'Processor must be a function or resolvable path' });
+        return;
+      }
+    } else {
+      // Cloudflare environment: treat string as spec, otherwise accept as-is
+      if (typeof rawProcessor === 'string') {
+        processorSpec = rawProcessor;
+
+        processor = async () => {};
+      }
     }
 
     const config = {
@@ -87,14 +118,32 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
       processorSpec,
     };
 
-    await WorkerFactory.create(config);
+    // 3. Logic: check AutoStart and Runtime
+    const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
+    const workerAutoStart = config.autoStart ?? globalAutoStart;
+    const isCloudflare = Cloudflare.getWorkersEnv() !== null;
 
-    res.json({
-      ok: true,
-      workerName: config.name,
-      status: 'creating',
-      message: 'Worker creation started. Check status endpoint for progress.',
-    });
+    if (!isCloudflare && globalAutoStart && workerAutoStart) {
+      // Node environment with auto-start enabled -> Create and Start
+      await WorkerFactory.create(config);
+      res.json({
+        ok: true,
+        workerName: config.name,
+        status: 'creating',
+        message: 'Worker creation started. Check status endpoint for progress.',
+      });
+    } else {
+      // Cloudflare OR auto-start disabled -> Just Register
+      await WorkerFactory.register(config);
+      res.json({
+        ok: true,
+        workerName: config.name,
+        status: 'registered',
+        message: isCloudflare
+          ? 'Worker registered. Cloudflare environment detected; worker will be picked up by external processor.'
+          : 'Worker registered successfully.',
+      });
+    }
   } catch (error) {
     Logger.error('WorkerController.create failed', error);
     res.setStatus(500).json({ error: (error as Error).message });

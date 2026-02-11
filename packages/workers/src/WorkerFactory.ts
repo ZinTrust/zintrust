@@ -58,13 +58,90 @@ const resolveProjectRoot = (): string => {
 };
 
 const canUseProjectFileImports = (): boolean =>
-  Boolean(
-    NodeSingletons?.fs?.writeFileSync &&
-    NodeSingletons?.fs?.mkdirSync &&
-    NodeSingletons?.fs?.existsSync &&
-    NodeSingletons?.url?.pathToFileURL &&
-    NodeSingletons?.path
-  );
+  typeof NodeSingletons?.fs?.writeFileSync === 'function' &&
+  typeof NodeSingletons?.fs?.mkdirSync === 'function' &&
+  typeof NodeSingletons?.fs?.existsSync === 'function' &&
+  typeof NodeSingletons?.url?.pathToFileURL === 'function' &&
+  typeof NodeSingletons?.path?.join === 'function';
+
+const buildCandidatesForSpecifier = (specifier: string, root: string): string[] => {
+  if (specifier === '@zintrust/core') {
+    return [
+      path.join(root, 'dist', 'src', 'index.js'),
+      path.join(root, 'dist', 'index.js'),
+      path.join(root, 'src', 'index.ts'),
+    ];
+  }
+
+  if (specifier === '@zintrust/workers') {
+    return [
+      path.join(root, 'dist', 'packages', 'workers', 'src', 'index.js'),
+      path.join(root, 'packages', 'workers', 'src', 'index.ts'),
+    ];
+  }
+
+  return [];
+};
+
+const getProjectFileCandidates = (paths: string[]): string | null => {
+  if (!canUseProjectFileImports()) return null;
+  for (const candidate of paths) {
+    if (NodeSingletons.fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+};
+
+const resolveLocalPackageFallback = (specifier: string): string | null => {
+  if (!canUseProjectFileImports()) return null;
+  const root = resolveProjectRoot();
+
+  const candidates = buildCandidatesForSpecifier(specifier, root);
+  const resolved = getProjectFileCandidates(candidates);
+  if (!resolved) return null;
+  return NodeSingletons.url.pathToFileURL(resolved).href;
+};
+
+const resolvePackageSpecifierUrl = (specifier: string): string | null => {
+  if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
+  if (typeof NodeSingletons?.module?.createRequire !== 'function') {
+    return resolveLocalPackageFallback(specifier);
+  }
+
+  try {
+    const require = NodeSingletons.module.createRequire(import.meta.url);
+    const resolved = require.resolve(specifier);
+    if (
+      specifier === '@zintrust/workers' &&
+      resolved.includes(`${path.sep}node_modules${path.sep}@zintrust${path.sep}workers${path.sep}`)
+    ) {
+      const local = resolveLocalPackageFallback(specifier);
+      if (local) return local;
+    }
+    return NodeSingletons.url.pathToFileURL(resolved).href;
+  } catch {
+    return resolveLocalPackageFallback(specifier);
+  }
+};
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const rewriteProcessorImports = (code: string): string => {
+  const replacements: Array<{ from: string; to: string }> = [];
+  const coreUrl = resolvePackageSpecifierUrl('@zintrust/core');
+  if (coreUrl) replacements.push({ from: '@zintrust/core', to: coreUrl });
+  const workersUrl = resolvePackageSpecifierUrl('@zintrust/workers');
+  if (workersUrl) replacements.push({ from: '@zintrust/workers', to: workersUrl });
+
+  if (replacements.length === 0) return code;
+
+  let updated = code;
+  for (const { from, to } of replacements) {
+    const pattern = new RegExp(`(['"])${escapeRegExp(from)}\\1`, 'g');
+    updated = updated.replace(pattern, `$1${to}$1`);
+  }
+
+  return updated;
+};
 
 const ensureProcessorSpecDir = (): string | null => {
   if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
@@ -649,7 +726,8 @@ const cacheProcessorFromResponse = async (params: {
   cacheKey: string;
 }): Promise<WorkerFactoryConfig['processor']> => {
   const { response, normalized, config, cacheKey } = params;
-  const code = await readResponseBody(response, config.fetchMaxSizeBytes);
+  const rawCode = await readResponseBody(response, config.fetchMaxSizeBytes);
+  const code = rewriteProcessorImports(rawCode);
   const mod = await importModuleFromCode({ code, normalized, cacheKey });
   const processor = extractZinTrustProcessor(mod as Record<string, unknown>, normalized);
   if (!processor) {
@@ -2076,6 +2154,30 @@ export const WorkerFactory = Object.freeze({
   registerProcessorSpec,
   resolveProcessorPath,
   resolveProcessorSpec,
+
+  /**
+   * Register a new worker configuration without starting it.
+   */
+  async register(config: WorkerFactoryConfig): Promise<void> {
+    const { name } = config;
+    // Check in-memory first (though unlikely if we are just registering)
+    if (workers.has(name)) {
+      throw ErrorFactory.createWorkerError(`Worker "${name}" is already running locally`);
+    }
+
+    const store = await getStoreForWorker(config);
+    const existing = await store.get(name);
+    if (existing) {
+      throw ErrorFactory.createWorkerError(`Worker "${name}" already exists in persistence`);
+    }
+
+    // Init features to validate config, but mainly we just want to save it.
+    // initializeWorkerFeatures might rely on being active or having resources, so we might skip it or do partial.
+    // For now, just save definition.
+    // Status should be STOPPED or CREATED.
+    await store.save(buildWorkerRecord(config, WorkerCreationStatus.STOPPED));
+    Logger.info(`Worker registered (persistence only): ${name}`);
+  },
 
   /**
    * Create new worker with full setup

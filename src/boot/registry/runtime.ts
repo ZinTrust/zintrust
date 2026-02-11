@@ -3,6 +3,7 @@ import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { loadWorkersModule } from '@/runtime/WorkersModule';
 import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
 import broadcastConfig from '@config/broadcast';
+import { Cloudflare } from '@config/cloudflare';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
@@ -224,24 +225,25 @@ export const createLifecycle = (params: {
     if (workers?.WorkerInit !== undefined) {
       workers.registerWorkerRoutes(params.router, undefined, { middleware: undefined });
     }
+    if (Cloudflare.getWorkersEnv() === null) {
+      const monitorConfig = runQueueConfig?.monitor;
+      if (monitorConfig.enabled !== false) {
+        const { QueueMonitor } = await import('@zintrust/queue-monitor');
 
-    const monitorConfig = runQueueConfig?.monitor;
-    if (monitorConfig.enabled !== false) {
-      const { QueueMonitor } = await import('@zintrust/queue-monitor');
+        const monitor = QueueMonitor.create({
+          ...monitorConfig,
+        });
 
-      const monitor = QueueMonitor.create({
-        ...monitorConfig,
-      });
-
-      try {
-        monitor.registerRoutes(params.router);
-      } catch (error) {
-        Logger.error('Failed to register Queue Monitor routes', error);
+        try {
+          monitor.registerRoutes(params.router);
+        } catch (error) {
+          Logger.error('Failed to register Queue Monitor routes', error);
+        }
+        Logger.info(
+          `Queue Monitor routes registered at http://127.0.0.1:7777${runQueueConfig.monitor.basePath}`
+        );
+        Logger.info('Queue Monitor enqueue endpoint at http://127.0.0.1:7777/test/enqueue');
       }
-      Logger.info(
-        `Queue Monitor routes registered at http://127.0.0.1:7777${runQueueConfig.monitor.basePath}`
-      );
-      Logger.info('Queue Monitor enqueue endpoint at http://127.0.0.1:7777/test/enqueue');
     }
     // Register service providers
     // Bootstrap services

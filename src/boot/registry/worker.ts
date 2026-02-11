@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import type { IShutdownManager } from '@registry/type';
 import { loadWorkersModule } from '@runtime/WorkersModule';
 
@@ -7,6 +8,9 @@ import { loadWorkersModule } from '@runtime/WorkersModule';
 export const registerWorkerShutdownHook = async (
   shutdownManager: IShutdownManager
 ): Promise<void> => {
+  if (Env.getBool('WORKER_SHUTDOWN_ON_APP_EXIT', true) === false) {
+    return Promise.resolve();
+  }
   // Ensure worker management system is asked to shutdown BEFORE databases are reset.
   // This prevents workers from trying to access DB connections that have already
   // been closed by subsequent shutdown hooks.

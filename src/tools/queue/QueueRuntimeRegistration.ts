@@ -39,6 +39,6 @@ export function registerQueuesFromRuntimeConfig(config: QueueConfig): void {
       return;
     }
 
-    throw error;
+    throw ErrorFactory.createConfigError('Queue default driver is not available', error);
   }
 }
