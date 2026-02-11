@@ -106,6 +106,22 @@ function initializeResourceMonitoring(
 }
 
 /**
+ * Get persistence override configuration based on driver name
+ */
+function getPersistenceOverride(driver: string): { driver: 'redis' | 'memory' } | undefined {
+  if (driver === 'redis') {
+    return { driver: 'redis' };
+  }
+  if (driver === 'database' || driver === 'db') {
+    return undefined;
+  }
+  if (driver === 'memory') {
+    return { driver: 'memory' };
+  }
+  return undefined;
+}
+
+/**
  * Check if any workers have resource monitoring enabled
  */
 function shouldStartResourceMonitoring(): boolean {
@@ -185,19 +201,30 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 }
 
 async function autoStartPersistedWorkers(): Promise<void> {
-  // Check if auto-start is enabled globally via environment variable
+  const envAutoStart = Env.getBool('WORKER_AUTO_START', false);
+  const configAutoStart = workersConfig.defaultWorker?.autoStart === true;
+  const shouldAutoStart = envAutoStart || configAutoStart;
+
+  // Check if auto-start is enabled globally via environment variable OR config
   Logger.debug('Auto-start check', {
-    envAutoStart: Env.getBool('WORKER_AUTO_START', false),
-    configAutoStart: workersConfig.defaultWorker?.autoStart,
+    envAutoStart,
+    configAutoStart,
+    shouldAutoStart,
   });
 
-  if (workersConfig.defaultWorker?.autoStart !== true) {
+  if (!shouldAutoStart) {
     Logger.debug('Auto-start disabled - WORKER_AUTO_START is not true');
     return;
   }
 
   try {
-    const records = await WorkerFactory.listPersistedRecords();
+    const persistenceDriver = (Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') || '')
+      .toLowerCase()
+      .trim();
+
+    const persistenceOverride = getPersistenceOverride(persistenceDriver);
+
+    const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
     Logger.debug('Found persisted records', {
       count: records.length,
       records: records.map((r) => ({ name: r.name, autoStart: r.autoStart })),
@@ -212,10 +239,7 @@ async function autoStartPersistedWorkers(): Promise<void> {
         return true;
       }
       // If autoStart is null or undefined and global auto-start is enabled, include
-      if (
-        (record.autoStart === null || record.autoStart === undefined) &&
-        workersConfig.defaultWorker?.autoStart === true
-      ) {
+      if ((record.autoStart === null || record.autoStart === undefined) && shouldAutoStart) {
         return true;
       }
 
@@ -232,7 +256,7 @@ async function autoStartPersistedWorkers(): Promise<void> {
           return { name: record.name, started: false, skipped: true };
         }
         try {
-          await WorkerFactory.startFromPersisted(record.name);
+          await WorkerFactory.startFromPersisted(record.name, persistenceOverride);
           return { name: record.name, started: true, skipped: false };
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
