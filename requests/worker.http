@@ -53,7 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
-  "persistence": { "driver": "redis", "connection": "mysql"  },
+  "persistence": { "driver": "database", "connection": "redis"  },
     "redis": {
       "env": true,
       "host": "REDIS_HOST",

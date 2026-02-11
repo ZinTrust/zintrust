@@ -41,6 +41,102 @@ const getBody = (req: IRequest): Record<string, unknown> => {
 
 // ==================== Core Worker Operations ====================
 
+const isCloudflareEnv = (): boolean => Cloudflare.getWorkersEnv() !== null;
+
+const validateCreatePayload = (body: WorkerFactoryConfig, res: IResponse): boolean => {
+  if (!body.name || !body.queueName || !body.processor || !body.version) {
+    res.setStatus(400).json({
+      error: 'Missing required fields',
+      message: 'name, queueName, processor, and version are required',
+      code: 'MISSING_REQUIRED_FIELDS',
+    });
+    return false;
+  }
+  return true;
+};
+
+const respondIfWorkerExists = async (
+  name: string,
+  persistenceOverride: ReturnType<typeof resolvePersistenceOverride>,
+  res: IResponse
+): Promise<boolean> => {
+  const existing = await WorkerFactory.getPersisted(name, persistenceOverride);
+  if (!existing) return false;
+
+  res.status(409).json({
+    ok: false,
+    error: `Worker ${name} already exists`,
+    code: 'WORKER_EXISTS',
+    worker: existing,
+  });
+  return true;
+};
+
+const resolveCreateProcessor = async (
+  body: WorkerFactoryConfig,
+  res: IResponse
+): Promise<{ processor: (job: Job) => Promise<unknown>; processorSpec?: string } | null> => {
+  const rawProcessor = body.processor;
+  let processor = rawProcessor as (job: Job) => Promise<unknown>;
+  let processorSpec: string | undefined;
+
+  if (!isCloudflareEnv()) {
+    if (typeof rawProcessor === 'string') {
+      processorSpec = rawProcessor;
+      const resolved = await WorkerFactory.resolveProcessorSpec(rawProcessor);
+      if (!resolved) {
+        res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
+        return null;
+      }
+      processor = resolved;
+    } else {
+      processor = rawProcessor as (job: Job) => Promise<unknown>;
+    }
+
+    if (typeof processor !== 'function') {
+      res.setStatus(400).json({ error: 'Processor must be a function or resolvable path' });
+      return null;
+    }
+
+    return { processor, processorSpec };
+  }
+
+  // Cloudflare environment: treat string as spec, otherwise accept as-is
+  if (typeof rawProcessor === 'string') {
+    processorSpec = rawProcessor;
+    processor = async () => {};
+  }
+
+  return { processor, processorSpec };
+};
+
+const finalizeWorkerCreate = async (config: WorkerFactoryConfig, res: IResponse): Promise<void> => {
+  const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
+  const workerAutoStart = config.autoStart ?? globalAutoStart;
+  const isCloudflare = isCloudflareEnv();
+
+  if (!isCloudflare && globalAutoStart && workerAutoStart) {
+    await WorkerFactory.create(config);
+    res.json({
+      ok: true,
+      workerName: config.name,
+      status: 'creating',
+      message: 'Worker creation started. Check status endpoint for progress.',
+    });
+    return;
+  }
+
+  await WorkerFactory.register(config);
+  res.json({
+    ok: true,
+    workerName: config.name,
+    status: 'registered',
+    message: isCloudflare
+      ? 'Worker registered. Cloudflare environment detected; worker will be picked up by external processor.'
+      : 'Worker registered successfully.',
+  });
+};
+
 /**
  * Create a new worker instance
  * @param req.body.name - Worker name (required)
@@ -57,93 +153,23 @@ async function create(req: IRequest, res: IResponse): Promise<void> {
   Logger.info('WorkerController.create called');
   try {
     const body = req.data() as unknown as WorkerFactoryConfig;
+    if (!validateCreatePayload(body, res)) return;
 
-    // Validate required fields
-    if (!body.name || !body.queueName || !body.processor || !body.version) {
-      return res.setStatus(400).json({
-        error: 'Missing required fields',
-        message: 'name, queueName, processor, and version are required',
-        code: 'MISSING_REQUIRED_FIELDS',
-      });
-    }
-
-    // 1. Check if worker exists
     const name = body.name;
     const persistenceOverride = resolvePersistenceOverride(req);
-    const existing = await WorkerFactory.getPersisted(name, persistenceOverride);
+    const exists = await respondIfWorkerExists(name, persistenceOverride, res);
+    if (exists) return;
 
-    if (existing) {
-      res.status(409).json({
-        ok: false,
-        error: `Worker ${name} already exists`,
-        code: 'WORKER_EXISTS',
-        worker: existing,
-      });
-      return;
-    }
-
-    const rawProcessor = body.processor;
-    let processor = rawProcessor as (job: Job) => Promise<unknown>;
-    let processorSpec: string | undefined;
-
-    if (Cloudflare.getWorkersEnv() === null) {
-      if (typeof rawProcessor === 'string') {
-        processorSpec = rawProcessor;
-        const resolved = await WorkerFactory.resolveProcessorSpec(rawProcessor);
-        if (!resolved) {
-          res.setStatus(400).json({ error: 'Processor spec could not be resolved' });
-          return;
-        }
-        processor = resolved;
-      } else {
-        processor = rawProcessor as (job: Job) => Promise<unknown>;
-      }
-
-      if (typeof processor !== 'function') {
-        res.setStatus(400).json({ error: 'Processor must be a function or resolvable path' });
-        return;
-      }
-    } else {
-      // Cloudflare environment: treat string as spec, otherwise accept as-is
-      if (typeof rawProcessor === 'string') {
-        processorSpec = rawProcessor;
-
-        processor = async () => {};
-      }
-    }
+    const resolvedProcessor = await resolveCreateProcessor(body, res);
+    if (!resolvedProcessor) return;
 
     const config = {
       ...(body as WorkerFactoryConfig),
-      processor,
-      processorSpec,
+      processor: resolvedProcessor.processor,
+      processorSpec: resolvedProcessor.processorSpec,
     };
 
-    // 3. Logic: check AutoStart and Runtime
-    const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
-    const workerAutoStart = config.autoStart ?? globalAutoStart;
-    const isCloudflare = Cloudflare.getWorkersEnv() !== null;
-
-    if (!isCloudflare && globalAutoStart && workerAutoStart) {
-      // Node environment with auto-start enabled -> Create and Start
-      await WorkerFactory.create(config);
-      res.json({
-        ok: true,
-        workerName: config.name,
-        status: 'creating',
-        message: 'Worker creation started. Check status endpoint for progress.',
-      });
-    } else {
-      // Cloudflare OR auto-start disabled -> Just Register
-      await WorkerFactory.register(config);
-      res.json({
-        ok: true,
-        workerName: config.name,
-        status: 'registered',
-        message: isCloudflare
-          ? 'Worker registered. Cloudflare environment detected; worker will be picked up by external processor.'
-          : 'Worker registered successfully.',
-      });
-    }
+    await finalizeWorkerCreate(config, res);
   } catch (error) {
     Logger.error('WorkerController.create failed', error);
     res.setStatus(500).json({ error: (error as Error).message });

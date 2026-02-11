@@ -6,6 +6,7 @@
 
 import {
   appConfig,
+  Cloudflare,
   createRedisConnection,
   databaseConfig,
   Env,
@@ -197,6 +198,23 @@ const importModuleFromCode = async (params: {
   }
 };
 
+const isCloudflareRuntime = (): boolean => Cloudflare.getWorkersEnv() !== null;
+
+const getDefaultStoreForRuntime = async (): Promise<WorkerStore> => {
+  if (!isCloudflareRuntime()) {
+    await ensureWorkerStoreConfigured();
+    return workerStore;
+  }
+
+  const bootstrapConfig = buildPersistenceBootstrapConfig();
+  const persistence = resolvePersistenceConfig(bootstrapConfig);
+  if (!persistence) {
+    return InMemoryWorkerStore.create();
+  }
+
+  return resolveWorkerStoreForPersistence(persistence);
+};
+
 const getStoreForWorker = async (
   config: WorkerFactoryConfig | undefined,
   persistenceOverride?: WorkerPersistenceConfig
@@ -214,8 +232,7 @@ const getStoreForWorker = async (
   }
 
   // Fallback to default/global store
-  await ensureWorkerStoreConfigured();
-  return workerStore;
+  return getDefaultStoreForRuntime();
 };
 
 const validateAndGetStore = async (
@@ -1674,10 +1691,12 @@ const resolveWorkerStoreForPersistence = async (
   persistence: WorkerPersistenceConfig
 ): Promise<WorkerStore> => {
   const cacheKey = generateCacheKey(persistence);
+  const isCloudflare = Cloudflare.getWorkersEnv() !== null;
 
-  // Return cached instance if available
+  // Return cached instance if available (disable cache for Cloudflare to assume cleanup)
+  // Or handle cleanup differently. For now, disable cache for Cloudflare to allow per-request connections.
   const cached = storeInstanceCache.get(cacheKey);
-  if (cached) {
+  if (cached && !isCloudflare) {
     return cached;
   }
 
@@ -1685,8 +1704,10 @@ const resolveWorkerStoreForPersistence = async (
   const store = await createWorkerStore(persistence);
   await store.init();
 
-  // Cache the store instance for reuse
-  storeInstanceCache.set(cacheKey, store);
+  // Cache the store instance for reuse only if not Cloudflare
+  if (!isCloudflare) {
+    storeInstanceCache.set(cacheKey, store);
+  }
 
   return store;
 };
@@ -1696,8 +1717,19 @@ const getPersistedRecord = async (
   persistenceOverride?: WorkerPersistenceConfig
 ): Promise<WorkerRecord | null> => {
   if (!persistenceOverride) {
-    await ensureWorkerStoreConfigured();
-    return workerStore.get(name);
+    if (!isCloudflareRuntime()) {
+      await ensureWorkerStoreConfigured();
+      return workerStore.get(name);
+    }
+
+    const store = await getDefaultStoreForRuntime();
+    try {
+      return await store.get(name);
+    } finally {
+      if (store.close) {
+        await store.close();
+      }
+    }
   }
 
   const store = await resolveWorkerStoreForPersistence(persistenceOverride);
@@ -2166,17 +2198,24 @@ export const WorkerFactory = Object.freeze({
     }
 
     const store = await getStoreForWorker(config);
-    const existing = await store.get(name);
-    if (existing) {
-      throw ErrorFactory.createWorkerError(`Worker "${name}" already exists in persistence`);
-    }
+    try {
+      const existing = await store.get(name);
+      if (existing) {
+        throw ErrorFactory.createWorkerError(`Worker "${name}" already exists in persistence`);
+      }
 
-    // Init features to validate config, but mainly we just want to save it.
-    // initializeWorkerFeatures might rely on being active or having resources, so we might skip it or do partial.
-    // For now, just save definition.
-    // Status should be STOPPED or CREATED.
-    await store.save(buildWorkerRecord(config, WorkerCreationStatus.STOPPED));
-    Logger.info(`Worker registered (persistence only): ${name}`);
+      // Init features to validate config, but mainly we just want to save it.
+      // initializeWorkerFeatures might rely on being active or having resources, so we might skip it or do partial.
+      // For now, just save definition.
+      // Status should be STOPPED or CREATED.
+      await store.save(buildWorkerRecord(config, WorkerCreationStatus.STOPPED));
+      Logger.info(`Worker registered (persistence only): ${name}`);
+    } finally {
+      // If Cloudflare environment, try to close store connection to avoid zombie connections
+      if (Cloudflare.getWorkersEnv() !== null && store.close) {
+        await store.close();
+      }
+    }
   },
 
   /**
@@ -2643,9 +2682,25 @@ export const WorkerFactory = Object.freeze({
   ): Promise<WorkerRecord[]> {
     const includeInactive = options?.includeInactive === true;
     if (!persistenceOverride) {
-      await ensureWorkerStoreConfigured();
-      const records = await workerStore.list(options);
-      return includeInactive ? records : records.filter((record) => record.activeStatus !== false);
+      if (!isCloudflareRuntime()) {
+        await ensureWorkerStoreConfigured();
+        const records = await workerStore.list(options);
+        return includeInactive
+          ? records
+          : records.filter((record) => record.activeStatus !== false);
+      }
+
+      const store = await getDefaultStoreForRuntime();
+      try {
+        const records = await store.list(options);
+        return includeInactive
+          ? records
+          : records.filter((record) => record.activeStatus !== false);
+      } finally {
+        if (store.close) {
+          await store.close();
+        }
+      }
     }
 
     const store = await resolveWorkerStoreForPersistence(persistenceOverride);
@@ -2709,8 +2764,19 @@ export const WorkerFactory = Object.freeze({
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<WorkerRecord | null> {
     const instance = workers.get(name);
+    // Logger.debug(`getPersisted: resolving store for ${name}`);
     const store = await getStoreForWorker(instance?.config, persistenceOverride);
-    return store.get(name);
+
+    try {
+      // Logger.debug(`getPersisted: getting record for ${name}`);
+      const result = await store.get(name);
+      return result;
+    } finally {
+      if (Cloudflare.getWorkersEnv() !== null && store.close) {
+        // Logger.debug(`getPersisted: closing store for ${name}`);
+        await store.close();
+      }
+    }
   },
 
   /**

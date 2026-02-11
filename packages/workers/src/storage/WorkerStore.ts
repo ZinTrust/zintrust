@@ -39,6 +39,7 @@ export type WorkerStore = {
   update(name: string, patch: Partial<WorkerRecord>): Promise<void>;
   updateMany?: (names: string[], patch: Partial<WorkerRecord>) => Promise<void>;
   remove(name: string): Promise<void>;
+  close?(): Promise<void>;
 };
 
 const now = (): Date => new Date();
@@ -157,6 +158,9 @@ export const InMemoryWorkerStore = Object.freeze({
       async remove(name: string): Promise<void> {
         store.delete(name);
       },
+      async close(): Promise<void> {
+        // No-op for memory store
+      },
     };
   },
 });
@@ -224,6 +228,14 @@ export const RedisWorkerStore = Object.freeze({
         if (updates.length === 0) return;
         await client.hset(key, ...updates);
       },
+      async close(): Promise<void> {
+        try {
+          // Force disconnect in Cloudflare env to avoid hanging on quit()
+          client.disconnect();
+        } catch {
+          // Ignore connection errors during cleanup
+        }
+      },
       async remove(name: string): Promise<void> {
         await client.hdel(key, name);
       },
@@ -284,6 +296,10 @@ export const DbWorkerStore = Object.freeze({
       },
       async remove(name: string): Promise<void> {
         await db.table(table).where('name', '=', name).delete();
+      },
+      async close(): Promise<void> {
+        // Database clients often managed by pool, but if needed:
+        // await db.destroy?.();
       },
     };
   },
