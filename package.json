@@ -148,6 +148,7 @@
     "commander": "^14.0.3",
     "inquirer": "^13.2.2",
     "jsonwebtoken": "^9.0.3",
+    "@zintrust/workers": "^0.1.31",
     "mysql2": "^3.16.3",
     "pg": "^8.18.0"
   },
@@ -169,6 +170,7 @@
     "@typescript-eslint/eslint-plugin": "^8.55.0",
     "@vitest/coverage-v8": "^4.0.18",
     "better-sqlite3": "^12.6.2",
+    "es-module-loader": "^2.3.0",
     "eslint": "^9.17.0",
     "globals": "^17.3.0",
     "hot-shots": "^13.2.0",
@@ -185,8 +187,5 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.55.0",
     "vitest": "^4.0.18"
-  },
-  "optionalDependencies": {
-    "@zintrust/workers": "^0.1.31"
   }
 }

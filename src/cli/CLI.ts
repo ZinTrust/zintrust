@@ -6,6 +6,7 @@
 import { AddCommand } from '@cli/commands/AddCommand';
 import { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
+import { ContainerWorkersCommand } from '@cli/commands/ContainerWorkersCommand';
 import {
   AddMigrationCommand,
   CreateCommand,
@@ -121,6 +122,7 @@ const registerCommands = (program: Command): void => {
     DebugCommand.create(),
     SecretsCommand.create(),
     ConfigCommand.create(),
+    ContainerWorkersCommand.create(),
     PluginCommand.create(),
     PublishCommand.create(),
     DeployCommand.create(),

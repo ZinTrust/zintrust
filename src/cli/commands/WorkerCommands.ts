@@ -8,7 +8,7 @@ import { ErrorFactory } from '@/exceptions/ZintrustError';
 import type { IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
-type WorkersModule = typeof import('@zintrust/workers');
+import { loadWorkersModule as loadWorkersRuntimeModule } from '@runtime/WorkersModule';
 
 type WorkerRegistryStatus = {
   status?: string;
@@ -53,13 +53,9 @@ let WorkerFactory: WorkerFactoryApi | undefined;
 let WorkerRegistry: WorkerRegistryApi | undefined;
 let HealthMonitor: HealthMonitorApi | undefined;
 let ResourceMonitor: ResourceMonitorApi | undefined;
-let workersModulePromise: Promise<WorkersModule> | undefined;
-
-const loadWorkersModule = async (): Promise<WorkersModule> => {
-  workersModulePromise ??= import('@zintrust/workers');
-
+const loadWorkersModule = async () => {
   try {
-    return await workersModulePromise;
+    return await loadWorkersRuntimeModule();
   } catch (error) {
     Logger.error(
       'Failed to load optional package "@zintrust/workers"; worker commands require this package.',

@@ -5,6 +5,7 @@
 export { AddCommand } from '@cli/commands/AddCommand';
 export { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 export { ConfigCommand } from '@cli/commands/ConfigCommand';
+export { ContainerWorkersCommand } from '@cli/commands/ContainerWorkersCommand';
 export {
   AddMigrationCommand,
   CreateCommand,

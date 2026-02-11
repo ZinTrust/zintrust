@@ -110,6 +110,19 @@ for (const pkg of selectedPackages) {
         stdio: 'inherit',
       });
 
+      const pkgDist = path.join(pkgPath, 'dist');
+      if (fs.existsSync(pkgDist)) {
+        try {
+          execFileSync('node', [path.join(rootDir, 'scripts/fix-dist-esm-imports.mjs'), pkgDist], {
+            stdio: 'inherit',
+          });
+        } catch {
+          console.warn(`⚠️  Could not fix ESM imports for ${pkgJson.name}`);
+        }
+      } else {
+        console.warn(`⚠️  dist/ not found for ${pkgJson.name}; skipping ESM import fixes`);
+      }
+
       // Add version banner
       try {
         execFileSync(

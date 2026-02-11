@@ -1,4 +1,5 @@
 import type { IShutdownManager } from '@registry/type';
+import { loadWorkersModule } from '@runtime/WorkersModule';
 
 /**
  * Helper: Register Worker management system shutdown hook
@@ -11,7 +12,7 @@ export const registerWorkerShutdownHook = async (
   // been closed by subsequent shutdown hooks.
   shutdownManager.add(async () => {
     try {
-      const mod = (await import('@zintrust/workers')) as {
+      const mod = (await loadWorkersModule()) as {
         WorkerShutdown: {
           shutdown: (opts: {
             signal?: string;

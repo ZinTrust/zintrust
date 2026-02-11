@@ -18,13 +18,9 @@ RUN npm config set fetch-retries 5 \
 # Copy source code using COPY . . to handle optional folders automatically
 COPY . .
 
-# Build TypeScript to JavaScript (workers image can skip full packages build)
+# Build TypeScript to JavaScript
 ARG BUILD_VARIANT=full
-RUN if [ "$BUILD_VARIANT" = "workers" ]; then \
-      npm run core:build:dist; \
-    else \
-      npm run build:dk; \
-    fi
+RUN npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime

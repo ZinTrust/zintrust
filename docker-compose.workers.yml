@@ -41,7 +41,8 @@ services:
       - D1_DATABASE_ID=${D1_DATABASE_ID}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
-    command: ['node', 'dist/bin/zin.js', 'worker:start-all']
+    command:
+      ['node', '--experimental-specifier-resolution=node', 'dist/bin/zin.js', 'worker:start-all']
     restart: on-failure:5
     deploy:
       replicas: 2

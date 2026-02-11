@@ -10,6 +10,7 @@ import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { loadWorkersModule } from '@runtime/WorkersModule';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
@@ -125,7 +126,7 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
         // Shutdown worker management system FIRST (before database closes)
         if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
           try {
-            const workers = await import('@zintrust/workers');
+            const workers = await loadWorkersModule();
             const workerBudgetMs = Math.min(15000, remainingMs());
             await withTimeout(
               workers.WorkerShutdown.shutdown({
@@ -178,7 +179,7 @@ async function useWorkerStarter(): Promise<void> {
   // Initialize worker management system
   let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
   try {
-    const workers = await import('@zintrust/workers');
+    const workers = await loadWorkersModule();
     if (workers?.WorkerInit !== undefined) {
       workerInit = workers.WorkerInit;
       await workers.WorkerInit.initialize({
