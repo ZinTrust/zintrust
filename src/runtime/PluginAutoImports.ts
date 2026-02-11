@@ -35,6 +35,8 @@ const getCandidates = (projectRoot: string): string[] => {
   ];
 };
 
+type ImportSpecifier = { specifier: string; filePath: string };
+
 const extractImportSpecifiers = (raw: string): string[] => {
   const specifiers: string[] = [];
   for (const line of raw.split(/\r?\n/)) {
@@ -46,8 +48,8 @@ const extractImportSpecifiers = (raw: string): string[] => {
   return specifiers;
 };
 
-const readImportSpecifiersFromFiles = async (files: string[]): Promise<Set<string>> => {
-  const importSpecifiers = new Set<string>();
+const readImportSpecifiersFromFiles = async (files: string[]): Promise<ImportSpecifier[]> => {
+  const importSpecifiers: ImportSpecifier[] = [];
 
   // Read all files in parallel
   const fileReadPromises = files.map(async (filePath) => {
@@ -66,28 +68,46 @@ const readImportSpecifiersFromFiles = async (files: string[]): Promise<Set<strin
   const results = await Promise.all(fileReadPromises);
 
   // Collect all successful specifiers
-  for (const { specifiers } of results) {
+  for (const { filePath, specifiers } of results) {
     for (const specifier of specifiers) {
-      importSpecifiers.add(specifier);
+      importSpecifiers.push({ specifier, filePath });
     }
   }
 
   return importSpecifiers;
 };
 
-const importSpecifiers = async (specifiers: Iterable<string>): Promise<number> => {
+const resolveRelativeSpecifier = (entry: ImportSpecifier): string => {
+  const baseDir = path.dirname(entry.filePath);
+  const basePath = path.resolve(baseDir, entry.specifier);
+  const candidates = [
+    basePath,
+    `${basePath}.js`,
+    `${basePath}.ts`,
+    path.join(basePath, 'index.js'),
+    path.join(basePath, 'index.ts'),
+  ];
+
+  const resolved = candidates.find((candidate) => existsSync(candidate)) ?? basePath;
+  return pathToFileURL(resolved).href;
+};
+
+const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<number> => {
   // Import all specifiers in parallel
-  const importPromises = Array.from(specifiers).map(async (specifier) => {
+  const importPromises = Array.from(specifiers).map(async (entry) => {
+    const target = entry.specifier.startsWith('.')
+      ? resolveRelativeSpecifier(entry)
+      : entry.specifier;
     try {
-      await import(specifier);
-      Logger.debug('[plugins] Loaded auto-import specifier', { specifier });
-      return { specifier, success: true };
+      await import(target);
+      Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
+      return { specifier: entry.specifier, success: true };
     } catch (error) {
       Logger.debug('[plugins] Failed auto-import specifier', {
-        specifier,
+        specifier: entry.specifier,
         error: error instanceof Error ? error.message : String(error),
       });
-      return { specifier, success: false };
+      return { specifier: entry.specifier, success: false };
     }
   });
 
@@ -174,7 +194,7 @@ export const PluginAutoImports = Object.freeze({
 
   async tryImportFromFileContents(files: string[]): Promise<ImportResult> {
     const specifiers = await readImportSpecifiersFromFiles(files);
-    if (specifiers.size === 0) {
+    if (specifiers.length === 0) {
       return { ok: false, reason: 'import-failed', errorMessage: 'No import specifiers found' };
     }
 

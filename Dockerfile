@@ -1,7 +1,16 @@
+# syntax=docker/dockerfile:1.6
 # Build Stage - Compile TypeScript
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+# Reuse npm cache across builds (requires BuildKit)
+ENV NPM_CONFIG_CACHE=/root/.npm
+ENV NPM_CONFIG_PREFER_OFFLINE=true
+
+# Reuse npm cache across builds (requires BuildKit)
+ENV NPM_CONFIG_CACHE=/root/.npm
+ENV NPM_CONFIG_PREFER_OFFLINE=true
 
 # Install build dependencies for native modules (better-sqlite3, bcrypt)
 RUN apk add --no-cache python3 make g++
@@ -10,7 +19,8 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN npm config set fetch-retries 5 \
+RUN --mount=type=cache,target=/root/.npm \
+  npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
    && npm ci
@@ -20,7 +30,7 @@ COPY . .
 
 # Build TypeScript to JavaScript
 ARG BUILD_VARIANT=full
-RUN npm run build:dk
+RUN --mount=type=cache,target=/root/.npm npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
@@ -39,8 +49,9 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 COPY package.json package-lock.json ./
 
 # Install only production dependencies (requires build tools for native modules)
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci --omit=dev \
+RUN --mount=type=cache,target=/root/.npm \
+  apk add --no-cache --virtual .build-deps python3 make g++ \
+  && npm ci --omit=dev \
     && apk del .build-deps \
     && npm cache clean --force
 

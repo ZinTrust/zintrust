@@ -43,6 +43,7 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
       - REDIS_HOST=\${DOCKER_REDIS_HOST:-host.docker.internal}
       - REDIS_PORT=\${REDIS_PORT:-6379}
       - REDIS_PASSWORD=\${REDIS_PASSWORD}
+      - REDIS_QUEUE_DB=\${REDIS_QUEUE_DB:-1}
       # Database Driver Selection (Connects to host DB via host.docker.internal or external IP)
       - DB_CONNECTION=\${DB_CONNECTION:-postgres}
       - DB_HOST=\${DOCKER_DB_HOST:-host.docker.internal}

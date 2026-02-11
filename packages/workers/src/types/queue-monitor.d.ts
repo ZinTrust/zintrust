@@ -23,10 +23,11 @@ declare module '@zintrust/queue-monitor' {
     middleware?: ReadonlyArray<string>;
     autoRefresh?: boolean;
     refreshIntervalMs?: number;
-    redis: Record<string, unknown>;
+    redis?: Record<string, unknown>;
   };
 
   export type QueueMonitorApi = {
+    registerRoutes: (router: import('@zintrust/core').IRouter) => void;
     getSnapshot: () => Promise<QueueMonitorSnapshot>;
   };
 

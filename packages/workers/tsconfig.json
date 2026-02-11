@@ -11,6 +11,7 @@
     "declarationMap": false,
     "sourceMap": false,
     "composite": false,
+    "skipLibCheck": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "paths": {
       "@zintrust/queue-monitor": ["../queue-monitor/dist/index.d.ts"],

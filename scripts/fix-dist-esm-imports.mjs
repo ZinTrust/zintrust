@@ -8,6 +8,8 @@ const DEFAULT_TARGETS = [
   // Compiled framework app/ + routes/ are runtime-loaded by Node and must be valid ESM.
   path.join(DEFAULT_ROOT, 'dist', 'app'),
   path.join(DEFAULT_ROOT, 'dist', 'routes'),
+  // Runtime config overrides are emitted into dist/config and need .js specifiers.
+  path.join(DEFAULT_ROOT, 'dist', 'config'),
   path.join(DEFAULT_ROOT, 'dist', 'packages'),
 ];
 

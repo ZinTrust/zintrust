@@ -2,6 +2,7 @@ import { Logger } from '@config/logger';
 import * as fs from '@node-singletons/fs';
 import { createRequire } from '@node-singletons/module';
 import * as path from '@node-singletons/path';
+import { pathToFileURL } from '@node-singletons/url';
 
 type WorkersModule = typeof import('@zintrust/workers');
 
@@ -138,6 +139,36 @@ const patchWorkersDist = (): PatchResult => {
   return { replacements, filesChanged };
 };
 
+const resolveLocalWorkersModuleUrl = (): string | null => {
+  if (!isNodeRuntime()) return null;
+
+  const root = process.cwd();
+  const candidates = [
+    path.join(root, 'dist', 'packages', 'workers', 'src', 'index.js'),
+    path.join(root, 'packages', 'workers', 'src', 'index.ts'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return pathToFileURL(candidate).href;
+    }
+  }
+
+  return null;
+};
+
+const importLocalWorkersModule = async (): Promise<WorkersModule | null> => {
+  const url = resolveLocalWorkersModuleUrl();
+  if (!url) return null;
+
+  try {
+    return await import(url);
+  } catch (error) {
+    Logger.warn('Failed to import local @zintrust/workers fallback', error as Error);
+    return null;
+  }
+};
+
 let workersModulePromise: Promise<WorkersModule> | undefined;
 let patchAttempted = false;
 let patchAfterFailureAttempted = false;
@@ -177,6 +208,12 @@ export const loadWorkersModule = async (): Promise<WorkersModule> => {
         workersModulePromise = import('@zintrust/workers');
         return workersModulePromise;
       }
+    }
+
+    const localFallback = await importLocalWorkersModule();
+    if (localFallback) {
+      workersModulePromise = Promise.resolve(localFallback);
+      return localFallback;
     }
 
     throw error;

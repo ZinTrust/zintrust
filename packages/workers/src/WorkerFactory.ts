@@ -49,6 +49,77 @@ import {
 
 const path = NodeSingletons.path;
 
+const isNodeRuntime = (): boolean =>
+  typeof process !== 'undefined' && Boolean(process.versions?.node);
+
+const resolveProjectRoot = (): string => {
+  const envRoot = Env.get('ZINTRUST_PROJECT_ROOT', '').trim();
+  return envRoot.length > 0 ? envRoot : process.cwd();
+};
+
+const canUseProjectFileImports = (): boolean =>
+  Boolean(
+    NodeSingletons?.fs?.writeFileSync &&
+    NodeSingletons?.fs?.mkdirSync &&
+    NodeSingletons?.fs?.existsSync &&
+    NodeSingletons?.url?.pathToFileURL &&
+    NodeSingletons?.path
+  );
+
+const ensureProcessorSpecDir = (): string | null => {
+  if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
+  const dir = path.join(resolveProjectRoot(), '.zintrust', 'processor-specs');
+  try {
+    if (!NodeSingletons.fs.existsSync(dir)) {
+      NodeSingletons.fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  } catch (error) {
+    Logger.debug('Failed to prepare processor spec cache directory', error);
+    return null;
+  }
+};
+
+const shouldFallbackToFileImport = (error: unknown): boolean => {
+  if (!isNodeRuntime()) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as { code?: string } | undefined)?.code ?? '';
+  if (code === 'ERR_INVALID_URL' || code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME') return true;
+  return (
+    message.includes('Invalid relative URL') ||
+    message.includes('base scheme is not hierarchical') ||
+    message.includes('Failed to resolve module specifier')
+  );
+};
+
+const importModuleFromCode = async (params: {
+  code: string;
+  normalized: string;
+  cacheKey: string;
+}): Promise<Record<string, unknown>> => {
+  const { code, normalized, cacheKey } = params;
+  const dataUrl = `data:text/javascript;base64,${toBase64(code)}`;
+
+  try {
+    return (await import(dataUrl)) as Record<string, unknown>;
+  } catch (error) {
+    if (!shouldFallbackToFileImport(error)) throw error;
+    const dir = ensureProcessorSpecDir();
+    if (!dir) throw error;
+
+    try {
+      const codeHash = await computeSha256(code);
+      const filePath = path.join(dir, `${codeHash || cacheKey}.mjs`);
+      NodeSingletons.fs.writeFileSync(filePath, code, 'utf8');
+      const fileUrl = NodeSingletons.url.pathToFileURL(filePath).href;
+      return (await import(fileUrl)) as Record<string, unknown>;
+    } catch (fileError) {
+      Logger.debug(`Processor URL file fallback failed for ${normalized}`, fileError);
+      throw error;
+    }
+  }
+};
+
 const getStoreForWorker = async (
   config: WorkerFactoryConfig | undefined,
   persistenceOverride?: WorkerPersistenceConfig
@@ -448,6 +519,17 @@ const stripProcessorExtension = (value: string): string => value.replace(/\.(ts|
 
 const normalizeModulePath = (value: string): string => value.replaceAll('\\', '/');
 
+const filterExistingFileCandidates = (candidates: string[]): string[] => {
+  if (!NodeSingletons?.fs?.existsSync) return candidates;
+  return candidates.filter((candidate) => {
+    try {
+      return NodeSingletons.fs.existsSync(candidate);
+    } catch {
+      return false;
+    }
+  });
+};
+
 const buildProcessorModuleCandidates = (modulePath: string, resolvedPath: string): string[] => {
   const candidates: string[] = [];
   const normalized = normalizeModulePath(modulePath.trim());
@@ -468,6 +550,29 @@ const buildProcessorModuleCandidates = (modulePath: string, resolvedPath: string
   }
 
   return Array.from(new Set(candidates));
+};
+
+const buildProcessorFilePathCandidates = (_modulePath: string, resolvedPath: string): string[] => {
+  const candidates: string[] = [];
+  const normalizedResolved = normalizeModulePath(resolvedPath);
+  const projectRoot = normalizeModulePath(resolveProjectRoot());
+
+  const strippedResolved = stripProcessorExtension(resolvedPath);
+  candidates.push(`${strippedResolved}.js`);
+  candidates.push(`${strippedResolved}.mjs`);
+
+  const appIndex = normalizedResolved.lastIndexOf('/app/');
+  if (appIndex !== -1) {
+    const relative = normalizedResolved.slice(appIndex + 5);
+    if (relative) {
+      const strippedRelative = stripProcessorExtension(relative);
+      candidates.push(path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`));
+      candidates.push(path.join(projectRoot, 'app', relative));
+      candidates.push(path.join(projectRoot, 'app', `${strippedRelative}.js`));
+    }
+  }
+
+  return filterExistingFileCandidates(Array.from(new Set(candidates)));
 };
 
 const pickProcessorFromModule = (
@@ -545,8 +650,7 @@ const cacheProcessorFromResponse = async (params: {
 }): Promise<WorkerFactoryConfig['processor']> => {
   const { response, normalized, config, cacheKey } = params;
   const code = await readResponseBody(response, config.fetchMaxSizeBytes);
-  const dataUrl = `data:text/javascript;base64,${toBase64(code)}`;
-  const mod = await import(dataUrl);
+  const mod = await importModuleFromCode({ code, normalized, cacheKey });
   const processor = extractZinTrustProcessor(mod as Record<string, unknown>, normalized);
   if (!processor) {
     throw ErrorFactory.createConfigError('INVALID_PROCESSOR_URL_EXPORT');
@@ -718,9 +822,13 @@ const resolveProcessorFromPath = async (
     const candidate = pickProcessorFromModule(mod as Record<string, unknown>, resolved);
     if (candidate) return candidate;
   } catch (err) {
-    const candidates = buildProcessorModuleCandidates(trimmed, resolved);
-    const resolvedCandidate = await importProcessorFromCandidates(candidates);
-    if (resolvedCandidate) return resolvedCandidate;
+    const fileCandidates = buildProcessorFilePathCandidates(trimmed, resolved);
+    const resolvedFileCandidate = await importProcessorFromCandidates(fileCandidates);
+    if (resolvedFileCandidate) return resolvedFileCandidate;
+
+    const moduleCandidates = buildProcessorModuleCandidates(trimmed, resolved);
+    const resolvedModuleCandidate = await importProcessorFromCandidates(moduleCandidates);
+    if (resolvedModuleCandidate) return resolvedModuleCandidate;
     Logger.error(`Failed to import processor from path: ${resolved}`, err);
   }
 
@@ -1352,9 +1460,15 @@ const resolvePersistenceConfig = (
 
   if (driver === 'redis') {
     const keyPrefix = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', ''));
+    const persistenceDbOverride = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_DB', ''));
+
     return {
       driver: 'redis',
-      redis: { env: true },
+      // Optional override; otherwise defaults to REDIS_QUEUE_DB.
+      redis: {
+        env: true,
+        db: persistenceDbOverride ? 'WORKER_PERSISTENCE_REDIS_DB' : 'REDIS_QUEUE_DB',
+      },
       keyPrefix: `${keyPrefix}_worker_${appConfig.prefix}`,
     };
   }
