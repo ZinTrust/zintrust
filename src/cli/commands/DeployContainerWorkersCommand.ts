@@ -45,7 +45,7 @@ export const DeployContainerWorkersCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'deploy:cw',
-      aliases: ['deploy:container-workers'],
+      aliases: ['deploy:container-workers', 'deploy:cwr', 'deploy:container-workers-routes'],
       description: 'Deploy Container Workers stack (docker-compose.workers.yml)',
       addOptions: (command: Command): void => {
         command.option('--no-build', 'Skip image build before up');

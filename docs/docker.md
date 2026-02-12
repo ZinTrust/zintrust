@@ -18,11 +18,11 @@ Useful helpers:
 - `npm run docker:test` — run tests inside the container
 - `npm run docker:down` / `npm run docker:stop`
 
-## Container Workers CLI (cw / cwr)
+## Container Workers CLI (cw)
 
-ZinTrust includes dedicated CLI flows for worker container stacks.
+ZinTrust includes a unified CLI flow for the worker container stack.
 
-### Workers stack (`cw`)
+### Workers stack
 
 ```bash
 zin init:cw
@@ -30,18 +30,12 @@ zin deploy cw
 zin deploy:cw
 ```
 
-### Workers Routes stack (`cwr`)
+Compatibility aliases still work:
 
 ```bash
 zin init:cwr
 zin deploy cwr
 zin deploy:cwr
-```
-
-You can still run the npm wrapper for routes:
-
-```bash
-npm run docker:routes
 ```
 
 ## What the `Dockerfile` does

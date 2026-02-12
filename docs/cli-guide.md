@@ -39,6 +39,8 @@ zin deploy cwr
 zin deploy:cwr
 ```
 
+`cwr` is kept as a compatibility alias and deploys the same workers stack as `cw`.
+
 Cloud deploy targets continue to work with `zin deploy <target>`:
 
 ```bash

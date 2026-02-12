@@ -31,14 +31,14 @@
 ZinTrust supports both spaced and colon styles for deploy targets where applicable.
 
 - `zin deploy cw` and `zin deploy:cw` - Deploy container workers stack (`docker-compose.workers.yml`)
-- `zin deploy cwr` and `zin deploy:cwr` - Deploy container workers routes stack (`docker-compose.workers-routes.yml`)
+- `zin deploy cwr` and `zin deploy:cwr` - Compatibility aliases to deploy the same container workers stack
 - `zin deploy worker` - Deploy Cloudflare Worker environment via Wrangler
 - `zin deploy production` - Deploy production Wrangler environment
 
 Notes:
 
 - `zin deploy <target>` keeps Wrangler behavior for cloud targets (`worker`, `d1-proxy`, `kv-proxy`, `production`)
-- `cw` and `cwr` targets route to Docker Compose deployment flows
+- `cw` is the primary Docker Compose deployment target; `cwr` remains a compatibility alias
 
 Examples:
 

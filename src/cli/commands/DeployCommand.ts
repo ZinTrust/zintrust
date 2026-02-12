@@ -33,14 +33,11 @@ const runCompose = async (args: string[]): Promise<void> => {
   if (exitCode !== 0) process.exit(exitCode);
 };
 
-const deployContainerStack = async (
-  composeFile: 'docker-compose.workers.yml' | 'docker-compose.workers-routes.yml',
-  label: string
-): Promise<void> => {
+const deployContainerStack = async (label: string): Promise<void> => {
+  const composeFile = 'docker-compose.workers.yml';
   const composePath = join(process.cwd(), composeFile);
   if (!existsSync(composePath)) {
-    throw ErrorFactory.createCliError(`${composeFile} not found. Run \
-\`zin init:${composeFile.includes('routes') ? 'cwr' : 'cw'}\` first.`);
+    throw ErrorFactory.createCliError(`${composeFile} not found. Run \`zin init:cw\` first.`);
   }
 
   Logger.info(`Deploying ${label}...`);
@@ -51,16 +48,12 @@ const deployContainerStack = async (
 const runDeploy = async (target: string, options: DeployCommandOptions): Promise<void> => {
   const normalizedTarget = target.trim().toLowerCase();
 
-  if (normalizedTarget === 'cw') {
-    await deployContainerStack('docker-compose.workers.yml', 'container workers stack');
-    return;
-  }
-
-  if (normalizedTarget === 'cwr') {
-    await deployContainerStack(
-      'docker-compose.workers-routes.yml',
-      'container workers routes stack'
-    );
+  if (normalizedTarget === 'cw' || normalizedTarget === 'cwr') {
+    const label =
+      normalizedTarget === 'cwr'
+        ? 'container workers stack (cwr compatibility alias)'
+        : 'container workers stack';
+    await deployContainerStack(label);
     return;
   }
 
@@ -86,7 +79,7 @@ const createDeployCommand = (): IBaseCommand => {
       command
         .argument(
           '[target]',
-          'Deployment target (worker, d1-proxy, kv-proxy, production, cw, cwr)',
+          'Deployment target (worker, d1-proxy, kv-proxy, production, cw)',
           'worker'
         )
         .option('-e, --env <env>', 'Wrangler environment (overrides target)');
