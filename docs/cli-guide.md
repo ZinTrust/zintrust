@@ -27,6 +27,25 @@ npm link
 
 ## Basic Commands
 
+### Deploy Styles (Unified)
+
+Use either spaced target style or `:` command style for container deploy targets:
+
+```bash
+zin deploy cw
+zin deploy:cw
+
+zin deploy cwr
+zin deploy:cwr
+```
+
+Cloud deploy targets continue to work with `zin deploy <target>`:
+
+```bash
+zin deploy worker
+zin deploy production
+```
+
 ### Create New Project
 
 ```bash
@@ -137,6 +156,28 @@ zin add db:sqlite --package-manager pnpm
 ```
 
 See [Plugin System](./plugins.md) for more details.
+
+### Proxy Commands (Unified)
+
+All proxy CLIs support both forms:
+
+```bash
+zin proxy:<name>
+zin proxy <name>
+```
+
+Examples:
+
+```bash
+zin proxy:smtp
+zin proxy smtp
+
+zin proxy:redis
+zin proxy redis
+
+# legacy alias (still supported)
+zin redis:proxy
+```
 
 ### Quality Assurance
 

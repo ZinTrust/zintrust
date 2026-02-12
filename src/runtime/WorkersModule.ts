@@ -139,6 +139,35 @@ const patchWorkersDist = (): PatchResult => {
   return { replacements, filesChanged };
 };
 
+const patchQueueMonitorDist = (): PatchResult => {
+  if (!isNodeRuntime()) return { replacements: 0, filesChanged: 0 };
+
+  let entryPath: string;
+  try {
+    const require = createRequire(import.meta.url);
+    entryPath = require.resolve('@zintrust/queue-monitor');
+  } catch {
+    return { replacements: 0, filesChanged: 0 };
+  }
+
+  const distDir = path.dirname(entryPath);
+  if (!fs.existsSync(distDir)) return { replacements: 0, filesChanged: 0 };
+
+  const files = listJsFilesRecursive(distDir);
+  let replacements = 0;
+  let filesChanged = 0;
+
+  for (const file of files) {
+    const changes = patchImportsInFile(file);
+    if (changes > 0) {
+      replacements += changes;
+      filesChanged += 1;
+    }
+  }
+
+  return { replacements, filesChanged };
+};
+
 const resolveLocalWorkersModuleUrl = (): string | null => {
   if (!isNodeRuntime()) return null;
 
@@ -176,12 +205,14 @@ let patchAfterFailureAttempted = false;
 export const loadWorkersModule = async (): Promise<WorkersModule> => {
   if (!patchAttempted) {
     patchAttempted = true;
-    const { replacements, filesChanged } = patchWorkersDist();
-    if (filesChanged > 0) {
-      Logger.warn('Rewrote @zintrust/workers ESM specifiers before import', {
-        filesChanged,
-        replacements,
-      });
+    const workersPatch = patchWorkersDist();
+    if (workersPatch.filesChanged > 0) {
+      Logger.warn('Rewrote @zintrust/workers ESM specifiers before import', workersPatch);
+    }
+
+    const monitorPatch = patchQueueMonitorDist();
+    if (monitorPatch.filesChanged > 0) {
+      Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers before import', monitorPatch);
     }
   }
 

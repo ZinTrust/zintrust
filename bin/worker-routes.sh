@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Startup script for Workers API and Queue Monitor
+# Startup script for Workers API
 # Usage: ./bin/worker-routes.sh
 
 # Load environment variables if present

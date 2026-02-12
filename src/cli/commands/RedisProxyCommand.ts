@@ -70,7 +70,7 @@ export const RedisProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'proxy:redis',
-      aliases: ['redis:proxy', 'redis-proxy'],
+      aliases: ['redis:proxy', 'redis-proxy', 'proxy:red'],
       description: 'Start the Redis HTTP proxy for Cloudflare Workers',
       addOptions,
       execute: async (options: RedisProxyOptions) => {

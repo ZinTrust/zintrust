@@ -26,6 +26,30 @@
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
 
+## Deploy Command Styles
+
+ZinTrust supports both spaced and colon styles for deploy targets where applicable.
+
+- `zin deploy cw` and `zin deploy:cw` - Deploy container workers stack (`docker-compose.workers.yml`)
+- `zin deploy cwr` and `zin deploy:cwr` - Deploy container workers routes stack (`docker-compose.workers-routes.yml`)
+- `zin deploy worker` - Deploy Cloudflare Worker environment via Wrangler
+- `zin deploy production` - Deploy production Wrangler environment
+
+Notes:
+
+- `zin deploy <target>` keeps Wrangler behavior for cloud targets (`worker`, `d1-proxy`, `kv-proxy`, `production`)
+- `cw` and `cwr` targets route to Docker Compose deployment flows
+
+Examples:
+
+```bash
+zin deploy cw
+zin deploy:cw
+
+zin deploy cwr
+zin deploy:cwr
+```
+
 ## Routes Command
 
 Lists all routes registered by your router (including group prefixes) and prints a table.
@@ -197,6 +221,34 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
 - `zin plugin list` (alias: `zin p -l`): List available plugins
 - `zin plugin install <id>` (alias: `zin p -i`): Install a plugin
 - `zin plugin uninstall <id>` (alias: `zin p -u`): Uninstall a plugin
+
+## Proxy Commands
+
+All proxy commands support both styles:
+
+- `zin proxy:<name>`
+- `zin proxy <name>`
+
+Supported proxies:
+
+- Redis: `zin proxy:redis` / `zin proxy redis` (legacy alias still works: `zin redis:proxy`)
+- SMTP: `zin proxy:smtp` / `zin proxy smtp`
+- MySQL: `zin proxy:mysql` / `zin proxy mysql`
+- PostgreSQL: `zin proxy:postgres` / `zin proxy postgres`
+- MongoDB: `zin proxy:mongodb` / `zin proxy mongodb`
+- SQL Server: `zin proxy:sqlserver` / `zin proxy sqlserver`
+
+Examples:
+
+```bash
+zin proxy:smtp
+zin proxy smtp
+
+zin proxy:redis
+zin proxy redis
+
+zin redis:proxy
+```
 
 ## Configuration Commands
 

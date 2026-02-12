@@ -12,9 +12,9 @@ services:
       context: .
       dockerfile: Dockerfile
     # Use compiled JS entry point to avoid 'tsx not found' error in production image
-    command: ["node", "dist/src/boot/bootstrap.js"]
+    command: ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]
     environment:
-      - NODE_ENV=\${NODE_ENV:-production}
+      - NODE_ENV=production
       - PORT=7772
       - HOST=0.0.0.0
       - RUNTIME_MODE=node-server
@@ -22,12 +22,14 @@ services:
       # App Core
       - APP_NAME=\${APP_NAME:-ZinTrust}
       - APP_KEY=\${APP_KEY}
+      - ENCRYPTION_CIPHER=\${ENCRYPTION_CIPHER:-aes-256-cbc}
       - LOG_LEVEL=\${LOG_LEVEL:-info}
 
       # Feature Flags
       - WORKER_ENABLED=false
       - WORKER_AUTO_START=false
       - QUEUE_ENABLED=true
+      - QUEUE_MONITOR_ENABLED=\${QUEUE_MONITOR_ENABLED:-false}
       - QUEUE_MONITOR_MIDDLEWARE=\${QUEUE_MONITOR_MIDDLEWARE:-}
 
       # Persistence & Drivers
@@ -71,7 +73,7 @@ services:
 const SCRIPT_NAME = 'bin/worker-routes.sh';
 const SCRIPT_CONTENT = `#!/bin/bash
 
-# Startup script for Workers API and Queue Monitor
+# Startup script for Workers API
 # Usage: ./bin/worker-routes.sh
 
 # Load environment variables if present
@@ -87,7 +89,7 @@ export const InitContainerWorkersRoutesCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'init:cwr',
-      description: 'Generate docker-compose.workers-routes.yml for Workers API and Queue Monitor',
+      description: 'Generate docker-compose.workers-routes.yml for Workers API (queue monitor disabled)',
       async execute(): Promise<void> {
         Logger.info('Initializing container-based worker routes infrastructure...');
 

@@ -74,7 +74,7 @@ export const SmtpProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'proxy:smtp',
-      aliases: ['smtp:proxy', 'smtp-proxy'],
+      aliases: ['smtp:proxy', 'smtp-proxy', 'proxy:mail'],
       description: 'Start the SMTP HTTP proxy for Cloudflare Workers',
       addOptions,
       execute: async (options: SmtpProxyOptions) => {

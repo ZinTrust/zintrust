@@ -73,7 +73,7 @@ export const MySqlProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'proxy:mysql',
-      aliases: ['mysql:proxy', 'mysql-proxy'],
+      aliases: ['mysql:proxy', 'mysql-proxy', 'proxy:my'],
       description: 'Start the MySQL HTTP proxy for Cloudflare Workers',
       addOptions,
       execute: async (options: MySqlProxyOptions) => {

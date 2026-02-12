@@ -16,6 +16,8 @@ import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { DeployCommand } from '@cli/commands/DeployCommand';
+import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWorkersCommand';
+import { DeployContainerWorkersRoutesCommand } from '@cli/commands/DeployContainerWorkersRoutesCommand';
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
@@ -128,6 +130,8 @@ const registerCommands = (program: Command): void => {
     PluginCommand.create(),
     PublishCommand.create(),
     DeployCommand.create(),
+    DeployContainerWorkersRoutesCommand.create(),
+    DeployContainerWorkersCommand.create(),
     QACommand(),
     FixCommand.create(),
     KeyGenerateCommand.create(),
