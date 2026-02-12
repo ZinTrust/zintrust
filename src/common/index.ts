@@ -382,3 +382,9 @@ export const ensureDirSafe = (dirPath: string): void => CommonUtils.ensureDirSaf
 export const readFile = (filePath: string): string => CommonUtils.readFile(filePath);
 export const writeFile = (filePath: string, content: string, createDir = true): void =>
   CommonUtils.writeFile(filePath, content, createDir);
+
+export const runFromSource = (): boolean => {
+  const runFromSourceEnv = process.env['ZINTRUST_RUN_FROM_SOURCE'] ?? '';
+
+  return runFromSourceEnv === '1' || runFromSourceEnv.toLowerCase() === 'true';
+};

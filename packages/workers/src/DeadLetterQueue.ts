@@ -5,8 +5,9 @@
  */
 
 import { ErrorFactory, Logger, createRedisConnection, type RedisConfig } from '@zintrust/core';
-import type IORedis from 'ioredis';
 import { keyPrefix } from './config/workerConfig';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 export type FailedJobEntry = {
   id: string;
@@ -81,7 +82,7 @@ const getAuditPrefix = (): string => {
 };
 
 // Internal state
-let redisClient: IORedis | null = null;
+let redisClient: RedisConnection | null = null;
 let retentionPolicy: RetentionPolicy | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
 

@@ -11,8 +11,9 @@ import {
   createRedisConnection,
   type RedisConfig,
 } from '@zintrust/core';
-import type IORedis from 'ioredis';
-import type { ChainableCommander } from 'ioredis';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
+type RedisPipeline = ReturnType<RedisConnection['pipeline']>;
 
 export type MetricType =
   | 'processed'
@@ -96,14 +97,14 @@ const runInBatches = async <T>(
 };
 
 // Internal state
-let redisClient: IORedis | null = null;
+let redisClient: RedisConnection | null = null;
 let cachedConfig: RedisConfig | null = null;
 let keepLoggin = 0;
 
 /**
  * Helper: Get valid Redis client
  */
-const getValidClient = async (): Promise<IORedis> => {
+const getValidClient = async (): Promise<RedisConnection> => {
   if (!cachedConfig) {
     throw ErrorFactory.createWorkerError('WorkerMetrics not initialized. Call initialize() first.');
   }
@@ -113,7 +114,12 @@ const getValidClient = async (): Promise<IORedis> => {
     redisClient = createRedisConnection(cachedConfig);
   }
 
-  return redisClient;
+  const client = redisClient;
+  if (!client) {
+    throw ErrorFactory.createConnectionError('Failed to initialize Redis client');
+  }
+
+  return client;
 };
 
 /**
@@ -166,7 +172,7 @@ const roundTimestamp = (date: Date, granularity: MetricGranularity): Date => {
  * Helper: Clean up old metrics based on retention policy
  */
 const cleanupOldMetrics = async (
-  client: IORedis,
+  client: RedisConnection,
   key: string,
   granularity: MetricGranularity
 ): Promise<void> => {
@@ -280,9 +286,9 @@ const handleUninitializedMetrics = (optionsList: MetricQueryOptions[]): Aggregat
  * Helper: Build Redis pipeline for batch metrics query
  */
 const buildMetricsPipeline = (
-  client: IORedis,
+  client: RedisConnection,
   optionsList: MetricQueryOptions[]
-): ChainableCommander => {
+): RedisPipeline => {
   const pipeline = client.pipeline();
 
   for (const options of optionsList) {

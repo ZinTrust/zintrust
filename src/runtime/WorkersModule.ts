@@ -1,3 +1,4 @@
+import { runFromSource } from '@/common';
 import { Logger } from '@config/logger';
 import * as fs from '@node-singletons/fs';
 import { createRequire } from '@node-singletons/module';
@@ -172,13 +173,10 @@ const resolveLocalWorkersModuleUrl = (): string | null => {
   if (!isNodeRuntime()) return null;
 
   const root = process.cwd();
-  const runFromSourceEnv = process.env['ZINTRUST_RUN_FROM_SOURCE'] ?? '';
-  const runFromSource =
-    runFromSourceEnv === '1' || String(runFromSourceEnv).toLowerCase() === 'true';
 
   const mode = (process.env['NODE_ENV'] ?? 'development').toString().trim().toLowerCase();
   const isProductionMode = mode === 'production' || mode === 'pro' || mode === 'prod';
-  const preferSource = runFromSource || !isProductionMode;
+  const preferSource = runFromSource() || !isProductionMode;
 
   const candidates = preferSource
     ? [

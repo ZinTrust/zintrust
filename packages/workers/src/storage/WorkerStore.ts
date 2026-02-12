@@ -3,8 +3,10 @@
  * Persistence layer for workers (memory, redis, db)
  */
 
-import type { IDatabase } from '@zintrust/core';
-import type { Redis } from 'ioredis';
+import type { createRedisConnection } from '@zintrust/core';
+import { type IDatabase } from '@zintrust/core';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 export type WorkerRecord = {
   name: string;
@@ -166,7 +168,7 @@ export const InMemoryWorkerStore = Object.freeze({
 });
 
 export const RedisWorkerStore = Object.freeze({
-  create(client: Redis, keyPrefix = 'workers:registry'): WorkerStore {
+  create(client: RedisConnection, keyPrefix = 'workers:registry'): WorkerStore {
     const key = keyPrefix;
 
     const serialize = (record: WorkerRecord): string =>

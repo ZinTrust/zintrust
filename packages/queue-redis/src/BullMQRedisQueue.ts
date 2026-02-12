@@ -15,7 +15,8 @@ import {
   ZintrustLang,
 } from '@zintrust/core';
 import { Queue, type JobsOptions, type QueueOptions } from 'bullmq';
-import type { Redis as IoRedis } from 'ioredis';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 interface IQueueDriver {
   enqueue(queue: string, payload: BullMQPayload): Promise<string>;
@@ -40,7 +41,7 @@ interface IBullMQRedisQueue extends IQueueDriver {
  */
 export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const queues = new Map<string, Queue>();
-  let sharedConnection: IoRedis | null = null;
+  let sharedConnection: RedisConnection | null = null;
   let lockProviderCache: ReturnType<typeof createLockProvider> | null = null;
 
   const getDefaultLockDriveName = (): string => {
@@ -76,7 +77,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     return provider;
   };
 
-  const getSharedConnection = (): IoRedis => {
+  const getSharedConnection = (): RedisConnection => {
     if (sharedConnection) return sharedConnection;
 
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
@@ -142,7 +143,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     return sharedConnection; // sharedConnection is IoRedis (compatible with BullMQ)
   };
 
-  const waitForRedisReady = async (client: IoRedis, timeoutMs: number): Promise<void> => {
+  const waitForRedisReady = async (client: RedisConnection, timeoutMs: number): Promise<void> => {
     if (client.status === 'ready') return;
 
     await new Promise<void>((resolve, reject) => {

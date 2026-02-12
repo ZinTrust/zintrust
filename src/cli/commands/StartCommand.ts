@@ -3,7 +3,7 @@ import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
-import { resolveNpmPath } from '@common/index';
+import { resolveNpmPath, runFromSource } from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -243,11 +243,8 @@ const resolveNodeDevCommand = (
 const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] } => {
   const compiledBoot = path.join(cwd, 'dist/src/boot/bootstrap.js');
 
-  const runFromSourceEnv = process.env['ZINTRUST_RUN_FROM_SOURCE'] ?? '';
-  const runFromSource = runFromSourceEnv === '1' || runFromSourceEnv.toLowerCase() === 'true';
-
   let compiled: string | undefined;
-  if (existsSync(compiledBoot) && !runFromSource) {
+  if (existsSync(compiledBoot) && !runFromSource()) {
     compiled = 'dist/src/boot/bootstrap.js';
   }
 
