@@ -1,5 +1,5 @@
 import type { BullMQPayload, QueueMessage } from '@zintrust/core';
-import { Env, ErrorFactory, SignedRequest, generateUuid } from '@zintrust/core';
+import { Env, ErrorFactory, Logger, SignedRequest, generateUuid } from '@zintrust/core';
 
 export type QueueRpcAction = 'enqueue' | 'dequeue' | 'ack' | 'length' | 'drain';
 
@@ -162,7 +162,7 @@ const callGateway = async <T>(
     });
 
     const parsed = await parseJsonResponse<T>(response);
-    console.log('parsed :', parsed);
+    Logger.debug('parsed :', parsed); //TODO remove this after test
     if (!response.ok && parsed.ok === false) {
       throw ErrorFactory.createConnectionError(
         parsed.error?.message || `Queue gateway HTTP error (${response.status})`,

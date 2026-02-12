@@ -4,7 +4,6 @@ import { loadQueueMonitorModule, loadWorkersModule } from '@/runtime/WorkersModu
 import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
 import broadcastConfig from '@config/broadcast';
 import { Cloudflare } from '@config/cloudflare';
-import { Env } from '@config/env';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
@@ -246,9 +245,6 @@ const initializeWorkers = async (router: IRouter): Promise<void> => {
 };
 
 const initializeQueueHttpGateway = async (router: IRouter): Promise<void> => {
-  const enabled = Env.getBool('QUEUE_HTTP_PROXY_GATEWAY_ENABLED', true);
-  if (!enabled) return;
-
   try {
     const module = (await import('@zintrust/queue-redis')) as unknown as IQueueHttpGatewayModule;
     module.QueueHttpGateway.create().registerRoutes(router);

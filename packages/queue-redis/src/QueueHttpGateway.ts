@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import type { BullMQPayload, IRequest, IResponse, IRouter, QueueMessage } from '@zintrust/core';
 import { Env, ErrorFactory, Logger, Router, SignedRequest } from '@zintrust/core';
 import BullMQRedisQueue from './BullMQRedisQueue';
@@ -238,14 +239,18 @@ const verifyRequest = async (
 
 const createHandler = (settings: QueueGatewaySettings) => {
   return async (req: IRequest, res: IResponse): Promise<void> => {
+    console.log('req :', req); // TODO remove aftre testing
     const rawBody = getRawBody(req);
+    console.log('rawBody :', rawBody);
     const body = getBodyRecord(req);
+    console.log('body :', body);
     const requestId =
       typeof body['requestId'] === 'string' && body['requestId'].trim() !== ''
         ? (body['requestId'] as string)
         : 'unknown';
 
     const auth = await verifyRequest(req, rawBody, settings);
+    console.log('auth :', auth);
     if (auth.ok === false) {
       sendFailure(res, requestId, auth.status, auth.code, auth.message);
       return;
