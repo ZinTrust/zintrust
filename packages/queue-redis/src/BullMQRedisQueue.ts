@@ -1,7 +1,6 @@
 import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import {
   Cloudflare,
-  createBaseDrivers,
   createLockProvider,
   createRedisConnection,
   Env,
@@ -80,24 +79,11 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
   const getSharedConnection = (): IoRedis => {
     if (sharedConnection) return sharedConnection;
 
-    const shouldUseProxy =
-      Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
-    const proxyUrl = Env.get('REDIS_PROXY_URL', '').trim();
-    const proxyIsHttp = proxyUrl.startsWith('http://') || proxyUrl.startsWith('https://');
+    const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
 
-    if (
-      !shouldUseProxy &&
-      Cloudflare.getWorkersEnv() !== null &&
-      Cloudflare.isCloudflareSocketsEnabled() === false
-    ) {
+    if (isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
       throw ErrorFactory.createConfigError(
-        'Redis driver in Cloudflare Workers requires either ENABLE_CLOUDFLARE_SOCKETS=true or USE_REDIS_PROXY=true.'
-      );
-    }
-
-    if (shouldUseProxy && proxyIsHttp) {
-      throw ErrorFactory.createConfigError(
-        'BullMQ Redis driver requires a TCP Redis proxy. REDIS_PROXY_URL must be redis:// or rediss://.'
+        'BullMQ Redis driver requires ENABLE_CLOUDFLARE_SOCKETS=true in Cloudflare Workers. HTTP Redis proxy mode is not supported for BullMQ.'
       );
     }
 
@@ -109,9 +95,38 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     //   );
     // }
 
-    const redisConfig = createBaseDrivers().redis;
+    const workersHost = Cloudflare.getWorkersVar('WORKERS_REDIS_HOST');
+    const workersPortRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_PORT');
+    const workersPassword = Cloudflare.getWorkersVar('WORKERS_REDIS_PASSWORD');
+    const workersDbRaw = Cloudflare.getWorkersVar('WORKERS_REDIS_QUEUE_DB');
+
+    const resolvedHost =
+      workersHost !== null && workersHost.trim() !== '' ? workersHost.trim() : Env.REDIS_HOST;
+
+    const resolvedPort =
+      workersPortRaw !== null && Number.isFinite(Number.parseInt(workersPortRaw, 10))
+        ? Number.parseInt(workersPortRaw, 10)
+        : Env.REDIS_PORT;
+
+    const resolvedPassword =
+      workersPassword !== null && workersPassword.trim() !== ''
+        ? workersPassword
+        : Env.REDIS_PASSWORD;
+
+    const resolvedDb =
+      workersDbRaw !== null && Number.isFinite(Number.parseInt(workersDbRaw, 10))
+        ? Number.parseInt(workersDbRaw, 10)
+        : Env.getInt('REDIS_QUEUE_DB', 0);
+
+    const redisConfig = {
+      host: resolvedHost,
+      port: resolvedPort,
+      password: resolvedPassword,
+      database: resolvedDb,
+    };
+
     if (
-      Cloudflare.getWorkersEnv() !== null &&
+      isWorkersRuntime &&
       (redisConfig.host === 'localhost' || redisConfig.host === '127.0.0.1')
     ) {
       throw ErrorFactory.createConfigError(

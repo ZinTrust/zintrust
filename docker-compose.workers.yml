@@ -21,7 +21,7 @@ services:
       - ZINTRUST_PROJECT_ROOT=/app/dist
 
       # Workers & Queue
-      - WORKER_ENABLED=${WORKER_ENABLED:-false}
+      - WORKER_ENABLED=${WORKER_ENABLED:-true}
       - WORKER_AUTO_START=${WORKER_AUTO_START:-false}
       - QUEUE_ENABLED=true
       - QUEUE_MONITOR_ENABLED=${QUEUE_MONITOR_ENABLED:-false}

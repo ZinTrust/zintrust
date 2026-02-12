@@ -380,7 +380,15 @@ export const Env = Object.freeze({
       if (processLike.platform === 'win32') {
         return [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, binDir].join(';');
       }
-      return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', binDir].join(':');
+      return [
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+        binDir,
+      ].join(':');
     } catch {
       // Fallback for non-Node environments
       return '';

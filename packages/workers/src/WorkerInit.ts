@@ -8,7 +8,7 @@
  * - Ensures graceful startup and shutdown
  */
 
-import { Env, Logger, workersConfig } from '@zintrust/core';
+import { Env, Logger } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
@@ -202,13 +202,10 @@ async function initialize(options: IWorkerInitOptions = {}): Promise<void> {
 
 async function autoStartPersistedWorkers(): Promise<void> {
   const envAutoStart = Env.getBool('WORKER_AUTO_START', false);
-  const configAutoStart = workersConfig.defaultWorker?.autoStart === true;
-  const shouldAutoStart = envAutoStart || configAutoStart;
+  const shouldAutoStart = envAutoStart;
 
-  // Check if auto-start is enabled globally via environment variable OR config
   Logger.debug('Auto-start check', {
     envAutoStart,
-    configAutoStart,
     shouldAutoStart,
   });
 
@@ -234,16 +231,7 @@ async function autoStartPersistedWorkers(): Promise<void> {
       if (record.activeStatus === false) {
         return false;
       }
-      // If autoStart is explicitly true, always include
-      if (record.autoStart === true) {
-        return true;
-      }
-      // If autoStart is null or undefined and global auto-start is enabled, include
-      if ((record.autoStart === null || record.autoStart === undefined) && shouldAutoStart) {
-        return true;
-      }
-
-      return false;
+      return record.autoStart === true;
     });
 
     Logger.debug('Auto-start candidates', {
@@ -252,9 +240,36 @@ async function autoStartPersistedWorkers(): Promise<void> {
     });
     const results = await Promise.all(
       candidates.map(async (record) => {
-        if (WorkerFactory.get(record.name)) {
-          return { name: record.name, started: false, skipped: true };
+        const existing = WorkerFactory.get(record.name);
+        if (existing) {
+          try {
+            const workerLike = existing.worker as {
+              isRunning?: () => boolean | Promise<boolean>;
+              isPaused?: () => boolean;
+            };
+            const isRunning =
+              typeof workerLike.isRunning === 'function'
+                ? await Promise.resolve(workerLike.isRunning())
+                : false;
+            const isPaused =
+              typeof workerLike.isPaused === 'function' ? workerLike.isPaused() : false;
+
+            if (isRunning && !isPaused) {
+              return { name: record.name, started: false, skipped: true };
+            }
+
+            Logger.warn(
+              `Worker ${record.name} was registered but not truly running. Restarting to recover from stale state.`
+            );
+            await WorkerFactory.restart(record.name, persistenceOverride);
+            return { name: record.name, started: true, skipped: false };
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            Logger.warn(`Auto-start recovery failed for worker ${record.name}: ${message}`);
+            return { name: record.name, started: false, skipped: false };
+          }
         }
+
         try {
           await WorkerFactory.startFromPersisted(record.name, persistenceOverride);
           return { name: record.name, started: true, skipped: false };

@@ -105,5 +105,16 @@ describe('Env Config', () => {
       }
       expect(Env.PORT).toBe(originalValue);
     });
+
+    it('should include common executable directories in SAFE_PATH', () => {
+      if (process.platform === 'win32') {
+        expect(Env.SAFE_PATH).toContain(String.raw`C:\Windows\System32`);
+        return;
+      }
+
+      expect(Env.SAFE_PATH).toContain('/usr/local/bin');
+      expect(Env.SAFE_PATH).toContain('/opt/homebrew/bin');
+      expect(Env.SAFE_PATH).toContain('/usr/bin');
+    });
   });
 });
