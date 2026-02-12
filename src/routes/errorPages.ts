@@ -21,6 +21,62 @@ const getCandidatePublicRoots = (): string[] => {
   return [...unique];
 };
 
+const pathExistsAsync = async (candidate: string): Promise<boolean> => {
+  try {
+    await fs.fsPromises.access(candidate);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const isFileAsync = async (candidate: string): Promise<boolean> => {
+  try {
+    const stats = await fs.fsPromises.stat(candidate);
+    return stats.isFile();
+  } catch {
+    return false;
+  }
+};
+
+const findFirstExistingFileAsync = async (candidates: string[]): Promise<string | undefined> => {
+  for (const candidate of candidates) {
+    if (await isFileAsync(candidate)) return candidate;
+  }
+  return undefined;
+};
+
+const servePublicRootFileAsync = async (
+  relativePath: string,
+  response: IResponse,
+  contentType: string
+): Promise<boolean> => {
+  const candidateRoots = getCandidatePublicRoots();
+  const candidates = candidateRoots.map((root) => path.join(root, relativePath));
+  const filePath = await findFirstExistingFileAsync(candidates);
+
+  try {
+    if (filePath === undefined || filePath === null) {
+      response.setStatus(404);
+      response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+      response.send('Not Found');
+      return false;
+    }
+
+    const content = await fs.fsPromises.readFile(filePath);
+    response.setStatus(200);
+    response.setHeader(HTTP_HEADERS.CONTENT_TYPE, contentType);
+    response.send(content);
+    return true;
+  } catch (error) {
+    ErrorFactory.createTryCatchError(`Error serving public file ${filePath}`, error);
+    response.setStatus(500);
+    response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+    response.send('Internal Server Error');
+    return false;
+  }
+};
+
 const findFirstExistingFile = (candidates: string[]): string | undefined => {
   for (const candidate of candidates) {
     try {
@@ -155,7 +211,46 @@ export const serveErrorPagesFileAsync = async (
     return serveAssetsFileAsync(urlPath, response);
   }
 
-  return serveErrorPagesFile(urlPath, response);
+  const candidateRoots = getCandidatePublicRoots();
+
+  const rawRelative = urlPath.slice('/error-pages/'.length);
+  const normalizedRelative = tryDecodeURIComponent(rawRelative).replaceAll('\\', '/');
+
+  for (const root of candidateRoots) {
+    const baseDir = path.join(root, 'error-pages');
+    const filePath = resolveSafePath(baseDir, normalizedRelative);
+    if (filePath === undefined) continue;
+
+    try {
+      const stats = await fs.fsPromises.stat(filePath).catch(() => null);
+      if (stats === null) continue;
+      if (stats.isDirectory()) continue;
+
+      if (!(await pathExistsAsync(filePath))) {
+        continue;
+      }
+
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = MIME_TYPES_MAP[ext] || 'application/octet-stream';
+      const content = await fs.fsPromises.readFile(filePath);
+
+      response.setStatus(200);
+      response.setHeader(HTTP_HEADERS.CONTENT_TYPE, contentType);
+      response.send(content);
+      return true;
+    } catch (error) {
+      ErrorFactory.createTryCatchError(`Error serving error-pages file ${filePath}`, error);
+      response.setStatus(500);
+      response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+      response.send('Internal Server Error');
+      return true;
+    }
+  }
+
+  response.setStatus(404);
+  response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+  response.send('Not Found');
+  return true;
 };
 
 const handleErrorPagesRequest = async (req: IRequest, res: IResponse): Promise<void> => {
@@ -172,7 +267,7 @@ const handleZintrustSvgRequest = async (_req: IRequest, res: IResponse): Promise
     await serveAssetsFileAsync('/zintrust.svg', res);
     return;
   }
-  servePublicRootFile('zintrust.svg', res, MIME_TYPES.SVG);
+  await servePublicRootFileAsync('zintrust.svg', res, MIME_TYPES.SVG);
 };
 
 export const serveZintrustSvgFile = (response: IResponse): boolean => {
@@ -183,7 +278,7 @@ export const serveZintrustSvgFileAsync = async (response: IResponse): Promise<bo
   if (Cloudflare.getWorkersEnv() !== null) {
     return serveAssetsFileAsync('/zintrust.svg', response);
   }
-  return serveZintrustSvgFile(response);
+  return servePublicRootFileAsync('zintrust.svg', response, MIME_TYPES.SVG);
 };
 
 export const registerErrorPagesRoutes = (router: IRouter): void => {

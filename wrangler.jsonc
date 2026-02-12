@@ -45,11 +45,6 @@
       },
       "vars": {
         "ENVIRONMENT": "development",
-        "QUEUE_DRIVER": "redis",
-        "QUEUE_CONNECTION": "redis",
-        "REDIS_HOST": "127.0.0.1",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "00bdfc77bb57a862faafed57790dba8bcd0cfe26986bdac04dd99e311afa6e98",
       },
       "durable_objects": {
         "bindings": [

@@ -179,10 +179,20 @@ import { Env } from '@zintrust/core';
 
 ## Queue
 
-| Key                | Default | Description            |
-| ------------------ | ------- | ---------------------- |
-| `QUEUE_CONNECTION` | empty   | Queue connection name. |
-| `QUEUE_DRIVER`     | empty   | Queue driver.          |
+| Key                                | Default                      | Description                                                                        |
+| ---------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
+| `QUEUE_CONNECTION`                 | empty                        | Queue connection name.                                                             |
+| `QUEUE_DRIVER`                     | empty                        | Queue driver.                                                                      |
+| `QUEUE_HTTP_PROXY_ENABLED`         | `false`                      | Enable HTTP proxy transport for queue operations (Cloudflare/serverless fallback). |
+| `QUEUE_HTTP_PROXY_GATEWAY_ENABLED` | `true`                       | Mount Queue HTTP gateway route in Node/Docker API runtime.                         |
+| `QUEUE_HTTP_PROXY_URL`             | empty                        | Gateway base URL used by producer client.                                          |
+| `QUEUE_HTTP_PROXY_PATH`            | `/api/_sys/queue/rpc`        | Gateway RPC path mounted by API server and called by producer client.              |
+| `QUEUE_HTTP_PROXY_KEY_ID`          | `APP_NAME`                   | Signing key id used to sign/verify queue RPC calls.                                |
+| `QUEUE_HTTP_PROXY_KEY`             | `APP_KEY`                    | Signing secret used to sign/verify queue RPC calls.                                |
+| `QUEUE_HTTP_PROXY_TIMEOUT_MS`      | `ZT_PROXY_TIMEOUT_MS`        | Queue RPC request timeout in milliseconds.                                         |
+| `QUEUE_HTTP_PROXY_MAX_SKEW_MS`     | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed signature timestamp skew for gateway verification.                         |
+| `QUEUE_HTTP_PROXY_NONCE_TTL_MS`    | `120000`                     | Nonce TTL used for replay protection on queue gateway requests.                    |
+| `QUEUE_HTTP_PROXY_MIDDLEWARE`      | empty                        | Optional comma-separated middleware names applied to gateway route registration.   |
 
 ## Rate limiting
 

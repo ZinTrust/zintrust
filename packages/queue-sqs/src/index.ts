@@ -1,4 +1,4 @@
-import { ErrorFactory, generateUuid } from '@zintrust/core';
+import { ErrorFactory, Logger, generateUuid } from '@zintrust/core';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
 
@@ -30,9 +30,37 @@ export type SqsQueueConfig = {
 };
 
 type SqsState = {
-  receipts: Map<string, string>;
+  receipts: Map<string, { receipt: string; seenAt: number }>;
   client?: SqsClient;
   mod?: SqsModule;
+};
+
+const RECEIPTS_MAX_ENTRIES = 10000;
+const RECEIPTS_TTL_MS = 15 * 60 * 1000;
+
+const pruneReceipts = (state: SqsState): void => {
+  const now = Date.now();
+
+  for (const [id, value] of state.receipts.entries()) {
+    if (now - value.seenAt > RECEIPTS_TTL_MS) {
+      state.receipts.delete(id);
+    }
+  }
+
+  if (state.receipts.size <= RECEIPTS_MAX_ENTRIES) return;
+
+  const overflow = state.receipts.size - RECEIPTS_MAX_ENTRIES;
+  let removed = 0;
+  for (const id of state.receipts.keys()) {
+    state.receipts.delete(id);
+    removed++;
+    if (removed >= overflow) break;
+  }
+
+  Logger.warn('SQS receipts map exceeded max entries; pruned oldest items', {
+    removed,
+    sizeAfter: state.receipts.size,
+  });
 };
 
 function resolveRegion(config?: SqsQueueConfig): string {
@@ -62,6 +90,109 @@ function resolveUrl(_queue: string, config?: SqsQueueConfig): string {
   return resolveQueueUrl(config);
 }
 
+type SqsQueueDriver = {
+  enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
+  dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
+  ack(queue: string, id: string): Promise<void>;
+  length(queue: string): Promise<number>;
+  drain(queue: string): Promise<void>;
+};
+
+const createEnqueue =
+  (state: SqsState, config?: SqsQueueConfig) =>
+  async <T = unknown>(queue: string, payload: T): Promise<string> => {
+    const id = generateUuid();
+    const { client, mod } = await ensure(state, config);
+    const body = JSON.stringify({ id, payload, attempts: 0 });
+
+    await client.send(
+      new mod.SendMessageCommand({
+        QueueUrl: resolveUrl(queue, config),
+        MessageBody: body,
+      })
+    );
+
+    return id;
+  };
+
+const createDequeue =
+  (
+    state: SqsState,
+    waitTimeSeconds: number,
+    visibilityTimeout: number | undefined,
+    config?: SqsQueueConfig
+  ) =>
+  async <T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> => {
+    pruneReceipts(state);
+    const { client, mod } = await ensure(state, config);
+
+    const resp = (await client.send(
+      new mod.ReceiveMessageCommand({
+        QueueUrl: resolveUrl(queue, config),
+        MaxNumberOfMessages: 1,
+        WaitTimeSeconds: waitTimeSeconds,
+        VisibilityTimeout: visibilityTimeout,
+      })
+    )) as {
+      Messages?: Array<{ Body?: string; ReceiptHandle?: string }>;
+    };
+
+    const msg = resp.Messages?.[0];
+    if (msg?.Body === undefined) return undefined;
+
+    try {
+      const parsed = JSON.parse(msg.Body) as QueueMessage<T>;
+      if (msg.ReceiptHandle && typeof parsed?.id === 'string' && parsed.id.trim() !== '') {
+        state.receipts.set(parsed.id, { receipt: msg.ReceiptHandle, seenAt: Date.now() });
+      }
+      return parsed;
+    } catch (err) {
+      throw ErrorFactory.createTryCatchError('Failed to parse queue message', err as Error);
+    }
+  };
+
+const createAck =
+  (state: SqsState, config?: SqsQueueConfig) =>
+  async (queue: string, id: string): Promise<void> => {
+    pruneReceipts(state);
+    const receiptEntry = state.receipts.get(id);
+    if (receiptEntry === undefined) return;
+    state.receipts.delete(id);
+
+    const { client, mod } = await ensure(state, config);
+    await client.send(
+      new mod.DeleteMessageCommand({
+        QueueUrl: resolveUrl(queue, config),
+        ReceiptHandle: receiptEntry.receipt,
+      })
+    );
+  };
+
+const createLength =
+  (state: SqsState, config?: SqsQueueConfig) =>
+  async (queue: string): Promise<number> => {
+    const { client, mod } = await ensure(state, config);
+    const resp = (await client.send(
+      new mod.GetQueueAttributesCommand({
+        QueueUrl: resolveUrl(queue, config),
+        AttributeNames: ['ApproximateNumberOfMessages'],
+      })
+    )) as {
+      Attributes?: Record<string, string>;
+    };
+
+    const raw = resp.Attributes?.['ApproximateNumberOfMessages'] ?? '0';
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+const createDrain =
+  (state: SqsState, config?: SqsQueueConfig) =>
+  async (queue: string): Promise<void> => {
+    const { client, mod } = await ensure(state, config);
+    await client.send(new mod.PurgeQueueCommand({ QueueUrl: resolveUrl(queue, config) }));
+  };
+
 function createSqsQueueDriver(config?: SqsQueueConfig): {
   enqueue<T = unknown>(queue: string, payload: T): Promise<string>;
   dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined>;
@@ -73,85 +204,15 @@ function createSqsQueueDriver(config?: SqsQueueConfig): {
   const visibilityTimeout = config?.visibilityTimeout;
   const state: SqsState = { receipts: new Map() };
 
-  return {
-    async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
-      const id = generateUuid();
-      const { client, mod } = await ensure(state, config);
-
-      const body = JSON.stringify({ id, payload, attempts: 0 });
-      await client.send(
-        new mod.SendMessageCommand({
-          QueueUrl: resolveUrl(queue, config),
-          MessageBody: body,
-        })
-      );
-
-      return id;
-    },
-
-    async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
-      const { client, mod } = await ensure(state, config);
-
-      const resp = (await client.send(
-        new mod.ReceiveMessageCommand({
-          QueueUrl: resolveUrl(queue, config),
-          MaxNumberOfMessages: 1,
-          WaitTimeSeconds: waitTimeSeconds,
-          VisibilityTimeout: visibilityTimeout,
-        })
-      )) as {
-        Messages?: Array<{ Body?: string; ReceiptHandle?: string }>;
-      };
-
-      const msg = resp.Messages?.[0];
-      if (msg?.Body === undefined) return undefined;
-
-      try {
-        const parsed = JSON.parse(msg.Body) as QueueMessage<T>;
-        if (msg.ReceiptHandle && typeof parsed?.id === 'string' && parsed.id.trim() !== '') {
-          state.receipts.set(parsed.id, msg.ReceiptHandle);
-        }
-        return parsed;
-      } catch (err) {
-        throw ErrorFactory.createTryCatchError('Failed to parse queue message', err as Error);
-      }
-    },
-
-    async ack(queue: string, id: string): Promise<void> {
-      const receipt = state.receipts.get(id);
-      if (receipt === undefined) return;
-      state.receipts.delete(id);
-
-      const { client, mod } = await ensure(state, config);
-      await client.send(
-        new mod.DeleteMessageCommand({
-          QueueUrl: resolveUrl(queue, config),
-          ReceiptHandle: receipt,
-        })
-      );
-    },
-
-    async length(queue: string): Promise<number> {
-      const { client, mod } = await ensure(state, config);
-      const resp = (await client.send(
-        new mod.GetQueueAttributesCommand({
-          QueueUrl: resolveUrl(queue, config),
-          AttributeNames: ['ApproximateNumberOfMessages'],
-        })
-      )) as {
-        Attributes?: Record<string, string>;
-      };
-
-      const raw = resp.Attributes?.['ApproximateNumberOfMessages'] ?? '0';
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : 0;
-    },
-
-    async drain(queue: string): Promise<void> {
-      const { client, mod } = await ensure(state, config);
-      await client.send(new mod.PurgeQueueCommand({ QueueUrl: resolveUrl(queue, config) }));
-    },
+  const driver: SqsQueueDriver = {
+    enqueue: createEnqueue(state, config),
+    dequeue: createDequeue(state, waitTimeSeconds, visibilityTimeout, config),
+    ack: createAck(state, config),
+    length: createLength(state, config),
+    drain: createDrain(state, config),
   };
+
+  return driver;
 }
 
 export const SqsQueue = Object.freeze({

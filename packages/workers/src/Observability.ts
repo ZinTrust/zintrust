@@ -64,6 +64,13 @@ let spanSweepInterval: NodeJS.Timeout | null = null;
 const MAX_ACTIVE_SPANS = 1000;
 const SPAN_TTL_MS = 5 * 60 * 1000;
 
+type UnrefableTimer = { unref: () => void };
+
+const isUnrefableTimer = (value: unknown): value is UnrefableTimer => {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+};
+
 const cleanupStaleSpans = (): void => {
   const now = Date.now();
   for (const [spanId, entry] of activeSpans.entries()) {
@@ -237,6 +244,10 @@ export const Observability = Object.freeze({
       spanSweepInterval = setInterval(() => {
         cleanupStaleSpans();
       }, SPAN_TTL_MS);
+
+      if (isUnrefableTimer(spanSweepInterval)) {
+        spanSweepInterval.unref();
+      }
     }
 
     Logger.info('Observability initialized', {

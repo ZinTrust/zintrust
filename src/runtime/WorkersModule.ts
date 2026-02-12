@@ -6,6 +6,7 @@ import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 
 type WorkersModule = typeof import('@zintrust/workers');
+type QueueMonitorModule = typeof import('@zintrust/queue-monitor');
 
 type PatchResult = {
   replacements: number;
@@ -209,9 +210,51 @@ const importLocalWorkersModule = async (): Promise<WorkersModule | null> => {
   }
 };
 
+const resolveLocalQueueMonitorModuleUrl = (): string | null => {
+  if (!isNodeRuntime()) return null;
+
+  const root = process.cwd();
+
+  const mode = (process.env['NODE_ENV'] ?? 'development').toString().trim().toLowerCase();
+  const isProductionMode = mode === 'production' || mode === 'pro' || mode === 'prod';
+  const preferSource = runFromSource() || !isProductionMode;
+
+  const candidates = preferSource
+    ? [
+        path.join(root, 'packages', 'queue-monitor', 'src', 'index.ts'),
+        path.join(root, 'dist', 'packages', 'queue-monitor', 'src', 'index.js'),
+      ]
+    : [
+        path.join(root, 'dist', 'packages', 'queue-monitor', 'src', 'index.js'),
+        path.join(root, 'packages', 'queue-monitor', 'src', 'index.ts'),
+      ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return pathToFileURL(candidate).href;
+    }
+  }
+
+  return null;
+};
+
+const importLocalQueueMonitorModule = async (): Promise<QueueMonitorModule | null> => {
+  const url = resolveLocalQueueMonitorModuleUrl();
+  if (url === null || url === '' || url === undefined) return null;
+
+  try {
+    return (await import(url)) as QueueMonitorModule;
+  } catch (error) {
+    Logger.warn('Failed to import local @zintrust/queue-monitor fallback', error as Error);
+    return null;
+  }
+};
+
 let workersModulePromise: Promise<WorkersModule> | undefined;
 let patchAttempted = false;
 let patchAfterFailureAttempted = false;
+let queueMonitorModulePromise: Promise<QueueMonitorModule> | undefined;
+let queueMonitorPatchAfterFailureAttempted = false;
 
 export const loadWorkersModule = async (): Promise<WorkersModule> => {
   if (!patchAttempted) {
@@ -263,6 +306,63 @@ export const loadWorkersModule = async (): Promise<WorkersModule> => {
     const localFallback = await importLocalWorkersModule();
     if (localFallback) {
       workersModulePromise = Promise.resolve(localFallback);
+      return localFallback;
+    }
+
+    throw error;
+  }
+};
+
+export const loadQueueMonitorModule = async (): Promise<QueueMonitorModule> => {
+  if (!patchAttempted) {
+    patchAttempted = true;
+    const workersPatch = patchWorkersDist();
+    if (workersPatch.filesChanged > 0) {
+      Logger.warn('Rewrote @zintrust/workers ESM specifiers before import', workersPatch);
+    }
+
+    const monitorPatch = patchQueueMonitorDist();
+    if (monitorPatch.filesChanged > 0) {
+      Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers before import', monitorPatch);
+    }
+  }
+
+  if (queueMonitorModulePromise === undefined) {
+    const localFallback = await importLocalQueueMonitorModule();
+    if (localFallback) {
+      queueMonitorModulePromise = Promise.resolve(localFallback);
+      return localFallback;
+    }
+  }
+
+  queueMonitorModulePromise ??= import('@zintrust/queue-monitor');
+
+  try {
+    return await queueMonitorModulePromise;
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = (error as { code?: string } | undefined)?.code;
+
+    if (
+      !queueMonitorPatchAfterFailureAttempted &&
+      code === 'ERR_MODULE_NOT_FOUND' &&
+      message.includes('@zintrust/queue-monitor')
+    ) {
+      queueMonitorPatchAfterFailureAttempted = true;
+      const { replacements, filesChanged } = patchQueueMonitorDist();
+      if (filesChanged > 0) {
+        Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers after import failure', {
+          filesChanged,
+          replacements,
+        });
+        queueMonitorModulePromise = import('@zintrust/queue-monitor');
+        return queueMonitorModulePromise;
+      }
+    }
+
+    const localFallback = await importLocalQueueMonitorModule();
+    if (localFallback) {
+      queueMonitorModulePromise = Promise.resolve(localFallback);
       return localFallback;
     }
 

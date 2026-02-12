@@ -1,4 +1,4 @@
-import { Cloudflare, ErrorFactory, generateUuid } from '@zintrust/core';
+import { Cloudflare, ErrorFactory, Logger, generateUuid } from '@zintrust/core';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
 
@@ -45,7 +45,35 @@ export type RabbitMqQueueConfig = {
 type RabbitMqDriverState = {
   connection?: AmqplibConnection;
   channel?: AmqplibChannel;
-  inFlight: Map<string, AmqplibMessage>;
+  inFlight: Map<string, { message: AmqplibMessage; seenAt: number }>;
+};
+
+const IN_FLIGHT_MAX_ENTRIES = 10000;
+const IN_FLIGHT_TTL_MS = 15 * 60 * 1000;
+
+const pruneInFlight = (state: RabbitMqDriverState): void => {
+  const now = Date.now();
+
+  for (const [id, value] of state.inFlight.entries()) {
+    if (now - value.seenAt > IN_FLIGHT_TTL_MS) {
+      state.inFlight.delete(id);
+    }
+  }
+
+  if (state.inFlight.size <= IN_FLIGHT_MAX_ENTRIES) return;
+
+  const overflow = state.inFlight.size - IN_FLIGHT_MAX_ENTRIES;
+  let removed = 0;
+  for (const id of state.inFlight.keys()) {
+    state.inFlight.delete(id);
+    removed++;
+    if (removed >= overflow) break;
+  }
+
+  Logger.warn('RabbitMQ in-flight map exceeded max entries; pruned oldest items', {
+    removed,
+    sizeAfter: state.inFlight.size,
+  });
 };
 
 /**
@@ -203,10 +231,12 @@ async function drainFallback(
   queue: string
 ): Promise<void> {
   const ch = await ensureChannel(state, config);
-  const msg = await ch.get(queue, { noAck: false });
-  if (msg === false) return;
-  ch.ack(msg);
-  await drainFallback(state, config, queue);
+  while (true) {
+    // eslint-disable-next-line no-await-in-loop
+    const msg = await ch.get(queue, { noAck: false });
+    if (msg === false) return;
+    ch.ack(msg);
+  }
 }
 
 function createRabbitMqQueueDriver(config?: RabbitMqQueueConfig): {
@@ -235,6 +265,7 @@ function createRabbitMqQueueDriver(config?: RabbitMqQueueConfig): {
 
     async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {
       await ensureQueue(state, config, queue);
+      pruneInFlight(state);
       const ch = await ensureChannel(state, config);
       const msg = await ch.get(queue, { noAck: false });
       if (msg === false) return undefined;
@@ -242,7 +273,7 @@ function createRabbitMqQueueDriver(config?: RabbitMqQueueConfig): {
       try {
         const parsed = JSON.parse(msg.content.toString('utf-8')) as QueueMessage<T>;
         if (typeof parsed?.id === 'string' && parsed.id.trim() !== '') {
-          state.inFlight.set(parsed.id, msg);
+          state.inFlight.set(parsed.id, { message: msg, seenAt: Date.now() });
         }
         return parsed;
       } catch (err) {
@@ -257,11 +288,12 @@ function createRabbitMqQueueDriver(config?: RabbitMqQueueConfig): {
     },
 
     async ack(_queue: string, id: string): Promise<void> {
+      pruneInFlight(state);
       const ch = await ensureChannel(state, config);
-      const msg = state.inFlight.get(id);
-      if (msg === undefined) return;
+      const inFlight = state.inFlight.get(id);
+      if (inFlight === undefined) return;
       state.inFlight.delete(id);
-      ch.ack(msg);
+      ch.ack(inFlight.message);
     },
 
     async length(queue: string): Promise<number> {

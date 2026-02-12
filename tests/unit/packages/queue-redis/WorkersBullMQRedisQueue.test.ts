@@ -18,27 +18,42 @@ vi.mock('bullmq', () => {
   return { Queue };
 });
 
+import { Env } from '@/config/env';
 import { BullMQRedisQueue } from '../../../../packages/queue-redis/src/BullMQRedisQueue';
 
 describe('BullMQ Redis queue (Workers)', () => {
-  it('requires ENABLE_CLOUDFLARE_SOCKETS in Workers', async () => {
-    const originalEnv = (globalThis as unknown as { env?: unknown }).env;
-    (globalThis as unknown as { env?: unknown }).env = {};
+  it('uses HTTP proxy fallback when enabled', async () => {
+    const originalFetch = globalThis.fetch;
 
-    await expect(
-      BullMQRedisQueue.enqueue('jobs', {
+    try {
+      Env.setSource({
+        QUEUE_HTTP_PROXY_ENABLED: 'true',
+        QUEUE_HTTP_PROXY_URL: 'http://127.0.0.1:7772',
+        QUEUE_HTTP_PROXY_PATH: '/api/_sys/queue/rpc',
+        QUEUE_HTTP_PROXY_KEY_ID: 'test-key',
+        QUEUE_HTTP_PROXY_KEY: 'test-secret',
+        QUEUE_HTTP_PROXY_TIMEOUT_MS: '1000',
+      });
+
+      globalThis.fetch = vi.fn(async () => {
+        return new Response(
+          JSON.stringify({ ok: true, requestId: 'r1', result: 'job-http-id', error: null }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }
+        );
+      }) as unknown as typeof fetch;
+
+      const id = await BullMQRedisQueue.enqueue('jobs', {
         payload: { ok: true },
-      } as any)
-    ).rejects.toMatchObject({
-      details: expect.objectContaining({
-        message: expect.stringContaining('ENABLE_CLOUDFLARE_SOCKETS'),
-      }),
-    });
+      } as any);
 
-    if (originalEnv === undefined) {
-      delete (globalThis as unknown as { env?: unknown }).env;
-    } else {
-      (globalThis as unknown as { env?: unknown }).env = originalEnv;
+      expect(id).toBe('job-http-id');
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      Env.setSource(null);
+      globalThis.fetch = originalFetch;
     }
   });
 });

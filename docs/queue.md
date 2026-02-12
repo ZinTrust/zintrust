@@ -93,6 +93,32 @@ Split your deployment into two services:
 
 See [Architecture: Producer-Consumer Model](./architecture-producer-consumer.md) for setup details.
 
+### Queue HTTP Gateway (Cloudflare without Redis TCP)
+
+When Cloudflare Workers cannot open Redis TCP sockets in your environment, ZinTrust can proxy queue commands over HTTP to a Docker/Node API that runs `BullMQRedisQueue` locally.
+
+Producer-side env (Cloudflare/serverless):
+
+```bash
+QUEUE_HTTP_PROXY_ENABLED=true
+QUEUE_HTTP_PROXY_URL=http://your-docker-api:7772
+QUEUE_HTTP_PROXY_PATH=/api/_sys/queue/rpc
+QUEUE_HTTP_PROXY_KEY_ID=your-key-id
+QUEUE_HTTP_PROXY_KEY=your-secret
+```
+
+Gateway-side env (Docker/Node API):
+
+```bash
+QUEUE_HTTP_PROXY_GATEWAY_ENABLED=true
+QUEUE_HTTP_PROXY_KEY_ID=your-key-id
+QUEUE_HTTP_PROXY_KEY=your-secret
+QUEUE_HTTP_PROXY_MAX_SKEW_MS=60000
+QUEUE_HTTP_PROXY_NONCE_TTL_MS=120000
+```
+
+Manual request samples are available in [requests/queue-http-gateway.http](../requests/queue-http-gateway.http).
+
 ### BullMQ Environment Variables
 
 When `QUEUE_DRIVER=redis`, the system uses BullMQ with these customizable settings:

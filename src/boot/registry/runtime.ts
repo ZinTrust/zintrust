@@ -1,9 +1,10 @@
 import { appConfig, cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
-import { loadWorkersModule } from '@/runtime/WorkersModule';
+import { loadQueueMonitorModule, loadWorkersModule } from '@/runtime/WorkersModule';
 import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
 import broadcastConfig from '@config/broadcast';
 import { Cloudflare } from '@config/cloudflare';
+import { Env } from '@config/env';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
@@ -20,6 +21,20 @@ import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notificati
 import { registerQueuesFromRuntimeConfig } from '@tools/queue/QueueRuntimeRegistration';
 import { registerDisksFromRuntimeConfig } from '@tools/storage/StorageRuntimeRegistration';
 import type { IRouter } from '@zintrust/core';
+
+interface IQueueMonitor {
+  create: (config: object) => { registerRoutes: (router: IRouter) => void };
+}
+
+interface IQueueMonitorModule {
+  QueueMonitor: IQueueMonitor;
+}
+
+interface IQueueHttpGatewayModule {
+  QueueHttpGateway: {
+    create: () => { registerRoutes: (router: IRouter) => void };
+  };
+}
 
 // eslint-disable-next-line @typescript-eslint/require-await
 const dbLoader = async (): Promise<void> => {
@@ -179,6 +194,70 @@ const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<
   }
 };
 
+const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
+  const monitorConfig = runQueueConfig?.monitor;
+  if (monitorConfig.enabled === false) {
+    return;
+  }
+
+  let workersModule: IQueueMonitorModule | null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    workersModule = (await loadQueueMonitorModule()) as IQueueMonitorModule | null;
+  } catch (error) {
+    Logger.warn('Failed to load Queue Monitor module', error as Error);
+    return;
+  }
+
+  if (!workersModule || !('QueueMonitor' in workersModule)) {
+    Logger.warn('Queue Monitor module not available');
+    return;
+  }
+
+  const queueMonitorModule = workersModule as IQueueMonitorModule;
+  const { QueueMonitor } = queueMonitorModule;
+
+  const monitor = QueueMonitor.create({
+    ...monitorConfig,
+    redis: {
+      host: queueConfig.drivers.redis.host,
+      port: queueConfig.drivers.redis.port,
+      password: queueConfig.drivers.redis.password,
+      db: queueConfig.drivers.redis.database,
+    },
+  });
+
+  try {
+    monitor.registerRoutes(router);
+  } catch (error) {
+    Logger.error('Failed to register Queue Monitor routes', error);
+  }
+  Logger.info(
+    `Queue Monitor routes registered at http://127.0.0.1:7777${runQueueConfig.monitor.basePath}`
+  );
+  Logger.info('Queue Monitor enqueue endpoint at http://127.0.0.1:7777/test/enqueue');
+};
+
+const initializeWorkers = async (router: IRouter): Promise<void> => {
+  const workers = await loadWorkersModule();
+  if (workers?.WorkerInit !== undefined) {
+    workers.registerWorkerRoutes(router, undefined, { middleware: undefined });
+  }
+};
+
+const initializeQueueHttpGateway = async (router: IRouter): Promise<void> => {
+  const enabled = Env.getBool('QUEUE_HTTP_PROXY_GATEWAY_ENABLED', true);
+  if (!enabled) return;
+
+  try {
+    const module = (await import('@zintrust/queue-redis')) as unknown as IQueueHttpGatewayModule;
+    module.QueueHttpGateway.create().registerRoutes(router);
+    Logger.info('Queue HTTP gateway route registered at /api/_sys/queue/rpc');
+  } catch (error) {
+    Logger.warn('Failed to register Queue HTTP gateway routes', error as Error);
+  }
+};
+
 export const createLifecycle = (params: {
   environment: string;
   resolvedBasePath: string;
@@ -221,34 +300,9 @@ export const createLifecycle = (params: {
     await registerMasterRoutes(params.resolvedBasePath, params.router);
 
     if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
-      const workers = await loadWorkersModule();
-      if (workers?.WorkerInit !== undefined) {
-        workers.registerWorkerRoutes(params.router, undefined, { middleware: undefined });
-      }
-      const monitorConfig = runQueueConfig?.monitor;
-      if (monitorConfig.enabled !== false) {
-        const { QueueMonitor } = await import('@zintrust/queue-monitor');
-
-        const monitor = QueueMonitor.create({
-          ...monitorConfig,
-          redis: {
-            host: queueConfig.drivers.redis.host,
-            port: queueConfig.drivers.redis.port,
-            password: queueConfig.drivers.redis.password,
-            db: queueConfig.drivers.redis.database,
-          },
-        });
-
-        try {
-          monitor.registerRoutes(params.router);
-        } catch (error) {
-          Logger.error('Failed to register Queue Monitor routes', error);
-        }
-        Logger.info(
-          `Queue Monitor routes registered at http://127.0.0.1:7777${runQueueConfig.monitor.basePath}`
-        );
-        Logger.info('Queue Monitor enqueue endpoint at http://127.0.0.1:7777/test/enqueue');
-      }
+      await initializeWorkers(params.router);
+      await initializeQueueMonitor(params.router);
+      await initializeQueueHttpGateway(params.router);
     }
     // Register service providers
     // Bootstrap services

@@ -1,6 +1,36 @@
 import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import { Logger, Queue } from '@zintrust/core';
 
+const RETRY_BASE_DELAY_MS = 1000;
+const RETRY_MAX_DELAY_MS = 30000;
+
+const normalizeAttempts = (value: unknown): number => {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+  return 0;
+};
+
+const getAttemptsFromMessage = <TPayload>(message: QueueMessage<TPayload>): number => {
+  const payloadAttempts =
+    typeof message.payload === 'object' && message.payload !== null
+      ? normalizeAttempts((message.payload as Record<string, unknown>)['attempts'])
+      : 0;
+  const messageAttempts = normalizeAttempts(
+    (message as QueueMessage<TPayload> & { attempts?: number }).attempts
+  );
+  return Math.max(payloadAttempts, messageAttempts);
+};
+
+const getRetryDelayMs = (nextAttempts: number): number => {
+  const exponentialDelay = Math.min(
+    RETRY_BASE_DELAY_MS * 2 ** Math.max(0, nextAttempts - 1),
+    RETRY_MAX_DELAY_MS
+  );
+  const jitterMs = Math.floor(Math.random() * 250);
+  return exponentialDelay + jitterMs;
+};
+
 type QueueWorker = {
   processOne: (queueName?: string, driverName?: string) => Promise<boolean>;
   processAll: (queueName?: string, driverName?: string) => Promise<number>;
@@ -68,19 +98,33 @@ const createProcessOne = <TPayload>(
       Logger.info(`${options.kindLabel} processed successfully`, baseLogFields);
       return true;
     } catch (error) {
-      const attempts = (message as QueueMessage<TPayload> & { attempts?: number }).attempts ?? 0;
+      const attempts = getAttemptsFromMessage(message);
+      const nextAttempts = attempts + 1;
 
       Logger.error(`Failed to process ${options.kindLabel}`, {
         ...baseLogFields,
         error,
-        attempts,
+        attempts: nextAttempts,
       });
 
-      if (attempts < options.maxAttempts) {
-        await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
+      if (nextAttempts < options.maxAttempts) {
+        const retryDelayMs = getRetryDelayMs(nextAttempts);
+        const currentPayload =
+          typeof message.payload === 'object' && message.payload !== null
+            ? (message.payload as Record<string, unknown>)
+            : ({ payload: message.payload } as Record<string, unknown>);
+
+        const payloadForRetry: BullMQPayload = {
+          ...currentPayload,
+          attempts: nextAttempts,
+          timestamp: Date.now() + retryDelayMs,
+        };
+
+        await Queue.enqueue(queueName, payloadForRetry, driverName);
         Logger.info(`${options.kindLabel} re-queued for retry`, {
           ...baseLogFields,
-          attempts: attempts + 1,
+          attempts: nextAttempts,
+          retryDelayMs,
         });
       }
 

@@ -82,6 +82,13 @@ const registrations = new Map<string, RegisterWorkerOptions>();
 const STOPPED_WORKER_CLEANUP_DELAY = 5 * 60 * 1000; // 5 minutes
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
+type UnrefableTimer = { unref: () => void };
+
+const isUnrefableTimer = (value: unknown): value is UnrefableTimer => {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+};
+
 /**
  * Helper: Schedule cleanup of stopped worker
  */
@@ -108,6 +115,10 @@ const scheduleStoppedWorkerCleanup = (name: string): void => {
       cleanupTimers.delete(name);
     }
   }, STOPPED_WORKER_CLEANUP_DELAY);
+
+  if (isUnrefableTimer(timer)) {
+    timer.unref();
+  }
 
   cleanupTimers.set(name, timer);
 };
