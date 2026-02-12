@@ -420,7 +420,7 @@ const getUpdateQueueSelectFunction = (): string => `
             queues.forEach(q => {
                 const opt = document.createElement('option');
                 opt.value = q.name;
-                opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting)';
+                opt.textContent = q.name + ' (' + q.counts.waiting + ' waiting, ' + q.counts.failed + ' failed)';
                 opt.selected = q.name === currentSelection;
                 select.appendChild(opt);
             });

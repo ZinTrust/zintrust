@@ -1,4 +1,4 @@
-import { Env } from '@zintrust/core';
+import { Env, appConfig } from '@zintrust/core';
 
 const normalizeBaseUrl = (value: string): string => {
   let end = value.length;
@@ -23,3 +23,11 @@ const resolveWorkerApiUrl = (): string => {
 export const WorkerConfig = Object.freeze({
   getWorkerBaseUrl: resolveWorkerApiUrl,
 });
+
+export const keyPrefix = (): string => {
+  const redisKeyPrefix = (Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '') ?? '').trim();
+
+  return redisKeyPrefix
+    ? `${redisKeyPrefix}_worker_${appConfig.prefix}`
+    : `worker_${appConfig.prefix}`;
+};

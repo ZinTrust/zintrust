@@ -20,6 +20,25 @@ import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupCo
 import type IORedis from 'ioredis';
 
 let redisModule: typeof import('ioredis') | null | undefined;
+let warnedRedisProxyMismatch = false;
+
+const parseHttpProxyEndpoint = (proxyUrl: string): { host: string; port: number } | null => {
+  try {
+    const url = new URL(proxyUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null;
+    }
+    const host = url.hostname.trim();
+    const defaultPort = url.protocol === 'https:' ? 443 : 80;
+    const port = url.port ? Number.parseInt(url.port, 10) : defaultPort;
+    if (host === '' || !Number.isFinite(port)) {
+      return null;
+    }
+    return { host, port };
+  } catch {
+    return null;
+  }
+};
 
 const resolveIORedis = (): typeof import('ioredis') => {
   const injected = (globalThis as unknown as { __zintrustIoredisModule?: unknown })
@@ -71,21 +90,59 @@ const resolveIORedis = (): typeof import('ioredis') => {
   return redisModule;
 };
 
-export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORedis => {
-  // Respect proxy settings first
+const getProxySettings = (): {
+  proxyUrl: string;
+  parsedHttpProxy: { host: string; port: number } | null;
+  proxyIsHttp: boolean;
+  proxyTargetHost: string;
+  proxyTargetPort: number;
+} => {
+  const proxyUrl = (Env.get('REDIS_PROXY_URL', '') || '').trim();
+  const parsedHttpProxy = parseHttpProxyEndpoint(proxyUrl);
+  const proxyIsHttp = parsedHttpProxy !== null;
+  const proxyHost = (Env.get('REDIS_PROXY_HOST', '') || '').trim();
+  const proxyPort = Env.getInt('REDIS_PROXY_PORT', 6379);
+
+  return {
+    proxyUrl,
+    parsedHttpProxy,
+    proxyIsHttp,
+    proxyTargetHost: parsedHttpProxy?.host ?? proxyHost,
+    proxyTargetPort: parsedHttpProxy?.port ?? proxyPort,
+  };
+};
+
+const validateRedisConfig = (
+  _config: RedisConfig,
+  effectiveConfig: RedisConfig,
+  isWorkersRuntime: boolean,
+  proxySettings: ReturnType<typeof getProxySettings>
+): void => {
+  const { proxyIsHttp, proxyTargetHost, proxyTargetPort } = proxySettings;
+
+  const stillTargetsHttpProxy =
+    proxyIsHttp &&
+    proxyTargetHost !== '' &&
+    effectiveConfig.host.trim() === proxyTargetHost &&
+    Number(effectiveConfig.port) === Number(proxyTargetPort);
+
+  if (!isWorkersRuntime && stillTargetsHttpProxy) {
+    throw ErrorFactory.createConfigError(
+      'Redis config points to an HTTP proxy endpoint. Set REDIS_HOST/REDIS_PORT to your TCP Redis server (redis://), not REDIS_PROXY_URL/REDIS_PROXY_PORT.'
+    );
+  }
+
   const shouldUseProxy =
     Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
 
-  if (
-    !shouldUseProxy &&
-    Cloudflare.getWorkersEnv() !== null &&
-    Cloudflare.isCloudflareSocketsEnabled() === false
-  ) {
+  if (!shouldUseProxy && isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
     throw ErrorFactory.createConfigError(
       'Redis connections in Cloudflare Workers require ENABLE_CLOUDFLARE_SOCKETS=true.'
     );
   }
+};
 
+const resolveRedisConstructor = (): new (options: unknown) => IORedis => {
   const module = resolveIORedis() as unknown as Record<string, unknown>;
   const moduleDefault = module['default'] as Record<string, unknown> | undefined;
   const candidates = [
@@ -103,19 +160,10 @@ export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORe
       "Workers Redis driver could not resolve a Redis constructor from 'ioredis'."
     );
   }
+  return RedisCtor;
+};
 
-  const client = new RedisCtor({
-    host: config.host,
-    port: config.port,
-    password: config.password,
-    db: config.db,
-    maxRetriesPerRequest: null, // Required by BullMQ
-    retryStrategy: (times: number): number | null => {
-      if (times > maxRetries) return null;
-      return Math.min(times * 50, 2000);
-    },
-  });
-
+const setupRedisErrorHandler = (client: IORedis): void => {
   if (typeof client.on === 'function') {
     client.on('error', (err: Error) => {
       try {
@@ -131,6 +179,62 @@ export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORe
       }
     });
   }
+};
+
+const resolveEffectiveRedisConfig = (
+  config: RedisConfig,
+  isWorkersRuntime: boolean,
+  proxySettings: ReturnType<typeof getProxySettings>
+): RedisConfig => {
+  const { proxyIsHttp, proxyTargetHost, proxyTargetPort } = proxySettings;
+
+  const configTargetsHttpProxy =
+    proxyIsHttp &&
+    proxyTargetHost !== '' &&
+    config.host.trim() === proxyTargetHost &&
+    Number(config.port) === Number(proxyTargetPort);
+
+  if (!isWorkersRuntime && configTargetsHttpProxy) {
+    if (!warnedRedisProxyMismatch) {
+      warnedRedisProxyMismatch = true;
+      Logger.warn(
+        'Detected Redis config pointing to HTTP proxy endpoint in Node runtime. Falling back to standard REDIS_HOST/REDIS_PORT settings to prevent protocol errors.'
+      );
+    }
+
+    return {
+      host: Env.get('REDIS_HOST', config.host),
+      port: Env.getInt('REDIS_PORT', config.port),
+      password: Env.get('REDIS_PASSWORD', config.password),
+      db: Env.getInt('REDIS_QUEUE_DB', config.db),
+    };
+  }
+
+  return config;
+};
+
+export const createRedisConnection = (config: RedisConfig, maxRetries = 3): IORedis => {
+  const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+  const proxySettings = getProxySettings();
+  const effectiveConfig = resolveEffectiveRedisConfig(config, isWorkersRuntime, proxySettings);
+
+  validateRedisConfig(config, effectiveConfig, isWorkersRuntime, proxySettings);
+
+  const RedisCtor = resolveRedisConstructor();
+
+  const client = new RedisCtor({
+    host: effectiveConfig.host,
+    port: effectiveConfig.port,
+    password: effectiveConfig.password,
+    db: effectiveConfig.db,
+    maxRetriesPerRequest: null, // Required by BullMQ
+    retryStrategy: (times: number): number | null => {
+      if (times > maxRetries) return null;
+      return Math.min(times * 50, 2000);
+    },
+  });
+
+  setupRedisErrorHandler(client);
 
   return client;
 };

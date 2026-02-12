@@ -1,7 +1,7 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { readFile } from '@node-singletons/fs';
 import { dirname, join } from '@node-singletons/path';
-import { fileURLToPath } from '@node-singletons/url';
+import { fileURLToPath, pathToFileURL } from '@node-singletons/url';
 
 import { Env } from '@config/env';
 import type { TemplateVariables } from '@mail/template-utils';
@@ -63,19 +63,53 @@ function resolveTemplatePath(templateName: string): string {
 
 async function loadTemplateContent(templateName: string): Promise<string> {
   const templatePath = resolveTemplatePath(templateName);
+  const normalizedTemplate = templateName.endsWith('.html') ? templateName : `${templateName}.html`;
+  const cwd = getSafeCwd();
+  const baseDir = getBaseDir();
 
-  try {
-    return await readFile(templatePath, 'utf-8');
-  } catch {
-    // Fallback to built-in directory if the supplied name looked like a file but wasn't found
-    const baseDir = getBaseDir();
-    const fallbackPath = join(
-      baseDir,
-      'templates',
-      templateName.endsWith('.html') ? templateName : `${templateName}.html`
-    );
-    return readFile(fallbackPath, 'utf-8');
+  const candidates = [
+    templatePath,
+    join(baseDir, 'templates', normalizedTemplate),
+    join(cwd, 'dist', 'src', 'tools', 'mail', 'templates', normalizedTemplate),
+    join(cwd, 'src', 'tools', 'mail', 'templates', normalizedTemplate),
+  ].filter((path, index, arr) => path.trim() !== '' && arr.indexOf(path) === index);
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      return await readFile(candidate, 'utf-8');
+    } catch (error) {
+      lastError = error;
+    }
   }
+
+  const normalizedModuleName = templateName.endsWith('.html')
+    ? templateName.slice(0, -5)
+    : templateName;
+  const moduleCandidates = [
+    join(cwd, 'dist', 'src', 'tools', 'mail', 'templates', `${normalizedModuleName}.js`),
+    join(cwd, 'src', 'tools', 'mail', 'templates', `${normalizedModuleName}.ts`),
+    join(baseDir, 'templates', `${normalizedModuleName}.js`),
+    join(baseDir, 'templates', `${normalizedModuleName}.ts`),
+  ].filter((path, index, arr) => path.trim() !== '' && arr.indexOf(path) === index);
+
+  for (const modulePath of moduleCandidates) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const imported = (await import(pathToFileURL(modulePath).href)) as { default?: unknown };
+      if (typeof imported.default === 'string' && imported.default.trim() !== '') {
+        return imported.default;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw ErrorFactory.createConfigError(
+    `Failed to load template from known paths: ${[...candidates, ...moduleCandidates].join(', ')}` +
+      (lastError === undefined ? '' : `. Last error: ${String(lastError)}`)
+  );
 }
 
 /**

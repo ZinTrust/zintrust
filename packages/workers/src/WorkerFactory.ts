@@ -5,7 +5,6 @@
  */
 
 import {
-  appConfig,
   Cloudflare,
   createRedisConnection,
   databaseConfig,
@@ -40,6 +39,7 @@ import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
+import { keyPrefix } from './config/workerConfig';
 import {
   DbWorkerStore,
   InMemoryWorkerStore,
@@ -1473,7 +1473,7 @@ const resolveRedisConfigWithFallback = (
 
 const logRedisPersistenceConfig = (
   redisConfig: RedisConfig,
-  keyPrefix: string,
+  key_prefix: string,
   source: string
 ): void => {
   Logger.debug('Worker persistence redis config', {
@@ -1481,7 +1481,7 @@ const logRedisPersistenceConfig = (
     host: redisConfig.host,
     port: redisConfig.port,
     db: redisConfig.db,
-    keyPrefix,
+    key_prefix,
   });
 };
 
@@ -1491,12 +1491,6 @@ const normalizeEnvValue = (value: string | undefined): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-const normalizeAppName = (value: string | undefined): string => {
-  const normalized = (value ?? '').trim().replaceAll(/\s+/g, '_');
-  return normalized.length > 0 ? normalized : 'zintrust';
-};
-
-const resolveDefaultRedisKeyPrefix = (): string => 'worker_' + normalizeAppName(appConfig.prefix);
 const resolveDefaultPersistenceTable = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ?? 'zintrust_workers';
 
@@ -1521,10 +1515,7 @@ const normalizeExplicitPersistence = (
     return {
       driver: 'redis',
       redis: persistence.redis,
-      keyPrefix:
-        persistence.keyPrefix ??
-        normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')) ??
-        resolveDefaultRedisKeyPrefix(),
+      keyPrefix: keyPrefix(),
     };
   }
 
@@ -1559,7 +1550,6 @@ const resolvePersistenceConfig = (
   if (driver === 'memory') return { driver: 'memory' };
 
   if (driver === 'redis') {
-    const keyPrefix = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', ''));
     const persistenceDbOverride = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_DB', ''));
 
     return {
@@ -1569,7 +1559,7 @@ const resolvePersistenceConfig = (
         env: true,
         db: persistenceDbOverride ? 'WORKER_PERSISTENCE_REDIS_DB' : 'REDIS_QUEUE_DB',
       },
-      keyPrefix: `${keyPrefix}_worker_${appConfig.prefix}`,
+      keyPrefix: keyPrefix(),
     };
   }
 
@@ -1622,10 +1612,10 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
       'Worker persistence requires redis config (persistence.redis or infrastructure.redis)',
       'infrastructure.persistence.redis'
     );
-    const keyPrefix = persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix();
-    logRedisPersistenceConfig(redisConfig, keyPrefix, 'resolveWorkerStore');
+    const key_prefix = persistence.keyPrefix ?? keyPrefix();
+    logRedisPersistenceConfig(redisConfig, key_prefix, 'resolveWorkerStore');
     const client = createRedisConnection(redisConfig);
-    next = RedisWorkerStore.create(client, keyPrefix);
+    next = RedisWorkerStore.create(client, key_prefix);
   } else if (persistence.driver === 'database') {
     const explicitConnection =
       typeof persistence.client === 'string' ? persistence.client : persistence.connection;
@@ -1676,10 +1666,10 @@ const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<
       'Worker persistence requires redis config (persistence.redis or REDIS_* env values)',
       'persistence.redis'
     );
-    const keyPrefix = persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix();
-    logRedisPersistenceConfig(redisConfig, keyPrefix, 'createWorkerStore');
+    const key_prefix = persistence.keyPrefix ?? keyPrefix();
+    logRedisPersistenceConfig(redisConfig, key_prefix, 'createWorkerStore');
     const client = createRedisConnection(redisConfig);
-    return RedisWorkerStore.create(client, keyPrefix);
+    return RedisWorkerStore.create(client, key_prefix);
   }
 
   // Database driver

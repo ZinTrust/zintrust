@@ -81,6 +81,11 @@ const resolveRedisProxyConfig = (): {
   password?: string;
   database?: number;
 } | null => {
+  const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+  if (!isWorkersRuntime) {
+    return null;
+  }
+
   const proxyUrl = Env.get('REDIS_PROXY_URL', '').trim();
   const parsed = proxyUrl ? parseRedisUrl(proxyUrl) : null;
   if (parsed) return parsed;

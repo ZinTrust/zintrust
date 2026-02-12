@@ -335,6 +335,25 @@ const pollForPersistedWorkers = async (factory: WorkerFactoryApi): Promise<strin
   return workers;
 };
 
+const isRegisteredWorkerRunning = async (workerLike: unknown): Promise<boolean> => {
+  if (typeof workerLike !== 'object' || workerLike === null) return false;
+
+  const candidate = workerLike as {
+    worker?: {
+      isRunning?: () => boolean | Promise<boolean>;
+      isPaused?: () => boolean;
+    };
+  };
+
+  const runningFn = candidate.worker?.isRunning;
+  const pausedFn = candidate.worker?.isPaused;
+
+  const isRunning = typeof runningFn === 'function' ? await Promise.resolve(runningFn()) : false;
+  const isPaused = typeof pausedFn === 'function' ? pausedFn() : false;
+
+  return isRunning && !isPaused;
+};
+
 /**
  * Worker Start All Command
  */
@@ -371,9 +390,23 @@ const createWorkerStartAllCommand = (): IBaseCommand => {
 
       const results = await Promise.all(
         eligibleWorkers.map(async (name) => {
-          const getFactory = await factory.get(name);
-          if (getFactory !== null && getFactory !== undefined) {
-            return { name, status: 'skipped' as const };
+          const existing = await factory.get(name);
+          if (existing !== null && existing !== undefined) {
+            const trulyRunning = await isRegisteredWorkerRunning(existing);
+            if (trulyRunning) {
+              return { name, status: 'skipped' as const };
+            }
+
+            Logger.warn(
+              `Worker "${name}" is registered but not truly running. Restarting for crash recovery.`
+            );
+            try {
+              await factory.restart(name);
+              return { name, status: 'started' as const };
+            } catch (error) {
+              Logger.warn(`Failed to restart stale worker "${name}"`, error);
+              return { name, status: 'failed' as const };
+            }
           }
 
           try {

@@ -10,8 +10,10 @@
 
 import { Env, Logger } from '@zintrust/core';
 import { ResourceMonitor } from './ResourceMonitor';
+import type { WorkerPersistenceConfig } from './WorkerFactory';
 import { WorkerFactory } from './WorkerFactory';
 import { WorkerShutdown } from './WorkerShutdown';
+import { keyPrefix } from './config/workerConfig';
 
 // ============================================================================
 // Types
@@ -105,21 +107,21 @@ function initializeResourceMonitoring(
   return false;
 }
 
-/**
- * Get persistence override configuration based on driver name
- */
-function getPersistenceOverride(driver: string): { driver: 'redis' | 'memory' } | undefined {
+const getPersistenceOverride = (driver: string): WorkerPersistenceConfig => {
   if (driver === 'redis') {
-    return { driver: 'redis' };
+    return { driver: 'redis', keyPrefix: keyPrefix() };
   }
-  if (driver === 'database' || driver === 'db') {
-    return undefined;
-  }
+
   if (driver === 'memory') {
     return { driver: 'memory' };
   }
-  return undefined;
-}
+
+  return {
+    driver: 'database',
+    connection: Env.get('WORKER_PERSISTENCE_DB_CONNECTION', 'default') ?? 'default',
+    table: Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers') ?? 'zintrust_workers',
+  };
+};
 
 /**
  * Check if any workers have resource monitoring enabled
@@ -135,6 +137,146 @@ function shouldStartResourceMonitoring(): boolean {
     return false;
   }
 }
+
+type AutoStartCandidate = {
+  name: string;
+  autoStart: boolean;
+  activeStatus?: boolean;
+};
+
+type PersistenceOverride = WorkerPersistenceConfig;
+
+type AutoStartTask = AutoStartCandidate & {
+  persistenceOverride: PersistenceOverride;
+  source: 'database' | 'redis' | 'memory';
+};
+
+const resolveAutoStartCandidates = (records: AutoStartCandidate[]): AutoStartCandidate[] => {
+  return records.filter((record) => record.activeStatus !== false && record.autoStart === true);
+};
+
+const resolvePersistenceTargets = (): Array<{
+  source: 'database' | 'redis' | 'memory';
+  persistenceOverride: PersistenceOverride;
+}> => {
+  const configuredDriver = (Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') || '')
+    .toLowerCase()
+    .trim();
+  const targets: Array<{
+    source: 'database' | 'redis' | 'memory';
+    persistenceOverride: PersistenceOverride;
+  }> =
+    configuredDriver === 'database'
+      ? [
+          { source: 'database', persistenceOverride: getPersistenceOverride('database') },
+          { source: 'redis', persistenceOverride: getPersistenceOverride('redis') },
+          { source: 'memory', persistenceOverride: { driver: 'memory' } },
+        ]
+      : [
+          { source: 'redis', persistenceOverride: getPersistenceOverride('redis') },
+          { source: 'memory', persistenceOverride: { driver: 'memory' } },
+        ];
+
+  // Sort so the configured driver comes first (priority)
+  return targets.sort((a, b) => {
+    const aIsConfigured = a.persistenceOverride.driver === configuredDriver;
+    const bIsConfigured = b.persistenceOverride.driver === configuredDriver;
+
+    if (aIsConfigured && !bIsConfigured) return -1;
+    if (!aIsConfigured && bIsConfigured) return 1;
+    return 0;
+  });
+};
+
+const collectAutoStartTasks = async (): Promise<AutoStartTask[]> => {
+  const targets = resolvePersistenceTargets();
+  const tasks: AutoStartTask[] = [];
+  const seenWorkerNames = new Set<string>();
+
+  for (const target of targets) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const records = await WorkerFactory.listPersistedRecords(target.persistenceOverride);
+      const candidates = resolveAutoStartCandidates(records);
+
+      Logger.debug('Auto-start discovery', {
+        source: target.source,
+        totalRecords: records.length,
+        candidateCount: candidates.length,
+      });
+
+      for (const record of candidates) {
+        if (seenWorkerNames.has(record.name)) {
+          Logger.warn(
+            `Worker ${record.name} appears in multiple persistence stores; keeping first discovered source and skipping duplicate from ${target.source}.`
+          );
+          continue;
+        }
+
+        seenWorkerNames.add(record.name);
+        tasks.push({
+          ...record,
+          persistenceOverride: target.persistenceOverride,
+          source: target.source,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(`Auto-start discovery failed for ${target.source} persistence: ${message}`);
+    }
+  }
+
+  return tasks;
+};
+
+const isWorkerTrulyRunning = async (name: string): Promise<boolean> => {
+  const existing = WorkerFactory.get(name);
+  if (!existing) return false;
+
+  const workerLike = existing.worker as {
+    isRunning?: () => boolean | Promise<boolean>;
+    isPaused?: () => boolean;
+  };
+
+  const isRunning =
+    typeof workerLike.isRunning === 'function'
+      ? await Promise.resolve(workerLike.isRunning())
+      : false;
+  const isPaused = typeof workerLike.isPaused === 'function' ? workerLike.isPaused() : false;
+  return isRunning && !isPaused;
+};
+
+const autoStartOneWorker = async (
+  record: AutoStartTask
+): Promise<{ name: string; started: boolean; skipped: boolean }> => {
+  const existing = WorkerFactory.get(record.name);
+  if (existing) {
+    try {
+      if (await isWorkerTrulyRunning(record.name)) {
+        return { name: record.name, started: false, skipped: true };
+      }
+
+      Logger.warn(
+        `Worker ${record.name} was registered but not truly running. Restarting to recover from stale state.`
+      );
+      await WorkerFactory.restart(record.name, record.persistenceOverride);
+      return { name: record.name, started: true, skipped: false };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Logger.warn(`Auto-start recovery failed for worker ${record.name}: ${message}`);
+      return { name: record.name, started: false, skipped: false };
+    }
+  }
+
+  try {
+    await WorkerFactory.startFromPersisted(record.name, record.persistenceOverride);
+    return { name: record.name, started: true, skipped: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    Logger.warn(`Auto-start failed for worker ${record.name}: ${message}`);
+    return { name: record.name, started: false, skipped: false };
+  }
+};
 
 /**
  * Initialize the worker management system
@@ -215,71 +357,9 @@ async function autoStartPersistedWorkers(): Promise<void> {
   }
 
   try {
-    const persistenceDriver = (Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') || '')
-      .toLowerCase()
-      .trim();
+    const candidates = await collectAutoStartTasks();
 
-    const persistenceOverride = getPersistenceOverride(persistenceDriver);
-
-    const records = await WorkerFactory.listPersistedRecords(persistenceOverride);
-    Logger.debug('Found persisted records', {
-      count: records.length,
-      records: records.map((r) => ({ name: r.name, autoStart: r.autoStart })),
-    });
-
-    const candidates = records.filter((record) => {
-      if (record.activeStatus === false) {
-        return false;
-      }
-      return record.autoStart === true;
-    });
-
-    Logger.debug('Auto-start candidates', {
-      count: candidates.length,
-      candidates: candidates.map((c) => c.name),
-    });
-    const results = await Promise.all(
-      candidates.map(async (record) => {
-        const existing = WorkerFactory.get(record.name);
-        if (existing) {
-          try {
-            const workerLike = existing.worker as {
-              isRunning?: () => boolean | Promise<boolean>;
-              isPaused?: () => boolean;
-            };
-            const isRunning =
-              typeof workerLike.isRunning === 'function'
-                ? await Promise.resolve(workerLike.isRunning())
-                : false;
-            const isPaused =
-              typeof workerLike.isPaused === 'function' ? workerLike.isPaused() : false;
-
-            if (isRunning && !isPaused) {
-              return { name: record.name, started: false, skipped: true };
-            }
-
-            Logger.warn(
-              `Worker ${record.name} was registered but not truly running. Restarting to recover from stale state.`
-            );
-            await WorkerFactory.restart(record.name, persistenceOverride);
-            return { name: record.name, started: true, skipped: false };
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            Logger.warn(`Auto-start recovery failed for worker ${record.name}: ${message}`);
-            return { name: record.name, started: false, skipped: false };
-          }
-        }
-
-        try {
-          await WorkerFactory.startFromPersisted(record.name, persistenceOverride);
-          return { name: record.name, started: true, skipped: false };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          Logger.warn(`Auto-start failed for worker ${record.name}: ${message}`);
-          return { name: record.name, started: false, skipped: false };
-        }
-      })
-    );
+    const results = await Promise.all(candidates.map(async (record) => autoStartOneWorker(record)));
 
     const startedCount = results.filter((item) => item.started).length;
     const skippedCount = results.filter((item) => item.skipped).length;
