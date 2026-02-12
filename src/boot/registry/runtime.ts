@@ -1,4 +1,4 @@
-import { cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
+import { appConfig, cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { loadWorkersModule } from '@/runtime/WorkersModule';
 import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
@@ -220,7 +220,7 @@ export const createLifecycle = (params: {
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerMasterRoutes(params.resolvedBasePath, params.router);
 
-    if (Cloudflare.getWorkersEnv() === null) {
+    if (Cloudflare.getWorkersEnv() === null && appConfig.dockerWorker === false) {
       const workers = await loadWorkersModule();
       if (workers?.WorkerInit !== undefined) {
         workers.registerWorkerRoutes(params.router, undefined, { middleware: undefined });

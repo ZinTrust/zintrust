@@ -49,6 +49,8 @@ WORKER_AUTO_START=true
 QUEUE_ENABLED=true
 ```
 
+For Docker container stacks, keep `DOCKER_WORKER` unset (or `false`) by default.
+
 ## Local Development
 
 You can simulate this split architecture locally using the CLI:

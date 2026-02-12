@@ -124,7 +124,10 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
     await withTimeout(
       (async () => {
         // Shutdown worker management system FIRST (before database closes)
-        if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+        if (
+          (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') &&
+          appConfig.dockerWorker === false
+        ) {
           try {
             const workers = await loadWorkersModule();
             const workerBudgetMs = Math.min(15000, remainingMs());
@@ -171,8 +174,10 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
 async function useWorkerStarter(): Promise<void> {
   // Check if workers are enabled in this environment
   const workerEnabled = Env.getBool('WORKER_ENABLED', true);
-  if (!workerEnabled) {
-    Logger.info('Workers disabled in this runtime (WORKER_ENABLED=false)');
+  if (!workerEnabled || appConfig.dockerWorker === true) {
+    Logger.info(
+      'Workers disabled in this runtime (WORKER_ENABLED=false && DOCKER_WORKER=true), skipping worker management initialization'
+    );
     return;
   }
 
@@ -244,7 +249,10 @@ const BootstrapFunctions = Object.freeze({
       // Start schedules for long-running runtimes (Node.js / Fargate)
       await startSchedulesIfNeeded(app);
 
-      if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+      if (
+        appConfig.dockerWorker === false &&
+        (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda')
+      ) {
         await useWorkerStarter();
       }
     } catch (error) {

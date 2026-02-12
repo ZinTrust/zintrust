@@ -69,6 +69,7 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_RETRIES               | Retry attempts                     | 3         |
 | WORKER_AUTO_START            | Auto-start worker                  | false     |
 | WORKER_RESOURCE_MONITORING   | Global resource monitoring gate    | true      |
+| DOCKER_WORKER                | Dedicated Docker worker container  | false     |
 | WORKER_PRIORITY              | Default priority                   | 1         |
 | WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds)    | 60        |
 | WORKER_INTERVAL_MS           | Monitoring interval (milliseconds) | 5000      |

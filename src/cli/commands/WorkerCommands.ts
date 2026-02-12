@@ -16,7 +16,7 @@ type WorkerRegistryStatus = {
   queueName?: string;
   concurrency?: number;
   region?: string;
-  startedAt?: Date | string;
+  startedAt?: Date | string | null;
 };
 
 type WorkerFactoryApi = {
@@ -37,7 +37,7 @@ type WorkerRegistryApi = {
 };
 
 type HealthMonitorApi = {
-  getSummary: () => Array<{ status: 'healthy' | 'degraded' | 'unhealthy' | 'critical' }>;
+  getSummary: () => Promise<Array<{ status: 'healthy' | 'degraded' | 'unhealthy' | 'critical' }>>;
 };
 
 type ResourceMonitorApi = {
@@ -53,7 +53,12 @@ let WorkerFactory: WorkerFactoryApi | undefined;
 let WorkerRegistry: WorkerRegistryApi | undefined;
 let HealthMonitor: HealthMonitorApi | undefined;
 let ResourceMonitor: ResourceMonitorApi | undefined;
-const loadWorkersModule = async () => {
+const loadWorkersModule = async (): Promise<{
+  WorkerFactory: WorkerFactoryApi;
+  WorkerRegistry: WorkerRegistryApi;
+  HealthMonitor: HealthMonitorApi;
+  ResourceMonitor: ResourceMonitorApi;
+}> => {
   try {
     return await loadWorkersRuntimeModule();
   } catch (error) {
@@ -242,35 +247,45 @@ const createWorkerStartCommand = (): IBaseCommand => {
 };
 
 /**
+ * Helper: Poll for persisted workers in container mode
+ */
+const pollForPersistedWorkers = async (factory: WorkerFactoryApi): Promise<string[]> => {
+  let workers = await factory.listPersisted();
+
+  if (workers.length === 0 && process.env['RUNTIME_MODE'] === 'containers') {
+    Logger.info(
+      'No persisted workers found. Waiting for workers to be registered... (Polling every 10s)'
+    );
+
+    while (workers.length === 0) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 10000));
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        workers = await factory.listPersisted();
+        if (workers.length > 0) {
+          Logger.info(`Found ${workers.length} workers. Proceeding to start.`);
+        }
+      } catch (e) {
+        Logger.warn(
+          'Error checking for persisted workers (retrying in 10s):',
+          e instanceof Error ? e.message : String(e)
+        );
+      }
+    }
+  }
+
+  return workers;
+};
+
+/**
  * Worker Start All Command
  */
 const createWorkerStartAllCommand = (): IBaseCommand => {
   const ext = async (): Promise<void> => {
     try {
       const factory = await getWorkerFactory();
-      let workers = await factory.listPersisted();
-
-      if (workers.length === 0 && process.env['RUNTIME_MODE'] === 'containers') {
-        Logger.info(
-          'No persisted workers found. Waiting for workers to be registered... (Polling every 10s)'
-        );
-
-        // Loop until workers are found
-        while (workers.length === 0) {
-          await new Promise((resolve) => globalThis.setTimeout(resolve, 10000));
-          try {
-            workers = await factory.listPersisted();
-            if (workers.length > 0) {
-              Logger.info(`Found ${workers.length} workers. Proceeding to start.`);
-            }
-          } catch (e) {
-            Logger.warn(
-              'Error checking for persisted workers (retrying in 10s):',
-              e instanceof Error ? e.message : String(e)
-            );
-          }
-        }
-      }
+      const workers = await pollForPersistedWorkers(factory);
 
       if (workers.length === 0) {
         Logger.info('No persisted workers found.');
@@ -390,7 +405,7 @@ const createWorkerSummaryCommand = (): IBaseCommand => {
   const ext = async (): Promise<void> => {
     try {
       const workers = (await getWorkerFactory()).list();
-      const monitoringSummary = (await getHealthMonitor()).getSummary();
+      const monitoringSummary = await (await getHealthMonitor()).getSummary();
       const resourceUsage = (await getResourceMonitor()).getCurrentUsage('system');
 
       console.log(`\n=== Worker System Summary ===\n`);

@@ -52,6 +52,7 @@ const tryImportRoutesFromAppBase = async (
   for (const routePath of routeCandidates) {
     try {
       const url = pathToFileURL(routePath).href;
+      // eslint-disable-next-line no-await-in-loop
       return (await import(url)) as RoutesModule;
     } catch {
       // try next candidate

@@ -317,6 +317,7 @@ export const Env = Object.freeze({
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
   LOG_FORMAT: get('LOG_FORMAT', 'text'),
   LOG_CHANNEL: get('LOG_CHANNEL', ''),
+  DOCKER_WORKER: getBool('DOCKER_WORKER', false),
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
   LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
   LOG_TO_FILE: getBool('LOG_TO_FILE', false),

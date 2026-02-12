@@ -15,12 +15,12 @@ export const DoctorArchitectureCommand = Object.freeze({
 
         const mode: RuntimeMode = getRuntimeMode() as RuntimeMode;
         const workerEnabled = Env.getBool('WORKER_ENABLED', true);
-        const queueEnabled = Env.getBool('QUEUE_ENABLED', true);
+        const dockerWorker = Env.getBool('DOCKER_WORKER', false);
 
         Logger.info('----------------------------------------');
         Logger.info(`Runtime Mode:    ${mode}`);
+        Logger.info(`Docker Worker:   ${dockerWorker}`);
         Logger.info(`Worker Enabled:  ${workerEnabled}`);
-        Logger.info(`Queue Enabled:   ${queueEnabled}`);
         Logger.info('----------------------------------------');
 
         const issues: string[] = [];
@@ -36,6 +36,13 @@ export const DoctorArchitectureCommand = Object.freeze({
         if (mode === 'containers' && !workerEnabled) {
           issues.push(
             '⚠️ WARNING: Container runtime detected but WORKER_ENABLED=false. Are these containers for API only? If attempting to process jobs, enable workers.'
+          );
+        }
+
+        // Rule 2b: Dedicated Docker worker containers must keep workers enabled
+        if (mode === 'containers' && dockerWorker && !workerEnabled) {
+          issues.push(
+            '❌ CRITICAL: DOCKER_WORKER=true but WORKER_ENABLED=false. Dedicated worker containers must enable workers or unset DOCKER_WORKER.'
           );
         }
 
