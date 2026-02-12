@@ -2,6 +2,9 @@ import { Env } from '@config/env';
 import type { RedisBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
+import { existsSync } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { pathToFileURL } from '@node-singletons/url';
 import type { QueueMessage } from '@queue/Queue';
 import { Queue } from '@queue/Queue';
 
@@ -48,11 +51,29 @@ export const getRedisUrl = (config?: RedisBroadcastDriverConfig): string | null 
 export const ensureDriver = async <T = QueueDriver>(type?: 'queue' | 'publish'): Promise<T> => {
   if (type === 'publish') {
     // Return Redis publish client with publish() method from package
-    const mod = (await import('@zintrust/queue-redis')) as unknown as {
-      createRedisPublishClient?: () => Promise<RedisPublishClient>;
+    const tryImportQueueRedis = async (): Promise<
+      { createRedisPublishClient?: () => Promise<RedisPublishClient> } | undefined
+    > => {
+      try {
+        return (await import('@zintrust/queue-redis')) as unknown as {
+          createRedisPublishClient?: () => Promise<RedisPublishClient>;
+        };
+      } catch {
+        const cwd =
+          typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+        if (cwd.trim() === '') return undefined;
+        const localEntry = path.join(cwd, 'dist', 'packages', 'queue-redis', 'src', 'index.js');
+        if (!existsSync(localEntry)) return undefined;
+        const url = pathToFileURL(localEntry).href;
+        return (await import(url)) as unknown as {
+          createRedisPublishClient?: () => Promise<RedisPublishClient>;
+        };
+      }
     };
 
-    if (mod.createRedisPublishClient) {
+    const mod = await tryImportQueueRedis();
+
+    if (mod?.createRedisPublishClient) {
       return mod.createRedisPublishClient() as T;
     }
 
@@ -61,15 +82,36 @@ export const ensureDriver = async <T = QueueDriver>(type?: 'queue' | 'publish'):
     );
   }
 
-  // Return queue driver (current behavior)
-  try {
-    return Queue.get('redis') as T;
-  } catch {
+  const loadPluginDriver = async (): Promise<T> => {
     try {
-      const mod = (await import('@zintrust/queue-redis')) as unknown as {
-        RedisQueue?: QueueDriver;
-        BullMQRedisQueue?: QueueDriver;
+      const tryImportQueueRedis = async (): Promise<
+        { RedisQueue?: QueueDriver; BullMQRedisQueue?: QueueDriver } | undefined
+      > => {
+        try {
+          return (await import('@zintrust/queue-redis')) as unknown as {
+            RedisQueue?: QueueDriver;
+            BullMQRedisQueue?: QueueDriver;
+          };
+        } catch {
+          const cwd =
+            typeof process !== 'undefined' && typeof process.cwd === 'function'
+              ? process.cwd()
+              : '';
+          if (cwd.trim() === '') return undefined;
+          const localEntry = path.join(cwd, 'dist', 'packages', 'queue-redis', 'src', 'index.js');
+          if (!existsSync(localEntry)) return undefined;
+          const url = pathToFileURL(localEntry).href;
+          return (await import(url)) as unknown as {
+            RedisQueue?: QueueDriver;
+            BullMQRedisQueue?: QueueDriver;
+          };
+        }
       };
+
+      const mod = await tryImportQueueRedis();
+      if (mod === undefined) {
+        throw ErrorFactory.createConfigError('queue-redis package not found');
+      }
 
       if (mod.RedisQueue !== undefined) {
         Queue.register('redis', mod.RedisQueue);
@@ -84,5 +126,18 @@ export const ensureDriver = async <T = QueueDriver>(type?: 'queue' | 'publish'):
         error as Error
       );
     }
+  };
+
+  // Return queue driver (current behavior)
+  try {
+    const resolved = Queue.get('redis') as QueueDriver & {
+      __zintrustCoreRedisQueue?: boolean;
+    };
+    if (!(resolved.__zintrustCoreRedisQueue ?? false)) {
+      return resolved as T;
+    }
+    return await loadPluginDriver();
+  } catch {
+    return loadPluginDriver();
   }
 };

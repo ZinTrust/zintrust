@@ -4,8 +4,8 @@
  * Sealed namespace for immutability
  */
 
-import { Env } from '@config/env';
 import { Cloudflare } from '@config/cloudflare';
+import { Env } from '@config/env';
 import { ZintrustLang } from '@lang/lang';
 
 import type { QueueConfigWithDrivers, QueueDriverName, QueueDriversConfig } from '@config/type';
@@ -59,6 +59,44 @@ const readWorkersFallbackInt = (
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const parseRedisUrl = (
+  rawUrl: string
+): { host: string; port: number; password?: string; database?: number } | null => {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') return null;
+    const host = url.hostname;
+    const port = url.port ? Number.parseInt(url.port, 10) : 6379;
+    const password = url.password ? decodeURIComponent(url.password) : undefined;
+    const db = url.pathname ? Number.parseInt(url.pathname.replace('/', ''), 10) : undefined;
+    return { host, port, password, database: Number.isFinite(db ?? NaN) ? db : undefined };
+  } catch {
+    return null;
+  }
+};
+
+const resolveRedisProxyConfig = (): {
+  host: string;
+  port: number;
+  password?: string;
+  database?: number;
+} | null => {
+  const proxyUrl = Env.get('REDIS_PROXY_URL', '').trim();
+  const parsed = proxyUrl ? parseRedisUrl(proxyUrl) : null;
+  if (parsed) return parsed;
+
+  if (Env.getBool('USE_REDIS_PROXY', false)) {
+    return {
+      host: Env.get('REDIS_PROXY_HOST', ''),
+      port: Env.getInt('REDIS_PROXY_PORT', 6379),
+      password: Env.get('REDIS_PASSWORD', ''),
+      database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
+    };
+  }
+
+  return null;
+};
+
 /**
  * Helper: Create base driver configurations from environment
  */
@@ -77,14 +115,22 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
   },
   redis: {
     driver: 'redis' as const,
-    host: readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
-    port: readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
-    password: readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
-    database: readWorkersFallbackInt(
-      'WORKERS_REDIS_QUEUE_DB',
-      'REDIS_QUEUE_DB',
-      ZintrustLang.REDIS_DEFAULT_DB
-    ),
+    host:
+      resolveRedisProxyConfig()?.host ??
+      readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+    port:
+      resolveRedisProxyConfig()?.port ??
+      readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+    password:
+      resolveRedisProxyConfig()?.password ??
+      readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
+    database:
+      resolveRedisProxyConfig()?.database ??
+      readWorkersFallbackInt(
+        'WORKERS_REDIS_QUEUE_DB',
+        'REDIS_QUEUE_DB',
+        ZintrustLang.REDIS_DEFAULT_DB
+      ),
   },
   rabbitmq: {
     driver: 'rabbitmq' as const,

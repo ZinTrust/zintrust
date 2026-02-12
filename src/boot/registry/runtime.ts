@@ -26,9 +26,8 @@ const dbLoader = async (): Promise<void> => {
   registerDatabasesFromRuntimeConfig(databaseConfig);
 };
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const queuesLoader = async (): Promise<void> => {
-  registerQueuesFromRuntimeConfig(queueConfig);
+  await registerQueuesFromRuntimeConfig(queueConfig);
 };
 
 // eslint-disable-next-line @typescript-eslint/require-await
@@ -221,11 +220,11 @@ export const createLifecycle = (params: {
     await initializeArtifactDirectories(params.resolvedBasePath);
     await registerMasterRoutes(params.resolvedBasePath, params.router);
 
-    const workers = await loadWorkersModule();
-    if (workers?.WorkerInit !== undefined) {
-      workers.registerWorkerRoutes(params.router, undefined, { middleware: undefined });
-    }
     if (Cloudflare.getWorkersEnv() === null) {
+      const workers = await loadWorkersModule();
+      if (workers?.WorkerInit !== undefined) {
+        workers.registerWorkerRoutes(params.router, undefined, { middleware: undefined });
+      }
       const monitorConfig = runQueueConfig?.monitor;
       if (monitorConfig.enabled !== false) {
         const { QueueMonitor } = await import('@zintrust/queue-monitor');

@@ -117,7 +117,6 @@
     "build",
     "coverage",
     "config",
-    "src/zintrust.plugins.ts",
     "tests/cli/test-factories-*",
     ".next",
     ".git",

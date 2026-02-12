@@ -58,13 +58,6 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Copy compiled application folders to root as expected by Application.ts
-COPY --from=builder /app/dist/app ./app
-COPY --from=builder /app/dist/routes ./routes
-COPY --from=builder /app/dist/src/config ./config
-# Use a wildcard to avoid error if database folder is empty/missing
-COPY --from=builder /app/dist/src/databas* ./database/
-
 
 # Change ownership to nodejs user
 RUN chown -R nodejs:nodejs /app

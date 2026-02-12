@@ -19,6 +19,7 @@ import { DeployCommand } from '@cli/commands/DeployCommand';
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
+import { InitContainerWorkersRoutesCommand } from '@cli/commands/InitContainerWorkersRoutesCommand';
 import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
@@ -104,6 +105,7 @@ const registerCommands = (program: Command): void => {
     UpgradeCommand.create(),
     PrepareCommand,
     InitContainerCommand.create(),
+    InitContainerWorkersRoutesCommand.create(),
     InitProducerCommand.create(),
     DoctorArchitectureCommand.create(),
     AddCommand.create(),

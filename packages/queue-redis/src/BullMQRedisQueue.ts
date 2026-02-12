@@ -82,6 +82,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
     const shouldUseProxy =
       Env.USE_REDIS_PROXY === true || (Env.get('REDIS_PROXY_URL', '') || '').trim() !== '';
+    const proxyUrl = Env.get('REDIS_PROXY_URL', '').trim();
+    const proxyIsHttp = proxyUrl.startsWith('http://') || proxyUrl.startsWith('https://');
 
     if (
       !shouldUseProxy &&
@@ -90,6 +92,12 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     ) {
       throw ErrorFactory.createConfigError(
         'Redis driver in Cloudflare Workers requires either ENABLE_CLOUDFLARE_SOCKETS=true or USE_REDIS_PROXY=true.'
+      );
+    }
+
+    if (shouldUseProxy && proxyIsHttp) {
+      throw ErrorFactory.createConfigError(
+        'BullMQ Redis driver requires a TCP Redis proxy. REDIS_PROXY_URL must be redis:// or rediss://.'
       );
     }
 
@@ -102,6 +110,14 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     // }
 
     const redisConfig = createBaseDrivers().redis;
+    if (
+      Cloudflare.getWorkersEnv() !== null &&
+      (redisConfig.host === 'localhost' || redisConfig.host === '127.0.0.1')
+    ) {
+      throw ErrorFactory.createConfigError(
+        'Redis host cannot be localhost in Cloudflare Workers. Use a public Redis host or REDIS_PROXY_URL.'
+      );
+    }
     sharedConnection = createRedisConnection({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -109,6 +125,42 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       db: redisConfig.database,
     });
     return sharedConnection; // sharedConnection is IoRedis (compatible with BullMQ)
+  };
+
+  const waitForRedisReady = async (client: IoRedis, timeoutMs: number): Promise<void> => {
+    if (client.status === 'ready') return;
+
+    await new Promise<void>((resolve, reject) => {
+      const timeoutId = globalThis.setTimeout(() => {
+        reject(ErrorFactory.createConnectionError('Redis connection timeout while enqueueing job'));
+      }, timeoutMs);
+
+      const cleanup = (): void => {
+        clearTimeout(timeoutId);
+        client.off('ready', onReady);
+        client.off('error', onError);
+        client.off('end', onEnd);
+      };
+
+      const onReady = (): void => {
+        cleanup();
+        resolve();
+      };
+
+      const onError = (err: Error): void => {
+        cleanup();
+        reject(err);
+      };
+
+      const onEnd = (): void => {
+        cleanup();
+        reject(ErrorFactory.createConnectionError('Redis connection closed while enqueueing job'));
+      };
+
+      client.once('ready', onReady);
+      client.once('error', onError);
+      client.once('end', onEnd);
+    });
   };
 
   const shutdown = async (): Promise<void> => {
@@ -410,13 +462,14 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         // Extract BullMQ options from payload with proper typing
         const payloadData = payload as BullMQPayload;
         const jobOptions = createJobOptions(payloadData);
-
         // Handle deduplication
         const deduplicationResult = await handleDeduplication(payloadData, jobOptions, queue);
         if (deduplicationResult.shouldReturn && deduplicationResult.returnValue) {
           return deduplicationResult.returnValue;
         }
 
+        const connectTimeoutMs = Env.getInt('QUEUE_REDIS_CONNECT_TIMEOUT', 5000);
+        await waitForRedisReady(getSharedConnection(), connectTimeoutMs);
         // 🎯 Custom lock provider support (ensure provider exists for uniqueVia)
         if (payloadData.uniqueVia) {
           getLockProviderForQueue(payloadData.uniqueVia);
@@ -427,7 +480,6 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
         return String(job.id);
       } catch (error) {
-        Logger.error('BullMQ: Failed to enqueue job', error as Error);
         throw ErrorFactory.createTryCatchError('Failed to enqueue job via BullMQ', error as Error);
       }
     },
