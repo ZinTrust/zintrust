@@ -1,4 +1,5 @@
 export type DashboardUiOptions = {
+  basePath: string;
   autoRefresh: boolean;
   refreshIntervalMs: number;
 };
@@ -257,9 +258,7 @@ const getDashboardBody = (): string => `
 const getDashboardScriptState = (options: DashboardUiOptions): string => String.raw`
         const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
         const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs || 0))};
-            const API_BASE = window.location.pathname.endsWith('/')
-                ? window.location.pathname.slice(0, -1)
-                : window.location.pathname;
+    const API_BASE = ${JSON.stringify(options.basePath)};
         const THEME_KEY = 'zintrust-queue-monitor-theme';
         const AUTO_REFRESH_KEY = 'zintrust-queue-monitor-auto-refresh';
         const QUEUE_KEY = 'zintrust-queue-monitor-selected-queue';

@@ -14,7 +14,7 @@ services:
     # Use compiled JS entry point to avoid 'tsx not found' error in production image
     command: ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=\${NODE_ENV:-development}
       - PORT=7772
       - HOST=0.0.0.0
       - RUNTIME_MODE=node-server
@@ -24,6 +24,7 @@ services:
       - APP_KEY=\${APP_KEY}
       - ENCRYPTION_CIPHER=\${ENCRYPTION_CIPHER:-aes-256-cbc}
       - LOG_LEVEL=\${LOG_LEVEL:-info}
+      - ZINTRUST_PROJECT_ROOT=/app/dist
 
       # Feature Flags
       - WORKER_ENABLED=false
@@ -35,7 +36,7 @@ services:
       # Persistence & Drivers
       - WORKER_PERSISTENCE_DRIVER=\${WORKER_PERSISTENCE_DRIVER:-redis}
       - WORKER_PERSISTENCE_DB_CONNECTION=\${WORKER_PERSISTENCE_DB_CONNECTION:-mysql}
-      - WORKER_PERSISTENCE_REDIS_KEY_PREFIX=\${WORKER_PERSISTENCE_REDIS_KEY_PREFIX:-worker_zintrust}
+      - WORKER_PERSISTENCE_REDIS_KEY_PREFIX=\${WORKER_PERSISTENCE_REDIS_KEY_PREFIX}
 
       - QUEUE_DRIVER=\${QUEUE_DRIVER:-redis}
       - QUEUE_CONNECTION=\${QUEUE_CONNECTION:-redis}
@@ -89,7 +90,8 @@ export const InitContainerWorkersRoutesCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'init:cwr',
-      description: 'Generate docker-compose.workers-routes.yml for Workers API (queue monitor disabled)',
+      description:
+        'Generate docker-compose.workers-routes.yml for Workers API (queue monitor disabled)',
       async execute(): Promise<void> {
         Logger.info('Initializing container-based worker routes infrastructure...');
 

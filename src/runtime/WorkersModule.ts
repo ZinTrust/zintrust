@@ -216,6 +216,14 @@ export const loadWorkersModule = async (): Promise<WorkersModule> => {
     }
   }
 
+  if (workersModulePromise === undefined) {
+    const localFallback = await importLocalWorkersModule();
+    if (localFallback) {
+      workersModulePromise = Promise.resolve(localFallback);
+      return localFallback;
+    }
+  }
+
   workersModulePromise ??= import('@zintrust/workers');
 
   try {

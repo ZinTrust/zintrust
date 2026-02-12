@@ -41,7 +41,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/generate-embedded-assets.mjs && tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

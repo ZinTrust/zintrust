@@ -231,6 +231,12 @@ export const createLifecycle = (params: {
 
         const monitor = QueueMonitor.create({
           ...monitorConfig,
+          redis: {
+            host: queueConfig.drivers.redis.host,
+            port: queueConfig.drivers.redis.port,
+            password: queueConfig.drivers.redis.password,
+            db: queueConfig.drivers.redis.database,
+          },
         });
 
         try {

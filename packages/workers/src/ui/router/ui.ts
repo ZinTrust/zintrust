@@ -51,6 +51,30 @@ const fetchAssetBytes = async (assetPath: string): Promise<Uint8Array | null> =>
   return new Uint8Array(buffer);
 };
 
+const resolveEmbeddedAssetText = (assetPath: string): string | null => {
+  const normalizedPath = assetPath.replace(/^\//, '');
+  if (normalizedPath === 'workers/index.html') {
+    return Buffer.from(INDEX_HTML, 'base64').toString('utf-8');
+  }
+
+  return null;
+};
+
+const resolveEmbeddedAssetBytes = (assetPath: string): Uint8Array | null => {
+  const normalizedPath = assetPath.replace(/^\//, '');
+  if (normalizedPath === 'workers/styles.css') {
+    return Buffer.from(STYLES_CSS, 'base64');
+  }
+  if (normalizedPath === 'workers/main.js') {
+    return Buffer.from(MAIN_JS, 'base64');
+  }
+  if (normalizedPath === 'workers/zintrust.svg') {
+    return Buffer.from(ZINTRUST_SVG, 'base64');
+  }
+
+  return null;
+};
+
 export const uiResolver = async (uiBasePath: string): Promise<string> => {
   // Resolve base path for UI assets
   // const __filename = NodeSingletons.url.fileURLToPath(import.meta.url);
@@ -58,14 +82,15 @@ export const uiResolver = async (uiBasePath: string): Promise<string> => {
   const assetHtml = await fetchAssetText('/workers/index.html');
   if (assetHtml !== '') return assetHtml;
 
-  if (isCloudflare) {
-    return Buffer.from(INDEX_HTML, 'base64').toString('utf-8');
-  }
-
   const uiPath = NodeSingletons.path.resolve(uiBasePath, 'workers/index.html');
-  const html = await NodeSingletons.fs.readFile(uiPath, 'utf8');
 
-  return html;
+  try {
+    return await NodeSingletons.fs.readFile(uiPath, 'utf8');
+  } catch {
+    const embedded = resolveEmbeddedAssetText('/workers/index.html');
+    if (embedded !== null) return embedded;
+    throw Error('workers index.html is unavailable');
+  }
 };
 
 // MIME type mapping for static files
@@ -116,6 +141,16 @@ const serveStaticFile = async (
     setStatus: (code: number) => void;
   }
 ): Promise<void> => {
+  const tryServeEmbedded = (assetPath: string): boolean => {
+    const bytes = resolveEmbeddedAssetBytes(assetPath);
+    if (bytes === null) return false;
+    const mimeType = getMimeType(assetPath);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(Buffer.from(bytes));
+    return true;
+  };
+
   try {
     const filePath = req.getPath();
     const assetBytes = await fetchAssetBytes(filePath);
@@ -128,29 +163,7 @@ const serveStaticFile = async (
     }
 
     if (isCloudflare) {
-      const normalizedPath = filePath.replace(/^\//, '');
-      if (normalizedPath === 'workers/styles.css') {
-        const mimeType = MIME_TYPES.CSS;
-        res.setHeader('Content-Type', mimeType);
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.send(Buffer.from(STYLES_CSS, 'base64'));
-        return;
-      }
-      if (normalizedPath === 'workers/main.js') {
-        const mimeType = MIME_TYPES.JS;
-        res.setHeader('Content-Type', mimeType);
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.send(Buffer.from(MAIN_JS, 'base64'));
-        return;
-      }
-      if (normalizedPath === 'workers/zintrust.svg') {
-        const mimeType = MIME_TYPES.SVG;
-        res.setHeader('Content-Type', mimeType);
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.send(Buffer.from(ZINTRUST_SVG, 'base64'));
-        return;
-      }
-
+      if (tryServeEmbedded(filePath)) return;
       res.setStatus(404);
       res.send(Buffer.from('Not Found'));
       return;
@@ -165,7 +178,13 @@ const serveStaticFile = async (
       return;
     }
 
-    const content = await NodeSingletons.fs.readFile(fullPath);
+    let content: Buffer;
+    try {
+      content = await NodeSingletons.fs.readFile(fullPath);
+    } catch {
+      if (tryServeEmbedded(filePath)) return;
+      throw Error(`Missing static asset: ${filePath}`);
+    }
     const mimeType = getMimeType(filePath);
 
     res.setHeader('Content-Type', mimeType);

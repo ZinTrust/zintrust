@@ -37,18 +37,26 @@ const tryImportRoutesFromAppBase = async (
 ): Promise<RoutesModule | undefined> => {
   if (resolvedBasePath === '') return undefined;
 
-  const routerPath = appConfig.isDevelopment()
-    ? path.join(resolvedBasePath, 'routes', 'api.ts')
-    : path.join(resolvedBasePath, 'dist', 'routes', 'api.js');
+  const routeCandidates = appConfig.isDevelopment()
+    ? [
+        path.join(resolvedBasePath, 'routes', 'api.ts'),
+        path.join(resolvedBasePath, 'routes', 'api.js'),
+      ]
+    : [
+        path.join(resolvedBasePath, 'routes', 'api.js'),
+        path.join(resolvedBasePath, 'dist', 'routes', 'api.js'),
+        path.join(resolvedBasePath, 'routes', 'api.ts'),
+        path.join(resolvedBasePath, 'dist', 'routes', 'api.ts'),
+      ];
 
-  try {
-    const url = pathToFileURL(routerPath).href;
-    return (await import(url)) as RoutesModule;
-  } catch (error: unknown) {
-    Logger.error('error :', error);
-    // keep trying
+  for (const routePath of routeCandidates) {
+    try {
+      const url = pathToFileURL(routePath).href;
+      return (await import(url)) as RoutesModule;
+    } catch {
+      // try next candidate
+    }
   }
-  // }
 
   return undefined;
 };
@@ -60,10 +68,11 @@ const registerAppRoutes = async (resolvedBasePath: string, router: IRouter): Pro
   }
 };
 
-const registerFrameworkRoutes = async (router: IRouter): Promise<void> => {
-  const frameworkRoutes = await tryImportOptionalR<{
-    registerRoutes?: (router: IRouter) => void;
-  }>('@routes/api');
+const registerFrameworkRoutes = async (
+  resolvedBasePath: string,
+  router: IRouter
+): Promise<void> => {
+  const frameworkRoutes = await tryImportRoutesFromAppBase(resolvedBasePath);
 
   if (frameworkRoutes && typeof frameworkRoutes.registerRoutes === 'function') {
     frameworkRoutes.registerRoutes(router);
@@ -98,7 +107,7 @@ export const registerMasterRoutes = async (
       await registerAppRoutes(resolvedBasePath, router);
     }
     if (router.routes.length === 0) {
-      await registerFrameworkRoutes(router);
+      await registerFrameworkRoutes(resolvedBasePath, router);
     }
 
     // Always register core framework routes (health, metrics, doc) after app routes

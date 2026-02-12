@@ -663,6 +663,7 @@ const buildProcessorFilePathCandidates = (_modulePath: string, resolvedPath: str
       candidates.push(path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`));
       candidates.push(path.join(projectRoot, 'app', relative));
       candidates.push(path.join(projectRoot, 'app', `${strippedRelative}.js`));
+      candidates.push(path.join('/app', 'dist', 'app', `${strippedRelative}.js`));
     }
   }
 
@@ -902,8 +903,12 @@ const resolveProcessorFromPath = async (
     if (candidates.length === 0) return undefined;
     const [candidatePath, ...rest] = candidates;
     try {
-      const mod = await import(candidatePath);
-      const candidate = pickProcessorFromModule(mod as Record<string, unknown>, candidatePath);
+      const importPath =
+        candidatePath.startsWith('/') && !candidatePath.startsWith('//')
+          ? NodeSingletons.url.pathToFileURL(candidatePath).href
+          : candidatePath;
+      const mod = await import(importPath);
+      const candidate = pickProcessorFromModule(mod as Record<string, unknown>, importPath);
       if (candidate) return candidate;
     } catch (candidateError) {
       Logger.debug(`Processor module candidate import failed: ${candidatePath}`, candidateError);

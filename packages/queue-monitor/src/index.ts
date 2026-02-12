@@ -379,6 +379,7 @@ function registerDashboardRoutes(
   const renderDashboard = (_req: unknown, res: { html: (value: string) => void }): void => {
     res.html(
       getDashboardHtml({
+        basePath: settings.basePath,
         autoRefresh: settings.autoRefresh,
         refreshIntervalMs: settings.refreshIntervalMs,
       })
