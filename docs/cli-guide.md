@@ -214,6 +214,28 @@ zin qa --no-sonar              # Skip Sonar analysis
 zin qa --report                # Generate HTML report
 ```
 
+### Queue Recovery & Job Listing
+
+```bash
+# Run one recovery cycle
+zin queue:recovery --once
+
+# Start orchestrator intervals (reconciliation/recovery/stalled monitors)
+zin queue:recovery --start
+
+# List tracked jobs from memory
+zin queue:recovery --list --status pending_recovery --limit 100
+
+# List tracked jobs from persistence DB
+zin queue:recovery --list --source db --queue emails --json
+
+# Recover or force-push one job
+zin queue:recovery --job-id job-123 --queue emails
+zin queue:recovery --job-id job-123 --queue emails --push
+```
+
+For full option reference, see [CLI Reference](./cli-reference.md#queue-recovery-command).
+
 ## Help System
 
 ```bash

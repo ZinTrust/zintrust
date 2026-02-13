@@ -41,6 +41,7 @@ import { ProxyCommand } from '@cli/commands/ProxyCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
 import { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
@@ -117,6 +118,7 @@ const registerCommands = (program: Command): void => {
     AddMigrationCommand.create(),
     StartCommand.create(),
     QueueCommand.create(),
+    QueueRecoveryCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     ResourceControlCommand,

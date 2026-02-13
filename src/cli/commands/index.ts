@@ -22,6 +22,7 @@ export { NewCommand } from '@cli/commands/NewCommand';
 export { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 export { PrepareCommand } from '@cli/commands/PrepareCommand';
 export { QueueCommand } from '@cli/commands/QueueCommand';
+export { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
 export { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 export { RoutesCommand } from '@cli/commands/RoutesCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';

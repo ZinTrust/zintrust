@@ -16,6 +16,7 @@
 - `zin logs`: View application logs
 - `zin templates`: List/render built-in markdown templates
 - `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
+- `zin queue:recovery`: Run queue recovery once, start reliability orchestrator, or inspect/recover specific tracked jobs
 - `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
@@ -234,6 +235,56 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
   - `--reset`: Truncate tables before run
   - `--service <name>`: Include specific service seeders
   - `--only-service <name>`: Run ONLY specific service seeders
+
+## Queue Recovery Command
+
+Manage queue reliability flows from CLI.
+
+Usage:
+
+```bash
+zin queue:recovery [options]
+```
+
+Common options:
+
+- `--once`: Run `JobRecoveryDaemon.runOnce()` one time.
+- `--start`: Start the reliability orchestrator intervals.
+- `--list`: List tracked jobs.
+- `--source <source>`: List source: `memory` or `db` (default: `memory`).
+- `--queue <name>`: Filter list or target lookup by queue.
+- `--status <status>`: Filter listed jobs by status.
+- `--limit <count>`: Limit listed jobs (default: `50`, max: `5000`).
+- `--json`: Print list output as JSON.
+
+Targeted recovery options:
+
+- `--job-id <id>`: Target a specific tracked job.
+- `--push`: Force direct requeue of target payload.
+- `--dry-run`: Print intended action without changing queue/tracker state.
+- `--no-db-lookup`: Disable fallback lookup in persisted tracker tables for target job.
+
+Examples:
+
+```bash
+# Run one recovery pass now
+zin queue:recovery --once
+
+# Start reliability orchestrator intervals
+zin queue:recovery --start
+
+# List recoverable jobs from in-memory tracker
+zin queue:recovery --list --status pending_recovery --limit 100
+
+# List persisted tracked jobs from DB
+zin queue:recovery --list --source db --queue emails --json
+
+# Recover a single job using policy logic
+zin queue:recovery --job-id job-123 --queue emails
+
+# Force push a specific job back to queue
+zin queue:recovery --job-id job-123 --queue emails --push
+```
 
 ## Plugin Commands
 

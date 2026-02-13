@@ -3,6 +3,7 @@ import {
   Env,
   ErrorFactory,
   JobStateTracker,
+  Logger,
   SignedRequest,
   TimeoutManager,
   generateUuid,
@@ -238,6 +239,12 @@ export const HttpQueueDriver = Object.freeze({
         }
       );
     } catch (error) {
+      Logger.warn('HTTP queue enqueue failed; storing tracker fallback in memory', {
+        queue,
+        fallbackJobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
       await JobStateTracker.enqueued({
         queueName: queue,
         jobId: fallbackJobId,
@@ -269,6 +276,11 @@ export const HttpQueueDriver = Object.freeze({
           error,
         });
       }
+
+      Logger.warn('Job marked pending recovery in tracker', {
+        queue,
+        jobId: fallbackJobId,
+      });
 
       return fallbackJobId;
     }

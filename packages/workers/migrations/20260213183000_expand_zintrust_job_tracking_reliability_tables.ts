@@ -22,10 +22,10 @@ export const migration: Migration = {
       table.timestamp('recovered_at').nullable();
       table.string('idempotency_key').nullable();
 
-      table.index(['status', 'updated_at']);
-      table.index('expected_completion_at');
-      table.index('heartbeat_at');
-      table.index('idempotency_key');
+      table.index(['status', 'updated_at'], 'idx_zj_status_updated');
+      table.index('expected_completion_at', 'idx_zj_expected_completion');
+      table.index('heartbeat_at', 'idx_zj_heartbeat_at');
+      table.index('idempotency_key', 'idx_zj_idempotency');
     });
 
     await schema.create('zintrust_job_heartbeats', (table: Blueprint) => {
@@ -39,8 +39,8 @@ export const migration: Migration = {
       table.timestamp('created_at').nullable();
       table.timestamp('updated_at').nullable();
 
-      table.index(['queue_name', 'expected_next_heartbeat_at']);
-      table.index(['job_id', 'queue_name']);
+      table.index(['queue_name', 'expected_next_heartbeat_at'], 'idx_zjh_qn_next_hb');
+      table.index(['job_id', 'queue_name'], 'idx_zjh_job_queue');
     });
   },
 
