@@ -8,7 +8,9 @@ import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import notificationConfig from '@config/notification';
 import { StartupConfigValidator } from '@config/StartupConfigValidator';
+import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { pathToFileURL } from '@node-singletons/url';
 import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute';
 import type { IShutdownManager } from '@registry/type';
@@ -201,7 +203,6 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
 
   let workersModule: IQueueMonitorModule | null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
     workersModule = (await loadQueueMonitorModule()) as IQueueMonitorModule | null;
   } catch (error) {
     Logger.warn('Failed to load Queue Monitor module', error as Error);
@@ -232,9 +233,9 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
     Logger.error('Failed to register Queue Monitor routes', error);
   }
   Logger.info(
-    `Queue Monitor routes registered at http://127.0.0.1:7777${runQueueConfig.monitor.basePath}`
+    `Queue Monitor routes registered at http://127.0.0.1:${appConfig.port}${runQueueConfig.monitor.basePath}`
   );
-  Logger.info('Queue Monitor enqueue endpoint at http://127.0.0.1:7777/test/enqueue');
+  Logger.info(`Queue Monitor enqueue endpoint at http://127.0.0.1:${appConfig.port}/test/enqueue`);
 };
 
 const initializeWorkers = async (router: IRouter): Promise<void> => {
@@ -244,9 +245,34 @@ const initializeWorkers = async (router: IRouter): Promise<void> => {
   }
 };
 
+const resolveLocalQueueRedisEntry = (): string | null => {
+  if (typeof process === 'undefined' || typeof process.cwd !== 'function') return null;
+  const cwd = process.cwd();
+  if (cwd.trim() === '') return null;
+
+  const localEntry = path.join(cwd, 'dist', 'packages', 'queue-redis', 'src', 'index.js');
+  return existsSync(localEntry) ? localEntry : null;
+};
+
+const loadQueueHttpGatewayModule = async (): Promise<IQueueHttpGatewayModule | undefined> => {
+  try {
+    return (await import('@zintrust/queue-redis')) as unknown as IQueueHttpGatewayModule;
+  } catch {
+    const localEntry = resolveLocalQueueRedisEntry();
+    if (localEntry === null) return undefined;
+    const url = pathToFileURL(localEntry).href;
+    return (await import(url)) as unknown as IQueueHttpGatewayModule;
+  }
+};
+
 const initializeQueueHttpGateway = async (router: IRouter): Promise<void> => {
   try {
-    const module = (await import('@zintrust/queue-redis')) as unknown as IQueueHttpGatewayModule;
+    const module = await loadQueueHttpGatewayModule();
+    if (module === undefined) {
+      Logger.warn('Queue HTTP gateway module is unavailable (@zintrust/queue-redis not found)');
+      return;
+    }
+
     module.QueueHttpGateway.create().registerRoutes(router);
     Logger.info('Queue HTTP gateway route registered at /api/_sys/queue/rpc');
   } catch (error) {

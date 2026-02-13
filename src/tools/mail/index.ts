@@ -148,7 +148,6 @@ const createMailer = (
   Object.freeze({
     async send(input: SendMailInput): Promise<SendMailResult> {
       const driver = mailConfig.getDriver(name);
-
       if (driver.driver === 'disabled') {
         const err = ErrorFactory.createConfigError('Mail driver is disabled (set MAIL_DRIVER)');
         throw err;

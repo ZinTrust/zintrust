@@ -1,7 +1,6 @@
-/* eslint-disable no-console */
 import type { BullMQPayload, IRequest, IResponse, IRouter, QueueMessage } from '@zintrust/core';
 import { Env, ErrorFactory, Logger, Router, SignedRequest } from '@zintrust/core';
-import BullMQRedisQueue from './BullMQRedisQueue';
+import BullMQRedisQueue, { runWithDirectQueueDriver } from './BullMQRedisQueue';
 
 type QueueRpcAction = 'enqueue' | 'dequeue' | 'ack' | 'length' | 'drain';
 
@@ -156,43 +155,45 @@ const readQueueName = (payload: QueueRpcRequest['payload']): string | null => {
 };
 
 const executeAction = async (request: QueueRpcRequest): Promise<unknown> => {
-  const queueName = readQueueName(request.payload);
+  return runWithDirectQueueDriver(async () => {
+    const queueName = readQueueName(request.payload);
 
-  if (!queueName) {
-    throw ErrorFactory.createValidationError('payload.queue is required');
-  }
-
-  switch (request.action) {
-    case 'enqueue': {
-      const payload = request.payload.payload as BullMQPayload | undefined;
-      if (!payload || typeof payload !== 'object') {
-        throw ErrorFactory.createValidationError('payload.payload is required for enqueue');
-      }
-      return BullMQRedisQueue.enqueue(queueName, payload);
+    if (!queueName) {
+      throw ErrorFactory.createValidationError('payload.queue is required');
     }
 
-    case 'dequeue':
-      return BullMQRedisQueue.dequeue(queueName) as Promise<QueueMessage<unknown> | undefined>;
-
-    case 'ack': {
-      const id = request.payload.id;
-      if (typeof id !== 'string' || id.trim() === '') {
-        throw ErrorFactory.createValidationError('payload.id is required for ack');
+    switch (request.action) {
+      case 'enqueue': {
+        const payload = request.payload.payload as BullMQPayload | undefined;
+        if (!payload || typeof payload !== 'object') {
+          throw ErrorFactory.createValidationError('payload.payload is required for enqueue');
+        }
+        return BullMQRedisQueue.enqueue(queueName, payload);
       }
-      await BullMQRedisQueue.ack(queueName, id);
-      return null;
+
+      case 'dequeue':
+        return BullMQRedisQueue.dequeue(queueName) as Promise<QueueMessage<unknown> | undefined>;
+
+      case 'ack': {
+        const id = request.payload.id;
+        if (typeof id !== 'string' || id.trim() === '') {
+          throw ErrorFactory.createValidationError('payload.id is required for ack');
+        }
+        await BullMQRedisQueue.ack(queueName, id);
+        return null;
+      }
+
+      case 'length':
+        return BullMQRedisQueue.length(queueName);
+
+      case 'drain':
+        await BullMQRedisQueue.drain(queueName);
+        return null;
+
+      default:
+        throw ErrorFactory.createValidationError(`Unsupported action: ${String(request.action)}`);
     }
-
-    case 'length':
-      return BullMQRedisQueue.length(queueName);
-
-    case 'drain':
-      await BullMQRedisQueue.drain(queueName);
-      return null;
-
-    default:
-      throw ErrorFactory.createValidationError(`Unsupported action: ${String(request.action)}`);
-  }
+  });
 };
 
 const verifyRequest = async (
@@ -239,18 +240,14 @@ const verifyRequest = async (
 
 const createHandler = (settings: QueueGatewaySettings) => {
   return async (req: IRequest, res: IResponse): Promise<void> => {
-    console.log('req :', req); // TODO remove aftre testing
     const rawBody = getRawBody(req);
-    console.log('rawBody :', rawBody);
     const body = getBodyRecord(req);
-    console.log('body :', body);
     const requestId =
       typeof body['requestId'] === 'string' && body['requestId'].trim() !== ''
         ? (body['requestId'] as string)
         : 'unknown';
 
     const auth = await verifyRequest(req, rawBody, settings);
-    console.log('auth :', auth);
     if (auth.ok === false) {
       sendFailure(res, requestId, auth.status, auth.code, auth.message);
       return;

@@ -228,6 +228,17 @@ const createNodeSocket = async (config: SmtpConfig, implicitTls: boolean): Promi
         }) as unknown as net.Socket)
       : net.connect({ host: config.host, port: config.port });
 
+    socket.setTimeout(10000);
+    socket.once('timeout', () => {
+      socket.destroy();
+      reject(
+        ErrorFactory.createConnectionError('SMTP connection timed out', {
+          host: config.host,
+          port: config.port,
+        })
+      );
+    });
+
     if (implicitTls) {
       (socket as unknown as tls.TLSSocket).once('secureConnect', () => resolve(socket));
     } else {
@@ -365,7 +376,21 @@ const createLineReader = (
   const readLine = async (): Promise<string> => {
     const immediate = tryReadLineFromBuffer();
     if (typeof immediate === 'string') return immediate;
-    await new Promise<void>((resolve) => waiters.push(resolve));
+
+    await new Promise<void>((resolve, reject) => {
+      let fired = false;
+      const timer = globalThis.setTimeout(() => {
+        fired = true;
+        reject(ErrorFactory.createConnectionError('SMTP read timeout'));
+      }, 30000);
+
+      waiters.push(() => {
+        if (fired) return;
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
     return readLine();
   };
 

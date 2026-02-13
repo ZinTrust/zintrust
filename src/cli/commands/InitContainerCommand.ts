@@ -7,7 +7,7 @@ import { join } from '@node-singletons/path';
 const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
   # Workers/Jobs API Service (Port 7772)
   # Exposes the Workers API to create/manage jobs
-  workers-api:
+  zintrust-workers-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -52,6 +52,17 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
       - DB_DATABASE=\${DB_DATABASE:-zintrust}
       - DB_USERNAME=\${DB_USERNAME:-zintrust}
       - DB_PASSWORD=\${DB_PASSWORD:-secret}
+
+      # SMTP Mail
+      - MAIL_DRIVER=\${MAIL_DRIVER:-smtp}
+      - MAIL_CONNECTION=\${MAIL_CONNECTION:-smtp}
+      - MAIL_HOST=\${MAIL_HOST}
+      - MAIL_PORT=\${MAIL_PORT:-587}
+      - MAIL_SECURE=\${MAIL_SECURE:-false}
+      - MAIL_USERNAME=\${MAIL_USERNAME}
+      - MAIL_PASSWORD=\${MAIL_PASSWORD}
+      - MAIL_FROM_ADDRESS=\${MAIL_FROM_ADDRESS}
+      - MAIL_FROM_NAME=\${MAIL_FROM_NAME:-ZinTrust}
 
       # PostgreSQL
       - DB_PORT_POSTGRESQL=\${DB_PORT_POSTGRESQL:-5432}

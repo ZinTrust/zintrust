@@ -35,8 +35,20 @@ interface IBullMQRedisQueue extends IQueueDriver {
 }
 
 export const shouldUseHttpProxyDriver = (): boolean => {
+  if (directModeDepth > 0) return false;
   const isCloudFlareWorkers = Cloudflare.getWorkersEnv() !== null;
-  return Env.getBool('QUEUE_HTTP_PROXY_ENABLED', isCloudFlareWorkers);
+  return isCloudFlareWorkers ?? Env.getBool('QUEUE_HTTP_PROXY_ENABLED', false);
+};
+
+let directModeDepth = 0;
+
+export const runWithDirectQueueDriver = async <T>(fn: () => Promise<T>): Promise<T> => {
+  directModeDepth += 1;
+  try {
+    return await fn();
+  } finally {
+    directModeDepth = Math.max(0, directModeDepth - 1);
+  }
 };
 
 /**

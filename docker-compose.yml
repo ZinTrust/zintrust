@@ -57,6 +57,16 @@ services:
       WORKER_ENABLED: true
       WORKER_AUTO_START: true
       QUEUE_ENABLED: true
+      # SMTP Mail
+      MAIL_DRIVER: ${MAIL_DRIVER:-smtp}
+      MAIL_CONNECTION: ${MAIL_CONNECTION:-smtp}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ZinTrust}
       # Database & Redis
       DB_CONNECTION: ${DB_CONNECTION:-postgresql}
       DB_HOST: ${DB_HOST:-postgres}
