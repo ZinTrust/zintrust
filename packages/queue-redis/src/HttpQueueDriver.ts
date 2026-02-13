@@ -68,6 +68,31 @@ const normalizeRoutePath = (value: string): string => {
   return `/${trimmed}`;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
+const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
+  const prefix = resolveSigningPrefix(baseUrl);
+  if (!prefix) return requestUrl;
+
+  if (requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`)) {
+    const signingUrl = new URL(requestUrl.toString());
+    const stripped = requestUrl.pathname.slice(prefix.length);
+    signingUrl.pathname = stripped.startsWith('/') ? stripped : `/${stripped}`;
+    return signingUrl;
+  }
+
+  return requestUrl;
+};
+
 const resolveSettings = (): HttpQueueDriverSettings => {
   const baseUrl = normalizeBaseUrl(Env.get('QUEUE_HTTP_PROXY_URL', DEFAULT_PROXY_URL));
   const routePath = normalizeRoutePath(Env.get('QUEUE_HTTP_PROXY_PATH', DEFAULT_ROUTE_PATH));
@@ -148,9 +173,10 @@ const callGateway = async <T>(
     payload,
   };
   const bodyText = toBodyText(requestBody);
+  const signingUrl = buildSigningUrl(url, settings.baseUrl);
   const params = {
     method: 'POST',
-    url,
+    url: signingUrl,
     body: bodyText,
     keyId: settings.keyId,
     secret: settings.secret,

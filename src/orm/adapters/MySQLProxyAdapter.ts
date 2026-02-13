@@ -38,6 +38,17 @@ type ProxySettings = {
   timeoutMs: number;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
 const buildProxySettings = (): ProxySettings => {
   const baseUrl = Env.MYSQL_PROXY_URL;
   const keyId = Env.MYSQL_PROXY_KEY_ID ?? '';
@@ -57,6 +68,7 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
     keyId: creds.keyId,
     secret: creds.secret,
     timeoutMs: settings.timeoutMs,
+    signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'MySQL proxy URL is missing (MYSQL_PROXY_URL)',
     missingCredentialsMessage:
       'MySQL proxy signing credentials are missing (MYSQL_PROXY_KEY_ID / MYSQL_PROXY_SECRET)',

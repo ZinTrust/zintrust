@@ -42,6 +42,31 @@ const resolveProxyUrl = (): string => {
   return `http://${host}:${port}`;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
+const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
+  const prefix = resolveSigningPrefix(baseUrl);
+  if (!prefix) return requestUrl;
+
+  if (requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`)) {
+    const signingUrl = new URL(requestUrl.toString());
+    const stripped = requestUrl.pathname.slice(prefix.length);
+    signingUrl.pathname = stripped.startsWith('/') ? stripped : `/${stripped}`;
+    return signingUrl;
+  }
+
+  return requestUrl;
+};
+
 const createSignedRequest = async (
   url: string,
   body: string
@@ -58,9 +83,10 @@ const createSignedRequest = async (
   }
 
   const urlObj = new URL(url);
+  const signingUrl = buildSigningUrl(urlObj, url);
   const signResult = await SignedRequest.createHeaders({
     method: 'POST',
-    url: urlObj,
+    url: signingUrl,
     body,
     keyId: creds.keyId,
     secret: creds.secret,

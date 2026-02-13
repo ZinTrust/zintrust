@@ -21,6 +21,39 @@ type ProxySettings = {
   timeoutMs: number;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
+const buildRequestUrl = (baseUrl: string, path: string): URL => {
+  const url = new URL(baseUrl);
+  const basePath = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
+  const requestPath = path.startsWith('/') ? path : `/${path}`;
+  url.pathname = `${basePath}${requestPath}`;
+  return url;
+};
+
+const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
+  const prefix = resolveSigningPrefix(baseUrl);
+  if (!prefix) return requestUrl;
+
+  if (requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`)) {
+    const signingUrl = new URL(requestUrl.toString());
+    const stripped = requestUrl.pathname.slice(prefix.length);
+    signingUrl.pathname = stripped.startsWith('/') ? stripped : `/${stripped}`;
+    return signingUrl;
+  }
+
+  return requestUrl;
+};
+
 let publishClientInstance: RedisPublishClient | null = null;
 let publishClientConnected = false;
 
@@ -43,7 +76,7 @@ const buildProxySettings = (): ProxySettings => {
 
 const buildHeaders = async (
   settings: ProxySettings,
-  url: string,
+  requestUrl: URL,
   body: string
 ): Promise<Record<string, string>> => {
   const headers: Record<string, string> = {
@@ -51,9 +84,10 @@ const buildHeaders = async (
   };
 
   if (settings.keyId && settings.secret) {
+    const signingUrl = buildSigningUrl(requestUrl, settings.baseUrl);
     const signed = await SignedRequest.createHeaders({
       method: 'POST',
-      url,
+      url: signingUrl,
       body,
       keyId: settings.keyId,
       secret: settings.secret,
@@ -74,12 +108,12 @@ const requestProxy = async <T>(
   }
 
   const body = JSON.stringify(payload);
-  const url = `${settings.baseUrl}${path}`;
+  const url = buildRequestUrl(settings.baseUrl, path);
   const headers = await buildHeaders(settings, url, body);
   const timeoutSignal = typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal;
   const signal = timeoutSignal ? AbortSignal.timeout(settings.timeoutMs) : undefined;
 
-  const response = await fetch(url, {
+  const response = await fetch(url.toString(), {
     method: 'POST',
     headers,
     body,

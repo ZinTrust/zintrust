@@ -36,6 +36,17 @@ type ProxySettings = {
   timeoutMs: number;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
 const resolveBaseUrl = (): string => {
   const explicit = Env.POSTGRES_PROXY_URL.trim();
   if (explicit !== '') return explicit;
@@ -63,6 +74,7 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
     keyId: creds.keyId,
     secret: creds.secret,
     timeoutMs: settings.timeoutMs,
+    signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'PostgreSQL proxy URL is missing (POSTGRES_PROXY_URL)',
     missingCredentialsMessage:
       'PostgreSQL proxy signing credentials are missing (POSTGRES_PROXY_KEY_ID / POSTGRES_PROXY_SECRET)',

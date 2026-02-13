@@ -7,6 +7,7 @@ export type RemoteSignedJsonSettings = {
   keyId: string;
   secret: string;
   timeoutMs: number;
+  signaturePathPrefixToStrip?: string;
 
   missingUrlMessage: string;
   missingCredentialsMessage: string;
@@ -63,6 +64,27 @@ const createTimeoutSignal = (timeoutMs: number): AbortSignal | undefined => {
   return typeof timeout === 'function' ? timeout(timeoutMs) : undefined;
 };
 
+const buildSigningUrl = (url: URL, settings: RemoteSignedJsonSettings): URL => {
+  const rawPrefix = settings.signaturePathPrefixToStrip?.trim() ?? '';
+  if (rawPrefix === '' || rawPrefix === '/') {
+    return new URL(url.toString());
+  }
+
+  const normalizedPrefix = rawPrefix.startsWith('/') ? rawPrefix : `/${rawPrefix}`;
+  const signingUrl = new URL(url.toString());
+
+  if (signingUrl.pathname === normalizedPrefix) {
+    signingUrl.pathname = '/';
+    return signingUrl;
+  }
+
+  if (signingUrl.pathname.startsWith(`${normalizedPrefix}/`)) {
+    signingUrl.pathname = signingUrl.pathname.slice(normalizedPrefix.length);
+  }
+
+  return signingUrl;
+};
+
 export const RemoteSignedJson = Object.freeze({
   async request<T>(
     settings: RemoteSignedJsonSettings,
@@ -73,10 +95,11 @@ export const RemoteSignedJson = Object.freeze({
     requireConfigured(normalized);
 
     const url = joinUrl(normalized.baseUrl, path);
+    const signingUrl = buildSigningUrl(url, normalized);
     const body = JSON.stringify(payload);
     const signed = await SignedRequest.createHeaders({
       method: 'POST',
-      url,
+      url: signingUrl,
       body,
       keyId: normalized.keyId,
       secret: normalized.secret,

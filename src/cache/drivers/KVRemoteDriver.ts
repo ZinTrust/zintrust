@@ -23,6 +23,17 @@ type KvRemoteSettings = {
   timeoutMs: number;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
 const normalizeNamespace = (defaultNamespace: string): string | undefined =>
   defaultNamespace.trim() === '' ? undefined : defaultNamespace;
 
@@ -41,6 +52,7 @@ export const KVRemoteDriver = Object.freeze({
       keyId: settings.keyId,
       secret: settings.secret,
       timeoutMs: settings.timeoutMs,
+      signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
       missingUrlMessage: 'KV remote proxy URL is missing (KV_REMOTE_URL)',
       missingCredentialsMessage:
         'KV remote signing credentials are missing (KV_REMOTE_KEY_ID / KV_REMOTE_SECRET)',

@@ -69,6 +69,17 @@ type ProxyMessagePayload = {
   attachments?: AttachmentPayload[];
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
 const normalizeRecipients = (to: string | string[]): string[] => (Array.isArray(to) ? to : [to]);
 
 const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
@@ -119,6 +130,7 @@ const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings 
     keyId: creds.keyId,
     secret: creds.secret,
     timeoutMs: settings.timeoutMs,
+    signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'SMTP proxy URL is missing (SMTP_PROXY_URL)',
     missingCredentialsMessage:
       'SMTP proxy signing credentials are missing (SMTP_PROXY_KEY_ID / SMTP_PROXY_SECRET)',
@@ -146,7 +158,10 @@ const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings
   return signedSettings;
 };
 
-const shouldUseProxy = (): boolean => Env.USE_SMTP_PROXY === true;
+const shouldUseProxy = (): boolean => {
+  if (Env.USE_SMTP_PROXY === true) return true;
+  return Env.SMTP_PROXY_URL.trim() !== '';
+};
 
 const serializeMessage = (message: MailMessage): ProxyMessagePayload => {
   const attachments = message.attachments?.map((attachment) => {

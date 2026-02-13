@@ -38,6 +38,17 @@ type D1RemoteSettings = {
   mode: D1RemoteMode;
 };
 
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
 const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSettings } => {
   const settings: D1RemoteSettings = {
     baseUrl: Env.get('D1_REMOTE_URL'),
@@ -52,6 +63,7 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
     keyId: settings.keyId,
     secret: settings.secret,
     timeoutMs: settings.timeoutMs,
+    signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'D1 remote proxy URL is missing (D1_REMOTE_URL)',
     missingCredentialsMessage:
       'D1 remote signing credentials are missing (D1_REMOTE_KEY_ID / D1_REMOTE_SECRET)',

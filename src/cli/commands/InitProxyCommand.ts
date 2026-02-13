@@ -237,11 +237,15 @@ services:
       SMTP_PROXY_KEY_ID: \${SMTP_PROXY_KEY_ID:-}
       SMTP_PROXY_SECRET: \${SMTP_PROXY_SECRET:-}
       SMTP_PROXY_SIGNING_WINDOW_MS: \${SMTP_PROXY_SIGNING_WINDOW_MS:-60000}
-      MAIL_HOST: \${SMTP_TARGET_HOST:-host.docker.internal}
-      MAIL_PORT: \${SMTP_TARGET_PORT:-587}
-      MAIL_SECURE: \${SMTP_TARGET_SECURE:-false}
-      MAIL_USERNAME: \${SMTP_TARGET_USERNAME:-}
-      MAIL_PASSWORD: \${SMTP_TARGET_PASSWORD:-}
+      MAIL_DRIVER: \${MAIL_DRIVER:-smtp}
+      MAIL_CONNECTION: \${MAIL_CONNECTION:-smtp}
+      MAIL_HOST: \${MAIL_HOST}
+      MAIL_PORT: \${MAIL_PORT:-587}
+      MAIL_SECURE: \${MAIL_SECURE:-false}
+      MAIL_USERNAME: \${MAIL_USERNAME}
+      MAIL_PASSWORD: \${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: \${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: \${MAIL_FROM_NAME:-ZinTrust}
     healthcheck:
       disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
@@ -324,38 +328,32 @@ http {
 
     location /mysql {
       rewrite ^/mysql/?(.*)$ /$1 break;
-      set $upstream proxy-mysql:8789;
-      proxy_pass http://$upstream;
+      proxy_pass http://proxy-mysql:8789;
     }
 
     location /postgres {
       rewrite ^/postgres/?(.*)$ /$1 break;
-      set $upstream proxy-pg:8790;
-      proxy_pass http://$upstream;
+      proxy_pass http://proxy-pg:8790;
     }
 
     location /redis {
       rewrite ^/redis/?(.*)$ /$1 break;
-      set $upstream proxy-redis:8791;
-      proxy_pass http://$upstream;
+      proxy_pass http://proxy-redis:8791;
     }
 
     location /mongodb {
       rewrite ^/mongodb/?(.*)$ /$1 break;
-      set $upstream proxy-mongodb:8792;
-      proxy_pass http://$upstream;
+      proxy_pass http://proxy-mongodb:8792;
     }
 
     location /sqlserver {
       rewrite ^/sqlserver/?(.*)$ /$1 break;
-      set $upstream proxy-sqlserver:8793;
-      proxy_pass http://$upstream;
+      proxy_pass http://proxy-sqlserver:8793;
     }
 
     location /smtp {
       rewrite ^/smtp/?(.*)$ /$1 break;
-      set $upstream proxy-smtp:8794;
-      proxy_pass http://$upstream;
+      proxy_pass http://proxy-smtp:8794;
     }
   }
 }
