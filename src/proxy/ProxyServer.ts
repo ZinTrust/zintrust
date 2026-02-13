@@ -69,6 +69,12 @@ export const createProxyServer = (
     try {
       const body = await readBody(req, options.maxBodyBytes);
 
+      if ((req.url ?? '').startsWith('/health')) {
+        const response = await options.backend.health();
+        respond(res, response);
+        return;
+      }
+
       if (options.verify) {
         const verified = await options.verify(req, body);
         if (!verified.ok) {
@@ -78,12 +84,6 @@ export const createProxyServer = (
           });
           return;
         }
-      }
-
-      if ((req.url ?? '').startsWith('/health')) {
-        const response = await options.backend.health();
-        respond(res, response);
-        return;
       }
 
       const request = toProxyRequest(req, body);

@@ -22,8 +22,8 @@ import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWork
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
-import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
 import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
+import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';

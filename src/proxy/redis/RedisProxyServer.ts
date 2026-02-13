@@ -69,10 +69,14 @@ const resolveRedisConfig = (
   password: string;
   db: number;
 } => {
-  const host = overrides.redisHost ?? Env.get('REDIS_HOST', '127.0.0.1');
-  const port = overrides.redisPort ?? Env.getInt('REDIS_PORT', 6379);
-  const password = overrides.redisPassword ?? Env.get('REDIS_PASSWORD', '');
-  const db = overrides.redisDb ?? Env.getInt('REDIS_DB', 0);
+  const host =
+    overrides.redisHost ?? Env.get('REDIS_PROXY_TARGET_HOST', Env.get('REDIS_HOST', '127.0.0.1'));
+  const port =
+    overrides.redisPort ?? Env.getInt('REDIS_PROXY_TARGET_PORT', Env.getInt('REDIS_PORT', 6379));
+  const password =
+    overrides.redisPassword ??
+    Env.get('REDIS_PROXY_TARGET_PASSWORD', Env.get('REDIS_PASSWORD', ''));
+  const db = overrides.redisDb ?? Env.getInt('REDIS_PROXY_TARGET_DB', Env.getInt('REDIS_DB', 0));
 
   return { host, port, password, db };
 };
@@ -197,16 +201,41 @@ const createClient = async (config: ProxyConfig): Promise<RedisClient> => {
     );
   }
 
+  const maxReconnectRetries = Math.max(0, Env.getInt('REDIS_PROXY_CONNECT_MAX_RETRIES', 3));
+  const reconnectBaseMs = Math.max(50, Env.getInt('REDIS_PROXY_CONNECT_RETRY_BASE_MS', 200));
+  const reconnectCapMs = Math.max(
+    reconnectBaseMs,
+    Env.getInt('REDIS_PROXY_CONNECT_RETRY_CAP_MS', 2000)
+  );
+
   const client = new RedisCtor({
     host: config.redis.host,
     port: config.redis.port,
     password: config.redis.password,
     db: config.redis.db,
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
+    lazyConnect: true,
+    reconnectOnError: () => false,
+    retryStrategy: (times: number) => {
+      if (times > maxReconnectRetries) {
+        return null;
+      }
+      return Math.min(times * reconnectBaseMs, reconnectCapMs);
+    },
   }) as RedisClient;
 
-  const status = (client as { status?: string }).status;
-  if (typeof client.connect === 'function' && (status === 'end' || status === 'close')) {
+  let lastErrorLogAt = 0;
+  client.on('error', (error: unknown) => {
+    const now = Date.now();
+    if (now - lastErrorLogAt < 5000) {
+      return;
+    }
+    lastErrorLogAt = now;
+    Logger.warn('[RedisProxyServer] redis client error', error);
+  });
+
+  if (typeof client.connect === 'function') {
     await client.connect();
   }
 

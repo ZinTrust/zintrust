@@ -54,7 +54,7 @@ zin init:proxy
 # aliases
 zin init:cp
 zin init:container-proxies
-zin init:py/proxy
+zin init:py
 ```
 
 ### Proxy Stack Lifecycle

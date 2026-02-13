@@ -1,13 +1,15 @@
 import { BaseCommand, type IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { Logger } from '@config/logger';
-import { existsSync, writeFileSync } from '@node-singletons/fs';
+import { copyFileSync, existsSync, writeFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 
-const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
+const DOCKER_COMPOSE_WORKERS_TEMPLATE = `name: zintrust-workers
+
+services:
   # Workers/Jobs API Service (Port 7772)
   # Exposes the Workers API to create/manage jobs
-  zintrust-workers-api:
+  workers-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -80,10 +82,19 @@ const DOCKER_COMPOSE_WORKERS_TEMPLATE = `services:
 
 `;
 
-const DOCKERFILE_TEMPLATE = String.raw`# Build Stage - Compile TypeScript
+const DOCKERFILE_TEMPLATE = String.raw`# syntax=docker/dockerfile:1.6
+# Build Stage - Compile TypeScript
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+# Reuse npm cache across builds (requires BuildKit)
+ENV NPM_CONFIG_CACHE=/root/.npm
+ENV NPM_CONFIG_PREFER_OFFLINE=true
+
+# Reuse npm cache across builds (requires BuildKit)
+ENV NPM_CONFIG_CACHE=/root/.npm
+ENV NPM_CONFIG_PREFER_OFFLINE=true
 
 # Install build dependencies for native modules (better-sqlite3, bcrypt)
 RUN apk add --no-cache python3 make g++
@@ -92,13 +103,18 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+  npm config set fetch-retries 5 \
+    && npm config set fetch-retry-mintimeout 20000 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+   && npm ci
 
 # Copy source code using COPY . . to handle optional folders automatically
 COPY . .
 
-# Build TypeScript to JavaScript (Docker build includes packages)
-RUN npm run build
+# Build TypeScript to JavaScript
+ARG BUILD_VARIANT=full
+RUN --mount=type=cache,target=/root/.npm npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
@@ -117,20 +133,14 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 COPY package.json package-lock.json ./
 
 # Install only production dependencies (requires build tools for native modules)
-RUN apk add --no-cache --virtual .build-deps python3 make g++ \
-    && npm ci --omit=dev \
+RUN --mount=type=cache,target=/root/.npm \
+  apk add --no-cache --virtual .build-deps python3 make g++ \
+  && npm ci --omit=dev \
     && apk del .build-deps \
     && npm cache clean --force
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
-
-# Copy compiled application folders to root as expected by Application.ts
-COPY --from=builder /app/dist/app ./app
-COPY --from=builder /app/dist/routes ./routes
-COPY --from=builder /app/dist/src/config ./config
-# Use a wildcard to avoid error if database folder is empty/missing
-COPY --from=builder /app/dist/src/databas* ./database/
 
 
 # Change ownership to nodejs user
@@ -150,6 +160,15 @@ EXPOSE 7772
 CMD ["node", "dist/src/boot/bootstrap.js"]
 `;
 
+const backupSuffix = (): string => new Date().toISOString().replace(/[:.]/g, '-');
+
+const backupFileIfExists = (filePath: string): void => {
+  if (!existsSync(filePath)) return;
+  const backupPath = `${filePath}.bak.${backupSuffix()}`;
+  copyFileSync(filePath, backupPath);
+  Logger.info(`🗂️ Backup created: ${backupPath}`);
+};
+
 async function writeDockerComposeFile(cwd: string): Promise<void> {
   const composePath = join(cwd, 'docker-compose.workers.yml');
 
@@ -162,6 +181,7 @@ async function writeDockerComposeFile(cwd: string): Promise<void> {
   }
 
   if (shouldWrite) {
+    backupFileIfExists(composePath);
     writeFileSync(composePath, DOCKER_COMPOSE_WORKERS_TEMPLATE);
     Logger.info('✅ Created docker-compose.workers.yml');
   } else {
@@ -182,6 +202,7 @@ async function writeDockerfile(cwd: string): Promise<void> {
   }
 
   if (shouldWrite) {
+    backupFileIfExists(dockerfilePath);
     writeFileSync(dockerfilePath, DOCKERFILE_TEMPLATE);
     Logger.info('✅ Created Dockerfile');
   } else {

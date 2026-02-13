@@ -1,33 +1,32 @@
 import { BaseCommand, type IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { Logger } from '@config/logger';
-import { existsSync, mkdirSync, writeFileSync } from '@node-singletons/fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 
 const DOCKER_COMPOSE_PROXY_TEMPLATE = `name: zintrust-proxies
 
 x-proxy-runtime: &proxy-runtime
-  image: \\${PROXY_IMAGE:-zintrust-proxy:local}
-  build:
-    context: .
-    dockerfile: Dockerfile
-    target: runtime
-  restart: always
+  image: \${PROXY_IMAGE:-zintrust-proxy:local}
+  restart: on-failure:3
   ulimits:
     nofile:
       soft: 65535
       hard: 65535
   environment:
-    NODE_ENV: \\${NODE_ENV:-production}
-    APP_NAME: \\${APP_NAME:-ZinTrust}
-    APP_KEY: \\${APP_KEY:-}
+    NODE_ENV: \${NODE_ENV:-development}
+    APP_NAME: \${APP_NAME:-ZinTrust}
+    APP_KEY: \${APP_KEY:-}
   networks:
     - zintrust-proxy-network
 
 services:
   proxy-gateway:
-    image: nginx:1.27-alpine
-    restart: always
+    image: \${PROXY_GATEWAY_IMAGE:-zintrust-proxy-gateway:local}
+    build:
+      context: ./docker/proxy-gateway
+      dockerfile: Dockerfile
+    restart: on-failure:3
     ulimits:
       nofile:
         soft: 200000
@@ -40,10 +39,11 @@ services:
       - proxy-sqlserver
       - proxy-smtp
     ports:
-      - \\${PROXY_GATEWAY_PORT:-8800}:8080
-    volumes:
-      - ./docker/proxy-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+      - \${PROXY_GATEWAY_PORT:-8800}:8080
+    environment:
+      NODE_ENV: \${NODE_ENV:-development}
     healthcheck:
+      disable: \${PROXY_GATEWAY_HEALTHCHECK_DISABLE:-false}
       test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:8080/health']
       interval: 15s
       timeout: 5s
@@ -54,23 +54,34 @@ services:
 
   proxy-mysql:
     <<: *proxy-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
     command: ['node', 'dist/bin/zin.js', 'proxy:mysql', '--host', '0.0.0.0', '--port', '8789']
     expose:
       - '8789'
     environment:
-      APP_NAME: \\${APP_NAME:-ZinTrust}
-      APP_KEY: \\${APP_KEY:-}
-      MYSQL_PROXY_REQUIRE_SIGNING: \\${MYSQL_PROXY_REQUIRE_SIGNING:-true}
-      MYSQL_PROXY_KEY_ID: \\${MYSQL_PROXY_KEY_ID:-}
-      MYSQL_PROXY_SECRET: \\${MYSQL_PROXY_SECRET:-}
-      MYSQL_PROXY_SIGNING_WINDOW_MS: \\${MYSQL_PROXY_SIGNING_WINDOW_MS:-60000}
-      DB_HOST: \\${MYSQL_DB_HOST:-host.docker.internal}
-      DB_PORT: \\${MYSQL_DB_PORT:-3306}
-      DB_DATABASE: \\${MYSQL_DB_DATABASE:-zintrust}
-      DB_USERNAME: \\${MYSQL_DB_USERNAME:-zintrust}
-      DB_PASSWORD: \\${MYSQL_DB_PASSWORD:-zintrust}
-      MYSQL_PROXY_POOL_LIMIT: \\${MYSQL_PROXY_POOL_LIMIT:-100}
+      NODE_ENV: \${NODE_ENV:-development}
+      APP_NAME: \${APP_NAME:-ZinTrust}
+      APP_KEY: \${APP_KEY:-}
+      MYSQL_PROXY_REQUIRE_SIGNING: true
+      MYSQL_PROXY_KEY_ID: \${MYSQL_PROXY_KEY_ID:-}
+      MYSQL_PROXY_SECRET: \${MYSQL_PROXY_SECRET:-}
+      MYSQL_PROXY_SIGNING_WINDOW_MS: \${MYSQL_PROXY_SIGNING_WINDOW_MS:-60000}
+      MYSQL_DB_HOST: \${MYSQL_DB_HOST:-\${DOCKER_DB_HOST:-host.docker.internal}}
+      MYSQL_DB_PORT: \${MYSQL_DB_PORT:-\${DB_PORT:-3306}}
+      MYSQL_DB_DATABASE: \${MYSQL_DB_DATABASE:-\${DB_DATABASE:-zintrust}}
+      MYSQL_DB_USERNAME: \${MYSQL_DB_USERNAME:-\${DB_USERNAME:-zintrust}}
+      MYSQL_DB_PASSWORD: \${MYSQL_DB_PASSWORD:-\${DB_PASSWORD:-secret}}
+      DB_HOST: \${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PORT: \${DB_PORT:-3306}
+      DB_DATABASE: \${DB_DATABASE:-zintrust}
+      DB_USERNAME: \${DB_USERNAME:-zintrust}
+      DB_PASSWORD: \${DB_PASSWORD:-secret}
+      MYSQL_PROXY_POOL_LIMIT: \${MYSQL_PROXY_POOL_LIMIT:-100}
     healthcheck:
+      disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
         [
           'CMD',
@@ -89,19 +100,21 @@ services:
     expose:
       - '8790'
     environment:
-      APP_NAME: \\${APP_NAME:-ZinTrust}
-      APP_KEY: \\${APP_KEY:-}
-      POSTGRES_PROXY_REQUIRE_SIGNING: \\${POSTGRES_PROXY_REQUIRE_SIGNING:-true}
-      POSTGRES_PROXY_KEY_ID: \\${POSTGRES_PROXY_KEY_ID:-}
-      POSTGRES_PROXY_SECRET: \\${POSTGRES_PROXY_SECRET:-}
-      POSTGRES_PROXY_SIGNING_WINDOW_MS: \\${POSTGRES_PROXY_SIGNING_WINDOW_MS:-60000}
-      DB_HOST: \\${POSTGRES_DB_HOST:-host.docker.internal}
-      DB_PORT_POSTGRESQL: \\${POSTGRES_DB_PORT:-5432}
-      DB_DATABASE_POSTGRESQL: \\${POSTGRES_DB_DATABASE:-postgres}
-      DB_USERNAME_POSTGRESQL: \\${POSTGRES_DB_USERNAME:-postgres}
-      DB_PASSWORD_POSTGRESQL: \\${POSTGRES_DB_PASSWORD:-postgres}
-      POSTGRES_PROXY_POOL_LIMIT: \\${POSTGRES_PROXY_POOL_LIMIT:-100}
+      NODE_ENV: \${NODE_ENV:-development}
+      APP_NAME: \${APP_NAME:-ZinTrust}
+      APP_KEY: \${APP_KEY:-}
+      POSTGRES_PROXY_REQUIRE_SIGNING: true
+      POSTGRES_PROXY_KEY_ID: \${POSTGRES_PROXY_KEY_ID:-}
+      POSTGRES_PROXY_SECRET: \${POSTGRES_PROXY_SECRET:-}
+      POSTGRES_PROXY_SIGNING_WINDOW_MS: \${POSTGRES_PROXY_SIGNING_WINDOW_MS:-60000}
+      DB_HOST: \${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PORT_POSTGRESQL: \${POSTGRES_DB_PORT:-5432}
+      DB_DATABASE_POSTGRESQL: \${POSTGRES_DB_DATABASE:-postgres}
+      DB_USERNAME_POSTGRESQL: \${POSTGRES_DB_USERNAME:-postgres}
+      DB_PASSWORD_POSTGRESQL: \${POSTGRES_DB_PASSWORD:-postgres}
+      POSTGRES_PROXY_POOL_LIMIT: \${POSTGRES_PROXY_POOL_LIMIT:-100}
     healthcheck:
+      disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
         [
           'CMD',
@@ -120,17 +133,23 @@ services:
     expose:
       - '8791'
     environment:
-      APP_NAME: \\${APP_NAME:-ZinTrust}
-      APP_KEY: \\${APP_KEY:-}
-      REDIS_PROXY_REQUIRE_SIGNING: \\${REDIS_PROXY_REQUIRE_SIGNING:-true}
-      REDIS_PROXY_KEY_ID: \\${REDIS_PROXY_KEY_ID:-}
-      REDIS_PROXY_SECRET: \\${REDIS_PROXY_SECRET:-}
-      REDIS_PROXY_SIGNING_WINDOW_MS: \\${REDIS_PROXY_SIGNING_WINDOW_MS:-60000}
-      REDIS_HOST: \\${REDIS_PROXY_TARGET_HOST:-host.docker.internal}
-      REDIS_PORT: \\${REDIS_PROXY_TARGET_PORT:-6379}
-      REDIS_PASSWORD: \\${REDIS_PROXY_TARGET_PASSWORD:-}
-      REDIS_DB: \\${REDIS_PROXY_TARGET_DB:-0}
+      NODE_ENV: \${NODE_ENV:-development}
+      APP_NAME: \${APP_NAME:-ZinTrust}
+      APP_KEY: \${APP_KEY:-}
+      REDIS_PROXY_REQUIRE_SIGNING: true
+      REDIS_PROXY_KEY_ID: \${REDIS_PROXY_KEY_ID:-}
+      REDIS_PROXY_SECRET: \${REDIS_PROXY_SECRET:-}
+      REDIS_PROXY_SIGNING_WINDOW_MS: \${REDIS_PROXY_SIGNING_WINDOW_MS:-60000}
+      REDIS_PROXY_TARGET_HOST: \${REDIS_PROXY_TARGET_HOST:-\${DOCKER_REDIS_HOST:-host.docker.internal}}
+      REDIS_PROXY_TARGET_PORT: \${REDIS_PROXY_TARGET_PORT:-\${REDIS_PORT:-6379}}
+      REDIS_PROXY_TARGET_PASSWORD: \${REDIS_PROXY_TARGET_PASSWORD:-\${REDIS_PASSWORD:-}}
+      REDIS_PROXY_TARGET_DB: \${REDIS_PROXY_TARGET_DB:-\${REDIS_DB:-0}}
+      REDIS_HOST: \${DOCKER_REDIS_HOST:-host.docker.internal}
+      REDIS_PORT: \${REDIS_PORT:-6379}
+      REDIS_PASSWORD: \${REDIS_PASSWORD:-}
+      REDIS_DB: \${REDIS_DB:-0}
     healthcheck:
+      disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
         [
           'CMD',
@@ -149,15 +168,17 @@ services:
     expose:
       - '8792'
     environment:
-      APP_NAME: \\${APP_NAME:-ZinTrust}
-      APP_KEY: \\${APP_KEY:-}
-      MONGODB_PROXY_REQUIRE_SIGNING: \\${MONGODB_PROXY_REQUIRE_SIGNING:-true}
-      MONGODB_PROXY_KEY_ID: \\${MONGODB_PROXY_KEY_ID:-}
-      MONGODB_PROXY_SECRET: \\${MONGODB_PROXY_SECRET:-}
-      MONGODB_PROXY_SIGNING_WINDOW_MS: \\${MONGODB_PROXY_SIGNING_WINDOW_MS:-60000}
-      MONGO_URI: \\${MONGODB_PROXY_TARGET_URI:-mongodb://host.docker.internal:27017}
-      MONGO_DB: \\${MONGODB_PROXY_TARGET_DB:-zintrust}
+      NODE_ENV: \${NODE_ENV:-development}
+      APP_NAME: \${APP_NAME:-ZinTrust}
+      APP_KEY: \${APP_KEY:-}
+      MONGODB_PROXY_REQUIRE_SIGNING: true
+      MONGODB_PROXY_KEY_ID: \${MONGODB_PROXY_KEY_ID:-}
+      MONGODB_PROXY_SECRET: \${MONGODB_PROXY_SECRET:-}
+      MONGODB_PROXY_SIGNING_WINDOW_MS: \${MONGODB_PROXY_SIGNING_WINDOW_MS:-60000}
+      MONGO_URI: \${MONGODB_PROXY_TARGET_URI:-mongodb://host.docker.internal:27017}
+      MONGO_DB: \${MONGODB_PROXY_TARGET_DB:-zintrust}
     healthcheck:
+      disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
         [
           'CMD',
@@ -176,19 +197,21 @@ services:
     expose:
       - '8793'
     environment:
-      APP_NAME: \\${APP_NAME:-ZinTrust}
-      APP_KEY: \\${APP_KEY:-}
-      SQLSERVER_PROXY_REQUIRE_SIGNING: \\${SQLSERVER_PROXY_REQUIRE_SIGNING:-true}
-      SQLSERVER_PROXY_KEY_ID: \\${SQLSERVER_PROXY_KEY_ID:-}
-      SQLSERVER_PROXY_SECRET: \\${SQLSERVER_PROXY_SECRET:-}
-      SQLSERVER_PROXY_SIGNING_WINDOW_MS: \\${SQLSERVER_PROXY_SIGNING_WINDOW_MS:-60000}
-      DB_HOST_MSSQL: \\${SQLSERVER_DB_HOST:-host.docker.internal}
-      DB_PORT_MSSQL: \\${SQLSERVER_DB_PORT:-1433}
-      DB_DATABASE_MSSQL: \\${SQLSERVER_DB_DATABASE:-zintrust}
-      DB_USERNAME_MSSQL: \\${SQLSERVER_DB_USERNAME:-sa}
-      DB_PASSWORD_MSSQL: \\${SQLSERVER_DB_PASSWORD:-}
-      SQLSERVER_PROXY_POOL_LIMIT: \\${SQLSERVER_PROXY_POOL_LIMIT:-100}
+      NODE_ENV: \${NODE_ENV:-development}
+      APP_NAME: \${APP_NAME:-ZinTrust}
+      APP_KEY: \${APP_KEY:-}
+      SQLSERVER_PROXY_REQUIRE_SIGNING: true
+      SQLSERVER_PROXY_KEY_ID: \${SQLSERVER_PROXY_KEY_ID:-}
+      SQLSERVER_PROXY_SECRET: \${SQLSERVER_PROXY_SECRET:-}
+      SQLSERVER_PROXY_SIGNING_WINDOW_MS: \${SQLSERVER_PROXY_SIGNING_WINDOW_MS:-60000}
+      DB_HOST_MSSQL: \${SQLSERVER_DB_HOST:-host.docker.internal}
+      DB_PORT_MSSQL: \${SQLSERVER_DB_PORT:-1433}
+      DB_DATABASE_MSSQL: \${SQLSERVER_DB_DATABASE:-zintrust}
+      DB_USERNAME_MSSQL: \${SQLSERVER_DB_USERNAME:-sa}
+      DB_PASSWORD_MSSQL: \${SQLSERVER_DB_PASSWORD:-}
+      SQLSERVER_PROXY_POOL_LIMIT: \${SQLSERVER_PROXY_POOL_LIMIT:-100}
     healthcheck:
+      disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
         [
           'CMD',
@@ -207,18 +230,20 @@ services:
     expose:
       - '8794'
     environment:
-      APP_NAME: \\${APP_NAME:-ZinTrust}
-      APP_KEY: \\${APP_KEY:-}
-      SMTP_PROXY_REQUIRE_SIGNING: \\${SMTP_PROXY_REQUIRE_SIGNING:-true}
-      SMTP_PROXY_KEY_ID: \\${SMTP_PROXY_KEY_ID:-}
-      SMTP_PROXY_SECRET: \\${SMTP_PROXY_SECRET:-}
-      SMTP_PROXY_SIGNING_WINDOW_MS: \\${SMTP_PROXY_SIGNING_WINDOW_MS:-60000}
-      MAIL_HOST: \\${SMTP_TARGET_HOST:-host.docker.internal}
-      MAIL_PORT: \\${SMTP_TARGET_PORT:-587}
-      MAIL_SECURE: \\${SMTP_TARGET_SECURE:-false}
-      MAIL_USERNAME: \\${SMTP_TARGET_USERNAME:-}
-      MAIL_PASSWORD: \\${SMTP_TARGET_PASSWORD:-}
+      NODE_ENV: \${NODE_ENV:-development}
+      APP_NAME: \${APP_NAME:-ZinTrust}
+      APP_KEY: \${APP_KEY:-}
+      SMTP_PROXY_REQUIRE_SIGNING: true
+      SMTP_PROXY_KEY_ID: \${SMTP_PROXY_KEY_ID:-}
+      SMTP_PROXY_SECRET: \${SMTP_PROXY_SECRET:-}
+      SMTP_PROXY_SIGNING_WINDOW_MS: \${SMTP_PROXY_SIGNING_WINDOW_MS:-60000}
+      MAIL_HOST: \${SMTP_TARGET_HOST:-host.docker.internal}
+      MAIL_PORT: \${SMTP_TARGET_PORT:-587}
+      MAIL_SECURE: \${SMTP_TARGET_SECURE:-false}
+      MAIL_USERNAME: \${SMTP_TARGET_USERNAME:-}
+      MAIL_PASSWORD: \${SMTP_TARGET_PASSWORD:-}
     healthcheck:
+      disable: \${PROXY_HEALTHCHECK_DISABLE:-false}
       test:
         [
           'CMD',
@@ -297,37 +322,37 @@ http {
       return 200 '{"status":"ok","service":"proxy-gateway"}';
     }
 
-    location /mysql/ {
+    location /mysql {
       rewrite ^/mysql/?(.*)$ /$1 break;
       set $upstream proxy-mysql:8789;
       proxy_pass http://$upstream;
     }
 
-    location /postgres/ {
+    location /postgres {
       rewrite ^/postgres/?(.*)$ /$1 break;
       set $upstream proxy-pg:8790;
       proxy_pass http://$upstream;
     }
 
-    location /redis/ {
+    location /redis {
       rewrite ^/redis/?(.*)$ /$1 break;
       set $upstream proxy-redis:8791;
       proxy_pass http://$upstream;
     }
 
-    location /mongodb/ {
+    location /mongodb {
       rewrite ^/mongodb/?(.*)$ /$1 break;
       set $upstream proxy-mongodb:8792;
       proxy_pass http://$upstream;
     }
 
-    location /sqlserver/ {
+    location /sqlserver {
       rewrite ^/sqlserver/?(.*)$ /$1 break;
       set $upstream proxy-sqlserver:8793;
       proxy_pass http://$upstream;
     }
 
-    location /smtp/ {
+    location /smtp {
       rewrite ^/smtp/?(.*)$ /$1 break;
       set $upstream proxy-smtp:8794;
       proxy_pass http://$upstream;
@@ -336,15 +361,33 @@ http {
 }
 `;
 
+const NGINX_PROXY_DOCKERFILE_TEMPLATE = `FROM nginx:1.27-alpine
+
+COPY nginx.conf /etc/nginx/nginx.conf
+`;
+
+const backupSuffix = (): string => new Date().toISOString().replace(/[:.]/g, '-');
+
+const backupFileIfExists = (filePath: string): void => {
+  if (!existsSync(filePath)) return;
+  const backupPath = `${filePath}.bak.${backupSuffix()}`;
+  copyFileSync(filePath, backupPath);
+  Logger.info(`🗂️ Backup created: ${backupPath}`);
+};
+
 async function writeDockerComposeFile(cwd: string): Promise<void> {
   const composePath = join(cwd, 'docker-compose.proxy.yml');
 
   let shouldWrite = true;
   if (existsSync(composePath)) {
-    shouldWrite = await PromptHelper.confirm('docker-compose.proxy.yml already exists. Overwrite?', false);
+    shouldWrite = await PromptHelper.confirm(
+      'docker-compose.proxy.yml already exists. Overwrite?',
+      false
+    );
   }
 
   if (shouldWrite) {
+    backupFileIfExists(composePath);
     writeFileSync(composePath, DOCKER_COMPOSE_PROXY_TEMPLATE);
     Logger.info('✅ Created docker-compose.proxy.yml');
   } else {
@@ -369,6 +412,7 @@ async function writeNginxConfig(cwd: string): Promise<void> {
   }
 
   if (shouldWrite) {
+    backupFileIfExists(nginxPath);
     writeFileSync(nginxPath, NGINX_PROXY_GATEWAY_TEMPLATE);
     Logger.info('✅ Created docker/proxy-gateway/nginx.conf');
   } else {
@@ -376,11 +420,36 @@ async function writeNginxConfig(cwd: string): Promise<void> {
   }
 }
 
+async function writeNginxDockerfile(cwd: string): Promise<void> {
+  const gatewayDir = join(cwd, 'docker', 'proxy-gateway');
+  const dockerfilePath = join(gatewayDir, 'Dockerfile');
+
+  if (!existsSync(gatewayDir)) {
+    mkdirSync(gatewayDir, { recursive: true });
+  }
+
+  let shouldWrite = true;
+  if (existsSync(dockerfilePath)) {
+    shouldWrite = await PromptHelper.confirm(
+      'docker/proxy-gateway/Dockerfile already exists. Overwrite?',
+      false
+    );
+  }
+
+  if (shouldWrite) {
+    backupFileIfExists(dockerfilePath);
+    writeFileSync(dockerfilePath, NGINX_PROXY_DOCKERFILE_TEMPLATE);
+    Logger.info('✅ Created docker/proxy-gateway/Dockerfile');
+  } else {
+    Logger.info('Skipped docker/proxy-gateway/Dockerfile');
+  }
+}
+
 export const InitProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
       name: 'init:proxy',
-      aliases: ['init:cp', 'init:container-proxies', 'init:py/proxy'],
+      aliases: ['init:cp', 'init:container-proxies', 'init:py'],
       description: 'Initialize container-based proxy stack infrastructure',
       async execute(): Promise<void> {
         Logger.info('Initializing container-based proxy stack infrastructure...');
@@ -388,6 +457,7 @@ export const InitProxyCommand = Object.freeze({
         const cwd = process.cwd();
         await writeDockerComposeFile(cwd);
         await writeNginxConfig(cwd);
+        await writeNginxDockerfile(cwd);
 
         Logger.info('✅ Proxy stack scaffolding complete.');
         Logger.info('Run with: zin cp up -d');

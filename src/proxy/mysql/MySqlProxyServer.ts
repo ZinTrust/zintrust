@@ -64,11 +64,12 @@ const resolveDatabaseConfig = (
   dbPass: string;
   connectionLimit: number;
 } => {
-  const dbHost = overrides.dbHost ?? Env.get('DB_HOST', '127.0.0.1');
-  const dbPort = overrides.dbPort ?? Env.getInt('DB_PORT', 3306);
-  const dbName = overrides.dbName ?? Env.get('DB_DATABASE', 'zintrust');
-  const dbUser = overrides.dbUser ?? Env.get('DB_USERNAME', 'root');
-  const dbPass = overrides.dbPass ?? Env.get('DB_PASSWORD', 'pass');
+  const dbHost = overrides.dbHost ?? Env.get('MYSQL_DB_HOST', Env.get('DB_HOST', '127.0.0.1'));
+  const dbPort = overrides.dbPort ?? Env.getInt('MYSQL_DB_PORT', Env.getInt('DB_PORT', 3306));
+  const dbName =
+    overrides.dbName ?? Env.get('MYSQL_DB_DATABASE', Env.get('DB_DATABASE', 'zintrust'));
+  const dbUser = overrides.dbUser ?? Env.get('MYSQL_DB_USERNAME', Env.get('DB_USERNAME', 'root'));
+  const dbPass = overrides.dbPass ?? Env.get('MYSQL_DB_PASSWORD', Env.get('DB_PASSWORD', 'pass'));
   const connectionLimit = overrides.connectionLimit ?? Env.MYSQL_PROXY_POOL_LIMIT;
 
   return { dbHost, dbPort, dbName, dbUser, dbPass, connectionLimit };

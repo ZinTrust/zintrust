@@ -59,7 +59,7 @@ zin deploy:cp
 
 - `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
 - `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
-- Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py/proxy`
+- Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py`
 
 ## Container Proxies Commands
 
