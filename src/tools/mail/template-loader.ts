@@ -9,6 +9,18 @@ import { interpolate } from '@mail/template-utils';
 
 const looksLikeHtml = (value: string): boolean => /<\s*html\b|<!doctype\b|<\s*body\b/i.test(value);
 
+const builtinTemplateLoaders = Object.freeze({
+  'auth-password-reset': async () => import('./templates/auth-password-reset.js'),
+  'auth-welcome': async () => import('./templates/auth-welcome.js'),
+  general: async () => import('./templates/general.js'),
+  'job-completed': async () => import('./templates/job-completed.js'),
+  'notifications-new-comment': async () => import('./templates/notifications-new-comment.js'),
+  'password-reset': async () => import('./templates/password-reset.js'),
+  'performance-report': async () => import('./templates/performance-report.js'),
+  welcome: async () => import('./templates/welcome.js'),
+  'worker-alert': async () => import('./templates/worker-alert.js'),
+});
+
 const getSafeCwd = (): string => {
   try {
     if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
@@ -64,8 +76,25 @@ function resolveTemplatePath(templateName: string): string {
 async function loadTemplateContent(templateName: string): Promise<string> {
   const templatePath = resolveTemplatePath(templateName);
   const normalizedTemplate = templateName.endsWith('.html') ? templateName : `${templateName}.html`;
+  const normalizedModuleName = templateName.endsWith('.html')
+    ? templateName.slice(0, -5)
+    : templateName;
   const cwd = getSafeCwd();
   const baseDir = getBaseDir();
+
+  const builtinLoader =
+    builtinTemplateLoaders[normalizedModuleName as keyof typeof builtinTemplateLoaders];
+
+  if (builtinLoader !== undefined) {
+    try {
+      const imported = (await builtinLoader()) as { default?: unknown };
+      if (typeof imported.default === 'string' && imported.default.trim() !== '') {
+        return imported.default;
+      }
+    } catch {
+      // Fall through to filesystem/module path probes.
+    }
+  }
 
   const candidates = [
     templatePath,
@@ -84,9 +113,6 @@ async function loadTemplateContent(templateName: string): Promise<string> {
     }
   }
 
-  const normalizedModuleName = templateName.endsWith('.html')
-    ? templateName.slice(0, -5)
-    : templateName;
   const moduleCandidates = [
     join(cwd, 'dist', 'src', 'tools', 'mail', 'templates', `${normalizedModuleName}.js`),
     join(cwd, 'src', 'tools', 'mail', 'templates', `${normalizedModuleName}.ts`),

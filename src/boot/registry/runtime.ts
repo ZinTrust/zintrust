@@ -47,16 +47,13 @@ const readRuntimeConfig = <T>(key: string, fallback: T): T => {
 };
 
 const appConfig = readRuntimeConfig('appConfig', { port: 7777, dockerWorker: false });
-const cacheConfig = readRuntimeConfig('cacheConfig', { default: 'memory', drivers: {} });
+const cacheConfig = readRuntimeConfig('cacheConfig', RuntimeConfig.cacheConfig);
 const databaseConfig = readRuntimeConfig('databaseConfig', {
   default: 'sqlite',
   connections: {},
 });
-const queueConfig = readRuntimeConfig('queueConfig', {
-  default: 'sync',
-  drivers: { redis: { host: '127.0.0.1', port: 6379, password: '', database: 0 } },
-});
-const storageConfig = readRuntimeConfig('storageConfig', { default: 'local', disks: {} });
+const queueConfig = readRuntimeConfig('queueConfig', RuntimeConfig.queueConfig);
+const storageConfig = readRuntimeConfig('storageConfig', RuntimeConfig.storageConfig);
 
 // eslint-disable-next-line @typescript-eslint/require-await
 const dbLoader = async (): Promise<void> => {
@@ -216,35 +213,12 @@ const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<
   }
 };
 
-const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
-  const monitorConfig = runQueueConfig?.monitor;
-  if (monitorConfig === undefined) {
-    return;
-  }
-  if (monitorConfig.enabled === false) {
-    return;
-  }
-
-  let workersModule: IQueueMonitorModule | null;
-  try {
-    workersModule = (await loadQueueMonitorModule()) as IQueueMonitorModule | null;
-  } catch (error) {
-    Logger.warn('Failed to load Queue Monitor module', error as Error);
-    return;
-  }
-
-  if (!workersModule || !('QueueMonitor' in workersModule)) {
-    Logger.warn('Queue Monitor module not available');
-    return;
-  }
-
-  const queueMonitorModule = workersModule as IQueueMonitorModule;
-  const { QueueMonitor } = queueMonitorModule;
-  if (QueueMonitor === undefined || typeof QueueMonitor.create !== 'function') {
-    Logger.warn('Queue Monitor module does not expose QueueMonitor.create');
-    return;
-  }
-
+const extractRedisConfigFromQueueConfig = (): {
+  host: string;
+  port: number;
+  password: string;
+  db: number;
+} => {
   const redisConfig =
     (queueConfig as { drivers?: { redis?: Record<string, unknown> } }).drivers?.redis ?? {};
   const redisHost = typeof redisConfig['host'] === 'string' ? redisConfig['host'] : '127.0.0.1';
@@ -258,14 +232,58 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
       ? redisConfig['database']
       : 0;
 
+  return {
+    host: redisHost,
+    port: redisPort,
+    password: redisPassword,
+    db: redisDb,
+  };
+};
+
+const loadAndValidateQueueMonitorModule = async (): Promise<IQueueMonitorModule | null> => {
+  let workersModule: IQueueMonitorModule | null;
+  try {
+    workersModule = (await loadQueueMonitorModule()) as IQueueMonitorModule | null;
+  } catch (error) {
+    Logger.warn('Failed to load Queue Monitor module', error as Error);
+    return null;
+  }
+
+  if (!workersModule || !('QueueMonitor' in workersModule)) {
+    Logger.warn('Queue Monitor module not available');
+    return null;
+  }
+
+  const queueMonitorModule = workersModule as IQueueMonitorModule;
+  const { QueueMonitor } = queueMonitorModule;
+  if (QueueMonitor === undefined || typeof QueueMonitor.create !== 'function') {
+    Logger.warn('Queue Monitor module does not expose QueueMonitor.create');
+    return null;
+  }
+
+  return queueMonitorModule;
+};
+
+const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
+  const monitorConfig = runQueueConfig?.monitor;
+  if (monitorConfig === undefined) {
+    return;
+  }
+  if (monitorConfig.enabled === false) {
+    return;
+  }
+
+  const queueMonitorModule = await loadAndValidateQueueMonitorModule();
+  if (queueMonitorModule === null) {
+    return;
+  }
+
+  const redisConfig = extractRedisConfigFromQueueConfig();
+  const { QueueMonitor } = queueMonitorModule;
+
   const monitor = QueueMonitor.create({
     ...monitorConfig,
-    redis: {
-      host: redisHost,
-      port: redisPort,
-      password: redisPassword,
-      db: redisDb,
-    },
+    redis: redisConfig,
   });
 
   try {
