@@ -7,6 +7,7 @@
 
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
@@ -111,13 +112,32 @@ const requestProxy = async <T>(
   }
 
   const signedSettings = ensureSignedSettings(settings);
-  return RemoteSignedJson.request<T>(signedSettings, path, payload);
+  try {
+    return await RemoteSignedJson.request<T>(signedSettings, path, payload);
+  } catch (error: unknown) {
+    Logger.error('[MySQLProxyAdapter] Proxy request failed', {
+      path,
+      baseUrl: settings.baseUrl,
+      timeoutMs: settings.timeoutMs,
+      hasKeyId: (settings.keyId ?? '').trim() !== '',
+      hasSecret: (settings.secret ?? '').trim() !== '',
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 };
 
 export const MySQLProxyAdapter = Object.freeze({
   create(_config: DatabaseConfig): IDatabaseAdapter {
     let connected = false;
     const settings = buildProxySettings();
+
+    Logger.info('[MySQLProxyAdapter] Created with runtime settings', {
+      baseUrl: settings.baseUrl,
+      timeoutMs: settings.timeoutMs,
+      hasKeyId: (settings.keyId ?? '').trim() !== '',
+      hasSecret: (settings.secret ?? '').trim() !== '',
+    });
 
     return {
       async connect(): Promise<void> {

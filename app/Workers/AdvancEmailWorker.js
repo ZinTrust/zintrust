@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import { generateUuid, Logger, Mail, Queue } from '@zintrust/core';
 import { createQueueWorker } from '@zintrust/workers';
 

@@ -1,12 +1,13 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { type IncomingMessage } from '@node-singletons/http';
 import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { SigningService } from '@proxy/SigningService';
+import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
 import { createPool, type Pool, type PoolOptions } from 'mysql2/promise';
 
 type ProxyConfig = {
@@ -81,14 +82,25 @@ const resolveSigningConfig = (
   requireSigning: boolean;
   signingWindowMs: number;
 } => {
-  const keyId = overrides.keyId ?? Env.MYSQL_PROXY_KEY_ID;
-  const secretRaw = overrides.secret ?? Env.MYSQL_PROXY_SECRET ?? '';
-  const secret = secretRaw.trim() === '' ? (Env.APP_KEY ?? '') : secretRaw;
-  const requireSigningEnv = Env.MYSQL_PROXY_REQUIRE_SIGNING;
-  const requireSigning = requireSigningEnv ? true : overrides.requireSigning === true;
-  const signingWindowMs = overrides.signingWindowMs ?? Env.MYSQL_PROXY_SIGNING_WINDOW_MS;
+  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
+  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
+  const envKeyId = Env.get('MYSQL_PROXY_KEY_ID', appName);
+  const envSecret = Env.get('MYSQL_PROXY_SECRET', appKey);
+  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
+  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
+  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
+  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
+  const requireSigning =
+    overrides.requireSigning ?? Env.getBool('MYSQL_PROXY_REQUIRE_SIGNING', true);
+  const signingWindowMs =
+    overrides.signingWindowMs ?? Env.getInt('MYSQL_PROXY_SIGNING_WINDOW_MS', 60000);
 
-  return { keyId, secret, requireSigning, signingWindowMs };
+  return {
+    keyId: creds.keyId,
+    secret: creds.secret,
+    requireSigning,
+    signingWindowMs,
+  };
 };
 
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
@@ -160,6 +172,20 @@ const verifySignatureIfNeeded = async (
     'x-zt-signature': normalizeHeaderValue(req.headers['x-zt-signature']),
   };
 
+  const hasAnySigningHeader = Object.values(headers).some(
+    (value) => typeof value === 'string' && value.trim() !== ''
+  );
+
+  Logger.debug('[MySQLProxyServer] Verifying request signature', {
+    path: req.url ?? '',
+    method: req.method ?? 'POST',
+    requireSigning: config.signing.require,
+    hasAnySigningHeader,
+    configuredKeyId: config.signing.keyId,
+    hasConfiguredSecret: config.signing.secret.trim() !== '',
+    bodyBytes: body.length,
+  });
+
   if (SigningService.shouldVerify(config.signing, headers)) {
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
     const verified = await SigningService.verify({
@@ -170,6 +196,12 @@ const verifySignatureIfNeeded = async (
       signing: config.signing,
     });
     if (!verified.ok) {
+      Logger.warn('[MySQLProxyServer] Signature verification failed', {
+        path: req.url ?? '',
+        method: req.method ?? 'POST',
+        status: verified.status,
+        message: verified.message,
+      });
       return { ok: false, error: { status: verified.status, message: verified.message } };
     }
   }
@@ -247,6 +279,12 @@ const createBackend = (pool: Pool): ProxyBackend => ({
       const [rows] = await pool.query(sqlValidation.sql ?? '', sqlValidation.params ?? []);
       return handleEndpoint(request.path, rows);
     } catch (error) {
+      Logger.error('[MySQLProxyServer] Query execution failed', {
+        path: request.path,
+        sqlPreview: String(sqlValidation.sql ?? '').slice(0, 160),
+        paramsCount: Array.isArray(sqlValidation.params) ? sqlValidation.params.length : 0,
+        error: error instanceof Error ? error.message : String(error),
+      });
       return ErrorHandler.toProxyError(500, 'MYSQL_ERROR', String(error));
     }
   },
@@ -255,6 +293,9 @@ const createBackend = (pool: Pool): ProxyBackend => ({
       await pool.query('SELECT 1');
       return { status: 200, body: { status: 'healthy' } };
     } catch (error) {
+      Logger.error('[MySQLProxyServer] Health check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return ErrorHandler.toProxyError(503, 'UNHEALTHY', String(error));
     }
   },
@@ -263,15 +304,22 @@ const createBackend = (pool: Pool): ProxyBackend => ({
 export const MySqlProxyServer = Object.freeze({
   async start(overrides: ProxyOverrides = {}): Promise<void> {
     const config = resolveConfig(overrides);
+    const signingHasKeyId = config.signing.keyId.trim() !== '';
+    const signingHasSecret = config.signing.secret.trim() !== '';
+
+    if (config.signing.require && (!signingHasKeyId || !signingHasSecret)) {
+      throw ErrorFactory.createConfigError(
+        `MySQL proxy signing is required but credentials are missing. ` +
+          `Set MYSQL_PROXY_KEY_ID and MYSQL_PROXY_SECRET (fallbacks: APP_NAME and APP_KEY). ` +
+          `Resolved state: keyId=${config.signing.keyId || '<empty>'}, hasSecret=${String(signingHasSecret)}, ` +
+          `cwd=${typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '<unknown>'}`
+      );
+    }
 
     // Debug: surface resolved config so we can compare watch vs non-watch runs
     try {
       Logger.info(
-        `MySQL proxy config: proxyHost=${config.host} proxyPort=${config.port} dbHost=${String(
-          config.poolOptions.host
-        )} dbPort=${String(config.poolOptions.port)} dbName=${String(
-          config.poolOptions.database
-        )} dbUser=${String(config.poolOptions.user)}`
+        `MySQL proxy config: proxyHost=${config.host} proxyPort=${config.port} dbHost=${String(config.poolOptions.host)} dbPort=${String(config.poolOptions.port)} dbName=${String(config.poolOptions.database)} dbUser=${String(config.poolOptions.user)} requireSigning=${String(config.signing.require)} keyId=${config.signing.keyId} hasSecret=${String(config.signing.secret.trim() !== '')} signingWindowMs=${String(config.signing.windowMs)}`
       );
     } catch {
       // noop - logging must not block startup

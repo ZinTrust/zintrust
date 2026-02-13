@@ -57,6 +57,12 @@ const resolveMySqlProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null 
   const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
   const useProxy = Env.getBool('USE_MYSQL_PROXY', false);
   if (useProxy || proxyUrl.length > 0) {
+    Logger.info('[Database] Selecting MySQL proxy adapter for Workers runtime', {
+      driver: cfg.driver,
+      useMySqlProxy: useProxy,
+      mysqlProxyUrlConfigured: proxyUrl.length > 0,
+      mysqlProxyUrl: proxyUrl,
+    });
     return MySQLProxyAdapter.create(cfg);
   }
   return null;
@@ -67,6 +73,12 @@ const resolvePostgresProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | nu
   const proxyUrl = Env.get('POSTGRES_PROXY_URL', '').trim();
   const useProxy = Env.getBool('USE_POSTGRES_PROXY', false);
   if (useProxy || proxyUrl.length > 0) {
+    Logger.info('[Database] Selecting PostgreSQL proxy adapter for Workers runtime', {
+      driver: cfg.driver,
+      usePostgresProxy: useProxy,
+      postgresProxyUrlConfigured: proxyUrl.length > 0,
+      postgresProxyUrl: proxyUrl,
+    });
     return PostgreSQLProxyAdapter.create(cfg);
   }
   return null;
@@ -76,13 +88,28 @@ const ensureCloudflareSocketSupport = (cfg: DatabaseConfig): void => {
   const isSocketDriver = cfg.driver === 'postgresql' || cfg.driver === 'mysql';
   if (!isSocketDriver) return;
   if (Cloudflare.isCloudflareSocketsEnabled()) return;
+  Logger.warn('[Database] Cloudflare socket driver selected but sockets are disabled', {
+    driver: cfg.driver,
+    enableCloudflareSockets: Env.getBool('ENABLE_CLOUDFLARE_SOCKETS', false),
+  });
   throw ErrorFactory.createConfigError(
     'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use SQL adapters on Workers.'
   );
 };
 
 const resolveWorkersAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
-  if (Cloudflare.getWorkersEnv() === null) return null;
+  const workersEnv = Cloudflare.getWorkersEnv();
+  if (workersEnv === null) return null;
+
+  Logger.info('[Database] Resolving adapter for Cloudflare Workers runtime', {
+    driver: cfg.driver,
+    useMySqlProxy: Env.getBool('USE_MYSQL_PROXY', false),
+    mysqlProxyUrlConfigured: Env.get('MYSQL_PROXY_URL', '').trim() !== '',
+    usePostgresProxy: Env.getBool('USE_POSTGRES_PROXY', false),
+    postgresProxyUrlConfigured: Env.get('POSTGRES_PROXY_URL', '').trim() !== '',
+    cloudflareSocketsEnabled: Cloudflare.isCloudflareSocketsEnabled(),
+    workersBindingsCount: Object.keys(workersEnv).length,
+  });
 
   const mysqlProxy = resolveMySqlProxyAdapter(cfg);
   if (mysqlProxy) return mysqlProxy;

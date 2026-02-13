@@ -7,7 +7,7 @@ import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { SigningService } from '@proxy/SigningService';
+import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
 
 type MongoCollectionLike = Record<string, unknown>;
 type MongoDatabaseLike = {
@@ -77,15 +77,25 @@ const resolveSigningConfig = (
   requireSigning: boolean;
   signingWindowMs: number;
 } => {
-  const keyId = overrides.keyId ?? Env.get('MONGODB_PROXY_KEY_ID', '');
-  const secretRaw = overrides.secret ?? Env.get('MONGODB_PROXY_SECRET', '');
-  const secret = secretRaw.trim() === '' ? (Env.APP_KEY ?? '') : secretRaw;
-  const requireSigningEnv = Env.MONGODB_PROXY_REQUIRE_SIGNING;
-  const requireSigning = requireSigningEnv ? true : overrides.requireSigning === true;
+  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
+  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
+  const envKeyId = Env.get('MONGODB_PROXY_KEY_ID', appName);
+  const envSecret = Env.get('MONGODB_PROXY_SECRET', appKey);
+  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
+  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
+  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
+  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
+  const requireSigning =
+    overrides.requireSigning ?? Env.getBool('MONGODB_PROXY_REQUIRE_SIGNING', true);
   const signingWindowMs =
     overrides.signingWindowMs ?? Env.getInt('MONGODB_PROXY_SIGNING_WINDOW_MS', 60000);
 
-  return { keyId, secret, requireSigning, signingWindowMs };
+  return {
+    keyId: creds.keyId,
+    secret: creds.secret,
+    requireSigning,
+    signingWindowMs,
+  };
 };
 
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {

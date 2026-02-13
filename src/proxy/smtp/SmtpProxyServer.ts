@@ -13,7 +13,7 @@ import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { SigningService } from '@proxy/SigningService';
+import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
 
 type ProxyConfig = {
   host: string;
@@ -93,18 +93,25 @@ const resolveSigningConfig = (
   requireSigning: boolean;
   signingWindowMs: number;
 } => {
-  const keyIdRaw = overrides.keyId ?? Env.get('SMTP_PROXY_KEY_ID', '');
-  const keyId = keyIdRaw.toLowerCase();
-  const secretRaw = overrides.secret ?? Env.get('SMTP_PROXY_SECRET', '');
-  const secret = secretRaw.trim() === '' ? Env.get('APP_KEY', '') : secretRaw;
-  const requireSigningEnv = Env.getBool('SMTP_PROXY_REQUIRE_SIGNING', true);
-  const hasCredentials = keyId.trim() !== '' && secret.trim() !== '';
-  // Force requireSigning to true if env var or default says so, unless explicit override disables it
-  const requireSigning = overrides.requireSigning ?? (requireSigningEnv || hasCredentials);
+  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
+  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
+  const envKeyId = Env.get('SMTP_PROXY_KEY_ID', appName);
+  const envSecret = Env.get('SMTP_PROXY_SECRET', appKey);
+  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
+  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
+  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
+  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
+  const requireSigning =
+    overrides.requireSigning ?? Env.getBool('SMTP_PROXY_REQUIRE_SIGNING', true);
   const signingWindowMs =
     overrides.signingWindowMs ?? Env.getInt('SMTP_PROXY_SIGNING_WINDOW_MS', 60000);
 
-  return { keyId, secret, requireSigning, signingWindowMs };
+  return {
+    keyId: creds.keyId,
+    secret: creds.secret,
+    requireSigning,
+    signingWindowMs,
+  };
 };
 
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {

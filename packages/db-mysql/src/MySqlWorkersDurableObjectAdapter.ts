@@ -11,6 +11,19 @@ type DurableObjectStub = {
   fetch: (request: Request | string, init?: RequestInit) => Promise<Response>;
 };
 
+const getDoTimeoutMs = (): number => {
+  const globalEnv = (globalThis as { env?: Record<string, unknown> }).env;
+  const raw = globalEnv?.['MYSQL_DO_TIMEOUT_MS'] ?? globalEnv?.['DO_REQUEST_TIMEOUT_MS'];
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15000;
+};
+
+const createTimeoutSignal = (timeoutMs: number): AbortSignal | undefined => {
+  if (timeoutMs <= 0) return undefined;
+  const timeout = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout;
+  return typeof timeout === 'function' ? timeout(timeoutMs) : undefined;
+};
+
 const createSendQueryFunction = (
   getStub: () => DurableObjectStub,
   connect: () => Promise<void>
@@ -30,15 +43,47 @@ const createSendQueryFunction = (
       params,
       method,
     });
+    const timeoutMs = getDoTimeoutMs();
 
-    const send = async (path: string): Promise<Response> =>
-      stub.fetch(path, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: payload,
-      });
+    const send = async (path: string): Promise<Response> => {
+      const startedAt = Date.now();
+      try {
+        const response = await stub.fetch(path, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: payload,
+          signal: createTimeoutSignal(timeoutMs),
+        });
+
+        Logger.debug('[MySqlWorkersDurableObjectAdapter] DO request completed', {
+          path,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+          timeoutMs,
+          sqlPreview: sql.slice(0, 80),
+        });
+
+        return response;
+      } catch (error: unknown) {
+        Logger.error('[MySqlWorkersDurableObjectAdapter] DO request failed', {
+          path,
+          durationMs: Date.now() - startedAt,
+          timeoutMs,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw ErrorFactory.createGeneralError(
+            `MySQL DO request timed out after ${timeoutMs}ms (${path})`,
+            error
+          );
+        }
+
+        throw error;
+      }
+    };
 
     let response = await send(executePath);
     if (!response.ok && (response.status === 404 || response.status === 405)) {
@@ -96,8 +141,10 @@ const createConnectionManager = (
     try {
       const stub = getStub();
       const health = 'http://do/health'; //NOSONAR
+      const timeoutMs = getDoTimeoutMs();
       const res = await stub.fetch(health, {
         method: 'POST',
+        signal: createTimeoutSignal(timeoutMs),
       });
 
       if (!res.ok) {
