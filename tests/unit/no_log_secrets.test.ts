@@ -14,7 +14,14 @@ function walk(dir: string): string[] {
 
   const out: string[] = [];
   for (const e of entries) {
-    if (e === 'node_modules' || e === '.git' || e === 'dist' || e === 'coverage') continue;
+    if (
+      e === 'node_modules' ||
+      e === '.git' ||
+      e === 'dist' ||
+      e === 'coverage' ||
+      e === '.wrangler'
+    )
+      continue;
     const abs = join(dir, e);
 
     let st: ReturnType<typeof lstatSync>;

@@ -1,6 +1,8 @@
 import { ZintrustLang } from '@/lang/lang';
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { JobStateTracker } from '@queue/JobStateTracker';
+import { QueueTracing } from '@queue/QueueTracing';
 import { RedisKeys } from '@tools/redis/RedisKeyManager';
 
 export type QueueMessage<T = unknown> = { id: string; payload: T; attempts: number };
@@ -97,8 +99,40 @@ export const Queue = Object.freeze({
   },
 
   async enqueue(queue: string, payload: BullMQPayload, driverName?: string): Promise<string> {
-    const driver = Queue.get(driverName);
-    const jobId = await driver.enqueue(queue, payload);
+    const jobId = await QueueTracing.traceOperation({
+      queueName: queue,
+      operation: 'enqueue',
+      attributes: {
+        driverName: driverName ?? null,
+        hasUniqueId: typeof payload?.uniqueId === 'string' && payload.uniqueId.trim().length > 0,
+      },
+      execute: async () => {
+        const driver = Queue.get(driverName);
+        return driver.enqueue(queue, payload);
+      },
+    });
+
+    const maxAttempts =
+      typeof payload?.attempts === 'number' &&
+      Number.isFinite(payload.attempts) &&
+      payload.attempts > 0
+        ? Math.floor(payload.attempts)
+        : undefined;
+
+    await JobStateTracker.enqueued({
+      queueName: queue,
+      jobId,
+      payload,
+      maxAttempts,
+      expectedCompletionAt: new Date(
+        Date.now() + Math.max(1000, Env.getInt('QUEUE_JOB_TIMEOUT', 60) * 1000)
+      ).toISOString(),
+      idempotencyKey:
+        typeof payload?.uniqueId === 'string' && payload.uniqueId.trim().length > 0
+          ? payload.uniqueId.trim()
+          : undefined,
+    });
+
     return jobId;
   },
 
@@ -106,23 +140,59 @@ export const Queue = Object.freeze({
     queue: string,
     driverName?: string
   ): Promise<QueueMessage<T> | undefined> {
-    const driver = Queue.get(driverName);
-    return driver.dequeue(queue);
+    return QueueTracing.traceOperation({
+      queueName: queue,
+      operation: 'dequeue',
+      attributes: {
+        driverName: driverName ?? null,
+      },
+      execute: async () => {
+        const driver = Queue.get(driverName);
+        return driver.dequeue<T>(queue);
+      },
+    });
   },
 
   async ack(queue: string, id: string, driverName?: string): Promise<void> {
-    const driver = Queue.get(driverName);
-    return driver.ack(queue, id);
+    return QueueTracing.traceOperation({
+      queueName: queue,
+      operation: 'ack',
+      attributes: {
+        driverName: driverName ?? null,
+      },
+      execute: async () => {
+        const driver = Queue.get(driverName);
+        await driver.ack(queue, id);
+      },
+    });
   },
 
   async length(queue: string, driverName?: string): Promise<number> {
-    const driver = Queue.get(driverName);
-    return driver.length(queue);
+    return QueueTracing.traceOperation({
+      queueName: queue,
+      operation: 'length',
+      attributes: {
+        driverName: driverName ?? null,
+      },
+      execute: async () => {
+        const driver = Queue.get(driverName);
+        return driver.length(queue);
+      },
+    });
   },
 
   async drain(queue: string, driverName?: string): Promise<void> {
-    const driver = Queue.get(driverName);
-    return driver.drain(queue);
+    return QueueTracing.traceOperation({
+      queueName: queue,
+      operation: 'drain',
+      attributes: {
+        driverName: driverName ?? null,
+      },
+      execute: async () => {
+        const driver = Queue.get(driverName);
+        await driver.drain(queue);
+      },
+    });
   },
 });
 

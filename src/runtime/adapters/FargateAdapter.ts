@@ -93,7 +93,7 @@ export function createFargateAdapter(config: AdapterConfig): RuntimeAdapter & {
       return {
         nodeEnv: Env.NODE_ENV,
         runtime: 'fargate',
-        dbConnection: Env.get('DB_CONNECTION', 'sqlite'),
+        dbConnection: Env.DB_CONNECTION || 'sqlite',
         dbHost: Env.DB_HOST,
         dbPort: Env.DB_PORT,
       };

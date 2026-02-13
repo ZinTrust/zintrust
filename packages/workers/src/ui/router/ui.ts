@@ -1,15 +1,14 @@
 import type { AssetsBinding, IRouter } from '@zintrust/core';
-import {
-  Cloudflare,
-  Logger,
-  MIME_TYPES,
-  NodeSingletons,
-  Router,
-  detectRuntime,
-} from '@zintrust/core';
+import { Cloudflare, Logger, MIME_TYPES, NodeSingletons, Router } from '@zintrust/core';
 import { INDEX_HTML, MAIN_JS, STYLES_CSS, ZINTRUST_SVG } from './EmbeddedAssets';
 
-const isCloudflare = detectRuntime().isCloudflare;
+const isCloudflare = (() => {
+  try {
+    return Cloudflare.getWorkersEnv() !== null;
+  } catch {
+    return false;
+  }
+})();
 
 const safeFileUrlToPath = (url: string | undefined): string => {
   if (typeof url !== 'string' || url.trim() === '') return '';

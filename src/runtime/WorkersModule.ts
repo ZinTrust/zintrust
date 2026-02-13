@@ -1,4 +1,4 @@
-import { runFromSource } from '@/common';
+import * as Common from '@/common';
 import { Logger } from '@config/logger';
 import * as fs from '@node-singletons/fs';
 import { createRequire } from '@node-singletons/module';
@@ -177,7 +177,8 @@ const resolveLocalWorkersModuleUrl = (): string | null => {
 
   const mode = (process.env['NODE_ENV'] ?? 'development').toString().trim().toLowerCase();
   const isProductionMode = mode === 'production' || mode === 'pro' || mode === 'prod';
-  const preferSource = runFromSource() || !isProductionMode;
+  const runFromSource = typeof Common.runFromSource === 'function' ? Common.runFromSource() : false;
+  const preferSource = runFromSource || !isProductionMode;
 
   const candidates = preferSource
     ? [
@@ -217,7 +218,8 @@ const resolveLocalQueueMonitorModuleUrl = (): string | null => {
 
   const mode = (process.env['NODE_ENV'] ?? 'development').toString().trim().toLowerCase();
   const isProductionMode = mode === 'production' || mode === 'pro' || mode === 'prod';
-  const preferSource = runFromSource() || !isProductionMode;
+  const runFromSource = typeof Common.runFromSource === 'function' ? Common.runFromSource() : false;
+  const preferSource = runFromSource || !isProductionMode;
 
   const candidates = preferSource
     ? [

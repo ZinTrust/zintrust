@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { Env } from '@/config/env';
+import { JobStateTracker } from '@/tools/queue/JobStateTracker';
 import type { RequestInfo } from 'miniflare';
 import { HttpQueueDriver } from 'packages/queue-redis/src/HttpQueueDriver';
 
@@ -88,6 +89,37 @@ describe('HttpQueueDriver', () => {
           }),
         }),
       });
+    } finally {
+      Env.setSource(null);
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('returns fallback job id and marks pending recovery when enqueue gateway fails', async () => {
+    const originalFetch = globalThis.fetch;
+
+    try {
+      JobStateTracker.reset();
+      Env.setSource({
+        QUEUE_HTTP_PROXY_URL: 'http://127.0.0.1:7772',
+        QUEUE_HTTP_PROXY_PATH: '/api/_sys/queue/rpc',
+        QUEUE_HTTP_PROXY_KEY_ID: 'test-key',
+        QUEUE_HTTP_PROXY_KEY: 'test-secret',
+        QUEUE_HTTP_PROXY_TIMEOUT_MS: '5',
+        QUEUE_HTTP_PROXY_RETRY_MAX: '0',
+      });
+
+      globalThis.fetch = vi.fn(async () => {
+        throw new Error('network down');
+      }) as unknown as typeof fetch;
+
+      const jobId = await HttpQueueDriver.enqueue('emails', {
+        uniqueId: 'idempotent-job-1',
+        payload: { hello: 'world' },
+      } as any);
+
+      expect(jobId).toBe('idempotent-job-1');
+      expect(JobStateTracker.get('emails', 'idempotent-job-1')?.status).toBe('pending_recovery');
     } finally {
       Env.setSource(null);
       globalThis.fetch = originalFetch;

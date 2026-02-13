@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { workersConfig } from '@zintrust/core';
-import { WorkerFactory } from '@zintrust/workers';
 
 const fixtureUrl = 'https://wk.zintrust.com/fixtures/processor.js';
+
+vi.unmock('@zintrust/workers');
+const workersModule = await import('@zintrust/workers');
+const WorkerFactory = workersModule.WorkerFactory as unknown as {
+  resolveProcessorSpec: (spec: string) => Promise<unknown>;
+};
 
 describe('ProcessorSpecResolver', () => {
   afterEach(() => {
@@ -50,8 +55,9 @@ describe('ProcessorSpecResolver', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    const first = await WorkerFactory.resolveProcessorSpec(fixtureUrl);
-    const second = await WorkerFactory.resolveProcessorSpec(fixtureUrl);
+    const cacheTestUrl = `${fixtureUrl}?cache-test=1`;
+    const first = await WorkerFactory.resolveProcessorSpec(cacheTestUrl);
+    const second = await WorkerFactory.resolveProcessorSpec(cacheTestUrl);
 
     expect(typeof first).toBe('function');
     expect(typeof second).toBe('function');

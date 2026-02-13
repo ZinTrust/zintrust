@@ -9,9 +9,42 @@ type SnapshotData = {
   workers: unknown;
 };
 
+type EventEmitterLike = {
+  on: (event: string, listener: (payload: SnapshotData) => void) => void;
+  off: (event: string, listener: (payload: SnapshotData) => void) => void;
+  emit: (event: string, payload: unknown) => boolean;
+  setMaxListeners?: (count: number) => void;
+};
+
+const createFallbackEmitter = (): EventEmitterLike => {
+  const listeners = new Map<string, Set<(payload: SnapshotData) => void>>();
+
+  return {
+    on(event, listener) {
+      const set = listeners.get(event) ?? new Set<(payload: SnapshotData) => void>();
+      set.add(listener);
+      listeners.set(event, set);
+    },
+    off(event, listener) {
+      const set = listeners.get(event);
+      if (!set) return;
+      set.delete(listener);
+      if (set.size === 0) listeners.delete(event);
+    },
+    emit(event, payload) {
+      const set = listeners.get(event);
+      if (!set) return false;
+      for (const listener of set) listener(payload as SnapshotData);
+      return true;
+    },
+  };
+};
+
 // Internal state
-const emitter = new NodeSingletons.EventEmitter();
-emitter.setMaxListeners(Infinity);
+const EventEmitterCtor = NodeSingletons?.EventEmitter as (new () => EventEmitterLike) | undefined;
+const emitter: EventEmitterLike =
+  typeof EventEmitterCtor === 'function' ? new EventEmitterCtor() : createFallbackEmitter();
+emitter.setMaxListeners?.(Infinity);
 let interval: NodeJS.Timeout | null = null;
 let subscribers = 0;
 const INTERVAL_MS = workersConfig?.intervalMs || 5000;

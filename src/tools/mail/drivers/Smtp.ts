@@ -228,7 +228,9 @@ const createNodeSocket = async (config: SmtpConfig, implicitTls: boolean): Promi
         }) as unknown as net.Socket)
       : net.connect({ host: config.host, port: config.port });
 
-    socket.setTimeout(10000);
+    if (typeof socket.setTimeout === 'function') {
+      socket.setTimeout(10000);
+    }
     socket.once('timeout', () => {
       socket.destroy();
       reject(
@@ -698,7 +700,8 @@ export const SmtpDriver = Object.freeze({
    */
   async send(config: SmtpConfig, message: MailMessage): Promise<SendResult> {
     if (shouldUseProxy()) {
-      Logger.debug('[SmtpDriver] Using SmtpProxy', { proxyUrl: Env.SMTP_PROXY_URL });
+      const proxyUrl = Env.SMTP_PROXY_URL;
+      Logger.debug('[SmtpDriver] Using SmtpProxy', { proxyUrl });
       const result = await sendViaProxy(message);
       return { ok: Boolean(result.ok), provider: 'smtp', messageId: result.messageId };
     }

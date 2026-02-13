@@ -3,7 +3,7 @@ import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
-import { resolveNpmPath, runFromSource } from '@common/index';
+import * as Common from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -26,6 +26,22 @@ type StartCommandOptions = CommandOptions & {
 };
 
 type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
+
+const resolveNpmPath = (): string => {
+  try {
+    return typeof Common.resolveNpmPath === 'function' ? Common.resolveNpmPath() : 'npm';
+  } catch {
+    return 'npm';
+  }
+};
+
+const runFromSource = (): boolean => {
+  try {
+    return typeof Common.runFromSource === 'function' ? Common.runFromSource() : false;
+  } catch {
+    return false;
+  }
+};
 
 const isValidModeInput = (value: string): value is StartModeInput =>
   value === 'development' ||

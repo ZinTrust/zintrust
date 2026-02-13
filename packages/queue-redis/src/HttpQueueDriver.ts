@@ -1,5 +1,12 @@
 import type { BullMQPayload, QueueMessage } from '@zintrust/core';
-import { Env, ErrorFactory, SignedRequest, generateUuid } from '@zintrust/core';
+import {
+  Env,
+  ErrorFactory,
+  JobStateTracker,
+  SignedRequest,
+  TimeoutManager,
+  generateUuid,
+} from '@zintrust/core';
 
 export type QueueRpcAction = 'enqueue' | 'dequeue' | 'ack' | 'length' | 'drain';
 
@@ -188,7 +195,57 @@ const callGateway = async <T>(
 
 export const HttpQueueDriver = Object.freeze({
   async enqueue(queue: string, payload: BullMQPayload): Promise<string> {
-    return callGateway<string>('enqueue', { queue, payload });
+    const fallbackJobId =
+      typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0
+        ? payload.uniqueId.trim()
+        : generateUuid();
+    const timeoutMs = Env.getInt('QUEUE_HTTP_PROXY_TIMEOUT_MS', 10000);
+
+    try {
+      return await TimeoutManager.withTimeoutRetry(
+        async () => callGateway<string>('enqueue', { queue, payload }),
+        {
+          timeoutMs,
+          maxRetries: Math.max(0, Env.getInt('QUEUE_HTTP_PROXY_RETRY_MAX', 2)),
+          retryDelayMs: Math.max(0, Env.getInt('QUEUE_HTTP_PROXY_RETRY_DELAY_MS', 500)),
+          operationName: `http-queue-enqueue:${queue}`,
+        }
+      );
+    } catch (error) {
+      await JobStateTracker.enqueued({
+        queueName: queue,
+        jobId: fallbackJobId,
+        payload,
+        maxAttempts:
+          typeof payload.attempts === 'number' && Number.isFinite(payload.attempts)
+            ? Math.max(1, Math.floor(payload.attempts))
+            : undefined,
+        idempotencyKey:
+          typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0
+            ? payload.uniqueId.trim()
+            : undefined,
+      });
+
+      const pendingRecoveryApi = JobStateTracker as {
+        pendingRecovery?: (input: {
+          queueName: string;
+          jobId: string;
+          reason?: string;
+          error?: unknown;
+        }) => Promise<void>;
+      };
+
+      if (typeof pendingRecoveryApi.pendingRecovery === 'function') {
+        await pendingRecoveryApi.pendingRecovery({
+          queueName: queue,
+          jobId: fallbackJobId,
+          reason: 'HTTP queue proxy enqueue failed; marked pending recovery',
+          error,
+        });
+      }
+
+      return fallbackJobId;
+    }
   },
 
   async dequeue<T = unknown>(queue: string): Promise<QueueMessage<T> | undefined> {

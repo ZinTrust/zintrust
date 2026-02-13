@@ -1,11 +1,15 @@
 import { Logger } from '@config/logger';
+import { Env } from '@config/env';
 import type { QueueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ZintrustLang } from '@lang/lang';
 import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import { detectRuntime } from '@runtime/detectRuntime';
 import { DatabaseQueue } from '@tools/queue/drivers/Database';
+import { autoRegisterJobStateTrackerPersistenceFromEnv } from '@tools/queue/JobStateTrackerDbPersistence';
+import { QueueReliabilityOrchestrator } from '@tools/queue/QueueReliabilityOrchestrator';
 
 import { InMemoryQueue } from '@tools/queue/drivers/InMemory';
 import { Queue } from '@tools/queue/Queue';
@@ -81,9 +85,11 @@ const registerRedisDriverIfAvailable = async (): Promise<boolean> => {
 };
 
 export async function registerQueuesFromRuntimeConfig(config: QueueConfig): Promise<void> {
+  autoRegisterJobStateTrackerPersistenceFromEnv();
+
   // Built-in drivers (core)
   Queue.register('inmemory', InMemoryQueue);
-  Queue.register('db', DatabaseQueue);
+  Queue.register(ZintrustLang.DATABASE, DatabaseQueue);
   // Project templates use QUEUE_DRIVER=sync; treat this as an alias of in-memory.
   Queue.register('sync', InMemoryQueue);
   const defaultName = (config.default ?? '').toString().trim().toLowerCase();
@@ -103,6 +109,10 @@ export async function registerQueuesFromRuntimeConfig(config: QueueConfig): Prom
   try {
     const drv = Queue.get(defaultName);
     Queue.register('default', drv);
+
+    if (Env.getBool('JOB_RELIABILITY_AUTOSTART', false)) {
+      QueueReliabilityOrchestrator.start();
+    }
   } catch (error) {
     const { isCloudflare } = detectRuntime();
     if (isCloudflare) {

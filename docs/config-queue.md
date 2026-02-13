@@ -13,6 +13,11 @@ import { queue } from '@zintrust/core';
 // queue.*
 ```
 
+## Related Docs
+
+- [Env configuration](config-env.md)
+- [Job tracking persistence](job-tracking-persistence.md)
+
 ## Snapshot (top)
 
 ```ts

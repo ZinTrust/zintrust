@@ -1,4 +1,4 @@
-import { appConfig, cacheConfig, databaseConfig, queueConfig, storageConfig } from '@/config';
+import * as RuntimeConfig from '@/config';
 import { StartupHealthChecks } from '@/health/StartupHealthChecks';
 import { loadQueueMonitorModule, loadWorkersModule } from '@/runtime/WorkersModule';
 import { registerCachesFromRuntimeConfig } from '@cache/CacheRuntimeRegistration';
@@ -36,6 +36,27 @@ interface IQueueHttpGatewayModule {
     create: () => { registerRoutes: (router: IRouter) => void };
   };
 }
+
+const readRuntimeConfig = <T>(key: string, fallback: T): T => {
+  try {
+    const value = (RuntimeConfig as Record<string, unknown>)[key];
+    return (value ?? fallback) as T;
+  } catch {
+    return fallback;
+  }
+};
+
+const appConfig = readRuntimeConfig('appConfig', { port: 7777, dockerWorker: false });
+const cacheConfig = readRuntimeConfig('cacheConfig', { default: 'memory', drivers: {} });
+const databaseConfig = readRuntimeConfig('databaseConfig', {
+  default: 'sqlite',
+  connections: {},
+});
+const queueConfig = readRuntimeConfig('queueConfig', {
+  default: 'sync',
+  drivers: { redis: { host: '127.0.0.1', port: 6379, password: '', database: 0 } },
+});
+const storageConfig = readRuntimeConfig('storageConfig', { default: 'local', disks: {} });
 
 // eslint-disable-next-line @typescript-eslint/require-await
 const dbLoader = async (): Promise<void> => {
@@ -197,6 +218,9 @@ const initializeArtifactDirectories = async (resolvedBasePath: string): Promise<
 
 const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
   const monitorConfig = runQueueConfig?.monitor;
+  if (monitorConfig === undefined) {
+    return;
+  }
   if (monitorConfig.enabled === false) {
     return;
   }
@@ -216,14 +240,31 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
 
   const queueMonitorModule = workersModule as IQueueMonitorModule;
   const { QueueMonitor } = queueMonitorModule;
+  if (QueueMonitor === undefined || typeof QueueMonitor.create !== 'function') {
+    Logger.warn('Queue Monitor module does not expose QueueMonitor.create');
+    return;
+  }
+
+  const redisConfig =
+    (queueConfig as { drivers?: { redis?: Record<string, unknown> } }).drivers?.redis ?? {};
+  const redisHost = typeof redisConfig['host'] === 'string' ? redisConfig['host'] : '127.0.0.1';
+  const redisPort =
+    typeof redisConfig['port'] === 'number' && Number.isFinite(redisConfig['port'])
+      ? redisConfig['port']
+      : 6379;
+  const redisPassword = typeof redisConfig['password'] === 'string' ? redisConfig['password'] : '';
+  const redisDb =
+    typeof redisConfig['database'] === 'number' && Number.isFinite(redisConfig['database'])
+      ? redisConfig['database']
+      : 0;
 
   const monitor = QueueMonitor.create({
     ...monitorConfig,
     redis: {
-      host: queueConfig.drivers.redis.host,
-      port: queueConfig.drivers.redis.port,
-      password: queueConfig.drivers.redis.password,
-      db: queueConfig.drivers.redis.database,
+      host: redisHost,
+      port: redisPort,
+      password: redisPassword,
+      db: redisDb,
     },
   });
 
@@ -240,7 +281,7 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
 
 const initializeWorkers = async (router: IRouter): Promise<void> => {
   const workers = await loadWorkersModule();
-  if (workers?.WorkerInit !== undefined) {
+  if (workers?.WorkerInit !== undefined && typeof workers.registerWorkerRoutes === 'function') {
     workers.registerWorkerRoutes(router, undefined, { middleware: undefined });
   }
 };
@@ -270,6 +311,14 @@ const initializeQueueHttpGateway = async (router: IRouter): Promise<void> => {
     const module = await loadQueueHttpGatewayModule();
     if (module === undefined) {
       Logger.warn('Queue HTTP gateway module is unavailable (@zintrust/queue-redis not found)');
+      return;
+    }
+
+    if (
+      module.QueueHttpGateway === undefined ||
+      typeof module.QueueHttpGateway.create !== 'function'
+    ) {
+      Logger.warn('Queue HTTP gateway module does not expose QueueHttpGateway.create');
       return;
     }
 

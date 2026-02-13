@@ -122,6 +122,13 @@ export interface RecordDbQuerySpanInput {
   durationMs: number;
 }
 
+export interface RecordQueueOperationSpanInput {
+  queueName: string;
+  operation: 'enqueue' | 'dequeue' | 'ack' | 'length' | 'drain';
+  durationMs: number;
+  status: 'ok' | 'error';
+}
+
 type HeaderGetter = {
   getHeader(name: string): unknown;
 };
@@ -282,6 +289,46 @@ const recordDbQuerySpan = (input: RecordDbQuerySpanInput): void => {
   }
 };
 
+const recordQueueOperationSpan = (input: RecordQueueOperationSpanInput): void => {
+  if (isEnabled() === false) return;
+
+  try {
+    const traceApi = otel()?.trace ?? fallbackTrace;
+    const parentSpan = traceApi.getSpan(otel()?.context?.active() ?? fallbackContext.active());
+    if (!parentSpan) return;
+
+    const tracer = traceApi.getTracer('zintrust');
+    const now = Date.now();
+    const durationMs = Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0;
+    const startTime = now - durationMs;
+
+    const span = tracer.startSpan(
+      `queue.${input.operation}`,
+      {
+        kind: (otel()?.SpanKind ?? fallbackSpanKind).CLIENT,
+        startTime,
+        attributes: {
+          'messaging.system': 'zintrust-queue',
+          'messaging.operation': input.operation,
+          'messaging.destination': input.queueName,
+          'zintrust.queue.status': input.status,
+        },
+      },
+      otel()?.context?.active() ?? fallbackContext.active()
+    );
+
+    if (input.status === 'error') {
+      span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).ERROR });
+    } else {
+      span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).OK });
+    }
+
+    span.end(now);
+  } catch {
+    // best-effort
+  }
+};
+
 export const OpenTelemetry = Object.freeze({
   isEnabled,
   startHttpServerSpan,
@@ -290,6 +337,7 @@ export const OpenTelemetry = Object.freeze({
   endHttpServerSpan,
   injectTraceHeaders,
   recordDbQuerySpan,
+  recordQueueOperationSpan,
 });
 
 export default OpenTelemetry;

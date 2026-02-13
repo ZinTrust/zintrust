@@ -190,9 +190,50 @@ import { Env } from '@zintrust/core';
 | `QUEUE_HTTP_PROXY_KEY_ID`          | `APP_NAME`                   | Signing key id used to sign/verify queue RPC calls.                                |
 | `QUEUE_HTTP_PROXY_KEY`             | `APP_KEY`                    | Signing secret used to sign/verify queue RPC calls.                                |
 | `QUEUE_HTTP_PROXY_TIMEOUT_MS`      | `ZT_PROXY_TIMEOUT_MS`        | Queue RPC request timeout in milliseconds.                                         |
+| `QUEUE_HTTP_PROXY_RETRY_MAX`       | `2`                          | Number of timeout retries for HTTP queue proxy enqueue operations.                 |
+| `QUEUE_HTTP_PROXY_RETRY_DELAY_MS`  | `500`                        | Base retry delay in milliseconds for HTTP queue proxy retries.                     |
 | `QUEUE_HTTP_PROXY_MAX_SKEW_MS`     | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed signature timestamp skew for gateway verification.                         |
 | `QUEUE_HTTP_PROXY_NONCE_TTL_MS`    | `120000`                     | Nonce TTL used for replay protection on queue gateway requests.                    |
 | `QUEUE_HTTP_PROXY_MIDDLEWARE`      | empty                        | Optional comma-separated middleware names applied to gateway route registration.   |
+
+## Job tracking
+
+| Key                                 | Default                    | Description                                                                               |
+| ----------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------- |
+| `JOB_TRACKING_ENABLED`              | `true`                     | Enable in-memory job lifecycle tracking (`pending`, `active`, `completed`, `failed`).     |
+| `JOB_TRACKING_MAX_JOBS`             | `20000`                    | Maximum in-memory tracked job records before pruning oldest entries.                      |
+| `JOB_TRACKING_MAX_TRANSITIONS`      | `50000`                    | Maximum in-memory transition records before pruning oldest entries.                       |
+| `JOB_TRACKING_PERSISTENCE_ENABLED`  | `false`                    | Enable durable persistence for tracking records.                                          |
+| `JOB_TRACKING_PERSISTENCE_DRIVER`   | `database`                 | Persistence backend driver (`database` currently supported).                              |
+| `JOB_TRACKING_DB_CONNECTION`        | `default`                  | Database connection name for tracker persistence.                                         |
+| `JOB_TRACKING_DB_TABLE`             | `zintrust_jobs`            | Table used for latest job state snapshots.                                                |
+| `JOB_TRACKING_DB_TRANSITIONS_TABLE` | `zintrust_job_transitions` | Table used for append-only state transitions.                                             |
+| `JOB_HEARTBEAT_INTERVAL_MS`         | `10000`                    | Worker heartbeat interval used for stalled-job detection.                                 |
+| `JOB_HEARTBEAT_GRACE_MS`            | `20000`                    | Heartbeat grace window before active jobs are marked stalled.                             |
+| `JOB_RECONCILIATION_INTERVAL_MS`    | `60000`                    | Interval for in-memory and persisted reconciliation scans.                                |
+| `JOB_RECONCILIATION_STALE_MS`       | `120000`                   | Staleness threshold for persisted `pending`/`active` reconciliation.                      |
+| `JOB_RECOVERY_INTERVAL_MS`          | `30000`                    | Interval for automatic recovery daemon scans.                                             |
+| `JOB_RECOVERY_MIN_AGE_MS`           | `5000`                     | Minimum age before a recoverable state is eligible for re-queue.                          |
+| `DLQ_REPLAY_MAX_BATCH_SIZE`         | `25`                       | Maximum number of dead-letter records replayed in one governed replay batch.              |
+| `DLQ_REPLAY_MAX_QPS`                | `5`                        | Ceiling for dead-letter replay throughput (jobs per second).                              |
+| `DLQ_REPLAY_MIN_AGE_MS`             | `60000`                    | Minimum dead-letter age required before replay eligibility.                               |
+| `DLQ_REPLAY_ALLOWED_ACTORS`         | empty                      | Optional comma-separated allow-list of actor IDs allowed to execute DLQ replay.           |
+| `JOB_DASHBOARD_DEFAULT_QUEUE`       | `default`                  | Default queue name used by reliability dashboard snapshots when queue name is omitted.    |
+| `JOB_RUNBOOK_BASE_URL`              | `/docs/runbooks`           | Base path/URL used to generate alert-to-runbook links for queue reliability alerts.       |
+| `JOB_ALERT_FAILURE_RATE_THRESHOLD`  | `0.1`                      | Alert threshold for failure rate (`(failed + dead_letter) / completed`).                  |
+| `JOB_ALERT_STALLED_THRESHOLD`       | `50`                       | Alert threshold for stalled job count.                                                    |
+| `JOB_ALERT_QUEUE_DEPTH_THRESHOLD`   | `1000`                     | Alert threshold for queue depth.                                                          |
+| `JOB_ALERT_MANUAL_REVIEW_THRESHOLD` | `10`                       | Alert threshold for manual-review backlog count.                                          |
+| `QUEUE_TRACING_ENABLED`             | `false`                    | Enable queue operation tracing pipeline (`enqueue`, `dequeue`, `ack`, `length`, `drain`). |
+| `QUEUE_TRACING_SAMPLE_RATE`         | `1`                        | Queue trace sampling rate in range `0..1`.                                                |
+| `QUEUE_TRACING_MAX_EVENTS`          | `5000`                     | Maximum in-memory queue trace events retained after pruning.                              |
+| `QUEUE_TRACING_RETENTION_MS`        | `86400000`                 | Queue trace retention window in milliseconds before prune removes older events.           |
+| `QUEUE_TRACING_EXPORT_BATCH_SIZE`   | `20`                       | Number of pending queue trace events before automatic exporter flush.                     |
+| `QUEUE_TRACING_EXPORT_OTEL`         | `true`                     | Export queue trace events to OpenTelemetry spans when `OTEL_ENABLED=true`.                |
+| `STALLED_JOB_CHECK_INTERVAL_MS`     | `30000`                    | Interval for heartbeat table stalled checks.                                              |
+| `IDEMPOTENCY_DEFAULT_TTL_MS`        | `86400000`                 | Default TTL for idempotency keys and dedup locks (milliseconds).                          |
+| `JOB_RELIABILITY_ENABLED`           | `true`                     | Master toggle for queue reliability orchestration features.                               |
+| `JOB_RELIABILITY_AUTOSTART`         | `false`                    | Auto-start reliability orchestrator when queue drivers are registered.                    |
 
 ## Rate limiting
 
