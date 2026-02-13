@@ -32,6 +32,7 @@ ZinTrust supports both spaced and colon styles for deploy targets where applicab
 
 - `zin deploy cw` and `zin deploy:cw` - Deploy container workers stack (`docker-compose.workers.yml`)
 - `zin deploy cwr` and `zin deploy:cwr` - Compatibility aliases to deploy the same container workers stack
+- `zin deploy cp` and `zin deploy:cp` - Deploy proxy stack (`docker-compose.proxy.yml`)
 - `zin deploy worker` - Deploy Cloudflare Worker environment via Wrangler
 - `zin deploy production` - Deploy production Wrangler environment
 
@@ -39,6 +40,7 @@ Notes:
 
 - `zin deploy <target>` keeps Wrangler behavior for cloud targets (`worker`, `d1-proxy`, `kv-proxy`, `production`)
 - `cw` is the primary Docker Compose deployment target; `cwr` remains a compatibility alias
+- `cp` is the Docker Compose deployment target for proxy stack operations
 
 Examples:
 
@@ -48,7 +50,24 @@ zin deploy:cw
 
 zin deploy cwr
 zin deploy:cwr
+
+zin deploy cp
+zin deploy:cp
 ```
+
+## Container Stack Init Commands
+
+- `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
+- `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
+- Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py/proxy`
+
+## Container Proxies Commands
+
+- `zin cp build`: Build proxy stack images
+- `zin cp up`: Start proxy stack
+- `zin cp up -d`: Start proxy stack in detached mode
+- `zin cp down`: Stop proxy stack
+- `zin cp down --volumes`: Stop proxy stack and remove named volumes
 
 ## Routes Command
 

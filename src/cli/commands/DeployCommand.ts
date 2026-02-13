@@ -45,6 +45,18 @@ const deployContainerStack = async (label: string): Promise<void> => {
   Logger.info(`✅ ${label} deployed.`);
 };
 
+const deployProxyStack = async (label: string): Promise<void> => {
+  const composeFile = 'docker-compose.proxy.yml';
+  const composePath = join(process.cwd(), composeFile);
+  if (!existsSync(composePath)) {
+    throw ErrorFactory.createCliError(`${composeFile} not found.`);
+  }
+
+  Logger.info(`Deploying ${label}...`);
+  await runCompose(['compose', '-f', composePath, 'up', '-d', '--build']);
+  Logger.info(`✅ ${label} deployed.`);
+};
+
 const runDeploy = async (target: string, options: DeployCommandOptions): Promise<void> => {
   const normalizedTarget = target.trim().toLowerCase();
 
@@ -54,6 +66,13 @@ const runDeploy = async (target: string, options: DeployCommandOptions): Promise
         ? 'container workers stack (cwr compatibility alias)'
         : 'container workers stack';
     await deployContainerStack(label);
+    return;
+  }
+
+  if (normalizedTarget === 'cp' || normalizedTarget === 'proxy') {
+    const label =
+      normalizedTarget === 'proxy' ? 'proxy stack (proxy compatibility alias)' : 'proxy stack';
+    await deployProxyStack(label);
     return;
   }
 
@@ -79,7 +98,7 @@ const createDeployCommand = (): IBaseCommand => {
       command
         .argument(
           '[target]',
-          'Deployment target (worker, d1-proxy, kv-proxy, production, cw)',
+          'Deployment target (worker, d1-proxy, kv-proxy, production, cw, cp)',
           'worker'
         )
         .option('-e, --env <env>', 'Wrangler environment (overrides target)');

@@ -38,6 +38,37 @@ zin deploy cwr
 zin deploy:cwr
 ```
 
+## Container Proxies CLI (cp)
+
+ZinTrust includes a unified CLI flow for the proxy gateway + proxy services stack.
+
+### Initialize proxy stack files
+
+```bash
+zin init:proxy
+```
+
+Aliases:
+
+```bash
+zin init:cp
+zin init:container-proxies
+zin init:py/proxy
+```
+
+### Deploy / up / down
+
+```bash
+zin deploy cp
+zin deploy:cp
+
+zin cp build
+zin cp up -d
+zin cp down
+```
+
+Compose target file: `docker-compose.proxy.yml`.
+
 ## What the `Dockerfile` does
 
 The root `Dockerfile` is multi-stage:

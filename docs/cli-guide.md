@@ -37,9 +37,33 @@ zin deploy:cw
 
 zin deploy cwr
 zin deploy:cwr
+
+zin deploy cp
+zin deploy:cp
 ```
 
 `cwr` is kept as a compatibility alias and deploys the same workers stack as `cw`.
+
+`cp` deploys the proxy stack from `docker-compose.proxy.yml`.
+
+### Initialize Container Proxy Stack
+
+```bash
+zin init:proxy
+
+# aliases
+zin init:cp
+zin init:container-proxies
+zin init:py/proxy
+```
+
+### Proxy Stack Lifecycle
+
+```bash
+zin cp build
+zin cp up -d
+zin cp down
+```
 
 Cloud deploy targets continue to work with `zin deploy <target>`:
 
