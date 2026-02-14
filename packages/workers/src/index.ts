@@ -46,7 +46,6 @@ export type {
 } from './WorkerFactory';
 export { WorkerInit } from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
-export { ZinTrustWorkerShutdownDurableObject } from './WorkerShutdownDurableObject';
 
 // HTTP Controllers & Routes
 export { WorkerController } from './http/WorkerController';
@@ -67,10 +66,10 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkersConfigOverrides,
-  WorkersGlobalConfig,
   WorkerStatus,
   WorkerVersioningConfig,
+  WorkersConfigOverrides,
+  WorkersGlobalConfig,
 } from '@zintrust/core';
 
 // Re-export bullmq types for type compatibility

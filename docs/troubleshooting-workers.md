@@ -59,7 +59,7 @@ This guide lists common Cloudflare Workers errors and recommended fixes when run
 **Fix:**
 
 - Reduce parallel DB connections
-- Implement queueing or pooling via Durable Objects
+- Prefer proxy/Hyperdrive pooling for high concurrency
 
 ### 6. Worker shutdown coordination
 
@@ -70,5 +70,5 @@ This guide lists common Cloudflare Workers errors and recommended fixes when run
 
 **Fix:**
 
-- Configure the `WORKER_SHUTDOWN` Durable Object binding in wrangler
-- Call the Durable Object `/shutdown` endpoint to coordinate shutdown
+- Trigger shutdown through the standard app shutdown flow
+- Ensure worker consumers run in environments that support process signals

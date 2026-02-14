@@ -1,5 +1,4 @@
 import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
-import { MySqlWorkersDurableObjectAdapter } from './MySqlWorkersDurableObjectAdapter.js';
 import { CREATE_MIGRATIONS_TABLE_SQL, MYSQL_PLACEHOLDER, MYSQL_TYPE } from './common.js';
 
 export type DatabaseConfig = {
@@ -305,12 +304,6 @@ const createMigrationsTable = async (adapter: IDatabaseAdapter): Promise<void> =
 };
 
 function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
-  const globalEnv = (globalThis as { env?: Record<string, unknown> }).env;
-  if (Cloudflare.getWorkersEnv() !== null && globalEnv?.['MYSQL_POOL']) {
-    Logger.info('[MySQL] Using Durable Object pool adapter');
-    return MySqlWorkersDurableObjectAdapter.create(config);
-  }
-
   const state: AdapterState = { connected: false };
 
   const adapter: IDatabaseAdapter = {

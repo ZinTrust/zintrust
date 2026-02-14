@@ -5,7 +5,7 @@
  * Coordinates orderly shutdown of all worker modules and the WorkerFactory.
  */
 
-import { Cloudflare, Logger } from '@zintrust/core';
+import { Logger } from '@zintrust/core';
 import { WorkerFactory } from './WorkerFactory';
 
 // ============================================================================
@@ -36,12 +36,6 @@ interface IShutdownState {
   reason: string | null;
 }
 
-type DurableShutdownState = {
-  shuttingDown: boolean;
-  startedAt?: string;
-  reason?: string;
-};
-
 // ============================================================================
 // Implementation
 // ============================================================================
@@ -51,58 +45,6 @@ const state: IShutdownState = {
   completedAt: null,
   startedAt: null,
   reason: null,
-};
-
-const getDurableShutdownStub = (): {
-  fetch: (input: string | URL, init?: RequestInit) => Promise<Response>;
-} | null => {
-  const env = Cloudflare.getWorkersEnv();
-  if (env === null) return null;
-
-  const namespace = env['WORKER_SHUTDOWN'] as
-    | {
-        idFromName?: (name: string) => unknown;
-        get?: (id: unknown) => {
-          fetch: (input: string | URL, init?: RequestInit) => Promise<Response>;
-        };
-      }
-    | undefined;
-
-  if (
-    !namespace ||
-    typeof namespace.idFromName !== 'function' ||
-    typeof namespace.get !== 'function'
-  ) {
-    return null;
-  }
-
-  const id = namespace.idFromName('zintrust-shutdown');
-  return namespace.get(id) ?? null;
-};
-
-const requestDurableShutdown = async (reason = 'manual'): Promise<boolean> => {
-  const stub = getDurableShutdownStub();
-  if (!stub) {
-    Logger.warn('Worker shutdown Durable Object binding not configured');
-    return false;
-  }
-
-  const res = await stub.fetch('https://worker-shutdown/shutdown', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ reason }),
-  });
-
-  return res.ok;
-};
-
-const getDurableShutdownState = async (): Promise<DurableShutdownState | null> => {
-  const stub = getDurableShutdownStub();
-  if (!stub) return null;
-
-  const res = await stub.fetch('https://worker-shutdown/status');
-  if (!res.ok) return null;
-  return (await res.json()) as DurableShutdownState;
 };
 
 let shutdownHandlersRegistered = false;
@@ -300,14 +242,4 @@ export const WorkerShutdown = Object.freeze({
    * Get current shutdown state
    */
   getShutdownState,
-
-  /**
-   * Request shutdown via Durable Object (Workers)
-   */
-  requestDurableShutdown,
-
-  /**
-   * Read shutdown state from Durable Object (Workers)
-   */
-  getDurableShutdownState,
 });

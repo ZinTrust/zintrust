@@ -46,36 +46,6 @@
       "vars": {
         "ENVIRONMENT": "development",
       },
-      "durable_objects": {
-        "bindings": [
-          {
-            "name": "MYSQL_POOL",
-            "class_name": "ZinTrustMySqlPoolDurableObject",
-          },
-          {
-            "name": "POSTGRES_POOL",
-            "class_name": "ZinTrustPostgresPoolDurableObject",
-          },
-          {
-            "name": "REDIS_POOL",
-            "class_name": "ZinTrustRedisPoolDurableObject",
-          },
-        ],
-      },
-      "migrations": [
-        {
-          "tag": "v2",
-          "new_classes": ["ZinTrustMySqlPoolDurableObject"],
-        },
-        {
-          "tag": "v3",
-          "new_classes": ["ZinTrustPostgresPoolDurableObject"],
-        },
-        {
-          "tag": "v4",
-          "new_classes": ["ZinTrustRedisPoolDurableObject"],
-        },
-      ],
     },
     "production": {
       "vars": {

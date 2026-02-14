@@ -209,15 +209,6 @@ vi.mock('packages/cache-redis/src/index', () => ({
       clear: async () => undefined,
     }),
   },
-  RedisWorkersDurableObjectAdapter: {
-    create: () => ({
-      get: async () => null,
-      set: async () => undefined,
-      has: async () => false,
-      delete: async () => undefined,
-      clear: async () => undefined,
-    }),
-  },
 }));
 vi.mock('packages/queue-redis/src/HttpQueueDriver', () => ({
   HttpQueueDriver: {

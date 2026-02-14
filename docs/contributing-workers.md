@@ -22,21 +22,6 @@ Miniflare is used for Workers integration tests.
 npm run test:workers
 ```
 
-### Durable Object shutdown binding
-
-For graceful shutdown coordination across Workers, add this binding to your wrangler config:
-
-```jsonc
-"durable_objects": {
-	"bindings": [
-		{ "name": "WORKER_SHUTDOWN", "class_name": "WorkerShutdownDurableObject" }
-	]
-},
-"migrations": [
-	{ "tag": "v1", "new_classes": ["WorkerShutdownDurableObject"] }
-]
-```
-
 ### PostgreSQL (optional)
 
 Set the environment variables to enable integration tests:

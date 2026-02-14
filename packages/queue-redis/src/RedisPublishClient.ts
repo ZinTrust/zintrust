@@ -5,15 +5,6 @@ export type RedisPublishClient = {
   publish(channel: string, message: string): Promise<number>;
 };
 
-type DurableObjectNamespace = {
-  idFromName: (name: string) => { toString: () => string };
-  get: (id: unknown) => DurableObjectStub;
-};
-
-type DurableObjectStub = {
-  fetch: (request: Request | string, init?: RequestInit) => Promise<Response>;
-};
-
 type ProxySettings = {
   baseUrl: string;
   keyId?: string;
@@ -137,41 +128,6 @@ const toNumber = (value: unknown): number => {
   return 0;
 };
 
-const createDoPublishClient = (): RedisPublishClient | null => {
-  const globalEnv = (globalThis as { env?: Record<string, unknown> }).env;
-  const namespace = globalEnv?.['REDIS_POOL'] as DurableObjectNamespace | undefined;
-  if (!namespace) return null;
-
-  const id = namespace.idFromName('default');
-  const stub = namespace.get(id);
-
-  return {
-    publish: async (channel: string, message: string): Promise<number> => {
-      const payload = JSON.stringify({
-        command: 'PUBLISH',
-        params: [channel, message],
-      });
-      const response = await stub.fetch('http://do/execute', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw ErrorFactory.createTryCatchError(
-          `Redis DO publish failed (${response.status})`,
-          text
-        );
-      }
-
-      const json = (await response.json()) as { result?: unknown };
-      const result = 'result' in json ? json.result : json;
-      return toNumber(result);
-    },
-  };
-};
-
 const tryCreateProxyPublishClient = async (): Promise<RedisPublishClient | null> => {
   const settings = buildProxySettings();
   if (settings.baseUrl.trim() === '') return null;
@@ -238,11 +194,6 @@ export const createRedisPublishClient = async (): Promise<RedisPublishClient> =>
   // Return cached instance if available
   if (publishClientConnected && publishClientInstance !== null) {
     return publishClientInstance;
-  }
-
-  const doClient = createDoPublishClient();
-  if (doClient) {
-    return cacheAndReturnClient(doClient);
   }
 
   const proxyClient = await tryCreateProxyPublishClient();

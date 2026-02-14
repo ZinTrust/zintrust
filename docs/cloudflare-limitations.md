@@ -12,7 +12,7 @@ This document captures Cloudflare Workers constraints relevant to ZinTrust adapt
 ## Runtime limitations
 
 - **No filesystem**: use R2 or KV.
-- **No process signals**: use Durable Objects for lifecycle events (e.g., `WorkerShutdownDurableObject`).
+- **No process signals**: perform lifecycle coordination via app-level control endpoints or external orchestrators.
 - **Global scope restrictions**: sockets must be created in request handlers.
 
 ## BullMQ / Queue Workers
@@ -27,5 +27,5 @@ BullMQ Workers (job consumers) **cannot run** in Cloudflare Workers runtime due 
 
 ## Operational guidance
 
-- Use **Hyperdrive** or **Durable Objects** for pooling if needed.
+- Use **Hyperdrive** or an external proxy for pooling if needed.
 - Use public endpoints or Cloudflare Tunnel for database access.
