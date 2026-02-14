@@ -1,7 +1,4 @@
-import { GcsDriver as CoreGcsDriver } from '@zintrust/core';
-
-const GcsDriver = CoreGcsDriver;
-export { GcsDriver };
+export { GcsDriver } from '@zintrust/core';
 export type { GcsConfig } from '@zintrust/core';
 
 /**

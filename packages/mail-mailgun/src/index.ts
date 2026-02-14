@@ -1,7 +1,4 @@
-import { MailgunDriver as CoreMailgunDriver } from '@zintrust/core';
-
-const MailgunDriver = CoreMailgunDriver;
-export { MailgunDriver };
+export { MailgunDriver } from '@zintrust/core';
 export type { MailgunConfig, MailgunMessage, MailgunResult } from '@zintrust/core';
 
 /**
