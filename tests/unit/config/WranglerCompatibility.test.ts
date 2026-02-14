@@ -21,11 +21,12 @@ describe('wrangler compatibility settings', () => {
         ? (workerEnv as Record<string, unknown>)
         : {};
     const date = String(parsed.compatibility_date ?? workerConfig['compatibility_date'] ?? '');
-    const flags = Array.isArray(parsed.compatibility_flags)
-      ? parsed.compatibility_flags.map(String)
-      : Array.isArray(workerConfig['compatibility_flags'])
-        ? (workerConfig['compatibility_flags'] as unknown[]).map(String)
-        : [];
+    let flags: string[] = [];
+    if (Array.isArray(parsed.compatibility_flags)) {
+      flags = parsed.compatibility_flags.map(String);
+    } else if (Array.isArray(workerConfig['compatibility_flags'])) {
+      flags = (workerConfig['compatibility_flags'] as unknown[]).map(String);
+    }
 
     expect(date).toBeTruthy();
     expect(date >= '2024-01-15').toBe(true);

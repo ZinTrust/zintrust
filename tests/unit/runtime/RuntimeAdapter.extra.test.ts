@@ -3,22 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { createMockHttpObjects } from '@/runtime/RuntimeAdapter';
 
 const readStreamText = async (stream: ReadableStream<Uint8Array>): Promise<string> => {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    if (value) chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const merged = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return new TextDecoder().decode(merged);
+  const buffer = await new Response(stream).arrayBuffer();
+  return new TextDecoder().decode(buffer);
 };
 
 describe('RuntimeAdapter extra branches', () => {

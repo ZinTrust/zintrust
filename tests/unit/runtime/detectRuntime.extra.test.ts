@@ -16,7 +16,9 @@ describe('detectRuntime extra branches', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    Object.keys(process.env).forEach((key) => delete process.env[key]);
+    Object.keys(process.env).forEach((key) => {
+      Reflect.deleteProperty(process.env, key);
+    });
     Object.assign(process.env, originalEnv);
 
     delete (globalThis as { CF?: unknown }).CF;
