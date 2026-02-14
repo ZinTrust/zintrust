@@ -307,6 +307,11 @@ function attachCacheStateForTests(instance: IGenerationCache, state: CacheState)
  */
 async function saveCacheToDisk(state: CacheState): Promise<void> {
   try {
+    if (state.flushTimer !== undefined) {
+      clearTimeout(state.flushTimer);
+      state.flushTimer = undefined;
+    }
+
     const flushedEnsured = await flushPendingWrites(state);
     if (!flushedEnsured) {
       await ensureCacheDir(state.cacheDir);
