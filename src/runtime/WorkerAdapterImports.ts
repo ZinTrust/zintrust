@@ -3,9 +3,17 @@
 
 // These imports resolve against the host project (developer working directory)
 // via the @/ alias configured by the ZinTrust app templates.
-// import '@/zintrust.plugins.ts';
-import '@/zintrust.plugins.wg.ts';
+const tryImportOptional = async (): Promise<void> => {
+  try {
+    await import('@/zintrust.plugins.wg');
+  } catch {
+    // Log and swallow errors since these are optional imports that may not exist in all projects.
+  }
+};
+
+const ready = await tryImportOptional();
 
 export const WorkerAdapterImports = Object.freeze({
   loaded: true,
+  ready,
 });

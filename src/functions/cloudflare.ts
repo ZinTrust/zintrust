@@ -1,50 +1,54 @@
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import * as AppRoutes from '@routes/api';
+
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import { StartupConfigFile } from '@runtime/StartupConfigFileRegistry';
+import { WorkerAdapterImports } from '@runtime/WorkerAdapterImports';
 
 import { getKernel } from '@runtime/getKernel';
 
-import '@runtime/WorkerAdapterImports';
-
-const importOptionalDefault = async (modulePath: string): Promise<unknown | undefined> => {
-  try {
-    const module = (await import(modulePath)) as { default?: unknown };
-    return module.default;
-  } catch {
-    return undefined;
-  }
-};
-
 const applyStartupConfigOverrides = async (): Promise<void> => {
-  const globalAny = globalThis as {
-    __zintrustStartupConfigOverrides?: Map<string, unknown>;
-  };
-  globalAny.__zintrustStartupConfigOverrides ??= new Map<string, unknown>();
+  try {
+    const globalAny = globalThis as {
+      __zintrustStartupConfigOverrides?: Map<string, unknown>;
+    };
+    globalAny.__zintrustStartupConfigOverrides ??= new Map<string, unknown>();
 
-  const loadTargets: Array<[string, string]> = [
-    [StartupConfigFile.Broadcast, '@runtime-config/broadcast'],
-    [StartupConfigFile.Cache, '@runtime-config/cache'],
-    [StartupConfigFile.Database, '@runtime-config/database'],
-    [StartupConfigFile.Mail, '@runtime-config/mail'],
-    [StartupConfigFile.Middleware, '@runtime-config/middleware'],
-    [StartupConfigFile.Notification, '@runtime-config/notification'],
-    [StartupConfigFile.Queue, '@runtime-config/queue'],
-    [StartupConfigFile.Storage, '@runtime-config/storage'],
-  ];
+    const broadcastOverrides = await import('@runtime-config/broadcast');
+    const cacheOverrides = await import('@runtime-config/cache');
+    const databaseOverrides = await import('@runtime-config/database');
+    const mailOverrides = await import('@runtime-config/mail');
+    const middlewareOverrides = await import('@runtime-config/middleware');
+    const notificationOverrides = await import('@runtime-config/notification');
+    const queueOverrides = await import('@runtime-config/queue');
+    const storageOverrides = await import('@runtime-config/storage');
 
-  const loaded = await Promise.all(
-    loadTargets.map(async ([configFile, modulePath]) => {
-      const value = await importOptionalDefault(modulePath);
-      return [configFile, value] as const;
-    })
-  );
-
-  for (const [configFile, value] of loaded) {
-    if (value !== undefined) {
-      globalAny.__zintrustStartupConfigOverrides.set(configFile, value);
-    }
+    globalAny.__zintrustStartupConfigOverrides.set(
+      StartupConfigFile.Broadcast,
+      broadcastOverrides.default
+    );
+    globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Cache, cacheOverrides.default);
+    globalAny.__zintrustStartupConfigOverrides.set(
+      StartupConfigFile.Database,
+      databaseOverrides.default
+    );
+    globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Mail, mailOverrides.default);
+    globalAny.__zintrustStartupConfigOverrides.set(
+      StartupConfigFile.Middleware,
+      middlewareOverrides.default
+    );
+    globalAny.__zintrustStartupConfigOverrides.set(
+      StartupConfigFile.Notification,
+      notificationOverrides.default
+    );
+    globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Queue, queueOverrides.default);
+    globalAny.__zintrustStartupConfigOverrides.set(
+      StartupConfigFile.Storage,
+      storageOverrides.default
+    );
+  } catch {
+    // Best-effort: log and swallow errors since this is an optional.
   }
 };
 
@@ -75,6 +79,7 @@ export default {
       (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
 
       await ensureStartupConfigOverridesLoaded();
+      await WorkerAdapterImports.ready;
       await injectIoredisModule();
 
       const kernel = await getKernel();
