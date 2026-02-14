@@ -40,10 +40,37 @@ const isFileAsync = async (candidate: string): Promise<boolean> => {
 };
 
 const findFirstExistingFileAsync = async (candidates: string[]): Promise<string | undefined> => {
-  for (const candidate of candidates) {
-    if (await isFileAsync(candidate)) return candidate;
-  }
-  return undefined;
+  const results = await Promise.all(
+    candidates.map(async (candidate) => ({
+      candidate,
+      isFile: await isFileAsync(candidate),
+    }))
+  );
+
+  return results.find((result) => result.isFile)?.candidate;
+};
+
+const resolveErrorPageFilePathAsync = async (
+  candidateRoots: string[],
+  normalizedRelative: string
+): Promise<string | undefined> => {
+  const checks = await Promise.all(
+    candidateRoots.map(async (root) => {
+      const baseDir = path.join(root, 'error-pages');
+      const filePath = resolveSafePath(baseDir, normalizedRelative);
+      if (filePath === undefined) return undefined;
+
+      try {
+        const stats = await fs.fsPromises.stat(filePath);
+        if (stats.isDirectory()) return undefined;
+        return filePath;
+      } catch {
+        return undefined;
+      }
+    })
+  );
+
+  return checks.find((filePath) => typeof filePath === 'string');
 };
 
 const servePublicRootFileAsync = async (
@@ -216,20 +243,10 @@ export const serveErrorPagesFileAsync = async (
   const rawRelative = urlPath.slice('/error-pages/'.length);
   const normalizedRelative = tryDecodeURIComponent(rawRelative).replaceAll('\\', '/');
 
-  for (const root of candidateRoots) {
-    const baseDir = path.join(root, 'error-pages');
-    const filePath = resolveSafePath(baseDir, normalizedRelative);
-    if (filePath === undefined) continue;
+  const filePath = await resolveErrorPageFilePathAsync(candidateRoots, normalizedRelative);
 
-    try {
-      const stats = await fs.fsPromises.stat(filePath).catch(() => null);
-      if (stats === null) continue;
-      if (stats.isDirectory()) continue;
-
-      if (!(await pathExistsAsync(filePath))) {
-        continue;
-      }
-
+  try {
+    if (filePath !== undefined && (await pathExistsAsync(filePath))) {
       const ext = path.extname(filePath).toLowerCase();
       const contentType = MIME_TYPES_MAP[ext] || 'application/octet-stream';
       const content = await fs.fsPromises.readFile(filePath);
@@ -238,13 +255,13 @@ export const serveErrorPagesFileAsync = async (
       response.setHeader(HTTP_HEADERS.CONTENT_TYPE, contentType);
       response.send(content);
       return true;
-    } catch (error) {
-      ErrorFactory.createTryCatchError(`Error serving error-pages file ${filePath}`, error);
-      response.setStatus(500);
-      response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
-      response.send('Internal Server Error');
-      return true;
     }
+  } catch (error) {
+    ErrorFactory.createTryCatchError(`Error serving error-pages file ${filePath}`, error);
+    response.setStatus(500);
+    response.setHeader(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.TEXT);
+    response.send('Internal Server Error');
+    return true;
   }
 
   response.setStatus(404);

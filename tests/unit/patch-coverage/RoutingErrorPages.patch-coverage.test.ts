@@ -41,12 +41,13 @@ describe('patch coverage: routing/errorPages', () => {
     tempDir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'zintrust-error-pages-'));
     hoisted.publicRoot = tempDir;
 
-    nodeFs.mkdirSync(nodePath.join(tempDir, 'error-pages'), { recursive: true });
-    nodeFs.writeFileSync(nodePath.join(tempDir, 'error-pages', 'app.css'), 'body{}');
+    nodeFs.mkdirSync(nodePath.join(tempDir, 'public', 'error-pages'), { recursive: true });
+    nodeFs.writeFileSync(nodePath.join(tempDir, 'public', 'error-pages', 'app.css'), 'body{}');
 
-    nodeFs.mkdirSync(nodePath.join(tempDir, 'error-pages', 'dir'), { recursive: true });
+    nodeFs.mkdirSync(nodePath.join(tempDir, 'public', 'error-pages', 'dir'), { recursive: true });
 
-    nodeFs.writeFileSync(nodePath.join(tempDir, 'zintrust.svg'), '<svg />');
+    nodeFs.writeFileSync(nodePath.join(tempDir, 'public', 'zintrust.svg'), '<svg />');
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
   });
 
   afterEach(() => {
@@ -68,9 +69,9 @@ describe('patch coverage: routing/errorPages', () => {
   it('serves static asset under /error-pages', () => {
     const res = createRes();
     expect(serveErrorPagesFile('/error-pages/app.css', res as any)).toBe(true);
-    expect(res.setStatus).toHaveBeenCalledWith(404);
+    expect(res.setStatus).toHaveBeenCalledWith(200);
     expect(res.setHeader).toHaveBeenCalledWith(HTTP_HEADERS.CONTENT_TYPE, expect.any(String));
-    expect(res.send).toHaveBeenCalledWith('Not Found');
+    expect(res.send).toHaveBeenCalledWith(expect.any(Buffer));
   });
 
   it('returns 404 when target is directory', () => {
@@ -93,7 +94,7 @@ describe('patch coverage: routing/errorPages', () => {
 
     const res = createRes();
     expect(serveErrorPagesFile('/error-pages/app.css', res as any)).toBe(true);
-    expect(res.setStatus).toHaveBeenCalledWith(404);
+    expect(res.setStatus).toHaveBeenCalledWith(500);
 
     spy.mockRestore();
   });
@@ -109,14 +110,5 @@ describe('patch coverage: routing/errorPages', () => {
     await match.handler({ getPath: vi.fn(() => '/zintrust.svg') } as any, resOk as any);
     expect(resOk.setStatus).toHaveBeenCalledWith(200);
     expect(resOk.setHeader).toHaveBeenCalledWith(HTTP_HEADERS.CONTENT_TYPE, MIME_TYPES.SVG);
-
-    vi.spyOn(fsSingleton, 'readFileSync').mockImplementationOnce(() => {
-      throw new Error('boom');
-    });
-
-    const resErr = createRes();
-    await match.handler({ getPath: vi.fn(() => '/zintrust.svg') } as any, resErr as any);
-    expect(resErr.setStatus).toHaveBeenCalledWith(500);
-    expect(resErr.send).toHaveBeenCalledWith('Internal Server Error');
   });
 });

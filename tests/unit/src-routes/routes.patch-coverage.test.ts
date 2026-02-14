@@ -22,6 +22,22 @@ vi.mock('@/config', () => ({
   appConfig: {
     environment: 'test',
   },
+  cacheConfig: {
+    default: 'memory',
+    drivers: {},
+  },
+  databaseConfig: {
+    default: 'sqlite',
+    connections: {},
+  },
+  queueConfig: {
+    default: 'memory',
+    drivers: {},
+  },
+  storageConfig: {
+    default: 'local',
+    disks: {},
+  },
 }));
 
 vi.mock('@config/app', () => ({

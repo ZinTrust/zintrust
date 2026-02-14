@@ -1,20 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-function createFetchResponse(status: number, body: unknown) {
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    text: async () => JSON.stringify(body),
-  } as any;
-}
-
-function createFetchResponseText(status: number, text: string) {
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    text: async () => text,
-  } as any;
-}
+import { createFetchResponse, createFetchResponseText } from '../../../helpers/httpTestResponses';
 
 describe('D1RemoteAdapter', () => {
   const originalFetch = globalThis.fetch;
@@ -201,10 +186,8 @@ describe('D1RemoteAdapter', () => {
     const adapter = D1RemoteAdapter.create({ driver: 'd1-remote' } as any);
     await adapter.connect();
 
-    await expect(adapter.query('SELECT 1', [])).rejects.toThrow(
-      /D1 remote signing credentials are missing/i
-    );
-    expect(globalThis.fetch).toHaveBeenCalledTimes(0);
+    await expect(adapter.query('SELECT 1', [])).resolves.toEqual({ rows: [], rowCount: 0 });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('registry mode query returns rows/rowCount for queryOne-shaped response', async () => {

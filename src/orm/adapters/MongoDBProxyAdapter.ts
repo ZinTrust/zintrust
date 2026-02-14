@@ -35,7 +35,7 @@ const setCachedResult = (key: string, data: QueryResult): void => {
 
 const resolveProxyUrl = (): string => {
   const url = Env.get('MONGODB_PROXY_URL', '');
-  if (url) return url;
+  if (typeof url === 'string' && url.trim() !== '') return url;
 
   const host = Env.get('MONGODB_PROXY_HOST', '127.0.0.1');
   const port = Env.getInt('MONGODB_PROXY_PORT', 8792);
@@ -55,7 +55,7 @@ const resolveSigningPrefix = (baseUrl: string): string | undefined => {
 
 const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
   const prefix = resolveSigningPrefix(baseUrl);
-  if (!prefix) return requestUrl;
+  if (typeof prefix !== 'string' || prefix.trim() === '') return requestUrl;
 
   if (requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`)) {
     const signingUrl = new URL(requestUrl.toString());

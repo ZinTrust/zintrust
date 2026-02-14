@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Env } from '@/config/env';
 import { JobStateTracker } from '@/tools/queue/JobStateTracker';
 import type { RequestInfo } from 'miniflare';
-import { HttpQueueDriver } from 'packages/queue-redis/src/HttpQueueDriver';
+import { HttpQueueDriver } from '../../../../packages/queue-redis/src/HttpQueueDriver';
 
 describe('HttpQueueDriver', () => {
   it('sends signed enqueue request and returns gateway job id', async () => {

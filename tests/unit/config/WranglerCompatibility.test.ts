@@ -12,10 +12,20 @@ describe('wrangler compatibility settings', () => {
   it('keeps compatibility_date at or above 2024-01-15 and nodejs_compat enabled', () => {
     const content = readFileSync('wrangler.jsonc', 'utf-8');
     const parsed = parseJsonc(content);
-    const date = String(parsed.compatibility_date ?? '');
+    const workerEnv =
+      typeof parsed.env === 'object' && parsed.env !== null
+        ? (parsed.env as Record<string, unknown>)['worker']
+        : undefined;
+    const workerConfig =
+      typeof workerEnv === 'object' && workerEnv !== null
+        ? (workerEnv as Record<string, unknown>)
+        : {};
+    const date = String(parsed.compatibility_date ?? workerConfig['compatibility_date'] ?? '');
     const flags = Array.isArray(parsed.compatibility_flags)
       ? parsed.compatibility_flags.map(String)
-      : [];
+      : Array.isArray(workerConfig['compatibility_flags'])
+        ? (workerConfig['compatibility_flags'] as unknown[]).map(String)
+        : [];
 
     expect(date).toBeTruthy();
     expect(date >= '2024-01-15').toBe(true);

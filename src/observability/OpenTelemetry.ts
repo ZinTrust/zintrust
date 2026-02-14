@@ -78,9 +78,9 @@ const fallbackPropagation = {
 
 const fallbackTrace = {
   getTracer: () => ({
-    startSpan: () => noopSpan,
+    startSpan: (_name?: string, _options?: unknown, _context?: Context): Span => noopSpan,
   }),
-  getSpan: () => undefined,
+  getSpan: (_ctx?: Context) => undefined,
   setSpan: (ctx: Context) => ctx,
 };
 
@@ -93,6 +93,23 @@ const fallbackSpanStatusCode = {
   OK: 1,
   ERROR: 2,
 } as const;
+
+const resolveSpanStatusCode = (): typeof fallbackSpanStatusCode => {
+  return otel()?.SpanStatusCode ?? fallbackSpanStatusCode;
+};
+
+const resolveTracingContext = (): {
+  traceApi: OpenTelemetryApi['trace'] | typeof fallbackTrace;
+  activeContext: Context;
+  spanKind: typeof fallbackSpanKind;
+} => {
+  const api = otel();
+  return {
+    traceApi: api?.trace ?? fallbackTrace,
+    activeContext: api?.context?.active() ?? fallbackContext.active(),
+    spanKind: api?.SpanKind ?? fallbackSpanKind,
+  };
+};
 
 const otel = (): OpenTelemetryApi | null => resolveOpenTelemetryApi();
 
@@ -293,11 +310,11 @@ const recordQueueOperationSpan = (input: RecordQueueOperationSpanInput): void =>
   if (isEnabled() === false) return;
 
   try {
-    const traceApi = otel()?.trace ?? fallbackTrace;
-    const parentSpan = traceApi.getSpan(otel()?.context?.active() ?? fallbackContext.active());
+    const tracing = resolveTracingContext();
+    const parentSpan = tracing.traceApi.getSpan(tracing.activeContext);
     if (!parentSpan) return;
 
-    const tracer = traceApi.getTracer('zintrust');
+    const tracer = tracing.traceApi.getTracer('zintrust');
     const now = Date.now();
     const durationMs = Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0;
     const startTime = now - durationMs;
@@ -305,7 +322,7 @@ const recordQueueOperationSpan = (input: RecordQueueOperationSpanInput): void =>
     const span = tracer.startSpan(
       `queue.${input.operation}`,
       {
-        kind: (otel()?.SpanKind ?? fallbackSpanKind).CLIENT,
+        kind: tracing.spanKind.CLIENT,
         startTime,
         attributes: {
           'messaging.system': 'zintrust-queue',
@@ -314,13 +331,15 @@ const recordQueueOperationSpan = (input: RecordQueueOperationSpanInput): void =>
           'zintrust.queue.status': input.status,
         },
       },
-      otel()?.context?.active() ?? fallbackContext.active()
+      tracing.activeContext
     );
 
+    const statusCode = resolveSpanStatusCode();
+
     if (input.status === 'error') {
-      span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).ERROR });
+      span.setStatus({ code: statusCode.ERROR });
     } else {
-      span.setStatus({ code: (otel()?.SpanStatusCode ?? fallbackSpanStatusCode).OK });
+      span.setStatus({ code: statusCode.OK });
     }
 
     span.end(now);

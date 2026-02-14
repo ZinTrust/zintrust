@@ -2,7 +2,7 @@ import type { AssetsBinding, IRouter } from '@zintrust/core';
 import { Cloudflare, Logger, MIME_TYPES, NodeSingletons, Router } from '@zintrust/core';
 import { INDEX_HTML, MAIN_JS, STYLES_CSS, ZINTRUST_SVG } from './EmbeddedAssets';
 
-const isCloudflare = (() => {
+const isCloudflare = ((): boolean => {
   try {
     return Cloudflare.getWorkersEnv() !== null;
   } catch {

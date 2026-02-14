@@ -20,7 +20,7 @@ describe('CLI RoutesCommand', () => {
     expect(output).toContain('Method');
     expect(output).toContain('Path');
     expect(output).toContain('http://127.0.0.1:7777');
-    expect(output).toContain('/api/v1');
+    expect(output).toContain('/health');
 
     logSpy.mockRestore();
   });

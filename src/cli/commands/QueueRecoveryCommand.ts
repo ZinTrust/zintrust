@@ -543,6 +543,15 @@ const resolveExecutionOptions = (
   const jobIdRaw = typeof options.jobId === 'string' ? options.jobId.trim() : '';
   const hasJobId = jobIdRaw.length > 0;
   const sourceRaw = (options.source ?? 'auto').trim().toLowerCase();
+  let source: ListSource = 'auto';
+
+  if (sourceRaw === 'db') {
+    source = 'db';
+  } else if (sourceRaw === 'server') {
+    source = 'server';
+  } else if (sourceRaw === 'memory') {
+    source = 'memory';
+  }
 
   if (
     options.source !== undefined &&
@@ -563,14 +572,7 @@ const resolveExecutionOptions = (
     queueName: typeof options.queue === 'string' ? options.queue.trim() : undefined,
     status: parseStatus(options.status),
     limit: parseLimit(options.limit),
-    source:
-      sourceRaw === 'db'
-        ? 'db'
-        : sourceRaw === 'server'
-          ? 'server'
-          : sourceRaw === 'memory'
-            ? 'memory'
-            : 'auto',
+    source,
     asJson: options.json === true,
     dryRun: options.dryRun === true,
     push: options.push === true,

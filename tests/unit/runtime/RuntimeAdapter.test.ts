@@ -113,7 +113,7 @@ describe('RuntimeAdapter helpers', () => {
         res as unknown as { writeHead: (code: number, headers?: Record<string, string>) => object }
       ).writeHead(201, { 'X-From-Head': 'yes' });
       expect(responseData.statusCode).toBe(201);
-      expect(responseData.headers['X-From-Head']).toBe('yes');
+      expect(responseData.headers['x-from-head']).toBe('yes');
 
       // setHeader lowercases name
       (res as unknown as { setHeader: (name: string, value: string) => object }).setHeader(

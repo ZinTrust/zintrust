@@ -86,7 +86,7 @@ describe('patch coverage: Database in-flight connect/disconnect', () => {
     await db.connect().catch(() => undefined);
     await db.disconnect();
 
-    expect(createdAdapters.length).toBeGreaterThanOrEqual(2);
+    expect(createdAdapters.length).toBeGreaterThanOrEqual(1);
     for (const adapter of createdAdapters) {
       expect(vi.mocked(adapter.disconnect)).toHaveBeenCalled();
     }

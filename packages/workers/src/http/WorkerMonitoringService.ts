@@ -20,18 +20,18 @@ const createFallbackEmitter = (): EventEmitterLike => {
   const listeners = new Map<string, Set<(payload: SnapshotData) => void>>();
 
   return {
-    on(event, listener) {
+    on(event, listener): void {
       const set = listeners.get(event) ?? new Set<(payload: SnapshotData) => void>();
       set.add(listener);
       listeners.set(event, set);
     },
-    off(event, listener) {
+    off(event, listener): void {
       const set = listeners.get(event);
       if (!set) return;
       set.delete(listener);
       if (set.size === 0) listeners.delete(event);
     },
-    emit(event, payload) {
+    emit(event, payload): boolean {
       const set = listeners.get(event);
       if (!set) return false;
       for (const listener of set) listener(payload as SnapshotData);

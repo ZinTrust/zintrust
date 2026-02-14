@@ -122,7 +122,7 @@ describe('Mail (extra tests)', () => {
     (mailConfig as any).default = 'unknown';
 
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
-      /Mail driver not implemented/i
+      /Mail driver not registered: unknown/i
     );
   });
 });

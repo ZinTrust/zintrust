@@ -68,43 +68,22 @@ export interface ICLI {
   run(args: string[]): Promise<void>;
   getProgram(): Command;
 }
-/**
- * Load version from package.json
- */
-const loadVersion = (): string => {
-  try {
-    const packagePath = join(__dirname, '../../package.json');
-    const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
-      version?: string;
-    };
-    return typeof packageJson.version === 'string' ? packageJson.version : '1.0.0';
-  } catch (error) {
-    ErrorFactory.createCliError('Failed to load version from package.json', error);
-    // Use default version if package.json not found
-    return '1.0.0';
-  }
+
+type CommandProvider = {
+  getCommand: () => Command;
 };
 
-/**
- * Setup program metadata
- */
-const setupProgram = (program: Command, version: string): void => {
-  program
-    .name('zintrust')
-    .description('ZinTrust Framework CLI - Build production-grade TypeScript APIs')
-    .version(version, '-v, --version', 'Output version number')
-    .helpOption('-h, --help', 'Display help for command')
-    .usage('[command] [options]');
-
-  // Global error handling
-  program.exitOverride();
+const isCommandProvider = (command: unknown): command is CommandProvider => {
+  return (
+    typeof command === 'object' &&
+    command !== null &&
+    'getCommand' in command &&
+    typeof (command as { getCommand?: unknown }).getCommand === 'function'
+  );
 };
 
-/**
- * Register all available commands
- */
-const registerCommands = (program: Command): void => {
-  const commands = [
+const buildCommandRegistry = (): Array<Command | CommandProvider> => {
+  return [
     NewCommand.create(),
     UpgradeCommand.create(),
     PrepareCommand,
@@ -152,7 +131,6 @@ const registerCommands = (program: Command): void => {
     SqlServerProxyCommand.create(),
     RedisProxyCommand.create(),
     SmtpProxyCommand.create(),
-    // Worker management commands
     WorkerCommands.createWorkerListCommand(),
     WorkerCommands.createWorkerStatusCommand(),
     WorkerCommands.createWorkerStartCommand(),
@@ -161,13 +139,47 @@ const registerCommands = (program: Command): void => {
     WorkerCommands.createWorkerRestartCommand(),
     WorkerCommands.createWorkerSummaryCommand(),
   ];
+};
+/**
+ * Load version from package.json
+ */
+const loadVersion = (): string => {
+  try {
+    const packagePath = join(__dirname, '../../package.json');
+    const packageJson = JSON.parse(readFileSync(packagePath, 'utf-8')) as {
+      version?: string;
+    };
+    return typeof packageJson.version === 'string' ? packageJson.version : '1.0.0';
+  } catch (error) {
+    ErrorFactory.createCliError('Failed to load version from package.json', error);
+    // Use default version if package.json not found
+    return '1.0.0';
+  }
+};
+
+/**
+ * Setup program metadata
+ */
+const setupProgram = (program: Command, version: string): void => {
+  program
+    .name('zintrust')
+    .description('ZinTrust Framework CLI - Build production-grade TypeScript APIs')
+    .version(version, '-v, --version', 'Output version number')
+    .helpOption('-h, --help', 'Display help for command')
+    .usage('[command] [options]');
+
+  // Global error handling
+  program.exitOverride();
+};
+
+/**
+ * Register all available commands
+ */
+const registerCommands = (program: Command): void => {
+  const commands = buildCommandRegistry();
 
   for (const command of commands) {
-    if (
-      typeof command === 'object' &&
-      'getCommand' in command &&
-      typeof command.getCommand === 'function'
-    ) {
+    if (isCommandProvider(command)) {
       program.addCommand(command.getCommand());
     } else {
       program.addCommand(command as Command);

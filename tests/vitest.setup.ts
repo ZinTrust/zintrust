@@ -199,6 +199,35 @@ vi.mock('packages/queue-monitor/src/driver', () => ({}));
 vi.mock('packages/db-mysql/src/register', () => ({}));
 vi.mock('packages/db-postgres/src/register', () => ({}));
 vi.mock('packages/queue-redis/src/register', () => ({}));
+vi.mock('packages/cache-redis/src/index', () => ({
+  RedisProxyAdapter: {
+    create: () => ({
+      get: async () => null,
+      set: async () => undefined,
+      has: async () => false,
+      delete: async () => undefined,
+      clear: async () => undefined,
+    }),
+  },
+  RedisWorkersDurableObjectAdapter: {
+    create: () => ({
+      get: async () => null,
+      set: async () => undefined,
+      has: async () => false,
+      delete: async () => undefined,
+      clear: async () => undefined,
+    }),
+  },
+}));
+vi.mock('packages/queue-redis/src/HttpQueueDriver', () => ({
+  HttpQueueDriver: {
+    enqueue: async () => 'mock-job-id',
+    dequeue: async () => null,
+    ack: async () => true,
+    length: async () => 0,
+    drain: async () => 0,
+  },
+}));
 
 // Mock database adapter registry to match actual global structure
 vi.mock('src/orm/DatabaseAdapterRegistry', () => {

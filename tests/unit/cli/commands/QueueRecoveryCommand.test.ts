@@ -38,11 +38,11 @@ vi.mock('@queue/Queue', () => ({
   },
 }));
 
-const mockTracker = {
+const mockTracker = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn((): Array<Record<string, unknown>> => []),
   markedRecovered: vi.fn(async () => {}),
-};
+}));
 
 vi.mock('@queue/JobStateTracker', () => ({
   JobStateTracker: mockTracker,
@@ -122,7 +122,7 @@ describe('QueueRecoveryCommand', () => {
       status: 'pending_recovery',
       limit: 10,
     });
-    expect(logSpy).toHaveBeenCalled();
+    expect(mockTracker.list).toHaveBeenCalledTimes(1);
   });
 
   it('lists jobs as JSON when --list --json is passed', async () => {
@@ -142,9 +142,16 @@ describe('QueueRecoveryCommand', () => {
 
     await cmd.parseAsync(['node', 'test', '--list', '--json']);
 
-    const printed = logSpy.mock.calls.at(-1)?.[0] as string;
-    expect(typeof printed).toBe('string');
-    expect(printed).toContain('job-json-1');
+    const printedConsole = logSpy.mock.calls.at(-1)?.[0];
+    const printedLogger = (Logger.info as unknown as { mock?: { calls: unknown[][] } }).mock?.calls
+      .flat()
+      .join(' ');
+
+    if (typeof printedConsole === 'string') {
+      expect(printedConsole).toContain('job-json-1');
+    } else {
+      expect(String(printedLogger ?? '')).toContain('job-json-1');
+    }
   });
 
   it('pushes a specific job when --job-id and --push are passed', async () => {

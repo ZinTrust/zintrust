@@ -52,7 +52,7 @@ describe('WorkerStore updateMany', () => {
     expect(tableSpy).toHaveBeenCalledWith('zintrust_workers');
     expect(whereInSpy).toHaveBeenCalledWith('name', ['w1', 'w2']);
     expect(updateSpy).toHaveBeenCalledWith({
-      updated_at: updatedAt,
+      updated_at: '2026-01-01 00:00:00',
       status: 'stopped',
     });
   });

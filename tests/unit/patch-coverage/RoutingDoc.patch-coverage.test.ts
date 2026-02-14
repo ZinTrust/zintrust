@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from 'vitest';
 
 import * as nodeFs from 'node:fs';
 import * as nodeOs from 'node:os';
@@ -46,7 +46,7 @@ const createRes = (): TestRes => ({
 describe('patch coverage: routing/doc', () => {
   let tempDir: string;
 
-  beforeEach(() => {
+  beforeAll(() => {
     vi.clearAllMocks();
     tempDir = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'zintrust-doc-'));
     hoisted.publicRoot = tempDir;
@@ -58,7 +58,7 @@ describe('patch coverage: routing/doc', () => {
     nodeFs.writeFileSync(nodePath.join(tempDir, 'assets', 'app.js'), 'console.log("ok")');
   });
 
-  afterEach(() => {
+  afterAll(() => {
     nodeFs.rmSync(tempDir, { recursive: true, force: true });
   });
 
