@@ -100,6 +100,7 @@
     "downlevelIteration": true
   },
   "include": [
+    "config/**/*",
     "src/**/*",
     "app/**/*",
     "routes/**/*",
@@ -116,7 +117,6 @@
     "dist",
     "build",
     "coverage",
-    "config",
     "tests/cli/test-factories-*",
     ".next",
     ".git",

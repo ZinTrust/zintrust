@@ -362,6 +362,7 @@ ${options.database === 'isolated' ? `${options.name?.toUpperCase()}_DB_HOST=loca
 # Authentication
 SERVICE_AUTH_STRATEGY=${options.auth ?? 'api-key'}
 SERVICE_AUTH_KEY=your-auth-key-here
+CSRF_SKIP_PATHS=/api/*,/queue-monitor/*
 
 # Tracing
 SERVICE_TRACING_ENABLED=true

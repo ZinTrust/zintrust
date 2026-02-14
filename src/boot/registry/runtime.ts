@@ -47,9 +47,9 @@ const loadRuntimeQueueConfig = async (): Promise<RuntimeQueueConfig | undefined>
   try {
     const modulePath = '@runtime-config/queue';
     const loaded = (await import(modulePath)) as { default?: RuntimeQueueConfig };
-    return loaded.default;
+    return loaded.default ?? (queueConfig as RuntimeQueueConfig | undefined) ?? undefined;
   } catch {
-    return undefined;
+    return (queueConfig as RuntimeQueueConfig | undefined) ?? undefined;
   }
 };
 const readRuntimeConfig = <T>(key: string, fallback: T): T => {
@@ -291,6 +291,9 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
 
   const queueMonitorModule = await loadAndValidateQueueMonitorModule();
   if (queueMonitorModule === null) {
+    Logger.debug(
+      'Queue Monitor is enabled in configuration but module failed to load or is invalid. Skipping Queue Monitor initialization.'
+    );
     return;
   }
 

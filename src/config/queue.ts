@@ -69,7 +69,7 @@ const parseRedisUrl = (
     const port = url.port ? Number.parseInt(url.port, 10) : 6379;
     const password = url.password ? decodeURIComponent(url.password) : undefined;
     const db = url.pathname ? Number.parseInt(url.pathname.replace('/', ''), 10) : undefined;
-    return { host, port, password, database: Number.isFinite(db ?? NaN) ? db : undefined };
+    return { host, port, password, database: Number.isFinite(db ?? Number.NaN) ? db : undefined };
   } catch {
     return null;
   }

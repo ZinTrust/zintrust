@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import { getAvailableTemplates, loadTemplate } from '@mail/template-loader';
@@ -87,6 +89,69 @@ describe('mail template-loader patch coverage', () => {
     expect(html).toContain('{{#if_bad-name}}NO{{/if_bad-name}}');
     expect(html).toContain('{{#if_open}}still-open');
     expect(html).toContain('<li>Ada</li>');
+  });
+
+  it('uses builtin template loader for known templates', async () => {
+    const html = await loadTemplate('welcome', { appName: 'ZinTrust' });
+    expect(typeof html).toBe('string');
+    expect(html.length).toBeGreaterThan(0);
+  });
+
+  it('handles builtin loader import failure and falls back to file candidates', async () => {
+    vi.doMock('@mail/templates/welcome.js', () => {
+      throw new Error('builtin-import-failed');
+    });
+
+    vi.mocked(readFile).mockResolvedValueOnce('<html>Fallback {{name}}</html>');
+
+    try {
+      const html = await loadTemplate('welcome', { name: 'Ada' });
+      expect(html).toContain('Fallback Ada');
+    } finally {
+      vi.doUnmock('@mail/templates/welcome.js');
+    }
+  });
+
+  it('falls back to module candidate import when readFile candidates fail', async () => {
+    const moduleName = 'module-fallback-template';
+    const cwd = process.cwd();
+    const moduleDir = path.join(cwd, 'dist', 'src', 'tools', 'mail', 'templates');
+    const modulePath = path.join(moduleDir, `${moduleName}.js`);
+
+    fs.mkdirSync(moduleDir, { recursive: true });
+    fs.writeFileSync(modulePath, "export default '<html>Module {{name}}</html>'\n", 'utf8');
+
+    vi.mocked(readFile).mockRejectedValue(new Error('missing-file'));
+
+    try {
+      const html = await loadTemplate(moduleName, { name: 'Ada' });
+      expect(html).toContain('Module Ada');
+    } finally {
+      fs.rmSync(modulePath, { force: true });
+    }
+  });
+
+  it('preserves content when each block is unclosed', async () => {
+    vi.mocked(readFile).mockResolvedValueOnce('<html>{{#each_rows}}<li>{{name}}</li></html>');
+
+    const html = await loadTemplate('sample.html', { rows: [{ name: 'Ada' }] });
+    expect(html).toContain('{{#each_rows}}<li>{{name}}</li>');
+  });
+
+  it('preserves unclosed each block when template html is passed directly', async () => {
+    const html = await loadTemplate('<html>{{#each_rows}}<li>{{name}}</li></html>', {
+      rows: [{ name: 'Ada' }],
+    });
+
+    expect(html).toContain('{{#each_rows}}<li>{{name}}</li>');
+  });
+
+  it('preserves malformed open token blocks safely', async () => {
+    const html = await loadTemplate('<html>{{#each_rows<li>{{name}}</li></html>', {
+      rows: [{ name: 'Ada' }],
+    });
+
+    expect(html).toContain('{{#each_rows<li>{{name}}</li>');
   });
 
   it('renders repeated conditional tokens safely', async () => {

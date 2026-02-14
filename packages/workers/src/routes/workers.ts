@@ -4,7 +4,7 @@
  */
 
 import type { IRequest, IResponse, IRouter } from '@zintrust/core';
-import { Cloudflare, Logger, Router } from '@zintrust/core';
+import { Cloudflare, Env, Logger, Router } from '@zintrust/core';
 import { type WorkersDashboardUiOptions } from '../dashboard';
 import { HealthMonitor } from '../HealthMonitor';
 import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';
@@ -205,8 +205,9 @@ export function registerWorkerRoutes(
     basePath: '/telemetry',
   });
   dashboard.registerRoutes(router);
-  Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
-  Logger.info('Telemetry dashboard registered at http://127.0.0.1:7777/telemetry');
+  const port = Env.get('PORT', '7777');
+  Logger.info(`Worker routes registered at http://127.0.0.1:${port}/workers`);
+  Logger.info(`Telemetry dashboard registered at http://127.0.0.1:${port}/telemetry`);
 }
 
 export default registerWorkerRoutes;

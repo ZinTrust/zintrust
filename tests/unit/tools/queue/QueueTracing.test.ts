@@ -88,4 +88,20 @@ describe('QueueTracing', () => {
     expect(snapshot[0]?.status).toBe('error');
     expect(snapshot[0]?.error).toContain('boom');
   });
+
+  it('uses Math.random sampling path when sample rate is between 0 and 1', async () => {
+    Env.set('QUEUE_TRACING_ENABLED', 'true');
+    Env.set('QUEUE_TRACING_SAMPLE_RATE', '0.5');
+
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    const out = await QueueTracing.traceOperation({
+      queueName: 'emails',
+      operation: 'enqueue',
+      execute: async () => 'sampled',
+    });
+
+    expect(out).toBe('sampled');
+    expect(randomSpy).toHaveBeenCalled();
+    randomSpy.mockRestore();
+  });
 });

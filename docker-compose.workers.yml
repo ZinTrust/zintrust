@@ -13,6 +13,7 @@ services:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=7772
       - HOST=0.0.0.0
+      - CSRF_SKIP_PATHS=${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
       - RUNTIME_MODE=node-server
 
       # Application

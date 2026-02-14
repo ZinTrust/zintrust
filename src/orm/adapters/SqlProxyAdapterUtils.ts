@@ -8,6 +8,7 @@ export type ProxySettings = {
   keyId?: string;
   secret?: string;
   timeoutMs: number;
+  signaturePathPrefixToStrip?: string;
 };
 
 export type SignedProxyConfig = {
@@ -28,7 +29,8 @@ export const buildSignedSettings = (config: SignedProxyConfig): RemoteSignedJson
     keyId: creds.keyId,
     secret: creds.secret,
     timeoutMs: config.settings.timeoutMs,
-    signaturePathPrefixToStrip: resolveSigningPrefix(config.settings.baseUrl),
+    signaturePathPrefixToStrip:
+      config.settings.signaturePathPrefixToStrip ?? resolveSigningPrefix(config.settings.baseUrl),
     missingUrlMessage: config.missingUrlMessage,
     missingCredentialsMessage: config.missingCredentialsMessage,
     messages: config.messages,

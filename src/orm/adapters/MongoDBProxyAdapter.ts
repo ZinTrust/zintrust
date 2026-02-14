@@ -7,10 +7,24 @@ import type { IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { ProxyCache } from '@orm/adapters/ProxyCache';
 import {
   ensureSignedSettings,
+  isRecord,
   requestSignedProxy,
   type ProxySettings,
   type SignedProxyConfig,
 } from '@orm/adapters/SqlProxyAdapterUtils';
+
+const normalizeRows = (value: unknown): Record<string, unknown>[] => {
+  if (value === null) return [];
+  if (Array.isArray(value)) return value as Record<string, unknown>[];
+  return [value as Record<string, unknown>];
+};
+
+const extractResultPayload = (response: unknown): unknown => {
+  if (!isRecord(response)) return response;
+  if ('result' in response) return response['result'];
+  if ('rows' in response) return response['rows'];
+  return response;
+};
 
 const getCacheKey = (collection: string, operation: string, args: unknown): string => {
   return `${collection}:${operation}:${JSON.stringify(args)}`;
@@ -47,6 +61,8 @@ const buildSignedProxyConfig = (settings: ProxySettings): SignedProxyConfig => (
     timedOut: 'MongoDB proxy timed out',
   },
 });
+
+const MONGODB_OPERATION_PATH = '/zin/mongodb/operation';
 
 export function createMongoDBProxyAdapter(): IDatabaseAdapter {
   let connected = false;
@@ -86,16 +102,20 @@ export function createMongoDBProxyAdapter(): IDatabaseAdapter {
       const cached = cache.get(cacheKey);
       if (cached) return cached;
 
-      const response = await requestSignedProxy<{ success: boolean; result: unknown }>(
-        buildSignedProxyConfig(settings),
-        '/zin/mongodb/operation',
+      const response = await requestSignedProxy<unknown>(
+        buildSignedProxyConfig({
+          ...settings,
+          signaturePathPrefixToStrip: MONGODB_OPERATION_PATH,
+        }),
+        MONGODB_OPERATION_PATH,
         { collection, operation, args }
       );
 
-      const result = response.result;
+      const result = extractResultPayload(response);
+      const rows = normalizeRows(result);
       const queryResult: QueryResult = {
-        rows: (Array.isArray(result) ? result : [result]) as Record<string, unknown>[],
-        rowCount: Array.isArray(result) ? result.length : 1,
+        rows,
+        rowCount: rows.length,
       };
 
       cache.set(cacheKey, queryResult);
