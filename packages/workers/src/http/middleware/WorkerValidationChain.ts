@@ -28,6 +28,7 @@ export const withCreateWorkerValidation = (handler: RouteHandler): RouteHandler 
       'infrastructure',
       'features',
       'datacenter',
+      'activeStatus',
     ],
     withProcessorPathValidation(
       withWorkerNameValidation(

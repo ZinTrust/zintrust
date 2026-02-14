@@ -8,12 +8,39 @@ import { RuntimeHealthProbes } from '@/health/RuntimeHealthProbes';
 import type { IRequest } from '@/http/Request';
 import type { IResponse } from '@/http/Response';
 import { HealthUtils } from '@common/ExternalServiceUtils';
+import { databaseConfig } from '@config/database';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IRouter } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
 import { useDatabase } from '@orm/Database';
 import { QueryBuilder } from '@orm/QueryBuilder';
+
+const isMissingDefaultDatabase = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false;
+  const maybe = error as { name?: string; code?: string; message?: string };
+  if (maybe.name !== 'ConfigError' || maybe.code !== 'CONFIG_ERROR') return false;
+  return typeof maybe.message === 'string'
+    ? maybe.message.includes("Database connection 'default' is not registered")
+    : false;
+};
+
+const ensureDefaultDatabase = async (): Promise<ReturnType<typeof useDatabase> | null> => {
+  try {
+    return useDatabase();
+  } catch (error) {
+    if (!isMissingDefaultDatabase(error)) throw error;
+
+    try {
+      const mod = await import('@orm/DatabaseRuntimeRegistration');
+      mod.registerDatabasesFromRuntimeConfig?.(databaseConfig);
+      return useDatabase();
+    } catch (innerError) {
+      Logger.warn('Database registration failed; skipping health DB check', innerError as Error);
+      return null;
+    }
+  }
+};
 
 /**
  * Health check endpoint handler
@@ -22,7 +49,17 @@ async function handleHealthRoute(_req: IRequest, res: IResponse): Promise<void> 
   const environment = Env.NODE_ENV ?? 'development';
 
   try {
-    const db = useDatabase();
+    const db = await ensureDefaultDatabase();
+    if (db === null) {
+      const uptime = HealthUtils.getUptime();
+      res.json(
+        HealthUtils.buildHealthResponse('healthy', environment, {
+          uptime,
+          database: 'unconfigured',
+        })
+      );
+      return;
+    }
     const maybeIsConnected = (db as unknown as { isConnected?: unknown }).isConnected;
     const maybeConnect = (db as unknown as { connect?: unknown }).connect;
     if (typeof maybeIsConnected === 'function' && maybeIsConnected.call(db) === false) {
@@ -75,7 +112,20 @@ async function handleHealthReadyRoute(_req: IRequest, res: IResponse): Promise<v
   let cacheResponseTime: number | null = null;
 
   try {
-    const db = useDatabase();
+    const db = await ensureDefaultDatabase();
+    if (db === null) {
+      res.json(
+        HealthUtils.buildHealthResponse('ready', environment, {
+          dependencies: {
+            database: {
+              status: 'unconfigured',
+              responseTime: 0,
+            },
+          },
+        })
+      );
+      return;
+    }
     const maybeIsConnected = (db as unknown as { isConnected?: unknown }).isConnected;
     const maybeConnect = (db as unknown as { connect?: unknown }).connect;
     if (typeof maybeIsConnected === 'function' && maybeIsConnected.call(db) === false) {

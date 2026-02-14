@@ -205,6 +205,11 @@ const appConfigObj = {
   debug: readEnvBool('DEBUG', Env.DEBUG),
 
   /**
+   *  Indicates if the application is running inside a Docker worker container
+   */
+  dockerWorker: readEnvBool('DOCKER_WORKER', Env.DOCKER_WORKER),
+
+  /**
    * Application timezone
    */
   timezone: readEnvString('APP_TIMEZONE', Env.APP_TIMEZONE),

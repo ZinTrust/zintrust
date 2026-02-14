@@ -1,3 +1,4 @@
+import { Env } from '@config/env';
 import type { MiddlewareConfigType } from '@config/type';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
@@ -300,7 +301,20 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
   const loadMiddlewareConfig: Partial<MiddlewaresType> =
     StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
 
-  const shared = createSharedMiddlewares(loadMiddlewareConfig);
+  const skipPathsFromEnv = Env.get('CSRF_SKIP_PATHS', '')
+    .split(',')
+    .map((path: string) => path.trim())
+    .filter((path: string) => path.length > 0);
+
+  const effectiveMiddlewareConfig: Partial<MiddlewaresType> = {
+    ...loadMiddlewareConfig,
+    skipPaths:
+      Array.isArray(loadMiddlewareConfig.skipPaths) && loadMiddlewareConfig.skipPaths.length > 0
+        ? loadMiddlewareConfig.skipPaths
+        : skipPathsFromEnv,
+  };
+
+  const shared = createSharedMiddlewares(effectiveMiddlewareConfig);
 
   const middlewareConfigObj: MiddlewareConfigType = {
     global: [
@@ -320,6 +334,14 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
 }
 
 let cached: MiddlewareConfigType | null = null;
+
+/**
+ * Clear the middleware configuration cache
+ * This ensures fresh config loading in watch mode
+ */
+export const clearMiddlewareConfigCache = (): void => {
+  cached = null;
+};
 
 // Proxy target must satisfy JS Proxy invariants.
 // When we lazily create a frozen config object (with non-configurable properties),

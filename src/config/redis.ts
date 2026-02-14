@@ -2,6 +2,9 @@ import { Env } from '@config/env';
 import type { RedisBroadcastDriverConfig } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
+import { existsSync } from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
+import { pathToFileURL } from '@node-singletons/url';
 import type { QueueMessage } from '@queue/Queue';
 import { Queue } from '@queue/Queue';
 
@@ -45,14 +48,63 @@ export const getRedisUrl = (config?: RedisBroadcastDriverConfig): string | null 
   return buildRedisUrl(config);
 };
 
+type QueueRedisPublishModule = {
+  createRedisPublishClient?: () => Promise<RedisPublishClient>;
+};
+
+type QueueRedisDriverModule = {
+  RedisQueue?: QueueDriver;
+  BullMQRedisQueue?: QueueDriver;
+};
+
+const resolveLocalQueueRedisEntry = (): string | null => {
+  const cwd =
+    typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '';
+  if (cwd.trim() === '') return null;
+
+  const localEntry = path.join(cwd, 'dist', 'packages', 'queue-redis', 'src', 'index.js');
+  return existsSync(localEntry) ? localEntry : null;
+};
+
+const importQueueRedisModule = async <TModule>(): Promise<TModule | undefined> => {
+  try {
+    return (await import('@zintrust/queue-redis')) as unknown as TModule;
+  } catch {
+    const localEntry = resolveLocalQueueRedisEntry();
+    if (localEntry === null) return undefined;
+    const url = pathToFileURL(localEntry).href;
+    return (await import(url)) as unknown as TModule;
+  }
+};
+
+const loadPluginDriver = async <T = QueueDriver>(): Promise<T> => {
+  try {
+    const mod = await importQueueRedisModule<QueueRedisDriverModule>();
+    if (mod === undefined) {
+      throw ErrorFactory.createConfigError('queue-redis package not found');
+    }
+
+    if (mod.RedisQueue !== undefined) {
+      Queue.register('redis', mod.RedisQueue);
+    } else if (mod.BullMQRedisQueue !== undefined) {
+      Queue.register('redis', mod.BullMQRedisQueue);
+    }
+
+    return Queue.get('redis') as T;
+  } catch (error) {
+    throw ErrorFactory.createConfigError(
+      'Redis queue driver is not registered. Install queue:redis via zin plugin install.',
+      error as Error
+    );
+  }
+};
+
 export const ensureDriver = async <T = QueueDriver>(type?: 'queue' | 'publish'): Promise<T> => {
   if (type === 'publish') {
     // Return Redis publish client with publish() method from package
-    const mod = (await import('@zintrust/queue-redis')) as unknown as {
-      createRedisPublishClient?: () => Promise<RedisPublishClient>;
-    };
+    const mod = await importQueueRedisModule<QueueRedisPublishModule>();
 
-    if (mod.createRedisPublishClient) {
+    if (mod?.createRedisPublishClient) {
       return mod.createRedisPublishClient() as T;
     }
 
@@ -63,23 +115,14 @@ export const ensureDriver = async <T = QueueDriver>(type?: 'queue' | 'publish'):
 
   // Return queue driver (current behavior)
   try {
-    return Queue.get('redis') as T;
-  } catch {
-    try {
-      const mod = (await import('@zintrust/queue-redis')) as unknown as {
-        RedisQueue?: QueueDriver;
-      };
-
-      if (mod.RedisQueue !== undefined) {
-        Queue.register('redis', mod.RedisQueue);
-      }
-
-      return Queue.get('redis') as T;
-    } catch (error) {
-      throw ErrorFactory.createConfigError(
-        'Redis queue driver is not registered. Install queue:redis via zin plugin install.',
-        error as Error
-      );
+    const resolved = Queue.get('redis') as QueueDriver & {
+      __zintrustCoreRedisQueue?: boolean;
+    };
+    if (!(resolved.__zintrustCoreRedisQueue ?? false)) {
+      return resolved as T;
     }
+    return await loadPluginDriver();
+  } catch {
+    return loadPluginDriver();
   }
 };

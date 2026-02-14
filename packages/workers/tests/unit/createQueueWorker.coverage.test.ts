@@ -6,43 +6,53 @@ const queueMock = {
   ack: vi.fn(),
 };
 
-vi.mock('@zintrust/core', () => ({
-  appConfig: {
-    prefix: 'zintrust-test',
-  },
-  workersConfig: {
-    intervalMs: 5000,
-  },
-  Env: {
-    SSE_HEARTBEAT_INTERVAL: 15000,
-  },
-  Logger: {
-    info: vi.fn(),
-    error: vi.fn(),
-  },
-  Queue: queueMock,
-  NodeSingletons: {
-    os: {
-      cpus: () => [{ model: 'test', speed: 2400 }],
-      totalmem: () => 8 * 1024 * 1024 * 1024,
-      freemem: () => 4 * 1024 * 1024 * 1024,
-      loadavg: () => [1, 1.5, 2],
+vi.mock('@zintrust/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@zintrust/core')>();
+  return {
+    ...actual,
+    appConfig: {
+      prefix: 'zintrust-test',
     },
-    path: {
-      resolve: (...parts: string[]) => parts.join('/'),
+    workersConfig: {
+      intervalMs: 5000,
     },
-    module: {
-      createRequire: vi.fn(() => ({
-        resolve: vi.fn(() => '/mocked/path'),
-      })),
+    Env: {
+      SSE_HEARTBEAT_INTERVAL: 15000,
     },
-    createCipheriv: vi.fn(),
-    createDecipheriv: vi.fn(),
-    pbkdf2Sync: vi.fn(),
-    randomBytes: vi.fn(() => Buffer.from('test')),
-  },
-  generateUuid: vi.fn(() => 'test-uuid'),
-}));
+    Logger: {
+      info: vi.fn(),
+      error: vi.fn(),
+    },
+    JobStateTracker: {
+      started: vi.fn().mockResolvedValue(undefined),
+      completed: vi.fn().mockResolvedValue(undefined),
+      failed: vi.fn().mockResolvedValue(undefined),
+    },
+    Queue: queueMock,
+    NodeSingletons: {
+      ...actual.NodeSingletons,
+      os: {
+        cpus: () => [{ model: 'test', speed: 2400 }],
+        totalmem: () => 8 * 1024 * 1024 * 1024,
+        freemem: () => 4 * 1024 * 1024 * 1024,
+        loadavg: () => [1, 1.5, 2],
+      },
+      path: {
+        resolve: (...parts: string[]) => parts.join('/'),
+      },
+      module: {
+        createRequire: vi.fn(() => ({
+          resolve: vi.fn(() => '/mocked/path'),
+        })),
+      },
+      createCipheriv: vi.fn(),
+      createDecipheriv: vi.fn(),
+      pbkdf2Sync: vi.fn(),
+      randomBytes: vi.fn(() => Buffer.from('test')),
+    },
+    generateUuid: vi.fn(() => 'test-uuid'),
+  };
+});
 
 describe('createQueueWorker coverage', () => {
   it('processes one item using maxItems loop', async () => {

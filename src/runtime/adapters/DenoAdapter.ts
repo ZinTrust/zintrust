@@ -201,6 +201,7 @@ function parseDenoRequest(event: Request): PlatformRequest {
     headers,
     query: Object.fromEntries(url.searchParams.entries()),
     remoteAddr: headers['x-forwarded-for']?.toString().split(',')[0] ?? '0.0.0.0',
+    signal: event.signal,
   };
 }
 

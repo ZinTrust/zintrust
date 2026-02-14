@@ -4,6 +4,7 @@
  * Sealed namespace for immutability
  */
 
+import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { ZintrustLang } from '@lang/lang';
 
@@ -31,6 +32,76 @@ const getQueueDriver = (
   return driverConfig.drivers[driverName];
 };
 
+const readWorkersEnvString = (key: string): string => {
+  const workerValue = Cloudflare.getWorkersVar(key);
+  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
+  return '';
+};
+
+const readWorkersFallbackString = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback = ''
+): string => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') return workerValue;
+  return Env.get(fallbackKey, fallback);
+};
+
+const readWorkersFallbackInt = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: number
+): number => {
+  const raw = readWorkersFallbackString(workersKey, fallbackKey, String(fallback));
+  if (raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const parseRedisUrl = (
+  rawUrl: string
+): { host: string; port: number; password?: string; database?: number } | null => {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'redis:' && url.protocol !== 'rediss:') return null;
+    const host = url.hostname;
+    const port = url.port ? Number.parseInt(url.port, 10) : 6379;
+    const password = url.password ? decodeURIComponent(url.password) : undefined;
+    const db = url.pathname ? Number.parseInt(url.pathname.replace('/', ''), 10) : undefined;
+    return { host, port, password, database: Number.isFinite(db ?? Number.NaN) ? db : undefined };
+  } catch {
+    return null;
+  }
+};
+
+const resolveRedisProxyConfig = (): {
+  host: string;
+  port: number;
+  password?: string;
+  database?: number;
+} | null => {
+  const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+  if (!isWorkersRuntime) {
+    return null;
+  }
+
+  const proxyUrl = Env.get('REDIS_PROXY_URL', '').trim();
+  const parsed = proxyUrl ? parseRedisUrl(proxyUrl) : null;
+  if (parsed) return parsed;
+
+  if (Env.getBool('USE_REDIS_PROXY', false)) {
+    return {
+      host: Env.get('REDIS_PROXY_HOST', ''),
+      port: Env.getInt('REDIS_PROXY_PORT', 6379),
+      password: Env.get('REDIS_PASSWORD', ''),
+      database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
+    };
+  }
+
+  return null;
+};
+
 /**
  * Helper: Create base driver configurations from environment
  */
@@ -49,18 +120,43 @@ export const createBaseDrivers = (): QueueDriversConfig => ({
   },
   redis: {
     driver: 'redis' as const,
-    host: Env.get('REDIS_HOST', 'localhost'),
-    port: Env.getInt('REDIS_PORT', 6379),
-    password: Env.get('REDIS_PASSWORD'),
-    database: Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB),
+    host:
+      resolveRedisProxyConfig()?.host ??
+      readWorkersFallbackString('WORKERS_REDIS_HOST', 'REDIS_HOST', 'localhost'),
+    port:
+      resolveRedisProxyConfig()?.port ??
+      readWorkersFallbackInt('WORKERS_REDIS_PORT', 'REDIS_PORT', 6379),
+    password:
+      resolveRedisProxyConfig()?.password ??
+      readWorkersFallbackString('WORKERS_REDIS_PASSWORD', 'REDIS_PASSWORD'),
+    database:
+      resolveRedisProxyConfig()?.database ??
+      readWorkersFallbackInt(
+        'WORKERS_REDIS_QUEUE_DB',
+        'REDIS_QUEUE_DB',
+        ZintrustLang.REDIS_DEFAULT_DB
+      ),
   },
   rabbitmq: {
     driver: 'rabbitmq' as const,
-    host: Env.get('RABBITMQ_HOST', 'localhost'),
-    port: Env.getInt('RABBITMQ_PORT', 5672),
-    username: Env.get('RABBITMQ_USER', 'guest'),
-    password: Env.get('RABBITMQ_PASSWORD', 'guest'),
-    vhost: Env.get('RABBITMQ_VHOST', '/'),
+    host: readWorkersFallbackString('WORKERS_RABBITMQ_HOST', 'RABBITMQ_HOST', 'localhost'),
+    port: readWorkersFallbackInt('WORKERS_RABBITMQ_PORT', 'RABBITMQ_PORT', 5672),
+    username: readWorkersFallbackString('WORKERS_RABBITMQ_USER', 'RABBITMQ_USER', 'guest'),
+    password: readWorkersFallbackString('WORKERS_RABBITMQ_PASSWORD', 'RABBITMQ_PASSWORD', 'guest'),
+    vhost: readWorkersFallbackString('WORKERS_RABBITMQ_VHOST', 'RABBITMQ_VHOST', '/'),
+    httpGatewayUrl: readWorkersFallbackString(
+      'WORKERS_RABBITMQ_HTTP_GATEWAY_URL',
+      'RABBITMQ_HTTP_GATEWAY_URL'
+    ),
+    httpGatewayToken: readWorkersFallbackString(
+      'WORKERS_RABBITMQ_HTTP_GATEWAY_TOKEN',
+      'RABBITMQ_HTTP_GATEWAY_TOKEN'
+    ),
+    httpGatewayTimeoutMs: readWorkersFallbackInt(
+      'WORKERS_RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
+      'RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS',
+      15000
+    ),
   },
   sqs: {
     driver: 'sqs' as const,

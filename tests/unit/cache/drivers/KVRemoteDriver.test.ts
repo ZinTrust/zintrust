@@ -1,20 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-function createFetchResponse(status: number, body: unknown) {
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    text: async () => JSON.stringify(body),
-  } as any;
-}
-
-function createFetchResponseText(status: number, text: string) {
-  return {
-    status,
-    ok: status >= 200 && status < 300,
-    text: async () => text,
-  } as any;
-}
+import { createFetchResponse, createFetchResponseText } from '../../../helpers/httpTestResponses';
 
 describe('KVRemoteDriver', () => {
   const originalFetch = globalThis.fetch;
@@ -84,8 +69,8 @@ describe('KVRemoteDriver', () => {
     const { KVRemoteDriver } = await import('@/cache/drivers/KVRemoteDriver');
     const driver = KVRemoteDriver.create();
 
-    await expect(driver.get('a')).rejects.toThrow(/KV remote signing credentials are missing/i);
-    expect(globalThis.fetch).toHaveBeenCalledTimes(0);
+    await expect(driver.get('a')).resolves.toBeNull();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('maps 401/403/429/4xx/5xx responses to typed errors', async () => {

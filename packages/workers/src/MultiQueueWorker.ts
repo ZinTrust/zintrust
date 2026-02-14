@@ -50,12 +50,12 @@ const multiQueueWorkers = new Map<
 /**
  * Helper: Create worker for a queue
  */
-const createQueueWorker = (
+const createQueueWorker = async (
   workerName: string,
   queueConfig: QueueConfig,
   processor: MultiQueueWorkerConfig['processor']
-): Worker => {
-  const queue = PriorityQueue.getQueueInstance(queueConfig.name);
+): Promise<Worker> => {
+  const queue = await PriorityQueue.getQueueInstance(queueConfig.name);
   const connection = queue.opts.connection;
 
   const workerOptions: WorkerOptions = {
@@ -138,7 +138,7 @@ export const MultiQueueWorker = Object.freeze({
   /**
    * Create multi-queue worker
    */
-  create(config: MultiQueueWorkerConfig): void {
+  async create(config: MultiQueueWorkerConfig): Promise<void> {
     if (multiQueueWorkers.has(config.workerName)) {
       throw ErrorFactory.createWorkerError(
         `Multi-queue worker "${config.workerName}" already exists`
@@ -151,9 +151,16 @@ export const MultiQueueWorker = Object.freeze({
     // Sort queues by priority (higher first)
     const sortedQueues = [...config.queues].sort((a, b) => b.priority - a.priority);
 
-    // Create workers for each queue
-    for (const queueConfig of sortedQueues) {
-      const worker = createQueueWorker(config.workerName, queueConfig, config.processor);
+    // Create workers for each queue in parallel
+    const workerPromises = sortedQueues.map(async (queueConfig) => {
+      const worker = await createQueueWorker(config.workerName, queueConfig, config.processor);
+      return { queueConfig, worker };
+    });
+
+    const workerResults = await Promise.all(workerPromises);
+
+    // Store workers and stats
+    for (const { queueConfig, worker } of workerResults) {
       workers.set(queueConfig.name, worker);
       stats.set(queueConfig.name, initializeQueueStats(queueConfig.name, queueConfig.enabled));
     }
@@ -322,7 +329,7 @@ export const MultiQueueWorker = Object.freeze({
     // Update worker concurrency (requires restart in BullMQ)
     await worker.close();
 
-    const newWorker = createQueueWorker(workerName, queueConfig, mqw.config.processor);
+    const newWorker = await createQueueWorker(workerName, queueConfig, mqw.config.processor);
     mqw.workers.set(queueName, newWorker);
 
     Logger.info(`Queue concurrency updated: ${queueName}`, { workerName, concurrency });

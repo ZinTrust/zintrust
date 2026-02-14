@@ -66,7 +66,8 @@ export default middlewareConfig;
 ZinTrust CSRF uses a Double Submit Cookie pattern (cookie + header). If your application is a pure API
 consumed with `Authorization: Bearer ...` (no cookie-based auth), you may prefer to bypass CSRF for API routes.
 
-- Configure via `CsrfMiddleware.create({ skipPaths: [...] })`
+- Configure via `CSRF_SKIP_PATHS` environment variable: `CSRF_SKIP_PATHS=/api/*,/hooks/*`
+- Or manually via code: `CsrfMiddleware.create({ skipPaths: [...] })`
 - Patterns support simple glob matching where `*` matches any characters (example: `'/api/*'`)
 
 ## Dev Reload Notes

@@ -5,13 +5,15 @@
  */
 
 import {
+  Cloudflare,
   ErrorFactory,
   Logger,
   createRedisConnection,
   generateUuid,
   type RedisConfig,
 } from '@zintrust/core';
-import type IORedis from 'ioredis';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 export type LockAcquisitionOptions = {
   lockKey: string;
@@ -39,15 +41,27 @@ export type AuditLogEntry = {
   success: boolean;
 };
 
-// Generate unique instance ID for this process
-const INSTANCE_ID = `worker-${process.pid}-${Date.now()}-${generateUuid()}`;
+let INSTANCE_ID = '';
+
+const createInstanceId = (): string => {
+  const workers = Cloudflare.getWorkersEnv() !== null;
+  const pid = typeof process !== 'undefined' && typeof process.pid === 'number' ? process.pid : 0;
+  const prefix = workers ? 'worker-cf' : 'worker';
+  return `${prefix}-${pid}-${Date.now()}-${generateUuid()}`;
+};
+
+const getInstanceId = (): string => {
+  if (INSTANCE_ID !== '') return INSTANCE_ID;
+  INSTANCE_ID = createInstanceId();
+  return INSTANCE_ID;
+};
 
 // Redis key prefixes
 const LOCK_PREFIX = 'worker:lock:';
 const AUDIT_PREFIX = 'worker:audit:lock:';
 
 // Internal state
-let redisClient: IORedis | null = null;
+let redisClient: RedisConnection | null = null;
 let heartbeatInterval: NodeJS.Timeout | null = null;
 const activeLocks = new Map<string, LockInfo>();
 
@@ -68,7 +82,7 @@ const getAuditKey = (lockKey: string): string => {
 /**
  * Helper: Store audit log entry in Redis
  */
-const auditLockOperation = async (client: IORedis, entry: AuditLogEntry): Promise<void> => {
+const auditLockOperation = async (client: RedisConnection, entry: AuditLogEntry): Promise<void> => {
   try {
     const auditKey = getAuditKey(entry.lockKey);
     const auditData = JSON.stringify(entry);
@@ -90,11 +104,15 @@ const auditLockOperation = async (client: IORedis, entry: AuditLogEntry): Promis
 /**
  * Helper: Extend lock TTL
  */
-const extendLockTTL = async (client: IORedis, lockKey: string, ttl: number): Promise<boolean> => {
+const extendLockTTL = async (
+  client: RedisConnection,
+  lockKey: string,
+  ttl: number
+): Promise<boolean> => {
   const redisKey = getLockKey(lockKey);
   const value = await client.get(redisKey);
 
-  if (value === null || value !== INSTANCE_ID) {
+  if (value === null || value !== getInstanceId()) {
     return false; // Lock not held by this instance
   }
 
@@ -105,7 +123,7 @@ const extendLockTTL = async (client: IORedis, lockKey: string, ttl: number): Pro
 /**
  * Helper: Start heartbeat for lock extension
  */
-const startHeartbeat = (client: IORedis): void => {
+const startHeartbeat = (client: RedisConnection): void => {
   if (heartbeatInterval) {
     return; // Already running
   }
@@ -132,7 +150,7 @@ const startHeartbeat = (client: IORedis): void => {
                 timestamp: now,
                 operation: 'extend',
                 lockKey,
-                instanceId: INSTANCE_ID,
+                instanceId: getInstanceId(),
                 success: true,
               });
             } else {
@@ -175,10 +193,11 @@ export const ClusterLock = Object.freeze({
       return;
     }
 
-    redisClient = createRedisConnection(config);
-    startHeartbeat(redisClient);
+    const client = createRedisConnection(config);
+    redisClient = client;
+    startHeartbeat(client);
 
-    Logger.info('ClusterLock initialized', { instanceId: INSTANCE_ID });
+    Logger.info('ClusterLock initialized', { instanceId: getInstanceId() });
   },
 
   /**
@@ -197,14 +216,14 @@ export const ClusterLock = Object.freeze({
 
     try {
       // Try to acquire lock using SET NX EX (set if not exists with expiry)
-      const result = await redisClient.set(redisKey, INSTANCE_ID, 'EX', ttl, 'NX');
+      const result = await redisClient.set(redisKey, getInstanceId(), 'EX', ttl, 'NX');
 
       const success = result === 'OK';
 
       if (success) {
         const lockInfo: LockInfo = {
           lockKey,
-          instanceId: INSTANCE_ID,
+          instanceId: getInstanceId(),
           acquiredAt: now,
           expiresAt: new Date(now.getTime() + ttl * 1000),
           region,
@@ -224,7 +243,7 @@ export const ClusterLock = Object.freeze({
           timestamp: now,
           operation: 'acquire',
           lockKey,
-          instanceId: INSTANCE_ID,
+          instanceId: getInstanceId(),
           userId,
           success: true,
         });
@@ -235,7 +254,7 @@ export const ClusterLock = Object.freeze({
           timestamp: now,
           operation: 'acquire',
           lockKey,
-          instanceId: INSTANCE_ID,
+          instanceId: getInstanceId(),
           userId,
           success: false,
         });

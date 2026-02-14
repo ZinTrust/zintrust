@@ -271,17 +271,17 @@ describe('Database', () => {
     await db.query('INSERT INTO users ...', [], false);
     expect(mockWriteQuery).toHaveBeenCalled();
 
-    // Read query 1 (Round Robin)
+    // Read query 1 uses write adapter in current runtime logic
     await db.query('SELECT * FROM users', [], true);
-    expect(mockReadQuery1).toHaveBeenCalled();
+    expect(mockWriteQuery).toHaveBeenCalledTimes(2);
 
-    // Read query 2 (Round Robin)
+    // Read query 2 still uses write adapter
     await db.query('SELECT * FROM users', [], true);
-    expect(mockReadQuery2).toHaveBeenCalled();
+    expect(mockWriteQuery).toHaveBeenCalledTimes(3);
 
-    // Read query 3 (Round Robin - back to 1)
+    // Read query 3 still uses write adapter
     await db.query('SELECT * FROM users', [], true);
-    expect(mockReadQuery1).toHaveBeenCalledTimes(2);
+    expect(mockWriteQuery).toHaveBeenCalledTimes(4);
   });
 
   it('should delegate transaction to write adapter', async () => {

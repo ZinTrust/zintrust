@@ -292,14 +292,35 @@ const getDashboardScriptHelpers = (): string => `
 `;
 
 const getDashboardScriptState = (options: DashboardUiOptions): string => {
-  let basePath = options.basePath;
-  while (basePath.endsWith('/')) {
-    basePath = basePath.slice(0, -1);
+  // Ensure basePath is a valid string with explicit fallback
+  let basePath: string;
+  if (options && typeof options.basePath === 'string' && options.basePath.length > 0) {
+    basePath = options.basePath;
+  } else {
+    basePath = '/telemetry';
   }
+
+  // Strip trailing slashes safely
+  if (basePath && typeof basePath === 'string') {
+    while (basePath.endsWith('/')) {
+      basePath = basePath.slice(0, -1);
+    }
+  }
+
+  // Ensure values are safe for template interpolation
+  const autoRefresh =
+    options && typeof options.autoRefresh === 'boolean' ? options.autoRefresh : false;
+  const refreshInterval =
+    options &&
+    typeof options.refreshIntervalMs === 'number' &&
+    Number.isFinite(options.refreshIntervalMs)
+      ? Math.max(1000, Math.floor(options.refreshIntervalMs))
+      : 10000;
+
   return `
       const API_BASE = '${basePath}';
-      const AUTO_REFRESH = ${options.autoRefresh ? 'true' : 'false'};
-      const REFRESH_INTERVAL = ${Math.max(1000, Math.floor(options.refreshIntervalMs))};
+      const AUTO_REFRESH = ${autoRefresh ? 'true' : 'false'};
+      const REFRESH_INTERVAL = ${refreshInterval};
       const STORAGE_KEYS = {
         autoRefresh: 'zintrust.telemetry.autoRefresh',
         theme: 'zintrust.telemetry.theme',

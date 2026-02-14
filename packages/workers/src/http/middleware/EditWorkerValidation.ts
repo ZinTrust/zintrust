@@ -14,7 +14,7 @@ import { withWorkerNameValidation } from './WorkerNameSanitizer';
 
 /**
  * Composite middleware for worker edit validation
- * Maps processorPath to processor for validation and validates all editable fields
+ * Maps processorSpec to processor for validation and validates all editable fields
  */
 export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler => {
   return async (req: IRequest, res: IResponse): Promise<void> => {
@@ -22,12 +22,12 @@ export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler =>
       const data = req.data();
       const currentBody = req.getBody() as Record<string, unknown>;
 
-      // Map processorPath to processor for validation if processorPath exists
+      // Map processorSpec/processorSpec to processor for validation if provided
       let mappedBody = { ...currentBody };
-      if (data['processorPath'] && !data['processor']) {
+      if (data['processorSpec'] && !data['processor']) {
         mappedBody = {
           ...mappedBody,
-          processor: data['processorPath'], // Map for validation
+          processor: data['processorSpec'],
         };
       }
 
@@ -39,8 +39,8 @@ export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler =>
         [
           'name',
           'queueName',
-          'processor', // Validated field (mapped from processorPath)
-          'processorPath', // Original field
+          'processor', // Validated field (mapped from processorSpec)
+          'processorSpec',
           'version',
           'options', // Skip strict validation for editing
           'infrastructure',
@@ -49,6 +49,7 @@ export const withEditWorkerValidation = (handler: RouteHandler): RouteHandler =>
           'concurrency', // Original field
           'region',
           'autoStart',
+          'activeStatus',
           'status',
         ],
         withProcessorPathValidation(

@@ -7,10 +7,10 @@
 Import from the framework:
 
 ```ts
-import { cloudflare } from '@zintrust/core';
+import { Cloudflare } from '@zintrust/core';
 
-// Example (if supported by the module):
-// cloudflare.*
+// Example usage:
+const enabled = Cloudflare.isCloudflareSocketsEnabled();
 ```
 
 ## Snapshot (top)
@@ -54,10 +54,46 @@ const getKVBinding = (bindingName = 'CACHE'): KVNamespace | null => {
   return kv ?? null;
 };
 
+const getWorkersVar = (key: string): string | null => {
+  const env = getWorkersEnv();
+  if (env === null) return null;
+  const value = env[key];
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') return value;
+  return String(value);
+};
+
+const isCloudflareSocketsEnabled = (): boolean => {
+  const raw = getWorkersVar('ENABLE_CLOUDFLARE_SOCKETS');
+  if (raw === null) return false;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === '') return false;
+  return normalized === 'true' || normalized === '1';
+};
+
+const getWorkersVar = (key: string): string | null => {
+  const env = getWorkersEnv();
+  if (env === null) return null;
+  const value = env[key];
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') return value;
+  return String(value);
+};
+
+const isCloudflareSocketsEnabled = (): boolean => {
+  const raw = getWorkersVar('ENABLE_CLOUDFLARE_SOCKETS');
+  if (raw === null) return false;
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === '') return false;
+  return normalized === 'true' || normalized === '1';
+};
+
 export const Cloudflare = Object.freeze({
   getWorkersEnv,
   getD1Binding,
   getKVBinding,
+  getWorkersVar,
+  isCloudflareSocketsEnabled,
 });
 ```
 
@@ -106,5 +142,7 @@ export const Cloudflare = Object.freeze({
   getWorkersEnv,
   getD1Binding,
   getKVBinding,
+  getWorkersVar,
+  isCloudflareSocketsEnabled,
 });
 ```

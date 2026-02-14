@@ -16,6 +16,7 @@
 - `zin logs`: View application logs
 - `zin templates`: List/render built-in markdown templates
 - `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
+- `zin queue:recovery`: Run queue recovery once, start reliability orchestrator, or inspect/recover specific tracked jobs
 - `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
@@ -25,6 +26,49 @@
 - `zin simulate` (alias: `zin -sim`): Generate a simulated app under `./simulate/` (dev utility)
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
+
+## Deploy Command Styles
+
+ZinTrust supports both spaced and colon styles for deploy targets where applicable.
+
+- `zin deploy cw` and `zin deploy:cw` - Deploy container workers stack (`docker-compose.workers.yml`)
+- `zin deploy cwr` and `zin deploy:cwr` - Compatibility aliases to deploy the same container workers stack
+- `zin deploy cp` and `zin deploy:cp` - Deploy proxy stack (`docker-compose.proxy.yml`)
+- `zin deploy worker` - Deploy Cloudflare Worker environment via Wrangler
+- `zin deploy production` - Deploy production Wrangler environment
+
+Notes:
+
+- `zin deploy <target>` keeps Wrangler behavior for cloud targets (`worker`, `d1-proxy`, `kv-proxy`, `production`)
+- `cw` is the primary Docker Compose deployment target; `cwr` remains a compatibility alias
+- `cp` is the Docker Compose deployment target for proxy stack operations
+
+Examples:
+
+```bash
+zin deploy cw
+zin deploy:cw
+
+zin deploy cwr
+zin deploy:cwr
+
+zin deploy cp
+zin deploy:cp
+```
+
+## Container Stack Init Commands
+
+- `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
+- `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
+- Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py`
+
+## Container Proxies Commands
+
+- `zin cp build`: Build proxy stack images
+- `zin cp up`: Start proxy stack
+- `zin cp up -d`: Start proxy stack in detached mode
+- `zin cp down`: Stop proxy stack
+- `zin cp down --volumes`: Stop proxy stack and remove named volumes
 
 ## Routes Command
 
@@ -192,11 +236,89 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
   - `--service <name>`: Include specific service seeders
   - `--only-service <name>`: Run ONLY specific service seeders
 
+## Queue Recovery Command
+
+Manage queue reliability flows from CLI.
+
+Usage:
+
+```bash
+zin queue:recovery [options]
+```
+
+Common options:
+
+- `--once`: Run `JobRecoveryDaemon.runOnce()` one time.
+- `--start`: Start the reliability orchestrator intervals.
+- `--list`: List tracked jobs.
+- `--source <source>`: List source: `memory` or `db` (default: `memory`).
+- `--queue <name>`: Filter list or target lookup by queue.
+- `--status <status>`: Filter listed jobs by status.
+- `--limit <count>`: Limit listed jobs (default: `50`, max: `5000`).
+- `--json`: Print list output as JSON.
+
+Targeted recovery options:
+
+- `--job-id <id>`: Target a specific tracked job.
+- `--push`: Force direct requeue of target payload.
+- `--dry-run`: Print intended action without changing queue/tracker state.
+- `--no-db-lookup`: Disable fallback lookup in persisted tracker tables for target job.
+
+Examples:
+
+```bash
+# Run one recovery pass now
+zin queue:recovery --once
+
+# Start reliability orchestrator intervals
+zin queue:recovery --start
+
+# List recoverable jobs from in-memory tracker
+zin queue:recovery --list --status pending_recovery --limit 100
+
+# List persisted tracked jobs from DB
+zin queue:recovery --list --source db --queue emails --json
+
+# Recover a single job using policy logic
+zin queue:recovery --job-id job-123 --queue emails
+
+# Force push a specific job back to queue
+zin queue:recovery --job-id job-123 --queue emails --push
+```
+
 ## Plugin Commands
 
 - `zin plugin list` (alias: `zin p -l`): List available plugins
 - `zin plugin install <id>` (alias: `zin p -i`): Install a plugin
 - `zin plugin uninstall <id>` (alias: `zin p -u`): Uninstall a plugin
+
+## Proxy Commands
+
+All proxy commands support both styles:
+
+- `zin proxy:<name>`
+- `zin proxy <name>`
+
+Supported proxies:
+
+- Redis: `zin proxy:redis` / `zin proxy redis` (legacy alias still works: `zin redis:proxy`)
+- SMTP: `zin proxy:smtp` / `zin proxy smtp`
+- MySQL: `zin proxy:mysql` / `zin proxy mysql`
+- PostgreSQL: `zin proxy:postgres` / `zin proxy postgres`
+- MongoDB: `zin proxy:mongodb` / `zin proxy mongodb`
+- SQL Server: `zin proxy:sqlserver` / `zin proxy sqlserver`
+
+Examples:
+
+```bash
+zin proxy:smtp
+zin proxy smtp
+
+zin proxy:redis
+zin proxy redis
+
+zin redis:proxy
+```
 
 ## Configuration Commands
 

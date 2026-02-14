@@ -8,9 +8,28 @@
 
 import type { ProcessLike } from '@config/type';
 
+export type EnvSource = Record<string, unknown> | (() => Record<string, unknown>);
+
 // Cache process check once at module load time
 const processLike: ProcessLike | undefined =
   typeof process === 'undefined' ? undefined : (process as unknown as ProcessLike);
+
+let externalEnvSource: EnvSource | null = null;
+
+const getEnvSource = (): Record<string, unknown> => {
+  if (typeof externalEnvSource === 'function') return externalEnvSource();
+  if (externalEnvSource !== null) return externalEnvSource;
+  return processLike?.env ?? {};
+};
+
+const normalizeEnvValue = (value: unknown): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+  return '';
+};
 
 export const getProcessLike = (): ProcessLike | undefined => processLike;
 
@@ -23,31 +42,51 @@ export const dirnameFromExecPath = (execPath: string, platform?: string): string
 
 // Private helper functions
 export const get = (key: string, defaultValue?: string): string => {
-  const env = processLike?.env ?? {};
-  return env[key] ?? defaultValue ?? '';
+  const env = getEnvSource();
+  const value = normalizeEnvValue(env[key]);
+  return value === '' ? (defaultValue ?? '') : value;
 };
 
-export const getInt = (key: string, defaultValue?: number): number => {
-  const env = processLike?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? 0;
-  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
+export const getInt = (key: string, defaultValue: number): number => {
+  const value = get(key, String(defaultValue ?? 0));
+  if (value.trim() === '') return defaultValue ?? 0;
   return Number.parseInt(value, 10);
 };
 
 export const getFloat = (key: string, defaultValue?: number): number => {
-  const env = processLike?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? 0;
-  if (typeof value === 'string' && value.trim() === '') return defaultValue ?? 0;
+  const value = get(key, String(defaultValue ?? 0));
+  if (value.trim() === '') return defaultValue ?? 0;
   return Number.parseFloat(value);
 };
 
 export const getBool = (key: string, defaultValue?: boolean): boolean => {
-  const env = processLike?.env ?? {};
-  const value = env[key];
-  if (value === undefined || value === null) return defaultValue ?? false;
+  const value = get(key, defaultValue === true ? 'true' : 'false');
+  if (value.trim() === '') return defaultValue ?? false;
   return value.toLowerCase() === 'true' || value === '1';
+};
+
+export const set = (key: string, value: string): void => {
+  if (processLike?.env === undefined) return;
+  processLike.env[key] = value;
+};
+
+export const unset = (key: string): void => {
+  if (processLike?.env === undefined) return;
+  // Use Reflect.deleteProperty to avoid deleting dynamically computed property keys
+  Reflect.deleteProperty(processLike.env, key);
+};
+
+export const setSource = (source: EnvSource | null): void => {
+  externalEnvSource = source;
+};
+
+export const snapshot = (): Record<string, string> => {
+  const env = getEnvSource();
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    out[key] = normalizeEnvValue(value);
+  }
+  return out;
 };
 
 export const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
@@ -56,6 +95,9 @@ export const getDefaultLogLevel = (): 'debug' | 'info' | 'warn' | 'error' => {
   if (NODE_ENV_VALUE === 'testing') return 'error';
   return 'debug';
 };
+export const ZT_PROXY_TIMEOUT_MS = getInt('ZT_PROXY_TIMEOUT_MS', 30000);
+const PROXY_KEY_ID_FALLBACK = get('APP_NAME', 'ZinTrust');
+const PROXY_SECRET_FALLBACK = get('APP_KEY', '');
 
 // Sealed namespace with all environment configuration
 export const Env = Object.freeze({
@@ -64,6 +106,10 @@ export const Env = Object.freeze({
   getInt,
   getBool,
   getFloat,
+  set,
+  unset,
+  setSource,
+  snapshot,
 
   // Core
   NODE_ENV: get('NODE_ENV', 'development') as NodeJS.ProcessEnv['NODE_ENV'],
@@ -110,6 +156,91 @@ export const Env = Object.freeze({
   D1_REMOTE_SECRET: get('D1_REMOTE_SECRET', ''),
   D1_REMOTE_MODE: get('D1_REMOTE_MODE', 'registry'),
 
+  MYSQL_PROXY_URL: get('MYSQL_PROXY_URL', ''),
+  MYSQL_PROXY_HOST: get('MYSQL_PROXY_HOST', '127.0.0.1'),
+  MYSQL_PROXY_PORT: getInt('MYSQL_PROXY_PORT', 8789),
+  MYSQL_PROXY_MAX_BODY_BYTES: getInt('MYSQL_PROXY_MAX_BODY_BYTES', 131072),
+  MYSQL_PROXY_POOL_LIMIT: getInt('MYSQL_PROXY_POOL_LIMIT', 10),
+  MYSQL_PROXY_KEY_ID: get('MYSQL_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  MYSQL_PROXY_SECRET: get('MYSQL_PROXY_SECRET', PROXY_SECRET_FALLBACK),
+  MYSQL_PROXY_TIMEOUT_MS: getInt('MYSQL_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  MYSQL_PROXY_REQUIRE_SIGNING: getBool('MYSQL_PROXY_REQUIRE_SIGNING', true),
+  MYSQL_PROXY_SIGNING_WINDOW_MS: getInt(
+    'MYSQL_PROXY_SIGNING_WINDOW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+
+  POSTGRES_PROXY_URL: get('POSTGRES_PROXY_URL', ''),
+  POSTGRES_PROXY_HOST: get('POSTGRES_PROXY_HOST', '127.0.0.1'),
+  POSTGRES_PROXY_PORT: getInt('POSTGRES_PROXY_PORT', 8790),
+  POSTGRES_PROXY_MAX_BODY_BYTES: getInt('POSTGRES_PROXY_MAX_BODY_BYTES', 131072),
+  POSTGRES_PROXY_POOL_LIMIT: getInt('POSTGRES_PROXY_POOL_LIMIT', 10),
+  POSTGRES_PROXY_KEY_ID: get('POSTGRES_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  POSTGRES_PROXY_SECRET: get('POSTGRES_PROXY_SECRET', PROXY_SECRET_FALLBACK),
+  POSTGRES_PROXY_TIMEOUT_MS: getInt('POSTGRES_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  POSTGRES_PROXY_REQUIRE_SIGNING: getBool('POSTGRES_PROXY_REQUIRE_SIGNING', true),
+  POSTGRES_PROXY_SIGNING_WINDOW_MS: getInt(
+    'POSTGRES_PROXY_SIGNING_WINDOW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+
+  REDIS_PROXY_URL: get('REDIS_PROXY_URL', ''),
+  REDIS_PROXY_HOST: get('REDIS_PROXY_HOST', '127.0.0.1'),
+  REDIS_PROXY_PORT: getInt('REDIS_PROXY_PORT', 8791),
+  REDIS_PROXY_MAX_BODY_BYTES: getInt('REDIS_PROXY_MAX_BODY_BYTES', 131072),
+  REDIS_PROXY_KEY_ID: get('REDIS_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  REDIS_PROXY_SECRET: get('REDIS_PROXY_SECRET', PROXY_SECRET_FALLBACK),
+  REDIS_PROXY_TIMEOUT_MS: getInt('REDIS_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  REDIS_PROXY_REQUIRE_SIGNING: getBool('REDIS_PROXY_REQUIRE_SIGNING', true),
+  REDIS_PROXY_SIGNING_WINDOW_MS: getInt(
+    'REDIS_PROXY_SIGNING_WINDOW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+  USE_REDIS_PROXY: getBool('USE_REDIS_PROXY', false),
+
+  SMTP_PROXY_URL: get('SMTP_PROXY_URL', ''),
+  SMTP_PROXY_HOST: get('SMTP_PROXY_HOST', '127.0.0.1'),
+  SMTP_PROXY_PORT: getInt('SMTP_PROXY_PORT', 8794),
+  SMTP_PROXY_MAX_BODY_BYTES: getInt('SMTP_PROXY_MAX_BODY_BYTES', 131072),
+  SMTP_PROXY_KEY_ID: get('SMTP_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  SMTP_PROXY_SECRET: get('SMTP_PROXY_SECRET', PROXY_SECRET_FALLBACK),
+  SMTP_PROXY_TIMEOUT_MS: getInt('SMTP_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  SMTP_PROXY_REQUIRE_SIGNING: getBool('SMTP_PROXY_REQUIRE_SIGNING', true),
+  SMTP_PROXY_SIGNING_WINDOW_MS: getInt(
+    'SMTP_PROXY_SIGNING_WINDOW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+  USE_SMTP_PROXY: getBool('USE_SMTP_PROXY', false),
+
+  MONGODB_PROXY_URL: get('MONGODB_PROXY_URL', ''),
+  MONGODB_PROXY_HOST: get('MONGODB_PROXY_HOST', '127.0.0.1'),
+  MONGODB_PROXY_PORT: getInt('MONGODB_PROXY_PORT', 8792),
+  MONGODB_PROXY_MAX_BODY_BYTES: getInt('MONGODB_PROXY_MAX_BODY_BYTES', 131072),
+  MONGODB_PROXY_KEY_ID: get('MONGODB_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  MONGODB_PROXY_SECRET: get('MONGODB_PROXY_SECRET', PROXY_SECRET_FALLBACK),
+  MONGODB_PROXY_TIMEOUT_MS: getInt('MONGODB_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  MONGODB_PROXY_REQUIRE_SIGNING: getBool('MONGODB_PROXY_REQUIRE_SIGNING', true),
+  MONGODB_PROXY_SIGNING_WINDOW_MS: getInt(
+    'MONGODB_PROXY_SIGNING_WINDOW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+  USE_MONGODB_PROXY: getBool('USE_MONGODB_PROXY', false),
+
+  SQLSERVER_PROXY_URL: get('SQLSERVER_PROXY_URL', ''),
+  SQLSERVER_PROXY_HOST: get('SQLSERVER_PROXY_HOST', '127.0.0.1'),
+  SQLSERVER_PROXY_PORT: getInt('SQLSERVER_PROXY_PORT', 8793),
+  SQLSERVER_PROXY_MAX_BODY_BYTES: getInt('SQLSERVER_PROXY_MAX_BODY_BYTES', 131072),
+  SQLSERVER_PROXY_POOL_LIMIT: getInt('SQLSERVER_PROXY_POOL_LIMIT', 10),
+  SQLSERVER_PROXY_KEY_ID: get('SQLSERVER_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  SQLSERVER_PROXY_SECRET: get('SQLSERVER_PROXY_SECRET', PROXY_SECRET_FALLBACK),
+  SQLSERVER_PROXY_TIMEOUT_MS: getInt('SQLSERVER_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  SQLSERVER_PROXY_REQUIRE_SIGNING: getBool('SQLSERVER_PROXY_REQUIRE_SIGNING', true),
+  SQLSERVER_PROXY_SIGNING_WINDOW_MS: getInt(
+    'SQLSERVER_PROXY_SIGNING_WINDOW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+  USE_SQLSERVER_PROXY: getBool('USE_SQLSERVER_PROXY', false),
+
   KV_REMOTE_URL: get('KV_REMOTE_URL', ''),
   KV_REMOTE_KEY_ID: get('KV_REMOTE_KEY_ID', ''),
   KV_REMOTE_SECRET: get('KV_REMOTE_SECRET', ''),
@@ -124,6 +255,7 @@ export const Env = Object.freeze({
   REDIS_HOST: get('REDIS_HOST', 'localhost'),
   REDIS_PORT: getInt('REDIS_PORT', 6379),
   REDIS_PASSWORD: get('REDIS_PASSWORD', ''),
+  REDIS_DB: getInt('REDIS_DB', 0),
   REDIS_URL: get('REDIS_URL', ''),
   MONGO_URI: get('MONGO_URI'),
   MONGO_DB: get('MONGO_DB', 'zintrust_cache'),
@@ -131,6 +263,19 @@ export const Env = Object.freeze({
   // Queue
   QUEUE_CONNECTION: get('QUEUE_CONNECTION', ''),
   QUEUE_DRIVER: get('QUEUE_DRIVER', ''),
+  QUEUE_HTTP_PROXY_ENABLED: getBool('QUEUE_HTTP_PROXY_ENABLED', false),
+  QUEUE_HTTP_PROXY_GATEWAY_ENABLED: getBool('QUEUE_HTTP_PROXY_GATEWAY_ENABLED', true),
+  QUEUE_HTTP_PROXY_URL: get('QUEUE_HTTP_PROXY_URL', ''),
+  QUEUE_HTTP_PROXY_PATH: get('QUEUE_HTTP_PROXY_PATH', '/api/_sys/queue/rpc'),
+  QUEUE_HTTP_PROXY_KEY_ID: get('QUEUE_HTTP_PROXY_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  QUEUE_HTTP_PROXY_KEY: get('QUEUE_HTTP_PROXY_KEY', PROXY_SECRET_FALLBACK),
+  QUEUE_HTTP_PROXY_TIMEOUT_MS: getInt('QUEUE_HTTP_PROXY_TIMEOUT_MS', ZT_PROXY_TIMEOUT_MS),
+  QUEUE_HTTP_PROXY_MAX_SKEW_MS: getInt(
+    'QUEUE_HTTP_PROXY_MAX_SKEW_MS',
+    getInt('ZT_PROXY_SIGNING_WINDOW_MS', 60000)
+  ),
+  QUEUE_HTTP_PROXY_NONCE_TTL_MS: getInt('QUEUE_HTTP_PROXY_NONCE_TTL_MS', 120000),
+  QUEUE_HTTP_PROXY_MIDDLEWARE: get('QUEUE_HTTP_PROXY_MIDDLEWARE', ''),
 
   // Rate Limiting
   RATE_LIMIT_STORE: get('RATE_LIMIT_STORE', ''),
@@ -185,6 +330,7 @@ export const Env = Object.freeze({
   LOG_LEVEL: get('LOG_LEVEL', getDefaultLogLevel()) as 'debug' | 'info' | 'warn' | 'error',
   LOG_FORMAT: get('LOG_FORMAT', 'text'),
   LOG_CHANNEL: get('LOG_CHANNEL', ''),
+  DOCKER_WORKER: getBool('DOCKER_WORKER', false),
   DISABLE_LOGGING: getBool('DISABLE_LOGGING', false),
   LOG_HTTP_REQUEST: getBool('LOG_HTTP_REQUEST', false),
   LOG_TO_FILE: getBool('LOG_TO_FILE', false),
@@ -199,6 +345,7 @@ export const Env = Object.freeze({
   ZINTRUST_ENV_IN_FILE: get('ZINTRUST_ENV_IN_FILE', '.env'),
   ZINTRUST_SECRETS_PROVIDER: get('ZINTRUST_SECRETS_PROVIDER', ''),
   ZINTRUST_ALLOW_AUTO_INSTALL: get('ZINTRUST_ALLOW_AUTO_INSTALL', ''),
+  WORKER_SHUTDOWN_ON_APP_EXIT: getBool('WORKER_SHUTDOWN_ON_APP_EXIT', true),
 
   // Cloudflare Credentials
   CLOUDFLARE_ACCOUNT_ID: get('CLOUDFLARE_ACCOUNT_ID', ''),
@@ -219,7 +366,10 @@ export const Env = Object.freeze({
   USERPROFILE: get('USERPROFILE', ''),
 
   // Template/Misc
-  TEMPLATE_COPYRIGHT: get('TEMPLATE_COPYRIGHT', '© 2025 ZinTrust Framework. All rights reserved.'),
+  TEMPLATE_COPYRIGHT: get(
+    'TEMPLATE_COPYRIGHT',
+    `© ${new Date().getFullYear()} ZinTrust Framework. All rights reserved.`
+  ),
   SERVICE_NAME: get('SERVICE_NAME', ''),
   APP_MODE: get('APP_MODE', get('NODE_ENV', 'development')),
   APP_PORT: getInt('APP_PORT', 3000),
@@ -243,10 +393,34 @@ export const Env = Object.freeze({
       if (processLike.platform === 'win32') {
         return [String.raw`C:\Windows\System32`, String.raw`C:\Windows`, binDir].join(';');
       }
-      return ['/usr/bin', '/bin', '/usr/sbin', '/sbin', binDir].join(':');
+      return [
+        '/opt/homebrew/bin',
+        '/usr/local/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+        binDir,
+      ].join(':');
     } catch {
       // Fallback for non-Node environments
       return '';
     }
   })(),
 });
+
+export const buildRedisUrl = (): string => {
+  const raw = get('REDIS_URL', '').trim();
+  if (raw !== '') return raw;
+
+  const host = get('REDIS_HOST', 'localhost');
+  const port = getInt('REDIS_PORT', 6379);
+  const password = get('REDIS_PASSWORD', '');
+  const db = getInt('REDIS_QUEUE_DB', 0);
+
+  let url = 'redis://';
+  if (password.trim() !== '') url += `:${encodeURIComponent(password)}@`;
+  url += `${host}:${port}`;
+  if (db > 0) url += `/${db}`;
+  return url;
+};

@@ -5,7 +5,9 @@
  */
 
 import { ErrorFactory, Logger, createRedisConnection, type RedisConfig } from '@zintrust/core';
-import type IORedis from 'ioredis';
+import { keyPrefix } from './config/workerConfig';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 export type FailedJobEntry = {
   id: string;
@@ -72,15 +74,15 @@ export type DLQStats = {
 
 // Redis key prefixes - using workers package prefix system
 const getDLQPrefix = (): string => {
-  return 'worker:dlq:';
+  return keyPrefix() + ':dlq:';
 };
 
 const getAuditPrefix = (): string => {
-  return 'worker:dlq:audit:';
+  return keyPrefix() + ':dlq:audit:';
 };
 
 // Internal state
-let redisClient: IORedis | null = null;
+let redisClient: RedisConnection | null = null;
 let retentionPolicy: RetentionPolicy | null = null;
 let cleanupInterval: NodeJS.Timeout | null = null;
 

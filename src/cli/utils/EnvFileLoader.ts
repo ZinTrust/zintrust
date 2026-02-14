@@ -1,10 +1,10 @@
+import { Env } from '@config/env';
 import { existsSync, readFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 
-// NOTE: This module intentionally uses direct process.env[*] mutations
-// as its primary purpose is to load .env files and populate process.env
-// during application initialization. This is the only location where
-// such mutations should occur - all other code should use Env.get().
+// NOTE: This module intentionally updates runtime environment values
+// via Env.set() to populate process.env during CLI initialization.
+// This is the only location where such mutations should occur.
 
 type node_env = 'development' | 'production' | 'testing';
 type EnvMap = Record<string, string>;
@@ -78,13 +78,13 @@ const parseEnvFile = (raw: string): EnvMap => {
 
 const applyToProcessEnv = (values: EnvMap, overrideExisting: boolean): void => {
   for (const [key, value] of Object.entries(values)) {
-    if (!overrideExisting && typeof process.env[key] === 'string') continue;
-    process.env[key] = value;
+    if (!overrideExisting && Env.get(key, '') !== '') continue;
+    Env.set(key, value);
   }
 
   // Compatibility helpers
-  if (typeof process.env['PORT'] !== 'string' && typeof process.env['APP_PORT'] === 'string') {
-    process.env['PORT'] = process.env['APP_PORT'];
+  if (Env.get('PORT', '') === '' && Env.get('APP_PORT', '') !== '') {
+    Env.set('PORT', Env.get('APP_PORT', ''));
   }
 };
 
@@ -96,8 +96,8 @@ const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined 
 };
 
 const resolveAppMode = (cwd: string): string | undefined => {
-  const existing = process.env['NODE_ENV'];
-  if (typeof existing === 'string' && existing.trim() !== '') return normalizeAppMode(existing);
+  const existing = Env.get('NODE_ENV', '');
+  if (existing.trim() !== '') return normalizeAppMode(existing);
 
   const fromDotEnv = readEnvFileIfExists(cwd, '.env');
   const value = fromDotEnv?.['NODE_ENV'];
@@ -173,7 +173,7 @@ const load = (options: LoadOptions = {}): LoadState => {
 
   // Set NODE_ENV to the normalized mode if we have one (after applying files)
   if (mode !== undefined) {
-    process.env['NODE_ENV'] = mode as node_env;
+    Env.set('NODE_ENV', mode as node_env);
   }
 
   cached = { loadedFiles: files, mode };
@@ -187,25 +187,25 @@ const applyCliOverrides = (overrides: CliOverrides): void => {
   ensureLoaded();
 
   if (typeof overrides.runtime === 'string' && overrides.runtime.trim() !== '') {
-    process.env['RUNTIME'] = overrides.runtime.trim();
+    Env.set('RUNTIME', overrides.runtime.trim());
   }
 
   if (typeof overrides.nodeEnv === 'string') {
-    process.env['NODE_ENV'] = overrides.nodeEnv;
+    Env.set('NODE_ENV', overrides.nodeEnv);
   }
 
   if (typeof overrides.port === 'number') {
-    process.env['PORT'] = String(overrides.port);
-    process.env['APP_PORT'] = String(overrides.port);
+    Env.set('PORT', String(overrides.port));
+    Env.set('APP_PORT', String(overrides.port));
   }
 
   // Keep PORT/APP_PORT in sync if only one exists.
-  if (typeof process.env['PORT'] !== 'string' && typeof process.env['APP_PORT'] === 'string') {
-    process.env['PORT'] = process.env['APP_PORT'];
+  if (Env.get('PORT', '') === '' && Env.get('APP_PORT', '') !== '') {
+    Env.set('PORT', Env.get('APP_PORT', ''));
   }
 
-  if (typeof process.env['APP_PORT'] !== 'string' && typeof process.env['PORT'] === 'string') {
-    process.env['APP_PORT'] = process.env['PORT'];
+  if (Env.get('APP_PORT', '') === '' && Env.get('PORT', '') !== '') {
+    Env.set('APP_PORT', Env.get('PORT', ''));
   }
 };
 

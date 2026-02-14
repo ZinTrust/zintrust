@@ -25,7 +25,7 @@ describe('Hash', () => {
       compare: vi.fn(),
     };
 
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await loadHash('default-rounds');
     const out = await Hash.hash('pw');
@@ -40,7 +40,7 @@ describe('Hash', () => {
       compare: vi.fn(),
     };
 
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await loadHash('custom-rounds');
     await Hash.hashWithRounds('pw', 10);
@@ -54,7 +54,7 @@ describe('Hash', () => {
       compare: vi.fn().mockResolvedValue(true),
     };
 
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await loadHash('verify');
 
@@ -73,7 +73,7 @@ describe('Hash', () => {
       compare: vi.fn().mockRejectedValue(new Error('boom')),
     };
 
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await loadHash('verify-throws');
 
@@ -82,7 +82,7 @@ describe('Hash', () => {
   });
 
   it('throws ConfigError when bcrypt is unavailable', async () => {
-    vi.doMock('bcrypt', () => {
+    vi.doMock('bcryptjs', () => {
       throw new Error('Cannot find module');
     });
 

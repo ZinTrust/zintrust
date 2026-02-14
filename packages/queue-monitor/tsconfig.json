@@ -5,6 +5,7 @@
     "lib": ["es2023"],
     "baseUrl": ".",
     "moduleResolution": "bundler",
+    "skipLibCheck": true,
     "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,

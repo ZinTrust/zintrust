@@ -2,53 +2,37 @@
  * Hash
  * bcrypt-based password hashing utility.
  *
- * Runtime-aware: uses dynamic import for bcrypt.
+ * Uses bcryptjs to avoid native module issues in edge runtimes.
  */
 
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-
-interface BcryptModule {
-  hash: (data: string, saltOrRounds: string | number) => Promise<string>;
-  compare: (data: string, encrypted: string) => Promise<boolean>;
-}
-
-function isBcryptModule(value: unknown): value is BcryptModule {
-  if (typeof value !== 'object' || value === null) return false;
-  const record = value as Record<string, unknown>;
-  return typeof record['hash'] === 'function' && typeof record['compare'] === 'function';
-}
-
-let bcrypt: BcryptModule | undefined;
-let loadingPromise: Promise<void> | undefined;
-
-async function loadBcrypt(): Promise<void> {
-  const imported: unknown = await import('bcrypt');
-  const module = imported as { default?: unknown } & Record<string, unknown>;
-  const candidate: unknown = module.default ?? module;
-
-  if (!isBcryptModule(candidate)) {
-    throw ErrorFactory.createConfigError('Invalid bcrypt module shape');
-  }
-
-  bcrypt = candidate;
-}
-
-async function ensureBcrypt(): Promise<BcryptModule> {
-  if (bcrypt !== undefined) return bcrypt;
-  loadingPromise ??= loadBcrypt().catch((error: unknown) => {
-    Logger.error('bcrypt unavailable', error);
-    throw ErrorFactory.createConfigError('bcrypt unavailable', error);
-  });
-
-  await loadingPromise;
-  if (bcrypt === undefined) {
-    throw ErrorFactory.createConfigError('bcrypt unavailable');
-  }
-  return bcrypt;
-}
-
 const BCRYPT_HASH_RE = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+type BcryptModule = {
+  hash: (plaintext: string, rounds: number) => Promise<string>;
+  compare: (plaintext: string, hashed: string) => Promise<boolean>;
+};
+
+let bcryptModule: BcryptModule | null = null;
+
+const loadBcrypt = async (): Promise<BcryptModule> => {
+  if (bcryptModule !== null) return bcryptModule;
+
+  try {
+    const mod = (await import('bcryptjs')) as unknown as { default?: unknown };
+    const resolved = (mod.default ?? mod) as BcryptModule;
+
+    if (typeof resolved?.hash !== 'function' || typeof resolved?.compare !== 'function') {
+      throw ErrorFactory.createConfigError('Invalid bcryptjs module shape');
+    }
+
+    bcryptModule = resolved;
+    return resolved;
+  } catch (error: unknown) {
+    throw ErrorFactory.createConfigError('bcryptjs module unavailable', error);
+  }
+};
 
 export const Hash = Object.freeze({
   isValidHash(hash: string): boolean {
@@ -56,27 +40,34 @@ export const Hash = Object.freeze({
   },
 
   async hash(plaintext: string): Promise<string> {
-    const bcryptModule = await ensureBcrypt();
     try {
-      return await bcryptModule.hash(plaintext, 12);
+      const bcrypt = await loadBcrypt();
+      return await bcrypt.hash(plaintext, 12);
     } catch (error: unknown) {
       Logger.error('Password hashing failed', error);
+      const err = error as { name?: string; code?: string } | undefined;
+      if (err?.name === 'ConfigError' || err?.code === 'CONFIG_ERROR') {
+        throw ErrorFactory.createConfigError('Password hashing failed', error as Error);
+      }
       throw ErrorFactory.createSecurityError('Password hashing failed', error);
     }
   },
 
   async hashWithRounds(plaintext: string, rounds: number): Promise<string> {
-    const bcryptModule = await ensureBcrypt();
-
     const normalizedRounds = Number.isFinite(rounds) ? Math.trunc(rounds) : 0;
     if (normalizedRounds <= 0) {
       throw ErrorFactory.createConfigError('Invalid bcrypt rounds', { rounds });
     }
 
     try {
-      return await bcryptModule.hash(plaintext, normalizedRounds);
+      const bcrypt = await loadBcrypt();
+      return await bcrypt.hash(plaintext, normalizedRounds);
     } catch (error: unknown) {
       Logger.error('Password hashing failed', error);
+      const err = error as { name?: string; code?: string } | undefined;
+      if (err?.name === 'ConfigError' || err?.code === 'CONFIG_ERROR') {
+        throw ErrorFactory.createConfigError('Password hashing failed', error as Error);
+      }
       throw ErrorFactory.createSecurityError('Password hashing failed', error);
     }
   },
@@ -85,8 +76,8 @@ export const Hash = Object.freeze({
     if (!Hash.isValidHash(hashed)) return false;
 
     try {
-      const bcryptModule = await ensureBcrypt();
-      return await bcryptModule.compare(plaintext, hashed);
+      const bcrypt = await loadBcrypt();
+      return await bcrypt.compare(plaintext, hashed);
     } catch (error: unknown) {
       Logger.error('Password verify failed', error);
       return false;

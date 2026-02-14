@@ -11,7 +11,7 @@ import { MultipartParser } from '@http/parsers/MultipartParser';
 import type { Middleware } from '@middleware/MiddlewareStack';
 
 type ReadBodyResult =
-  | { ok: true; bytes: Buffer; text: string }
+  | { ok: true; bytes: Buffer; text?: string }
   | { ok: false; statusCode: 400 | 413; message: string };
 
 /**
@@ -128,12 +128,25 @@ const readRawBody = async (req: IRequest, maxBytes: number): Promise<ReadBodyRes
   return readStreamBody(raw, maxBytes);
 };
 
+const shouldStoreRawText = (contentType: string): boolean => {
+  if (contentType.includes('application/json')) return true;
+  if (contentType.includes('application/x-www-form-urlencoded')) return true;
+  if (contentType.startsWith('text/')) return true;
+  if (contentType.includes('application/xml')) return true;
+  return false;
+};
+
+const getTextFromRaw = (rawResult: ReadBodyResult & { ok: true }): string => {
+  if (typeof rawResult.text === 'string') return rawResult.text;
+  return rawResult.bytes.toString('utf-8');
+};
+
 const convertExistingToRawResult = (
   existingBytes: unknown,
   existingText: unknown
 ): ReadBodyResult => {
   if (Buffer.isBuffer(existingBytes)) {
-    return { ok: true, bytes: existingBytes, text: existingBytes.toString('utf-8') };
+    return { ok: true, bytes: existingBytes };
   }
 
   if (typeof existingText === 'string') {
@@ -165,11 +178,12 @@ const setRequestBody = (
 ): void => {
   const isUrlEncoded = contentType.includes('application/x-www-form-urlencoded');
   const isText = contentType.startsWith('text/') || contentType.includes('application/xml');
+  const text = getTextFromRaw(rawResult);
 
   if (isUrlEncoded) {
-    req.setBody(parseUrlEncodedBody(rawResult.text));
+    req.setBody(parseUrlEncodedBody(text));
   } else if (isText) {
-    req.setBody(rawResult.text);
+    req.setBody(text);
   } else if (contentType !== '') {
     req.setBody(rawResult.bytes);
   }
@@ -208,13 +222,17 @@ const processBodyParsing = async (
 
   // Store raw body for downstream consumers
   req.context['rawBodyBytes'] = rawResult.bytes;
-  req.context['rawBodyText'] = rawResult.text;
+  if (shouldStoreRawText(contentType)) {
+    req.context['rawBodyText'] = getTextFromRaw(rawResult);
+  } else {
+    req.context['rawBodyText'] = undefined;
+  }
 
   // Parse and set body based on content type
   try {
     const isJson = contentType.includes('application/json');
     if (isJson) {
-      const parsed = parseJsonBody(rawResult.text, contentType, res);
+      const parsed = parseJsonBody(getTextFromRaw(rawResult), contentType, res);
       if (parsed === null && res.getStatus() === 400) {
         return false; // JSON parsing failed, response already sent
       }
@@ -282,7 +300,11 @@ export const bodyParsingMiddleware: Middleware = async (
     const rawResult = convertExistingToRawResult(existingBytes, existingText);
     if (rawResult.ok) {
       req.context['rawBodyBytes'] = rawResult.bytes;
-      req.context['rawBodyText'] = rawResult.text;
+      if (shouldStoreRawText(contentType)) {
+        req.context['rawBodyText'] = getTextFromRaw(rawResult);
+      } else {
+        req.context['rawBodyText'] = undefined;
+      }
     }
   } else {
     await processBodyParsing(req, res, contentType, maxBytes);

@@ -14,6 +14,7 @@ export type WorkerMetadata = {
   region: string;
   queueName: string;
   concurrency: number;
+  activeStatus?: boolean;
   startedAt: Date | null;
   stoppedAt: Date | null;
   lastProcessedAt: Date | null;
@@ -47,6 +48,7 @@ export type WorkerInstance = {
 export type RegisterWorkerOptions = {
   name: string;
   config: Partial<WorkerConfig>;
+  activeStatus?: boolean;
   version?: string;
   region?: string;
   queues?: ReadonlyArray<string>;
@@ -80,6 +82,13 @@ const registrations = new Map<string, RegisterWorkerOptions>();
 const STOPPED_WORKER_CLEANUP_DELAY = 5 * 60 * 1000; // 5 minutes
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
+type UnrefableTimer = { unref: () => void };
+
+const isUnrefableTimer = (value: unknown): value is UnrefableTimer => {
+  if (typeof value !== 'object' || value === null) return false;
+  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+};
+
 /**
  * Helper: Schedule cleanup of stopped worker
  */
@@ -106,6 +115,10 @@ const scheduleStoppedWorkerCleanup = (name: string): void => {
       cleanupTimers.delete(name);
     }
   }, STOPPED_WORKER_CLEANUP_DELAY);
+
+  if (isUnrefableTimer(timer)) {
+    timer.unref();
+  }
 
   cleanupTimers.set(name, timer);
 };
@@ -171,6 +184,10 @@ export const WorkerRegistry = Object.freeze({
     const registration = registrations.get(name);
     if (!registration) {
       throw ErrorFactory.createWorkerError(`Worker "${name}" is not registered`);
+    }
+
+    if (registration.activeStatus === false) {
+      throw ErrorFactory.createWorkerError(`Worker "${name}" is inactive`);
     }
 
     if (workers.has(name)) {
@@ -334,7 +351,21 @@ export const WorkerRegistry = Object.freeze({
    * List all registered workers
    */
   list(): ReadonlyArray<string> {
-    return Array.from(registrations.keys());
+    const names: string[] = [];
+    for (const [name, registration] of registrations.entries()) {
+      if (registration.activeStatus === false) continue;
+      names.push(name);
+    }
+    return names;
+  },
+
+  /**
+   * Update active status for a registered worker
+   */
+  setActiveStatus(name: string, activeStatus: boolean): void {
+    const registration = registrations.get(name);
+    if (!registration) return;
+    registrations.set(name, { ...registration, activeStatus });
   },
 
   /**

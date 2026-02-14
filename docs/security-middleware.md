@@ -81,6 +81,18 @@ Cross-Site Request Forgery (CSRF) protection using the Double Submit Cookie patt
 app.getMiddlewareStack().register('csrf', CsrfMiddleware.create());
 ```
 
+By default, all non-GET requests are protected.
+You can configure skipped paths via the `CSRF_SKIP_PATHS` environment variable (comma-separated), or programmatically:
+
+```typescript
+app.getMiddlewareStack().register(
+  'csrf',
+  CsrfMiddleware.create({
+    skipPaths: ['/api/*', '/webhooks/*'],
+  })
+);
+```
+
 ### How it Works
 
 1.  **GET Requests**: The middleware automatically generates a token and sets it as a cookie (`XSRF-TOKEN`) and in `res.locals.csrfToken`.

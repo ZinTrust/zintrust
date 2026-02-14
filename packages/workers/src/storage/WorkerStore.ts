@@ -3,8 +3,10 @@
  * Persistence layer for workers (memory, redis, db)
  */
 
-import type { IDatabase } from '@zintrust/core';
-import type { Redis } from 'ioredis';
+import type { createRedisConnection } from '@zintrust/core';
+import { type IDatabase } from '@zintrust/core';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 export type WorkerRecord = {
   name: string;
@@ -14,7 +16,8 @@ export type WorkerRecord = {
   autoStart: boolean;
   concurrency: number;
   region: string | null;
-  processorPath?: string | null;
+  processorSpec?: string | null;
+  activeStatus?: boolean;
   features?: Record<string, unknown> | null;
   infrastructure?: Record<string, unknown> | null;
   datacenter?: Record<string, unknown> | null;
@@ -27,12 +30,18 @@ export type WorkerRecord = {
 
 export type WorkerStore = {
   init(): Promise<void>;
-  list(options?: { offset?: number; limit?: number; search?: string }): Promise<WorkerRecord[]>;
+  list(options?: {
+    offset?: number;
+    limit?: number;
+    search?: string;
+    includeInactive?: boolean;
+  }): Promise<WorkerRecord[]>;
   get(name: string): Promise<WorkerRecord | null>;
   save(record: WorkerRecord): Promise<void>;
   update(name: string, patch: Partial<WorkerRecord>): Promise<void>;
   updateMany?: (names: string[], patch: Partial<WorkerRecord>) => Promise<void>;
   remove(name: string): Promise<void>;
+  close?(): Promise<void>;
 };
 
 const now = (): Date => new Date();
@@ -43,6 +52,12 @@ const mergeRecord = (current: WorkerRecord, patch: Partial<WorkerRecord>): Worke
   updatedAt: patch.updatedAt ?? now(),
 });
 
+const toSqlDateTime = (value: Date | undefined | null): string | null => {
+  if (!value) return null;
+  // Use UTC and drop timezone for SQL DATETIME compatibility
+  return value.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   name: record.name,
   queue_name: record.queueName,
@@ -51,13 +66,14 @@ const serializeDbWorker = (record: WorkerRecord): Record<string, unknown> => ({
   auto_start: record.autoStart,
   concurrency: record.concurrency,
   region: record.region,
-  processor_path: record.processorPath ?? null,
+  processor_spec: record.processorSpec ?? null,
+  active_status: record.activeStatus ?? true,
   features: record.features ? JSON.stringify(record.features) : null,
   infrastructure: record.infrastructure ? JSON.stringify(record.infrastructure) : null,
   datacenter: record.datacenter ? JSON.stringify(record.datacenter) : null,
-  created_at: record.createdAt,
-  updated_at: record.updatedAt,
-  last_health_check: record.lastHealthCheck ?? null,
+  created_at: toSqlDateTime(record.createdAt),
+  updated_at: toSqlDateTime(record.updatedAt),
+  last_health_check: toSqlDateTime(record.lastHealthCheck ?? null),
   last_error: record.lastError ?? null,
   connection_state: record.connectionState ?? null,
 });
@@ -89,7 +105,8 @@ const deserializeDbWorker = (row: Record<string, unknown>): WorkerRecord => {
     autoStart: Boolean(row['auto_start'] ?? false),
     concurrency: Number(row['concurrency'] ?? 0),
     region: row['region'] ? String(row['region']) : null,
-    processorPath: row['processor_path'] ? String(row['processor_path']) : null,
+    processorSpec: String(row['processor_spec']),
+    activeStatus: row['active_status'] === undefined ? true : Boolean(row['active_status']),
     features: parseJson(row['features']),
     infrastructure: parseJson(row['infrastructure']),
     datacenter: parseJson(row['datacenter']),
@@ -143,12 +160,15 @@ export const InMemoryWorkerStore = Object.freeze({
       async remove(name: string): Promise<void> {
         store.delete(name);
       },
+      async close(): Promise<void> {
+        // No-op for memory store
+      },
     };
   },
 });
 
 export const RedisWorkerStore = Object.freeze({
-  create(client: Redis, keyPrefix = 'workers:registry'): WorkerStore {
+  create(client: RedisConnection, keyPrefix = 'workers:registry'): WorkerStore {
     const key = keyPrefix;
 
     const serialize = (record: WorkerRecord): string =>
@@ -210,6 +230,14 @@ export const RedisWorkerStore = Object.freeze({
         if (updates.length === 0) return;
         await client.hset(key, ...updates);
       },
+      async close(): Promise<void> {
+        try {
+          // Force disconnect in Cloudflare env to avoid hanging on quit()
+          client.disconnect();
+        } catch {
+          // Ignore connection errors during cleanup
+        }
+      },
       async remove(name: string): Promise<void> {
         await client.hdel(key, name);
       },
@@ -256,13 +284,13 @@ export const DbWorkerStore = Object.freeze({
       async updateMany(names: string[], patch: Partial<WorkerRecord>): Promise<void> {
         if (names.length === 0) return;
         const update: Record<string, unknown> = {
-          updated_at: patch.updatedAt ?? now(),
+          updated_at: toSqlDateTime(patch.updatedAt ?? now()),
         };
 
         if (patch.status !== undefined) update['status'] = patch.status;
         if (patch.lastError !== undefined) update['last_error'] = patch.lastError ?? null;
         if (patch.lastHealthCheck !== undefined)
-          update['last_health_check'] = patch.lastHealthCheck ?? null;
+          update['last_health_check'] = toSqlDateTime(patch.lastHealthCheck ?? null);
         if (patch.connectionState !== undefined)
           update['connection_state'] = patch.connectionState ?? null;
 
@@ -270,6 +298,10 @@ export const DbWorkerStore = Object.freeze({
       },
       async remove(name: string): Promise<void> {
         await db.table(table).where('name', '=', name).delete();
+      },
+      async close(): Promise<void> {
+        // Database clients often managed by pool, but if needed:
+        // await db.destroy?.();
       },
     };
   },

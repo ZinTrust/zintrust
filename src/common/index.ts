@@ -61,6 +61,9 @@ export const CommonUtils = Object.freeze({
    * Resolve an ESM `import.meta.url` to a filesystem path.
    */
   esmFilePath(metaUrl: string | URL): string {
+    if (metaUrl === undefined || metaUrl === null) return '';
+    if (typeof metaUrl !== 'string' && !(metaUrl instanceof URL)) return '';
+    if (typeof metaUrl === 'string' && metaUrl.trim() === '') return '';
     return fileURLToPath(metaUrl);
   },
 
@@ -68,7 +71,8 @@ export const CommonUtils = Object.freeze({
    * Resolve an ESM `import.meta.url` to a filesystem directory.
    */
   esmDirname(metaUrl: string | URL): string {
-    return path.dirname(this.esmFilePath(metaUrl));
+    const resolved = this.esmFilePath(metaUrl);
+    return resolved === '' ? '' : path.dirname(resolved);
   },
 
   /**
@@ -378,3 +382,9 @@ export const ensureDirSafe = (dirPath: string): void => CommonUtils.ensureDirSaf
 export const readFile = (filePath: string): string => CommonUtils.readFile(filePath);
 export const writeFile = (filePath: string, content: string, createDir = true): void =>
   CommonUtils.writeFile(filePath, content, createDir);
+
+export const runFromSource = (): boolean => {
+  const runFromSourceEnv = process.env['ZINTRUST_RUN_FROM_SOURCE'] ?? '';
+
+  return runFromSourceEnv === '1' || runFromSourceEnv.toLowerCase() === 'true';
+};

@@ -1,7 +1,7 @@
 import { pathToFileURL } from '@/node-singletons/url';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import { Logger } from '@config/logger';
-import { existsSync } from '@node-singletons/fs';
+import { existsSync, readFile } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 type ImportResult =
@@ -35,6 +35,88 @@ const getCandidates = (projectRoot: string): string[] => {
   ];
 };
 
+type ImportSpecifier = { specifier: string; filePath: string };
+
+const extractImportSpecifiers = (raw: string): string[] => {
+  const specifiers: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const match = /^\s*import\s+['"]([^'"]+)['"];?\s*$/.exec(line);
+    if (match?.[1] !== null && match?.[1] !== undefined) {
+      specifiers.push(match[1]);
+    }
+  }
+  return specifiers;
+};
+
+const readImportSpecifiersFromFiles = async (files: string[]): Promise<ImportSpecifier[]> => {
+  const importSpecifiers: ImportSpecifier[] = [];
+
+  // Read all files in parallel
+  const fileReadPromises = files.map(async (filePath) => {
+    try {
+      const raw = await readFile(filePath, 'utf-8');
+      return { filePath, specifiers: extractImportSpecifiers(raw), success: true };
+    } catch (error) {
+      Logger.debug('[plugins] Failed to read auto-import file for fallback', {
+        filePath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { filePath, specifiers: [] as string[], success: false };
+    }
+  });
+
+  const results = await Promise.all(fileReadPromises);
+
+  // Collect all successful specifiers
+  for (const { filePath, specifiers } of results) {
+    for (const specifier of specifiers) {
+      importSpecifiers.push({ specifier, filePath });
+    }
+  }
+
+  return importSpecifiers;
+};
+
+const resolveRelativeSpecifier = (entry: ImportSpecifier): string => {
+  const baseDir = path.dirname(entry.filePath);
+  const basePath = path.resolve(baseDir, entry.specifier);
+  const candidates = [
+    basePath,
+    `${basePath}.js`,
+    `${basePath}.ts`,
+    path.join(basePath, 'index.js'),
+    path.join(basePath, 'index.ts'),
+  ];
+
+  const resolved = candidates.find((candidate) => existsSync(candidate)) ?? basePath;
+  return pathToFileURL(resolved).href;
+};
+
+const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<number> => {
+  // Import all specifiers in parallel
+  const importPromises = Array.from(specifiers).map(async (entry) => {
+    const target = entry.specifier.startsWith('.')
+      ? resolveRelativeSpecifier(entry)
+      : entry.specifier;
+    try {
+      await import(target);
+      Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
+      return { specifier: entry.specifier, success: true };
+    } catch (error) {
+      Logger.debug('[plugins] Failed auto-import specifier', {
+        specifier: entry.specifier,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { specifier: entry.specifier, success: false };
+    }
+  });
+
+  const results = await Promise.allSettled(importPromises);
+
+  // Count successful imports
+  return results.filter((result) => result.status === 'fulfilled' && result.value.success).length;
+};
+
 export const PluginAutoImports = Object.freeze({
   /**
    * Best-effort import of a project's `src/zintrust.plugins.ts` file.
@@ -55,8 +137,7 @@ export const PluginAutoImports = Object.freeze({
       return { ok: false, reason: 'not-found' };
     }
 
-    // Try all existing candidates in parallel
-    const importPromises = existingCandidates.map(async (candidate) => {
+    const tryImportCandidate = async (candidate: string): Promise<ImportResult> => {
       try {
         const url = pathToFileURL(candidate).href;
         await import(url);
@@ -70,7 +151,12 @@ export const PluginAutoImports = Object.freeze({
           errorMessage,
         } as ImportResult;
       }
-    });
+    };
+
+    // Try all existing candidates in parallel
+    const importPromises = existingCandidates.map(async (candidate) =>
+      tryImportCandidate(candidate)
+    );
 
     // Return the first successful import, or the first failure if none succeed
     try {
@@ -90,16 +176,33 @@ export const PluginAutoImports = Object.freeze({
           result.status === 'fulfilled' && !result.value.ok
       );
 
-      return (
-        firstFailedResult?.value ?? {
-          ok: false,
-          reason: 'import-failed',
-          errorMessage: 'All candidates failed',
-        }
-      );
+      const failed =
+        firstFailedResult?.value ??
+        ({ ok: false, reason: 'import-failed', errorMessage: 'All candidates failed' } as const);
+
+      Logger.debug('[plugins] Auto-import file failed, attempting per-import fallback', failed);
+
+      const fallbackResult = await this.tryImportFromFileContents(existingCandidates);
+      if (fallbackResult.ok) return fallbackResult;
+
+      return failed as ImportResult;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return { ok: false, reason: 'import-failed', errorMessage };
     }
+  },
+
+  async tryImportFromFileContents(files: string[]): Promise<ImportResult> {
+    const specifiers = await readImportSpecifiersFromFiles(files);
+    if (specifiers.length === 0) {
+      return { ok: false, reason: 'import-failed', errorMessage: 'No import specifiers found' };
+    }
+
+    const loaded = await importSpecifiers(specifiers);
+    if (loaded > 0) {
+      return { ok: true, loadedPath: 'manual-imports' };
+    }
+
+    return { ok: false, reason: 'import-failed', errorMessage: 'All specifier imports failed' };
   },
 });

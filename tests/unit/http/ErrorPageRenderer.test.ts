@@ -65,7 +65,7 @@ describe('ErrorPageRenderer', () => {
     expect(html).toContain('&#39;z&#39;');
   });
 
-  it('renderHtml returns undefined if template missing', async () => {
+  it('renderHtml falls back to default template if file missing', async () => {
     const fs = await import('@node-singletons/fs');
     (fs.existsSync as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
 
@@ -77,6 +77,7 @@ describe('ErrorPageRenderer', () => {
       requestPath: '/x',
     });
 
-    expect(html).toBeUndefined();
+    expect(html).toContain('500');
+    expect(html).toContain('oops');
   });
 });

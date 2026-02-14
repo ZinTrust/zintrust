@@ -2,6 +2,8 @@
  * Runtime adapter for Cloudflare Workers
  */
 import { appConfig } from '@/config';
+import { Cloudflare } from '@config/cloudflare';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import type {
@@ -22,6 +24,10 @@ export const CloudflareAdapter = Object.freeze({
    * Create a new Cloudflare adapter instance
    */
   create(config: AdapterConfig): RuntimeAdapter {
+    const workersEnv = Cloudflare.getWorkersEnv();
+    if (workersEnv !== null) {
+      Env.setSource(() => workersEnv);
+    }
     const logger = config.logger ?? createDefaultLogger();
 
     return {
@@ -110,6 +116,7 @@ async function handleCloudflareRequest(
     // Read request body
     const body =
       request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : null;
+    platformRequest.body = body;
 
     // Create mock Node.js request/response objects
     const { req, res, responseData } = createMockHttpObjects(platformRequest);
@@ -148,7 +155,11 @@ async function handleCloudflareRequest(
 
     return response.toResponse();
   } catch (error) {
-    Logger.error('Cloudflare handler error', error as Error);
+    const err = error as Error;
+    Logger.error('Cloudflare handler error', err);
+    if (typeof err?.stack === 'string' && err.stack.trim() !== '') {
+      Logger.error('Cloudflare handler stack', err.stack);
+    }
     const errorResponse = ErrorResponse.create(
       500,
       'Internal Server Error',
@@ -176,6 +187,7 @@ function parseCloudflareRequest(event: CloudflareRequest): PlatformRequest {
     headers,
     query: Object.fromEntries(url.searchParams.entries()),
     remoteAddr: headers['cf-connecting-ip']?.toString() || '0.0.0.0',
+    signal: event.signal,
   };
 }
 
@@ -193,10 +205,16 @@ function formatCloudflareResponse(response: PlatformResponse): Response {
     }
   }
 
-  let body: string = '';
+  let body: string | ReadableStream<Uint8Array> | null = null;
   if (response.body !== null && response.body !== undefined) {
     if (typeof response.body === 'string') {
       body = response.body;
+    } else if (
+      typeof ReadableStream !== 'undefined' &&
+      (response.body instanceof ReadableStream ||
+        response.body?.constructor?.name === 'ReadableStream')
+    ) {
+      body = response.body as unknown as ReadableStream;
     } else {
       body = response.body.toString();
     }

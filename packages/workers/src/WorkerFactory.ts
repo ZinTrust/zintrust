@@ -5,7 +5,7 @@
  */
 
 import {
-  appConfig,
+  Cloudflare,
   createRedisConnection,
   databaseConfig,
   Env,
@@ -39,6 +39,7 @@ import { ResourceMonitor } from './ResourceMonitor';
 import { WorkerMetrics } from './WorkerMetrics';
 import { WorkerRegistry, type WorkerInstance as RegistryWorkerInstance } from './WorkerRegistry';
 import { WorkerVersioning } from './WorkerVersioning';
+import { keyPrefix } from './config/workerConfig';
 import {
   DbWorkerStore,
   InMemoryWorkerStore,
@@ -48,6 +49,171 @@ import {
 } from './storage/WorkerStore';
 
 const path = NodeSingletons.path;
+
+const isNodeRuntime = (): boolean =>
+  typeof process !== 'undefined' && Boolean(process.versions?.node);
+
+const resolveProjectRoot = (): string => {
+  const envRoot = Env.get('ZINTRUST_PROJECT_ROOT', '').trim();
+  return envRoot.length > 0 ? envRoot : process.cwd();
+};
+
+const canUseProjectFileImports = (): boolean =>
+  typeof NodeSingletons?.fs?.writeFileSync === 'function' &&
+  typeof NodeSingletons?.fs?.mkdirSync === 'function' &&
+  typeof NodeSingletons?.fs?.existsSync === 'function' &&
+  typeof NodeSingletons?.url?.pathToFileURL === 'function' &&
+  typeof NodeSingletons?.path?.join === 'function';
+
+const buildCandidatesForSpecifier = (specifier: string, root: string): string[] => {
+  if (specifier === '@zintrust/core') {
+    return [
+      path.join(root, 'dist', 'src', 'index.js'),
+      path.join(root, 'dist', 'index.js'),
+      path.join(root, 'src', 'index.ts'),
+    ];
+  }
+
+  if (specifier === '@zintrust/workers') {
+    return [
+      path.join(root, 'dist', 'packages', 'workers', 'src', 'index.js'),
+      path.join(root, 'packages', 'workers', 'src', 'index.ts'),
+    ];
+  }
+
+  return [];
+};
+
+const getProjectFileCandidates = (paths: string[]): string | null => {
+  if (!canUseProjectFileImports()) return null;
+  for (const candidate of paths) {
+    if (NodeSingletons.fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+};
+
+const resolveLocalPackageFallback = (specifier: string): string | null => {
+  if (!canUseProjectFileImports()) return null;
+  const root = resolveProjectRoot();
+
+  const candidates = buildCandidatesForSpecifier(specifier, root);
+  const resolved = getProjectFileCandidates(candidates);
+  if (!resolved) return null;
+  return NodeSingletons.url.pathToFileURL(resolved).href;
+};
+
+const resolvePackageSpecifierUrl = (specifier: string): string | null => {
+  if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
+  if (typeof NodeSingletons?.module?.createRequire !== 'function') {
+    return resolveLocalPackageFallback(specifier);
+  }
+
+  try {
+    const require = NodeSingletons.module.createRequire(import.meta.url);
+    const resolved = require.resolve(specifier);
+    if (
+      specifier === '@zintrust/workers' &&
+      resolved.includes(`${path.sep}node_modules${path.sep}@zintrust${path.sep}workers${path.sep}`)
+    ) {
+      const local = resolveLocalPackageFallback(specifier);
+      if (local) return local;
+    }
+    return NodeSingletons.url.pathToFileURL(resolved).href;
+  } catch {
+    return resolveLocalPackageFallback(specifier);
+  }
+};
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const rewriteProcessorImports = (code: string): string => {
+  const replacements: Array<{ from: string; to: string }> = [];
+  const coreUrl = resolvePackageSpecifierUrl('@zintrust/core');
+  if (coreUrl) replacements.push({ from: '@zintrust/core', to: coreUrl });
+  const workersUrl = resolvePackageSpecifierUrl('@zintrust/workers');
+  if (workersUrl) replacements.push({ from: '@zintrust/workers', to: workersUrl });
+
+  if (replacements.length === 0) return code;
+
+  let updated = code;
+  for (const { from, to } of replacements) {
+    const pattern = new RegExp(`(['"])${escapeRegExp(from)}\\1`, 'g');
+    updated = updated.replace(pattern, `$1${to}$1`);
+  }
+
+  return updated;
+};
+
+const ensureProcessorSpecDir = (): string | null => {
+  if (!isNodeRuntime() || !canUseProjectFileImports()) return null;
+  const dir = path.join(resolveProjectRoot(), '.zintrust', 'processor-specs');
+  try {
+    if (!NodeSingletons.fs.existsSync(dir)) {
+      NodeSingletons.fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  } catch (error) {
+    Logger.debug('Failed to prepare processor spec cache directory', error);
+    return null;
+  }
+};
+
+const shouldFallbackToFileImport = (error: unknown): boolean => {
+  if (!isNodeRuntime()) return false;
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as { code?: string } | undefined)?.code ?? '';
+  if (code === 'ERR_INVALID_URL' || code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME') return true;
+  return (
+    message.includes('Invalid relative URL') ||
+    message.includes('base scheme is not hierarchical') ||
+    message.includes('Failed to resolve module specifier')
+  );
+};
+
+const importModuleFromCode = async (params: {
+  code: string;
+  normalized: string;
+  cacheKey: string;
+}): Promise<Record<string, unknown>> => {
+  const { code, normalized, cacheKey } = params;
+  const dataUrl = `data:text/javascript;base64,${toBase64(code)}`;
+
+  try {
+    return (await import(dataUrl)) as Record<string, unknown>;
+  } catch (error) {
+    if (!shouldFallbackToFileImport(error)) throw error;
+    const dir = ensureProcessorSpecDir();
+    if (!dir) throw error;
+
+    try {
+      const codeHash = await computeSha256(code);
+      const filePath = path.join(dir, `${codeHash || cacheKey}.mjs`);
+      NodeSingletons.fs.writeFileSync(filePath, code, 'utf8');
+      const fileUrl = NodeSingletons.url.pathToFileURL(filePath).href;
+      return (await import(fileUrl)) as Record<string, unknown>;
+    } catch (fileError) {
+      Logger.debug(`Processor URL file fallback failed for ${normalized}`, fileError);
+      throw error;
+    }
+  }
+};
+
+const isCloudflareRuntime = (): boolean => Cloudflare.getWorkersEnv() !== null;
+
+const getDefaultStoreForRuntime = async (): Promise<WorkerStore> => {
+  if (!isCloudflareRuntime()) {
+    await ensureWorkerStoreConfigured();
+    return workerStore;
+  }
+
+  const bootstrapConfig = buildPersistenceBootstrapConfig();
+  const persistence = resolvePersistenceConfig(bootstrapConfig);
+  if (!persistence) {
+    return InMemoryWorkerStore.create();
+  }
+
+  return resolveWorkerStoreForPersistence(persistence);
+};
 
 const getStoreForWorker = async (
   config: WorkerFactoryConfig | undefined,
@@ -66,8 +232,7 @@ const getStoreForWorker = async (
   }
 
   // Fallback to default/global store
-  await ensureWorkerStoreConfigured();
-  return workerStore;
+  return getDefaultStoreForRuntime();
 };
 
 const validateAndGetStore = async (
@@ -111,9 +276,10 @@ export type WorkerFactoryConfig = {
   version?: string;
   queueName: string;
   processor: (job: Job) => Promise<unknown>;
-  processorPath?: string;
+  processorSpec?: string;
   options?: WorkerOptions;
   autoStart?: boolean;
+  activeStatus?: boolean;
   infrastructure?: {
     redis?: RedisConfigInput;
     persistence?: WorkerPersistenceConfig;
@@ -190,7 +356,8 @@ const workers = new Map<string, WorkerInstance>();
 let workerStore: WorkerStore = InMemoryWorkerStore.create();
 let workerStoreConfigured = false;
 let workerStoreConfig: WorkerPersistenceConfig | null = null;
-type ProcessorResolver = (
+
+export type ProcessorResolver = (
   name: string
 ) =>
   | WorkerFactoryConfig['processor']
@@ -200,6 +367,20 @@ type ProcessorResolver = (
 const processorRegistry = new Map<string, WorkerFactoryConfig['processor']>();
 const processorPathRegistry = new Map<string, string>();
 const processorResolvers: ProcessorResolver[] = [];
+const processorSpecRegistry = new Map<string, WorkerFactoryConfig['processor']>();
+
+type CachedProcessor = {
+  code: string;
+  processor: WorkerFactoryConfig['processor'];
+  etag?: string;
+  cachedAt: number;
+  expiresAt: number;
+  size: number;
+  lastAccess: number;
+};
+
+const processorCache = new Map<string, CachedProcessor>();
+let processorCacheSize = 0;
 
 const buildPersistenceBootstrapConfig = (): WorkerFactoryConfig => {
   const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory') as 'memory' | 'redis' | 'database';
@@ -250,11 +431,109 @@ const registerProcessorResolver = (resolver: ProcessorResolver): void => {
   processorResolvers.push(resolver);
 };
 
+const registerProcessorSpec = (spec: string, processor: WorkerFactoryConfig['processor']): void => {
+  if (!spec || typeof processor !== 'function') return;
+  processorSpecRegistry.set(normalizeProcessorSpec(spec), processor);
+};
+
 const decodeProcessorPathEntities = (value: string): string =>
   value
     .replaceAll(/&#x2F;/gi, '/')
     .replaceAll('&#47;', '/')
     .replaceAll(/&sol;/gi, '/');
+
+const isUrlSpec = (spec: string): boolean => {
+  if (spec.startsWith('url:')) return true;
+  return spec.includes('://');
+};
+
+const normalizeProcessorSpec = (spec: string): string =>
+  spec.startsWith('url:') ? spec.slice(4) : spec;
+
+const parseCacheControl = (value: string | null): { maxAge?: number } => {
+  if (!value) return {};
+  const parts = value.split(',').map((part) => part.trim().toLowerCase());
+  const maxAge = parts.find((part) => part.startsWith('max-age='));
+  if (!maxAge) return {};
+  const raw = maxAge.split('=')[1];
+  const parsed = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) ? { maxAge: parsed } : {};
+};
+
+const getProcessorSpecConfig = (): typeof workersConfig.processorSpec =>
+  workersConfig.processorSpec;
+
+const computeSha256 = async (value: string): Promise<string> => {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.subtle) {
+    const data = new TextEncoder().encode(value);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  if (typeof NodeSingletons.createHash === 'function') {
+    return NodeSingletons.createHash('sha256').update(value).digest('hex');
+  }
+
+  return String(Math.random()).slice(2);
+};
+
+const toBase64 = (value: string): string => {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(value, 'utf-8').toString('base64');
+  }
+
+  if (typeof globalThis !== 'undefined' && typeof globalThis.btoa === 'function') {
+    const bytes = new TextEncoder().encode(value);
+    let binary = '';
+    bytes.forEach((byte) => {
+      binary += String.fromCodePoint(byte);
+    });
+    return globalThis.btoa(binary);
+  }
+
+  return value;
+};
+
+const getCachedProcessor = (key: string): CachedProcessor | null => {
+  const entry = processorCache.get(key);
+  if (!entry) return null;
+  const now = Date.now();
+  if (entry.expiresAt <= now) {
+    processorCache.delete(key);
+    processorCacheSize -= entry.size;
+    return null;
+  }
+  entry.lastAccess = now;
+  return entry;
+};
+
+const evictCacheIfNeeded = (maxSize: number): void => {
+  if (processorCacheSize <= maxSize) return;
+  const entries = Array.from(processorCache.entries());
+  entries.sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+  for (const [key, entry] of entries) {
+    if (processorCacheSize <= maxSize) break;
+    processorCache.delete(key);
+    processorCacheSize -= entry.size;
+  }
+};
+
+const setCachedProcessor = (key: string, entry: CachedProcessor, maxSize: number): void => {
+  const existing = processorCache.get(key);
+  if (existing) {
+    processorCacheSize -= existing.size;
+  }
+  processorCache.set(key, entry);
+  processorCacheSize += entry.size;
+  evictCacheIfNeeded(maxSize);
+};
+
+const isAllowedRemoteHost = (host: string): boolean => {
+  const allowlist = getProcessorSpecConfig().remoteAllowlist.map((value) => value.toLowerCase());
+  return allowlist.includes(host.toLowerCase());
+};
 
 const waitForWorkerConnection = async (
   worker: Worker,
@@ -330,6 +609,285 @@ const sanitizeProcessorPath = (value: string): string => {
   return isAbsolutePath ? base : path.resolve(process.cwd(), relativePath);
 };
 
+const stripProcessorExtension = (value: string): string => value.replace(/\.(ts|js)$/i, '');
+
+const normalizeModulePath = (value: string): string => value.replaceAll('\\', '/');
+
+const filterExistingFileCandidates = (candidates: string[]): string[] => {
+  if (!NodeSingletons?.fs?.existsSync) return candidates;
+  return candidates.filter((candidate) => {
+    try {
+      return NodeSingletons.fs.existsSync(candidate);
+    } catch {
+      return false;
+    }
+  });
+};
+
+const buildProcessorModuleCandidates = (modulePath: string, resolvedPath: string): string[] => {
+  const candidates: string[] = [];
+  const normalized = normalizeModulePath(modulePath.trim());
+  const normalizedResolved = normalizeModulePath(resolvedPath);
+
+  if (normalized.startsWith('/app/')) {
+    candidates.push(`@app/${stripProcessorExtension(normalized.slice(5))}`);
+  } else if (normalized.startsWith('app/')) {
+    candidates.push(`@app/${stripProcessorExtension(normalized.slice(4))}`);
+  }
+
+  const appIndex = normalizedResolved.lastIndexOf('/app/');
+  if (appIndex !== -1) {
+    const relative = normalizedResolved.slice(appIndex + 5);
+    if (relative) {
+      candidates.push(`@app/${stripProcessorExtension(relative)}`);
+    }
+  }
+
+  return Array.from(new Set(candidates));
+};
+
+const buildProcessorFilePathCandidates = (_modulePath: string, resolvedPath: string): string[] => {
+  const candidates: string[] = [];
+  const normalizedResolved = normalizeModulePath(resolvedPath);
+  const projectRoot = normalizeModulePath(resolveProjectRoot());
+
+  const strippedResolved = stripProcessorExtension(resolvedPath);
+  candidates.push(`${strippedResolved}.js`);
+  candidates.push(`${strippedResolved}.mjs`);
+
+  const appIndex = normalizedResolved.lastIndexOf('/app/');
+  if (appIndex !== -1) {
+    const relative = normalizedResolved.slice(appIndex + 5);
+    if (relative) {
+      const strippedRelative = stripProcessorExtension(relative);
+      candidates.push(path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`));
+      candidates.push(path.join(projectRoot, 'app', relative));
+      candidates.push(path.join(projectRoot, 'app', `${strippedRelative}.js`));
+      candidates.push(path.join('/app', 'dist', 'app', `${strippedRelative}.js`));
+    }
+  }
+
+  return filterExistingFileCandidates(Array.from(new Set(candidates)));
+};
+
+const pickProcessorFromModule = (
+  mod: Record<string, unknown> | undefined,
+  source: string
+): WorkerFactoryConfig['processor'] | undefined => {
+  const candidate = mod?.['default'] ?? mod?.['processor'] ?? mod?.['handler'] ?? mod?.['handle'];
+  if (typeof candidate !== 'function') {
+    const keys = mod ? Object.keys(mod) : [];
+    Logger.warn(
+      `Module imported from ${source} but no valid processor function found (exported: ${keys.join(', ')})`
+    );
+    return undefined;
+  }
+
+  return candidate as WorkerFactoryConfig['processor'];
+};
+
+const extractZinTrustProcessor = (
+  mod: Record<string, unknown> | undefined,
+  source: string
+): WorkerFactoryConfig['processor'] | undefined => {
+  const candidate = mod?.['ZinTrustProcessor'];
+  if (typeof candidate !== 'function') {
+    const keys = mod ? Object.keys(mod) : [];
+    Logger.warn(
+      `Module imported from ${source} but missing ZinTrustProcessor export (exported: ${keys.join(', ')})`
+    );
+    return undefined;
+  }
+
+  return candidate as WorkerFactoryConfig['processor'];
+};
+
+const readResponseBody = async (response: Response, maxSize: number): Promise<string> => {
+  const contentLength = response.headers.get('content-length');
+  if (contentLength) {
+    const size = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(size) && size > maxSize) {
+      throw ErrorFactory.createConfigError('PROCESSOR_FETCH_SIZE_EXCEEDED');
+    }
+  }
+
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > maxSize) {
+    throw ErrorFactory.createConfigError('PROCESSOR_FETCH_SIZE_EXCEEDED');
+  }
+
+  return new TextDecoder().decode(buffer);
+};
+
+const computeCacheTtlSeconds = (
+  config: ReturnType<typeof getProcessorSpecConfig>,
+  cacheControl: { maxAge?: number }
+): number =>
+  Math.min(config.cacheMaxTtlSeconds, cacheControl.maxAge ?? config.cacheDefaultTtlSeconds);
+
+const refreshCachedProcessor = (
+  existing: CachedProcessor,
+  config: ReturnType<typeof getProcessorSpecConfig>,
+  cacheControl: { maxAge?: number }
+): WorkerFactoryConfig['processor'] => {
+  const ttl = computeCacheTtlSeconds(config, cacheControl);
+  const now = Date.now();
+  existing.expiresAt = now + ttl * 1000;
+  existing.lastAccess = now;
+  return existing.processor;
+};
+
+const cacheProcessorFromResponse = async (params: {
+  response: Response;
+  normalized: string;
+  config: ReturnType<typeof getProcessorSpecConfig>;
+  cacheKey: string;
+}): Promise<WorkerFactoryConfig['processor']> => {
+  const { response, normalized, config, cacheKey } = params;
+  const rawCode = await readResponseBody(response, config.fetchMaxSizeBytes);
+  const code = rewriteProcessorImports(rawCode);
+  const mod = await importModuleFromCode({ code, normalized, cacheKey });
+  const processor = extractZinTrustProcessor(mod as Record<string, unknown>, normalized);
+  if (!processor) {
+    throw ErrorFactory.createConfigError('INVALID_PROCESSOR_URL_EXPORT');
+  }
+
+  const cacheControl = parseCacheControl(response.headers.get('cache-control'));
+  const ttl = computeCacheTtlSeconds(config, cacheControl);
+  const size = new TextEncoder().encode(code).byteLength;
+  const now = Date.now();
+  setCachedProcessor(
+    cacheKey,
+    {
+      code,
+      processor,
+      etag: response.headers.get('etag') ?? undefined,
+      cachedAt: now,
+      expiresAt: now + ttl * 1000,
+      size,
+      lastAccess: now,
+    },
+    config.cacheMaxSizeBytes
+  );
+
+  return processor;
+};
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+
+const fetchProcessorAttempt = async (params: {
+  normalized: string;
+  config: ReturnType<typeof getProcessorSpecConfig>;
+  cacheKey: string;
+  existing: CachedProcessor | undefined;
+  attempt: number;
+  maxAttempts: number;
+}): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  const { normalized, config, cacheKey, existing, attempt, maxAttempts } = params;
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), config.fetchTimeoutMs);
+
+  try {
+    const headers: Record<string, string> = {};
+    if (existing?.etag) headers['If-None-Match'] = existing.etag;
+
+    const response = await fetch(normalized, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+
+    if (response.status === 304 && existing) {
+      const cacheControl = parseCacheControl(response.headers.get('cache-control'));
+      return refreshCachedProcessor(existing, config, cacheControl);
+    }
+
+    if (!response.ok) {
+      throw ErrorFactory.createConfigError(`PROCESSOR_FETCH_FAILED:${response.status}`);
+    }
+
+    return await cacheProcessorFromResponse({ response, normalized, config, cacheKey });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      Logger.error('Processor URL fetch timeout', error);
+    } else {
+      Logger.error('Processor URL fetch failed', error);
+    }
+
+    if (attempt >= maxAttempts) {
+      return undefined;
+    }
+
+    await delay(config.retryBackoffMs * attempt);
+    return fetchProcessorAttempt({
+      normalized,
+      config,
+      cacheKey,
+      existing,
+      attempt: attempt + 1,
+      maxAttempts,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const resolveProcessorFromUrl = async (
+  spec: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  const normalized = normalizeProcessorSpec(spec);
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch (error) {
+    Logger.error('Invalid processor URL spec', error);
+    return undefined;
+  }
+
+  if (parsed.protocol === 'file:') {
+    const filePath = decodeURIComponent(parsed.pathname);
+    return resolveProcessorFromPath(filePath);
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'file:') {
+    Logger.warn(
+      `Invalid processor URL protocol: ${parsed.protocol}. Only https:// and file:// are supported.`
+    );
+  }
+
+  if (!isAllowedRemoteHost(parsed.host) && parsed.protocol !== 'file:') {
+    Logger.warn(`Invalid processor URL host: ${parsed.host}. Host is not in the allowlist.`);
+  }
+
+  const config = getProcessorSpecConfig();
+  const cacheKey = await computeSha256(normalized);
+  const cached = getCachedProcessor(cacheKey);
+  if (cached) return cached.processor;
+
+  return fetchProcessorAttempt({
+    normalized,
+    config,
+    cacheKey,
+    existing: processorCache.get(cacheKey),
+    attempt: 1,
+    maxAttempts: Math.max(1, config.retryAttempts),
+  });
+};
+
+const resolveProcessorSpec = async (
+  spec: string
+): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+  if (!spec) return undefined;
+  const normalized = normalizeProcessorSpec(spec);
+  const prebuilt = processorSpecRegistry.get(normalized) ?? processorSpecRegistry.get(spec);
+  if (prebuilt) return prebuilt;
+  if (isUrlSpec(spec)) return resolveProcessorFromUrl(spec);
+  return resolveProcessorFromPath(spec);
+};
+
 const resolveProcessorFromPath = async (
   modulePath: string
 ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
@@ -339,23 +897,42 @@ const resolveProcessorFromPath = async (
   const resolved = sanitizeProcessorPath(trimmed);
   if (!resolved) return undefined;
 
-  try {
-    const mod = await import(resolved);
-    const candidate = mod?.default ?? mod?.processor ?? mod?.handler ?? mod?.handle;
-
-    if (typeof candidate !== 'function') {
-      Logger.warn(
-        `Module imported from ${resolved} but no valid processor function found (exported: ${Object.keys(mod)})`
-      );
+  const importProcessorFromCandidates = async (
+    candidates: string[]
+  ): Promise<WorkerFactoryConfig['processor'] | undefined> => {
+    if (candidates.length === 0) return undefined;
+    const [candidatePath, ...rest] = candidates;
+    try {
+      const importPath =
+        candidatePath.startsWith('/') && !candidatePath.startsWith('//')
+          ? NodeSingletons.url.pathToFileURL(candidatePath).href
+          : candidatePath;
+      const mod = await import(importPath);
+      const candidate = pickProcessorFromModule(mod as Record<string, unknown>, importPath);
+      if (candidate) return candidate;
+    } catch (candidateError) {
+      Logger.debug(`Processor module candidate import failed: ${candidatePath}`, candidateError);
     }
 
-    return typeof candidate === 'function'
-      ? (candidate as WorkerFactoryConfig['processor'])
-      : undefined;
+    return importProcessorFromCandidates(rest);
+  };
+
+  try {
+    const mod = await import(resolved);
+    const candidate = pickProcessorFromModule(mod as Record<string, unknown>, resolved);
+    if (candidate) return candidate;
   } catch (err) {
+    const fileCandidates = buildProcessorFilePathCandidates(trimmed, resolved);
+    const resolvedFileCandidate = await importProcessorFromCandidates(fileCandidates);
+    if (resolvedFileCandidate) return resolvedFileCandidate;
+
+    const moduleCandidates = buildProcessorModuleCandidates(trimmed, resolved);
+    const resolvedModuleCandidate = await importProcessorFromCandidates(moduleCandidates);
+    if (resolvedModuleCandidate) return resolvedModuleCandidate;
     Logger.error(`Failed to import processor from path: ${resolved}`, err);
-    return undefined;
   }
+
+  return undefined;
 };
 
 const resolveProcessor = async (
@@ -367,7 +944,7 @@ const resolveProcessor = async (
   const pathHint = processorPathRegistry.get(name);
   if (pathHint) {
     try {
-      const resolved = await resolveProcessorFromPath(pathHint);
+      const resolved = await resolveProcessorSpec(pathHint);
       if (resolved) return resolved;
     } catch (error) {
       Logger.error(`Failed to resolve processor module for "${name}"`, error);
@@ -857,12 +1434,23 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
   };
 };
 
-const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => ({
-  host: requireRedisHost(config.host, context),
-  port: config.port,
-  db: config.db,
-  password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
-});
+const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => {
+  const fallbackDb = Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
+
+  let normalizedDb = fallbackDb;
+  if (typeof config.db === 'number') {
+    normalizedDb = config.db;
+  } else if (typeof (config as { database?: number }).database === 'number') {
+    normalizedDb = (config as { database?: number }).database as number;
+  }
+
+  return {
+    host: requireRedisHost(config.host, context),
+    port: config.port,
+    db: normalizedDb,
+    password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+  };
+};
 
 const resolveRedisConfig = (config: RedisConfigInput, context: string): RedisConfig =>
   isRedisEnvConfig(config)
@@ -883,18 +1471,26 @@ const resolveRedisConfigWithFallback = (
   return resolveRedisConfig(selected, context);
 };
 
+const logRedisPersistenceConfig = (
+  redisConfig: RedisConfig,
+  key_prefix: string,
+  source: string
+): void => {
+  Logger.debug('Worker persistence redis config', {
+    source,
+    host: redisConfig.host,
+    port: redisConfig.port,
+    db: redisConfig.db,
+    key_prefix,
+  });
+};
+
 const normalizeEnvValue = (value: string | undefined): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-const normalizeAppName = (value: string | undefined): string => {
-  const normalized = (value ?? '').trim().replaceAll(/\s+/g, '_');
-  return normalized.length > 0 ? normalized : 'zintrust';
-};
-
-const resolveDefaultRedisKeyPrefix = (): string => 'worker_' + normalizeAppName(appConfig.prefix);
 const resolveDefaultPersistenceTable = (): string =>
   normalizeEnvValue(Env.get('WORKER_PERSISTENCE_TABLE', 'zintrust_workers')) ?? 'zintrust_workers';
 
@@ -919,10 +1515,7 @@ const normalizeExplicitPersistence = (
     return {
       driver: 'redis',
       redis: persistence.redis,
-      keyPrefix:
-        persistence.keyPrefix ??
-        normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', '')) ??
-        resolveDefaultRedisKeyPrefix(),
+      keyPrefix: keyPrefix(),
     };
   }
 
@@ -957,11 +1550,16 @@ const resolvePersistenceConfig = (
   if (driver === 'memory') return { driver: 'memory' };
 
   if (driver === 'redis') {
-    const keyPrefix = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_KEY_PREFIX', ''));
+    const persistenceDbOverride = normalizeEnvValue(Env.get('WORKER_PERSISTENCE_REDIS_DB', ''));
+
     return {
       driver: 'redis',
-      redis: { env: true },
-      keyPrefix: `${keyPrefix}_worker_${appConfig.prefix}`,
+      // Optional override; otherwise defaults to REDIS_QUEUE_DB.
+      redis: {
+        env: true,
+        db: persistenceDbOverride ? 'WORKER_PERSISTENCE_REDIS_DB' : 'REDIS_QUEUE_DB',
+      },
+      keyPrefix: keyPrefix(),
     };
   }
 
@@ -1014,8 +1612,10 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
       'Worker persistence requires redis config (persistence.redis or infrastructure.redis)',
       'infrastructure.persistence.redis'
     );
+    const key_prefix = persistence.keyPrefix ?? keyPrefix();
+    logRedisPersistenceConfig(redisConfig, key_prefix, 'resolveWorkerStore');
     const client = createRedisConnection(redisConfig);
-    next = RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
+    next = RedisWorkerStore.create(client, key_prefix);
   } else if (persistence.driver === 'database') {
     const explicitConnection =
       typeof persistence.client === 'string' ? persistence.client : persistence.connection;
@@ -1066,8 +1666,10 @@ const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<
       'Worker persistence requires redis config (persistence.redis or REDIS_* env values)',
       'persistence.redis'
     );
+    const key_prefix = persistence.keyPrefix ?? keyPrefix();
+    logRedisPersistenceConfig(redisConfig, key_prefix, 'createWorkerStore');
     const client = createRedisConnection(redisConfig);
-    return RedisWorkerStore.create(client, persistence.keyPrefix ?? resolveDefaultRedisKeyPrefix());
+    return RedisWorkerStore.create(client, key_prefix);
   }
 
   // Database driver
@@ -1084,10 +1686,12 @@ const resolveWorkerStoreForPersistence = async (
   persistence: WorkerPersistenceConfig
 ): Promise<WorkerStore> => {
   const cacheKey = generateCacheKey(persistence);
+  const isCloudflare = Cloudflare.getWorkersEnv() !== null;
 
-  // Return cached instance if available
+  // Return cached instance if available (disable cache for Cloudflare to assume cleanup)
+  // Or handle cleanup differently. For now, disable cache for Cloudflare to allow per-request connections.
   const cached = storeInstanceCache.get(cacheKey);
-  if (cached) {
+  if (cached && !isCloudflare) {
     return cached;
   }
 
@@ -1095,8 +1699,10 @@ const resolveWorkerStoreForPersistence = async (
   const store = await createWorkerStore(persistence);
   await store.init();
 
-  // Cache the store instance for reuse
-  storeInstanceCache.set(cacheKey, store);
+  // Cache the store instance for reuse only if not Cloudflare
+  if (!isCloudflare) {
+    storeInstanceCache.set(cacheKey, store);
+  }
 
   return store;
 };
@@ -1106,8 +1712,19 @@ const getPersistedRecord = async (
   persistenceOverride?: WorkerPersistenceConfig
 ): Promise<WorkerRecord | null> => {
   if (!persistenceOverride) {
-    await ensureWorkerStoreConfigured();
-    return workerStore.get(name);
+    if (!isCloudflareRuntime()) {
+      await ensureWorkerStoreConfigured();
+      return workerStore.get(name);
+    }
+
+    const store = await getDefaultStoreForRuntime();
+    try {
+      return await store.get(name);
+    } finally {
+      if (store.close) {
+        await store.close();
+      }
+    }
   }
 
   const store = await resolveWorkerStoreForPersistence(persistenceOverride);
@@ -1126,8 +1743,9 @@ const ensureWorkerStoreConfigured = async (): Promise<void> => {
 
 const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerRecord => {
   const now = new Date();
-  const decodedProcessorPath = config.processorPath
-    ? decodeProcessorPathEntities(config.processorPath)
+
+  const normalizedProcessorSpec = config.processorSpec
+    ? normalizeProcessorSpec(config.processorSpec)
     : null;
   return {
     name: config.name,
@@ -1137,7 +1755,8 @@ const buildWorkerRecord = (config: WorkerFactoryConfig, status: string): WorkerR
     autoStart: resolveAutoStart(config),
     concurrency: config.options?.concurrency ?? 1,
     region: config.datacenter?.primaryRegion ?? null,
-    processorPath: decodedProcessorPath,
+    processorSpec: normalizedProcessorSpec ?? null,
+    activeStatus: config.activeStatus ?? true,
     features: config.features ? { ...config.features } : null,
     infrastructure: config.infrastructure ? { ...config.infrastructure } : null,
     datacenter: config.datacenter ? { ...config.datacenter } : null,
@@ -1482,6 +2101,7 @@ const registerWorkerInstance = (params: {
   WorkerRegistry.register({
     name: config.name,
     config: {},
+    activeStatus: config.activeStatus ?? true,
     version: workerVersion,
     region: config.datacenter?.primaryRegion,
     queues: [queueName],
@@ -1495,6 +2115,7 @@ const registerWorkerInstance = (params: {
           region: config.datacenter?.primaryRegion ?? 'unknown',
           queueName,
           concurrency: options?.concurrency ?? 1,
+          activeStatus: config.activeStatus ?? true,
           startedAt: new Date(),
           stoppedAt: null,
           lastProcessedAt: null,
@@ -1557,7 +2178,40 @@ export const WorkerFactory = Object.freeze({
   registerProcessors,
   registerProcessorPaths,
   registerProcessorResolver,
+  registerProcessorSpec,
   resolveProcessorPath,
+  resolveProcessorSpec,
+
+  /**
+   * Register a new worker configuration without starting it.
+   */
+  async register(config: WorkerFactoryConfig): Promise<void> {
+    const { name } = config;
+    // Check in-memory first (though unlikely if we are just registering)
+    if (workers.has(name)) {
+      throw ErrorFactory.createWorkerError(`Worker "${name}" is already running locally`);
+    }
+
+    const store = await getStoreForWorker(config);
+    try {
+      const existing = await store.get(name);
+      if (existing) {
+        throw ErrorFactory.createWorkerError(`Worker "${name}" already exists in persistence`);
+      }
+
+      // Init features to validate config, but mainly we just want to save it.
+      // initializeWorkerFeatures might rely on being active or having resources, so we might skip it or do partial.
+      // For now, just save definition.
+      // Status should be STOPPED or CREATED.
+      await store.save(buildWorkerRecord(config, WorkerCreationStatus.STOPPED));
+      Logger.info(`Worker registered (persistence only): ${name}`);
+    } finally {
+      // If Cloudflare environment, try to close store connection to avoid zombie connections
+      if (Cloudflare.getWorkersEnv() !== null && store.close) {
+        await store.close();
+      }
+    }
+  },
 
   /**
    * Create new worker with full setup
@@ -1882,6 +2536,47 @@ export const WorkerFactory = Object.freeze({
   },
 
   /**
+   * Update active status for a worker
+   */
+  async setWorkerActiveStatus(
+    name: string,
+    activeStatus: boolean,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<void> {
+    const instance = workers.get(name);
+    const store = await validateAndGetStore(name, instance?.config, persistenceOverride);
+
+    if (instance) {
+      instance.config.activeStatus = activeStatus;
+    }
+
+    await store.update(name, { activeStatus, updatedAt: new Date() });
+    WorkerRegistry.setActiveStatus(name, activeStatus);
+
+    if (activeStatus === false && instance) {
+      await WorkerFactory.stop(name, persistenceOverride);
+    }
+  },
+
+  /**
+   * Get active status for a worker
+   */
+  async getWorkerActiveStatus(
+    name: string,
+    persistenceOverride?: WorkerPersistenceConfig
+  ): Promise<boolean | null> {
+    const instance = workers.get(name);
+    if (instance?.config.activeStatus !== undefined) {
+      return instance.config.activeStatus;
+    }
+
+    const store = await getStoreForWorker(instance?.config, persistenceOverride);
+    const record = await store.get(name);
+    if (!record) return null;
+    return record.activeStatus ?? true;
+  },
+
+  /**
    * Update persisted worker record and in-memory config if running.
    */
   async update(
@@ -1917,6 +2612,8 @@ export const WorkerFactory = Object.freeze({
           ...cfg.options,
           concurrency: merged.concurrency ?? cfg.options?.concurrency,
         },
+        processorSpec: merged.processorSpec ?? cfg.processorSpec,
+        activeStatus: merged.activeStatus ?? cfg.activeStatus,
         infrastructure: (merged.infrastructure as unknown) ?? cfg.infrastructure,
         features: (merged.features as unknown) ?? cfg.features,
         datacenter: (merged.datacenter as unknown) ?? cfg.datacenter,
@@ -1934,6 +2631,15 @@ export const WorkerFactory = Object.freeze({
 
     if (!instance) {
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found`);
+    }
+
+    if (instance.config.activeStatus === false) {
+      throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
+    }
+
+    const persisted = await store.get(name);
+    if (persisted?.activeStatus === false) {
+      throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
     }
 
     const version = instance.config.version ?? '1.0.0';
@@ -1959,7 +2665,7 @@ export const WorkerFactory = Object.freeze({
    */
   async listPersisted(
     persistenceOverride?: WorkerPersistenceConfig,
-    options?: { offset?: number; limit?: number; search?: string }
+    options?: { offset?: number; limit?: number; search?: string; includeInactive?: boolean }
   ): Promise<string[]> {
     const records = await WorkerFactory.listPersistedRecords(persistenceOverride, options);
     return records.map((record) => record.name);
@@ -1967,15 +2673,34 @@ export const WorkerFactory = Object.freeze({
 
   async listPersistedRecords(
     persistenceOverride?: WorkerPersistenceConfig,
-    options?: { offset?: number; limit?: number; search?: string }
+    options?: { offset?: number; limit?: number; search?: string; includeInactive?: boolean }
   ): Promise<WorkerRecord[]> {
+    const includeInactive = options?.includeInactive === true;
     if (!persistenceOverride) {
-      await ensureWorkerStoreConfigured();
-      return workerStore.list(options);
+      if (!isCloudflareRuntime()) {
+        await ensureWorkerStoreConfigured();
+        const records = await workerStore.list(options);
+        return includeInactive
+          ? records
+          : records.filter((record) => record.activeStatus !== false);
+      }
+
+      const store = await getDefaultStoreForRuntime();
+      try {
+        const records = await store.list(options);
+        return includeInactive
+          ? records
+          : records.filter((record) => record.activeStatus !== false);
+      } finally {
+        if (store.close) {
+          await store.close();
+        }
+      }
     }
 
     const store = await resolveWorkerStoreForPersistence(persistenceOverride);
-    return store.list(options);
+    const records = await store.list(options);
+    return includeInactive ? records : records.filter((record) => record.activeStatus !== false);
   },
 
   /**
@@ -1990,11 +2715,16 @@ export const WorkerFactory = Object.freeze({
       throw ErrorFactory.createNotFoundError(`Worker "${name}" not found in persistence store`);
     }
 
+    if (record.activeStatus === false) {
+      throw ErrorFactory.createConfigError(`Worker "${name}" is inactive`);
+    }
+
     let processor = await resolveProcessor(name);
 
-    if (!processor && record.processorPath) {
+    const spec = record.processorSpec ?? undefined;
+    if (!processor && spec) {
       try {
-        processor = await resolveProcessorFromPath(record.processorPath);
+        processor = await resolveProcessorSpec(spec);
       } catch (error) {
         Logger.error(`Failed to resolve processor module for "${name}"`, error);
       }
@@ -2002,7 +2732,7 @@ export const WorkerFactory = Object.freeze({
 
     if (!processor) {
       throw ErrorFactory.createConfigError(
-        `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorPath.`
+        `Worker "${name}" processor is not registered or resolvable. Register the processor at startup or persist a processorSpec.`
       );
     }
 
@@ -2011,7 +2741,8 @@ export const WorkerFactory = Object.freeze({
       queueName: record.queueName,
       version: record.version ?? undefined,
       processor,
-      processorPath: record.processorPath ?? undefined,
+      processorSpec: record.processorSpec ?? undefined,
+      activeStatus: record.activeStatus ?? true,
       autoStart: true, // Override to true when manually starting
       options: { concurrency: record.concurrency } as WorkerOptions,
       infrastructure: record.infrastructure as WorkerFactoryConfig['infrastructure'],
@@ -2028,8 +2759,19 @@ export const WorkerFactory = Object.freeze({
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<WorkerRecord | null> {
     const instance = workers.get(name);
+    // Logger.debug(`getPersisted: resolving store for ${name}`);
     const store = await getStoreForWorker(instance?.config, persistenceOverride);
-    return store.get(name);
+
+    try {
+      // Logger.debug(`getPersisted: getting record for ${name}`);
+      const result = await store.get(name);
+      return result;
+    } finally {
+      if (Cloudflare.getWorkersEnv() !== null && store.close) {
+        // Logger.debug(`getPersisted: closing store for ${name}`);
+        await store.close();
+      }
+    }
   },
 
   /**
@@ -2177,6 +2919,17 @@ export const WorkerFactory = Object.freeze({
     workers.clear();
 
     Logger.info('WorkerFactory shutdown complete');
+  },
+
+  /**
+   * Reset persistence connection state.
+   * Useful when connections become stale in long-running processes or serverless environments.
+   */
+  async resetPersistence(): Promise<void> {
+    workerStoreConfigured = false;
+    workerStore = InMemoryWorkerStore.create();
+    storeInstanceCache.clear();
+    Logger.info('Worker persistence configuration reset');
   },
 });
 

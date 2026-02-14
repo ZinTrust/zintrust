@@ -647,6 +647,11 @@ registerWorkerRoutes(Router);
 // ... and many more endpoints
 ```
 
+Processor specs can be file paths or URL specs (recommended for production). Remote processors
+must export a named `ZinTrustProcessor` function.
+
+Workers support `activeStatus` to pause without deletion; inactive workers do not auto-start.
+
 See the [API Reference](#api-reference) section for all available endpoints.
 
 ## Lifecycle Management
@@ -705,6 +710,16 @@ ENABLE_HEALTH_CHECKS=true
 
 # Observability
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+
+# Processor spec resolver
+REMOTE_PROCESSOR_ALLOWLIST=wk.zintrust.com
+PROCESSOR_FETCH_TIMEOUT=30000
+PROCESSOR_FETCH_MAX_SIZE=524288
+PROCESSOR_FETCH_RETRY_ATTEMPTS=3
+PROCESSOR_FETCH_RETRY_BACKOFF_MS=1000
+PROCESSOR_CACHE_DEFAULT_TTL=3600
+PROCESSOR_CACHE_MAX_TTL=604800
+PROCESSOR_CACHE_MAX_SIZE=52428800
 ```
 
 ## Testing

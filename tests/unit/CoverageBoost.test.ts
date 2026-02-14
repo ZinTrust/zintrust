@@ -76,6 +76,20 @@ vi.mock('@config/logger', () => ({
       fatal: vi.fn(),
     }),
   },
+  default: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    scope: vi.fn().mockReturnValue({
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      fatal: vi.fn(),
+    }),
+  },
 }));
 
 beforeEach(() => {

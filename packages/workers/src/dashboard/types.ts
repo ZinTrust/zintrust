@@ -1,5 +1,7 @@
 // Worker Configuration Types
 export interface WorkerConfiguration {
+  processorSpec?: string | null;
+  activeStatus?: boolean | null;
   [key: string]: string | number | boolean | null | undefined | object;
 }
 
@@ -49,6 +51,7 @@ export interface WorkerData {
   avgTime: number;
   memory: number;
   autoStart: boolean;
+  activeStatus?: boolean;
   details?: {
     configuration: WorkerConfiguration;
     health: WorkerHealth;
@@ -95,6 +98,7 @@ export type GetWorkersQuery = {
   driver?: WorkerDriver;
   search?: string;
   includeDetails?: boolean;
+  includeInactive?: boolean;
 };
 
 // UI Options Types
@@ -116,6 +120,7 @@ export type RawWorkerData = {
   processed?: number;
   version?: string;
   autoStart?: boolean;
+  activeStatus?: boolean;
   queueName?: string;
   details?: {
     configuration: WorkerConfiguration;

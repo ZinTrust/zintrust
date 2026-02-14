@@ -9,13 +9,18 @@ import { ensureDirSafe } from '@common/index';
 import { Env } from '@config/env';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
-import type { PathLike, WriteStream, WriteStreamOptions } from 'node:fs';
 
 // Write stream cache to avoid recreating streams
-const streamCache = new Map<string, WriteStream>();
+const streamCache = new Map<string, fs.WriteStream>();
 const pendingWrites = new Map<string, string[]>();
 
+const isWorkersRuntime = (): boolean => {
+  const g = globalThis as { CF?: unknown; caches?: unknown; WebSocketPair?: unknown };
+  return g.CF !== undefined || g.caches !== undefined || g.WebSocketPair !== undefined;
+};
+
 const canUseWriteStreams = (): boolean => {
+  if (isWorkersRuntime()) return false;
   try {
     // Vitest's ESM module mocks can throw when accessing missing exports.
     // Treat missing createWriteStream as "no stream support".
@@ -28,6 +33,7 @@ const canUseWriteStreams = (): boolean => {
 };
 
 const appendFileSafe = (logFile: string, content: string): void => {
+  if (isWorkersRuntime()) return;
   try {
     // Some tests/mock environments provide only appendFileSync (no streams).
     fs.appendFileSync(logFile, content);
@@ -246,11 +252,11 @@ const rotateIfNeeded = (logFile: string, maxSizeBytes: number): void => {
   }
 };
 
-const getOrCreateStream = (logFile: string): WriteStream => {
+const getOrCreateStream = (logFile: string): fs.WriteStream => {
   let stream = streamCache.get(logFile);
 
   if (stream === undefined || stream.destroyed) {
-    type CreateWriteStream = (path: PathLike, options: WriteStreamOptions) => WriteStream;
+    type CreateWriteStream = (path: fs.PathLike, options: fs.WriteStreamOptions) => fs.WriteStream;
 
     const createWriteStream = (fs as unknown as { createWriteStream: CreateWriteStream })
       .createWriteStream;
@@ -280,19 +286,23 @@ const flushPendingWrites = (logFile: string): void => {
     return;
   }
 
-  const stream = getOrCreateStream(logFile);
-
-  stream.write(lines, (error: Error | null | undefined) => {
-    if (error !== null && error !== undefined) {
-      // Silent failure for best-effort logging
-    }
-  });
+  try {
+    const stream = getOrCreateStream(logFile);
+    stream.write(lines, (error: Error | null | undefined) => {
+      if (error !== null && error !== undefined) {
+        // Silent failure for best-effort logging
+      }
+    });
+  } catch {
+    appendFileSafe(logFile, lines);
+  }
 
   pendingWrites.delete(logFile);
 };
 
 export const FileLogWriter = Object.freeze({
   write(line: string): void {
+    if (isWorkersRuntime()) return;
     const cwd = getCwdSafe();
     if (cwd === '') return;
 

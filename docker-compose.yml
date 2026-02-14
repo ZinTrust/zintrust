@@ -1,14 +1,21 @@
 services:
-  app:
+  # Web Application (Producer Only)
+  web:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - '${PORT:-3000}:3000'
     environment:
-      NODE_ENV: development
+      NODE_ENV: ${NODE_ENV:-development}
       PORT: 3000
       HOST: 0.0.0.0
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      # Producer Configuration
+      RUNTIME_MODE: node-server
+      WORKER_ENABLED: false
+      QUEUE_ENABLED: true
+      # Database & Redis
       DB_CONNECTION: ${DB_CONNECTION:-postgresql}
       DB_HOST: ${DB_HOST:-postgres}
       DB_PORT: ${DB_PORT:-5432}
@@ -17,6 +24,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-zintrust}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - .:/app
@@ -36,12 +45,58 @@ services:
     networks:
       - zintrust-network
 
+  # Background Workers (Consumer Only)
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # No ports needed for workers usually
+    environment:
+      NODE_ENV: development
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      # Consumer Configuration
+      RUNTIME_MODE: containers
+      WORKER_ENABLED: true
+      WORKER_AUTO_START: true
+      QUEUE_ENABLED: true
+      # SMTP Mail
+      MAIL_DRIVER: ${MAIL_DRIVER:-smtp}
+      MAIL_CONNECTION: ${MAIL_CONNECTION:-smtp}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ZinTrust}
+      # Database & Redis
+      DB_CONNECTION: ${DB_CONNECTION:-postgresql}
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-zintrust}
+      DB_USERNAME: ${DB_USERNAME:-zintrust}
+      DB_PASSWORD: ${DB_PASSWORD:-zintrust}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/dist
+    # Run workers using tsx in development
+    command: npx tsx bin/zin.ts worker:start-all
+    networks:
+      - zintrust-network
+
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${DB_DATABASE:-zintrust}
       POSTGRES_USER: ${DB_USERNAME:-zintrust}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-zintrust}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     ports:
       - '${POSTGRES_PORT:-5432}:5432'
     volumes:
@@ -102,6 +157,7 @@ services:
       NODE_ENV: development
       PORT: 3000
       HOST: 0.0.0.0
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
       DB_CONNECTION: mysql
       DB_HOST: mysql
       DB_PORT: 3306
@@ -136,11 +192,12 @@ services:
     working_dir: /work
     environment:
       ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     volumes:
       - ./packages/cloudflare-d1-proxy:/work
-    command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 8787"
+    command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 7777"
     ports:
-      - '${D1_PROXY_PORT:-8787}:8787'
+      - '${D1_PROXY_PORT:-7777}:7777'
     networks:
       - zintrust-network
     profiles:
@@ -151,6 +208,7 @@ services:
     working_dir: /work
     environment:
       ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     volumes:
       - ./packages/cloudflare-kv-proxy:/work
     command: sh -lc "npm ci --silent || npm i --silent; npx --yes wrangler@latest dev --ip 0.0.0.0 --port 8788"

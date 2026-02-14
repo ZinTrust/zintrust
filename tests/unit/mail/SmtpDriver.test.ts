@@ -95,7 +95,7 @@ beforeEach(() => {
 });
 
 describe('SmtpDriver', () => {
-  it('throws when not running in a Node.js runtime', async () => {
+  it('throws when not running in a Node.js or Workers runtime', async () => {
     const msg = {
       to: 'a@b.com',
       from: { email: 'from@ex.com' },
@@ -104,12 +104,15 @@ describe('SmtpDriver', () => {
     } as any;
 
     const originalProcess = (globalThis as any).process;
+    const originalEnv = (globalThis as any).env;
     (globalThis as any).process = undefined;
+    (globalThis as any).env = undefined;
     const promise = SmtpDriver.send({ host: 'localhost', port: 25, secure: false }, msg);
     (globalThis as any).process = originalProcess;
+    (globalThis as any).env = originalEnv;
 
     await expect(promise).rejects.toMatchObject({
-      message: expect.stringContaining('SMTP driver requires Node.js runtime'),
+      message: expect.stringContaining('SMTP driver requires Node.js or Workers runtime'),
     });
   });
 

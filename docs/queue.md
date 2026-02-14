@@ -79,6 +79,45 @@ REDIS_PASSWORD=your-password
 - The Redis queue driver now uses **BullMQ** for enterprise-grade job processing with auto-scaling, circuit breaker, dead letter queue, and advanced monitoring.
 - Configure via standard Redis environment variables (`REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_QUEUE_DB`).
 - You can register the driver with `Queue.register('redis', RedisDriver)` and then call `Queue.enqueue('my-queue', payload, 'redis')`.
+- For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
+
+### Architecture: Producer vs Consumer (Cloudflare)
+
+If you deploy your API to Cloudflare Workers, **you cannot run Queue Consumers (Workers) in the same process** because BullMQ/Redis consumers require Node.js primitives not available in the Edge runtime.
+
+**The Solution:**
+Split your deployment into two services:
+
+1.  **Producer (Cloudflare Worker)**: Handles API requests, validates inputs, and **enqueues** jobs to Redis.
+2.  **Consumer (Container/Node.js)**: A separate Node.js service (e.g. Docker, Railway, Fly.io, EC2) that connects to the _same_ Redis instance, **consumes** jobs, and processes them.
+
+See [Architecture: Producer-Consumer Model](./architecture-producer-consumer.md) for setup details.
+
+### Queue HTTP Gateway (Cloudflare without Redis TCP)
+
+When Cloudflare Workers cannot open Redis TCP sockets in your environment, ZinTrust can proxy queue commands over HTTP to a Docker/Node API that runs `BullMQRedisQueue` locally.
+
+Producer-side env (Cloudflare/serverless):
+
+```bash
+QUEUE_HTTP_PROXY_ENABLED=true
+QUEUE_HTTP_PROXY_URL=http://your-docker-api:7772
+QUEUE_HTTP_PROXY_PATH=/api/_sys/queue/rpc
+QUEUE_HTTP_PROXY_KEY_ID=your-key-id
+QUEUE_HTTP_PROXY_KEY=your-secret
+```
+
+Gateway-side env (Docker/Node API):
+
+```bash
+QUEUE_HTTP_PROXY_GATEWAY_ENABLED=true
+QUEUE_HTTP_PROXY_KEY_ID=your-key-id
+QUEUE_HTTP_PROXY_KEY=your-secret
+QUEUE_HTTP_PROXY_MAX_SKEW_MS=60000
+QUEUE_HTTP_PROXY_NONCE_TTL_MS=120000
+```
+
+Manual request samples are available in [requests/queue-http-gateway.http](../requests/queue-http-gateway.http).
 
 ### BullMQ Environment Variables
 
@@ -140,6 +179,22 @@ Install:
 ```bash
 zin add queue:rabbitmq
 ```
+
+### Cloudflare Workers (HTTP Gateway)
+
+RabbitMQ AMQP TCP connections are not available in Workers without an HTTP gateway. Use a gateway service that exposes the following endpoints and configure the gateway URL:
+
+- `POST /enqueue` → `{ id: string }`
+- `POST /dequeue` → `{ message?: { id: string; payload: unknown; attempts: number } | null }`
+- `POST /ack` → `{ ok: true }`
+- `POST /length` → `{ length: number }`
+- `POST /drain` → `{ ok: true }`
+
+Set environment variables:
+
+- `RABBITMQ_HTTP_GATEWAY_URL`
+- `RABBITMQ_HTTP_GATEWAY_TOKEN` (optional)
+- `RABBITMQ_HTTP_GATEWAY_TIMEOUT_MS` (optional, default 15000)
 
 ## AWS SQS Driver
 

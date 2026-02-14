@@ -312,9 +312,19 @@ const verifyStrategy = (
 };
 
 const createServiceAuthMiddleware = (): IServiceAuthMiddleware => {
-  const defaultApiKeyAuth = ApiKeyAuth.create();
-  const defaultJwtAuth = JwtAuth.create();
+  let defaultApiKeyAuth: IApiKeyAuth | null = null;
+  let defaultJwtAuth: IJwtAuth | null = null;
   let customValidator: ((token: string) => boolean) | null = null;
+
+  const getApiKeyAuth = (): IApiKeyAuth => {
+    defaultApiKeyAuth ??= ApiKeyAuth.create();
+    return defaultApiKeyAuth;
+  };
+
+  const getJwtAuth = (): IJwtAuth => {
+    defaultJwtAuth ??= JwtAuth.create();
+    return defaultJwtAuth;
+  };
 
   return {
     /**
@@ -343,8 +353,8 @@ const createServiceAuthMiddleware = (): IServiceAuthMiddleware => {
         }
 
         const result = verifyStrategy(strategy, auth, context, {
-          apiKeyAuth: defaultApiKeyAuth,
-          jwtAuth: defaultJwtAuth,
+          apiKeyAuth: getApiKeyAuth(),
+          jwtAuth: getJwtAuth(),
           customValidator,
         });
 

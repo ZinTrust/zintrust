@@ -244,6 +244,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
         HOST: 'localhost',
         PORT: String(Number(variables['port'] ?? 7777)),
         LOG_LEVEL: 'debug',
+        CSRF_SKIP_PATHS: '/api/*,/queue-monitor/*',
       });
       return true;
     }
@@ -282,6 +283,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
       'JWT_SECRET=',
       'JWT_EXPIRES_IN=1h',
       'CSRF_SECRET=',
+      'CSRF_SKIP_PATHS=/api/*,/queue-monitor/*',
       'ENCRYPTION_CIPHER=aes-256-cbc',
       'APP_PREVIOUS_KEYS=',
       '',

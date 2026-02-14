@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock environment and heavy modules before importing Application
-vi.mock('@config/logger', () => ({ Logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() } }));
+vi.mock('@config/logger', () => ({
+  Logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
 vi.mock('@/config', () => ({
   appConfig: {
     environment: 'test',

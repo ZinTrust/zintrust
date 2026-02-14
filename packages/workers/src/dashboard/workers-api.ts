@@ -1,4 +1,4 @@
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { Env, ErrorFactory, Logger } from '@zintrust/core';
 import { WorkerFactory } from '../WorkerFactory';
 import { WorkerMetrics as WorkerMetricsManager } from '../WorkerMetrics';
 import type { WorkerRecord } from '../storage/WorkerStore';
@@ -27,59 +27,134 @@ type PersistenceResult = {
   prePaginated: boolean;
 };
 
+// Helper for timeout handling
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMsg: string
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    // eslint-disable-next-line no-restricted-syntax
+    timer = setTimeout(() => reject(new Error(errorMsg)), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    if (timer) clearTimeout(timer);
+    return result;
+  } catch (error) {
+    if (timer) clearTimeout(timer);
+    throw error;
+  }
+}
+
+async function fetchPersistenceWithTimeout(
+  page: number,
+  limit: number,
+  query: GetWorkersQuery
+): Promise<PersistenceResult> {
+  const driver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory');
+  try {
+    const result = await withTimeout(
+      getWorkersFromPersistence(page, limit, query.driver, query),
+      5000,
+      'Persistence timeout'
+    );
+    return result;
+  } catch (err) {
+    Logger.error(
+      `[getWorkers] Persistence hung or failed (driver=${driver}), resetting connection state`,
+      err
+    );
+    if (typeof WorkerFactory.resetPersistence === 'function') {
+      await WorkerFactory.resetPersistence();
+    }
+    return {
+      workers: [],
+      total: 0,
+      drivers: ['memory'],
+      effectiveLimit: limit,
+      prePaginated: true,
+    };
+  }
+}
+
+async function fetchQueueDataSafe(): Promise<QueueData> {
+  const defaultData: QueueData = {
+    driver: 'memory',
+    totalQueues: 0,
+    totalJobs: 0,
+    processingJobs: 0,
+    failedJobs: 0,
+  };
+
+  try {
+    return await withTimeout(getQueueData(), 3000, 'Queue data timeout');
+  } catch (err) {
+    Logger.warn('[getWorkers] Queue data fetch failed or timed out', err);
+    return defaultData;
+  }
+}
+
+async function enrichWithMetricsSafe(workers: WorkerData[]): Promise<WorkerData[]> {
+  try {
+    return await withTimeout(enrichWithMetrics(workers), 5000, 'Metrics timeout');
+  } catch (err) {
+    Logger.warn('[getWorkers] Metrics fetch failed or timed out', err);
+
+    // Reset metrics connection to avoid hanging next request
+    // We use fire-and-forget here because the request is already delayed/timed-out
+    // and we want to ensure the NEXT request has a clean slate (redisClient=null)
+    WorkerMetricsManager.shutdown().catch((e) =>
+      Logger.error('Failed to reset metrics connection', e)
+    );
+
+    return workers;
+  }
+}
+
 export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListResponse> {
+  const start = Date.now();
+  Logger.debug('[getWorkers] Start', query);
+
   const page = Math.max(1, query.page || 1);
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, query.limit || DEFAULT_PAGE_SIZE));
   const offset = (page - 1) * limit;
 
   // Get workers from persistence based on configuration
-  const persistence = await getWorkersFromPersistence(page, limit, query.driver);
+  const persistenceStart = Date.now();
+  const persistence = await fetchPersistenceWithTimeout(page, limit, query);
+  Logger.debug('[getWorkers] Persistence took ' + (Date.now() - persistenceStart) + 'ms', {
+    count: persistence.workers.length,
+    total: persistence.total,
+  });
 
-  // Apply filters
+  // Apply filters/search/sorting
   let filteredWorkers = applyFilters(persistence.workers, query);
-
-  // Apply search
   if (query.search) {
     filteredWorkers = applySearch(filteredWorkers, query.search);
   }
-
-  // Apply sorting
   filteredWorkers = applySorting(filteredWorkers, query.sortBy, query.sortOrder);
 
   // Get queue data
-  const queueData = await getQueueData();
+  const queueStart = Date.now();
+  const queueData = await fetchQueueDataSafe();
+  Logger.debug('[getWorkers] Queue data took ' + (Date.now() - queueStart) + 'ms');
 
   // Apply pagination
   const paginatedWorkers = persistence.prePaginated
     ? filteredWorkers
     : filteredWorkers.slice(offset, offset + persistence.effectiveLimit);
 
-  const workersWithMetrics = await enrichWithMetrics(paginatedWorkers);
+  // Enrich with metrics
+  const metricsStart = Date.now();
+  const workersWithMetrics = await enrichWithMetricsSafe(paginatedWorkers);
+  Logger.debug('[getWorkers] Metrics took ' + (Date.now() - metricsStart) + 'ms');
 
-  // Include details if requested
-  if (query.includeDetails) {
-    const enrichedWorkers = await enrichWithDetails(workersWithMetrics);
-    return {
-      workers: enrichedWorkers,
-      queueData,
-      pagination: {
-        page,
-        limit: persistence.effectiveLimit,
-        total: persistence.prePaginated ? persistence.total : filteredWorkers.length,
-        totalPages: Math.ceil(
-          (persistence.prePaginated ? persistence.total : filteredWorkers.length) /
-            persistence.effectiveLimit
-        ),
-        hasNext:
-          offset + persistence.effectiveLimit <
-          (persistence.prePaginated ? persistence.total : filteredWorkers.length),
-        hasPrev: page > 1,
-      },
-      drivers: persistence.drivers,
-    };
-  }
-
-  return {
+  // Prepare result
+  const result: WorkersListResponse = {
     workers: workersWithMetrics,
     queueData,
     pagination: {
@@ -97,38 +172,54 @@ export async function getWorkers(query: GetWorkersQuery): Promise<WorkersListRes
     },
     drivers: persistence.drivers,
   };
+
+  // Include details if requested
+  if (query.includeDetails) {
+    const detailsStart = Date.now();
+    try {
+      result.workers = await enrichWithDetails(result.workers);
+    } catch (err) {
+      Logger.warn('[getWorkers] Details fetch failed', err);
+    }
+    Logger.debug('[getWorkers] Details took ' + (Date.now() - detailsStart) + 'ms');
+  }
+
+  Logger.debug('[getWorkers] Total took ' + (Date.now() - start) + 'ms');
+  return result;
 }
 
 async function getWorkersFromPersistence(
   page: number,
   limit: number,
-  driverFilter?: WorkerDriver
+  driverFilter: WorkerDriver | undefined,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   const offset = (page - 1) * limit;
 
-  const persistenceDriver = process.env['WORKER_PERSISTENCE_DRIVER'] ?? 'memory';
+  const persistenceDriver = Env.get('WORKER_PERSISTENCE_DRIVER', 'memory');
   const isMixedPersistence = persistenceDriver === 'database' || persistenceDriver === 'db';
 
   if (driverFilter) {
-    return getWorkersByDriverFilter(driverFilter, offset, limit);
+    return getWorkersByDriverFilter(driverFilter, offset, limit, query);
   }
 
   if (isMixedPersistence) {
-    return getWorkersFromMixedPersistence(offset, limit);
+    return getWorkersFromMixedPersistence(offset, limit, query);
   }
 
-  return getWorkersFromSinglePersistence(persistenceDriver, offset, limit);
+  return getWorkersFromSinglePersistence(persistenceDriver, offset, limit, query);
 }
 
 async function getWorkersByDriverFilter(
   driverFilter: WorkerDriver,
   offset: number,
-  limit: number
+  limit: number,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   try {
     const driverRecords = await WorkerFactory.listPersistedRecords(
       { driver: driverFilter },
-      { offset, limit }
+      { offset, limit, includeInactive: query.includeInactive }
     );
     const workers = transformToWorkerData(driverRecords, driverFilter);
 
@@ -153,18 +244,35 @@ async function getWorkersByDriverFilter(
 
 async function getWorkersFromMixedPersistence(
   offset: number,
-  limit: number
+  limit: number,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
-  try {
-    const dbRecords = await WorkerFactory.listPersistedRecords(
-      { driver: 'database' },
-      { offset, limit }
-    );
-    const redisRecords = await WorkerFactory.listPersistedRecords(
-      { driver: 'redis' },
-      { offset, limit }
-    );
+  const includeInactive = query.includeInactive;
+  let dbRecords: WorkerRecord[] = [];
+  let redisRecords: WorkerRecord[] = [];
 
+  try {
+    dbRecords = await WorkerFactory.listPersistedRecords(
+      { driver: 'database', connection: 'mysql' },
+      { offset, limit, includeInactive }
+    );
+  } catch (error) {
+    // In some environments (like Cloudflare), database access might not be available.
+    // We log this as debug instead of error to avoid noise.
+    Logger.debug('Failed to fetch from database persistence:', error);
+  }
+
+  try {
+    redisRecords = await WorkerFactory.listPersistedRecords(
+      { driver: 'redis' },
+      { offset, limit, includeInactive }
+    );
+  } catch (error) {
+    // Similarly for Redis if direct connection is not available.
+    Logger.debug('Failed to fetch from redis persistence:', error);
+  }
+
+  try {
     const workers = [
       ...transformToWorkerData(dbRecords, 'database'),
       ...transformToWorkerData(redisRecords, 'redis'),
@@ -181,7 +289,7 @@ async function getWorkersFromMixedPersistence(
       prePaginated: true,
     };
   } catch (error) {
-    Logger.error('Error fetching workers from mixed persistence:', error);
+    Logger.error('Error transforming workers from mixed persistence:', error);
     return {
       workers: [],
       total: 0,
@@ -195,13 +303,14 @@ async function getWorkersFromMixedPersistence(
 async function getWorkersFromSinglePersistence(
   persistenceDriver: string,
   offset: number,
-  limit: number
+  limit: number,
+  query: GetWorkersQuery
 ): Promise<PersistenceResult> {
   try {
     const normalizedDriver = normalizeDriver(persistenceDriver);
     const driverRecords = await WorkerFactory.listPersistedRecords(
       { driver: normalizedDriver },
-      { offset, limit }
+      { offset, limit, includeInactive: query.includeInactive }
     );
     const workers = transformToWorkerData(driverRecords, normalizedDriver);
 
@@ -265,6 +374,7 @@ const buildWorkerFromRecord = (record: WorkerRecord, driver: WorkerDriver): Work
     version: record.version ?? '1.0.0',
     autoStart: record.autoStart,
     lastError: record.lastError,
+    activeStatus: record.activeStatus ?? true,
   };
 
   return buildWorkerFromRaw(rawData, driver);
@@ -283,6 +393,7 @@ const buildWorkerFromRaw = (workerData: RawWorkerData, driver: WorkerDriver): Wo
     avgTime: workerData.avgTime || 0,
     memory: workerData.memory || 0,
     autoStart: workerData.autoStart || false,
+    activeStatus: workerData.activeStatus ?? true,
     details: workerData.details || {
       configuration: {} as WorkerConfiguration,
       health: {} as WorkerHealth,
@@ -410,7 +521,7 @@ function applySorting(
 }
 
 async function getQueueData(): Promise<QueueData> {
-  const queueDriver = process.env.QUEUE_DRIVER || 'redis';
+  const queueDriver = Env.get('QUEUE_DRIVER', 'redis');
 
   try {
     // Get queue statistics based on QUEUE_DRIVER
@@ -441,7 +552,14 @@ async function getRedisQueueData(): Promise<QueueData> {
       throw ErrorFactory.createConfigError('Redis driver not configured');
     }
 
-    const monitor = QueueMonitor.create({ redis: redisConfig });
+    const monitor = QueueMonitor.create({
+      redis: {
+        host: redisConfig.host || 'localhost',
+        port: redisConfig.port || 6379,
+        db: redisConfig.database || 1,
+        password: redisConfig.password,
+      },
+    });
     const snapshot = await monitor.getSnapshot();
 
     let totalJobs = 0;
@@ -647,7 +765,8 @@ function buildWorkerConfiguration(
       queueName: worker.queueName,
       concurrency: null,
       region: null,
-      processorPath: null,
+      processorSpec: null,
+      activeStatus: null,
       version: worker.version,
       features: null,
       infrastructure: null,
@@ -659,7 +778,8 @@ function buildWorkerConfiguration(
     queueName: persisted.queueName ?? worker.queueName,
     concurrency: persisted.concurrency ?? null,
     region: persisted.region ?? null,
-    processorPath: persisted.processorPath ?? null,
+    processorSpec: persisted.processorSpec ?? null,
+    activeStatus: persisted.activeStatus ?? true,
     version: persisted.version ?? worker.version,
     features: persisted.features ?? null,
     infrastructure: persisted.infrastructure ?? null,

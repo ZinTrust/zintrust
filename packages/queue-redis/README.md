@@ -18,6 +18,8 @@ import '@zintrust/queue-redis/register';
 
 Then set `QUEUE_DRIVER=redis` and configure `REDIS_URL`.
 
+For Cloudflare Workers, set `ENABLE_CLOUDFLARE_SOCKETS=true` and use a TCP-accessible Redis endpoint.
+
 ## When to use
 
 - ✅ Use `@zintrust/queue-redis` if you only need to **enqueue jobs** and another service will process them

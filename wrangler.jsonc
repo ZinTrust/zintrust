@@ -1,44 +1,48 @@
 {
   "name": "zintrust-api",
-  "main": "./src/functions/cloudflare.ts",
-  "compatibility_date": "2025-04-21",
-  "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
-  "minify": false,
-  "observability": {
-    "enabled": true,
-    "head_sampling_rate": 0.1,
+  "alias": {
+    "@zintrust/core": "./src/index.ts",
+    "@zintrust/workers": "./packages/workers/src/index.ts",
+    "@routes/api": "./routes/api.ts",
   },
-  // Note: Documentation is deployed separately via docs-website/wrangler.jsonc
-  // This Worker handles the API/application logic only
-  // Production routes (uncomment and adjust for production deployment)
-  // "routes": [
-  //   {
-  //     "pattern": "zintrust.com",
-  //     "custom_domain": true,
-  //   },
-  // ],
-  // Environment variable bindings (auto-injected from .env)
-  "vars": {},
-  // Uncomment to enable D1 database bindings
-  // "d1_databases": [
-  //   {
-  //     "binding": "DB",
-  //     "database_name": "zintrust_db",
-  //     "database_id": "your-d1-id-here",
-  //   },
-  // ],
-  // Uncomment to enable KV cache bindings
-  // "kv_namespaces": [
-  //   {
-  //     "binding": "CACHE",
-  //     "id": "your-kv-id-here",
-  //     "preview_id": "your-kv-preview-id-here",
-  //   },
-  // ],
   // Local development settings
   "env": {
+    "worker": {
+      "name": "wk-zintrust",
+      "compatibility_date": "2025-04-21",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "minify": false,
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
+      "assets": {
+        "directory": "./app/Workers",
+        "not_found_handling": "single-page-application",
+      },
+      "routes": [
+        {
+          "pattern": "wk.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+    },
     "development": {
+      "main": "./src/functions/cloudflare.ts",
+      "compatibility_date": "2025-04-21",
+      "compatibility_flags": ["nodejs_compat"],
+      "workers_dev": true,
+      "minify": false,
+      "alias": {
+        "@zintrust/core": "./src/index.ts",
+        "@zintrust/workers": "./packages/workers/src/index.ts",
+        "@routes/api": "./routes/api.ts",
+      },
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
       "vars": {
         "ENVIRONMENT": "development",
       },
@@ -54,6 +58,57 @@
         },
       ],
       "minify": true,
+    },
+    "d1-proxy": {
+      "name": "zintrust-d1-proxy",
+      "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {},
+      // D1 binding for the proxy
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "d1-proxy-db",
+          "database_id": "your_database_id",
+        },
+      ],
+      // Optional KV namespace for nonce replay protection
+      "kv_namespaces": [
+        {
+          "binding": "ZT_NONCES",
+          "id": "your-kv-id-here",
+          "preview_id": "your-kv-preview-id-here",
+          "remote": true,
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "d1-proxy.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
+    },
+
+    "kv-proxy": {
+      "name": "zintrust-kv-proxy",
+      "main": "./src/proxy/kv/ZintrustKvProxy.ts",
+      "compatibility_flags": ["nodejs_compat"],
+      "vars": {},
+      // KV binding for the proxy
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "your-kv-id-here",
+          "preview_id": "your-kv-preview-id-here",
+          "remote": true,
+        },
+      ],
+      "routes": [
+        {
+          "pattern": "kv-proxy.zintrust.com",
+          "custom_domain": true,
+        },
+      ],
     },
   },
 }

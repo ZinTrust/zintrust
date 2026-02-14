@@ -1,14 +1,18 @@
-import { ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import { Cloudflare, ErrorFactory, FeatureFlags, Logger, QueryBuilder } from '@zintrust/core';
+import { CREATE_MIGRATIONS_TABLE_SQL, MYSQL_PLACEHOLDER, MYSQL_TYPE } from './common.js';
 
 export type DatabaseConfig = {
   driver: 'sqlite' | 'postgresql' | 'mysql' | 'sqlserver' | 'd1';
   database?: string;
+  connectionString?: string;
   host?: string;
   port?: number;
   username?: string;
   password?: string;
   synchronize?: boolean;
   logging?: boolean;
+  ssl?: boolean;
+  socketTimeoutMs?: number;
   readHosts?: string[];
 };
 
@@ -55,6 +59,18 @@ type MySqlModule = {
   createPool: (config: unknown) => MySqlPool;
 };
 
+const getInjectedMysqlModule = (): MySqlModule | undefined => {
+  const globalAny = globalThis as { __zintrustMysqlModule?: MySqlModule };
+  return globalAny.__zintrustMysqlModule;
+};
+
+type CloudflareSocketFactory = (options: {
+  host: string;
+  port: number;
+  tls: boolean;
+  timeoutMs: number;
+}) => unknown;
+
 function isMissingEsmPackage(error: unknown, packageName: string): boolean {
   if (error === null || typeof error !== 'object') return false;
   const maybe = error as { code?: unknown; message?: unknown };
@@ -74,7 +90,22 @@ function isMissingEsmPackage(error: unknown, packageName: string): boolean {
 }
 
 async function loadMysql(): Promise<MySqlModule> {
+  const injected = getInjectedMysqlModule();
+  if (injected) return injected;
   return (await import('mysql2/promise')) as unknown as MySqlModule;
+}
+
+async function loadCloudflareSocketFactory(): Promise<CloudflareSocketFactory> {
+  try {
+    const { CloudflareSocket } = await import('@zintrust/core');
+    return ({ host, port, tls, timeoutMs }) =>
+      CloudflareSocket.create(host, port, { tls, timeoutMs });
+  } catch (error) {
+    throw ErrorFactory.createConfigError(
+      'Cloudflare Workers socket support requires cloudflare:sockets compatibility (set compatibility_date >= 2024-01-15).',
+      error
+    );
+  }
 }
 
 function getConnectionParams(config: DatabaseConfig): {
@@ -84,6 +115,22 @@ function getConnectionParams(config: DatabaseConfig): {
   user: string;
   password: string;
 } {
+  if (config.connectionString !== undefined && config.connectionString.trim() !== '') {
+    try {
+      const url = new URL(config.connectionString);
+      const database = url.pathname.replace(/^\//, '') || 'mysql';
+      return {
+        host: url.hostname || 'localhost',
+        port: url.port ? Number.parseInt(url.port, 10) : 3306,
+        database,
+        user: decodeURIComponent(url.username || 'root'),
+        password: decodeURIComponent(url.password || ''),
+      };
+    } catch (error) {
+      throw ErrorFactory.createConfigError('Invalid MySQL connection string', error);
+    }
+  }
+
   return {
     host: config.host ?? 'localhost',
     port: config.port ?? 3306,
@@ -140,22 +187,51 @@ async function connect(state: AdapterState, config: DatabaseConfig): Promise<voi
   try {
     const mysql = await loadMysql();
     const { host, port, database, user, password } = getConnectionParams(config);
+    const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+    const tlsEnabled = Boolean((config as { ssl?: boolean }).ssl);
+    let timeoutMs: number;
 
-    state.pool = mysql.createPool({
-      host,
-      port,
-      database,
-      user,
-      password,
-      waitForConnections: true,
-      connectionLimit: 10,
-      namedPlaceholders: false,
-    });
+    if (typeof config.socketTimeoutMs === 'number' && config.socketTimeoutMs > 0) {
+      timeoutMs = config.socketTimeoutMs;
+    } else {
+      timeoutMs = 30000; // default 30s
+    }
+    if (isWorkersRuntime) {
+      if (!Cloudflare.isCloudflareSocketsEnabled()) {
+        throw ErrorFactory.createConfigError(
+          'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use MySQL sockets on Workers.'
+        );
+      }
+      const createSocket = await loadCloudflareSocketFactory();
+      state.pool = mysql.createPool({
+        host,
+        port,
+        database,
+        user,
+        password,
+        waitForConnections: true,
+        connectionLimit: 10,
+        namedPlaceholders: false,
+        disableEval: true,
+        stream: () => createSocket({ host, port, tls: tlsEnabled, timeoutMs }),
+      });
+    } else {
+      state.pool = mysql.createPool({
+        host,
+        port,
+        database,
+        user,
+        password,
+        waitForConnections: true,
+        connectionLimit: 10,
+        namedPlaceholders: false,
+      });
+    }
 
     // Probe.
     await state.pool.execute('SELECT 1');
     state.connected = true;
-    Logger.info(`✓ MySQL connected (${host}:${port})`);
+    Logger.info(`✓ Cloudflare sockets MySQL connected (${host}:${port})`);
   } catch (error) {
     if (isMissingEsmPackage(error, 'mysql2')) {
       throw ErrorFactory.createConfigError(
@@ -196,12 +272,43 @@ async function rawQuery<T>(state: AdapterState, sql: string, parameters?: unknow
   }
 }
 
+const createTransactionAdapter = (
+  baseAdapter: IDatabaseAdapter,
+  conn: unknown
+): IDatabaseAdapter => {
+  return {
+    ...baseAdapter,
+    query: async (sql: string, parameters: unknown[]): Promise<QueryResult> => {
+      try {
+        const connection = conn as {
+          execute: (sql: string, params: unknown[]) => Promise<[unknown]>;
+        };
+        const [rows] = await connection.execute(sql, parameters);
+        return normalizeQueryResult(rows);
+      } catch (error) {
+        throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
+      }
+    },
+    queryOne: async (
+      sql: string,
+      parameters: unknown[]
+    ): Promise<Record<string, unknown> | null> => {
+      const res = await baseAdapter.query(sql, parameters);
+      return res.rows[0] ?? null;
+    },
+  };
+};
+
+const createMigrationsTable = async (adapter: IDatabaseAdapter): Promise<void> => {
+  await adapter.query(CREATE_MIGRATIONS_TABLE_SQL, []);
+};
+
 function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
   const state: AdapterState = { connected: false };
 
   const adapter: IDatabaseAdapter = {
-    connect: async () => connect(state, config),
-    disconnect: async () => disconnect(state),
+    connect: async (): Promise<void> => connect(state, config),
+    disconnect: async (): Promise<void> => disconnect(state),
     query: async (sql: string, parameters: unknown[]) => {
       const pool = ensurePool(state);
       try {
@@ -211,32 +318,18 @@ function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
         throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
       }
     },
-    queryOne: async (sql, parameters) => {
+    queryOne: async (sql: string, parameters: unknown[]) => {
       const result = await adapter.query(sql, parameters);
       return result.rows[0] ?? null;
     },
-    ping: async () => {
+    ping: async (): Promise<void> => {
       await adapter.query(QueryBuilder.create('').select('1').toSQL(), []);
     },
-    transaction: async (callback) => {
+    transaction: async <T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
       const pool = ensurePool(state);
       const conn = await pool.getConnection();
 
-      const txAdapter: IDatabaseAdapter = {
-        ...adapter,
-        query: async (sql: string, parameters: unknown[]) => {
-          try {
-            const [rows] = await conn.execute(sql, parameters);
-            return normalizeQueryResult(rows);
-          } catch (error) {
-            throw ErrorFactory.createTryCatchError(`MySQL query failed: ${sql}`, error);
-          }
-        },
-        queryOne: async (sql: string, parameters: unknown[]) => {
-          const res = await txAdapter.query(sql, parameters);
-          return res.rows[0] ?? null;
-        },
-      };
+      const txAdapter = createTransactionAdapter(adapter, conn);
 
       try {
         await conn.beginTransaction();
@@ -254,27 +347,14 @@ function createMySqlAdapter(config: DatabaseConfig): IDatabaseAdapter {
         conn.release();
       }
     },
-    ensureMigrationsTable: async () => {
-      await adapter.query(
-        `CREATE TABLE IF NOT EXISTS migrations (
-            id BIGINT PRIMARY KEY AUTO_INCREMENT,
-            name VARCHAR(255) NOT NULL,
-            scope VARCHAR(255) NOT NULL DEFAULT 'global',
-            service VARCHAR(255) NOT NULL DEFAULT '',
-            batch INTEGER NOT NULL,
-            status VARCHAR(255) NOT NULL,
-            applied_at DATETIME NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(name, scope, service)
-          )`,
-        []
-      );
+    ensureMigrationsTable: async (): Promise<void> => {
+      await createMigrationsTable(adapter);
     },
-    getType: () => 'mysql',
-    isConnected: () => state.connected,
+    getType: (): string => MYSQL_TYPE,
+    isConnected: (): boolean => state.connected,
     rawQuery: async <T = unknown>(sql: string, parameters?: unknown[]) =>
       rawQuery<T>(state, sql, parameters),
-    getPlaceholder: (_index: number) => '?',
+    getPlaceholder: (_index: number): string => MYSQL_PLACEHOLDER,
   };
 
   return adapter;

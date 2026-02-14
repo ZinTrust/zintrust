@@ -56,6 +56,7 @@ vi.mock('@http/error-pages/ErrorPageRenderer', () => ({
   ErrorPageRenderer: {
     shouldSendHtml: vi.fn(() => true),
     renderHtml: vi.fn(() => '<html>ok</html>'),
+    renderHtmlAsync: vi.fn(async () => '<html>ok</html>'),
   },
 }));
 
@@ -371,7 +372,7 @@ describe('Server (coverage)', () => {
 
     expect(responseWrapper.setStatus).toHaveBeenCalledWith(500);
     expect(ErrorPageRenderer.shouldSendHtml).toHaveBeenCalled();
-    expect(ErrorPageRenderer.renderHtml).toHaveBeenCalled();
+    expect(ErrorPageRenderer.renderHtmlAsync).toHaveBeenCalled();
     expect(responseWrapper.html).toHaveBeenCalledWith('<html>ok</html>');
   });
 });

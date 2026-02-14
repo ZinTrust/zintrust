@@ -30,8 +30,25 @@ export {
   getPublicRootAsync,
 } from '@core-routes/publicRoot';
 
+const PUBLIC_ROOT_CACHE_TTL_MS = 3000000000; //50 minutes, effectively caching for the duration of typical dev sessions
+let cachedPublicRoot: { value: string; expiresAt: number } | null = null;
+
+const getCachedPublicRootAsync = async (): Promise<string> => {
+  const now = Date.now();
+  if (cachedPublicRoot !== null && cachedPublicRoot.expiresAt > now) {
+    return cachedPublicRoot.value;
+  }
+
+  const resolved = await getPublicRootAsync();
+  cachedPublicRoot = {
+    value: resolved,
+    expiresAt: now + PUBLIC_ROOT_CACHE_TTL_MS,
+  };
+  return resolved;
+};
+
 const mapStaticPathAsync = async (urlPath: string): Promise<string | undefined> => {
-  const publicRoot = await getPublicRootAsync();
+  const publicRoot = await getCachedPublicRootAsync();
   const normalize = (p: string): string => (p.startsWith('/') ? p.slice(1) : p);
 
   if (urlPath === '/doc' || urlPath === '/doc/') return publicRoot;
@@ -121,7 +138,7 @@ const handleDocRequest = async (req: IRequest, res: IResponse): Promise<void> =>
   setDocumentationCSPHeaders(res);
   const urlPath = req.getPath();
   if (await serveDocumentationFileAsync(urlPath, res)) return;
-  ErrorRouting.handleNotFound(req, res);
+  await ErrorRouting.handleNotFound(req, res);
 };
 
 export const registerDocRoutes = (router: IRouter): void => {

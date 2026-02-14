@@ -69,6 +69,7 @@ These environment variables control worker behavior. Set only what you need.
 | WORKER_RETRIES               | Retry attempts                     | 3         |
 | WORKER_AUTO_START            | Auto-start worker                  | false     |
 | WORKER_RESOURCE_MONITORING   | Global resource monitoring gate    | true      |
+| DOCKER_WORKER                | Dedicated Docker worker container  | false     |
 | WORKER_PRIORITY              | Default priority                   | 1         |
 | WORKER_HEALTH_CHECK_INTERVAL | Health check interval (seconds)    | 60        |
 | WORKER_INTERVAL_MS           | Monitoring interval (milliseconds) | 5000      |
@@ -130,6 +131,19 @@ Redis configuration is now managed through the queue configuration system. See `
 | LOG_CHANNEL | Output channel    | console |
 | LOG_FORMAT  | text or json      | text    |
 
+**Processor Specs**
+
+| Key                              | Description                     | Default         |
+| -------------------------------- | ------------------------------- | --------------- |
+| REMOTE_PROCESSOR_ALLOWLIST       | Allowed hostnames for URL specs | wk.zintrust.com |
+| PROCESSOR_FETCH_TIMEOUT          | URL fetch timeout (ms)          | 30000           |
+| PROCESSOR_FETCH_MAX_SIZE         | Max URL payload size (bytes)    | 524288          |
+| PROCESSOR_FETCH_RETRY_ATTEMPTS   | URL fetch retry attempts        | 3               |
+| PROCESSOR_FETCH_RETRY_BACKOFF_MS | URL fetch initial backoff (ms)  | 1000            |
+| PROCESSOR_CACHE_DEFAULT_TTL      | Default cache TTL (seconds)     | 3600            |
+| PROCESSOR_CACHE_MAX_TTL          | Max cache TTL (seconds)         | 604800          |
+| PROCESSOR_CACHE_MAX_SIZE         | Cache size limit (bytes)        | 52428800        |
+
 ## CLI Quick List
 
 ```bash
@@ -180,6 +194,57 @@ export async function initializeWorkers() {
     },
   });
 }
+```
+
+**Processor specs**
+
+Processor specs can be either file paths or URLs. Behavior differs by runtime:
+
+- **Node.js**: file paths and URL specs both work.
+- **Cloudflare Workers**: URL specs must be **prebuilt and registered** at build time. Dynamic
+  loading (like `import(data:...)` or `new Function()`) is blocked by the Workers runtime.
+
+**Examples**
+
+```json
+{ "processor": "processors/email-sender.js" }
+```
+
+```json
+{ "processor": "https://wk.zintrust.com/AdvancEmailWorker.js" }
+```
+
+Remote processors must export a named `ZinTrustProcessor` function.
+
+**Cloudflare Workers prebuild registry**
+
+When running on Workers, register all URL specs you expect to resolve in
+[src/zintrust.plugins.wg.ts](src/zintrust.plugins.wg.ts). The string stored in Redis/DB
+(`processor_spec`) must match the registered URL exactly.
+
+```typescript
+import { WorkerFactory } from '@zintrust/workers';
+import { ZinTrustProcessor as AdvancEmailProcessor } from '@app/Workers/AdvancEmailWorker';
+
+const PREBUILT_PROCESSOR_SPECS = [
+  {
+    spec: 'https://wk.zintrust.com/AdvancEmailWorker.js',
+    processor: AdvancEmailProcessor,
+  },
+];
+
+PREBUILT_PROCESSOR_SPECS.forEach(({ spec, processor }) => {
+  WorkerFactory.registerProcessorSpec(spec, processor);
+});
+```
+
+**Worker active status**
+
+You can pause workers without deleting them by setting `activeStatus` to false. Inactive workers
+will not start automatically and are hidden by default in listings.
+
+```json
+{ "name": "email-sender", "activeStatus": false }
 ```
 
 **Auto-start behavior**

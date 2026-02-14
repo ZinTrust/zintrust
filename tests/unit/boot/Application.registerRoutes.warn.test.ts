@@ -10,7 +10,8 @@ describe('Application.registerRoutes warn branch', () => {
     const warnSpy = vi.fn();
     // Minimal logger mock
     vi.doMock('@config/logger', () => ({
-      Logger: { warn: warnSpy, info: vi.fn(), error: vi.fn() },
+      Logger: { warn: warnSpy, info: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      default: { warn: warnSpy, info: vi.fn(), error: vi.fn(), debug: vi.fn() },
     }));
 
     // Prevent heavy startup checks and dynamic imports from failing the boot flow
@@ -42,11 +43,13 @@ describe('Application.registerRoutes warn branch', () => {
       pathToFileURL: (p: string) => ({ href: `file://${p}` }),
     }));
 
+    // Simulate Cloudflare runtime to hit registerGlobalRoutes warning branch
+    (globalThis as unknown as { CF?: unknown }).CF = {};
+
     // Import Application after mocks set up
     const { Application } = await import('@/boot/Application');
 
-    const basePath = '/does/not/exist';
-    const app = Application.create(basePath);
+    const app = Application.create('');
 
     // Run boot — registerRoutes should hit the warning branch when no app or framework routes
     await app.boot();
@@ -54,5 +57,7 @@ describe('Application.registerRoutes warn branch', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       'No app routes found and framework routes are unavailable. Ensure routes/api.ts exists in the project.'
     );
+
+    delete (globalThis as unknown as { CF?: unknown }).CF;
   });
 });

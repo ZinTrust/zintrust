@@ -1,6 +1,5 @@
 import type { IResponse } from '@zintrust/core';
-import { Logger } from '@zintrust/core';
-import { EventEmitter } from 'node:events';
+import { Logger, NodeSingletons } from '@zintrust/core';
 import type { createSnapshotBuilder, TelemetrySettings } from './TelemetryAPI';
 
 export type TelemetrySnapshotData = {
@@ -12,9 +11,42 @@ export type TelemetrySnapshotData = {
   cost: unknown;
 };
 
+type EventEmitterLike = {
+  on: (event: string, listener: (payload: TelemetrySnapshotData) => void) => void;
+  off: (event: string, listener: (payload: TelemetrySnapshotData) => void) => void;
+  emit: (event: string, payload: unknown) => boolean;
+  setMaxListeners?: (count: number) => void;
+};
+
+const createFallbackEmitter = (): EventEmitterLike => {
+  const listeners = new Map<string, Set<(payload: TelemetrySnapshotData) => void>>();
+
+  return {
+    on(event, listener): void {
+      const set = listeners.get(event) ?? new Set<(payload: TelemetrySnapshotData) => void>();
+      set.add(listener);
+      listeners.set(event, set);
+    },
+    off(event, listener): void {
+      const set = listeners.get(event);
+      if (!set) return;
+      set.delete(listener);
+      if (set.size === 0) listeners.delete(event);
+    },
+    emit(event, payload): boolean {
+      const set = listeners.get(event);
+      if (!set) return false;
+      for (const listener of set) listener(payload as TelemetrySnapshotData);
+      return true;
+    },
+  };
+};
+
 // Internal state for singleton service
-const emitter = new EventEmitter();
-emitter.setMaxListeners(Infinity);
+const EventEmitterCtor = NodeSingletons?.EventEmitter as (new () => EventEmitterLike) | undefined;
+const emitter: EventEmitterLike =
+  typeof EventEmitterCtor === 'function' ? new EventEmitterCtor() : createFallbackEmitter();
+emitter.setMaxListeners?.(Infinity);
 let interval: NodeJS.Timeout | null = null;
 let subscribers = 0;
 let currentSettings: TelemetrySettings | null = null;

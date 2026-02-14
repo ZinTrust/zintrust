@@ -1,0 +1,115 @@
+# Queue HTTP Gateway requests (Cloudflare Producer -> Docker API)
+#
+# NOTE:
+# - For real signed requests, use your app/client code (HttpQueueDriver) or generate valid SignedRequest headers.
+# - For manual testing, you can temporarily disable signing at gateway side by using middleware/custom guard strategy.
+#   (Do NOT disable signing in production.)
+
+@QUEUE_GATEWAY_URL = http://localhost:7772
+@QUEUE_GATEWAY_PATH = /api/_sys/queue/rpc
+
+@requestId = req-manual-1
+@queueName = emails
+@jobId = job-123
+
+# Placeholder signing headers (replace with real values if signing is enabled)
+@x_zt_key_id = local-dev
+@x_zt_timestamp = 1700000000000
+@x_zt_nonce = local-nonce-1
+@x_zt_body_sha256 = replace-with-real-sha256
+@x_zt_signature = replace-with-real-signature
+
+
+### Enqueue
+POST {{QUEUE_GATEWAY_URL}}{{QUEUE_GATEWAY_PATH}}
+Content-Type: application/json
+x-zt-key-id: {{x_zt_key_id}}
+x-zt-timestamp: {{x_zt_timestamp}}
+x-zt-nonce: {{x_zt_nonce}}
+x-zt-body-sha256: {{x_zt_body_sha256}}
+x-zt-signature: {{x_zt_signature}}
+
+{
+  "action": "enqueue",
+  "requestId": "{{requestId}}",
+  "payload": {
+    "queue": "{{queueName}}",
+    "payload": {
+      "type": "welcome-email",
+      "to": "dev@example.com"
+    }
+  }
+}
+
+
+### Dequeue
+POST {{QUEUE_GATEWAY_URL}}{{QUEUE_GATEWAY_PATH}}
+Content-Type: application/json
+x-zt-key-id: {{x_zt_key_id}}
+x-zt-timestamp: {{x_zt_timestamp}}
+x-zt-nonce: {{x_zt_nonce}}
+x-zt-body-sha256: {{x_zt_body_sha256}}
+x-zt-signature: {{x_zt_signature}}
+
+{
+  "action": "dequeue",
+  "requestId": "req-manual-2",
+  "payload": {
+    "queue": "{{queueName}}"
+  }
+}
+
+
+### Ack
+POST {{QUEUE_GATEWAY_URL}}{{QUEUE_GATEWAY_PATH}}
+Content-Type: application/json
+x-zt-key-id: {{x_zt_key_id}}
+x-zt-timestamp: {{x_zt_timestamp}}
+x-zt-nonce: {{x_zt_nonce}}
+x-zt-body-sha256: {{x_zt_body_sha256}}
+x-zt-signature: {{x_zt_signature}}
+
+{
+  "action": "ack",
+  "requestId": "req-manual-3",
+  "payload": {
+    "queue": "{{queueName}}",
+    "id": "{{jobId}}"
+  }
+}
+
+
+### Length
+POST {{QUEUE_GATEWAY_URL}}{{QUEUE_GATEWAY_PATH}}
+Content-Type: application/json
+x-zt-key-id: {{x_zt_key_id}}
+x-zt-timestamp: {{x_zt_timestamp}}
+x-zt-nonce: {{x_zt_nonce}}
+x-zt-body-sha256: {{x_zt_body_sha256}}
+x-zt-signature: {{x_zt_signature}}
+
+{
+  "action": "length",
+  "requestId": "req-manual-4",
+  "payload": {
+    "queue": "{{queueName}}"
+  }
+}
+
+
+### Drain
+POST {{QUEUE_GATEWAY_URL}}{{QUEUE_GATEWAY_PATH}}
+Content-Type: application/json
+x-zt-key-id: {{x_zt_key_id}}
+x-zt-timestamp: {{x_zt_timestamp}}
+x-zt-nonce: {{x_zt_nonce}}
+x-zt-body-sha256: {{x_zt_body_sha256}}
+x-zt-signature: {{x_zt_signature}}
+
+{
+  "action": "drain",
+  "requestId": "req-manual-5",
+  "payload": {
+    "queue": "{{queueName}}"
+  }
+}

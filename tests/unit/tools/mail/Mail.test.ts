@@ -51,7 +51,7 @@ describe('Mail', () => {
     vi.mocked(mailConfig.getDriver).mockReturnValue({ driver: 'nodemailer' });
     const { Mail } = await import('@/tools/mail');
     await expect(Mail.send({ to: 'a@b.com', subject: 's', text: 't' })).rejects.toThrow(
-      /Mail driver not implemented/i
+      /Mail driver not registered: sendgrid/i
     );
   });
 

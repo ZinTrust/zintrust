@@ -4,7 +4,7 @@
  * Sealed namespace for immutability
  */
 
-import { ErrorFactory, Logger, NodeSingletons, type RedisConfig } from '@zintrust/core';
+import { ErrorFactory, Logger, type RedisConfig } from '@zintrust/core';
 import type { Queue } from 'bullmq';
 
 export type PriorityLevel = 'critical' | 'high' | 'normal' | 'low';
@@ -55,15 +55,14 @@ const PRIORITY_VALUES: Record<PriorityLevel, number> = {
 
 type QueueRedisModule = typeof import('@zintrust/queue-redis');
 
-const require = NodeSingletons.module.createRequire(import.meta.url);
 let queueRedisModule: QueueRedisModule | undefined;
 let hasWarnedMissingQueueRedis = false;
 
-const loadQueueRedisModule = (): QueueRedisModule | undefined => {
+const loadQueueRedisModule = async (): Promise<QueueRedisModule | undefined> => {
   if (queueRedisModule) return queueRedisModule;
 
   try {
-    queueRedisModule = require('@zintrust/queue-redis') as QueueRedisModule;
+    queueRedisModule = (await import('@zintrust/queue-redis')) as QueueRedisModule;
     return queueRedisModule;
   } catch (error) {
     if (!hasWarnedMissingQueueRedis) {
@@ -80,8 +79,8 @@ const loadQueueRedisModule = (): QueueRedisModule | undefined => {
 /**
  * Helper: Get or create queue via shared driver
  */
-const getQueue = (queueName: string): Queue => {
-  const queueRedis = loadQueueRedisModule();
+const getQueue = async (queueName: string): Promise<Queue> => {
+  const queueRedis = await loadQueueRedisModule();
   if (!queueRedis) {
     throw ErrorFactory.createWorkerError(
       'Optional package "@zintrust/queue-redis" is required for PriorityQueue. Install it to use queue features.'
@@ -170,7 +169,7 @@ export const PriorityQueue = Object.freeze({
     data: T,
     options: PriorityJobOptions
   ): Promise<string> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     const jobOptions = buildJobOptions(options);
 
     try {
@@ -206,7 +205,7 @@ export const PriorityQueue = Object.freeze({
       options: PriorityJobOptions;
     }>
   ): Promise<string[]> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
 
     try {
       const bulkJobs = jobs.map((job) => ({
@@ -237,7 +236,7 @@ export const PriorityQueue = Object.freeze({
    * Get job by ID
    */
   async getJob(queueName: string, jobId: string) {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     return queue.getJob(jobId);
   },
 
@@ -245,7 +244,7 @@ export const PriorityQueue = Object.freeze({
    * Remove a job
    */
   async removeJob(queueName: string, jobId: string): Promise<void> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     const job = await queue.getJob(jobId);
 
     if (job) {
@@ -258,7 +257,7 @@ export const PriorityQueue = Object.freeze({
    * Pause a queue
    */
   async pause(queueName: string): Promise<void> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     await queue.pause();
     Logger.info(`Paused queue "${queueName}"`);
   },
@@ -267,7 +266,7 @@ export const PriorityQueue = Object.freeze({
    * Resume a queue
    */
   async resume(queueName: string): Promise<void> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     await queue.resume();
     Logger.info(`Resumed queue "${queueName}"`);
   },
@@ -276,7 +275,7 @@ export const PriorityQueue = Object.freeze({
    * Get queue information
    */
   async getQueueInfo(queueName: string): Promise<QueueInfo> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     const isPaused = await queue.isPaused();
     const jobCounts = await queue.getJobCounts();
 
@@ -297,8 +296,8 @@ export const PriorityQueue = Object.freeze({
   /**
    * Get all queue names
    */
-  getQueueNames(): string[] {
-    const queueRedis = loadQueueRedisModule();
+  async getQueueNames(): Promise<string[]> {
+    const queueRedis = await loadQueueRedisModule();
     if (!queueRedis) return [];
     return queueRedis.BullMQRedisQueue.getQueueNames();
   },
@@ -307,7 +306,7 @@ export const PriorityQueue = Object.freeze({
    * Drain queue (remove all jobs)
    */
   async drain(queueName: string, delayed = false): Promise<void> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     await queue.drain(delayed);
     Logger.info(`Drained queue "${queueName}"`, { delayed });
   },
@@ -321,7 +320,7 @@ export const PriorityQueue = Object.freeze({
     limit: number,
     type: 'completed' | 'failed' | 'delayed' | 'wait' | 'active' | 'paused' = 'completed'
   ): Promise<string[]> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     const jobs = await queue.clean(grace, limit, type);
 
     Logger.info(`Cleaned ${jobs.length} ${type} jobs from queue "${queueName}"`);
@@ -333,9 +332,9 @@ export const PriorityQueue = Object.freeze({
    * Obliterate queue (remove all data including queue itself)
    */
   async obliterate(queueName: string, force = false): Promise<void> {
-    const queue = getQueue(queueName);
+    const queue = await getQueue(queueName);
     await queue.obliterate({ force });
-    const queueRedis = loadQueueRedisModule();
+    const queueRedis = await loadQueueRedisModule();
     if (queueRedis) {
       await queueRedis.BullMQRedisQueue.closeQueue(queueName);
     }
@@ -360,7 +359,7 @@ export const PriorityQueue = Object.freeze({
   /**
    * Get queue instance (internal use)
    */
-  getQueueInstance(queueName: string): Queue {
+  getQueueInstance(queueName: string): Promise<Queue> {
     return getQueue(queueName);
   },
 
@@ -368,7 +367,7 @@ export const PriorityQueue = Object.freeze({
    * Close a queue
    */
   async closeQueue(queueName: string): Promise<void> {
-    const queueRedis = loadQueueRedisModule();
+    const queueRedis = await loadQueueRedisModule();
     if (!queueRedis) return;
     await queueRedis.BullMQRedisQueue.closeQueue(queueName);
     Logger.info(`Closed queue "${queueName}"`);
@@ -379,7 +378,7 @@ export const PriorityQueue = Object.freeze({
    */
   async shutdown(): Promise<void> {
     Logger.info('PriorityQueue shutting down via BullMQRedisQueue...');
-    const queueRedis = loadQueueRedisModule();
+    const queueRedis = await loadQueueRedisModule();
     if (!queueRedis) return;
     await queueRedis.BullMQRedisQueue.shutdown();
     Logger.info('PriorityQueue shutdown complete');

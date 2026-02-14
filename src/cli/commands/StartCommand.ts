@@ -3,15 +3,15 @@ import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
-import { resolveNpmPath } from '@common/index';
+import * as Common from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import type { Command } from 'commander';
 
-type StartMode = 'development' | 'production' | 'testing';
+type StartMode = 'development' | 'production' | 'testing' | 'split';
 
-type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 'testing';
+type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 'testing' | 'split';
 
 type StartCommandOptions = CommandOptions & {
   wrangler?: boolean;
@@ -22,9 +22,26 @@ type StartCommandOptions = CommandOptions & {
   mode?: string;
   runtime?: string;
   port?: string;
+  env?: string;
 };
 
 type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
+
+const resolveNpmPath = (): string => {
+  try {
+    return typeof Common.resolveNpmPath === 'function' ? Common.resolveNpmPath() : 'npm';
+  } catch {
+    return 'npm';
+  }
+};
+
+const runFromSource = (): boolean => {
+  try {
+    return typeof Common.runFromSource === 'function' ? Common.runFromSource() : false;
+  } catch {
+    return false;
+  }
+};
 
 const isValidModeInput = (value: string): value is StartModeInput =>
   value === 'development' ||
@@ -32,11 +49,13 @@ const isValidModeInput = (value: string): value is StartModeInput =>
   value === 'production' ||
   value === 'pro' ||
   value === 'prod' ||
-  value === 'testing';
+  value === 'testing' ||
+  value === 'split';
 
 const normalizeMode = (value: StartModeInput): StartMode => {
   if (value === 'production' || value === 'pro' || value === 'prod') return 'production';
   if (value === 'testing') return 'testing';
+  if (value === 'split') return 'split';
   return 'development';
 };
 
@@ -108,6 +127,31 @@ const resolveStartVariant = (options: StartCommandOptions): StartVariant => {
   if (wantDeno) return 'deno';
   if (wantLambda) return 'lambda';
   return 'node';
+};
+
+const getMySqlProxyHint = (): { command: string; url: string } | null => {
+  const connection = readEnvString('DB_CONNECTION', '').toLowerCase();
+  if (connection !== 'mysql') return null;
+
+  const proxyUrl = readEnvString('MYSQL_PROXY_URL', '').trim();
+  if (proxyUrl !== '') return null;
+
+  const host = readEnvString('MYSQL_PROXY_HOST', '127.0.0.1').trim() || '127.0.0.1';
+  const port = readEnvString('MYSQL_PROXY_PORT', '8789').trim() || '8789';
+
+  return {
+    command: `zin proxy:mysql --host ${host} --port ${port}`,
+    url: `http://${host}:${port}`,
+  };
+};
+
+const logMySqlProxyHint = (cmd: IBaseCommand): void => {
+  const hint = getMySqlProxyHint();
+  if (!hint) return;
+
+  cmd.warn('MySQL proxy not configured for Cloudflare Workers. Start it in another terminal:');
+  cmd.warn(hint.command);
+  cmd.warn(`Then set MYSQL_PROXY_URL=${hint.url}`);
 };
 
 const hasFlag = (flag: string): boolean => process.argv.includes(flag);
@@ -215,11 +259,8 @@ const resolveNodeDevCommand = (
 const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] } => {
   const compiledBoot = path.join(cwd, 'dist/src/boot/bootstrap.js');
 
-  const runFromSourceEnv = process.env['ZINTRUST_RUN_FROM_SOURCE'] ?? '';
-  const runFromSource = runFromSourceEnv === '1' || runFromSourceEnv.toLowerCase() === 'true';
-
   let compiled: string | undefined;
-  if (existsSync(compiledBoot) && !runFromSource) {
+  if (existsSync(compiledBoot) && !runFromSource()) {
     compiled = 'dist/src/boot/bootstrap.js';
   }
 
@@ -248,7 +289,8 @@ const executeWranglerStart = async (
   cmd: IBaseCommand,
   cwd: string,
   port: number | undefined,
-  runtime: string | undefined
+  runtime: string | undefined,
+  envName: string | undefined
 ): Promise<void> => {
   if (runtime !== undefined) {
     throw ErrorFactory.createCliError(
@@ -274,8 +316,17 @@ const executeWranglerStart = async (
     wranglerArgs.push('--port', String(port));
   }
 
+  if (envName !== undefined && envName.trim() !== '') {
+    wranglerArgs.push('--env', envName.trim());
+  }
+
+  logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'wrangler', args: wranglerArgs });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: 'wrangler',
+    args: wranglerArgs,
+    env: process.env,
+  });
   process.exit(exitCode);
 };
 
@@ -322,7 +373,7 @@ const executeDenoStart = async (
   args.push(denoRunner);
 
   cmd.info('Starting in Deno adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
   process.exit(exitCode);
 };
 
@@ -351,7 +402,7 @@ const executeLambdaStart = async (
   args.push(lambdaRunner);
 
   cmd.info('Starting in Lambda adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args });
+  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
   process.exit(exitCode);
 };
 
@@ -359,7 +410,8 @@ const executeNodeStart = async (
   cmd: IBaseCommand,
   cwd: string,
   mode: StartMode,
-  watchEnabled: boolean
+  watchEnabled: boolean,
+  _port: number | undefined
 ): Promise<void> => {
   if (mode === 'testing') {
     throw ErrorFactory.createCliError(
@@ -377,6 +429,7 @@ const executeNodeStart = async (
         command: 'tsx',
         args,
         forwardSignals: false,
+        env: process.env,
       });
       process.exit(exitCode);
     }
@@ -388,6 +441,7 @@ const executeNodeStart = async (
       command: dev.command,
       args: dev.args,
       forwardSignals: false,
+      env: process.env,
     });
     process.exit(exitCode);
   }
@@ -398,8 +452,69 @@ const executeNodeStart = async (
     command: prod.command,
     args: prod.args,
     forwardSignals: false,
+    env: process.env,
   });
   process.exit(exitCode);
+};
+
+const executeSplitStart = async (
+  cmd: IBaseCommand,
+  cwd: string,
+  _options: StartCommandOptions
+): Promise<void> => {
+  cmd.info('🚀 Starting in split mode (Producer + Consumer)...');
+
+  const packageJson = readPackageJson(cwd);
+  const webDev = resolveNodeDevCommand(cwd, packageJson);
+
+  // Producer Environment
+  const producerEnv = {
+    ...process.env,
+    WORKER_ENABLED: 'false',
+    QUEUE_ENABLED: 'true',
+    RUNTIME_MODE: 'node-server',
+  };
+
+  // Consumer Environment
+  const consumerEnv = {
+    ...process.env,
+    WORKER_ENABLED: 'true',
+    QUEUE_ENABLED: 'true',
+    RUNTIME_MODE: 'containers',
+    WORKER_AUTO_START: 'true',
+    // Prevent consumer from binding to the web port
+    APP_PORT: '0',
+    PORT: '0',
+  };
+
+  // Resolve Consumer Command (zintrust worker:start-all)
+  // We try to use tsx against the source bin if possible
+  const workerArgs = existsSync(path.join(cwd, 'bin/zin.ts'))
+    ? ['bin/zin.ts', 'worker:start-all']
+    : ['dist/bin/zin.js', 'worker:start-all'];
+
+  const workerCommand = existsSync(path.join(cwd, 'bin/zin.ts')) ? 'tsx' : 'node';
+
+  cmd.info('-------------------------------------------');
+  cmd.info('🔹 [Producer] Web Server starting...');
+  cmd.info('🔸 [Consumer] Worker Process starting...');
+  cmd.info('-------------------------------------------');
+
+  const pProducer = SpawnUtil.spawnAndWait({
+    command: webDev.command,
+    args: webDev.args,
+    env: producerEnv,
+    forwardSignals: true,
+  });
+
+  const pConsumer = SpawnUtil.spawnAndWait({
+    command: workerCommand,
+    args: workerArgs,
+    env: consumerEnv,
+    forwardSignals: true,
+  });
+
+  await Promise.all([pProducer, pConsumer]);
 };
 
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
@@ -409,15 +524,25 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
   const variant = resolveStartVariant(options);
+  const envName = typeof options.env === 'string' ? options.env.trim() : '';
   let effectiveRuntime = runtime;
   if (variant === 'deno') effectiveRuntime = 'deno';
   if (variant === 'lambda') effectiveRuntime = 'lambda';
 
+  if (mode === 'split') {
+    await executeSplitStart(cmd, cwd, options);
+    return;
+  }
+
   EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime: effectiveRuntime });
 
   if (variant === 'wrangler') {
-    await executeWranglerStart(cmd, cwd, port, runtime);
+    await executeWranglerStart(cmd, cwd, port, runtime, envName === '' ? undefined : envName);
     return;
+  }
+
+  if (envName !== '') {
+    throw ErrorFactory.createCliError('Error: --env is only supported with --wrangler/--wg.');
   }
 
   const watchEnabled = resolveWatchPreference(options, mode);
@@ -431,7 +556,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
     await executeLambdaStart(cmd, cwd, mode, watchEnabled, port, runtime);
     return;
   }
-  await executeNodeStart(cmd, cwd, mode, watchEnabled);
+  await executeNodeStart(cmd, cwd, mode, watchEnabled, port);
 };
 
 export const StartCommand = Object.freeze({
@@ -439,15 +564,16 @@ export const StartCommand = Object.freeze({
     const addOptions = (command: Command): void => {
       command.alias('s');
       command
-        .option('-w, --wrangler', 'Start with Wrangler dev mode (Cloudflare Workers)')
+        .option('--wrangler', 'Start with Wrangler dev mode (Cloudflare Workers)')
         .option('--wg', 'Alias for --wrangler')
         .option('--deno', 'Start a local server using the Deno runtime adapter')
         .option('--lambda', 'Start a local server using the AWS Lambda runtime adapter')
         .option('--watch', 'Force watch mode (Node only)')
         .option('--no-watch', 'Disable watch mode (Node only)')
         .option('--mode <development|production|testing>', 'Override app mode')
+        .option('--env <name>', 'Wrangler environment name (Wrangler mode only)')
         .option('--runtime <nodejs|cloudflare|lambda|deno|auto>', 'Set RUNTIME for spawned Node')
-        .option('--port <number>', 'Override server port');
+        .option('-p, --port <number>', 'Override server port');
     };
 
     const cmd: IBaseCommand = BaseCommand.create({

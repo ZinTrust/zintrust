@@ -6,6 +6,8 @@
 import { AddCommand } from '@cli/commands/AddCommand';
 import { BroadcastWorkCommand } from '@cli/commands/BroadcastWorkCommand';
 import { ConfigCommand } from '@cli/commands/ConfigCommand';
+import { ContainerProxiesCommand } from '@cli/commands/ContainerProxiesCommand';
+import { ContainerWorkersCommand } from '@cli/commands/ContainerWorkersCommand';
 import {
   AddMigrationCommand,
   CreateCommand,
@@ -14,24 +16,39 @@ import {
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
+import { DeployCommand } from '@cli/commands/DeployCommand';
+import { DeployContainerProxiesCommand } from '@cli/commands/DeployContainerProxiesCommand';
+import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWorkersCommand';
+import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
+import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
+import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
+import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
 import { MigrateWorkerCommand } from '@cli/commands/MigrateWorkerCommand';
+import { MongoDBProxyCommand } from '@cli/commands/MongoDBProxyCommand';
+import { MySqlProxyCommand } from '@cli/commands/MySqlProxyCommand';
 import { NewCommand } from '@cli/commands/NewCommand';
 import { NotificationWorkCommand } from '@cli/commands/NotificationWorkCommand';
 import { PluginCommand } from '@cli/commands/PluginCommand';
+import { PostgresProxyCommand } from '@cli/commands/PostgresProxyCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
+import { ProxyCommand } from '@cli/commands/ProxyCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
+import { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
+import { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
+import { SmtpProxyCommand } from '@cli/commands/SmtpProxyCommand';
+import { SqlServerProxyCommand } from '@cli/commands/SqlServerProxyCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
@@ -51,6 +68,78 @@ export interface ICLI {
   run(args: string[]): Promise<void>;
   getProgram(): Command;
 }
+
+type CommandProvider = {
+  getCommand: () => Command;
+};
+
+const isCommandProvider = (command: unknown): command is CommandProvider => {
+  return (
+    typeof command === 'object' &&
+    command !== null &&
+    'getCommand' in command &&
+    typeof (command as { getCommand?: unknown }).getCommand === 'function'
+  );
+};
+
+const buildCommandRegistry = (): Array<Command | CommandProvider> => {
+  return [
+    NewCommand.create(),
+    UpgradeCommand.create(),
+    PrepareCommand,
+    InitContainerCommand.create(),
+    InitProxyCommand.create(),
+    InitProducerCommand.create(),
+    DoctorArchitectureCommand.create(),
+    AddCommand.create(),
+    CreateCommand.create(),
+    CreateMigrationCommand.create(),
+    AddMigrationCommand.create(),
+    StartCommand.create(),
+    QueueCommand.create(),
+    QueueRecoveryCommand.create(),
+    BroadcastWorkCommand.create(),
+    NotificationWorkCommand.create(),
+    ResourceControlCommand,
+    MigrateWorkerCommand.create(),
+    MigrateCommand.create(),
+    DbSeedCommand.create(),
+    D1MigrateCommand.create(),
+    DebugCommand.create(),
+    SecretsCommand.create(),
+    ConfigCommand.create(),
+    ContainerWorkersCommand.create(),
+    ContainerProxiesCommand.create(),
+    PluginCommand.create(),
+    PublishCommand.create(),
+    DeployCommand.create(),
+    DeployContainerWorkersCommand.create(),
+    DeployContainerProxiesCommand.create(),
+    QACommand(),
+    FixCommand.create(),
+    KeyGenerateCommand.create(),
+    SimulateCommand,
+    TemplatesCommand,
+    MakeMailTemplateCommand.create(),
+    MakeNotificationTemplateCommand.create(),
+    RoutesCommand.create(),
+    JwtDevCommand,
+    ProxyCommand.create(),
+    MySqlProxyCommand.create(),
+    PostgresProxyCommand.create(),
+    MongoDBProxyCommand.create(),
+    SqlServerProxyCommand.create(),
+    RedisProxyCommand.create(),
+    SmtpProxyCommand.create(),
+    WorkerCommands.createWorkerListCommand(),
+    WorkerCommands.createWorkerStatusCommand(),
+    WorkerCommands.createWorkerStartCommand(),
+    WorkerCommands.createWorkerStartAllCommand(),
+    WorkerCommands.createWorkerStopCommand(),
+    WorkerCommands.createWorkerRestartCommand(),
+    WorkerCommands.createWorkerSummaryCommand(),
+  ];
+};
 /**
  * Load version from package.json
  */
@@ -87,48 +176,14 @@ const setupProgram = (program: Command, version: string): void => {
  * Register all available commands
  */
 const registerCommands = (program: Command): void => {
-  const commands = [
-    NewCommand.create(),
-    UpgradeCommand.create(),
-    PrepareCommand,
-    AddCommand.create(),
-    CreateCommand.create(),
-    CreateMigrationCommand.create(),
-    AddMigrationCommand.create(),
-    StartCommand.create(),
-    QueueCommand.create(),
-    BroadcastWorkCommand.create(),
-    NotificationWorkCommand.create(),
-    ResourceControlCommand,
-    MigrateWorkerCommand.create(),
-    MigrateCommand.create(),
-    DbSeedCommand.create(),
-    D1MigrateCommand.create(),
-    DebugCommand.create(),
-    SecretsCommand.create(),
-    ConfigCommand.create(),
-    PluginCommand.create(),
-    PublishCommand.create(),
-    QACommand(),
-    FixCommand.create(),
-    KeyGenerateCommand.create(),
-    SimulateCommand,
-    TemplatesCommand,
-    MakeMailTemplateCommand.create(),
-    MakeNotificationTemplateCommand.create(),
-    RoutesCommand.create(),
-    JwtDevCommand,
-    // Worker management commands
-    WorkerCommands.createWorkerListCommand(),
-    WorkerCommands.createWorkerStatusCommand(),
-    WorkerCommands.createWorkerStartCommand(),
-    WorkerCommands.createWorkerStopCommand(),
-    WorkerCommands.createWorkerRestartCommand(),
-    WorkerCommands.createWorkerSummaryCommand(),
-  ];
+  const commands = buildCommandRegistry();
 
   for (const command of commands) {
-    program.addCommand(command.getCommand());
+    if (isCommandProvider(command)) {
+      program.addCommand(command.getCommand());
+    } else {
+      program.addCommand(command as Command);
+    }
   }
 
   // Help command

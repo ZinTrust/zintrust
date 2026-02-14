@@ -78,9 +78,9 @@ const fallbackPropagation = {
 
 const fallbackTrace = {
   getTracer: () => ({
-    startSpan: () => noopSpan,
+    startSpan: (_name?: string, _options?: unknown, _context?: Context): Span => noopSpan,
   }),
-  getSpan: () => undefined,
+  getSpan: (_ctx?: Context) => undefined,
   setSpan: (ctx: Context) => ctx,
 };
 
@@ -93,6 +93,23 @@ const fallbackSpanStatusCode = {
   OK: 1,
   ERROR: 2,
 } as const;
+
+const resolveSpanStatusCode = (): typeof fallbackSpanStatusCode => {
+  return otel()?.SpanStatusCode ?? fallbackSpanStatusCode;
+};
+
+const resolveTracingContext = (): {
+  traceApi: OpenTelemetryApi['trace'] | typeof fallbackTrace;
+  activeContext: Context;
+  spanKind: typeof fallbackSpanKind;
+} => {
+  const api = otel();
+  return {
+    traceApi: api?.trace ?? fallbackTrace,
+    activeContext: api?.context?.active() ?? fallbackContext.active(),
+    spanKind: api?.SpanKind ?? fallbackSpanKind,
+  };
+};
 
 const otel = (): OpenTelemetryApi | null => resolveOpenTelemetryApi();
 
@@ -120,6 +137,13 @@ export interface StartedSpan {
 export interface RecordDbQuerySpanInput {
   driver: string;
   durationMs: number;
+}
+
+export interface RecordQueueOperationSpanInput {
+  queueName: string;
+  operation: 'enqueue' | 'dequeue' | 'ack' | 'length' | 'drain';
+  durationMs: number;
+  status: 'ok' | 'error';
 }
 
 type HeaderGetter = {
@@ -282,6 +306,48 @@ const recordDbQuerySpan = (input: RecordDbQuerySpanInput): void => {
   }
 };
 
+const recordQueueOperationSpan = (input: RecordQueueOperationSpanInput): void => {
+  if (isEnabled() === false) return;
+
+  try {
+    const tracing = resolveTracingContext();
+    const parentSpan = tracing.traceApi.getSpan(tracing.activeContext);
+    if (!parentSpan) return;
+
+    const tracer = tracing.traceApi.getTracer('zintrust');
+    const now = Date.now();
+    const durationMs = Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0;
+    const startTime = now - durationMs;
+
+    const span = tracer.startSpan(
+      `queue.${input.operation}`,
+      {
+        kind: tracing.spanKind.CLIENT,
+        startTime,
+        attributes: {
+          'messaging.system': 'zintrust-queue',
+          'messaging.operation': input.operation,
+          'messaging.destination': input.queueName,
+          'zintrust.queue.status': input.status,
+        },
+      },
+      tracing.activeContext
+    );
+
+    const statusCode = resolveSpanStatusCode();
+
+    if (input.status === 'error') {
+      span.setStatus({ code: statusCode.ERROR });
+    } else {
+      span.setStatus({ code: statusCode.OK });
+    }
+
+    span.end(now);
+  } catch {
+    // best-effort
+  }
+};
+
 export const OpenTelemetry = Object.freeze({
   isEnabled,
   startHttpServerSpan,
@@ -290,6 +356,7 @@ export const OpenTelemetry = Object.freeze({
   endHttpServerSpan,
   injectTraceHeaders,
   recordDbQuerySpan,
+  recordQueueOperationSpan,
 });
 
 export default OpenTelemetry;

@@ -22,6 +22,12 @@ If you set `DB_CONNECTION=aurora-data-api`, install `@zintrust/client-rds-data` 
 - `AURORA_SECRET_ARN` (required)
 - `AURORA_DATABASE` (optional; defaults to `DB_DATABASE`)
 
+## Cloudflare Workers + MySQL (HTTP Proxy)
+
+When `DB_CONNECTION=mysql` in a Cloudflare Worker, you must use the MySQL HTTP proxy because Workers cannot open TCP sockets.
+
+See **[docs/cloudflare-mysql-proxy.md](cloudflare-mysql-proxy.md)** for the full guide, CLI command, and production setup.
+
 ## Example: two MySQL pools (`mysql2` and `mysql3`)
 
 Yes — a developer can do this in `src/config/database.ts`:

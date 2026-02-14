@@ -5,8 +5,8 @@ import { Queue } from '@/tools/queue/Queue';
 import { registerQueuesFromRuntimeConfig } from '@/tools/queue/QueueRuntimeRegistration';
 
 describe('QueueRuntimeRegistration', () => {
-  it('registers built-in drivers and default alias', () => {
-    registerQueuesFromRuntimeConfig(queueConfig);
+  it('registers built-in drivers and default alias', async () => {
+    await registerQueuesFromRuntimeConfig(queueConfig);
 
     expect(() => Queue.get('sync')).not.toThrow();
     expect(() => Queue.get('inmemory')).not.toThrow();
@@ -16,13 +16,13 @@ describe('QueueRuntimeRegistration', () => {
     expect(() => Queue.get('default')).not.toThrow();
   });
 
-  it('throws when default driver is empty', () => {
+  it('throws when default driver is empty', async () => {
     Queue.reset();
 
-    expect(() =>
+    await expect(
       registerQueuesFromRuntimeConfig({
         default: '',
       } as any)
-    ).toThrow(/Queue default driver is not configured/i);
+    ).rejects.toThrow(/Queue default driver is not configured/i);
   });
 });

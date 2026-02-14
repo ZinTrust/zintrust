@@ -65,6 +65,8 @@ const registerConnections = (connections: DatabaseConnections): void => {
   }
 };
 
+import { Logger } from '@config/logger';
+
 /**
  * Register all connections from runtime config.
  *
@@ -83,5 +85,6 @@ export function registerDatabasesFromRuntimeConfig(config: DatabaseConfigShape):
     );
   }
 
+  Logger.info(`✓ Registering default database connection: ${config.default}`);
   useDatabase(toOrmConfig(defaultCfg), 'default');
 }

@@ -203,4 +203,69 @@ describe('OpenTelemetry patch coverage', () => {
 
     expect(started.context).toEqual(active);
   });
+
+  it('records queue operation spans with fallback status code when SpanStatusCode is unavailable', async () => {
+    vi.resetModules();
+
+    const queueSpan = {
+      setStatus: vi.fn(),
+      end: vi.fn(),
+    };
+
+    const activeContext = { __ctx: true };
+    const parentSpan = { parent: true };
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        getBool: (key: string, defaultValue: boolean) => {
+          if (key === 'OTEL_ENABLED') return true;
+          return defaultValue;
+        },
+      },
+    }));
+
+    (globalThis as unknown as { __zintrustOpenTelemetryApi?: unknown }).__zintrustOpenTelemetryApi =
+      {
+        SpanKind: { SERVER: 1, CLIENT: 2 },
+        context: {
+          active: () => activeContext,
+          with: async (_ctx: any, fn: any) => fn(),
+        },
+        propagation: {
+          extract: (ctx: any) => ctx,
+          inject: () => undefined,
+        },
+        trace: {
+          getTracer: () => ({
+            startSpan: vi.fn(() => queueSpan),
+          }),
+          getSpan: () => parentSpan,
+          setSpan: (ctx: any) => ctx,
+        },
+      } as unknown;
+
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(2000);
+
+    const { OpenTelemetry } = await import('@/observability/OpenTelemetry');
+
+    OpenTelemetry.recordQueueOperationSpan({
+      queueName: 'emails',
+      operation: 'enqueue',
+      durationMs: 5,
+      status: 'error',
+    });
+
+    OpenTelemetry.recordQueueOperationSpan({
+      queueName: 'emails',
+      operation: 'ack',
+      durationMs: 2,
+      status: 'ok',
+    });
+
+    nowSpy.mockRestore();
+
+    expect(queueSpan.setStatus).toHaveBeenCalledWith({ code: 2 });
+    expect(queueSpan.setStatus).toHaveBeenCalledWith({ code: 1 });
+    expect(queueSpan.end).toHaveBeenCalledWith(2000);
+  });
 });

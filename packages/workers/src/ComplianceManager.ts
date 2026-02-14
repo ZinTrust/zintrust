@@ -11,7 +11,8 @@ import {
   createRedisConnection,
   type RedisConfig,
 } from '@zintrust/core';
-import type IORedis from 'ioredis';
+
+type RedisConnection = ReturnType<typeof createRedisConnection>;
 
 type CryptoAdapter = {
   createCipheriv: typeof NodeSingletons.createCipheriv;
@@ -134,7 +135,7 @@ const VIOLATION_PREFIX = 'compliance:violation:';
 const CONSENT_PREFIX = 'compliance:consent:';
 
 // Internal state
-let redisClient: IORedis | null = null;
+let redisClient: RedisConnection | null = null;
 let complianceConfig: ComplianceConfig | null = null;
 
 // Default configuration

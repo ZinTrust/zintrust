@@ -1,0 +1,347 @@
+# ZinTrust Framework - Environment Configuration
+# Copy this file to .env and configure for your environment
+# Source: src/config/env.ts
+
+# ============================================================================
+# APPLICATION
+# ============================================================================
+
+# Environment: development | staging | production
+NODE_ENV=development
+APP_MODE=development
+APP_PORT=3000
+APP_TIMEZONE=UTC
+APP_NAME=ZinTrust
+APP_KEY=
+APP_PREVIOUS_KEYS=
+BASE_URL=http://localhost:3000
+HOST=127.0.0.1
+PORT=3000
+RUNTIME=
+
+# Encryption interoperability
+ENCRYPTION_CIPHER=aes-256-cbc
+
+# ============================================================================
+# DATABASE
+# ============================================================================
+
+# Database Connection Driver
+# Options: sqlite | postgresql | mysql | sqlserver | d1 | aurora-data-api
+DB_CONNECTION=sqlite
+
+# SQLite (default for development)
+DB_PATH=.zintrust/dbs/zintrust.sqlite
+
+# Generic SQL defaults (used by some adapters)
+DB_HOST=localhost
+DB_PORT=5432
+DB_DATABASE=zintrust
+DB_USERNAME=postgres
+DB_PASSWORD=
+DB_READ_HOSTS=
+
+# PostgreSQL
+DB_PORT_POSTGRESQL=5432
+DB_DATABASE_POSTGRESQL=postgres
+DB_USERNAME_POSTGRESQL=postgres
+DB_PASSWORD_POSTGRESQL=
+DB_READ_HOSTS_POSTGRESQL=
+
+# MySQL
+# DB_HOST=localhost
+# DB_PORT=3306
+# DB_DATABASE=zintrust
+# DB_USERNAME=root
+# DB_PASSWORD=password
+
+# SQL Server
+DB_HOST_MSSQL=localhost
+DB_PORT_MSSQL=1433
+DB_DATABASE_MSSQL=zintrust
+DB_USERNAME_MSSQL=sa
+DB_PASSWORD_MSSQL=
+DB_READ_HOSTS_MSSQL=
+
+# Aurora Data API (serverless)
+# AURORA_RESOURCE_ARN=arn:aws:rds:us-east-1:123456789012:cluster:example
+# AURORA_SECRET_ARN=arn:aws:secretsmanager:us-east-1:123456789012:secret:example
+# AURORA_DATABASE=zintrust
+
+# ============================================================================
+# CLOUDFLARE
+# ============================================================================
+
+D1_DATABASE_ID=
+KV_NAMESPACE_ID=
+
+# Remote D1/KV (outside Cloudflare)
+D1_REMOTE_URL=
+D1_REMOTE_KEY_ID=
+D1_REMOTE_SECRET=
+D1_REMOTE_MODE=registry
+
+KV_REMOTE_URL=
+KV_REMOTE_KEY_ID=
+KV_REMOTE_SECRET=
+KV_REMOTE_NAMESPACE=
+
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_KV_NAMESPACE_ID=
+
+# ============================================================================
+# PROXY (HTTP) FOR WORKERS
+# ============================================================================
+
+ZT_PROXY_TIMEOUT_MS=30000
+ZT_PROXY_SIGNING_WINDOW_MS=60000
+
+# MySQL Proxy
+USE_MYSQL_PROXY=false
+MYSQL_PROXY_URL=
+MYSQL_PROXY_HOST=127.0.0.1
+MYSQL_PROXY_PORT=8789
+MYSQL_PROXY_MAX_BODY_BYTES=131072
+MYSQL_PROXY_POOL_LIMIT=10
+MYSQL_PROXY_KEY_ID=
+MYSQL_PROXY_SECRET=
+MYSQL_PROXY_TIMEOUT_MS=30000
+MYSQL_PROXY_REQUIRE_SIGNING=true
+MYSQL_PROXY_SIGNING_WINDOW_MS=60000
+
+# Postgres Proxy
+USE_POSTGRES_PROXY=false
+POSTGRES_PROXY_URL=
+POSTGRES_PROXY_HOST=127.0.0.1
+POSTGRES_PROXY_PORT=8790
+POSTGRES_PROXY_MAX_BODY_BYTES=131072
+POSTGRES_PROXY_POOL_LIMIT=10
+POSTGRES_PROXY_KEY_ID=
+POSTGRES_PROXY_SECRET=
+POSTGRES_PROXY_TIMEOUT_MS=30000
+POSTGRES_PROXY_REQUIRE_SIGNING=true
+POSTGRES_PROXY_SIGNING_WINDOW_MS=60000
+
+# Redis Proxy
+USE_REDIS_PROXY=false
+REDIS_PROXY_URL=
+REDIS_PROXY_HOST=127.0.0.1
+REDIS_PROXY_PORT=8791
+REDIS_PROXY_MAX_BODY_BYTES=131072
+REDIS_PROXY_KEY_ID=
+REDIS_PROXY_SECRET=
+REDIS_PROXY_TIMEOUT_MS=30000
+REDIS_PROXY_REQUIRE_SIGNING=true
+REDIS_PROXY_SIGNING_WINDOW_MS=60000
+
+# SMTP Proxy (recommended for Cloudflare Workers)
+USE_SMTP_PROXY=false
+SMTP_PROXY_URL=
+SMTP_PROXY_HOST=127.0.0.1
+SMTP_PROXY_PORT=8794
+SMTP_PROXY_MAX_BODY_BYTES=131072
+SMTP_PROXY_KEY_ID=
+SMTP_PROXY_SECRET=
+SMTP_PROXY_TIMEOUT_MS=30000
+SMTP_PROXY_REQUIRE_SIGNING=true
+SMTP_PROXY_SIGNING_WINDOW_MS=60000
+
+# MongoDB Proxy
+USE_MONGODB_PROXY=false
+MONGODB_PROXY_URL=
+MONGODB_PROXY_HOST=127.0.0.1
+MONGODB_PROXY_PORT=8792
+MONGODB_PROXY_MAX_BODY_BYTES=131072
+MONGODB_PROXY_KEY_ID=
+MONGODB_PROXY_SECRET=
+MONGODB_PROXY_TIMEOUT_MS=30000
+MONGODB_PROXY_REQUIRE_SIGNING=true
+MONGODB_PROXY_SIGNING_WINDOW_MS=60000
+
+# SQL Server Proxy
+USE_SQLSERVER_PROXY=false
+SQLSERVER_PROXY_URL=
+SQLSERVER_PROXY_HOST=127.0.0.1
+SQLSERVER_PROXY_PORT=8793
+SQLSERVER_PROXY_MAX_BODY_BYTES=131072
+SQLSERVER_PROXY_POOL_LIMIT=10
+SQLSERVER_PROXY_KEY_ID=
+SQLSERVER_PROXY_SECRET=
+SQLSERVER_PROXY_TIMEOUT_MS=30000
+SQLSERVER_PROXY_REQUIRE_SIGNING=true
+SQLSERVER_PROXY_SIGNING_WINDOW_MS=60000
+
+# ============================================================================
+# ADVANCED DATABASE FEATURES
+# ============================================================================
+
+# Raw SQL Query Support
+# WARNING: Only enable in development. Bypasses QueryBuilder safety.
+USE_RAW_QRY=false
+
+# ============================================================================
+# CACHE
+# ============================================================================
+
+# Cache Driver: memory | redis | mongodb | kv
+CACHE_DRIVER=memory
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+REDIS_URL=
+
+# MongoDB Cache
+MONGO_URI=
+MONGO_DB=zintrust_cache
+
+# ============================================================================
+# QUEUE
+# ============================================================================
+
+QUEUE_CONNECTION=
+QUEUE_DRIVER=
+QUEUE_HTTP_PROXY_ENABLED=false
+QUEUE_HTTP_PROXY_GATEWAY_ENABLED=true
+QUEUE_HTTP_PROXY_URL=
+QUEUE_HTTP_PROXY_PATH=/api/_sys/queue/rpc
+QUEUE_HTTP_PROXY_KEY_ID=
+QUEUE_HTTP_PROXY_KEY=
+QUEUE_HTTP_PROXY_TIMEOUT_MS=30000
+QUEUE_HTTP_PROXY_MAX_SKEW_MS=60000
+QUEUE_HTTP_PROXY_NONCE_TTL_MS=120000
+QUEUE_HTTP_PROXY_MIDDLEWARE=
+
+# ============================================================================
+# RATE LIMITING
+# ============================================================================
+
+RATE_LIMIT_STORE=
+RATE_LIMIT_DRIVER=
+RATE_LIMIT_KEY_PREFIX=zintrust:ratelimit:
+
+# ============================================================================
+# NOTIFICATIONS
+# ============================================================================
+
+NOTIFICATION_DRIVER=
+TERMII_API_KEY=
+TERMII_SENDER=ZinTrust
+
+# ============================================================================
+# AWS
+# ============================================================================
+
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_SESSION_TOKEN=
+
+AWS_LAMBDA_FUNCTION_NAME=
+AWS_LAMBDA_FUNCTION_VERSION=
+AWS_EXECUTION_ENV=
+LAMBDA_TASK_ROOT=
+
+# ============================================================================
+# MICROSERVICES
+# ============================================================================
+
+MICROSERVICES=
+SERVICES=
+MICROSERVICES_TRACING=false
+MICROSERVICES_TRACING_RATE=1.0
+DATABASE_ISOLATION=shared
+SERVICE_API_KEY=
+SERVICE_JWT_SECRET=
+
+# ============================================================================
+# SECURITY
+# ============================================================================
+
+DEBUG=false
+ENABLE_MICROSERVICES=false
+TOKEN_TTL=3600000
+TOKEN_LENGTH=32
+CSRF_STORE=
+CSRF_DRIVER=
+CSRF_REDIS_DB=1
+
+# JWT Secret for authentication
+JWT_SECRET=
+
+# Session Configuration
+SESSION_DRIVER=cookie
+SESSION_LIFETIME=7200
+
+# CORS Configuration
+CORS_ORIGINS=http://localhost:7777,http://localhost:5173
+
+# ============================================================================
+# WORKERS
+# ============================================================================
+
+WORKERS_ENABLED=true
+WORKER_AUTO_START=false
+WORKER_RESOURCE_MONITORING=true
+WORKER_PERSISTENCE_DRIVER=memory
+WORKER_CONNECTION_TIMEOUT=5000
+
+# ============================================================================
+# DEPLOYMENT
+# ============================================================================
+
+ENVIRONMENT=development
+REQUEST_TIMEOUT=30000
+MAX_BODY_SIZE=10485760
+SHUTDOWN_TIMEOUT=10000
+
+# ============================================================================
+# SSE
+# ============================================================================
+
+SSE_HEARTBEAT_INTERVAL=15000
+SSE_SNAPSHOT_INTERVAL=5000
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+LOG_LEVEL=info
+LOG_FORMAT=text
+LOG_CHANNEL=
+DISABLE_LOGGING=false
+LOG_HTTP_REQUEST=false
+LOG_TO_FILE=false
+LOG_ROTATION_SIZE=10485760
+LOG_ROTATION_DAYS=7
+
+# ============================================================================
+# ZINTRUST TOOLING
+# ============================================================================
+
+ZINTRUST_PROJECT_ROOT=
+ZINTRUST_ALLOW_POSTINSTALL=
+ZINTRUST_ENV_FILE=.env.pull
+ZINTRUST_SECRETS_MANIFEST=secrets.manifest.json
+ZINTRUST_ENV_IN_FILE=.env
+ZINTRUST_SECRETS_PROVIDER=
+ZINTRUST_ALLOW_AUTO_INSTALL=
+
+# ============================================================================
+# CI / SYSTEM
+# ============================================================================
+
+CI=
+HOME=
+USERPROFILE=
+
+# ============================================================================
+# TEMPLATE
+# ============================================================================
+
+TEMPLATE_COPYRIGHT=© 2025 ZinTrust Framework. All rights reserved.
+SERVICE_NAME=

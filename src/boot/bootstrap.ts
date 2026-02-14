@@ -10,6 +10,7 @@ import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { loadWorkersModule } from '@runtime/WorkersModule';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
 let serverInstance: ReturnType<typeof Server.create> | undefined;
@@ -123,9 +124,12 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
     await withTimeout(
       (async () => {
         // Shutdown worker management system FIRST (before database closes)
-        if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+        if (
+          (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') &&
+          appConfig.dockerWorker === false
+        ) {
           try {
-            const workers = await import('@zintrust/workers');
+            const workers = await loadWorkersModule();
             const workerBudgetMs = Math.min(15000, remainingMs());
             await withTimeout(
               workers.WorkerShutdown.shutdown({
@@ -168,10 +172,19 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
 };
 
 async function useWorkerStarter(): Promise<void> {
+  // Check if workers are enabled in this environment
+  const workerEnabled = Env.getBool('WORKER_ENABLED', true);
+  if (!workerEnabled || appConfig.dockerWorker === true) {
+    Logger.info(
+      'Workers disabled in this runtime (WORKER_ENABLED=false && DOCKER_WORKER=true), skipping worker management initialization'
+    );
+    return;
+  }
+
   // Initialize worker management system
   let workerInit: { autoStartPersistedWorkers?: () => Promise<void> } | null = null;
   try {
-    const workers = await import('@zintrust/workers');
+    const workers = await loadWorkersModule();
     if (workers?.WorkerInit !== undefined) {
       workerInit = workers.WorkerInit;
       await workers.WorkerInit.initialize({
@@ -236,12 +249,23 @@ const BootstrapFunctions = Object.freeze({
       // Start schedules for long-running runtimes (Node.js / Fargate)
       await startSchedulesIfNeeded(app);
 
-      if (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda') {
+      if (
+        appConfig.dockerWorker === false &&
+        (appConfig.detectRuntime() === 'nodejs' || appConfig.detectRuntime() === 'lambda')
+      ) {
         await useWorkerStarter();
       }
     } catch (error) {
-      Logger.error('Failed to bootstrap application:', error as Error);
+      try {
+        Logger.error('Failed to bootstrap application:', error as Error);
+      } catch {
+        // best-effort logging
+      }
 
+      Logger.debug('[bootstrap] start: failed', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       logBootstrapErrorDetails(error);
 
       process.exit(1);

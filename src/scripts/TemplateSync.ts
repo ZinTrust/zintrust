@@ -10,8 +10,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as crypto from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
-import * as path from '@node-singletons/path';
-import * as nodePath from 'node:path';
+import path from '@node-singletons/path';
 
 const __dirname = esmDirname(import.meta.url);
 const ROOT_DIR = path.resolve(__dirname, '../../');
@@ -156,10 +155,10 @@ const rewriteStarterTemplateImports = (relPath: string, content: string): string
   }
 
   const rewriteConfigAlias = (aliasSuffix: string): string => {
-    const currentDir = nodePath.posix.dirname(relPath);
+    const currentDir = path.posix.dirname(relPath);
     const from = currentDir === '.' ? '' : currentDir;
     const target = aliasSuffix;
-    const relative = nodePath.posix.relative(from, target);
+    const relative = path.posix.relative(from, target);
     return relative.startsWith('.') ? relative : `./${relative}`;
   };
 

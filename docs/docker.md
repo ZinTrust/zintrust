@@ -18,6 +18,97 @@ Useful helpers:
 - `npm run docker:test` — run tests inside the container
 - `npm run docker:down` / `npm run docker:stop`
 
+## Container Workers CLI (cw)
+
+ZinTrust includes a unified CLI flow for the worker container stack.
+
+### Workers stack
+
+```bash
+zin init:cw
+zin deploy cw
+zin deploy:cw
+```
+
+Compatibility aliases still work:
+
+```bash
+zin init:cwr
+zin deploy cwr
+zin deploy:cwr
+```
+
+## Container Proxies CLI (cp)
+
+ZinTrust includes a unified CLI flow for the proxy gateway + proxy services stack.
+
+### Initialize proxy stack files
+
+```bash
+zin init:proxy
+```
+
+Aliases:
+
+```bash
+zin init:cp
+zin init:container-proxies
+zin init:py
+```
+
+### Deploy / up / down
+
+```bash
+zin deploy cp
+zin deploy:cp
+
+zin cp build
+zin cp up -d
+zin cp down
+```
+
+Compose target file: `docker-compose.proxy.yml`.
+
+### Proxy gateway endpoint conventions
+
+When using the unified gateway (default port `8800`), point proxy URLs to gateway paths:
+
+```bash
+MYSQL_PROXY_URL=http://127.0.0.1:8800/mysql
+POSTGRES_PROXY_URL=http://127.0.0.1:8800/postgres
+REDIS_PROXY_URL=http://127.0.0.1:8800/redis
+MONGODB_PROXY_URL=http://127.0.0.1:8800/mongodb
+SQLSERVER_PROXY_URL=http://127.0.0.1:8800/sqlserver
+SMTP_PROXY_URL=http://127.0.0.1:8800/smtp
+```
+
+Direct per-service URLs (for example `http://127.0.0.1:8789`) still work, but they bypass the gateway.
+
+### Proxy stack env fallbacks (workers-compatible)
+
+`docker-compose.proxy.yml` now follows worker-style host env fallbacks:
+
+- DB host fallback: `DOCKER_DB_HOST` → `host.docker.internal`
+- Redis host fallback: `DOCKER_REDIS_HOST` → `host.docker.internal`
+
+This avoids empty override variables falling back to `127.0.0.1` inside containers.
+
+### Health checks, cost, and disable switches
+
+Docker health checks have a small runtime overhead (local CPU/network in Docker host). On most local/dev setups this is negligible, but on metered hosted Docker platforms frequent checks can contribute small additional cost.
+
+You can disable proxy health checks via environment variables:
+
+```bash
+PROXY_HEALTHCHECK_DISABLE=true
+PROXY_GATEWAY_HEALTHCHECK_DISABLE=true
+```
+
+- `PROXY_HEALTHCHECK_DISABLE` disables health checks for proxy services.
+- `PROXY_GATEWAY_HEALTHCHECK_DISABLE` disables health checks for the nginx gateway.
+
+Keep them enabled in production unless your platform constraints require disabling them.
+
 ## What the `Dockerfile` does
 
 The root `Dockerfile` is multi-stage:

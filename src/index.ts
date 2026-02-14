@@ -163,6 +163,16 @@ export { Schema, Validator } from '@validation/Validator';
 export type { ISchema, SchemaType } from '@validation/Validator';
 
 // Security
+export {
+  _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE,
+  _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION,
+  ZintrustD1Proxy,
+} from '@proxy/d1/ZintrustD1Proxy';
+export {
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE,
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION,
+  ZintrustKvProxy,
+} from '@proxy/kv/ZintrustKvProxy';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type {
   CsrfTokenData,
@@ -196,6 +206,20 @@ export { ZintrustSignedRequest as SignedRequest };
 
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';
+
+// Runtime services
+export {
+  detectCloudflareWorkers,
+  detectRuntimePlatform,
+  RUNTIME_PLATFORM,
+  RuntimeServices,
+  type RuntimeCrypto,
+  type RuntimeEnvReader,
+  type RuntimeFs,
+  type RuntimePlatform,
+  type RuntimeServices as RuntimeServicesType,
+  type RuntimeTimers,
+} from '@runtime/RuntimeServices';
 
 // Events
 export { EventDispatcher } from '@events/EventDispatcher';
@@ -253,7 +277,7 @@ export type {
   IServiceHealthMonitor,
 } from '@microservices/ServiceHealthMonitor';
 
-export { middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export { clearMiddlewareConfigCache, middlewareConfig, MiddlewareKeys } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
@@ -360,9 +384,24 @@ export type { GcsConfig } from '@tools/storage/drivers/Gcs';
 
 // Queue drivers (for external registration packages)
 export { RedisQueue } from '@queue/drivers/Redis';
+export { IdempotencyManager } from '@queue/IdempotencyManager';
+export { JobHeartbeatStore } from '@queue/JobHeartbeatStore';
+export { JobReconciliationRunner } from '@queue/JobReconciliationRunner';
+export { JobRecoveryDaemon } from '@queue/JobRecoveryDaemon';
+export { JobStateTracker } from '@queue/JobStateTracker';
+export {
+  autoRegisterJobStateTrackerPersistenceFromEnv,
+  createJobStateTrackerDbPersistence,
+} from '@queue/JobStateTrackerDbPersistence';
 export { createLockProvider, getLockProvider, registerLockProvider } from '@queue/LockProvider';
 export { Queue, resolveLockPrefix } from '@queue/Queue';
 export type { BullMQPayload, IQueueDriver, QueueMessage } from '@queue/Queue';
+export { QueueDataRedactor } from '@queue/QueueDataRedactor';
+export { QueueReliabilityMetrics } from '@queue/QueueReliabilityMetrics';
+export { QueueReliabilityOrchestrator } from '@queue/QueueReliabilityOrchestrator';
+export { QueueTracing } from '@queue/QueueTracing';
+export { StalledJobMonitor } from '@queue/StalledJobMonitor';
+export { TimeoutManager } from '@queue/TimeoutManager';
 
 // Seeders (for database seeding)
 export { SeederLoader } from '@/seeders/SeederLoader';
@@ -389,6 +428,11 @@ export { BaseCommand } from '@cli/BaseCommand';
 export type { CommandOptions } from '@cli/BaseCommand';
 export { CLI } from '@cli/CLI';
 export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
+
+// Proxy utilities (shared across proxy servers)
+export { ErrorHandler as ProxyErrorHandler } from '@proxy/ErrorHandler';
+export { RequestValidator } from '@proxy/RequestValidator';
+export { SigningService } from '@proxy/SigningService';
 
 // Runtime detection and kernel
 export { getKernel } from '@runtime/getKernel';
@@ -428,6 +472,10 @@ export {
   RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
+
+export { CloudflareSocket } from '@sockets/CloudflareSocket';
+
+export { detectRuntime } from '@runtime/detectRuntime';
 
 // NOTE: Node-only exports (like FileLogWriter, process) are intentionally not
 // exported from this root entrypoint. Use the '@zintrust/core/node' subpath.

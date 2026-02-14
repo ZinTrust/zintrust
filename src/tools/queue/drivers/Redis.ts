@@ -3,6 +3,7 @@ import type { QueueMessage } from '@tools/queue/Queue';
 
 export const RedisQueue = (() => {
   return {
+    __zintrustCoreRedisQueue: true,
     async enqueue<T = unknown>(queue: string, payload: T): Promise<string> {
       const driver = await ensureDriver();
       return driver.enqueue(queue, payload);

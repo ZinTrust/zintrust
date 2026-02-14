@@ -85,13 +85,16 @@ function getColumnTypeSql(driver: string, def: ColumnDefinition): string {
   return 'TEXT';
 }
 
-function getDefaultValueSql(table: string, def: ColumnDefinition): string | null {
+function getDefaultValueSql(driver: string, table: string, def: ColumnDefinition): string | null {
   if (def.default === undefined) return null;
 
   const dv = def.default;
   if (dv === null) return 'DEFAULT NULL';
   if (typeof dv === 'number' && Number.isFinite(dv)) return `DEFAULT ${dv}`;
-  if (typeof dv === 'boolean') return `DEFAULT ${dv ? 1 : 0}`;
+  if (typeof dv === 'boolean') {
+    if (driver === 'postgresql') return `DEFAULT ${dv ? 'true' : 'false'}`;
+    return `DEFAULT ${dv ? 1 : 0}`;
+  }
   if (typeof dv === 'string') {
     const escaped = dv.replaceAll("'", "''");
     return `DEFAULT '${escaped}'`;
@@ -117,7 +120,7 @@ function columnSql(driver: string, table: string, def: ColumnDefinition): string
   if (def.unique === true) parts.push('UNIQUE');
   if (isPrimary) parts.push('PRIMARY KEY');
 
-  const defaultVal = getDefaultValueSql(table, def);
+  const defaultVal = getDefaultValueSql(driver, table, def);
   if (defaultVal !== null) parts.push(defaultVal);
 
   return parts.join(' ');

@@ -14,7 +14,6 @@ const buildRecord = (overrides: Partial<WorkerRecord> = {}): WorkerRecord => ({
   autoStart: overrides.autoStart ?? false,
   concurrency: overrides.concurrency ?? 1,
   region: overrides.region ?? null,
-  processorPath: overrides.processorPath ?? null,
   features: overrides.features ?? null,
   infrastructure: overrides.infrastructure ?? null,
   datacenter: overrides.datacenter ?? null,
@@ -53,7 +52,7 @@ describe('WorkerStore updateMany', () => {
     expect(tableSpy).toHaveBeenCalledWith('zintrust_workers');
     expect(whereInSpy).toHaveBeenCalledWith('name', ['w1', 'w2']);
     expect(updateSpy).toHaveBeenCalledWith({
-      updated_at: updatedAt,
+      updated_at: '2026-01-01 00:00:00',
       status: 'stopped',
     });
   });

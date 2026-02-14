@@ -1,8 +1,12 @@
 import { generateUuid } from '@/common/utility';
+import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
+import { Cloudflare } from '@config/cloudflare';
+import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-
 import * as net from '@node-singletons/net';
 import * as tls from '@node-singletons/tls';
+import { normalizeSigningCredentials } from '@proxy/SigningService';
 
 export type SmtpConfig = {
   host: string;
@@ -39,6 +43,43 @@ type SmtpResponse = {
   message: string;
 };
 
+type ProxySendResponse = {
+  ok: boolean;
+  messageId?: string;
+};
+
+type ProxySettings = {
+  baseUrl: string;
+  keyId?: string;
+  secret?: string;
+  timeoutMs: number;
+};
+
+type AttachmentPayload = {
+  filename: string;
+  contentBase64: string;
+};
+
+type ProxyMessagePayload = {
+  to: string | string[];
+  from: MailAddress;
+  subject: string;
+  text: string;
+  html?: string;
+  attachments?: AttachmentPayload[];
+};
+
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
 const normalizeRecipients = (to: string | string[]): string[] => (Array.isArray(to) ? to : [to]);
 
 const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
@@ -46,9 +87,11 @@ const toBase64 = (value: string): string => Buffer.from(value, 'utf8').toString(
 const isNodeRuntime = (): boolean =>
   typeof process !== 'undefined' && typeof process.versions?.node === 'string';
 
+const isWorkersRuntime = (): boolean => Cloudflare.getWorkersEnv() !== null;
+
 const validateConfig = (config: SmtpConfig): void => {
-  if (!isNodeRuntime()) {
-    throw ErrorFactory.createConfigError('SMTP driver requires Node.js runtime');
+  if (!isNodeRuntime() && !isWorkersRuntime()) {
+    throw ErrorFactory.createConfigError('SMTP driver requires Node.js or Workers runtime');
   }
 
   if (config.host.trim() === '') {
@@ -60,7 +103,124 @@ const validateConfig = (config: SmtpConfig): void => {
   }
 };
 
-const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<net.Socket> => {
+const resolveProxyBaseUrl = (): string => {
+  const explicit = Env.SMTP_PROXY_URL.trim();
+  if (explicit !== '') return explicit;
+  const host = Env.SMTP_PROXY_HOST || '127.0.0.1';
+  const port = Env.SMTP_PROXY_PORT;
+  return `http://${host}:${port}`;
+};
+
+const buildProxySettings = (): ProxySettings => {
+  const baseUrl = resolveProxyBaseUrl();
+  const keyId = Env.SMTP_PROXY_KEY_ID ?? '';
+  const secret = Env.SMTP_PROXY_SECRET ?? '';
+  const timeoutMs = Env.SMTP_PROXY_TIMEOUT_MS;
+
+  return { baseUrl, keyId, secret, timeoutMs };
+};
+
+const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
+  const creds = normalizeSigningCredentials({
+    keyId: settings.keyId ?? '',
+    secret: settings.secret ?? '',
+  });
+  return {
+    baseUrl: settings.baseUrl,
+    keyId: creds.keyId,
+    secret: creds.secret,
+    timeoutMs: settings.timeoutMs,
+    signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
+    missingUrlMessage: 'SMTP proxy URL is missing (SMTP_PROXY_URL)',
+    missingCredentialsMessage:
+      'SMTP proxy signing credentials are missing (SMTP_PROXY_KEY_ID / SMTP_PROXY_SECRET)',
+    messages: {
+      unauthorized: 'SMTP proxy unauthorized',
+      forbidden: 'SMTP proxy forbidden',
+      rateLimited: 'SMTP proxy rate limited',
+      rejected: 'SMTP proxy rejected request',
+      error: 'SMTP proxy error',
+      timedOut: 'SMTP proxy request timed out',
+    },
+  };
+};
+
+const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
+  const signedSettings = buildSignedSettings(settings);
+  if (signedSettings.baseUrl.trim() === '') {
+    throw ErrorFactory.createConfigError('SMTP proxy URL is missing (SMTP_PROXY_URL)');
+  }
+  if (signedSettings.keyId.trim() === '' || signedSettings.secret.trim() === '') {
+    throw ErrorFactory.createConfigError(
+      'SMTP proxy signing credentials are missing (SMTP_PROXY_KEY_ID / SMTP_PROXY_SECRET)'
+    );
+  }
+  return signedSettings;
+};
+
+const shouldUseProxy = (): boolean => {
+  if (Env.USE_SMTP_PROXY === true) return true;
+  return Env.SMTP_PROXY_URL.trim() !== '';
+};
+
+const serializeMessage = (message: MailMessage): ProxyMessagePayload => {
+  const attachments = message.attachments?.map((attachment) => {
+    const raw = Buffer.isBuffer(attachment.content)
+      ? attachment.content
+      : Buffer.from(attachment.content);
+    return {
+      filename: attachment.filename,
+      contentBase64: raw.toString('base64'),
+    };
+  });
+
+  return {
+    to: message.to,
+    from: message.from,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+    attachments: attachments && attachments.length > 0 ? attachments : undefined,
+  };
+};
+
+const sendViaProxy = async (message: MailMessage): Promise<ProxySendResponse> => {
+  const settings = buildProxySettings();
+  const signedSettings = ensureSignedSettings(settings);
+  return RemoteSignedJson.request<ProxySendResponse>(signedSettings, '/zin/smtp/send', {
+    message: serializeMessage(message),
+  });
+};
+
+type SmtpSocket = {
+  write: (data: string, cb?: (err?: Error | null) => void) => unknown;
+  end: () => void;
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+  once: (event: string, listener: (...args: unknown[]) => void) => void;
+  off?: (event: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+  startTls?: () => Promise<void>;
+};
+
+type CloudflareSocketFactory = {
+  create: (
+    hostname: string,
+    port: number,
+    options?: { tls?: boolean; timeoutMs?: number }
+  ) => SmtpSocket | undefined;
+};
+
+const loadCloudflareSocketFactory = async (): Promise<CloudflareSocketFactory> => {
+  const mod = (await import('@sockets/CloudflareSocket')) as unknown;
+  const record = mod as { CloudflareSocket?: unknown };
+  const socketFactory = record.CloudflareSocket as { create?: unknown } | undefined;
+  if (!socketFactory || typeof socketFactory.create !== 'function') {
+    throw ErrorFactory.createConnectionError('Cloudflare socket factory unavailable');
+  }
+  return socketFactory as CloudflareSocketFactory;
+};
+
+const createNodeSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<SmtpSocket> => {
   validateConfig(config);
 
   return new Promise((resolve, reject) => {
@@ -83,6 +243,19 @@ const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<n
         }) as unknown as net.Socket)
       : net.connect({ host: config.host, port: config.port });
 
+    if (typeof socket.setTimeout === 'function') {
+      socket.setTimeout(10000);
+    }
+    socket.once('timeout', () => {
+      socket.destroy();
+      reject(
+        ErrorFactory.createConnectionError('SMTP connection timed out', {
+          host: config.host,
+          port: config.port,
+        })
+      );
+    });
+
     if (implicitTls) {
       (socket as unknown as tls.TLSSocket).once('secureConnect', () => resolve(socket));
     } else {
@@ -93,9 +266,82 @@ const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<n
   });
 };
 
-const upgradeToStartTls = async (socket: net.Socket, host: string): Promise<net.Socket> => {
+const createWorkersSocket = async (
+  config: SmtpConfig,
+  implicitTls: boolean
+): Promise<SmtpSocket> => {
+  validateConfig(config);
+
   return new Promise((resolve, reject) => {
-    const tlsSocket = tls.connect({ socket, servername: host });
+    let cleanup: (target?: SmtpSocket) => void = () => undefined;
+
+    const onError = (err: unknown): void => {
+      cleanup();
+      reject(
+        ErrorFactory.createConnectionError('SMTP connection failed', {
+          host: config.host,
+          port: config.port,
+          secure: implicitTls,
+          error: err,
+        })
+      );
+    };
+
+    const socketFactoryPromise = loadCloudflareSocketFactory();
+
+    socketFactoryPromise
+      .then((socketFactory) => {
+        const socket = socketFactory.create(config.host, config.port, {
+          tls: implicitTls,
+        });
+
+        if (!socket) {
+          reject(ErrorFactory.createConnectionError('SMTP socket initialization failed'));
+          return;
+        }
+
+        const onConnect = (): void => {
+          cleanup(socket);
+          resolve(socket);
+        };
+
+        cleanup = (target?: SmtpSocket): void => {
+          if (!target) return;
+          if (typeof target.off === 'function') {
+            target.off('connect', onConnect);
+            target.off('error', onError);
+          } else if (typeof target.removeListener === 'function') {
+            target.removeListener('connect', onConnect);
+            target.removeListener('error', onError);
+          }
+        };
+
+        socket.once('connect', onConnect);
+        socket.once('error', onError);
+      })
+      .catch((err: unknown) => {
+        reject(
+          ErrorFactory.createConnectionError('SMTP socket initialization failed', {
+            error: err as Error,
+          })
+        );
+      });
+  });
+};
+
+const createSocket = async (config: SmtpConfig, implicitTls: boolean): Promise<SmtpSocket> => {
+  if (isWorkersRuntime()) return createWorkersSocket(config, implicitTls);
+  return createNodeSocket(config, implicitTls);
+};
+
+const upgradeToStartTls = async (socket: SmtpSocket, host: string): Promise<SmtpSocket> => {
+  if (typeof socket.startTls === 'function') {
+    await socket.startTls();
+    return socket;
+  }
+
+  return new Promise((resolve, reject) => {
+    const tlsSocket = tls.connect({ socket: socket as net.Socket, servername: host });
 
     tlsSocket.once('secureConnect', () => {
       resolve(tlsSocket as unknown as net.Socket);
@@ -113,7 +359,7 @@ const upgradeToStartTls = async (socket: net.Socket, host: string): Promise<net.
 };
 
 const createLineReader = (
-  socket: net.Socket
+  socket: SmtpSocket
 ): {
   readResponse: () => Promise<SmtpResponse>;
   close: () => void;
@@ -128,8 +374,9 @@ const createLineReader = (
     }
   };
 
-  const onData = (data: Buffer): void => {
-    buffer += data.toString('utf8');
+  const onData = (data: unknown): void => {
+    const chunk = data instanceof Uint8Array ? data : Buffer.from(String(data));
+    buffer += Buffer.from(chunk).toString('utf8');
     wake();
   };
 
@@ -146,7 +393,21 @@ const createLineReader = (
   const readLine = async (): Promise<string> => {
     const immediate = tryReadLineFromBuffer();
     if (typeof immediate === 'string') return immediate;
-    await new Promise<void>((resolve) => waiters.push(resolve));
+
+    await new Promise<void>((resolve, reject) => {
+      let fired = false;
+      const timer = globalThis.setTimeout(() => {
+        fired = true;
+        reject(ErrorFactory.createConnectionError('SMTP read timeout'));
+      }, 30000);
+
+      waiters.push(() => {
+        if (fired) return;
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
     return readLine();
   };
 
@@ -180,19 +441,39 @@ const createLineReader = (
   };
 
   const close = (): void => {
-    socket.off('data', onData);
+    if (typeof socket.off === 'function') {
+      socket.off('data', onData);
+    }
   };
 
   return { readResponse, close };
 };
 
-const writeLine = async (socket: net.Socket, line: string): Promise<void> => {
+const writeRaw = async (socket: SmtpSocket, data: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    socket.write(`${line}\r\n`, (err?: Error | null) => {
+    let settled = false;
+    const finish = (err?: Error | null): void => {
+      if (settled) return;
+      settled = true;
       if (err) reject(err);
       else resolve();
-    });
+    };
+
+    try {
+      const writer = socket as unknown as { write: (...args: unknown[]) => unknown };
+      writer.write(data, (err?: Error | null) => finish(err));
+
+      if (writer.write.length < 2) {
+        finish();
+      }
+    } catch (err) {
+      finish(err as Error);
+    }
   });
+};
+
+const writeLine = async (socket: SmtpSocket, line: string): Promise<void> => {
+  return writeRaw(socket, `${line}\r\n`);
 };
 
 const assertCode = (res: SmtpResponse, expected: number | number[], context: string): void => {
@@ -217,7 +498,7 @@ const hasCapability = (res: SmtpResponse, capability: string): boolean => {
 };
 
 const doEhlo = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>
 ): Promise<SmtpResponse> => {
   await writeLine(socket, 'EHLO zintrust');
@@ -227,7 +508,7 @@ const doEhlo = async (
 };
 
 const doAuthLoginIfNeeded = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   config: SmtpConfig
 ): Promise<void> => {
@@ -276,7 +557,7 @@ const doAuthLoginIfNeeded = async (
 };
 
 const doMailFrom = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   fromEmail: string
 ): Promise<void> => {
@@ -286,7 +567,7 @@ const doMailFrom = async (
 };
 
 const doRcptToAll = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   recipients: string[]
 ): Promise<void> => {
@@ -303,7 +584,7 @@ const doRcptToAll = async (
 };
 
 const doData = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>,
   message: MailMessage
 ): Promise<void> => {
@@ -314,19 +595,14 @@ const doData = async (
   const raw = buildRfc2822Message(message);
   const stuffed = dotStuff(raw);
 
-  await new Promise<void>((resolve, reject) => {
-    socket.write(`${stuffed}\r\n.\r\n`, (err?: Error | null) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+  await writeRaw(socket, `${stuffed}\r\n.\r\n`);
 
   const queued = await reader.readResponse();
   assertCode(queued, 250, 'message body');
 };
 
 const doQuit = async (
-  socket: net.Socket,
+  socket: SmtpSocket,
   reader: ReturnType<typeof createLineReader>
 ): Promise<void> => {
   await writeLine(socket, 'QUIT');
@@ -438,6 +714,13 @@ export const SmtpDriver = Object.freeze({
    * - `secure='starttls'` performs STARTTLS after EHLO.
    */
   async send(config: SmtpConfig, message: MailMessage): Promise<SendResult> {
+    if (shouldUseProxy()) {
+      const proxyUrl = Env.SMTP_PROXY_URL;
+      Logger.debug('[SmtpDriver] Using SmtpProxy', { proxyUrl });
+      const result = await sendViaProxy(message);
+      return { ok: Boolean(result.ok), provider: 'smtp', messageId: result.messageId };
+    }
+
     let mode: 'none' | 'tls' | 'starttls' = 'none';
     if (config.secure === true) mode = 'tls';
     if (config.secure === 'starttls') mode = 'starttls';

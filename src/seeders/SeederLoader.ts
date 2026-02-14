@@ -1,6 +1,6 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as path from '@node-singletons/path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL } from '@node-singletons/url';
 
 import type { LoadedSeeder, SeederHandler } from '@/seeders/types';
 import type { IDatabase } from '@orm/Database';

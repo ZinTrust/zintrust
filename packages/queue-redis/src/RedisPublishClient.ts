@@ -1,12 +1,147 @@
-import { ErrorFactory, ZintrustLang } from '@zintrust/core';
+import { Env, ErrorFactory, SignedRequest, ZintrustLang } from '@zintrust/core';
 
 export type RedisPublishClient = {
   connect?: () => Promise<void>;
   publish(channel: string, message: string): Promise<number>;
 };
 
+type ProxySettings = {
+  baseUrl: string;
+  keyId?: string;
+  secret?: string;
+  timeoutMs: number;
+};
+
+const resolveSigningPrefix = (baseUrl: string): string | undefined => {
+  try {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
+    if (path === '' || path === '/') return undefined;
+    return path;
+  } catch {
+    return undefined;
+  }
+};
+
+const buildRequestUrl = (baseUrl: string, path: string): URL => {
+  const url = new URL(baseUrl);
+  const basePath = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname;
+  const requestPath = path.startsWith('/') ? path : `/${path}`;
+  url.pathname = `${basePath}${requestPath}`;
+  return url;
+};
+
+const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
+  const prefix = resolveSigningPrefix(baseUrl);
+  if (!prefix) return requestUrl;
+
+  if (requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`)) {
+    const signingUrl = new URL(requestUrl.toString());
+    const stripped = requestUrl.pathname.slice(prefix.length);
+    signingUrl.pathname = stripped.startsWith('/') ? stripped : `/${stripped}`;
+    return signingUrl;
+  }
+
+  return requestUrl;
+};
+
 let publishClientInstance: RedisPublishClient | null = null;
 let publishClientConnected = false;
+
+const resolveProxyBaseUrl = (): string => {
+  const explicit = Env.REDIS_PROXY_URL.trim();
+  if (explicit !== '') return explicit;
+  if (Env.USE_REDIS_PROXY === false) return '';
+  const host = Env.REDIS_PROXY_HOST || '127.0.0.1';
+  const port = Env.REDIS_PROXY_PORT;
+  return `http://${host}:${port}`;
+};
+
+const buildProxySettings = (): ProxySettings => {
+  const baseUrl = resolveProxyBaseUrl();
+  const keyId = Env.REDIS_PROXY_KEY_ID || undefined;
+  const secret = Env.REDIS_PROXY_SECRET || Env.APP_KEY || undefined;
+  const timeoutMs = Env.REDIS_PROXY_TIMEOUT_MS;
+  return { baseUrl, keyId, secret, timeoutMs };
+};
+
+const buildHeaders = async (
+  settings: ProxySettings,
+  requestUrl: URL,
+  body: string
+): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (settings.keyId && settings.secret) {
+    const signingUrl = buildSigningUrl(requestUrl, settings.baseUrl);
+    const signed = await SignedRequest.createHeaders({
+      method: 'POST',
+      url: signingUrl,
+      body,
+      keyId: settings.keyId,
+      secret: settings.secret,
+    });
+    Object.assign(headers, signed);
+  }
+
+  return headers;
+};
+
+const requestProxy = async <T>(
+  settings: ProxySettings,
+  path: string,
+  payload: Record<string, unknown>
+): Promise<T> => {
+  if (settings.baseUrl.trim() === '') {
+    throw ErrorFactory.createConfigError('Redis proxy URL is missing (REDIS_PROXY_URL)');
+  }
+
+  const body = JSON.stringify(payload);
+  const url = buildRequestUrl(settings.baseUrl, path);
+  const headers = await buildHeaders(settings, url, body);
+  const timeoutSignal = typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal;
+  const signal = timeoutSignal ? AbortSignal.timeout(settings.timeoutMs) : undefined;
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers,
+    body,
+    signal,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw ErrorFactory.createTryCatchError(`Redis proxy request failed (${response.status})`, text);
+  }
+
+  return (await response.json()) as T;
+};
+
+const toNumber = (value: unknown): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const tryCreateProxyPublishClient = async (): Promise<RedisPublishClient | null> => {
+  const settings = buildProxySettings();
+  if (settings.baseUrl.trim() === '') return null;
+
+  return {
+    publish: async (channel: string, message: string): Promise<number> => {
+      const response = await requestProxy<{ result: unknown }>(settings, '/zin/redis/command', {
+        command: 'PUBLISH',
+        args: [channel, message],
+      });
+      return toNumber(response.result);
+    },
+  };
+};
 
 /**
  * Build Redis URL from environment variables
@@ -59,6 +194,11 @@ export const createRedisPublishClient = async (): Promise<RedisPublishClient> =>
   // Return cached instance if available
   if (publishClientConnected && publishClientInstance !== null) {
     return publishClientInstance;
+  }
+
+  const proxyClient = await tryCreateProxyPublishClient();
+  if (proxyClient) {
+    return cacheAndReturnClient(proxyClient);
   }
 
   const url = buildRedisUrl();

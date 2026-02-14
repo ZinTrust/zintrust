@@ -4,7 +4,7 @@
  */
 
 import type { IRequest, IResponse, IRouter } from '@zintrust/core';
-import { Logger, Router } from '@zintrust/core';
+import { Cloudflare, Env, Logger, Router } from '@zintrust/core';
 import { type WorkersDashboardUiOptions } from '../dashboard';
 import { HealthMonitor } from '../HealthMonitor';
 import { ValidationSchemas, withCustomValidation } from '../http/middleware/CustomValidation';
@@ -31,7 +31,7 @@ function registerCoreWorkerRoutes(r: IRouter): void {
   Router.post(r, '/create', withCreateWorkerValidation(controller.create));
   Router.put(r, '/:name', withCreateWorkerValidation(controller.update));
 
-  // Worker editing with custom validation that handles processorPath mapping
+  // Worker editing with custom validation that handles mapping
   Router.put(r, '/:name/edit', withEditWorkerValidation(controller.update));
   Router.post(
     r,
@@ -133,12 +133,13 @@ function registerWorkerLifecycleRoutes(router: IRouter, middleware?: ReadonlyArr
     '/api/workers',
     (r: IRouter) => {
       Logger.info('Registering Worker Management Routes');
-
-      registerMonitoringRoutes(r); // ← Move FIRST - has /events
       registerCoreWorkerRoutes(r);
-      registerWorkerQueryRoutes(r);
-      registerVersioningRoutes(r);
-      registerUtilityRoutes(r);
+      if (Cloudflare.getWorkersEnv() === null) {
+        registerMonitoringRoutes(r); // ← Move FIRST - has /events
+        registerWorkerQueryRoutes(r);
+        registerVersioningRoutes(r);
+        registerUtilityRoutes(r);
+      }
     },
     { middleware: middleware }
   );
@@ -204,8 +205,9 @@ export function registerWorkerRoutes(
     basePath: '/telemetry',
   });
   dashboard.registerRoutes(router);
-  Logger.info('Worker routes registered at http://127.0.0.1:7777/workers');
-  Logger.info('Telemetry dashboard registered at http://127.0.0.1:7777/telemetry');
+  const port = Env.get('PORT', '7777');
+  Logger.info(`Worker routes registered at http://127.0.0.1:${port}/workers`);
+  Logger.info(`Telemetry dashboard registered at http://127.0.0.1:${port}/telemetry`);
 }
 
 export default registerWorkerRoutes;

@@ -3,7 +3,6 @@
  * Uses Node.js built-in HTTP server with no external dependencies
  */
 
-import type { IApplication } from '@boot/Application';
 import { appConfig } from '@config/app';
 import { HTTP_HEADERS } from '@config/constants';
 import { Logger } from '@config/logger';
@@ -18,6 +17,7 @@ import type { IResponse } from '@http/Response';
 import { Response } from '@http/Response';
 import * as http from '@node-singletons/http';
 import type { Socket } from '@node-singletons/net';
+import type { IApplication } from '@registry/type';
 
 export interface IServer {
   listen(): Promise<void>;

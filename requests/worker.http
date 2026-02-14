@@ -14,7 +14,7 @@
 
 @spanId = abcdef123456
 
-@WORKER_API_URL = http://localhost:7777
+@WORKER_API_URL = http://localhost:7772
 
 
 ### List all workers
@@ -41,9 +41,9 @@ POST {{WORKER_API_URL}}/api/workers/create
 Content-Type: application/json
 
 {
-  "name": "advanced-test-mysql",
-  "queueName": "advanced-queue",
-  "processor": "app/Workers/AdvancEmailWorker.ts",
+  "name": "advanced-test-redis3",
+  "queueName": "advanced-queue-redis3",
+  "processor": "app/Workers/AdvancEmailWorker.js",
   "version": "1.0.0",
   "options": {
     "concurrency": 5,
@@ -53,7 +53,7 @@ Content-Type: application/json
     }
   },
   "infrastructure": {
-  "persistence": { "driver": "database"},
+  "persistence": { "driver": "redis", "connection": "redis"  },
     "redis": {
       "env": true,
       "host": "REDIS_HOST",

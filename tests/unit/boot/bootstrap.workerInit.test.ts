@@ -46,7 +46,7 @@ describe('bootstrap useWorkerStarter path', () => {
 
     // Mock appConfig.detectRuntime to 'nodejs'
     vi.doMock('@config/app', () => ({
-      appConfig: { detectRuntime: () => 'nodejs', port: 0, host: '127.0.0.1' },
+      appConfig: { detectRuntime: () => 'nodejs', dockerWorker: false, port: 0, host: '127.0.0.1' },
     }));
 
     const fakeWorkers = {
@@ -57,7 +57,9 @@ describe('bootstrap useWorkerStarter path', () => {
       WorkerShutdown: { shutdown: vi.fn().mockResolvedValue(undefined) },
     };
 
-    vi.doMock('@zintrust/workers', () => fakeWorkers);
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: async () => fakeWorkers,
+    }));
 
     // Import bootstrap (it runs start on import)
     await import('@/boot/bootstrap');

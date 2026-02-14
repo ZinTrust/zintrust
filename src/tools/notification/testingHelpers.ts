@@ -1,9 +1,9 @@
+import { Env } from '@config/env';
 import { NotificationRegistry } from '@notification/Registry';
 import NotificationFake from '@notification/testing';
 
-// NOTE: This testing helper intentionally uses direct process.env mutations
-// to temporarily override NOTIFICATION_DRIVER for test isolation.
-// This is an exception to the Env singleton pattern.
+// NOTE: This testing helper intentionally mutates runtime env values
+// via Env.set() to temporarily override NOTIFICATION_DRIVER for test isolation.
 
 type DriverLike = {
   send(recipient: string, message: string, options?: Record<string, unknown>): Promise<unknown>;
@@ -22,8 +22,8 @@ export const useFakeDriver = (
 
   const fakeDriver = fake as DriverLike;
   NotificationRegistry.register(name, fakeDriver);
-  const prevEnv = process.env['NOTIFICATION_DRIVER'];
-  process.env['NOTIFICATION_DRIVER'] = name;
+  const prevEnv = Env.get('NOTIFICATION_DRIVER', '');
+  Env.set('NOTIFICATION_DRIVER', name);
 
   return {
     driverName: name,
@@ -35,8 +35,8 @@ export const useFakeDriver = (
         NotificationRegistry.register(name, previous);
       }
 
-      if (prevEnv === undefined) delete process.env['NOTIFICATION_DRIVER'];
-      else process.env['NOTIFICATION_DRIVER'] = prevEnv;
+      if (prevEnv === '') Env.unset('NOTIFICATION_DRIVER');
+      else Env.set('NOTIFICATION_DRIVER', prevEnv);
     },
   };
 };

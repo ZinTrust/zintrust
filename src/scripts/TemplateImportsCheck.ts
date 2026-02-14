@@ -1,5 +1,5 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import * as fs from '@node-singletons/fs';
+import * as path from '@node-singletons/path';
 import ts from 'typescript';
 
 const TEMPLATES_ROOT = path.resolve(process.cwd(), 'src/templates');

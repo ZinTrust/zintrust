@@ -1,7 +1,4 @@
-import { SendGridDriver as CoreSendGridDriver } from '@zintrust/core';
-
-const SendGridDriver = CoreSendGridDriver;
-export { SendGridDriver };
+export { SendGridDriver } from '@zintrust/core';
 export type {
   SendGridConfig,
   SendGridMailAddress,

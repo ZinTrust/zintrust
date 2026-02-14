@@ -15,7 +15,7 @@ describe('Hash - extra branches', () => {
 
   test('hash uses bcrypt and rounds=12 by default', async () => {
     const mockBcrypt = { hash: vi.fn().mockResolvedValue('bcrypt-hash'), compare: vi.fn() };
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await import('@/security/Hash?v=bcrypt-default');
     const hash = await Hash.hash('pw');
@@ -26,7 +26,7 @@ describe('Hash - extra branches', () => {
 
   test('hashWithRounds normalizes rounds and calls bcrypt', async () => {
     const mockBcrypt = { hash: vi.fn().mockResolvedValue('hr-hash'), compare: vi.fn() };
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await import('@/security/Hash?v=bcrypt-rounds');
     const hash = await Hash.hashWithRounds('pw', 14.9);
@@ -37,7 +37,7 @@ describe('Hash - extra branches', () => {
 
   test('hashWithRounds throws on invalid rounds', async () => {
     const mockBcrypt = { hash: vi.fn(), compare: vi.fn() };
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await import('@/security/Hash?v=bcrypt-invalid-rounds');
     await expect(Hash.hashWithRounds('pw', 0)).rejects.toThrow(/Invalid bcrypt rounds/);
@@ -51,7 +51,7 @@ describe('Hash - extra branches', () => {
 
   test('verify returns false and logs when bcrypt.compare throws', async () => {
     const mockBcrypt = { hash: vi.fn(), compare: vi.fn().mockRejectedValue(new Error('boom')) };
-    vi.doMock('bcrypt', () => ({ default: mockBcrypt }));
+    vi.doMock('bcryptjs', () => ({ default: mockBcrypt }));
 
     const { Hash } = await import('@/security/Hash?v=bcrypt-verify-throws');
     const validBcrypt = '$2b$10$' + 'a'.repeat(53);
@@ -61,7 +61,7 @@ describe('Hash - extra branches', () => {
   });
 
   test('throws when bcrypt module shape invalid', async () => {
-    vi.doMock('bcrypt', () => ({ default: {} }));
+    vi.doMock('bcryptjs', () => ({ default: {} }));
     const { Hash } = await import('@/security/Hash?v=bcrypt-bad-shape');
     await expect(Hash.hash('pw')).rejects.toThrow();
   });

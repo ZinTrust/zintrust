@@ -10,15 +10,25 @@ import type { MiddlewareKey } from '@config/middleware';
 import { type IRouter, Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+// import { registerDevRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
+import { ErrorFactory } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
-  const authController = AuthController.create();
-  const userController = UserQueryBuilderController.create();
-  registerPublicRoutes(router);
-  registerApiV1Routes(router, authController, userController);
-  registerAdminRoutes(router);
+  try {
+    const authController = AuthController.create();
+    const userController = UserQueryBuilderController.create();
+    registerPublicRoutes(router);
+    registerApiV1Routes(router, authController, userController);
+    registerAdminRoutes(router);
+    // registerDevRoutes(router);
+  } catch (error: unknown) {
+    throw ErrorFactory.createConfigError(
+      `Failed to register routes: ${(error as Error).message}`,
+      error as Error
+    );
+  }
 }
 
 /**
@@ -26,8 +36,20 @@ export function registerRoutes(router: IRouter): void {
  */
 function registerPublicRoutes(router: IRouter): void {
   registerRootRoute(router);
+  registerHealthRoute(router);
   registerBroadcastRoutes(router);
   registerStorageRoutes(router);
+}
+
+function registerHealthRoute(router: IRouter): void {
+  Router.get(router, '/health', async (_req: IRequest, res: IResponse) => {
+    res.json({
+      status: 'ok',
+      mode: Env.get('RUNTIME_MODE', 'unknown'),
+      worker: Env.get('WORKER_ENABLED', 'false') === 'true',
+      timestamp: new Date().toISOString(),
+    });
+  });
 }
 
 function registerRootRoute(router: IRouter): void {
@@ -35,7 +57,7 @@ function registerRootRoute(router: IRouter): void {
     res.json({
       framework: 'ZinTrust Framework',
       app_name: Env.APP_NAME,
-      version: '0.1.0',
+      version: '0.1.41',
       env: Env.NODE_ENV ?? 'development',
       database: Env.DB_CONNECTION ?? 'sqlite',
     });

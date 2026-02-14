@@ -15,6 +15,7 @@ export interface IGenerationCache {
   set(type: string, params: Record<string, unknown>, code: string): Promise<void>;
   save(): Promise<void>;
   clear(): Promise<void>;
+  dispose(): Promise<void>;
   getStats(): Promise<{
     size: number;
     entries: number;
@@ -257,16 +258,16 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
      * Clear cache (async)
      */
     async clear(): Promise<void> {
-      if (state.cleanupInterval) {
-        clearInterval(state.cleanupInterval);
-        state.cleanupInterval = undefined;
-      }
-      if (state.flushTimer) {
-        clearTimeout(state.flushTimer);
-        state.flushTimer = undefined;
-      }
+      stopCacheTimers(state);
       state.pendingWrites.clear();
       await clearCache(state);
+    },
+
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async dispose(): Promise<void> {
+      stopCacheTimers(state);
+      state.pendingWrites.clear();
+      state.cache.clear();
     },
 
     /**
@@ -283,6 +284,17 @@ function createCacheInstance(state: CacheState & { maxEntries?: number }): IGene
   };
 }
 
+function stopCacheTimers(state: CacheState): void {
+  if (state.cleanupInterval) {
+    clearInterval(state.cleanupInterval);
+    state.cleanupInterval = undefined;
+  }
+  if (state.flushTimer) {
+    clearTimeout(state.flushTimer);
+    state.flushTimer = undefined;
+  }
+}
+
 function attachCacheStateForTests(instance: IGenerationCache, state: CacheState): void {
   Object.defineProperty(instance, GENERATION_CACHE_STATE_SYMBOL, {
     value: state as unknown,
@@ -295,6 +307,11 @@ function attachCacheStateForTests(instance: IGenerationCache, state: CacheState)
  */
 async function saveCacheToDisk(state: CacheState): Promise<void> {
   try {
+    if (state.flushTimer !== undefined) {
+      clearTimeout(state.flushTimer);
+      state.flushTimer = undefined;
+    }
+
     const flushedEnsured = await flushPendingWrites(state);
     if (!flushedEnsured) {
       await ensureCacheDir(state.cacheDir);

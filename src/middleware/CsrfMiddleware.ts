@@ -39,26 +39,35 @@ const DEFAULT_OPTIONS: CsrfOptions = {
 // Global cleanup registry to avoid leaking intervals per middleware instance
 // We use WeakRef so the manager (and middleware) can be garbage collected
 // when no longer in use, even if this interval keeps running.
+const canUseWeakRef = typeof WeakRef === 'function';
 const managerRegistry = new Set<WeakRef<ICsrfTokenManager>>();
 
-// Single process-wide timer
-const globalCleanupTimer = setInterval(() => {
-  if (managerRegistry.size === 0) return;
+let globalCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-  for (const ref of managerRegistry) {
-    const mgr = ref.deref();
-    if (mgr) {
-      void mgr.cleanup().catch(() => undefined);
-    } else {
-      managerRegistry.delete(ref);
+const ensureCleanupTimer = (): void => {
+  if (globalCleanupTimer !== null) return;
+  if (typeof setInterval !== 'function') return;
+  if ((globalThis as { CF?: unknown }).CF !== undefined) return;
+  if (!canUseWeakRef) return;
+
+  globalCleanupTimer = setInterval(() => {
+    if (managerRegistry.size === 0) return;
+
+    for (const ref of managerRegistry) {
+      const mgr = ref.deref();
+      if (mgr) {
+        void mgr.cleanup().catch(() => undefined);
+      } else {
+        managerRegistry.delete(ref);
+      }
     }
-  }
-}, 3600000);
+  }, 3600000);
 
-// Use helper to handle runtime differences (Node vs others)
-if (isUnrefableTimer(globalCleanupTimer)) {
-  globalCleanupTimer.unref();
-}
+  // Use helper to handle runtime differences (Node vs others)
+  if (globalCleanupTimer !== null && isUnrefableTimer(globalCleanupTimer)) {
+    globalCleanupTimer.unref();
+  }
+};
 
 export const CsrfMiddleware = Object.freeze({
   /**
@@ -69,8 +78,12 @@ export const CsrfMiddleware = Object.freeze({
     const manager = CsrfTokenManager.create();
     const sessions = SessionManager.create();
 
+    ensureCleanupTimer();
+
     // Register for global cleanup instead of creating a local timer
-    managerRegistry.add(new WeakRef(manager));
+    if (canUseWeakRef) {
+      managerRegistry.add(new WeakRef(manager));
+    }
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       if (shouldSkipCsrfForRequest(req, config)) {

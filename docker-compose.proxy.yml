@@ -1,0 +1,267 @@
+name: zintrust-proxies
+
+x-proxy-runtime: &proxy-runtime
+  image: ${PROXY_IMAGE:-zintrust-proxy:local}
+  restart: on-failure:3
+  ulimits:
+    nofile:
+      soft: 65535
+      hard: 65535
+  environment:
+    NODE_ENV: ${NODE_ENV:-development}
+    APP_NAME: ${APP_NAME:-ZinTrust}
+    APP_KEY: ${APP_KEY:-}
+    CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+  networks:
+    - zintrust-proxy-network
+
+services:
+  proxy-gateway:
+    image: ${PROXY_GATEWAY_IMAGE:-zintrust-proxy-gateway:local}
+    build:
+      context: ./docker/proxy-gateway
+      dockerfile: Dockerfile
+    restart: on-failure:3
+    ulimits:
+      nofile:
+        soft: 200000
+        hard: 200000
+    depends_on:
+      - proxy-mysql
+      - proxy-pg
+      - proxy-redis
+      - proxy-mongodb
+      - proxy-sqlserver
+      - proxy-smtp
+    ports:
+      - ${PROXY_GATEWAY_PORT:-8800}:8080
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+    healthcheck:
+      disable: ${PROXY_GATEWAY_HEALTHCHECK_DISABLE:-false}
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:8080/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - zintrust-proxy-network
+
+  proxy-mysql:
+    <<: *proxy-runtime
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ['node', 'dist/bin/zin.js', 'proxy:mysql', '--host', '0.0.0.0', '--port', '8789']
+    expose:
+      - '8789'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_NAME: ${APP_NAME:-ZinTrust}
+      APP_KEY: ${APP_KEY:-}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      MYSQL_PROXY_REQUIRE_SIGNING: true
+      MYSQL_PROXY_KEY_ID: ${MYSQL_PROXY_KEY_ID:-}
+      MYSQL_PROXY_SECRET: ${MYSQL_PROXY_SECRET:-}
+      MYSQL_PROXY_SIGNING_WINDOW_MS: ${MYSQL_PROXY_SIGNING_WINDOW_MS:-60000}
+      MYSQL_DB_HOST: ${MYSQL_DB_HOST:-${DOCKER_DB_HOST:-host.docker.internal}}
+      MYSQL_DB_PORT: ${MYSQL_DB_PORT:-${DB_PORT:-3306}}
+      MYSQL_DB_DATABASE: ${MYSQL_DB_DATABASE:-${DB_DATABASE:-zintrust}}
+      MYSQL_DB_USERNAME: ${MYSQL_DB_USERNAME:-${DB_USERNAME:-zintrust}}
+      MYSQL_DB_PASSWORD: ${MYSQL_DB_PASSWORD:-${DB_PASSWORD:-secret}}
+      DB_HOST: ${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_DATABASE: ${DB_DATABASE:-zintrust}
+      DB_USERNAME: ${DB_USERNAME:-zintrust}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_PROXY_POOL_LIMIT: ${MYSQL_PROXY_POOL_LIMIT:-100}
+    healthcheck:
+      disable: ${PROXY_HEALTHCHECK_DISABLE:-false}
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('node:http').get('http://127.0.0.1:8789/health', (r)=>{process.exit(r.statusCode===200?0:1)}).on('error', ()=>process.exit(1));",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  proxy-pg:
+    <<: *proxy-runtime
+    command: ['node', 'dist/bin/zin.js', 'proxy:postgres', '--host', '0.0.0.0', '--port', '8790']
+    expose:
+      - '8790'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_NAME: ${APP_NAME:-ZinTrust}
+      APP_KEY: ${APP_KEY:-}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      POSTGRES_PROXY_REQUIRE_SIGNING: true
+      POSTGRES_PROXY_KEY_ID: ${POSTGRES_PROXY_KEY_ID:-}
+      POSTGRES_PROXY_SECRET: ${POSTGRES_PROXY_SECRET:-}
+      POSTGRES_PROXY_SIGNING_WINDOW_MS: ${POSTGRES_PROXY_SIGNING_WINDOW_MS:-60000}
+      DB_HOST: ${DOCKER_DB_HOST:-host.docker.internal}
+      DB_PORT_POSTGRESQL: ${POSTGRES_DB_PORT:-5432}
+      DB_DATABASE_POSTGRESQL: ${POSTGRES_DB_DATABASE:-postgres}
+      DB_USERNAME_POSTGRESQL: ${POSTGRES_DB_USERNAME:-postgres}
+      DB_PASSWORD_POSTGRESQL: ${POSTGRES_DB_PASSWORD:-postgres}
+      POSTGRES_PROXY_POOL_LIMIT: ${POSTGRES_PROXY_POOL_LIMIT:-100}
+    healthcheck:
+      disable: ${PROXY_HEALTHCHECK_DISABLE:-false}
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('node:http').get('http://127.0.0.1:8790/health', (r)=>{process.exit(r.statusCode===200?0:1)}).on('error', ()=>process.exit(1));",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  proxy-redis:
+    <<: *proxy-runtime
+    command: ['node', 'dist/bin/zin.js', 'proxy:redis', '--host', '0.0.0.0', '--port', '8791']
+    expose:
+      - '8791'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_NAME: ${APP_NAME:-ZinTrust}
+      APP_KEY: ${APP_KEY:-}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      REDIS_PROXY_REQUIRE_SIGNING: true
+      REDIS_PROXY_KEY_ID: ${REDIS_PROXY_KEY_ID:-}
+      REDIS_PROXY_SECRET: ${REDIS_PROXY_SECRET:-}
+      REDIS_PROXY_SIGNING_WINDOW_MS: ${REDIS_PROXY_SIGNING_WINDOW_MS:-60000}
+      REDIS_PROXY_TARGET_HOST: ${REDIS_PROXY_TARGET_HOST:-${DOCKER_REDIS_HOST:-host.docker.internal}}
+      REDIS_PROXY_TARGET_PORT: ${REDIS_PROXY_TARGET_PORT:-${REDIS_PORT:-6379}}
+      REDIS_PROXY_TARGET_PASSWORD: ${REDIS_PROXY_TARGET_PASSWORD:-${REDIS_PASSWORD:-}}
+      REDIS_PROXY_TARGET_DB: ${REDIS_PROXY_TARGET_DB:-${REDIS_DB:-0}}
+      REDIS_HOST: ${DOCKER_REDIS_HOST:-host.docker.internal}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+    healthcheck:
+      disable: ${PROXY_HEALTHCHECK_DISABLE:-false}
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('node:http').get('http://127.0.0.1:8791/health', (r)=>{process.exit(r.statusCode===200?0:1)}).on('error', ()=>process.exit(1));",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  proxy-mongodb:
+    <<: *proxy-runtime
+    command: ['node', 'dist/bin/zin.js', 'proxy:mongodb', '--host', '0.0.0.0', '--port', '8792']
+    expose:
+      - '8792'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_NAME: ${APP_NAME:-ZinTrust}
+      APP_KEY: ${APP_KEY:-}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      MONGODB_PROXY_REQUIRE_SIGNING: true
+      MONGODB_PROXY_KEY_ID: ${MONGODB_PROXY_KEY_ID:-}
+      MONGODB_PROXY_SECRET: ${MONGODB_PROXY_SECRET:-}
+      MONGODB_PROXY_SIGNING_WINDOW_MS: ${MONGODB_PROXY_SIGNING_WINDOW_MS:-60000}
+      MONGO_URI: ${MONGODB_PROXY_TARGET_URI:-mongodb://host.docker.internal:27017}
+      MONGO_DB: ${MONGODB_PROXY_TARGET_DB:-zintrust}
+    healthcheck:
+      disable: ${PROXY_HEALTHCHECK_DISABLE:-false}
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('node:http').get('http://127.0.0.1:8792/health', (r)=>{process.exit(r.statusCode===200?0:1)}).on('error', ()=>process.exit(1));",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  proxy-sqlserver:
+    <<: *proxy-runtime
+    command: ['node', 'dist/bin/zin.js', 'proxy:sqlserver', '--host', '0.0.0.0', '--port', '8793']
+    expose:
+      - '8793'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_NAME: ${APP_NAME:-ZinTrust}
+      APP_KEY: ${APP_KEY:-}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      SQLSERVER_PROXY_REQUIRE_SIGNING: true
+      SQLSERVER_PROXY_KEY_ID: ${SQLSERVER_PROXY_KEY_ID:-}
+      SQLSERVER_PROXY_SECRET: ${SQLSERVER_PROXY_SECRET:-}
+      SQLSERVER_PROXY_SIGNING_WINDOW_MS: ${SQLSERVER_PROXY_SIGNING_WINDOW_MS:-60000}
+      DB_HOST_MSSQL: ${SQLSERVER_DB_HOST:-host.docker.internal}
+      DB_PORT_MSSQL: ${SQLSERVER_DB_PORT:-1433}
+      DB_DATABASE_MSSQL: ${SQLSERVER_DB_DATABASE:-zintrust}
+      DB_USERNAME_MSSQL: ${SQLSERVER_DB_USERNAME:-sa}
+      DB_PASSWORD_MSSQL: ${SQLSERVER_DB_PASSWORD:-}
+      SQLSERVER_PROXY_POOL_LIMIT: ${SQLSERVER_PROXY_POOL_LIMIT:-100}
+    healthcheck:
+      disable: ${PROXY_HEALTHCHECK_DISABLE:-false}
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('node:http').get('http://127.0.0.1:8793/health', (r)=>{process.exit(r.statusCode===200?0:1)}).on('error', ()=>process.exit(1));",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  proxy-smtp:
+    <<: *proxy-runtime
+    command: ['node', 'dist/bin/zin.js', 'proxy:smtp', '--host', '0.0.0.0', '--port', '8794']
+    expose:
+      - '8794'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_NAME: ${APP_NAME:-ZinTrust}
+      APP_KEY: ${APP_KEY:-}
+      CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
+      SMTP_PROXY_REQUIRE_SIGNING: true
+      SMTP_PROXY_KEY_ID: ${SMTP_PROXY_KEY_ID:-}
+      SMTP_PROXY_SECRET: ${SMTP_PROXY_SECRET:-}
+      SMTP_PROXY_SIGNING_WINDOW_MS: ${SMTP_PROXY_SIGNING_WINDOW_MS:-60000}
+      MAIL_DRIVER: ${MAIL_DRIVER:-smtp}
+      MAIL_CONNECTION: ${MAIL_CONNECTION:-smtp}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ZinTrust}
+    healthcheck:
+      disable: ${PROXY_HEALTHCHECK_DISABLE:-false}
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('node:http').get('http://127.0.0.1:8794/health', (r)=>{process.exit(r.statusCode===200?0:1)}).on('error', ()=>process.exit(1));",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+networks:
+  zintrust-proxy-network:
+    driver: bridge

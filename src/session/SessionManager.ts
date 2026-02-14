@@ -33,12 +33,15 @@ export interface ISessionManager {
   get(sessionId: string): ISession;
   destroy(sessionId: string): void;
   cleanup(): number;
+  dispose(): void;
 }
 
 export interface SessionManagerOptions {
   cookieName?: string;
   headerName?: string;
   ttlMs?: number;
+  maxSessions?: number;
+  cleanupIntervalMs?: number;
 }
 
 type StoredSession = {
@@ -50,7 +53,51 @@ const DEFAULT_OPTIONS: Required<SessionManagerOptions> = {
   cookieName: 'ZIN_SESSION_ID',
   headerName: 'x-session-id',
   ttlMs: 7 * 24 * 60 * 60 * 1000,
+  maxSessions: 10000,
+  cleanupIntervalMs: 60000,
 };
+
+type UnrefableTimer = { unref: () => void };
+
+function isUnrefableTimer(value: unknown): value is UnrefableTimer {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'unref' in value &&
+    typeof value.unref === 'function'
+  );
+}
+
+function cleanupExpiredSessions(sessions: Map<string, StoredSession>): number {
+  const now = Date.now();
+  let removed = 0;
+
+  for (const [id, stored] of sessions.entries()) {
+    if (stored.expiresAt <= now) {
+      sessions.delete(id);
+      removed++;
+    }
+  }
+
+  return removed;
+}
+
+function enforceSessionCapacity(
+  sessions: Map<string, StoredSession>,
+  maxSessions: number,
+  preserveId: string
+): void {
+  if (sessions.size < maxSessions) return;
+
+  cleanupExpiredSessions(sessions);
+  if (sessions.size < maxSessions) return;
+
+  for (const id of sessions.keys()) {
+    if (id === preserveId) continue;
+    sessions.delete(id);
+    break;
+  }
+}
 
 function parseCookies(cookieHeader: string): Record<string, string> {
   const list: Record<string, string> = {};
@@ -103,7 +150,8 @@ function buildSessionCookie(cookieName: string, sessionId: string): string {
 function createSessionApi(
   sessions: Map<string, StoredSession>,
   sessionId: string,
-  ttlMs: number
+  ttlMs: number,
+  maxSessions: number
 ): ISession {
   const withoutKey = (data: SessionData, key: string): SessionData => {
     if (!Object.prototype.hasOwnProperty.call(data, key)) return data;
@@ -119,6 +167,8 @@ function createSessionApi(
     if (existing !== undefined && existing.expiresAt > now) {
       return existing;
     }
+
+    enforceSessionCapacity(sessions, maxSessions, sessionId);
 
     const created: StoredSession = { data: {}, expiresAt: now + ttlMs };
     sessions.set(sessionId, created);
@@ -164,6 +214,16 @@ export const SessionManager = Object.freeze({
   create(options: SessionManagerOptions = {}): ISessionManager {
     const config = { ...DEFAULT_OPTIONS, ...options };
     const sessions = new Map<string, StoredSession>();
+    const cleanupInterval =
+      config.cleanupIntervalMs > 0
+        ? globalThis.setInterval(() => {
+            cleanupExpiredSessions(sessions);
+          }, config.cleanupIntervalMs)
+        : undefined;
+
+    if (cleanupInterval && isUnrefableTimer(cleanupInterval)) {
+      cleanupInterval.unref();
+    }
 
     return {
       getIdFromCookieHeader(cookieHeader: string | undefined): string | undefined {
@@ -214,7 +274,7 @@ export const SessionManager = Object.freeze({
       },
 
       get(sessionId: string): ISession {
-        return createSessionApi(sessions, sessionId, config.ttlMs);
+        return createSessionApi(sessions, sessionId, config.ttlMs, config.maxSessions);
       },
 
       destroy(sessionId: string): void {
@@ -222,17 +282,14 @@ export const SessionManager = Object.freeze({
       },
 
       cleanup(): number {
-        const now = Date.now();
-        let removed = 0;
+        return cleanupExpiredSessions(sessions);
+      },
 
-        for (const [id, stored] of sessions.entries()) {
-          if (stored.expiresAt <= now) {
-            sessions.delete(id);
-            removed++;
-          }
+      dispose(): void {
+        if (cleanupInterval !== undefined) {
+          clearInterval(cleanupInterval);
         }
-
-        return removed;
+        sessions.clear();
       },
     };
   },

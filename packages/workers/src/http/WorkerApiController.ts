@@ -112,6 +112,7 @@ export const listWorkers = async (req: IRequest, res: IResponse): Promise<void> 
       ] as const),
       search: getQueryParam(query, 'search'),
       includeDetails: getBooleanParam(query, 'includeDetails', false),
+      includeInactive: getBooleanParam(query, 'includeInactive', false),
     };
 
     const result = await getWorkers(queryParams);

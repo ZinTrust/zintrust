@@ -7,8 +7,9 @@
 import { ErrorFactory } from '@/exceptions/ZintrustError';
 import type { IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
+import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-type WorkersModule = typeof import('@zintrust/workers');
+import { loadWorkersModule as loadWorkersRuntimeModule } from '@runtime/WorkersModule';
 
 type WorkerRegistryStatus = {
   status?: string;
@@ -16,17 +17,22 @@ type WorkerRegistryStatus = {
   queueName?: string;
   concurrency?: number;
   region?: string;
-  startedAt?: Date | string;
+  startedAt?: Date | string | null;
 };
 
 type WorkerFactoryApi = {
   list: () => string[];
   listPersisted: () => Promise<string[]>;
-  getHealth: (name: string) => Promise<unknown>;
-  getMetrics: (name: string) => Promise<unknown>;
+  listPersistedRecords: () => Promise<
+    Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>
+  >;
+  getHealth: (name: string) => Promise<Record<string, unknown>>;
+  getMetrics: (name: string) => Promise<Record<string, unknown>>;
+  get: (name: string) => Promise<Record<string, unknown>>;
   stop: (name: string) => Promise<void>;
   restart: (name: string) => Promise<void>;
   start: (name: string) => Promise<void>;
+  startFromPersisted: (name: string) => Promise<void>;
 };
 
 type WorkerRegistryApi = {
@@ -35,7 +41,7 @@ type WorkerRegistryApi = {
 };
 
 type HealthMonitorApi = {
-  getSummary: () => Array<{ status: 'healthy' | 'degraded' | 'unhealthy' | 'critical' }>;
+  getSummary: () => Promise<unknown>;
 };
 
 type ResourceMonitorApi = {
@@ -46,18 +52,20 @@ type ResourceMonitorApi = {
   };
 };
 
+type WorkerCommandsApi = {
+  WorkerFactory: WorkerFactoryApi;
+  WorkerRegistry: WorkerRegistryApi;
+  HealthMonitor: HealthMonitorApi;
+  ResourceMonitor: ResourceMonitorApi;
+};
 // Lazy initialization to prevent temporal dead zone issues
 let WorkerFactory: WorkerFactoryApi | undefined;
 let WorkerRegistry: WorkerRegistryApi | undefined;
 let HealthMonitor: HealthMonitorApi | undefined;
 let ResourceMonitor: ResourceMonitorApi | undefined;
-let workersModulePromise: Promise<WorkersModule> | undefined;
-
-const loadWorkersModule = async (): Promise<WorkersModule> => {
-  workersModulePromise ??= import('@zintrust/workers');
-
+const loadWorkersModule = async (): Promise<WorkerCommandsApi> => {
   try {
-    return await workersModulePromise;
+    return (await loadWorkersRuntimeModule()) as unknown as WorkerCommandsApi;
   } catch (error) {
     Logger.error(
       'Failed to load optional package "@zintrust/workers"; worker commands require this package.',
@@ -99,6 +107,40 @@ const getResourceMonitor = async (): Promise<ResourceMonitorApi> => {
     ResourceMonitor = mod.ResourceMonitor as unknown as ResourceMonitorApi;
   }
   return ResourceMonitor;
+};
+
+type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'critical';
+
+const extractStatus = (item: unknown): HealthStatus | undefined => {
+  const status =
+    typeof item === 'object' && item !== null ? (item as { status?: string }).status : undefined;
+
+  if (
+    status === 'healthy' ||
+    status === 'degraded' ||
+    status === 'unhealthy' ||
+    status === 'critical'
+  ) {
+    return status;
+  }
+  return undefined;
+};
+
+const normalizeHealthStatuses = (summary: unknown): HealthStatus[] => {
+  let list: unknown[] | undefined;
+
+  if (Array.isArray(summary)) {
+    list = summary;
+  } else if (typeof summary === 'object' && summary !== null) {
+    const details = (summary as { details?: unknown }).details;
+    if (Array.isArray(details)) {
+      list = details;
+    }
+  }
+
+  return (list ?? [])
+    .map(extractStatus)
+    .filter((status): status is HealthStatus => status !== undefined);
 };
 
 /**
@@ -244,6 +286,147 @@ const createWorkerStartCommand = (): IBaseCommand => {
 };
 
 /**
+ * Helper: Poll for persisted workers in container mode
+ */
+const pollForPersistedWorkers = async (factory: WorkerFactoryApi): Promise<string[]> => {
+  let workers = await factory.listPersisted();
+
+  if (workers.length === 0 && process.env['RUNTIME_MODE'] === 'containers') {
+    Logger.info(
+      'No persisted workers found. Waiting for workers to be registered... (Polling every 10s)'
+    );
+
+    while (workers.length === 0) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 10000));
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        workers = await factory.listPersisted();
+        if (workers.length > 0) {
+          Logger.info(`Found ${workers.length} workers. Proceeding to start.`);
+        }
+      } catch (e) {
+        Logger.warn(
+          'Error checking for persisted workers (retrying in 10s):',
+          e instanceof Error ? e.message : String(e)
+        );
+      }
+    }
+  }
+
+  return workers;
+};
+
+const isRegisteredWorkerRunning = async (workerLike: unknown): Promise<boolean> => {
+  if (typeof workerLike !== 'object' || workerLike === null) return false;
+
+  const candidate = workerLike as {
+    worker?: {
+      isRunning?: () => boolean | Promise<boolean>;
+      isPaused?: () => boolean;
+    };
+  };
+
+  const runningFn = candidate.worker?.isRunning;
+  const pausedFn = candidate.worker?.isPaused;
+
+  const isRunning = typeof runningFn === 'function' ? await Promise.resolve(runningFn()) : false;
+  const isPaused = typeof pausedFn === 'function' ? pausedFn() : false;
+
+  return isRunning && !isPaused;
+};
+
+/**
+ * Worker Start All Command
+ */
+const createWorkerStartAllCommand = (): IBaseCommand => {
+  const ext = async (): Promise<void> => {
+    try {
+      const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
+      if (!globalAutoStart) {
+        Logger.info('Skipping auto-start because WORKER_AUTO_START is false.');
+        return;
+      }
+
+      const factory = await getWorkerFactory();
+      const records = await factory.listPersistedRecords();
+
+      const autoStartRecords = records.filter(
+        (record) => record.activeStatus !== false && record.autoStart === true
+      );
+
+      const workers = autoStartRecords.map((record) => record.name);
+
+      if (workers.length === 0) {
+        Logger.info('No auto-start eligible persisted workers found.');
+        return;
+      }
+
+      const discoveredWorkers = await pollForPersistedWorkers(factory);
+      const eligibleWorkers = workers.filter((name) => discoveredWorkers.includes(name));
+
+      if (eligibleWorkers.length === 0) {
+        Logger.info('No auto-start eligible workers are currently persisted.');
+        return;
+      }
+
+      const results = await Promise.all(
+        eligibleWorkers.map(async (name) => {
+          const existing = await factory.get(name);
+          if (existing !== null && existing !== undefined) {
+            const trulyRunning = await isRegisteredWorkerRunning(existing);
+            if (trulyRunning) {
+              return { name, status: 'skipped' as const };
+            }
+
+            Logger.warn(
+              `Worker "${name}" is registered but not truly running. Restarting for crash recovery.`
+            );
+            try {
+              await factory.restart(name);
+              return { name, status: 'started' as const };
+            } catch (error) {
+              Logger.warn(`Failed to restart stale worker "${name}"`, error);
+              return { name, status: 'failed' as const };
+            }
+          }
+
+          try {
+            await factory.startFromPersisted(name);
+            return { name, status: 'started' as const };
+          } catch (error) {
+            Logger.warn(`Failed to start worker "${name}"`, error);
+            return { name, status: 'failed' as const };
+          }
+        })
+      );
+
+      const started = results.filter((result) => result.status === 'started').length;
+      const skipped = results.filter((result) => result.status === 'skipped').length;
+      const failed = results.filter((result) => result.status === 'failed').length;
+
+      Logger.info('Worker start-all summary', {
+        total: eligibleWorkers.length,
+        started,
+        skipped,
+        failed,
+      });
+    } catch (error) {
+      Logger.error('worker:start-all command failed', error);
+      process.exit(1);
+    }
+  };
+
+  const cmd = BaseCommand.create({
+    name: 'worker:start-all',
+    description: 'Start all persisted workers',
+    execute: async () => ext(),
+  });
+
+  return cmd;
+};
+
+/**
  * Worker Stop Command
  */
 const createWorkerStopCommand = (): IBaseCommand => {
@@ -314,8 +497,9 @@ const createWorkerSummaryCommand = (): IBaseCommand => {
   const ext = async (): Promise<void> => {
     try {
       const workers = (await getWorkerFactory()).list();
-      const monitoringSummary = (await getHealthMonitor()).getSummary();
+      const monitoringSummary = await (await getHealthMonitor()).getSummary();
       const resourceUsage = (await getResourceMonitor()).getCurrentUsage('system');
+      const statuses = normalizeHealthStatuses(monitoringSummary);
 
       console.log(`\n=== Worker System Summary ===\n`);
       console.log(`Total Workers: ${workers.length}`);
@@ -328,8 +512,8 @@ const createWorkerSummaryCommand = (): IBaseCommand => {
         critical: 0,
       };
 
-      monitoringSummary.forEach((w) => {
-        healthCounts[w.status]++;
+      statuses.forEach((status) => {
+        healthCounts[status]++;
       });
 
       console.log(`  Healthy: ${healthCounts.healthy}`);
@@ -367,6 +551,7 @@ export const WorkerCommands = {
   createWorkerListCommand,
   createWorkerStatusCommand,
   createWorkerStartCommand,
+  createWorkerStartAllCommand,
   createWorkerStopCommand,
   createWorkerRestartCommand,
   createWorkerSummaryCommand,

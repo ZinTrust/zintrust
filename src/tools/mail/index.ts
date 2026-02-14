@@ -135,12 +135,9 @@ const sendWithDriver = async (
   }
 
   // Config exists for future drivers, but implementations are intentionally CLI/runtime-safe and added incrementally.
-  {
-    const err = ErrorFactory.createConfigError(
-      `Mail driver not implemented: ${mailConfig.default}`
-    );
-    throw err;
-  }
+  throw ErrorFactory.createConfigError(
+    `Mail driver not registered: ${mailConfig.default}. Available drivers: ses, sendgrid, mailgun, smtp. Run \`zin add mail:${mailConfig.default}\` to install.`
+  );
 };
 
 const createMailer = (
@@ -151,7 +148,6 @@ const createMailer = (
   Object.freeze({
     async send(input: SendMailInput): Promise<SendMailResult> {
       const driver = mailConfig.getDriver(name);
-
       if (driver.driver === 'disabled') {
         const err = ErrorFactory.createConfigError('Mail driver is disabled (set MAIL_DRIVER)');
         throw err;
@@ -173,14 +169,22 @@ const createMailer = (
   });
 
 export interface RenderMailInput {
-  template: string; // template filename without .html extension
+  template: string; // template name (without .html) or raw HTML content
   variables?: Record<string, unknown>;
 }
+
+const looksLikeHtml = (value: string): boolean => /<\s*html\b|<!doctype\b|<\s*body\b/i.test(value);
 
 async function renderTemplateToHtml(input: RenderMailInput): Promise<string> {
   const { template, variables } = input;
   // Import lazily to avoid circular deps
   const { loadTemplate } = await import('./template-loader.js');
+  if (looksLikeHtml(template)) {
+    return loadTemplate(
+      template,
+      (variables ?? {}) as import('@mail/template-utils').TemplateVariables
+    );
+  }
   // template-loader expects full filename
   const fileName = template.endsWith('.html') ? template : `${template}.html`;
   return loadTemplate(

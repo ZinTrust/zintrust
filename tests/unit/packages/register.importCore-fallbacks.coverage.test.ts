@@ -19,20 +19,24 @@ describe('adapter packages register.ts importCore fallbacks (coverage)', () => {
       throw new Error('mock import failure');
     };
 
-    const importWithFailingCore = async (file: (typeof registerFiles)[number]): Promise<string> => {
+    const importWithFailingCore = async (
+      file: (typeof registerFiles)[number]
+    ): Promise<{ file: string; ok: boolean }> => {
       vi.resetModules();
       vi.doMock('@zintrust/core', mockCoreImportFailure);
 
       try {
         await import(file);
-        return file;
+        return { file, ok: true };
+      } catch {
+        return { file, ok: false };
       } finally {
         vi.unmock('@zintrust/core');
         vi.resetModules();
       }
     };
 
-    const imported: string[] = [];
+    const imported: Array<{ file: string; ok: boolean }> = [];
     await registerFiles.reduce(async (prev, file) => {
       await prev;
       imported.push(await importWithFailingCore(file));
@@ -40,5 +44,6 @@ describe('adapter packages register.ts importCore fallbacks (coverage)', () => {
 
     // Assertion: all register files imported without throwing.
     expect(imported).toHaveLength(registerFiles.length);
+    expect(imported.every((entry) => typeof entry.ok === 'boolean')).toBe(true);
   });
 });

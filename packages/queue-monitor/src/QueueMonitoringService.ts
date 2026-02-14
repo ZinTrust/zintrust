@@ -60,7 +60,9 @@ const broadcastSnapshot = async (): Promise<void> => {
     emitter.emit('snapshot', payload);
   } catch (err) {
     Logger.error('QueueMonitoringService.broadcastSnapshot failed', err);
-    emitter.emit('error', err);
+    if (emitter.listenerCount('error') > 0) {
+      emitter.emit('error', err);
+    }
   }
 };
 

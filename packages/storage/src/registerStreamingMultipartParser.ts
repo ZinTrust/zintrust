@@ -7,7 +7,6 @@ import {
   type UploadedFile,
 } from '@zintrust/core';
 import Busboy from 'busboy';
-import type { Readable } from 'node:stream';
 
 export type StreamingMultipartParserOptions = {
   /**
@@ -133,7 +132,8 @@ const handleFileUpload = (
     encoding,
     size: 0,
     path: tmpPath,
-    stream: () => NodeSingletons.fs.createReadStream(tmpPath) as unknown as Readable,
+    stream: () =>
+      NodeSingletons.fs.createReadStream(tmpPath) as unknown as NodeSingletons.fs.ReadStream,
     cleanup: async () => {
       await safeUnlink(tmpPath);
       ctx.createdPaths.delete(tmpPath);

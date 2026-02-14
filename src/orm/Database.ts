@@ -4,20 +4,26 @@
  */
 
 import { OpenTelemetry } from '@/observability/OpenTelemetry';
+import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { SupportedDriver } from '@migrations/enum';
 import { EventEmitter } from '@node-singletons/events';
 import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
+import { MySQLProxyAdapter } from '@orm/adapters/MySQLProxyAdapter';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
+import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { IQueryBuilder } from '@orm/QueryBuilder';
 import { QueryBuilder } from '@orm/QueryBuilder';
+
+export type RawValue = { __raw: string };
 
 export interface IDatabase {
   connect(): Promise<void>;
@@ -26,6 +32,7 @@ export interface IDatabase {
   query(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown[]>;
   queryOne(sql: string, parameters?: unknown[], isRead?: boolean): Promise<unknown>;
   execute(sql: string, parameters?: unknown[], isRead?: boolean): Promise<QueryResult>;
+  raw(value: string): RawValue;
   transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T>;
   table(name: string): IQueryBuilder;
   onBeforeQuery(handler: (query: string, params: unknown[]) => void): void;
@@ -45,7 +52,78 @@ export interface IDatabase {
 /**
  * Create appropriate adapter based on driver
  */
+const resolveMySqlProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
+  if (cfg.driver !== 'mysql') return null;
+  const proxyUrl = Env.get('MYSQL_PROXY_URL', '').trim();
+  const useProxy = Env.getBool('USE_MYSQL_PROXY', false);
+  if (useProxy || proxyUrl.length > 0) {
+    Logger.info('[Database] Selecting MySQL proxy adapter for Workers runtime', {
+      driver: cfg.driver,
+      useMySqlProxy: useProxy,
+      mysqlProxyUrlConfigured: proxyUrl.length > 0,
+      mysqlProxyUrl: proxyUrl,
+    });
+    return MySQLProxyAdapter.create(cfg);
+  }
+  return null;
+};
+
+const resolvePostgresProxyAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
+  if (cfg.driver !== 'postgresql') return null;
+  const proxyUrl = Env.get('POSTGRES_PROXY_URL', '').trim();
+  const useProxy = Env.getBool('USE_POSTGRES_PROXY', false);
+  if (useProxy || proxyUrl.length > 0) {
+    Logger.info('[Database] Selecting PostgreSQL proxy adapter for Workers runtime', {
+      driver: cfg.driver,
+      usePostgresProxy: useProxy,
+      postgresProxyUrlConfigured: proxyUrl.length > 0,
+      postgresProxyUrl: proxyUrl,
+    });
+    return PostgreSQLProxyAdapter.create(cfg);
+  }
+  return null;
+};
+
+const ensureCloudflareSocketSupport = (cfg: DatabaseConfig): void => {
+  const isSocketDriver = cfg.driver === 'postgresql' || cfg.driver === 'mysql';
+  if (!isSocketDriver) return;
+  if (Cloudflare.isCloudflareSocketsEnabled()) return;
+  Logger.warn('[Database] Cloudflare socket driver selected but sockets are disabled', {
+    driver: cfg.driver,
+    enableCloudflareSockets: Env.getBool('ENABLE_CLOUDFLARE_SOCKETS', false),
+  });
+  throw ErrorFactory.createConfigError(
+    'Cloudflare sockets are disabled. Set ENABLE_CLOUDFLARE_SOCKETS=true to use SQL adapters on Workers.'
+  );
+};
+
+const resolveWorkersAdapter = (cfg: DatabaseConfig): IDatabaseAdapter | null => {
+  const workersEnv = Cloudflare.getWorkersEnv();
+  if (workersEnv === null) return null;
+
+  Logger.info('[Database] Resolving adapter for Cloudflare Workers runtime', {
+    driver: cfg.driver,
+    useMySqlProxy: Env.getBool('USE_MYSQL_PROXY', false),
+    mysqlProxyUrlConfigured: Env.get('MYSQL_PROXY_URL', '').trim() !== '',
+    usePostgresProxy: Env.getBool('USE_POSTGRES_PROXY', false),
+    postgresProxyUrlConfigured: Env.get('POSTGRES_PROXY_URL', '').trim() !== '',
+    cloudflareSocketsEnabled: Cloudflare.isCloudflareSocketsEnabled(),
+    workersBindingsCount: Object.keys(workersEnv).length,
+  });
+
+  const mysqlProxy = resolveMySqlProxyAdapter(cfg);
+  if (mysqlProxy) return mysqlProxy;
+
+  const postgresProxy = resolvePostgresProxyAdapter(cfg);
+  if (postgresProxy) return postgresProxy;
+
+  ensureCloudflareSocketSupport(cfg);
+  return null;
+};
+
 const createAdapter = (cfg: DatabaseConfig): IDatabaseAdapter => {
+  const workersAdapter = resolveWorkersAdapter(cfg);
+  if (workersAdapter) return workersAdapter;
   const registered = DatabaseAdapterRegistry.get(cfg.driver);
   if (registered !== undefined) {
     return registered(cfg);
@@ -75,15 +153,7 @@ const initializeAdapters = (
   dbConfig: DatabaseConfig
 ): { writeAdapter: IDatabaseAdapter; readAdapters: IDatabaseAdapter[] } => {
   const writeAdapter = createAdapter(dbConfig);
-  const readAdapters: IDatabaseAdapter[] = [];
-
-  if (dbConfig.readHosts !== undefined && dbConfig.readHosts.length > 0) {
-    for (const host of dbConfig.readHosts) {
-      readAdapters.push(createAdapter({ ...dbConfig, host }));
-    }
-  } else {
-    readAdapters.push(writeAdapter);
-  }
+  const readAdapters: IDatabaseAdapter[] = [writeAdapter];
 
   return { writeAdapter, readAdapters };
 };
@@ -371,6 +441,9 @@ const createDbFacade = (input: {
     query: queryHandlers.query,
     queryOne: queryHandlers.queryOne,
     execute: queryHandlers.execute,
+    raw(value: string): RawValue {
+      return { __raw: value };
+    },
     transaction: queryHandlers.transaction,
     table(name) {
       return QueryBuilder.create(name, db);
@@ -487,6 +560,10 @@ export const useEnsureDbConnected = async (
 export function useDatabase(config?: DatabaseConfig, connection = 'default'): IDatabase {
   if (databaseInstances.has(connection) === false) {
     if (config === undefined) {
+      // Diagnostic logging
+      Logger.error('[DEBUG] Database instances keys:', Array.from(databaseInstances.keys()));
+      Logger.error('[DEBUG] Requesting connection:', connection);
+
       throw ErrorFactory.createConfigError(
         `Database connection '${connection}' is not registered. ` +
           `Call useDatabase(config, '${connection}') during startup to register it.`

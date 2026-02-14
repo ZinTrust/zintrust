@@ -3,8 +3,10 @@
  * Handles multipart/form-data file uploads with validation and storage integration
  */
 
+import type { ReadableOptions } from '@/node-singletons/stream';
 import type { IRequest } from '@http/Request';
-import type { Readable } from 'node:stream';
+
+type Streamer = ReadableOptions | NodeJS.ReadableStream;
 
 export interface UploadedFile {
   fieldName: string;
@@ -26,7 +28,7 @@ export interface UploadedFile {
   /**
    * Returns a fresh readable stream for the uploaded content.
    */
-  stream?: () => Readable;
+  stream?: () => Streamer;
 
   /**
    * Optional cleanup hook (e.g., delete temp file after response).

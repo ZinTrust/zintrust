@@ -6,7 +6,7 @@
 import type { PaginationQuery, Paginator } from '@database/Paginator';
 import { createPaginator } from '@database/Paginator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import type { IDatabase } from '@orm/Database';
+import type { IDatabase, RawValue } from '@orm/Database';
 import type { IModel } from '@orm/Model';
 import type { IRelationship } from '@orm/Relationships';
 
@@ -48,6 +48,7 @@ export interface IQueryBuilder {
   where(column: string, operator: string | number | boolean | null, value?: unknown): IQueryBuilder;
   andWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
   orWhere(column: string, operator: string, value?: unknown): IQueryBuilder;
+  whereNull(column: string): IQueryBuilder;
   whereIn(column: string, values: unknown[]): IQueryBuilder;
   whereNotIn(column: string, values: unknown[]): IQueryBuilder;
   withTrashed(): IQueryBuilder;
@@ -145,6 +146,7 @@ const escapeIdentifier = (id: string, dialect?: string): string => {
 
 const SAFE_IDENTIFIER_PATH = /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$/;
 const SAFE_IDENTIFIER = /^[A-Za-z_]\w*$/;
+const SAFE_FUNCTION_CALL = /^[A-Za-z_]\w*\(\)$/;
 
 const assertSafeIdentifierPath = (id: string, label: string): void => {
   const trimmed = id.trim();
@@ -164,6 +166,23 @@ const assertSafeIdentifier = (id: string, label: string): void => {
   if (!SAFE_IDENTIFIER.test(trimmed)) {
     throw ErrorFactory.createDatabaseError(`Unsafe SQL identifier for ${label}`);
   }
+};
+
+const isRawValue = (value: unknown): value is RawValue =>
+  typeof value === 'object' &&
+  value !== null &&
+  '__raw' in value &&
+  typeof (value as RawValue).__raw === 'string';
+
+const assertSafeRawExpression = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw ErrorFactory.createDatabaseError('Empty raw SQL expression');
+  }
+  if (SAFE_IDENTIFIER_PATH.test(trimmed) || SAFE_FUNCTION_CALL.test(trimmed)) {
+    return trimmed;
+  }
+  throw ErrorFactory.createDatabaseError('Unsafe raw SQL expression');
 };
 
 const normalizeOrderDirection = (direction?: string): 'ASC' | 'DESC' => {
@@ -569,7 +588,9 @@ const compileInsert = (
     }
   }
 
-  const sql = `INSERT INTO ${escapeIdentifier(tableName, dialect)} (${colsSql}) VALUES ${placeholders}`;
+  const baseSql = `INSERT INTO ${escapeIdentifier(tableName, dialect)} (${colsSql}) VALUES ${placeholders}`;
+  const wantsReturning = dialect === 'postgresql' && items.length === 1;
+  const sql = wantsReturning ? `${baseSql} RETURNING id` : baseSql;
   return { sql, parameters };
 };
 
@@ -590,8 +611,19 @@ const compileUpdate = (
   assertSafeIdentifierPath(tableName, 'table name');
   for (const key of keys) assertSafeIdentifier(key, 'update column');
 
-  const setSql = keys.map((k) => `${escapeIdentifier(k, dialect)} = ?`).join(', ');
-  const setParams = keys.map((k) => values[k]);
+  const setParts: string[] = [];
+  const setParams: unknown[] = [];
+  for (const key of keys) {
+    const value = values[key];
+    if (isRawValue(value)) {
+      const rawSql = assertSafeRawExpression(value.__raw);
+      setParts.push(`${escapeIdentifier(key, dialect)} = ${rawSql}`);
+    } else {
+      setParts.push(`${escapeIdentifier(key, dialect)} = ?`);
+      setParams.push(value);
+    }
+  }
+  const setSql = setParts.join(', ');
   const where = compileWhere(conditions, dialect);
   const sql = `UPDATE ${escapeIdentifier(tableName, dialect)} SET ${setSql}${where.sql}`;
   return { sql, parameters: [...setParams, ...where.parameters] };
@@ -714,6 +746,7 @@ function attachWhereMethods(builder: IQueryBuilder, state: QueryState): void {
   };
   builder.andWhere = (column, operator, value) => builder.where(column, operator, value);
   builder.orWhere = (column, operator, value) => builder.where(column, operator, value);
+  builder.whereNull = (column) => builder.where(column, 'IS', null);
   builder.whereIn = (column, values) => {
     builder.where(column, 'IN', values);
     return builder;

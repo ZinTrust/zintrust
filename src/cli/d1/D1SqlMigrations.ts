@@ -164,6 +164,9 @@ const createCaptureDb = (onSql: (sql: string) => void): IDatabase => {
       await RESOLVED_VOID;
       return { rows: [], rowCount: 0 };
     },
+    raw(value: string): { __raw: string } {
+      return { __raw: value };
+    },
     async transaction<T>(callback: (db: IDatabase) => Promise<T>): Promise<T> {
       await RESOLVED_VOID;
       return callback(this as unknown as IDatabase);

@@ -39,7 +39,11 @@ export { WorkerVersioning } from './WorkerVersioning';
 
 // Factory & Lifecycle
 export { WorkerFactory } from './WorkerFactory';
-export type { WorkerPersistenceConfig } from './WorkerFactory';
+export type {
+  ProcessorResolver,
+  WorkerFactoryConfig,
+  WorkerPersistenceConfig,
+} from './WorkerFactory';
 export { WorkerInit } from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
 
@@ -62,10 +66,10 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkersConfigOverrides,
-  WorkersGlobalConfig,
   WorkerStatus,
   WorkerVersioningConfig,
+  WorkersConfigOverrides,
+  WorkersGlobalConfig,
 } from '@zintrust/core';
 
 // Re-export bullmq types for type compatibility

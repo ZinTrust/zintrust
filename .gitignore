@@ -50,7 +50,6 @@ simulate/
 test-project/
 todo/
 /storage/
-/config/
 scripts/find-missing-coverage.cjs
 scripts/find-missing-coverage.js
 tmp/missing-coverage-statements.json
@@ -90,3 +89,16 @@ app/Workers/AdvancEmailWorker.ts
 app/Jobs/AdvancedEmailJobService.ts
 tests/unit/Jobs/AdvancedEmailJobService.test.ts
 tests/unit/EmailJobService.test.ts
+-envcopy
+routes/DirectMysqlTestRoutes.ts
+routes/registerDirectMysqlTestRoutes.ts
+.wrangler
+src/zintrust.plugins.wg.ts
+packages/workers/src/ui/workers/Workers/
+app/Workers/Test.js
+routes/DirectMysqlTestRoutes.ts
+routes/registerDirectMysqlTestRoutes.ts
+src/zintrust.comon.ts
+app/Workers/AdvancEmailWorker.js
+requests/zintrust.http
+fix_mongo.py

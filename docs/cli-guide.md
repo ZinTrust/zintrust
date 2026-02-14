@@ -27,6 +27,51 @@ npm link
 
 ## Basic Commands
 
+### Deploy Styles (Unified)
+
+Use either spaced target style or `:` command style for container deploy targets:
+
+```bash
+zin deploy cw
+zin deploy:cw
+
+zin deploy cwr
+zin deploy:cwr
+
+zin deploy cp
+zin deploy:cp
+```
+
+`cwr` is kept as a compatibility alias and deploys the same workers stack as `cw`.
+
+`cp` deploys the proxy stack from `docker-compose.proxy.yml`.
+
+### Initialize Container Proxy Stack
+
+```bash
+zin init:proxy
+
+# aliases
+zin init:cp
+zin init:container-proxies
+zin init:py
+```
+
+### Proxy Stack Lifecycle
+
+```bash
+zin cp build
+zin cp up -d
+zin cp down
+```
+
+Cloud deploy targets continue to work with `zin deploy <target>`:
+
+```bash
+zin deploy worker
+zin deploy production
+```
+
 ### Create New Project
 
 ```bash
@@ -138,6 +183,28 @@ zin add db:sqlite --package-manager pnpm
 
 See [Plugin System](./plugins.md) for more details.
 
+### Proxy Commands (Unified)
+
+All proxy CLIs support both forms:
+
+```bash
+zin proxy:<name>
+zin proxy <name>
+```
+
+Examples:
+
+```bash
+zin proxy:smtp
+zin proxy smtp
+
+zin proxy:redis
+zin proxy redis
+
+# legacy alias (still supported)
+zin redis:proxy
+```
+
 ### Quality Assurance
 
 ```bash
@@ -146,6 +213,28 @@ zin qa                         # Run full QA suite
 zin qa --no-sonar              # Skip Sonar analysis
 zin qa --report                # Generate HTML report
 ```
+
+### Queue Recovery & Job Listing
+
+```bash
+# Run one recovery cycle
+zin queue:recovery --once
+
+# Start orchestrator intervals (reconciliation/recovery/stalled monitors)
+zin queue:recovery --start
+
+# List tracked jobs from memory
+zin queue:recovery --list --status pending_recovery --limit 100
+
+# List tracked jobs from persistence DB
+zin queue:recovery --list --source db --queue emails --json
+
+# Recover or force-push one job
+zin queue:recovery --job-id job-123 --queue emails
+zin queue:recovery --job-id job-123 --queue emails --push
+```
+
+For full option reference, see [CLI Reference](./cli-reference.md#queue-recovery-command).
 
 ## Help System
 
@@ -396,7 +485,7 @@ zin start --lambda
 Notes:
 
 - `--runtime` affects the spawned **Node** process only; it does not change Wrangler’s runtime.
-- If you see “Address already in use”, pass a different port: `zin start --wg --port 8787`.
+- If you see “Address already in use”, pass a different port: `zin start --wg --port 7777`.
 
 ## Troubleshooting
 

@@ -4,6 +4,7 @@
  * Sealed namespace for immutability
  */
 
+import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import type {
   DatabaseConfigShape,
@@ -36,6 +37,34 @@ const readEnvString = (key: string, fallback: string = ''): string => {
   }
 
   return fromEnv ?? '';
+};
+
+const readWorkersEnvString = (key: string): string => {
+  const workerValue = Cloudflare.getWorkersVar(key);
+  if (workerValue !== null && workerValue.trim() !== '') return workerValue;
+  return '';
+};
+
+const readWorkersFallbackString = (workersKey: string, fallbackKey: string): string => {
+  const workerValue = readWorkersEnvString(workersKey);
+  if (workerValue.trim() !== '') return workerValue;
+
+  // Also check if the fallback key is present in the Workers bindings (e.g. DB_PASSWORD)
+  const fallbackWorkerValue = readWorkersEnvString(fallbackKey);
+  if (fallbackWorkerValue.trim() !== '') return fallbackWorkerValue;
+
+  return readEnvString(fallbackKey, '');
+};
+
+const readWorkersFallbackInt = (
+  workersKey: string,
+  fallbackKey: string,
+  fallback: number
+): number => {
+  const raw = readWorkersFallbackString(workersKey, fallbackKey);
+  if (raw.trim() === '') return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 const isExplicitEnvValue = (key: string): boolean => {
@@ -143,6 +172,16 @@ const parseReadHosts = (raw: string): string[] | undefined => {
   return list.length > 0 ? list : undefined;
 };
 
+const normalizeReadHosts = (
+  primaryHost: string | undefined,
+  hosts?: string[]
+): string[] | undefined => {
+  if (hosts === undefined || hosts.length === 0) return undefined;
+  const primary = String(primaryHost ?? '').trim();
+  const filtered = hosts.filter((host) => host !== '' && host !== primary);
+  return filtered.length > 0 ? filtered : undefined;
+};
+
 const getDefaultConnection = (connections: DatabaseConnections): string => {
   const envSelectedRaw = Env.get('DB_CONNECTION', '');
   const value = String(envSelectedRaw ?? '').trim();
@@ -187,13 +226,25 @@ const connections = {
   },
   postgresql: {
     driver: 'postgresql' as const,
-    host: Env.DB_HOST,
-    port: Env.DB_PORT_POSTGRESQL,
-    database: Env.DB_DATABASE_POSTGRESQL,
-    username: Env.DB_USERNAME_POSTGRESQL,
-    password: Env.DB_PASSWORD_POSTGRESQL,
+    host: readWorkersFallbackString('WORKERS_PG_HOST', 'DB_HOST') || Env.DB_HOST,
+    port: readWorkersFallbackInt('WORKERS_PG_PORT', 'DB_PORT_POSTGRESQL', Env.DB_PORT_POSTGRESQL),
+    database:
+      readWorkersFallbackString('WORKERS_PG_DATABASE', 'DB_DATABASE_POSTGRESQL') ||
+      Env.DB_DATABASE_POSTGRESQL,
+    username:
+      readWorkersFallbackString('WORKERS_PG_USER', 'DB_USERNAME_POSTGRESQL') ||
+      Env.DB_USERNAME_POSTGRESQL,
+    password:
+      readWorkersFallbackString('WORKERS_PG_PASSWORD', 'DB_PASSWORD_POSTGRESQL') ||
+      Env.DB_PASSWORD_POSTGRESQL,
     ssl: Env.getBool('DB_SSL', false),
-    readHosts: parseReadHosts(Env.DB_READ_HOSTS_POSTGRESQL),
+    readHosts: normalizeReadHosts(
+      readWorkersFallbackString('WORKERS_PG_HOST', 'DB_HOST') || Env.DB_HOST,
+      parseReadHosts(
+        readWorkersFallbackString('WORKERS_PG_READ_HOSTS', 'DB_READ_HOSTS_POSTGRESQL') ||
+          Env.DB_READ_HOSTS_POSTGRESQL
+      )
+    ),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
       min: Env.getInt('DB_POOL_MIN', 5),
@@ -204,12 +255,17 @@ const connections = {
   },
   mysql: {
     driver: 'mysql' as const,
-    host: Env.DB_HOST,
-    port: Env.DB_PORT,
-    database: Env.DB_DATABASE,
-    username: Env.DB_USERNAME,
-    password: Env.DB_PASSWORD,
-    readHosts: parseReadHosts(Env.DB_READ_HOSTS),
+    host: readWorkersFallbackString('WORKERS_MYSQL_HOST', 'DB_HOST') || Env.DB_HOST,
+    port: readWorkersFallbackInt('WORKERS_MYSQL_PORT', 'DB_PORT', Env.DB_PORT),
+    database: readWorkersFallbackString('WORKERS_MYSQL_DATABASE', 'DB_DATABASE') || Env.DB_DATABASE,
+    username: readWorkersFallbackString('WORKERS_MYSQL_USER', 'DB_USERNAME') || Env.DB_USERNAME,
+    password: readWorkersFallbackString('WORKERS_MYSQL_PASSWORD', 'DB_PASSWORD') || Env.DB_PASSWORD,
+    readHosts: normalizeReadHosts(
+      readWorkersFallbackString('WORKERS_MYSQL_HOST', 'DB_HOST') || Env.DB_HOST,
+      parseReadHosts(
+        readWorkersFallbackString('WORKERS_MYSQL_READ_HOSTS', 'DB_READ_HOSTS') || Env.DB_READ_HOSTS
+      )
+    ),
     pooling: {
       enabled: Env.getBool('DB_POOLING', true),
       min: Env.getInt('DB_POOL_MIN', 5),
@@ -223,7 +279,7 @@ const connections = {
     database: Env.DB_DATABASE_MSSQL,
     username: Env.DB_USERNAME_MSSQL,
     password: Env.DB_PASSWORD_MSSQL,
-    readHosts: parseReadHosts(Env.DB_READ_HOSTS_MSSQL),
+    readHosts: normalizeReadHosts(Env.DB_HOST_MSSQL, parseReadHosts(Env.DB_READ_HOSTS_MSSQL)),
   },
 } satisfies DatabaseConnections;
 

@@ -65,6 +65,29 @@ const shouldDebugArgs = (rawArgs: string[]): boolean => {
   return process.env['ZINTRUST_CLI_DEBUG_ARGS'] === '1' && rawArgs.includes('--verbose');
 };
 
+const normalizeProxyTargetArgs = (args: string[]): string[] => {
+  if (args.length < 2 || args[0] !== 'proxy') return args;
+
+  const target = args[1];
+  if (!target || target.startsWith('-') || target.includes(':')) return args;
+
+  const normalized = target.trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    redis: 'redis',
+    red: 'red',
+    smtp: 'smtp',
+    mysql: 'mysql',
+    postgres: 'postgres',
+    mongodb: 'mongodb',
+    sqlserver: 'sqlserver',
+  };
+
+  const mappedTarget = aliases[normalized];
+  if (!mappedTarget) return args;
+
+  return [`proxy:${mappedTarget}`, ...args.slice(2)];
+};
+
 const handleCliFatal = async (error: unknown, context: string): Promise<never> => {
   try {
     const { Logger } = await import('@config/logger');
@@ -121,7 +144,7 @@ export async function run(): Promise<void> {
         // ignore
       }
     }
-    await cli.run(args);
+    await cli.run(normalizeProxyTargetArgs(args));
   } catch (error) {
     await handleCliFatal(error, 'CLI execution failed');
   }

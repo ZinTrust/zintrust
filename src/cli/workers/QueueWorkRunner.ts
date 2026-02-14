@@ -325,7 +325,7 @@ const processMessage = async (
 
 export const QueueWorkRunner = Object.freeze({
   async run(options: QueueWorkRunnerOptions): Promise<QueueWorkRunnerResult> {
-    registerQueuesFromRuntimeConfig(queueConfig);
+    await registerQueuesFromRuntimeConfig(queueConfig);
 
     const startedAtMs = Date.now();
 

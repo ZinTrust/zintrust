@@ -18,7 +18,7 @@ export const migration: Migration = {
       table.string('name').unique();
       table.string('queue_name');
       table.string('version').nullable();
-      table.string('processor_path').nullable();
+      table.string('processor_spec').nullable();
       table.string('status').default('running');
       table.boolean('auto_start').default(false);
       table.integer('concurrency').default(1);

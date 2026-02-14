@@ -62,4 +62,53 @@ describe('R2Driver', () => {
     expect(R2Driver.tempUrl(cfg, 'k', { expiresIn: 60 })).toBe('https://signed-url');
     expect(mockTempUrl).toHaveBeenCalled();
   });
+
+  it('uses Workers binding for multipart upload helpers', async () => {
+    const upload = {
+      key: 'file.txt',
+      uploadId: 'upload-1',
+      uploadPart: vi.fn().mockResolvedValue({ partNumber: 1, etag: 'etag-1' }),
+      complete: vi.fn().mockResolvedValue({}),
+      abort: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const bucket = {
+      createMultipartUpload: vi.fn().mockResolvedValue(upload),
+      resumeMultipartUpload: vi.fn().mockReturnValue(upload),
+    };
+
+    const originalEnv = (globalThis as unknown as { env?: unknown }).env;
+    (globalThis as unknown as { env?: unknown }).env = { R2_BUCKET: bucket };
+
+    const cfg = {
+      bucket: 'b',
+      accessKeyId: 'a',
+      secretAccessKey: 's',
+      binding: 'R2_BUCKET',
+    } as any;
+
+    const info = await R2Driver.createMultipartUpload(cfg, 'file.txt');
+    expect(info).toEqual({ key: 'file.txt', uploadId: 'upload-1' });
+
+    await expect(R2Driver.uploadPart(cfg, 'file.txt', 'upload-1', 1, 'data')).resolves.toEqual({
+      partNumber: 1,
+      etag: 'etag-1',
+    });
+
+    await expect(
+      R2Driver.completeMultipartUpload(cfg, 'file.txt', 'upload-1', [
+        { partNumber: 1, etag: 'etag-1' },
+      ])
+    ).resolves.toBe('https://b.r2.cloudflarestorage.com/file.txt');
+
+    await expect(
+      R2Driver.abortMultipartUpload(cfg, 'file.txt', 'upload-1')
+    ).resolves.toBeUndefined();
+
+    if (originalEnv === undefined) {
+      delete (globalThis as unknown as { env?: unknown }).env;
+    } else {
+      (globalThis as unknown as { env?: unknown }).env = originalEnv;
+    }
+  });
 });

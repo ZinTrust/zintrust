@@ -21,9 +21,7 @@ vi.mock('@functions/lambda', () => ({
   handler: vi.fn(),
 }));
 
-vi.mock('/opt/homebrew/var/www/Sites/zintrust/src/boot/bootstrap.js', () => ({}), {
-  virtual: true,
-});
+vi.mock('@/boot/bootstrap.js', () => ({}));
 
 describe('start', () => {
   it('imports bootstrap in Node runtime', async () => {
