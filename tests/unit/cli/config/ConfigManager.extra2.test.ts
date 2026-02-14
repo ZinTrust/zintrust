@@ -83,12 +83,9 @@ describe('ConfigManager - error and helper branches', () => {
   });
 
   test('load rethrows non-ENOENT read errors (covers loadConfig catch)', async () => {
-    const eacces: NodeJS.ErrnoException = new globalThis.Error('read denied');
-    eacces.code = 'EACCES';
-
     await mockFsModule({
       readFile: async () => {
-        throw eacces;
+        throw new Error('read denied');
       },
     });
 
