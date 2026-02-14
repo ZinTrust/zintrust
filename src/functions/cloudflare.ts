@@ -15,14 +15,24 @@ const applyStartupConfigOverrides = async (): Promise<void> => {
     };
     globalAny.__zintrustStartupConfigOverrides ??= new Map<string, unknown>();
 
-    const broadcastOverrides = await import('@runtime-config/broadcast');
-    const cacheOverrides = await import('@runtime-config/cache');
-    const databaseOverrides = await import('@runtime-config/database');
-    const mailOverrides = await import('@runtime-config/mail');
-    const middlewareOverrides = await import('@runtime-config/middleware');
-    const notificationOverrides = await import('@runtime-config/notification');
-    const queueOverrides = await import('@runtime-config/queue');
-    const storageOverrides = await import('@runtime-config/storage');
+    const broadcastOverrides = (await import('@runtime-config/' + 'broadcast.ts')) as {
+      default?: unknown;
+    };
+    const cacheOverrides = (await import('@runtime-config/' + 'cache.ts')) as { default?: unknown };
+    const databaseOverrides = (await import('@runtime-config/' + 'database.ts')) as {
+      default?: unknown;
+    };
+    const mailOverrides = (await import('@runtime-config/' + 'mail.ts')) as { default?: unknown };
+    const middlewareOverrides = (await import('@runtime-config/' + 'middleware.ts')) as {
+      default?: unknown;
+    };
+    const notificationOverrides = (await import('@runtime-config/' + 'notification.ts')) as {
+      default?: unknown;
+    };
+    const queueOverrides = (await import('@runtime-config/' + 'queue.ts')) as { default?: unknown };
+    const storageOverrides = (await import('@runtime-config/' + 'storage.ts')) as {
+      default?: unknown;
+    };
 
     globalAny.__zintrustStartupConfigOverrides.set(
       StartupConfigFile.Broadcast,
@@ -47,7 +57,8 @@ const applyStartupConfigOverrides = async (): Promise<void> => {
       StartupConfigFile.Storage,
       storageOverrides.default
     );
-  } catch {
+  } catch (error) {
+    Logger.error('Error applying startup config overrides:', error);
     // Best-effort: log and swallow errors since this is an optional.
   }
 };

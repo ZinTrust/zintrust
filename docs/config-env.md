@@ -27,6 +27,7 @@ import { Env } from '@zintrust/core';
 | `APP_KEY`           | empty         | Primary app secret (base64 or raw) used for encryption and signing. |
 | `APP_PREVIOUS_KEYS` | empty         | Optional rotation keys (comma-separated or JSON array).             |
 | `APP_TIMEZONE`      | `UTC`         | Default timezone for the app runtime.                               |
+| `CSRF_SKIP_PATHS`   | empty         | Comma-separated paths to bypass CSRF, e.g. `/api/*`.                |
 | `RUNTIME`           | empty         | Optional runtime identifier.                                        |
 | `DOCKER_WORKER`     | `false`       | Marks a dedicated Docker worker container runtime mode.             |
 

@@ -52,7 +52,6 @@ const loadRuntimeQueueConfig = async (): Promise<RuntimeQueueConfig | undefined>
     return undefined;
   }
 };
-
 const readRuntimeConfig = <T>(key: string, fallback: T): T => {
   try {
     const value = (RuntimeConfig as Record<string, unknown>)[key];
