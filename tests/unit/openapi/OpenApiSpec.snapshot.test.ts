@@ -4,12 +4,6 @@ import { RouteRegistry } from '@core-routes/RouteRegistry';
 import { registerRoutes } from '@routes/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the dev routes to prevent test routes from being registered
-vi.mock('@routes/apiDev', () => ({
-  registerDevRoutes: vi.fn(),
-  registerTestRoutes: vi.fn(),
-}));
-
 vi.mock('@zintrust/workers', () => ({
   createQueueWorker: () => ({
     processOne: async () => true,

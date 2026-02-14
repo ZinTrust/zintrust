@@ -60,8 +60,12 @@ const DEFAULT_OPTIONS: Required<SessionManagerOptions> = {
 type UnrefableTimer = { unref: () => void };
 
 function isUnrefableTimer(value: unknown): value is UnrefableTimer {
-  if (typeof value !== 'object' || value === null) return false;
-  return 'unref' in value && typeof (value as UnrefableTimer).unref === 'function';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'unref' in value &&
+    typeof value.unref === 'function'
+  );
 }
 
 function cleanupExpiredSessions(sessions: Map<string, StoredSession>): number {

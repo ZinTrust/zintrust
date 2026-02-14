@@ -421,7 +421,7 @@ const processQueueMessage = async <TPayload>(
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   const trackerApi = getTrackerApi();
   const timeoutMs = resolveQueueJobTimeoutMs();
-  let startedAtMs = Date.now();
+  let startedAtMs: number;
 
   try {
     const tracking = await startTrackingAndHeartbeat({
