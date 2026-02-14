@@ -90,7 +90,7 @@
     "microservices:health": "tsx bin/zintrust-microservices.ts health",
     "docs:dev:vue": "cd docs-website/vue && npm run dev",
     "docs:dev": "node scripts/docs-website-dev.mjs --port 7030",
-    "docs:build:vue": "mkdir -p docs-website/vue/public && cp docs-website/zintrust.svg docs-website/vue/public/ && cp docs/*.md docs-website/vue/ && cd docs-website/vue && npm run build && cp -R .vitepress/dist/* ../public/",
+    "docs:build:vue": "mkdir -p docs-website/vue/public && cp docs-website/zintrust.svg docs-website/vue/public/ && cp docs/*.md docs-website/vue/ && rm -rf docs-website/vue/runbooks && cp -r docs/runbooks docs-website/vue/ && cd docs-website/vue && npm run build && cp -R .vitepress/dist/* ../public/",
     "docs:build:portal": "node scripts/docs-build-portal.mjs",
     "docs:build:all": "rm -rf docs-website/public && npm run docs:build:portal && npm run docs:build:vue",
     "docs:brand:png": "node scripts/convert-brand-svgs-to-png.mjs --input docs-website/brand --max 2048",
