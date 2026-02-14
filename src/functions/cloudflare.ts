@@ -4,35 +4,48 @@ import * as AppRoutes from '@routes/api';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import { StartupConfigFile } from '@runtime/StartupConfigFileRegistry';
 
-import broadcastOverrides from '@runtime-config/broadcast';
-import cacheOverrides from '@runtime-config/cache';
-import databaseOverrides from '@runtime-config/database';
-import mailOverrides from '@runtime-config/mail';
-import middlewareOverrides from '@runtime-config/middleware';
-import notificationOverrides from '@runtime-config/notification';
-import queueOverrides from '@runtime-config/queue';
-import storageOverrides from '@runtime-config/storage';
-
 import { getKernel } from '@runtime/getKernel';
 
 import '@runtime/WorkerAdapterImports';
 
-const applyStartupConfigOverrides = (): void => {
+const importOptionalDefault = async (modulePath: string): Promise<unknown | undefined> => {
+  try {
+    const module = (await import(modulePath)) as { default?: unknown };
+    return module.default;
+  } catch {
+    return undefined;
+  }
+};
+
+const applyStartupConfigOverrides = async (): Promise<void> => {
   const globalAny = globalThis as {
     __zintrustStartupConfigOverrides?: Map<string, unknown>;
   };
   globalAny.__zintrustStartupConfigOverrides ??= new Map<string, unknown>();
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Broadcast, broadcastOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Cache, cacheOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Database, databaseOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Mail, mailOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Middleware, middlewareOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(
-    StartupConfigFile.Notification,
-    notificationOverrides
+
+  const loadTargets: Array<[string, string]> = [
+    [StartupConfigFile.Broadcast, '@runtime-config/broadcast'],
+    [StartupConfigFile.Cache, '@runtime-config/cache'],
+    [StartupConfigFile.Database, '@runtime-config/database'],
+    [StartupConfigFile.Mail, '@runtime-config/mail'],
+    [StartupConfigFile.Middleware, '@runtime-config/middleware'],
+    [StartupConfigFile.Notification, '@runtime-config/notification'],
+    [StartupConfigFile.Queue, '@runtime-config/queue'],
+    [StartupConfigFile.Storage, '@runtime-config/storage'],
+  ];
+
+  const loaded = await Promise.all(
+    loadTargets.map(async ([configFile, modulePath]) => {
+      const value = await importOptionalDefault(modulePath);
+      return [configFile, value] as const;
+    })
   );
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Queue, queueOverrides);
-  globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Storage, storageOverrides);
+
+  for (const [configFile, value] of loaded) {
+    if (value !== undefined) {
+      globalAny.__zintrustStartupConfigOverrides.set(configFile, value);
+    }
+  }
 };
 
 const injectIoredisModule = async (): Promise<void> => {
@@ -47,7 +60,12 @@ const injectIoredisModule = async (): Promise<void> => {
   }
 };
 
-applyStartupConfigOverrides();
+let startupConfigOverridesPromise: Promise<void> | undefined;
+
+const ensureStartupConfigOverridesLoaded = async (): Promise<void> => {
+  startupConfigOverridesPromise ??= applyStartupConfigOverrides();
+  await startupConfigOverridesPromise;
+};
 
 export default {
   async fetch(request: Request, _env: unknown, _ctx: unknown): Promise<Response> {
@@ -56,6 +74,7 @@ export default {
       (globalThis as unknown as { env?: unknown }).env = _env;
       (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
 
+      await ensureStartupConfigOverridesLoaded();
       await injectIoredisModule();
 
       const kernel = await getKernel();

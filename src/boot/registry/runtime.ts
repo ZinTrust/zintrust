@@ -15,7 +15,6 @@ import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistra
 import { registerMasterRoutes, tryImportOptional } from '@registry/registerRoute';
 import type { IShutdownManager } from '@registry/type';
 import { registerWorkerShutdownHook } from '@registry/worker';
-import runQueueConfig from '@runtime-config/queue';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 import { registerBroadcastersFromRuntimeConfig } from '@tools/broadcast/BroadcastRuntimeRegistration';
 import { registerNotificationChannelsFromRuntimeConfig } from '@tools/notification/NotificationRuntimeRegistration';
@@ -36,6 +35,23 @@ interface IQueueHttpGatewayModule {
     create: () => { registerRoutes: (router: IRouter) => void };
   };
 }
+
+type RuntimeQueueConfig = {
+  monitor?: {
+    enabled?: boolean;
+    basePath?: string;
+  } & Record<string, unknown>;
+};
+
+const loadRuntimeQueueConfig = async (): Promise<RuntimeQueueConfig | undefined> => {
+  try {
+    const modulePath = '@runtime-config/queue';
+    const loaded = (await import(modulePath)) as { default?: RuntimeQueueConfig };
+    return loaded.default;
+  } catch {
+    return undefined;
+  }
+};
 
 const readRuntimeConfig = <T>(key: string, fallback: T): T => {
   try {
@@ -265,6 +281,7 @@ const loadAndValidateQueueMonitorModule = async (): Promise<IQueueMonitorModule 
 };
 
 const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
+  const runQueueConfig = await loadRuntimeQueueConfig();
   const monitorConfig = runQueueConfig?.monitor;
   if (monitorConfig === undefined) {
     return;
@@ -292,7 +309,7 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
     Logger.error('Failed to register Queue Monitor routes', error);
   }
   Logger.info(
-    `Queue Monitor routes registered at http://127.0.0.1:${appConfig.port}${runQueueConfig.monitor.basePath}`
+    `Queue Monitor routes registered at http://127.0.0.1:${appConfig.port}${monitorConfig.basePath ?? ''}`
   );
   Logger.info(`Queue Monitor enqueue endpoint at http://127.0.0.1:${appConfig.port}/test/enqueue`);
 };

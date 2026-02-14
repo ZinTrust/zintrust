@@ -22,7 +22,7 @@ describe('Proxy adapters patch coverage', () => {
       status: 200,
       json: async () => ({ success: true, result: [{ ok: 1 }], rows: [{ ok: 1 }], rowCount: 1 }),
       text: async () => '',
-    })) as typeof fetch;
+    })) as unknown as typeof fetch;
   });
 
   afterEach(() => {
