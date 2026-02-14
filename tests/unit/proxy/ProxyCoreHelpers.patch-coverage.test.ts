@@ -1,5 +1,95 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+function envGetWithAppFallbacks(key: string, fallback?: string): string {
+  if (key === 'APP_NAME') return 'ZinTrust';
+  if (key === 'APP_KEY') return 'app-secret';
+  if (key.endsWith('_KEY_ID')) return '  ';
+  if (key.endsWith('_SECRET')) return '  ';
+  return fallback ?? '';
+}
+
+function normalizeCredentials(input: { keyId: string; secret: string }): {
+  keyId: string;
+  secret: string;
+} {
+  return {
+    keyId: input.keyId.trim(),
+    secret: input.secret.trim(),
+  };
+}
+
+const createEnvModuleWithFallbacks = (): { Env: Record<string, unknown> } => ({
+  Env: {
+    APP_NAME: 'ZinTrust',
+    APP_KEY: 'app-secret',
+    get: vi.fn(envGetWithAppFallbacks),
+    getBool: vi.fn((_k: string, d?: boolean) => d ?? true),
+    getInt: vi.fn((_k: string, d?: number) => d ?? 60000),
+  },
+});
+
+const createSigningServiceNormalizationModule = (): {
+  normalizeSigningCredentials: ReturnType<typeof vi.fn>;
+} => ({
+  normalizeSigningCredentials: vi.fn(normalizeCredentials),
+});
+
+const readEnvStringFallback = (_k: string, d?: string): string => d ?? '';
+const readEnvIntFallback = (_k: string, d?: number): number => d ?? 0;
+const readEnvBoolFallback = (_k: string, d?: boolean): boolean => d ?? true;
+
+const createProxyCoreEnvModule = (): { Env: Record<string, unknown> } => ({
+  Env: {
+    HOST: '127.0.0.1',
+    PORT: 7772,
+    MAX_BODY_SIZE: 12345,
+    APP_NAME: 'ZinTrust',
+    APP_KEY: 'app-secret',
+    get: vi.fn(readEnvStringFallback),
+    getInt: vi.fn(readEnvIntFallback),
+    getBool: vi.fn(readEnvBoolFallback),
+  },
+});
+
+const createLoggerModule = (
+  debug: unknown,
+  warn: unknown
+): { Logger: { debug: unknown; warn: unknown } } => ({
+  Logger: {
+    debug,
+    warn,
+  },
+});
+
+const createSigningConfigResolverModule = (): {
+  resolveProxySigningConfig: ReturnType<typeof vi.fn>;
+} => ({
+  resolveProxySigningConfig: vi.fn(() => ({
+    keyId: 'kid',
+    secret: 'secret',
+    requireSigning: true,
+    signingWindowMs: 60000,
+  })),
+});
+
+const createProxySigningRequestFailureModule = (): {
+  extractSigningHeaders: ReturnType<typeof vi.fn>;
+  verifyProxySignatureIfNeeded: ReturnType<typeof vi.fn>;
+} => ({
+  extractSigningHeaders: vi.fn(() => ({
+    'x-zt-key-id': undefined,
+  })),
+  verifyProxySignatureIfNeeded: vi.fn(async () => ({ ok: false })),
+});
+
+const createProxySigningRequestSuccessModule = (): {
+  extractSigningHeaders: ReturnType<typeof vi.fn>;
+  verifyProxySignatureIfNeeded: ReturnType<typeof vi.fn>;
+} => ({
+  extractSigningHeaders: vi.fn(() => ({ 'x-zt-key-id': 'kid' })),
+  verifyProxySignatureIfNeeded: vi.fn(async () => ({ ok: true })),
+});
+
 describe('Proxy signing/config helpers patch coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -8,30 +98,9 @@ describe('Proxy signing/config helpers patch coverage', () => {
   });
 
   it('resolveProxySigningConfig uses env fallbacks and normalizes credentials', async () => {
-    vi.doMock('@config/env', () => ({
-      Env: {
-        APP_NAME: 'ZinTrust',
-        APP_KEY: 'app-secret',
-        get: vi.fn((key: string, fallback?: string) => {
-          if (key === 'APP_NAME') return 'ZinTrust';
-          if (key === 'APP_KEY') return 'app-secret';
-          if (key.endsWith('_KEY_ID')) return '  '; // force APP_NAME fallback
-          if (key.endsWith('_SECRET')) return '  '; // force APP_KEY fallback
-          return fallback ?? '';
-        }),
-        getBool: vi.fn((_k: string, d?: boolean) => d ?? true),
-        getInt: vi.fn((_k: string, d?: number) => d ?? 60000),
-      },
-    }));
+    vi.doMock('@config/env', createEnvModuleWithFallbacks);
 
-    vi.doMock('@proxy/SigningService', () => ({
-      normalizeSigningCredentials: vi.fn(
-        ({ keyId, secret }: { keyId: string; secret: string }) => ({
-          keyId: keyId.trim(),
-          secret: secret.trim(),
-        })
-      ),
-    }));
+    vi.doMock('@proxy/SigningService', createSigningServiceNormalizationModule);
 
     const { resolveProxySigningConfig } = await import('@proxy/ProxySigningConfigResolver');
 
@@ -114,41 +183,13 @@ describe('Proxy signing/config helpers patch coverage', () => {
     const debug = vi.fn();
     const warn = vi.fn();
 
-    vi.doMock('@config/env', () => ({
-      Env: {
-        HOST: '127.0.0.1',
-        PORT: 7772,
-        MAX_BODY_SIZE: 12345,
-        APP_NAME: 'ZinTrust',
-        APP_KEY: 'app-secret',
-        get: vi.fn((_k: string, d?: string) => d ?? ''),
-        getInt: vi.fn((_k: string, d?: number) => d ?? 0),
-        getBool: vi.fn((_k: string, d?: boolean) => d ?? true),
-      },
-    }));
+    vi.doMock('@config/env', createProxyCoreEnvModule);
 
-    vi.doMock('@config/logger', () => ({
-      Logger: {
-        debug,
-        warn,
-      },
-    }));
+    vi.doMock('@config/logger', () => createLoggerModule(debug, warn));
 
-    vi.doMock('@proxy/ProxySigningConfigResolver', () => ({
-      resolveProxySigningConfig: vi.fn(() => ({
-        keyId: 'kid',
-        secret: 'secret',
-        requireSigning: true,
-        signingWindowMs: 60000,
-      })),
-    }));
+    vi.doMock('@proxy/ProxySigningConfigResolver', createSigningConfigResolverModule);
 
-    vi.doMock('@proxy/ProxySigningRequest', () => ({
-      extractSigningHeaders: vi.fn(() => ({
-        'x-zt-key-id': undefined,
-      })),
-      verifyProxySignatureIfNeeded: vi.fn(async () => ({ ok: false })),
-    }));
+    vi.doMock('@proxy/ProxySigningRequest', createProxySigningRequestFailureModule);
 
     const { resolveBaseConfig, resolveBaseSigningConfig, verifyRequestSignature } =
       await import('@proxy/ProxyServerUtils');
@@ -177,39 +218,13 @@ describe('Proxy signing/config helpers patch coverage', () => {
 
     vi.resetModules();
 
-    vi.doMock('@config/env', () => ({
-      Env: {
-        HOST: '127.0.0.1',
-        PORT: 7772,
-        MAX_BODY_SIZE: 12345,
-        APP_NAME: 'ZinTrust',
-        APP_KEY: 'app-secret',
-        get: vi.fn((_k: string, d?: string) => d ?? ''),
-        getInt: vi.fn((_k: string, d?: number) => d ?? 0),
-        getBool: vi.fn((_k: string, d?: boolean) => d ?? true),
-      },
-    }));
+    vi.doMock('@config/env', createProxyCoreEnvModule);
 
-    vi.doMock('@config/logger', () => ({
-      Logger: {
-        debug: vi.fn(),
-        warn: vi.fn(),
-      },
-    }));
+    vi.doMock('@config/logger', () => createLoggerModule(vi.fn(), vi.fn()));
 
-    vi.doMock('@proxy/ProxySigningConfigResolver', () => ({
-      resolveProxySigningConfig: vi.fn(() => ({
-        keyId: 'kid',
-        secret: 'secret',
-        requireSigning: true,
-        signingWindowMs: 60000,
-      })),
-    }));
+    vi.doMock('@proxy/ProxySigningConfigResolver', createSigningConfigResolverModule);
 
-    vi.doMock('@proxy/ProxySigningRequest', () => ({
-      extractSigningHeaders: vi.fn(() => ({ 'x-zt-key-id': 'kid' })),
-      verifyProxySignatureIfNeeded: vi.fn(async () => ({ ok: true })),
-    }));
+    vi.doMock('@proxy/ProxySigningRequest', createProxySigningRequestSuccessModule);
 
     const successUtils = await import('@proxy/ProxyServerUtils');
     const successVerified = await successUtils.verifyRequestSignature(

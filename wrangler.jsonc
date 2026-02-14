@@ -63,6 +63,7 @@
       "name": "zintrust-d1-proxy",
       "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
       "compatibility_flags": ["nodejs_compat"],
+      "compatibility_date": "2025-04-21",
       "vars": {},
       // D1 binding for the proxy
       "d1_databases": [

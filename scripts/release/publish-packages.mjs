@@ -377,6 +377,10 @@ export declare const queueConfig: any;
 export declare const workersConfig: any;
 export declare const ZintrustLang: any;
 export declare const MigrationSchema: any;
+export declare const SignedRequest: any;
+export declare const JobStateTracker: any;
+export declare const TimeoutManager: any;
+export declare const CloudflareSocket: any;
 
 export declare function generateUuid(): string;
 export declare function generateSecureJobId(): string;
@@ -452,6 +456,10 @@ export const queueConfig = {};
 export const workersConfig = {};
 export const ZintrustLang = {};
 export const MigrationSchema = {};
+export const SignedRequest = {};
+export const JobStateTracker = {};
+export const TimeoutManager = {};
+export const CloudflareSocket = {};
 
 export function generateUuid() {
   return '00000000-0000-0000-0000-000000000000';

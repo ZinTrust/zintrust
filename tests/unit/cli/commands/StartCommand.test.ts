@@ -156,6 +156,44 @@ describe('StartCommand', () => {
     );
   });
 
+  it('should generate deno runner with local src/start.ts when available', async () => {
+    const command = StartCommand.create();
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      return p.toString().endsWith('src/start.ts');
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ deno: true })).rejects.toThrow(/process.exit/);
+
+    const denoRunnerWriteCall = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find((call) => call[0].toString().endsWith('zin-start-deno.ts'));
+
+    expect(denoRunnerWriteCall).toBeDefined();
+    expect(String(denoRunnerWriteCall?.[1] ?? '')).toMatch(
+      /import \{ deno \} from ['"]\.\.\/src\/start\.ts['"];/
+    );
+  });
+
+  it('should generate lambda runner with package start fallback when local src/start.ts is missing', async () => {
+    const command = StartCommand.create();
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      return !p.toString().endsWith('src/start.ts');
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ lambda: true })).rejects.toThrow(/process.exit/);
+
+    const lambdaRunnerWriteCall = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find((call) => call[0].toString().endsWith('zin-start-lambda.ts'));
+
+    expect(lambdaRunnerWriteCall).toBeDefined();
+    expect(String(lambdaRunnerWriteCall?.[1] ?? '')).toMatch(
+      /import \{ handler as lambdaHandler \} from ['"]@zintrust\/core\/start['"];/
+    );
+  });
+
   it('should start in lambda adapter mode when --lambda is provided', async () => {
     const command = StartCommand.create();
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
