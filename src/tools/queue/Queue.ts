@@ -1,3 +1,4 @@
+import { generateUuid } from '@/common/utility';
 import { ZintrustLang } from '@/lang/lang';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
@@ -123,7 +124,7 @@ const markEnqueued = async (input: {
 
 const createFallbackJobId = (requestedUniqueId: string | undefined): string => {
   if (requestedUniqueId !== undefined) return requestedUniqueId;
-  return `fallback-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+  return `fallback-${generateUuid()}`;
 };
 
 const markFailedEnqueue = async (input: {

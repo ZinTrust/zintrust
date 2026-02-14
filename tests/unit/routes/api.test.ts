@@ -76,6 +76,28 @@ describe('Routes API', () => {
         })
       );
     });
+
+    it('should handle health route and expose worker mode', async () => {
+      const { Env } = await import('@config/env');
+      vi.mocked(Env.get).mockImplementation((key: string, defaultVal?: string) => {
+        if (key === 'RUNTIME_MODE') return 'cloudflare-workers';
+        if (key === 'WORKER_ENABLED') return 'true';
+        return defaultVal ?? '';
+      });
+
+      const router = Router.createRouter();
+      registerRoutes(router);
+
+      const healthMatch = Router.match(router, 'GET', '/health');
+      if (healthMatch === null) throw new Error('Expected health route handler to be registered');
+
+      const res = { json: vi.fn() } as unknown as { json: Mock };
+      await healthMatch.handler({} as any, res as any);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'ok', mode: 'cloudflare-workers', worker: true })
+      );
+    });
   });
 
   describe('API V1 Routes', () => {
@@ -107,5 +129,23 @@ describe('Routes API', () => {
 
       expect(res.json).toHaveBeenCalledWith({ data: { id: '123' } });
     });
+  });
+
+  it('wraps controller creation failures in config error', async () => {
+    vi.resetModules();
+    vi.doMock('@app/Controllers/AuthController', () => ({
+      AuthController: {
+        create: () => {
+          throw new Error('auth-create-failed');
+        },
+      },
+    }));
+
+    const { Router: R } = await import('@core-routes/Router');
+    const { registerRoutes: registerRoutesWithFailingController } = await import('@routes/api');
+
+    expect(() => registerRoutesWithFailingController(R.createRouter())).toThrow(
+      /Failed to register routes: auth-create-failed/
+    );
   });
 });

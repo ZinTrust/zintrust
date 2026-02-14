@@ -269,7 +269,7 @@ const loadAndValidateQueueMonitorModule = async (): Promise<IQueueMonitorModule 
     return null;
   }
 
-  const queueMonitorModule = workersModule as IQueueMonitorModule;
+  const queueMonitorModule = workersModule;
   const { QueueMonitor } = queueMonitorModule;
   if (QueueMonitor === undefined || typeof QueueMonitor.create !== 'function') {
     Logger.warn('Queue Monitor module does not expose QueueMonitor.create');

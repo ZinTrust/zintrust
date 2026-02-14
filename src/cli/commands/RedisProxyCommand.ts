@@ -1,9 +1,11 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { SpawnUtil } from '@cli/utils/spawn';
+import {
+  maybeRunProxyWatchMode,
+  parseIntOption,
+  trimOption,
+} from '@cli/commands/ProxyCommandUtils';
 import { Env } from '@config/env';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import * as path from '@node-singletons/path';
 import { RedisProxyServer } from '@proxy/redis/RedisProxyServer';
 import type { Command } from 'commander';
 
@@ -20,17 +22,6 @@ type RedisProxyOptions = CommandOptions & {
   secret?: string;
   signingWindowMs?: string;
   watch?: boolean;
-};
-
-const parseIntOption = (raw: string | undefined, name: string): number | undefined => {
-  if (raw === undefined) return undefined;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    throw ErrorFactory.createCliError(
-      `Invalid --${name} '${raw}'. Expected a non-negative number.`
-    );
-  }
-  return parsed;
 };
 
 const addOptions = (command: Command): void => {
@@ -58,14 +49,6 @@ const addOptions = (command: Command): void => {
   );
 };
 
-const isWatchChild = (): boolean => process.env['ZINTRUST_PROXY_WATCH_CHILD'] === '1';
-
-const buildWatchArgs = (): string[] => {
-  const rawArgs = process.argv.slice(2);
-  const filtered = rawArgs.filter((arg) => arg !== '--watch');
-  return ['watch', path.join('bin', 'zin.ts'), ...filtered];
-};
-
 export const RedisProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
@@ -74,28 +57,16 @@ export const RedisProxyCommand = Object.freeze({
       description: 'Start the Redis HTTP proxy for Cloudflare Workers',
       addOptions,
       execute: async (options: RedisProxyOptions) => {
-        if (options.watch === true && !isWatchChild()) {
-          const args = buildWatchArgs();
-          const exitCode = await SpawnUtil.spawnAndWait({
-            command: 'tsx',
-            args,
-            env: {
-              ...process.env,
-              ZINTRUST_PROXY_WATCH_CHILD: '1',
-            },
-            forwardSignals: false,
-          });
-          process.exit(exitCode);
-        }
+        await maybeRunProxyWatchMode(options.watch);
 
-        const host = options.host?.trim();
+        const host = trimOption(options.host);
         const port = parseIntOption(options.port, 'port');
         const maxBodyBytes = parseIntOption(options.maxBodyBytes, 'max-body-bytes');
 
-        const redisHost = options.redisHost?.trim();
-        const redisPort = parseIntOption(options.redisPort, 'redis-port');
+        const redisHost = trimOption(options.redisHost);
+        const redisPort = parseIntOption(options.redisPort, 'redis-port', 'non-negative');
         const redisPassword = options.redisPassword;
-        const redisDb = parseIntOption(options.redisDb, 'redis-db');
+        const redisDb = parseIntOption(options.redisDb, 'redis-db', 'non-negative');
 
         const signingWindowMs = parseIntOption(options.signingWindowMs, 'signing-window-ms');
 

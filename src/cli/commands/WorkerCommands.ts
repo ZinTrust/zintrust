@@ -26,9 +26,9 @@ type WorkerFactoryApi = {
   listPersistedRecords: () => Promise<
     Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>
   >;
-  getHealth: (name: string) => Promise<unknown>;
-  getMetrics: (name: string) => Promise<unknown>;
-  get: (name: string) => unknown | null;
+  getHealth: (name: string) => Promise<Record<string, unknown>>;
+  getMetrics: (name: string) => Promise<Record<string, unknown>>;
+  get: (name: string) => Promise<Record<string, unknown>>;
   stop: (name: string) => Promise<void>;
   restart: (name: string) => Promise<void>;
   start: (name: string) => Promise<void>;
@@ -52,19 +52,20 @@ type ResourceMonitorApi = {
   };
 };
 
+type WorkerCommandsApi = {
+  WorkerFactory: WorkerFactoryApi;
+  WorkerRegistry: WorkerRegistryApi;
+  HealthMonitor: HealthMonitorApi;
+  ResourceMonitor: ResourceMonitorApi;
+};
 // Lazy initialization to prevent temporal dead zone issues
 let WorkerFactory: WorkerFactoryApi | undefined;
 let WorkerRegistry: WorkerRegistryApi | undefined;
 let HealthMonitor: HealthMonitorApi | undefined;
 let ResourceMonitor: ResourceMonitorApi | undefined;
-const loadWorkersModule = async (): Promise<{
-  WorkerFactory: WorkerFactoryApi;
-  WorkerRegistry: WorkerRegistryApi;
-  HealthMonitor: HealthMonitorApi;
-  ResourceMonitor: ResourceMonitorApi;
-}> => {
+const loadWorkersModule = async (): Promise<WorkerCommandsApi> => {
   try {
-    return await loadWorkersRuntimeModule();
+    return (await loadWorkersRuntimeModule()) as unknown as WorkerCommandsApi;
   } catch (error) {
     Logger.error(
       'Failed to load optional package "@zintrust/workers"; worker commands require this package.',
@@ -110,55 +111,36 @@ const getResourceMonitor = async (): Promise<ResourceMonitorApi> => {
 
 type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'critical';
 
+const extractStatus = (item: unknown): HealthStatus | undefined => {
+  const status =
+    typeof item === 'object' && item !== null ? (item as { status?: string }).status : undefined;
+
+  if (
+    status === 'healthy' ||
+    status === 'degraded' ||
+    status === 'unhealthy' ||
+    status === 'critical'
+  ) {
+    return status;
+  }
+  return undefined;
+};
+
 const normalizeHealthStatuses = (summary: unknown): HealthStatus[] => {
+  let list: unknown[] | undefined;
+
   if (Array.isArray(summary)) {
-    return summary
-      .map((item) => {
-        const status =
-          typeof item === 'object' && item !== null
-            ? (item as { status?: string }).status
-            : undefined;
-
-        if (
-          status === 'healthy' ||
-          status === 'degraded' ||
-          status === 'unhealthy' ||
-          status === 'critical'
-        ) {
-          return status;
-        }
-
-        return undefined;
-      })
-      .filter((status): status is HealthStatus => status !== undefined);
-  }
-
-  if (typeof summary === 'object' && summary !== null) {
+    list = summary;
+  } else if (typeof summary === 'object' && summary !== null) {
     const details = (summary as { details?: unknown }).details;
-    if (!Array.isArray(details)) return [];
-
-    return details
-      .map((item) => {
-        const status =
-          typeof item === 'object' && item !== null
-            ? (item as { status?: string }).status
-            : undefined;
-
-        if (
-          status === 'healthy' ||
-          status === 'degraded' ||
-          status === 'unhealthy' ||
-          status === 'critical'
-        ) {
-          return status;
-        }
-
-        return undefined;
-      })
-      .filter((status): status is HealthStatus => status !== undefined);
+    if (Array.isArray(details)) {
+      list = details;
+    }
   }
 
-  return [];
+  return (list ?? [])
+    .map(extractStatus)
+    .filter((status): status is HealthStatus => status !== undefined);
 };
 
 /**

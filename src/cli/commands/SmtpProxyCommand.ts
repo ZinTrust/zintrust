@@ -1,9 +1,11 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { SpawnUtil } from '@cli/utils/spawn';
+import {
+  maybeRunProxyWatchMode,
+  parseIntOption,
+  trimOption,
+} from '@cli/commands/ProxyCommandUtils';
 import { Env } from '@config/env';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import * as path from '@node-singletons/path';
 import { SmtpProxyServer } from '@proxy/smtp/SmtpProxyServer';
 import type { Command } from 'commander';
 
@@ -21,15 +23,6 @@ type SmtpProxyOptions = CommandOptions & {
   secret?: string;
   signingWindowMs?: string;
   watch?: boolean;
-};
-
-const parseIntOption = (raw: string | undefined, name: string): number | undefined => {
-  if (raw === undefined) return undefined;
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw ErrorFactory.createCliError(`Invalid --${name} '${raw}'. Expected a positive number.`);
-  }
-  return parsed;
 };
 
 const addOptions = (command: Command): void => {
@@ -62,14 +55,6 @@ const addOptions = (command: Command): void => {
   );
 };
 
-const isWatchChild = (): boolean => process.env['ZINTRUST_PROXY_WATCH_CHILD'] === '1';
-
-const buildWatchArgs = (): string[] => {
-  const rawArgs = process.argv.slice(2);
-  const filtered = rawArgs.filter((arg) => arg !== '--watch');
-  return ['watch', path.join('bin', 'zin.ts'), ...filtered];
-};
-
 export const SmtpProxyCommand = Object.freeze({
   create(): IBaseCommand {
     return BaseCommand.create({
@@ -78,27 +63,15 @@ export const SmtpProxyCommand = Object.freeze({
       description: 'Start the SMTP HTTP proxy for Cloudflare Workers',
       addOptions,
       execute: async (options: SmtpProxyOptions) => {
-        if (options.watch === true && !isWatchChild()) {
-          const args = buildWatchArgs();
-          const exitCode = await SpawnUtil.spawnAndWait({
-            command: 'tsx',
-            args,
-            env: {
-              ...process.env,
-              ZINTRUST_PROXY_WATCH_CHILD: '1',
-            },
-            forwardSignals: false,
-          });
-          process.exit(exitCode);
-        }
+        await maybeRunProxyWatchMode(options.watch);
 
-        const host = options.host?.trim();
+        const host = trimOption(options.host);
         const port = parseIntOption(options.port, 'port');
         const maxBodyBytes = parseIntOption(options.maxBodyBytes, 'max-body-bytes');
 
-        const smtpHost = options.smtpHost?.trim();
+        const smtpHost = trimOption(options.smtpHost);
         const smtpPort = parseIntOption(options.smtpPort, 'smtp-port');
-        const smtpUsername = options.smtpUsername?.trim();
+        const smtpUsername = trimOption(options.smtpUsername);
         const smtpPassword = options.smtpPassword;
         const smtpSecure = options.smtpSecure;
 

@@ -90,7 +90,7 @@ export default {
       (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
 
       await ensureStartupConfigOverridesLoaded();
-      await WorkerAdapterImports.ready;
+      await WorkerAdapterImports.ready; // NOSONAR - Ensure adapter imports are ready before handling requests.
       await injectIoredisModule();
 
       const kernel = await getKernel();

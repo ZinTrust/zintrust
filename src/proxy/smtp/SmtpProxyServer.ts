@@ -12,8 +12,10 @@ import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
+import { resolveProxySigningConfig } from '@proxy/ProxySigningConfigResolver';
+import { extractSigningHeaders, verifyProxySignatureIfNeeded } from '@proxy/ProxySigningRequest';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
+import { SigningService } from '@proxy/SigningService';
 
 type ProxyConfig = {
   host: string;
@@ -41,11 +43,6 @@ type ProxyOverrides = Partial<{
 type ParseResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: { code: string; message: string } };
-
-const normalizeHeaderValue = (value: string | string[] | undefined): string | undefined => {
-  if (Array.isArray(value)) return value.join(',');
-  return value;
-};
 
 const normalizeSecure = (value: unknown): boolean | 'starttls' | undefined => {
   if (value === true || value === false) return value;
@@ -92,27 +89,13 @@ const resolveSigningConfig = (
   secret: string;
   requireSigning: boolean;
   signingWindowMs: number;
-} => {
-  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
-  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
-  const envKeyId = Env.get('SMTP_PROXY_KEY_ID', appName);
-  const envSecret = Env.get('SMTP_PROXY_SECRET', appKey);
-  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
-  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
-  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
-  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
-  const requireSigning =
-    overrides.requireSigning ?? Env.getBool('SMTP_PROXY_REQUIRE_SIGNING', true);
-  const signingWindowMs =
-    overrides.signingWindowMs ?? Env.getInt('SMTP_PROXY_SIGNING_WINDOW_MS', 60000);
-
-  return {
-    keyId: creds.keyId,
-    secret: creds.secret,
-    requireSigning,
-    signingWindowMs,
-  };
-};
+} =>
+  resolveProxySigningConfig(overrides, {
+    keyIdEnvVar: 'SMTP_PROXY_KEY_ID',
+    secretEnvVar: 'SMTP_PROXY_SECRET',
+    requireEnvVar: 'SMTP_PROXY_REQUIRE_SIGNING',
+    windowEnvVar: 'SMTP_PROXY_SIGNING_WINDOW_MS',
+  });
 
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
   const proxyConfig = resolveProxyConfig(overrides);
@@ -159,23 +142,10 @@ const verifySignatureIfNeeded = async (
   body: string,
   config: ProxyConfig
 ): Promise<{ ok: boolean; error?: { status: number; message: string } }> => {
-  const headers: Record<string, string | undefined> = {
-    'x-zt-key-id': normalizeHeaderValue(req.headers['x-zt-key-id']),
-    'x-zt-timestamp': normalizeHeaderValue(req.headers['x-zt-timestamp']),
-    'x-zt-nonce': normalizeHeaderValue(req.headers['x-zt-nonce']),
-    'x-zt-body-sha256': normalizeHeaderValue(req.headers['x-zt-body-sha256']),
-    'x-zt-signature': normalizeHeaderValue(req.headers['x-zt-signature']),
-  };
+  const headers = extractSigningHeaders(req);
 
   if (SigningService.shouldVerify(config.signing, headers)) {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    const verified = await SigningService.verify({
-      method: req.method ?? 'POST',
-      url,
-      body,
-      headers,
-      signing: config.signing,
-    });
+    const verified = await verifyProxySignatureIfNeeded(req, body, config.signing);
     if (!verified.ok) {
       const normalizedSigning =
         typeof SigningService['normalizeConfig'] === 'function'
@@ -184,13 +154,19 @@ const verifySignatureIfNeeded = async (
             )
           : config.signing;
       Logger.warn('[SmtpProxy] Signing verification failed', {
-        code: verified.code,
-        message: verified.message,
+        code: 'INVALID_SIGNATURE',
+        message: verified.error?.message ?? 'Invalid signature',
         keyId: headers['x-zt-key-id'],
         expectedKeyId: normalizedSigning.keyId,
         requireSigning: normalizedSigning.require,
       });
-      return { ok: false, error: { status: verified.status, message: verified.message } };
+      return {
+        ok: false,
+        error: {
+          status: verified.error?.status ?? 401,
+          message: verified.error?.message ?? 'Unauthorized',
+        },
+      };
     }
   }
 

@@ -13,7 +13,7 @@ export const registerWorkerShutdownHook = async (
     Env.getBool('WORKER_SHUTDOWN_ON_APP_EXIT', true) === false ||
     appConfig.dockerWorker === true
   ) {
-    return Promise.resolve();
+    return Promise.resolve(); // NOSONAR - Skip worker shutdown hook registration
   }
   // Ensure worker management system is asked to shutdown BEFORE databases are reset.
   // This prevents workers from trying to access DB connections that have already

@@ -33,7 +33,7 @@ const addOptions = (command: Command): void => {
 
 const parseForwardArgs = (): { target: string | null; extra: string[] } => {
   const argv = process.argv.slice(2);
-  const proxyIndex = argv.findIndex((arg) => arg === 'proxy');
+  const proxyIndex = argv.indexOf('proxy');
   if (proxyIndex < 0) {
     return { target: null, extra: [] };
   }

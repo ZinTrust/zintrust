@@ -68,7 +68,8 @@ const resolveSpecifier = (filePath: string, specifier: string): string | null =>
   try {
     if (fs.statSync(resolved).isDirectory()) {
       const indexJs = path.join(resolved, 'index.js');
-      if (fs.existsSync(indexJs)) return `${specifier.replace(/\/+$/, '')}/index.js`;
+      if (fs.existsSync(indexJs))
+        return `${specifier.endsWith('/') ? specifier.slice(0, -1) : specifier}/index.js`;
     }
   } catch {
     // ignore stat errors
@@ -97,9 +98,9 @@ const patchImportsInFile = (filePath: string): number => {
   };
 
   const updated = text
-    .replace(/\bfrom\s+(['"])(\.[^'"]+)\1/g, rewrite)
-    .replace(/\bimport\s+(['"])(\.[^'"]+)\1/g, rewrite)
-    .replace(/\bimport\s*\(\s*(['"])(\.[^'"]+)\1\s*\)/g, rewrite);
+    .replaceAll(/\bfrom\s+(['"])(\.[^'"]+)\1/g, rewrite)
+    .replaceAll(/\bimport\s+(['"])(\.[^'"]+)\1/g, rewrite)
+    .replaceAll(/\bimport\s*\(\s*(['"])(\.[^'"]+)\1\s*\)/g, rewrite);
 
   if (updated !== text) {
     try {
@@ -112,13 +113,15 @@ const patchImportsInFile = (filePath: string): number => {
   return replacements;
 };
 
-const patchWorkersDist = (): PatchResult => {
+const patchPackageDist = (
+  packageName: '@zintrust/workers' | '@zintrust/queue-monitor'
+): PatchResult => {
   if (!isNodeRuntime()) return { replacements: 0, filesChanged: 0 };
 
   let entryPath: string;
   try {
     const require = createRequire(import.meta.url);
-    entryPath = require.resolve('@zintrust/workers');
+    entryPath = require.resolve(packageName);
   } catch {
     return { replacements: 0, filesChanged: 0 };
   }
@@ -141,36 +144,11 @@ const patchWorkersDist = (): PatchResult => {
   return { replacements, filesChanged };
 };
 
-const patchQueueMonitorDist = (): PatchResult => {
-  if (!isNodeRuntime()) return { replacements: 0, filesChanged: 0 };
+const patchWorkersDist = (): PatchResult => patchPackageDist('@zintrust/workers');
 
-  let entryPath: string;
-  try {
-    const require = createRequire(import.meta.url);
-    entryPath = require.resolve('@zintrust/queue-monitor');
-  } catch {
-    return { replacements: 0, filesChanged: 0 };
-  }
+const patchQueueMonitorDist = (): PatchResult => patchPackageDist('@zintrust/queue-monitor');
 
-  const distDir = path.dirname(entryPath);
-  if (!fs.existsSync(distDir)) return { replacements: 0, filesChanged: 0 };
-
-  const files = listJsFilesRecursive(distDir);
-  let replacements = 0;
-  let filesChanged = 0;
-
-  for (const file of files) {
-    const changes = patchImportsInFile(file);
-    if (changes > 0) {
-      replacements += changes;
-      filesChanged += 1;
-    }
-  }
-
-  return { replacements, filesChanged };
-};
-
-const resolveLocalWorkersModuleUrl = (): string | null => {
+const resolveLocalModuleUrl = (packageDir: 'workers' | 'queue-monitor'): string | null => {
   if (!isNodeRuntime()) return null;
 
   const root = process.cwd();
@@ -182,12 +160,12 @@ const resolveLocalWorkersModuleUrl = (): string | null => {
 
   const candidates = preferSource
     ? [
-        path.join(root, 'packages', 'workers', 'src', 'index.ts'),
-        path.join(root, 'dist', 'packages', 'workers', 'src', 'index.js'),
+        path.join(root, 'packages', packageDir, 'src', 'index.ts'),
+        path.join(root, 'dist', 'packages', packageDir, 'src', 'index.js'),
       ]
     : [
-        path.join(root, 'dist', 'packages', 'workers', 'src', 'index.js'),
-        path.join(root, 'packages', 'workers', 'src', 'index.ts'),
+        path.join(root, 'dist', 'packages', packageDir, 'src', 'index.js'),
+        path.join(root, 'packages', packageDir, 'src', 'index.ts'),
       ];
 
   for (const candidate of candidates) {
@@ -199,58 +177,26 @@ const resolveLocalWorkersModuleUrl = (): string | null => {
   return null;
 };
 
-const importLocalWorkersModule = async (): Promise<WorkersModule | null> => {
-  const url = resolveLocalWorkersModuleUrl();
+const importLocalModule = async <T>(
+  packageDir: 'workers' | 'queue-monitor',
+  packageName: string
+): Promise<T | null> => {
+  const url = resolveLocalModuleUrl(packageDir);
   if (url === null || url === '' || url === undefined) return null;
 
   try {
-    return (await import(url)) as WorkersModule;
+    return (await import(url)) as T;
   } catch (error) {
-    Logger.warn('Failed to import local @zintrust/workers fallback', error as Error);
+    Logger.warn(`Failed to import local ${packageName} fallback`, error as Error);
     return null;
   }
 };
 
-const resolveLocalQueueMonitorModuleUrl = (): string | null => {
-  if (!isNodeRuntime()) return null;
+const importLocalWorkersModule = async (): Promise<WorkersModule | null> =>
+  importLocalModule<WorkersModule>('workers', '@zintrust/workers');
 
-  const root = process.cwd();
-
-  const mode = (process.env['NODE_ENV'] ?? 'development').toString().trim().toLowerCase();
-  const isProductionMode = mode === 'production' || mode === 'pro' || mode === 'prod';
-  const runFromSource = typeof Common.runFromSource === 'function' ? Common.runFromSource() : false;
-  const preferSource = runFromSource || !isProductionMode;
-
-  const candidates = preferSource
-    ? [
-        path.join(root, 'packages', 'queue-monitor', 'src', 'index.ts'),
-        path.join(root, 'dist', 'packages', 'queue-monitor', 'src', 'index.js'),
-      ]
-    : [
-        path.join(root, 'dist', 'packages', 'queue-monitor', 'src', 'index.js'),
-        path.join(root, 'packages', 'queue-monitor', 'src', 'index.ts'),
-      ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return pathToFileURL(candidate).href;
-    }
-  }
-
-  return null;
-};
-
-const importLocalQueueMonitorModule = async (): Promise<QueueMonitorModule | null> => {
-  const url = resolveLocalQueueMonitorModuleUrl();
-  if (url === null || url === '' || url === undefined) return null;
-
-  try {
-    return (await import(url)) as QueueMonitorModule;
-  } catch (error) {
-    Logger.warn('Failed to import local @zintrust/queue-monitor fallback', error as Error);
-    return null;
-  }
-};
+const importLocalQueueMonitorModule = async (): Promise<QueueMonitorModule | null> =>
+  importLocalModule<QueueMonitorModule>('queue-monitor', '@zintrust/queue-monitor');
 
 let workersModulePromise: Promise<WorkersModule> | undefined;
 let patchAttempted = false;
@@ -258,24 +204,68 @@ let patchAfterFailureAttempted = false;
 let queueMonitorModulePromise: Promise<QueueMonitorModule> | undefined;
 let queueMonitorPatchAfterFailureAttempted = false;
 
-export const loadWorkersModule = async (): Promise<WorkersModule> => {
-  if (!patchAttempted) {
-    patchAttempted = true;
-    const workersPatch = patchWorkersDist();
-    if (workersPatch.filesChanged > 0) {
-      Logger.warn('Rewrote @zintrust/workers ESM specifiers before import', workersPatch);
-    }
+const applyInitialPatches = (): void => {
+  if (patchAttempted) return;
 
-    const monitorPatch = patchQueueMonitorDist();
-    if (monitorPatch.filesChanged > 0) {
-      Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers before import', monitorPatch);
+  patchAttempted = true;
+  const workersPatch = patchWorkersDist();
+  if (workersPatch.filesChanged > 0) {
+    Logger.warn('Rewrote @zintrust/workers ESM specifiers before import', workersPatch);
+  }
+
+  const monitorPatch = patchQueueMonitorDist();
+  if (monitorPatch.filesChanged > 0) {
+    Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers before import', monitorPatch);
+  }
+};
+
+const shouldRetryAfterFailure = (error: unknown): boolean => {
+  if (patchAfterFailureAttempted) return false;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as { code?: string } | undefined)?.code;
+
+  return code === 'ERR_MODULE_NOT_FOUND' && message.includes('@zintrust/workers');
+};
+
+const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
+  if (shouldRetryAfterFailure(error)) {
+    patchAfterFailureAttempted = true;
+    const { replacements, filesChanged } = patchWorkersDist();
+    if (filesChanged > 0) {
+      Logger.warn('Rewrote @zintrust/workers ESM specifiers after import failure', {
+        filesChanged,
+        replacements,
+      });
+      workersModulePromise = import('@zintrust/workers');
+      return workersModulePromise;
     }
   }
 
+  const localFallback = await importLocalWorkersModule();
+  if (localFallback) {
+    workersModulePromise = Promise.resolve(localFallback);
+    return localFallback;
+  }
+
+  throw error;
+};
+
+const tryLocalFallback = async (): Promise<WorkersModule | null> => {
+  const localFallback = await importLocalWorkersModule();
+  if (localFallback) {
+    workersModulePromise = Promise.resolve(localFallback);
+    return localFallback;
+  }
+  return null;
+};
+
+export const loadWorkersModule = async (): Promise<WorkersModule> => {
+  applyInitialPatches();
+
   if (workersModulePromise === undefined) {
-    const localFallback = await importLocalWorkersModule();
+    const localFallback = await tryLocalFallback();
     if (localFallback) {
-      workersModulePromise = Promise.resolve(localFallback);
       return localFallback;
     }
   }
@@ -285,54 +275,57 @@ export const loadWorkersModule = async (): Promise<WorkersModule> => {
   try {
     return await workersModulePromise;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    const code = (error as { code?: string } | undefined)?.code;
-
-    if (
-      !patchAfterFailureAttempted &&
-      code === 'ERR_MODULE_NOT_FOUND' &&
-      message.includes('@zintrust/workers')
-    ) {
-      patchAfterFailureAttempted = true;
-      const { replacements, filesChanged } = patchWorkersDist();
-      if (filesChanged > 0) {
-        Logger.warn('Rewrote @zintrust/workers ESM specifiers after import failure', {
-          filesChanged,
-          replacements,
-        });
-        workersModulePromise = import('@zintrust/workers');
-        return workersModulePromise;
-      }
-    }
-
-    const localFallback = await importLocalWorkersModule();
-    if (localFallback) {
-      workersModulePromise = Promise.resolve(localFallback);
-      return localFallback;
-    }
-
-    throw error;
+    return handleImportFailure(error);
   }
 };
 
-export const loadQueueMonitorModule = async (): Promise<QueueMonitorModule> => {
-  if (!patchAttempted) {
-    patchAttempted = true;
-    const workersPatch = patchWorkersDist();
-    if (workersPatch.filesChanged > 0) {
-      Logger.warn('Rewrote @zintrust/workers ESM specifiers before import', workersPatch);
-    }
+const shouldRetryQueueMonitorAfterFailure = (error: unknown): boolean => {
+  if (queueMonitorPatchAfterFailureAttempted) return false;
 
-    const monitorPatch = patchQueueMonitorDist();
-    if (monitorPatch.filesChanged > 0) {
-      Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers before import', monitorPatch);
+  const message = error instanceof Error ? error.message : String(error);
+  const code = (error as { code?: string } | undefined)?.code;
+
+  return code === 'ERR_MODULE_NOT_FOUND' && message.includes('@zintrust/queue-monitor');
+};
+
+const handleQueueMonitorImportFailure = async (error: unknown): Promise<QueueMonitorModule> => {
+  if (shouldRetryQueueMonitorAfterFailure(error)) {
+    queueMonitorPatchAfterFailureAttempted = true;
+    const { replacements, filesChanged } = patchQueueMonitorDist();
+    if (filesChanged > 0) {
+      Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers after import failure', {
+        filesChanged,
+        replacements,
+      });
+      queueMonitorModulePromise = import('@zintrust/queue-monitor');
+      return queueMonitorModulePromise;
     }
   }
 
+  const localFallback = await importLocalQueueMonitorModule();
+  if (localFallback) {
+    queueMonitorModulePromise = Promise.resolve(localFallback);
+    return localFallback;
+  }
+
+  throw error;
+};
+
+const tryQueueMonitorLocalFallback = async (): Promise<QueueMonitorModule | null> => {
+  const localFallback = await importLocalQueueMonitorModule();
+  if (localFallback) {
+    queueMonitorModulePromise = Promise.resolve(localFallback);
+    return localFallback;
+  }
+  return null;
+};
+
+export const loadQueueMonitorModule = async (): Promise<QueueMonitorModule> => {
+  applyInitialPatches();
+
   if (queueMonitorModulePromise === undefined) {
-    const localFallback = await importLocalQueueMonitorModule();
+    const localFallback = await tryQueueMonitorLocalFallback();
     if (localFallback) {
-      queueMonitorModulePromise = Promise.resolve(localFallback);
       return localFallback;
     }
   }
@@ -342,32 +335,6 @@ export const loadQueueMonitorModule = async (): Promise<QueueMonitorModule> => {
   try {
     return await queueMonitorModulePromise;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    const code = (error as { code?: string } | undefined)?.code;
-
-    if (
-      !queueMonitorPatchAfterFailureAttempted &&
-      code === 'ERR_MODULE_NOT_FOUND' &&
-      message.includes('@zintrust/queue-monitor')
-    ) {
-      queueMonitorPatchAfterFailureAttempted = true;
-      const { replacements, filesChanged } = patchQueueMonitorDist();
-      if (filesChanged > 0) {
-        Logger.warn('Rewrote @zintrust/queue-monitor ESM specifiers after import failure', {
-          filesChanged,
-          replacements,
-        });
-        queueMonitorModulePromise = import('@zintrust/queue-monitor');
-        return queueMonitorModulePromise;
-      }
-    }
-
-    const localFallback = await importLocalQueueMonitorModule();
-    if (localFallback) {
-      queueMonitorModulePromise = Promise.resolve(localFallback);
-      return localFallback;
-    }
-
-    throw error;
+    return handleQueueMonitorImportFailure(error);
   }
 };

@@ -1,12 +1,17 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { type IncomingMessage } from '@node-singletons/http';
 import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
+import {
+  resolveBaseConfig,
+  resolveBaseSigningConfig,
+  verifyRequestSignature,
+  type BaseProxyOverrides,
+} from '@proxy/ProxyServerUtils';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
+import { validateSqlPayload } from '@proxy/SqlPayloadValidator';
 
 type SqlServerPool = Record<string, unknown>;
 type SqlServerResult = { recordset: unknown[]; rowsAffected: number[] };
@@ -19,41 +24,15 @@ type ProxyConfig = {
   signing: ProxySigningConfig;
 };
 
-type ProxyOverrides = Partial<{
-  host: string;
-  port: number;
-  maxBodyBytes: number;
-  dbHost: string;
-  dbPort: number;
-  dbName: string;
-  dbUser: string;
-  dbPass: string;
-  connectionLimit: number;
-  requireSigning: boolean;
-  keyId: string;
-  secret: string;
-  signingWindowMs: number;
-}>;
-
-const normalizeHeaderValue = (value: string | string[] | undefined): string | undefined => {
-  if (Array.isArray(value)) return value.join(',');
-  return value;
-};
-
-const resolveProxyConfig = (
-  overrides: ProxyOverrides = {}
-): {
-  host: string;
-  port: number;
-  maxBodyBytes: number;
-} => {
-  const host = overrides?.host ?? Env.get('SQLSERVER_PROXY_HOST', Env.HOST ?? '127.0.0.1');
-  const port = overrides.port ?? Env.getInt('SQLSERVER_PROXY_PORT', Env.PORT ?? 3000);
-  const maxBodyBytes =
-    overrides.maxBodyBytes ?? Env.getInt('SQLSERVER_PROXY_MAX_BODY_BYTES', Env.MAX_BODY_SIZE ?? 0);
-
-  return { host, port, maxBodyBytes };
-};
+type ProxyOverrides = BaseProxyOverrides &
+  Partial<{
+    dbHost: string;
+    dbPort: number;
+    dbName: string;
+    dbUser: string;
+    dbPass: string;
+    connectionLimit: number;
+  }>;
 
 const resolveDatabaseConfig = (
   overrides: ProxyOverrides = {}
@@ -75,39 +54,10 @@ const resolveDatabaseConfig = (
   return { dbHost, dbPort, dbName, dbUser, dbPass, connectionLimit };
 };
 
-const resolveSigningConfig = (
-  overrides: ProxyOverrides = {}
-): {
-  keyId: string;
-  secret: string;
-  requireSigning: boolean;
-  signingWindowMs: number;
-} => {
-  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
-  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
-  const envKeyId = Env.get('SQLSERVER_PROXY_KEY_ID', appName);
-  const envSecret = Env.get('SQLSERVER_PROXY_SECRET', appKey);
-  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
-  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
-  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
-  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
-  const requireSigning =
-    overrides.requireSigning ?? Env.getBool('SQLSERVER_PROXY_REQUIRE_SIGNING', true);
-  const signingWindowMs =
-    overrides.signingWindowMs ?? Env.getInt('SQLSERVER_PROXY_SIGNING_WINDOW_MS', 60000);
-
-  return {
-    keyId: creds.keyId,
-    secret: creds.secret,
-    requireSigning,
-    signingWindowMs,
-  };
-};
-
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
-  const proxyConfig = resolveProxyConfig(overrides);
+  const proxyConfig = resolveBaseConfig(overrides, 'SQLSERVER');
   const dbConfig = resolveDatabaseConfig(overrides);
-  const signingConfig = resolveSigningConfig(overrides);
+  const signingConfig = resolveBaseSigningConfig(overrides, 'SQLSERVER');
 
   const poolConfig = {
     server: dbConfig.dbHost,
@@ -140,36 +90,6 @@ const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
   };
 };
 
-const verifySignatureIfNeeded = async (
-  req: IncomingMessage,
-  body: string,
-  config: ProxyConfig
-): Promise<{ ok: boolean; error?: { status: number; message: string } }> => {
-  const headers: Record<string, string | undefined> = {
-    'x-zt-key-id': normalizeHeaderValue(req.headers['x-zt-key-id']),
-    'x-zt-timestamp': normalizeHeaderValue(req.headers['x-zt-timestamp']),
-    'x-zt-nonce': normalizeHeaderValue(req.headers['x-zt-nonce']),
-    'x-zt-body-sha256': normalizeHeaderValue(req.headers['x-zt-body-sha256']),
-    'x-zt-signature': normalizeHeaderValue(req.headers['x-zt-signature']),
-  };
-
-  if (SigningService.shouldVerify(config.signing, headers)) {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    const verified = await SigningService.verify({
-      method: req.method ?? 'POST',
-      url,
-      body,
-      headers,
-      signing: config.signing,
-    });
-    if (!verified.ok) {
-      return { ok: false, error: { status: verified.status, message: verified.message } };
-    }
-  }
-
-  return { ok: true };
-};
-
 const validateQueryPayload = (
   payload: Record<string, unknown>
 ): {
@@ -178,14 +98,16 @@ const validateQueryPayload = (
   params?: unknown[];
   error?: { code: string; message: string };
 } => {
-  const sql = payload['sql'];
-  const params = Array.isArray(payload['params']) ? payload['params'] : [];
+  const base = validateSqlPayload(payload);
+  if (!base.valid) {
+    return { valid: false, error: base.error };
+  }
 
-  if (typeof sql !== 'string' || sql.trim() === '') {
+  if (base.sql.trim() === '') {
     return { valid: false, error: { code: 'VALIDATION_ERROR', message: 'sql is required' } };
   }
 
-  return { valid: true, sql, params };
+  return { valid: true, sql: base.sql, params: base.params };
 };
 
 const getSqlModule = async (): Promise<Record<string, unknown>> => {
@@ -310,12 +232,11 @@ export const SqlServerProxyServer = Object.freeze({
       maxBodyBytes: config.maxBodyBytes,
       backend,
       verify: async (req, body) => {
-        const verified = await verifySignatureIfNeeded(req, body, config);
-        if (!verified.ok) {
-          const error = verified.error ?? { status: 401, message: 'Unauthorized' };
-          return { ok: false as const, status: error.status, message: error.message };
+        const verified = await verifyRequestSignature(req, body, config, 'SqlServerProxyServer');
+        if (!verified.ok && verified.error) {
+          return { ok: false, status: verified.error.status, message: verified.error.message };
         }
-        return { ok: true as const };
+        return { ok: true };
       },
     });
 

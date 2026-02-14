@@ -73,67 +73,129 @@ function resolveTemplatePath(templateName: string): string {
   return cwd.trim() === '' ? join(baseDir, templateName) : join(cwd, templateName);
 }
 
-async function loadTemplateContent(templateName: string): Promise<string> {
-  const templatePath = resolveTemplatePath(templateName);
-  const normalizedTemplate = templateName.endsWith('.html') ? templateName : `${templateName}.html`;
-  const normalizedModuleName = templateName.endsWith('.html')
-    ? templateName.slice(0, -5)
-    : templateName;
-  const cwd = getSafeCwd();
-  const baseDir = getBaseDir();
+function normalizeTemplateName(templateName: string): {
+  normalizedTemplate: string;
+  normalizedModuleName: string;
+} {
+  return {
+    normalizedTemplate: templateName.endsWith('.html') ? templateName : `${templateName}.html`,
+    normalizedModuleName: templateName.endsWith('.html') ? templateName.slice(0, -5) : templateName,
+  };
+}
 
+async function tryBuiltinLoader(normalizedModuleName: string): Promise<string | null> {
   const builtinLoader =
     builtinTemplateLoaders[normalizedModuleName as keyof typeof builtinTemplateLoaders];
 
-  if (builtinLoader !== undefined) {
-    try {
-      const imported = (await builtinLoader()) as { default?: unknown };
-      if (typeof imported.default === 'string' && imported.default.trim() !== '') {
-        return imported.default;
-      }
-    } catch {
-      // Fall through to filesystem/module path probes.
-    }
+  if (builtinLoader === undefined) {
+    return null;
   }
 
-  const candidates = [
+  try {
+    const imported = (await builtinLoader()) as { default?: unknown };
+    if (typeof imported.default === 'string' && imported.default.trim() !== '') {
+      return imported.default;
+    }
+  } catch {
+    // Fall through to filesystem/module path probes.
+  }
+
+  return null;
+}
+
+function getFileCandidates(templatePath: string, normalizedTemplate: string): string[] {
+  const cwd = getSafeCwd();
+  const baseDir = getBaseDir();
+
+  return [
     templatePath,
     join(baseDir, 'templates', normalizedTemplate),
     join(cwd, 'dist', 'src', 'tools', 'mail', 'templates', normalizedTemplate),
     join(cwd, 'src', 'tools', 'mail', 'templates', normalizedTemplate),
   ].filter((path, index, arr) => path.trim() !== '' && arr.indexOf(path) === index);
+}
 
-  let lastError: unknown;
-  for (const candidate of candidates) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      return await readFile(candidate, 'utf-8');
-    } catch (error) {
-      lastError = error;
-    }
-  }
+function getModuleCandidates(normalizedModuleName: string): string[] {
+  const cwd = getSafeCwd();
+  const baseDir = getBaseDir();
 
-  const moduleCandidates = [
+  return [
     join(cwd, 'dist', 'src', 'tools', 'mail', 'templates', `${normalizedModuleName}.js`),
     join(cwd, 'src', 'tools', 'mail', 'templates', `${normalizedModuleName}.ts`),
     join(baseDir, 'templates', `${normalizedModuleName}.js`),
     join(baseDir, 'templates', `${normalizedModuleName}.ts`),
   ].filter((path, index, arr) => path.trim() !== '' && arr.indexOf(path) === index);
+}
+
+async function tryReadFromCandidates(
+  candidates: string[]
+): Promise<{ content?: string; error?: unknown }> {
+  let lastError: unknown;
+
+  for (const candidate of candidates) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const content = await readFile(candidate, 'utf-8');
+      return { content };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  return { error: lastError };
+}
+
+async function tryImportFromCandidates(
+  moduleCandidates: string[]
+): Promise<{ content?: string; error?: unknown }> {
+  let lastError: unknown;
 
   for (const modulePath of moduleCandidates) {
     try {
       // eslint-disable-next-line no-await-in-loop
       const imported = (await import(pathToFileURL(modulePath).href)) as { default?: unknown };
       if (typeof imported.default === 'string' && imported.default.trim() !== '') {
-        return imported.default;
+        return { content: imported.default };
       }
     } catch (error) {
       lastError = error;
     }
   }
 
+  return { error: lastError };
+}
+
+async function loadTemplateContent(templateName: string): Promise<string> {
+  const templatePath = resolveTemplatePath(templateName);
+  const { normalizedTemplate, normalizedModuleName } = normalizeTemplateName(templateName);
+
+  // Try builtin loader first
+  const builtinResult = await tryBuiltinLoader(normalizedModuleName);
+  if (builtinResult !== null && typeof builtinResult === 'string') {
+    return builtinResult;
+  }
+
+  // Try file system candidates
+  const fileCandidates = getFileCandidates(templatePath, normalizedTemplate);
+  const fileResult = await tryReadFromCandidates(fileCandidates);
+
+  if (fileResult.content !== undefined) {
+    return fileResult.content;
+  }
+
+  // Try module candidates
+  const moduleCandidates = getModuleCandidates(normalizedModuleName);
+  const moduleResult = await tryImportFromCandidates(moduleCandidates);
+
+  if (moduleResult.content !== undefined) {
+    return moduleResult.content;
+  }
+
+  // Extract last error from failed attempts
+  const lastError = fileResult.error ?? moduleResult.error;
+
   throw ErrorFactory.createConfigError(
-    `Failed to load template from known paths: ${[...candidates, ...moduleCandidates].join(', ')}` +
+    `Failed to load template from known paths: ${[...fileCandidates, ...moduleCandidates].join(', ')}` +
       (lastError === undefined ? '' : `. Last error: ${String(lastError)}`)
   );
 }
@@ -174,54 +236,90 @@ export async function loadTemplate(
  * Render conditional blocks {{#if_condition}}...{{/if_condition}}
  */
 function renderConditionals(template: string, variables: TemplateVariables): string {
-  const conditionalRegex = /{{#if_(\w+)}}(.+?){{\/if_\1}}/gs;
-
-  return template.replaceAll(
-    conditionalRegex,
-    (_fullMatch: string, condition: string, content: string): string => {
-      const value = variables[condition];
-
-      if (value === true || value === 'true') {
-        return content;
-      }
-
-      return '';
-    }
-  );
+  return renderBlockTags(template, 'if', (condition: string, content: string): string => {
+    const value = variables[condition];
+    return value === true || value === 'true' ? content : '';
+  });
 }
 
 /**
  * Render loop blocks {{#each_array}}...{{/each_array}}
  */
 function renderLoops(template: string, variables: TemplateVariables): string {
-  const loopRegex = /{{#each_(\w+)}}(.+?){{\/each_\1}}/gs;
+  return renderBlockTags(template, 'each', (arrayName: string, content: string): string => {
+    const array = variables[arrayName] as unknown[] | undefined;
 
-  return template.replaceAll(
-    loopRegex,
-    (_fullMatch: string, arrayName: string, content: string): string => {
-      const array = variables[arrayName] as unknown[] | undefined;
-
-      if (!Array.isArray(array)) {
-        return '';
-      }
-
-      return array
-        .map((item): string => {
-          let rendered = content;
-
-          if (typeof item === 'object' && item !== null) {
-            for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
-              const regex = new RegExp(`{{${key}}}`, 'g');
-              rendered = rendered.replaceAll(regex, String(value ?? ''));
-            }
-          }
-
-          return rendered;
-        })
-        .join('');
+    if (!Array.isArray(array)) {
+      return '';
     }
-  );
+
+    return array
+      .map((item): string => {
+        let rendered = content;
+
+        if (typeof item === 'object' && item !== null) {
+          for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+            const regex = new RegExp(`{{${key}}}`, 'g');
+            rendered = rendered.replaceAll(regex, String(value ?? ''));
+          }
+        }
+
+        return rendered;
+      })
+      .join('');
+  });
 }
+
+const isSafeBlockName = (value: string): boolean => /^\w+$/.test(value);
+
+const renderBlockTags = (
+  template: string,
+  tagPrefix: 'if' | 'each',
+  resolver: (name: string, content: string) => string
+): string => {
+  const openPrefix = `{{#${tagPrefix}_`;
+  let cursor = 0;
+  let output = '';
+
+  while (cursor < template.length) {
+    const openIndex = template.indexOf(openPrefix, cursor);
+    if (openIndex < 0) {
+      output += template.slice(cursor);
+      break;
+    }
+
+    output += template.slice(cursor, openIndex);
+
+    const nameStart = openIndex + openPrefix.length;
+    const openEnd = template.indexOf('}}', nameStart);
+    if (openEnd < 0) {
+      output += template.slice(openIndex);
+      break;
+    }
+
+    const name = template.slice(nameStart, openEnd);
+    if (!isSafeBlockName(name)) {
+      output += template.slice(openIndex, openEnd + 2);
+      cursor = openEnd + 2;
+      continue;
+    }
+
+    const closeToken = `{{/${tagPrefix}_${name}}}`;
+    const contentStart = openEnd + 2;
+    const closeIndex = template.indexOf(closeToken, contentStart);
+
+    if (closeIndex < 0) {
+      output += template.slice(openIndex);
+      break;
+    }
+
+    const content = template.slice(contentStart, closeIndex);
+    output += resolver(name, content);
+    cursor = closeIndex + closeToken.length;
+  }
+
+  return output;
+};
 
 /**
  * Get list of available templates

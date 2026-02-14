@@ -1,10 +1,11 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { SpawnUtil } from '@cli/utils/spawn';
+import {
+  resolveComposePath,
+  runComposeWithFallback,
+} from '@cli/commands/DockerComposeCommandUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
 type ContainerProxiesAction = 'build' | 'up' | 'down';
@@ -16,43 +17,6 @@ type ContainerProxiesOptions = CommandOptions & {
   build?: boolean;
   removeOrphans?: boolean;
   volumes?: boolean;
-};
-
-const resolveComposePath = (): string => {
-  const composePath = join(process.cwd(), 'docker-compose.proxy.yml');
-  if (!existsSync(composePath)) {
-    throw ErrorFactory.createCliError('docker-compose.proxy.yml not found.');
-  }
-  return composePath;
-};
-
-const runCompose = async (args: string[]): Promise<void> => {
-  try {
-    const exitCode = await SpawnUtil.spawnAndWait({
-      command: 'docker',
-      args,
-    });
-
-    if (exitCode !== 0) {
-      process.exit(exitCode);
-    }
-    return;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes("'docker' not found")) {
-      throw error;
-    }
-  }
-
-  Logger.warn("'docker' not found. Falling back to 'docker-compose'.");
-  const exitCode = await SpawnUtil.spawnAndWait({
-    command: 'docker-compose',
-    args: args.slice(1),
-  });
-
-  if (exitCode !== 0) {
-    process.exit(exitCode);
-  }
 };
 
 const runBuild = async (composePath: string, options: ContainerProxiesOptions): Promise<void> => {
@@ -67,7 +31,7 @@ const runBuild = async (composePath: string, options: ContainerProxiesOptions): 
   }
 
   Logger.info('Building proxy stack image...');
-  await runCompose(args);
+  await runComposeWithFallback(args);
 };
 
 const runUp = async (composePath: string, options: ContainerProxiesOptions): Promise<void> => {
@@ -82,7 +46,7 @@ const runUp = async (composePath: string, options: ContainerProxiesOptions): Pro
   }
 
   Logger.info('Starting proxy stack...');
-  await runCompose(args);
+  await runComposeWithFallback(args);
 };
 
 const runDown = async (composePath: string, options: ContainerProxiesOptions): Promise<void> => {
@@ -97,7 +61,7 @@ const runDown = async (composePath: string, options: ContainerProxiesOptions): P
   }
 
   Logger.info('Stopping proxy stack...');
-  await runCompose(args);
+  await runComposeWithFallback(args);
 };
 
 const normalizeAction = (raw?: string): ContainerProxiesAction => {
@@ -123,7 +87,10 @@ export const ContainerProxiesCommand = Object.freeze({
       },
       execute: async (options: ContainerProxiesOptions): Promise<void> => {
         const action = normalizeAction(options.args?.[0]);
-        const composePath = resolveComposePath();
+        const composePath = resolveComposePath(
+          'docker-compose.proxy.yml',
+          'docker-compose.proxy.yml not found.'
+        );
 
         if (action === 'build') {
           await runBuild(composePath, options);

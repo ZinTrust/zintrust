@@ -1,10 +1,11 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { SpawnUtil } from '@cli/utils/spawn';
+import {
+  resolveComposePath,
+  runComposeWithFallback,
+} from '@cli/commands/DockerComposeCommandUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
 type ContainerWorkersAction = 'build' | 'up';
@@ -14,45 +15,6 @@ type ContainerWorkersOptions = CommandOptions & {
   noCache?: boolean;
   pull?: boolean;
   build?: boolean;
-};
-
-const resolveComposePath = (): string => {
-  const composePath = join(process.cwd(), 'docker-compose.workers.yml');
-  if (!existsSync(composePath)) {
-    throw ErrorFactory.createCliError(
-      'docker-compose.workers.yml not found. Run `zin init:cw` first.'
-    );
-  }
-  return composePath;
-};
-
-const runCompose = async (args: string[]): Promise<void> => {
-  try {
-    const exitCode = await SpawnUtil.spawnAndWait({
-      command: 'docker',
-      args,
-    });
-
-    if (exitCode !== 0) {
-      process.exit(exitCode);
-    }
-    return;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.includes("'docker' not found")) {
-      throw error;
-    }
-  }
-
-  Logger.warn("'docker' not found. Falling back to 'docker-compose'.");
-  const exitCode = await SpawnUtil.spawnAndWait({
-    command: 'docker-compose',
-    args: args.slice(1),
-  });
-
-  if (exitCode !== 0) {
-    process.exit(exitCode);
-  }
 };
 
 const runBuild = async (composePath: string, options: ContainerWorkersOptions): Promise<void> => {
@@ -67,7 +29,7 @@ const runBuild = async (composePath: string, options: ContainerWorkersOptions): 
   }
 
   Logger.info('Building container workers image...');
-  await runCompose(args);
+  await runComposeWithFallback(args);
 };
 
 const runUp = async (composePath: string, options: ContainerWorkersOptions): Promise<void> => {
@@ -78,7 +40,7 @@ const runUp = async (composePath: string, options: ContainerWorkersOptions): Pro
   }
 
   Logger.info('Starting container workers...');
-  await runCompose(args);
+  await runComposeWithFallback(args);
 };
 
 const normalizeAction = (raw?: string): ContainerWorkersAction => {
@@ -102,7 +64,10 @@ export const ContainerWorkersCommand = Object.freeze({
       },
       execute: async (options: ContainerWorkersOptions): Promise<void> => {
         const action = normalizeAction(options.args?.[0]);
-        const composePath = resolveComposePath();
+        const composePath = resolveComposePath(
+          'docker-compose.workers.yml',
+          'docker-compose.workers.yml not found. Run `zin init:cw` first.'
+        );
 
         if (action === 'build') {
           await runBuild(composePath, options);

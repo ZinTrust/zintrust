@@ -3,8 +3,7 @@ import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { SupportedDriver } from '@migrations/enum';
 import type { IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
-import { normalizeSigningCredentials } from '@proxy/SigningService';
-import { SignedRequest } from '@security/SignedRequest';
+import { createSignedProxyRequest } from '@orm/adapters/ProxySignedRequest';
 
 type CacheEntry = {
   data: QueryResult;
@@ -41,67 +40,18 @@ const resolveProxyUrl = (): string => {
   return `http://${host}:${port}`;
 };
 
-const resolveSigningPrefix = (baseUrl: string): string | undefined => {
-  try {
-    const parsed = new URL(baseUrl);
-    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
-    if (path === '' || path === '/') return undefined;
-    return path;
-  } catch {
-    return undefined;
-  }
-};
-
-const buildSigningUrl = (requestUrl: URL, baseUrl: string): URL => {
-  const prefix = resolveSigningPrefix(baseUrl);
-  if (typeof prefix !== 'string' || prefix.trim() === '') return requestUrl;
-
-  if (requestUrl.pathname === prefix || requestUrl.pathname.startsWith(`${prefix}/`)) {
-    const signingUrl = new URL(requestUrl.toString());
-    const stripped = requestUrl.pathname.slice(prefix.length);
-    signingUrl.pathname = stripped.startsWith('/') ? stripped : `/${stripped}`;
-    return signingUrl;
-  }
-
-  return requestUrl;
-};
-
 const createSignedRequest = async (
   url: string,
   body: string
 ): Promise<{ headers: Record<string, string>; body: string }> => {
-  const creds = normalizeSigningCredentials({
+  return createSignedProxyRequest({
+    url,
+    body,
     keyId: Env.get('SQLSERVER_PROXY_KEY_ID', ''),
     secret: Env.get('SQLSERVER_PROXY_SECRET', ''),
+    missingCredentialsMessage:
+      'SQL Server proxy signing credentials are missing (SQLSERVER_PROXY_KEY_ID / SQLSERVER_PROXY_SECRET)',
   });
-
-  if (creds.keyId.trim() === '' || creds.secret.trim() === '') {
-    throw ErrorFactory.createConfigError(
-      'SQL Server proxy signing credentials are missing (SQLSERVER_PROXY_KEY_ID / SQLSERVER_PROXY_SECRET)'
-    );
-  }
-
-  const urlObj = new URL(url);
-  const signingUrl = buildSigningUrl(urlObj, url);
-  const signResult = await SignedRequest.createHeaders({
-    method: 'POST',
-    url: signingUrl,
-    body,
-    keyId: creds.keyId,
-    secret: creds.secret,
-  });
-
-  return {
-    headers: {
-      'content-type': 'application/json',
-      'x-zt-key-id': signResult['x-zt-key-id'],
-      'x-zt-timestamp': signResult['x-zt-timestamp'],
-      'x-zt-nonce': signResult['x-zt-nonce'],
-      'x-zt-body-sha256': signResult['x-zt-body-sha256'],
-      'x-zt-signature': signResult['x-zt-signature'],
-    },
-    body,
-  };
 };
 
 const sendQuery = async (sql: string, params: unknown[]): Promise<QueryResult> => {

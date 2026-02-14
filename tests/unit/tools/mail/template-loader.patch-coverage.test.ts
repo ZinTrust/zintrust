@@ -67,4 +67,34 @@ describe('mail template-loader patch coverage', () => {
       'Failed to load template missing.html'
     );
   });
+
+  it('handles malformed and unclosed block tags without catastrophic backtracking', async () => {
+    const template = [
+      '<html>',
+      '{{#if_bad-name}}NO{{/if_bad-name}}',
+      '{{#if_open}}still-open',
+      '{{#each_rows}}<li>{{name}}</li>{{/each_rows}}',
+      '</html>',
+    ].join('\n');
+
+    vi.mocked(readFile).mockResolvedValueOnce(template);
+
+    const html = await loadTemplate('sample.html', {
+      open: true,
+      rows: [{ name: 'Ada' }],
+    });
+
+    expect(html).toContain('{{#if_bad-name}}NO{{/if_bad-name}}');
+    expect(html).toContain('{{#if_open}}still-open');
+    expect(html).toContain('<li>Ada</li>');
+  });
+
+  it('renders repeated conditional tokens safely', async () => {
+    const repeated = '{{#if_a}}a'.repeat(3000) + '{{/if_a}}';
+    vi.mocked(readFile).mockResolvedValueOnce(`<html>${repeated}</html>`);
+
+    const html = await loadTemplate('sample.html', { a: true });
+    expect(html.startsWith('<html>')).toBe(true);
+    expect(html.endsWith('</html>')).toBe(true);
+  });
 });

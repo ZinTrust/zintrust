@@ -1,13 +1,17 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { type IncomingMessage } from '@node-singletons/http';
 import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
+import {
+  resolveBaseConfig,
+  resolveBaseSigningConfig,
+  verifyRequestSignature,
+  type BaseProxyOverrides,
+} from '@proxy/ProxyServerUtils';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
 import type IORedis from 'ioredis';
 
 type ProxyConfig = {
@@ -23,42 +27,16 @@ type ProxyConfig = {
   signing: ProxySigningConfig;
 };
 
-type ProxyOverrides = Partial<{
-  host: string;
-  port: number;
-  maxBodyBytes: number;
-  redisHost: string;
-  redisPort: number;
-  redisPassword: string;
-  redisDb: number;
-  requireSigning: boolean;
-  keyId: string;
-  secret: string;
-  signingWindowMs: number;
-}>;
+type ProxyOverrides = BaseProxyOverrides &
+  Partial<{
+    redisHost: string;
+    redisPort: number;
+    redisPassword: string;
+    redisDb: number;
+  }>;
 
 type RedisClient = IORedis & {
   call?: (command: string, ...args: unknown[]) => Promise<unknown>;
-};
-
-const normalizeHeaderValue = (value: string | string[] | undefined): string | undefined => {
-  if (Array.isArray(value)) return value.join(',');
-  return value;
-};
-
-const resolveProxyConfig = (
-  overrides: ProxyOverrides = {}
-): {
-  host: string;
-  port: number;
-  maxBodyBytes: number;
-} => {
-  const host = overrides?.host ?? Env.get('REDIS_PROXY_HOST', Env.HOST ?? '127.0.0.1');
-  const port = overrides.port ?? Env.getInt('REDIS_PROXY_PORT', Env.PORT ?? 3000);
-  const maxBodyBytes =
-    overrides.maxBodyBytes ?? Env.getInt('REDIS_PROXY_MAX_BODY_BYTES', Env.MAX_BODY_SIZE ?? 0);
-
-  return { host, port, maxBodyBytes };
 };
 
 const resolveRedisConfig = (
@@ -81,39 +59,10 @@ const resolveRedisConfig = (
   return { host, port, password, db };
 };
 
-const resolveSigningConfig = (
-  overrides: ProxyOverrides = {}
-): {
-  keyId: string;
-  secret: string;
-  requireSigning: boolean;
-  signingWindowMs: number;
-} => {
-  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
-  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
-  const envKeyId = Env.get('REDIS_PROXY_KEY_ID', appName);
-  const envSecret = Env.get('REDIS_PROXY_SECRET', appKey);
-  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
-  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
-  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
-  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
-  const requireSigning =
-    overrides.requireSigning ?? Env.getBool('REDIS_PROXY_REQUIRE_SIGNING', true);
-  const signingWindowMs =
-    overrides.signingWindowMs ?? Env.getInt('REDIS_PROXY_SIGNING_WINDOW_MS', 60000);
-
-  return {
-    keyId: creds.keyId,
-    secret: creds.secret,
-    requireSigning,
-    signingWindowMs,
-  };
-};
-
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
-  const proxyConfig = resolveProxyConfig(overrides);
+  const proxyConfig = resolveBaseConfig(overrides, 'REDIS');
   const redisConfig = resolveRedisConfig(overrides);
-  const signingConfig = resolveSigningConfig(overrides);
+  const signingConfig = resolveBaseSigningConfig(overrides, 'REDIS');
 
   return {
     host: proxyConfig.host,
@@ -127,36 +76,6 @@ const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
       windowMs: signingConfig.signingWindowMs,
     },
   };
-};
-
-const verifySignatureIfNeeded = async (
-  req: IncomingMessage,
-  body: string,
-  config: ProxyConfig
-): Promise<{ ok: boolean; error?: { status: number; message: string } }> => {
-  const headers: Record<string, string | undefined> = {
-    'x-zt-key-id': normalizeHeaderValue(req.headers['x-zt-key-id']),
-    'x-zt-timestamp': normalizeHeaderValue(req.headers['x-zt-timestamp']),
-    'x-zt-nonce': normalizeHeaderValue(req.headers['x-zt-nonce']),
-    'x-zt-body-sha256': normalizeHeaderValue(req.headers['x-zt-body-sha256']),
-    'x-zt-signature': normalizeHeaderValue(req.headers['x-zt-signature']),
-  };
-
-  if (SigningService.shouldVerify(config.signing, headers)) {
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    const verified = await SigningService.verify({
-      method: req.method ?? 'POST',
-      url,
-      body,
-      headers,
-      signing: config.signing,
-    });
-    if (!verified.ok) {
-      return { ok: false, error: { status: verified.status, message: verified.message } };
-    }
-  }
-
-  return { ok: true };
 };
 
 const validateCommandPayload = (
@@ -223,7 +142,7 @@ const createClient = async (config: ProxyConfig): Promise<RedisClient> => {
       }
       return Math.min(times * reconnectBaseMs, reconnectCapMs);
     },
-  }) as RedisClient;
+  });
 
   let lastErrorLogAt = 0;
   client.on('error', (error: unknown) => {
@@ -331,19 +250,6 @@ const createBackend = (config: ProxyConfig): ProxyBackend => ({
   },
 });
 
-const createVerifier =
-  (config: ProxyConfig) =>
-  async (
-    req: IncomingMessage,
-    body: string
-  ): Promise<{ ok: true } | { ok: false; status: number; message: string }> => {
-    const verified = await verifySignatureIfNeeded(req, body, config);
-    if (!verified.ok && verified.error) {
-      return { ok: false, status: verified.error.status, message: verified.error.message };
-    }
-    return { ok: true };
-  };
-
 export const RedisProxyServer = Object.freeze({
   async start(overrides: ProxyOverrides = {}): Promise<void> {
     const config = resolveConfig(overrides);
@@ -354,7 +260,13 @@ export const RedisProxyServer = Object.freeze({
       port: config.port,
       maxBodyBytes: config.maxBodyBytes,
       backend,
-      verify: createVerifier(config),
+      verify: async (req, body) => {
+        const verified = await verifyRequestSignature(req, body, config, 'RedisProxyServer');
+        if (!verified.ok && verified.error) {
+          return { ok: false, status: verified.error.status, message: verified.error.message };
+        }
+        return { ok: true };
+      },
     });
 
     await server.start();

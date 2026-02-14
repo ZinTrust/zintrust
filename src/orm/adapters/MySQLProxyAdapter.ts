@@ -5,14 +5,19 @@
  * Used in Cloudflare Workers when MYSQL_PROXY_URL is configured.
  */
 
-import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
-import { normalizeSigningCredentials } from '@proxy/SigningService';
+import {
+  ensureSignedSettings,
+  isRecord,
+  requestSignedProxy,
+  type ProxySettings,
+  type SignedProxyConfig,
+} from '@orm/adapters/SqlProxyAdapterUtils';
 
 type ProxyQueryResponse = {
   rows: Record<string, unknown>[];
@@ -31,24 +36,6 @@ type ProxyExecResponse = {
 
 type ProxyStatementResponse = ProxyQueryResponse | ProxyQueryOneResponse | ProxyExecResponse;
 
-type ProxySettings = {
-  baseUrl: string;
-  keyId?: string;
-  secret?: string;
-  timeoutMs: number;
-};
-
-const resolveSigningPrefix = (baseUrl: string): string | undefined => {
-  try {
-    const parsed = new URL(baseUrl);
-    const path = parsed.pathname.endsWith('/') ? parsed.pathname.slice(0, -1) : parsed.pathname;
-    if (path === '' || path === '/') return undefined;
-    return path;
-  } catch {
-    return undefined;
-  }
-};
-
 const buildProxySettings = (): ProxySettings => {
   const baseUrl = Env.MYSQL_PROXY_URL;
   const keyId = Env.MYSQL_PROXY_KEY_ID ?? '';
@@ -58,46 +45,20 @@ const buildProxySettings = (): ProxySettings => {
   return { baseUrl, keyId, secret, timeoutMs };
 };
 
-const buildSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
-  const creds = normalizeSigningCredentials({
-    keyId: settings.keyId ?? '',
-    secret: settings.secret ?? '',
-  });
-  return {
-    baseUrl: settings.baseUrl,
-    keyId: creds.keyId,
-    secret: creds.secret,
-    timeoutMs: settings.timeoutMs,
-    signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
-    missingUrlMessage: 'MySQL proxy URL is missing (MYSQL_PROXY_URL)',
-    missingCredentialsMessage:
-      'MySQL proxy signing credentials are missing (MYSQL_PROXY_KEY_ID / MYSQL_PROXY_SECRET)',
-    messages: {
-      unauthorized: 'MySQL proxy unauthorized',
-      forbidden: 'MySQL proxy forbidden',
-      rateLimited: 'MySQL proxy rate limited',
-      rejected: 'MySQL proxy rejected request',
-      error: 'MySQL proxy error',
-      timedOut: 'MySQL proxy request timed out',
-    },
-  };
-};
-
-const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings => {
-  const signedSettings = buildSignedSettings(settings);
-  if (signedSettings.baseUrl.trim() === '') {
-    throw ErrorFactory.createConfigError('MySQL proxy URL is missing (MYSQL_PROXY_URL)');
-  }
-  if (signedSettings.keyId.trim() === '' || signedSettings.secret.trim() === '') {
-    throw ErrorFactory.createConfigError(
-      'MySQL proxy signing credentials are missing (MYSQL_PROXY_KEY_ID / MYSQL_PROXY_SECRET)'
-    );
-  }
-  return signedSettings;
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+const buildSignedProxyConfig = (settings: ProxySettings): SignedProxyConfig => ({
+  settings,
+  missingUrlMessage: 'MySQL proxy URL is missing (MYSQL_PROXY_URL)',
+  missingCredentialsMessage:
+    'MySQL proxy signing credentials are missing (MYSQL_PROXY_KEY_ID / MYSQL_PROXY_SECRET)',
+  messages: {
+    unauthorized: 'MySQL proxy unauthorized',
+    forbidden: 'MySQL proxy forbidden',
+    rateLimited: 'MySQL proxy rate limited',
+    rejected: 'MySQL proxy rejected request',
+    error: 'MySQL proxy error',
+    timedOut: 'MySQL proxy request timed out',
+  },
+});
 
 const isQueryResponse = (value: unknown): value is ProxyQueryResponse =>
   isRecord(value) && Array.isArray(value['rows']) && typeof value['rowCount'] === 'number';
@@ -119,13 +80,9 @@ const requestProxy = async <T>(
   path: string,
   payload: Record<string, unknown>
 ): Promise<T> => {
-  if (settings.baseUrl.trim() === '') {
-    throw ErrorFactory.createConfigError('MySQL proxy URL is missing (MYSQL_PROXY_URL)');
-  }
-
-  const signedSettings = ensureSignedSettings(settings);
+  const signedProxyConfig = buildSignedProxyConfig(settings);
   try {
-    return await RemoteSignedJson.request<T>(signedSettings, path, payload);
+    return await requestSignedProxy<T>(signedProxyConfig, path, payload);
   } catch (error: unknown) {
     Logger.error('[MySQLProxyAdapter] Proxy request failed', {
       path,
@@ -153,7 +110,7 @@ export const MySQLProxyAdapter = Object.freeze({
 
     return {
       async connect(): Promise<void> {
-        ensureSignedSettings(settings);
+        ensureSignedSettings(buildSignedProxyConfig(settings));
         connected = true;
       },
 

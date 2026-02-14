@@ -178,6 +178,27 @@ describe('Proxy command patch coverage', () => {
     );
   });
 
+  it('PostgresProxyCommand watch mode spawns tsx watcher', async () => {
+    const { PostgresProxyCommand } = await import('@cli/commands/PostgresProxyCommand');
+    const { SpawnUtil } = await import('@cli/utils/spawn');
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${String(code)}`);
+    }) as never);
+
+    process.argv = ['node', 'bin/zin.ts', 'proxy:postgres', '--watch', '--port', '8899'];
+    await expect(PostgresProxyCommand.create().execute({ watch: true } as any)).rejects.toThrow(
+      'exit:0'
+    );
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: ['watch', 'bin/zin.ts', 'proxy:postgres', '--port', '8899'],
+      })
+    );
+    exitSpy.mockRestore();
+  });
+
   it('RedisProxyCommand allows non-negative numeric options', async () => {
     const { RedisProxyCommand } = await import('@cli/commands/RedisProxyCommand');
     const { RedisProxyServer } = await import('@proxy/redis/RedisProxyServer');
@@ -203,6 +224,27 @@ describe('Proxy command patch coverage', () => {
     expect(RedisProxyServer.start).toHaveBeenCalledWith(
       expect.objectContaining({ redisHost: 'cache', redisDb: 0, requireSigning: true })
     );
+  });
+
+  it('RedisProxyCommand watch mode spawns tsx watcher', async () => {
+    const { RedisProxyCommand } = await import('@cli/commands/RedisProxyCommand');
+    const { SpawnUtil } = await import('@cli/utils/spawn');
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${String(code)}`);
+    }) as never);
+
+    process.argv = ['node', 'bin/zin.ts', 'proxy:redis', '--watch', '--port', '8891'];
+    await expect(RedisProxyCommand.create().execute({ watch: true } as any)).rejects.toThrow(
+      'exit:0'
+    );
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: ['watch', 'bin/zin.ts', 'proxy:redis', '--port', '8891'],
+      })
+    );
+    exitSpy.mockRestore();
   });
 
   it('SmtpProxyCommand validates and starts server', async () => {
@@ -235,5 +277,26 @@ describe('Proxy command patch coverage', () => {
         smtpSecure: 'starttls',
       })
     );
+  });
+
+  it('SmtpProxyCommand watch mode spawns tsx watcher', async () => {
+    const { SmtpProxyCommand } = await import('@cli/commands/SmtpProxyCommand');
+    const { SpawnUtil } = await import('@cli/utils/spawn');
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${String(code)}`);
+    }) as never);
+
+    process.argv = ['node', 'bin/zin.ts', 'proxy:smtp', '--watch', '--port', '8894'];
+    await expect(SmtpProxyCommand.create().execute({ watch: true } as any)).rejects.toThrow(
+      'exit:0'
+    );
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        args: ['watch', 'bin/zin.ts', 'proxy:smtp', '--port', '8894'],
+      })
+    );
+    exitSpy.mockRestore();
   });
 });

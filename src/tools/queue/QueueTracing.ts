@@ -38,7 +38,7 @@ const shouldSample = (): boolean => {
   const rate = normalizeSampleRate();
   if (rate >= 1) return true;
   if (rate <= 0) return false;
-  return Math.random() <= rate;
+  return Math.random() <= rate; // NOSONAR - Math.random() is sufficient for sampling decisions in this context.
 };
 
 const maxEvents = (): number => Math.max(1, Env.getInt('QUEUE_TRACING_MAX_EVENTS', 5000));

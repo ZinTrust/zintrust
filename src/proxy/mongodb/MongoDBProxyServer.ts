@@ -6,8 +6,9 @@ import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
 import { createProxyServer } from '@proxy/ProxyServer';
+import { resolveProxySigningConfig } from '@proxy/ProxySigningConfigResolver';
+import { verifyProxySignatureIfNeeded } from '@proxy/ProxySigningRequest';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { normalizeSigningCredentials, SigningService } from '@proxy/SigningService';
 
 type MongoCollectionLike = Record<string, unknown>;
 type MongoDatabaseLike = {
@@ -76,27 +77,13 @@ const resolveSigningConfig = (
   secret: string;
   requireSigning: boolean;
   signingWindowMs: number;
-} => {
-  const appName = Env.get('APP_NAME', Env.APP_NAME ?? 'ZinTrust');
-  const appKey = Env.get('APP_KEY', Env.APP_KEY ?? '');
-  const envKeyId = Env.get('MONGODB_PROXY_KEY_ID', appName);
-  const envSecret = Env.get('MONGODB_PROXY_SECRET', appKey);
-  const keyIdRaw = overrides.keyId ?? (envKeyId.trim() === '' ? appName : envKeyId);
-  const secretRaw = overrides.secret ?? (envSecret.trim() === '' ? appKey : envSecret);
-  const secret = secretRaw.trim() === '' ? appKey : secretRaw;
-  const creds = normalizeSigningCredentials({ keyId: keyIdRaw, secret });
-  const requireSigning =
-    overrides.requireSigning ?? Env.getBool('MONGODB_PROXY_REQUIRE_SIGNING', true);
-  const signingWindowMs =
-    overrides.signingWindowMs ?? Env.getInt('MONGODB_PROXY_SIGNING_WINDOW_MS', 60000);
-
-  return {
-    keyId: creds.keyId,
-    secret: creds.secret,
-    requireSigning,
-    signingWindowMs,
-  };
-};
+} =>
+  resolveProxySigningConfig(overrides, {
+    keyIdEnvVar: 'MONGODB_PROXY_KEY_ID',
+    secretEnvVar: 'MONGODB_PROXY_SECRET',
+    requireEnvVar: 'MONGODB_PROXY_REQUIRE_SIGNING',
+    windowEnvVar: 'MONGODB_PROXY_SIGNING_WINDOW_MS',
+  });
 
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
   const proxyConfig = resolveProxyConfig(overrides);
@@ -296,29 +283,10 @@ const createVerifier = (
   body: string
 ) => Promise<{ ok: true } | { ok: false; status: number; message: string }>) => {
   return async (req, body) => {
-    const headers: Record<string, string | undefined> = {
-      'x-zt-key-id': req.headers['x-zt-key-id'] as string | undefined,
-      'x-zt-timestamp': req.headers['x-zt-timestamp'] as string | undefined,
-      'x-zt-nonce': req.headers['x-zt-nonce'] as string | undefined,
-      'x-zt-body-sha256': req.headers['x-zt-body-sha256'] as string | undefined,
-      'x-zt-signature': req.headers['x-zt-signature'] as string | undefined,
-    };
-
-    if (!SigningService.shouldVerify(config.signing, headers)) {
-      return { ok: true as const };
-    }
-
-    const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-    const verified = await SigningService.verify({
-      method: req.method ?? 'POST',
-      url,
-      body,
-      headers,
-      signing: config.signing,
-    });
-
+    const verified = await verifyProxySignatureIfNeeded(req, body, config.signing);
     if (!verified.ok) {
-      return { ok: false as const, status: verified.status, message: verified.message };
+      const error = verified.error ?? { status: 401, message: 'Unauthorized' };
+      return { ok: false as const, status: error.status, message: error.message };
     }
 
     return { ok: true as const };

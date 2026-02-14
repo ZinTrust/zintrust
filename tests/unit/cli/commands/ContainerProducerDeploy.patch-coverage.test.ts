@@ -61,6 +61,20 @@ describe('Container/Producer/Deploy patch coverage', () => {
     expect(nodeFs.writeFileSync).not.toHaveBeenCalled();
   });
 
+  it('InitContainerCommand backs up existing files before overwrite', async () => {
+    const nodeFs = await import('@node-singletons/fs');
+    const { PromptHelper } = await import('@cli/PromptHelper');
+
+    vi.mocked(nodeFs.existsSync).mockReturnValue(true);
+    vi.mocked(PromptHelper.confirm).mockResolvedValue(true);
+
+    const { InitContainerCommand } = await import('@cli/commands/InitContainerCommand');
+    await InitContainerCommand.create().execute({});
+
+    expect(nodeFs.copyFileSync).toHaveBeenCalledTimes(2);
+    expect(nodeFs.writeFileSync).toHaveBeenCalledTimes(2);
+  });
+
   it('InitProducerCommand handles missing wrangler and patches WORKER_ENABLED', async () => {
     const nodeFs = await import('@node-singletons/fs');
     const { Logger } = await import('@config/logger');
@@ -92,6 +106,21 @@ describe('Container/Producer/Deploy patch coverage', () => {
     expect(nodeFs.writeFileSync).toHaveBeenCalledWith(
       '/project/wrangler.jsonc',
       expect.stringContaining('"QUEUE_ENABLED": "true"')
+    );
+  });
+
+  it('InitProducerCommand keeps file unchanged when vars block is missing', async () => {
+    const nodeFs = await import('@node-singletons/fs');
+    const { Logger } = await import('@config/logger');
+    vi.mocked(nodeFs.existsSync).mockReturnValue(true);
+    vi.mocked(nodeFs.readFileSync).mockReturnValue('{"name":"app"}' as any);
+
+    const { InitProducerCommand } = await import('@cli/commands/InitProducerCommand');
+    await InitProducerCommand.create().execute({});
+
+    expect(nodeFs.writeFileSync).not.toHaveBeenCalled();
+    expect(Logger.info).toHaveBeenCalledWith(
+      'wrangler.jsonc configuration appears correct or could not be automatically patched.'
     );
   });
 
