@@ -37,6 +37,7 @@ type D1Database = {
 
 type D1Env = {
   DB?: D1Database;
+  D1_BINDING?: string;
   APP_KEY?: string;
   D1_REMOTE_SECRET?: string;
   ZT_PROXY_SIGNING_WINDOW_MS?: string;
@@ -79,6 +80,27 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isString = (value: unknown): value is string => typeof value === 'string';
 
 const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
+
+const normalizeBindingName = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const resolveD1Binding = (env: D1Env): D1Database | null => {
+  const candidates = ['DB', 'zintrust_db', normalizeBindingName(env.D1_BINDING)].filter(
+    (v, idx, arr): v is string => typeof v === 'string' && v.trim() !== '' && arr.indexOf(v) === idx
+  );
+
+  const record = env as unknown as Record<string, unknown>;
+  for (const name of candidates) {
+    const binding = record[name] as D1Database | undefined;
+    if (binding !== undefined && binding !== null && typeof binding.prepare === 'function')
+      return binding;
+  }
+
+  return null;
+};
 
 const readBodyBytes = async (
   request: Request,
@@ -177,7 +199,7 @@ const verifySignedRequest = async (
   const secret = loadSigningSecret(env);
   if (secret === null) {
     return toErrorResponse(
-      500,
+      401,
       'CONFIG_ERROR',
       'Missing signing secret (D1_REMOTE_SECRET or APP_KEY)'
     );
@@ -207,10 +229,21 @@ const verifySignedRequest = async (
 };
 
 const requireDb = (env: D1Env): Response | D1Database => {
-  if (env.DB === undefined) {
-    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing D1 binding (DB)');
+  const db = resolveD1Binding(env);
+  if (db === null) {
+    return toErrorResponse(
+      400,
+      'CONFIG_ERROR',
+      'Missing D1 binding (DB) or binding name via D1_BINDING'
+    );
   }
-  return env.DB;
+  return db;
+};
+
+const toD1ExceptionResponse = (error: unknown): Response => {
+  const message =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown D1 error';
+  return toErrorResponse(500, 'D1_ERROR', message);
 };
 
 const parseSqlPayload = (
@@ -268,58 +301,69 @@ const readAndVerifyJson = async (
 };
 
 const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (check.ok === false) return check.response;
+  try {
+    const check = await readAndVerifyJson(request, env);
+    if (check.ok === false) return check.response;
 
-  const db = requireDb(env);
-  if (db instanceof Response) return db;
+    const db = requireDb(env);
+    if (db instanceof Response) return db;
 
-  const parsed = parseSqlPayload(check.payload);
-  if (parsed.ok === false) return parsed.response;
+    const parsed = parseSqlPayload(check.payload);
+    if (parsed.ok === false) return parsed.response;
 
-  const limit = enforceSqlLimits(env, parsed.sql, parsed.params);
-  if (limit !== null) return limit;
+    const limit = enforceSqlLimits(env, parsed.sql, parsed.params);
+    if (limit !== null) return limit;
 
-  const result = await db
-    .prepare(parsed.sql)
-    .bind(...parsed.params)
-    .all<Record<string, unknown>>();
-  const rows = result.results ?? [];
-  return json(200, { rows, rowCount: rows.length });
+    const result = await db
+      .prepare(parsed.sql)
+      .bind(...parsed.params)
+      .all<Record<string, unknown>>();
+    const rows = result.results ?? [];
+    return json(200, { rows, rowCount: rows.length });
+  } catch (error) {
+    return toD1ExceptionResponse(error);
+  }
 };
 
 const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (check.ok === false) return check.response;
+  try {
+    const check = await readAndVerifyJson(request, env);
+    if (check.ok === false) return check.response;
 
-  const db = requireDb(env);
-  if (db instanceof Response) return db;
+    const db = requireDb(env);
+    if (db instanceof Response) return db;
 
-  const parsed = parseSqlPayload(check.payload);
-  if (parsed.ok === false) return parsed.response;
+    const parsed = parseSqlPayload(check.payload);
+    if (parsed.ok === false) return parsed.response;
 
-  const row = await db
-    .prepare(parsed.sql)
-    .bind(...parsed.params)
-    .first<Record<string, unknown>>();
-  return json(200, { row: row ?? null });
+    const row = await db
+      .prepare(parsed.sql)
+      .bind(...parsed.params)
+      .first<Record<string, unknown>>();
+    return json(200, { row: row ?? null });
+  } catch (error) {
+    return toD1ExceptionResponse(error);
+  }
 };
 
 const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (check.ok === false) return check.response;
+  try {
+    const check = await readAndVerifyJson(request, env);
+    if (check.ok === false) return check.response;
 
-  const db = requireDb(env);
-  if (db instanceof Response) return db;
+    const db = requireDb(env);
+    if (db instanceof Response) return db;
+    const parsed = parseSqlPayload(check.payload);
+    if (parsed.ok === false) return parsed.response;
 
-  const parsed = parseSqlPayload(check.payload);
-  if (parsed.ok === false) return parsed.response;
-
-  const out = await db
-    .prepare(parsed.sql)
-    .bind(...parsed.params)
-    .run();
-  return json(200, { ok: true, meta: out.meta });
+    const out = await db
+      .prepare(parsed.sql)
+      .bind(...parsed.params)
+      .run();
+    return json(200, { ok: true, meta: out.meta });
+  } catch (error) {
+    return toD1ExceptionResponse(error);
+  }
 };
 
 const parseStatementPayload = (
@@ -345,42 +389,48 @@ const parseStatementPayload = (
 };
 
 const handleStatement = async (request: Request, env: D1Env): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (check.ok === false) return check.response;
+  try {
+    const check = await readAndVerifyJson(request, env);
+    if (check.ok === false) return check.response;
 
-  const db = requireDb(env);
-  if (db instanceof Response) return db;
+    const db = requireDb(env);
+    if (db instanceof Response) return db;
 
-  const statements = loadStatements(env);
-  if (statements === null) {
-    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_D1_STATEMENTS_JSON');
-  }
+    const statements = loadStatements(env);
+    if (statements === null) {
+      return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_D1_STATEMENTS_JSON');
+    }
 
-  const parsed = parseStatementPayload(check.payload);
-  if (parsed.ok === false) return parsed.response;
+    const parsed = parseStatementPayload(check.payload);
+    if (parsed.ok === false) return parsed.response;
 
-  const sql = statements[parsed.statementId];
-  if (!isString(sql) || sql.trim() === '') {
-    return toErrorResponse(404, 'NOT_FOUND', 'Unknown statementId');
-  }
+    const sql = statements[parsed.statementId];
+    if (!isString(sql) || sql.trim() === '') {
+      return toErrorResponse(404, 'NOT_FOUND', 'Unknown statementId');
+    }
 
-  if (isMutatingSql(sql)) {
+    if (isMutatingSql(sql)) {
+      const out = await db
+        .prepare(sql)
+        .bind(...parsed.params)
+        .run();
+      return json(200, { ok: true, meta: out.meta });
+    }
+
     const out = await db
       .prepare(sql)
       .bind(...parsed.params)
-      .run();
-    return json(200, { ok: true, meta: out.meta });
+      .all<Record<string, unknown>>();
+    const rows = out.results ?? [];
+    return json(200, { rows, rowCount: rows.length });
+  } catch (error) {
+    return toD1ExceptionResponse(error);
   }
-
-  const out = await db
-    .prepare(sql)
-    .bind(...parsed.params)
-    .all<Record<string, unknown>>();
-  const rows = out.results ?? [];
-  return json(200, { rows, rowCount: rows.length });
 };
 
 export const ZintrustD1Proxy = Object.freeze({
+  _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION: '0.1.15',
+  _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE: '__BUILD_DATE__',
   async fetch(request: Request, env: D1Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -405,10 +455,3 @@ export const ZintrustD1Proxy = Object.freeze({
 });
 
 export default ZintrustD1Proxy;
-
-/**
- * Package version and build metadata
- * Available at runtime for debugging and health checks
- */
-export const _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION = '0.1.15';
-export const _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE = '__BUILD_DATE__';

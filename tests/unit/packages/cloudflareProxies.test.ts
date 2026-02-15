@@ -135,6 +135,65 @@ describe('cloudflare proxy workers', () => {
     expect(json.rowCount).toBe(1);
   });
 
+  it('d1 proxy resolves custom binding name from D1_BINDING', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const body = JSON.stringify({ sql: 'select 1', params: [] });
+    const bodyBytes = new TextEncoder().encode(body);
+    const keyId = 'k1';
+    const secret = 'super-secret';
+    const headers = await sign({
+      secret,
+      method: 'POST',
+      url: 'https://example.test/zin/d1/query',
+      bodyBytes,
+      keyId,
+      nonce: 'n1',
+      timestampMs: Date.now(),
+      signedRequest: SignedRequest,
+    });
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [{ ok: true }] }),
+          first: async () => ({ ok: true }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const env = {
+      CUSTOM_DB: db,
+      D1_BINDING: 'CUSTOM_DB',
+      D1_REMOTE_SECRET: secret,
+    };
+
+    const req = new Request('https://example.test/zin/d1/query', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, env);
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { rowCount: number };
+    expect(json.rowCount).toBe(1);
+  });
+
   it('kv proxy /zin/kv/put stores under prefixed namespaced key for valid signed request', async () => {
     const { ZintrustKvProxy } =
       (await import('../../../packages/cloudflare-kv-proxy/src/index.js')) as {
@@ -409,7 +468,7 @@ describe('cloudflare proxy workers', () => {
     });
 
     const resMissingKeys = await ZintrustD1Proxy.fetch(reqMissingKeys, {});
-    expect(resMissingKeys.status).toBe(500);
+    expect(resMissingKeys.status).toBe(401);
 
     const reqInvalidJson = await buildSignedRequest({
       url: 'https://example.test/zin/d1/query',
@@ -434,6 +493,53 @@ describe('cloudflare proxy workers', () => {
     const resMissingDb = await ZintrustD1Proxy.fetch(reqMissingDb, {
       D1_REMOTE_SECRET: 'secret',
     });
-    expect(resMissingDb.status).toBe(500);
+    expect(resMissingDb.status).toBe(400);
+  });
+
+  it('kv proxy resolves custom KV binding name from KV_NAMESPACE', async () => {
+    const { ZintrustKvProxy } =
+      (await import('../../../packages/cloudflare-kv-proxy/src/index.js')) as {
+        ZintrustKvProxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-kv-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    let lastPut: { key?: string; value?: string; ttl?: number } = {};
+    const cache = {
+      get: async (_key: string) => null,
+      put: async (key: string, value: string, options?: { expirationTtl?: number }) => {
+        lastPut = { key, value, ttl: options?.expirationTtl };
+      },
+      delete: async (_key: string) => {},
+      list: async (_opts: any) => ({ keys: [], cursor: '', list_complete: true }),
+    };
+
+    const body = JSON.stringify({ namespace: 'ns', key: 'k', value: 'v', ttlSeconds: 10 });
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/kv/put',
+      body,
+      keyId: 'k1',
+      secret: 'super-secret',
+      signedRequest: SignedRequest,
+    });
+
+    const env = {
+      MY_CACHE: cache,
+      KV_NAMESPACE: 'MY_CACHE',
+      KV_REMOTE_SECRET: 'super-secret',
+      ZT_KV_PREFIX: 'pfx',
+    };
+
+    const res = await ZintrustKvProxy.fetch(req, env);
+    expect(res.status).toBe(200);
+    expect(lastPut.key).toBe('pfx:ns:k');
+    expect(lastPut.value).toBe(JSON.stringify('v'));
+    expect(lastPut.ttl).toBe(10);
   });
 });

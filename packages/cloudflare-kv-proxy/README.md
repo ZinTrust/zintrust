@@ -17,6 +17,8 @@ All endpoints are `POST` and require signed request headers.
 
 - KV binding: `CACHE`
 
+If your binding name is not `CACHE`, set Worker var `KV_NAMESPACE` to your binding name.
+
 Optional (recommended):
 
 - KV binding: `ZT_NONCES` (nonce replay protection)

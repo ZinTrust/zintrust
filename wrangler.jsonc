@@ -36,7 +36,7 @@
       "minify": false,
       "d1_databases": [
         {
-          "binding": "zintrust_db",
+          "binding": "ZIN_DB",
           "database_name": "d1-proxy-db",
           "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
           "migrations_dir": "database/migrations/d1",
@@ -72,11 +72,16 @@
       "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
-      "vars": {},
+      "vars": {
+        "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
+        "ZT_MAX_BODY_BYTES": "131072",
+        "ZT_MAX_SQL_BYTES": "32768",
+        "ZT_MAX_PARAMS": "256",
+      },
       // D1 binding for the proxy
       "d1_databases": [
         {
-          "binding": "zintrust_db",
+          "binding": "ZIN_DB",
           "database_name": "d1-proxy-db",
           "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
           "migrations_dir": "database/migrations/d1",
@@ -84,10 +89,10 @@
       ],
       "kv_namespaces": [
         {
-          "binding": "CACHE",
+          "binding": "ZIN_KV",
           "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
           "preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "remote": true,
+          "remote": false,
         },
       ],
       "routes": [
@@ -107,15 +112,15 @@
       // KV binding for the proxy
       "kv_namespaces": [
         {
-          "binding": "CACHE",
+          "binding": "ZIN_KV",
           "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
           "preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-          "remote": true,
+          "remote": false,
         },
       ],
       "d1_databases": [
         {
-          "binding": "zintrust_db",
+          "binding": "ZIN_DB",
           "database_name": "d1-proxy-db",
           "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
           "migrations_dir": "database/migrations/d1",
@@ -134,14 +139,14 @@
     {
       "database_name": "d1-proxy-db",
       "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-      "binding": "zintrust_db",
+      "binding": "ZIN_DB",
       "migrations_dir": "database/migrations/d1",
     },
   ],
   "kv_namespaces": [
     {
       "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
-      "binding": "CACHE",
+      "binding": "ZIN_KV",
     },
   ],
 }

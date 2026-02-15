@@ -17,6 +17,8 @@ All endpoints are `POST` and require signed request headers.
 
 - D1 binding: `DB`
 
+If your binding name is not `DB`, set Worker var `D1_BINDING` to your binding name.
+
 Optional (recommended):
 
 - KV binding: `ZT_NONCES` (nonce replay protection)

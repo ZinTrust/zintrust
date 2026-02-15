@@ -26,6 +26,7 @@ type KVNamespace = {
 
 type KvEnv = {
   CACHE?: KVNamespace;
+  KV_NAMESPACE?: string;
   APP_KEY?: string;
   KV_REMOTE_SECRET?: string;
   ZT_PROXY_SIGNING_WINDOW_MS?: string;
@@ -72,6 +73,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
 const isString = (value: unknown): value is string => typeof value === 'string';
+
+const normalizeBindingName = (value: unknown): string | null => {
+  if (!isString(value)) return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
 
 const readBodyBytes = async (
   request: Request,
@@ -175,10 +182,16 @@ const verifySignedRequest = async (
 };
 
 const requireCache = (env: KvEnv): Response | KVNamespace => {
-  if (env.CACHE === undefined) {
-    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing KV binding (CACHE)');
+  if (env.CACHE !== undefined && env.CACHE !== null) return env.CACHE;
+
+  const bindingName = normalizeBindingName(env.KV_NAMESPACE);
+  if (bindingName !== null) {
+    const record = env as unknown as Record<string, unknown>;
+    const kv = record[bindingName] as KVNamespace | undefined;
+    if (kv !== undefined && kv !== null) return kv;
   }
-  return env.CACHE;
+
+  return toErrorResponse(500, 'CONFIG_ERROR', 'Missing KV binding (CACHE)');
 };
 
 const normalizeNamespace = (value: unknown): string | undefined => {
@@ -415,6 +428,8 @@ const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
 };
 
 export const ZintrustKvProxy = Object.freeze({
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION: '0.1.15',
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE: '__BUILD_DATE__',
   async fetch(request: Request, env: KvEnv): Promise<Response> {
     const url = new URL(request.url);
 
@@ -439,10 +454,3 @@ export const ZintrustKvProxy = Object.freeze({
 });
 
 export default ZintrustKvProxy;
-
-/**
- * Package version and build metadata
- * Available at runtime for debugging and health checks
- */
-export const _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION = '0.1.15';
-export const _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE = '__BUILD_DATE__';

@@ -45,15 +45,10 @@ DB_CONNECTION=d1
 
 ### Binding name via env (recommended)
 
-If your Wrangler binding is not `DB` (for example `zintrust_db`), set one of these env vars:
+If your Wrangler binding is not `DB` (for example `zintrust_db`), set:
 
 ```env
-# Any one of these is supported
 D1_BINDING=zintrust_db
-# or
-D1_DATABASE_BINDING=zintrust_db
-# or
-DB_BINDING=zintrust_db
 ```
 
 D1 binding resolution order is:
@@ -62,8 +57,6 @@ D1 binding resolution order is:
 2. Worker/global binding name `DB`
 3. Worker/global binding name `zintrust_db`
 4. Worker/global binding name from `D1_BINDING`
-5. Worker/global binding name from `D1_DATABASE_BINDING`
-6. Worker/global binding name from `DB_BINDING`
 
 So developers can keep custom binding names in Wrangler and map them with env without code changes.
 

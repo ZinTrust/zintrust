@@ -32,6 +32,24 @@ describe('Cloudflare config', () => {
     expect(Cloudflare.getKVBinding('CACHE')).toBe(mockKv);
   });
 
+  it('reads KV binding name from KV_NAMESPACE when bindingName is omitted', async () => {
+    const mockKv = {
+      get: async () => null,
+      put: async () => undefined,
+      delete: async () => undefined,
+    };
+
+    (globalThis as unknown as Record<string, unknown>)['env'] = {
+      KV_NAMESPACE: 'MYCACHE',
+      MYCACHE: mockKv,
+    };
+
+    const { Cloudflare } = await import('@config/cloudflare');
+
+    expect(Cloudflare.getKVBinding()).toBe(mockKv);
+    expect(Cloudflare.getKVBinding('')).toBe(mockKv);
+  });
+
   it('prefers config.d1 over env/global bindings', async () => {
     const configDb = { prepare: () => undefined };
     const envDb = { prepare: () => undefined };

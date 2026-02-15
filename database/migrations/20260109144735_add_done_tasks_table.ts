@@ -18,6 +18,9 @@ export const migration: Migration = {
   async up(db: IDatabase): Promise<void> {
     const schema = MigrationSchema.create(db);
 
+    const alreadyHas = await schema.hasColumn('tasks', 'done');
+    if (alreadyHas) return;
+
     await schema.table('tasks', (table: Blueprint) => {
       table.string('done');
     });

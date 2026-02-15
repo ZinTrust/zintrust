@@ -19,13 +19,9 @@ const getD1Binding = (config: DatabaseConfig): ID1Database | null => {
   if (config.d1 !== undefined && config.d1 !== null) return config.d1;
 
   const env = getWorkersEnv();
-  const candidateNames = [
-    'DB',
-    'zintrust_db',
-    getWorkersVar('D1_BINDING') ?? '',
-    getWorkersVar('D1_DATABASE_BINDING') ?? '',
-    getWorkersVar('DB_BINDING') ?? '',
-  ].filter((name, idx, arr) => name.trim() !== '' && arr.indexOf(name) === idx);
+  const candidateNames = ['DB', 'zintrust_db', getWorkersVar('D1_BINDING') ?? ''].filter(
+    (name, idx, arr) => name.trim() !== '' && arr.indexOf(name) === idx
+  );
 
   if (env !== null) {
     for (const name of candidateNames) {
@@ -43,11 +39,16 @@ const getD1Binding = (config: DatabaseConfig): ID1Database | null => {
   return null;
 };
 
-const getKVBinding = (bindingName = 'CACHE'): KVNamespace | null => {
+const getKVBinding = (bindingName?: string): KVNamespace | null => {
   const env = getWorkersEnv();
   if (env === null) return null;
 
-  const kv = env[bindingName] as KVNamespace | undefined;
+  const resolvedName =
+    typeof bindingName === 'string' && bindingName.trim() !== ''
+      ? bindingName
+      : (getWorkersVar('KV_NAMESPACE') ?? 'CACHE');
+
+  const kv = env[resolvedName] as KVNamespace | undefined;
   return kv ?? null;
 };
 
