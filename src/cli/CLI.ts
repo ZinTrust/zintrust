@@ -13,6 +13,7 @@ import {
   CreateCommand,
   CreateMigrationCommand,
 } from '@cli/commands/CreateCommand';
+import { D1LearnCommand } from '@cli/commands/D1LearnCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
@@ -105,6 +106,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     MigrateWorkerCommand.create(),
     MigrateCommand.create(),
     DbSeedCommand.create(),
+    D1LearnCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
     SecretsCommand.create(),

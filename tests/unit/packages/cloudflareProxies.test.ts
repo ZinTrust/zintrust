@@ -894,6 +894,6 @@ describe('cloudflare proxy workers', () => {
     });
 
     const res = await ZintrustD1Proxy.fetch(req, { DB: db, APP_KEY });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
   });
 });

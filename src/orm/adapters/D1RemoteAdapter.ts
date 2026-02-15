@@ -70,11 +70,14 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
     }
   }
 
+  const envName = (Env.get('NODE_ENV', 'development') || 'development').trim().toLowerCase();
+  const defaultMode: D1RemoteMode = envName === 'production' ? 'registry' : 'sql';
+
   const settings: D1RemoteSettings = {
     baseUrl: Env.get('D1_REMOTE_URL'),
     keyId,
     secret,
-    mode: (Env.get('D1_REMOTE_MODE', 'registry') as D1RemoteMode) ?? 'registry',
+    mode: (Env.get('D1_REMOTE_MODE', defaultMode) as D1RemoteMode) ?? defaultMode,
     timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
   };
 
@@ -118,6 +121,20 @@ const createStatementPayload = async (
   parameters: unknown[]
 ): Promise<Record<string, unknown>> => {
   const statementId = await SignedRequest.sha256Hex(sql);
+
+  // START LEARNING MODE: If ZT_D1_LEARN_FILE is set, save the statement to JSONL
+  const learnFile = Env.get('ZT_D1_LEARN_FILE', '');
+  if (learnFile !== '') {
+    try {
+      const fs = (await import('@node-singletons/fs')).fsPromises;
+      const line = JSON.stringify({ statementId, sql }) + '\n';
+      await fs.appendFile(learnFile, line, 'utf-8');
+    } catch {
+      // Best effort; ignore errors during learning to avoid crashing app
+    }
+  }
+  // END LEARNING MODE
+
   return { statementId, params: parameters };
 };
 
