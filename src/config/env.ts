@@ -152,8 +152,8 @@ export const Env = Object.freeze({
 
   // Cloudflare proxy services (D1/KV outside Cloudflare)
   D1_REMOTE_URL: get('D1_REMOTE_URL', ''),
-  D1_REMOTE_KEY_ID: get('D1_REMOTE_KEY_ID', ''),
-  D1_REMOTE_SECRET: get('D1_REMOTE_SECRET', ''),
+  D1_REMOTE_KEY_ID: get('D1_REMOTE_KEY_ID', PROXY_KEY_ID_FALLBACK),
+  D1_REMOTE_SECRET: get('D1_REMOTE_SECRET', PROXY_SECRET_FALLBACK),
   D1_REMOTE_MODE: get('D1_REMOTE_MODE', 'registry'),
 
   MYSQL_PROXY_URL: get('MYSQL_PROXY_URL', ''),

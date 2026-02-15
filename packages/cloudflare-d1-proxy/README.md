@@ -25,7 +25,8 @@ Optional (recommended):
 
 **Secret (required):**
 
-- `ZT_KEYS_JSON` – JSON map of key ids to secrets.
+- `D1_REMOTE_SECRET` – shared signing secret used to verify requests.
+- `APP_KEY` – fallback shared signing secret if `D1_REMOTE_SECRET` is not set.
 
 Example:
 
@@ -57,7 +58,7 @@ wrangler deploy
 Set secrets:
 
 ```bash
-wrangler secret put ZT_KEYS_JSON
+wrangler secret put D1_REMOTE_SECRET
 # optional
 wrangler secret put ZT_D1_STATEMENTS_JSON
 ```

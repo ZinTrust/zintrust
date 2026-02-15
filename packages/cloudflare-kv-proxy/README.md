@@ -25,7 +25,8 @@ Optional (recommended):
 
 **Secret (required):**
 
-- `ZT_KEYS_JSON` – JSON map of key ids to secrets.
+- `KV_REMOTE_SECRET` – shared signing secret used to verify requests.
+- `APP_KEY` – fallback shared signing secret if `KV_REMOTE_SECRET` is not set.
 
 Example:
 
@@ -53,7 +54,7 @@ wrangler deploy
 Set secrets:
 
 ```bash
-wrangler secret put ZT_KEYS_JSON
+wrangler secret put KV_REMOTE_SECRET
 ```
 
 ## Use from ZinTrust (Node app)

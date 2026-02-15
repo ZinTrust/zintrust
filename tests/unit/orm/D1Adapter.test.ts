@@ -115,18 +115,20 @@ describe('D1Adapter', () => {
   it('should handle transaction callback', async () => {
     await adapter.connect();
     const mockBind = vi.fn().mockReturnThis();
-    const mockAll = vi.fn().mockResolvedValue({ results: [{ id: 1 }] });
+    const mockRun = vi.fn().mockResolvedValue({ meta: { changes: 1, last_row_id: 123 } });
 
     mockD1.prepare.mockReturnValue({
       bind: mockBind,
-      all: mockAll,
+      run: mockRun,
     });
 
     const result = await adapter.transaction(async (trx: IDatabaseAdapter) => {
       return await trx.query('INSERT INTO users', []);
     });
 
-    expect(result.rows).toEqual([{ id: 1 }]);
+    expect(result.rows).toEqual([]);
+    expect(result.rowCount).toBe(1);
+    expect(result.lastInsertId).toBe(123);
   });
 
   it('should return correct parameter placeholder', () => {

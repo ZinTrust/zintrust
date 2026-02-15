@@ -39,6 +39,7 @@ import { PostgresProxyCommand } from '@cli/commands/PostgresProxyCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { ProxyCommand } from '@cli/commands/ProxyCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
+import { PutCommand } from '@cli/commands/PutCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
 import { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
@@ -112,6 +113,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     ContainerProxiesCommand.create(),
     PluginCommand.create(),
     PublishCommand.create(),
+    PutCommand.create(),
     DeployCommand.create(),
     DeployContainerWorkersCommand.create(),
     DeployContainerProxiesCommand.create(),

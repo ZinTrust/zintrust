@@ -109,6 +109,10 @@ describe('MigrateCommand', () => {
     migratorMock.rollbackLastBatch.mockResolvedValue({ rolledBack: 1 });
   });
 
+  afterEach(() => {
+    delete process.env['D1_REMOTE_MODE'];
+  });
+
   it('creates command and exposes commander metadata', () => {
     expect(command).toBeDefined();
     const cmd = command.getCommand();
@@ -203,6 +207,37 @@ describe('MigrateCommand', () => {
       expect.stringContaining('D1 migrations completed successfully')
     );
     expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('runs d1-remote migrations via normal migrator (no wrangler)', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1-remote' } as any);
+
+    process.env['D1_REMOTE_MODE'] = 'registry';
+    migratorMock.migrate.mockImplementationOnce(async () => {
+      expect(process.env['D1_REMOTE_MODE']).toBe('sql');
+      return { applied: 1, appliedNames: [] };
+    });
+
+    await command.execute({});
+
+    expect(process.env['D1_REMOTE_MODE']).toBe('registry');
+
+    expect(Database.create).toHaveBeenCalled();
+    expect(dbMock.connect).toHaveBeenCalled();
+    expect(Migrator.create).toHaveBeenCalled();
+    expect(migratorMock.migrate).toHaveBeenCalled();
+    expect(D1SqlMigrations.compileAndWrite).not.toHaveBeenCalled();
+    expect(WranglerD1.applyMigrations).not.toHaveBeenCalled();
+  });
+
+  it('allows --status for d1-remote via normal migrator', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1-remote' } as any);
+
+    await command.execute({ status: true });
+
+    expect(migratorMock.status).toHaveBeenCalled();
+    expect(D1SqlMigrations.compileAndWrite).not.toHaveBeenCalled();
+    expect(WranglerD1.applyMigrations).not.toHaveBeenCalled();
   });
 
   it('passes through --database selection for D1 (remote)', async () => {

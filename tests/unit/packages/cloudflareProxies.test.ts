@@ -120,7 +120,7 @@ describe('cloudflare proxy workers', () => {
 
     const env = {
       DB: db,
-      ZT_KEYS_JSON: JSON.stringify({ [keyId]: { secret } }),
+      D1_REMOTE_SECRET: secret,
     };
 
     const req = new Request('https://example.test/zin/d1/query', {
@@ -176,7 +176,7 @@ describe('cloudflare proxy workers', () => {
 
     const env = {
       CACHE: cache,
-      ZT_KEYS_JSON: JSON.stringify({ [keyId]: { secret } }),
+      KV_REMOTE_SECRET: secret,
       ZT_KV_PREFIX: 'pfx',
     };
 
@@ -229,7 +229,7 @@ describe('cloudflare proxy workers', () => {
           list_complete: false,
         }),
       },
-      ZT_KEYS_JSON: JSON.stringify({ [keyId]: { secret } }),
+      KV_REMOTE_SECRET: secret,
       ZT_KV_PREFIX: 'pfx',
       ZT_KV_LIST_LIMIT: '2',
     };
@@ -297,7 +297,7 @@ describe('cloudflare proxy workers', () => {
     });
 
     const resBadJson = await ZintrustKvProxy.fetch(reqBadJson, {
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      KV_REMOTE_SECRET: 'secret',
     });
     expect(resBadJson.status).toBe(400);
   });
@@ -330,7 +330,7 @@ describe('cloudflare proxy workers', () => {
 
     const env = {
       DB: db,
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      D1_REMOTE_SECRET: 'secret',
       ZT_D1_STATEMENTS_JSON: JSON.stringify({
         getUsers: 'select 1',
         deleteUser: 'delete from users',
@@ -420,7 +420,7 @@ describe('cloudflare proxy workers', () => {
     });
 
     const resInvalidJson = await ZintrustD1Proxy.fetch(reqInvalidJson, {
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      D1_REMOTE_SECRET: 'secret',
     });
     expect(resInvalidJson.status).toBe(400);
 
@@ -432,7 +432,7 @@ describe('cloudflare proxy workers', () => {
       signedRequest: SignedRequest,
     });
     const resMissingDb = await ZintrustD1Proxy.fetch(reqMissingDb, {
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      D1_REMOTE_SECRET: 'secret',
     });
     expect(resMissingDb.status).toBe(500);
   });

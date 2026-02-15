@@ -19,6 +19,7 @@
       "@zintrust/queue-redis/*": ["./packages/queue-redis/src/*"],
       "@zintrust/core/proxy": ["./src/proxy.ts"],
       "@zintrust/core/start": ["./src/start.ts"],
+      "@zintrust/core/cli": ["./src/cli.ts"],
       "@zintrust/cloudflare-d1-proxy/*": ["./packages/cloudflare-d1-proxy/src/*"],
       "@zintrust/cloudflare-d1-proxy": ["./packages/cloudflare-d1-proxy/src/index.ts"],
       "@zintrust/cloudflare-kv-proxy": ["./packages/cloudflare-kv-proxy/src/index.ts"],

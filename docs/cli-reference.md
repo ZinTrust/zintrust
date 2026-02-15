@@ -23,6 +23,7 @@
 - `zin fix`: Run automated code fixes
 - `zin qa`: Run full Quality Assurance suite
 - `zin secrets`: Pull/push secrets via the Secrets toolkit
+- `zin put cloudflare`: Push Wrangler secrets from dynamic key groups in `.zintrust.json`
 - `zin simulate` (alias: `zin -sim`): Generate a simulated app under `./simulate/` (dev utility)
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
@@ -235,6 +236,40 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
   - `--reset`: Truncate tables before run
   - `--service <name>`: Include specific service seeders
   - `--only-service <name>`: Run ONLY specific service seeders
+
+## Cloudflare Secret Put Command
+
+Pushes secrets to Wrangler environments using dynamic key groups from `.zintrust.json`.
+
+Usage:
+
+```bash
+zin put cloudflare --wg <wrangler-env...> --var <group...> [--env_path .env] [--dry-run]
+```
+
+Examples:
+
+```bash
+zin put cloudflare --wg d1-proxy --var d1_env --env_path .env --dry-run
+zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
+zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --env_path .env
+```
+
+`.zintrust.json` dynamic groups example:
+
+```json
+{
+  "d1_env": ["APP_KEY", "D1_REMOTE_SECRET"],
+  "kv_env": ["APP_KEY", "KV_REMOTE_SECRET"]
+}
+```
+
+Notes:
+
+- `--wg` sets the Wrangler target environment(s) (for example `d1-proxy`, `kv-proxy`).
+- `--var` selects array keys from `.zintrust.json`.
+- `D1_REMOTE_SECRET` / `KV_REMOTE_SECRET` are optional if you use `APP_KEY` as the shared signing secret; missing values are reported as failures for whichever keys you selected.
+- Final output includes totals for pushed and failed keys.
 
 ## Queue Recovery Command
 

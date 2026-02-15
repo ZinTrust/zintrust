@@ -68,6 +68,20 @@ describe('Bootstrap additional branches', () => {
       Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
     }));
 
+    // Keep bootstrap import deterministic/fast under coverage.
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: { tryImportProjectAutoImports: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {
+          initialize: vi.fn(async () => undefined),
+          autoStartPersistedWorkers: vi.fn(),
+        },
+        WorkerShutdown: { shutdown: vi.fn(async () => undefined) },
+      })),
+    }));
+
     // Import bootstrap (it runs start on import)
     await import('@boot/bootstrap');
 
@@ -82,7 +96,7 @@ describe('Bootstrap additional branches', () => {
     expect((globalThis as any).__EXIT_SPY__).toHaveBeenCalledWith(0);
 
     vi.useFakeTimers();
-  });
+  }, 30000);
 
   it('force-exit timer calls process.exit(0) when shutdown hangs/fails', async () => {
     vi.resetModules();

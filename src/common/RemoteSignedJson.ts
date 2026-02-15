@@ -41,6 +41,21 @@ const asJson = async (resp: Response): Promise<unknown> => {
   }
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const describeProxyError = (details: unknown): string => {
+  // Expected Worker proxy error shape: { status: number, body: { code: string, message: string } }
+  if (!isRecord(details)) return '';
+  const body = details['body'];
+  if (!isRecord(body)) return '';
+  const code = typeof body['code'] === 'string' ? body['code'] : '';
+  const message = typeof body['message'] === 'string' ? body['message'] : '';
+  if (code === '' && message === '') return '';
+  if (code !== '' && message !== '') return `${code}: ${message}`;
+  return code === '' ? message : code;
+};
+
 const normalizeSettings = (settings: RemoteSignedJsonSettings): RemoteSignedJsonSettings => {
   const creds = normalizeSigningCredentials({
     keyId: settings.keyId,
@@ -85,6 +100,43 @@ const buildSigningUrl = (url: URL, settings: RemoteSignedJsonSettings): URL => {
   return signingUrl;
 };
 
+const throwForNonOkResponse = async (
+  resp: Response,
+  settings: RemoteSignedJsonSettings
+): Promise<never> => {
+  const details = await asJson(resp);
+
+  switch (resp.status) {
+    case 401:
+      throw ErrorFactory.createUnauthorizedError(settings.messages.unauthorized, details);
+    case 403:
+      throw ErrorFactory.createForbiddenError(settings.messages.forbidden, details);
+    case 429:
+      throw ErrorFactory.createSecurityError(settings.messages.rateLimited, details);
+    default: {
+      if (resp.status >= 400 && resp.status < 500) {
+        throw ErrorFactory.createValidationError(settings.messages.rejected, details);
+      }
+
+      const extra = describeProxyError(details);
+      const msg = extra === '' ? settings.messages.error : `${settings.messages.error} (${extra})`;
+      throw ErrorFactory.createConnectionError(msg, {
+        status: resp.status,
+        details,
+      });
+    }
+  }
+};
+
+const rethrowRequestError = (error: unknown, settings: RemoteSignedJsonSettings): never => {
+  if (error instanceof Error && error.name === 'AbortError') {
+    throw ErrorFactory.createConnectionError(settings.messages.timedOut, {
+      timeoutMs: settings.timeoutMs,
+    });
+  }
+  throw error;
+};
+
 export const RemoteSignedJson = Object.freeze({
   async request<T>(
     settings: RemoteSignedJsonSettings,
@@ -114,35 +166,12 @@ export const RemoteSignedJson = Object.freeze({
       });
 
       if (!resp.ok) {
-        const details = await asJson(resp);
-
-        if (resp.status === 401) {
-          throw ErrorFactory.createUnauthorizedError(normalized.messages.unauthorized, details);
-        }
-        if (resp.status === 403) {
-          throw ErrorFactory.createForbiddenError(normalized.messages.forbidden, details);
-        }
-        if (resp.status === 429) {
-          throw ErrorFactory.createSecurityError(normalized.messages.rateLimited, details);
-        }
-        if (resp.status >= 400 && resp.status < 500) {
-          throw ErrorFactory.createValidationError(normalized.messages.rejected, details);
-        }
-
-        throw ErrorFactory.createConnectionError(normalized.messages.error, {
-          status: resp.status,
-          details,
-        });
+        await throwForNonOkResponse(resp, normalized);
       }
 
       return (await asJson(resp)) as T;
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw ErrorFactory.createConnectionError(normalized.messages.timedOut, {
-          timeoutMs: normalized.timeoutMs,
-        });
-      }
-      throw error;
+      return rethrowRequestError(error, normalized);
     }
   },
 });

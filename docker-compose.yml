@@ -191,7 +191,8 @@ services:
     image: node:20-alpine
     working_dir: /work
     environment:
-      ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
+      D1_REMOTE_SECRET: '${D1_REMOTE_SECRET:-dev-secret}'
+      APP_KEY: '${APP_KEY:-dev-secret}'
       CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     volumes:
       - ./packages/cloudflare-d1-proxy:/work
@@ -207,7 +208,8 @@ services:
     image: node:20-alpine
     working_dir: /work
     environment:
-      ZT_KEYS_JSON: '${ZT_KEYS_JSON:-{"k1":{"secret":"dev-secret"}}}'
+      KV_REMOTE_SECRET: '${KV_REMOTE_SECRET:-dev-secret}'
+      APP_KEY: '${APP_KEY:-dev-secret}'
       CSRF_SKIP_PATHS: ${CSRF_SKIP_PATHS:-/api/*,/queue-monitor/*}
     volumes:
       - ./packages/cloudflare-kv-proxy:/work

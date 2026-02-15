@@ -241,7 +241,7 @@ describe('MigrateWorkerCommand', () => {
 
       // Mock database config with postgresql
       const { databaseConfig } = await import('@config/database');
-      (databaseConfig.getConnection as any).mockReturnValue({
+      (databaseConfig.getConnection as any).mockReturnValueOnce({
         driver: 'postgresql',
         host: 'localhost',
         port: 5432,
@@ -282,7 +282,7 @@ describe('MigrateWorkerCommand', () => {
 
       // Mock database config with mysql
       const { databaseConfig } = await import('@config/database');
-      (databaseConfig.getConnection as any).mockReturnValue({
+      (databaseConfig.getConnection as any).mockReturnValueOnce({
         driver: 'mysql',
         host: 'localhost',
         port: 3306,
@@ -323,7 +323,7 @@ describe('MigrateWorkerCommand', () => {
 
       // Mock database config with sqlserver
       const { databaseConfig } = await import('@config/database');
-      (databaseConfig.getConnection as any).mockReturnValue({
+      (databaseConfig.getConnection as any).mockReturnValueOnce({
         driver: 'sqlserver',
         host: 'localhost',
         port: 1433,
@@ -358,13 +358,13 @@ describe('MigrateWorkerCommand', () => {
       );
     });
 
-    it('should default to sqlite for unknown drivers', async () => {
+    it('should throw for unknown drivers (no sqlite fallback)', async () => {
       const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
       const cmd = MigrateWorkerCommand.create();
 
       // Mock database config with unknown driver
       const { databaseConfig } = await import('@config/database');
-      (databaseConfig.getConnection as any).mockReturnValue({
+      (databaseConfig.getConnection as any).mockReturnValueOnce({
         driver: 'unknown_driver',
         database: 'test.db',
       });
@@ -382,17 +382,11 @@ describe('MigrateWorkerCommand', () => {
       const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
       (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
-      await cmd.execute({});
-
-      expect(Migrator.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          db: expect.any(Object),
-          projectRoot: expect.any(String),
-          globalDir: expect.stringContaining('workers/migrations'),
-          extension: expect.any(String),
-          separateTracking: true,
-        })
+      await expect(cmd.execute({})).rejects.toThrow(
+        'Unsupported database driver for ORM migrations'
       );
+
+      expect(Migrator.create).not.toHaveBeenCalled();
     });
   });
 

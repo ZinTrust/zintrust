@@ -35,11 +35,10 @@ type D1Database = {
   prepare: (sql: string) => D1PreparedStatement;
 };
 
-type KeysJson = Record<string, { secret: string }>;
-
 type D1Env = {
   DB?: D1Database;
-  ZT_KEYS_JSON?: string;
+  APP_KEY?: string;
+  D1_REMOTE_SECRET?: string;
   ZT_PROXY_SIGNING_WINDOW_MS?: string;
   ZT_NONCES?: KVNamespace;
   ZT_MAX_BODY_BYTES?: string;
@@ -121,16 +120,14 @@ const parseOptionalJson = (
   return { ok: true, payload: successResult.value };
 };
 
-const loadKeys = (env: D1Env): KeysJson | null => {
-  const raw = env.ZT_KEYS_JSON;
-  if (typeof raw !== 'string' || raw.trim() === '') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) return null;
-    return parsed as KeysJson;
-  } catch {
-    return null;
-  }
+const loadSigningSecret = (env: D1Env): string | null => {
+  const direct = typeof env.D1_REMOTE_SECRET === 'string' ? env.D1_REMOTE_SECRET.trim() : '';
+  if (direct !== '') return direct;
+
+  const fallback = typeof env.APP_KEY === 'string' ? env.APP_KEY.trim() : '';
+  if (fallback !== '') return fallback;
+
+  return null;
 };
 
 const loadStatements = (env: D1Env): Record<string, string> | null => {
@@ -177,9 +174,13 @@ const verifySignedRequest = async (
   env: D1Env,
   bodyBytes: Uint8Array
 ): Promise<Response | { ok: true }> => {
-  const keys = loadKeys(env);
-  if (keys === null) {
-    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_KEYS_JSON');
+  const secret = loadSigningSecret(env);
+  if (secret === null) {
+    return toErrorResponse(
+      500,
+      'CONFIG_ERROR',
+      'Missing signing secret (D1_REMOTE_SECRET or APP_KEY)'
+    );
   }
 
   const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', DEFAULT_SIGNING_WINDOW_MS);
@@ -190,7 +191,7 @@ const verifySignedRequest = async (
     body: bodyBytes,
     headers: request.headers,
     windowMs,
-    getSecretForKeyId: async (keyId: string) => keys[keyId]?.secret,
+    getSecretForKeyId: async (_keyId: string) => secret,
     verifyNonce:
       env.ZT_NONCES === undefined
         ? undefined

@@ -41,6 +41,27 @@ describe('D1RemoteAdapter', () => {
     expect(init.headers['x-zt-key-id']).toBe('k1');
   });
 
+  it('falls back to APP_NAME/APP_KEY when D1_REMOTE_KEY_ID/SECRET are missing', async () => {
+    delete process.env['D1_REMOTE_KEY_ID'];
+    delete process.env['D1_REMOTE_SECRET'];
+    process.env['APP_NAME'] = 'My App';
+    process.env['APP_KEY'] = 'appkey';
+    process.env['D1_REMOTE_MODE'] = 'sql';
+
+    globalThis.fetch = vi.fn(async () =>
+      createFetchResponse(200, { rows: [{ ok: 1 }], rowCount: 1 })
+    ) as any;
+
+    const { D1RemoteAdapter } = await import('@/orm/adapters/D1RemoteAdapter');
+    const adapter = D1RemoteAdapter.create({ driver: 'd1-remote' } as any);
+    await adapter.connect();
+    await adapter.query('SELECT 1', []);
+
+    const [, init] = (globalThis.fetch as any).mock.calls[0] as [string, any];
+    // normalizeSigningCredentials() lowercases and replaces spaces with underscores.
+    expect(init.headers['x-zt-key-id']).toBe('my_app');
+  });
+
   it('uses /zin/d1/exec for mutating SQL in sql mode', async () => {
     process.env['D1_REMOTE_MODE'] = 'sql';
 

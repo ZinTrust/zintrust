@@ -1,6 +1,7 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { PromptHelper } from '@cli/PromptHelper';
 import { Env } from '@config/env';
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 
 export type ConnectionConfig = {
@@ -14,6 +15,10 @@ export type ConnectionConfig = {
 
 export const mapConnectionToOrmConfig = (conn: ConnectionConfig): OrmDatabaseConfig => {
   switch (conn.driver) {
+    case 'd1':
+      return { driver: 'd1' };
+    case 'd1-remote':
+      return { driver: 'd1-remote' };
     case 'sqlite':
       return { driver: 'sqlite', database: conn.database ?? ':memory:' };
     case 'postgresql':
@@ -44,7 +49,9 @@ export const mapConnectionToOrmConfig = (conn: ConnectionConfig): OrmDatabaseCon
         password: conn.password,
       };
     default:
-      return { driver: 'sqlite', database: ':memory:' };
+      throw ErrorFactory.createCliError(
+        `Unsupported database driver for ORM migrations: ${String(conn.driver)}`
+      );
   }
 };
 

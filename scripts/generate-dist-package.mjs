@@ -87,6 +87,10 @@ const distPackage = {
       types: './src/start.d.ts',
       import: './src/start.js',
     },
+    './cli': {
+      types: './src/cli.d.ts',
+      import: './src/cli.js',
+    },
     './proxy': {
       types: './src/proxy.d.ts',
       import: './src/proxy.js',

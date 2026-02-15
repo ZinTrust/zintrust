@@ -46,6 +46,20 @@ describe('Bootstrap edge branches', () => {
       },
     }));
 
+    // Keep bootstrap import deterministic/fast under coverage.
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: { tryImportProjectAutoImports: vi.fn(async () => undefined) },
+    }));
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerInit: {
+          initialize: vi.fn(async () => undefined),
+          autoStartPersistedWorkers: vi.fn(),
+        },
+        WorkerShutdown: { shutdown: vi.fn(async () => undefined) },
+      })),
+    }));
+
     // Import bootstrap (which runs start at module top-level)
     await import('@boot/bootstrap');
 
@@ -58,7 +72,7 @@ describe('Bootstrap edge branches', () => {
     expect(exited || errored).toBe(true);
 
     exitSpy.mockRestore();
-  });
+  }, 30000);
 
   it('logs a warning when schedule startup fails', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

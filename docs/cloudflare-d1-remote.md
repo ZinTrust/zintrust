@@ -54,22 +54,12 @@ This lets ZinTrust resolve the correct D1 binding name from Worker env/global bi
 
 ### 2) Configure auth keys (Worker secrets)
 
-Recommended: create one or more signing credentials for callers.
+Configure a single shared signing secret for the Worker.
 
-- Store credentials in Worker secrets (example pattern):
-  - `ZT_KEYS_JSON`
+- Set `D1_REMOTE_SECRET` as a Worker secret (recommended), or
+- Set `APP_KEY` (fallback).
 
-Shape (example):
-
-```json
-{
-  "prod-app": {
-    "secret": "base64-or-hex-secret",
-    "scopes": ["d1.query", "d1.queryOne", "d1.exec"],
-    "mode": "registry"
-  }
-}
-```
+ZinTrust will accept any `x-zt-key-id` as long as the signature matches this shared secret.
 
 ### Source location in this repo
 
@@ -106,6 +96,9 @@ D1_REMOTE_SECRET=<same-secret-as-worker>
 # - registry (default, recommended)
 # - sql (opt-in)
 D1_REMOTE_MODE=registry
+
+# Note: `zin migrate` automatically uses SQL mode for migrations when `DB_CONNECTION=d1-remote`.
+# You can keep `D1_REMOTE_MODE=registry` for normal app runtime queries.
 ```
 
 ---

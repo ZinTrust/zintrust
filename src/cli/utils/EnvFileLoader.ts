@@ -9,6 +9,26 @@ import { join } from '@node-singletons/path';
 type node_env = 'development' | 'production' | 'testing';
 type EnvMap = Record<string, string>;
 
+const safeEnvGet = (key: string, defaultValue = ''): string => {
+  const envAny = Env as unknown as { get?: (k: string, d?: string) => string };
+  if (typeof envAny.get === 'function') return envAny.get(key, defaultValue);
+
+  const fromProcess = typeof process === 'undefined' ? undefined : process.env?.[key];
+  if (typeof fromProcess === 'string' && fromProcess !== '') return fromProcess;
+  return defaultValue;
+};
+
+const safeEnvSet = (key: string, value: string): void => {
+  const envAny = Env as unknown as { set?: (k: string, v: string) => void };
+  if (typeof envAny.set === 'function') {
+    envAny.set(key, value);
+    return;
+  }
+
+  if (typeof process === 'undefined' || process.env === undefined) return;
+  process.env[key] = value;
+};
+
 const normalizeAppMode = (value: string): string => {
   const normalized = value.trim().toLowerCase();
   if (normalized === 'production' || normalized === 'pro' || normalized === 'prod')
@@ -78,13 +98,13 @@ const parseEnvFile = (raw: string): EnvMap => {
 
 const applyToProcessEnv = (values: EnvMap, overrideExisting: boolean): void => {
   for (const [key, value] of Object.entries(values)) {
-    if (!overrideExisting && Env.get(key, '') !== '') continue;
-    Env.set(key, value);
+    if (!overrideExisting && safeEnvGet(key, '') !== '') continue;
+    safeEnvSet(key, value);
   }
 
   // Compatibility helpers
-  if (Env.get('PORT', '') === '' && Env.get('APP_PORT', '') !== '') {
-    Env.set('PORT', Env.get('APP_PORT', ''));
+  if (safeEnvGet('PORT', '') === '' && safeEnvGet('APP_PORT', '') !== '') {
+    safeEnvSet('PORT', safeEnvGet('APP_PORT', ''));
   }
 };
 
@@ -96,7 +116,7 @@ const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined 
 };
 
 const resolveAppMode = (cwd: string): string | undefined => {
-  const existing = Env.get('NODE_ENV', '');
+  const existing = safeEnvGet('NODE_ENV', '');
   if (existing.trim() !== '') return normalizeAppMode(existing);
 
   const fromDotEnv = readEnvFileIfExists(cwd, '.env');
@@ -173,7 +193,7 @@ const load = (options: LoadOptions = {}): LoadState => {
 
   // Set NODE_ENV to the normalized mode if we have one (after applying files)
   if (mode !== undefined) {
-    Env.set('NODE_ENV', mode as node_env);
+    safeEnvSet('NODE_ENV', mode as node_env);
   }
 
   cached = { loadedFiles: files, mode };
@@ -187,25 +207,25 @@ const applyCliOverrides = (overrides: CliOverrides): void => {
   ensureLoaded();
 
   if (typeof overrides.runtime === 'string' && overrides.runtime.trim() !== '') {
-    Env.set('RUNTIME', overrides.runtime.trim());
+    safeEnvSet('RUNTIME', overrides.runtime.trim());
   }
 
   if (typeof overrides.nodeEnv === 'string') {
-    Env.set('NODE_ENV', overrides.nodeEnv);
+    safeEnvSet('NODE_ENV', overrides.nodeEnv);
   }
 
   if (typeof overrides.port === 'number') {
-    Env.set('PORT', String(overrides.port));
-    Env.set('APP_PORT', String(overrides.port));
+    safeEnvSet('PORT', String(overrides.port));
+    safeEnvSet('APP_PORT', String(overrides.port));
   }
 
   // Keep PORT/APP_PORT in sync if only one exists.
-  if (Env.get('PORT', '') === '' && Env.get('APP_PORT', '') !== '') {
-    Env.set('PORT', Env.get('APP_PORT', ''));
+  if (safeEnvGet('PORT', '') === '' && safeEnvGet('APP_PORT', '') !== '') {
+    safeEnvSet('PORT', safeEnvGet('APP_PORT', ''));
   }
 
-  if (Env.get('APP_PORT', '') === '' && Env.get('PORT', '') !== '') {
-    Env.set('APP_PORT', Env.get('PORT', ''));
+  if (safeEnvGet('APP_PORT', '') === '' && safeEnvGet('PORT', '') !== '') {
+    safeEnvSet('APP_PORT', safeEnvGet('PORT', ''));
   }
 };
 
