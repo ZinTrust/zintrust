@@ -62,12 +62,6 @@ vi.mock('@migrations/Migrator', () => ({
   },
 }));
 
-vi.mock('@orm/DatabaseAdapterRegistry', () => ({
-  DatabaseAdapterRegistry: {
-    has: vi.fn(),
-  },
-}));
-
 describe('MigrateWorkerCommand', () => {
   afterEach(() => {
     envState.NODE_ENV = 'development';
@@ -90,9 +84,6 @@ describe('MigrateWorkerCommand', () => {
     };
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-    const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-    (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
     const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
     const cmd = MigrateWorkerCommand.create();
 
@@ -112,9 +103,6 @@ describe('MigrateWorkerCommand', () => {
       rollbackLastBatch: vi.fn(),
     };
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-    const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-    (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
     const cmd = MigrateWorkerCommand.create();
@@ -136,9 +124,6 @@ describe('MigrateWorkerCommand', () => {
     };
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-    const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-    (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
     const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
     const cmd = MigrateWorkerCommand.create();
 
@@ -148,7 +133,7 @@ describe('MigrateWorkerCommand', () => {
     expect(ErrorHandler.success).toHaveBeenCalledWith('Worker migrations rolled back (2).');
   });
 
-  it('warns when adapter is missing', async () => {
+  it('does not warn about adapters for built-in drivers', async () => {
     const { Migrator } = await import('@migrations/Migrator');
     const migrator = {
       status: vi.fn().mockResolvedValue([]),
@@ -159,15 +144,14 @@ describe('MigrateWorkerCommand', () => {
     };
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-    const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-    (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
-
     const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
     const cmd = MigrateWorkerCommand.create();
 
     await cmd.execute({ status: true, force: true });
 
-    expect(ErrorHandler.warn).toHaveBeenCalledWith('Missing adapter for driver: sqlite');
+    expect(ErrorHandler.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('Missing adapter for driver:')
+    );
   });
 
   it('cancels destructive actions in production when not confirmed', async () => {
@@ -185,9 +169,6 @@ describe('MigrateWorkerCommand', () => {
       rollbackLastBatch: vi.fn(),
     };
     (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-    const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-    (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
     const cmd = MigrateWorkerCommand.create();
@@ -218,9 +199,6 @@ describe('MigrateWorkerCommand', () => {
         rollbackLastBatch: vi.fn(),
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
       await cmd.execute({});
 
@@ -260,9 +238,6 @@ describe('MigrateWorkerCommand', () => {
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
       await cmd.execute({});
 
       expect(Migrator.create).toHaveBeenCalledWith(
@@ -300,9 +275,6 @@ describe('MigrateWorkerCommand', () => {
         rollbackLastBatch: vi.fn(),
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
       await cmd.execute({});
 
@@ -342,9 +314,6 @@ describe('MigrateWorkerCommand', () => {
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
       await cmd.execute({});
 
       expect(Migrator.create).toHaveBeenCalledWith(
@@ -362,12 +331,19 @@ describe('MigrateWorkerCommand', () => {
       const { MigrateWorkerCommand } = await import('@cli/commands/MigrateWorkerCommand');
       const cmd = MigrateWorkerCommand.create();
 
-      // Mock database config with unknown driver
+      // Force migrate:worker to target a specific connection name.
+      const prev = process.env['WORKER_PERSISTENCE_DB_CONNECTION'];
+      process.env['WORKER_PERSISTENCE_DB_CONNECTION'] = 'unknown';
+
+      // Inject an unknown driver connection config.
       const { databaseConfig } = await import('@config/database');
-      (databaseConfig.getConnection as any).mockReturnValueOnce({
-        driver: 'unknown_driver',
-        database: 'test.db',
-      });
+      (databaseConfig as any).connections = {
+        ...(databaseConfig as any).connections,
+        unknown: {
+          driver: 'unknown_driver',
+          database: 'test.db',
+        },
+      };
 
       const { Migrator } = await import('@migrations/Migrator');
       const migrator = {
@@ -379,12 +355,17 @@ describe('MigrateWorkerCommand', () => {
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
-      await expect(cmd.execute({})).rejects.toThrow(
-        'Unsupported database driver for ORM migrations'
-      );
+      try {
+        await expect(cmd.execute({})).rejects.toThrow(
+          'Unsupported database driver for ORM migrations'
+        );
+      } finally {
+        if (prev === undefined) {
+          delete process.env['WORKER_PERSISTENCE_DB_CONNECTION'];
+        } else {
+          process.env['WORKER_PERSISTENCE_DB_CONNECTION'] = prev;
+        }
+      }
 
       expect(Migrator.create).not.toHaveBeenCalled();
     });
@@ -407,9 +388,6 @@ describe('MigrateWorkerCommand', () => {
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
       await cmd.execute({});
 
       expect(ErrorHandler.success).toHaveBeenCalledWith('Worker migrations applied.');
@@ -431,9 +409,6 @@ describe('MigrateWorkerCommand', () => {
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
       await cmd.execute({});
 
       expect(ErrorHandler.info).toHaveBeenCalledWith('No pending worker migrations.');
@@ -453,9 +428,6 @@ describe('MigrateWorkerCommand', () => {
         rollbackLastBatch: vi.fn(),
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
       await cmd.execute({ reset: true });
 
@@ -477,9 +449,6 @@ describe('MigrateWorkerCommand', () => {
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
 
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
       await cmd.execute({ rollback: true, step: '3' });
 
       expect(migrator.rollbackLastBatch).toHaveBeenCalledWith(3);
@@ -499,9 +468,6 @@ describe('MigrateWorkerCommand', () => {
         rollbackLastBatch: vi.fn().mockResolvedValue({ rolledBack: 1 }),
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
       await cmd.execute({ rollback: true });
 
@@ -547,9 +513,6 @@ describe('MigrateWorkerCommand', () => {
         rollbackLastBatch: vi.fn(),
       };
       (Migrator.create as unknown as ReturnType<typeof vi.fn>).mockReturnValue(migrator);
-
-      const { DatabaseAdapterRegistry } = await import('@orm/DatabaseAdapterRegistry');
-      (DatabaseAdapterRegistry.has as unknown as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
       await cmd.execute({ all: true });
 

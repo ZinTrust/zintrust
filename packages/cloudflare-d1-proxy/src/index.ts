@@ -42,6 +42,7 @@ type D1Env = {
   D1_REMOTE_SECRET?: string;
   ZT_PROXY_SIGNING_WINDOW_MS?: string;
   ZT_NONCES?: KVNamespace;
+  ZT_PROXY_DEBUG?: string;
   ZT_MAX_BODY_BYTES?: string;
   ZT_MAX_SQL_BYTES?: string;
   ZT_MAX_PARAMS?: string;
@@ -80,6 +81,36 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isString = (value: unknown): value is string => typeof value === 'string';
 
 const isArray = (value: unknown): value is unknown[] => Array.isArray(value);
+
+const isDebugEnabled = (env: D1Env): boolean => {
+  const raw = env.ZT_PROXY_DEBUG;
+  if (typeof raw !== 'string') return false;
+  const normalized = raw.trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+};
+
+const safeErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return 'Unknown D1 error';
+  }
+};
+
+const logProxyError = (env: D1Env, context: Record<string, unknown>, error: unknown): void => {
+  if (!isDebugEnabled(env)) return;
+  try {
+    // eslint-disable-next-line no-console
+    console.error('[ZintrustD1Proxy] error', {
+      ...context,
+      message: safeErrorMessage(error).slice(0, 800),
+    });
+  } catch {
+    // ignore logging failures
+  }
+};
 
 const normalizeBindingName = (value: unknown): string | null => {
   if (typeof value !== 'string') return null;
@@ -241,8 +272,14 @@ const requireDb = (env: D1Env): Response | D1Database => {
 };
 
 const toD1ExceptionResponse = (error: unknown): Response => {
-  const message =
-    error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown D1 error';
+  let message: string;
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (typeof error === 'string') {
+    message = error;
+  } else {
+    message = 'Unknown D1 error';
+  }
   return toErrorResponse(500, 'D1_ERROR', message);
 };
 
@@ -321,6 +358,7 @@ const handleQuery = async (request: Request, env: D1Env): Promise<Response> => {
     const rows = result.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
+    logProxyError(env, { op: 'query', path: '/zin/d1/query' }, error);
     return toD1ExceptionResponse(error);
   }
 };
@@ -336,12 +374,16 @@ const handleQueryOne = async (request: Request, env: D1Env): Promise<Response> =
     const parsed = parseSqlPayload(check.payload);
     if (parsed.ok === false) return parsed.response;
 
+    const limit = enforceSqlLimits(env, parsed.sql, parsed.params);
+    if (limit !== null) return limit;
+
     const row = await db
       .prepare(parsed.sql)
       .bind(...parsed.params)
       .first<Record<string, unknown>>();
     return json(200, { row: row ?? null });
   } catch (error) {
+    logProxyError(env, { op: 'queryOne', path: '/zin/d1/queryOne' }, error);
     return toD1ExceptionResponse(error);
   }
 };
@@ -356,12 +398,16 @@ const handleExec = async (request: Request, env: D1Env): Promise<Response> => {
     const parsed = parseSqlPayload(check.payload);
     if (parsed.ok === false) return parsed.response;
 
+    const limit = enforceSqlLimits(env, parsed.sql, parsed.params);
+    if (limit !== null) return limit;
+
     const out = await db
       .prepare(parsed.sql)
       .bind(...parsed.params)
       .run();
     return json(200, { ok: true, meta: out.meta });
   } catch (error) {
+    logProxyError(env, { op: 'exec', path: '/zin/d1/exec' }, error);
     return toD1ExceptionResponse(error);
   }
 };
@@ -398,7 +444,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
 
     const statements = loadStatements(env);
     if (statements === null) {
-      return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_D1_STATEMENTS_JSON');
+      return toErrorResponse(400, 'CONFIG_ERROR', 'Missing or invalid ZT_D1_STATEMENTS_JSON');
     }
 
     const parsed = parseStatementPayload(check.payload);
@@ -424,6 +470,7 @@ const handleStatement = async (request: Request, env: D1Env): Promise<Response> 
     const rows = out.results ?? [];
     return json(200, { rows, rowCount: rows.length });
   } catch (error) {
+    logProxyError(env, { op: 'statement', path: '/zin/d1/statement' }, error);
     return toD1ExceptionResponse(error);
   }
 };
