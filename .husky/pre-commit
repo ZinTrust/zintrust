@@ -3,4 +3,4 @@ node scripts/toggle-dev-routes.mjs comment
 npx lint-staged
 npm run -s type-check && npm run -s lint --max-warnings=0
 npm run templates:check
-# npm run -s duplication:check
+npm run -s duplication:check

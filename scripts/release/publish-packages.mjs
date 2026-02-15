@@ -107,6 +107,34 @@ function removeDevRoutesForCiReleaseBuilds() {
   run('node', ['scripts/toggle-dev-routes.mjs', 'remove'], { cwd: repoRoot });
 }
 
+async function assertCoreShimHasRequiredExports() {
+  const dtsPath = path.join(shimDir, 'index.d.ts');
+  const dts = await fs.readFile(dtsPath, 'utf8');
+
+  const requiredTokens = [
+    'export declare const NodeSingletons: any;',
+    'export declare namespace NodeSingletons {}',
+    'export declare const MultipartParserRegistry: any;',
+    'export type UploadedFile = any;',
+    'export type MultipartFieldValue = any;',
+    'export type MultipartParseInput = any;',
+    'export type MultipartParserProvider = any;',
+    'export type ParsedMultipartData = any;',
+    'export type WorkerAutoScalingConfig = any;',
+    'export type WorkerComplianceConfig = any;',
+    'export type WorkerCostConfig = any;',
+    'export type WorkerObservabilityConfig = any;',
+    'export type WorkerVersioningConfig = any;',
+    'export type WorkersConfigOverrides = any;',
+    'export type WorkersGlobalConfig = any;',
+  ];
+
+  const missing = requiredTokens.filter((token) => !dts.includes(token));
+  if (missing.length > 0) {
+    throw new Error(`release-core-shim is missing required exports/types: ${missing.join(', ')}`);
+  }
+}
+
 function isNpmNotFoundOutput(s) {
   const text = String(s ?? '');
   return text.includes('E404') || text.includes('404 Not Found') || text.includes('code E404');
@@ -333,6 +361,7 @@ async function publishAllPackages({ packageDirs, coreVersion }) {
   try {
     // Create shim for @zintrust/core so packages can resolve it during build
     await createCoreShim();
+    await assertCoreShimHasRequiredExports();
 
     for (const dirName of packageDirs) {
       await processPackageDir({ dirName, coreVersion, failures, successes, checkIssues });
@@ -375,6 +404,7 @@ export declare const Queue: any;
 export declare const Broadcast: any;
 export declare const Notification: any;
 export declare const NodeSingletons: any;
+export declare namespace NodeSingletons {}
 export declare const RedisKeys: any;
 export declare const MIME_TYPES: any;
 export declare const appConfig: any;
@@ -387,6 +417,7 @@ export declare const SignedRequest: any;
 export declare const JobStateTracker: any;
 export declare const TimeoutManager: any;
 export declare const CloudflareSocket: any;
+export declare const MultipartParserRegistry: any;
 
 export declare function generateUuid(): string;
 export declare function generateSecureJobId(): string;
@@ -431,9 +462,21 @@ export type RedisConfig = any;
 export type IRouter = any;
 export type IRequest = any;
 export type IResponse = any;
+export type UploadedFile = any;
+export type MultipartFieldValue = any;
+export type MultipartParseInput = any;
+export type MultipartParserProvider = any;
+export type ParsedMultipartData = any;
 export type RouteOptions = any;
 export type WorkerConfig = any;
+export type WorkerAutoScalingConfig = any;
+export type WorkerComplianceConfig = any;
+export type WorkerCostConfig = any;
+export type WorkerObservabilityConfig = any;
 export type WorkerStatus = any;
+export type WorkerVersioningConfig = any;
+export type WorkersConfigOverrides = any;
+export type WorkersGlobalConfig = any;
 export type IDatabase = any;
 export type Blueprint = any;
 `;
@@ -466,6 +509,7 @@ export const SignedRequest = {};
 export const JobStateTracker = {};
 export const TimeoutManager = {};
 export const CloudflareSocket = {};
+export const MultipartParserRegistry = {};
 
 export function generateUuid() {
   return '00000000-0000-0000-0000-000000000000';

@@ -119,7 +119,7 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
@@ -130,7 +130,7 @@ COPY . .
 
 # Build TypeScript to JavaScript
 ARG BUILD_VARIANT=full
-RUN --mount=type=cache,target=/root/.npm npm run build:dk
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
@@ -149,11 +149,10 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 COPY package.json package-lock.json ./
 
 # Install only production dependencies (requires build tools for native modules)
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   apk add --no-cache --virtual .build-deps python3 make g++ \
   && npm ci --omit=dev \
-    && apk del .build-deps \
-    && npm cache clean --force
+    && apk del .build-deps
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist

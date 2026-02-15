@@ -32,6 +32,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
+      '@zintrust/core/proxy': path.resolve(__dirname, './src/proxy.ts'),
+      '@zintrust/core/start': path.resolve(__dirname, './src/start.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/queue-monitor': path.resolve(__dirname, './packages/queue-monitor/src/index.ts'),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),

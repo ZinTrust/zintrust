@@ -108,7 +108,7 @@ const getRetryDelayMs = (nextAttempts: number): number => {
     RETRY_BASE_DELAY_MS * 2 ** Math.max(0, nextAttempts - 1),
     RETRY_MAX_DELAY_MS
   );
-  const jitterMs = Math.floor(Math.random() * 250);
+  const jitterMs = Math.floor(Math.random() * 250); // NOSONAR
   return exponentialDelay + jitterMs;
 };
 

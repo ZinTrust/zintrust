@@ -10,6 +10,7 @@ import {
   databaseConfig,
   Env,
   ErrorFactory,
+  generateUuid,
   getBullMQSafeQueueName,
   Logger,
   NodeSingletons,
@@ -124,7 +125,8 @@ const resolvePackageSpecifierUrl = (specifier: string): string | null => {
   }
 };
 
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 const rewriteProcessorImports = (code: string): string => {
   const replacements: Array<{ from: string; to: string }> = [];
@@ -137,7 +139,7 @@ const rewriteProcessorImports = (code: string): string => {
 
   let updated = code;
   for (const { from, to } of replacements) {
-    const pattern = new RegExp(`(['"])${escapeRegExp(from)}\\1`, 'g');
+    const pattern = new RegExp(String.raw`(['"])${escapeRegExp(from)}\1`, 'g');
     updated = updated.replace(pattern, `$1${to}$1`);
   }
 
@@ -476,7 +478,7 @@ const computeSha256 = async (value: string): Promise<string> => {
     return NodeSingletons.createHash('sha256').update(value).digest('hex');
   }
 
-  return String(Math.random()).slice(2);
+  return String(generateUuid()).slice(2);
 };
 
 const toBase64 = (value: string): string => {
@@ -652,18 +654,19 @@ const buildProcessorFilePathCandidates = (_modulePath: string, resolvedPath: str
   const projectRoot = normalizeModulePath(resolveProjectRoot());
 
   const strippedResolved = stripProcessorExtension(resolvedPath);
-  candidates.push(`${strippedResolved}.js`);
-  candidates.push(`${strippedResolved}.mjs`);
+  candidates.push(`${strippedResolved}.js`, `${strippedResolved}.mjs`);
 
   const appIndex = normalizedResolved.lastIndexOf('/app/');
   if (appIndex !== -1) {
     const relative = normalizedResolved.slice(appIndex + 5);
     if (relative) {
       const strippedRelative = stripProcessorExtension(relative);
-      candidates.push(path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`));
-      candidates.push(path.join(projectRoot, 'app', relative));
-      candidates.push(path.join(projectRoot, 'app', `${strippedRelative}.js`));
-      candidates.push(path.join('/app', 'dist', 'app', `${strippedRelative}.js`));
+      candidates.push(
+        path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`),
+        path.join(projectRoot, 'app', relative),
+        path.join(projectRoot, 'app', `${strippedRelative}.js`),
+        path.join('/app', 'dist', 'app', `${strippedRelative}.js`)
+      );
     }
   }
 
@@ -2759,16 +2762,13 @@ export const WorkerFactory = Object.freeze({
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<WorkerRecord | null> {
     const instance = workers.get(name);
-    // Logger.debug(`getPersisted: resolving store for ${name}`);
     const store = await getStoreForWorker(instance?.config, persistenceOverride);
 
     try {
-      // Logger.debug(`getPersisted: getting record for ${name}`);
       const result = await store.get(name);
       return result;
     } finally {
       if (Cloudflare.getWorkersEnv() !== null && store.close) {
-        // Logger.debug(`getPersisted: closing store for ${name}`);
         await store.close();
       }
     }
