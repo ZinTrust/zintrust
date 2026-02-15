@@ -7,7 +7,7 @@
  * Framework version and build metadata
  * Available at runtime for debugging and health checks
  */
-export const ZINTRUST_VERSION = '0.1.23';
+export const ZINTRUST_VERSION = '0.1.41';
 export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
 
 export { Application } from '@boot/Application';

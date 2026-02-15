@@ -12,6 +12,7 @@ const continueOnError = cliArgs.includes('--continue-on-error');
 const noFail = cliArgs.includes('--no-fail');
 const onlyUnpublished = cliArgs.includes('--only-unpublished');
 const verifyCoreOnNpm = cliArgs.includes('--verify-core-on-npm');
+const isCi = process.env.CI === 'true' || process.env.CI === '1';
 
 function getArgValue(flag) {
   const i = cliArgs.indexOf(flag);
@@ -99,6 +100,11 @@ function publishPackage(pkgDir) {
   if (npmTag) publishArgs.push('--tag', npmTag);
   if (isDryRun) publishArgs.push('--dry-run');
   run('npm', publishArgs, { cwd: pkgDir });
+}
+
+function removeDevRoutesForCiReleaseBuilds() {
+  if (!isCi) return;
+  run('node', ['scripts/toggle-dev-routes.mjs', 'remove'], { cwd: repoRoot });
 }
 
 function isNpmNotFoundOutput(s) {
@@ -531,6 +537,8 @@ export const MailgunDriver = {};
 }
 
 async function main() {
+  removeDevRoutesForCiReleaseBuilds();
+
   const rootPkg = JSON.parse(await fs.readFile(path.join(repoRoot, 'package.json'), 'utf8'));
   const version = rootPkg.version;
 
