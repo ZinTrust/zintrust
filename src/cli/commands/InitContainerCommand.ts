@@ -77,6 +77,22 @@ services:
       - DB_DATABASE_MYSQL=\${DB_DATABASE_MYSQL:-zintrust}
       - DB_USERNAME_MYSQL=\${DB_USERNAME_MYSQL:-zintrust}
       - DB_PASSWORD_MYSQL=\${DB_PASSWORD_MYSQL:-secret}
+
+      # Cloudflare D1
+      - D1_DATABASE_ID=\${D1_DATABASE_ID}
+      - D1_ACCOUNT_ID=\${D1_ACCOUNT_ID}
+      - D1_API_TOKEN=\${D1_API_TOKEN}
+      - D1_PROXY_URL=\${D1_PROXY_URL}
+      - D1_PROXY_KEY_ID=\${D1_PROXY_KEY_ID}
+      - D1_PROXY_SECRET=\${D1_PROXY_SECRET}
+
+      # Cloudflare KV
+      - KV_NAMESPACE_ID=\${KV_NAMESPACE_ID}
+      - KV_ACCOUNT_ID=\${KV_ACCOUNT_ID}
+      - KV_API_TOKEN=\${KV_API_TOKEN}
+      - KV_PROXY_URL=\${KV_PROXY_URL}
+      - KV_PROXY_KEY_ID=\${KV_PROXY_KEY_ID}
+      - KV_PROXY_SECRET=\${KV_PROXY_SECRET}
     ports:
       - '7772:7772'
 
@@ -160,7 +176,7 @@ EXPOSE 7772
 CMD ["node", "dist/src/boot/bootstrap.js"]
 `;
 
-const backupSuffix = (): string => new Date().toISOString().replace(/[:.]/g, '-');
+const backupSuffix = (): string => new Date().toISOString().replaceAll(/[:.]/g, '-');
 
 const backupFileIfExists = (filePath: string): void => {
   if (!existsSync(filePath)) return;

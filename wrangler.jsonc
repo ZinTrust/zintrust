@@ -62,9 +62,6 @@
     "d1-proxy": {
       "name": "zintrust-d1-proxy",
       "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
-      "alias": {
-        "@zintrust/core": "./src/proxy.ts",
-      },
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
       "vars": {},
@@ -95,9 +92,6 @@
     "kv-proxy": {
       "name": "zintrust-kv-proxy",
       "main": "./src/proxy/kv/ZintrustKvProxy.ts",
-      "alias": {
-        "@zintrust/core": "./src/proxy.ts",
-      },
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
       "vars": {},
