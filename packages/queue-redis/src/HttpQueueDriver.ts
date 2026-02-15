@@ -220,12 +220,88 @@ const callGateway = async <T>(
   }
 };
 
+const resolveFallbackJobId = (payload: BullMQPayload): string => {
+  if (typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0) {
+    return payload.uniqueId.trim();
+  }
+
+  return generateUuid();
+};
+
+const resolveCurrentAttempts = (payload: BullMQPayload): number => {
+  const raw = payload['_currentAttempts'];
+  if (typeof raw !== 'number' || Number.isFinite(raw) === false) return 0;
+  return Math.max(0, Math.floor(raw));
+};
+
+const resolveMaxAttempts = (payload: BullMQPayload): number | undefined => {
+  if (typeof payload.attempts === 'number' && Number.isFinite(payload.attempts)) {
+    return Math.max(1, Math.floor(payload.attempts));
+  }
+  return undefined;
+};
+
+const resolveIdempotencyKey = (payload: BullMQPayload): string | undefined => {
+  if (typeof payload.uniqueId !== 'string') return undefined;
+  const trimmed = payload.uniqueId.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const markPendingRecoveryFallback = async (input: {
+  queue: string;
+  fallbackJobId: string;
+  payload: BullMQPayload;
+  error: unknown;
+}): Promise<void> => {
+  const currentAttempts = resolveCurrentAttempts(input.payload);
+  const maxAttempts = resolveMaxAttempts(input.payload);
+  const idempotencyKey = resolveIdempotencyKey(input.payload);
+
+  // Compatibility shim: consumers of `@zintrust/core` may have a narrower
+  // `JobStateTracker.enqueued` type than the runtime implementation.
+  const enqueuedApi = JobStateTracker as unknown as {
+    enqueued: (params: {
+      queueName: string;
+      jobId: string;
+      payload?: unknown;
+      attempts?: number;
+      maxAttempts?: number;
+      expectedCompletionAt?: string;
+      idempotencyKey?: string;
+    }) => Promise<void>;
+  };
+
+  await enqueuedApi.enqueued({
+    queueName: input.queue,
+    jobId: input.fallbackJobId,
+    payload: input.payload,
+    attempts: currentAttempts,
+    maxAttempts,
+    idempotencyKey,
+  });
+
+  const pendingRecoveryApi = JobStateTracker as {
+    pendingRecovery?: (params: {
+      queueName: string;
+      jobId: string;
+      reason?: string;
+      error?: unknown;
+    }) => Promise<void>;
+  };
+
+  if (typeof pendingRecoveryApi.pendingRecovery === 'function') {
+    await pendingRecoveryApi.pendingRecovery({
+      queueName: input.queue,
+      jobId: input.fallbackJobId,
+      reason: 'HTTP queue proxy enqueue failed; marked pending recovery',
+      error: input.error,
+    });
+  }
+};
+
 export const HttpQueueDriver = Object.freeze({
   async enqueue(queue: string, payload: BullMQPayload): Promise<string> {
-    const fallbackJobId =
-      typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0
-        ? payload.uniqueId.trim()
-        : generateUuid();
+    const fallbackJobId = resolveFallbackJobId(payload);
     const timeoutMs = Env.getInt('QUEUE_HTTP_PROXY_TIMEOUT_MS', 10000);
 
     try {
@@ -245,37 +321,12 @@ export const HttpQueueDriver = Object.freeze({
         error: error instanceof Error ? error.message : String(error),
       });
 
-      await JobStateTracker.enqueued({
-        queueName: queue,
-        jobId: fallbackJobId,
+      await markPendingRecoveryFallback({
+        queue,
+        fallbackJobId,
         payload,
-        maxAttempts:
-          typeof payload.attempts === 'number' && Number.isFinite(payload.attempts)
-            ? Math.max(1, Math.floor(payload.attempts))
-            : undefined,
-        idempotencyKey:
-          typeof payload.uniqueId === 'string' && payload.uniqueId.trim().length > 0
-            ? payload.uniqueId.trim()
-            : undefined,
+        error,
       });
-
-      const pendingRecoveryApi = JobStateTracker as {
-        pendingRecovery?: (input: {
-          queueName: string;
-          jobId: string;
-          reason?: string;
-          error?: unknown;
-        }) => Promise<void>;
-      };
-
-      if (typeof pendingRecoveryApi.pendingRecovery === 'function') {
-        await pendingRecoveryApi.pendingRecovery({
-          queueName: queue,
-          jobId: fallbackJobId,
-          reason: 'HTTP queue proxy enqueue failed; marked pending recovery',
-          error,
-        });
-      }
 
       Logger.warn('Job marked pending recovery in tracker', {
         queue,

@@ -93,7 +93,7 @@ const normalizeErrorCode = (error: unknown): string | undefined => {
 const pruneJobs = (): void => {
   const maxJobs = Env.getInt('JOB_TRACKING_MAX_JOBS', 20000);
   while (trackedJobs.size > maxJobs) {
-    const oldestKey = trackedJobs.keys().next().value as string | undefined;
+    const oldestKey = trackedJobs.keys().next().value;
     if (oldestKey === undefined) break;
     trackedJobs.delete(oldestKey);
   }
@@ -343,13 +343,14 @@ export const JobStateTracker = Object.freeze({
     queueName: string;
     jobId: string;
     payload?: unknown;
+    attempts?: number;
     maxAttempts?: number;
     expectedCompletionAt?: string;
     idempotencyKey?: string;
   }): Promise<void> {
     if (isEnabled() === false) return;
     const transition = updateStatus(input.queueName, input.jobId, 'pending', 'Job enqueued', {
-      attempts: 0,
+      attempts: typeof input.attempts === 'number' ? input.attempts : 0,
       maxAttempts: toFinitePositiveInt(input.maxAttempts),
       payload: QueueDataRedactor.sanitizePayload(input.payload),
       expectedCompletionAt: input.expectedCompletionAt,
@@ -490,6 +491,8 @@ export const JobStateTracker = Object.freeze({
   async pendingRecovery(input: {
     queueName: string;
     jobId: string;
+    attempts?: number;
+    maxAttempts?: number;
     reason?: string;
     error?: unknown;
   }): Promise<void> {
@@ -500,6 +503,11 @@ export const JobStateTracker = Object.freeze({
       'pending_recovery',
       input.reason ?? 'Job pending recovery',
       {
+        attempts:
+          typeof input.attempts === 'number' && Number.isFinite(input.attempts)
+            ? Math.max(0, Math.floor(input.attempts))
+            : undefined,
+        maxAttempts: toFinitePositiveInt(input.maxAttempts),
         error: normalizeError(input.error) ?? input.reason,
         lastErrorCode: normalizeErrorCode(input.error),
       }

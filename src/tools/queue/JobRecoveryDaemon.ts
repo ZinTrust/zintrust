@@ -144,11 +144,20 @@ export const JobRecoveryDaemon = Object.freeze({
     }
 
     const payload = parsePayload(record.payload);
-    const backoffMs = Math.min(300000, Math.max(1000, 1000 * 2 ** Math.max(0, record.attempts)));
+
+    // 30s, 1m, 3m backoff strategy
+    const getBackoffMs = (attempt: number): number => {
+      if (attempt === 0) return 30000;
+      if (attempt === 1) return 60000;
+      return 180000;
+    };
+    const backoffMs = getBackoffMs(record.attempts);
 
     await Queue.enqueue(record.queueName, {
       ...payload,
-      attempts: Math.max(0, record.attempts),
+      uniqueId: record.jobId, // Preserves job ID (prevents duplication)
+      attempts: maxAttempts, // Set max attempts normally
+      _currentAttempts: record.attempts + 1, // Pass incremented state for tracker fallback
       timestamp: Date.now() + backoffMs,
     });
 

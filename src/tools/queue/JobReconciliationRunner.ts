@@ -9,6 +9,9 @@ type PersistedJobRow = {
   queue_name: string;
   job_id: string;
   status: JobTrackingStatus;
+  attempts?: number;
+  max_attempts?: number;
+  retry_at?: string | null;
   updated_at?: string;
 };
 
@@ -32,7 +35,7 @@ const mapPersistedStatus = (raw: unknown): JobTrackingStatus | null => {
     'manual_review',
     'delayed',
   ];
-  return (allowed.find((entry) => entry === value) ?? null) as JobTrackingStatus | null;
+  return allowed.find((entry) => entry === value) ?? null;
 };
 
 export const JobReconciliationRunner = Object.freeze({
@@ -74,7 +77,15 @@ export const JobReconciliationRunner = Object.freeze({
 
     const rows = await db
       .table(Env.get('JOB_TRACKING_DB_TABLE', 'zintrust_jobs'))
-      .select('queue_name', 'job_id', 'status', 'updated_at')
+      .select(
+        'queue_name',
+        'job_id',
+        'status',
+        'attempts',
+        'max_attempts',
+        'retry_at',
+        'updated_at'
+      )
       .whereIn('status', ['active', 'pending'])
       .where('updated_at', '<=', toSqlDateTime(cutoff))
       .limit(Math.max(1, limit))
@@ -94,10 +105,30 @@ export const JobReconciliationRunner = Object.freeze({
           return;
         }
 
+        // Pending jobs can be legitimately waiting for their retry window.
+        // Avoid creating churn transitions until the retry_at window has passed.
+        if (status === 'pending' && typeof row.retry_at === 'string' && row.retry_at.trim()) {
+          const retryAtMs = new Date(row.retry_at).getTime();
+          if (!Number.isNaN(retryAtMs) && retryAtMs > Date.now()) {
+            return;
+          }
+        }
+
+        const persistedAttempts =
+          typeof row.attempts === 'number' && Number.isFinite(row.attempts)
+            ? Math.max(0, Math.floor(row.attempts))
+            : 0;
+        const maxAttempts =
+          typeof row.max_attempts === 'number' && Number.isFinite(row.max_attempts)
+            ? Math.max(1, Math.floor(row.max_attempts))
+            : undefined;
+
         await JobStateTracker.pendingRecovery({
           queueName: row.queue_name,
           jobId: row.job_id,
           reason: 'Persisted pending job stale during reconciliation',
+          attempts: persistedAttempts + 1,
+          maxAttempts,
         });
       })
     );

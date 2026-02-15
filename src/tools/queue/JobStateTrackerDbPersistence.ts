@@ -3,12 +3,12 @@ import { Logger } from '@config/logger';
 import { ZintrustLang } from '@lang/lang';
 import type { IDatabase } from '@orm/Database';
 import { useDatabase } from '@orm/Database';
-import { JobStateTracker } from '@queue/JobStateTracker';
 import type {
   JobStateTrackerPersistenceAdapter,
   JobTrackingRecord,
   JobTrackingTransition,
 } from '@queue/JobStateTracker';
+import { JobStateTracker } from '@queue/JobStateTracker';
 
 type JobStateTrackerDbOptions = {
   connectionName?: string;
@@ -25,6 +25,11 @@ const toJson = (value: unknown): string | null => {
   } catch {
     return null;
   }
+};
+
+const toNonNullJson = (value: unknown): string | null => {
+  const json = toJson(value);
+  return json ?? null;
 };
 
 const toSqlDateTime = (isoLike: string | undefined): string | null => {
@@ -77,7 +82,7 @@ const serializeJobRecord = (
     status: record.status,
     attempts: record.attempts,
     max_attempts: record.maxAttempts ?? null,
-    payload_json: options.persistPayload === false ? null : toJson(record.payload),
+    payload_json: toNonNullJson(record.payload),
     result_json: options.persistResult === false ? null : toJson(record.result),
     last_error: record.lastError ?? null,
     last_error_code: record.lastErrorCode ?? null,
@@ -96,6 +101,117 @@ const serializeJobRecord = (
     completed_at: toSqlDateTime(record.completedAt),
     updated_at: toSqlDateTime(record.updatedAt),
   };
+};
+
+const serializeJobRecordForInsert = (
+  record: JobTrackingRecord,
+  options: JobStateTrackerDbOptions
+): Record<string, unknown> => {
+  const payload = serializeJobRecord(record, options);
+
+  // Ensure payload_json is always non-null for inserts (some schemas require NOT NULL).
+  if (payload['payload_json'] === null) {
+    delete payload['payload_json'];
+  }
+
+  return payload;
+};
+
+const shouldPersistPayloadJson = (
+  record: JobTrackingRecord,
+  options: JobStateTrackerDbOptions
+): boolean => record.payload !== undefined && options.persistPayload !== false;
+
+type UpdateEntry = {
+  key: string;
+  enabled: boolean;
+  value: unknown;
+};
+
+const applyUpdateEntries = (update: Record<string, unknown>, entries: UpdateEntry[]): void => {
+  entries.forEach((entry) => {
+    if (entry.enabled) update[entry.key] = entry.value;
+  });
+};
+
+const resolvePayloadEntry = (
+  record: JobTrackingRecord,
+  options: JobStateTrackerDbOptions,
+  base: Record<string, unknown>
+): UpdateEntry => {
+  const enabled = shouldPersistPayloadJson(record, options) && base['payload_json'] !== null;
+  return { key: 'payload_json', enabled, value: base['payload_json'] };
+};
+
+const resolveResultEntry = (
+  record: JobTrackingRecord,
+  options: JobStateTrackerDbOptions,
+  base: Record<string, unknown>
+): UpdateEntry => {
+  if (options.persistResult === false) {
+    return { key: 'result_json', enabled: true, value: null };
+  }
+
+  const enabled = record.result !== undefined && base['result_json'] !== null;
+  return { key: 'result_json', enabled, value: base['result_json'] };
+};
+
+const serializeJobRecordForUpdate = (
+  record: JobTrackingRecord,
+  options: JobStateTrackerDbOptions
+): Record<string, unknown> => {
+  const base = serializeJobRecord(record, options);
+  const update: Record<string, unknown> = {
+    status: base['status'],
+    attempts: base['attempts'],
+    updated_at: base['updated_at'],
+  };
+
+  applyUpdateEntries(update, [
+    { key: 'max_attempts', enabled: record.maxAttempts !== undefined, value: base['max_attempts'] },
+    resolvePayloadEntry(record, options, base),
+    resolveResultEntry(record, options, base),
+    { key: 'last_error', enabled: record.lastError !== undefined, value: base['last_error'] },
+    {
+      key: 'last_error_code',
+      enabled: record.lastErrorCode !== undefined,
+      value: base['last_error_code'],
+    },
+    { key: 'retry_at', enabled: record.retryAt !== undefined, value: base['retry_at'] },
+    { key: 'timeout_at', enabled: record.timeoutAt !== undefined, value: base['timeout_at'] },
+    { key: 'heartbeat_at', enabled: record.heartbeatAt !== undefined, value: base['heartbeat_at'] },
+    {
+      key: 'expected_completion_at',
+      enabled: record.expectedCompletionAt !== undefined,
+      value: base['expected_completion_at'],
+    },
+    { key: 'worker_name', enabled: record.workerName !== undefined, value: base['worker_name'] },
+    {
+      key: 'worker_instance_id',
+      enabled: record.workerInstanceId !== undefined,
+      value: base['worker_instance_id'],
+    },
+    {
+      key: 'worker_region',
+      enabled: record.workerRegion !== undefined,
+      value: base['worker_region'],
+    },
+    {
+      key: 'worker_version',
+      enabled: record.workerVersion !== undefined,
+      value: base['worker_version'],
+    },
+    { key: 'recovered_at', enabled: record.recoveredAt !== undefined, value: base['recovered_at'] },
+    {
+      key: 'idempotency_key',
+      enabled: record.idempotencyKey !== undefined,
+      value: base['idempotency_key'],
+    },
+    { key: 'started_at', enabled: record.startedAt !== undefined, value: base['started_at'] },
+    { key: 'completed_at', enabled: record.completedAt !== undefined, value: base['completed_at'] },
+  ]);
+
+  return update;
 };
 
 const serializeTransition = (transition: JobTrackingTransition): Record<string, unknown> => {
@@ -122,7 +238,6 @@ export const createJobStateTrackerDbPersistence = (
     const db = getDatabase(connectionName);
     if (db === null) return;
 
-    const payload = serializeJobRecord(record, options);
     const existing = await db
       .table(jobsTable)
       .where('job_id', '=', record.jobId)
@@ -130,6 +245,7 @@ export const createJobStateTrackerDbPersistence = (
       .first<Record<string, unknown>>();
 
     if (existing) {
+      const payload = serializeJobRecordForUpdate(record, options);
       await db
         .table(jobsTable)
         .where('job_id', '=', record.jobId)
@@ -138,6 +254,7 @@ export const createJobStateTrackerDbPersistence = (
       return;
     }
 
+    const payload = serializeJobRecordForInsert(record, options);
     await db.table(jobsTable).insert(payload);
   };
 
