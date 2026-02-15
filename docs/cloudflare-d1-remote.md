@@ -40,6 +40,18 @@ In your Worker’s `wrangler.jsonc`:
 }
 ```
 
+If your binding name is not `DB` (for example `zintrust_db`), set one of these env vars in the app runtime:
+
+```env
+D1_BINDING=zintrust_db
+# or
+D1_DATABASE_BINDING=zintrust_db
+# or
+DB_BINDING=zintrust_db
+```
+
+This lets ZinTrust resolve the correct D1 binding name from Worker env/global bindings.
+
 ### 2) Configure auth keys (Worker secrets)
 
 Recommended: create one or more signing credentials for callers.

@@ -45,7 +45,7 @@ describe('D1RemoteAdapter', () => {
     process.env['D1_REMOTE_MODE'] = 'sql';
 
     globalThis.fetch = vi.fn(async () =>
-      createFetchResponse(200, { ok: true, meta: { changes: 2 } })
+      createFetchResponse(200, { ok: true, meta: { changes: 2, lastRowId: 77 } })
     ) as any;
 
     const { D1RemoteAdapter } = await import('@/orm/adapters/D1RemoteAdapter');
@@ -55,6 +55,7 @@ describe('D1RemoteAdapter', () => {
     const out = await adapter.query('INSERT INTO t (a) VALUES (?)', [1]);
 
     expect(out.rowCount).toBe(2);
+    expect(out.lastInsertId).toBe(77);
     const [url] = (globalThis.fetch as any).mock.calls[0] as [string, any];
     expect(String(url)).toContain('/base/zin/d1/exec');
   });
@@ -134,7 +135,7 @@ describe('D1RemoteAdapter', () => {
   it('registry mode query maps exec changes from meta', async () => {
     process.env['D1_REMOTE_MODE'] = 'registry';
     globalThis.fetch = vi.fn(async () =>
-      createFetchResponse(200, { ok: true, meta: { changes: 3 } })
+      createFetchResponse(200, { ok: true, meta: { changes: 3, last_row_id: 99 } })
     ) as any;
 
     const { D1RemoteAdapter } = await import('@/orm/adapters/D1RemoteAdapter');
@@ -143,6 +144,7 @@ describe('D1RemoteAdapter', () => {
 
     const out = await adapter.query('UPDATE t SET a=1', []);
     expect(out.rowCount).toBe(3);
+    expect(out.lastInsertId).toBe(99);
   });
 
   it('sql mode queryOne uses /zin/d1/queryOne', async () => {

@@ -34,6 +34,14 @@
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": true,
       "minify": false,
+      "d1_databases": [
+        {
+          "binding": "zintrust_db",
+          "database_name": "d1-proxy-db",
+          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "migrations_dir": "database/migrations/d1",
+        },
+      ],
       "alias": {
         "@zintrust/core": "./src/index.ts",
         "@zintrust/workers": "./packages/workers/src/index.ts",
@@ -68,9 +76,10 @@
       // D1 binding for the proxy
       "d1_databases": [
         {
-          "binding": "DB",
+          "binding": "zintrust_db",
           "database_name": "d1-proxy-db",
           "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "migrations_dir": "database/migrations/d1",
         },
       ],
       "kv_namespaces": [
@@ -106,9 +115,10 @@
       ],
       "d1_databases": [
         {
-          "binding": "DB",
+          "binding": "zintrust_db",
           "database_name": "d1-proxy-db",
           "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "migrations_dir": "database/migrations/d1",
         },
       ],
       "routes": [
@@ -124,7 +134,8 @@
     {
       "database_name": "d1-proxy-db",
       "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
-      "binding": "DB",
+      "binding": "zintrust_db",
+      "migrations_dir": "database/migrations/d1",
     },
   ],
   "kv_namespaces": [

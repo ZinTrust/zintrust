@@ -15,6 +15,54 @@ import type {
 } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  return null;
+};
+
+const toInsertId = (value: unknown): string | number | bigint | undefined => {
+  if (typeof value === 'number' || typeof value === 'string' || typeof value === 'bigint') {
+    return value;
+  }
+  return undefined;
+};
+
+const isMutatingSql = (sql: string): boolean => {
+  const normalized = sql.trimStart().toLowerCase();
+  return (
+    normalized.startsWith('insert') ||
+    normalized.startsWith('update') ||
+    normalized.startsWith('delete') ||
+    normalized.startsWith('create') ||
+    normalized.startsWith('drop') ||
+    normalized.startsWith('alter') ||
+    normalized.startsWith('replace')
+  );
+};
+
+const extractMeta = (
+  value: unknown
+): { changes: number; lastInsertId?: string | number | bigint } => {
+  if (!isRecord(value)) return { changes: 0 };
+
+  const changes =
+    toNumber(value['changes']) ??
+    toNumber(value['rows_written']) ??
+    toNumber(value['rows_read']) ??
+    0;
+
+  const lastInsertId =
+    toInsertId(value['lastRowId']) ??
+    toInsertId(value['last_row_id']) ??
+    toInsertId(value['lastInsertRowid']) ??
+    toInsertId(value['last_insert_rowid']);
+
+  return { changes, lastInsertId };
+};
+
 /**
  * Get D1 binding from config or global environment
  */
@@ -56,11 +104,27 @@ export const D1Adapter = Object.freeze({
 
         try {
           const stmt = db.prepare(sql);
+
+          if (isMutatingSql(sql)) {
+            const runResult = await stmt.bind(...parameters).run();
+            const runRecord = runResult as { meta?: unknown };
+            const meta = extractMeta(runRecord.meta);
+            return {
+              rows: [],
+              rowCount: meta.changes,
+              lastInsertId: meta.lastInsertId,
+            };
+          }
+
           const result = await stmt.bind(...parameters).all();
-          const rows = (result.results as Record<string, unknown>[]) ?? [];
+          const rawResult = result as { results?: Record<string, unknown>[]; meta?: unknown };
+          const rows = rawResult.results ?? [];
+          const metaValue = rawResult.meta;
+          const meta = extractMeta(metaValue);
           return {
             rows,
-            rowCount: rows.length,
+            rowCount: rows.length > 0 ? rows.length : meta.changes,
+            lastInsertId: meta.lastInsertId,
           };
         } catch (error) {
           throw ErrorFactory.createTryCatchError(`D1 query failed: ${sql}`, error);

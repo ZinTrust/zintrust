@@ -182,7 +182,7 @@ const registerCommands = (program: Command): void => {
     if (isCommandProvider(command)) {
       program.addCommand(command.getCommand());
     } else {
-      program.addCommand(command as Command);
+      program.addCommand(command);
     }
   }
 

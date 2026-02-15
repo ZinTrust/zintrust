@@ -2,6 +2,7 @@ import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
 type WranglerD1DatabaseConfig = {
+  binding?: string;
   database_name?: string;
   migrations_dir?: string;
 };
@@ -16,6 +17,11 @@ type StripState = {
   inLineComment: boolean;
   inBlockComment: boolean;
   skipNext: boolean;
+};
+
+type StringScanState = {
+  inString: boolean;
+  escaped: boolean;
 };
 
 const createStripState = (): StripState => ({
@@ -50,7 +56,7 @@ const handleBlockComment = (state: StripState, ch: string, next: string): boolea
   return true;
 };
 
-const handleString = (state: StripState, ch: string, out: string[]): boolean => {
+const handleString = (state: StringScanState, ch: string, out: string[]): boolean => {
   if (!state.inString) return false;
 
   out.push(ch);
@@ -71,7 +77,7 @@ const handleString = (state: StripState, ch: string, out: string[]): boolean => 
   return true;
 };
 
-const tryStartString = (state: StripState, ch: string, out: string[]): boolean => {
+const tryStartString = (state: StringScanState, ch: string, out: string[]): boolean => {
   if (ch !== '"') return false;
   state.inString = true;
   out.push(ch);
@@ -121,6 +127,52 @@ const stripJsonc = (input: string): string => {
   return out.join('');
 };
 
+type TrailingCommaState = {
+  inString: boolean;
+  escaped: boolean;
+};
+
+const createTrailingCommaState = (): TrailingCommaState => ({
+  inString: false,
+  escaped: false,
+});
+
+const isWhitespace = (ch: string): boolean =>
+  ch === ' ' || ch === '\n' || ch === '\r' || ch === '\t';
+
+const shouldDropTrailingComma = (input: string, fromIndex: number): boolean => {
+  let j = fromIndex;
+
+  while (j < input.length) {
+    const next = input[j] ?? '';
+    if (isWhitespace(next)) {
+      j += 1;
+      continue;
+    }
+    return next === '}' || next === ']';
+  }
+
+  return true;
+};
+
+const stripTrailingCommas = (input: string): string => {
+  const state = createTrailingCommaState();
+  const out: string[] = [];
+
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i] ?? '';
+
+    if (handleString(state, ch, out)) continue;
+    if (tryStartString(state, ch, out)) continue;
+
+    if (ch === ',' && shouldDropTrailingComma(input, i + 1)) continue;
+
+    out.push(ch);
+  }
+
+  return out.join('');
+};
+
 export const WranglerConfig = Object.freeze({
   getD1MigrationsDir(projectRoot: string, dbName?: string): string {
     const configPath = path.join(projectRoot, 'wrangler.jsonc');
@@ -128,13 +180,13 @@ export const WranglerConfig = Object.freeze({
 
     try {
       const raw = fs.readFileSync(configPath, 'utf8');
-      const parsed = JSON.parse(stripJsonc(raw)) as WranglerConfig;
+      const parsed = JSON.parse(stripTrailingCommas(stripJsonc(raw))) as WranglerConfig;
       const list = parsed.d1_databases;
       if (!Array.isArray(list) || list.length === 0) return 'migrations';
 
       const match =
         typeof dbName === 'string'
-          ? list.find((d) => d.database_name === dbName)
+          ? list.find((d) => d.binding === dbName || d.database_name === dbName)
           : (list[0] ?? undefined);
 
       const dir = match?.migrations_dir;

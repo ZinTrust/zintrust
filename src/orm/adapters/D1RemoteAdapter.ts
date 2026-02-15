@@ -25,7 +25,7 @@ type D1QueryOneResponse = {
 
 type D1ExecResponse = {
   ok: boolean;
-  meta?: { changes?: number; lastRowId?: number; durationMs?: number };
+  meta?: { changes?: number; lastRowId?: number | string | bigint; durationMs?: number };
 };
 
 type D1StatementResponse = D1QueryResponse | D1QueryOneResponse | D1ExecResponse;
@@ -113,11 +113,26 @@ const isQueryResponse = (value: unknown): value is D1QueryResponse =>
 const isQueryOneResponse = (value: unknown): value is D1QueryOneResponse =>
   isRecord(value) && 'row' in value && (value['row'] === null || isRecord(value['row']));
 
-const getExecChanges = (value: unknown): number => {
-  if (!isRecord(value) || typeof value['ok'] !== 'boolean') return 0;
+const getExecMeta = (value: unknown): { changes: number; lastRowId?: number | string | bigint } => {
+  if (!isRecord(value) || typeof value['ok'] !== 'boolean') return { changes: 0 };
   const meta = value['meta'];
-  if (!isRecord(meta) || typeof meta['changes'] !== 'number') return 0;
-  return meta['changes'];
+  if (!isRecord(meta)) return { changes: 0 };
+
+  const changes = typeof meta['changes'] === 'number' ? meta['changes'] : 0;
+  const lastRowIdCandidate =
+    meta['lastRowId'] ??
+    meta['last_row_id'] ??
+    meta['lastInsertRowid'] ??
+    meta['last_insert_rowid'];
+
+  const lastRowId =
+    typeof lastRowIdCandidate === 'number' ||
+    typeof lastRowIdCandidate === 'string' ||
+    typeof lastRowIdCandidate === 'bigint'
+      ? lastRowIdCandidate
+      : undefined;
+
+  return { changes, lastRowId };
 };
 
 const queryRegistry = async (
@@ -140,7 +155,8 @@ const queryRegistry = async (
     return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
   }
 
-  return { rows: [], rowCount: getExecChanges(out) };
+  const meta = getExecMeta(out);
+  return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
 };
 
 const querySqlMode = async (
@@ -153,7 +169,8 @@ const querySqlMode = async (
       sql,
       params: parameters,
     });
-    return { rows: [], rowCount: getExecChanges(out) };
+    const meta = getExecMeta(out);
+    return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
   }
 
   const out = await RemoteSignedJson.request<D1QueryResponse>(settings, '/zin/d1/query', {

@@ -56,7 +56,13 @@ function ensureConnected(state: AdapterState): void {
 
 function requireD1(config: DatabaseConfig): ID1Database {
   const db = getD1Binding(config);
-  if (db === null) throw ErrorFactory.createConfigError('D1 database binding not found');
+  if (db === null) {
+    const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+    const message = isWorkersRuntime
+      ? 'D1 database binding not found. Ensure your Worker has a D1 binding (for example `DB` or `zintrust_db`) and wrangler d1_databases.binding matches.'
+      : 'D1 database binding not found. You are running outside Workers. Use `DB_CONNECTION=d1-remote` with D1_REMOTE_URL/D1_REMOTE_KEY_ID/D1_REMOTE_SECRET, or run in Workers mode (`zin s --wg`).';
+    throw ErrorFactory.createConfigError(message);
+  }
   return db;
 }
 
