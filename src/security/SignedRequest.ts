@@ -6,8 +6,6 @@ export type SignedRequestHeaders = {
   'x-zt-signature': string;
 };
 
-import { ErrorFactory } from '@exceptions/ZintrustError';
-
 export type SignedRequestCreateHeadersParams = {
   method: string;
   url: string | URL;
@@ -94,7 +92,8 @@ const getCrypto = (): Crypto => {
     // Some runtimes (or test environments) may not expose WebCrypto.
     // Keep this as a typed ZinTrust error to satisfy lint rules.
 
-    throw ErrorFactory.createSecurityError('WebCrypto is not available in this runtime');
+    // eslint-disable-next-line no-restricted-syntax
+    throw new Error('WebCrypto is not available in this runtime');
   }
   return crypto;
 };

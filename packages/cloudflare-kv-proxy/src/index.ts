@@ -1,8 +1,4 @@
-import {
-  ProxyErrorHandler as ErrorHandler,
-  RequestValidator,
-  SigningService,
-} from '@zintrust/core';
+import { ErrorHandler, RequestValidator, SigningService } from '@zintrust/core/proxy';
 
 type KVNamespacePutOptions = {
   expirationTtl?: number;
