@@ -7,16 +7,12 @@
  * Framework version and build metadata
  * Available at runtime for debugging and health checks
  */
-export const ZINTRUST_VERSION = '0.1.23';
+export const ZINTRUST_VERSION = '0.1.41';
 export const ZINTRUST_BUILD_DATE = '__BUILD_DATE__'; // Replaced during build
 
-import { Application } from '@boot/Application';
-import { AwsSigV4 } from '@common/index';
-import { SignedRequest } from '@security/SignedRequest';
-
-const ZintrustApplication = Application;
-const ZintrustAwsSigV4 = AwsSigV4;
-const ZintrustSignedRequest = SignedRequest;
+export { Application } from '@boot/Application';
+export { AwsSigV4 } from '@common/index';
+export { SignedRequest } from '@security/SignedRequest';
 
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
@@ -76,7 +72,6 @@ export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
 export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
-export { ZintrustApplication as Application };
 
 // Time Utilities
 export { DateTime } from '@time/DateTime';
@@ -105,7 +100,6 @@ export {
   type UtilitiesType,
 } from '@/common/utility';
 export { delay, ensureDirSafe } from '@common/index';
-export { ZintrustAwsSigV4 as AwsSigV4 };
 
 // Collections
 export { collect, Collection } from '@/collections/index';
@@ -202,7 +196,6 @@ export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Saniti
 export { TokenRevocation } from '@security/TokenRevocation';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
-export { ZintrustSignedRequest as SignedRequest };
 
 // Exceptions
 export { ErrorFactory } from '@exceptions/ZintrustError';

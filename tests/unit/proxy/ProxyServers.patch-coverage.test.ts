@@ -1,5 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const createMongoCollectionStub = (): { findOne: ReturnType<typeof vi.fn> } => ({
+  findOne: vi.fn(async () => null),
+});
+
+const createMongoDbStub = (): { collection: ReturnType<typeof vi.fn> } => ({
+  collection: vi.fn(() => createMongoCollectionStub()),
+});
+
+const createMongoClientStub = (): {
+  connect: ReturnType<typeof vi.fn>;
+  db: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+} => ({
+  connect: vi.fn(async () => undefined),
+  db: vi.fn(() => createMongoDbStub()),
+  close: vi.fn(async () => undefined),
+});
+
 type VerifyFn = (
   req: any,
   body: string
@@ -88,11 +106,7 @@ vi.mock('mssql', () => ({
 
 vi.mock('mongodb', () => ({
   MongoClient: function MongoClient() {
-    return {
-      connect: vi.fn(async () => undefined),
-      db: vi.fn(() => ({ collection: vi.fn(() => ({ findOne: vi.fn(async () => null) })) })),
-      close: vi.fn(async () => undefined),
-    };
+    return createMongoClientStub();
   },
 }));
 

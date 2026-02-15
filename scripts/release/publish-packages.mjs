@@ -12,6 +12,7 @@ const continueOnError = cliArgs.includes('--continue-on-error');
 const noFail = cliArgs.includes('--no-fail');
 const onlyUnpublished = cliArgs.includes('--only-unpublished');
 const verifyCoreOnNpm = cliArgs.includes('--verify-core-on-npm');
+const isCi = process.env.CI === 'true' || process.env.CI === '1';
 
 function getArgValue(flag) {
   const i = cliArgs.indexOf(flag);
@@ -99,6 +100,11 @@ function publishPackage(pkgDir) {
   if (npmTag) publishArgs.push('--tag', npmTag);
   if (isDryRun) publishArgs.push('--dry-run');
   run('npm', publishArgs, { cwd: pkgDir });
+}
+
+function removeDevRoutesForCiReleaseBuilds() {
+  if (!isCi) return;
+  run('node', ['scripts/toggle-dev-routes.mjs', 'remove'], { cwd: repoRoot });
 }
 
 function isNpmNotFoundOutput(s) {
@@ -377,6 +383,10 @@ export declare const queueConfig: any;
 export declare const workersConfig: any;
 export declare const ZintrustLang: any;
 export declare const MigrationSchema: any;
+export declare const SignedRequest: any;
+export declare const JobStateTracker: any;
+export declare const TimeoutManager: any;
+export declare const CloudflareSocket: any;
 
 export declare function generateUuid(): string;
 export declare function generateSecureJobId(): string;
@@ -452,6 +462,10 @@ export const queueConfig = {};
 export const workersConfig = {};
 export const ZintrustLang = {};
 export const MigrationSchema = {};
+export const SignedRequest = {};
+export const JobStateTracker = {};
+export const TimeoutManager = {};
+export const CloudflareSocket = {};
 
 export function generateUuid() {
   return '00000000-0000-0000-0000-000000000000';
@@ -523,6 +537,8 @@ export const MailgunDriver = {};
 }
 
 async function main() {
+  removeDevRoutesForCiReleaseBuilds();
+
   const rootPkg = JSON.parse(await fs.readFile(path.join(repoRoot, 'package.json'), 'utf8'));
   const version = rootPkg.version;
 

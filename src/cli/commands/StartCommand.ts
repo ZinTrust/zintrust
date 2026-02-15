@@ -1,5 +1,5 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
-import { DENO_RUNNER_SOURCE, LAMBDA_RUNNER_SOURCE } from '@cli/commands/runner';
+import { createDenoRunnerSource, createLambdaRunnerSource } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
@@ -221,6 +221,16 @@ const resolveBootstrapEntryTs = (cwd: string): string | undefined => {
   return undefined;
 };
 
+const resolveRuntimeStartModuleSpecifier = (cwd: string): string => {
+  const localStart = path.join(cwd, 'src/start.ts');
+  if (existsSync(localStart)) {
+    // Runner files are created under `<cwd>/tmp`, so `../src/start.ts` is stable.
+    return '../src/start.ts';
+  }
+
+  return '@zintrust/core/start';
+};
+
 const resolveNodeDevCommand = (
   cwd: string,
   packageJson: { name?: unknown; scripts?: Record<string, unknown> }
@@ -366,7 +376,12 @@ const executeDenoStart = async (
     );
   }
 
-  const denoRunner = ensureTmpRunnerFile(cwd, 'zin-start-deno.ts', DENO_RUNNER_SOURCE);
+  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(cwd);
+  const denoRunner = ensureTmpRunnerFile(
+    cwd,
+    'zin-start-deno.ts',
+    createDenoRunnerSource(startModuleSpecifier)
+  );
 
   const args: string[] = [];
   if (mode === 'development' && watchEnabled) args.push('watch');
@@ -395,7 +410,12 @@ const executeLambdaStart = async (
     );
   }
 
-  const lambdaRunner = ensureTmpRunnerFile(cwd, 'zin-start-lambda.ts', LAMBDA_RUNNER_SOURCE);
+  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(cwd);
+  const lambdaRunner = ensureTmpRunnerFile(
+    cwd,
+    'zin-start-lambda.ts',
+    createLambdaRunnerSource(startModuleSpecifier)
+  );
 
   const args: string[] = [];
   if (mode === 'development' && watchEnabled) args.push('watch');

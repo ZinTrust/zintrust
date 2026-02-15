@@ -1,5 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+async function requestSignedProxyByPath(_cfg: unknown, path: string): Promise<unknown> {
+  if (path.includes('queryOne')) return { row: { id: 1 } };
+  if (path.includes('query')) return { rows: [{ id: 1 }], rowCount: 1 };
+  return { ok: true, meta: { changes: 1, lastRowId: 12 } };
+}
+
+const createSqlProxyAdapterUtilsModule = (): {
+  ensureSignedSettings: ReturnType<typeof vi.fn>;
+  isRecord: (value: unknown) => boolean;
+  requestSignedProxy: ReturnType<typeof vi.fn>;
+} => ({
+  ensureSignedSettings: vi.fn(() => ({ ok: true })),
+  isRecord: (value: unknown) => typeof value === 'object' && value !== null,
+  requestSignedProxy: vi.fn(requestSignedProxyByPath),
+});
+
+function passthroughCredentials(input: { keyId: string; secret: string }): {
+  keyId: string;
+  secret: string;
+} {
+  return {
+    keyId: input.keyId,
+    secret: input.secret,
+  };
+}
+
+const createSigningServicePassthroughModule = (): {
+  normalizeSigningCredentials: ReturnType<typeof vi.fn>;
+} => ({
+  normalizeSigningCredentials: vi.fn(passthroughCredentials),
+});
+
 describe('Proxy adapters remaining patch coverage', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -59,15 +91,7 @@ describe('Proxy adapters remaining patch coverage', () => {
   });
 
   it('covers MySQL and PostgreSQL buildSignedProxyConfig request/ensure branches', async () => {
-    vi.doMock('@orm/adapters/SqlProxyAdapterUtils', () => ({
-      ensureSignedSettings: vi.fn(() => ({ ok: true })),
-      isRecord: (value: unknown) => typeof value === 'object' && value !== null,
-      requestSignedProxy: vi.fn(async (_cfg: unknown, path: string) => {
-        if (path.includes('queryOne')) return { row: { id: 1 } };
-        if (path.includes('query')) return { rows: [{ id: 1 }], rowCount: 1 };
-        return { ok: true, meta: { changes: 1, lastRowId: 12 } };
-      }),
-    }));
+    vi.doMock('@orm/adapters/SqlProxyAdapterUtils', createSqlProxyAdapterUtilsModule);
 
     const { MySQLProxyAdapter } = await import('@orm/adapters/MySQLProxyAdapter');
     const my = MySQLProxyAdapter.create({} as never);
@@ -82,14 +106,7 @@ describe('Proxy adapters remaining patch coverage', () => {
 
   it('covers SqlProxyAdapterUtils config validation error paths', async () => {
     vi.doUnmock('@orm/adapters/SqlProxyAdapterUtils');
-    vi.doMock('@proxy/SigningService', () => ({
-      normalizeSigningCredentials: vi.fn(
-        ({ keyId, secret }: { keyId: string; secret: string }) => ({
-          keyId,
-          secret,
-        })
-      ),
-    }));
+    vi.doMock('@proxy/SigningService', createSigningServicePassthroughModule);
 
     const { ensureSignedSettings } = await import('@orm/adapters/SqlProxyAdapterUtils');
 

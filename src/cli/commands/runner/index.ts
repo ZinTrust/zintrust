@@ -1,6 +1,13 @@
-export const DENO_RUNNER_SOURCE = [
+const quote = (value: string): string => JSON.stringify(value);
+const START_MODULE_PLACEHOLDER = '__ZINTRUST_START_MODULE__';
+
+const injectStartModuleSpecifier = (template: string, startModuleSpecifier: string): string => {
+  return template.replaceAll(START_MODULE_PLACEHOLDER, quote(startModuleSpecifier));
+};
+
+const denoRunnerTemplate = [
   "import http from 'node:http';",
-  "import { deno } from '@zintrust/core/start';",
+  `import { deno } from ${START_MODULE_PLACEHOLDER};`,
   '',
   "const port = Number.parseInt(process.env.PORT ?? '3000', 10) || 3000;",
   "const host = process.env.HOST ?? 'localhost';",
@@ -56,9 +63,9 @@ export const DENO_RUNNER_SOURCE = [
   '',
 ].join('\n');
 
-export const LAMBDA_RUNNER_SOURCE = [
+const lambdaRunnerTemplate = [
   "import http from 'node:http';",
-  "import { handler as lambdaHandler } from '@zintrust/core/start';",
+  `import { handler as lambdaHandler } from ${START_MODULE_PLACEHOLDER};`,
   '',
   "const port = Number.parseInt(process.env.PORT ?? '3000', 10) || 3000;",
   "const host = process.env.HOST ?? 'localhost';",
@@ -138,3 +145,11 @@ export const LAMBDA_RUNNER_SOURCE = [
   '});',
   '',
 ].join('\n');
+
+export const createDenoRunnerSource = (startModuleSpecifier: string): string => {
+  return injectStartModuleSpecifier(denoRunnerTemplate, startModuleSpecifier);
+};
+
+export const createLambdaRunnerSource = (startModuleSpecifier: string): string => {
+  return injectStartModuleSpecifier(lambdaRunnerTemplate, startModuleSpecifier);
+};

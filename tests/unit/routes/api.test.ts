@@ -1,3 +1,8 @@
+function healthEnvLookup(key: string, defaultVal?: string): string {
+  if (key === 'RUNTIME_MODE') return 'cloudflare-workers';
+  if (key === 'WORKER_ENABLED') return 'true';
+  return defaultVal ?? '';
+}
 import { Router } from '@core-routes/Router';
 import { registerRoutes } from '@routes/api';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
@@ -79,11 +84,7 @@ describe('Routes API', () => {
 
     it('should handle health route and expose worker mode', async () => {
       const { Env } = await import('@config/env');
-      vi.mocked(Env.get).mockImplementation((key: string, defaultVal?: string) => {
-        if (key === 'RUNTIME_MODE') return 'cloudflare-workers';
-        if (key === 'WORKER_ENABLED') return 'true';
-        return defaultVal ?? '';
-      });
+      vi.mocked(Env.get).mockImplementation(healthEnvLookup);
 
       const router = Router.createRouter();
       registerRoutes(router);

@@ -4,6 +4,7 @@
  * Toggle dev/test routes in api.ts
  * Usage:
  *   node scripts/toggle-dev-routes.mjs comment   # Comment out dev routes before build
+ *   node scripts/toggle-dev-routes.mjs remove    # Remove dev routes before CI build/coverage
  *   node scripts/toggle-dev-routes.mjs uncomment # Restore dev routes after build
  */
 
@@ -84,6 +85,42 @@ function commentOut(content, markers) {
   return { modified, changeCount };
 }
 
+function removeMarkerLine(content, marker) {
+  if (!marker) return { content, changed: false };
+
+  const directPattern = new RegExp(String.raw`^\s*${escapeRegex(marker)}\s*\n?`, 'm');
+  if (directPattern.test(content)) {
+    return { content: content.replace(directPattern, ''), changed: true };
+  }
+
+  const commentedPattern = new RegExp(String.raw`^\s*//\s*${escapeRegex(marker)}\s*\n?`, 'm');
+  if (commentedPattern.test(content)) {
+    return { content: content.replace(commentedPattern, ''), changed: true };
+  }
+
+  return { content, changed: false };
+}
+
+function removeLines(content, markers) {
+  const markerValues = [
+    markers.import,
+    markers.registerDev,
+    markers.registerTest,
+    markers.pluginImport,
+  ];
+
+  let modified = content;
+  let changeCount = 0;
+
+  for (const marker of markerValues) {
+    const result = removeMarkerLine(modified, marker);
+    modified = result.content;
+    if (result.changed) changeCount++;
+  }
+
+  return { modified, changeCount };
+}
+
 function uncomment(content, markers) {
   let modified = content;
   let changeCount = 0;
@@ -133,24 +170,50 @@ function escapeRegex(str) {
   return str.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
+const ACTION_LABELS = {
+  comment: 'Commenting out',
+  remove: 'Removing',
+  uncomment: 'Restoring',
+};
+
+const ACTION_STATE_LABELS = {
+  comment: 'commented out',
+  remove: 'removed',
+  uncomment: 'active',
+};
+
+const ACTION_SUCCESS_LABELS = {
+  comment: 'commented out',
+  remove: 'removed',
+  uncomment: 'restored',
+};
+
+function isValidAction(action) {
+  return action === 'comment' || action === 'remove' || action === 'uncomment';
+}
+
+function applyAction(content, markers, action) {
+  if (action === 'comment') return commentOut(content, markers);
+  if (action === 'remove') return removeLines(content, markers);
+  return uncomment(content, markers);
+}
+
 function main() {
   const action = process.argv[2];
 
-  if (!action || !['comment', 'uncomment'].includes(action)) {
-    console.error('❌ Usage: node scripts/toggle-dev-routes.mjs <comment|uncomment>');
+  if (!isValidAction(action)) {
+    console.error('❌ Usage: node scripts/toggle-dev-routes.mjs <comment|remove|uncomment>');
     process.exit(1);
   }
 
-  console.log(`📝 ${action === 'comment' ? 'Commenting out' : 'Restoring'} dev routes...`);
+  const actionLabel = ACTION_LABELS[action];
+  console.log(`📝 ${actionLabel} dev routes...`);
 
   let totalChanges = 0;
 
   for (const target of targets) {
     const content = readTargetFile(target.filePath);
-    const result =
-      action === 'comment'
-        ? commentOut(content, target.markers)
-        : uncomment(content, target.markers);
+    const result = applyAction(content, target.markers, action);
 
     if (result.changeCount > 0) {
       writeTargetFile(target.filePath, result.modified);
@@ -159,17 +222,13 @@ function main() {
   }
 
   if (totalChanges === 0) {
-    console.log(
-      `ℹ️  No changes needed - dev-only imports already ${
-        action === 'comment' ? 'commented out' : 'active'
-      }`
-    );
+    const stateLabel = ACTION_STATE_LABELS[action];
+    console.log(`ℹ️  No changes needed - dev-only imports already ${stateLabel}`);
     process.exit(0);
   }
 
-  console.log(
-    `✅ Successfully ${action === 'comment' ? 'commented out' : 'restored'} ${totalChanges} line(s)`
-  );
+  const successLabel = ACTION_SUCCESS_LABELS[action];
+  console.log(`✅ Successfully ${successLabel} ${totalChanges} line(s)`);
 }
 
 main();
