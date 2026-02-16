@@ -52,6 +52,7 @@ const mockTracker = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn((): Array<Record<string, unknown>> => []),
   markedRecovered: vi.fn(async () => {}),
+  handedOffToQueue: vi.fn(async () => {}),
 }));
 
 vi.mock('@queue/JobStateTracker', () => ({
@@ -192,7 +193,7 @@ describe('QueueRecoveryCommand', () => {
       }),
       'default'
     );
-    expect(JobStateTracker.markedRecovered).toHaveBeenCalledTimes(1);
+    expect(JobStateTracker.handedOffToQueue).toHaveBeenCalledTimes(1);
   });
 
   it('uses policy recovery for a specific job when --push is not passed', async () => {
@@ -202,7 +203,7 @@ describe('QueueRecoveryCommand', () => {
     mockTracker.get.mockReturnValue({
       queueName: 'emails',
       jobId: 'job-456',
-      status: 'timeout',
+      status: 'pending_recovery',
       attempts: 1,
       payload: { id: 1 },
       createdAt: new Date().toISOString(),

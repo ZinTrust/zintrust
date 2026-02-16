@@ -201,7 +201,7 @@ import { Env } from '@zintrust/core';
 
 | Key                                        | Default                    | Description                                                                                                                              |
 | ------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `JOB_TRACKING_ENABLED`                     | `true`                     | Enable in-memory job lifecycle tracking (`pending`, `active`, `completed`, `failed`).                                                    |
+| `JOB_TRACKING_ENABLED`                     | `true`                     | Enable in-memory job lifecycle tracking (includes `pending_recovery` and `enqueued` handoff state).                                      |
 | `JOB_TRACKING_MAX_JOBS`                    | `20000`                    | Maximum in-memory tracked job records before pruning oldest entries.                                                                     |
 | `JOB_TRACKING_MAX_TRANSITIONS`             | `50000`                    | Maximum in-memory transition records before pruning oldest entries.                                                                      |
 | `JOB_TRACKING_PERSISTENCE_ENABLED`         | `false`                    | Enable durable persistence for tracking records.                                                                                         |
@@ -209,13 +209,14 @@ import { Env } from '@zintrust/core';
 | `JOB_TRACKING_DB_CONNECTION`               | `default`                  | Database connection name for tracker persistence.                                                                                        |
 | `JOB_TRACKING_DB_TABLE`                    | `zintrust_jobs`            | Table used for latest job state snapshots.                                                                                               |
 | `JOB_TRACKING_DB_TRANSITIONS_TABLE`        | `zintrust_job_transitions` | Table used for append-only state transitions.                                                                                            |
-| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `true`                     | Persist append-only transition rows to `JOB_TRACKING_DB_TRANSITIONS_TABLE` (disable to store only snapshots in `JOB_TRACKING_DB_TABLE`). |
+| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `false`                    | Persist append-only transition rows to `JOB_TRACKING_DB_TRANSITIONS_TABLE` (disable to store only snapshots in `JOB_TRACKING_DB_TABLE`). |
 | `JOB_HEARTBEAT_INTERVAL_MS`                | `10000`                    | Worker heartbeat interval used for stalled-job detection.                                                                                |
 | `JOB_HEARTBEAT_GRACE_MS`                   | `20000`                    | Heartbeat grace window before active jobs are marked stalled.                                                                            |
 | `JOB_RECONCILIATION_INTERVAL_MS`           | `60000`                    | Interval for in-memory and persisted reconciliation scans.                                                                               |
-| `JOB_RECONCILIATION_STALE_MS`              | `120000`                   | Staleness threshold for persisted `pending`/`active` reconciliation.                                                                     |
+| `JOB_RECONCILIATION_STALE_MS`              | `120000`                   | Staleness threshold for persisted enqueue-fallback (`pending_recovery`) buffer records.                                                  |
 | `JOB_RECOVERY_INTERVAL_MS`                 | `30000`                    | Interval for automatic recovery daemon scans.                                                                                            |
 | `JOB_RECOVERY_MIN_AGE_MS`                  | `5000`                     | Minimum age before a recoverable state is eligible for re-queue.                                                                         |
+| `JOB_RECOVERY_DB_SCAN_LIMIT`               | `100`                      | Max rows scanned from `JOB_TRACKING_DB_TABLE` for persisted `pending_recovery` recovery attempts per daemon run.                         |
 | `DLQ_REPLAY_MAX_BATCH_SIZE`                | `25`                       | Maximum number of dead-letter records replayed in one governed replay batch.                                                             |
 | `DLQ_REPLAY_MAX_QPS`                       | `5`                        | Ceiling for dead-letter replay throughput (jobs per second).                                                                             |
 | `DLQ_REPLAY_MIN_AGE_MS`                    | `60000`                    | Minimum dead-letter age required before replay eligibility.                                                                              |

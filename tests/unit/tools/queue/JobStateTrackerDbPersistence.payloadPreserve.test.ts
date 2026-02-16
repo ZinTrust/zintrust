@@ -47,9 +47,7 @@ describe('JobStateTrackerDbPersistence payload preservation', () => {
     const update = vi.fn(async () => 1);
 
     const query: FakeQuery = {
-      where: vi.fn(function () {
-        return this;
-      }),
+      where: vi.fn(() => query),
       first: vi.fn(async () => ({ job_id: 'job-1' })),
       update,
       insert: vi.fn(async () => 1),
@@ -73,7 +71,8 @@ describe('JobStateTrackerDbPersistence payload preservation', () => {
     });
 
     expect(update).toHaveBeenCalledTimes(1);
-    const payload = update.mock.calls[0]?.[0] as Record<string, unknown>;
+    const [payloadUnknown] = update.mock.calls[0] ?? [];
+    const payload = payloadUnknown as unknown as Record<string, unknown>;
 
     expect(payload).toBeTruthy();
     expect(Object.prototype.hasOwnProperty.call(payload, 'payload_json')).toBe(false);
@@ -84,9 +83,7 @@ describe('JobStateTrackerDbPersistence payload preservation', () => {
     const insert = vi.fn(async () => 1);
 
     const query: FakeQuery = {
-      where: vi.fn(function () {
-        return this;
-      }),
+      where: vi.fn(() => query),
       first: vi.fn(async () => null),
       update: vi.fn(async () => 1),
       insert,
@@ -102,7 +99,7 @@ describe('JobStateTrackerDbPersistence payload preservation', () => {
     await adapter.upsertJob({
       jobId: 'job-2',
       queueName: 'emails',
-      status: 'pending',
+      status: 'pending_recovery',
       attempts: 0,
       payload: undefined,
       createdAt: '2026-02-15T00:00:00.000Z',
@@ -110,7 +107,8 @@ describe('JobStateTrackerDbPersistence payload preservation', () => {
     });
 
     expect(insert).toHaveBeenCalledTimes(1);
-    const payload = insert.mock.calls[0]?.[0] as Record<string, unknown>;
+    const [payloadUnknown] = insert.mock.calls[0] ?? [];
+    const payload = payloadUnknown as unknown as Record<string, unknown>;
 
     expect(payload['payload_json']).toBe('{}');
   });

@@ -2,16 +2,11 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IDatabase } from '@orm/Database';
 import { useDatabase } from '@orm/Database';
-import type { JobTrackingStatus } from '@queue/JobStateTracker';
 import { JobStateTracker } from '@queue/JobStateTracker';
 
 type PersistedJobRow = {
   queue_name: string;
   job_id: string;
-  status: JobTrackingStatus;
-  attempts?: number;
-  max_attempts?: number;
-  retry_at?: string | null;
   updated_at?: string;
 };
 
@@ -19,24 +14,6 @@ const getDb = (): IDatabase =>
   useDatabase(undefined, Env.get('JOB_TRACKING_DB_CONNECTION', 'default'));
 
 const toSqlDateTime = (value: Date): string => value.toISOString().slice(0, 19).replace('T', ' ');
-
-const mapPersistedStatus = (raw: unknown): JobTrackingStatus | null => {
-  if (typeof raw !== 'string') return null;
-  const value = raw.trim().toLowerCase();
-  const allowed: JobTrackingStatus[] = [
-    'pending',
-    'active',
-    'completed',
-    'failed',
-    'stalled',
-    'timeout',
-    'pending_recovery',
-    'dead_letter',
-    'manual_review',
-    'delayed',
-  ];
-  return allowed.find((entry) => entry === value) ?? null;
-};
 
 export const JobReconciliationRunner = Object.freeze({
   async reconcileInMemory(): Promise<{ stalled: number; timeout: number }> {
@@ -75,65 +52,18 @@ export const JobReconciliationRunner = Object.freeze({
     const staleAfterMs = Math.max(1000, Env.getInt('JOB_RECONCILIATION_STALE_MS', 120000));
     const cutoff = new Date(Date.now() - staleAfterMs);
 
-    const rows = await db
+    // Persistence is an enqueue-fallback buffer (jobs that failed to enqueue).
+    // Do not reconcile stale 'pending'/'active' from DB: QUEUE_DRIVER is the source of truth.
+    // pending_recovery rows are handled by JobRecoveryDaemon, which performs the enqueue attempt.
+    const candidates = await db
       .table(Env.get('JOB_TRACKING_DB_TABLE', 'zintrust_jobs'))
-      .select(
-        'queue_name',
-        'job_id',
-        'status',
-        'attempts',
-        'max_attempts',
-        'retry_at',
-        'updated_at'
-      )
-      .whereIn('status', ['active', 'pending'])
+      .select('queue_name', 'job_id')
+      .whereIn('status', ['pending_recovery'])
       .where('updated_at', '<=', toSqlDateTime(cutoff))
       .limit(Math.max(1, limit))
       .get<PersistedJobRow>();
 
-    const actionableRows = (rows ?? []).filter((row) => mapPersistedStatus(row.status) !== null);
-
-    await Promise.all(
-      actionableRows.map(async (row) => {
-        const status = mapPersistedStatus(row.status);
-        if (status === 'active') {
-          await JobStateTracker.stalled({
-            queueName: row.queue_name,
-            jobId: row.job_id,
-            reason: 'Persisted active job stale during reconciliation',
-          });
-          return;
-        }
-
-        // Pending jobs can be legitimately waiting for their retry window.
-        // Avoid creating churn transitions until the retry_at window has passed.
-        if (status === 'pending' && typeof row.retry_at === 'string' && row.retry_at.trim()) {
-          const retryAtMs = new Date(row.retry_at).getTime();
-          if (!Number.isNaN(retryAtMs) && retryAtMs > Date.now()) {
-            return;
-          }
-        }
-
-        const persistedAttempts =
-          typeof row.attempts === 'number' && Number.isFinite(row.attempts)
-            ? Math.max(0, Math.floor(row.attempts))
-            : 0;
-        const maxAttempts =
-          typeof row.max_attempts === 'number' && Number.isFinite(row.max_attempts)
-            ? Math.max(1, Math.floor(row.max_attempts))
-            : undefined;
-
-        await JobStateTracker.pendingRecovery({
-          queueName: row.queue_name,
-          jobId: row.job_id,
-          reason: 'Persisted pending job stale during reconciliation',
-          attempts: persistedAttempts + 1,
-          maxAttempts,
-        });
-      })
-    );
-
-    return actionableRows.length;
+    return candidates.length;
   },
 
   async runOnce(): Promise<{ inMemory: { stalled: number; timeout: number }; persisted: number }> {

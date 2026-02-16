@@ -493,12 +493,15 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         return HttpQueueDriver.enqueue(queue, payload);
       }
 
+      let requestedJobId: string | number | undefined;
+
       try {
         const q = getQueue(queue);
 
         // Extract BullMQ options from payload with proper typing
         const payloadData = payload as BullMQPayload;
         const jobOptions = createJobOptions(payloadData);
+        requestedJobId = jobOptions.jobId;
         // Handle deduplication
         const deduplicationResult = await handleDeduplication(payloadData, jobOptions, queue);
         if (deduplicationResult.shouldReturn && deduplicationResult.returnValue) {
@@ -517,6 +520,16 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
 
         return String(job.id);
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // BullMQ throws when a job with the same jobId already exists.
+        // In enqueue-fallback/recovery paths we want strict idempotency: treat as success.
+        if (
+          requestedJobId !== undefined &&
+          /jobid/i.test(message) &&
+          /already exists/i.test(message)
+        ) {
+          return String(requestedJobId);
+        }
         throw ErrorFactory.createTryCatchError('Failed to enqueue job via BullMQ', error as Error);
       }
     },

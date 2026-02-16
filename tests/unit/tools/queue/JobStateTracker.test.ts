@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import { JobStateTracker } from '@/tools/queue/JobStateTracker';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 describe('JobStateTracker', () => {
   beforeEach(() => {
@@ -116,5 +116,29 @@ describe('JobStateTracker', () => {
 
     const recoverable = JobStateTracker.listRecoverable(0, 'emails');
     expect(recoverable.some((row) => row.jobId === 'job-5')).toBe(false);
+  });
+
+  it('does not return recoverable jobs before retryAt', async () => {
+    const retryAtFuture = new Date(Date.now() + 60_000).toISOString();
+    await JobStateTracker.pendingRecovery({
+      queueName: 'emails',
+      jobId: 'job-6',
+      attempts: 1,
+      retryAt: retryAtFuture,
+      reason: 'scheduled backoff',
+    });
+
+    const retryAtPast = new Date(Date.now() - 1000).toISOString();
+    await JobStateTracker.pendingRecovery({
+      queueName: 'emails',
+      jobId: 'job-7',
+      attempts: 1,
+      retryAt: retryAtPast,
+      reason: 'ready',
+    });
+
+    const recoverable = JobStateTracker.listRecoverable(0, 'emails');
+    expect(recoverable.some((row) => row.jobId === 'job-6')).toBe(false);
+    expect(recoverable.some((row) => row.jobId === 'job-7')).toBe(true);
   });
 });

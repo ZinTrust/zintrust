@@ -7,20 +7,17 @@ ZinTrust queue processing now supports two layers of job lifecycle visibility:
 - In-memory tracking for fast runtime introspection
 - Optional database persistence for durable audit and recovery visibility
 
-Tracked statuses are:
+The persistence buffer focuses on enqueue-fallback records (jobs that failed to enqueue into `QUEUE_DRIVER`):
 
-- `pending`
-- `active`
-- `completed`
-- `failed`
+- `pending_recovery` (needs enqueue retry)
+- `enqueued` (terminal: job is in `QUEUE_DRIVER` or already exists)
 
 ## Runtime Flow
 
-1. Job is accepted by queue driver
-2. `JobStateTracker.enqueued(...)` records `pending`
-3. Worker begins processing and records `active`
-4. Worker records `completed` or `failed`
-5. If persistence is enabled, latest state + transition are written to DB
+1. App attempts to enqueue a job into `QUEUE_DRIVER`
+2. If enqueue fails, `JobStateTracker.pendingRecovery(...)` records a persistence buffer row
+3. Recovery daemon retries enqueue for `pending_recovery` rows
+4. Once enqueue succeeds (or the job already exists in the queue), status becomes `enqueued` (terminal)
 
 ## Automatic Registration
 
@@ -38,7 +35,7 @@ No manual bootstrap code is required when env flags are set correctly.
 | `JOB_TRACKING_DB_CONNECTION`               | `default`                  | No       | Database connection name used by persistence adapter.                   |
 | `JOB_TRACKING_DB_TABLE`                    | `zintrust_jobs`            | No       | Snapshot table for latest state per job.                                |
 | `JOB_TRACKING_DB_TRANSITIONS_TABLE`        | `zintrust_job_transitions` | No       | Append-only transitions table.                                          |
-| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `true`                     | No       | Persist append-only transitions rows (disable to store only snapshots). |
+| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `false`                    | No       | Persist append-only transitions rows (disable to store only snapshots). |
 | `JOB_TRACKING_MAX_JOBS`                    | `20000`                    | No       | In-memory cap for tracked jobs.                                         |
 | `JOB_TRACKING_MAX_TRANSITIONS`             | `50000`                    | No       | In-memory cap for transitions.                                          |
 
@@ -82,6 +79,6 @@ JOB_TRACKING_DB_TRANSITIONS_TABLE=zintrust_job_transitions
 
 - Migration applied successfully
 - Queue runtime boot logs show no persistence warnings
-- New jobs appear in `zintrust_jobs`
+- Failed enqueue jobs appear in `zintrust_jobs` as `pending_recovery`
 - State transitions appear in `zintrust_job_transitions`
 - Worker failures update `last_error` and transition rows

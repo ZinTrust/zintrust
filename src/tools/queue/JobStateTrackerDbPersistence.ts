@@ -220,7 +220,14 @@ export const createJobStateTrackerDbPersistence = (
   const transitionsTable = getTransitionsTable(options);
 
   const persistTransitions = (): boolean =>
-    Env.getBool('JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED', true);
+    Env.getBool('JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED', false);
+
+  const shouldInsertNewRow = (record: JobTrackingRecord): boolean => {
+    // zintrust_jobs is an enqueue-fallback buffer: only jobs that failed to enqueue
+    // should be inserted into persistence. Once the job is in QUEUE_DRIVER, we only
+    // update the existing row (e.g., status=enqueued) but never create new rows.
+    return record.status === 'pending_recovery';
+  };
 
   const upsertJob = async (record: JobTrackingRecord): Promise<void> => {
     const db = getDatabase(connectionName);
@@ -230,9 +237,13 @@ export const createJobStateTrackerDbPersistence = (
       .table(jobsTable)
       .where('job_id', '=', record.jobId)
       .where('queue_name', '=', record.queueName)
-      .first<Record<string, unknown>>();
+      .first<{ status?: unknown }>();
 
     if (existing) {
+      const existingStatus =
+        typeof existing.status === 'string' ? existing.status.trim().toLowerCase() : '';
+      if (existingStatus === 'enqueued') return;
+
       const payload = serializeJobRecordForUpdate(record, options);
       await db
         .table(jobsTable)
@@ -242,6 +253,7 @@ export const createJobStateTrackerDbPersistence = (
       return;
     }
 
+    if (!shouldInsertNewRow(record)) return;
     const payload = serializeJobRecordForInsert(record, options);
     await db.table(jobsTable).insert(payload);
   };
