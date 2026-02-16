@@ -30,16 +30,17 @@ No manual bootstrap code is required when env flags are set correctly.
 
 ## Environment Variables
 
-| Key                                 | Default                    | Required | Description                                                       |
-| ----------------------------------- | -------------------------- | -------- | ----------------------------------------------------------------- |
-| `JOB_TRACKING_ENABLED`              | `true`                     | No       | Enables tracker lifecycle instrumentation.                        |
-| `JOB_TRACKING_PERSISTENCE_ENABLED`  | `false`                    | No       | Enables durable persistence writes.                               |
-| `JOB_TRACKING_PERSISTENCE_DRIVER`   | `database`                 | No       | Persistence driver selector. Current supported value: `database`. |
-| `JOB_TRACKING_DB_CONNECTION`        | `default`                  | No       | Database connection name used by persistence adapter.             |
-| `JOB_TRACKING_DB_TABLE`             | `zintrust_jobs`            | No       | Snapshot table for latest state per job.                          |
-| `JOB_TRACKING_DB_TRANSITIONS_TABLE` | `zintrust_job_transitions` | No       | Append-only transitions table.                                    |
-| `JOB_TRACKING_MAX_JOBS`             | `20000`                    | No       | In-memory cap for tracked jobs.                                   |
-| `JOB_TRACKING_MAX_TRANSITIONS`      | `50000`                    | No       | In-memory cap for transitions.                                    |
+| Key                                        | Default                    | Required | Description                                                             |
+| ------------------------------------------ | -------------------------- | -------- | ----------------------------------------------------------------------- |
+| `JOB_TRACKING_ENABLED`                     | `true`                     | No       | Enables tracker lifecycle instrumentation.                              |
+| `JOB_TRACKING_PERSISTENCE_ENABLED`         | `false`                    | No       | Enables durable persistence writes.                                     |
+| `JOB_TRACKING_PERSISTENCE_DRIVER`          | `database`                 | No       | Persistence driver selector. Current supported value: `database`.       |
+| `JOB_TRACKING_DB_CONNECTION`               | `default`                  | No       | Database connection name used by persistence adapter.                   |
+| `JOB_TRACKING_DB_TABLE`                    | `zintrust_jobs`            | No       | Snapshot table for latest state per job.                                |
+| `JOB_TRACKING_DB_TRANSITIONS_TABLE`        | `zintrust_job_transitions` | No       | Append-only transitions table.                                          |
+| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `true`                     | No       | Persist append-only transitions rows (disable to store only snapshots). |
+| `JOB_TRACKING_MAX_JOBS`                    | `20000`                    | No       | In-memory cap for tracked jobs.                                         |
+| `JOB_TRACKING_MAX_TRANSITIONS`             | `50000`                    | No       | In-memory cap for transitions.                                          |
 
 ## Database Schema
 

@@ -111,16 +111,11 @@ const serializeJobRecordForInsert = (
 
   // Ensure payload_json is always non-null for inserts (some schemas require NOT NULL).
   if (payload['payload_json'] === null) {
-    delete payload['payload_json'];
+    payload['payload_json'] = '{}';
   }
 
   return payload;
 };
-
-const shouldPersistPayloadJson = (
-  record: JobTrackingRecord,
-  options: JobStateTrackerDbOptions
-): boolean => record.payload !== undefined && options.persistPayload !== false;
 
 type UpdateEntry = {
   key: string;
@@ -132,15 +127,6 @@ const applyUpdateEntries = (update: Record<string, unknown>, entries: UpdateEntr
   entries.forEach((entry) => {
     if (entry.enabled) update[entry.key] = entry.value;
   });
-};
-
-const resolvePayloadEntry = (
-  record: JobTrackingRecord,
-  options: JobStateTrackerDbOptions,
-  base: Record<string, unknown>
-): UpdateEntry => {
-  const enabled = shouldPersistPayloadJson(record, options) && base['payload_json'] !== null;
-  return { key: 'payload_json', enabled, value: base['payload_json'] };
 };
 
 const resolveResultEntry = (
@@ -169,7 +155,6 @@ const serializeJobRecordForUpdate = (
 
   applyUpdateEntries(update, [
     { key: 'max_attempts', enabled: record.maxAttempts !== undefined, value: base['max_attempts'] },
-    resolvePayloadEntry(record, options, base),
     resolveResultEntry(record, options, base),
     { key: 'last_error', enabled: record.lastError !== undefined, value: base['last_error'] },
     {
@@ -234,6 +219,9 @@ export const createJobStateTrackerDbPersistence = (
   const jobsTable = getJobsTable(options);
   const transitionsTable = getTransitionsTable(options);
 
+  const persistTransitions = (): boolean =>
+    Env.getBool('JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED', true);
+
   const upsertJob = async (record: JobTrackingRecord): Promise<void> => {
     const db = getDatabase(connectionName);
     if (db === null) return;
@@ -259,6 +247,7 @@ export const createJobStateTrackerDbPersistence = (
   };
 
   const insertTransition = async (transition: JobTrackingTransition): Promise<void> => {
+    if (persistTransitions() === false) return;
     const db = getDatabase(connectionName);
     if (db === null) return;
 
