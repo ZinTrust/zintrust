@@ -376,6 +376,10 @@ Remote proxy docs:
 - `docs/cloudflare-d1-remote.md`
 - `docs/cloudflare-kv-remote.md`
 
+Security note:
+
+- `docs/cloudflare-d1-remote.md` includes a threat model table explaining what registry mode protects against (and what it does not).
+
 ## AWS (Runtime)
 
 From `Env`:

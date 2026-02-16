@@ -8,8 +8,6 @@
 import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
-import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
-import { QueryBuilder } from '@orm/QueryBuilder';
 import {
   ensureSignedSettings,
   isRecord,
@@ -17,6 +15,9 @@ import {
   type ProxySettings,
   type SignedProxyConfig,
 } from '@orm/adapters/SqlProxyAdapterUtils';
+import { createStatementPayload, resolveSqlProxyMode } from '@orm/adapters/SqlProxyRegistryMode';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 type ProxyQueryResponse = {
   rows: Record<string, unknown>[];
@@ -122,6 +123,12 @@ const requestProxy = async <T>(
   return requestSignedProxy<T>(buildSignedProxyConfig(settings), path, payload);
 };
 
+type ProxyMode = 'sql' | 'registry';
+
+const resolveProxyMode = (): ProxyMode => {
+  return resolveSqlProxyMode('POSTGRES_PROXY_MODE');
+};
+
 export const PostgreSQLProxyAdapter = Object.freeze({
   create(_config: DatabaseConfig): IDatabaseAdapter {
     let connected = true;
@@ -139,20 +146,45 @@ export const PostgreSQLProxyAdapter = Object.freeze({
 
       async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        const out = await requestProxy<ProxyStatementResponse>(settings, '/zin/postgres/query', {
-          sql,
-          params: parameters,
-        });
+        const mode = resolveProxyMode();
+        const out =
+          mode === 'registry'
+            ? await requestProxy<ProxyStatementResponse>(
+                settings,
+                '/zin/postgres/statement',
+                await createStatementPayload(sql, parameters)
+              )
+            : await requestProxy<ProxyStatementResponse>(settings, '/zin/postgres/query', {
+                sql,
+                params: parameters,
+              });
         return toQueryResult(out);
       },
 
       async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
         if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        const out = await requestProxy<ProxyQueryOneResponse>(settings, '/zin/postgres/queryOne', {
-          sql,
-          params: parameters,
-        });
-        return out.row ?? null;
+        const mode = resolveProxyMode();
+        if (mode !== 'registry') {
+          const out = await requestProxy<ProxyQueryOneResponse>(
+            settings,
+            '/zin/postgres/queryOne',
+            {
+              sql,
+              params: parameters,
+            }
+          );
+          return out.row ?? null;
+        }
+
+        const out = await requestProxy<ProxyStatementResponse>(
+          settings,
+          '/zin/postgres/statement',
+          await createStatementPayload(sql, parameters)
+        );
+
+        if (isQueryOneResponse(out)) return out.row ?? null;
+        if (isQueryResponse(out)) return out.rows[0] ?? null;
+        return null;
       },
 
       async ping(): Promise<void> {

@@ -9,8 +9,6 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
-import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
-import { QueryBuilder } from '@orm/QueryBuilder';
 import {
   ensureSignedSettings,
   isRecord,
@@ -18,6 +16,13 @@ import {
   type ProxySettings,
   type SignedProxyConfig,
 } from '@orm/adapters/SqlProxyAdapterUtils';
+import {
+  createStatementPayload,
+  getExecMetaWithLastRowId,
+  resolveSqlProxyMode,
+} from '@orm/adapters/SqlProxyRegistryMode';
+import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
+import { QueryBuilder } from '@orm/QueryBuilder';
 
 type ProxyQueryResponse = {
   rows: Record<string, unknown>[];
@@ -66,15 +71,6 @@ const isQueryResponse = (value: unknown): value is ProxyQueryResponse =>
 const isQueryOneResponse = (value: unknown): value is ProxyQueryOneResponse =>
   isRecord(value) && 'row' in value;
 
-const getExecMeta = (value: unknown): { changes: number; lastRowId?: number | string | bigint } => {
-  if (!isRecord(value) || typeof value['ok'] !== 'boolean') return { changes: 0 };
-  const meta = value['meta'];
-  if (!isRecord(meta)) return { changes: 0 };
-  const changes = typeof meta['changes'] === 'number' ? meta['changes'] : 0;
-  const lastRowId = meta['lastRowId'];
-  return { changes, lastRowId: lastRowId as number | string | bigint | undefined };
-};
-
 const requestProxy = async <T>(
   settings: ProxySettings,
   path: string,
@@ -96,10 +92,148 @@ const requestProxy = async <T>(
   }
 };
 
+type ProxyMode = 'sql' | 'registry';
+
+const resolveProxyMode = (): ProxyMode => {
+  return resolveSqlProxyMode('MYSQL_PROXY_MODE');
+};
+
+type MySQLProxyState = {
+  connected: boolean;
+  settings: ProxySettings;
+};
+
+const requireConnected = (state: MySQLProxyState): void => {
+  if (!state.connected) throw ErrorFactory.createConnectionError('Database not connected');
+};
+
+const toQueryResult = (out: ProxyStatementResponse): QueryResult => {
+  if (isQueryResponse(out)) {
+    return {
+      rows: out.rows,
+      rowCount: out.rowCount,
+      lastInsertId: out.lastInsertId,
+    };
+  }
+
+  if (isQueryOneResponse(out)) {
+    const row = out.row;
+    return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+  }
+
+  const meta = getExecMetaWithLastRowId(out);
+  return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
+};
+
+const createQuery =
+  (state: MySQLProxyState) =>
+  async (sql: string, parameters: unknown[]): Promise<QueryResult> => {
+    requireConnected(state);
+    const mode = resolveProxyMode();
+    const out =
+      mode === 'registry'
+        ? await requestProxy<ProxyStatementResponse>(
+            state.settings,
+            '/zin/mysql/statement',
+            await createStatementPayload(sql, parameters)
+          )
+        : await requestProxy<ProxyStatementResponse>(state.settings, '/zin/mysql/query', {
+            sql,
+            params: parameters,
+          });
+
+    return toQueryResult(out);
+  };
+
+const createQueryOne =
+  (state: MySQLProxyState) =>
+  async (sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> => {
+    requireConnected(state);
+    const mode = resolveProxyMode();
+    if (mode !== 'registry') {
+      const out = await requestProxy<ProxyQueryOneResponse>(state.settings, '/zin/mysql/queryOne', {
+        sql,
+        params: parameters,
+      });
+      return out.row ?? null;
+    }
+
+    const out = await requestProxy<ProxyStatementResponse>(
+      state.settings,
+      '/zin/mysql/statement',
+      await createStatementPayload(sql, parameters)
+    );
+
+    if (isQueryOneResponse(out)) return out.row ?? null;
+    if (isQueryResponse(out)) return out.rows[0] ?? null;
+    return null;
+  };
+
+const createPing =
+  (queryOne: (sql: string, parameters: unknown[]) => Promise<Record<string, unknown> | null>) =>
+  async (): Promise<void> => {
+    await queryOne(QueryBuilder.create('').select('1').toSQL(), []);
+  };
+
+const createTransaction =
+  (state: MySQLProxyState, getAdapter: () => IDatabaseAdapter) =>
+  async <T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
+    requireConnected(state);
+    try {
+      return await callback(getAdapter());
+    } catch (error: unknown) {
+      throw ErrorFactory.createTryCatchError('MySQL proxy transaction failed', error);
+    }
+  };
+
+const createRawQuery =
+  (state: MySQLProxyState, query: (sql: string, parameters: unknown[]) => Promise<QueryResult>) =>
+  async <T = unknown>(sql: string, parameters: unknown[] = []): Promise<T[]> => {
+    requireConnected(state);
+    const out = await query(sql, parameters);
+    return out.rows as T[];
+  };
+
+const createAdapter = (state: MySQLProxyState): IDatabaseAdapter => {
+  const query = createQuery(state);
+  const queryOne = createQueryOne(state);
+  const ping = createPing(queryOne);
+
+  const adapter: IDatabaseAdapter = {
+    async connect(): Promise<void> {
+      ensureSignedSettings(buildSignedProxyConfig(state.settings));
+      state.connected = true;
+    },
+
+    async disconnect(): Promise<void> {
+      state.connected = false;
+    },
+
+    query,
+    queryOne,
+    ping,
+
+    transaction: createTransaction(state, () => adapter),
+    rawQuery: createRawQuery(state, query),
+
+    getType(): SupportedDriver {
+      return AdaptersEnum.mysql;
+    },
+    isConnected(): boolean {
+      return state.connected;
+    },
+    getPlaceholder(_index: number): string {
+      return '?';
+    },
+  };
+
+  return adapter;
+};
+
 export const MySQLProxyAdapter = Object.freeze({
   create(_config: DatabaseConfig): IDatabaseAdapter {
-    let connected = false;
     const settings = buildProxySettings();
+    const state: MySQLProxyState = { connected: false, settings };
 
     Logger.info('[MySQLProxyAdapter] Created with runtime settings', {
       baseUrl: settings.baseUrl,
@@ -108,79 +242,7 @@ export const MySQLProxyAdapter = Object.freeze({
       hasSecret: (settings.secret ?? '').trim() !== '',
     });
 
-    return {
-      async connect(): Promise<void> {
-        ensureSignedSettings(buildSignedProxyConfig(settings));
-        connected = true;
-      },
-
-      async disconnect(): Promise<void> {
-        connected = false;
-      },
-
-      async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        const out = await requestProxy<ProxyStatementResponse>(settings, '/zin/mysql/query', {
-          sql,
-          params: parameters,
-        });
-
-        if (isQueryResponse(out)) {
-          return {
-            rows: out.rows,
-            rowCount: out.rowCount,
-            lastInsertId: out.lastInsertId,
-          };
-        }
-
-        if (isQueryOneResponse(out)) {
-          const row = out.row;
-          return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
-        }
-
-        const meta = getExecMeta(out);
-        return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
-      },
-
-      async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        const out = await requestProxy<ProxyQueryOneResponse>(settings, '/zin/mysql/queryOne', {
-          sql,
-          params: parameters,
-        });
-        return out.row ?? null;
-      },
-
-      async ping(): Promise<void> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        await this.queryOne(QueryBuilder.create('').select('1').toSQL(), []);
-      },
-
-      async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        try {
-          return await callback(this);
-        } catch (error: unknown) {
-          throw ErrorFactory.createTryCatchError('MySQL proxy transaction failed', error);
-        }
-      },
-
-      async rawQuery<T = unknown>(sql: string, parameters: unknown[] = []): Promise<T[]> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        const out = await this.query(sql, parameters);
-        return out.rows as T[];
-      },
-
-      getType(): SupportedDriver {
-        return AdaptersEnum.mysql;
-      },
-      isConnected(): boolean {
-        return connected;
-      },
-      getPlaceholder(_index: number): string {
-        return '?';
-      },
-    };
+    return createAdapter(state);
   },
 });
 

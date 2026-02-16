@@ -7,6 +7,7 @@ import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCo
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import * as fs from '@node-singletons/fs';
+import { StatementRegistryBuild } from '@orm/SchemaStatemenWriter';
 import type { Command } from 'commander';
 import { spawn } from 'node:child_process';
 
@@ -17,6 +18,34 @@ type D1LearnOptions = CommandOptions & {
 };
 
 const LEARN_FILE = 'storage/d1-learned.jsonl';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object';
+
+const coerceStringRegistry = (value: unknown): Record<string, string> => {
+  if (!isRecord(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v === 'string' && v.trim() !== '') out[k] = v;
+  }
+  return out;
+};
+
+const readExistingRegistryFile = async (outputFile: string): Promise<Record<string, string>> => {
+  try {
+    await fs.stat(outputFile);
+    const existingContent = await fs.readFile(outputFile, 'utf-8');
+    const existingJson = JSON.parse(existingContent) as unknown;
+
+    if (isRecord(existingJson) && 'queries' in existingJson) {
+      return coerceStringRegistry(existingJson['queries']);
+    }
+
+    return coerceStringRegistry(existingJson);
+  } catch {
+    return {};
+  }
+};
 
 const cleanLearnFile = async (): Promise<void> => {
   try {
@@ -29,25 +58,7 @@ const cleanLearnFile = async (): Promise<void> => {
 const parseLearnedFile = async (): Promise<Record<string, string>> => {
   try {
     const content = await fs.readFile(LEARN_FILE, 'utf-8');
-    const lines = content.split('\n').filter((l) => l.trim().length > 0);
-    const unique: Record<string, string> = {};
-
-    for (const line of lines) {
-      try {
-        const parsed = JSON.parse(line) as { statementId: unknown; sql: unknown };
-        if (
-          typeof parsed.statementId === 'string' &&
-          parsed.statementId.length > 0 &&
-          typeof parsed.sql === 'string' &&
-          parsed.sql.length > 0
-        ) {
-          unique[parsed.statementId] = parsed.sql;
-        }
-      } catch {
-        // ignore malformed lines
-      }
-    }
-    return unique;
+    return StatementRegistryBuild.fromJsonl(content);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return {};
@@ -139,27 +150,13 @@ export const D1LearnCommand = Object.freeze({
         // 4. Merge with existing if needed
         let finalMap = learned;
         if (append) {
-          try {
-            // Check if file exists roughly using stat
-            await fs.stat(outputFile);
-            const existingContent = await fs.readFile(outputFile, 'utf-8');
-            const existingJson = JSON.parse(existingContent) as
-              | Record<string, unknown>
-              | { queries: Record<string, unknown> };
-
-            // Handle simple map or wrapped
-            const existingMap = (('queries' in existingJson
-              ? existingJson.queries
-              : existingJson) ?? {}) as Record<string, string>;
-
-            finalMap = { ...existingMap, ...learned };
-          } catch {
-            // File doesn't exist or invalid JSON, strict append might fail but here we just start fresh
-          }
+          const existingMap = await readExistingRegistryFile(outputFile);
+          finalMap = StatementRegistryBuild.merge(existingMap, learned);
         }
 
         // 5. Output
-        const outputContent = JSON.stringify(finalMap, null, 2);
+        // One-line JSON is easiest to paste into `wrangler secret put ZT_D1_STATEMENTS_JSON`.
+        const outputContent = StatementRegistryBuild.toStatementsJson(finalMap);
 
         await fs.writeFile(outputFile, outputContent);
         Logger.info(`Registry written to ${outputFile}`);

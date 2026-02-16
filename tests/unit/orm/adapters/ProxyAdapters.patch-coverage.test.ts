@@ -78,6 +78,6 @@ describe('Proxy adapters patch coverage', () => {
     const signInput = (
       SignedRequest.createHeaders as unknown as { mock: { calls: unknown[][] } }
     ).mock.calls.at(-1)?.[0] as { url: URL };
-    expect(signInput.url.toString()).toBe('http://sqlproxy.example/');
+    expect(signInput.url.toString()).toBe('http://sqlproxy.example/zin/sqlserver/query');
   });
 });

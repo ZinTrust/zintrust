@@ -89,35 +89,48 @@ import { Env } from '@zintrust/core';
 | `ZT_PROXY_TIMEOUT_MS`        | `30000` | Default proxy request timeout in milliseconds. |
 | `ZT_PROXY_SIGNING_WINDOW_MS` | `60000` | Default signing window in milliseconds.        |
 
+## Statement registry / learning mode
+
+| Key                | Default | Description                                                                                                  |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `ZT_D1_LEARN_FILE` | empty   | When set, captures executed SQL statements to a JSONL file as `{ statementId, sql }` (best-effort).          |
+| `SQL_WRITER`       | `false` | Allow SQL capture outside `development` when `ZT_D1_LEARN_FILE` is set (use with care; avoid in production). |
+
 ## MySQL proxy (HTTP)
 
-| Key                             | Default                      | Description                                         |
-| ------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `MYSQL_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `MYSQL_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `MYSQL_PROXY_PORT`              | `8789`                       | Proxy port.                                         |
-| `MYSQL_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `MYSQL_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
-| `MYSQL_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `MYSQL_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `MYSQL_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `MYSQL_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `MYSQL_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| Key                             | Default                      | Description                                                                                 |
+| ------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `MYSQL_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                       |
+| `MYSQL_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                 |
+| `MYSQL_PROXY_PORT`              | `8789`                       | Proxy port.                                                                                 |
+| `MYSQL_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                             |
+| `MYSQL_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                                                                   |
+| `MYSQL_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                         |
+| `MYSQL_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                          |
+| `MYSQL_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                            |
+| `MYSQL_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                    |
+| `MYSQL_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                  |
+| `MYSQL_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).         |
+| `ZT_MYSQL_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/mysql/statement`. |
+| `ZT_MYSQL_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                |
 
 ## Postgres proxy (HTTP)
 
-| Key                                | Default                      | Description                                         |
-| ---------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `POSTGRES_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `POSTGRES_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `POSTGRES_PROXY_PORT`              | `8790`                       | Proxy port.                                         |
-| `POSTGRES_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `POSTGRES_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
-| `POSTGRES_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `POSTGRES_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `POSTGRES_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `POSTGRES_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `POSTGRES_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| Key                                | Default                      | Description                                                                                    |
+| ---------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `POSTGRES_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                          |
+| `POSTGRES_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                    |
+| `POSTGRES_PROXY_PORT`              | `8790`                       | Proxy port.                                                                                    |
+| `POSTGRES_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                                |
+| `POSTGRES_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                                                                      |
+| `POSTGRES_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                            |
+| `POSTGRES_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                             |
+| `POSTGRES_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                               |
+| `POSTGRES_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                       |
+| `POSTGRES_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                     |
+| `POSTGRES_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).            |
+| `ZT_POSTGRES_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/postgres/statement`. |
+| `ZT_POSTGRES_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                   |
 
 ## Redis proxy (HTTP)
 
@@ -151,19 +164,22 @@ import { Env } from '@zintrust/core';
 
 ## SQL Server proxy (HTTP)
 
-| Key                                 | Default                      | Description                                         |
-| ----------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `SQLSERVER_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `SQLSERVER_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `SQLSERVER_PROXY_PORT`              | `8793`                       | Proxy port.                                         |
-| `SQLSERVER_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `SQLSERVER_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
-| `SQLSERVER_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `SQLSERVER_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `SQLSERVER_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `SQLSERVER_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `SQLSERVER_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
-| `USE_SQLSERVER_PROXY`               | `false`                      | Enable SQL Server proxy.                            |
+| Key                                 | Default                      | Description                                                                                     |
+| ----------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SQLSERVER_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                           |
+| `SQLSERVER_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                     |
+| `SQLSERVER_PROXY_PORT`              | `8793`                       | Proxy port.                                                                                     |
+| `SQLSERVER_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                                 |
+| `SQLSERVER_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                                                                       |
+| `SQLSERVER_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                             |
+| `SQLSERVER_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                              |
+| `SQLSERVER_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                                |
+| `SQLSERVER_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                        |
+| `SQLSERVER_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                      |
+| `USE_SQLSERVER_PROXY`               | `false`                      | Enable SQL Server proxy.                                                                        |
+| `SQLSERVER_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).             |
+| `ZT_SQLSERVER_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/sqlserver/statement`. |
+| `ZT_SQLSERVER_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                    |
 
 ## Cache
 

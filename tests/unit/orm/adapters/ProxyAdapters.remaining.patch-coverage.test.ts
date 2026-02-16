@@ -6,13 +6,30 @@ async function requestSignedProxyByPath(_cfg: unknown, path: string): Promise<un
   return { ok: true, meta: { changes: 1, lastRowId: 12 } };
 }
 
+async function requestSignedProxyRegistryMode(_cfg: unknown, path: string): Promise<unknown> {
+  if (path.includes('statement')) return { rows: [{ id: 1 }], rowCount: 1 };
+  return { rows: [], rowCount: 0 };
+}
+
+function ensureSignedSettingsOk(): { ok: true } {
+  return { ok: true };
+}
+
+function isRecordValue(value: unknown): boolean {
+  return typeof value === 'object' && value !== null;
+}
+
+async function sha256HexStmt(): Promise<string> {
+  return 'stmt';
+}
+
 const createSqlProxyAdapterUtilsModule = (): {
   ensureSignedSettings: ReturnType<typeof vi.fn>;
   isRecord: (value: unknown) => boolean;
   requestSignedProxy: ReturnType<typeof vi.fn>;
 } => ({
   ensureSignedSettings: vi.fn(() => ({ ok: true })),
-  isRecord: (value: unknown) => typeof value === 'object' && value !== null,
+  isRecord: isRecordValue,
   requestSignedProxy: vi.fn(requestSignedProxyByPath),
 });
 
@@ -102,6 +119,37 @@ describe('Proxy adapters remaining patch coverage', () => {
     const pg = PostgreSQLProxyAdapter.create({} as never);
     await pg.connect();
     await expect(pg.query('select 1', [])).resolves.toMatchObject({ rowCount: 1 });
+  });
+
+  it('uses /statement when *_PROXY_MODE=registry', async () => {
+    process.env['MYSQL_PROXY_MODE'] = 'registry';
+    process.env['POSTGRES_PROXY_MODE'] = 'registry';
+
+    const requestSignedProxy = vi.fn(requestSignedProxyRegistryMode);
+
+    vi.doMock('@orm/adapters/SqlProxyAdapterUtils', () => ({
+      ensureSignedSettings: ensureSignedSettingsOk,
+      isRecord: isRecordValue,
+      requestSignedProxy,
+    }));
+
+    vi.doMock('@security/SignedRequest', () => ({
+      SignedRequest: { sha256Hex: sha256HexStmt },
+    }));
+
+    const { MySQLProxyAdapter } = await import('@orm/adapters/MySQLProxyAdapter');
+    const my = MySQLProxyAdapter.create({} as never);
+    await my.connect();
+    await my.query('select 1', []);
+
+    const { PostgreSQLProxyAdapter } = await import('@orm/adapters/PostgreSQLProxyAdapter');
+    const pg = PostgreSQLProxyAdapter.create({} as never);
+    await pg.connect();
+    await pg.query('select 1', []);
+
+    const paths = requestSignedProxy.mock.calls.map((c) => c[1]);
+    expect(paths.some((p) => String(p).includes('/zin/mysql/statement'))).toBe(true);
+    expect(paths.some((p) => String(p).includes('/zin/postgres/statement'))).toBe(true);
   });
 
   it('covers SqlProxyAdapterUtils config validation error paths', async () => {

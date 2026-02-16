@@ -9,9 +9,12 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import { isRecord } from '@orm/adapters/SqlProxyAdapterUtils';
+import { createStatementId } from '@orm/adapters/SqlProxyRegistryMode';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
-import { SignedRequest } from '@security/SignedRequest';
+import { SchemaWriter } from '@orm/SchemaStatemenWriter';
+import { isMutatingSql } from '@proxy/isMutatingSql';
 
 type D1RemoteMode = 'registry' | 'sql';
 
@@ -103,43 +106,14 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
   return { mode: settings.mode, remote };
 };
 
-const isMutatingSql = (sql: string): boolean => {
-  const s = sql.trimStart().toLowerCase();
-  return (
-    s.startsWith('insert') ||
-    s.startsWith('update') ||
-    s.startsWith('delete') ||
-    s.startsWith('create') ||
-    s.startsWith('drop') ||
-    s.startsWith('alter') ||
-    s.startsWith('replace')
-  );
-};
-
 const createStatementPayload = async (
   sql: string,
   parameters: unknown[]
 ): Promise<Record<string, unknown>> => {
-  const statementId = await SignedRequest.sha256Hex(sql);
-
-  // START LEARNING MODE: If ZT_D1_LEARN_FILE is set, save the statement to JSONL
-  const learnFile = Env.get('ZT_D1_LEARN_FILE', '');
-  if (learnFile !== '') {
-    try {
-      const fs = (await import('@node-singletons/fs')).fsPromises;
-      const line = JSON.stringify({ statementId, sql }) + '\n';
-      await fs.appendFile(learnFile, line, 'utf-8');
-    } catch {
-      // Best effort; ignore errors during learning to avoid crashing app
-    }
-  }
-  // END LEARNING MODE
-
+  const statementId = await createStatementId(sql);
+  await SchemaWriter(sql);
   return { statementId, params: parameters };
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
 
 const isQueryResponse = (value: unknown): value is D1QueryResponse =>
   isRecord(value) &&
@@ -201,6 +175,7 @@ const querySqlMode = async (
   sql: string,
   parameters: unknown[]
 ): Promise<QueryResult> => {
+  await SchemaWriter(sql);
   if (isMutatingSql(sql)) {
     const out = await RemoteSignedJson.request<D1ExecResponse>(settings, '/zin/d1/exec', {
       sql,
@@ -263,6 +238,7 @@ const createQueryOneMethod =
       return null;
     }
 
+    await SchemaWriter(sql);
     const out = await RemoteSignedJson.request<D1QueryOneResponse>(remote, '/zin/d1/queryOne', {
       sql,
       params: parameters,

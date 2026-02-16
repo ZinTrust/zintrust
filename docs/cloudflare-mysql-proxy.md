@@ -27,10 +27,20 @@ The proxy exposes three HTTP endpoints:
 - `POST /zin/mysql/queryOne`
 - `POST /zin/mysql/exec`
 
+Optional (registry mode):
+
+- `POST /zin/mysql/statement` → `{ statementId, params }` (no raw SQL over the network)
+
 ZinTrust sends JSON payloads of the form:
 
 ```json
 { "sql": "SELECT ...", "params": [ ... ] }
+```
+
+For registry mode (`/zin/mysql/statement`), ZinTrust sends:
+
+```json
+{ "statementId": "...", "params": [ ... ] }
 ```
 
 ## Quick start (local development)
@@ -115,6 +125,21 @@ MYSQL_PROXY_SIGNING_WINDOW_MS=60000
 ```
 
 When signing is enabled, the Worker will send signed requests automatically. Any unsigned or invalid request is rejected by the proxy.
+
+## Statement registry mode (optional, security-focused)
+
+If you want the proxy to execute only allowlisted statements (and avoid sending SQL text over the network), enable registry mode:
+
+1. Generate a statement registry map (a JSON object of `{ statementId: sql }`).
+2. Mount it into the proxy container/VM and point the proxy to it:
+
+```env
+ZT_MYSQL_STATEMENTS_FILE=/run/secrets/mysql-statements.json
+```
+
+Then call `POST /zin/mysql/statement`.
+
+Security note: registry mode reduces blast radius most when the proxy is a separate trust boundary (see the threat model table in `docs/cloudflare-d1-remote.md`).
 
 ## Production deployment
 
