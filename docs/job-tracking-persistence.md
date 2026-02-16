@@ -35,9 +35,38 @@ No manual bootstrap code is required when env flags are set correctly.
 | `JOB_TRACKING_DB_CONNECTION`               | `default`                  | No       | Database connection name used by persistence adapter.                   |
 | `JOB_TRACKING_DB_TABLE`                    | `zintrust_jobs`            | No       | Snapshot table for latest state per job.                                |
 | `JOB_TRACKING_DB_TRANSITIONS_TABLE`        | `zintrust_job_transitions` | No       | Append-only transitions table.                                          |
-| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `false`                    | No       | Persist append-only transitions rows (disable to store only snapshots). |
+| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `true`                     | No       | Persist append-only transitions rows (disable to store only snapshots). |
 | `JOB_TRACKING_MAX_JOBS`                    | `20000`                    | No       | In-memory cap for tracked jobs.                                         |
 | `JOB_TRACKING_MAX_TRANSITIONS`             | `50000`                    | No       | In-memory cap for transitions.                                          |
+
+## Cleanup schedule
+
+To prevent `zintrust_jobs` and `zintrust_job_transitions` from growing unbounded, ZinTrust includes a built-in schedule:
+
+- `jobTracking.cleanup`
+
+You can override it by exporting a schedule with the same name from `app/Schedules/index.ts`.
+
+Behavior:
+
+- Deletes `zintrust_job_transitions` rows older than `JOB_TRACKING_CLEANUP_RETENTION_DAYS`
+- Deletes terminal `zintrust_jobs` rows (`status='enqueued'`) older than the same cutoff
+- Uses `withoutOverlapping()` to prevent concurrent cleanup runs
+
+Enable it:
+
+```bash
+JOB_TRACKING_CLEANUP_ENABLED=true
+JOB_TRACKING_CLEANUP_RETENTION_DAYS=30
+JOB_TRACKING_CLEANUP_INTERVAL_MS=21600000
+JOB_TRACKING_CLEANUP_MAX_BATCHES=1
+```
+
+Run it on-demand:
+
+```bash
+zin schedule:run --name jobTracking.cleanup
+```
 
 ## Database Schema
 

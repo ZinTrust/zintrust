@@ -186,14 +186,19 @@ describe('Bootstrap additional branches', () => {
 
     // Mock schedules module with a single fake schedule
     const fakeSchedule = { name: 's1' } as any;
-    vi.doMock('@/schedules', () => ({ default: { s1: fakeSchedule } }));
+    vi.doMock('@schedules/index', () => ({
+      logCleanup: fakeSchedule,
+    }));
 
-    // Mock ScheduleRunner.create to provide register/start/stop
-    const registerSpy = vi.fn();
+    const registerManySpy = vi.fn();
     const startSpy = vi.fn();
     const stopSpy = vi.fn(async (_ms?: number) => {});
-    vi.doMock('@/scheduler/ScheduleRunner', () => ({
-      create: () => ({ register: registerSpy, start: startSpy, stop: stopSpy }),
+    vi.doMock('@scheduler/SchedulerRuntime', () => ({
+      SchedulerRuntime: {
+        registerMany: registerManySpy,
+        start: startSpy,
+        stop: stopSpy,
+      },
     }));
 
     // Import bootstrap which triggers start
@@ -203,7 +208,7 @@ describe('Bootstrap additional branches', () => {
     await Promise.resolve();
 
     // assert runner methods were called and shutdownManager.add registered
-    expect(registerSpy).toHaveBeenCalled();
+    expect(registerManySpy).toHaveBeenCalled();
     expect(startSpy).toHaveBeenCalled();
     expect(addSpy).toHaveBeenCalled();
 
@@ -245,20 +250,26 @@ describe('Bootstrap additional branches', () => {
     }));
 
     const fakeSchedule = { name: 's1' } as any;
-    vi.doMock('@/schedules', () => ({ default: { s1: fakeSchedule } }));
+    vi.doMock('@schedules/index', () => ({
+      logCleanup: fakeSchedule,
+    }));
 
-    const registerSpy = vi.fn();
+    const registerManySpy = vi.fn();
     const startSpy = vi.fn();
     const stopSpy = vi.fn(async (_ms?: number) => {});
-    vi.doMock('@/scheduler/ScheduleRunner', () => ({
-      create: () => ({ register: registerSpy, start: startSpy, stop: stopSpy }),
+    vi.doMock('@scheduler/SchedulerRuntime', () => ({
+      SchedulerRuntime: {
+        registerMany: registerManySpy,
+        start: startSpy,
+        stop: stopSpy,
+      },
     }));
 
     await import('@boot/bootstrap');
 
     await Promise.resolve();
 
-    expect(registerSpy).toHaveBeenCalled();
+    expect(registerManySpy).toHaveBeenCalled();
     expect(startSpy).toHaveBeenCalled();
 
     (globalThis as any).__EXIT_SPY__.mockRestore();

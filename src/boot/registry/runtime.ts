@@ -366,6 +366,16 @@ const initializeQueueHttpGateway = async (router: IRouter): Promise<void> => {
   }
 };
 
+const initializeScheduleHttpGateway = async (router: IRouter): Promise<void> => {
+  try {
+    const { ScheduleHttpGateway } = await import('@/scheduler/ScheduleHttpGateway');
+    ScheduleHttpGateway.create().registerRoutes(router);
+    Logger.info('Schedule HTTP gateway route registered at /api/_sys/schedule/rpc');
+  } catch (error) {
+    Logger.warn('Failed to register Schedule HTTP gateway routes', error as Error);
+  }
+};
+
 export const createLifecycle = (params: {
   environment: string;
   resolvedBasePath: string;
@@ -411,6 +421,7 @@ export const createLifecycle = (params: {
       await initializeWorkers(params.router);
       await initializeQueueMonitor(params.router);
       await initializeQueueHttpGateway(params.router);
+      await initializeScheduleHttpGateway(params.router);
     }
     // Register service providers
     // Bootstrap services

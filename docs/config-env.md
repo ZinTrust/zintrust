@@ -217,6 +217,14 @@ import { Env } from '@zintrust/core';
 | `JOB_RECOVERY_INTERVAL_MS`                 | `30000`                    | Interval for automatic recovery daemon scans.                                                                                            |
 | `JOB_RECOVERY_MIN_AGE_MS`                  | `5000`                     | Minimum age before a recoverable state is eligible for re-queue.                                                                         |
 | `JOB_RECOVERY_DB_SCAN_LIMIT`               | `100`                      | Max rows scanned from `JOB_TRACKING_DB_TABLE` for persisted `pending_recovery` recovery attempts per daemon run.                         |
+| `JOB_TRACKING_CLEANUP_ENABLED`             | `false`                    | Enable scheduled cleanup of `JOB_TRACKING_DB_TABLE` and `JOB_TRACKING_DB_TRANSITIONS_TABLE`.                                             |
+| `JOB_TRACKING_CLEANUP_INTERVAL_MS`         | `21600000`                 | Cleanup schedule interval in ms (default: 6 hours).                                                                                      |
+| `JOB_TRACKING_CLEANUP_RETENTION_DAYS`      | `30`                       | Retention window for cleanup (rows older than this are eligible).                                                                        |
+| `JOB_TRACKING_CLEANUP_BATCH_SIZE`          | `5000`                     | Batch size for cleanup deletes when using MySQL (DELETE ... LIMIT).                                                                      |
+| `JOB_TRACKING_CLEANUP_MAX_BATCHES`         | `1`                        | Max number of cleanup batches to run per schedule tick (bounded).                                                                        |
+| `JOB_TRACKING_CLEANUP_LOCK_PROVIDER`       | `redis`                    | Lock provider used for cleanup schedule `withoutOverlapping()` (e.g. `redis` or `memory`).                                               |
+| `SCHEDULE_OVERLAP_LOCK_TTL_MS`             | `300000`                   | Default TTL for schedule overlap locks (ms).                                                                                             |
+| `SCHEDULE_SHUTDOWN_TIMEOUT_MS`             | `30000`                    | Max time to wait for schedules to stop during shutdown (ms).                                                                             |
 | `DLQ_REPLAY_MAX_BATCH_SIZE`                | `25`                       | Maximum number of dead-letter records replayed in one governed replay batch.                                                             |
 | `DLQ_REPLAY_MAX_QPS`                       | `5`                        | Ceiling for dead-letter replay throughput (jobs per second).                                                                             |
 | `DLQ_REPLAY_MIN_AGE_MS`                    | `60000`                    | Minimum dead-letter age required before replay eligibility.                                                                              |
@@ -234,9 +242,20 @@ import { Env } from '@zintrust/core';
 | `QUEUE_TRACING_EXPORT_BATCH_SIZE`          | `20`                       | Number of pending queue trace events before automatic exporter flush.                                                                    |
 | `QUEUE_TRACING_EXPORT_OTEL`                | `true`                     | Export queue trace events to OpenTelemetry spans when `OTEL_ENABLED=true`.                                                               |
 | `STALLED_JOB_CHECK_INTERVAL_MS`            | `30000`                    | Interval for heartbeat table stalled checks.                                                                                             |
-| `IDEMPOTENCY_DEFAULT_TTL_MS`               | `86400000`                 | Default TTL for idempotency keys and dedup locks (milliseconds).                                                                         |
-| `JOB_RELIABILITY_ENABLED`                  | `true`                     | Master toggle for queue reliability orchestration features.                                                                              |
-| `JOB_RELIABILITY_AUTOSTART`                | `false`                    | Auto-start reliability orchestrator when queue drivers are registered.                                                                   |
+
+## Schedule HTTP gateway
+
+| Key                                | Default                  | Description                                                                  |
+| ---------------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
+| `SCHEDULE_HTTP_PROXY_PATH`         | `/api/_sys/schedule/rpc` | Internal signed endpoint for schedule RPC (`list`, `run`).                   |
+| `SCHEDULE_HTTP_PROXY_KEY_ID`       | `APP_NAME`               | Signing key id used to sign/verify schedule RPC calls.                       |
+| `SCHEDULE_HTTP_PROXY_KEY`          | `APP_KEY`                | Signing secret used to sign/verify schedule RPC calls.                       |
+| `SCHEDULE_HTTP_PROXY_MAX_SKEW_MS`  | `60000`                  | Allowed signature timestamp skew for gateway verification.                   |
+| `SCHEDULE_HTTP_PROXY_NONCE_TTL_MS` | `120000`                 | Nonce TTL used for replay protection on schedule gateway requests.           |
+| `SCHEDULE_HTTP_PROXY_MIDDLEWARE`   | empty                    | Optional comma-separated middleware names applied to schedule gateway route. |
+| `IDEMPOTENCY_DEFAULT_TTL_MS`       | `86400000`               | Default TTL for idempotency keys and dedup locks (milliseconds).             |
+| `JOB_RELIABILITY_ENABLED`          | `true`                   | Master toggle for queue reliability orchestration features.                  |
+| `JOB_RELIABILITY_AUTOSTART`        | `false`                  | Auto-start reliability orchestrator when queue drivers are registered.       |
 
 ## Rate limiting
 

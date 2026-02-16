@@ -47,6 +47,8 @@ import { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
 import { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
+import { ScheduleListCommand } from '@cli/commands/ScheduleListCommand';
+import { ScheduleRunCommand } from '@cli/commands/ScheduleRunCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { SmtpProxyCommand } from '@cli/commands/SmtpProxyCommand';
@@ -100,6 +102,8 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     StartCommand.create(),
     QueueCommand.create(),
     QueueRecoveryCommand.create(),
+    ScheduleListCommand.create(),
+    ScheduleRunCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     ResourceControlCommand,

@@ -17,6 +17,8 @@
 - `zin templates`: List/render built-in markdown templates
 - `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
 - `zin queue:recovery`: Run queue recovery once, start reliability orchestrator, or inspect/recover specific tracked jobs
+- `zin schedule:list`: List registered schedules (core + `app/Schedules`)
+- `zin schedule:run`: Run a single schedule once (by name)
 - `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
@@ -279,6 +281,27 @@ Usage:
 
 ```bash
 zin queue:recovery [options]
+```
+
+## Schedule Commands
+
+ZinTrust supports lightweight in-process schedules (Node/Fargate), plus manual triggering via CLI.
+
+Usage:
+
+```bash
+zin schedule:list [--json]
+zin schedule:run --name <schedule>
+```
+
+Examples:
+
+```bash
+# List all schedules
+zin schedule:list
+
+# Run job-tracking cleanup on demand
+zin schedule:run --name jobTracking.cleanup
 ```
 
 Common options:
