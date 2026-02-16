@@ -135,4 +135,31 @@ describe('ScheduleRunner', () => {
 
     await runner.stop();
   });
+
+  it('runs cron schedules at the next matching minute boundary (UTC)', async () => {
+    vi.setSystemTime(new Date('2026-01-01T00:00:30.000Z'));
+    const runner = createRunner();
+
+    let calls = 0;
+    runner.register({
+      name: 'test.cron.everyMinute',
+      cron: '* * * * *',
+      timezone: 'UTC',
+      handler: async () => {
+        calls++;
+      },
+    } as any);
+
+    runner.start();
+
+    await vi.advanceTimersByTimeAsync(29_000);
+    await Promise.resolve();
+    expect(calls).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await Promise.resolve();
+    expect(calls).toBeGreaterThanOrEqual(1);
+
+    await runner.stop();
+  });
 });

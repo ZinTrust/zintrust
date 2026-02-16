@@ -32,6 +32,50 @@ describe('ScheduleRunner - extra branches', () => {
     expect(loggerWarn).toHaveBeenCalledWith('Schedule replaced: a');
   });
 
+  test('replacing a schedule does not leak old timers', async () => {
+    const { create: createScheduleRunner } =
+      await import('@/scheduler/ScheduleRunner?v=replace-no-leak');
+    const runner = createScheduleRunner();
+
+    let v1 = 0;
+    let v2 = 0;
+
+    runner.register({
+      name: 'rep',
+      intervalMs: 10,
+      handler: async () => {
+        v1++;
+      },
+    } as any);
+
+    runner.start();
+
+    // allow at least one tick
+    await vi.advanceTimersByTimeAsync(15);
+    await Promise.resolve();
+    expect(v1).toBeGreaterThanOrEqual(1);
+
+    // Replace with a new handler
+    runner.register({
+      name: 'rep',
+      intervalMs: 10,
+      handler: async () => {
+        v2++;
+      },
+    } as any);
+
+    const v1AtReplace = v1;
+
+    // Let time pass; only v2 should continue increasing.
+    await vi.advanceTimersByTimeAsync(50);
+    await Promise.resolve();
+
+    expect(v2).toBeGreaterThanOrEqual(1);
+    expect(v1).toBe(v1AtReplace);
+
+    await runner.stop();
+  });
+
   test('runOnStart triggers handler when start is called', async () => {
     const { create: createScheduleRunner } =
       await import('@/scheduler/ScheduleRunner?v=run-on-start');
@@ -53,7 +97,7 @@ describe('ScheduleRunner - extra branches', () => {
     expect(called).toHaveBeenCalled();
   });
 
-  test('interval triggers handler and overlapping runs are skipped', async () => {
+  test('interval triggers handler and does not overlap runs', async () => {
     const { create: createScheduleRunner } =
       await import('@/scheduler/ScheduleRunner?v=interval-overlap');
     let resolveFirst: () => void;
@@ -72,7 +116,7 @@ describe('ScheduleRunner - extra branches', () => {
 
     // first interval tick
     vi.advanceTimersByTime(100);
-    // second tick shortly after; since first is still running, overlapping should be skipped
+    // second tick shortly after; runner should not start a second run while the first is running
     vi.advanceTimersByTime(100);
 
     // allow queued tasks
@@ -80,7 +124,6 @@ describe('ScheduleRunner - extra branches', () => {
 
     // handler should only have been started once
     expect(handler).toHaveBeenCalledTimes(1);
-    expect(loggerInfo).toHaveBeenCalledWith('Skipping overlapping run for schedule: iv');
 
     // finish first
     resolveFirst();

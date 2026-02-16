@@ -244,12 +244,19 @@ import { Env } from '@zintrust/core';
 
 ## Scheduling
 
-| Key                                        | Default  | Description                                                                |
-| ------------------------------------------ | -------- | -------------------------------------------------------------------------- |
-| `SCHEDULES_ENABLED`                        | `false`  | Enable schedule autostart in long-running runtimes (Node.js/Fargate only). |
-| `SCHEDULE_SHUTDOWN_TIMEOUT_MS`             | `30000`  | Max time to wait for schedules to stop during shutdown (ms).               |
-| `SCHEDULE_OVERLAP_LOCK_TTL_MS`             | `300000` | Default TTL for schedule overlap locks (ms).                               |
-| `SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS` | `2000`   | Max time to wait for overlap-lock acquisition before running anyway (ms).  |
+| Key                                        | Default            | Description                                                                |
+| ------------------------------------------ | ------------------ | -------------------------------------------------------------------------- |
+| `SCHEDULES_ENABLED`                        | `false`            | Enable schedule autostart in long-running runtimes (Node.js/Fargate only). |
+| `SCHEDULE_SHUTDOWN_TIMEOUT_MS`             | `30000`            | Max time to wait for schedules to stop during shutdown (ms).               |
+| `SCHEDULE_OVERLAP_LOCK_TTL_MS`             | `300000`           | Default TTL for schedule overlap locks (ms).                               |
+| `SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS` | `2000`             | Max time to wait for overlap-lock acquisition before running anyway (ms).  |
+| `SCHEDULE_LEADER_ENABLED`                  | `false`            | Enable leader lease gating so only one instance auto-runs schedules.       |
+| `SCHEDULE_LEADER_LOCK_PROVIDER`            | `redis`            | Lock provider used for leader lease (`redis` or `memory`).                 |
+| `SCHEDULE_LEADER_LOCK_KEY`                 | `scheduler:leader` | Lock key used for leader election.                                         |
+| `SCHEDULE_LEADER_LOCK_TTL_MS`              | `30000`            | TTL for leader lease lock (ms).                                            |
+| `SCHEDULE_LEADER_LOCK_RENEW_MS`            | `15000`            | How often to renew/extend leader lease TTL (ms).                           |
+| `SCHEDULE_LEADER_LOCK_RETRY_MS`            | `5000`             | How often followers retry acquiring leadership (ms).                       |
+| `SCHEDULE_LEADER_LOCK_ACQUIRE_TIMEOUT_MS`  | `2000`             | Max time to wait for leader-lock acquisition (ms).                         |
 
 ## Schedule HTTP gateway
 

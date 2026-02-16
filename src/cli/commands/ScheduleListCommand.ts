@@ -12,12 +12,23 @@ const execute = async (options: Options): Promise<void> => {
   try {
     await ScheduleCliSupport.registerAll();
 
-    const rows = SchedulerRuntime.list()
-      .map((s) => ({
+    const toIso = (ms: number | undefined): string | undefined =>
+      typeof ms === 'number' && Number.isFinite(ms) ? new Date(ms).toISOString() : undefined;
+
+    const rows = (await SchedulerRuntime.listWithState())
+      .map(({ schedule: s, state }) => ({
         name: s.name,
         enabled: s.enabled !== false,
         intervalMs: s.intervalMs,
+        cron: s.cron,
+        timezone: s.timezone,
         runOnStart: s.runOnStart === true,
+        consecutiveFailures: state?.consecutiveFailures,
+        lastRunAt: toIso(state?.lastRunAt),
+        lastSuccessAt: toIso(state?.lastSuccessAt),
+        lastErrorAt: toIso(state?.lastErrorAt),
+        lastErrorMessage: state?.lastErrorMessage,
+        nextRunAt: toIso(state?.nextRunAt),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -32,8 +43,24 @@ const execute = async (options: Options): Promise<void> => {
     }
 
     rows.forEach((row) => {
+      const hasText = (value: unknown): value is string =>
+        typeof value === 'string' && value.trim().length > 0;
+
+      const tzSuffix = hasText(row.timezone) ? ` tz=${row.timezone}` : '';
+
+      const cadence =
+        typeof row.cron === 'string' && row.cron.trim().length > 0
+          ? `cron=${row.cron}${tzSuffix}`
+          : `intervalMs=${row.intervalMs ?? 'manual'}`;
+
+      const hasStateInfo = [row.nextRunAt, row.lastSuccessAt, row.lastErrorAt].some(hasText);
+
+      const extra = hasStateInfo
+        ? ` next=${row.nextRunAt ?? '-'} lastOk=${row.lastSuccessAt ?? '-'} lastErr=${row.lastErrorAt ?? '-'}`
+        : '';
+
       Logger.info(
-        `${row.name} (enabled=${row.enabled}, intervalMs=${row.intervalMs ?? 'manual'}, runOnStart=${row.runOnStart})`
+        `${row.name} (enabled=${row.enabled}, ${cadence}, runOnStart=${row.runOnStart}, failures=${row.consecutiveFailures ?? 0})${extra}`
       );
     });
   } finally {

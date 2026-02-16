@@ -272,6 +272,15 @@ SCHEDULE_OVERLAP_LOCK_TTL_MS=300000
 # How long to wait for overlap lock acquisition before running anyway (ms)
 SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS=2000
 
+# Leader lease (optional): ensures only one instance auto-runs schedules.
+SCHEDULE_LEADER_ENABLED=false
+SCHEDULE_LEADER_LOCK_PROVIDER=redis
+SCHEDULE_LEADER_LOCK_KEY=scheduler:leader
+SCHEDULE_LEADER_LOCK_TTL_MS=30000
+SCHEDULE_LEADER_LOCK_RENEW_MS=15000
+SCHEDULE_LEADER_LOCK_RETRY_MS=5000
+SCHEDULE_LEADER_LOCK_ACQUIRE_TIMEOUT_MS=2000
+
 # Signed internal RPC endpoint for schedule list/run actions
 SCHEDULE_HTTP_PROXY_PATH=/api/_sys/schedule/rpc
 SCHEDULE_HTTP_PROXY_KEY_ID=

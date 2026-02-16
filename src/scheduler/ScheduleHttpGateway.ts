@@ -165,14 +165,29 @@ const fail = (requestId: string, code: string, message: string, details?: unknow
   error: { code, message, details },
 });
 
-const listSchedules = (): Array<
-  Pick<ISchedule, 'name' | 'intervalMs' | 'enabled' | 'runOnStart'>
+const listSchedules = async (): Promise<
+  Array<
+    Pick<ISchedule, 'name' | 'intervalMs' | 'cron' | 'timezone' | 'enabled' | 'runOnStart'> & {
+      state: {
+        lastRunAt?: number;
+        lastSuccessAt?: number;
+        lastErrorAt?: number;
+        lastErrorMessage?: string;
+        nextRunAt?: number;
+        consecutiveFailures?: number;
+      } | null;
+    }
+  >
 > => {
-  return SchedulerRuntime.list().map((s) => ({
-    name: s.name,
-    intervalMs: s.intervalMs,
-    enabled: s.enabled,
-    runOnStart: s.runOnStart,
+  const rows = await SchedulerRuntime.listWithState();
+  return rows.map(({ schedule, state }) => ({
+    name: schedule.name,
+    intervalMs: schedule.intervalMs,
+    cron: schedule.cron,
+    timezone: schedule.timezone,
+    enabled: schedule.enabled,
+    runOnStart: schedule.runOnStart,
+    state,
   }));
 };
 
@@ -233,7 +248,7 @@ const handleRpc = async (req: IRequest, res: IResponse): Promise<void> => {
 
   try {
     if (parsed.action === 'list') {
-      res.json(ok(parsed.requestId, listSchedules()));
+      res.json(ok(parsed.requestId, await listSchedules()));
       return;
     }
 

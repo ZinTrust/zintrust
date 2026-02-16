@@ -4,7 +4,11 @@ import { Logger } from '@config/logger';
 import { ZintrustLang } from '@lang/lang';
 import { createAdvancedQueue } from '@queue/AdvancedQueue';
 import { getLockProvider } from '@queue/LockProvider';
-import type { ISchedule } from '@scheduler/types';
+import type { ISchedule, IScheduleBackoffPolicy } from '@scheduler/types';
+
+type CronOptions = {
+  timezone?: string;
+};
 
 type WithoutOverlappingOptions = {
   provider?: string;
@@ -18,6 +22,11 @@ export type ScheduleBuilderApi = Readonly<{
   everyHour: () => ScheduleBuilderApi;
   everyHours: (hours: number) => ScheduleBuilderApi;
   intervalMs: (ms: number) => ScheduleBuilderApi;
+  cron: (expr: string, options?: CronOptions) => ScheduleBuilderApi;
+  timezone: (tz: string) => ScheduleBuilderApi;
+  jitterMs: (ms: number) => ScheduleBuilderApi;
+  backoff: (policy: IScheduleBackoffPolicy) => ScheduleBuilderApi;
+  leaderOnly: () => ScheduleBuilderApi;
   runOnStart: () => ScheduleBuilderApi;
   enabledWhen: (value: boolean) => ScheduleBuilderApi;
   withoutOverlapping: (options?: WithoutOverlappingOptions) => ScheduleBuilderApi;
@@ -28,6 +37,11 @@ type ScheduleBuilderState = {
   name: string;
   handler: ISchedule['handler'];
   intervalMs?: number;
+  cron?: string;
+  timezone?: string;
+  jitterMs?: number;
+  backoff?: IScheduleBackoffPolicy;
+  leaderOnly?: boolean;
   enabled?: boolean;
   runOnStart?: boolean;
   overlap?: WithoutOverlappingOptions;
@@ -36,6 +50,17 @@ type ScheduleBuilderState = {
 const toIntervalMs = (ms: number): number => {
   if (!Number.isFinite(ms) || ms <= 0) return 0;
   return Math.floor(ms);
+};
+
+const normalizeOptionalString = (value: unknown): string | undefined => {
+  const s = typeof value === 'string' ? value.trim() : '';
+  return s.length > 0 ? s : undefined;
+};
+
+const toPositiveInt = (value: unknown): number | undefined => {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.floor(n);
 };
 
 const resolveLockProvider = (providerName: string): LockProvider | undefined => {
@@ -51,6 +76,11 @@ const resolveLockProvider = (providerName: string): LockProvider | undefined => 
   });
 
   return getLockProvider(name);
+};
+
+const normalizeBackoffFactor = (factor: unknown): number | undefined => {
+  if (factor === undefined) return undefined;
+  return Number.isFinite(factor) ? (factor as number) : undefined;
 };
 
 const wrapWithoutOverlapping = (
@@ -131,6 +161,89 @@ export const Schedule = Object.freeze({
   },
 });
 
+const createScheduleApi = (state: ScheduleBuilderState): ScheduleBuilderApi => {
+  const api: ScheduleBuilderApi = Object.freeze({
+    everyMinute: () => api.everyMinutes(1),
+    everyMinutes: (minutes: number) => {
+      const resolved = Math.max(1, Math.floor(minutes));
+      state.intervalMs = resolved * 60_000;
+      return api;
+    },
+    everyHour: () => api.everyHours(1),
+    everyHours: (hours: number) => {
+      const resolved = Math.max(1, Math.floor(hours));
+      state.intervalMs = resolved * 3_600_000;
+      return api;
+    },
+    intervalMs: (ms: number) => {
+      state.intervalMs = toIntervalMs(ms);
+      return api;
+    },
+    cron: (expr: string, options?: CronOptions) => {
+      state.cron = normalizeOptionalString(expr);
+      if (options?.timezone !== undefined) {
+        state.timezone = normalizeOptionalString(options.timezone);
+      }
+      return api;
+    },
+    timezone: (tz: string) => {
+      state.timezone = normalizeOptionalString(tz);
+      return api;
+    },
+    jitterMs: (ms: number) => {
+      state.jitterMs = toPositiveInt(ms);
+      return api;
+    },
+    backoff: (policy: IScheduleBackoffPolicy) => {
+      state.backoff = {
+        initialMs: toPositiveInt(policy.initialMs) ?? 0,
+        maxMs: toPositiveInt(policy.maxMs) ?? 0,
+        factor: normalizeBackoffFactor(policy.factor),
+      };
+      return api;
+    },
+    leaderOnly: () => {
+      state.leaderOnly = true;
+      return api;
+    },
+    runOnStart: () => {
+      state.runOnStart = true;
+      return api;
+    },
+    enabledWhen: (value: boolean) => {
+      state.enabled = value;
+      return api;
+    },
+    withoutOverlapping: (options?: WithoutOverlappingOptions) => {
+      state.overlap = options ?? {};
+      return api;
+    },
+    build: () => {
+      const handler =
+        state.overlap === undefined
+          ? state.handler
+          : wrapWithoutOverlapping(state.name, state.handler, state.overlap);
+
+      const schedule: ISchedule = {
+        name: state.name,
+        intervalMs: state.intervalMs,
+        cron: state.cron,
+        timezone: state.timezone,
+        jitterMs: state.jitterMs,
+        backoff: state.backoff,
+        leaderOnly: state.leaderOnly,
+        handler,
+        enabled: state.enabled,
+        runOnStart: state.runOnStart,
+      };
+
+      return schedule;
+    },
+  });
+
+  return api;
+};
+
 export const ScheduleBuilder = Object.freeze({
   create(input: { name: string; handler: ISchedule['handler'] }): ScheduleBuilderApi {
     const state: ScheduleBuilderState = {
@@ -138,54 +251,7 @@ export const ScheduleBuilder = Object.freeze({
       handler: input.handler,
     };
 
-    const api: ScheduleBuilderApi = Object.freeze({
-      everyMinute: () => api.everyMinutes(1),
-      everyMinutes: (minutes: number) => {
-        const resolved = Math.max(1, Math.floor(minutes));
-        state.intervalMs = resolved * 60_000;
-        return api;
-      },
-      everyHour: () => api.everyHours(1),
-      everyHours: (hours: number) => {
-        const resolved = Math.max(1, Math.floor(hours));
-        state.intervalMs = resolved * 3_600_000;
-        return api;
-      },
-      intervalMs: (ms: number) => {
-        state.intervalMs = toIntervalMs(ms);
-        return api;
-      },
-      runOnStart: () => {
-        state.runOnStart = true;
-        return api;
-      },
-      enabledWhen: (value: boolean) => {
-        state.enabled = value;
-        return api;
-      },
-      withoutOverlapping: (options?: WithoutOverlappingOptions) => {
-        state.overlap = options ?? {};
-        return api;
-      },
-      build: () => {
-        const handler =
-          state.overlap === undefined
-            ? state.handler
-            : wrapWithoutOverlapping(state.name, state.handler, state.overlap);
-
-        const schedule: ISchedule = {
-          name: state.name,
-          intervalMs: state.intervalMs,
-          handler,
-          enabled: state.enabled,
-          runOnStart: state.runOnStart,
-        };
-
-        return schedule;
-      },
-    });
-
-    return api;
+    return createScheduleApi(state);
   },
 });
 
