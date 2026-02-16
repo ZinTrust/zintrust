@@ -23,6 +23,7 @@ import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWork
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
+import { InitEcosystemCommand } from '@cli/commands/InitEcosystemCommand';
 import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
 import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
@@ -49,6 +50,7 @@ import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
 import { ScheduleListCommand } from '@cli/commands/ScheduleListCommand';
 import { ScheduleRunCommand } from '@cli/commands/ScheduleRunCommand';
+import { ScheduleStartCommand } from '@cli/commands/ScheduleStartCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { SmtpProxyCommand } from '@cli/commands/SmtpProxyCommand';
@@ -94,6 +96,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     InitContainerCommand.create(),
     InitProxyCommand.create(),
     InitProducerCommand.create(),
+    InitEcosystemCommand.create(),
     DoctorArchitectureCommand.create(),
     AddCommand.create(),
     CreateCommand.create(),
@@ -104,6 +107,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     QueueRecoveryCommand.create(),
     ScheduleListCommand.create(),
     ScheduleRunCommand.create(),
+    ScheduleStartCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     ResourceControlCommand,

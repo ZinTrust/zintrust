@@ -19,6 +19,7 @@
 - `zin queue:recovery`: Run queue recovery once, start reliability orchestrator, or inspect/recover specific tracked jobs
 - `zin schedule:list`: List registered schedules (core + `app/Schedules`)
 - `zin schedule:run`: Run a single schedule once (by name)
+- `zin schedule:start`: Start the schedules daemon (Node/Fargate) and block until shutdown
 - `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
@@ -63,6 +64,7 @@ zin deploy:cp
 
 - `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
 - `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
+- `zin init:ecosystem` - Scaffold `docker-compose.ecosystem.yml` and `docker-compose.schedules.yml`
 - Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py`
 
 ## Container Proxies Commands

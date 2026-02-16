@@ -49,6 +49,7 @@ const startSchedulesIfNeeded = async (
   application: ReturnType<typeof Application.create>
 ): Promise<void> => {
   try {
+    if (Env.getBool('SCHEDULES_ENABLED', false) === false) return;
     const runtime = appConfig.detectRuntime();
     if (runtime !== 'nodejs' && runtime !== 'fargate') return;
     const { SchedulerRuntime } = await import('@scheduler/SchedulerRuntime');

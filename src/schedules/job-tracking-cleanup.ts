@@ -106,6 +106,8 @@ const JobTrackingCleanupSchedule = Schedule.define('jobTracking.cleanup', async 
   let batchSize: number | undefined;
 
   for (let i = 0; i < maxBatches; i += 1) {
+    // Bounded sequential batches are intentional; we want predictable DB load.
+    // eslint-disable-next-line no-await-in-loop
     const result = await cleanupJobTrackingBatch();
     batchesRun += 1;
     deletedTransitionsTotal += result.deletedTransitions;

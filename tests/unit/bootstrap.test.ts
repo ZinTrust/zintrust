@@ -35,7 +35,13 @@ vi.mock('@config/env', () => ({
       return defaultValue;
     }),
     getBool: vi.fn((key: string, defaultValue: boolean) => {
-      String(key);
+      if (key === 'SCHEDULES_ENABLED') {
+        const raw = String(process.env['SCHEDULES_ENABLED'] ?? '')
+          .trim()
+          .toLowerCase();
+        if (raw === 'true' || raw === '1' || raw === 'yes') return true;
+        if (raw === 'false' || raw === '0' || raw === 'no') return false;
+      }
       return defaultValue;
     }),
   },
@@ -60,21 +66,17 @@ vi.mock('@config/app', () => ({
   },
 }));
 
-vi.mock('@/scheduler/ScheduleRunner', () => ({
-  create: vi.fn(() => ({
-    register: vi.fn(),
+vi.mock('@scheduler/SchedulerRuntime', () => ({
+  SchedulerRuntime: {
+    registerMany: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(async () => undefined),
-  })),
+  },
 }));
 
-vi.mock('@/schedules', () => ({
+vi.mock('@schedules/index', () => ({
   logCleanup: {
     name: 'log-cleanup',
-    intervalMs: 0,
-    runOnStart: false,
-    enabled: true,
-    handler: vi.fn(async () => undefined),
   },
 }));
 
@@ -145,6 +147,7 @@ describe('Bootstrap', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.resetModules();
+    delete process.env['SCHEDULES_ENABLED'];
   });
 
   it('should bootstrap application successfully and register shutdown handlers', async () => {
@@ -220,16 +223,16 @@ describe('Bootstrap', () => {
   });
 
   it('should stop schedules via shutdown manager hook', async () => {
+    process.env['SCHEDULES_ENABLED'] = 'true';
+
+    const { Env } = await import('@config/env');
+
     const { appConfig } = await import('@config/app');
     (appConfig.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
 
-    const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
-    const runner = {
-      register: vi.fn(),
-      start: vi.fn(),
-      stop: vi.fn(async () => undefined),
-    };
-    (createScheduleRunner as unknown as Mock).mockReturnValue(runner);
+    const { SchedulerRuntime } = await import('@scheduler/SchedulerRuntime');
+    const stopSpy = vi.fn(async () => undefined);
+    (SchedulerRuntime.stop as unknown as Mock).mockImplementation(stopSpy);
 
     let shutdownHook: (() => Promise<void> | void) | undefined;
     const shutdownManager = {
@@ -246,7 +249,6 @@ describe('Bootstrap', () => {
     };
     (Application.create as unknown as Mock).mockReturnValue(appWithShutdownManager);
 
-    const { Env } = await import('@config/env');
     (Env.getInt as unknown as Mock).mockImplementation((key: string, defaultValue: number) => {
       if (key === 'SCHEDULE_SHUTDOWN_TIMEOUT_MS') return 1234;
       return defaultValue;
@@ -258,16 +260,18 @@ describe('Bootstrap', () => {
     expect(typeof shutdownHook).toBe('function');
 
     await shutdownHook?.();
-    expect(runner.stop).toHaveBeenCalledWith(1234);
+    expect(stopSpy).toHaveBeenCalledWith(1234);
   });
 
   it('should warn when schedules fail to start', async () => {
+    process.env['SCHEDULES_ENABLED'] = 'true';
+
     const { appConfig } = await import('@config/app');
     (appConfig.detectRuntime as unknown as Mock).mockReturnValue('nodejs');
 
     const boom = new Error('schedule boom');
-    const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
-    (createScheduleRunner as unknown as Mock).mockImplementation(() => {
+    const { SchedulerRuntime } = await import('@scheduler/SchedulerRuntime');
+    (SchedulerRuntime.registerMany as unknown as Mock).mockImplementation(() => {
       throw boom;
     });
 

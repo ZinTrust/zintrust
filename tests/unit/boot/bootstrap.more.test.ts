@@ -39,6 +39,7 @@ afterEach(() => {
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
   delete process.env['SHUTDOWN_TIMEOUT'];
+  delete process.env['SCHEDULES_ENABLED'];
 });
 
 describe('Bootstrap additional branches', () => {
@@ -150,6 +151,8 @@ describe('Bootstrap additional branches', () => {
   it('starts schedules when runtime is nodejs and registers shutdown hook', async () => {
     vi.resetModules();
 
+    process.env['SCHEDULES_ENABLED'] = 'true';
+
     // prevent real process.exit
     (globalThis as any).__EXIT_SPY__ = vi
       .spyOn(process, 'exit')
@@ -219,6 +222,8 @@ describe('Bootstrap additional branches', () => {
 
   it('does not register shutdown hook when shutdownManager.add is not a function', async () => {
     vi.resetModules();
+
+    process.env['SCHEDULES_ENABLED'] = 'true';
 
     (globalThis as any).__EXIT_SPY__ = vi
       .spyOn(process, 'exit')

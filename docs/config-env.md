@@ -223,8 +223,6 @@ import { Env } from '@zintrust/core';
 | `JOB_TRACKING_CLEANUP_BATCH_SIZE`          | `5000`                     | Batch size for cleanup deletes when using MySQL (DELETE ... LIMIT).                                                                      |
 | `JOB_TRACKING_CLEANUP_MAX_BATCHES`         | `1`                        | Max number of cleanup batches to run per schedule tick (bounded).                                                                        |
 | `JOB_TRACKING_CLEANUP_LOCK_PROVIDER`       | `redis`                    | Lock provider used for cleanup schedule `withoutOverlapping()` (e.g. `redis` or `memory`).                                               |
-| `SCHEDULE_OVERLAP_LOCK_TTL_MS`             | `300000`                   | Default TTL for schedule overlap locks (ms).                                                                                             |
-| `SCHEDULE_SHUTDOWN_TIMEOUT_MS`             | `30000`                    | Max time to wait for schedules to stop during shutdown (ms).                                                                             |
 | `DLQ_REPLAY_MAX_BATCH_SIZE`                | `25`                       | Maximum number of dead-letter records replayed in one governed replay batch.                                                             |
 | `DLQ_REPLAY_MAX_QPS`                       | `5`                        | Ceiling for dead-letter replay throughput (jobs per second).                                                                             |
 | `DLQ_REPLAY_MIN_AGE_MS`                    | `60000`                    | Minimum dead-letter age required before replay eligibility.                                                                              |
@@ -242,6 +240,14 @@ import { Env } from '@zintrust/core';
 | `QUEUE_TRACING_EXPORT_BATCH_SIZE`          | `20`                       | Number of pending queue trace events before automatic exporter flush.                                                                    |
 | `QUEUE_TRACING_EXPORT_OTEL`                | `true`                     | Export queue trace events to OpenTelemetry spans when `OTEL_ENABLED=true`.                                                               |
 | `STALLED_JOB_CHECK_INTERVAL_MS`            | `30000`                    | Interval for heartbeat table stalled checks.                                                                                             |
+
+## Scheduling
+
+| Key                            | Default  | Description                                                                |
+| ------------------------------ | -------- | -------------------------------------------------------------------------- |
+| `SCHEDULES_ENABLED`            | `false`  | Enable schedule autostart in long-running runtimes (Node.js/Fargate only). |
+| `SCHEDULE_SHUTDOWN_TIMEOUT_MS` | `30000`  | Max time to wait for schedules to stop during shutdown (ms).               |
+| `SCHEDULE_OVERLAP_LOCK_TTL_MS` | `300000` | Default TTL for schedule overlap locks (ms).                               |
 
 ## Schedule HTTP gateway
 
