@@ -30,10 +30,18 @@ const cleanupJobTrackingBatch = async (): Promise<{
     'Transitions'
   );
 
+  const retentionHoursRaw = Env.get('JOB_TRACKING_CLEANUP_RETENTION_HOURS', '').trim();
+  const retentionHours =
+    retentionHoursRaw.length > 0 ? Number.parseFloat(retentionHoursRaw) : Number.NaN;
   const retentionDays = Math.max(1, Env.getInt('JOB_TRACKING_CLEANUP_RETENTION_DAYS', 30));
   const batchSize = Math.max(100, Env.getInt('JOB_TRACKING_CLEANUP_BATCH_SIZE', 5000));
 
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const retentionMs =
+    Number.isFinite(retentionHours) && retentionHours > 0
+      ? retentionHours * 60 * 60 * 1000
+      : retentionDays * 24 * 60 * 60 * 1000;
+
+  const cutoff = new Date(Date.now() - retentionMs);
   const cutoffSql = toSqlDateTime(cutoff);
 
   const db = useDatabase(undefined, connection);

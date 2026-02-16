@@ -269,6 +269,9 @@ SCHEDULE_SHUTDOWN_TIMEOUT_MS=30000
 # Default TTL for distributed overlap locks used by Schedule.withoutOverlapping()
 SCHEDULE_OVERLAP_LOCK_TTL_MS=300000
 
+# How long to wait for overlap lock acquisition before running anyway (ms)
+SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS=2000
+
 # Signed internal RPC endpoint for schedule list/run actions
 SCHEDULE_HTTP_PROXY_PATH=/api/_sys/schedule/rpc
 SCHEDULE_HTTP_PROXY_KEY_ID=
@@ -281,6 +284,8 @@ SCHEDULE_HTTP_PROXY_MIDDLEWARE=
 JOB_TRACKING_CLEANUP_ENABLED=false
 JOB_TRACKING_CLEANUP_INTERVAL_MS=21600000
 JOB_TRACKING_CLEANUP_RETENTION_DAYS=30
+# Optional: override retention days with hours (supports fractional values like 0.4)
+JOB_TRACKING_CLEANUP_RETENTION_HOURS=
 JOB_TRACKING_CLEANUP_BATCH_SIZE=5000
 
 # How many batches to run per schedule tick (bounded). Default: 1 (safer in production).

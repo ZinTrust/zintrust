@@ -61,6 +61,25 @@ const wrapWithoutOverlapping = (
   const providerName = (options.provider ?? 'redis').trim();
   const lockKey = (options.key ?? `schedule:${scheduleName}`).trim();
   const ttlMs = Env.getInt('SCHEDULE_OVERLAP_LOCK_TTL_MS', options.ttlMs ?? 300000);
+  const acquireTimeoutMs = Env.getInt('SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS', 2000);
+
+  const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = globalThis.setTimeout(() => {
+            // eslint-disable-next-line no-restricted-syntax
+            reject(new Error('Lock acquire timed out'));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId);
+    }
+  };
 
   return async (kernel) => {
     const provider = resolveLockProvider(providerName);
@@ -76,7 +95,19 @@ const wrapWithoutOverlapping = (
       return;
     }
 
-    const lock = await provider.acquire(lockKey, { ttl: ttlMs });
+    let lock: Awaited<ReturnType<LockProvider['acquire']>>;
+    try {
+      lock = await withTimeout(provider.acquire(lockKey, { ttl: ttlMs }), acquireTimeoutMs);
+    } catch (error) {
+      Logger.warn('Schedule lock acquire failed; running anyway', {
+        schedule: scheduleName,
+        provider: providerName,
+        timeoutMs: acquireTimeoutMs,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      await handler(kernel);
+      return;
+    }
     if (!lock.acquired) {
       Logger.info(`Skipping overlapping run for schedule: ${scheduleName}`);
       return;

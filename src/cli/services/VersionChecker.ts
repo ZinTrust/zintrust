@@ -91,7 +91,11 @@ export const VersionChecker = Object.freeze({
       args.has('--version') ||
       args.has('help') ||
       args.has('new') ||
-      args.has('migrate')
+      args.has('migrate') ||
+      // One-shot schedule commands should exit cleanly and not keep the event loop alive
+      // due to background network requests/keep-alive sockets.
+      args.has('schedule:run') ||
+      args.has('schedule:list')
     ) {
       return false;
     }

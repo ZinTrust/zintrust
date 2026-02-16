@@ -1,35 +1,13 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { databaseConfig } from '@config/database';
+import { ScheduleCliSupport } from '@cli/commands/schedule/ScheduleCliSupport';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import { SchedulerRuntime } from '@scheduler/SchedulerRuntime';
-import type { ISchedule } from '@scheduler/types';
 
 type Options = CommandOptions & {
   json?: boolean;
-};
-
-const isSchedule = (value: unknown): value is ISchedule => {
-  if (value === undefined || value === null || typeof value !== 'object') return false;
-  return 'name' in value && typeof (value as { name?: unknown }).name === 'string';
-};
-
-const loadScheduleModules = async (): Promise<{ core: ISchedule[]; app: ISchedule[] }> => {
-  const coreSchedules = await import('@schedules/index');
-  let appSchedules: Record<string, unknown> = {};
-  try {
-    appSchedules = (await import('@app/Schedules')) as unknown as Record<string, unknown>;
-  } catch {
-    appSchedules = {};
-  }
-
-  return {
-    core: Object.values(coreSchedules).filter(isSchedule),
-    app: Object.values(appSchedules).filter(isSchedule),
-  };
 };
 
 const waitForSignal = async (): Promise<'SIGTERM' | 'SIGINT'> => {
@@ -49,12 +27,7 @@ const execute = async (_options: Options): Promise<void> => {
     return;
   }
 
-  // Schedules may need DB for persistence-backed work.
-  registerDatabasesFromRuntimeConfig(databaseConfig);
-
-  const modules = await loadScheduleModules();
-  SchedulerRuntime.registerMany(modules.core, 'core');
-  SchedulerRuntime.registerMany(modules.app, 'app');
+  await ScheduleCliSupport.registerAll();
 
   const registeredCount = SchedulerRuntime.list().length;
   Logger.info('Starting schedules daemon', { registeredCount });

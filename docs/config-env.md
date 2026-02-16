@@ -220,6 +220,7 @@ import { Env } from '@zintrust/core';
 | `JOB_TRACKING_CLEANUP_ENABLED`             | `false`                    | Enable scheduled cleanup of `JOB_TRACKING_DB_TABLE` and `JOB_TRACKING_DB_TRANSITIONS_TABLE`.                                             |
 | `JOB_TRACKING_CLEANUP_INTERVAL_MS`         | `21600000`                 | Cleanup schedule interval in ms (default: 6 hours).                                                                                      |
 | `JOB_TRACKING_CLEANUP_RETENTION_DAYS`      | `30`                       | Retention window for cleanup (rows older than this are eligible).                                                                        |
+| `JOB_TRACKING_CLEANUP_RETENTION_HOURS`     | empty                      | Optional (overrides days): retention window in hours (supports fractional values like `0.4`).                                            |
 | `JOB_TRACKING_CLEANUP_BATCH_SIZE`          | `5000`                     | Batch size for cleanup deletes when using MySQL (DELETE ... LIMIT).                                                                      |
 | `JOB_TRACKING_CLEANUP_MAX_BATCHES`         | `1`                        | Max number of cleanup batches to run per schedule tick (bounded).                                                                        |
 | `JOB_TRACKING_CLEANUP_LOCK_PROVIDER`       | `redis`                    | Lock provider used for cleanup schedule `withoutOverlapping()` (e.g. `redis` or `memory`).                                               |
@@ -243,11 +244,12 @@ import { Env } from '@zintrust/core';
 
 ## Scheduling
 
-| Key                            | Default  | Description                                                                |
-| ------------------------------ | -------- | -------------------------------------------------------------------------- |
-| `SCHEDULES_ENABLED`            | `false`  | Enable schedule autostart in long-running runtimes (Node.js/Fargate only). |
-| `SCHEDULE_SHUTDOWN_TIMEOUT_MS` | `30000`  | Max time to wait for schedules to stop during shutdown (ms).               |
-| `SCHEDULE_OVERLAP_LOCK_TTL_MS` | `300000` | Default TTL for schedule overlap locks (ms).                               |
+| Key                                        | Default  | Description                                                                |
+| ------------------------------------------ | -------- | -------------------------------------------------------------------------- |
+| `SCHEDULES_ENABLED`                        | `false`  | Enable schedule autostart in long-running runtimes (Node.js/Fargate only). |
+| `SCHEDULE_SHUTDOWN_TIMEOUT_MS`             | `30000`  | Max time to wait for schedules to stop during shutdown (ms).               |
+| `SCHEDULE_OVERLAP_LOCK_TTL_MS`             | `300000` | Default TTL for schedule overlap locks (ms).                               |
+| `SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS` | `2000`   | Max time to wait for overlap-lock acquisition before running anyway (ms).  |
 
 ## Schedule HTTP gateway
 
