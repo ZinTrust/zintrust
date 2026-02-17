@@ -138,6 +138,8 @@ describe('schedules/job-tracking-cleanup', () => {
     mocked.Env.get.mockImplementation((key: string, defaultVal?: string) => {
       if (key === 'JOB_TRACKING_DB_TABLE') return 'bad-table-name';
       if (key === 'JOB_TRACKING_DB_TRANSITIONS_TABLE') return 'zintrust_job_transitions';
+      // Avoid Redis lock acquisition in unit tests (fake timers + no Redis connection).
+      if (key === 'JOB_TRACKING_CLEANUP_LOCK_PROVIDER') return 'memory';
       return defaultVal ?? '';
     });
 
