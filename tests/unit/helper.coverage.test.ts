@@ -102,6 +102,11 @@ describe('helper validators', () => {
     expect(isIn('a', ['a', 'b'])).toBe(true);
     expect(isNotIn('c', ['a', 'b'])).toBe(true);
     expect(isMatch('abc123', /\d+$/)).toBe(true);
+
+    const long = '9'.repeat(5000);
+    expect(isMatch(long, /^9+$/)).toBe(false);
+    expect(isMatch(long, /^9+$/, { maxLength: 6000 })).toBe(true);
+
     expect(isAlpha('abc')).toBe(true);
     expect(isAlphanumeric('a1b2')).toBe(true);
   });

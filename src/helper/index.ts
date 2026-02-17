@@ -225,8 +225,37 @@ export const isAlphanumeric = (value: unknown): boolean =>
   typeof value === 'string' && /^[A-Za-z0-9]+$/.test(value);
 
 /** Check if string matches regex */
-export const isMatch = (value: unknown, regex: RegExp): boolean =>
-  typeof value === 'string' && regex.test(value);
+const DEFAULT_MAX_REGEX_INPUT_LENGTH = 2048;
+
+/**
+ * Check if string matches regex.
+ *
+ * Security/perf: Regex evaluation can be expensive for some patterns.
+ * This helper defensively caps the input length to reduce ReDoS risk
+ * when used on untrusted strings.
+ */
+export const isMatch = (
+  value: unknown,
+  regex: RegExp,
+  options?: { maxLength?: number }
+): boolean => {
+  if (typeof value !== 'string') return false;
+  if (!(regex instanceof RegExp)) return false;
+
+  const maxLength =
+    typeof options?.maxLength === 'number' &&
+    Number.isInteger(options.maxLength) &&
+    options.maxLength >= 0
+      ? options.maxLength
+      : DEFAULT_MAX_REGEX_INPUT_LENGTH;
+
+  if (value.length > maxLength) return false;
+
+  // Normalize stateful RegExp usage (e.g. /.../g) to avoid surprising false negatives.
+  if (regex.global || regex.sticky) regex.lastIndex = 0;
+
+  return regex.test(value);
+};
 
 /* -------------------------------------------------------------------------- */
 /*                            Collection / Length                             */

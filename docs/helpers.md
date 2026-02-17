@@ -430,9 +430,11 @@ isAlphanumeric('hello-123'); // false
 isAlphanumeric('hello 123'); // false
 ```
 
-### `isMatch(value, regex): boolean`
+### `isMatch(value, regex, options?): boolean`
 
 Check if string matches a regex pattern.
+
+This helper defensively caps the input length (default: 2048 chars) to reduce the risk of expensive regex evaluation on untrusted input. You can override the limit via `options.maxLength`.
 
 ```typescript
 import { isMatch } from '@zintrust/core';
@@ -445,6 +447,9 @@ const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 if (isMatch(dateString, dateRegex)) {
   processDate(dateString);
 }
+
+// Override maxLength for known-safe long inputs
+isMatch('9'.repeat(5000), /^9+$/, { maxLength: 6000 });
 ```
 
 ---
