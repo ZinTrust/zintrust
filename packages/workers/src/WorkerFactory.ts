@@ -860,10 +860,12 @@ const resolveProcessorFromUrl = async (
     Logger.warn(
       `Invalid processor URL protocol: ${parsed.protocol}. Only https:// and file:// are supported.`
     );
+    return undefined;
   }
 
   if (!isAllowedRemoteHost(parsed.host) && parsed.protocol !== 'file:') {
     Logger.warn(`Invalid processor URL host: ${parsed.host}. Host is not in the allowlist.`);
+    return undefined;
   }
 
   const config = getProcessorSpecConfig();

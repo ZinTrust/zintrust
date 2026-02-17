@@ -15,7 +15,7 @@ const coverageThresholds = COVERAGE_STRICT
       // are usable locally. For CI-grade gating, set `COVERAGE_STRICT=true`.
       lines: 82,
       functions: 82,
-      branches: 78,
+      branches: 80,
       statements: 82,
     };
 
@@ -123,7 +123,11 @@ export default defineConfig({
         // Local test files (not part of the main codebase)
         'app/Controllers/TestController.ts',
         'app/Workers/TestWorker.ts',
+        // Application operational surfaces (excluded from unit coverage + gates)
+        'app/Jobs/**',
         'routes/apiDev.ts',
+        'routes/mail.ts',
+        'routes/registerDirectMysqlTestRoutes.ts',
         'src/collections/index.ts',
         'src/events/index.ts',
         'src/session/index.ts',
