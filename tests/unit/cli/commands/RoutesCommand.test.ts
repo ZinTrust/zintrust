@@ -18,9 +18,9 @@ const registerRoutesImpl = (router: any) => {
   });
 };
 
-const anonymousHandler = () => undefined;
+const createAnonymousHandler = () => () => undefined;
 const registerAnonRouteImpl = (router: any) => {
-  Router.get(router, '/anon', anonymousHandler, undefined);
+  Router.get(router, '/anon', createAnonymousHandler(), undefined);
 };
 
 const mocked = vi.hoisted(() => ({

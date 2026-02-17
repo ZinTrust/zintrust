@@ -55,16 +55,13 @@ describe('ScheduleStartCommand', () => {
     mocked.envGetBool.mockReturnValue(true);
     mocked.envGetInt.mockReturnValue(123);
 
-    const sigtermHandlers: Array<() => void> = [];
     const onceSpy = vi.spyOn(process, 'once').mockImplementation((event: any, cb: any) => {
-      if (event === 'SIGTERM') sigtermHandlers.push(cb);
+      if (event === 'SIGTERM') cb();
       return process as any;
     });
 
     const { ScheduleStartCommand } = await import('@cli/commands/ScheduleStartCommand');
     await ScheduleStartCommand.create().execute({} as any);
-
-    sigtermHandlers.forEach((h) => h());
 
     expect(mocked.start).toHaveBeenCalledTimes(1);
     expect(mocked.stop).toHaveBeenCalledWith(123);

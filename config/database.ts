@@ -42,7 +42,7 @@ const parseReadHosts = (raw: string): string[] | undefined => {
 const connections = {
   sqlite: {
     driver: 'sqlite' as const,
-    database: 'database/sqlite.db',
+    database: Env.get('DB_DATABASE_SQLITE', '.zintrust/dbs/zintrust.sqlite'),
     migrations: 'database/migrations',
   },
   d1: {
