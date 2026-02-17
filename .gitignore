@@ -104,3 +104,4 @@ routes/registerDirectMysqlTestRoutes.ts
 src/zintrust.comon.ts
 app/Workers/AdvancEmailWorker.js
 fix_mongo.py
+promotion.zip

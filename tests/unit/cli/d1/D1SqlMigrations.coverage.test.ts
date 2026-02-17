@@ -1,5 +1,60 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const fsMocks = vi.hoisted(() => ({
+  existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  writeFileSync: vi.fn(),
+}));
+
+vi.mock('@node-singletons/fs', () => fsMocks);
+
+vi.mock('@migrations/MigrationDiscovery', () => ({
+  MigrationDiscovery: {
+    resolveDir: (_root: string, dir: string) => dir,
+    listMigrationFiles: () => ['m1.ts'],
+  },
+}));
+
+vi.mock('@migrations/MigrationLoader', () => ({
+  MigrationLoader: {
+    load: vi.fn(async () => ({
+      name: '0001_test',
+      up: async (db: any) => {
+        await db.query('CREATE TABLE t (id INTEGER)', []);
+        await db.query('ALTER TABLE t DROP COLUMN x', []);
+        await db.query('ALTER TABLE t ADD x TEXT', []);
+        await db.query('ALTER TABLE t ADD COLUMN y TEXT', []);
+      },
+    })),
+  },
+}));
+
+import { D1SqlMigrations as D1SqlMigrationsStatic } from '../../../../src/cli/d1/D1SqlMigrations';
+
+describe('D1SqlMigrations (coverage extras)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fsMocks.existsSync.mockReturnValue(false);
+  });
+
+  it('normalizes ALTER TABLE ADD to ADD COLUMN when compiling migrations', async () => {
+    await D1SqlMigrationsStatic.compileAndWrite({
+      projectRoot: '/proj',
+      globalDir: '/migrations',
+      extension: 'ts',
+      outputDir: '/out',
+    });
+
+    expect(fsMocks.mkdirSync).toHaveBeenCalled();
+    expect(fsMocks.writeFileSync).toHaveBeenCalled();
+
+    const content = String(fsMocks.writeFileSync.mock.calls[0]?.[1] ?? '');
+    expect(content).toContain('ALTER TABLE t ADD COLUMN x TEXT;');
+    expect(content).toContain('ALTER TABLE t ADD COLUMN y TEXT;');
+    expect(content).toContain('ALTER TABLE t DROP COLUMN x;');
+  });
+});
+
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -53,9 +108,10 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
-    const out = await D1SqlMigrations.compileAndWrite({
+    const out = await D1SqlMigrationsDynamic.compileAndWrite({
       projectRoot: '/repo',
       globalDir: 'global',
       extension: '.ts',
@@ -112,10 +168,11 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
     await expect(
-      D1SqlMigrations.compileAndWrite({
+      D1SqlMigrationsDynamic.compileAndWrite({
         projectRoot: '/repo',
         globalDir: 'global',
         extension: '.ts',
@@ -148,10 +205,11 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
     await expect(
-      D1SqlMigrations.compileAndWrite({
+      D1SqlMigrationsDynamic.compileAndWrite({
         projectRoot: '/repo',
         globalDir: 'global',
         extension: '.ts',
@@ -181,9 +239,10 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       MigrationLoader: { load: async () => ({}) },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
-    await D1SqlMigrations.compileAndWrite({
+    await D1SqlMigrationsDynamic.compileAndWrite({
       projectRoot: '/repo',
       globalDir: 'global-migrations',
       extension: '.ts',
@@ -246,9 +305,10 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
-    const out = await D1SqlMigrations.compileAndWrite({
+    const out = await D1SqlMigrationsDynamic.compileAndWrite({
       projectRoot: '/repo',
       globalDir: 'global',
       extension: '.ts',
@@ -285,10 +345,11 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
     await expect(
-      D1SqlMigrations.compileAndWrite({
+      D1SqlMigrationsDynamic.compileAndWrite({
         projectRoot: '/',
         globalDir: 'g',
         extension: 'ts',
@@ -322,9 +383,10 @@ describe('cli/d1/D1SqlMigrations (coverage)', () => {
       },
     }));
 
-    const { D1SqlMigrations } = await import('../../../../src/cli/d1/D1SqlMigrations');
+    const { D1SqlMigrations: D1SqlMigrationsDynamic } =
+      await import('../../../../src/cli/d1/D1SqlMigrations');
 
-    await D1SqlMigrations.compileAndWrite({
+    await D1SqlMigrationsDynamic.compileAndWrite({
       projectRoot: '/',
       globalDir: 'g',
       extension: 'ts',

@@ -687,7 +687,7 @@ const runTargetedRecovery = async (resolved: ResolvedExecutionOptions): Promise<
     return;
   }
 
-  if (record.status === 'enqueued') {
+  if (record.status === 'enqueued' && !resolved.push) {
     Logger.info('Job already enqueued; nothing to recover', {
       jobId: record.jobId,
       queueName: record.queueName,

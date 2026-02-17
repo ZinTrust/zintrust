@@ -3,7 +3,7 @@ import { Env } from '@config/env';
 import { SignedRequest } from '@security/SignedRequest';
 
 const seenStatementIds = new Set<string>();
-const MAX_SEEN_STATEMENT_IDS = 50_000;
+const MAX_SEEN_STATEMENT_IDS = Math.max(1, Env.getInt('SQL_WRITER_MAX_SEEN_STATEMENT_IDS', 50_000));
 
 const rememberStatementId = (statementId: string): boolean => {
   if (seenStatementIds.has(statementId)) return false;

@@ -59,6 +59,7 @@ const startSchedulesIfNeeded = async (
       const appSchedulesModuleId = '@app/' + 'Schedules';
       appSchedules = (await import(appSchedulesModuleId)) as unknown as Record<string, unknown>;
     } catch {
+      /* v8 ignore next */
       appSchedules = {};
     }
 

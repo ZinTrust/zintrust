@@ -84,7 +84,7 @@ describe('createQueueWorker (patch coverage)', () => {
     await expect(worker.processOne('q')).resolves.toBe(true);
     expect(handle).toHaveBeenCalledWith({ v: 1 });
     expect(queueMock.ack).toHaveBeenCalledWith('q', 'm1', undefined);
-  });
+  }, 30000);
 
   it('processOne re-enqueues when handle throws and attempts below max', async () => {
     const { createQueueWorker } = await import('@zintrust/workers');

@@ -98,6 +98,23 @@ describe('QueueRecoveryCommand', () => {
     expect(JobRecoveryDaemon.runOnce).toHaveBeenCalledTimes(1);
   });
 
+  it('uses QUEUE_DRIVER env value as queueConfig.default when registering queues', async () => {
+    const original = process.env['QUEUE_DRIVER'];
+    process.env['QUEUE_DRIVER'] = 'Redis';
+
+    const cmd = QueueRecoveryCommand.create().getCommand();
+    cmd.exitOverride();
+
+    await cmd.parseAsync(['node', 'test', '--once']);
+
+    expect(registerQueuesFromRuntimeConfig).toHaveBeenCalledWith(
+      expect.objectContaining({ default: 'redis' })
+    );
+
+    if (original === undefined) delete process.env['QUEUE_DRIVER'];
+    else process.env['QUEUE_DRIVER'] = original;
+  });
+
   it('does not register queue runtime for list mode', async () => {
     const cmd = QueueRecoveryCommand.create().getCommand();
     cmd.exitOverride();
@@ -228,6 +245,90 @@ describe('QueueRecoveryCommand', () => {
     await cmd.parseAsync(['node', 'test', '--job-id', 'job-456', '--queue', 'emails']);
 
     expect(JobRecoveryDaemon.recoverOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not push when job is already enqueued (validatePushable branch)', async () => {
+    const cmd = QueueRecoveryCommand.create().getCommand();
+    cmd.exitOverride();
+
+    mockTracker.get.mockReturnValue({
+      queueName: 'emails',
+      jobId: 'job-enqueued',
+      status: 'enqueued',
+      attempts: 0,
+      payload: { id: 1 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    await cmd.parseAsync([
+      'node',
+      'test',
+      '--job-id',
+      'job-enqueued',
+      '--queue',
+      'emails',
+      '--push',
+    ]);
+
+    expect(Queue.enqueue).not.toHaveBeenCalled();
+    expect(Logger.info).toHaveBeenCalledWith('Job is already enqueued; nothing to push', {
+      jobId: 'job-enqueued',
+      queueName: 'emails',
+    });
+  });
+
+  it('refuses to push when status is not pending_recovery and sets exitCode', async () => {
+    const cmd = QueueRecoveryCommand.create().getCommand();
+    cmd.exitOverride();
+
+    mockTracker.get.mockReturnValue({
+      queueName: 'emails',
+      jobId: 'job-bad-status',
+      status: 'failed',
+      attempts: 0,
+      payload: { id: 1 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    const startingExitCode = process.exitCode;
+    process.exitCode = 0;
+
+    await cmd.parseAsync([
+      'node',
+      'test',
+      '--job-id',
+      'job-bad-status',
+      '--queue',
+      'emails',
+      '--push',
+    ]);
+
+    expect(Queue.enqueue).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+    process.exitCode = startingExitCode;
+  });
+
+  it('treats duplicate job id errors as success when pushing', async () => {
+    const cmd = QueueRecoveryCommand.create().getCommand();
+    cmd.exitOverride();
+
+    mockTracker.get.mockReturnValue({
+      queueName: 'emails',
+      jobId: 'dup-1',
+      status: 'pending_recovery',
+      attempts: 0,
+      payload: { id: 1 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    vi.mocked(Queue.enqueue).mockRejectedValueOnce(new Error('JobId already exists'));
+
+    await cmd.parseAsync(['node', 'test', '--job-id', 'dup-1', '--queue', 'emails', '--push']);
+
+    expect(JobStateTracker.handedOffToQueue).toHaveBeenCalledTimes(1);
   });
 
   it('logs a friendly error when a job is not found', async () => {
@@ -468,6 +569,51 @@ describe('QueueRecoveryCommand', () => {
       'Target job pushed to queue',
       expect.objectContaining({ replayJobId: 'job-dupe' })
     );
+  });
+
+  it('rethrows non-duplicate enqueue errors when pushing a targeted job', async () => {
+    const cmd = QueueRecoveryCommand.create();
+
+    mockTracker.get.mockReturnValue({
+      queueName: 'emails',
+      jobId: 'job-fail',
+      status: 'pending_recovery',
+      attempts: 0,
+      payload: { id: 1 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    vi.mocked(Queue.enqueue).mockRejectedValueOnce(new Error('some other failure'));
+
+    await expect(
+      cmd.execute({
+        args: [],
+        jobId: 'job-fail',
+        queue: 'emails',
+        push: true,
+      })
+    ).rejects.toBeDefined();
+  });
+
+  it('calls process.exit for one-off CLI runs when not in test runtime', async () => {
+    const originalNodeEnv = process.env['NODE_ENV'];
+    const originalVitest = process.env['VITEST'];
+    process.env['NODE_ENV'] = 'production';
+    delete process.env['VITEST'];
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`exit:${code ?? 'none'}`);
+    }) as never);
+
+    const cmd = QueueRecoveryCommand.create();
+    await expect(cmd.execute({ args: [], once: true })).rejects.toThrow(/exit:/);
+
+    exitSpy.mockRestore();
+    if (originalNodeEnv === undefined) delete process.env['NODE_ENV'];
+    else process.env['NODE_ENV'] = originalNodeEnv;
+    if (originalVitest === undefined) delete process.env['VITEST'];
+    else process.env['VITEST'] = originalVitest;
   });
 
   it('skips targeted recovery when job is already enqueued', async () => {

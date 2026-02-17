@@ -43,6 +43,8 @@
       "@database/*": ["./src/database/*", "./database/*"],
       "@validation/*": ["./src/validation/*"],
       "@security/*": ["./src/security/*"],
+      "@collections/*": ["./src/collections/*"],
+      "@helper/*": ["./src/helper/*"],
       "@profiling/*": ["./src/profiling/*"],
       "@performance/*": ["./src/performance/*"],
       "@deployment/*": ["./src/deployment/*"],

@@ -50,6 +50,7 @@ export default defineConfig({
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),
+      '@helper': path.resolve(__dirname, './src/helper'),
       '@proxy': path.resolve(__dirname, './src/proxy'),
       '@lang': path.resolve(__dirname, './src/lang'),
       '@core-routes': path.resolve(__dirname, './src/routes'),
@@ -67,6 +68,7 @@ export default defineConfig({
       '@database': path.resolve(__dirname, './src/database'),
       '@validation': path.resolve(__dirname, './src/validation'),
       '@security': path.resolve(__dirname, './src/security'),
+      '@collections': path.resolve(__dirname, './src/collections'),
       '@profiling': path.resolve(__dirname, './src/profiling'),
       '@performance': path.resolve(__dirname, './src/performance'),
       '@deployment': path.resolve(__dirname, './src/deployment'),
@@ -157,15 +159,12 @@ export default defineConfig({
         // Integration/runtime-only surfaces not exercised by unit suite.
         'app/Workers/**',
         'routes/DirectMysqlTestRoutes.ts',
-        // Keep queue internals excluded except files covered by patch tests.
+        // Keep most queue internals excluded (noise), but do NOT exclude files that
+        // commonly change and are enforced by patch-coverage gates.
         'src/tools/queue/AdvancedQueue.ts',
         'src/tools/queue/DeduplicationBuilder.ts',
         'src/tools/queue/IdempotencyManager.ts',
         'src/tools/queue/JobHeartbeatStore.ts',
-        'src/tools/queue/JobReconciliationRunner.ts',
-        'src/tools/queue/JobRecoveryDaemon.ts',
-        'src/tools/queue/JobStateTracker.ts',
-        'src/tools/queue/JobStateTrackerDbPersistence.ts',
         'src/tools/queue/LockProvider.ts',
         'src/tools/queue/QueueDataRedactor.ts',
         'src/tools/queue/QueueExtensions.ts',
