@@ -67,7 +67,8 @@ describe('schedules/job-tracking-cleanup', () => {
       if (key === 'JOB_TRACKING_DB_TABLE') return 'zintrust_jobs';
       if (key === 'JOB_TRACKING_DB_TRANSITIONS_TABLE') return 'zintrust_job_transitions';
       if (key === 'JOB_TRACKING_CLEANUP_RETENTION_HOURS') return '';
-      if (key === 'JOB_TRACKING_CLEANUP_LOCK_PROVIDER') return 'redis';
+      // Avoid Redis lock acquisition in unit tests (fake timers + no Redis connection).
+      if (key === 'JOB_TRACKING_CLEANUP_LOCK_PROVIDER') return 'memory';
       return defaultVal ?? '';
     });
     mocked.Env.getInt.mockImplementation((key: string, defaultVal?: number) => {
@@ -113,7 +114,7 @@ describe('schedules/job-tracking-cleanup', () => {
       if (key === 'JOB_TRACKING_CLEANUP_RETENTION_HOURS') return '2';
       if (key === 'JOB_TRACKING_DB_TABLE') return 'zintrust_jobs';
       if (key === 'JOB_TRACKING_DB_TRANSITIONS_TABLE') return 'zintrust_job_transitions';
-      if (key === 'JOB_TRACKING_CLEANUP_LOCK_PROVIDER') return 'redis';
+      if (key === 'JOB_TRACKING_CLEANUP_LOCK_PROVIDER') return 'memory';
       return defaultVal ?? '';
     });
 
