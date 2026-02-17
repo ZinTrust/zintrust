@@ -11,6 +11,7 @@
 
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isArray } from '@helper/index';
 import type { Command } from 'commander';
 
 import { SecretsToolkit } from '@toolkit/Secrets';
@@ -24,10 +25,8 @@ type SecretsCommandOptions = CommandOptions & {
   dryRun?: boolean;
 };
 
-const isUnknownArray = (value: unknown): value is unknown[] => Array.isArray(value);
-
 const getArg = (args: unknown, index: number): string | undefined => {
-  if (!isUnknownArray(args)) return undefined;
+  if (!isArray(args)) return undefined;
   const v = args[index];
   return typeof v === 'string' ? v : undefined;
 };

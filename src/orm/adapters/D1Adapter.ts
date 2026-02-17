@@ -6,6 +6,7 @@ import { Cloudflare } from '@config/cloudflare';
 import { FeatureFlags } from '@config/features';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isObject } from '@helper/index';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type {
   DatabaseConfig,
@@ -15,8 +16,7 @@ import type {
 } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const toNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;

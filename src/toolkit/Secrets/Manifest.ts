@@ -1,4 +1,5 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString, isObject } from '@helper/index';
 import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
@@ -20,11 +21,10 @@ export type SecretsManifest = {
   keys: Record<string, ManifestKeySpec>;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const assertString = (value: unknown, name: string): string => {
-  if (typeof value !== 'string' || value.trim() === '') {
+  if (!isNonEmptyString(value)) {
     throw ErrorFactory.createCliError(`Manifest: missing/invalid ${name}`);
   }
   return value;
@@ -59,10 +59,7 @@ const parseKeySpec = (envKey: string, specUnknown: Record<string, unknown>): Man
   if (isRecord(awsUnknown)) {
     spec.aws = {
       secretId: assertString(awsUnknown['secretId'], `keys.${envKey}.aws.secretId`),
-      jsonKey:
-        typeof awsUnknown['jsonKey'] === 'string' && awsUnknown['jsonKey'].trim() !== ''
-          ? awsUnknown['jsonKey']
-          : undefined,
+      jsonKey: isNonEmptyString(awsUnknown['jsonKey']) ? awsUnknown['jsonKey'] : undefined,
     };
   }
 
@@ -70,11 +67,9 @@ const parseKeySpec = (envKey: string, specUnknown: Record<string, unknown>): Man
   if (isRecord(cloudflareUnknown)) {
     spec.cloudflare = {
       key: assertString(cloudflareUnknown['key'], `keys.${envKey}.cloudflare.key`),
-      namespaceId:
-        typeof cloudflareUnknown['namespaceId'] === 'string' &&
-        cloudflareUnknown['namespaceId'].trim() !== ''
-          ? cloudflareUnknown['namespaceId']
-          : undefined,
+      namespaceId: isNonEmptyString(cloudflareUnknown['namespaceId'])
+        ? cloudflareUnknown['namespaceId']
+        : undefined,
     };
   }
 

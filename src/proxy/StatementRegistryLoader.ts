@@ -1,8 +1,8 @@
 import { Env } from '@config/env';
+import { isObject } from '@helper/index';
 import fs from '@node-singletons/fs';
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object';
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const parseStatements = (input: unknown): Record<string, string> | undefined => {
   if (!isRecord(input)) return undefined;

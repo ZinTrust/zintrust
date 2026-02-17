@@ -1,4 +1,5 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isEmpty as isEmptyHelper } from '@helper/index';
 import { randomBytes } from '@node-singletons/crypto';
 
 export const generateUuid = (): string => {
@@ -39,14 +40,7 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 export function isEmpty(value: unknown): boolean {
-  return (
-    value === null ||
-    value === undefined ||
-    value === false ||
-    value === 0 ||
-    value === '' ||
-    value === '0'
-  );
+  return isEmptyHelper(value);
 }
 
 export function toStr(value: unknown): string {

@@ -105,3 +105,4 @@ src/zintrust.comon.ts
 app/Workers/AdvancEmailWorker.js
 fix_mongo.py
 promotion.zip
+.github/instructions/helper_usage.instructions.md

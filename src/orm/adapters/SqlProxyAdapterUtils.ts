@@ -1,5 +1,6 @@
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isObject } from '@helper/index';
 import { resolveSigningPrefix } from '@orm/adapters/ProxySigningPath';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
 
@@ -60,5 +61,4 @@ export const requestSignedProxy = async <T>(
   return RemoteSignedJson.request<T>(signedSettings, path, payload);
 };
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+export const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);

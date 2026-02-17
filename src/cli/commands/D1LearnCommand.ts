@@ -6,6 +6,7 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString, isObject } from '@helper/index';
 import * as fs from '@node-singletons/fs';
 import { StatementRegistryBuild } from '@orm/SchemaStatemenWriter';
 import type { Command } from 'commander';
@@ -19,14 +20,13 @@ type D1LearnOptions = CommandOptions & {
 
 const LEARN_FILE = 'storage/d1-learned.jsonl';
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object';
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const coerceStringRegistry = (value: unknown): Record<string, string> => {
   if (!isRecord(value)) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(value)) {
-    if (typeof v === 'string' && v.trim() !== '') out[k] = v;
+    if (isNonEmptyString(v)) out[k] = v;
   }
   return out;
 };

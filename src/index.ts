@@ -434,6 +434,9 @@ export * from '@config/redis';
 
 export type * from '@config/type';
 
+// Helper functions
+export * from '@helper/index';
+
 export { ZintrustLang } from '@lang/lang';
 
 // Workers config

@@ -1,7 +1,8 @@
+import { isObject } from '@helper/index';
+
 export type ValidationError = Readonly<{ code: string; message: string }>;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const parseJson = (
   body: string

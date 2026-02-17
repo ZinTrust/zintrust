@@ -1,4 +1,5 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isObject } from '@helper/index';
 import { normalizeSigningCredentials } from '@proxy/SigningService';
 import { SignedRequest } from '@security/SignedRequest';
 
@@ -41,8 +42,7 @@ const asJson = async (resp: Response): Promise<unknown> => {
   }
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const describeProxyError = (details: unknown): string => {
   // Expected Worker proxy error shape: { status: number, body: { code: string, message: string } }
