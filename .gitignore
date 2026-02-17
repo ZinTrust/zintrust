@@ -65,6 +65,9 @@ zin-tools/
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
 .zintrust/
+
+# Legacy/local sqlite DB files (SQLite DBs should live under .zintrust/dbs/)
+database/sqlite.db*
 zintrust
 issues/
 src/zintrust.plugins.ts
@@ -100,5 +103,6 @@ routes/DirectMysqlTestRoutes.ts
 routes/registerDirectMysqlTestRoutes.ts
 src/zintrust.comon.ts
 app/Workers/AdvancEmailWorker.js
-requests/zintrust.http
 fix_mongo.py
+promotion.zip
+.github/instructions/helper_usage.instructions.md

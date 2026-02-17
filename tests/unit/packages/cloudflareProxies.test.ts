@@ -76,7 +76,41 @@ const buildSignedRequest = async (params: {
   });
 };
 
+const buildSignedRequestWith = async (params: {
+  url: string;
+  body: string;
+  keyId: string;
+  secret: string;
+  nonce: string;
+  timestampMs: number;
+  signedRequest: {
+    sha256Hex: (b: Uint8Array) => Promise<string>;
+    canonicalString: (p: any) => string;
+  };
+}): Promise<Request> => {
+  const bodyBytes = new TextEncoder().encode(params.body);
+  const headers = await sign({
+    secret: params.secret,
+    method: 'POST',
+    url: params.url,
+    bodyBytes,
+    keyId: params.keyId,
+    nonce: params.nonce,
+    timestampMs: params.timestampMs,
+    signedRequest: params.signedRequest,
+  });
+
+  return new Request(params.url, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: params.body,
+  });
+};
+
 describe('cloudflare proxy workers', () => {
+  const APP_NAME = 'ZinTrust';
+  const APP_KEY = 'H7N3dOZffvCAFvCFAvgePT2yRG3+l9i2xenc4yUMPp8=';
+
   it('d1 proxy /zin/d1/query returns rows for a valid signed request', async () => {
     const { ZintrustD1Proxy } =
       (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
@@ -120,7 +154,66 @@ describe('cloudflare proxy workers', () => {
 
     const env = {
       DB: db,
-      ZT_KEYS_JSON: JSON.stringify({ [keyId]: { secret } }),
+      D1_REMOTE_SECRET: secret,
+    };
+
+    const req = new Request('https://example.test/zin/d1/query', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, env);
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { rowCount: number };
+    expect(json.rowCount).toBe(1);
+  });
+
+  it('d1 proxy resolves custom binding name from D1_BINDING', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const body = JSON.stringify({ sql: 'select 1', params: [] });
+    const bodyBytes = new TextEncoder().encode(body);
+    const keyId = 'k1';
+    const secret = 'super-secret';
+    const headers = await sign({
+      secret,
+      method: 'POST',
+      url: 'https://example.test/zin/d1/query',
+      bodyBytes,
+      keyId,
+      nonce: 'n1',
+      timestampMs: Date.now(),
+      signedRequest: SignedRequest,
+    });
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [{ ok: true }] }),
+          first: async () => ({ ok: true }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const env = {
+      CUSTOM_DB: db,
+      D1_BINDING: 'CUSTOM_DB',
+      D1_REMOTE_SECRET: secret,
     };
 
     const req = new Request('https://example.test/zin/d1/query', {
@@ -176,7 +269,7 @@ describe('cloudflare proxy workers', () => {
 
     const env = {
       CACHE: cache,
-      ZT_KEYS_JSON: JSON.stringify({ [keyId]: { secret } }),
+      KV_REMOTE_SECRET: secret,
       ZT_KV_PREFIX: 'pfx',
     };
 
@@ -229,7 +322,7 @@ describe('cloudflare proxy workers', () => {
           list_complete: false,
         }),
       },
-      ZT_KEYS_JSON: JSON.stringify({ [keyId]: { secret } }),
+      KV_REMOTE_SECRET: secret,
       ZT_KV_PREFIX: 'pfx',
       ZT_KV_LIST_LIMIT: '2',
     };
@@ -297,7 +390,7 @@ describe('cloudflare proxy workers', () => {
     });
 
     const resBadJson = await ZintrustKvProxy.fetch(reqBadJson, {
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      KV_REMOTE_SECRET: 'secret',
     });
     expect(resBadJson.status).toBe(400);
   });
@@ -330,7 +423,7 @@ describe('cloudflare proxy workers', () => {
 
     const env = {
       DB: db,
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      D1_REMOTE_SECRET: 'secret',
       ZT_D1_STATEMENTS_JSON: JSON.stringify({
         getUsers: 'select 1',
         deleteUser: 'delete from users',
@@ -409,7 +502,7 @@ describe('cloudflare proxy workers', () => {
     });
 
     const resMissingKeys = await ZintrustD1Proxy.fetch(reqMissingKeys, {});
-    expect(resMissingKeys.status).toBe(500);
+    expect(resMissingKeys.status).toBe(401);
 
     const reqInvalidJson = await buildSignedRequest({
       url: 'https://example.test/zin/d1/query',
@@ -420,7 +513,7 @@ describe('cloudflare proxy workers', () => {
     });
 
     const resInvalidJson = await ZintrustD1Proxy.fetch(reqInvalidJson, {
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      D1_REMOTE_SECRET: 'secret',
     });
     expect(resInvalidJson.status).toBe(400);
 
@@ -432,8 +525,375 @@ describe('cloudflare proxy workers', () => {
       signedRequest: SignedRequest,
     });
     const resMissingDb = await ZintrustD1Proxy.fetch(reqMissingDb, {
-      ZT_KEYS_JSON: JSON.stringify({ k1: { secret: 'secret' } }),
+      D1_REMOTE_SECRET: 'secret',
     });
-    expect(resMissingDb.status).toBe(500);
+    expect(resMissingDb.status).toBe(400);
+  });
+
+  it('kv proxy resolves custom KV binding name from KV_NAMESPACE', async () => {
+    const { ZintrustKvProxy } =
+      (await import('../../../packages/cloudflare-kv-proxy/src/index.js')) as {
+        ZintrustKvProxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-kv-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    let lastPut: { key?: string; value?: string; ttl?: number } = {};
+    const cache = {
+      get: async (_key: string) => null,
+      put: async (key: string, value: string, options?: { expirationTtl?: number }) => {
+        lastPut = { key, value, ttl: options?.expirationTtl };
+      },
+      delete: async (_key: string) => {},
+      list: async (_opts: any) => ({ keys: [], cursor: '', list_complete: true }),
+    };
+
+    const body = JSON.stringify({ namespace: 'ns', key: 'k', value: 'v', ttlSeconds: 10 });
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/kv/put',
+      body,
+      keyId: 'k1',
+      secret: 'super-secret',
+      signedRequest: SignedRequest,
+    });
+
+    const env = {
+      MY_CACHE: cache,
+      KV_NAMESPACE: 'MY_CACHE',
+      KV_REMOTE_SECRET: 'super-secret',
+      ZT_KV_PREFIX: 'pfx',
+    };
+
+    const res = await ZintrustKvProxy.fetch(req, env);
+    expect(res.status).toBe(200);
+    expect(lastPut.key).toBe('pfx:ns:k');
+    expect(lastPut.value).toBe(JSON.stringify('v'));
+    expect(lastPut.ttl).toBe(10);
+  });
+
+  it('d1 proxy /zin/d1/queryOne returns a single row', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [] }),
+          first: async () => ({ id: 1, name: 'a' }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const body = JSON.stringify({ sql: 'select 1', params: [] });
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/queryOne',
+      body,
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      signedRequest: SignedRequest,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, { DB: db, APP_KEY });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { row: { id: number; name: string } };
+    expect(json.row.id).toBe(1);
+  });
+
+  it('d1 proxy /zin/d1/exec returns meta', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [] }),
+          first: async () => null,
+          run: async () => ({ meta: { changes: 1 } }),
+        };
+        return stmt;
+      },
+    };
+
+    const body = JSON.stringify({ sql: 'update t set x=1', params: [] });
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/exec',
+      body,
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      signedRequest: SignedRequest,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, { DB: db, APP_KEY });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { ok: boolean; meta: { changes: number } };
+    expect(json.ok).toBe(true);
+    expect(json.meta.changes).toBe(1);
+  });
+
+  it('d1 proxy enforces signing window', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [{ ok: true }] }),
+          first: async () => ({ ok: true }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const body = JSON.stringify({ sql: 'select 1', params: [] });
+    const req = await buildSignedRequestWith({
+      url: 'https://example.test/zin/d1/query',
+      body,
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      nonce: 'n-old',
+      timestampMs: Date.now() - 10_000,
+      signedRequest: SignedRequest,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, {
+      DB: db,
+      APP_KEY,
+      ZT_PROXY_SIGNING_WINDOW_MS: '1000',
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('d1 proxy rejects replayed nonces when ZT_NONCES is configured', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [{ ok: true }] }),
+          first: async () => ({ ok: true }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const seen = new Set<string>();
+    const nonces = {
+      get: async (key: string) => (seen.has(key) ? '1' : null),
+      put: async (key: string) => {
+        seen.add(key);
+      },
+    };
+
+    const body = JSON.stringify({ sql: 'select 1', params: [] });
+    const req1 = await buildSignedRequestWith({
+      url: 'https://example.test/zin/d1/query',
+      body,
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      nonce: 'same',
+      timestampMs: Date.now(),
+      signedRequest: SignedRequest,
+    });
+    const req2 = await buildSignedRequestWith({
+      url: 'https://example.test/zin/d1/query',
+      body,
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      nonce: 'same',
+      timestampMs: Date.now(),
+      signedRequest: SignedRequest,
+    });
+
+    const env = { DB: db, APP_KEY, ZT_NONCES: nonces };
+    const res1 = await ZintrustD1Proxy.fetch(req1, env);
+    expect(res1.status).toBe(200);
+    const res2 = await ZintrustD1Proxy.fetch(req2, env);
+    expect(res2.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('d1 proxy enforces max body bytes', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [] }),
+          first: async () => null,
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const body = JSON.stringify({ sql: 'select 1', params: [], pad: 'x'.repeat(200) });
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/query',
+      body,
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      signedRequest: SignedRequest,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, { DB: db, APP_KEY, ZT_MAX_BODY_BYTES: '50' });
+    expect(res.status).toBe(413);
+  });
+
+  it('d1 proxy enforces SQL/params limits on queryOne and exec', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [{ ok: true }] }),
+          first: async () => ({ ok: true }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const env = {
+      DB: db,
+      APP_KEY,
+      ZT_MAX_SQL_BYTES: '8',
+      ZT_MAX_PARAMS: '1',
+    };
+
+    const reqTooLargeQueryOne = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/queryOne',
+      body: JSON.stringify({ sql: 'select too long', params: [] }),
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      signedRequest: SignedRequest,
+    });
+    const resTooLargeQueryOne = await ZintrustD1Proxy.fetch(reqTooLargeQueryOne, env);
+    expect(resTooLargeQueryOne.status).toBe(413);
+
+    const reqTooManyExec = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/exec',
+      body: JSON.stringify({ sql: 'update 1', params: [1, 2] }),
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      signedRequest: SignedRequest,
+    });
+    const resTooManyExec = await ZintrustD1Proxy.fetch(reqTooManyExec, env);
+    expect(resTooManyExec.status).toBe(400);
+  });
+
+  it('d1 proxy /zin/d1/statement returns config error when registry is missing', async () => {
+    const { ZintrustD1Proxy } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/index.js')) as {
+        ZintrustD1Proxy: { fetch: (req: Request, env: any) => Promise<Response> };
+      };
+
+    const { SignedRequest } =
+      (await import('../../../packages/cloudflare-d1-proxy/src/SignedRequest.js')) as {
+        SignedRequest: {
+          sha256Hex: (b: Uint8Array) => Promise<string>;
+          canonicalString: (p: any) => string;
+        };
+      };
+
+    const db = {
+      prepare: (_sql: string) => {
+        const stmt = {
+          bind: (..._values: unknown[]) => stmt,
+          all: async () => ({ results: [{ ok: true }] }),
+          first: async () => ({ ok: true }),
+          run: async () => ({ meta: { ok: true } }),
+        };
+        return stmt;
+      },
+    };
+
+    const req = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/statement',
+      body: JSON.stringify({ statementId: 'any', params: [] }),
+      keyId: APP_NAME,
+      secret: APP_KEY,
+      signedRequest: SignedRequest,
+    });
+
+    const res = await ZintrustD1Proxy.fetch(req, { DB: db, APP_KEY });
+    expect(res.status).toBe(400);
   });
 });

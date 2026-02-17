@@ -1,6 +1,7 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isNonEmptyString, isObject } from '@helper/index';
 import {
   SmtpDriver,
   type MailAttachment,
@@ -173,8 +174,7 @@ const verifySignatureIfNeeded = async (
   return { ok: true };
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
+const isRecord = (value: unknown): value is Record<string, unknown> => isObject(value);
 
 const parseAttachment = (value: unknown): ParseResult<MailAttachment> => {
   if (!isRecord(value)) {
@@ -187,14 +187,14 @@ const parseAttachment = (value: unknown): ParseResult<MailAttachment> => {
   const filename = value['filename'];
   const contentBase64 = value['contentBase64'];
 
-  if (typeof filename !== 'string' || filename.trim() === '') {
+  if (!isNonEmptyString(filename)) {
     return {
       ok: false,
       error: { code: 'VALIDATION_ERROR', message: 'attachment filename is required' },
     };
   }
 
-  if (typeof contentBase64 !== 'string' || contentBase64.trim() === '') {
+  if (!isNonEmptyString(contentBase64)) {
     return {
       ok: false,
       error: { code: 'VALIDATION_ERROR', message: 'attachment contentBase64 is required' },
@@ -222,7 +222,7 @@ const parseFrom = (value: unknown): ParseResult<MailMessage['from']> => {
 
   const email = value['email'];
   const name = value['name'];
-  if (typeof email !== 'string' || email.trim() === '') {
+  if (!isNonEmptyString(email)) {
     return { ok: false, error: { code: 'VALIDATION_ERROR', message: 'from.email is required' } };
   }
 
@@ -230,7 +230,7 @@ const parseFrom = (value: unknown): ParseResult<MailMessage['from']> => {
     ok: true,
     value: {
       email,
-      name: typeof name === 'string' && name.trim() !== '' ? name : undefined,
+      name: isNonEmptyString(name) ? name : undefined,
     },
   };
 };

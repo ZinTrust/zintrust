@@ -160,7 +160,15 @@ const ensureSignedSettings = (settings: ProxySettings): RemoteSignedJsonSettings
 
 const shouldUseProxy = (): boolean => {
   if (Env.USE_SMTP_PROXY === true) return true;
-  return Env.SMTP_PROXY_URL.trim() !== '';
+
+  // In Cloudflare Workers, SMTP requires TCP sockets; if sockets are disabled,
+  // we must use the HTTP SMTP proxy transport when a URL is configured.
+  if (isWorkersRuntime() && Cloudflare.isCloudflareSocketsEnabled() === false) {
+    return Env.SMTP_PROXY_URL.trim() !== '';
+  }
+
+  // Default: do not use proxy unless explicitly enabled.
+  return false;
 };
 
 const serializeMessage = (message: MailMessage): ProxyMessagePayload => {

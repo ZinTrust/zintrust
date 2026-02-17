@@ -17,12 +17,16 @@
 - `zin templates`: List/render built-in markdown templates
 - `zin routes` (alias: `zin route:list`): List all registered routes (table/JSON)
 - `zin queue:recovery`: Run queue recovery once, start reliability orchestrator, or inspect/recover specific tracked jobs
+- `zin schedule:list`: List registered schedules (core + `app/Schedules`)
+- `zin schedule:run`: Run a single schedule once (by name)
+- `zin schedule:start`: Start the schedules daemon (Node/Fargate) and block until shutdown
 - `zin jwt:dev`: Mint a local development JWT (for manual API testing)
 - `zin make:mail-template`: Scaffold a mail markdown template into your app
 - `zin make:notification-template`: Scaffold a notification markdown template into your app
 - `zin fix`: Run automated code fixes
 - `zin qa`: Run full Quality Assurance suite
 - `zin secrets`: Pull/push secrets via the Secrets toolkit
+- `zin put cloudflare`: Push Wrangler secrets from dynamic key groups in `.zintrust.json`
 - `zin simulate` (alias: `zin -sim`): Generate a simulated app under `./simulate/` (dev utility)
 - `zin --version`: Show CLI version
 - `zin --help`: Show help for any command
@@ -60,6 +64,7 @@ zin deploy:cp
 
 - `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
 - `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
+- `zin init:ecosystem` - Scaffold `docker-compose.ecosystem.yml` and `docker-compose.schedules.yml`
 - Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py`
 
 ## Container Proxies Commands
@@ -236,6 +241,40 @@ Supported platforms: `lambda`, `fargate`, `cloudflare`, `deno`, `all`.
   - `--service <name>`: Include specific service seeders
   - `--only-service <name>`: Run ONLY specific service seeders
 
+## Cloudflare Secret Put Command
+
+Pushes secrets to Wrangler environments using dynamic key groups from `.zintrust.json`.
+
+Usage:
+
+```bash
+zin put cloudflare --wg <wrangler-env...> --var <group...> [--env_path .env] [--dry-run]
+```
+
+Examples:
+
+```bash
+zin put cloudflare --wg d1-proxy --var d1_env --env_path .env --dry-run
+zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
+zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --env_path .env
+```
+
+`.zintrust.json` dynamic groups example:
+
+```json
+{
+  "d1_env": ["APP_KEY", "D1_REMOTE_SECRET"],
+  "kv_env": ["APP_KEY", "KV_REMOTE_SECRET"]
+}
+```
+
+Notes:
+
+- `--wg` sets the Wrangler target environment(s) (for example `d1-proxy`, `kv-proxy`).
+- `--var` selects array keys from `.zintrust.json`.
+- `D1_REMOTE_SECRET` / `KV_REMOTE_SECRET` are optional if you use `APP_KEY` as the shared signing secret; missing values are reported as failures for whichever keys you selected.
+- Final output includes totals for pushed and failed keys.
+
 ## Queue Recovery Command
 
 Manage queue reliability flows from CLI.
@@ -244,6 +283,27 @@ Usage:
 
 ```bash
 zin queue:recovery [options]
+```
+
+## Schedule Commands
+
+ZinTrust supports lightweight in-process schedules (Node/Fargate), plus manual triggering via CLI.
+
+Usage:
+
+```bash
+zin schedule:list [--json]
+zin schedule:run --name <schedule>
+```
+
+Examples:
+
+```bash
+# List all schedules
+zin schedule:list
+
+# Run job-tracking cleanup on demand
+zin schedule:run --name jobTracking.cleanup
 ```
 
 Common options:

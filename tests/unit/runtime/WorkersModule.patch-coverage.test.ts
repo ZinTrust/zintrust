@@ -18,8 +18,12 @@ const fileContent = new Map<string, string>();
 
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn((p: string) => {
-    if (p.endsWith('/index.js')) return true;
-    if (p.endsWith('.js')) return true;
+    // Allow the mocked package entrypoints under /tmp/...
+    if (p.startsWith('/tmp/')) return true;
+
+    // Avoid local dist fallback imports during unit tests (can be slow under coverage).
+    if (p.includes('/dist/')) return false;
+
     return fileContent.has(p);
   }),
   statSync: vi.fn((p: string) => ({
@@ -72,5 +76,5 @@ describe('WorkersModule patch coverage', () => {
     expect(workers).toHaveProperty('WorkerFactory');
     expect(monitor).toBeDefined();
     expect(monitor).toHaveProperty('QueueMonitor');
-  });
+  }, 30000);
 });

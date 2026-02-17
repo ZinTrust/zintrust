@@ -11,7 +11,12 @@ import type { SupportedDriver } from '@migrations/enum';
 export interface ID1Database {
   prepare(sql: string): {
     bind(...values: unknown[]): {
-      all<T = unknown>(): Promise<{ results?: T[]; success: boolean; error?: string }>;
+      all<T = unknown>(): Promise<{
+        results?: T[];
+        success: boolean;
+        error?: string;
+        meta?: Record<string, unknown>;
+      }>;
       first<T = unknown>(): Promise<T | null>;
       run(): Promise<{ success: boolean; error?: string }>;
     };

@@ -4,6 +4,7 @@
  * Sealed namespace for immutability
  */
 
+import type { ISchedule } from '@/scheduler/types';
 import { Application } from '@boot/Application';
 import { Server } from '@boot/Server';
 import { appConfig } from '@config/app';
@@ -45,25 +46,46 @@ const logBootstrapErrorDetails = (error: unknown): void => {
 };
 
 const startSchedulesIfNeeded = async (
-  app: ReturnType<typeof Application.create>
+  application: ReturnType<typeof Application.create>
 ): Promise<void> => {
   try {
+    if (Env.getBool('SCHEDULES_ENABLED', false) === false) return;
     const runtime = appConfig.detectRuntime();
     if (runtime !== 'nodejs' && runtime !== 'fargate') return;
-    const { create: createScheduleRunner } = await import('@/scheduler/ScheduleRunner');
-    const schedules = await import('@/schedules');
-    const runner = createScheduleRunner();
-
-    for (const schedule of Object.values(schedules)) {
-      // Each schedule is expected to export a default ISchedule
-      // @ts-ignore
-      runner.register(schedule);
+    const { SchedulerRuntime } = await import('@scheduler/SchedulerRuntime');
+    const coreSchedules = await import('@schedules/index');
+    let appSchedules: Record<string, unknown> = {};
+    try {
+      const appSchedulesModuleId = '@app/' + 'Schedules';
+      appSchedules = (await import(appSchedulesModuleId)) as unknown as Record<string, unknown>;
+    } catch {
+      /* v8 ignore next */
+      appSchedules = {};
     }
 
-    runner.start();
+    const isSchedule = (value: unknown): value is { name: string } => {
+      if (value === null || value === undefined || typeof value !== 'object') return false;
+      return (
+        'name' in value &&
+        typeof (value as { name?: unknown }).name === 'string' &&
+        (value as { name: string }).name.trim().length > 0
+      );
+    };
+
+    const coreScheduleEntries = Object.values(coreSchedules).filter(
+      isSchedule
+    ) as unknown as ISchedule[];
+    const appScheduleEntries = Object.values(appSchedules).filter(
+      isSchedule
+    ) as unknown as ISchedule[];
+
+    SchedulerRuntime.registerMany(coreScheduleEntries, 'core');
+    SchedulerRuntime.registerMany(appScheduleEntries, 'app');
+
+    SchedulerRuntime.start();
 
     // Add shutdown hook to stop schedules gracefully
-    const shutdownManager = app.getContainer().get('shutdownManager');
+    const shutdownManager = application.getContainer().get('shutdownManager');
     if (
       (typeof shutdownManager === 'object' || typeof shutdownManager === 'function') &&
       shutdownManager !== null &&
@@ -72,7 +94,7 @@ const startSchedulesIfNeeded = async (
     ) {
       (shutdownManager as { add: (fn: () => Promise<void> | void) => void }).add(async () => {
         const scheduleTimeoutMs = Env.getInt('SCHEDULE_SHUTDOWN_TIMEOUT_MS', 30000);
-        await runner.stop(scheduleTimeoutMs);
+        await SchedulerRuntime.stop(scheduleTimeoutMs);
       });
     }
   } catch (err) {

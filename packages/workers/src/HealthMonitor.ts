@@ -70,11 +70,7 @@ const persistStatusChange = async (
   }
 };
 
-const verifyWorkerHealth = async (
-  worker: Worker,
-  _name: string,
-  _queueName: string
-): Promise<boolean> => {
+const verifyWorkerHealth = async (worker: Worker): Promise<boolean> => {
   // Check if isClosing exists (isClosing check safe for mocks)
   const workerAny = worker as unknown as Record<string, unknown>;
   const isClosingFn = workerAny['isClosing'];
@@ -94,8 +90,36 @@ const verifyWorkerHealth = async (
   if (pingResult !== 'PONG') {
     throw ErrorFactory.createWorkerError(`Redis ping failed: ${pingResult}`);
   }
-  Logger.debug(`Worker health verification passed for ${_name} ${_queueName}`);
   return true;
+};
+
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => Error
+): Promise<T> => {
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  return await new Promise<T>((resolve, reject) => {
+    timeoutId = globalThis.setTimeout(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      reject(onTimeout());
+    }, timeoutMs);
+    timeoutId.unref();
+
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      });
+  });
 };
 
 const updateState = (
@@ -177,17 +201,9 @@ const performCheck = async (state: WorkerHealthState): Promise<void> => {
       throw ErrorFactory.createWorkerError('Worker instance not available');
     }
 
-    isHealthy = await Promise.race([
-      verifyWorkerHealth(state.worker, state.name, state.queueName || 'unknown'),
-      new Promise<boolean>((_, reject) => {
-        // eslint-disable-next-line
-        const id = setTimeout(() => {
-          reject(ErrorFactory.createWorkerError('Health check timeout'));
-        }, config.checkTimeoutMs);
-        // Unref to prevent holding event loop if everything else finishes
-        id.unref();
-      }),
-    ]);
+    isHealthy = await withTimeout(verifyWorkerHealth(state.worker), config.checkTimeoutMs, () =>
+      ErrorFactory.createWorkerError('Health check timeout')
+    );
   } catch (err) {
     isHealthy = false;
     errorMsg = (err as Error).message;

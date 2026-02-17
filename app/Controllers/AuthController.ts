@@ -147,9 +147,17 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
       password: passwordHash,
     });
 
-    if (result.id !== null && result.id !== undefined) {
+    let insertedUserId: unknown = result.id;
+    if (insertedUserId === null || insertedUserId === undefined) {
+      const inserted = await User.where('email', '=', email).limit(1).first<UserRow>();
+      if (inserted?.id !== null && inserted?.id !== undefined) {
+        insertedUserId = inserted.id;
+      }
+    }
+
+    if (insertedUserId !== null && insertedUserId !== undefined) {
       Logger.info('AuthController.register: successful registration', {
-        user_id: result.id,
+        user_id: insertedUserId,
         email,
         ip: ipAddress,
         timestamp: new Date().toISOString(),
@@ -157,7 +165,10 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
 
       res.setStatus(201).json({ message: 'Registered' });
     } else {
-      Logger.error('Failed to retrieve inserted user ID');
+      Logger.error('Failed to retrieve inserted user ID', {
+        email,
+        ip: ipAddress,
+      });
       res.setStatus(500).json({ error: 'Registration failed' });
     }
     return;

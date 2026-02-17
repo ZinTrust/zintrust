@@ -21,7 +21,7 @@ export default {
   connections: {
     sqlite: {
       driver: 'sqlite' as const,
-      database: 'database/sqlite.db',
+      database: '.zintrust/dbs/zintrust.sqlite',
       migrations: 'database/migrations',
     },
     postgresql: {

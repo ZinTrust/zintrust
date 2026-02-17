@@ -12,6 +12,7 @@ import { ConfigValidator } from '@cli/config/ConfigValidator';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { PromptHelper } from '@cli/PromptHelper';
 import { Logger } from '@config/logger';
+import { isArray, isObject } from '@helper/index';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 
@@ -310,10 +311,8 @@ const handleExport = (cmd: IBaseCommand, manager: ConfigManagerLike): void => {
   cmd.info(typeof manager.export === 'function' ? manager.export() : '{}');
 };
 
-const isUnknownArray = (value: unknown): value is unknown[] => Array.isArray(value);
-
 const getArg = (args: unknown, index: number): string | undefined => {
-  if (!isUnknownArray(args)) return undefined;
+  if (!isArray(args)) return undefined;
   const value = args[index];
   return typeof value === 'string' ? value : undefined;
 };
@@ -322,8 +321,7 @@ const executeConfig = async (cmd: IBaseCommand, options: CommandOptions): Promis
   const typedCmd = cmd as IConfigCommand;
   const command = cmd.getCommand();
   const toRecord = (value: unknown): Record<string, unknown> => {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
-    return value as Record<string, unknown>;
+    return isObject(value) ? value : {};
   };
 
   const commandOpts: Record<string, unknown> =

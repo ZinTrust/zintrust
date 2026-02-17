@@ -77,6 +77,22 @@ services:
       - DB_DATABASE_MYSQL=\${DB_DATABASE_MYSQL:-zintrust}
       - DB_USERNAME_MYSQL=\${DB_USERNAME_MYSQL:-zintrust}
       - DB_PASSWORD_MYSQL=\${DB_PASSWORD_MYSQL:-secret}
+
+      # Cloudflare D1
+      - D1_DATABASE_ID=\${D1_DATABASE_ID}
+      - D1_ACCOUNT_ID=\${D1_ACCOUNT_ID}
+      - D1_API_TOKEN=\${D1_API_TOKEN}
+      - D1_REMOTE_URL=\${D1_REMOTE_URL}
+      - D1_REMOTE_KEY_ID=\${D1_REMOTE_KEY_ID}
+      - D1_REMOTE_SECRET=\${D1_REMOTE_SECRET}
+
+      # Cloudflare KV
+      - KV_NAMESPACE_ID=\${KV_NAMESPACE_ID}
+      - KV_ACCOUNT_ID=\${KV_ACCOUNT_ID}
+      - KV_API_TOKEN=\${KV_API_TOKEN}
+      - KV_REMOTE_URL=\${KV_REMOTE_URL}
+      - KV_REMOTE_KEY_ID=\${KV_REMOTE_KEY_ID}
+      - KV_REMOTE_SECRET=\${KV_REMOTE_SECRET}
     ports:
       - '7772:7772'
 
@@ -103,7 +119,7 @@ RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
 
 # Install dependencies (including dev dependencies needed for build)
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
@@ -114,7 +130,7 @@ COPY . .
 
 # Build TypeScript to JavaScript
 ARG BUILD_VARIANT=full
-RUN --mount=type=cache,target=/root/.npm npm run build:dk
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
@@ -133,11 +149,10 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 COPY package.json package-lock.json ./
 
 # Install only production dependencies (requires build tools for native modules)
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   apk add --no-cache --virtual .build-deps python3 make g++ \
   && npm ci --omit=dev \
-    && apk del .build-deps \
-    && npm cache clean --force
+    && apk del .build-deps
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
@@ -160,7 +175,7 @@ EXPOSE 7772
 CMD ["node", "dist/src/boot/bootstrap.js"]
 `;
 
-const backupSuffix = (): string => new Date().toISOString().replace(/[:.]/g, '-');
+const backupSuffix = (): string => new Date().toISOString().replaceAll(/[:.]/g, '-');
 
 const backupFileIfExists = (filePath: string): void => {
   if (!existsSync(filePath)) return;

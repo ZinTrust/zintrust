@@ -1,0 +1,2 @@
+{"statementId":"5a6ada795cdea4b5b44070d5524bd75a29b6ef87cd9c681eef8f028c4429d16f","sql":"SELECT * FROM \"users\" WHERE \"email\" = ? LIMIT 1"}
+{"statementId":"5a6ada795cdea4b5b44070d5524bd75a29b6ef87cd9c681eef8f028c4429d16f","sql":"SELECT * FROM \"users\" WHERE \"email\" = ? LIMIT 1"}

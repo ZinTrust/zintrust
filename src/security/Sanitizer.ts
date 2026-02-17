@@ -20,6 +20,7 @@
  */
 
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isEmpty } from '@helper/index';
 
 const MAX_NUMERIC_INPUT_LEN = 64;
 const MAX_EMAIL_LEN = 254;
@@ -29,18 +30,6 @@ const MAX_PASSWORD_LEN = 256;
 const assertMaxLen = (method: string, label: string, value: string, maxLen: number): void => {
   if (value.length <= maxLen) return;
   throw ErrorFactory.createSanitizerError(method, `${label} too long`, value);
-};
-
-const isEmpty = (value: unknown): boolean => {
-  // Preserve legacy semantics: treat 0 and "0" as empty.
-  return (
-    value === null ||
-    value === undefined ||
-    value === false ||
-    value === 0 ||
-    value === '' ||
-    value === '0'
-  );
 };
 
 const toStr = (value: unknown): string => {

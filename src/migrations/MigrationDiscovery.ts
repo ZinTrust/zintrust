@@ -8,7 +8,8 @@ export const MigrationDiscovery = Object.freeze({
 
   listMigrationFiles(dir: string, extension: string): string[] {
     if (!fs.existsSync(dir)) return [];
-    const files = fs.readdirSync(dir);
+    const raw = fs.readdirSync(dir);
+    const files = Array.isArray(raw) ? raw.map(String) : [];
     // Only consider files that match the timestamped migration naming convention
     // e.g. 20260109074544_create_users_table.ts — avoids importing stray files.
     const migrationNameRe = /^\d{14,}_.+$/;

@@ -18,7 +18,7 @@ const toSafeService = (service: string | null | undefined): string => {
 
 const assertDbSupportsMigrations = (db: IDatabase): void => {
   const t = db.getType();
-  if (t === 'd1' || t === 'd1-remote') {
+  if (t === 'd1') {
     throw ErrorFactory.createCliError(
       'This project is configured for D1. Use `zin d1:migrate --local|--remote` for now.'
     );

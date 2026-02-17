@@ -3,8 +3,7 @@
  * Handles reading, writing, and managing configuration files
  */
 
-import type {
-  ProjectConfig} from '@cli/config/ConfigSchema';
+import type { ProjectConfig } from '@cli/config/ConfigSchema';
 import {
   ConfigPaths,
   DEFAULT_CONFIG,
@@ -13,8 +12,12 @@ import {
 } from '@cli/config/ConfigSchema';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { fsPromises as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+
+const loadFsPromises = async (): Promise<typeof import('@node-singletons/fs').fsPromises> => {
+  const mod = await import('@node-singletons/fs');
+  return mod.fsPromises;
+};
 
 export interface IConfigManager {
   load(): Promise<ProjectConfig>;
@@ -63,6 +66,7 @@ const deepMerge = (
  */
 async function loadConfig(state: ConfigState): Promise<ProjectConfig> {
   try {
+    const fs = await loadFsPromises();
     const content = await fs.readFile(state.configPath, 'utf-8');
     state.config = JSON.parse(content) as ProjectConfig;
     return state.config;
@@ -87,6 +91,7 @@ async function saveConfig(state: ConfigState, newConfig?: ProjectConfig): Promis
   }
 
   try {
+    const fs = await loadFsPromises();
     // Ensure directory exists
     const dir = path.dirname(state.configPath);
     if (dir !== '.') {
@@ -116,6 +121,7 @@ function getConfig(state: ConfigState): ProjectConfig {
  */
 async function configExists(configPath: string): Promise<boolean> {
   try {
+    const fs = await loadFsPromises();
     await fs.access(configPath);
     return true;
   } catch (error) {
@@ -193,6 +199,7 @@ export const ConfigManager = Object.freeze({
    */
   async ensureGlobalConfigDir(): Promise<void> {
     try {
+      const fs = await loadFsPromises();
       await fs.mkdir(ConfigPaths.GLOBAL_DIR, { recursive: true });
     } catch (err) {
       ErrorFactory.createCliError('Could not create global config dir', err);

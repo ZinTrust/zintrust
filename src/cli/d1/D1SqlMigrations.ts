@@ -50,6 +50,15 @@ const normalizeSql = (sql: string): string => {
   return trimmed.endsWith(';') ? trimmed : `${trimmed};`;
 };
 
+const normalizeAlterTableAddColumn = (sql: string): string => {
+  const lowered = sql.trimStart().toLowerCase();
+  if (!lowered.startsWith('alter table')) return sql;
+  if (!/\badd\b/i.test(sql)) return sql;
+  if (/\badd\s+column\b/i.test(sql)) return sql;
+
+  return sql.replace(/\bADD\b\s+(?!COLUMN\b)/i, 'ADD COLUMN ');
+};
+
 const interpolateSql = (sql: string, parameters: unknown[]): string => {
   const placeholders = (sql.match(/\?/g) ?? []).length;
   if (placeholders !== parameters.length) {
@@ -125,7 +134,7 @@ const createNoopAdapter = (
 const captureSql = (onSql: (sql: string) => void, sql: string, parameters: unknown[]): void => {
   const compiled = parameters.length > 0 ? interpolateSql(sql, parameters) : sql;
   if (!isMutatingSql(compiled)) return;
-  const normalized = normalizeSql(compiled);
+  const normalized = normalizeSql(normalizeAlterTableAddColumn(compiled));
   if (normalized !== '') onSql(normalized);
 };
 

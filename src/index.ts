@@ -157,16 +157,8 @@ export { Schema, Validator } from '@validation/Validator';
 export type { ISchema, SchemaType } from '@validation/Validator';
 
 // Security
-export {
-  _ZINTRUST_CLOUDFLARE_D1_PROXY_BUILD_DATE,
-  _ZINTRUST_CLOUDFLARE_D1_PROXY_VERSION,
-  ZintrustD1Proxy,
-} from '@proxy/d1/ZintrustD1Proxy';
-export {
-  _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE,
-  _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION,
-  ZintrustKvProxy,
-} from '@proxy/kv/ZintrustKvProxy';
+export { ZintrustD1Proxy } from '@proxy/d1/ZintrustD1Proxy';
+export { ZintrustKvProxy } from '@proxy/kv/ZintrustKvProxy';
 export { CsrfTokenManager } from '@security/CsrfTokenManager';
 export type {
   CsrfTokenData,
@@ -416,12 +408,6 @@ export type {
   IMicroserviceGenerator,
 } from '@microservices/MicroserviceGenerator';
 
-// CLI utilities (for build tools and scripting)
-export { BaseCommand } from '@cli/BaseCommand';
-export type { CommandOptions } from '@cli/BaseCommand';
-export { CLI } from '@cli/CLI';
-export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
-
 // Proxy utilities (shared across proxy servers)
 export { ErrorHandler as ProxyErrorHandler } from '@proxy/ErrorHandler';
 export { RequestValidator } from '@proxy/RequestValidator';
@@ -447,6 +433,9 @@ export type { MiddlewaresType } from '@config/middleware';
 export * from '@config/redis';
 
 export type * from '@config/type';
+
+// Helper functions
+export * from '@helper/index';
 
 export { ZintrustLang } from '@lang/lang';
 

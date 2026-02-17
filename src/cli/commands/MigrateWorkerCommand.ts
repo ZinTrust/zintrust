@@ -11,11 +11,29 @@ import {
   parseRollbackSteps,
 } from '@cli/utils/DatabaseCliUtils';
 import { databaseConfig } from '@config/database';
+import type { DatabaseConnectionConfig } from '@config/type';
 import { Migrator } from '@migrations/Migrator';
 import * as path from '@node-singletons/path';
 import { Database } from '@orm/Database';
 import { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 import type { Command } from 'commander';
+
+const isBuiltInDriver = (driver: string): boolean =>
+  driver === 'sqlite' ||
+  driver === 'mysql' ||
+  driver === 'postgresql' ||
+  driver === 'sqlserver' ||
+  driver === 'd1' ||
+  driver === 'd1-remote';
+
+const getWorkerPersistenceConnectionName = (): string => {
+  if (typeof process === 'undefined') return 'default';
+  const raw = (process as unknown as { env?: Record<string, unknown> }).env?.[
+    'WORKER_PERSISTENCE_DB_CONNECTION'
+  ];
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  return value.length > 0 ? value : 'default';
+};
 
 const addOptions = (command: Command): void => {
   command
@@ -115,11 +133,19 @@ const runForConnection = async (
   });
   if (!proceed) return;
 
-  if (!DatabaseAdapterRegistry.has(conn.driver)) {
+  if (!isBuiltInDriver(conn.driver) && !DatabaseAdapterRegistry.has(conn.driver)) {
     cmd.warn(`Missing adapter for driver: ${conn.driver}`);
     cmd.warn(
       `Install via 'zin plugin install adapter:${conn.driver}' (or 'zin add db:${conn.driver}').`
     );
+  }
+
+  const previousD1RemoteMode =
+    typeof process === 'undefined' ? undefined : process.env['D1_REMOTE_MODE'];
+  if (conn.driver === 'd1-remote' && typeof process !== 'undefined') {
+    // Important: set BEFORE Database.create() so D1RemoteAdapter is constructed in SQL mode.
+    // Registry mode uses /zin/d1/statement, which is not appropriate for migrations.
+    process.env['D1_REMOTE_MODE'] = 'sql';
   }
 
   const ormConfig = mapConnectionToOrmConfig(conn);
@@ -137,6 +163,13 @@ const runForConnection = async (
 
     await runActions(migrator, options, cmd, conn.driver);
   } finally {
+    if (conn.driver === 'd1-remote' && typeof process !== 'undefined') {
+      if (previousD1RemoteMode === undefined) {
+        delete process.env['D1_REMOTE_MODE'];
+      } else {
+        process.env['D1_REMOTE_MODE'] = previousD1RemoteMode;
+      }
+    }
     await db.disconnect();
   }
 };
@@ -152,7 +185,18 @@ const executeMigrateWorker = async (options: CommandOptions, cmd: IBaseCommand):
       targets.push({ name, config });
     }
   } else {
-    targets.push({ name: 'default', config: databaseConfig.getConnection() });
+    const selected = getWorkerPersistenceConnectionName();
+    const hasSelected = selected.length > 0;
+    const connections = databaseConfig.connections as unknown as Record<
+      string,
+      DatabaseConnectionConfig
+    >;
+    const configured = hasSelected ? connections[selected] : undefined;
+
+    targets.push({
+      name: hasSelected ? selected : 'default',
+      config: configured ?? databaseConfig.getConnection(),
+    });
   }
 
   let sequence: Promise<void> = Promise.resolve();

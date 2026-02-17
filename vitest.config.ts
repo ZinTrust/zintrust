@@ -15,7 +15,7 @@ const coverageThresholds = COVERAGE_STRICT
       // are usable locally. For CI-grade gating, set `COVERAGE_STRICT=true`.
       lines: 82,
       functions: 82,
-      branches: 78,
+      branches: 80,
       statements: 82,
     };
 
@@ -32,6 +32,9 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@zintrust/core/node': path.resolve(__dirname, './src/node.ts'),
+      '@zintrust/core/proxy': path.resolve(__dirname, './src/proxy.ts'),
+      '@zintrust/core/start': path.resolve(__dirname, './src/start.ts'),
+      '@zintrust/core/cli': path.resolve(__dirname, './src/cli.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
       '@zintrust/queue-monitor': path.resolve(__dirname, './packages/queue-monitor/src/index.ts'),
       '@zintrust/workers': path.resolve(__dirname, './packages/workers/src/index.ts'),
@@ -47,6 +50,7 @@ export default defineConfig({
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),
+      '@helper': path.resolve(__dirname, './src/helper'),
       '@proxy': path.resolve(__dirname, './src/proxy'),
       '@lang': path.resolve(__dirname, './src/lang'),
       '@core-routes': path.resolve(__dirname, './src/routes'),
@@ -64,6 +68,7 @@ export default defineConfig({
       '@database': path.resolve(__dirname, './src/database'),
       '@validation': path.resolve(__dirname, './src/validation'),
       '@security': path.resolve(__dirname, './src/security'),
+      '@collections': path.resolve(__dirname, './src/collections'),
       '@profiling': path.resolve(__dirname, './src/profiling'),
       '@performance': path.resolve(__dirname, './src/performance'),
       '@deployment': path.resolve(__dirname, './src/deployment'),
@@ -120,7 +125,11 @@ export default defineConfig({
         // Local test files (not part of the main codebase)
         'app/Controllers/TestController.ts',
         'app/Workers/TestWorker.ts',
+        // Application operational surfaces (excluded from unit coverage + gates)
+        'app/Jobs/**',
         'routes/apiDev.ts',
+        'routes/mail.ts',
+        'routes/registerDirectMysqlTestRoutes.ts',
         'src/collections/index.ts',
         'src/events/index.ts',
         'src/session/index.ts',
@@ -150,15 +159,12 @@ export default defineConfig({
         // Integration/runtime-only surfaces not exercised by unit suite.
         'app/Workers/**',
         'routes/DirectMysqlTestRoutes.ts',
-        // Keep queue internals excluded except files covered by patch tests.
+        // Keep most queue internals excluded (noise), but do NOT exclude files that
+        // commonly change and are enforced by patch-coverage gates.
         'src/tools/queue/AdvancedQueue.ts',
         'src/tools/queue/DeduplicationBuilder.ts',
         'src/tools/queue/IdempotencyManager.ts',
         'src/tools/queue/JobHeartbeatStore.ts',
-        'src/tools/queue/JobReconciliationRunner.ts',
-        'src/tools/queue/JobRecoveryDaemon.ts',
-        'src/tools/queue/JobStateTracker.ts',
-        'src/tools/queue/JobStateTrackerDbPersistence.ts',
         'src/tools/queue/LockProvider.ts',
         'src/tools/queue/QueueDataRedactor.ts',
         'src/tools/queue/QueueExtensions.ts',

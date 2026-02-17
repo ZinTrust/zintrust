@@ -103,6 +103,18 @@ describe('VersionChecker', () => {
       process.argv = originalArgv;
     });
 
+    it('should return false for one-shot schedule commands', () => {
+      const originalArgv = process.argv;
+
+      process.argv = ['node', 'zintrust', 'schedule:run', '--name', 'jobTracking.cleanup'];
+      expect(VersionChecker.shouldCheckVersion()).toBe(false);
+
+      process.argv = ['node', 'zintrust', 'schedule:list'];
+      expect(VersionChecker.shouldCheckVersion()).toBe(false);
+
+      process.argv = originalArgv;
+    });
+
     it('should return true when conditions are met', () => {
       const originalArgv = process.argv;
       process.argv = ['node', 'zintrust', 'start'];

@@ -1,180 +1,245 @@
+/* eslint-disable @typescript-eslint/require-await */
+/**
+ * SQL Server Proxy Adapter (HTTP)
+ */
+
 import { Env } from '@config/env';
-import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import type { SupportedDriver } from '@migrations/enum';
+import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
 import type { IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
-import { createSignedProxyRequest } from '@orm/adapters/ProxySignedRequest';
+import { QueryBuilder } from '@orm/QueryBuilder';
+import {
+  ensureSignedSettings,
+  isRecord,
+  requestSignedProxy,
+  type ProxySettings,
+  type SignedProxyConfig,
+} from '@orm/adapters/SqlProxyAdapterUtils';
+import {
+  createStatementPayload,
+  getExecMetaWithLastRowId,
+  resolveSqlProxyMode,
+} from '@orm/adapters/SqlProxyRegistryMode';
 
-type CacheEntry = {
-  data: QueryResult;
-  timestamp: number;
+type ProxyQueryResponse = {
+  rows: Record<string, unknown>[];
+  rowCount: number;
 };
 
-const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 5000;
-
-const getCacheKey = (sql: string, params: unknown[]): string => {
-  return `${sql}:${JSON.stringify(params)}`;
+type ProxyQueryOneResponse = {
+  row: Record<string, unknown> | null;
 };
 
-const getCachedResult = (key: string): QueryResult | null => {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
-    cache.delete(key);
-    return null;
-  }
-  return entry.data;
+type ProxyExecResponse = {
+  ok: boolean;
+  meta?: { changes?: number; lastRowId?: number | string | bigint };
 };
 
-const setCachedResult = (key: string, data: QueryResult): void => {
-  cache.set(key, { data, timestamp: Date.now() });
+type ProxyStatementResponse = ProxyQueryResponse | ProxyQueryOneResponse | ProxyExecResponse;
+
+type ProxyMode = 'sql' | 'registry';
+
+const resolveProxyMode = (): ProxyMode => {
+  return resolveSqlProxyMode('SQLSERVER_PROXY_MODE');
 };
 
-const resolveProxyUrl = (): string => {
-  const url = Env.get('SQLSERVER_PROXY_URL', '');
-  if (typeof url === 'string' && url.trim() !== '') return url;
-
+const resolveBaseUrl = (): string => {
+  const explicit = Env.get('SQLSERVER_PROXY_URL', '').trim();
+  if (explicit !== '') return explicit;
   const host = Env.get('SQLSERVER_PROXY_HOST', '127.0.0.1');
   const port = Env.getInt('SQLSERVER_PROXY_PORT', 8793);
   return `http://${host}:${port}`;
 };
 
-const createSignedRequest = async (
-  url: string,
-  body: string
-): Promise<{ headers: Record<string, string>; body: string }> => {
-  return createSignedProxyRequest({
-    url,
-    body,
-    keyId: Env.get('SQLSERVER_PROXY_KEY_ID', ''),
-    secret: Env.get('SQLSERVER_PROXY_SECRET', ''),
-    missingCredentialsMessage:
-      'SQL Server proxy signing credentials are missing (SQLSERVER_PROXY_KEY_ID / SQLSERVER_PROXY_SECRET)',
-  });
+const buildProxySettings = (): ProxySettings => {
+  const baseUrl = resolveBaseUrl();
+  const keyId = Env.get('SQLSERVER_PROXY_KEY_ID', '');
+  const secret = Env.get('SQLSERVER_PROXY_SECRET', '');
+  const timeoutMs = Env.getInt('SQLSERVER_PROXY_TIMEOUT_MS', Env.ZT_PROXY_TIMEOUT_MS ?? 30000);
+
+  return { baseUrl, keyId, secret, timeoutMs };
 };
 
-const sendQuery = async (sql: string, params: unknown[]): Promise<QueryResult> => {
-  const proxyUrl = resolveProxyUrl();
-  const payload = { sql, params };
-  const body = JSON.stringify(payload);
+const buildSignedProxyConfig = (settings: ProxySettings): SignedProxyConfig => ({
+  settings,
+  missingUrlMessage: 'SQL Server proxy URL is missing (SQLSERVER_PROXY_URL)',
+  missingCredentialsMessage:
+    'SQL Server proxy signing credentials are missing (SQLSERVER_PROXY_KEY_ID / SQLSERVER_PROXY_SECRET)',
+  messages: {
+    unauthorized: 'SQL Server proxy unauthorized',
+    forbidden: 'SQL Server proxy forbidden',
+    rateLimited: 'SQL Server proxy rate limited',
+    rejected: 'SQL Server proxy rejected request',
+    error: 'SQL Server proxy error',
+    timedOut: 'SQL Server proxy request timed out',
+  },
+});
 
-  const { headers, body: signedBody } = await createSignedRequest(proxyUrl, body);
+const isQueryResponse = (value: unknown): value is ProxyQueryResponse =>
+  isRecord(value) && Array.isArray(value['rows']) && typeof value['rowCount'] === 'number';
 
-  const timeout = Env.getInt('SQLSERVER_PROXY_TIMEOUT_MS', 30000);
-  const controller = new AbortController();
-  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeout);
+const isQueryOneResponse = (value: unknown): value is ProxyQueryOneResponse =>
+  isRecord(value) && 'row' in value;
 
-  try {
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers,
-      body: signedBody,
-      signal: controller.signal,
-    });
+const requestProxy = async <T>(
+  settings: ProxySettings,
+  path: string,
+  payload: Record<string, unknown>
+): Promise<T> => requestSignedProxy<T>(buildSignedProxyConfig(settings), path, payload);
 
-    clearTimeout(timeoutId);
+type SqlServerProxyState = {
+  connected: boolean;
+  inTransaction: boolean;
+  settings: ProxySettings;
+};
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw ErrorFactory.createDatabaseError(`SQL Server proxy error: ${errorText}`);
-    }
+const requireConnected = (state: SqlServerProxyState): void => {
+  if (!state.connected) throw ErrorFactory.createConnectionError('Database not connected');
+};
 
-    const result = (await response.json()) as QueryResult;
-    return result;
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if ((error as Error).name === 'AbortError') {
-      throw ErrorFactory.createGeneralError('SQL Server proxy request timed out');
-    }
-    throw error;
+const toQueryResult = (out: ProxyStatementResponse): QueryResult => {
+  if (isQueryResponse(out)) {
+    return { rows: out.rows, rowCount: out.rowCount };
   }
+
+  if (isQueryOneResponse(out)) {
+    const row = out.row ?? null;
+    return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
+  }
+
+  const meta = getExecMetaWithLastRowId(out);
+  return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
 };
 
-export function createSqlServerProxyAdapter(): IDatabaseAdapter {
-  let connected = false;
-  let inTransaction = false;
+const createQuery =
+  (state: SqlServerProxyState) =>
+  async (sql: string, parameters: unknown[]): Promise<QueryResult> => {
+    requireConnected(state);
 
-  return {
-    // eslint-disable-next-line @typescript-eslint/require-await
-    async connect(): Promise<void> {
-      const proxyUrl = resolveProxyUrl();
-      Logger.info(`Connecting to SQL Server via proxy: ${proxyUrl}`);
-      connected = true;
-    },
+    const mode = resolveProxyMode();
+    const out =
+      mode === 'registry'
+        ? await requestProxy<ProxyStatementResponse>(
+            state.settings,
+            '/zin/sqlserver/statement',
+            await createStatementPayload(sql, parameters)
+          )
+        : await requestProxy<ProxyStatementResponse>(state.settings, '/zin/sqlserver/query', {
+            sql,
+            params: parameters,
+          });
 
-    // eslint-disable-next-line @typescript-eslint/require-await
-    async disconnect(): Promise<void> {
-      connected = false;
-      inTransaction = false;
-      cache.clear();
-      Logger.info('Disconnected from SQL Server proxy');
-    },
+    return toQueryResult(out);
+  };
 
-    async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
-      if (!connected) {
-        throw ErrorFactory.createConnectionError('Not connected to SQL Server proxy');
-      }
+const createQueryOne =
+  (state: SqlServerProxyState) =>
+  async (sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> => {
+    requireConnected(state);
 
-      if (sql.trim().toUpperCase().startsWith('SELECT')) {
-        const cacheKey = getCacheKey(sql, parameters);
-        const cached = getCachedResult(cacheKey);
-        if (cached) return cached;
+    const mode = resolveProxyMode();
+    if (mode !== 'registry') {
+      const out = await requestProxy<ProxyQueryOneResponse>(
+        state.settings,
+        '/zin/sqlserver/queryOne',
+        {
+          sql,
+          params: parameters,
+        }
+      );
+      return out.row ?? null;
+    }
 
-        const result = await sendQuery(sql, parameters);
-        setCachedResult(cacheKey, result);
-        return result;
-      }
+    const out = await requestProxy<ProxyStatementResponse>(
+      state.settings,
+      '/zin/sqlserver/statement',
+      await createStatementPayload(sql, parameters)
+    );
 
-      return sendQuery(sql, parameters);
-    },
+    if (isQueryOneResponse(out)) return out.row ?? null;
+    if (isQueryResponse(out)) return out.rows[0] ?? null;
+    return null;
+  };
 
-    async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
-      const result = await this.query(sql, parameters);
-      return result.rows[0] ?? null;
-    },
+const createPing =
+  (query: (sql: string, parameters: unknown[]) => Promise<QueryResult>) =>
+  async (): Promise<void> => {
+    await query(QueryBuilder.create('').select('1').toSQL(), []);
+  };
 
-    async ping(): Promise<void> {
-      if (!connected) {
-        throw ErrorFactory.createConnectionError('Not connected to SQL Server proxy');
-      }
-      await this.query('SELECT 1 AS ping', []);
-    },
+const createTransaction =
+  (state: SqlServerProxyState, getAdapter: () => IDatabaseAdapter) =>
+  async <T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
+    if (state.inTransaction) {
+      throw ErrorFactory.createGeneralError('Transaction already in progress');
+    }
 
-    async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
-      if (inTransaction) {
-        throw ErrorFactory.createGeneralError('Transaction already in progress');
-      }
-
-      inTransaction = true;
+    requireConnected(state);
+    state.inTransaction = true;
+    try {
+      const adapter = getAdapter();
+      await adapter.query('BEGIN TRANSACTION', []);
+      const result = await callback(adapter);
+      await adapter.query('COMMIT', []);
+      return result;
+    } catch (error) {
       try {
-        await this.query('BEGIN TRANSACTION', []);
-        const result = await callback(this);
-        await this.query('COMMIT', []);
-        return result;
-      } catch (error) {
-        await this.query('ROLLBACK', []);
-        throw error;
-      } finally {
-        inTransaction = false;
+        await getAdapter().query('ROLLBACK', []);
+      } catch {
+        void 0;
       }
+      throw error;
+    } finally {
+      state.inTransaction = false;
+    }
+  };
+
+const createRawQuery =
+  (query: (sql: string, parameters: unknown[]) => Promise<QueryResult>) =>
+  async <T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> => {
+    const result = await query(sql, parameters ?? []);
+    return result.rows as T[];
+  };
+
+const createAdapter = (state: SqlServerProxyState): IDatabaseAdapter => {
+  const query = createQuery(state);
+  const queryOne = createQueryOne(state);
+
+  const adapter: IDatabaseAdapter = {
+    async connect(): Promise<void> {
+      ensureSignedSettings(buildSignedProxyConfig(state.settings));
+      state.connected = true;
     },
 
-    async rawQuery<T = unknown>(sql: string, parameters?: unknown[]): Promise<T[]> {
-      const result = await this.query(sql, parameters ?? []);
-      return result.rows as T[];
+    async disconnect(): Promise<void> {
+      state.connected = false;
+      state.inTransaction = false;
     },
+
+    query,
+    queryOne,
+    ping: createPing(query),
+    transaction: createTransaction(state, () => adapter),
+    rawQuery: createRawQuery(query),
 
     getType(): SupportedDriver {
-      return 'sqlserver-proxy' as SupportedDriver;
+      return AdaptersEnum.sqlserver;
     },
 
     isConnected(): boolean {
-      return connected;
+      return state.connected;
     },
 
     getPlaceholder(index: number): string {
       return `@param${index}`;
     },
   };
+
+  return adapter;
+};
+
+export function createSqlServerProxyAdapter(): IDatabaseAdapter {
+  const settings = buildProxySettings();
+  const state: SqlServerProxyState = { connected: false, inTransaction: false, settings };
+  return createAdapter(state);
 }

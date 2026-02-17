@@ -42,7 +42,10 @@ Default binding name expected by ZinTrust is `CACHE`.
 
 ### 2) Configure auth keys (Worker secrets)
 
-Store signing credentials in Worker secrets (example pattern `ZT_KEYS_JSON`) and scope them appropriately:
+Store a shared signing secret in Worker secrets:
+
+- `KV_REMOTE_SECRET` (recommended), or
+- `APP_KEY` (fallback)
 
 ```json
 {

@@ -1,6 +1,8 @@
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import type { IDatabase } from '@orm/Database';
+import { useDatabase } from '@orm/Database';
 import { JobStateTracker, type JobTrackingRecord } from '@queue/JobStateTracker';
 import { Queue } from '@queue/Queue';
 
@@ -144,22 +146,56 @@ export const JobRecoveryDaemon = Object.freeze({
     }
 
     const payload = parsePayload(record.payload);
-    const backoffMs = Math.min(300000, Math.max(1000, 1000 * 2 ** Math.max(0, record.attempts)));
 
-    await Queue.enqueue(record.queueName, {
-      ...payload,
-      attempts: Math.max(0, record.attempts),
-      timestamp: Date.now() + backoffMs,
-    });
+    // 30s, 1m, 3m backoff strategy
+    const getBackoffMs = (attempt: number): number => {
+      if (attempt === 0) return 30000;
+      if (attempt === 1) return 60000;
+      return 180000;
+    };
+    const backoffMs = getBackoffMs(record.attempts);
 
-    await JobStateTracker.markedRecovered({
-      queueName: record.queueName,
-      jobId: record.jobId,
-      reason: 'Recovered and re-queued by recovery daemon',
-      retryAt: new Date(Date.now() + backoffMs).toISOString(),
-    });
+    try {
+      await Queue.enqueue(record.queueName, {
+        ...payload,
+        uniqueId: record.jobId, // Preserves job ID (prevents duplication)
+        attempts: maxAttempts,
+        _currentAttempts: record.attempts + 1,
+        timestamp: Date.now() + backoffMs,
+      });
 
-    return 'requeued';
+      // Once the job is in QUEUE_DRIVER (or already exists), we never re-enqueue from DB/recovery again.
+      await JobStateTracker.handedOffToQueue({
+        queueName: record.queueName,
+        jobId: record.jobId,
+        reason: 'Enqueue-fallback job handed off to QUEUE_DRIVER',
+      });
+
+      return 'requeued';
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const message = errorMessage.toLowerCase();
+      if (message.includes('jobid') && message.includes('already exists')) {
+        await JobStateTracker.handedOffToQueue({
+          queueName: record.queueName,
+          jobId: record.jobId,
+          reason: 'Job already exists in queue driver',
+        });
+        return 'requeued';
+      }
+
+      await JobStateTracker.pendingRecovery({
+        queueName: record.queueName,
+        jobId: record.jobId,
+        reason: 'Enqueue-fallback retry failed during recovery daemon run',
+        attempts: record.attempts + 1,
+        maxAttempts,
+        retryAt: new Date(Date.now() + backoffMs).toISOString(),
+        error,
+      });
+
+      throw error;
+    }
   },
 
   async runOnce(): Promise<{
@@ -170,23 +206,39 @@ export const JobRecoveryDaemon = Object.freeze({
   }> {
     const minAgeMs = Math.max(0, Env.getInt('JOB_RECOVERY_MIN_AGE_MS', 5000));
     const candidates = JobStateTracker.listRecoverable(minAgeMs);
+    const persisted = await listRecoverableFromPersistence(minAgeMs);
+
+    // De-dupe jobs that exist in both in-memory tracker and persistence.
+    const seen = new Set<string>();
+    const allCandidates = [...candidates, ...persisted].filter((row) => {
+      const key = `${row.queueName}:${row.jobId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     let requeued = 0;
     let deadLetter = 0;
     let manualReview = 0;
 
-    const results = await Promise.all(
-      candidates.map(async (candidate) => this.recoverOne(candidate))
-    );
-    results.forEach((result) => {
+    const concurrency = 10;
+    const batches: Array<Promise<Array<'requeued' | 'dead_letter' | 'manual_review'>>> = [];
+
+    for (let offset = 0; offset < allCandidates.length; offset += concurrency) {
+      const slice = allCandidates.slice(offset, offset + concurrency);
+      batches.push(Promise.all(slice.map(async (candidate) => this.recoverOne(candidate))));
+    }
+
+    const batchResults = await Promise.all(batches);
+    batchResults.flat().forEach((result) => {
       if (result === 'requeued') requeued += 1;
       if (result === 'dead_letter') deadLetter += 1;
       if (result === 'manual_review') manualReview += 1;
     });
 
-    if (candidates.length > 0) {
+    if (allCandidates.length > 0) {
       Logger.info('Queue recovery daemon completed scan', {
-        scanned: candidates.length,
+        scanned: allCandidates.length,
         requeued,
         deadLetter,
         manualReview,
@@ -194,7 +246,7 @@ export const JobRecoveryDaemon = Object.freeze({
     }
 
     return {
-      scanned: candidates.length,
+      scanned: allCandidates.length,
       requeued,
       deadLetter,
       manualReview,
@@ -261,5 +313,84 @@ export const JobRecoveryDaemon = Object.freeze({
     };
   },
 });
+
+type PersistedRecoverableRow = {
+  queue_name: string;
+  job_id: string;
+  attempts?: number;
+  max_attempts?: number;
+  payload_json?: string | null;
+  retry_at?: string | null;
+  updated_at?: string | null;
+};
+
+const toSqlDateTime = (value: Date): string => value.toISOString().slice(0, 19).replace('T', ' ');
+
+const getPersistenceDb = (): IDatabase =>
+  useDatabase(undefined, Env.get('JOB_TRACKING_DB_CONNECTION', 'default'));
+
+const listRecoverableFromPersistence = async (minAgeMs: number): Promise<JobTrackingRecord[]> => {
+  if (!Env.getBool('JOB_TRACKING_PERSISTENCE_ENABLED', false)) return [];
+
+  const db = getPersistenceDb();
+  const cutoff = new Date(Date.now() - Math.max(0, Math.floor(minAgeMs)));
+
+  const rows = await db
+    .table(Env.get('JOB_TRACKING_DB_TABLE', 'zintrust_jobs'))
+    .select(
+      'queue_name',
+      'job_id',
+      'attempts',
+      'max_attempts',
+      'payload_json',
+      'retry_at',
+      'updated_at'
+    )
+    .where('status', '=', 'pending_recovery')
+    .where('updated_at', '<=', toSqlDateTime(cutoff))
+    .limit(Math.max(1, Env.getInt('JOB_RECOVERY_DB_SCAN_LIMIT', 100)))
+    .get<PersistedRecoverableRow>();
+
+  return (rows ?? []).map((row) => {
+    let payload: unknown = {};
+    try {
+      payload = JSON.parse(String(row.payload_json ?? '{}'));
+    } catch {
+      payload = {};
+    }
+
+    const attempts =
+      typeof row.attempts === 'number' && Number.isFinite(row.attempts)
+        ? Math.max(0, Math.floor(row.attempts))
+        : 0;
+
+    const maxAttempts =
+      typeof row.max_attempts === 'number' && Number.isFinite(row.max_attempts)
+        ? Math.max(1, Math.floor(row.max_attempts))
+        : undefined;
+
+    const updatedAtRaw = typeof row.updated_at === 'string' ? row.updated_at : undefined;
+    const updatedAt =
+      updatedAtRaw !== undefined && updatedAtRaw.trim().length > 0
+        ? updatedAtRaw
+        : new Date(0).toISOString();
+
+    const retryAtRaw = typeof row.retry_at === 'string' ? row.retry_at : undefined;
+    const retryAt =
+      retryAtRaw !== undefined && retryAtRaw.trim().length > 0 ? retryAtRaw : undefined;
+
+    return {
+      queueName: String(row.queue_name),
+      jobId: String(row.job_id),
+      status: 'pending_recovery',
+      attempts,
+      maxAttempts,
+      createdAt: new Date().toISOString(),
+      updatedAt,
+      payload,
+      retryAt,
+    } satisfies JobTrackingRecord;
+  });
+};
 
 export default JobRecoveryDaemon;

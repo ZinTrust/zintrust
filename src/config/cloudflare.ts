@@ -19,20 +19,36 @@ const getD1Binding = (config: DatabaseConfig): ID1Database | null => {
   if (config.d1 !== undefined && config.d1 !== null) return config.d1;
 
   const env = getWorkersEnv();
-  const envDb = env === null ? undefined : (env['DB'] as ID1Database | undefined);
-  if (envDb !== undefined) return envDb;
+  const candidateNames = ['DB', 'zintrust_db', getWorkersVar('D1_BINDING') ?? ''].filter(
+    (name, idx, arr) => name.trim() !== '' && arr.indexOf(name) === idx
+  );
 
-  const globalDb = (globalThis as unknown as { DB?: ID1Database }).DB;
-  if (globalDb !== undefined) return globalDb;
+  if (env !== null) {
+    for (const name of candidateNames) {
+      const binding = env[name] as ID1Database | undefined;
+      if (binding !== undefined && binding !== null) return binding;
+    }
+  }
+
+  const globalRef = globalThis as unknown as Record<string, unknown>;
+  for (const name of candidateNames) {
+    const binding = globalRef[name] as ID1Database | undefined;
+    if (binding !== undefined && binding !== null) return binding;
+  }
 
   return null;
 };
 
-const getKVBinding = (bindingName = 'CACHE'): KVNamespace | null => {
+const getKVBinding = (bindingName?: string): KVNamespace | null => {
   const env = getWorkersEnv();
   if (env === null) return null;
 
-  const kv = env[bindingName] as KVNamespace | undefined;
+  const resolvedName =
+    typeof bindingName === 'string' && bindingName.trim() !== ''
+      ? bindingName
+      : (getWorkersVar('KV_NAMESPACE') ?? 'CACHE');
+
+  const kv = env[resolvedName] as KVNamespace | undefined;
   return kv ?? null;
 };
 

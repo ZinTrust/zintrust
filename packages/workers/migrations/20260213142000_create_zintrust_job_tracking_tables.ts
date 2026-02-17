@@ -17,7 +17,7 @@ export const migration: Migration = {
       table.string('status');
       table.integer('attempts').default(0);
       table.integer('max_attempts').nullable();
-      table.text('payload_json').nullable();
+      table.text('payload_json').notNullable();
       table.text('result_json').nullable();
       table.text('last_error').nullable();
       table.timestamp('retry_at').nullable();

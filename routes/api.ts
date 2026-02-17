@@ -10,9 +10,10 @@ import type { MiddlewareKey } from '@config/middleware';
 import { type IRouter, Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
-import { registerDevRoutes } from '@routes/apiDev';
+// import { registerDevRoutes } from '@routes/apiDev';
 import { registerBroadcastRoutes } from '@routes/broadcast';
 import { registerStorageRoutes } from '@routes/storage';
+import { getRuntimeMode } from '@runtime/detectRuntime';
 import { ErrorFactory } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
@@ -22,7 +23,7 @@ export function registerRoutes(router: IRouter): void {
     registerPublicRoutes(router);
     registerApiV1Routes(router, authController, userController);
     registerAdminRoutes(router);
-    registerDevRoutes(router);
+    // registerDevRoutes(router);
   } catch (error: unknown) {
     throw ErrorFactory.createConfigError(
       `Failed to register routes: ${(error as Error).message}`,
@@ -43,9 +44,12 @@ function registerPublicRoutes(router: IRouter): void {
 
 function registerHealthRoute(router: IRouter): void {
   Router.get(router, '/health', async (_req: IRequest, res: IResponse) => {
+    const modeFromEnv = Env.get('RUNTIME_MODE', '').trim();
+    const mode = modeFromEnv === '' ? getRuntimeMode() : modeFromEnv;
+
     res.json({
       status: 'ok',
-      mode: Env.get('RUNTIME_MODE', 'unknown'),
+      mode,
       worker: Env.get('WORKER_ENABLED', 'false') === 'true',
       timestamp: new Date().toISOString(),
     });

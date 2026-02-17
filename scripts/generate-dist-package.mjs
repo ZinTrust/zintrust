@@ -35,7 +35,7 @@ function isGreater(v1, v2) {
 function getLatestNpmVersion(packageName) {
   try {
     const cmd = `npm view ${packageName} version`;
-    return execSync(cmd, { encoding: 'utf8', ctdio: ['ignore', 'pipe', 'ignore'] }).trim(); // NOSONAR
+    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); // NOSONAR
   } catch {
     return null;
   }
@@ -86,6 +86,22 @@ const distPackage = {
     './start': {
       types: './src/start.d.ts',
       import: './src/start.js',
+    },
+    './cli': {
+      types: './src/cli.d.ts',
+      import: './src/cli.js',
+    },
+    './proxy': {
+      types: './src/proxy.d.ts',
+      import: './src/proxy.js',
+    },
+    './collections': {
+      types: './src/collections/index.d.ts',
+      import: './src/collections/index.js',
+    },
+    './helper': {
+      types: './src/helper/index.d.ts',
+      import: './src/helper/index.js',
     },
     './node': {
       types: './src/node.d.ts',

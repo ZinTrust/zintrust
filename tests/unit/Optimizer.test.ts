@@ -124,6 +124,10 @@ describe('GenerationCache', () => {
   });
 
   it('save writes entries (and creates directory if missing)', async () => {
+    // Under coverage, the 50ms flush timer can fire during save() and cause an extra write.
+    // Use fake timers to keep the flush deterministic for this test.
+    vi.useFakeTimers();
+
     fsPromises.access.mockRejectedValue(new Error('no ent')); // for save() check
 
     const { GenerationCache } = await loadOptimizer('cache-save');
@@ -138,6 +142,8 @@ describe('GenerationCache', () => {
 
     expect(fsPromises.mkdir).toHaveBeenCalledWith('/cache-dir', { recursive: true });
     expect(fsPromises.writeFile).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 
   it('save skips mkdir when directory exists', async () => {

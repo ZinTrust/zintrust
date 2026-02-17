@@ -89,35 +89,48 @@ import { Env } from '@zintrust/core';
 | `ZT_PROXY_TIMEOUT_MS`        | `30000` | Default proxy request timeout in milliseconds. |
 | `ZT_PROXY_SIGNING_WINDOW_MS` | `60000` | Default signing window in milliseconds.        |
 
+## Statement registry / learning mode
+
+| Key                | Default | Description                                                                                                  |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `ZT_D1_LEARN_FILE` | empty   | When set, captures executed SQL statements to a JSONL file as `{ statementId, sql }` (best-effort).          |
+| `SQL_WRITER`       | `false` | Allow SQL capture outside `development` when `ZT_D1_LEARN_FILE` is set (use with care; avoid in production). |
+
 ## MySQL proxy (HTTP)
 
-| Key                             | Default                      | Description                                         |
-| ------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `MYSQL_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `MYSQL_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `MYSQL_PROXY_PORT`              | `8789`                       | Proxy port.                                         |
-| `MYSQL_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `MYSQL_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
-| `MYSQL_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `MYSQL_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `MYSQL_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `MYSQL_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `MYSQL_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| Key                             | Default                      | Description                                                                                 |
+| ------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `MYSQL_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                       |
+| `MYSQL_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                 |
+| `MYSQL_PROXY_PORT`              | `8789`                       | Proxy port.                                                                                 |
+| `MYSQL_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                             |
+| `MYSQL_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                                                                   |
+| `MYSQL_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                         |
+| `MYSQL_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                          |
+| `MYSQL_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                            |
+| `MYSQL_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                    |
+| `MYSQL_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                  |
+| `MYSQL_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).         |
+| `ZT_MYSQL_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/mysql/statement`. |
+| `ZT_MYSQL_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                |
 
 ## Postgres proxy (HTTP)
 
-| Key                                | Default                      | Description                                         |
-| ---------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `POSTGRES_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `POSTGRES_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `POSTGRES_PROXY_PORT`              | `8790`                       | Proxy port.                                         |
-| `POSTGRES_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `POSTGRES_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
-| `POSTGRES_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `POSTGRES_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `POSTGRES_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `POSTGRES_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `POSTGRES_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
+| Key                                | Default                      | Description                                                                                    |
+| ---------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `POSTGRES_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                          |
+| `POSTGRES_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                    |
+| `POSTGRES_PROXY_PORT`              | `8790`                       | Proxy port.                                                                                    |
+| `POSTGRES_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                                |
+| `POSTGRES_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                                                                      |
+| `POSTGRES_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                            |
+| `POSTGRES_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                             |
+| `POSTGRES_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                               |
+| `POSTGRES_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                       |
+| `POSTGRES_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                     |
+| `POSTGRES_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).            |
+| `ZT_POSTGRES_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/postgres/statement`. |
+| `ZT_POSTGRES_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                   |
 
 ## Redis proxy (HTTP)
 
@@ -151,19 +164,22 @@ import { Env } from '@zintrust/core';
 
 ## SQL Server proxy (HTTP)
 
-| Key                                 | Default                      | Description                                         |
-| ----------------------------------- | ---------------------------- | --------------------------------------------------- |
-| `SQLSERVER_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).               |
-| `SQLSERVER_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                         |
-| `SQLSERVER_PROXY_PORT`              | `8793`                       | Proxy port.                                         |
-| `SQLSERVER_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                     |
-| `SQLSERVER_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                           |
-| `SQLSERVER_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty). |
-| `SQLSERVER_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).  |
-| `SQLSERVER_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                    |
-| `SQLSERVER_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                            |
-| `SQLSERVER_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                          |
-| `USE_SQLSERVER_PROXY`               | `false`                      | Enable SQL Server proxy.                            |
+| Key                                 | Default                      | Description                                                                                     |
+| ----------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `SQLSERVER_PROXY_URL`               | empty                        | Full proxy URL (overrides host/port).                                                           |
+| `SQLSERVER_PROXY_HOST`              | `127.0.0.1`                  | Proxy host.                                                                                     |
+| `SQLSERVER_PROXY_PORT`              | `8793`                       | Proxy port.                                                                                     |
+| `SQLSERVER_PROXY_MAX_BODY_BYTES`    | `131072`                     | Max request body size in bytes.                                                                 |
+| `SQLSERVER_PROXY_POOL_LIMIT`        | `10`                         | Max connection pool size.                                                                       |
+| `SQLSERVER_PROXY_KEY_ID`            | empty                        | Signing key id (defaults to `APP_NAME` when empty).                                             |
+| `SQLSERVER_PROXY_SECRET`            | empty                        | Signing secret (defaults to `APP_KEY` when empty).                                              |
+| `SQLSERVER_PROXY_TIMEOUT_MS`        | `ZT_PROXY_TIMEOUT_MS`        | Request timeout in milliseconds.                                                                |
+| `SQLSERVER_PROXY_REQUIRE_SIGNING`   | `true`                       | Require request signing.                                                                        |
+| `SQLSERVER_PROXY_SIGNING_WINDOW_MS` | `ZT_PROXY_SIGNING_WINDOW_MS` | Allowed clock skew window.                                                                      |
+| `USE_SQLSERVER_PROXY`               | `false`                      | Enable SQL Server proxy.                                                                        |
+| `SQLSERVER_PROXY_MODE`              | `sql`                        | Proxy client mode: `sql` (send SQL) or `registry` (send `{ statementId, params }`).             |
+| `ZT_SQLSERVER_STATEMENTS_FILE`      | empty                        | Optional: path to JSON registry `{ statementId: sql }` used by `POST /zin/sqlserver/statement`. |
+| `ZT_SQLSERVER_STATEMENTS_JSON`      | empty                        | Optional fallback: inline JSON registry (small setups only).                                    |
 
 ## Cache
 
@@ -199,42 +215,78 @@ import { Env } from '@zintrust/core';
 
 ## Job tracking
 
-| Key                                 | Default                    | Description                                                                               |
-| ----------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------- |
-| `JOB_TRACKING_ENABLED`              | `true`                     | Enable in-memory job lifecycle tracking (`pending`, `active`, `completed`, `failed`).     |
-| `JOB_TRACKING_MAX_JOBS`             | `20000`                    | Maximum in-memory tracked job records before pruning oldest entries.                      |
-| `JOB_TRACKING_MAX_TRANSITIONS`      | `50000`                    | Maximum in-memory transition records before pruning oldest entries.                       |
-| `JOB_TRACKING_PERSISTENCE_ENABLED`  | `false`                    | Enable durable persistence for tracking records.                                          |
-| `JOB_TRACKING_PERSISTENCE_DRIVER`   | `database`                 | Persistence backend driver (`database` currently supported).                              |
-| `JOB_TRACKING_DB_CONNECTION`        | `default`                  | Database connection name for tracker persistence.                                         |
-| `JOB_TRACKING_DB_TABLE`             | `zintrust_jobs`            | Table used for latest job state snapshots.                                                |
-| `JOB_TRACKING_DB_TRANSITIONS_TABLE` | `zintrust_job_transitions` | Table used for append-only state transitions.                                             |
-| `JOB_HEARTBEAT_INTERVAL_MS`         | `10000`                    | Worker heartbeat interval used for stalled-job detection.                                 |
-| `JOB_HEARTBEAT_GRACE_MS`            | `20000`                    | Heartbeat grace window before active jobs are marked stalled.                             |
-| `JOB_RECONCILIATION_INTERVAL_MS`    | `60000`                    | Interval for in-memory and persisted reconciliation scans.                                |
-| `JOB_RECONCILIATION_STALE_MS`       | `120000`                   | Staleness threshold for persisted `pending`/`active` reconciliation.                      |
-| `JOB_RECOVERY_INTERVAL_MS`          | `30000`                    | Interval for automatic recovery daemon scans.                                             |
-| `JOB_RECOVERY_MIN_AGE_MS`           | `5000`                     | Minimum age before a recoverable state is eligible for re-queue.                          |
-| `DLQ_REPLAY_MAX_BATCH_SIZE`         | `25`                       | Maximum number of dead-letter records replayed in one governed replay batch.              |
-| `DLQ_REPLAY_MAX_QPS`                | `5`                        | Ceiling for dead-letter replay throughput (jobs per second).                              |
-| `DLQ_REPLAY_MIN_AGE_MS`             | `60000`                    | Minimum dead-letter age required before replay eligibility.                               |
-| `DLQ_REPLAY_ALLOWED_ACTORS`         | empty                      | Optional comma-separated allow-list of actor IDs allowed to execute DLQ replay.           |
-| `JOB_DASHBOARD_DEFAULT_QUEUE`       | `default`                  | Default queue name used by reliability dashboard snapshots when queue name is omitted.    |
-| `JOB_RUNBOOK_BASE_URL`              | `/docs/runbooks`           | Base path/URL used to generate alert-to-runbook links for queue reliability alerts.       |
-| `JOB_ALERT_FAILURE_RATE_THRESHOLD`  | `0.1`                      | Alert threshold for failure rate (`(failed + dead_letter) / completed`).                  |
-| `JOB_ALERT_STALLED_THRESHOLD`       | `50`                       | Alert threshold for stalled job count.                                                    |
-| `JOB_ALERT_QUEUE_DEPTH_THRESHOLD`   | `1000`                     | Alert threshold for queue depth.                                                          |
-| `JOB_ALERT_MANUAL_REVIEW_THRESHOLD` | `10`                       | Alert threshold for manual-review backlog count.                                          |
-| `QUEUE_TRACING_ENABLED`             | `false`                    | Enable queue operation tracing pipeline (`enqueue`, `dequeue`, `ack`, `length`, `drain`). |
-| `QUEUE_TRACING_SAMPLE_RATE`         | `1`                        | Queue trace sampling rate in range `0..1`.                                                |
-| `QUEUE_TRACING_MAX_EVENTS`          | `5000`                     | Maximum in-memory queue trace events retained after pruning.                              |
-| `QUEUE_TRACING_RETENTION_MS`        | `86400000`                 | Queue trace retention window in milliseconds before prune removes older events.           |
-| `QUEUE_TRACING_EXPORT_BATCH_SIZE`   | `20`                       | Number of pending queue trace events before automatic exporter flush.                     |
-| `QUEUE_TRACING_EXPORT_OTEL`         | `true`                     | Export queue trace events to OpenTelemetry spans when `OTEL_ENABLED=true`.                |
-| `STALLED_JOB_CHECK_INTERVAL_MS`     | `30000`                    | Interval for heartbeat table stalled checks.                                              |
-| `IDEMPOTENCY_DEFAULT_TTL_MS`        | `86400000`                 | Default TTL for idempotency keys and dedup locks (milliseconds).                          |
-| `JOB_RELIABILITY_ENABLED`           | `true`                     | Master toggle for queue reliability orchestration features.                               |
-| `JOB_RELIABILITY_AUTOSTART`         | `false`                    | Auto-start reliability orchestrator when queue drivers are registered.                    |
+| Key                                        | Default                    | Description                                                                                                                              |
+| ------------------------------------------ | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `JOB_TRACKING_ENABLED`                     | `true`                     | Enable in-memory job lifecycle tracking (includes `pending_recovery` and `enqueued` handoff state).                                      |
+| `JOB_TRACKING_MAX_JOBS`                    | `20000`                    | Maximum in-memory tracked job records before pruning oldest entries.                                                                     |
+| `JOB_TRACKING_MAX_TRANSITIONS`             | `50000`                    | Maximum in-memory transition records before pruning oldest entries.                                                                      |
+| `JOB_TRACKING_PERSISTENCE_ENABLED`         | `false`                    | Enable durable persistence for tracking records.                                                                                         |
+| `JOB_TRACKING_PERSISTENCE_DRIVER`          | `database`                 | Persistence backend driver (`database` currently supported).                                                                             |
+| `JOB_TRACKING_DB_CONNECTION`               | `default`                  | Database connection name for tracker persistence.                                                                                        |
+| `JOB_TRACKING_DB_TABLE`                    | `zintrust_jobs`            | Table used for latest job state snapshots.                                                                                               |
+| `JOB_TRACKING_DB_TRANSITIONS_TABLE`        | `zintrust_job_transitions` | Table used for append-only state transitions.                                                                                            |
+| `JOB_TRACKING_PERSIST_TRANSITIONS_ENABLED` | `false`                    | Persist append-only transition rows to `JOB_TRACKING_DB_TRANSITIONS_TABLE` (disable to store only snapshots in `JOB_TRACKING_DB_TABLE`). |
+| `JOB_HEARTBEAT_INTERVAL_MS`                | `10000`                    | Worker heartbeat interval used for stalled-job detection.                                                                                |
+| `JOB_HEARTBEAT_GRACE_MS`                   | `20000`                    | Heartbeat grace window before active jobs are marked stalled.                                                                            |
+| `JOB_RECONCILIATION_INTERVAL_MS`           | `60000`                    | Interval for in-memory and persisted reconciliation scans.                                                                               |
+| `JOB_RECONCILIATION_STALE_MS`              | `120000`                   | Staleness threshold for persisted enqueue-fallback (`pending_recovery`) buffer records.                                                  |
+| `JOB_RECOVERY_INTERVAL_MS`                 | `30000`                    | Interval for automatic recovery daemon scans.                                                                                            |
+| `JOB_RECOVERY_MIN_AGE_MS`                  | `5000`                     | Minimum age before a recoverable state is eligible for re-queue.                                                                         |
+| `JOB_RECOVERY_DB_SCAN_LIMIT`               | `100`                      | Max rows scanned from `JOB_TRACKING_DB_TABLE` for persisted `pending_recovery` recovery attempts per daemon run.                         |
+| `JOB_TRACKING_CLEANUP_ENABLED`             | `false`                    | Enable scheduled cleanup of `JOB_TRACKING_DB_TABLE` and `JOB_TRACKING_DB_TRANSITIONS_TABLE`.                                             |
+| `JOB_TRACKING_CLEANUP_INTERVAL_MS`         | `21600000`                 | Cleanup schedule interval in ms (default: 6 hours).                                                                                      |
+| `JOB_TRACKING_CLEANUP_RETENTION_DAYS`      | `30`                       | Retention window for cleanup (rows older than this are eligible).                                                                        |
+| `JOB_TRACKING_CLEANUP_RETENTION_HOURS`     | empty                      | Optional (overrides days): retention window in hours (supports fractional values like `0.4`).                                            |
+| `JOB_TRACKING_CLEANUP_BATCH_SIZE`          | `5000`                     | Batch size for cleanup deletes when using MySQL (DELETE ... LIMIT).                                                                      |
+| `JOB_TRACKING_CLEANUP_MAX_BATCHES`         | `1`                        | Max number of cleanup batches to run per schedule tick (bounded).                                                                        |
+| `JOB_TRACKING_CLEANUP_LOCK_PROVIDER`       | `redis`                    | Lock provider used for cleanup schedule `withoutOverlapping()` (e.g. `redis` or `memory`).                                               |
+| `DLQ_REPLAY_MAX_BATCH_SIZE`                | `25`                       | Maximum number of dead-letter records replayed in one governed replay batch.                                                             |
+| `DLQ_REPLAY_MAX_QPS`                       | `5`                        | Ceiling for dead-letter replay throughput (jobs per second).                                                                             |
+| `DLQ_REPLAY_MIN_AGE_MS`                    | `60000`                    | Minimum dead-letter age required before replay eligibility.                                                                              |
+| `DLQ_REPLAY_ALLOWED_ACTORS`                | empty                      | Optional comma-separated allow-list of actor IDs allowed to execute DLQ replay.                                                          |
+| `JOB_DASHBOARD_DEFAULT_QUEUE`              | `default`                  | Default queue name used by reliability dashboard snapshots when queue name is omitted.                                                   |
+| `JOB_RUNBOOK_BASE_URL`                     | `/docs/runbooks`           | Base path/URL used to generate alert-to-runbook links for queue reliability alerts.                                                      |
+| `JOB_ALERT_FAILURE_RATE_THRESHOLD`         | `0.1`                      | Alert threshold for failure rate (`(failed + dead_letter) / completed`).                                                                 |
+| `JOB_ALERT_STALLED_THRESHOLD`              | `50`                       | Alert threshold for stalled job count.                                                                                                   |
+| `JOB_ALERT_QUEUE_DEPTH_THRESHOLD`          | `1000`                     | Alert threshold for queue depth.                                                                                                         |
+| `JOB_ALERT_MANUAL_REVIEW_THRESHOLD`        | `10`                       | Alert threshold for manual-review backlog count.                                                                                         |
+| `QUEUE_TRACING_ENABLED`                    | `false`                    | Enable queue operation tracing pipeline (`enqueue`, `dequeue`, `ack`, `length`, `drain`).                                                |
+| `QUEUE_TRACING_SAMPLE_RATE`                | `1`                        | Queue trace sampling rate in range `0..1`.                                                                                               |
+| `QUEUE_TRACING_MAX_EVENTS`                 | `5000`                     | Maximum in-memory queue trace events retained after pruning.                                                                             |
+| `QUEUE_TRACING_RETENTION_MS`               | `86400000`                 | Queue trace retention window in milliseconds before prune removes older events.                                                          |
+| `QUEUE_TRACING_EXPORT_BATCH_SIZE`          | `20`                       | Number of pending queue trace events before automatic exporter flush.                                                                    |
+| `QUEUE_TRACING_EXPORT_OTEL`                | `true`                     | Export queue trace events to OpenTelemetry spans when `OTEL_ENABLED=true`.                                                               |
+| `STALLED_JOB_CHECK_INTERVAL_MS`            | `30000`                    | Interval for heartbeat table stalled checks.                                                                                             |
+
+## Scheduling
+
+| Key                                        | Default            | Description                                                                |
+| ------------------------------------------ | ------------------ | -------------------------------------------------------------------------- |
+| `SCHEDULES_ENABLED`                        | `false`            | Enable schedule autostart in long-running runtimes (Node.js/Fargate only). |
+| `SCHEDULE_SHUTDOWN_TIMEOUT_MS`             | `30000`            | Max time to wait for schedules to stop during shutdown (ms).               |
+| `SCHEDULE_OVERLAP_LOCK_TTL_MS`             | `300000`           | Default TTL for schedule overlap locks (ms).                               |
+| `SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS` | `2000`             | Max time to wait for overlap-lock acquisition before running anyway (ms).  |
+| `SCHEDULE_LEADER_ENABLED`                  | `false`            | Enable leader lease gating so only one instance auto-runs schedules.       |
+| `SCHEDULE_LEADER_LOCK_PROVIDER`            | `redis`            | Lock provider used for leader lease (`redis` or `memory`).                 |
+| `SCHEDULE_LEADER_LOCK_KEY`                 | `scheduler:leader` | Lock key used for leader election.                                         |
+| `SCHEDULE_LEADER_LOCK_TTL_MS`              | `30000`            | TTL for leader lease lock (ms).                                            |
+| `SCHEDULE_LEADER_LOCK_RENEW_MS`            | `15000`            | How often to renew/extend leader lease TTL (ms).                           |
+| `SCHEDULE_LEADER_LOCK_RETRY_MS`            | `5000`             | How often followers retry acquiring leadership (ms).                       |
+| `SCHEDULE_LEADER_LOCK_ACQUIRE_TIMEOUT_MS`  | `2000`             | Max time to wait for leader-lock acquisition (ms).                         |
+
+## Schedule HTTP gateway
+
+| Key                                | Default                  | Description                                                                  |
+| ---------------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
+| `SCHEDULE_HTTP_PROXY_PATH`         | `/api/_sys/schedule/rpc` | Internal signed endpoint for schedule RPC (`list`, `run`).                   |
+| `SCHEDULE_HTTP_PROXY_KEY_ID`       | `APP_NAME`               | Signing key id used to sign/verify schedule RPC calls.                       |
+| `SCHEDULE_HTTP_PROXY_KEY`          | `APP_KEY`                | Signing secret used to sign/verify schedule RPC calls.                       |
+| `SCHEDULE_HTTP_PROXY_MAX_SKEW_MS`  | `60000`                  | Allowed signature timestamp skew for gateway verification.                   |
+| `SCHEDULE_HTTP_PROXY_NONCE_TTL_MS` | `120000`                 | Nonce TTL used for replay protection on schedule gateway requests.           |
+| `SCHEDULE_HTTP_PROXY_MIDDLEWARE`   | empty                    | Optional comma-separated middleware names applied to schedule gateway route. |
+| `IDEMPOTENCY_DEFAULT_TTL_MS`       | `86400000`               | Default TTL for idempotency keys and dedup locks (milliseconds).             |
+| `JOB_RELIABILITY_ENABLED`          | `true`                   | Master toggle for queue reliability orchestration features.                  |
+| `JOB_RELIABILITY_AUTOSTART`        | `false`                  | Auto-start reliability orchestrator when queue drivers are registered.       |
 
 ## Rate limiting
 

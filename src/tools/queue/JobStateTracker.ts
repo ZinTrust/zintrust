@@ -5,6 +5,7 @@ import { QueueDataRedactor } from '@queue/QueueDataRedactor';
 export type JobTrackingStatus =
   | 'pending'
   | 'active'
+  | 'enqueued'
   | 'completed'
   | 'failed'
   | 'stalled'
@@ -93,7 +94,7 @@ const normalizeErrorCode = (error: unknown): string | undefined => {
 const pruneJobs = (): void => {
   const maxJobs = Env.getInt('JOB_TRACKING_MAX_JOBS', 20000);
   while (trackedJobs.size > maxJobs) {
-    const oldestKey = trackedJobs.keys().next().value as string | undefined;
+    const oldestKey = trackedJobs.keys().next().value;
     if (oldestKey === undefined) break;
     trackedJobs.delete(oldestKey);
   }
@@ -343,13 +344,14 @@ export const JobStateTracker = Object.freeze({
     queueName: string;
     jobId: string;
     payload?: unknown;
+    attempts?: number;
     maxAttempts?: number;
     expectedCompletionAt?: string;
     idempotencyKey?: string;
   }): Promise<void> {
     if (isEnabled() === false) return;
     const transition = updateStatus(input.queueName, input.jobId, 'pending', 'Job enqueued', {
-      attempts: 0,
+      attempts: typeof input.attempts === 'number' ? input.attempts : 0,
       maxAttempts: toFinitePositiveInt(input.maxAttempts),
       payload: QueueDataRedactor.sanitizePayload(input.payload),
       expectedCompletionAt: input.expectedCompletionAt,
@@ -490,6 +492,9 @@ export const JobStateTracker = Object.freeze({
   async pendingRecovery(input: {
     queueName: string;
     jobId: string;
+    attempts?: number;
+    maxAttempts?: number;
+    retryAt?: string;
     reason?: string;
     error?: unknown;
   }): Promise<void> {
@@ -500,6 +505,12 @@ export const JobStateTracker = Object.freeze({
       'pending_recovery',
       input.reason ?? 'Job pending recovery',
       {
+        attempts:
+          typeof input.attempts === 'number' && Number.isFinite(input.attempts)
+            ? Math.max(0, Math.floor(input.attempts))
+            : undefined,
+        maxAttempts: toFinitePositiveInt(input.maxAttempts),
+        retryAt: input.retryAt,
         error: normalizeError(input.error) ?? input.reason,
         lastErrorCode: normalizeErrorCode(input.error),
       }
@@ -522,6 +533,26 @@ export const JobStateTracker = Object.freeze({
       {
         recoveredAt: nowIso(),
         retryAt: input.retryAt,
+      }
+    );
+    await persistLatest(input.queueName, input.jobId, transition);
+  },
+
+  async handedOffToQueue(input: {
+    queueName: string;
+    jobId: string;
+    reason?: string;
+  }): Promise<void> {
+    if (isEnabled() === false) return;
+    const transition = updateStatus(
+      input.queueName,
+      input.jobId,
+      'enqueued',
+      input.reason ?? 'Job handed off to queue driver',
+      {
+        retryAt: undefined,
+        timeoutAt: undefined,
+        error: undefined,
       }
     );
     await persistLatest(input.queueName, input.jobId, transition);
@@ -619,10 +650,19 @@ export const JobStateTracker = Object.freeze({
 
   listRecoverable(maxAgeMs: number, queueName?: string): JobTrackingRecord[] {
     const threshold = Date.now() - Math.max(0, Math.floor(maxAgeMs));
-    const recoverable = new Set<JobTrackingStatus>(['pending_recovery', 'timeout', 'stalled']);
+    const recoverable = new Set<JobTrackingStatus>(['pending_recovery']);
     return Array.from(trackedJobs.values()).filter((row) => {
       if (!recoverable.has(row.status)) return false;
       if (queueName !== undefined && row.queueName !== queueName) return false;
+
+      // Respect scheduled retry window to avoid hot-loop recovery churn.
+      if (row.retryAt !== undefined && row.retryAt.trim().length > 0) {
+        const retryAtMs = new Date(row.retryAt).getTime();
+        if (!Number.isNaN(retryAtMs) && retryAtMs > Date.now()) {
+          return false;
+        }
+      }
+
       const reference = toEpochMs(row.updatedAt);
       if (reference === null) return false;
       return reference <= threshold;

@@ -10,7 +10,9 @@ import {
   databaseConfig,
   Env,
   ErrorFactory,
+  generateUuid,
   getBullMQSafeQueueName,
+  JobStateTracker,
   Logger,
   NodeSingletons,
   queueConfig,
@@ -124,7 +126,8 @@ const resolvePackageSpecifierUrl = (specifier: string): string | null => {
   }
 };
 
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
 const rewriteProcessorImports = (code: string): string => {
   const replacements: Array<{ from: string; to: string }> = [];
@@ -137,7 +140,7 @@ const rewriteProcessorImports = (code: string): string => {
 
   let updated = code;
   for (const { from, to } of replacements) {
-    const pattern = new RegExp(`(['"])${escapeRegExp(from)}\\1`, 'g');
+    const pattern = new RegExp(String.raw`(['"])${escapeRegExp(from)}\1`, 'g');
     updated = updated.replace(pattern, `$1${to}$1`);
   }
 
@@ -476,7 +479,7 @@ const computeSha256 = async (value: string): Promise<string> => {
     return NodeSingletons.createHash('sha256').update(value).digest('hex');
   }
 
-  return String(Math.random()).slice(2);
+  return String(generateUuid()).slice(2);
 };
 
 const toBase64 = (value: string): string => {
@@ -652,18 +655,19 @@ const buildProcessorFilePathCandidates = (_modulePath: string, resolvedPath: str
   const projectRoot = normalizeModulePath(resolveProjectRoot());
 
   const strippedResolved = stripProcessorExtension(resolvedPath);
-  candidates.push(`${strippedResolved}.js`);
-  candidates.push(`${strippedResolved}.mjs`);
+  candidates.push(`${strippedResolved}.js`, `${strippedResolved}.mjs`);
 
   const appIndex = normalizedResolved.lastIndexOf('/app/');
   if (appIndex !== -1) {
     const relative = normalizedResolved.slice(appIndex + 5);
     if (relative) {
       const strippedRelative = stripProcessorExtension(relative);
-      candidates.push(path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`));
-      candidates.push(path.join(projectRoot, 'app', relative));
-      candidates.push(path.join(projectRoot, 'app', `${strippedRelative}.js`));
-      candidates.push(path.join('/app', 'dist', 'app', `${strippedRelative}.js`));
+      candidates.push(
+        path.join(projectRoot, 'dist', 'app', `${strippedRelative}.js`),
+        path.join(projectRoot, 'app', relative),
+        path.join(projectRoot, 'app', `${strippedRelative}.js`),
+        path.join('/app', 'dist', 'app', `${strippedRelative}.js`)
+      );
     }
   }
 
@@ -856,10 +860,12 @@ const resolveProcessorFromUrl = async (
     Logger.warn(
       `Invalid processor URL protocol: ${parsed.protocol}. Only https:// and file:// are supported.`
     );
+    return undefined;
   }
 
   if (!isAllowedRemoteHost(parsed.host) && parsed.protocol !== 'file:') {
     Logger.warn(`Invalid processor URL host: ${parsed.host}. Host is not in the allowlist.`);
+    return undefined;
   }
 
   const config = getProcessorSpecConfig();
@@ -1304,6 +1310,76 @@ const handleFailure = async (params: {
   await executeFailurePlugins(workerName, job, error, features);
 };
 
+const toBackoffDelayMs = (backoff: unknown): number => {
+  if (typeof backoff === 'number' && Number.isFinite(backoff)) {
+    return Math.max(0, Math.floor(backoff));
+  }
+  if (backoff !== null && backoff !== undefined && typeof backoff === 'object') {
+    const raw = (backoff as { delay?: unknown }).delay;
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return Math.max(0, Math.floor(raw));
+    }
+  }
+  return 0;
+};
+
+const trackJobStarted = async (input: {
+  queueName: string;
+  job: Job;
+  attempts: number;
+  workerName: string;
+  workerVersion: string;
+}): Promise<void> => {
+  if (!input.job.id) return;
+  await JobStateTracker.started({
+    queueName: input.queueName,
+    jobId: input.job.id,
+    attempts: input.attempts,
+    timeoutMs: Math.max(1000, Env.getInt('QUEUE_JOB_TIMEOUT', 60) * 1000),
+    workerName: input.workerName,
+    workerVersion: input.workerVersion,
+  });
+};
+
+const trackJobCompleted = async (input: {
+  queueName: string;
+  job: Job;
+  duration: number;
+  result: unknown;
+}): Promise<void> => {
+  if (!input.job.id) return;
+  await JobStateTracker.completed({
+    queueName: input.queueName,
+    jobId: input.job.id,
+    processingTimeMs: input.duration,
+    result: input.result,
+  });
+};
+
+const trackJobFailed = async (input: {
+  queueName: string;
+  job: Job;
+  attempts: number;
+  maxAttempts?: number;
+  error: Error;
+}): Promise<void> => {
+  if (!input.job.id) return;
+  const isFinal = input.maxAttempts === undefined ? true : input.attempts >= input.maxAttempts;
+  const backoffDelayMs = toBackoffDelayMs(input.job.opts?.backoff);
+
+  await JobStateTracker.failed({
+    queueName: input.queueName,
+    jobId: input.job.id,
+    attempts: input.attempts,
+    isFinal,
+    retryAt:
+      !isFinal && backoffDelayMs > 0
+        ? new Date(Date.now() + backoffDelayMs).toISOString()
+        : undefined,
+    error: input.error,
+  });
+};
+
 /**
  * Helper: Create enhanced processor with all features
  */
@@ -1327,8 +1403,22 @@ const createEnhancedProcessor = (config: WorkerFactoryConfig): ((job: Job) => Pr
     let result: unknown;
     let spanId: string | null = null;
 
+    const maxAttempts =
+      typeof job.opts?.attempts === 'number' && Number.isFinite(job.opts.attempts)
+        ? Math.max(1, Math.floor(job.opts.attempts))
+        : undefined;
+    const attempts = Math.max(1, Math.floor((job.attemptsMade ?? 0) + 1));
+
     try {
       spanId = startProcessingSpan(name, jobVersion, job, config.queueName, features);
+
+      await trackJobStarted({
+        queueName: config.queueName,
+        job,
+        attempts,
+        workerName: name,
+        workerVersion: jobVersion,
+      });
 
       // Process the job
       result = await processor(job);
@@ -1344,10 +1434,20 @@ const createEnhancedProcessor = (config: WorkerFactoryConfig): ((job: Job) => Pr
         features,
       });
 
+      await trackJobCompleted({ queueName: config.queueName, job, duration, result });
+
       return result;
     } catch (err) {
       const error = err as Error;
       const duration = Date.now() - startTime;
+
+      await trackJobFailed({
+        queueName: config.queueName,
+        job,
+        attempts,
+        maxAttempts,
+        error,
+      });
 
       await handleFailure({
         workerName: name,
@@ -2759,16 +2859,13 @@ export const WorkerFactory = Object.freeze({
     persistenceOverride?: WorkerPersistenceConfig
   ): Promise<WorkerRecord | null> {
     const instance = workers.get(name);
-    // Logger.debug(`getPersisted: resolving store for ${name}`);
     const store = await getStoreForWorker(instance?.config, persistenceOverride);
 
     try {
-      // Logger.debug(`getPersisted: getting record for ${name}`);
       const result = await store.get(name);
       return result;
     } finally {
       if (Cloudflare.getWorkersEnv() !== null && store.close) {
-        // Logger.debug(`getPersisted: closing store for ${name}`);
         await store.close();
       }
     }

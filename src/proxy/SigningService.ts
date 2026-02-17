@@ -55,7 +55,7 @@ const hasSigningHeaders = (headers: SigningHeaders): boolean =>
 const normalizeKeyId = (keyId: string): string => {
   const trimmed = keyId.trim();
   if (trimmed !== '') return trimmed.toLowerCase();
-  const appNameRaw = Env.APP_NAME ?? 'zintrust';
+  const appNameRaw = Env.get('APP_NAME', 'zintrust');
   const normalized = (appNameRaw.trim() === '' ? 'zintrust' : appNameRaw)
     .toLowerCase()
     .replaceAll(/\s+/g, '_');
@@ -65,7 +65,7 @@ const normalizeKeyId = (keyId: string): string => {
 const normalizeSecret = (secret: string): string => {
   const trimmed = secret.trim();
   if (trimmed !== '') return trimmed;
-  return Env.APP_KEY ?? '';
+  return Env.get('APP_KEY', '');
 };
 
 const normalizeConfig = (signing: ProxySigningConfig): ProxySigningConfig => ({

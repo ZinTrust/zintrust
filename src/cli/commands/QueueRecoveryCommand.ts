@@ -1,9 +1,11 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
+import { databaseConfig } from '@config/database';
 import { Logger } from '@config/logger';
 import { queueConfig } from '@config/queue';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { useDatabase } from '@orm/Database';
+import { resetDatabase, useDatabase } from '@orm/Database';
+import { registerDatabasesFromRuntimeConfig } from '@orm/DatabaseRuntimeRegistration';
 import { JobRecoveryDaemon } from '@queue/JobRecoveryDaemon';
 import { JobStateTracker, type JobTrackingRecord } from '@queue/JobStateTracker';
 import { Queue } from '@queue/Queue';
@@ -107,6 +109,7 @@ const normalizeStatus = (value: string | undefined): JobTrackingRecord['status']
   const statuses: ReadonlyArray<JobTrackingRecord['status']> = [
     'pending',
     'active',
+    'enqueued',
     'completed',
     'failed',
     'stalled',
@@ -152,18 +155,14 @@ const toRecordFromPersisted = (row: PersistedJobRow): JobTrackingRecord => {
 };
 
 const getRecoverableStatuses = (): Set<JobTrackingRecord['status']> => {
-  return new Set<JobTrackingRecord['status']>([
-    'pending_recovery',
-    'timeout',
-    'stalled',
-    'dead_letter',
-  ]);
+  return new Set<JobTrackingRecord['status']>(['pending_recovery']);
 };
 
 const getAllStatuses = (): Set<JobTrackingRecord['status']> => {
   return new Set<JobTrackingRecord['status']>([
     'pending',
     'active',
+    'enqueued',
     'completed',
     'failed',
     'stalled',
@@ -469,11 +468,45 @@ const runRecoveryOnce = async (): Promise<void> => {
   Logger.info('Queue recovery run completed', result);
 };
 
+const isDuplicateJobIdError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return normalized.includes('jobid') && normalized.includes('already exists');
+};
+
+const validatePushable = (record: JobTrackingRecord): { ok: true } | { ok: false } => {
+  if (record.status === 'enqueued') {
+    Logger.info('Job is already enqueued; nothing to push', {
+      jobId: record.jobId,
+      queueName: record.queueName,
+    });
+    return { ok: false };
+  }
+
+  if (record.status !== 'pending_recovery') {
+    Logger.error(
+      `Refusing to push job in status ${record.status}. Only pending_recovery can be pushed.`
+    );
+    if (typeof process !== 'undefined') process.exitCode = 1;
+    return { ok: false };
+  }
+
+  return { ok: true };
+};
+
 const runPushForJob = async (
   record: JobTrackingRecord,
   options: { dryRun: boolean }
 ): Promise<void> => {
-  const payload = toSafeObject(record.payload);
+  if (!validatePushable(record).ok) return;
+
+  const basePayload = toSafeObject(record.payload);
+  const hasPayload =
+    record.payload !== undefined &&
+    record.payload !== null &&
+    typeof record.payload === 'object' &&
+    Object.keys(basePayload).length > 0;
+
   if (options.dryRun) {
     Logger.info('Dry-run: skipping enqueue for target job', {
       jobId: record.jobId,
@@ -483,12 +516,38 @@ const runPushForJob = async (
     return;
   }
 
-  const replayJobId = await Queue.enqueue(record.queueName, payload);
-  await JobStateTracker.markedRecovered({
+  if (!hasPayload) {
+    Logger.error(
+      `Cannot push job because payload is missing in tracker/persistence store: ${record.jobId}. ` +
+        'Rehydrate payload_json first (or use policy recovery states) before pushing.'
+    );
+    if (typeof process !== 'undefined') process.exitCode = 1;
+    return;
+  }
+
+  const payload = {
+    ...basePayload,
+    uniqueId: record.jobId,
+    attempts: typeof record.maxAttempts === 'number' ? record.maxAttempts : 3,
+    _currentAttempts: Math.max(0, Math.floor(record.attempts ?? 0)),
+    timestamp: Date.now(),
+  };
+
+  let replayJobId: string;
+  try {
+    replayJobId = await Queue.enqueue(record.queueName, payload, 'default');
+  } catch (error: unknown) {
+    if (isDuplicateJobIdError(error)) {
+      replayJobId = record.jobId;
+    } else {
+      throw error;
+    }
+  }
+
+  await JobStateTracker.handedOffToQueue({
     queueName: record.queueName,
     jobId: record.jobId,
     reason: `CLI pushed job as ${replayJobId}`,
-    retryAt: new Date().toISOString(),
   });
 
   Logger.info('Target job pushed to queue', {
@@ -496,6 +555,23 @@ const runPushForJob = async (
     replayJobId,
     queueName: record.queueName,
   });
+};
+
+const isTestRuntime = (): boolean =>
+  (process.env['NODE_ENV'] ?? '').trim().toLowerCase() === 'test' || Boolean(process.env['VITEST']);
+
+const cleanupOneOffCli = async (): Promise<void> => {
+  try {
+    QueueReliabilityOrchestrator.stop();
+  } catch {
+    // ignore
+  }
+
+  try {
+    await resetDatabase();
+  } catch {
+    // ignore
+  }
 };
 
 const runRecoverOneForJob = async (
@@ -604,15 +680,27 @@ const runTargetedRecovery = async (resolved: ResolvedExecutionOptions): Promise<
 
   const record = await findRecord(resolved.jobId, resolved.queueName, resolved.allowDbLookup);
   if (record === null) {
-    throw ErrorFactory.createConfigError(
+    Logger.error(
       `Job not found in tracker${resolved.allowDbLookup ? ' or persistence store' : ''}: ${resolved.jobId}`
     );
+    if (typeof process !== 'undefined') process.exitCode = 1;
+    return;
+  }
+
+  if (record.status === 'enqueued' && !resolved.push) {
+    Logger.info('Job already enqueued; nothing to recover', {
+      jobId: record.jobId,
+      queueName: record.queueName,
+    });
+    return;
   }
 
   if (!resolved.push && !getRecoverableStatuses().has(record.status)) {
-    throw ErrorFactory.createConfigError(
+    Logger.error(
       `Job status is not recoverable via policy runner: ${record.status}. Use --push to force requeue.`
     );
+    if (typeof process !== 'undefined') process.exitCode = 1;
+    return;
   }
 
   if (resolved.push) {
@@ -639,11 +727,35 @@ const executeQueueRecovery = async (options: QueueRecoveryCommandOptions): Promi
 
   if (await maybeRunListMode(resolved)) return;
 
-  await registerQueuesFromRuntimeConfig(queueConfig);
+  // Ensure DB connections exist for optional persistence lookups.
+  // (CLI commands don't run full app bootstrap.)
+  registerDatabasesFromRuntimeConfig(databaseConfig);
+
+  const envDefault = (process.env['QUEUE_DRIVER'] ?? '').toString().trim().toLowerCase();
+  const cliQueueConfig = {
+    ...queueConfig,
+    default: (envDefault.length > 0
+      ? envDefault
+      : queueConfig.default) as typeof queueConfig.default,
+  };
+
+  await registerQueuesFromRuntimeConfig(cliQueueConfig);
+  if (!resolved.start) {
+    // Queue registration may auto-start orchestrator when JOB_RELIABILITY_AUTOSTART=true.
+    // For one-off CLI runs, stop it to avoid noisy intervals.
+    QueueReliabilityOrchestrator.stop();
+  }
   if (await maybeRunDefaultRecovery(resolved)) return;
 
   await runTargetedRecovery(resolved);
   await finalizeRecoveryExecution(resolved);
+
+  if (!resolved.start) {
+    await cleanupOneOffCli();
+    if (!isTestRuntime() && typeof process !== 'undefined') {
+      process.exit(process.exitCode ?? 0);
+    }
+  }
 };
 
 export const QueueRecoveryCommand = Object.freeze({

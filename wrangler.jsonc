@@ -34,6 +34,14 @@
       "compatibility_flags": ["nodejs_compat"],
       "workers_dev": true,
       "minify": false,
+      "d1_databases": [
+        {
+          "binding": "ZIN_DB",
+          "database_name": "d1-proxy-db",
+          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "migrations_dir": "database/migrations/d1",
+        },
+      ],
       "alias": {
         "@zintrust/core": "./src/index.ts",
         "@zintrust/workers": "./packages/workers/src/index.ts",
@@ -64,22 +72,30 @@
       "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
-      "vars": {},
+      "vars": {
+        "D1_BINDING": "ZIN_DB",
+        "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
+        "ZT_MAX_BODY_BYTES": "131072",
+        "ZT_MAX_SQL_BYTES": "32768",
+        "ZT_MAX_PARAMS": "256",
+        "NODE_ENV": "development",
+        "ZT_D1_STATEMENTS_JSON": "{\"health\":\"select 1 as ok\"}",
+      },
       // D1 binding for the proxy
       "d1_databases": [
         {
-          "binding": "DB",
+          "binding": "ZIN_DB",
           "database_name": "d1-proxy-db",
-          "database_id": "your_database_id",
+          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "migrations_dir": "database/migrations/d1",
         },
       ],
-      // Optional KV namespace for nonce replay protection
       "kv_namespaces": [
         {
-          "binding": "ZT_NONCES",
-          "id": "your-kv-id-here",
-          "preview_id": "your-kv-preview-id-here",
-          "remote": true,
+          "binding": "ZIN_KV",
+          "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+          "preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+          "remote": false,
         },
       ],
       "routes": [
@@ -88,8 +104,8 @@
           "custom_domain": true,
         },
       ],
+      "minify": true,
     },
-
     "kv-proxy": {
       "name": "zintrust-kv-proxy",
       "main": "./src/proxy/kv/ZintrustKvProxy.ts",
@@ -99,10 +115,18 @@
       // KV binding for the proxy
       "kv_namespaces": [
         {
-          "binding": "CACHE",
-          "id": "your-kv-id-here",
-          "preview_id": "your-kv-preview-id-here",
-          "remote": true,
+          "binding": "ZIN_KV",
+          "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+          "preview_id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+          "remote": false,
+        },
+      ],
+      "d1_databases": [
+        {
+          "binding": "ZIN_DB",
+          "database_name": "d1-proxy-db",
+          "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+          "migrations_dir": "database/migrations/d1",
         },
       ],
       "routes": [
@@ -111,6 +135,21 @@
           "custom_domain": true,
         },
       ],
+      "minify": true,
     },
   },
+  "d1_databases": [
+    {
+      "database_name": "d1-proxy-db",
+      "database_id": "16367a55-e8fd-467b-9b32-6d418a28a950",
+      "binding": "ZIN_DB",
+      "migrations_dir": "database/migrations/d1",
+    },
+  ],
+  "kv_namespaces": [
+    {
+      "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",
+      "binding": "ZIN_KV",
+    },
+  ],
 }

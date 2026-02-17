@@ -1,8 +1,4 @@
-import {
-  ProxyErrorHandler as ErrorHandler,
-  RequestValidator,
-  SigningService,
-} from '@zintrust/core';
+import { ErrorHandler, RequestValidator, SigningService } from '@zintrust/core/proxy';
 
 type KVNamespacePutOptions = {
   expirationTtl?: number;
@@ -28,11 +24,11 @@ type KVNamespace = {
   list: (options: { prefix?: string; limit?: number; cursor?: string }) => Promise<KVListResult>;
 };
 
-type KeysJson = Record<string, { secret: string }>;
-
 type KvEnv = {
   CACHE?: KVNamespace;
-  ZT_KEYS_JSON?: string;
+  KV_NAMESPACE?: string;
+  APP_KEY?: string;
+  KV_REMOTE_SECRET?: string;
   ZT_PROXY_SIGNING_WINDOW_MS?: string;
   ZT_NONCES?: KVNamespace;
   ZT_MAX_BODY_BYTES?: string;
@@ -78,6 +74,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 
+const normalizeBindingName = (value: unknown): string | null => {
+  if (!isString(value)) return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
 const readBodyBytes = async (
   request: Request,
   maxBytes: number
@@ -118,16 +120,14 @@ const parseOptionalJson = (
   return { ok: true, payload: successResult.value };
 };
 
-const loadKeys = (env: KvEnv): KeysJson | null => {
-  const raw = env.ZT_KEYS_JSON;
-  if (typeof raw !== 'string' || raw.trim() === '') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) return null;
-    return parsed as KeysJson;
-  } catch {
-    return null;
-  }
+const loadSigningSecret = (env: KvEnv): string | null => {
+  const direct = typeof env.KV_REMOTE_SECRET === 'string' ? env.KV_REMOTE_SECRET.trim() : '';
+  if (direct !== '') return direct;
+
+  const fallback = typeof env.APP_KEY === 'string' ? env.APP_KEY.trim() : '';
+  if (fallback !== '') return fallback;
+
+  return null;
 };
 
 const verifyNonceKv = async (
@@ -149,9 +149,13 @@ const verifySignedRequest = async (
   env: KvEnv,
   bodyBytes: Uint8Array
 ): Promise<Response | { ok: true }> => {
-  const keys = loadKeys(env);
-  if (keys === null) {
-    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing or invalid ZT_KEYS_JSON');
+  const secret = loadSigningSecret(env);
+  if (secret === null) {
+    return toErrorResponse(
+      500,
+      'CONFIG_ERROR',
+      'Missing signing secret (KV_REMOTE_SECRET or APP_KEY)'
+    );
   }
 
   const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', DEFAULT_SIGNING_WINDOW_MS);
@@ -162,7 +166,7 @@ const verifySignedRequest = async (
     body: bodyBytes,
     headers: request.headers,
     windowMs,
-    getSecretForKeyId: async (keyId: string) => keys[keyId]?.secret,
+    getSecretForKeyId: async (_keyId: string) => secret,
     verifyNonce:
       env.ZT_NONCES === undefined
         ? undefined
@@ -178,10 +182,16 @@ const verifySignedRequest = async (
 };
 
 const requireCache = (env: KvEnv): Response | KVNamespace => {
-  if (env.CACHE === undefined) {
-    return toErrorResponse(500, 'CONFIG_ERROR', 'Missing KV binding (CACHE)');
+  if (env.CACHE !== undefined && env.CACHE !== null) return env.CACHE;
+
+  const bindingName = normalizeBindingName(env.KV_NAMESPACE);
+  if (bindingName !== null) {
+    const record = env as unknown as Record<string, unknown>;
+    const kv = record[bindingName] as KVNamespace | undefined;
+    if (kv !== undefined && kv !== null) return kv;
   }
-  return env.CACHE;
+
+  return toErrorResponse(500, 'CONFIG_ERROR', 'Missing KV binding (CACHE)');
 };
 
 const normalizeNamespace = (value: unknown): string | undefined => {
@@ -418,6 +428,8 @@ const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
 };
 
 export const ZintrustKvProxy = Object.freeze({
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION: '0.1.15',
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE: '__BUILD_DATE__',
   async fetch(request: Request, env: KvEnv): Promise<Response> {
     const url = new URL(request.url);
 
@@ -442,10 +454,3 @@ export const ZintrustKvProxy = Object.freeze({
 });
 
 export default ZintrustKvProxy;
-
-/**
- * Package version and build metadata
- * Available at runtime for debugging and health checks
- */
-export const _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION = '0.1.15';
-export const _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE = '__BUILD_DATE__';

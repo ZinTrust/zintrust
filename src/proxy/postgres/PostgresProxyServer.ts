@@ -1,17 +1,8 @@
-import { Env } from '@config/env';
-import { Logger } from '@config/logger';
-import { ErrorHandler } from '@proxy/ErrorHandler';
 import type { ProxyBackend, ProxyResponse } from '@proxy/ProxyBackend';
 import type { ProxySigningConfig } from '@proxy/ProxyConfig';
-import { createProxyServer } from '@proxy/ProxyServer';
-import {
-  resolveBaseConfig,
-  resolveBaseSigningConfig,
-  verifyRequestSignature,
-  type BaseProxyOverrides,
-} from '@proxy/ProxyServerUtils';
-import { RequestValidator } from '@proxy/RequestValidator';
-import { validateSqlPayload } from '@proxy/SqlPayloadValidator';
+import { type BaseProxyOverrides } from '@proxy/ProxyServerUtils';
+import type { SqlProxyDatabaseOverrides } from '@proxy/SqlProxyDbOverrides';
+import * as Deps from '@proxy/SqlProxyServerDeps';
 import { Pool } from 'pg';
 
 type ProxyConfig = {
@@ -27,17 +18,10 @@ type ProxyConfig = {
     max: number;
   };
   signing: ProxySigningConfig;
+  statements?: Record<string, string>;
 };
 
-type ProxyOverrides = BaseProxyOverrides &
-  Partial<{
-    dbHost: string;
-    dbPort: number;
-    dbName: string;
-    dbUser: string;
-    dbPass: string;
-    connectionLimit: number;
-  }>;
+type ProxyOverrides = BaseProxyOverrides & SqlProxyDatabaseOverrides;
 
 const resolveDatabaseConfig = (
   overrides: ProxyOverrides = {}
@@ -49,20 +33,20 @@ const resolveDatabaseConfig = (
   dbPass: string;
   connectionLimit: number;
 } => {
-  const dbHost = overrides.dbHost ?? Env.DB_HOST ?? '127.0.0.1';
-  const dbPort = overrides.dbPort ?? Env.DB_PORT_POSTGRESQL ?? 5432;
-  const dbName = overrides.dbName ?? Env.DB_DATABASE_POSTGRESQL ?? 'postgres';
-  const dbUser = overrides.dbUser ?? Env.DB_USERNAME_POSTGRESQL ?? 'postgres';
-  const dbPass = overrides.dbPass ?? Env.DB_PASSWORD_POSTGRESQL ?? '';
-  const connectionLimit = overrides.connectionLimit ?? Env.POSTGRES_PROXY_POOL_LIMIT;
+  const dbHost = overrides.dbHost ?? Deps.Env.DB_HOST ?? '127.0.0.1';
+  const dbPort = overrides.dbPort ?? Deps.Env.DB_PORT_POSTGRESQL ?? 5432;
+  const dbName = overrides.dbName ?? Deps.Env.DB_DATABASE_POSTGRESQL ?? 'postgres';
+  const dbUser = overrides.dbUser ?? Deps.Env.DB_USERNAME_POSTGRESQL ?? 'postgres';
+  const dbPass = overrides.dbPass ?? Deps.Env.DB_PASSWORD_POSTGRESQL ?? '';
+  const connectionLimit = overrides.connectionLimit ?? Deps.Env.POSTGRES_PROXY_POOL_LIMIT;
 
   return { dbHost, dbPort, dbName, dbUser, dbPass, connectionLimit };
 };
 
 const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
-  const proxyConfig = resolveBaseConfig(overrides, 'POSTGRES');
+  const proxyConfig = Deps.resolveBaseConfig(overrides, 'POSTGRES');
   const dbConfig = resolveDatabaseConfig(overrides);
-  const signingConfig = resolveBaseSigningConfig(overrides, 'POSTGRES');
+  const signingConfig = Deps.resolveBaseSigningConfig(overrides, 'POSTGRES');
 
   const poolOptions = {
     host: dbConfig.dbHost,
@@ -84,6 +68,7 @@ const resolveConfig = (overrides: ProxyOverrides = {}): ProxyConfig => {
       require: signingConfig.requireSigning,
       windowMs: signingConfig.signingWindowMs,
     },
+    statements: Deps.loadStatementRegistry('POSTGRES'),
   };
 };
 
@@ -119,48 +104,106 @@ const handleEndpoint = (
     };
   }
 
-  return ErrorHandler.toProxyError(404, 'NOT_FOUND', 'Unknown endpoint');
+  if (path === '/zin/postgres/statement') {
+    return { status: 200, body: { rows: result.rows, rowCount: result.rowCount } };
+  }
+
+  return Deps.ErrorHandler.toProxyError(404, 'NOT_FOUND', 'Unknown endpoint');
 };
 
-const createBackend = (pool: Pool): ProxyBackend => ({
+const handleStatementRequest = async (params: {
+  pool: Pool;
+  statements: Record<string, string> | undefined;
+  request: { path: string };
+  payload: Record<string, unknown>;
+}): Promise<ProxyResponse> => {
+  const resolved = Deps.resolveStatementOrError(params.statements, params.payload);
+  if (!resolved.ok) return resolved.response;
+
+  try {
+    const normalizedSql = normalizeSql(resolved.value.sql);
+    const result = await params.pool.query(normalizedSql, resolved.value.params);
+    const rows = (result.rows ?? []) as unknown[];
+    const rowCount = result.rowCount ?? rows.length ?? 0;
+
+    if (!resolved.value.mutating) {
+      return handleEndpoint('/zin/postgres/statement', { rows, rowCount });
+    }
+
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        meta: { changes: rowCount },
+      },
+    };
+  } catch (error) {
+    Deps.Logger.error('[PostgresProxyServer] Statement execution failed', {
+      path: params.request.path,
+      statementId: resolved.value.statementId,
+      mutating: resolved.value.mutating,
+      paramsCount: resolved.value.params.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return Deps.ErrorHandler.toProxyError(500, 'POSTGRES_ERROR', String(error));
+  }
+};
+
+const handleSqlRequest = async (params: {
+  pool: Pool;
+  request: { path: string };
+  payload: Record<string, unknown>;
+}): Promise<ProxyResponse> => {
+  const sqlValidation = Deps.validateSqlPayload(params.payload);
+  if (!sqlValidation.valid) {
+    const error = sqlValidation.error ?? {
+      code: 'VALIDATION_ERROR',
+      message: 'Invalid SQL payload',
+    };
+    return Deps.ErrorHandler.toProxyError(400, error.code, error.message);
+  }
+
+  try {
+    const sql = normalizeSql(sqlValidation.sql ?? '');
+    const result = await params.pool.query(sql, sqlValidation.params ?? []);
+    return handleEndpoint(params.request.path, {
+      rows: (result.rows ?? []) as unknown[],
+      rowCount: result.rowCount ?? result.rows?.length ?? 0,
+    });
+  } catch (error) {
+    return Deps.ErrorHandler.toProxyError(500, 'POSTGRES_ERROR', String(error));
+  }
+};
+
+const createBackend = (
+  pool: Pool,
+  statements: Record<string, string> | undefined
+): ProxyBackend => ({
   name: 'postgres',
   async handle(request): Promise<ProxyResponse> {
-    const methodError = RequestValidator.requirePost(request.method);
-    if (methodError) {
-      return ErrorHandler.toProxyError(405, methodError.code, methodError.message);
-    }
+    const validationError = Deps.validateProxyRequest(request);
+    if (validationError !== null) return validationError;
 
-    const parsed = RequestValidator.parseJson(request.body);
-    if (!parsed.ok) {
-      return ErrorHandler.toProxyError(400, parsed.error.code, parsed.error.message);
-    }
+    const parsed = Deps.parseJsonBody(request.body);
+    if ('status' in parsed) return parsed;
 
-    const sqlValidation = validateSqlPayload(parsed.value);
-    if (!sqlValidation.valid) {
-      const error = sqlValidation.error ?? {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid SQL payload',
-      };
-      return ErrorHandler.toProxyError(400, error.code, error.message);
-    }
-
-    try {
-      const sql = normalizeSql(sqlValidation.sql ?? '');
-      const result = await pool.query(sql, sqlValidation.params ?? []);
-      return handleEndpoint(request.path, {
-        rows: (result.rows ?? []) as unknown[],
-        rowCount: result.rowCount ?? result.rows?.length ?? 0,
+    if (request.path === '/zin/postgres/statement') {
+      return handleStatementRequest({
+        pool,
+        statements,
+        request,
+        payload: parsed.value,
       });
-    } catch (error) {
-      return ErrorHandler.toProxyError(500, 'POSTGRES_ERROR', String(error));
     }
+
+    return handleSqlRequest({ pool, request, payload: parsed.value });
   },
   async health(): Promise<ProxyResponse> {
     try {
       await pool.query('SELECT 1');
       return { status: 200, body: { status: 'healthy' } };
     } catch (error) {
-      return ErrorHandler.toProxyError(503, 'UNHEALTHY', String(error));
+      return Deps.ErrorHandler.toProxyError(503, 'UNHEALTHY', String(error));
     }
   },
 });
@@ -170,7 +213,7 @@ export const PostgresProxyServer = Object.freeze({
     const config = resolveConfig(overrides);
 
     try {
-      Logger.info(
+      Deps.Logger.info(
         `Postgres proxy config: proxyHost=${config.host} proxyPort=${config.port} dbHost=${String(
           config.poolOptions.host
         )} dbPort=${String(config.poolOptions.port)} dbName=${String(
@@ -182,15 +225,20 @@ export const PostgresProxyServer = Object.freeze({
     }
 
     const pool = new Pool(config.poolOptions);
-    const backend = createBackend(pool);
+    const backend = createBackend(pool, config.statements);
 
-    const proxy = createProxyServer({
+    const proxy = Deps.createProxyServer({
       host: config.host,
       port: config.port,
       maxBodyBytes: config.maxBodyBytes,
       backend,
       verify: async (req, body) => {
-        const verified = await verifyRequestSignature(req, body, config, 'PostgresProxyServer');
+        const verified = await Deps.verifyRequestSignature(
+          req,
+          body,
+          config,
+          'PostgresProxyServer'
+        );
         if (!verified.ok && verified.error) {
           return { ok: false, status: verified.error.status, message: verified.error.message };
         }
@@ -200,7 +248,7 @@ export const PostgresProxyServer = Object.freeze({
 
     await proxy.start();
 
-    Logger.info(`Postgres proxy listening on http://${config.host}:${config.port}`);
+    Deps.Logger.info(`Postgres proxy listening on http://${config.host}:${config.port}`);
   },
 });
 

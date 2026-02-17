@@ -13,6 +13,7 @@ import {
   CreateCommand,
   CreateMigrationCommand,
 } from '@cli/commands/CreateCommand';
+import { D1LearnCommand } from '@cli/commands/D1LearnCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
@@ -22,6 +23,7 @@ import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWork
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
+import { InitEcosystemCommand } from '@cli/commands/InitEcosystemCommand';
 import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
 import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
@@ -39,12 +41,16 @@ import { PostgresProxyCommand } from '@cli/commands/PostgresProxyCommand';
 import { PrepareCommand } from '@cli/commands/PrepareCommand';
 import { ProxyCommand } from '@cli/commands/ProxyCommand';
 import { PublishCommand } from '@cli/commands/PublishCommand';
+import { PutCommand } from '@cli/commands/PutCommand';
 import { QACommand } from '@cli/commands/QACommand';
 import { QueueCommand } from '@cli/commands/QueueCommand';
 import { QueueRecoveryCommand } from '@cli/commands/QueueRecoveryCommand';
 import { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 import { ResourceControlCommand } from '@cli/commands/ResourceControlCommand';
 import { RoutesCommand } from '@cli/commands/RoutesCommand';
+import { ScheduleListCommand } from '@cli/commands/ScheduleListCommand';
+import { ScheduleRunCommand } from '@cli/commands/ScheduleRunCommand';
+import { ScheduleStartCommand } from '@cli/commands/ScheduleStartCommand';
 import { SecretsCommand } from '@cli/commands/SecretsCommand';
 import { SimulateCommand } from '@cli/commands/SimulateCommand';
 import { SmtpProxyCommand } from '@cli/commands/SmtpProxyCommand';
@@ -90,6 +96,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     InitContainerCommand.create(),
     InitProxyCommand.create(),
     InitProducerCommand.create(),
+    InitEcosystemCommand.create(),
     DoctorArchitectureCommand.create(),
     AddCommand.create(),
     CreateCommand.create(),
@@ -98,12 +105,16 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     StartCommand.create(),
     QueueCommand.create(),
     QueueRecoveryCommand.create(),
+    ScheduleListCommand.create(),
+    ScheduleRunCommand.create(),
+    ScheduleStartCommand.create(),
     BroadcastWorkCommand.create(),
     NotificationWorkCommand.create(),
     ResourceControlCommand,
     MigrateWorkerCommand.create(),
     MigrateCommand.create(),
     DbSeedCommand.create(),
+    D1LearnCommand.create(),
     D1MigrateCommand.create(),
     DebugCommand.create(),
     SecretsCommand.create(),
@@ -112,6 +123,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     ContainerProxiesCommand.create(),
     PluginCommand.create(),
     PublishCommand.create(),
+    PutCommand.create(),
     DeployCommand.create(),
     DeployContainerWorkersCommand.create(),
     DeployContainerProxiesCommand.create(),
@@ -182,7 +194,7 @@ const registerCommands = (program: Command): void => {
     if (isCommandProvider(command)) {
       program.addCommand(command.getCommand());
     } else {
-      program.addCommand(command as Command);
+      program.addCommand(command);
     }
   }
 

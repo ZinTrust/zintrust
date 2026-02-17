@@ -194,6 +194,12 @@ describe('Redis Config Coverage', () => {
     });
 
     it('throws error when queue driver registration fails', async () => {
+      // Avoid importing a real dist fallback if it exists on disk in this repo.
+      // This test is validating the error branch when the package import fails.
+      vi.doMock('@node-singletons/fs', () => ({
+        existsSync: vi.fn(() => false),
+      }));
+
       const queueMockFactory = () => ({
         Queue: {
           get: vi.fn().mockImplementation(() => {

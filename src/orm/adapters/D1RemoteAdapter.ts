@@ -6,11 +6,15 @@
 
 import { RemoteSignedJson, type RemoteSignedJsonSettings } from '@common/RemoteSignedJson';
 import { Env } from '@config/env';
+import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { AdaptersEnum, type SupportedDriver } from '@migrations/enum';
+import { isRecord } from '@orm/adapters/SqlProxyAdapterUtils';
+import { createStatementId } from '@orm/adapters/SqlProxyRegistryMode';
 import type { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@orm/DatabaseAdapter';
 import { QueryBuilder } from '@orm/QueryBuilder';
-import { SignedRequest } from '@security/SignedRequest';
+import { SchemaWriter } from '@orm/SchemaStatemenWriter';
+import { isMutatingSql } from '@proxy/isMutatingSql';
 
 type D1RemoteMode = 'registry' | 'sql';
 
@@ -25,7 +29,7 @@ type D1QueryOneResponse = {
 
 type D1ExecResponse = {
   ok: boolean;
-  meta?: { changes?: number; lastRowId?: number; durationMs?: number };
+  meta?: { changes?: number; lastRowId?: number | string | bigint; durationMs?: number };
 };
 
 type D1StatementResponse = D1QueryResponse | D1QueryOneResponse | D1ExecResponse;
@@ -37,6 +41,8 @@ type D1RemoteSettings = {
   timeoutMs: number;
   mode: D1RemoteMode;
 };
+
+let warnedFallbackCredentials = false;
 
 const resolveSigningPrefix = (baseUrl: string): string | undefined => {
   try {
@@ -50,11 +56,31 @@ const resolveSigningPrefix = (baseUrl: string): string | undefined => {
 };
 
 const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSettings } => {
+  const directKeyId = Env.get('D1_REMOTE_KEY_ID', '').trim();
+  const directSecret = Env.get('D1_REMOTE_SECRET', '').trim();
+
+  // Intentionally pass empty values when missing so RemoteSignedJson's credential normalizer
+  // derives the fallback keyId/secret (APP_NAME/APP_KEY) in a consistent, safe way.
+  const keyId = directKeyId === '' ? '' : directKeyId;
+  const secret = directSecret === '' ? '' : directSecret;
+
+  if (directKeyId === '' || directSecret === '') {
+    if (!warnedFallbackCredentials) {
+      warnedFallbackCredentials = true;
+      Logger.warn(
+        'D1_REMOTE_KEY_ID / D1_REMOTE_SECRET missing; using fallback signing credentials (APP_NAME / APP_KEY).'
+      );
+    }
+  }
+
+  const envName = (Env.get('NODE_ENV', 'development') || 'development').trim().toLowerCase();
+  const defaultMode: D1RemoteMode = envName === 'production' ? 'registry' : 'sql';
+
   const settings: D1RemoteSettings = {
     baseUrl: Env.get('D1_REMOTE_URL'),
-    keyId: Env.get('D1_REMOTE_KEY_ID'),
-    secret: Env.get('D1_REMOTE_SECRET', Env.APP_KEY),
-    mode: (Env.get('D1_REMOTE_MODE', 'registry') as D1RemoteMode) ?? 'registry',
+    keyId,
+    secret,
+    mode: (Env.get('D1_REMOTE_MODE', defaultMode) as D1RemoteMode) ?? defaultMode,
     timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
   };
 
@@ -66,7 +92,7 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
     signaturePathPrefixToStrip: resolveSigningPrefix(settings.baseUrl),
     missingUrlMessage: 'D1 remote proxy URL is missing (D1_REMOTE_URL)',
     missingCredentialsMessage:
-      'D1 remote signing credentials are missing (D1_REMOTE_KEY_ID / D1_REMOTE_SECRET)',
+      'D1 remote signing credentials are missing (D1_REMOTE_KEY_ID / D1_REMOTE_SECRET). Fallbacks: APP_NAME and APP_KEY.',
     messages: {
       unauthorized: 'D1 remote proxy unauthorized',
       forbidden: 'D1 remote proxy forbidden',
@@ -80,29 +106,14 @@ const createRemoteConfig = (): { mode: D1RemoteMode; remote: RemoteSignedJsonSet
   return { mode: settings.mode, remote };
 };
 
-const isMutatingSql = (sql: string): boolean => {
-  const s = sql.trimStart().toLowerCase();
-  return (
-    s.startsWith('insert') ||
-    s.startsWith('update') ||
-    s.startsWith('delete') ||
-    s.startsWith('create') ||
-    s.startsWith('drop') ||
-    s.startsWith('alter') ||
-    s.startsWith('replace')
-  );
-};
-
 const createStatementPayload = async (
   sql: string,
   parameters: unknown[]
 ): Promise<Record<string, unknown>> => {
-  const statementId = await SignedRequest.sha256Hex(sql);
+  const statementId = await createStatementId(sql);
+  await SchemaWriter(sql);
   return { statementId, params: parameters };
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
 
 const isQueryResponse = (value: unknown): value is D1QueryResponse =>
   isRecord(value) &&
@@ -113,11 +124,26 @@ const isQueryResponse = (value: unknown): value is D1QueryResponse =>
 const isQueryOneResponse = (value: unknown): value is D1QueryOneResponse =>
   isRecord(value) && 'row' in value && (value['row'] === null || isRecord(value['row']));
 
-const getExecChanges = (value: unknown): number => {
-  if (!isRecord(value) || typeof value['ok'] !== 'boolean') return 0;
+const getExecMeta = (value: unknown): { changes: number; lastRowId?: number | string | bigint } => {
+  if (!isRecord(value) || typeof value['ok'] !== 'boolean') return { changes: 0 };
   const meta = value['meta'];
-  if (!isRecord(meta) || typeof meta['changes'] !== 'number') return 0;
-  return meta['changes'];
+  if (!isRecord(meta)) return { changes: 0 };
+
+  const changes = typeof meta['changes'] === 'number' ? meta['changes'] : 0;
+  const lastRowIdCandidate =
+    meta['lastRowId'] ??
+    meta['last_row_id'] ??
+    meta['lastInsertRowid'] ??
+    meta['last_insert_rowid'];
+
+  const lastRowId =
+    typeof lastRowIdCandidate === 'number' ||
+    typeof lastRowIdCandidate === 'string' ||
+    typeof lastRowIdCandidate === 'bigint'
+      ? lastRowIdCandidate
+      : undefined;
+
+  return { changes, lastRowId };
 };
 
 const queryRegistry = async (
@@ -140,7 +166,8 @@ const queryRegistry = async (
     return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
   }
 
-  return { rows: [], rowCount: getExecChanges(out) };
+  const meta = getExecMeta(out);
+  return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
 };
 
 const querySqlMode = async (
@@ -148,12 +175,14 @@ const querySqlMode = async (
   sql: string,
   parameters: unknown[]
 ): Promise<QueryResult> => {
+  await SchemaWriter(sql);
   if (isMutatingSql(sql)) {
     const out = await RemoteSignedJson.request<D1ExecResponse>(settings, '/zin/d1/exec', {
       sql,
       params: parameters,
     });
-    return { rows: [], rowCount: getExecChanges(out) };
+    const meta = getExecMeta(out);
+    return { rows: [], rowCount: meta.changes, lastInsertId: meta.lastRowId };
   }
 
   const out = await RemoteSignedJson.request<D1QueryResponse>(settings, '/zin/d1/query', {
@@ -163,85 +192,156 @@ const querySqlMode = async (
   return { rows: out.rows, rowCount: out.rowCount };
 };
 
+type ConnectedGetter = () => boolean;
+type ConnectedSetter = (value: boolean) => void;
+
+const requireConnected = (getConnected: ConnectedGetter): void => {
+  if (!getConnected()) throw ErrorFactory.createConnectionError('Database not connected');
+};
+
+const createConnectMethod = (setConnected: ConnectedSetter) => async (): Promise<void> => {
+  setConnected(true);
+  return Promise.resolve(); // NOSONAR
+};
+
+const createDisconnectMethod = (setConnected: ConnectedSetter) => async (): Promise<void> => {
+  setConnected(false);
+  return Promise.resolve(); // NOSONAR
+};
+
+const createQueryMethod =
+  (getConnected: ConnectedGetter, mode: D1RemoteMode, remote: RemoteSignedJsonSettings) =>
+  async (sql: string, parameters: unknown[]): Promise<QueryResult> => {
+    requireConnected(getConnected);
+
+    if (mode === 'registry') {
+      return queryRegistry(remote, sql, parameters);
+    }
+
+    return querySqlMode(remote, sql, parameters);
+  };
+
+const createQueryOneMethod =
+  (getConnected: ConnectedGetter, mode: D1RemoteMode, remote: RemoteSignedJsonSettings) =>
+  async (sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> => {
+    requireConnected(getConnected);
+
+    if (mode === 'registry') {
+      const payload = await createStatementPayload(sql, parameters);
+      const out = await RemoteSignedJson.request<D1StatementResponse>(
+        remote,
+        '/zin/d1/statement',
+        payload
+      );
+      if (isQueryOneResponse(out)) return out.row;
+      if (isQueryResponse(out)) return out.rows[0] ?? null;
+      return null;
+    }
+
+    await SchemaWriter(sql);
+    const out = await RemoteSignedJson.request<D1QueryOneResponse>(remote, '/zin/d1/queryOne', {
+      sql,
+      params: parameters,
+    });
+    return out.row;
+  };
+
+const createPingMethod =
+  (getConnected: ConnectedGetter, methods: IDatabaseAdapter) => async (): Promise<void> => {
+    requireConnected(getConnected);
+    const sql = QueryBuilder.create('').select('1').toSQL();
+    await methods.queryOne(sql, []);
+  };
+
+const createTransactionMethod =
+  (getConnected: ConnectedGetter, methods: IDatabaseAdapter) =>
+  async <T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> => {
+    requireConnected(getConnected);
+    try {
+      return await callback(methods);
+    } catch (error: unknown) {
+      throw ErrorFactory.createTryCatchError('Transaction failed', error);
+    }
+  };
+
+const createEnsureMigrationsTableMethod =
+  (getConnected: ConnectedGetter, methods: IDatabaseAdapter) => async (): Promise<void> => {
+    requireConnected(getConnected);
+
+    // D1 is SQLite under the hood; this schema matches the core migrator's expectations.
+    // Note: d1-remote migrations are expected to run in SQL mode (the CLI enforces this).
+    await methods.query(
+      `CREATE TABLE IF NOT EXISTS migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        scope TEXT NOT NULL DEFAULT 'global',
+        service TEXT NOT NULL DEFAULT '',
+        batch INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        applied_at TEXT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(name, scope, service)
+      )`,
+      []
+    );
+  };
+
+const createRawQueryMethod =
+  (methods: IDatabaseAdapter) =>
+  async <T = unknown>(sql: string, parameters: unknown[] = []): Promise<T[]> => {
+    const out = await methods.query(sql, parameters);
+    return out.rows as T[];
+  };
+
+const createAdapterMethods = (
+  getConnected: ConnectedGetter,
+  setConnected: ConnectedSetter,
+  mode: D1RemoteMode,
+  remote: RemoteSignedJsonSettings
+): IDatabaseAdapter => {
+  const methods = {} as IDatabaseAdapter;
+
+  methods.connect = createConnectMethod(setConnected);
+  methods.disconnect = createDisconnectMethod(setConnected);
+
+  methods.query = createQueryMethod(getConnected, mode, remote);
+  methods.queryOne = createQueryOneMethod(getConnected, mode, remote);
+
+  methods.ping = createPingMethod(getConnected, methods);
+  methods.transaction = createTransactionMethod(getConnected, methods);
+  methods.ensureMigrationsTable = createEnsureMigrationsTableMethod(getConnected, methods);
+  methods.rawQuery = createRawQueryMethod(methods);
+
+  methods.getType = (): SupportedDriver => AdaptersEnum.d1Remote;
+  methods.isConnected = (): boolean => getConnected();
+  methods.getPlaceholder = (_index: number): string => '?';
+
+  return methods;
+};
+
+const createAdapter = (
+  getConnected: ConnectedGetter,
+  setConnected: ConnectedSetter,
+  mode: D1RemoteMode,
+  remote: RemoteSignedJsonSettings
+): IDatabaseAdapter => createAdapterMethods(getConnected, setConnected, mode, remote);
+
 export const D1RemoteAdapter = Object.freeze({
   create(_config: DatabaseConfig): IDatabaseAdapter {
     let connected = false;
 
     const { mode, remote } = createRemoteConfig();
 
-    return {
-      // eslint-disable-next-line @typescript-eslint/require-await
-      async connect(): Promise<void> {
-        connected = true;
+    const getConnected = (): boolean => connected;
+
+    return createAdapter(
+      getConnected,
+      (value) => {
+        connected = value;
       },
-
-      // eslint-disable-next-line @typescript-eslint/require-await
-      async disconnect(): Promise<void> {
-        connected = false;
-      },
-
-      async query(sql: string, parameters: unknown[]): Promise<QueryResult> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-
-        if (mode === 'registry') {
-          return queryRegistry(remote, sql, parameters);
-        }
-
-        return querySqlMode(remote, sql, parameters);
-      },
-
-      async queryOne(sql: string, parameters: unknown[]): Promise<Record<string, unknown> | null> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-
-        if (mode === 'registry') {
-          const payload = await createStatementPayload(sql, parameters);
-          const out = await RemoteSignedJson.request<D1StatementResponse>(
-            remote,
-            '/zin/d1/statement',
-            payload
-          );
-          if (isQueryOneResponse(out)) return out.row;
-          if (isQueryResponse(out)) return out.rows[0] ?? null;
-          return null;
-        }
-
-        const out = await RemoteSignedJson.request<D1QueryOneResponse>(remote, '/zin/d1/queryOne', {
-          sql,
-          params: parameters,
-        });
-        return out.row;
-      },
-
-      async ping(): Promise<void> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        const sql = QueryBuilder.create('').select('1').toSQL();
-        await this.queryOne(sql, []);
-      },
-
-      async transaction<T>(callback: (adapter: IDatabaseAdapter) => Promise<T>): Promise<T> {
-        if (!connected) throw ErrorFactory.createConnectionError('Database not connected');
-        try {
-          return await callback(this);
-        } catch (error: unknown) {
-          throw ErrorFactory.createTryCatchError('Transaction failed', error);
-        }
-      },
-
-      async rawQuery<T = unknown>(sql: string, parameters: unknown[] = []): Promise<T[]> {
-        const out = await this.query(sql, parameters);
-        return out.rows as T[];
-      },
-
-      getType(): SupportedDriver {
-        return AdaptersEnum.d1Remote;
-      },
-      isConnected(): boolean {
-        return connected;
-      },
-      getPlaceholder(_index: number): string {
-        return '?';
-      },
-    };
+      mode,
+      remote
+    );
   },
 });
 

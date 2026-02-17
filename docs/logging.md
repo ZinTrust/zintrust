@@ -212,6 +212,8 @@ npm run start
 
 > Note: On serverless platforms (Cloudflare Workers, Lambda) the scheduler does not start automatically to avoid background timers in ephemeral runtimes.
 
+See [scheduling.md](./scheduling.md) for the schedule system, and `zin schedule:list` / `zin schedule:run` for manual triggering.
+
 ## Cloud Logging Backends
 
 ZinTrust can optionally forward logs to cloud backends in addition to console/file output. These backends are **best-effort** and designed to be non-blocking.
