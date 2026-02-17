@@ -217,6 +217,7 @@ export default defineConfig(
       ],
 
       // ==================== OTHER BEST PRACTICES ====================
+      'no-useless-assignment': 'off',
       'no-await-in-loop': 'warn', // Usually indicates performance issue (N+1 queries)
       'no-constant-condition': 'error',
       'no-duplicate-case': 'error',

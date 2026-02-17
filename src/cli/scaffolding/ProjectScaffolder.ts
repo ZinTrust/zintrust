@@ -192,41 +192,62 @@ const toSafeDbBasename = (raw: string): string => {
   return out === '' ? 'zintrust' : out;
 };
 
-const buildDatabaseEnvLinesWithName = (database: string, name: string): string[] => {
-  if (database === 'postgresql' || database === 'postgres') {
-    return [
-      'DB_HOST=localhost',
-      'DB_PORT=5432',
-      'DB_DATABASE=zintrust',
-      'DB_USERNAME=postgres',
-      'DB_PASSWORD=',
-    ];
+const readEnvScaffoldTemplate = (): string => {
+  const templateUrl = new URL('./templates/env.scaffold.dotenv.tpl', import.meta.url);
+  return fs.readFileSync(templateUrl, 'utf8');
+};
+
+const renderEnvScaffold = (template: string, vars: Record<string, string>): string => {
+  let out = template;
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.replaceAll(`{{${key}}}`, value);
   }
-  if (database === 'mysql') {
-    return [
-      'DB_HOST=localhost',
-      'DB_PORT=3306',
-      'DB_DATABASE=zintrust',
-      'DB_USERNAME=root',
-      'DB_PASSWORD=',
-    ];
+  // Normalize: if a placeholder resolves to empty, prevent excessive blank blocks.
+  out = out.replaceAll('\n\n\n', '\n\n');
+  return out;
+};
+
+const buildDbOverrides = (dbConnection: string): { dbLines: string[] } => {
+  const normalized = dbConnection.trim().toLowerCase();
+
+  if (normalized === 'mysql') {
+    return {
+      dbLines: [
+        'DB_HOST=localhost',
+        'DB_PORT=3306',
+        'DB_DATABASE=zintrust',
+        'DB_USERNAME=root',
+        'DB_PASSWORD=',
+      ],
+    };
   }
-  if (database === 'sqlite') {
-    // Provide both DB_DATABASE (used by the framework) and DB_PATH (common alias)
-    const base = toSafeDbBasename(name);
-    return [`DB_DATABASE=.zintrust/dbs/${base}.sqlite`, `DB_PATH=.zintrust/dbs/${base}.sqlite`];
+
+  if (normalized === 'postgres' || normalized === 'postgresql') {
+    return {
+      dbLines: [
+        'DB_HOST=localhost',
+        'DB_PORT=5432',
+        'DB_DATABASE=zintrust',
+        'DB_USERNAME=postgres',
+        'DB_PASSWORD=',
+      ],
+    };
   }
-  if (database === 'd1-remote' || database === 'd1-proxy') {
-    return [
-      '# Cloudflare D1 Remote Proxy (HTTPS)',
-      'D1_REMOTE_URL=',
-      'D1_REMOTE_KEY_ID=',
-      'D1_REMOTE_SECRET=',
-      'D1_REMOTE_MODE=registry',
-      'ZT_PROXY_TIMEOUT_MS=15000',
-    ];
+
+  if (normalized === 'sqlserver' || normalized === 'mssql') {
+    return {
+      dbLines: [
+        'DB_HOST_MSSQL=localhost',
+        'DB_PORT_MSSQL=1433',
+        'DB_DATABASE_MSSQL=zintrust',
+        'DB_USERNAME_MSSQL=sa',
+        'DB_PASSWORD_MSSQL=',
+      ],
+    };
   }
-  return [];
+
+  // sqlite/d1/d1-remote/etc: no overrides here (DB_PATH is handled via SQLITE_DB_PATH placeholder)
+  return { dbLines: [] };
 };
 
 const createEnvFile = (projectPath: string, variables: Record<string, unknown>): boolean => {
@@ -244,7 +265,7 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
         HOST: 'localhost',
         PORT: String(Number(variables['port'] ?? 7777)),
         LOG_LEVEL: 'debug',
-        CSRF_SKIP_PATHS: '/api/*,/queue-monitor/*',
+        CSRF_SKIP_PATHS: '/api/*,/queue-monitor/*,/api/_sys/queue/*,/api/_sys/schedule/*',
       });
       return true;
     }
@@ -254,54 +275,32 @@ const createEnvFile = (projectPath: string, variables: Record<string, unknown>):
     const port = Number(variables['port'] ?? 7777);
     const database = typeof variables['database'] === 'string' ? variables['database'] : 'sqlite';
 
+    const baseUrl = `http://localhost:${port}`;
+    const dbConnection = database.trim().toLowerCase();
+
+    const sqliteDbPath = `.zintrust/dbs/${toSafeDbBasename(name)}.sqlite`;
+
     // Generate a secure APP_KEY (32 bytes = 256-bit, base64 encoded)
     const appKeyBytes = randomBytes(32);
-    const appKey = appKeyBytes.toString('base64');
 
-    const baseLines: string[] = [
-      'NODE_ENV=development',
-      'STARTUP_REQUIRE_ENV=true',
-      `APP_NAME=${name}`,
-      'HOST=localhost',
-      `PORT=${port}`,
-      'APP_DEBUG=true',
-      // Auto-generated secure key for storage signing and encryption
-      `APP_KEY=${appKey}`,
-      `DB_CONNECTION=${database}`,
-    ];
+    // Keep consistent with `zin key:generate` output.
+    const appKey = `base64:${appKeyBytes.toString('base64')}`;
 
-    const dbLines: string[] = buildDatabaseEnvLinesWithName(database, name);
+    const { dbLines } = buildDbOverrides(dbConnection);
+    const dbLinesBlock = dbLines.join('\n');
 
-    const placeholderLines: string[] = [
-      '',
-      '# Logging',
-      'LOG_LEVEL=debug',
-      'LOG_CHANNEL=file',
-      'LOG_FORMAT=text',
-      '',
-      '# Auth / Security',
-      'JWT_SECRET=',
-      'JWT_EXPIRES_IN=1h',
-      'CSRF_SECRET=',
-      'CSRF_SKIP_PATHS=/api/*,/queue-monitor/*',
-      'ENCRYPTION_CIPHER=aes-256-cbc',
-      'APP_PREVIOUS_KEYS=',
-      '',
-      '# Cache / Queue',
-      'CACHE_DRIVER=memory',
-      'CACHE_TTL=300',
-      'QUEUE_DRIVER=sync',
-      '',
-      '# Microservices',
-      'SERVICE_DISCOVERY_ENABLED=false',
-      'SERVICE_DISCOVERY_TYPE=filesystem',
-      'SERVICE_NAME=',
-      'SERVICE_VERSION=1.0.0',
-    ];
+    const template = readEnvScaffoldTemplate();
+    const content = renderEnvScaffold(template, {
+      APP_NAME: name,
+      PORT: String(port),
+      BASE_URL: baseUrl,
+      APP_KEY: appKey,
+      DB_CONNECTION: dbConnection,
+      SQLITE_DB_PATH: sqliteDbPath,
+      DB_LINES: dbLinesBlock,
+    });
 
-    const lines: string[] = [...baseLines, ...dbLines, ...placeholderLines];
-
-    fs.writeFileSync(fullPath, lines.join('\n') + '\n');
+    fs.writeFileSync(fullPath, content.endsWith('\n') ? content : content + '\n');
     return true;
   } catch {
     Logger.error('Failed to create .env file');
