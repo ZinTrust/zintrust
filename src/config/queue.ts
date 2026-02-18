@@ -177,7 +177,7 @@ const createBaseMonitor = (): {
   autoRefresh: boolean;
   refreshIntervalMs: number;
 } => ({
-  enabled: Env.getBool('QUEUE_MONITOR_ENABLED', true),
+  enabled: Env.getBool('QUEUE_MONITOR_ENABLED', false),
   basePath: Env.get('QUEUE_MONITOR_BASE_PATH', '/queue-monitor'),
   middleware: Env.get('QUEUE_MONITOR_MIDDLEWARE', '')
     .split(',')

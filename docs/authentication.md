@@ -4,24 +4,29 @@ ZinTrust provides a flexible authentication system that supports multiple driver
 
 ## Configuration
 
-Authentication is configured in `config/auth.ts`.
+JWT auth is configured primarily via environment variables (see `src/config/security.ts`):
 
-```typescript
-export default {
-  default: 'jwt',
-  guards: {
-    jwt: {
-      driver: 'jwt',
-      secret: process.env.JWT_SECRET,
-      expiresIn: '1h',
-    },
-    session: {
-      driver: 'session',
-      provider: 'users',
-    },
-  },
-};
-```
+- `JWT_SECRET` (falls back to `APP_KEY` when empty)
+- `JWT_ALGORITHM` (default `HS256`)
+- `JWT_EXPIRES_IN` (seconds; default `3600`)
+
+Token invalidation (logout) uses the JWT revocation store:
+
+- `JWT_REVOCATION_DRIVER` (default `database`; `database`, `redis`, `kv`, `kv-remote`, `memory`)
+
+When using the `database` driver, run migrations to create the `zintrust_jwt_revocations` table.
+
+## JWT Revocation Driver Selection
+
+Use this as a quick rule-of-thumb when choosing `JWT_REVOCATION_DRIVER`:
+
+| Runtime / deployment                                          | Recommended driver | Notes                                                                                                                                                             |
+| ------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node.js (local dev / servers)                                 | `database`         | Default. Requires the `zintrust_jwt_revocations` migration. Works with `postgresql`, `mysql`, `sqlite`, `d1-remote`, etc (anything supported by `useDatabase()`). |
+| Cloudflare Workers (with KV binding)                          | `kv`               | Requires a KV binding (default binding name `CACHE`, configurable via `JWT_REVOCATION_KV_BINDING`).                                                               |
+| Cloudflare Workers (no KV binding, but you have the KV proxy) | `kv-remote`        | Uses `KV_REMOTE_URL`, `KV_REMOTE_KEY_ID`, `KV_REMOTE_SECRET`, optional `KV_REMOTE_NAMESPACE`. Works from both Node and Workers because it’s HTTP-based.           |
+| Any runtime (simple/dev only)                                 | `memory`           | Process-local only (clears on restart; not shared across instances).                                                                                              |
+| Any runtime (Redis available)                                 | `redis`            | Centralized store, but requires Redis connectivity and config.                                                                                                    |
 
 ## Using the Auth Guard
 
@@ -46,10 +51,10 @@ if (await Auth.check()) {
 
 ## Protecting Routes
 
-Use the `auth` middleware to protect your routes:
+Use the `auth` + `jwt` middleware to protect your routes:
 
 ```typescript
-router.get('/profile', 'ProfileController@show', { middleware: ['auth'] });
+Router.get(router, '/api/v1/profile', handler, { middleware: ['auth', 'jwt'] });
 ```
 
 ## API Key Authentication

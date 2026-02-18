@@ -1,3 +1,4 @@
+import { Logger } from '@config/logger';
 import { securityConfig } from '@config/security';
 import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
@@ -21,9 +22,10 @@ const getBearerToken = (authorizationHeader: string): string | null => {
   const trimmed = authorizationHeader.trim();
   if (trimmed === '') return null;
 
-  const [scheme, token] = trimmed.split(' ');
-  if (scheme !== 'Bearer') return null;
-  if (typeof token !== 'string' || token.trim() === '') return null;
+  const [scheme, ...rest] = trimmed.split(/\s+/);
+  if (typeof scheme !== 'string' || scheme.toLowerCase() !== 'bearer') return null;
+  const token = rest.join(' ').trim();
+  if (token === '') return null;
   return token;
 };
 
@@ -60,7 +62,7 @@ export const JwtAuthMiddleware = Object.freeze({
         return;
       }
 
-      if (TokenRevocation.isRevoked(token)) {
+      if (await TokenRevocation.isRevoked(token)) {
         res.setStatus(401).json({ error: 'Invalid or expired token' });
         return;
       }
@@ -89,7 +91,11 @@ export const JwtAuthMiddleware = Object.freeze({
         }
 
         await next();
-      } catch {
+      } catch (error) {
+        Logger.debug('JWT verification failed', {
+          algorithm,
+          error: error instanceof Error ? error.message : String(error),
+        });
         res.setStatus(401).json({ error: 'Invalid or expired token' });
       }
     };

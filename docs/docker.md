@@ -113,13 +113,13 @@ Keep them enabled in production unless your platform constraints require disabli
 
 The root `Dockerfile` is multi-stage:
 
-1. **builder** (`node:20-alpine`)
+1. **builder** (`node:20-bookworm-slim`)
 
 - installs build tooling (`python3`, `make`, `g++`) for native modules like `bcrypt`
 - runs `npm ci`
-- runs `npm run build:ci` to produce `dist/`
+- runs `npm run build:dk` to produce `dist/`
 
-2. **runtime** (`node:20-alpine`)
+2. **runtime** (`node:20-bookworm-slim`)
 
 - installs only production dependencies (`npm ci --omit=dev`)
 - copies `dist/` from the builder stage

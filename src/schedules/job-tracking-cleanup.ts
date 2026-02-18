@@ -140,7 +140,7 @@ const JobTrackingCleanupSchedule = Schedule.define('jobTracking.cleanup', async 
   });
 })
   .intervalMs(intervalMs)
-  .withoutOverlapping({ provider: Env.get('JOB_TRACKING_CLEANUP_LOCK_PROVIDER', 'redis') })
+  .withoutOverlapping({ provider: Env.get('JOB_TRACKING_CLEANUP_LOCK_PROVIDER', 'memory') })
   .enabledWhen(enabled)
   .build();
 

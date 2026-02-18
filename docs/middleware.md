@@ -118,5 +118,5 @@ ZinTrust comes with several built-in middleware:
 - `JsonBodyParser`: Parses JSON request bodies.
 - `CorsMiddleware`: Handles Cross-Origin Resource Sharing.
 - `auth`: Requires an `Authorization` header.
-- `jwt`: Validates a `Bearer` token and attaches the user context.
+- `jwt`: Validates a `Bearer` token, checks token revocation (driver-backed), and attaches the user context.
 - `validate*`: Request validation middleware (project-configured; typically returns 422 with field errors).

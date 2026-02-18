@@ -228,10 +228,26 @@ JWT:
 - `JWT_ENABLED` (default `true`)
 - `JWT_SECRET` (signing key). If `JWT_SECRET` is not set the framework will fall back to `APP_KEY` for signing/verification; set an explicit `JWT_SECRET` in production.
 - `JWT_ALGORITHM` (default `HS256`)
-- `JWT_EXPIRES_IN` (default `1h`)
+- `JWT_EXPIRES_IN` (default `3600` seconds)
 - `JWT_REFRESH_EXPIRES_IN` (default `7d`)
 - `JWT_ISSUER` (default `zintrust`)
 - `JWT_AUDIENCE` (default `zintrust-api`)
+
+JWT revocation (token invalidation):
+
+- `JWT_REVOCATION_DRIVER` (default `database`; `database`, `redis`, `kv`, `kv-remote`, `memory`)
+- `JWT_REVOCATION_DB_CONNECTION` (default `default`)
+- `JWT_REVOCATION_DB_TABLE` (default `zintrust_jwt_revocations`)
+- `JWT_REVOCATION_REDIS_DB` (default `0`)
+- `JWT_REVOCATION_REDIS_PREFIX` (default `zt:jwt:revoked:`)
+- `JWT_REVOCATION_KV_BINDING` (default `CACHE`)
+- `JWT_REVOCATION_KV_PREFIX` (default `zt:jwt:revoked:`)
+
+Notes:
+
+- Revocation is checked by the built-in `jwt` middleware.
+- Database revocation requires running the core migration that creates `zintrust_jwt_revocations`.
+- The store is keyed by JWT `jti` when present; otherwise it falls back to the raw token string.
 
 CSRF:
 

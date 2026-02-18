@@ -1,7 +1,5 @@
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
-import * as AppRoutes from '@routes/api';
-
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import { StartupConfigFile } from '@runtime/StartupConfigFileRegistry';
 import { WorkerAdapterImports } from '@runtime/WorkerAdapterImports';
@@ -87,7 +85,11 @@ export default {
     try {
       // Make bindings available to framework code in Workers
       (globalThis as unknown as { env?: unknown }).env = _env;
-      (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
+      const AppRoutes = (await import('@routes/' + 'api.ts')) as unknown as Record<string, unknown>;
+
+      if (AppRoutes !== undefined) {
+        (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
+      }
 
       await ensureStartupConfigOverridesLoaded();
       await WorkerAdapterImports.ready; // NOSONAR - Ensure adapter imports are ready before handling requests.

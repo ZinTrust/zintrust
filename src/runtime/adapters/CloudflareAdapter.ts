@@ -2,6 +2,7 @@
  * Runtime adapter for Cloudflare Workers
  */
 import { appConfig } from '@/config';
+import { isUndefinedOrNull } from '@/helper';
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
@@ -169,9 +170,6 @@ async function handleCloudflareRequest(
   }
 }
 
-/**
- * Parse Cloudflare request
- */
 function parseCloudflareRequest(event: CloudflareRequest): PlatformRequest {
   const url = new URL(event.url);
   const headers: Record<string, string | string[]> = {};
@@ -181,11 +179,23 @@ function parseCloudflareRequest(event: CloudflareRequest): PlatformRequest {
     headers[key.toLowerCase()] = value;
   });
 
+  // Build query object manually to ensure it works
+  const query: Record<string, string | string[]> = {};
+  for (const [key, value] of url.searchParams.entries()) {
+    if (isUndefinedOrNull(query[key])) {
+      query[key] = value;
+    } else if (Array.isArray(query[key])) {
+      query[key].push(value);
+    } else {
+      query[key] = [query[key], value];
+    }
+  }
+
   return {
     method: event.method.toUpperCase(),
     path: url.pathname,
     headers,
-    query: Object.fromEntries(url.searchParams.entries()),
+    query,
     remoteAddr: headers['cf-connecting-ip']?.toString() || '0.0.0.0',
     signal: event.signal,
   };

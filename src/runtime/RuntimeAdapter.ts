@@ -253,19 +253,39 @@ const createResponseData = (): {
 const createMockRequest = (
   request: PlatformRequest,
   remoteAddress: string
-): Record<string, unknown> => ({
-  method: request.method,
-  url: request.path,
-  headers: request.headers,
-  body: request.body ?? undefined,
-  remoteAddress,
-  socket: {
+): Record<string, unknown> => {
+  const hasQuery =
+    request.query !== undefined && request.query !== null && Object.keys(request.query).length > 0;
+
+  const queryString = (() => {
+    if (!hasQuery) return '';
+    const params = new URLSearchParams();
+    for (const [key, rawValue] of Object.entries(request.query ?? {})) {
+      if (Array.isArray(rawValue)) {
+        for (const value of rawValue) params.append(key, value);
+        continue;
+      }
+      params.append(key, rawValue);
+    }
+    return params.toString();
+  })();
+
+  const url = queryString === '' ? request.path : `${request.path}?${queryString}`;
+
+  return {
+    method: request.method,
+    url,
+    headers: request.headers,
+    body: request.body ?? undefined,
     remoteAddress,
-  },
-  connection: {
-    remoteAddress,
-  },
-});
+    socket: {
+      remoteAddress,
+    },
+    connection: {
+      remoteAddress,
+    },
+  };
+};
 
 const applyWriteHead = (
   responseData: { statusCode: number; headers: Record<string, string | string[]>; body: Tbody },

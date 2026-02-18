@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * Cache Manager
  * Central cache management and driver resolution
@@ -12,15 +13,33 @@ import { MemoryDriver } from '@cache/drivers/MemoryDriver';
 import { MongoDriver } from '@cache/drivers/MongoDriver';
 import { RedisDriver } from '@cache/drivers/RedisDriver';
 import { cacheConfig } from '@config/cache';
+import { Env } from '@config/env';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 
 const instances: Map<string, CacheDriver> = new Map();
+
+/**
+ * Auto-prefix cache keys with 'zt:' if not already prefixed
+ */
+function autoPrefixKey(key: string): string {
+  return key.startsWith('zt:') ? key : `zt:${key}`;
+}
 
 type DriverWithCreate = {
   create: () => CacheDriver;
 };
 
 type DriverConstructor = new () => CacheDriver;
+
+function createNoOpDriver(): CacheDriver {
+  return {
+    get: async <T>(): Promise<T | null> => null,
+    set: async (): Promise<void> => {},
+    delete: async (): Promise<void> => {},
+    clear: async (): Promise<void> => {},
+    has: async (): Promise<boolean> => false,
+  };
+}
 
 function buildDriver(driver: unknown): CacheDriver {
   const maybeCreate = (driver as Partial<DriverWithCreate>).create;
@@ -36,6 +55,16 @@ function buildDriver(driver: unknown): CacheDriver {
 }
 
 function resolveDriver(storeName?: string): CacheDriver {
+  const cacheEnabledRaw = Env.get('CACHE_ENABLED', 'true').trim().toLowerCase();
+  const cacheEnabled = !(
+    cacheEnabledRaw === 'false' ||
+    cacheEnabledRaw === '0' ||
+    cacheEnabledRaw === 'no'
+  );
+  if (!cacheEnabled) {
+    return createNoOpDriver();
+  }
+
   const driverConfig = cacheConfig.getDriver(storeName);
 
   const externalFactory = CacheDriverRegistry.get(driverConfig.driver);
@@ -79,7 +108,8 @@ function getDriverInstance(storeName?: string): CacheDriver {
  * Get an item from the cache
  */
 const get = async <T>(key: string): Promise<T | null> => {
-  const value = await getDriverInstance().get<T>(key);
+  const prefixedKey = autoPrefixKey(key);
+  const value = await getDriverInstance().get<T>(prefixedKey);
   return value;
 };
 
@@ -87,14 +117,16 @@ const get = async <T>(key: string): Promise<T | null> => {
  * Store an item in the cache
  */
 const set = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
-  await getDriverInstance().set(key, value, ttl);
+  const prefixedKey = autoPrefixKey(key);
+  await getDriverInstance().set(prefixedKey, value, ttl);
 };
 
 /**
  * Remove an item from the cache
  */
 const del = async (key: string): Promise<void> => {
-  await getDriverInstance().delete(key);
+  const prefixedKey = autoPrefixKey(key);
+  await getDriverInstance().delete(prefixedKey);
 };
 
 /**
@@ -108,7 +140,8 @@ const clear = async (): Promise<void> => {
  * Check if an item exists in the cache
  */
 const has = async (key: string): Promise<boolean> => {
-  const exists = await getDriverInstance().has(key);
+  const prefixedKey = autoPrefixKey(key);
+  const exists = await getDriverInstance().has(prefixedKey);
   return exists;
 };
 
@@ -130,15 +163,18 @@ type CacheStore = Readonly<{
 
 const store = (name?: string): CacheStore => {
   const getFromStore = async <T>(key: string): Promise<T | null> => {
-    return getDriverInstance(name).get<T>(key);
+    const prefixedKey = autoPrefixKey(key);
+    return getDriverInstance(name).get<T>(prefixedKey);
   };
 
   const setInStore = async <T>(key: string, value: T, ttl?: number): Promise<void> => {
-    await getDriverInstance(name).set(key, value, ttl);
+    const prefixedKey = autoPrefixKey(key);
+    await getDriverInstance(name).set(prefixedKey, value, ttl);
   };
 
   const delFromStore = async (key: string): Promise<void> => {
-    await getDriverInstance(name).delete(key);
+    const prefixedKey = autoPrefixKey(key);
+    await getDriverInstance(name).delete(prefixedKey);
   };
 
   const clearStore = async (): Promise<void> => {
@@ -146,7 +182,8 @@ const store = (name?: string): CacheStore => {
   };
 
   const hasInStore = async (key: string): Promise<boolean> => {
-    return getDriverInstance(name).has(key);
+    const prefixedKey = autoPrefixKey(key);
+    return getDriverInstance(name).has(prefixedKey);
   };
 
   const getStoreDriver = (): CacheDriver => {

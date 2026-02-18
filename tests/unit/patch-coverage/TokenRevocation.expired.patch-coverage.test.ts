@@ -13,11 +13,12 @@ describe('patch coverage: TokenRevocation expiry cleanup', () => {
     }));
 
     const { TokenRevocation } = await import('../../../src/index');
+    TokenRevocation._resetForTests();
 
-    const token = TokenRevocation.revoke('Bearer t');
+    const token = await TokenRevocation.revoke('Bearer t');
     expect(token).toBe('t');
 
-    const revoked = TokenRevocation.isRevoked('t');
+    const revoked = await TokenRevocation.isRevoked('t');
     expect(revoked).toBe(false);
   });
 });

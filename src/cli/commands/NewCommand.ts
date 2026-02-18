@@ -13,6 +13,7 @@ import { extractErrorMessage, resolvePackageManager } from '@common/index';
 import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
+import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import chalk from 'chalk';
 import type { Command } from 'commander';
@@ -320,8 +321,55 @@ const addOptions = (command: Command): void => {
   command.option('--install', 'Force dependency installation (useful to override CI defaults)');
   command.option('--package-manager <manager>', 'Package manager to use (npm, yarn, pnpm)');
   command.option('--governance', 'Install governance tooling (ESLint + architecture tests)', false);
+  command.option(
+    '--with-d1-proxy',
+    'Add @zintrust/cloudflare-d1-proxy to package.json (for deploying the D1 proxy worker)',
+    false
+  );
   command.option('--force', 'Overwrite existing directory');
   command.option('--overwrite', 'Overwrite existing directory');
+};
+
+const maybeAddD1ProxyDependency = (
+  projectPath: string,
+  options: CommandOptions,
+  log: Pick<IBaseCommand, 'info' | 'warn'>
+): void => {
+  const enabled = options['withD1Proxy'] === true || options['with-d1-proxy'] === true;
+  if (!enabled) return;
+
+  const packageJsonPath = path.join(projectPath, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    log.warn(
+      `Could not add @zintrust/cloudflare-d1-proxy (missing package.json at ${packageJsonPath})`
+    );
+    return;
+  }
+
+  try {
+    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+    const pkg = JSON.parse(raw) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+
+    const dependencies: Record<string, string> = { ...pkg.dependencies };
+    if (typeof dependencies['@zintrust/cloudflare-d1-proxy'] !== 'string') {
+      // Avoid pinning to core version (they can differ). Use a safe caret range.
+      dependencies['@zintrust/cloudflare-d1-proxy'] = '^0.1.42';
+    }
+
+    const next = {
+      ...pkg,
+      dependencies,
+    };
+
+    fs.writeFileSync(packageJsonPath, JSON.stringify(next, null, 2) + '\n');
+    log.info('✅ Added @zintrust/cloudflare-d1-proxy to dependencies');
+  } catch (error) {
+    ErrorFactory.createCliError('Failed to update package.json with D1 proxy dependency', error);
+    log.warn('Please add @zintrust/cloudflare-d1-proxy manually if you need the proxy worker.');
+  }
 };
 
 const resolveProjectName = async (options: CommandOptions): Promise<string> => {
@@ -385,6 +433,9 @@ const createProject = async (
       throw ErrorFactory.createCliError(gov.message ?? 'Governance scaffolding failed', gov);
     }
   }
+
+  // Optional dependency injection must happen before `npm/yarn/pnpm install`.
+  maybeAddD1ProxyDependency(target.projectPath, options, command);
 };
 
 const maybeInitializeGit = (

@@ -272,6 +272,12 @@ describe('NewCommand', () => {
       const helpText = cmd.helpInformation();
       expect(helpText).toContain('--governance');
     });
+
+    it('getCommand should have d1 proxy option configured', () => {
+      const cmd = command.getCommand();
+      const helpText = cmd.helpInformation();
+      expect(helpText).toContain('--with-d1-proxy');
+    });
   });
 
   describe('Execution Tests', () => {

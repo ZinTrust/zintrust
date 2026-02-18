@@ -170,6 +170,27 @@ describe('RuntimeAdapter helpers', () => {
         connection: { remoteAddress: '0.0.0.0' },
       });
     });
+
+    it('should include query string in req.url when request.query is provided', () => {
+      const { req } = createMockHttpObjects({
+        method: 'GET',
+        path: '/hello',
+        headers: { 'x-a': '1' },
+        query: {
+          a: '1',
+          b: ['x', 'y'],
+        },
+      });
+
+      expect(req).toMatchObject({
+        url: expect.stringMatching(/^\/hello\?/),
+      });
+
+      const url = String((req as unknown as { url?: unknown }).url ?? '');
+      expect(url).toContain('a=1');
+      expect(url).toContain('b=x');
+      expect(url).toContain('b=y');
+    });
   });
 
   describe('ErrorResponse', () => {

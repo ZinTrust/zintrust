@@ -26,6 +26,31 @@ type DistPackageJson = {
       types: './start.d.ts';
       default: './start.js';
     };
+    './cli': {
+      types: './src/cli.d.ts';
+      default: './src/cli.js';
+    };
+    './proxy': {
+      types: './src/proxy.d.ts';
+      default: './src/proxy.js';
+    };
+    './collections': {
+      types: './src/collections/index.d.ts';
+      default: './src/collections/index.js';
+    };
+    './helper': {
+      types: './src/helper/index.d.ts';
+      default: './src/helper/index.js';
+    };
+    './node': {
+      types: './src/node.d.ts';
+      default: './src/node.js';
+    };
+    './routes/*': {
+      types: './routes/*.d.ts';
+      default: './routes/*.js';
+    };
+    './package.json': './package.json';
   };
   dependencies: Record<string, unknown>;
 };
@@ -81,6 +106,31 @@ const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
         types: './start.d.ts',
         default: './start.js',
       },
+      './cli': {
+        types: './src/cli.d.ts',
+        default: './src/cli.js',
+      },
+      './proxy': {
+        types: './src/proxy.d.ts',
+        default: './src/proxy.js',
+      },
+      './collections': {
+        types: './src/collections/index.d.ts',
+        default: './src/collections/index.js',
+      },
+      './helper': {
+        types: './src/helper/index.d.ts',
+        default: './src/helper/index.js',
+      },
+      './node': {
+        types: './src/node.d.ts',
+        default: './src/node.js',
+      },
+      './routes/*': {
+        types: './routes/*.d.ts',
+        default: './routes/*.js',
+      },
+      './package.json': './package.json',
     },
     dependencies: coerceDependencies(rootPkg.dependencies),
   };

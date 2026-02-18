@@ -312,6 +312,15 @@ export const Env = Object.freeze({
   CSRF_DRIVER: get('CSRF_DRIVER', ''),
   CSRF_REDIS_DB: getInt('CSRF_REDIS_DB', 1),
 
+  // JWT revocation (token invalidation)
+  JWT_REVOCATION_DRIVER: get('JWT_REVOCATION_DRIVER', 'database'),
+  JWT_REVOCATION_DB_CONNECTION: get('JWT_REVOCATION_DB_CONNECTION', 'default'),
+  JWT_REVOCATION_DB_TABLE: get('JWT_REVOCATION_DB_TABLE', 'zintrust_jwt_revocations'),
+  JWT_REVOCATION_REDIS_DB: getInt('JWT_REVOCATION_REDIS_DB', 0),
+  JWT_REVOCATION_REDIS_PREFIX: get('JWT_REVOCATION_REDIS_PREFIX', 'zt:jwt:revoked:'),
+  JWT_REVOCATION_KV_BINDING: get('JWT_REVOCATION_KV_BINDING', 'CACHE'),
+  JWT_REVOCATION_KV_PREFIX: get('JWT_REVOCATION_KV_PREFIX', 'zt:jwt:revoked:'),
+
   // Encryption interop
   ENCRYPTION_CIPHER: get('ENCRYPTION_CIPHER', ''),
 

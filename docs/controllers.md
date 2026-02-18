@@ -512,7 +512,7 @@ export const AuthController = Object.freeze({
        */
       async logout(req: IRequest, res: IResponse): Promise<void> {
         const authHeader = req.getHeader('authorization');
-        TokenRevocation.revoke(authHeader);
+        await TokenRevocation.revoke(authHeader);
         res.json({ message: 'Logged out' });
       },
 

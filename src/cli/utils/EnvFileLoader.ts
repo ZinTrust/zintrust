@@ -140,6 +140,7 @@ type CliOverrides = {
   nodeEnv?: node_env;
   port?: number;
   runtime?: string;
+  cacheEnabled?: boolean;
 };
 
 const filesLoader = (cwd: string, mode: string | undefined): string[] => {
@@ -217,6 +218,10 @@ const applyCliOverrides = (overrides: CliOverrides): void => {
   if (typeof overrides.port === 'number') {
     safeEnvSet('PORT', String(overrides.port));
     safeEnvSet('APP_PORT', String(overrides.port));
+  }
+
+  if (typeof overrides.cacheEnabled === 'boolean') {
+    safeEnvSet('CACHE_ENABLED', String(overrides.cacheEnabled));
   }
 
   // Keep PORT/APP_PORT in sync if only one exists.

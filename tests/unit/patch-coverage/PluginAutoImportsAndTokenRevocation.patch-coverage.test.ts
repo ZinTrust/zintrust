@@ -72,35 +72,48 @@ describe('patch coverage: PluginAutoImports', () => {
 });
 
 describe('patch coverage: TokenRevocation', () => {
-  it('revoke() returns null for non-bearer headers', () => {
-    expect(TokenRevocation.revoke(undefined)).toBeNull();
-    expect(TokenRevocation.revoke('')).toBeNull();
-    expect(TokenRevocation.revoke('Basic abc')).toBeNull();
-    expect(TokenRevocation.revoke(['Bearer'])).toBeNull();
-    expect(TokenRevocation.revoke('Bearer   ')).toBeNull();
+  const prevDriver = process.env['JWT_REVOCATION_DRIVER'];
+
+  afterEach(() => {
+    if (prevDriver === undefined) delete process.env['JWT_REVOCATION_DRIVER'];
+    else process.env['JWT_REVOCATION_DRIVER'] = prevDriver;
   });
 
-  it('revokes tokens and expires them based on exp when present', () => {
+  it('revoke() returns null for non-bearer headers', async () => {
+    process.env['JWT_REVOCATION_DRIVER'] = 'memory';
+    TokenRevocation._resetForTests();
+    expect(await TokenRevocation.revoke(undefined)).toBeNull();
+    expect(await TokenRevocation.revoke('')).toBeNull();
+    expect(await TokenRevocation.revoke('Basic abc')).toBeNull();
+    expect(await TokenRevocation.revoke(['Bearer'])).toBeNull();
+    expect(await TokenRevocation.revoke('Bearer   ')).toBeNull();
+  });
+
+  it('revokes tokens and expires them based on exp when present', async () => {
+    process.env['JWT_REVOCATION_DRIVER'] = 'memory';
+    TokenRevocation._resetForTests();
     const nowSeconds = Math.floor(Date.now() / 1000);
 
     const expired = makeJwtWithExp(nowSeconds - 10);
     const active = makeJwtWithExp(nowSeconds + 10_000);
 
-    const revokedExpired = TokenRevocation.revoke(`Bearer ${expired}`);
+    const revokedExpired = await TokenRevocation.revoke(`Bearer ${expired}`);
     expect(revokedExpired).toBe(expired);
 
     // Already expired: should not be considered revoked.
-    expect(TokenRevocation.isRevoked(expired)).toBe(false);
+    expect(await TokenRevocation.isRevoked(expired)).toBe(false);
 
-    const revokedActive = TokenRevocation.revoke(`Bearer ${active}`);
+    const revokedActive = await TokenRevocation.revoke(`Bearer ${active}`);
     expect(revokedActive).toBe(active);
-    expect(TokenRevocation.isRevoked(active)).toBe(true);
+    expect(await TokenRevocation.isRevoked(active)).toBe(true);
   });
 
-  it('falls back to default TTL when token cannot be decoded', () => {
+  it('falls back to default TTL when token cannot be decoded', async () => {
+    process.env['JWT_REVOCATION_DRIVER'] = 'memory';
+    TokenRevocation._resetForTests();
     const token = 'not-a-jwt';
-    const revoked = TokenRevocation.revoke(`Bearer ${token}`);
+    const revoked = await TokenRevocation.revoke(`Bearer ${token}`);
     expect(revoked).toBe(token);
-    expect(TokenRevocation.isRevoked(token)).toBe(true);
+    expect(await TokenRevocation.isRevoked(token)).toBe(true);
   });
 });

@@ -287,6 +287,126 @@ exports[`OpenAPI spec snapshot > matches a stable snapshot for routes/api.ts 1`]
           }
         }
       }
+    },
+    "/test/wg-pr": {
+      "get": {
+        "operationId": "get_test_wg_pr",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/wg-ts": {
+      "get": {
+        "operationId": "get_test_wg_ts",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/wg-ma": {
+      "get": {
+        "operationId": "get_test_wg_ma",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/cache/smoke": {
+      "get": {
+        "operationId": "get_test_cache_smoke",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/cache/set": {
+      "get": {
+        "operationId": "get_test_cache_set",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/cache/get": {
+      "get": {
+        "operationId": "get_test_cache_get",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/cache/has": {
+      "get": {
+        "operationId": "get_test_cache_has",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/cache/delete": {
+      "get": {
+        "operationId": "get_test_cache_delete",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/test/cache/clear": {
+      "get": {
+        "operationId": "get_test_cache_clear",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/_debug/queue/tracker": {
+      "get": {
+        "operationId": "get_debug_queue_tracker",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/mail/{template}": {
+      "get": {
+        "operationId": "get_mail__template",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "parameters": [
+          {
+            "name": "template",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
     }
   }
 }"

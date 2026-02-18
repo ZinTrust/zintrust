@@ -19,7 +19,7 @@ type LeaderSettings = Readonly<{
 const readSettings = (): LeaderSettings => {
   const enabled = Env.getBool('SCHEDULE_LEADER_ENABLED', false);
 
-  const provider = Env.get('SCHEDULE_LEADER_LOCK_PROVIDER', 'redis').trim() || 'redis';
+  const provider = Env.get('SCHEDULE_LEADER_LOCK_PROVIDER', 'memory').trim() || 'memory';
   const key = Env.get('SCHEDULE_LEADER_LOCK_KEY', 'scheduler:leader').trim() || 'scheduler:leader';
 
   const ttlMs = Env.getInt('SCHEDULE_LEADER_LOCK_TTL_MS', 30000);

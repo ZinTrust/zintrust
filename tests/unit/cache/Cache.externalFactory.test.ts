@@ -31,6 +31,6 @@ describe('Cache external driver factories', () => {
     expect(Cache.getDriver()).toBe(driver);
 
     await Cache.get('k');
-    expect(driver.get).toHaveBeenCalledWith('k');
+    expect(driver.get).toHaveBeenCalledWith('zt:k');
   });
 });

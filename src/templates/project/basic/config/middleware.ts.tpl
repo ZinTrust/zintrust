@@ -1,3 +1,4 @@
+// @ts-ignore - config templates are excluded from the main TS project in this repo
 /**
  * Middleware Configuration (template)
  *
@@ -6,27 +7,27 @@
  * - Projects can override by editing `middlewareConfigObj`.
  */
 
-import { middlewareConfig as coreMiddlewareConfig } from '@zintrust/core';
-import { CsrfMiddleware } from '@zintrust/core';
+import { Env } from '@zintrust/core';
+import type { MiddlewaresType } from '@zintrust/core';
 
-type MiddlewareConfigShape = typeof coreMiddlewareConfig;
-
-// Optional: if you're building a pure Bearer-token API (no cookie auth),
-// you can bypass CSRF for API routes.
-// Example: ['\/api\/*'] skips CSRF for all API endpoints.
-const csrf = CsrfMiddleware.create({
-  skipPaths: [],
-});
-
-export const middlewareConfigObj = {
-  ...coreMiddlewareConfig,
-  route: {
-    ...coreMiddlewareConfig.route,
-    csrf,
+export default {
+  skipPaths: Env.get('CSRF_SKIP_PATHS', '')
+    .split(',')
+    .map((m: string) => m.trim())
+    .filter((m: string) => m.length > 0) as ReadonlyArray<string>,
+  fillRateLimit: {
+    windowMs: 60_000,
+    max: 5,
+    message: 'Too many fill requests, please try again later.',
   },
-  // Keep global middleware order but swap in the overridden CSRF middleware.
-  global: coreMiddlewareConfig.global.map((mw) => (mw === coreMiddlewareConfig.route.csrf ? csrf : mw)),
-} satisfies MiddlewareConfigShape;
-
-export const middlewareConfig = middlewareConfigObj;
-export default middlewareConfig;
+  authRateLimit: {
+    windowMs: 60_000,
+    max: 4,
+    message: 'Too many authentication attempts, please try again later.',
+  },
+  userMutationRateLimit: {
+    windowMs: 60_000,
+    max: 20,
+    message: 'Too many user mutation requests, please try again later.',
+  },
+} as MiddlewaresType;
