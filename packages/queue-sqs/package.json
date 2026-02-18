@@ -25,7 +25,7 @@
     "@aws-sdk/client-sqs": "^3.893.0"
   },
   "overrides": {
-    "fast-xml-parser": "^5.3.4"
+    "fast-xml-parser": "^5.3.6"
   },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
