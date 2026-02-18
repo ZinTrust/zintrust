@@ -127,6 +127,7 @@ const createMemoryStore = (): TokenRevocationStore => {
     async revoke(key: RevocationKey): Promise<void> {
       cleanupExpired();
       revoked.set(key.id, key.expiresAtMs);
+      await Promise.resolve();
     },
     async isRevoked(id: string): Promise<boolean> {
       cleanupExpired();
@@ -136,6 +137,7 @@ const createMemoryStore = (): TokenRevocationStore => {
         revoked.delete(id);
         return false;
       }
+      await Promise.resolve();
       return true;
     },
   };
@@ -268,63 +270,411 @@ const createKvStore = (params: {
   };
 };
 
+type KvRemoteProxySettings = {
+  baseUrl: string;
+  keyId: string;
+  secret: string;
+  timeoutMs: number;
+};
+
+type KvRemoteCloudflareCreds = {
+  accountId: string;
+  apiToken: string;
+  namespaceId: string;
+  namespaceTitle: string;
+};
+
+type KvRemoteCloudflareNamespacesResponse = {
+  success?: boolean;
+  result?: Array<{ id?: string; title?: string }>;
+  result_info?: { page?: number; total_pages?: number };
+  errors?: unknown;
+};
+
+type KvRemoteCtx = {
+  keyPrefix: string;
+  namespace: string;
+  getProxySettings: () => KvRemoteProxySettings;
+  getCloudflareCreds: () => KvRemoteCloudflareCreds;
+  hasCloudflareApiCreds: () => boolean;
+  hasProxySigningCreds: (proxy: { keyId: string; secret: string }) => boolean;
+  buildCloudflareValueUrl: (
+    creds: { accountId: string; namespaceId: string },
+    key: string,
+    ttlSeconds?: number
+  ) => string;
+  cfFetch: (apiToken: string, url: string, init: RequestInit) => Promise<Response>;
+  resolveCloudflareNamespaceId: () => Promise<string>;
+  createRemoteSettings: (proxy: KvRemoteProxySettings) => RemoteSignedJsonSettings;
+  normalizeNamespace: (value: string) => string | undefined;
+};
+
+type KvGetResponse = { value: unknown };
+type KvPutResponse = { ok: true };
+
+const kvRemoteGetProxySettings = (): KvRemoteProxySettings => ({
+  baseUrl: Env.get('KV_REMOTE_URL'),
+  keyId: Env.get('KV_REMOTE_KEY_ID'),
+  secret: Env.get('KV_REMOTE_SECRET', Env.APP_KEY),
+  timeoutMs: Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT),
+});
+
+const kvRemoteGetCloudflareCreds = (): KvRemoteCloudflareCreds => ({
+  accountId: Env.get('KV_ACCOUNT_ID', Env.get('CLOUDFLARE_ACCOUNT_ID', '')).trim(),
+  apiToken: Env.get('KV_API_TOKEN', Env.get('CLOUDFLARE_API_TOKEN', '')).trim(),
+  namespaceId: Env.get('KV_NAMESPACE_ID', Env.get('CLOUDFLARE_KV_NAMESPACE_ID', '')).trim(),
+  namespaceTitle: Env.get('KV_NAMESPACE', '').trim(),
+});
+
+const kvRemoteHasCloudflareApiCreds = (getCreds: () => KvRemoteCloudflareCreds): boolean => {
+  const creds = getCreds();
+  const hasNamespace = creds.namespaceId !== '' || creds.namespaceTitle !== '';
+  return creds.accountId !== '' && creds.apiToken !== '' && hasNamespace;
+};
+
+const kvRemoteHasProxySigningCreds = (proxy: { keyId: string; secret: string }): boolean =>
+  proxy.keyId.trim() !== '' && proxy.secret.trim() !== '';
+
+const kvRemoteBuildCloudflareValueUrl = (
+  creds: { accountId: string; namespaceId: string },
+  key: string,
+  ttlSeconds?: number
+): string => {
+  const base = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(
+    creds.accountId
+  )}/storage/kv/namespaces/${encodeURIComponent(creds.namespaceId)}/values/${encodeURIComponent(
+    key
+  )}`;
+  if (ttlSeconds === undefined) return base;
+  const ttl = Math.max(60, Math.floor(ttlSeconds));
+  return ttl > 0 ? `${base}?expiration_ttl=${ttl}` : base;
+};
+
+const kvRemoteCfFetch = async (
+  apiToken: string,
+  url: string,
+  init: RequestInit
+): Promise<Response> => {
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${apiToken}`);
+  return fetch(url, {
+    ...init,
+    headers,
+  });
+};
+
+const kvRemoteFetchCloudflareNamespacesPage = async (args: {
+  apiToken: string;
+  accountId: string;
+  page: number;
+  perPage: number;
+  cfFetch: KvRemoteCtx['cfFetch'];
+}): Promise<KvRemoteCloudflareNamespacesResponse> => {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(
+    args.accountId
+  )}/storage/kv/namespaces?page=${args.page}&per_page=${args.perPage}`;
+
+  const res = await args.cfFetch(args.apiToken, url, { method: 'GET' });
+  const text = await res.text();
+  if (!res.ok) {
+    throw ErrorFactory.createConnectionError(
+      `Cloudflare KV namespaces list failed (${res.status})`,
+      {
+        status: res.status,
+        body: text,
+      }
+    );
+  }
+
+  try {
+    return JSON.parse(text) as KvRemoteCloudflareNamespacesResponse;
+  } catch {
+    throw ErrorFactory.createConnectionError(
+      'Cloudflare KV namespaces list returned invalid JSON',
+      {
+        body: text,
+      }
+    );
+  }
+};
+
+const kvRemoteResolveNamespaceIdFromPage = (
+  parsed: KvRemoteCloudflareNamespacesResponse,
+  title: string
+): string => {
+  const found = (parsed.result ?? []).find((ns) => ns.title === title);
+  return typeof found?.id === 'string' ? found.id.trim() : '';
+};
+
+const kvRemoteResolveTotalPagesFromPage = (
+  parsed: KvRemoteCloudflareNamespacesResponse
+): number => {
+  const raw = Number(parsed.result_info?.total_pages ?? 1);
+  return Number.isFinite(raw) ? Math.max(1, Math.floor(raw)) : 1;
+};
+
+const kvRemoteFindNamespaceIdByTitle = async (args: {
+  apiToken: string;
+  accountId: string;
+  namespaceTitle: string;
+  cfFetch: KvRemoteCtx['cfFetch'];
+}): Promise<string | null> => {
+  const perPage = 100;
+  const first = await kvRemoteFetchCloudflareNamespacesPage({
+    apiToken: args.apiToken,
+    accountId: args.accountId,
+    page: 1,
+    perPage,
+    cfFetch: args.cfFetch,
+  });
+
+  const firstId = kvRemoteResolveNamespaceIdFromPage(first, args.namespaceTitle);
+  if (firstId !== '') return firstId;
+
+  const maxPages = Math.min(10, kvRemoteResolveTotalPagesFromPage(first));
+  if (maxPages <= 1) return null;
+
+  const remainingPages = Array.from({ length: maxPages - 1 }, (_, i) => i + 2);
+  const out = await Promise.all(
+    remainingPages.map(async (page) =>
+      kvRemoteFetchCloudflareNamespacesPage({
+        apiToken: args.apiToken,
+        accountId: args.accountId,
+        page,
+        perPage,
+        cfFetch: args.cfFetch,
+      })
+    )
+  );
+
+  for (const page of out) {
+    const id = kvRemoteResolveNamespaceIdFromPage(page, args.namespaceTitle);
+    if (id !== '') return id;
+  }
+  return null;
+};
+
+const createKvRemoteCloudflareNamespaceIdResolver = (args: {
+  getCloudflareCreds: () => KvRemoteCloudflareCreds;
+  cfFetch: KvRemoteCtx['cfFetch'];
+}): (() => Promise<string>) => {
+  let cachedNamespaceId: string | null = null;
+  let cachedNamespaceTitle: string | null = null;
+  let cachedAccountId: string | null = null;
+
+  return async (): Promise<string> => {
+    const creds = args.getCloudflareCreds();
+    if (creds.namespaceId !== '') return creds.namespaceId;
+
+    if (
+      cachedNamespaceId !== null &&
+      cachedNamespaceTitle === creds.namespaceTitle &&
+      cachedAccountId === creds.accountId
+    ) {
+      return cachedNamespaceId;
+    }
+
+    if (creds.namespaceTitle === '') {
+      throw ErrorFactory.createConfigError(
+        'Cloudflare KV namespace id is missing (KV_NAMESPACE_ID) and no namespace title is provided (KV_NAMESPACE)'
+      );
+    }
+
+    const resolved = await kvRemoteFindNamespaceIdByTitle({
+      apiToken: creds.apiToken,
+      accountId: creds.accountId,
+      namespaceTitle: creds.namespaceTitle,
+      cfFetch: args.cfFetch,
+    });
+    if (resolved === null) {
+      throw ErrorFactory.createConfigError('Cloudflare KV namespace not found', {
+        namespaceTitle: creds.namespaceTitle,
+      });
+    }
+
+    cachedNamespaceId = resolved;
+    cachedNamespaceTitle = creds.namespaceTitle;
+    cachedAccountId = creds.accountId;
+    return resolved;
+  };
+};
+
+const kvRemoteCreateRemoteSettings = (proxy: KvRemoteProxySettings): RemoteSignedJsonSettings => ({
+  baseUrl: proxy.baseUrl,
+  keyId: proxy.keyId,
+  secret: proxy.secret,
+  timeoutMs: proxy.timeoutMs,
+  signaturePathPrefixToStrip: resolveSigningPrefix(proxy.baseUrl),
+  missingUrlMessage: 'KV remote proxy URL is missing (KV_REMOTE_URL)',
+  missingCredentialsMessage:
+    'KV remote signing credentials are missing (KV_REMOTE_KEY_ID / KV_REMOTE_SECRET)',
+  messages: {
+    unauthorized: 'KV remote proxy unauthorized',
+    forbidden: 'KV remote proxy forbidden',
+    rateLimited: 'KV remote proxy rate limited',
+    rejected: 'KV remote proxy rejected request',
+    error: 'KV remote proxy error',
+    timedOut: 'KV remote proxy request timed out',
+  },
+});
+
+const kvRemoteNormalizeNamespace = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
+const kvRemoteIsRevokedViaCloudflareApi = async (
+  ctx: KvRemoteCtx,
+  id: string,
+  meta?: Record<string, unknown>
+): Promise<boolean> => {
+  const creds = ctx.getCloudflareCreds();
+  const namespaceId = await ctx.resolveCloudflareNamespaceId();
+  const url = ctx.buildCloudflareValueUrl(
+    { accountId: creds.accountId, namespaceId },
+    `${ctx.keyPrefix}${id}`
+  );
+  const res = await ctx.cfFetch(creds.apiToken, url, { method: 'GET' });
+  if (res.status === 404) return false;
+  if (!res.ok) {
+    const text = await res.text();
+    const warnMeta: Record<string, unknown> = {
+      status: res.status,
+      body: text,
+    };
+    if (meta) Object.assign(warnMeta, meta);
+    logWarnBestEffort('TokenRevocation kv-remote (Cloudflare API) check failed', warnMeta);
+    return false;
+  }
+  const value = await res.text();
+  return value.trim() !== '';
+};
+
+const kvRemoteIsRevokedViaProxy = async (
+  ctx: KvRemoteCtx,
+  proxy: KvRemoteProxySettings,
+  id: string
+): Promise<boolean> => {
+  const remote = ctx.createRemoteSettings(proxy);
+  const out = await RemoteSignedJson.request<KvGetResponse>(remote, '/zin/kv/get', {
+    namespace: ctx.normalizeNamespace(ctx.namespace),
+    key: `${ctx.keyPrefix}${id}`,
+    type: 'text',
+  });
+  return out.value !== null && out.value !== undefined && String(out.value).trim() !== '';
+};
+
+const kvRemoteRevokeViaCloudflareApi = async (
+  ctx: KvRemoteCtx,
+  key: RevocationKey,
+  ttlSeconds: number,
+  meta?: Record<string, unknown>
+): Promise<void> => {
+  const creds = ctx.getCloudflareCreds();
+  const namespaceId = await ctx.resolveCloudflareNamespaceId();
+  const url = ctx.buildCloudflareValueUrl(
+    { accountId: creds.accountId, namespaceId },
+    `${ctx.keyPrefix}${key.id}`,
+    ttlSeconds
+  );
+  const res = await ctx.cfFetch(creds.apiToken, url, {
+    method: 'PUT',
+    headers: { 'content-type': 'text/plain' },
+    body: '1',
+  });
+  if (res.ok) return;
+
+  const text = await res.text();
+  const warnMeta: Record<string, unknown> = {
+    status: res.status,
+    body: text,
+  };
+  if (meta) Object.assign(warnMeta, meta);
+  logWarnBestEffort('TokenRevocation kv-remote (Cloudflare API) revoke failed', warnMeta);
+};
+
+const createKvRemoteRevoke =
+  (ctx: KvRemoteCtx) =>
+  async (key: RevocationKey): Promise<void> => {
+    const ttlMs = Math.max(0, key.expiresAtMs - Date.now());
+    if (ttlMs === 0) return;
+    const ttlSeconds = Math.max(60, Math.ceil(ttlMs / 1000));
+
+    const proxy = ctx.getProxySettings();
+    const shouldUseCloudflareApiFirst =
+      !ctx.hasProxySigningCreds(proxy) && ctx.hasCloudflareApiCreds();
+    if (shouldUseCloudflareApiFirst) {
+      await kvRemoteRevokeViaCloudflareApi(ctx, key, ttlSeconds);
+      return;
+    }
+
+    try {
+      const remote = ctx.createRemoteSettings(proxy);
+      await RemoteSignedJson.request<KvPutResponse>(remote, '/zin/kv/put', {
+        namespace: ctx.normalizeNamespace(ctx.namespace),
+        key: `${ctx.keyPrefix}${key.id}`,
+        value: '1',
+        ttlSeconds,
+      });
+    } catch (error) {
+      if (ctx.hasCloudflareApiCreds()) {
+        await kvRemoteRevokeViaCloudflareApi(ctx, key, ttlSeconds, {
+          proxyError: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+      throw error;
+    }
+  };
+
+const createKvRemoteIsRevoked =
+  (ctx: KvRemoteCtx) =>
+  async (id: string): Promise<boolean> => {
+    const proxy = ctx.getProxySettings();
+    const shouldUseCloudflareApiFirst =
+      !ctx.hasProxySigningCreds(proxy) && ctx.hasCloudflareApiCreds();
+    if (shouldUseCloudflareApiFirst) return kvRemoteIsRevokedViaCloudflareApi(ctx, id);
+
+    try {
+      return await kvRemoteIsRevokedViaProxy(ctx, proxy, id);
+    } catch (error) {
+      if (ctx.hasCloudflareApiCreds()) {
+        return kvRemoteIsRevokedViaCloudflareApi(ctx, id, {
+          proxyError: error instanceof Error ? error.message : String(error),
+        });
+      }
+      throw error;
+    }
+  };
+
 const createKvRemoteStore = (params: {
   keyPrefix: string;
   namespace: string;
 }): TokenRevocationStore => {
-  const baseUrl = Env.get('KV_REMOTE_URL');
-  const keyId = Env.get('KV_REMOTE_KEY_ID');
-  const secret = Env.get('KV_REMOTE_SECRET', Env.APP_KEY);
-  const timeoutMs = Env.getInt('ZT_PROXY_TIMEOUT_MS', Env.REQUEST_TIMEOUT);
+  const getCloudflareCreds = kvRemoteGetCloudflareCreds;
+  const cfFetch = kvRemoteCfFetch;
+  const resolveCloudflareNamespaceId = createKvRemoteCloudflareNamespaceIdResolver({
+    getCloudflareCreds,
+    cfFetch,
+  });
 
-  const remote: RemoteSignedJsonSettings = {
-    baseUrl,
-    keyId,
-    secret,
-    timeoutMs,
-    signaturePathPrefixToStrip: resolveSigningPrefix(baseUrl),
-    missingUrlMessage: 'KV remote proxy URL is missing (KV_REMOTE_URL)',
-    missingCredentialsMessage:
-      'KV remote signing credentials are missing (KV_REMOTE_KEY_ID / KV_REMOTE_SECRET)',
-    messages: {
-      unauthorized: 'KV remote proxy unauthorized',
-      forbidden: 'KV remote proxy forbidden',
-      rateLimited: 'KV remote proxy rate limited',
-      rejected: 'KV remote proxy rejected request',
-      error: 'KV remote proxy error',
-      timedOut: 'KV remote proxy request timed out',
-    },
+  const ctx: KvRemoteCtx = {
+    keyPrefix: params.keyPrefix,
+    namespace: params.namespace,
+    getProxySettings: kvRemoteGetProxySettings,
+    getCloudflareCreds,
+    hasCloudflareApiCreds: () => kvRemoteHasCloudflareApiCreds(getCloudflareCreds),
+    hasProxySigningCreds: kvRemoteHasProxySigningCreds,
+    buildCloudflareValueUrl: kvRemoteBuildCloudflareValueUrl,
+    cfFetch,
+    resolveCloudflareNamespaceId,
+    createRemoteSettings: kvRemoteCreateRemoteSettings,
+    normalizeNamespace: kvRemoteNormalizeNamespace,
   };
-
-  const normalizeNamespace = (value: string): string | undefined => {
-    const trimmed = value.trim();
-    return trimmed === '' ? undefined : trimmed;
-  };
-
-  type KvGetResponse = { value: unknown };
-  type KvPutResponse = { ok: true };
 
   return {
-    async revoke(key: RevocationKey): Promise<void> {
-      const ttlMs = Math.max(0, key.expiresAtMs - Date.now());
-      if (ttlMs === 0) return;
-      const ttlSeconds = Math.max(60, Math.ceil(ttlMs / 1000));
-
-      await RemoteSignedJson.request<KvPutResponse>(remote, '/zin/kv/put', {
-        namespace: normalizeNamespace(params.namespace),
-        key: `${params.keyPrefix}${key.id}`,
-        value: '1',
-        ttlSeconds,
-      });
-    },
-    async isRevoked(id: string): Promise<boolean> {
-      const out = await RemoteSignedJson.request<KvGetResponse>(remote, '/zin/kv/get', {
-        namespace: normalizeNamespace(params.namespace),
-        key: `${params.keyPrefix}${id}`,
-        type: 'text',
-      });
-      return out.value !== null && out.value !== undefined && String(out.value).trim() !== '';
-    },
+    revoke: createKvRemoteRevoke(ctx),
+    isRevoked: createKvRemoteIsRevoked(ctx),
   };
 };
 

@@ -111,7 +111,9 @@
       "main": "./src/proxy/kv/ZintrustKvProxy.ts",
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
-      "vars": {},
+      "vars": {
+        "NODE_ENV": "development",
+      },
       // KV binding for the proxy
       "kv_namespaces": [
         {

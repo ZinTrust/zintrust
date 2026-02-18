@@ -40,5 +40,5 @@
     "monitoring": true
   },
   "d1_env": ["APP_NAME", "APP_KEY", "D1_REMOTE_SECRET", "NODE_ENV"],
-  "kv_env": ["APP_NAME", "APP_KEY", "KV_REMOTE_SECRET"]
+  "kv_env": ["APP_NAME", "APP_KEY", "KV_REMOTE_SECRET", "NODE_ENV"]
 }

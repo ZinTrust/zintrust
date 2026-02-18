@@ -187,7 +187,7 @@ async function register(req: IRequest, res: IResponse): Promise<void> {
 async function logout(req: IRequest, res: IResponse): Promise<void> {
   const authHeader =
     typeof req.getHeader === 'function' ? req.getHeader('authorization') : undefined;
-  TokenRevocation.revoke(authHeader);
+  await TokenRevocation.revoke(authHeader);
   res.json({ message: 'Logged out' });
 }
 

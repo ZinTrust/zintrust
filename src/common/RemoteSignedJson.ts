@@ -73,7 +73,7 @@ const requireConfigured = (settings: RemoteSignedJsonSettings): void => {
   }
 };
 
-const createTimeoutSignal = (timeoutMs: number): AbortSignal | undefined => {
+const getNativeTimeoutSignal = (timeoutMs: number): AbortSignal | undefined => {
   if (timeoutMs <= 0) return undefined;
   const timeout = (AbortSignal as unknown as { timeout?: (ms: number) => AbortSignal }).timeout;
   return typeof timeout === 'function' ? timeout(timeoutMs) : undefined;
@@ -157,12 +157,20 @@ export const RemoteSignedJson = Object.freeze({
       secret: normalized.secret,
     });
 
+    const nativeSignal = getNativeTimeoutSignal(normalized.timeoutMs);
+    if (nativeSignal === undefined && normalized.timeoutMs > 0) {
+      throw ErrorFactory.createConfigError(
+        'RemoteSignedJson timeout requires AbortSignal.timeout() support in this runtime',
+        { timeoutMs: normalized.timeoutMs }
+      );
+    }
+
     try {
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...signed },
         body,
-        signal: createTimeoutSignal(normalized.timeoutMs),
+        signal: nativeSignal,
       });
 
       if (!resp.ok) {
@@ -172,6 +180,8 @@ export const RemoteSignedJson = Object.freeze({
       return (await asJson(resp)) as T;
     } catch (error: unknown) {
       return rethrowRequestError(error, normalized);
+    } finally {
+      // No timer cleanup needed: uses AbortSignal.timeout() when available.
     }
   },
 });

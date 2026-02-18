@@ -150,4 +150,18 @@ describe('StartCommand patch coverage extra', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
+
+  it('throws when both --cache and --no-cache flags are present (covers cache preference conflict)', async () => {
+    const originalArgv = process.argv;
+    process.argv = [...originalArgv, '--cache', '--no-cache'];
+
+    try {
+      const cmd = StartCommand.create();
+      await expect(cmd.execute({ mode: 'development' } as any)).rejects.toThrow(
+        /Cannot use both --cache and --no-cache/
+      );
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
 });
