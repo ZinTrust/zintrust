@@ -51,7 +51,11 @@ RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && npm ci --omit=dev \
+  && npm cache clean --force \
   && apt-get purge -y --auto-remove python3 make g++ \
+  && find /root/.npm -mindepth 1 -delete \
+  && rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy compiled code from builder stage
