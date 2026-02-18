@@ -67,7 +67,29 @@ describe('patch coverage: KVRemoteDriver Cloudflare API fallback', () => {
 
       // should include Cloudflare Authorization header at least once
       const calls = fetchMock.mock.calls as Array<[string, RequestInit | undefined]>;
-      expect(calls.some((c) => String(c[0]).includes('api.cloudflare.com'))).toBe(true);
+
+      const urlFromFetchArg = (arg: unknown): string | null => {
+        if (typeof arg === 'string') return arg;
+        if (arg instanceof URL) return arg.toString();
+        if (arg !== null && typeof arg === 'object' && 'url' in arg) {
+          const maybeUrl = (arg as { url?: unknown }).url;
+          if (typeof maybeUrl === 'string') return maybeUrl;
+        }
+        return null;
+      };
+
+      const calledCloudflareApi = calls.some(([arg]) => {
+        const urlString = urlFromFetchArg(arg);
+        if (urlString === null) return false;
+
+        try {
+          return new URL(urlString).hostname === 'api.cloudflare.com';
+        } catch {
+          return false;
+        }
+      });
+
+      expect(calledCloudflareApi).toBe(true);
     } finally {
       vi.unstubAllGlobals();
       restoreEnv(envSnapshot);
