@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createWorkersHarness } from './setup';
+import { createWorkersHarness, HAS_MINIFLARE } from './setup';
 
 const hasMysqlEnv = (): boolean => {
   return Boolean(
@@ -11,7 +11,7 @@ const hasMysqlEnv = (): boolean => {
 };
 
 describe('MySQL socket (Workers integration)', () => {
-  if (hasMysqlEnv()) {
+  if (hasMysqlEnv() && HAS_MINIFLARE) {
     it('connects via Miniflare when env configured', async () => {
       const harness = await createWorkersHarness();
       try {
@@ -22,7 +22,7 @@ describe('MySQL socket (Workers integration)', () => {
       }
     });
   } else {
-    it('skips when WORKERS_MYSQL_* env not configured', () => {
+    it('skips when WORKERS_MYSQL_* env not configured or miniflare missing', () => {
       expect(true).toBe(true);
     });
   }

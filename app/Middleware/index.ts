@@ -178,15 +178,16 @@ export const jwtMiddleware = (jwtManager: JwtManagerInput, algorithm: JwtAlgorit
       return;
     }
 
-    const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader;
-    const [scheme, token] = authHeaderStr.split(' ');
+    const authHeaderStr = (Array.isArray(authHeader) ? authHeader[0] : authHeader).trim();
+    const [scheme, ...rest] = authHeaderStr.split(/\s+/);
+    const token = rest.join(' ').trim();
 
-    if (scheme !== 'Bearer' || token === undefined || token === '') {
+    if (scheme.toLowerCase() !== 'bearer' || token === '') {
       res.setStatus(401).json({ error: 'Invalid authorization header format' });
       return;
     }
 
-    if (TokenRevocation.isRevoked(token)) {
+    if (await TokenRevocation.isRevoked(token)) {
       res.setStatus(401).json({ error: 'Invalid or expired token' });
       return;
     }

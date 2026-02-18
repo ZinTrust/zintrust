@@ -108,6 +108,7 @@ function ensureLocalCliTsconfig(projectRoot: string, repoRoot: string): string {
         '@cli/*': [`${repo}/src/cli/*`],
         '@config/*': [`${repo}/src/config/*`],
         '@common/*': [`${repo}/src/common/*`],
+        '@helper/*': [`${repo}/src/helper/*`],
         '@exceptions/*': [`${repo}/src/exceptions/*`],
         '@utils/*': [`${repo}/src/utils/*`],
         '@orm/*': [`${repo}/src/orm/*`],

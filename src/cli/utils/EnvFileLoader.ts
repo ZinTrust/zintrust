@@ -90,6 +90,13 @@ const parseEnvFile = (raw: string): EnvMap => {
     const withoutComment = stripInlineComment(rhs);
     const value = unquote(withoutComment);
 
+    // DX: treat empty assignments as "no-op" if the key already had a non-empty value earlier
+    // in the same file. This prevents accidental overrides like:
+    //   KV_NAMESPACE_ID=abc
+    //   ...
+    //   KV_NAMESPACE_ID=
+    if (value.trim() === '' && (result[key]?.trim() ?? '') !== '') continue;
+
     result[key] = value;
   }
 
@@ -99,6 +106,10 @@ const parseEnvFile = (raw: string): EnvMap => {
 const applyToProcessEnv = (values: EnvMap, overrideExisting: boolean): void => {
   for (const [key, value] of Object.entries(values)) {
     if (!overrideExisting && safeEnvGet(key, '') !== '') continue;
+
+    // DX: don't wipe an already-populated env var with an empty value from an env file.
+    // This avoids surprising behavior when env templates include duplicate keys with blanks.
+    if (value.trim() === '' && safeEnvGet(key, '').trim() !== '') continue;
     safeEnvSet(key, value);
   }
 
@@ -140,6 +151,7 @@ type CliOverrides = {
   nodeEnv?: node_env;
   port?: number;
   runtime?: string;
+  cacheEnabled?: boolean;
 };
 
 const filesLoader = (cwd: string, mode: string | undefined): string[] => {
@@ -217,6 +229,10 @@ const applyCliOverrides = (overrides: CliOverrides): void => {
   if (typeof overrides.port === 'number') {
     safeEnvSet('PORT', String(overrides.port));
     safeEnvSet('APP_PORT', String(overrides.port));
+  }
+
+  if (typeof overrides.cacheEnabled === 'boolean') {
+    safeEnvSet('CACHE_ENABLED', String(overrides.cacheEnabled));
   }
 
   // Keep PORT/APP_PORT in sync if only one exists.

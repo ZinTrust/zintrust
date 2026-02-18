@@ -332,16 +332,23 @@ import { Env } from '@zintrust/core';
 
 ## Security
 
-| Key                    | Default   | Description                                                      |
-| ---------------------- | --------- | ---------------------------------------------------------------- |
-| `DEBUG`                | `false`   | Enable debug mode.                                               |
-| `ENABLE_MICROSERVICES` | `false`   | Global microservices feature flag.                               |
-| `TOKEN_TTL`            | `3600000` | Access token TTL in milliseconds.                                |
-| `TOKEN_LENGTH`         | `32`      | Token length (random bytes/characters).                          |
-| `CSRF_STORE`           | empty     | CSRF store (e.g., redis).                                        |
-| `CSRF_DRIVER`          | empty     | CSRF driver implementation.                                      |
-| `CSRF_REDIS_DB`        | `1`       | Redis DB index for CSRF store.                                   |
-| `ENCRYPTION_CIPHER`    | empty     | Cipher used by `EncryptedEnvelope` (aes-256-cbc or aes-256-gcm). |
+| Key                            | Default                    | Description                                                       |
+| ------------------------------ | -------------------------- | ----------------------------------------------------------------- |
+| `DEBUG`                        | `false`                    | Enable debug mode.                                                |
+| `ENABLE_MICROSERVICES`         | `false`                    | Global microservices feature flag.                                |
+| `TOKEN_TTL`                    | `3600000`                  | Access token TTL in milliseconds.                                 |
+| `TOKEN_LENGTH`                 | `32`                       | Token length (random bytes/characters).                           |
+| `CSRF_STORE`                   | empty                      | CSRF store (e.g., redis).                                         |
+| `CSRF_DRIVER`                  | empty                      | CSRF driver implementation.                                       |
+| `CSRF_REDIS_DB`                | `1`                        | Redis DB index for CSRF store.                                    |
+| `ENCRYPTION_CIPHER`            | empty                      | Cipher used by `EncryptedEnvelope` (aes-256-cbc or aes-256-gcm).  |
+| `JWT_REVOCATION_DRIVER`        | `database`                 | JWT revocation store driver (database/redis/kv/kv-remote/memory). |
+| `JWT_REVOCATION_DB_CONNECTION` | `default`                  | DB connection name used by JWT revocation store.                  |
+| `JWT_REVOCATION_DB_TABLE`      | `zintrust_jwt_revocations` | Table name for JWT revocations.                                   |
+| `JWT_REVOCATION_REDIS_DB`      | `0`                        | Redis DB index for JWT revocation store.                          |
+| `JWT_REVOCATION_REDIS_PREFIX`  | `zt:jwt:revoked:`          | Redis key prefix for revoked JTIs.                                |
+| `JWT_REVOCATION_KV_BINDING`    | `CACHE`                    | Cloudflare KV binding name for revocation store.                  |
+| `JWT_REVOCATION_KV_PREFIX`     | `zt:jwt:revoked:`          | KV key prefix for revoked JTIs.                                   |
 
 ## Deployment
 

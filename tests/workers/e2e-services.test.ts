@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { createWorkersHarness } from './setup';
 import { buildRedisUrl } from '@config/env';
+import { describe, expect, it } from 'vitest';
+import { createWorkersHarness, HAS_MINIFLARE } from './setup';
 
 const hasEnv = (key: string): boolean => {
   const value = process.env[key];
@@ -39,7 +39,7 @@ describe('Workers E2E preflight', () => {
     expect(typeof run).toBe('boolean');
   });
 
-  (run ? it : it.skip)('boots Miniflare and responds to fetch', async () => {
+  (run && HAS_MINIFLARE ? it : it.skip)('boots Miniflare and responds to fetch', async () => {
     const harness = await createWorkersHarness();
     try {
       const res = await harness.runtime.dispatchFetch('http://localhost/');

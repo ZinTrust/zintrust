@@ -2,7 +2,7 @@
 # Target: < 1 MB final image
 
 # Stage 1: Build
-FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112 AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /build
 
@@ -21,12 +21,14 @@ COPY tsconfig.json ./
 RUN npm run build 2>/dev/null || true
 
 # Stage 2: Runtime
-FROM node:20-alpine@sha256:fcbb8f7d018707c656a4da2eea8a15f2893d2258093fea9ff2ea5ea1cba82112
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy built artifacts from builder
 COPY --from=builder /build/node_modules ./node_modules
@@ -36,8 +38,8 @@ COPY --from=builder /build/dist ./dist
 COPY package.json ./
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs && \
+  useradd -u 1001 -g 1001 -m -s /usr/sbin/nologin nodejs
 
 USER nodejs
 

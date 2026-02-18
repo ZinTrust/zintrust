@@ -36,10 +36,10 @@
 @baseUrl = http://localhost:7777
 
 # Optional overrides
-@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4IiwiZW1haWwiOiJmbGFycmVyNUBleGFtcGxlLmNvbSIsImlhdCI6MTc3MDIxNzIyMCwiZXhwIjoxNzcwMjIwODIwLCJpc3MiOiJ6aW50cnVzdCIsImF1ZCI6InppbnRydXN0LWFwaSIsImp0aSI6IjRmYTkyMTZkNGYwMGZkZTcyZmNmMjFlNzAxZjY3NjgwIn0.iq_7gzhYkVw0ch7MZ1vJapEZsiWWvFZQAl6A2DBNVLk
+@jwt = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJmbGFycmVyNUBleGFtcGxlLmNvbSIsImlhdCI6MTc3MTQxMjAwOSwiZXhwIjoxNzcxNDE1NjA5LCJpc3MiOiJ6aW50cnVzdCIsImF1ZCI6InppbnRydXN0LWFwaSIsImp0aSI6IjZjN2Y3YTk5OGMwMjEyOTg5ZGU5YTU4ZjVjOTJjNGZlIn0.GT22N9lfP-ecaNuJliVpowXCe4kty4XPBySHJ40lkro
 @csrf =
 @cookie =
-@userId = 8
+@userId = 2
 
 ### Root
 GET {{baseUrl}}/
@@ -84,7 +84,7 @@ Content-Type: application/json
 
 {
   "name": "Do Userr2",
-  "email": "flarrer5@example.com",
+  "email": "flarrerd5@example.com",
   "password": "password"
 }
 

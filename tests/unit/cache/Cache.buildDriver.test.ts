@@ -52,7 +52,7 @@ describe('Cache.buildDriver internal branches', () => {
 
     await mod.Cache.get('k');
     expect(create).toHaveBeenCalledTimes(1);
-    expect(memoryImpl.get).toHaveBeenCalledWith('k');
+    expect(memoryImpl.get).toHaveBeenCalledWith('zt:k');
   });
 
   it('instantiates the export when it is a constructor function', async () => {
@@ -88,7 +88,7 @@ describe('Cache.buildDriver internal branches', () => {
     const mod = await import('@cache/Cache');
 
     await mod.Cache.get('k');
-    expect(memoryImpl.get).toHaveBeenCalledWith('k');
+    expect(memoryImpl.get).toHaveBeenCalledWith('zt:k');
   });
 
   it('throws when driver export is invalid', async () => {

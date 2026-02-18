@@ -5,6 +5,17 @@
 
 import type { CacheDriver } from '@cache/CacheDriver';
 
+type UnrefableTimer = { unref: () => void };
+
+function isUnrefableTimer(value: unknown): value is UnrefableTimer {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'unref' in value &&
+    typeof value.unref === 'function'
+  );
+}
+
 /**
  * Memory Cache Driver
  * Simple in-memory storage for local development
@@ -23,8 +34,10 @@ const create = (): CacheDriver => {
     }
   }, 60_000); // 60 seconds
 
-  // Unref so it doesn't keep process alive
-  cleanupInterval.unref();
+  // Unref so it doesn't keep process alive (Node.js only)
+  if (isUnrefableTimer(cleanupInterval)) {
+    cleanupInterval.unref();
+  }
 
   return {
     async get<T>(key: string): Promise<T | null> {

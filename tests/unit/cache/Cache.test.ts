@@ -131,21 +131,21 @@ describe('Cache', () => {
     const mod = await import('@cache/Cache');
 
     await mod.Cache.set('k', 'v', 1);
-    expect(kvImpl.set).toHaveBeenCalledWith('k', 'v', 1);
+    expect(kvImpl.set).toHaveBeenCalledWith('zt:k', 'v', 1);
 
     const value = await mod.Cache.get<string>('k');
     expect(value).toBe('value');
-    expect(kvImpl.get).toHaveBeenCalledWith('k');
+    expect(kvImpl.get).toHaveBeenCalledWith('zt:k');
 
     await mod.Cache.delete('k');
-    expect(kvImpl.delete).toHaveBeenCalledWith('k');
+    expect(kvImpl.delete).toHaveBeenCalledWith('zt:k');
 
     await mod.Cache.clear();
     expect(kvImpl.clear).toHaveBeenCalledTimes(1);
 
     const exists = await mod.Cache.has('k');
     expect(exists).toBe(true);
-    expect(kvImpl.has).toHaveBeenCalledWith('k');
+    expect(kvImpl.has).toHaveBeenCalledWith('zt:k');
 
     const driver = mod.Cache.getDriver();
     expect(driver).toBe(kvImpl);
@@ -238,8 +238,8 @@ describe('Cache', () => {
     await mod.cache.set('c', 'd');
     await mod.Cache.delete('a');
 
-    expect(kvImpl.set).toHaveBeenCalledWith('a', 'b', undefined);
-    expect(kvImpl.set).toHaveBeenCalledWith('c', 'd', undefined);
-    expect(kvImpl.delete).toHaveBeenCalledWith('a');
+    expect(kvImpl.set).toHaveBeenCalledWith('zt:a', 'b', undefined);
+    expect(kvImpl.set).toHaveBeenCalledWith('zt:c', 'd', undefined);
+    expect(kvImpl.delete).toHaveBeenCalledWith('zt:a');
   });
 });

@@ -18,6 +18,7 @@ type StartCommandOptions = CommandOptions & {
   wg?: boolean;
   deno?: boolean;
   lambda?: boolean;
+  cache?: boolean;
   watch?: boolean;
   mode?: string;
   runtime?: string;
@@ -170,6 +171,21 @@ const resolveWatchPreference = (options: StartCommandOptions, mode: StartMode): 
   if (typeof options.watch === 'boolean') return options.watch;
 
   return mode === 'development';
+};
+
+const resolveCacheEnabledPreference = (options: StartCommandOptions): boolean | undefined => {
+  const hasCache = hasFlag('--cache');
+  const hasNoCache = hasFlag('--no-cache');
+
+  if (hasCache && hasNoCache) {
+    throw ErrorFactory.createCliError('Error: Cannot use both --cache and --no-cache.');
+  }
+
+  if (hasCache) return true;
+  if (hasNoCache) return false;
+
+  if (typeof options.cache === 'boolean') return options.cache;
+  return undefined;
 };
 
 const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string, unknown> } => {
@@ -554,7 +570,13 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
     return;
   }
 
-  EnvFileLoader.applyCliOverrides({ nodeEnv: mode, port, runtime: effectiveRuntime });
+  const cacheEnabled = resolveCacheEnabledPreference(options);
+  EnvFileLoader.applyCliOverrides({
+    nodeEnv: mode,
+    port,
+    runtime: effectiveRuntime,
+    ...(typeof cacheEnabled === 'boolean' ? { cacheEnabled } : {}),
+  });
 
   if (variant === 'wrangler') {
     await executeWranglerStart(cmd, cwd, port, runtime, envName === '' ? undefined : envName);
@@ -588,6 +610,8 @@ export const StartCommand = Object.freeze({
         .option('--wg', 'Alias for --wrangler')
         .option('--deno', 'Start a local server using the Deno runtime adapter')
         .option('--lambda', 'Start a local server using the AWS Lambda runtime adapter')
+        .option('--cache', 'Enable cache functionality')
+        .option('--no-cache', 'Disable cache functionality')
         .option('--watch', 'Force watch mode (Node only)')
         .option('--no-watch', 'Disable watch mode (Node only)')
         .option('--mode <development|production|testing>', 'Override app mode')

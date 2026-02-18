@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createWorkersHarness } from './setup';
+import { createWorkersHarness, HAS_MINIFLARE } from './setup';
 
 const hasPgEnv = (): boolean => {
   return Boolean(
@@ -11,7 +11,7 @@ const hasPgEnv = (): boolean => {
 };
 
 describe('PostgreSQL socket (Workers integration)', () => {
-  if (hasPgEnv()) {
+  if (hasPgEnv() && HAS_MINIFLARE) {
     it('connects via Miniflare when env configured', async () => {
       const harness = await createWorkersHarness();
       try {
@@ -22,7 +22,7 @@ describe('PostgreSQL socket (Workers integration)', () => {
       }
     });
   } else {
-    it('skips when WORKERS_PG_* env not configured', () => {
+    it('skips when WORKERS_PG_* env not configured or miniflare missing', () => {
       expect(true).toBe(true);
     });
   }

@@ -1,42 +1,173 @@
-# ZinTrust Framework - Environment Configuration
+# ZinTrust Framework - Environment Configuration (Scaffold)
 # Copy this file to .env and configure for your environment
-# Source: src/config/env.ts
+#
+# Generate a secure APP_KEY:
+#   zin key:generate
+#
+# For the full list of supported keys (auto-generated): see `-envexample.generated`.
 
 # ============================================================================
-# APPLICATION
+# APP
 # ============================================================================
 
-# Environment: development | staging | production
+# Environment: development | production | testing
 NODE_ENV=development
-APP_MODE=development
-APP_PORT=3000
-APP_TIMEZONE=UTC
+
 APP_NAME=ZinTrust
-APP_KEY=
-APP_PREVIOUS_KEYS=
-BASE_URL=http://localhost:3000
 HOST=127.0.0.1
-PORT=3000
+PORT=7777
+BASE_URL=http://localhost:7777
+
+# Runtime override (optional): auto | nodejs | cloudflare | deno | lambda
 RUNTIME=
 
-# Encryption interoperability
+# Developer toggles
+DEBUG=true
+METRICS_ENABLED=false
+
+# Cloudflare Workers (TCP sockets) — set true if using TCP adapters on Workers.
+ENABLE_CLOUDFLARE_SOCKETS=false
+
+# CLI / tooling
+ZINTRUST_RUN_FROM_SOURCE=0
+ZINTRUST_VERSION_CHECK=true
+ZINTRUST_VERSION_CHECK_INTERVAL=24
+ZINTRUST_CLI_DEBUG_ARGS=0
+
+# Optional debug output (local only)
+ZIN_DEBUG_VALIDATION_BODY=false
+ZIN_DEBUG_BODY_PARSING=false
+ZIN_DEBUG_FILE_UPLOAD=false
+
+
+# ============================================================================
+# STARTUP (boot-time checks)
+# ============================================================================
+
+STARTUP_HEALTH_CHECKS=true
+STARTUP_VALIDATE_SECRETS=true
+
+# If true, app boot can fail fast when required env is missing.
+STARTUP_REQUIRE_ENV=false
+
+# Optional connectivity checks during boot (often disabled for local DX)
+STARTUP_CHECK_DB=false
+STARTUP_CHECK_CACHE=false
+
+STARTUP_HEALTH_TIMEOUT_MS=2500
+STARTUP_CONTINUE_ON_FAILURE=false
+
+
+# ============================================================================
+# SECURITY (keys, auth, headers)
+# ============================================================================
+
+# Primary secret used for encryption interop and as a fallback for other secrets.
+# Generate with: `zin key:generate`
+APP_KEY=
+
+# Optional: key rotation support (comma-separated OR JSON array of base64 keys)
+APP_PREVIOUS_KEYS=
+
+# Encryption interoperability cipher (required for framework-compatible envelopes)
+# Supported: aes-256-cbc | aes-256-gcm
 ENCRYPTION_CIPHER=aes-256-cbc
+
+# --- JWT ---
+JWT_ENABLED=true
+
+# If empty, framework falls back to APP_KEY (dev) and warns.
+JWT_SECRET=
+JWT_ALGORITHM=HS256
+JWT_EXPIRES_IN=3600
+JWT_REFRESH_EXPIRES_IN=7d
+JWT_ISSUER=zintrust
+JWT_AUDIENCE=zintrust-api
+
+# --- API key auth (optional) ---
+API_KEY_ENABLED=false
+API_KEY_HEADER=x-api-key
+API_KEY_SECRET=
+
+# --- CSRF ---
+CSRF_ENABLED=true
+CSRF_HEADER_NAME=x-csrf-token
+CSRF_TOKEN_NAME=_csrf
+CSRF_COOKIE_NAME=XSRF-TOKEN
+
+# Local dev often uses http; set true in production.
+CSRF_COOKIE_SECURE=false
+CSRF_COOKIE_HTTP_ONLY=true
+CSRF_COOKIE_SAME_SITE=lax
+
+# Comma-separated path globs that skip CSRF checks.
+CSRF_SKIP_PATHS=/api/*,/queue-monitor/*,/api/_sys/queue/*,/api/_sys/schedule/*
+
+# --- CORS ---
+CORS_ENABLED=true
+CORS_ORIGINS=*
+CORS_METHODS=GET,POST,PUT,PATCH,DELETE
+CORS_ALLOWED_HEADERS=Content-Type,Authorization
+CORS_EXPOSED_HEADERS=
+CORS_CREDENTIALS=false
+CORS_MAX_AGE=86400
+
+# --- Rate limiting ---
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+RATE_LIMIT_MESSAGE=Too many requests, please try again later
+
+# --- Security headers ---
+HELMET_ENABLED=true
+CSP_ENABLED=false
+HSTS_ENABLED=false
+HSTS_MAX_AGE=31536000
+HSTS_INCLUDE_SUBDOMAINS=true
+XSS_ENABLED=true
+XSS_REPORT_URI=
+
+# --- Sessions ---
+SESSION_NAME=zintrust_session
+SESSION_SECRET=
+SESSION_EXPIRES_IN=1800000
+SESSION_SECURE=false
+SESSION_HTTP_ONLY=true
+SESSION_SAME_SITE=lax
+
+# --- Password policy ---
+PASSWORD_MIN_LENGTH=8
+PASSWORD_REQUIRE_UPPERCASE=true
+PASSWORD_REQUIRE_NUMBERS=true
+PASSWORD_REQUIRE_SPECIAL_CHARS=true
+BCRYPT_ROUNDS=10
+
+
+# ============================================================================
+# DEPLOYMENT / LIMITS
+# ============================================================================
+
+ENVIRONMENT=development
+REQUEST_TIMEOUT=30000
+APP_TIMEZONE=UTC
+MAX_BODY_SIZE=10485760
+SHUTDOWN_TIMEOUT=10000
+
 
 # ============================================================================
 # DATABASE
 # ============================================================================
 
-# Database Connection Driver
-# Options: sqlite | postgresql | mysql | sqlserver | d1 | aurora-data-api
+# Options: sqlite | postgresql | mysql | sqlserver | d1 | d1-remote
 DB_CONNECTION=sqlite
 
-# SQLite (default for development)
+# SQLite (recommended for local dev)
 DB_PATH=.zintrust/dbs/zintrust.sqlite
 
 # Generic SQL defaults (used by some adapters)
 DB_HOST=localhost
 DB_PORT=5432
-DB_DATABASE=zintrust
+DB_DATABASE=
 DB_USERNAME=postgres
 DB_PASSWORD=
 DB_READ_HOSTS=
@@ -48,14 +179,11 @@ DB_USERNAME_POSTGRESQL=postgres
 DB_PASSWORD_POSTGRESQL=
 DB_READ_HOSTS_POSTGRESQL=
 
-# MySQL
-# DB_HOST=localhost
+# MySQL (set DB_CONNECTION=mysql and update DB_PORT to 3306)
 # DB_PORT=3306
-# DB_DATABASE=zintrust
 # DB_USERNAME=root
-# DB_PASSWORD=password
 
-# SQL Server
+# SQL Server (MSSQL)
 DB_HOST_MSSQL=localhost
 DB_PORT_MSSQL=1433
 DB_DATABASE_MSSQL=zintrust
@@ -63,35 +191,45 @@ DB_USERNAME_MSSQL=sa
 DB_PASSWORD_MSSQL=
 DB_READ_HOSTS_MSSQL=
 
-# Aurora Data API (serverless)
-# AURORA_RESOURCE_ARN=arn:aws:rds:us-east-1:123456789012:cluster:example
-# AURORA_SECRET_ARN=arn:aws:secretsmanager:us-east-1:123456789012:secret:example
-# AURORA_DATABASE=zintrust
+# Connection pooling / logging
+DB_POOLING=true
+DB_POOL_MIN=5
+DB_POOL_MAX=20
+DB_IDLE_TIMEOUT=30000
+DB_CONNECTION_TIMEOUT=10000
+DB_SSL=false
+DB_LOG_QUERIES=false
+DB_LOG_LEVEL=info
+DB_MIGRATION_EXT=ts
+
 
 # ============================================================================
-# CLOUDFLARE
+# CLOUDFLARE (D1 / KV)
 # ============================================================================
 
 D1_DATABASE_ID=
 KV_NAMESPACE_ID=
 
-# Remote D1/KV (outside Cloudflare)
+# Remote D1 (outside Cloudflare) via proxy
 D1_REMOTE_URL=
 D1_REMOTE_KEY_ID=
 D1_REMOTE_SECRET=
 D1_REMOTE_MODE=registry
 
+# Remote KV (outside Cloudflare) via proxy
 KV_REMOTE_URL=
 KV_REMOTE_KEY_ID=
 KV_REMOTE_SECRET=
 KV_REMOTE_NAMESPACE=
 
+# Cloudflare API (only needed for CLI provisioning)
 CLOUDFLARE_ACCOUNT_ID=
 CLOUDFLARE_API_TOKEN=
 CLOUDFLARE_KV_NAMESPACE_ID=
 
+
 # ============================================================================
-# PROXY (HTTP) FOR WORKERS
+# HTTP PROXIES (for Workers compatibility)
 # ============================================================================
 
 ZT_PROXY_TIMEOUT_MS=30000
@@ -172,107 +310,116 @@ SQLSERVER_PROXY_TIMEOUT_MS=30000
 SQLSERVER_PROXY_REQUIRE_SIGNING=true
 SQLSERVER_PROXY_SIGNING_WINDOW_MS=60000
 
-# ============================================================================
-# ADVANCED DATABASE FEATURES
-# ============================================================================
-
-# Raw SQL Query Support
-# WARNING: Only enable in development. Bypasses QueryBuilder safety.
-USE_RAW_QRY=false
 
 # ============================================================================
 # CACHE
 # ============================================================================
 
-# Cache Driver: memory | redis | mongodb | kv
+# Options: memory | redis | mongodb | kv | kv-remote
 CACHE_DRIVER=memory
+CACHE_CONNECTION=
+CACHE_KEY_PREFIX=zintrust:
 
-# Redis
+CACHE_MEMORY_TTL=3600
+CACHE_REDIS_TTL=3600
+CACHE_MONGO_TTL=3600
+CACHE_KV_TTL=3600
+
+# Redis (used by cache + queue + broadcast)
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 REDIS_DB=0
+REDIS_QUEUE_DB=1
 REDIS_URL=
 
-# MongoDB Cache
+# Redis HTTPS broadcaster (optional)
+REDIS_HTTPS_ENDPOINT=
+REDIS_HTTPS_TOKEN=
+
+# MongoDB cache (optional)
 MONGO_URI=
 MONGO_DB=zintrust_cache
+
 
 # ============================================================================
 # QUEUE
 # ============================================================================
 
+# Options: sync | memory | database | redis | rabbitmq | sqs
+QUEUE_DRIVER=sync
 QUEUE_CONNECTION=
-QUEUE_DRIVER=
+
+# Database queue driver
+QUEUE_TABLE=jobs
+QUEUE_DB_CONNECTION=default
+
+# Failed jobs storage
+FAILED_JOBS_DB_CONNECTION=default
+FAILED_JOBS_TABLE=failed_jobs
+
+# Processing
+QUEUE_JOB_TIMEOUT=60
+QUEUE_JOB_RETRIES=3
+QUEUE_JOB_BACKOFF=0
+QUEUE_WORKERS=1
+QUEUE_MEMORY_TTL=3600000
+
+# Queue monitor
+QUEUE_MONITOR_ENABLED=true
+QUEUE_MONITOR_BASE_PATH=/queue-monitor
+QUEUE_MONITOR_MIDDLEWARE="auth"
+QUEUE_MONITOR_AUTO_REFRESH=true
+QUEUE_MONITOR_REFRESH_MS=5000
+
+# HTTP queue proxy mode (useful on Workers)
 QUEUE_HTTP_PROXY_ENABLED=false
 QUEUE_HTTP_PROXY_GATEWAY_ENABLED=true
 QUEUE_HTTP_PROXY_URL=
 QUEUE_HTTP_PROXY_PATH=/api/_sys/queue/rpc
 QUEUE_HTTP_PROXY_KEY_ID=
+
+# If empty, falls back to APP_KEY.
 QUEUE_HTTP_PROXY_KEY=
+
 QUEUE_HTTP_PROXY_TIMEOUT_MS=30000
 QUEUE_HTTP_PROXY_MAX_SKEW_MS=60000
 QUEUE_HTTP_PROXY_NONCE_TTL_MS=120000
-QUEUE_HTTP_PROXY_MIDDLEWARE=
+QUEUE_HTTP_PROXY_MIDDLEWARE="auth"
+
 
 # ============================================================================
-# RATE LIMITING
+# WORKERS / SCHEDULER
 # ============================================================================
 
-RATE_LIMIT_STORE=
-RATE_LIMIT_DRIVER=
-RATE_LIMIT_KEY_PREFIX=zintrust:ratelimit:
+# In Cloudflare Workers, consumers should be disabled (connection persistence limits).
+WORKER_ENABLED=true
+WORKER_AUTO_START=false
+WORKER_CONCURRENCY=5
+WORKER_TIMEOUT=60
+WORKER_RETRIES=3
+WORKER_PRIORITY=1
+WORKER_HEALTH_CHECK_INTERVAL=60
+WORKER_CLUSTER_MODE=true
+WORKER_REGION=us-east-1
 
-# ============================================================================
-# NOTIFICATIONS
-# ============================================================================
+# Worker persistence
+# Options: memory | redis | database
+WORKER_PERSISTENCE_DRIVER=memory
+WORKER_PERSISTENCE_TABLE=zintrust_workers
+WORKER_PERSISTENCE_DB_CONNECTION=default
+WORKER_PERSISTENCE_REDIS_DB=
+WORKER_PERSISTENCE_REDIS_KEY_PREFIX=
 
-NOTIFICATION_DRIVER=
-TERMII_API_KEY=
-TERMII_SENDER=ZinTrust
+WORKER_SHUTDOWN_ON_APP_EXIT=true
 
-# ============================================================================
-# AWS
-# ============================================================================
-
-AWS_REGION=us-east-1
-AWS_DEFAULT_REGION=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_SESSION_TOKEN=
-
-AWS_LAMBDA_FUNCTION_NAME=
-AWS_LAMBDA_FUNCTION_VERSION=
-AWS_EXECUTION_ENV=
-LAMBDA_TASK_ROOT=
-
-# ============================================================================
-# MICROSERVICES
-# ============================================================================
-
-MICROSERVICES=
-SERVICES=
-MICROSERVICES_TRACING=false
-MICROSERVICES_TRACING_RATE=1.0
-DATABASE_ISOLATION=shared
-SERVICE_API_KEY=
-SERVICE_JWT_SECRET=
-
-# ============================================================================
-# SECURITY
-# ============================================================================
-
-# Schedule runner is auto-started only in long-running runtimes (Node.js / Fargate).
+# Scheduling
 SCHEDULES_ENABLED=false
 SCHEDULE_SHUTDOWN_TIMEOUT_MS=30000
 
-# Default TTL for distributed overlap locks used by Schedule.withoutOverlapping()
 SCHEDULE_OVERLAP_LOCK_TTL_MS=300000
-
-# How long to wait for overlap lock acquisition before running anyway (ms)
 SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS=2000
 
-# Leader lease (optional): ensures only one instance auto-runs schedules.
 SCHEDULE_LEADER_ENABLED=false
 SCHEDULE_LEADER_LOCK_PROVIDER=redis
 SCHEDULE_LEADER_LOCK_KEY=scheduler:leader
@@ -281,7 +428,7 @@ SCHEDULE_LEADER_LOCK_RENEW_MS=15000
 SCHEDULE_LEADER_LOCK_RETRY_MS=5000
 SCHEDULE_LEADER_LOCK_ACQUIRE_TIMEOUT_MS=2000
 
-# Signed internal RPC endpoint for schedule list/run actions
+# Signed internal RPC endpoint for schedule actions
 SCHEDULE_HTTP_PROXY_PATH=/api/_sys/schedule/rpc
 SCHEDULE_HTTP_PROXY_KEY_ID=
 SCHEDULE_HTTP_PROXY_KEY=
@@ -289,57 +436,16 @@ SCHEDULE_HTTP_PROXY_MAX_SKEW_MS=60000
 SCHEDULE_HTTP_PROXY_NONCE_TTL_MS=120000
 SCHEDULE_HTTP_PROXY_MIDDLEWARE=
 
-# Job tracking cleanup schedule (database maintenance)
+# Job tracking cleanup schedule
 JOB_TRACKING_CLEANUP_ENABLED=false
 JOB_TRACKING_CLEANUP_INTERVAL_MS=21600000
 JOB_TRACKING_CLEANUP_RETENTION_DAYS=30
-# Optional: override retention days with hours (supports fractional values like 0.4)
 JOB_TRACKING_CLEANUP_RETENTION_HOURS=
 JOB_TRACKING_CLEANUP_BATCH_SIZE=5000
-
-# How many batches to run per schedule tick (bounded). Default: 1 (safer in production).
 JOB_TRACKING_CLEANUP_MAX_BATCHES=1
-
-# Lock provider used by withoutOverlapping() (e.g. redis or memory)
 JOB_TRACKING_CLEANUP_LOCK_PROVIDER=redis
 
-# ==========================================================================
-# DEPLOYMENT
-# ==========================================================================
 
-ENVIRONMENT=development
-REQUEST_TIMEOUT=30000
-MAX_BODY_SIZE=10485760
-SHUTDOWN_TIMEOUT=10000
-
-# =========================================================================
-# SCHEDULING
-# =========================================================================
-
-# Schedule runner is auto-started only in long-running runtimes (Node.js / Fargate).
-WORKER_RESOURCE_MONITORING=true
-
-# Default TTL for distributed overlap locks used by Schedule.withoutOverlapping()
-WORKER_PERSISTENCE_DRIVER=memory
-
-# Signed internal RPC endpoint for schedule list/run actions
-WORKER_CONNECTION_TIMEOUT=5000
-
-# ============================================================================
-# DEPLOYMENT
-# ============================================================================
-
-
-# Job tracking cleanup schedule (database maintenance)
-ENVIRONMENT=development
-REQUEST_TIMEOUT=30000
-MAX_BODY_SIZE=10485760
-SHUTDOWN_TIMEOUT=10000
-
-# How many batches to run per schedule tick (bounded). Default: 1 (safer in production).
-
-
-# Lock provider used by withoutOverlapping() (e.g. redis or memory)
 # ============================================================================
 # SSE
 # ============================================================================
@@ -347,42 +453,164 @@ SHUTDOWN_TIMEOUT=10000
 SSE_HEARTBEAT_INTERVAL=15000
 SSE_SNAPSHOT_INTERVAL=5000
 
+
 # ============================================================================
 # LOGGING
 # ============================================================================
 
-LOG_LEVEL=info
+LOG_LEVEL=debug
 LOG_FORMAT=text
 LOG_CHANNEL=
 DISABLE_LOGGING=false
+
 LOG_HTTP_REQUEST=false
 LOG_TO_FILE=false
 LOG_ROTATION_SIZE=10485760
 LOG_ROTATION_DAYS=7
 
-# ============================================================================
-# ZINTRUST TOOLING
-# ============================================================================
+# If running dedicated worker containers
+DOCKER_WORKER=false
 
-ZINTRUST_PROJECT_ROOT=
-ZINTRUST_ALLOW_POSTINSTALL=
-ZINTRUST_ENV_FILE=.env.pull
-ZINTRUST_SECRETS_MANIFEST=secrets.manifest.json
-ZINTRUST_ENV_IN_FILE=.env
-ZINTRUST_SECRETS_PROVIDER=
-ZINTRUST_ALLOW_AUTO_INSTALL=
 
 # ============================================================================
-# CI / SYSTEM
+# MAIL
 # ============================================================================
 
-CI=
-HOME=
-USERPROFILE=
+# Options: disabled | smtp | nodemailer | sendgrid | mailgun | ses
+MAIL_DRIVER=disabled
+MAIL_CONNECTION=
+
+MAIL_FROM_ADDRESS=
+MAIL_FROM_NAME=
+
+# SMTP / Nodemailer
+MAIL_HOST=
+MAIL_PORT=587
+MAIL_USERNAME=
+MAIL_PASSWORD=
+
+# Options: starttls | true (implicit TLS) | false
+MAIL_SECURE=starttls
+
+# SendGrid
+SENDGRID_API_KEY=
+
+# Mailgun
+MAILGUN_API_KEY=
+MAILGUN_DOMAIN=
+MAILGUN_BASE_URL=https://api.mailgun.net
+
 
 # ============================================================================
-# TEMPLATE
+# STORAGE
 # ============================================================================
 
-TEMPLATE_COPYRIGHT=© 2025 ZinTrust Framework. All rights reserved.
-SERVICE_NAME=
+# Options: local | s3 | r2 | gcs
+STORAGE_CONNECTION=local
+STORAGE_PATH=storage
+STORAGE_URL=/storage
+STORAGE_VISIBILITY=private
+
+TEMP_PATH=storage/temp
+TEMP_FILE_MAX_AGE=86400
+
+MAX_UPLOAD_SIZE=100mb
+ALLOWED_UPLOAD_MIMES=jpg,jpeg,png,pdf,doc,docx
+UPLOADS_PATH=storage/uploads
+
+BACKUP_DRIVER=s3
+BACKUPS_PATH=storage/backups
+
+# AWS / S3
+AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_SESSION_TOKEN=
+
+AWS_S3_BUCKET=
+AWS_S3_ENDPOINT=
+AWS_S3_URL=
+AWS_S3_USE_PATH_STYLE_URL=false
+
+# AWS SQS (queue)
+AWS_SQS_QUEUE_URL=
+
+# Cloudflare R2
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_REGION=
+R2_BUCKET=
+R2_ENDPOINT=
+R2_URL=
+R2_BINDING=
+
+# Google Cloud Storage
+GCS_PROJECT_ID=
+GCS_KEY_FILE=
+GCS_BUCKET=
+GCS_URL=
+
+
+# ============================================================================
+# BROADCAST
+# ============================================================================
+
+# Options: inmemory | pusher | redis | redishttps
+BROADCAST_CONNECTION=inmemory
+
+# Pusher
+PUSHER_APP_ID=
+PUSHER_APP_KEY=
+PUSHER_APP_SECRET=
+PUSHER_APP_CLUSTER=
+PUSHER_USE_TLS=true
+
+# Redis broadcast overrides (otherwise uses REDIS_*)
+BROADCAST_REDIS_HOST=
+BROADCAST_REDIS_PORT=
+BROADCAST_REDIS_PASSWORD=
+BROADCAST_CHANNEL_PREFIX=broadcast:
+
+
+# ============================================================================
+# NOTIFICATIONS
+# ============================================================================
+
+# Options: console | termii | twilio | slack
+NOTIFICATION_CONNECTION=console
+
+# Termii
+TERMII_API_KEY=
+TERMII_SENDER=ZinTrust
+TERMII_ENDPOINT=https://api.termii.com/sms/send
+
+# Twilio
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
+
+# Slack
+SLACK_WEBHOOK_URL=
+
+
+# ============================================================================
+# OBSERVABILITY (optional)
+# ============================================================================
+
+OTEL_ENABLED=false
+OTEL_EXPORTER_OTLP_ENDPOINT=
+TRACING_EXPORT_INTERVAL=
+JAEGER_AGENT_HOST=
+
+
+# ============================================================================
+# CI / SCANNING (optional)
+# ============================================================================
+
+SNYK_TOKEN=
+SONAR_ORGANIZATION=
+SONAR_PROJECT_ID=
+SONAR_HOST_URL=
+SONAR_TOKEN=
+CODECOV_TOKEN=

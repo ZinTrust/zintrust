@@ -1,0 +1,73 @@
+### Cache system test requests for routes in `routes/TestRoutes.ts`
+### Use with VS Code REST Client (humao.rest-client)
+### Run `zin start` then use these endpoints against http://localhost:7777
+
+@baseUrl = http://localhost:7777
+@cacheKey = cache-smoke
+
+### Cache smoke test (auto-generated key with simple prefix)
+GET {{baseUrl}}/test/cache/smoke
+Accept: application/json
+
+> {%
+  try {
+    const body = JSON.parse(response.body || '{}');
+    if (body && body.key) {
+      client.global.set('cacheKey', body.key);
+      client.log('Captured cacheKey=' + client.global.get('cacheKey'));
+    } else {
+      client.log('No key in smoke response');
+    }
+  } catch (e) {
+    client.log('Unable to parse smoke response: ' + e.message);
+  }
+%}
+
+### Cache smoke test with custom simple key (auto-prefixed with 'zt:' in core)
+GET {{baseUrl}}/test/cache/smoke?key=cache-smoke
+Accept: application/json
+
+### Get the value written by the smoke test (uses captured cacheKey)
+GET {{baseUrl}}/test/cache/get?key={{cacheKey}}
+Accept: application/json
+
+### Check existence of the smoke key
+GET {{baseUrl}}/test/cache/has?key={{cacheKey}}
+Accept: application/json
+
+### Delete the smoke key
+GET {{baseUrl}}/test/cache/delete?key={{cacheKey}}
+Accept: application/json
+
+### Re-check existence (should be false)
+GET {{baseUrl}}/test/cache/has?key={{cacheKey}}
+Accept: application/json
+
+### Manual set + get example (simple key, auto-prefixed in core)
+GET {{baseUrl}}/test/cache/set?key=manual-test&value=hello-world&ttl=60
+Accept: application/json
+
+###
+GET {{baseUrl}}/test/cache/get?key=manual-test
+Accept: application/json
+
+### Manual set with JSON value (simple key gets auto-prefixed in core)
+# Note: value must be JSON-like; encode curly braces in plain URLs.
+GET {{baseUrl}}/test/cache/set?key=json-test&value=%7B%22hello%22%3A%22world%22%7D&ttl=60
+Accept: application/json
+
+####
+GET {{baseUrl}}/test/cache/get?key=json-test
+Accept: application/json
+
+### Clear cache (driver-dependent; may be a no-op for some drivers)
+GET {{baseUrl}}/test/cache/clear
+Accept: application/json
+
+### Examples showing alternate store usage (replace `store` with 'kv-remote'|'redis' etc.)
+GET {{baseUrl}}/test/cache/set?store=kv-remote&key=remote-test&value=test-value
+Accept: application/json
+
+###
+GET {{baseUrl}}/test/cache/get?store=kv-remote&key=remote-test
+Accept: application/json

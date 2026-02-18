@@ -88,7 +88,7 @@ const wrapWithoutOverlapping = (
   handler: ISchedule['handler'],
   options: WithoutOverlappingOptions
 ): ISchedule['handler'] => {
-  const providerName = (options.provider ?? 'redis').trim();
+  const providerName = (options.provider ?? 'memory').trim();
   const lockKey = (options.key ?? `schedule:${scheduleName}`).trim();
   const ttlMs = Env.getInt('SCHEDULE_OVERLAP_LOCK_TTL_MS', options.ttlMs ?? 300000);
   const acquireTimeoutMs = Env.getInt('SCHEDULE_OVERLAP_LOCK_ACQUIRE_TIMEOUT_MS', 2000);

@@ -129,7 +129,8 @@ const securityConfigObj = {
    * JWT Configuration
    */
 
-  <!-- Note: As of recent changes, if `JWT_SECRET` is not provided the framework will fall back to `APP_KEY` for signing/verification. In production you should still set an explicit `JWT_SECRET` and keep secrets rotated. -->
+  // Note: If `JWT_SECRET` is not provided the framework will fall back to `APP_KEY` for signing/verification.
+  // In production you should still set an explicit `JWT_SECRET` and keep secrets rotated.
 
   jwt: {
     enabled: Env.getBool('JWT_ENABLED', true),
@@ -137,8 +138,8 @@ const securityConfigObj = {
       if (cachedJwtSecret !== undefined) return cachedJwtSecret;
       const isEnabled = Env.getBool('JWT_ENABLED', true);
       cachedJwtSecret = isEnabled
-        ? Env.get('JWT_SECRET') || warnMissingSecret('JWT_SECRET')
-        : Env.get('JWT_SECRET') || '';
+        ? Env.get('JWT_SECRET') || Env.get('APP_KEY') || warnMissingSecret('JWT_SECRET')
+        : Env.get('JWT_SECRET') || Env.get('APP_KEY') || '';
       return cachedJwtSecret;
     },
     algorithm: Env.get('JWT_ALGORITHM', 'HS256') as 'HS256' | 'HS512' | 'RS256',

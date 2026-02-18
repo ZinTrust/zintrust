@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.6
 # Build Stage - Compile TypeScript
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -8,12 +8,10 @@ WORKDIR /app
 ENV NPM_CONFIG_CACHE=/root/.npm
 ENV NPM_CONFIG_PREFER_OFFLINE=true
 
-# Reuse npm cache across builds (requires BuildKit)
-ENV NPM_CONFIG_CACHE=/root/.npm
-ENV NPM_CONFIG_PREFER_OFFLINE=true
-
 # Install build dependencies for native modules (better-sqlite3, bcrypt)
-RUN apk add --no-cache python3 make g++
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package.json package-lock.json ./
@@ -33,7 +31,7 @@ ARG BUILD_VARIANT=full
 RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run build:dk
 
 # Runtime Stage - Production image
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 
 WORKDIR /app
 
@@ -43,16 +41,18 @@ ENV PORT=7772
 ENV HOST=0.0.0.0
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN groupadd -g 1001 nodejs && useradd -u 1001 -g 1001 -m -s /usr/sbin/nologin nodejs
 
 # Copy package files for production dependencies
 COPY package.json package-lock.json ./
 
 # Install only production dependencies (requires build tools for native modules)
 RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
-  apk add --no-cache --virtual .build-deps python3 make g++ \
+  apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
   && npm ci --omit=dev \
-    && apk del .build-deps
+  && apt-get purge -y --auto-remove python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist

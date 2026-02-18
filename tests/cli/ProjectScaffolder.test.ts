@@ -1,5 +1,5 @@
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
-import type { ProjectOptions} from '@cli/scaffolding/ProjectScaffolder';
+import type { ProjectOptions } from '@cli/scaffolding/ProjectScaffolder';
 import { ProjectScaffolder } from '@cli/scaffolding/ProjectScaffolder';
 import { default as fs } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
@@ -403,7 +403,27 @@ describe('ProjectScaffolder Configuration', () => {
     expect(env).toContain('APP_NAME=my-app');
     expect(env).toContain('PORT=3001');
     // APP_KEY should be auto-generated as base64 (32 bytes = 256-bit key)
-    expect(env).toMatch(/APP_KEY=[A-Za-z0-9+/]{43,44}={0,2}/); // base64 pattern for 32 bytes
+    expect(env).toMatch(/APP_KEY=base64:[A-Za-z0-9+/]{43,44}={0,2}/); // base64 pattern for 32 bytes
+  });
+
+  it('should backfill .env defaults when .env already exists', () => {
+    const scaffolder = ProjectScaffolder.create(testDir);
+    const projectPath = path.join(testDir, 'my-app');
+    scaffolder.prepareContext({ name: 'my-app', port: 3001 });
+    FileGenerator.createDirectory(projectPath);
+
+    // Create an existing .env with blank/missing values to trigger backfill.
+    fs.writeFileSync(path.join(projectPath, '.env'), 'HOST=\nPORT=\n');
+
+    const result = scaffolder.createEnvFile();
+    expect(result).toBe(true);
+
+    const env = FileGenerator.readFile(path.join(projectPath, '.env'));
+    expect(env).toContain('HOST=localhost');
+    expect(env).toContain('PORT=3001');
+    expect(env).toContain(
+      'CSRF_SKIP_PATHS=/api/*,/queue-monitor/*,/api/_sys/queue/*,/api/_sys/schedule/*'
+    );
   });
 });
 
@@ -445,7 +465,7 @@ describe('ProjectScaffolder Database Configuration', () => {
     const env = FileGenerator.readFile(path.join(projectPath, '.env'));
 
     expect(env).toContain('DB_CONNECTION=sqlite');
-    expect(env).toContain('DB_DATABASE=.zintrust/dbs/my-app.sqlite');
+    expect(env).toContain('DB_PATH=.zintrust/dbs/my-app.sqlite');
   });
 });
 
