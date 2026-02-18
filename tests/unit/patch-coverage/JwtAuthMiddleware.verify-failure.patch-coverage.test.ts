@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks */
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { describe, expect, it, vi } from 'vitest';

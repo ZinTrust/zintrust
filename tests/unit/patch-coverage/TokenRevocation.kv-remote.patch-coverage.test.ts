@@ -11,6 +11,16 @@ vi.mock('@common/RemoteSignedJson', () => ({
   },
 }));
 
+const restoreEnv = (snapshot: NodeJS.ProcessEnv): void => {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in snapshot)) Reflect.deleteProperty(process.env, key);
+  }
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
+    else process.env[key] = value;
+  }
+};
+
 describe('patch coverage: TokenRevocation kv-remote', () => {
   it('uses Cloudflare API first when proxy signing creds are missing', async () => {
     vi.resetModules();
@@ -58,7 +68,7 @@ describe('patch coverage: TokenRevocation kv-remote', () => {
 
     expect(fetchMock).toHaveBeenCalled();
 
-    process.env = prevEnv;
+    restoreEnv(prevEnv);
     vi.unstubAllGlobals();
   });
 
@@ -95,6 +105,6 @@ describe('patch coverage: TokenRevocation kv-remote', () => {
 
     expect(remoteRequest).toHaveBeenCalled();
 
-    process.env = prevEnv;
+    restoreEnv(prevEnv);
   });
 });

@@ -1,5 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
+const restoreEnv = (snapshot: NodeJS.ProcessEnv): void => {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in snapshot)) Reflect.deleteProperty(process.env, key);
+  }
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
+    else process.env[key] = value;
+  }
+};
+
 describe('patch coverage: TokenRevocation kv-remote Cloudflare namespaces errors', () => {
   const prevEnv = { ...process.env };
 
@@ -19,7 +29,7 @@ describe('patch coverage: TokenRevocation kv-remote Cloudflare namespaces errors
 
   it('throws connection error when Cloudflare namespaces list is non-ok', async () => {
     vi.resetModules();
-    process.env = { ...prevEnv };
+    restoreEnv(prevEnv);
     setEnvForCloudflareFirst();
 
     vi.stubGlobal(
@@ -41,7 +51,7 @@ describe('patch coverage: TokenRevocation kv-remote Cloudflare namespaces errors
 
   it('throws connection error when Cloudflare namespaces list returns invalid JSON', async () => {
     vi.resetModules();
-    process.env = { ...prevEnv };
+    restoreEnv(prevEnv);
     setEnvForCloudflareFirst();
 
     vi.stubGlobal(
@@ -63,7 +73,7 @@ describe('patch coverage: TokenRevocation kv-remote Cloudflare namespaces errors
 
   it('covers non-finite total_pages normalization branch', async () => {
     vi.resetModules();
-    process.env = { ...prevEnv };
+    restoreEnv(prevEnv);
     setEnvForCloudflareFirst();
 
     vi.stubGlobal(

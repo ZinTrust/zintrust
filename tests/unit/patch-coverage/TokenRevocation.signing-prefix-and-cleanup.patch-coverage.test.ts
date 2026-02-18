@@ -35,6 +35,16 @@ vi.mock('@common/RemoteSignedJson', () => ({
   },
 }));
 
+const restoreEnv = (snapshot: NodeJS.ProcessEnv): void => {
+  for (const key of Object.keys(process.env)) {
+    if (!(key in snapshot)) Reflect.deleteProperty(process.env, key);
+  }
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
+    else process.env[key] = value;
+  }
+};
+
 describe('patch coverage: TokenRevocation signing prefix + memory/db cleanup branches', () => {
   it('covers resolveSigningPrefix try-path (non-root prefix)', async () => {
     vi.resetModules();
@@ -58,7 +68,7 @@ describe('patch coverage: TokenRevocation signing prefix + memory/db cleanup bra
     const settings = remoteRequest.mock.calls[0]?.[0] as { signaturePathPrefixToStrip?: string };
     expect(settings.signaturePathPrefixToStrip).toBe('/api');
 
-    process.env = prevEnv;
+    restoreEnv(prevEnv);
   });
 
   it('covers resolveSigningPrefix catch-path (invalid URL -> undefined)', async () => {
@@ -83,7 +93,7 @@ describe('patch coverage: TokenRevocation signing prefix + memory/db cleanup bra
     const settings = remoteRequest.mock.calls[0]?.[0] as { signaturePathPrefixToStrip?: string };
     expect(settings.signaturePathPrefixToStrip).toBeUndefined();
 
-    process.env = prevEnv;
+    restoreEnv(prevEnv);
   });
 
   it('covers memory store expired delete branch', async () => {

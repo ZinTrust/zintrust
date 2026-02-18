@@ -1,7 +1,3 @@
-import { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
-import { Router } from '@core-routes/Router';
-import { RouteRegistry } from '@core-routes/RouteRegistry';
-import { registerRoutes } from '@routes/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@zintrust/workers', () => ({
@@ -53,12 +49,22 @@ vi.mock('@orm/Database', () => ({
 describe('OpenAPI spec snapshot', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    RouteRegistry.clear();
   });
 
-  it('matches a stable snapshot for routes/api.ts', () => {
+  it('matches a stable snapshot for routes/api.ts', async () => {
     // Reset modules to ensure clean state
     vi.resetModules();
+
+    // Import after reset so mocks apply and singletons (RouteRegistry) are consistent.
+    const [{ OpenApiGenerator }, { Router }, { RouteRegistry }, { registerRoutes }] =
+      await Promise.all([
+        import('@/openapi/OpenApiGenerator'),
+        import('@core-routes/Router'),
+        import('@core-routes/RouteRegistry'),
+        import('@routes/api'),
+      ]);
+
+    RouteRegistry.clear();
 
     const router = Router.createRouter();
     registerRoutes(router);

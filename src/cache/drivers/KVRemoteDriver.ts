@@ -69,8 +69,7 @@ const getCloudflareCreds = (): CloudflareKvCreds => ({
 
 const hasCloudflareApiCreds = (): boolean => {
   const creds = getCloudflareCreds();
-  const hasNamespace = creds.namespaceId !== '' || creds.namespaceTitle !== '';
-  return creds.accountId !== '' && creds.apiToken !== '' && hasNamespace;
+  return creds.accountId !== '' && creds.apiToken !== '';
 };
 
 const hasProxySigningCreds = (settings: KvRemoteSettings): boolean =>
