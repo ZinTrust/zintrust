@@ -160,7 +160,7 @@ describe('StartCommand patch coverage extra', () => {
           env: 'staging',
           wranglerConfig: 'missing.toml',
         } as any)
-      ).rejects.toThrow(/Wrangler config not found at missing\.toml/);
+      ).rejects.toThrow(/Wrangler config not found: missing\.toml/);
     } finally {
       process.chdir(originalCwd);
       fs.rmSync(tmp, { recursive: true, force: true });
