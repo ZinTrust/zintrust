@@ -44,7 +44,13 @@ zin deploy:cp
 
 `cwr` is kept as a compatibility alias and deploys the same workers stack as `cw`.
 
-`cp` deploys the proxy stack from `docker-compose.proxy.yml`.
+`cp` deploys the Docker Compose proxy stack from `docker-compose.proxy.yml`.
+
+For the **Cloudflare Containers proxy Worker** (Wrangler + Docker build), use:
+
+```bash
+zin deploy:ccp
+```
 
 ### Initialize Container Proxy Stack
 
@@ -55,6 +61,38 @@ zin init:proxy
 zin init:cp
 zin init:container-proxies
 zin init:py
+```
+
+### Initialize Cloudflare Containers proxy Worker (ccp)
+
+This scaffolds `wrangler.containers-proxy.jsonc` and `src/containers-proxy.ts` (which re-exports the runtime package).
+
+```bash
+zin init:containers-proxy
+
+# short alias
+zin init:ccp
+
+# install runtime package
+npm i @zintrust/cloudflare-containers-proxy
+```
+
+Local development (Wrangler dev + Docker container build):
+
+```bash
+zin docker -e staging
+
+# short alias
+zin dk -e staging
+```
+
+Deploy:
+
+```bash
+zin deploy:ccp -e production
+
+# short alias
+zin d:ccp
 ```
 
 ### Proxy Stack Lifecycle

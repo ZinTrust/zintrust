@@ -19,10 +19,13 @@ import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { DeployCommand } from '@cli/commands/DeployCommand';
 import { DeployContainerProxiesCommand } from '@cli/commands/DeployContainerProxiesCommand';
+import { DeployContainersProxyCommand } from '@cli/commands/DeployContainersProxyCommand';
 import { DeployContainerWorkersCommand } from '@cli/commands/DeployContainerWorkersCommand';
+import { DockerCommand } from '@cli/commands/DockerCommand';
 import { DoctorArchitectureCommand } from '@cli/commands/DoctorArchitectureCommand';
 import { FixCommand } from '@cli/commands/FixCommand';
 import { InitContainerCommand } from '@cli/commands/InitContainerCommand';
+import { InitContainersProxyCommand } from '@cli/commands/InitContainersProxyCommand';
 import { InitEcosystemCommand } from '@cli/commands/InitEcosystemCommand';
 import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
 import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
@@ -94,6 +97,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     UpgradeCommand.create(),
     PrepareCommand,
     InitContainerCommand.create(),
+    InitContainersProxyCommand.create(),
     InitProxyCommand.create(),
     InitProducerCommand.create(),
     InitEcosystemCommand.create(),
@@ -103,6 +107,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     CreateMigrationCommand.create(),
     AddMigrationCommand.create(),
     StartCommand.create(),
+    DockerCommand.create(),
     QueueCommand.create(),
     QueueRecoveryCommand.create(),
     ScheduleListCommand.create(),
@@ -125,6 +130,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     PublishCommand.create(),
     PutCommand.create(),
     DeployCommand.create(),
+    DeployContainersProxyCommand.create(),
     DeployContainerWorkersCommand.create(),
     DeployContainerProxiesCommand.create(),
     QACommand(),

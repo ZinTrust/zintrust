@@ -1,26 +1,62 @@
+/**
+ * ============================================================================
+ * ZinTrust Wrangler Configuration
+ * ============================================================================
+ * This configuration file defines the Cloudflare Workers setup for the
+ * ZinTrust API, including multiple environments, database bindings, and
+ * KV namespace configurations.
+ * ============================================================================
+ */
+
 {
+  // ============================================================================
+  // PROJECT METADATA
+  // ============================================================================
   "name": "zintrust-api",
+
+  // ============================================================================
+  // PATH ALIASES
+  // ============================================================================
+  // TypeScript path aliases for cleaner imports throughout the application
   "alias": {
     "@zintrust/core": "./src/index.ts",
     "@zintrust/workers": "./packages/workers/src/index.ts",
     "@routes/api": "./routes/api.ts",
   },
-  // Local development settings
+
+  // ============================================================================
+  // ENVIRONMENT CONFIGURATIONS
+  // ============================================================================
+  // Define separate environments for different deployment contexts
   "env": {
+    // --------------------------------------------------------------------------
+    // WORKER ENVIRONMENT
+    // --------------------------------------------------------------------------
+    // Standard Cloudflare Worker configuration for production-ready deployments
     "worker": {
       "name": "wk-zintrust",
+
+      // Compatibility settings
       "compatibility_date": "2025-04-21",
       "compatibility_flags": ["nodejs_compat"],
+
+      // Development settings
       "workers_dev": true,
       "minify": false,
+
+      // Observability and monitoring
       "observability": {
         "enabled": true,
         "head_sampling_rate": 0.1,
       },
+
+      // Static asset handling
       "assets": {
         "directory": "./app/Workers",
         "not_found_handling": "single-page-application",
       },
+
+      // Custom domain routing
       "routes": [
         {
           "pattern": "wk.zintrust.com",
@@ -28,12 +64,23 @@
         },
       ],
     },
+
+    // --------------------------------------------------------------------------
+    // DEVELOPMENT ENVIRONMENT
+    // --------------------------------------------------------------------------
+    // Configuration for local development with Cloudflare environment support
     "development": {
       "main": "./src/functions/cloudflare.ts",
+
+      // Compatibility settings
       "compatibility_date": "2025-04-21",
       "compatibility_flags": ["nodejs_compat"],
+
+      // Development settings
       "workers_dev": true,
       "minify": false,
+
+      // D1 Database binding
       "d1_databases": [
         {
           "binding": "ZIN_DB",
@@ -42,36 +89,61 @@
           "migrations_dir": "database/migrations/d1",
         },
       ],
+
+      // Path aliases (duplicated for development environment)
       "alias": {
         "@zintrust/core": "./src/index.ts",
         "@zintrust/workers": "./packages/workers/src/index.ts",
         "@routes/api": "./routes/api.ts",
       },
+
+      // Observability and monitoring
       "observability": {
         "enabled": true,
         "head_sampling_rate": 0.1,
       },
+
+      // Environment variables
       "vars": {
         "ENVIRONMENT": "development",
       },
     },
+
+    // --------------------------------------------------------------------------
+    // PRODUCTION ENVIRONMENT
+    // --------------------------------------------------------------------------
+    // Minimal production configuration with optimized settings
     "production": {
+      // Environment variables
       "vars": {
         "ENVIRONMENT": "production",
       },
+
+      // Custom domain routing for production
       "routes": [
         {
           "pattern": "api.zintrust.com",
           "custom_domain": true,
         },
       ],
+
+      // Production build optimization
       "minify": true,
     },
+
+    // --------------------------------------------------------------------------
+    // D1 PROXY ENVIRONMENT
+    // --------------------------------------------------------------------------
+    // Dedicated proxy worker for handling D1 database operations
     "d1-proxy": {
       "name": "zintrust-d1-proxy",
       "main": "./src/proxy/d1/ZintrustD1Proxy.ts",
+
+      // Compatibility settings
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
+
+      // Proxy configuration variables
       "vars": {
         "D1_BINDING": "ZIN_DB",
         "ZT_PROXY_SIGNING_WINDOW_MS": "60000",
@@ -81,7 +153,8 @@
         "NODE_ENV": "development",
         "ZT_D1_STATEMENTS_JSON": "{\"health\":\"select 1 as ok\"}",
       },
-      // D1 binding for the proxy
+
+      // D1 Database binding for the proxy
       "d1_databases": [
         {
           "binding": "ZIN_DB",
@@ -90,6 +163,8 @@
           "migrations_dir": "database/migrations/d1",
         },
       ],
+
+      // KV Namespace binding for the proxy
       "kv_namespaces": [
         {
           "binding": "ZIN_KV",
@@ -98,23 +173,37 @@
           "remote": false,
         },
       ],
+
+      // Custom domain routing
       "routes": [
         {
           "pattern": "d1-proxy.zintrust.com",
           "custom_domain": true,
         },
       ],
+
+      // Production build optimization
       "minify": true,
     },
+
+    // --------------------------------------------------------------------------
+    // KV PROXY ENVIRONMENT
+    // --------------------------------------------------------------------------
+    // Dedicated proxy worker for handling KV (Key-Value) store operations
     "kv-proxy": {
       "name": "zintrust-kv-proxy",
       "main": "./src/proxy/kv/ZintrustKvProxy.ts",
+
+      // Compatibility settings
       "compatibility_flags": ["nodejs_compat"],
       "compatibility_date": "2025-04-21",
+
+      // Proxy configuration variables
       "vars": {
         "NODE_ENV": "development",
       },
-      // KV binding for the proxy
+
+      // KV Namespace binding for the proxy
       "kv_namespaces": [
         {
           "binding": "ZIN_KV",
@@ -123,6 +212,8 @@
           "remote": false,
         },
       ],
+
+      // D1 Database binding for the proxy
       "d1_databases": [
         {
           "binding": "ZIN_DB",
@@ -131,15 +222,28 @@
           "migrations_dir": "database/migrations/d1",
         },
       ],
+
+      // Custom domain routing
       "routes": [
         {
           "pattern": "kv-proxy.zintrust.com",
           "custom_domain": true,
         },
       ],
+
+      // Production build optimization
       "minify": true,
     },
   },
+
+  // ============================================================================
+  // GLOBAL BINDINGS
+  // ============================================================================
+
+  // --------------------------------------------------------------------------
+  // D1 DATABASE BINDINGS
+  // --------------------------------------------------------------------------
+  // Global D1 database configuration for all environments
   "d1_databases": [
     {
       "database_name": "d1-proxy-db",
@@ -148,6 +252,11 @@
       "migrations_dir": "database/migrations/d1",
     },
   ],
+
+  // --------------------------------------------------------------------------
+  // KV NAMESPACE BINDINGS
+  // --------------------------------------------------------------------------
+  // Global KV namespace configuration for all environments
   "kv_namespaces": [
     {
       "id": "b7b012ba4f1f4cb4bb9fd48a3e25b49c",

@@ -8,7 +8,7 @@ This document explains when you need the proxy, how it works, and how to run it 
 
 Use the MySQL proxy when **all** of the following are true:
 
-- Your app runs on Cloudflare Workers (`zin s --wg` or Wrangler deploy).
+- Your app runs on Cloudflare Workers (`zin start --wg` / `zin s --wg`, or Wrangler deploy).
 - Your database driver is MySQL (`DB_CONNECTION=mysql`).
 - Your database proxy is enabled (`USE_MYSQL_PROXY=true`).
 - You are **not** using D1.
@@ -45,7 +45,14 @@ For registry mode (`/zin/mysql/statement`), ZinTrust sends:
 
 ## Quick start (local development)
 
-1. Start the proxy in one terminal:
+You have two common setups:
+
+1. **Standalone proxy server** (Node.js process you run yourself)
+2. **Cloudflare Containers proxy gateway** (Worker + Docker-backed Containers via Wrangler dev)
+
+### 1) Standalone proxy server
+
+Start the proxy in one terminal:
 
 ```bash
 zin proxy:mysql
@@ -63,10 +70,33 @@ MYSQL_PROXY_URL=http://127.0.0.1:8789
 3. Start the Worker dev server:
 
 ```bash
+zin start --wg
+
+# short alias
 zin s --wg
 ```
 
 If `MYSQL_PROXY_URL` is missing, the CLI will warn and print a copy‑paste command to start the proxy.
+
+### 2) Cloudflare Containers proxy gateway (recommended for multi-proxy stacks)
+
+If you are using the Cloudflare Containers proxy Worker (`wrangler.containers-proxy.jsonc`), you typically do **not** run `zin proxy:mysql` separately.
+
+Start the Containers proxy gateway:
+
+```bash
+zin init:containers-proxy
+npm i @zintrust/cloudflare-containers-proxy
+
+zin docker -e staging
+```
+
+Then point your Worker app to the gateway path prefix:
+
+```env
+DB_CONNECTION=mysql
+MYSQL_PROXY_URL=http://127.0.0.1:8787/mysql
+```
 
 ## CLI options
 

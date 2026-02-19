@@ -69,6 +69,56 @@ zin cp down
 
 Compose target file: `docker-compose.proxy.yml`.
 
+## Cloudflare Containers Proxy Worker (ccp)
+
+This is the Cloudflare-hosted equivalent of the proxy gateway pattern, implemented as a Worker plus container-backed Durable Objects.
+
+Scaffold the dedicated Wrangler config + Worker entry:
+
+```bash
+zin init:containers-proxy
+
+# short alias
+zin init:ccp
+```
+
+Install the runtime package:
+
+```bash
+npm i @zintrust/cloudflare-containers-proxy
+```
+
+Run locally (Wrangler dev + Docker-backed Containers):
+
+```bash
+zin docker -c wrangler.containers-proxy.jsonc -e staging
+
+# short alias
+zin dk -e staging
+```
+
+The gateway routes by path prefix (mirrors the Compose gateway paths):
+
+```bash
+MYSQL_PROXY_URL=http://127.0.0.1:8787/mysql
+POSTGRES_PROXY_URL=http://127.0.0.1:8787/postgres
+REDIS_PROXY_URL=http://127.0.0.1:8787/redis
+MONGODB_PROXY_URL=http://127.0.0.1:8787/mongodb
+SQLSERVER_PROXY_URL=http://127.0.0.1:8787/sqlserver
+SMTP_PROXY_URL=http://127.0.0.1:8787/smtp
+```
+
+If you override the dev server port, update the URLs accordingly (or pass `--port` to `zin docker`).
+
+Deploy:
+
+```bash
+zin deploy:ccp -e production
+
+# short alias
+zin d:ccp
+```
+
 ### Proxy gateway endpoint conventions
 
 When using the unified gateway (default port `8800`), point proxy URLs to gateway paths:

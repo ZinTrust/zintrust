@@ -63,6 +63,8 @@
     "deploy:wk": "wrangler deploy --env worker",
     "deploy:d1": "wrangler deploy --env d1-proxy",
     "deploy:kv": "wrangler deploy --env kv-proxy",
+    "deploy:cp": "./bin/z.ts deploy:ccp",
+    "dev:cp": "./bin/z.ts docker --env staging",
     "dev:d1": "wrangler dev --env d1-proxy",
     "dev:kv": "wrangler dev --env kv-proxy",
     "templates:sync": "npm run templates:check && node -e \"console.log('templates:sync is disabled for now (no auto-updates). Update src/templates manually.');\"",
@@ -168,7 +170,6 @@
     "pg": "^8.18.0"
   },
   "devDependencies": {
-    "ajv-draft-04": "^1.0.0",
     "@codecov/vite-plugin": "^1.9.1",
     "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.3.0",
@@ -186,6 +187,7 @@
     "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.56.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "ajv-draft-04": "^1.0.0",
     "better-sqlite3": "^12.6.2",
     "es-module-loader": "^2.3.0",
     "eslint": "^10.0.0",

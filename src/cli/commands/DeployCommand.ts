@@ -13,6 +13,7 @@ import type { Command } from 'commander';
 
 type DeployCommandOptions = CommandOptions & {
   env?: string;
+  config?: string;
 };
 
 const runCompose = async (args: string[]): Promise<void> => {
@@ -78,11 +79,21 @@ const runDeploy = async (target: string, options: DeployCommandOptions): Promise
 
   const environment = options.env ?? target ?? 'worker';
 
+  const config = typeof options.config === 'string' ? options.config.trim() : '';
+  if (config.length > 0) {
+    const full = join(process.cwd(), config);
+    if (existsSync(full)) {
+      // ok
+    } else {
+      throw ErrorFactory.createCliError(`Wrangler config not found: ${config}`);
+    }
+  }
+
   Logger.info(`Deploying to Cloudflare environment: ${environment}`);
 
   const exitCode = await SpawnUtil.spawnAndWait({
     command: 'wrangler',
-    args: ['deploy', '--env', environment],
+    args: ['deploy', ...(config.length > 0 ? ['--config', config] : []), '--env', environment],
   });
 
   if (exitCode !== 0) {
@@ -102,6 +113,10 @@ const createDeployCommand = (): IBaseCommand => {
           'worker'
         )
         .option('-e, --env <env>', 'Wrangler environment (overrides target)');
+      command.option(
+        '-c, --config <path>',
+        'Wrangler config file (e.g. wrangler.containers-proxy.jsonc)'
+      );
     },
     execute: async (options: DeployCommandOptions): Promise<void> => {
       // Note: BaseCommand.create sets up action handler that calls execute(options).

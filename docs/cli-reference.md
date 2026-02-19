@@ -12,6 +12,7 @@
 - `zin d1:migrate`: Run Cloudflare D1 migrations
 - `zin config`: Manage project configuration
 - `zin start`: Start the application (dev watch, production, or Wrangler mode)
+- `zin docker` (aliases: `zin dk`, `zin dkr`): Run Wrangler dev using a Docker-backed Cloudflare Containers config
 - `zin debug`: Start debug dashboard
 - `zin logs`: View application logs
 - `zin templates`: List/render built-in markdown templates
@@ -37,7 +38,8 @@ ZinTrust supports both spaced and colon styles for deploy targets where applicab
 
 - `zin deploy cw` and `zin deploy:cw` - Deploy container workers stack (`docker-compose.workers.yml`)
 - `zin deploy cwr` and `zin deploy:cwr` - Compatibility aliases to deploy the same container workers stack
-- `zin deploy cp` and `zin deploy:cp` - Deploy proxy stack (`docker-compose.proxy.yml`)
+- `zin deploy cp` and `zin deploy:cp` - Deploy Docker Compose proxy stack (`docker-compose.proxy.yml`)
+- `zin deploy:ccp` (aliases: `zin d:ccp`, `zin ccp:deploy`) - Deploy Cloudflare Containers proxy Worker (`wrangler.containers-proxy.jsonc`)
 - `zin deploy worker` - Deploy Cloudflare Worker environment via Wrangler
 - `zin deploy production` - Deploy production Wrangler environment
 
@@ -46,6 +48,7 @@ Notes:
 - `zin deploy <target>` keeps Wrangler behavior for cloud targets (`worker`, `d1-proxy`, `kv-proxy`, `production`)
 - `cw` is the primary Docker Compose deployment target; `cwr` remains a compatibility alias
 - `cp` is the Docker Compose deployment target for proxy stack operations
+- `deploy:ccp` is a dedicated command (not a `zin deploy <target>` value) for the Cloudflare Containers proxy Worker
 
 Examples:
 
@@ -58,12 +61,16 @@ zin deploy:cwr
 
 zin deploy cp
 zin deploy:cp
+
+# Cloudflare Containers proxy Worker
+zin deploy:ccp -e staging
 ```
 
 ## Container Stack Init Commands
 
 - `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
 - `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
+- `zin init:containers-proxy` (alias: `zin init:ccp`) - Scaffold Cloudflare Containers proxy Worker (`wrangler.containers-proxy.jsonc`, `src/containers-proxy.ts`)
 - `zin init:ecosystem` - Scaffold `docker-compose.ecosystem.yml` and `docker-compose.schedules.yml`
 - Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py`
 
@@ -248,7 +255,7 @@ Pushes secrets to Wrangler environments using dynamic key groups from `.zintrust
 Usage:
 
 ```bash
-zin put cloudflare --wg <wrangler-env...> --var <group...> [--env_path .env] [--dry-run]
+zin put cloudflare --wg <wrangler-env...> --var <group...> [--env_path .env] [--config wrangler.jsonc] [--dry-run]
 ```
 
 Examples:
@@ -257,6 +264,9 @@ Examples:
 zin put cloudflare --wg d1-proxy --var d1_env --env_path .env --dry-run
 zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
 zin put cloudflare --wg d1-proxy kv-proxy --var d1_env kv_env --env_path .env
+
+# Target a dedicated wrangler config (example: Cloudflare Containers proxy)
+zin put cloudflare --wg staging --var proxy_env --config wrangler.containers-proxy.jsonc
 ```
 
 `.zintrust.json` dynamic groups example:
@@ -272,6 +282,7 @@ Notes:
 
 - `--wg` sets the Wrangler target environment(s) (for example `d1-proxy`, `kv-proxy`).
 - `--var` selects array keys from `.zintrust.json`.
+- `--config` targets a specific Wrangler config file (useful when your repo has multiple wrangler configs).
 - `D1_REMOTE_SECRET` / `KV_REMOTE_SECRET` are optional if you use `APP_KEY` as the shared signing secret; missing values are reported as failures for whichever keys you selected.
 - Final output includes totals for pushed and failed keys.
 
@@ -417,6 +428,8 @@ zin start [options]
 
 - `-w, --wrangler` - Start with Wrangler dev mode (Cloudflare Workers)
 - `--wg` - Alias for `--wrangler`
+- `--env <name>` - Wrangler environment name (Wrangler mode only)
+- `--wrangler-config <path>` - Wrangler config path (Wrangler mode only)
 - `--deno` - Start a local server using the Deno runtime adapter
 - `--lambda` - Start a local server using the AWS Lambda runtime adapter
 - `--watch` - Force watch mode (Node only)
@@ -432,6 +445,8 @@ zin start
 zin start --mode production
 zin start -w
 zin start --wg
+zin start --wg --env staging
+zin start --wg --wrangler-config wrangler.containers-proxy.jsonc --env staging
 zin start --deno
 zin start --lambda
 zin start --no-watch --port 3001

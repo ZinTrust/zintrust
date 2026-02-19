@@ -1,0 +1,111 @@
+/**
+ * ============================================================================
+ * ZinTrust Cloudflare Containers Proxy
+ * ============================================================================
+ * This Worker acts as the "gateway" for the DB/KV/SMTP proxy stack, similar to
+ * `docker-compose.proxy.yml`'s `proxy-gateway`, but on Cloudflare.
+ *
+ * Requests are routed by path prefix:
+ *   /mysql/*     -> ZintrustMySqlProxyContainer (port 8789)
+ *   /postgres/*  -> ZintrustPostgresProxyContainer (port 8790)
+ *   /redis/*     -> ZintrustRedisProxyContainer (port 8791)
+ *   /mongodb/*   -> ZintrustMongoDbProxyContainer (port 8792)
+ *   /sqlserver/* -> ZintrustSqlServerProxyContainer (port 8793)
+ *   /smtp/*      -> ZintrustSmtpProxyContainer (port 8794)
+ *
+ * Runtime env vars are provided via:
+ * - `vars` (non-secret)
+ * - `wrangler secret put <NAME>` (secret)
+ *
+ * Notes:
+ * - Docker Compose is NOT used on Cloudflare; this file is the deployment source.
+ * - `wrangler deploy` builds the container image(s) using your local Docker.
+ * ============================================================================
+ */
+
+{
+  "name": "zintrust-containers-proxy",
+  "main": "./packages/cloudflare-containers-proxy/src/index.ts",
+
+  "compatibility_date": "2025-04-21",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "workers_dev": true,
+  "minify": false,
+
+  // --------------------------------------------------------------------------
+  // CONTAINERS
+  // --------------------------------------------------------------------------
+  // One DO class per proxy (Option A).
+  "containers": [
+    { "class_name": "ZintrustMySqlProxyContainer", "image": "./Dockerfile", "max_instances": 10 },
+    {
+      "class_name": "ZintrustPostgresProxyContainer",
+      "image": "./Dockerfile",
+      "max_instances": 10,
+    },
+    { "class_name": "ZintrustRedisProxyContainer", "image": "./Dockerfile", "max_instances": 10 },
+    { "class_name": "ZintrustMongoDbProxyContainer", "image": "./Dockerfile", "max_instances": 10 },
+    {
+      "class_name": "ZintrustSqlServerProxyContainer",
+      "image": "./Dockerfile",
+      "max_instances": 10,
+    },
+    { "class_name": "ZintrustSmtpProxyContainer", "image": "./Dockerfile", "max_instances": 10 },
+  ],
+
+  // Durable Object bindings (required to talk to containers)
+  "durable_objects": {
+    "bindings": [
+      { "name": "ZT_PROXY_MYSQL", "class_name": "ZintrustMySqlProxyContainer" },
+      { "name": "ZT_PROXY_POSTGRES", "class_name": "ZintrustPostgresProxyContainer" },
+      { "name": "ZT_PROXY_REDIS", "class_name": "ZintrustRedisProxyContainer" },
+      { "name": "ZT_PROXY_MONGODB", "class_name": "ZintrustMongoDbProxyContainer" },
+      { "name": "ZT_PROXY_SQLSERVER", "class_name": "ZintrustSqlServerProxyContainer" },
+      { "name": "ZT_PROXY_SMTP", "class_name": "ZintrustSmtpProxyContainer" },
+    ],
+  },
+
+  // Migrations must use `new_sqlite_classes` for container-enabled Durable Objects
+  "migrations": [
+    {
+      "tag": "containers-proxy-v1",
+      "new_sqlite_classes": [
+        "ZintrustMySqlProxyContainer",
+        "ZintrustPostgresProxyContainer",
+        "ZintrustRedisProxyContainer",
+        "ZintrustMongoDbProxyContainer",
+        "ZintrustSqlServerProxyContainer",
+        "ZintrustSmtpProxyContainer",
+      ],
+    },
+  ],
+
+  // --------------------------------------------------------------------------
+  // ENVIRONMENTS
+  // --------------------------------------------------------------------------
+  "env": {
+    "staging": {
+      "name": "zintrust-containers-proxy-staging",
+      "minify": false,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "APP_NAME": "ZinTrust",
+        "CSRF_SKIP_PATHS": "/api/*,/queue-monitor/*",
+      },
+      // Add routes here when ready:
+      // "routes": [{ "pattern": "proxy-staging.zintrust.com", "custom_domain": true }]
+    },
+    "production": {
+      "name": "zintrust-containers-proxy-production",
+      "minify": true,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "APP_NAME": "ZinTrust",
+        "CSRF_SKIP_PATHS": "/api/*,/queue-monitor/*",
+      },
+      // Add routes here when ready:
+      // "routes": [{ "pattern": "proxy.zintrust.com", "custom_domain": true }]
+    },
+  },
+}
