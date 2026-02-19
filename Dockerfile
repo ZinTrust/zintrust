@@ -10,8 +10,20 @@ ENV NPM_CONFIG_PREFER_OFFLINE=true
 
 # Install build dependencies for native modules (better-sqlite3, bcrypt)
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
+  && apt-get install -y --no-install-recommends python3 make g++ git \
   && rm -rf /var/lib/apt/lists/*
+
+# Patch npm (base image includes npm 10.x with vulnerable bundled deps)
+ARG NPM_VERSION=11.10.0
+ARG NPM_TAR_VERSION=7.5.8
+RUN npm i -g "npm@${NPM_VERSION}" \
+  && mkdir -p /tmp/npm-tar-patch \
+  && cd /tmp/npm-tar-patch \
+  && npm pack "tar@${NPM_TAR_VERSION}" \
+  && tar -xzf "tar-${NPM_TAR_VERSION}.tgz" \
+  && rm -rf /usr/local/lib/node_modules/npm/node_modules/tar \
+  && mv package /usr/local/lib/node_modules/npm/node_modules/tar \
+  && rm -rf /tmp/npm-tar-patch
 
 # Copy package files
 COPY package.json package-lock.json ./
@@ -42,6 +54,18 @@ ENV HOST=0.0.0.0
 
 # Create non-root user for security
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g 1001 -m -s /usr/sbin/nologin nodejs
+
+# Patch npm (base image includes npm 10.x with vulnerable bundled deps)
+ARG NPM_VERSION=11.10.0
+ARG NPM_TAR_VERSION=7.5.8
+RUN npm i -g "npm@${NPM_VERSION}" \
+  && mkdir -p /tmp/npm-tar-patch \
+  && cd /tmp/npm-tar-patch \
+  && npm pack "tar@${NPM_TAR_VERSION}" \
+  && tar -xzf "tar-${NPM_TAR_VERSION}.tgz" \
+  && rm -rf /usr/local/lib/node_modules/npm/node_modules/tar \
+  && mv package /usr/local/lib/node_modules/npm/node_modules/tar \
+  && rm -rf /tmp/npm-tar-patch
 
 # Copy package files for production dependencies
 COPY package.json package-lock.json ./

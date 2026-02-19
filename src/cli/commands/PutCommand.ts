@@ -13,6 +13,7 @@ type PutCommandOptions = CommandOptions & {
   var?: string[] | string;
   env_path?: string;
   dryRun?: boolean;
+  config?: string;
 };
 
 type ZintrustConfig = Record<string, unknown>;
@@ -92,20 +93,28 @@ const getPutTimeoutMs = (): number => {
   return parsed;
 };
 
-const putSecret = (wranglerEnv: string, key: string, value: string): void => {
+const putSecret = (
+  wranglerEnv: string,
+  key: string,
+  value: string,
+  configPath: string | undefined
+): void => {
   const npmPath = resolveNpmPath();
-  execFileSync(
-    npmPath,
-    ['exec', '--yes', '--', 'wrangler', 'secret', 'put', key, '--env', wranglerEnv],
-    {
-      stdio: ['pipe', 'inherit', 'inherit'],
-      input: value,
-      encoding: 'utf8',
-      timeout: getPutTimeoutMs(),
-      killSignal: 'SIGTERM',
-      env: appConfig.getSafeEnv(),
-    }
-  );
+
+  const args = ['exec', '--yes', '--', 'wrangler'];
+  if (typeof configPath === 'string' && configPath.trim().length > 0) {
+    args.push('--config', configPath.trim());
+  }
+  args.push('secret', 'put', key, '--env', wranglerEnv);
+
+  execFileSync(npmPath, args, {
+    stdio: ['pipe', 'inherit', 'inherit'],
+    input: value,
+    encoding: 'utf8',
+    timeout: getPutTimeoutMs(),
+    killSignal: 'SIGTERM',
+    env: appConfig.getSafeEnv(),
+  });
 };
 
 const addOptions = (command: Command): void => {
@@ -114,6 +123,7 @@ const addOptions = (command: Command): void => {
     .option('--wg <env...>', 'Wrangler environment target(s), e.g. d1-proxy kv-proxy')
     .option('--var <configKey...>', 'Config array key(s) from .zintrust.json (e.g. d1_env kv_env)')
     .option('--env_path <path>', 'Path to env file used as source values', '.env')
+    .option('-c, --config <path>', 'Wrangler config file to target (optional)')
     .option('--dry-run', 'Show what would be uploaded without calling wrangler');
 };
 
@@ -164,7 +174,8 @@ const processPut = (
   wranglerEnvs: string[],
   selectedKeys: string[],
   envMap: Record<string, string>,
-  dryRun: boolean
+  dryRun: boolean,
+  configPath: string | undefined
 ): { pushed: number; failures: PutFailure[] } => {
   let pushed = 0;
   const failures: PutFailure[] = [];
@@ -180,7 +191,7 @@ const processPut = (
       try {
         if (!dryRun) {
           cmd.info(`putting ${key} -> ${wranglerEnv}...`);
-          putSecret(wranglerEnv, key, value);
+          putSecret(wranglerEnv, key, value, configPath);
         }
         pushed += 1;
         cmd.info(`${dryRun ? '[dry-run] ' : ''}put ${key} -> ${wranglerEnv}`);
@@ -205,7 +216,19 @@ const execute = async (cmd: IBaseCommand, options: PutCommandOptions): Promise<v
   const wranglerEnvs = resolveWranglerEnvs(options);
   const dryRun = options.dryRun === true;
 
-  const result = processPut(cmd, wranglerEnvs, selectedKeys, envMap, dryRun);
+  const configPath = typeof options.config === 'string' ? options.config.trim() : '';
+  if (configPath !== '' && !existsSync(path.join(cwd, configPath))) {
+    throw ErrorFactory.createCliError(`Wrangler config not found: ${configPath}`);
+  }
+
+  const result = processPut(
+    cmd,
+    wranglerEnvs,
+    selectedKeys,
+    envMap,
+    dryRun,
+    configPath === '' ? undefined : configPath
+  );
   reportResult(cmd, result.pushed, result.failures);
 };
 

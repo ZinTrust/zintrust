@@ -16,6 +16,7 @@ type StartModeInput = 'development' | 'dev' | 'production' | 'pro' | 'prod' | 't
 type StartCommandOptions = CommandOptions & {
   wrangler?: boolean;
   wg?: boolean;
+  wranglerConfig?: string;
   deno?: boolean;
   lambda?: boolean;
   cache?: boolean;
@@ -316,7 +317,8 @@ const executeWranglerStart = async (
   cwd: string,
   port: number | undefined,
   runtime: string | undefined,
-  envName: string | undefined
+  envName: string | undefined,
+  wranglerConfig: string | undefined
 ): Promise<void> => {
   if (runtime !== undefined) {
     throw ErrorFactory.createCliError(
@@ -324,8 +326,19 @@ const executeWranglerStart = async (
     );
   }
 
-  const configPath = findWranglerConfig(cwd);
+  const normalizedConfig = typeof wranglerConfig === 'string' ? wranglerConfig.trim() : '';
+  const explicitConfigFullPath =
+    normalizedConfig.length > 0 ? path.join(cwd, normalizedConfig) : undefined;
+  const configPath = explicitConfigFullPath ?? findWranglerConfig(cwd);
   const entry = resolveWranglerEntry(cwd);
+
+  if (explicitConfigFullPath !== undefined) {
+    if (existsSync(explicitConfigFullPath)) {
+      // ok
+    } else {
+      throw ErrorFactory.createCliError(`Error: Wrangler config not found at ${normalizedConfig}`);
+    }
+  }
 
   if (configPath === undefined && entry === undefined) {
     throw ErrorFactory.createCliError(
@@ -334,6 +347,10 @@ const executeWranglerStart = async (
   }
 
   const wranglerArgs: string[] = ['dev'];
+
+  if (normalizedConfig !== '') {
+    wranglerArgs.push('--config', normalizedConfig);
+  }
   if (configPath === undefined && entry !== undefined) {
     wranglerArgs.push(entry);
   }
@@ -579,7 +596,19 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   });
 
   if (variant === 'wrangler') {
-    await executeWranglerStart(cmd, cwd, port, runtime, envName === '' ? undefined : envName);
+    const wranglerConfig =
+      typeof options.wranglerConfig === 'string' && options.wranglerConfig.trim() !== ''
+        ? options.wranglerConfig.trim()
+        : undefined;
+
+    await executeWranglerStart(
+      cmd,
+      cwd,
+      port,
+      runtime,
+      envName === '' ? undefined : envName,
+      wranglerConfig
+    );
     return;
   }
 
@@ -616,6 +645,7 @@ export const StartCommand = Object.freeze({
         .option('--no-watch', 'Disable watch mode (Node only)')
         .option('--mode <development|production|testing>', 'Override app mode')
         .option('--env <name>', 'Wrangler environment name (Wrangler mode only)')
+        .option('--wrangler-config <path>', 'Wrangler config path (Wrangler mode only)')
         .option('--runtime <nodejs|cloudflare|lambda|deno|auto>', 'Set RUNTIME for spawned Node')
         .option('-p, --port <number>', 'Override server port');
     };

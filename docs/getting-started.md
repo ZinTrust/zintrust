@@ -24,6 +24,7 @@ Your API is now running at `http://localhost:7777`
 If you’re targeting a different runtime:
 
 - Cloudflare Workers (Wrangler): `zin start --wg`
+- Cloudflare Containers proxy (Wrangler + Docker): `zin init:containers-proxy` then `zin docker -e staging`
 - AWS Lambda adapter mode: `zin start --lambda`
 - Deno adapter mode: `zin start --deno`
 

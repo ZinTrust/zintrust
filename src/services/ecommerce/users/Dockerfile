@@ -28,6 +28,8 @@ WORKDIR /app
 # Install curl for health checks
 RUN apt-get update \
   && apt-get install -y --no-install-recommends curl \
+  && rm -rf /usr/local/lib/node_modules/npm \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy built artifacts from builder
