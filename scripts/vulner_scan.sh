@@ -1,1 +1,11 @@
-for d in packages/*; do if [ -f "$d/package-lock.json" ]; then echo "=== $d ==="; (cd "$d" && npm audit --json) | node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync(0,'utf8')); const v=j.metadata&&j.metadata.vulnerabilities; console.log(v||{total:'unknown'});"; sleep 1; fi; done
+#!/bin/sh
+
+set -e
+
+for d in packages/*; do
+  if [ -f "$d/package-lock.json" ]; then
+    echo "=== $d ==="
+    (cd "$d" && npm audit --json) | node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync(0,'utf8')); const v=j.metadata&&j.metadata.vulnerabilities; console.log(v||{total:'unknown'});"
+    sleep 1
+  fi
+done
