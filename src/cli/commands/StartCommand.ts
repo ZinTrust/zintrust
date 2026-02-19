@@ -336,7 +336,7 @@ const executeWranglerStart = async (
     if (existsSync(explicitConfigFullPath)) {
       // ok
     } else {
-      throw ErrorFactory.createCliError(`Wrangler config not found: ${normalizedConfig}`);
+      throw ErrorFactory.createCliError(`Error: Wrangler config not found: ${normalizedConfig}`);
     }
   }
 

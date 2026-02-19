@@ -35,5 +35,3 @@ npm i @zintrust/cloudflare-containers-proxy
 zin docker -c wrangler.containers-proxy.jsonc -e staging
 zin deploy:ccp
 ```
-
-Notes:
