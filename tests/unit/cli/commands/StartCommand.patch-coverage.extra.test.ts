@@ -116,6 +116,57 @@ describe('StartCommand patch coverage extra', () => {
     }
   });
 
+  it('passes explicit --wrangler-config through to wrangler args (covers trim + --config push)', async () => {
+    const originalCwd = process.cwd();
+    const originalExit = process.exit;
+
+    const tmp = makeTempProject();
+    process.chdir(tmp);
+    (process as any).exit = vi.fn();
+
+    try {
+      const cmd = StartCommand.create();
+      await cmd.execute({
+        wrangler: true,
+        mode: 'development',
+        env: 'staging',
+        wranglerConfig: '  wrangler.toml  ',
+      } as any);
+
+      expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          command: 'wrangler',
+          args: expect.arrayContaining(['--config', 'wrangler.toml', '--env', 'staging']),
+        })
+      );
+    } finally {
+      process.chdir(originalCwd);
+      (process as any).exit = originalExit;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when explicit --wrangler-config path does not exist', async () => {
+    const originalCwd = process.cwd();
+    const tmp = makeTempProject();
+    process.chdir(tmp);
+
+    try {
+      const cmd = StartCommand.create();
+      await expect(
+        cmd.execute({
+          wrangler: true,
+          mode: 'development',
+          env: 'staging',
+          wranglerConfig: 'missing.toml',
+        } as any)
+      ).rejects.toThrow(/Wrangler config not found at missing\.toml/);
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it('throws for invalid APP_PORT/PORT env (covers env port validation branch)', async () => {
     const envBackup = { ...process.env };
     process.env['APP_PORT'] = '99999';
