@@ -7,6 +7,31 @@ import { Logger } from '@zintrust/core';
 import type { DataValidationResult } from '../types';
 
 /**
+ * Create a canonical representation of a value where object keys are
+ * sorted deterministically. This ensures that semantically equivalent
+ * data structures produce identical JSON strings regardless of key order.
+ */
+function canonicalize(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalize(item));
+  }
+
+  const obj = value as Record<string | number | symbol, unknown>;
+  const keys = Object.keys(obj).sort();
+  const result: Record<string, unknown> = {};
+
+  for (const key of keys) {
+    result[key] = canonicalize(obj[key]);
+  }
+
+  return result;
+}
+
+/**
  * DataValidator - Sealed namespace for data integrity validation
  * Provides comprehensive validation of migrated data
  */
@@ -37,7 +62,8 @@ export const DataValidator = Object.freeze({
    */
   async generateChecksum(data: unknown[]): Promise<string> {
     const crypto = await import('node:crypto');
-    const dataString = JSON.stringify(data);
+    const canonicalData = canonicalize(data);
+    const dataString = JSON.stringify(canonicalData);
     return crypto.createHash('sha256').update(dataString).digest('hex');
   },
 
