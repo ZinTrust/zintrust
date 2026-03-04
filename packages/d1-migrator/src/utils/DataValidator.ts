@@ -144,7 +144,8 @@ export const DataValidator = Object.freeze({
    */
   sanitizeTableName(tableName: string): string {
     // D1/SQLite has specific naming requirements
-    let sanitized = tableName.toLowerCase().replaceAll(/[^a-z0-9_-]/g, '_'); // Replace invalid chars with underscore
+    // Preserve original casing while replacing invalid characters with underscores
+    let sanitized = tableName.replaceAll(/[^a-zA-Z0-9_-]/g, '_');
 
     // Remove leading and trailing underscores (safer than regex)
     while (sanitized.startsWith('_')) {
