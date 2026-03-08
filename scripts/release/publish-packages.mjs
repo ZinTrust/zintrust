@@ -81,19 +81,40 @@ function flattenForTableCell(value) {
   return String(value).replaceAll('\n', ' ');
 }
 
-function installCoreShimIntoPackage(pkgDir) {
+function getLocalFileDependencyInstallTargets(pkgDir, pkg) {
+  return Object.values(pkg.dependencies ?? {})
+    .filter((spec) => typeof spec === 'string' && spec.startsWith('file:'))
+    .map((spec) => path.resolve(pkgDir, spec.slice('file:'.length)));
+}
+
+function installBuildDependenciesIntoPackage(pkgDir, pkg) {
+  const installTargets = [];
+
   // The workers package has a tight peer-dependency on @zintrust/core that
   // conflicts with the temporary shim version. We build workers with the real
   // core in CI instead, so skip the shim there. All other packages still need
   // the shim to compile before core is published.
   if (pkgDir.endsWith(path.join('packages', 'workers'))) {
     process.stdout.write('skipping core shim for workers package\n');
-    return;
+  } else {
+    installTargets.push(shimDir);
   }
+
+  installTargets.push(...getLocalFileDependencyInstallTargets(pkgDir, pkg));
+
+  if (installTargets.length === 0) return;
 
   run(
     'npm',
-    ['install', '--no-save', '--no-package-lock', '--ignore-scripts', '--silent', shimDir],
+    [
+      'install',
+      '--no-save',
+      '--no-package-lock',
+      '--ignore-scripts',
+      '--silent',
+      '--legacy-peer-deps',
+      ...installTargets,
+    ],
     {
       cwd: pkgDir,
     }
@@ -362,7 +383,7 @@ async function processPackageDir({ dirName, coreVersion, failures, successes, ch
   announcePublishAttempt({ pkg: publishPkg, coreVersion });
 
   try {
-    installCoreShimIntoPackage(pkgDir);
+    installBuildDependenciesIntoPackage(pkgDir, pkg);
     buildPackage(pkgDir);
 
     // d1-migrator builds against local file: adapters, then publishes with semver deps.

@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
-// CI helper: compute and (optionally) apply a SemVer bump based on Conventional Commits.
-// Rules:
-// - major: any commit with BREAKING CHANGE footer/body OR "!" after type/scope (e.g. feat!:)
-// - minor: any feat
-// - patch: any fix
+// CI helper: compute and (optionally) apply a SemVer bump.
+// Default project policy is patch-only automation:
+// - any releasable commit (fix/feat/breaking) becomes a patch bump
+// - minor/major bumps must be done intentionally, not inferred automatically
 //
 // Designed for release -> master flow:
 // - compares commits in origin/master..HEAD
@@ -13,11 +12,29 @@
 // Usage:
 //   node scripts/ci/bump-version.js --apply
 //   node scripts/ci/bump-version.js
+//   node scripts/ci/bump-version.js --strategy conventional
 
 import { execSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
 const APPLY = process.argv.includes('--apply');
+
+function getArgValue(flag) {
+  const index = process.argv.indexOf(flag);
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith('--')) return undefined;
+  return value;
+}
+
+const STRATEGY =
+  getArgValue('--strategy') ?? process.env.ZINTRUST_RELEASE_BUMP_STRATEGY ?? 'patch-only';
+
+if (!['patch-only', 'conventional'].includes(STRATEGY)) {
+  throw new Error(
+    `Unsupported bump strategy: ${STRATEGY}. Expected "patch-only" or "conventional".`
+  );
+}
 
 function setGithubOutput(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT;
@@ -51,7 +68,32 @@ function isReleaseCommit(message) {
   return message.startsWith('chore(release):');
 }
 
-function detectBump(messages) {
+function detectCommitBump(message) {
+  const lower = message.toLowerCase();
+
+  // BREAKING CHANGE footer/body
+  if (lower.includes('breaking change') || lower.includes('breaking-change')) {
+    return 'major';
+  }
+
+  const firstLine = message.split('\n')[0] ?? '';
+  // Conventional commit header: type(scope)!: subject
+  if (/^[a-z]+(\([^)]+\))?!:/.test(firstLine)) {
+    return 'major';
+  }
+
+  if (/^feat(\([^)]+\))?:/.test(firstLine)) {
+    return 'minor';
+  }
+
+  if (/^fix(\([^)]+\))?:/.test(firstLine)) {
+    return 'patch';
+  }
+
+  return 'none';
+}
+
+function detectBump(messages, strategy) {
   let bump = 'none';
 
   const mark = (next) => {
@@ -62,30 +104,14 @@ function detectBump(messages) {
 
   for (const msg of messages) {
     if (isReleaseCommit(msg)) continue;
+    const next = detectCommitBump(msg);
+    if (next === 'none') continue;
 
-    const lower = msg.toLowerCase();
-
-    // BREAKING CHANGE footer/body
-    if (lower.includes('breaking change') || lower.includes('breaking-change')) {
-      mark('major');
-      continue;
+    if (strategy === 'patch-only') {
+      return 'patch';
     }
 
-    const firstLine = msg.split('\n')[0] ?? '';
-    // Conventional commit header: type(scope)!: subject
-    if (/^[a-z]+(\([^)]+\))?!:/.test(firstLine)) {
-      mark('major');
-      continue;
-    }
-
-    if (/^feat(\([^)]+\))?:/.test(firstLine)) {
-      mark('minor');
-      continue;
-    }
-
-    if (/^fix(\([^)]+\))?:/.test(firstLine)) {
-      mark('patch');
-    }
+    mark(next);
   }
 
   return bump;
@@ -106,12 +132,14 @@ run('git fetch origin master --quiet');
 
 const range = 'origin/master..HEAD';
 const messages = getCommitMessages(range);
-const bumpType = detectBump(messages);
+const bumpType = detectBump(messages, STRATEGY);
 
 setGithubOutput('bump_type', bumpType);
+setGithubOutput('bump_strategy', STRATEGY);
 setGithubOutput('should_bump', bumpType !== 'none');
 
 console.log(`Commit range: ${range}`);
+console.log(`Bump strategy: ${STRATEGY}`);
 console.log(`Detected bump: ${bumpType}`);
 
 if (!APPLY || bumpType === 'none') {

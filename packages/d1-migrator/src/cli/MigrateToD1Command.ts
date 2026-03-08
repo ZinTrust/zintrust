@@ -5,6 +5,7 @@
 
 import { ErrorFactory, Logger } from '@zintrust/core';
 import { BaseCommand, type CommandOptions } from '@zintrust/core/cli';
+import type { Command } from 'commander';
 import { SchemaBuilder } from '../schema/SchemaBuilder';
 import { SchemaValidator } from '../schema/Validator';
 import type { MigrationConfig } from '../types';
@@ -13,6 +14,20 @@ import { SchemaAnalyzer } from './SchemaAnalyzer';
 
 type SourceDriver = MigrationConfig['sourceDriver'];
 type TargetType = MigrationConfig['targetType'];
+
+type D1MigratorCommand = {
+  [x: string]: unknown;
+  name: string;
+  description: string;
+  verbose?: boolean;
+  getCommand(): Command;
+  addOptions?: (command: Command) => void;
+  execute(options: CommandOptions): void | Promise<void>;
+  info(message: string): void;
+  success(message: string): void;
+  warn(message: string): void;
+  debug(message: unknown): void;
+};
 
 const SOURCE_DRIVER_MAP: Readonly<Record<string, SourceDriver>> = Object.freeze({
   mysql: 'mysql',
@@ -455,7 +470,7 @@ const resolveMigrationConfig = (
  * MigrateToD1Command - CLI command for D1 migration
  * Uses BaseCommand factory following ZinTrust patterns
  */
-export const MigrateToD1Command = BaseCommand.create({
+export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
   name: 'migrate-to-d1',
   description: 'Migrate any database to Cloudflare D1 with resumable operations',
   aliases: ['d1:transfer'],
