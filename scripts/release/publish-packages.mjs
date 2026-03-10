@@ -5,6 +5,7 @@ import path from 'node:path';
 const repoRoot = process.cwd();
 const packagesDir = path.join(repoRoot, 'packages');
 const shimDir = path.join(repoRoot, 'tmp', 'release-core-shim');
+const builtLocalPackageDirs = new Set();
 
 const cliArgs = process.argv.slice(2);
 const isDryRun = cliArgs.includes('--dry-run');
@@ -85,6 +86,33 @@ function getLocalFileDependencyInstallTargets(pkgDir, pkg) {
   return Object.values(pkg.dependencies ?? {})
     .filter((spec) => typeof spec === 'string' && spec.startsWith('file:'))
     .map((spec) => path.resolve(pkgDir, spec.slice('file:'.length)));
+}
+
+async function buildLocalFileDependencies(pkgDir, pkg, buildStack = new Set()) {
+  const dependencyDirs = getLocalFileDependencyInstallTargets(pkgDir, pkg);
+
+  for (const dependencyDir of dependencyDirs) {
+    if (builtLocalPackageDirs.has(dependencyDir)) continue;
+
+    if (buildStack.has(dependencyDir)) {
+      throw new Error(`Circular local package dependency detected: ${dependencyDir}`);
+    }
+
+    const dependencyPkgPath = path.join(dependencyDir, 'package.json');
+    const dependencyPkg = await loadPackageJson(dependencyPkgPath);
+    if (!dependencyPkg) continue;
+
+    buildStack.add(dependencyDir);
+    await buildLocalFileDependencies(dependencyDir, dependencyPkg, buildStack);
+    installBuildDependenciesIntoPackage(dependencyDir, dependencyPkg);
+
+    if (dependencyPkg.scripts?.build) {
+      buildPackage(dependencyDir);
+    }
+
+    builtLocalPackageDirs.add(dependencyDir);
+    buildStack.delete(dependencyDir);
+  }
 }
 
 function installBuildDependenciesIntoPackage(pkgDir, pkg) {
@@ -383,6 +411,7 @@ async function processPackageDir({ dirName, coreVersion, failures, successes, ch
   announcePublishAttempt({ pkg: publishPkg, coreVersion });
 
   try {
+    await buildLocalFileDependencies(pkgDir, pkg);
     installBuildDependenciesIntoPackage(pkgDir, pkg);
     buildPackage(pkgDir);
 

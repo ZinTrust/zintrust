@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@zintrust/db-mysql": "file:../../packages/db-mysql",
-    "@zintrust/db-postgres": "file:../../packages/db-postgres", 
+    "@zintrust/db-postgres": "file:../../packages/db-postgres",
     "@zintrust/db-sqlite": "file:../../packages/db-sqlite",
     "@zintrust/db-sqlserver": "file:../../packages/db-sqlserver",
     "@zintrust/db-d1": "file:../../packages/db-d1"
