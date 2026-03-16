@@ -161,7 +161,16 @@
     "glob": "^11.1.0",
     "minimatch": "^10.2.2",
     "rollup": "^4.59.0",
-    "undici": "^6.23.0"
+    "flatted": "^3.4.1",
+    "@actions/github": {
+      "undici": "^6.24.0"
+    },
+    "@actions/http-client": {
+      "undici": "^6.24.0"
+    },
+    "miniflare": {
+      "undici": "^7.24.4"
+    }
   },
   "dependencies": {
     "@cloudflare/containers": "^0.1.1",

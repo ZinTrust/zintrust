@@ -25,7 +25,8 @@
     "@zintrust/core": "file:../../dist"
   },
   "overrides": {
-    "fast-xml-parser": "^5.4.1"
+    "fast-xml-parser": "^5.4.1",
+    "flatted": "^3.4.1"
   },
   "publishConfig": {
     "access": "public"
