@@ -177,7 +177,6 @@
   },
   "dependencies": {
     "@cloudflare/containers": "^0.1.1",
-    "@zintrust/core": "^0.4.1",
     "@zintrust/workers": "^0.4.0",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.0",
