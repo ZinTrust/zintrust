@@ -22,10 +22,11 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-sqs": "^3.1004.0"
+    "@aws-sdk/client-sqs": "^3.1009.0"
   },
   "overrides": {
-    "fast-xml-parser": "^5.4.1"
+    "fast-xml-parser": "^5.4.1",
+    "flatted": "^3.4.1"
   },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"

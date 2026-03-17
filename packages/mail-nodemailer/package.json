@@ -28,7 +28,7 @@
     "access": "public"
   },
   "dependencies": {
-    "nodemailer": "^8.0.1"
+    "nodemailer": "^8.0.2"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

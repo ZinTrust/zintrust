@@ -114,3 +114,4 @@ routes/TestRoutes.ts
 d1-statements.json
 scripts/bulletproof-auth-smoke.mjs
 containers/
+ideas/

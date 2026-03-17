@@ -18,14 +18,15 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@aws-sdk/client-rds-data": "^3.1004.0",
-    "@aws-sdk/client-secrets-manager": "^3.1004.0"
+    "@aws-sdk/client-rds-data": "^3.1009.0",
+    "@aws-sdk/client-secrets-manager": "^3.1009.0"
   },
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
   },
   "overrides": {
-    "fast-xml-parser": "^5.4.1"
+    "fast-xml-parser": "^5.4.1",
+    "flatted": "^3.4.1"
   },
   "publishConfig": {
     "access": "public"
