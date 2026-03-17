@@ -859,12 +859,12 @@ MIT License - see [LICENSE.md](../../LICENSE.md) for details
 
 ## Related Packages
 
-- [@zintrust/core](../core) - Core framework
-- [@zintrust/db-mysql](../db-mysql) - MySQL adapter
-- [@zintrust/db-postgres](../db-postgres) - PostgreSQL adapter
-- [@zintrust/db-sqlite](../db-sqlite) - SQLite adapter
-- [@zintrust/db-sqlserver](../db-sqlserver) - SQL Server adapter
-- [@zintrust/db-d1](../db-d1) - D1 adapter
+- [@zintrust/core](https://www.npmjs.com/package/@zintrust/core) - Core framework
+- [@zintrust/db-mysql](https://www.npmjs.com/package/@zintrust/db-mysql) - MySQL adapter
+- [@zintrust/db-postgres](https://www.npmjs.com/package/@zintrust/db-postgres) - PostgreSQL adapter
+- [@zintrust/db-sqlite](https://www.npmjs.com/package/@zintrust/db-sqlite) - SQLite adapter
+- [@zintrust/db-sqlserver](https://www.npmjs.com/package/@zintrust/db-sqlserver) - SQL Server adapter
+- [@zintrust/db-d1](https://www.npmjs.com/package/@zintrust/db-d1) - D1 adapter
 
 ---
 
