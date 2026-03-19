@@ -7,11 +7,11 @@ This skill provides AI agents with comprehensive knowledge of ZinTrust's convent
 ## 1. The Golden Rules (Always Check First)
 
 1. **Dual-runtime mandate**: Every change must work with `zin s` (Node.js) AND `zin s --wg` (Cloudflare Workers). If anything is runtime-specific, flag it before implementing.
-2. **Brand spelling**: Always "ZinTrust" — never "zintrust", "Zintrust", or "ZINTrust" in docs and comments.
+2. **Brand spelling**: Always "ZinTrust" — never "zintrust", "Zintrust", or "ZINTrust" in prose, docs, and comments. Code identifiers (type names, module paths, etc.) must match the actual exported names even when those names use "Zintrust" (e.g. `IZintrustError`, `@exceptions/ZintrustError`).
 3. **No classes**: Use factory functions and sealed namespaces (`Object.freeze`) in `src/`, `app/`, `routes/`, `bin/`.
-4. **No `new Error(...)`**: Use `ErrorFactory.*` from `@exceptions/ZintrustError` in all app/framework code.
-5. **No `console.*`**: Use `Logger.*` from `@config/logger`.
-6. **No raw Node built-ins**: Import through `@node-singletons/*` wrappers (e.g. `import { join } from '@node-singletons/path'`).
+4. **No `new Error(...)`**: Use `ErrorFactory.*` from `@exceptions/ZintrustError` in all app/framework code. CLI commands (`src/cli/`) and low-level core internals may use `new Error` where lint overrides are present.
+5. **No `console.*`**: Use `Logger.*` from `@config/logger` in app/framework code. CLI commands and scripts may use `console.*` where appropriate.
+6. **No raw Node built-ins**: Import through `@node-singletons/*` wrappers (e.g. `import { join } from '@node-singletons/path'`) in runtime-agnostic app/framework code. CLI commands (`src/cli/`) and scripts may import `node:*` directly.
 7. **Use shared helpers**: Use utilities from `@helper/index` instead of re-implementing them.
 8. **Consistency over cleverness**: When in doubt, copy structure from an existing similar module.
 
@@ -155,8 +155,8 @@ export function registerRoutes(router: IRouter): void {
     },
     {
       middleware: ['auth'], // default for all actions
-      store: { middleware: ['auth', 'validate'] }, // per-action override
-      update: { middleware: ['auth', 'validate'] },
+      store: { middleware: ['auth', 'validateUserStore'] }, // per-action override
+      update: { middleware: ['auth', 'validateUserUpdate'] },
     }
   );
 }
@@ -179,6 +179,7 @@ import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { Logger } from '@config/logger';
+import { requireValidatedBody } from '@http/ValidationHelper';
 import { User } from '@app/Models/User';
 
 async function index(req: IRequest, res: IResponse): Promise<void> {
@@ -196,7 +197,8 @@ async function show(req: IRequest, res: IResponse): Promise<void> {
 }
 
 async function store(req: IRequest, res: IResponse): Promise<void> {
-  const body = getValidatedBody<{ name: string; email: string }>(req);
+  // Use requireValidatedBody when validation middleware is guaranteed (throws if missing)
+  const body = requireValidatedBody<{ name: string; email: string }>(req);
   const user = await User.create(body);
   Logger.info('User created', { id: user.getAttribute('id') });
   res.setStatus(201).json({ data: user });
@@ -212,7 +214,9 @@ export const UserController = Object.freeze({
 ```ts
 req.getParam('id'); // URL route params
 req.getQuery('page'); // Query string values
-getValidatedBody<T>(req); // Body parsed + validated by schema middleware
+getValidatedBody<T>(req); // Body parsed + validated — returns T | undefined (check or use requireValidatedBody)
+requireValidatedBody<T>(req); // Like getValidatedBody but throws if validation middleware wasn't applied
+hasValidatedBody(req); // Type guard: true if validation middleware populated the body
 req.getRaw(); // Raw Node IncomingMessage
 
 res.json({ key: 'value' }); // JSON response
@@ -289,8 +293,7 @@ model.hasManyThrough(RelatedModel, ThroughModel, firstKey?, secondKey?)
 ## 7. Validation
 
 ```ts
-import { Schema } from '@validation/Schema';
-import { Validator } from '@validation/Validator';
+import { Schema, Validator } from '@validation/Validator';
 
 const schema = Schema.create()
   .required('email')
@@ -314,11 +317,12 @@ const schema = Schema.create()
   .custom('field', (value) => typeof value === 'string');
 ```
 
-Register schema as middleware on a route to auto-validate and populate `getValidatedBody()`:
+Register schema as middleware on a route to auto-validate and populate `getValidatedBody()`. Validation middlewares are concrete named keys registered in `src/config/middleware.ts` (e.g. `validateLogin`, `validateUserStore`). Add new ones there following the same pattern:
 
 ```ts
+// Using an existing validation middleware key:
 Router.post<MiddlewareKey>(router, '/users', handler, {
-  middleware: ['auth', 'validate:createUser'],
+  middleware: ['auth', 'validateUserStore'],
 });
 ```
 
@@ -542,7 +546,7 @@ export default MyService;
 
 **Reference implementations to copy from:**
 
-- `src/routing/Router.ts` — routing namespace
+- `src/routes/Router.ts` — routing namespace
 - `src/config/logger.ts` — logger namespace
 - `src/orm/Model.ts` — ORM namespace
 - `app/Jobs/EmailJobService.ts` — job service
@@ -620,8 +624,10 @@ All security utilities live in `src/security/` and are exported via `@zintrust/c
 // tests/unit/MyModule.test.ts
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 
-// ✅ Import from src/index to cover build output, NOT from @zintrust/core
+// ✅ For core/internal module tests: import from src/index (covers the local build output)
 import { MyModule } from '../../../src/index';
+// ✅ For consumer/package tests that test integration with the published package: import from @zintrust/core
+// import { MyModule } from '@zintrust/core';
 
 // Mock logger — always do this to suppress output in tests
 vi.mock('@config/logger', () => ({
@@ -656,7 +662,7 @@ describe('MyModule', () => {
 
 **Test structure conventions:**
 
-- Tests import from `src/index`, never `@zintrust/core`
+- Core/internal module tests import from `src/index` (local build); consumer/package tests that test integration with the published package use `@zintrust/core` (see `tests/vitest.setup.ts` for its mock)
 - Always mock `@config/logger` to suppress noise
 - Always restore `process.env` vars changed in tests
 - Use `vi.resetModules()` before re-importing a module with different env config
