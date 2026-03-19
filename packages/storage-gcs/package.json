@@ -22,10 +22,11 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.19.0"
+    "@google-cloud/storage": "^7.19.0",
+    "fast-xml-parser": ">=5.5.6"
   },
   "overrides": {
-    "fast-xml-parser": "^5.4.1",
+    "fast-xml-parser": ">=5.5.6",
     "@tootallnate/once": "^3.0.1"
   },
   "peerDependencies": {
