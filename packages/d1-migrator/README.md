@@ -50,6 +50,19 @@ The package requires source database adapters depending on which database you're
 - SQL Server → `@zintrust/db-sqlserver`
 - Target → `@zintrust/db-d1`
 
+## CLI Auto-Registration
+
+No manual registration is required.
+
+After installing `@zintrust/d1-migrator`, ZinTrust auto-detects the package and exposes the `zin migrate-to-d1` command automatically:
+
+```bash
+npm install @zintrust/d1-migrator
+zin migrate-to-d1 --help
+```
+
+You do not need to add `@zintrust/d1-migrator` to `src/zintrust.plugins.ts`, and you do not need to run `zin plugin install` for this package. Installing it is enough.
+
 ## Quick Start
 
 ### Via CLI (Recommended)

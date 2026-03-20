@@ -2,4 +2,7 @@
 export { BaseCommand } from '@cli/BaseCommand';
 export type { CommandOptions } from '@cli/BaseCommand';
 export { CLI } from '@cli/CLI';
-export { EXIT_CODES, ErrorHandler } from '@cli/ErrorHandler';
+export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
+
+export { OptionalCliCommandRegistry } from '@cli/OptionalCliCommandRegistry';
+export type { CliCommandProvider } from '@cli/OptionalCliCommandRegistry';
