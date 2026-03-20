@@ -215,6 +215,14 @@ describe('StartCommand', () => {
     await expect(command.execute({ mode: 'invalid' })).rejects.toThrow(/Invalid --mode/);
   });
 
+  it('should instruct users to run --wg when RUNTIME=cloudflare is configured', async () => {
+    const command = StartCommand.create();
+    process.env['RUNTIME'] = 'cloudflare';
+
+    await expect(command.execute({})).rejects.toThrow(/zin start --wg|zin s --wg/);
+    expect(SpawnUtil.spawnAndWait).not.toHaveBeenCalled();
+  });
+
   it('should handle invalid port', async () => {
     const command = StartCommand.create();
     await expect(command.execute({ port: '99999' })).rejects.toThrow(/Invalid --port/);

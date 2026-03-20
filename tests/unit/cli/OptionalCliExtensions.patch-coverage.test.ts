@@ -114,6 +114,15 @@ describe('OptionalCliExtensions patch coverage', () => {
     expect(status.source).toBe('package');
   });
 
+  it('skips optional extension loading for unrelated commands', async () => {
+    const { OptionalCliExtensions } = await loadExtensionsModule({
+      projectResolve: successFixture,
+      localCandidatesExist: false,
+    });
+
+    await expect(OptionalCliExtensions.loadForArgs(['start'])).resolves.toEqual([]);
+  });
+
   it('marks an extension as missing when project, package, and local fallback imports fail', async () => {
     const { OptionalCliExtensions, OptionalCliExtensionsInternal } = await loadExtensionsModule({
       projectResolve: failureFixture,
