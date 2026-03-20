@@ -3,6 +3,8 @@
  * Type definitions for migration operations
  */
 
+import type { Command } from 'commander';
+
 export type SourceDatabaseDriver = 'mysql' | 'postgresql' | 'sqlite' | 'sqlserver';
 
 export interface MigrationConfig {
@@ -160,3 +162,16 @@ export interface DataValidationResult {
   extraRows?: string[];
   errors: string[];
 }
+
+export type CliCommandProvider = {
+  getCommand: () => Command;
+  name?: string;
+};
+
+export type Registry = {
+  register: (id: string, provider: CliCommandProvider) => void;
+};
+
+export type D1MigratorRegisterModule = {
+  MigrateToD1Command: CliCommandProvider;
+};

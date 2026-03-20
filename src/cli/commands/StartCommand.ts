@@ -113,6 +113,33 @@ const resolveRuntime = (options: StartCommandOptions): string | undefined => {
   return raw === '' ? undefined : raw;
 };
 
+const resolveConfiguredRuntime = (options: StartCommandOptions): string | undefined => {
+  const cliRuntime = resolveRuntime(options);
+  if (cliRuntime !== undefined && cliRuntime !== 'auto') return cliRuntime;
+
+  const envRuntime = readEnvString('RUNTIME').trim();
+  if (envRuntime === '' || envRuntime === 'auto') return undefined;
+  return envRuntime;
+};
+
+const isCloudflareRuntimeRequest = (runtime: string | undefined): boolean => {
+  if (typeof runtime !== 'string') return false;
+  const normalized = runtime.trim().toLowerCase();
+  return normalized === 'cloudflare' || normalized === 'cloudflare-workers';
+};
+
+const assertCompatibleStartVariant = (
+  variant: StartVariant,
+  configuredRuntime: string | undefined
+): void => {
+  if (variant !== 'node') return;
+  if (!isCloudflareRuntimeRequest(configuredRuntime)) return;
+
+  throw ErrorFactory.createCliError(
+    'Error: Cloudflare runtime requires Wrangler dev mode. Run "zin start --wg" (or "zin s --wg") instead of plain "zin start".'
+  );
+};
+
 const resolveStartVariant = (options: StartCommandOptions): StartVariant => {
   const wantWrangler = options.wrangler === true || options.wg === true;
   const wantDeno = options.deno === true;
@@ -576,6 +603,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   const mode = resolveMode(options);
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
+  const configuredRuntime = resolveConfiguredRuntime(options);
   const variant = resolveStartVariant(options);
   const envName = typeof options.env === 'string' ? options.env.trim() : '';
   let effectiveRuntime = runtime;
@@ -586,6 +614,8 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
     await executeSplitStart(cmd, cwd, options);
     return;
   }
+
+  assertCompatibleStartVariant(variant, configuredRuntime);
 
   const cacheEnabled = resolveCacheEnabledPreference(options);
   EnvFileLoader.applyCliOverrides({

@@ -1,18 +1,5 @@
 import type { OptionalCliCommandRegistry as CoreCommandRegistry } from '@zintrust/core/cli';
-import type { Command } from 'commander';
-
-type CliCommandProvider = {
-  getCommand: () => Command;
-  name?: string;
-};
-
-type Registry = {
-  register: (id: string, provider: CliCommandProvider) => void;
-};
-
-type D1MigratorRegisterModule = {
-  MigrateToD1Command: CliCommandProvider;
-};
+import type { CliCommandProvider, D1MigratorRegisterModule, Registry } from './types.js';
 
 const commandModule = (await (async (): Promise<D1MigratorRegisterModule> => {
   try {

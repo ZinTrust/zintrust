@@ -116,19 +116,7 @@ async function buildLocalFileDependencies(pkgDir, pkg, buildStack = new Set()) {
 }
 
 function installBuildDependenciesIntoPackage(pkgDir, pkg) {
-  const installTargets = [];
-
-  // The workers package has a tight peer-dependency on @zintrust/core that
-  // conflicts with the temporary shim version. We build workers with the real
-  // core in CI instead, so skip the shim there. All other packages still need
-  // the shim to compile before core is published.
-  if (pkgDir.endsWith(path.join('packages', 'workers'))) {
-    process.stdout.write('skipping core shim for workers package\n');
-  } else {
-    installTargets.push(shimDir);
-  }
-
-  installTargets.push(...getLocalFileDependencyInstallTargets(pkgDir, pkg));
+  const installTargets = [shimDir, ...getLocalFileDependencyInstallTargets(pkgDir, pkg)];
 
   if (installTargets.length === 0) return;
 
@@ -166,30 +154,60 @@ function removeDevRoutesForCiReleaseBuilds() {
 }
 
 async function assertCoreShimHasRequiredExports() {
-  const dtsPath = path.join(shimDir, 'index.d.ts');
-  const dts = await fs.readFile(dtsPath, 'utf8');
+  const requiredTokensByFile = {
+    'index.d.ts': [
+      'export declare const NodeSingletons: {',
+      'EventEmitter: any;',
+      'randomBytes: (size: number) => any;',
+      'createHash: (algorithm: string) => any;',
+      'export declare const MultipartParserRegistry: any;',
+      'export type UploadedFile = any;',
+      'export type MultipartFieldValue = any;',
+      'export type MultipartParseInput = any;',
+      'export type MultipartParserProvider = any;',
+      'export type ParsedMultipartData = any;',
+      'export type WorkerAutoScalingConfig = any;',
+      'export type WorkerComplianceConfig = any;',
+      'export type WorkerCostConfig = any;',
+      'export type WorkerObservabilityConfig = any;',
+      'export type WorkerVersioningConfig = any;',
+      'export type WorkersConfigOverrides = any;',
+      'export type WorkersGlobalConfig = any;',
+    ],
+    'cli.d.ts': [
+      'export declare const BaseCommand: any;',
+      'export type CommandOptions = Record<string, unknown>;',
+      'export declare const WorkerCommands: any;',
+      'export declare const OptionalCliCommandRegistry: any;',
+      'export type CliCommandProvider = any;',
+    ],
+    'proxy.d.ts': [
+      'export declare const ErrorHandler: any;',
+      'export declare const RequestValidator: any;',
+      'export declare const SigningService: any;',
+    ],
+  };
 
-  const requiredTokens = [
-    'export declare const NodeSingletons: {',
-    'EventEmitter: any;',
-    'randomBytes: (size: number) => any;',
-    'createHash: (algorithm: string) => any;',
-    'export declare const MultipartParserRegistry: any;',
-    'export type UploadedFile = any;',
-    'export type MultipartFieldValue = any;',
-    'export type MultipartParseInput = any;',
-    'export type MultipartParserProvider = any;',
-    'export type ParsedMultipartData = any;',
-    'export type WorkerAutoScalingConfig = any;',
-    'export type WorkerComplianceConfig = any;',
-    'export type WorkerCostConfig = any;',
-    'export type WorkerObservabilityConfig = any;',
-    'export type WorkerVersioningConfig = any;',
-    'export type WorkersConfigOverrides = any;',
-    'export type WorkersGlobalConfig = any;',
-  ];
+  const missing = [];
 
-  const missing = requiredTokens.filter((token) => !dts.includes(token));
+  for (const [fileName, requiredTokens] of Object.entries(requiredTokensByFile)) {
+    const dtsPath = path.join(shimDir, fileName);
+    let dts;
+
+    try {
+      dts = await fs.readFile(dtsPath, 'utf8');
+    } catch {
+      missing.push(`${fileName} (missing file)`);
+      continue;
+    }
+
+    for (const token of requiredTokens) {
+      if (!dts.includes(token)) {
+        missing.push(`${fileName}: ${token}`);
+      }
+    }
+  }
+
   if (missing.length > 0) {
     throw new Error(`release-core-shim is missing required exports/types: ${missing.join(', ')}`);
   }
@@ -444,7 +462,7 @@ async function publishAllPackages({ packageDirs, coreVersion }) {
 
   try {
     // Create shim for @zintrust/core so packages can resolve it during build
-    await createCoreShim();
+    await createCoreShim(coreVersion);
     await assertCoreShimHasRequiredExports();
 
     for (const dirName of packageDirs) {
@@ -458,21 +476,38 @@ async function publishAllPackages({ packageDirs, coreVersion }) {
   return { failures, successes, checkIssues };
 }
 
-async function createCoreShim() {
+async function createCoreShim(coreVersion) {
   await fs.mkdir(shimDir, { recursive: true });
 
   const pkgJson = {
     name: '@zintrust/core',
-    version: '0.0.0',
+    version: coreVersion,
+    type: 'module',
     main: 'index.js',
     types: 'index.d.ts',
+    exports: {
+      '.': {
+        types: './index.d.ts',
+        import: './index.js',
+      },
+      './cli': {
+        types: './cli.d.ts',
+        import: './cli.js',
+      },
+      './proxy': {
+        types: './proxy.d.ts',
+        import: './proxy.js',
+      },
+      './package.json': './package.json',
+    },
   };
 
   await fs.writeFile(path.join(shimDir, 'package.json'), JSON.stringify(pkgJson, null, 2));
 
   // NOTE: This shim exists only so package builds can type-check against
   // '@zintrust/core' during release publishing without installing the real
-  // package from npm. Keep it broad enough to cover package imports.
+  // package from npm. Keep it broad enough to cover package imports and
+  // public subpaths used by packages in this repo.
   const dts = `
 export declare const Logger: any;
 export declare const ErrorFactory: any;
@@ -571,6 +606,25 @@ export type IDatabase = any;
 export type Blueprint = any;
 `;
   await fs.writeFile(path.join(shimDir, 'index.d.ts'), dts);
+
+  const cliDts = `
+export declare const BaseCommand: any;
+export type CommandOptions = Record<string, unknown>;
+export declare const CLI: any;
+export declare const ErrorHandler: any;
+export declare const EXIT_CODES: any;
+export declare const WorkerCommands: any;
+export declare const OptionalCliCommandRegistry: any;
+export type CliCommandProvider = any;
+`;
+  await fs.writeFile(path.join(shimDir, 'cli.d.ts'), cliDts);
+
+  const proxyDts = `
+export declare const ErrorHandler: any;
+export declare const RequestValidator: any;
+export declare const SigningService: any;
+`;
+  await fs.writeFile(path.join(shimDir, 'proxy.d.ts'), proxyDts);
 
   const js = `
 export const Logger = {};
@@ -695,6 +749,91 @@ export const SendGridDriver = {};
 export const MailgunDriver = {};
 `;
   await fs.writeFile(path.join(shimDir, 'index.js'), js);
+
+  const cliJs = `
+const createCommand = () => ({});
+const createProvider = () => ({
+  getCommand() {
+    return createCommand();
+  },
+});
+
+export const BaseCommand = {
+  create(config = {}) {
+    return {
+      ...config,
+      getCommand() {
+        return createCommand();
+      },
+      info() {},
+      success() {},
+      warn() {},
+      debug() {},
+    };
+  },
+};
+
+export const CLI = {};
+export const ErrorHandler = {};
+export const EXIT_CODES = {};
+export const WorkerCommands = {
+  createWorkerListCommand: createProvider,
+  createWorkerStatusCommand: createProvider,
+  createWorkerStartCommand: createProvider,
+  createWorkerStartAllCommand: createProvider,
+  createWorkerStopCommand: createProvider,
+  createWorkerRestartCommand: createProvider,
+  createWorkerSummaryCommand: createProvider,
+};
+export const OptionalCliCommandRegistry = {
+  register() {},
+  get() {
+    return undefined;
+  },
+  has() {
+    return false;
+  },
+  list() {
+    return [];
+  },
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'cli.js'), cliJs);
+
+  const proxyJs = `
+export const ErrorHandler = {
+  toProxyError(status = 500, code = 'proxy_error', message = 'Proxy error') {
+    return {
+      status,
+      body: { code, message },
+    };
+  },
+};
+
+export const RequestValidator = {
+  parseJson(value) {
+    if (typeof value !== 'string' || value.trim() === '') {
+      return { ok: true, value: undefined };
+    }
+
+    try {
+      return { ok: true, value: JSON.parse(value) };
+    } catch (error) {
+      return { ok: false, error };
+    }
+  },
+  requirePost(method) {
+    return method === 'POST' ? undefined : { status: 405 };
+  },
+};
+
+export const SigningService = {
+  async verifyWithKeyProvider() {
+    return { ok: true };
+  },
+};
+`;
+  await fs.writeFile(path.join(shimDir, 'proxy.js'), proxyJs);
 }
 
 async function main() {

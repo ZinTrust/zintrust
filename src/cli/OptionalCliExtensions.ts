@@ -24,6 +24,10 @@ export type OptionalCliExtensionStatus = Readonly<{
   source: OptionalCliExtensionLoadSource;
 }>;
 
+type OptionalCliExtensionLoadOptions = Readonly<{
+  logFailures?: boolean;
+}>;
+
 const __dirname = esmDirname(import.meta.url);
 const packageRoot = path.resolve(__dirname, '../..');
 
@@ -39,6 +43,20 @@ const resolveProjectRoot = (): string => {
   const configured = readEnvString('ZINTRUST_PROJECT_ROOT').trim();
   if (configured !== '') return configured;
   return getProjectCwd();
+};
+
+const shouldLogFailures = (options?: OptionalCliExtensionLoadOptions): boolean => {
+  if (options?.logFailures === true) return true;
+  return readEnvString('ZINTRUST_DEBUG_OPTIONAL_CLI_EXTENSIONS').trim() === '1';
+};
+
+const debugFailure = (
+  message: string,
+  meta: Record<string, unknown>,
+  options?: OptionalCliExtensionLoadOptions
+): void => {
+  if (!shouldLogFailures(options)) return;
+  Logger.debug(message, meta);
 };
 
 const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.freeze([
@@ -74,25 +92,35 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
   },
 ]);
 
-const resolveProjectInstalledUrl = (entry: OptionalCliExtension): string | null => {
+const resolveProjectInstalledUrl = (
+  entry: OptionalCliExtension,
+  options?: OptionalCliExtensionLoadOptions
+): string | null => {
   try {
     const projectRoot = resolveProjectRoot();
     const requireFromProject = createRequire(path.join(projectRoot, 'package.json'));
     const resolved = requireFromProject.resolve(entry.specifier);
     return pathToFileURL(resolved).href;
   } catch (error) {
-    Logger.debug('[cli] Optional CLI extension not resolved from project root', {
-      packageName: entry.packageName,
-      specifier: entry.specifier,
-      projectRoot: resolveProjectRoot(),
-      error: error instanceof Error ? error.message : String(error),
-    });
+    debugFailure(
+      '[cli] Optional CLI extension not resolved from project root',
+      {
+        packageName: entry.packageName,
+        specifier: entry.specifier,
+        projectRoot: resolveProjectRoot(),
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options
+    );
     return null;
   }
 };
 
-const tryImportProjectInstalledPackage = async (entry: OptionalCliExtension): Promise<boolean> => {
-  const resolvedUrl = resolveProjectInstalledUrl(entry);
+const tryImportProjectInstalledPackage = async (
+  entry: OptionalCliExtension,
+  options?: OptionalCliExtensionLoadOptions
+): Promise<boolean> => {
+  const resolvedUrl = resolveProjectInstalledUrl(entry, options);
   if (resolvedUrl === null) return false;
 
   try {
@@ -103,16 +131,23 @@ const tryImportProjectInstalledPackage = async (entry: OptionalCliExtension): Pr
     });
     return true;
   } catch (error) {
-    Logger.debug('[cli] Optional CLI extension project import failed', {
-      packageName: entry.packageName,
-      resolvedUrl,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    debugFailure(
+      '[cli] Optional CLI extension project import failed',
+      {
+        packageName: entry.packageName,
+        resolvedUrl,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options
+    );
     return false;
   }
 };
 
-const tryImportLocalCandidate = async (entry: OptionalCliExtension): Promise<boolean> => {
+const tryImportLocalCandidate = async (
+  entry: OptionalCliExtension,
+  options?: OptionalCliExtensionLoadOptions
+): Promise<boolean> => {
   const existingCandidates = entry.localCandidates.filter((candidate) => existsSync(candidate));
   if (existingCandidates.length === 0) return false;
 
@@ -126,11 +161,15 @@ const tryImportLocalCandidate = async (entry: OptionalCliExtension): Promise<boo
         });
         return true;
       } catch (error) {
-        Logger.debug('[cli] Optional CLI extension local fallback failed', {
-          packageName: entry.packageName,
-          candidate,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        debugFailure(
+          '[cli] Optional CLI extension local fallback failed',
+          {
+            packageName: entry.packageName,
+            candidate,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          options
+        );
         return false;
       }
     })
@@ -139,7 +178,10 @@ const tryImportLocalCandidate = async (entry: OptionalCliExtension): Promise<boo
   return results.some(Boolean);
 };
 
-const tryImportPackageSpecifier = async (entry: OptionalCliExtension): Promise<boolean> => {
+const tryImportPackageSpecifier = async (
+  entry: OptionalCliExtension,
+  options?: OptionalCliExtensionLoadOptions
+): Promise<boolean> => {
   try {
     await import(entry.specifier);
     Logger.debug('[cli] Loaded optional CLI extension package', {
@@ -148,19 +190,24 @@ const tryImportPackageSpecifier = async (entry: OptionalCliExtension): Promise<b
     });
     return true;
   } catch (error) {
-    Logger.debug('[cli] Optional CLI extension package not loaded', {
-      packageName: entry.packageName,
-      specifier: entry.specifier,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    debugFailure(
+      '[cli] Optional CLI extension package not loaded',
+      {
+        packageName: entry.packageName,
+        specifier: entry.specifier,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      options
+    );
     return false;
   }
 };
 
 const tryImportExtension = async (
-  entry: OptionalCliExtension
+  entry: OptionalCliExtension,
+  options?: OptionalCliExtensionLoadOptions
 ): Promise<OptionalCliExtensionStatus> => {
-  if (await tryImportProjectInstalledPackage(entry)) {
+  if (await tryImportProjectInstalledPackage(entry, options)) {
     return {
       packageName: entry.packageName,
       commands: [...entry.commands],
@@ -170,7 +217,7 @@ const tryImportExtension = async (
     };
   }
 
-  if (await tryImportPackageSpecifier(entry)) {
+  if (await tryImportPackageSpecifier(entry, options)) {
     return {
       packageName: entry.packageName,
       commands: [...entry.commands],
@@ -180,7 +227,7 @@ const tryImportExtension = async (
     };
   }
 
-  if (await tryImportLocalCandidate(entry)) {
+  if (await tryImportLocalCandidate(entry, options)) {
     return {
       packageName: entry.packageName,
       commands: [...entry.commands],
@@ -209,9 +256,45 @@ const getRequestedCommand = (args: string[]): string | undefined => {
   return typeof args[0] === 'string' && args[0].trim() !== '' ? args[0].trim() : undefined;
 };
 
+const findRequestedExtension = (args: string[]): OptionalCliExtension | undefined => {
+  const requestedCommand = getRequestedCommand(args);
+  if (requestedCommand === undefined) return undefined;
+
+  return OPTIONAL_CLI_EXTENSIONS.find((entry) => entry.commands.includes(requestedCommand));
+};
+
+const isRootHelpRequest = (args: string[]): boolean => {
+  if (args.length === 0) return true;
+  const first = typeof args[0] === 'string' ? args[0].trim() : '';
+  if (first === '' || first === '-h' || first === '--help') return true;
+  return first === 'help' && getRequestedCommand(args) === undefined;
+};
+
 export const OptionalCliExtensions = Object.freeze({
   async tryImportInstalledExtensions(): Promise<OptionalCliExtensionStatus[]> {
-    return Promise.all(OPTIONAL_CLI_EXTENSIONS.map(tryImportExtension));
+    return Promise.all(
+      OPTIONAL_CLI_EXTENSIONS.map(async (entry) =>
+        tryImportExtension(entry, { logFailures: false })
+      )
+    );
+  },
+
+  async loadForArgs(args: string[]): Promise<OptionalCliExtensionStatus[]> {
+    const requestedExtension = findRequestedExtension(args);
+
+    if (requestedExtension !== undefined) {
+      return [await tryImportExtension(requestedExtension, { logFailures: false })];
+    }
+
+    if (isRootHelpRequest(args)) {
+      return Promise.all(
+        OPTIONAL_CLI_EXTENSIONS.map(async (entry) =>
+          tryImportExtension(entry, { logFailures: false })
+        )
+      );
+    }
+
+    return [];
   },
 
   findMissingExtensionForArgs(
@@ -233,15 +316,21 @@ export const OptionalCliExtensions = Object.freeze({
       `Install it and try again: ${status.installCommand}`,
     ].join(' ');
   },
+
+  findRequestedExtension,
 });
 
 export const OptionalCliExtensionsInternal = Object.freeze({
   getProjectCwd,
   resolveProjectRoot,
   resolveProjectInstalledUrl,
+  shouldLogFailures,
+  debugFailure,
   tryImportProjectInstalledPackage,
   tryImportLocalCandidate,
   tryImportPackageSpecifier,
   tryImportExtension,
   getRequestedCommand,
+  findRequestedExtension,
+  isRootHelpRequest,
 });

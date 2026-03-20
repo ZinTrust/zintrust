@@ -129,7 +129,7 @@ export async function run(): Promise<void> {
     try {
       ({ OptionalCliExtensions: optionalCliExtensions } =
         await import('@cli/OptionalCliExtensions'));
-      optionalCliStatuses = await optionalCliExtensions.tryImportInstalledExtensions();
+      optionalCliStatuses = await optionalCliExtensions.loadForArgs(args0);
     } catch {
       // best-effort; missing optional extensions must not block the CLI
     }
