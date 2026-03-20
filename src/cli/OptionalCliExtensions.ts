@@ -53,6 +53,25 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
       path.join(packageRoot, 'dist', 'packages', 'd1-migrator', 'src', 'register.js'),
     ],
   },
+  {
+    packageName: '@zintrust/workers',
+    specifier: '@zintrust/workers/register',
+    commands: [
+      'worker:list',
+      'worker:status',
+      'worker:start',
+      'worker:start-all',
+      'worker:stop',
+      'worker:restart',
+      'worker:summary',
+    ],
+    installCommand: 'npm install @zintrust/workers',
+    localCandidates: [
+      path.join(packageRoot, 'packages', 'workers', 'src', 'register.ts'),
+      path.join(packageRoot, 'packages', 'workers', 'src', 'register.js'),
+      path.join(packageRoot, 'dist', 'packages', 'workers', 'src', 'register.js'),
+    ],
+  },
 ]);
 
 const resolveProjectInstalledUrl = (entry: OptionalCliExtension): string | null => {

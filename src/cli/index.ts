@@ -5,7 +5,7 @@
 
 export { BaseCommand, type CommandOptions } from '@cli/BaseCommand';
 export { CLI } from '@cli/CLI';
-export { ErrorHandler, EXIT_CODES } from '@cli/ErrorHandler';
+export { EXIT_CODES, ErrorHandler } from '@cli/ErrorHandler';
 export { PromptHelper, type PromptOptions } from '@cli/PromptHelper';
 
 // Export commands
@@ -19,3 +19,4 @@ export { PostgresProxyCommand } from '@cli/commands/PostgresProxyCommand';
 export { ProxyCommand } from '@cli/commands/ProxyCommand';
 export { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';
+export { WorkerCommands } from '@cli/commands/WorkerCommands';

@@ -63,7 +63,6 @@ import { SqlServerProxyCommand } from '@cli/commands/SqlServerProxyCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
-import { WorkerCommands } from '@cli/commands/WorkerCommands';
 import { ErrorHandler } from '@cli/ErrorHandler';
 import { OptionalCliCommandRegistry } from '@cli/OptionalCliCommandRegistry';
 import { VersionChecker } from '@cli/services/VersionChecker';
@@ -154,13 +153,6 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     SqlServerProxyCommand.create(),
     RedisProxyCommand.create(),
     SmtpProxyCommand.create(),
-    WorkerCommands.createWorkerListCommand(),
-    WorkerCommands.createWorkerStatusCommand(),
-    WorkerCommands.createWorkerStartCommand(),
-    WorkerCommands.createWorkerStartAllCommand(),
-    WorkerCommands.createWorkerStopCommand(),
-    WorkerCommands.createWorkerRestartCommand(),
-    WorkerCommands.createWorkerSummaryCommand(),
     ...OptionalCliCommandRegistry.list(),
   ];
 };

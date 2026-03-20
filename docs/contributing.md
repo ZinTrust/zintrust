@@ -4,17 +4,32 @@ Welcome to the ZinTrust contributor community! This guide outlines the standards
 
 ## Table of Contents
 
-1. [Environment Setup](#environment-setup)
-2. [Coding Standards](#coding-standards)
-3. [QA Workflows](#qa-workflows)
-4. [Microservice Requirements](#microservice-requirements)
-5. [Security Guidelines](#security-guidelines)
-6. [Performance Standards](#performance-standards)
-7. [Testing Strategy](#testing-strategy)
-8. [Documentation Standards](#documentation-standards)
-9. [Contributor License Agreement (CLA)](#cla)
-10. [Code of Conduct](#code-of-conduct)
-11. [First Timers Guide](#first-timers)
+- [ZinTrust Contributor \& QA Guide](#zintrust-contributor--qa-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Environment Setup](#environment-setup)
+    - [Initial Setup](#initial-setup)
+  - [Coding Standards](#coding-standards)
+    - [TypeScript Strictness](#typescript-strictness)
+    - [ESLint \& Logger](#eslint--logger)
+  - [QA Workflows](#qa-workflows)
+    - [Automated Hooks](#automated-hooks)
+    - [Unified QA Command](#unified-qa-command)
+  - [Microservice Requirements](#microservice-requirements)
+  - [Security Guidelines](#security-guidelines)
+    - [SQL Injection Prevention](#sql-injection-prevention)
+    - [Vulnerability Reporting](#vulnerability-reporting)
+  - [Performance Standards](#performance-standards)
+    - [N+1 Query Detection](#n1-query-detection)
+    - [Caching](#caching)
+  - [Testing Strategy](#testing-strategy)
+  - [Optional CLI Packages](#optional-cli-packages)
+    - [Required pattern](#required-pattern)
+    - [Rules](#rules)
+    - [Examples](#examples)
+  - [Documentation Standards](#documentation-standards)
+  - [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
+  - [Code of Conduct](#code-of-conduct)
+  - [First Timers Guide](#first-timers-guide)
 
 ---
 
@@ -122,6 +137,36 @@ If you find a security vulnerability, please do **not** open a public issue. Ema
 - **Integration Tests**: For database and service interactions.
 - **E2E Tests**: For critical API workflows.
 - **Factories**: Use `zin add factory <name>` to generate test data.
+
+---
+
+## Optional CLI Packages
+
+Optional CLI commands must be implemented as install-only extensions, not as static imports in core.
+
+### Required pattern
+
+1. Add a `./register` export in the package `package.json`.
+2. Create a `src/register.ts` side-effect entrypoint that registers command providers into [src/cli/OptionalCliCommandRegistry.ts](src/cli/OptionalCliCommandRegistry.ts).
+3. Add the package metadata to [src/cli/OptionalCliExtensions.ts](src/cli/OptionalCliExtensions.ts): package name, `./register` specifier, command names, install command, and monorepo-only local fallback paths.
+4. Resolve the package from the developer project root first. This is required because `@zintrust/core` may be installed globally while the optional package is installed locally in the project.
+5. Add tests for both cases:
+   - command becomes visible when the package is installed
+   - CLI returns a clear install message when the package is missing
+
+### Rules
+
+- Do not statically import optional packages in [src/cli/CLI.ts](src/cli/CLI.ts).
+- Do not rely on `packages/...` runtime paths outside monorepo development fallback logic.
+- Keep the `./register` file side-effect safe and focused on command registration only.
+- If the package needs core command builders, export them through the public `@zintrust/core/cli` API rather than importing internal files.
+
+### Examples
+
+- D1 migrator: [packages/d1-migrator/src/register.ts](packages/d1-migrator/src/register.ts)
+- Workers package: [packages/workers/src/register.ts](packages/workers/src/register.ts)
+- Core registry: [src/cli/OptionalCliCommandRegistry.ts](src/cli/OptionalCliCommandRegistry.ts)
+- Core loader: [src/cli/OptionalCliExtensions.ts](src/cli/OptionalCliExtensions.ts)
 
 ---
 
