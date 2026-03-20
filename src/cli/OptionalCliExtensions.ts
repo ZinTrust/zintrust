@@ -68,6 +68,7 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
     localCandidates: [
       path.join(packageRoot, 'packages', 'd1-migrator', 'src', 'register.ts'),
       path.join(packageRoot, 'packages', 'd1-migrator', 'src', 'register.js'),
+      path.join(packageRoot, 'packages', 'd1-migrator', 'dist', 'register.js'),
       path.join(packageRoot, 'dist', 'packages', 'd1-migrator', 'src', 'register.js'),
     ],
   },
@@ -87,10 +88,39 @@ const OPTIONAL_CLI_EXTENSIONS: ReadonlyArray<OptionalCliExtension> = Object.free
     localCandidates: [
       path.join(packageRoot, 'packages', 'workers', 'src', 'register.ts'),
       path.join(packageRoot, 'packages', 'workers', 'src', 'register.js'),
+      path.join(packageRoot, 'packages', 'workers', 'dist', 'register.js'),
       path.join(packageRoot, 'dist', 'packages', 'workers', 'src', 'register.js'),
     ],
   },
 ]);
+
+const getProjectLocalCandidates = (entry: OptionalCliExtension): string[] => {
+  const projectRoot = resolveProjectRoot();
+  if (projectRoot === packageRoot) return [];
+
+  return Array.from(
+    new Set(
+      entry.localCandidates.flatMap((candidate) => {
+        const relativeCandidate = path.relative(packageRoot, candidate);
+
+        if (
+          relativeCandidate === '' ||
+          relativeCandidate === '.' ||
+          relativeCandidate === '..' ||
+          relativeCandidate.startsWith(`..${path.sep}`)
+        ) {
+          return [];
+        }
+
+        return [path.join(projectRoot, relativeCandidate)];
+      })
+    )
+  );
+};
+
+const getLocalCandidates = (entry: OptionalCliExtension): string[] => {
+  return Array.from(new Set([...getProjectLocalCandidates(entry), ...entry.localCandidates]));
+};
 
 const resolveProjectInstalledUrl = (
   entry: OptionalCliExtension,
@@ -148,7 +178,7 @@ const tryImportLocalCandidate = async (
   entry: OptionalCliExtension,
   options?: OptionalCliExtensionLoadOptions
 ): Promise<boolean> => {
-  const existingCandidates = entry.localCandidates.filter((candidate) => existsSync(candidate));
+  const existingCandidates = getLocalCandidates(entry).filter((candidate) => existsSync(candidate));
   if (existingCandidates.length === 0) return false;
 
   const results = await Promise.all(
@@ -333,4 +363,6 @@ export const OptionalCliExtensionsInternal = Object.freeze({
   getRequestedCommand,
   findRequestedExtension,
   isRootHelpRequest,
+  getProjectLocalCandidates,
+  getLocalCandidates,
 });
