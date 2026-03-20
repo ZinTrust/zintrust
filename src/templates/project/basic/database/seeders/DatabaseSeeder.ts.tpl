@@ -1,7 +1,7 @@
 import { SeederDiscovery } from '@zintrust/core/seeders';
 import { SeederLoader } from '@zintrust/core/seeders';
 import { CommonUtils } from '@zintrust/core/common';
-import * as path from 'node:path';
+import { path } from '@zintrust/core/node';
 import type { IDatabase } from '@zintrust/core/orm';
 
 export const DatabaseSeeder = Object.freeze({

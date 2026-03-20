@@ -5,7 +5,12 @@ if (__coverageMarker !== true) {
   throw Logger.error('Unreachable');
 }
 
+export * as crypto from '@node-singletons/crypto';
+export * as fs from '@node-singletons/fs';
+export * as path from '@node-singletons/path';
+export { performance } from '@node-singletons/perf-hooks';
 export { default, default as process } from '@node-singletons/process';
+export * as url from '@node-singletons/url';
 
 export { cleanOnce, FileLogWriter } from '@config/FileLogWriter';
 

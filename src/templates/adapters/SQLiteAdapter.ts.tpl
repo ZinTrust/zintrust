@@ -7,9 +7,7 @@
 import { FeatureFlags } from '@zintrust/core';
 import { Logger } from '@zintrust/core';
 import { ErrorFactory } from '@zintrust/core';
-import fs from 'node:fs';
-import * as path from 'node:path';
-import { performance } from 'node:perf_hooks';
+import { fs, path, performance } from '@zintrust/core/node';
 import { DatabaseConfig, IDatabaseAdapter, QueryResult } from '@zintrust/core';
 import { QueryBuilder } from '@zintrust/core';
 

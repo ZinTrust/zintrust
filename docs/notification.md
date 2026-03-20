@@ -271,7 +271,7 @@ Logger.info(`NotificationWorker processed: ${processed}`);
 
 Run every minute:
 
-```cron
+```txt
 * * * * * cd /path/to/your/app && zin notification:work notifications --timeout 50 --retry 3 --max-items 1000 >> /var/log/zintrust-notification-worker.log 2>&1
 ```
 

@@ -103,8 +103,7 @@ export default zintrustAppEslintConfig({
   return wrote ? [eslintConfigPath] : [];
 };
 
-const IMPORT_BOUNDARIES_ARCH_TEST_CONTENT = `import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
+const IMPORT_BOUNDARIES_ARCH_TEST_CONTENT = `import { fs, path } from '@zintrust/core/node';
 import * as ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
@@ -120,6 +119,7 @@ type Violation = {
 };
 
 const repoRoot = process.cwd();
+const fsPromises = fs.fsPromises;
 
 const isTsFile = (filePath: string): boolean => {
   if (!filePath.endsWith('.ts')) return false;
@@ -128,7 +128,7 @@ const isTsFile = (filePath: string): boolean => {
 };
 
 const walkTsFiles = async (dir: string): Promise<string[]> => {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const entries = await fsPromises.readdir(dir, { withFileTypes: true });
 
   const files = entries
     .filter((ent) => ent.isFile())
@@ -198,7 +198,7 @@ const findViolations = async (
 ): Promise<Violation[]> => {
   const perFile = await Promise.all(
     files.map(async (file): Promise<Violation[]> => {
-      const contents = await fs.readFile(file, 'utf-8');
+      const contents = await fsPromises.readFile(file, 'utf-8');
       const imports = extractImportSpecifiers(contents, file);
 
       return imports

@@ -63,15 +63,14 @@ import { SqlServerProxyCommand } from '@cli/commands/SqlServerProxyCommand';
 import { StartCommand } from '@cli/commands/StartCommand';
 import { TemplatesCommand } from '@cli/commands/TemplatesCommand';
 import { UpgradeCommand } from '@cli/commands/UpgradeCommand';
-import { WorkerCommands } from '@cli/commands/WorkerCommands';
 import { ErrorHandler } from '@cli/ErrorHandler';
+import { OptionalCliCommandRegistry } from '@cli/OptionalCliCommandRegistry';
 import { VersionChecker } from '@cli/services/VersionChecker';
 import { esmDirname } from '@common/index';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { readFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
-import { D1Migrator } from '@zintrust/d1-migrator';
 import { Command } from 'commander';
 
 const __dirname = esmDirname(import.meta.url);
@@ -125,7 +124,6 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     DbSeedCommand.create(),
     D1LearnCommand.create(),
     D1MigrateCommand.create(),
-    D1Migrator.MigrateToD1Command,
     DebugCommand.create(),
     SecretsCommand.create(),
     ConfigCommand.create(),
@@ -155,13 +153,7 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     SqlServerProxyCommand.create(),
     RedisProxyCommand.create(),
     SmtpProxyCommand.create(),
-    WorkerCommands.createWorkerListCommand(),
-    WorkerCommands.createWorkerStatusCommand(),
-    WorkerCommands.createWorkerStartCommand(),
-    WorkerCommands.createWorkerStartAllCommand(),
-    WorkerCommands.createWorkerStopCommand(),
-    WorkerCommands.createWorkerRestartCommand(),
-    WorkerCommands.createWorkerSummaryCommand(),
+    ...OptionalCliCommandRegistry.list(),
   ];
 };
 /**

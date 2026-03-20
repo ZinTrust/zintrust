@@ -19,3 +19,4 @@ export { PostgresProxyCommand } from '@cli/commands/PostgresProxyCommand';
 export { ProxyCommand } from '@cli/commands/ProxyCommand';
 export { RedisProxyCommand } from '@cli/commands/RedisProxyCommand';
 export { SecretsCommand } from '@cli/commands/SecretsCommand';
+export { WorkerCommands } from '@cli/commands/WorkerCommands';

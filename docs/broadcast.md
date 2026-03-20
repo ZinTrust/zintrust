@@ -146,7 +146,7 @@ If you prefer TypeScript in development, you can do the same with `tsx` (dev-onl
 
 Run every minute:
 
-```cron
+```txt
 * * * * * cd /path/to/your/app && zin broadcast:work broadcasts --timeout 50 --retry 3 --max-items 1000 >> /var/log/zintrust-broadcast-worker.log 2>&1
 ```
 
