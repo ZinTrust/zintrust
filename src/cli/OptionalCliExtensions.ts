@@ -6,7 +6,7 @@ import { createRequire } from '@node-singletons/module';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 
-type OptionalCliExtension = {
+export type OptionalCliExtension = {
   packageName: string;
   specifier: string;
   commands: string[];
@@ -233,4 +233,15 @@ export const OptionalCliExtensions = Object.freeze({
       `Install it and try again: ${status.installCommand}`,
     ].join(' ');
   },
+});
+
+export const OptionalCliExtensionsInternal = Object.freeze({
+  getProjectCwd,
+  resolveProjectRoot,
+  resolveProjectInstalledUrl,
+  tryImportProjectInstalledPackage,
+  tryImportLocalCandidate,
+  tryImportPackageSpecifier,
+  tryImportExtension,
+  getRequestedCommand,
 });
