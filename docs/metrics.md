@@ -100,19 +100,19 @@ DB adapters (or the ORM layer) record query metrics where supported. The `driver
 
 ### Request rate
 
-```promql
+```txt
 sum(rate(http_requests_total[5m]))
 ```
 
 By route:
 
-```promql
+```txt
 sum by (route) (rate(http_requests_total[5m]))
 ```
 
 ### Error ratio (5xx)
 
-```promql
+```txt
 sum(rate(http_requests_total{status=~"5.."}[5m]))
 /
 sum(rate(http_requests_total[5m]))
@@ -120,7 +120,7 @@ sum(rate(http_requests_total[5m]))
 
 ### p95 latency by route
 
-```promql
+```txt
 histogram_quantile(
 	0.95,
 	sum by (le, route) (rate(http_request_duration_seconds_bucket[5m]))
@@ -129,7 +129,7 @@ histogram_quantile(
 
 ### p95 DB query latency by driver
 
-```promql
+```txt
 histogram_quantile(
 	0.95,
 	sum by (le, driver) (rate(db_query_duration_seconds_bucket[5m]))

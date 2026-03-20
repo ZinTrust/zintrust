@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { pathToFileURL } from '@node-singletons/url';
+import { fileURLToPath, pathToFileURL } from '@node-singletons/url';
 
 type OptionalCliExtensionsModule = typeof import('@cli/OptionalCliExtensions');
 
-const successFixture =
-  '/opt/homebrew/var/www/Sites/zintrust/tests/fixtures/cli/optional-extension-success.mjs';
-const failureFixture =
-  '/opt/homebrew/var/www/Sites/zintrust/tests/fixtures/cli/optional-extension-failure.mjs';
+const successFixture = fileURLToPath(
+  new URL('../../fixtures/cli/optional-extension-success.mjs', import.meta.url)
+);
+const failureFixture = fileURLToPath(
+  new URL('../../fixtures/cli/optional-extension-failure.mjs', import.meta.url)
+);
 
 const loadExtensionsModule = async (options?: {
   projectResolve?: string | 'throw';
