@@ -1,4 +1,3 @@
-import type { OptionalCliCommandRegistry as CoreCommandRegistry } from '@zintrust/core/cli';
 import type { CliCommandProvider, D1MigratorRegisterModule, Registry } from './types.js';
 
 const commandModule = (await (async (): Promise<D1MigratorRegisterModule> => {
@@ -30,7 +29,7 @@ registerD1MigratorCommand({
 
 try {
   const core = (await import('@zintrust/core')) as unknown as {
-    OptionalCliCommandRegistry?: typeof CoreCommandRegistry;
+    OptionalCliCommandRegistry?: Registry;
   };
 
   if (core.OptionalCliCommandRegistry !== undefined) {

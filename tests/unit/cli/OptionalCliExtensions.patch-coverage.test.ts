@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fileURLToPath, pathToFileURL } from '@node-singletons/url';
@@ -112,6 +113,49 @@ describe('OptionalCliExtensions patch coverage', () => {
 
     expect(status.loaded).toBe(true);
     expect(status.source).toBe('package');
+  });
+
+  it('returns local-fallback when local candidates load after project and package imports fail', async () => {
+    const { OptionalCliExtensionsInternal } = await loadExtensionsModule({
+      projectResolve: failureFixture,
+      localCandidatesExist: true,
+    });
+
+    const status = await OptionalCliExtensionsInternal.tryImportExtension({
+      packageName: '@zintrust/example-local-fallback',
+      specifier: pathToFileURL(failureFixture).href,
+      commands: ['example:local-fallback'],
+      installCommand: 'npm install @zintrust/example-local-fallback',
+      localCandidates: [successFixture],
+    });
+
+    expect(status.loaded).toBe(true);
+    expect(status.source).toBe('local-fallback');
+  });
+
+  it('maps package-root local candidates into the active project root', async () => {
+    const projectRoot = '/tmp/zintrust-project';
+    const { OptionalCliExtensionsInternal } = await loadExtensionsModule({
+      envValue: projectRoot,
+    });
+
+    const candidate = path.join(
+      originalProcess.cwd(),
+      'packages',
+      'd1-migrator',
+      'src',
+      'register.ts'
+    );
+
+    expect(
+      OptionalCliExtensionsInternal.getProjectLocalCandidates({
+        packageName: '@zintrust/example-project-root',
+        specifier: '@zintrust/example-project-root/register',
+        commands: ['example:project-root'],
+        installCommand: 'npm install @zintrust/example-project-root',
+        localCandidates: [candidate],
+      })
+    ).toContain(path.join(projectRoot, 'packages', 'd1-migrator', 'src', 'register.ts'));
   });
 
   it('skips optional extension loading for unrelated commands', async () => {

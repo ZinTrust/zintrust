@@ -1,7 +1,4 @@
-import type {
-  CliCommandProvider,
-  OptionalCliCommandRegistry as CoreCommandRegistry,
-} from '@zintrust/core/cli';
+import type { CliCommandProvider } from '@zintrust/core/cli';
 
 type Registry = {
   register: (id: string, provider: CliCommandProvider) => void;
@@ -60,7 +57,7 @@ registerWorkerCliCommands({
 
 try {
   const core = (await import('@zintrust/core/cli')) as unknown as {
-    OptionalCliCommandRegistry?: typeof CoreCommandRegistry;
+    OptionalCliCommandRegistry?: Registry;
   };
 
   if (core.OptionalCliCommandRegistry !== undefined) {
