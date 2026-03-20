@@ -36,6 +36,15 @@ npm install brain.js ml.js simple-statistics
 npm install @tensorflow/tfjs-node
 ```
 
+For queue integrations that are lazy-loaded by the workers package:
+
+```bash
+npm install @zintrust/queue-redis
+npm install @zintrust/queue-monitor
+```
+
+These integrations are not auto-installed. `@zintrust/workers` will run without them and enable the related features only when they are present.
+
 ## Quick Start
 
 ### Basic Worker Creation
