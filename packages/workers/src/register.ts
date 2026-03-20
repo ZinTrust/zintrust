@@ -1,4 +1,7 @@
-import type { CliCommandProvider } from '@zintrust/core/cli';
+type CliCommandProvider = {
+  getCommand: () => unknown;
+  name?: string;
+};
 
 type Registry = {
   register: (id: string, provider: CliCommandProvider) => void;
