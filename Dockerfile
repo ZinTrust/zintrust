@@ -37,9 +37,44 @@ RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
 # Copy source code using COPY . . to handle optional folders automatically
 COPY . .
 
-# Build TypeScript to JavaScript
+# Build TypeScript to JavaScript and package-local plugin bundles
 ARG BUILD_VARIANT=full
-RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run core:build:dist
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run build:dk
+
+FROM builder AS runtime-artifacts
+
+RUN set -eu; \
+  runtime_root=/runtime-root; \
+  mkdir -p "$runtime_root/dist/packages"; \
+  cp -R /app/dist/. "$runtime_root/dist/"; \
+  for package in \
+    db-postgres \
+    db-mysql \
+    db-sqlserver \
+    db-sqlite \
+    queue-redis \
+    queue-rabbitmq \
+    queue-sqs \
+    cache-redis \
+    cache-mongodb \
+    mail-nodemailer \
+    mail-smtp \
+    mail-sendgrid \
+    mail-mailgun \
+    storage-s3 \
+    storage-r2 \
+    storage-gcs; do \
+    mkdir -p "$runtime_root/dist/packages/$package"; \
+    cp -R "/app/packages/$package/dist" "$runtime_root/dist/packages/$package/dist"; \
+  done
+
+FROM runtime-artifacts AS worker-artifacts
+
+RUN set -eu; \
+  for package in workers queue-monitor; do \
+    mkdir -p "/runtime-root/dist/packages/$package"; \
+    cp -R "/app/packages/$package/dist" "/runtime-root/dist/packages/$package/dist"; \
+  done
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
@@ -81,12 +116,13 @@ RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   && rm -rf /usr/local/lib/node_modules/npm \
   && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
-# Copy compiled code from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy the fresh-start runtime payload from the builder in one place.
+COPY --from=runtime-artifacts --chown=nodejs:nodejs /runtime-root/ /app/
 
-
-# Change ownership to nodejs user
-RUN chown -R nodejs:nodejs /app
+RUN rm -rf /app/node_modules/@zintrust/core \
+  && mkdir -p /app/node_modules/@zintrust \
+  && ln -s ../../dist /app/node_modules/@zintrust/core \
+  && chown -h nodejs:nodejs /app/node_modules/@zintrust/core
 
 # Switch to non-root user
 USER nodejs
@@ -102,3 +138,17 @@ EXPOSE 7772 8789 8790 8791 8792 8793 8794
 
 # Start application (compiled JS; no tsx needed in runtime)
 CMD ["node", "dist/src/boot/bootstrap.js"]
+
+FROM runtime AS worker
+
+COPY --from=worker-artifacts --chown=nodejs:nodejs /runtime-root/ /app/
+
+ENV DOCKER_WORKER=true
+ENV WORKER_ENABLED=true
+ENV WORKER_AUTO_START=true
+ENV QUEUE_ENABLED=true
+ENV PORT=0
+
+HEALTHCHECK NONE
+
+CMD ["node", "dist/bin/zin.js", "worker:start-all"]

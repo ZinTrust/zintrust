@@ -7,7 +7,7 @@ describe('DockerPushCommand (patch coverage)', () => {
     vi.clearAllMocks();
   });
 
-  it('publishes both runtime and gateway images via docker buildx', async () => {
+  it('publishes runtime, worker, and gateway images via docker buildx', async () => {
     const spawnAndWait = vi.fn(async () => 0);
     vi.doMock('@cli/utils/spawn', () => ({ SpawnUtil: { spawnAndWait } }));
     vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn() } }));
@@ -21,7 +21,7 @@ describe('DockerPushCommand (patch coverage)', () => {
       only: 'both',
     } as any);
 
-    expect(spawnAndWait).toHaveBeenCalledTimes(2);
+    expect(spawnAndWait).toHaveBeenCalledTimes(3);
 
     // Runtime image
     expect(spawnAndWait).toHaveBeenNthCalledWith(1, {
@@ -35,6 +35,28 @@ describe('DockerPushCommand (patch coverage)', () => {
         'zintrust/zintrust:1.2.3',
         '-t',
         'zintrust/zintrust:latest',
+        '--target',
+        'runtime',
+        '--push',
+        '.',
+      ]),
+      env: expect.any(Object),
+    });
+
+    // Worker image
+    expect(spawnAndWait).toHaveBeenNthCalledWith(2, {
+      command: 'docker',
+      args: expect.arrayContaining([
+        'buildx',
+        'build',
+        '--platform',
+        'linux/amd64,linux/arm64',
+        '-t',
+        'zintrust/zintrust-worker:1.2.3',
+        '-t',
+        'zintrust/zintrust-worker:latest',
+        '--target',
+        'worker',
         '--push',
         '.',
       ]),
@@ -42,7 +64,7 @@ describe('DockerPushCommand (patch coverage)', () => {
     });
 
     // Gateway image
-    expect(spawnAndWait).toHaveBeenNthCalledWith(2, {
+    expect(spawnAndWait).toHaveBeenNthCalledWith(3, {
       command: 'docker',
       args: expect.arrayContaining([
         'buildx',
@@ -85,6 +107,8 @@ describe('DockerPushCommand (patch coverage)', () => {
         'linux/amd64',
         '-t',
         'zintrust/zintrust:1.2.3',
+        '--target',
+        'runtime',
         '--push',
         '.',
       ]),
@@ -128,6 +152,40 @@ describe('DockerPushCommand (patch coverage)', () => {
         'zintrust/zintrust-proxy-gateway:latest',
         '--push',
         './docker/proxy-gateway',
+      ]),
+      env: expect.any(Object),
+    });
+  });
+
+  it('publishes only worker image when --only worker', async () => {
+    const spawnAndWait = vi.fn(async () => 0);
+    vi.doMock('@cli/utils/spawn', () => ({ SpawnUtil: { spawnAndWait } }));
+    vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn() } }));
+
+    const { DockerPushCommand } = await import('@cli/commands/DockerPushCommand');
+
+    await DockerPushCommand.create().execute({
+      args: [],
+      tag: '1.2.3',
+      platforms: 'linux/amd64',
+      alsoLatest: false,
+      only: 'worker',
+    } as any);
+
+    expect(spawnAndWait).toHaveBeenCalledTimes(1);
+    expect(spawnAndWait).toHaveBeenCalledWith({
+      command: 'docker',
+      args: expect.arrayContaining([
+        'buildx',
+        'build',
+        '--platform',
+        'linux/amd64',
+        '-t',
+        'zintrust/zintrust-worker:1.2.3',
+        '--target',
+        'worker',
+        '--push',
+        '.',
       ]),
       env: expect.any(Object),
     });

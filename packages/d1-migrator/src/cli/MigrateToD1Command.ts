@@ -3,7 +3,7 @@
  * CLI command for migrating databases to Cloudflare D1
  */
 
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory, Logger, WranglerConfig } from '@zintrust/core';
 import { BaseCommand, type CommandOptions } from '@zintrust/core/cli';
 import type { Command } from 'commander';
 import { SchemaBuilder } from '../schema/SchemaBuilder';
@@ -73,8 +73,74 @@ const TARGET_DATABASE_ENV_KEYS = Object.freeze([
   'D1_TARGET_DB',
   'D1_DATABASE',
   'D1_DATABASE_ID',
-  'DB_DATABASE',
 ]);
+
+type WranglerTargetConfig = {
+  binding?: string;
+  database_name?: string;
+};
+
+const describeConfiguredD1Target = (config: WranglerTargetConfig): string => {
+  const parts: string[] = [];
+
+  if (typeof config.database_name === 'string' && config.database_name.trim() !== '') {
+    parts.push(`database_name=${config.database_name.trim()}`);
+  }
+
+  if (typeof config.binding === 'string' && config.binding.trim() !== '') {
+    parts.push(`binding=${config.binding.trim()}`);
+  }
+
+  return parts.length > 0 ? parts.join(', ') : 'unnamed-d1-entry';
+};
+
+const describeConfiguredD1Targets = (configured: WranglerTargetConfig[]): string => {
+  const rendered = configured
+    .map((config) => describeConfiguredD1Target(config))
+    .filter((entry) => entry.length > 0);
+
+  return rendered.length > 0 ? rendered.join(' | ') : 'none';
+};
+
+const getResolvedDefaultTargetName = (projectRoot: string): string => {
+  const resolvedName = WranglerConfig.getDefaultD1DatabaseName(projectRoot);
+  if (typeof resolvedName === 'string' && resolvedName.trim() !== '') {
+    return resolvedName.trim();
+  }
+
+  throw ErrorFactory.createValidationError(
+    'Resolved Wrangler D1 target is missing both database_name and binding'
+  );
+};
+
+const createTargetDatabaseResolutionError = (
+  target: string | undefined,
+  resolution: ReturnType<typeof WranglerConfig.resolveD1Database>
+): Error => {
+  const configuredTargets = describeConfiguredD1Targets(resolution.configured);
+
+  if (resolution.status === 'ambiguous') {
+    if (target === undefined || resolution.matchedBy === 'multiple-configured') {
+      return ErrorFactory.createValidationError(
+        `Target D1 database is required because multiple Wrangler D1 targets are configured. Re-run with --target-database <database_name|binding> or set D1_TARGET_DB. Configured D1 targets: ${configuredTargets}`
+      );
+    }
+
+    return ErrorFactory.createValidationError(
+      `Target D1 database "${target}" is ambiguous by ${resolution.matchedBy}. Matching entries: ${describeConfiguredD1Targets(resolution.matches)}. Re-run with a unique binding via --target-database <binding> or set D1_TARGET_DB. Configured D1 targets: ${configuredTargets}`
+    );
+  }
+
+  if (target === undefined) {
+    return ErrorFactory.createValidationError(
+      `Target D1 database could not be inferred because no default Wrangler D1 target could be resolved. Re-run with --target-database <database_name|binding> or set D1_TARGET_DB. Configured D1 targets: ${configuredTargets}`
+    );
+  }
+
+  return ErrorFactory.createValidationError(
+    `Unable to resolve target D1 database "${target}". Tried database_name first, then binding. Configured D1 targets: ${configuredTargets}`
+  );
+};
 
 const readOptionString = (options: CommandOptions, keys: readonly string[]): string | undefined => {
   for (const key of keys) {
@@ -389,17 +455,26 @@ const resolveTargetType = (options: CommandOptions): TargetType => {
 };
 
 const resolveTargetDatabase = (options: CommandOptions): string => {
+  const projectRoot = process.cwd();
   const fromOption = readOptionString(options, ['target-database', 'targetDatabase']);
-  if (fromOption !== undefined) {
-    return fromOption;
-  }
-
   const fromEnv = readEnvString(TARGET_DATABASE_ENV_KEYS);
-  if (fromEnv !== undefined) {
-    return fromEnv;
+  const explicitTarget = fromOption ?? fromEnv;
+
+  if (explicitTarget !== undefined) {
+    const resolution = WranglerConfig.resolveD1Database(projectRoot, explicitTarget);
+    if (resolution.status !== 'resolved') {
+      throw createTargetDatabaseResolutionError(explicitTarget, resolution);
+    }
+
+    return explicitTarget;
   }
 
-  return 'd1';
+  const resolution = WranglerConfig.resolveD1Database(projectRoot);
+  if (resolution.status === 'resolved') {
+    return getResolvedDefaultTargetName(projectRoot);
+  }
+
+  throw createTargetDatabaseResolutionError(undefined, resolution);
 };
 
 const resolveMigrationConfig = (

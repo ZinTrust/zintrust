@@ -133,6 +133,45 @@ npm test
 npm run build
 ```
 
+## Docker Images
+
+ZinTrust now publishes two framework runtime targets from the main Dockerfile:
+
+- `zintrust/zintrust`: base runtime image with official built-in plugin registrations preloaded by default
+- `zintrust/zintrust-worker`: dedicated worker runtime image that starts the worker CLI entrypoint by default
+
+Built-in base plugin packages:
+
+- `@zintrust/db-postgres`
+- `@zintrust/db-mysql`
+- `@zintrust/db-sqlserver`
+- `@zintrust/db-sqlite`
+- `@zintrust/queue-redis`
+- `@zintrust/queue-rabbitmq`
+- `@zintrust/queue-sqs`
+- `@zintrust/cache-redis`
+- `@zintrust/cache-mongodb`
+- `@zintrust/mail-nodemailer`
+- `@zintrust/mail-smtp`
+- `@zintrust/mail-sendgrid`
+- `@zintrust/mail-mailgun`
+- `@zintrust/storage-s3`
+- `@zintrust/storage-r2`
+- `@zintrust/storage-gcs`
+
+Worker image additions:
+
+- `@zintrust/workers`
+- `@zintrust/queue-monitor`
+
+Local smoke commands:
+
+```bash
+npm run docker:build
+npm run docker:build:worker
+npm run docker:smoke
+```
+
 ## Project Structure
 
 ```

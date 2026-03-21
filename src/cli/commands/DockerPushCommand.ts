@@ -34,9 +34,9 @@ const resolvePublishTags = (tag: string, alsoLatest: boolean | undefined): strin
   return [tag, 'latest'];
 };
 
-const parseOnly = (value: string | undefined): 'runtime' | 'gateway' | 'both' => {
+const parseOnly = (value: string | undefined): 'runtime' | 'worker' | 'gateway' | 'both' => {
   const raw = (value ?? '').trim().toLowerCase();
-  if (raw === 'runtime' || raw === 'gateway') return raw;
+  if (raw === 'runtime' || raw === 'worker' || raw === 'gateway') return raw;
   return 'both';
 };
 
@@ -47,17 +47,22 @@ const runPublishImages = async (options: DockerPushOptions): Promise<void> => {
   const only = parseOnly(options.only);
 
   const runtimeRepo = 'zintrust/zintrust';
+  const workerRepo = 'zintrust/zintrust-worker';
   const gatewayRepo = 'zintrust/zintrust-proxy-gateway';
 
-  const buildArgsFor = (repo: string, context: string): string[] => {
+  const buildArgsFor = (repo: string, context: string, target?: string): string[] => {
     const args: string[] = ['buildx', 'build', '--platform', platforms];
     for (const t of tags) args.push('-t', `${repo}:${t}`);
+    if (typeof target === 'string' && target.trim() !== '') {
+      args.push('--target', target);
+    }
     args.push('--push', context);
     return args;
   };
 
   Logger.info('Publishing images to Docker Hub via buildx...', {
     runtime: runtimeRepo,
+    worker: workerRepo,
     gateway: gatewayRepo,
     platforms,
     tags,
@@ -67,12 +72,25 @@ const runPublishImages = async (options: DockerPushOptions): Promise<void> => {
   if (only === 'runtime' || only === 'both') {
     const runtimeExit = await SpawnUtil.spawnAndWait({
       command: 'docker',
-      args: buildArgsFor(runtimeRepo, '.'),
+      args: buildArgsFor(runtimeRepo, '.', 'runtime'),
       env: process.env,
     });
     if (runtimeExit !== 0) {
       throw ErrorFactory.createCliError(
         `Failed to publish ${runtimeRepo} (exit code ${runtimeExit})`
+      );
+    }
+  }
+
+  if (only === 'worker' || only === 'both') {
+    const workerExit = await SpawnUtil.spawnAndWait({
+      command: 'docker',
+      args: buildArgsFor(workerRepo, '.', 'worker'),
+      env: process.env,
+    });
+    if (workerExit !== 0) {
+      throw ErrorFactory.createCliError(
+        `Failed to publish ${workerRepo} (exit code ${workerExit})`
       );
     }
   }
@@ -111,7 +129,11 @@ export const DockerPushCommand = Object.freeze({
           '--no-also-latest',
           'When publishing a non-latest --tag, do not also push :latest'
         );
-        command.option('--only <target>', 'Publish only one image: runtime|gateway|both', 'both');
+        command.option(
+          '--only <target>',
+          'Publish only one image: runtime|worker|gateway|both',
+          'both'
+        );
       },
       execute: async (options: DockerPushOptions): Promise<void> => {
         await runPublishImages(options);

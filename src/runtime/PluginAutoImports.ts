@@ -3,6 +3,7 @@ import { Logger } from '@config/logger';
 import { existsSync, readFile } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
+import { OfficialPlugins, type OfficialPluginImageMode } from '@runtime/OfficialPlugins';
 
 type ImportResult =
   | { ok: true; loadedPath: string }
@@ -92,23 +93,71 @@ const resolveRelativeSpecifier = (entry: ImportSpecifier): string => {
   return pathToFileURL(resolved).href;
 };
 
+const resolveLocalPackageSpecifier = (specifier: string): string | null => {
+  if (!specifier.startsWith('@zintrust/')) return null;
+
+  const projectRoot = resolveProjectRoot();
+  const withoutScope = specifier.slice('@zintrust/'.length);
+  const segments = withoutScope.split('/');
+  const packageName = segments[0];
+  const subpath = segments.slice(1).join('/');
+  const basename = subpath === '' ? 'index.js' : `${subpath}.js`;
+  const sourceBasename = subpath === '' ? 'index.ts' : `${subpath}.ts`;
+
+  const candidates = [
+    path.join(projectRoot, 'dist', 'packages', packageName, 'dist', basename),
+    path.join(projectRoot, 'dist', 'packages', packageName, 'src', basename),
+    path.join(projectRoot, 'dist', 'packages', packageName, 'src', sourceBasename),
+    path.join(projectRoot, 'packages', packageName, 'dist', basename),
+    path.join(projectRoot, 'packages', packageName, 'src', basename),
+    path.join(projectRoot, 'packages', packageName, 'src', sourceBasename),
+  ];
+
+  const resolved = candidates.find((candidate) => existsSync(candidate));
+  return resolved ? pathToFileURL(resolved).href : null;
+};
+
+const importSingleSpecifier = async (entry: ImportSpecifier): Promise<boolean> => {
+  const target = entry.specifier.startsWith('.')
+    ? resolveRelativeSpecifier(entry)
+    : entry.specifier;
+
+  try {
+    await import(target);
+    Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
+    return true;
+  } catch (error) {
+    const fallback = resolveLocalPackageSpecifier(entry.specifier);
+    if (fallback !== null) {
+      try {
+        await import(fallback);
+        Logger.debug('[plugins] Loaded auto-import specifier from local fallback', {
+          specifier: entry.specifier,
+          fallback,
+        });
+        return true;
+      } catch (fallbackError) {
+        Logger.debug('[plugins] Failed auto-import local fallback', {
+          specifier: entry.specifier,
+          fallback,
+          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+        });
+      }
+    }
+
+    Logger.debug('[plugins] Failed auto-import specifier', {
+      specifier: entry.specifier,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+};
+
 const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<number> => {
   // Import all specifiers in parallel
   const importPromises = Array.from(specifiers).map(async (entry) => {
-    const target = entry.specifier.startsWith('.')
-      ? resolveRelativeSpecifier(entry)
-      : entry.specifier;
-    try {
-      await import(target);
-      Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
-      return { specifier: entry.specifier, success: true };
-    } catch (error) {
-      Logger.debug('[plugins] Failed auto-import specifier', {
-        specifier: entry.specifier,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return { specifier: entry.specifier, success: false };
-    }
+    const success = await importSingleSpecifier(entry);
+    return { specifier: entry.specifier, success };
   });
 
   const results = await Promise.allSettled(importPromises);
@@ -118,6 +167,24 @@ const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<
 };
 
 export const PluginAutoImports = Object.freeze({
+  async tryImportRuntimeAutoImports(mode: OfficialPluginImageMode = 'base'): Promise<ImportResult> {
+    const specifiers = OfficialPlugins.getAutoImports(mode);
+    const loaded = await importSpecifiers(
+      specifiers.map((specifier) => ({ specifier, filePath: `official:${mode}` }))
+    );
+
+    if (loaded === specifiers.length) {
+      return { ok: true, loadedPath: `official:${mode}` };
+    }
+
+    return {
+      ok: false,
+      loadedPath: `official:${mode}`,
+      reason: 'import-failed',
+      errorMessage: `Loaded ${loaded}/${specifiers.length} official plugin imports`,
+    };
+  },
+
   /**
    * Best-effort import of a project's `src/zintrust.plugins.ts` file.
    *
