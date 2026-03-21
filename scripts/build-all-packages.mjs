@@ -33,6 +33,12 @@ const getArg = (flag) => {
 let buildAll = args.includes('--all');
 const packageSelector =
   getArg('--package') ?? getArg('--pkg') ?? process.env.PACKAGE ?? process.env.npm_config_package;
+const excludedPackages = new Set(
+  (getArg('--exclude') ?? process.env.PACKAGE_EXCLUDE ?? process.env.npm_config_exclude ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
 
 if (!buildAll && !packageSelector && process.env.CI === 'true') {
   buildAll = true;
@@ -55,10 +61,16 @@ const resolvePackage = (selector) => {
   return matchByName ? [matchByName] : [];
 };
 
-const selectedPackages = buildAll ? packages : resolvePackage(packageSelector);
+const selectedPackages = (buildAll ? packages : resolvePackage(packageSelector)).filter(
+  (pkg) => !excludedPackages.has(pkg)
+);
 
 if (selectedPackages.length === 0) {
-  console.error(`❌ Package not found: ${packageSelector}`);
+  if (buildAll && excludedPackages.size > 0) {
+    console.error('❌ No packages left to build after applying exclusions');
+  } else {
+    console.error(`❌ Package not found: ${packageSelector}`);
+  }
   process.exit(1);
 }
 
@@ -179,7 +191,7 @@ for (const pkg of selectedPackages) {
         console.warn(
           `⚠️  Could not replace placeholders in ${pkgJson.name}: ${err?.message ?? err}`
         );
-        if (err && err.stack) {
+        if (err?.stack) {
           console.debug(err.stack);
         }
       }
