@@ -37,9 +37,9 @@ RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
 # Copy source code using COPY . . to handle optional folders automatically
 COPY . .
 
-# Build TypeScript to JavaScript
+# Build TypeScript to JavaScript and package-local plugin bundles
 ARG BUILD_VARIANT=full
-RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run core:build:dist
+RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run build:dk
 
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
@@ -83,10 +83,29 @@ RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
 
 # Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/packages/db-postgres ./dist/packages/db-postgres
+COPY --from=builder /app/packages/db-mysql ./dist/packages/db-mysql
+COPY --from=builder /app/packages/db-sqlserver ./dist/packages/db-sqlserver
+COPY --from=builder /app/packages/db-sqlite ./dist/packages/db-sqlite
+COPY --from=builder /app/packages/queue-redis ./dist/packages/queue-redis
+COPY --from=builder /app/packages/queue-rabbitmq ./dist/packages/queue-rabbitmq
+COPY --from=builder /app/packages/queue-sqs ./dist/packages/queue-sqs
+COPY --from=builder /app/packages/cache-redis ./dist/packages/cache-redis
+COPY --from=builder /app/packages/cache-mongodb ./dist/packages/cache-mongodb
+COPY --from=builder /app/packages/mail-nodemailer ./dist/packages/mail-nodemailer
+COPY --from=builder /app/packages/mail-smtp ./dist/packages/mail-smtp
+COPY --from=builder /app/packages/mail-sendgrid ./dist/packages/mail-sendgrid
+COPY --from=builder /app/packages/mail-mailgun ./dist/packages/mail-mailgun
+COPY --from=builder /app/packages/storage-s3 ./dist/packages/storage-s3
+COPY --from=builder /app/packages/storage-r2 ./dist/packages/storage-r2
+COPY --from=builder /app/packages/storage-gcs ./dist/packages/storage-gcs
 
 
-# Change ownership to nodejs user
-RUN chown -R nodejs:nodejs /app
+# Expose the built framework package to official plugin packages loaded from dist/packages.
+RUN mkdir -p /app/node_modules/@zintrust \
+  && rm -rf /app/node_modules/@zintrust/core \
+  && ln -s ../../dist /app/node_modules/@zintrust/core \
+  && chown -R nodejs:nodejs /app
 
 # Switch to non-root user
 USER nodejs
@@ -102,3 +121,18 @@ EXPOSE 7772 8789 8790 8791 8792 8793 8794
 
 # Start application (compiled JS; no tsx needed in runtime)
 CMD ["node", "dist/src/boot/bootstrap.js"]
+
+FROM runtime AS worker
+
+COPY --from=builder /app/packages/workers ./dist/packages/workers
+COPY --from=builder /app/packages/queue-monitor ./dist/packages/queue-monitor
+
+ENV DOCKER_WORKER=true
+ENV WORKER_ENABLED=true
+ENV WORKER_AUTO_START=true
+ENV QUEUE_ENABLED=true
+ENV PORT=0
+
+HEALTHCHECK NONE
+
+CMD ["node", "dist/bin/zin.js", "worker:start-all"]

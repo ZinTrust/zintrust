@@ -1,7 +1,10 @@
-import type { CliCommandProvider } from '@zintrust/core/cli';
-
 type Registry = {
   register: (id: string, provider: CliCommandProvider) => void;
+};
+
+type CliCommandProvider = {
+  getCommand: () => unknown;
+  name?: string;
 };
 
 type WorkerCommandsModule = {
@@ -17,7 +20,8 @@ type WorkerCommandsModule = {
 };
 
 const commandModule = (await (async (): Promise<WorkerCommandsModule> => {
-  return (await import('@zintrust/core/cli')) as unknown as WorkerCommandsModule;
+  const workerCommandsSpecifier = '@zintrust/core/worker-commands';
+  return (await import(workerCommandsSpecifier)) as unknown as WorkerCommandsModule;
 })()) satisfies WorkerCommandsModule;
 
 const getWorkerProviders = (): Array<[string, CliCommandProvider]> => {
@@ -54,15 +58,3 @@ registerWorkerCliCommands({
     globalRegistry.set(id, provider);
   },
 });
-
-try {
-  const core = (await import('@zintrust/core/cli')) as unknown as {
-    OptionalCliCommandRegistry?: Registry;
-  };
-
-  if (core.OptionalCliCommandRegistry !== undefined) {
-    registerWorkerCliCommands(core.OptionalCliCommandRegistry);
-  }
-} catch {
-  // no-op
-}

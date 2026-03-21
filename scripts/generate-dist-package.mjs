@@ -91,6 +91,10 @@ const distPackage = {
       types: './src/cli.d.ts',
       import: './src/cli.js',
     },
+    './worker-commands': {
+      types: './src/worker-commands.d.ts',
+      import: './src/worker-commands.js',
+    },
     './proxy': {
       types: './src/proxy.d.ts',
       import: './src/proxy.js',
