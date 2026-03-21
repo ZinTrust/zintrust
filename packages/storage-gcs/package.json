@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/storage-gcs",
   "version": "0.1.27",
+  "description": "Google Cloud Storage driver for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -35,6 +36,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "storage",
+    "gcs",
+    "google-cloud",
+    "adapter"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"

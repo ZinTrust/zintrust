@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/mail-sendgrid",
   "version": "0.1.27",
+  "description": "SendGrid mail driver for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "mail",
+    "email",
+    "sendgrid",
+    "adapter"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"

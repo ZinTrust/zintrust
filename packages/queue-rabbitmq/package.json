@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/queue-rabbitmq",
   "version": "0.1.27",
+  "description": "RabbitMQ queue driver for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -30,6 +31,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "queue",
+    "rabbitmq",
+    "amqp",
+    "adapter"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"

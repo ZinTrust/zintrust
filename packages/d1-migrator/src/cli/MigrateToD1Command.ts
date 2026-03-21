@@ -475,7 +475,7 @@ export const MigrateToD1Command: D1MigratorCommand = BaseCommand.create({
   description: 'Migrate any database to Cloudflare D1 with resumable operations',
   aliases: ['d1:transfer'],
 
-  addOptions: (command) => {
+  addOptions: (command: Command) => {
     command
       .option('-f, --from <type>', 'Source database type (mysql, postgresql, sqlite, sqlserver)')
       .option('-t, --to <type>', 'Target D1 type (d1, d1-remote)')

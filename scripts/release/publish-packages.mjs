@@ -6,6 +6,7 @@ const repoRoot = process.cwd();
 const packagesDir = path.join(repoRoot, 'packages');
 const shimDir = path.join(repoRoot, 'tmp', 'release-core-shim');
 const builtLocalPackageDirs = new Set();
+const publishedVersionCache = new Map();
 
 const cliArgs = process.argv.slice(2);
 const isDryRun = cliArgs.includes('--dry-run');
@@ -105,6 +106,7 @@ async function buildLocalFileDependencies(pkgDir, pkg, buildStack = new Set()) {
     buildStack.add(dependencyDir);
     await buildLocalFileDependencies(dependencyDir, dependencyPkg, buildStack);
     installBuildDependenciesIntoPackage(dependencyDir, dependencyPkg);
+    await installCoreShimIntoPackage(dependencyDir);
 
     if (dependencyPkg.scripts?.build) {
       buildPackage(dependencyDir);
@@ -137,6 +139,13 @@ function installBuildDependenciesIntoPackage(pkgDir, pkg) {
   );
 }
 
+async function installCoreShimIntoPackage(pkgDir) {
+  const targetDir = path.join(pkgDir, 'node_modules', '@zintrust', 'core');
+  await fs.rm(targetDir, { recursive: true, force: true }).catch(() => {});
+  await fs.mkdir(path.dirname(targetDir), { recursive: true });
+  await fs.cp(shimDir, targetDir, { recursive: true });
+}
+
 function buildPackage(pkgDir) {
   run('npm', ['run', 'build'], { cwd: pkgDir });
 }
@@ -161,6 +170,9 @@ async function assertCoreShimHasRequiredExports() {
       'randomBytes: (size: number) => any;',
       'createHash: (algorithm: string) => any;',
       'export declare const MultipartParserRegistry: any;',
+      'export declare const LocalD1Resolver: {',
+      'resolveD1Binding: (...args: any[]) => any;',
+      'resolveLocalD1SqlitePath: (...args: any[]) => Promise<string>;',
       'export type UploadedFile = any;',
       'export type MultipartFieldValue = any;',
       'export type MultipartParseInput = any;',
@@ -229,6 +241,53 @@ function isPublishedOnNpm({ packageName, version }) {
   throw new Error(
     `npm view failed for ${packageName}@${version}: ${flattenForTableCell(combined).trim()}`
   );
+}
+
+function parseSemver(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version).trim());
+  if (!match) return undefined;
+
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+function isPublishablePackageVersion(packageVersion, coreVersion) {
+  const parsedPackageVersion = parseSemver(packageVersion);
+  const parsedCoreVersion = parseSemver(coreVersion);
+
+  if (!parsedPackageVersion || !parsedCoreVersion) {
+    return packageVersion === coreVersion;
+  }
+
+  return (
+    parsedPackageVersion.major === parsedCoreVersion.major &&
+    parsedPackageVersion.minor === parsedCoreVersion.minor &&
+    parsedPackageVersion.patch >= parsedCoreVersion.patch
+  );
+}
+
+function getPublishedVersion(packageName) {
+  if (publishedVersionCache.has(packageName)) {
+    return publishedVersionCache.get(packageName);
+  }
+
+  const result = runCapture('npm', ['view', packageName, 'version', '--silent']);
+  if (result.status === 0) {
+    const version = String(result.stdout ?? '').trim();
+    publishedVersionCache.set(packageName, version);
+    return version;
+  }
+
+  const combined = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  if (isNpmNotFoundOutput(combined)) {
+    publishedVersionCache.set(packageName, undefined);
+    return undefined;
+  }
+
+  throw new Error(`npm view failed for ${packageName}: ${flattenForTableCell(combined).trim()}`);
 }
 
 function verifyCorePublishedOrThrow(coreVersion) {
@@ -348,10 +407,10 @@ async function loadPackageJson(pkgJsonPath) {
 function evaluateEligibility({ pkg, coreVersion }) {
   if (pkg.private === true)
     return { shouldSkip: true, skipMessage: `Skipping private package: ${pkg.name}` };
-  if (pkg.version !== coreVersion)
+  if (!isPublishablePackageVersion(pkg.version, coreVersion))
     return {
       shouldSkip: true,
-      skipMessage: `Skipping version mismatch: ${pkg.name}@${pkg.version} (expected ${coreVersion})`,
+      skipMessage: `Skipping version mismatch: ${pkg.name}@${pkg.version} (expected release line ${coreVersion})`,
     };
   return { shouldSkip: false };
 }
@@ -373,15 +432,21 @@ function maybeSkipBecausePublished({ pkg }) {
   }
 }
 
-function transformD1MigratorDependenciesForPublish(pkg) {
-  // d1-migrator has local file: dependencies that need to be converted to published versions
-  if (pkg.name !== '@zintrust/d1-migrator') return pkg;
-
+function transformPackageForPublish(pkg, coreVersion) {
   const transformed = { ...pkg };
-  if (transformed.dependencies) {
+
+  if (transformed.peerDependencies?.['@zintrust/core']?.startsWith('file:')) {
+    const publishedCoreVersion = getPublishedVersion('@zintrust/core') ?? coreVersion;
+    transformed.peerDependencies = {
+      ...transformed.peerDependencies,
+      '@zintrust/core': `^${publishedCoreVersion}`,
+    };
+  }
+
+  // d1-migrator builds against local file: adapters, then publishes with live adapter versions.
+  if (transformed.name === '@zintrust/d1-migrator' && transformed.dependencies) {
     transformed.dependencies = { ...transformed.dependencies };
 
-    // Convert file: paths to published versions
     const fileDeps = [
       '@zintrust/db-mysql',
       '@zintrust/db-postgres',
@@ -391,9 +456,14 @@ function transformD1MigratorDependenciesForPublish(pkg) {
     ];
 
     fileDeps.forEach((dep) => {
-      if (transformed.dependencies[dep]?.startsWith('file:')) {
-        transformed.dependencies[dep] = pkg.version; // Use same version as core
+      if (!transformed.dependencies[dep]?.startsWith('file:')) return;
+
+      const publishedVersion = getPublishedVersion(dep);
+      if (!publishedVersion) {
+        throw new Error(`${dep} is not published on npm; cannot rewrite d1-migrator dependency`);
       }
+
+      transformed.dependencies[dep] = publishedVersion;
     });
   }
 
@@ -406,31 +476,36 @@ async function processPackageDir({ dirName, coreVersion, failures, successes, ch
   const originalPkgText = await fs.readFile(pkgJsonPath, 'utf8');
 
   const pkg = JSON.parse(originalPkgText);
-  const publishPkg = transformD1MigratorDependenciesForPublish(pkg);
-  const publishPkgText = JSON.stringify(publishPkg, null, 2);
 
-  const eligibility = evaluateEligibility({ pkg: publishPkg, coreVersion });
+  const eligibility = evaluateEligibility({ pkg, coreVersion });
   if (eligibility.shouldSkip) {
     process.stdout.write(`${eligibility.skipMessage}\n`);
     return;
   }
 
-  const publishedCheck = maybeSkipBecausePublished({ pkg: publishPkg });
+  const publishedCheck = maybeSkipBecausePublished({ pkg });
   if (publishedCheck.checkIssue) {
     checkIssues.push({ dirName, ...publishedCheck.checkIssue });
     emitGithubError(
       'Publish check failed',
-      `${publishPkg.name}@${publishPkg.version} (${dirName}): ${publishedCheck.checkIssue.message}`
+      `${pkg.name}@${pkg.version} (${dirName}): ${publishedCheck.checkIssue.message}`
     );
     if (!continueOnError) throw new Error(publishedCheck.checkIssue.message);
   }
   if (publishedCheck.shouldSkip) return;
 
-  announcePublishAttempt({ pkg: publishPkg, coreVersion });
+  let publishPkg = pkg;
+  let publishPkgText = originalPkgText;
+
+  announcePublishAttempt({ pkg, coreVersion });
 
   try {
+    publishPkg = transformPackageForPublish(pkg, coreVersion);
+    publishPkgText = JSON.stringify(publishPkg, null, 2);
+
     await buildLocalFileDependencies(pkgDir, pkg);
     installBuildDependenciesIntoPackage(pkgDir, pkg);
+    await installCoreShimIntoPackage(pkgDir);
     buildPackage(pkgDir);
 
     // d1-migrator builds against local file: adapters, then publishes with semver deps.
@@ -543,6 +618,10 @@ export declare const JobStateTracker: any;
 export declare const TimeoutManager: any;
 export declare const CloudflareSocket: any;
 export declare const MultipartParserRegistry: any;
+export declare const LocalD1Resolver: {
+  resolveD1Binding: (...args: any[]) => any;
+  resolveLocalD1SqlitePath: (...args: any[]) => Promise<string>;
+};
 
 export declare function generateUuid(): string;
 export declare function generateSecureJobId(): string;
@@ -681,6 +760,14 @@ export const JobStateTracker = {};
 export const TimeoutManager = {};
 export const CloudflareSocket = {};
 export const MultipartParserRegistry = {};
+export const LocalD1Resolver = {
+  resolveD1Binding() {
+    return {};
+  },
+  async resolveLocalD1SqlitePath() {
+    return '';
+  },
+};
 
 export function generateUuid() {
   return '00000000-0000-0000-0000-000000000000';

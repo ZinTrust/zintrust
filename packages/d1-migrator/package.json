@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/d1-migrator",
-  "version": "0.1.0",
+  "version": "0.4.5",
+  "description": "Resumable database migration toolkit for moving data to Cloudflare D1 with ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "cloudflare",
+    "d1",
+    "migration",
+    "database"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
     "prepublishOnly": "npm run build"

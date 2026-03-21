@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/mail-nodemailer",
   "version": "0.1.27",
+  "description": "Nodemailer mail driver for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "mail",
+    "email",
+    "nodemailer",
+    "adapter"
+  ],
   "dependencies": {
     "nodemailer": "^8.0.2"
   },
