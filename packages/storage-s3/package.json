@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/storage-s3",
   "version": "0.1.27",
+  "description": "Amazon S3 storage driver for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "storage",
+    "aws",
+    "s3",
+    "adapter"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"

@@ -171,8 +171,6 @@ export const DataMigrator = Object.freeze({
       // Migrate each table sequentially for reliable D1/SQLite writes
       Logger.info('Starting table migration...');
       for (const table of schema.tables) {
-        Logger.info(`Migrating table: ${table.name}`);
-
         const result = await DataMigrator.migrateTable(
           table,
           sourceConnection,
@@ -186,9 +184,9 @@ export const DataMigrator = Object.freeze({
         if (result.errors.length > 0) {
           progress.errors[table.name] = result.errors.join('; ');
         }
-
-        Logger.info(`Table ${table.name} completed: ${result.rowsMigrated} rows migrated`);
       }
+
+      progress.totalRows = Math.max(progress.totalRows, progress.processedRows);
 
       // Update final percentage
       progress.percentage =
@@ -301,6 +299,14 @@ export const DataMigrator = Object.freeze({
         projectRoot,
         config.targetDatabase
       );
+      const bindingName = resolvedTarget.config.binding?.trim();
+      const configuredDatabaseName = resolvedTarget.config.database_name?.trim();
+
+      Logger.info(
+        `[DataMigrator] Using resolved local D1 target (${resolvedTarget.matchedBy}): database_name=${configuredDatabaseName || 'n/a'}, binding=${bindingName || 'n/a'}`
+      );
+      Logger.info(`[DataMigrator] Using resolved local D1 SQLite path: ${d1LocalPath}`);
+
       const d1Local = SQLiteAdapter.create({ driver: 'sqlite', database: d1LocalPath });
 
       try {
@@ -440,8 +446,11 @@ export const DataMigrator = Object.freeze({
 
           // Log progress for large tables
           if (totalRows > 10000 && rowsMigrated % (batchSize * 10) === 0) {
-            const percentage = Math.round((rowsMigrated / totalRows) * 100);
-            Logger.info(`Table ${table.name}: ${rowsMigrated}/${totalRows} (${percentage}%)`);
+            const normalizedTotalRows = Math.max(totalRows, rowsMigrated);
+            const percentage = Math.round((rowsMigrated / normalizedTotalRows) * 100);
+            Logger.info(
+              `Table ${table.name}: ${rowsMigrated}/${normalizedTotalRows} (${percentage}%)`
+            );
           }
         } catch (error) {
           const errorMsg = `Chunk processing failed at offset ${offset}: ${error}`;

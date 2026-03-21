@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/db-postgres",
   "version": "0.1.27",
+  "description": "PostgreSQL database adapter for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "database",
+    "postgresql",
+    "postgres",
+    "adapter"
+  ],
   "dependencies": {
     "pg": "^8.20.0"
   },

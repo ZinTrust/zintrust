@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/signer",
   "version": "0.1.47",
+  "description": "Request signing and signature verification utilities for ZinTrust.",
   "type": "module",
   "exports": {
     ".": {
@@ -14,6 +15,13 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "keywords": [
+    "zintrust",
+    "signing",
+    "security",
+    "webhooks",
+    "hmac"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit"

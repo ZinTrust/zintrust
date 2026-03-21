@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/cloudflare-kv-proxy",
   "version": "0.1.27",
+  "description": "Cloudflare KV proxy package for ZinTrust.",
   "type": "module",
   "private": true,
   "exports": {
@@ -18,6 +19,13 @@
   "peerDependencies": {
     "@zintrust/core": "file:../../dist"
   },
+  "keywords": [
+    "zintrust",
+    "cloudflare",
+    "kv",
+    "proxy",
+    "workers"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit"

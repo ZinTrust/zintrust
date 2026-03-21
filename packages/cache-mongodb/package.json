@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/cache-mongodb",
   "version": "0.1.27",
+  "description": "MongoDB cache driver for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "cache",
+    "mongodb",
+    "adapter",
+    "typescript"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"

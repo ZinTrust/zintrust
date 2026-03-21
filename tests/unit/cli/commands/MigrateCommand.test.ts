@@ -74,11 +74,19 @@ vi.mock('@/cli/d1/WranglerConfig', () => ({
   WranglerConfig: {
     getD1MigrationsDir: vi.fn(() => 'migrations'),
     getDefaultD1DatabaseName: vi.fn(() => 'd1-proxy-db'),
+    resolveD1Database: vi.fn(() => ({
+      status: 'resolved',
+      matchedBy: 'single-configured',
+      config: { database_name: 'd1-proxy-db', binding: 'ZIN_DB' },
+      configured: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+      matches: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+    })),
   },
 }));
 
 import { MigrateCommand } from '@/cli/commands/MigrateCommand';
 import { D1SqlMigrations } from '@/cli/d1/D1SqlMigrations';
+import { WranglerConfig } from '@/cli/d1/WranglerConfig';
 import { WranglerD1 } from '@/cli/d1/WranglerD1';
 import { PromptHelper } from '@/cli/PromptHelper';
 import { databaseConfig } from '@/config/database';
@@ -208,6 +216,25 @@ describe('MigrateCommand', () => {
       expect.stringContaining('D1 migrations completed successfully')
     );
     expect(Database.create).not.toHaveBeenCalled();
+  });
+
+  it('throws when multiple D1 targets are configured and no database is provided', async () => {
+    vi.mocked(databaseConfig.getConnection).mockReturnValueOnce({ driver: 'd1' } as any);
+    vi.mocked(WranglerConfig.resolveD1Database).mockReturnValueOnce({
+      status: 'ambiguous',
+      matchedBy: 'multiple-configured',
+      configured: [
+        { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+        { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+      ],
+      matches: [
+        { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+        { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+      ],
+    } as any);
+
+    await expect(command.execute({})).rejects.toThrow(/Multiple D1 targets are configured/);
+    expect(WranglerD1.applyMigrations).not.toHaveBeenCalled();
   });
 
   it('runs d1-remote migrations via normal migrator (no wrangler)', async () => {

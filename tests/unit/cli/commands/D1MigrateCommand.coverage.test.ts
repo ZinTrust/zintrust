@@ -4,6 +4,7 @@ const compileAndWriteMock = vi.fn();
 const applyMigrationsMock = vi.fn();
 const getD1MigrationsDirMock = vi.fn();
 const getDefaultD1DatabaseNameMock = vi.fn();
+const resolveD1DatabaseMock = vi.fn();
 
 vi.mock('@cli/ErrorHandler', () => ({
   ErrorHandler: {
@@ -31,6 +32,7 @@ vi.mock('@cli/d1/WranglerConfig', () => ({
   WranglerConfig: {
     getD1MigrationsDir: (...args: unknown[]) => getD1MigrationsDirMock(...args),
     getDefaultD1DatabaseName: (...args: unknown[]) => getDefaultD1DatabaseNameMock(...args),
+    resolveD1Database: (...args: unknown[]) => resolveD1DatabaseMock(...args),
   },
 }));
 
@@ -61,6 +63,13 @@ describe('D1MigrateCommand (coverage extras)', () => {
     applyMigrationsMock.mockReturnValue('');
     getD1MigrationsDirMock.mockReturnValue('should-not-be-used');
     getDefaultD1DatabaseNameMock.mockReturnValue('d1-proxy-db');
+    resolveD1DatabaseMock.mockReturnValue({
+      status: 'resolved',
+      matchedBy: 'single-configured',
+      config: { database_name: 'd1-proxy-db', binding: 'ZIN_DB' },
+      configured: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+      matches: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+    });
   });
 
   it('worker mode uses fixed migrations directories', async () => {
@@ -78,5 +87,25 @@ describe('D1MigrateCommand (coverage extras)', () => {
     );
 
     process.argv = originalArgv;
+  });
+
+  it('throws when multiple D1 targets are configured and no database is provided', async () => {
+    resolveD1DatabaseMock.mockReturnValueOnce({
+      status: 'ambiguous',
+      matchedBy: 'multiple-configured',
+      configured: [
+        { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+        { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+      ],
+      matches: [
+        { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+        { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+      ],
+    });
+
+    const cmd = D1MigrateCommand.create();
+    await expect(cmd.execute({ args: [], local: true })).rejects.toThrow(
+      /Multiple D1 targets are configured/
+    );
   });
 });

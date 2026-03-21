@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/storage",
   "version": "0.1.27",
+  "description": "Storage abstraction and upload utilities for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -30,6 +31,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "storage",
+    "uploads",
+    "files",
+    "adapter"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build"

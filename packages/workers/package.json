@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/workers",
   "version": "0.1.52",
+  "description": "Worker orchestration and background job management for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -54,6 +55,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "workers",
+    "jobs",
+    "queue",
+    "orchestration"
+  ],
   "scripts": {
     "build": "node scripts/generate-embedded-assets.mjs && tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
     "prepublishOnly": "npm run build"

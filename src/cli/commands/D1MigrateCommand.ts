@@ -44,7 +44,19 @@ const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> =
 const getDbName = (projectRoot: string, options: CommandOptions): string => {
   const value = options['database'];
   if (typeof value === 'string' && value.trim() !== '') return value.trim();
-  return WranglerConfig.getDefaultD1DatabaseName(projectRoot) ?? 'zintrust_db';
+
+  const resolution = WranglerConfig.resolveD1Database(projectRoot);
+  if (resolution.status === 'resolved') {
+    return WranglerConfig.getDefaultD1DatabaseName(projectRoot) ?? 'zintrust_db';
+  }
+
+  if (resolution.status === 'ambiguous') {
+    throw ErrorFactory.createCliError(
+      'Multiple D1 targets are configured. Re-run with --database <database_name|binding> to choose the intended Wrangler D1 target.'
+    );
+  }
+
+  return 'zintrust_db';
 };
 
 const buildExecutionContext = (options: CommandOptions): D1MigrateExecutionContext => {

@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/db-sqlite",
   "version": "0.1.27",
+  "description": "SQLite database adapter for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -27,6 +28,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "database",
+    "sqlite",
+    "adapter",
+    "typescript"
+  ],
   "dependencies": {
     "better-sqlite3": "^12.8.0"
   },

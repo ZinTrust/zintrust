@@ -1,6 +1,7 @@
 {
   "name": "@zintrust/governance",
   "version": "0.1.27",
+  "description": "ESLint and governance tooling package for ZinTrust.",
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
@@ -29,6 +30,13 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "zintrust",
+    "governance",
+    "compliance",
+    "eslint",
+    "typescript"
+  ],
   "dependencies": {
     "@eslint/js": "^10.0.1",
     "globals": "^17.4.0",
