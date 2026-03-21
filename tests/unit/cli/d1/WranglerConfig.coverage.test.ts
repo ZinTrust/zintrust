@@ -60,6 +60,78 @@ describe('cli/d1/WranglerConfig (coverage)', () => {
     expect(WranglerConfig.getDefaultD1Database('/repo')).toEqual(
       expect.objectContaining({ database_name: 'd1-proxy-db', binding: 'ZIN_DB' })
     );
+    expect(WranglerConfig.resolveD1Database('/repo', 'ZIN_DB')).toEqual(
+      expect.objectContaining({
+        status: 'resolved',
+        matchedBy: 'binding',
+      })
+    );
+  });
+
+  it('prefers database_name matches before binding matches', async () => {
+    const jsonc = `{
+      "d1_databases": [
+        { "database_name": "vizo-dev", "binding": "PRIMARY_DB" },
+        { "database_name": "secondary", "binding": "vizo-dev" }
+      ]
+    }`;
+
+    vi.doMock('@node-singletons/fs', () => ({
+      existsSync: () => true,
+      readFileSync: () => jsonc,
+    }));
+    vi.doMock('@node-singletons/path', async () => await import('node:path'));
+
+    const { WranglerConfig } = await import('../../../../src/cli/d1/WranglerConfig');
+    expect(WranglerConfig.getD1Database('/repo', 'vizo-dev')).toEqual(
+      expect.objectContaining({ database_name: 'vizo-dev', binding: 'PRIMARY_DB' })
+    );
+    expect(WranglerConfig.resolveD1Database('/repo', 'vizo-dev')).toEqual(
+      expect.objectContaining({ status: 'resolved', matchedBy: 'database_name' })
+    );
+  });
+
+  it('returns no implicit default when multiple D1 entries are configured', async () => {
+    const jsonc = `{
+      "d1_databases": [
+        { "database_name": "first", "binding": "FIRST_DB" },
+        { "database_name": "second", "binding": "SECOND_DB" }
+      ]
+    }`;
+
+    vi.doMock('@node-singletons/fs', () => ({
+      existsSync: () => true,
+      readFileSync: () => jsonc,
+    }));
+    vi.doMock('@node-singletons/path', async () => await import('node:path'));
+
+    const { WranglerConfig } = await import('../../../../src/cli/d1/WranglerConfig');
+    expect(WranglerConfig.getDefaultD1Database('/repo')).toBeUndefined();
+    expect(WranglerConfig.getDefaultD1DatabaseName('/repo')).toBeUndefined();
+    expect(WranglerConfig.resolveD1Database('/repo')).toEqual(
+      expect.objectContaining({ status: 'ambiguous', matchedBy: 'multiple-configured' })
+    );
+  });
+
+  it('reports ambiguous database_name matches when multiple entries share a name', async () => {
+    const jsonc = `{
+      "d1_databases": [
+        { "database_name": "vizo-dev", "binding": "PRIMARY_DB" },
+        { "database_name": "vizo-dev", "binding": "SHADOW_DB" }
+      ]
+    }`;
+
+    vi.doMock('@node-singletons/fs', () => ({
+      existsSync: () => true,
+      readFileSync: () => jsonc,
+    }));
+    vi.doMock('@node-singletons/path', async () => await import('node:path'));
+
+    const { WranglerConfig } = await import('../../../../src/cli/d1/WranglerConfig');
+    expect(WranglerConfig.getD1Database('/repo', 'vizo-dev')).toBeUndefined();
+    expect(WranglerConfig.resolveD1Database('/repo', 'vizo-dev')).toEqual(
+      expect.objectContaining({ status: 'ambiguous', matchedBy: 'database_name' })
+    );
   });
 
   it('falls back to binding name and returns undefined when no D1 config exists', async () => {

@@ -275,10 +275,19 @@ const runD1Actions = async (params: {
   }
 
   const isLocal = options['local'] === true || options['remote'] !== true;
-  const dbName =
-    typeof options['database'] === 'string' && options['database'].trim() !== ''
-      ? options['database'].trim()
-      : (WranglerConfig.getDefaultD1DatabaseName(projectRoot) ?? 'zintrust_db');
+  let dbName = 'zintrust_db';
+  if (typeof options['database'] === 'string' && options['database'].trim() !== '') {
+    dbName = options['database'].trim();
+  } else {
+    const resolution = WranglerConfig.resolveD1Database(projectRoot);
+    if (resolution.status === 'resolved') {
+      dbName = WranglerConfig.getDefaultD1DatabaseName(projectRoot) ?? 'zintrust_db';
+    } else if (resolution.status === 'ambiguous') {
+      throw ErrorFactory.createCliError(
+        'Multiple D1 targets are configured. Re-run with --database <database_name|binding> to choose the intended Wrangler D1 target.'
+      );
+    }
+  }
 
   const migrationsRelDir = WranglerConfig.getD1MigrationsDir(projectRoot, dbName);
   const outputDir = path.join(projectRoot, migrationsRelDir);

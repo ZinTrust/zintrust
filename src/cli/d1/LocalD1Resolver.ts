@@ -1,7 +1,12 @@
+import {
+  WranglerConfig,
+  type WranglerD1DatabaseConfig,
+  type WranglerD1DatabaseResolution,
+  type WranglerD1ResolutionMatch,
+} from '@cli/d1/WranglerConfig';
+import { WranglerD1 } from '@cli/d1/WranglerD1';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { WranglerConfig, type WranglerD1DatabaseConfig } from '@cli/d1/WranglerConfig';
-import { WranglerD1 } from '@cli/d1/WranglerD1';
 import { isNonEmptyString } from '@helper/index';
 import { randomUUID } from '@node-singletons/crypto';
 import fs from '@node-singletons/fs';
@@ -13,51 +18,94 @@ const PROBE_TABLE = '__zintrust_d1_probe';
 type ResolvedD1Target = {
   config: WranglerD1DatabaseConfig;
   databaseName: string;
+  matchedBy: WranglerD1ResolutionMatch;
 };
 
-const describeConfiguredTargets = (projectRoot: string): string => {
-  const configured = WranglerConfig.getD1Databases(projectRoot)
+const describeTarget = (database: WranglerD1DatabaseConfig): string => {
+  const parts: string[] = [];
+  if (isNonEmptyString(database.database_name)) {
+    parts.push(`database_name=${database.database_name.trim()}`);
+  }
+  if (isNonEmptyString(database.binding)) {
+    parts.push(`binding=${database.binding.trim()}`);
+  }
+  return parts.length > 0 ? parts.join(', ') : 'unnamed-d1-entry';
+};
+
+const describeTargets = (configured: WranglerD1DatabaseConfig[]): string => {
+  const rendered = configured
     .map((database) => {
-      const parts: string[] = [];
-      if (isNonEmptyString(database.database_name)) {
-        parts.push(`database_name=${database.database_name.trim()}`);
-      }
-      if (isNonEmptyString(database.binding)) {
-        parts.push(`binding=${database.binding.trim()}`);
-      }
-      return parts.length > 0 ? parts.join(', ') : 'unnamed-d1-entry';
+      return describeTarget(database);
     })
     .filter((entry) => entry.length > 0);
 
-  return configured.length > 0 ? configured.join(' | ') : 'none';
+  return rendered.length > 0 ? rendered.join(' | ') : 'none';
+};
+
+const getSelectionHint = (
+  matchedBy: 'database_name' | 'binding' | 'multiple-configured'
+): string => {
+  if (matchedBy === 'database_name') return 'database_name';
+  if (matchedBy === 'binding') return 'binding';
+  return 'configured D1 entry';
+};
+
+const createResolutionError = (
+  resolution: Exclude<WranglerD1DatabaseResolution, { status: 'resolved' }>
+): Error => {
+  const configuredTargets = describeTargets(resolution.configured);
+  const targetLabel = resolution.target ?? '';
+
+  if (resolution.status === 'ambiguous') {
+    if (resolution.matchedBy === 'multiple-configured') {
+      return ErrorFactory.createConfigError(
+        `Multiple D1 targets are configured in wrangler.jsonc. Specify a target by database_name or binding. Configured D1 targets: ${configuredTargets}`
+      );
+    }
+
+    return ErrorFactory.createConfigError(
+      `D1 target "${targetLabel}" is ambiguous by ${getSelectionHint(resolution.matchedBy)}. Matching entries: ${describeTargets(resolution.matches)}. Configured D1 targets: ${configuredTargets}`
+    );
+  }
+
+  if (resolution.target === undefined) {
+    return ErrorFactory.createConfigError(
+      `Unable to resolve a default D1 target from wrangler.jsonc. Configured D1 targets: ${configuredTargets}`
+    );
+  }
+
+  return ErrorFactory.createConfigError(
+    `Unable to resolve D1 target "${targetLabel}" from wrangler.jsonc. Tried database_name first, then binding. Configured D1 targets: ${configuredTargets}`
+  );
 };
 
 const resolveTarget = (projectRoot: string, target?: string): ResolvedD1Target => {
-  const config = WranglerConfig.getD1Database(projectRoot, target);
+  const resolution = WranglerConfig.resolveD1Database(projectRoot, target);
+  if (resolution.status !== 'resolved') {
+    throw createResolutionError(resolution);
+  }
+
+  const config = resolution.config;
   const configuredDatabaseName = config?.database_name?.trim();
   const configuredBindingName = config?.binding?.trim();
   const databaseName =
     configuredDatabaseName ??
     (isNonEmptyString(configuredBindingName) ? configuredBindingName : undefined);
 
-  if (config === undefined || !isNonEmptyString(databaseName)) {
+  if (!isNonEmptyString(databaseName)) {
     throw ErrorFactory.createConfigError(
-      `Unable to resolve D1 target "${target ?? ''}" from wrangler.jsonc. Configured D1 targets: ${describeConfiguredTargets(projectRoot)}`
+      `Resolved D1 target is missing both database_name and binding. Configured D1 targets: ${describeTargets(WranglerConfig.getD1Databases(projectRoot))}`
     );
   }
 
-  return { config, databaseName };
+  return { config, databaseName, matchedBy: resolution.matchedBy };
 };
 
+const getLocalStateDir = (projectRoot: string): string =>
+  path.join(projectRoot, '.wrangler', 'state', 'v3', 'd1', 'miniflare-D1DatabaseObject');
+
 const listCandidateSqliteFiles = (projectRoot: string): string[] => {
-  const candidateDir = path.join(
-    projectRoot,
-    '.wrangler',
-    'state',
-    'v3',
-    'd1',
-    'miniflare-D1DatabaseObject'
-  );
+  const candidateDir = getLocalStateDir(projectRoot);
 
   if (!fs.existsSync(candidateDir)) return [];
 
@@ -99,6 +147,16 @@ export const LocalD1Resolver = Object.freeze({
 
   ensureLocalD1Ready(projectRoot: string, target?: string): ResolvedD1Target {
     const resolved = resolveTarget(projectRoot, target);
+    Logger.info(
+      `[LocalD1Resolver] Resolved D1 target (${resolved.matchedBy}): ${describeTarget(resolved.config)}`
+    );
+
+    if (listCandidateSqliteFiles(projectRoot).length === 0) {
+      Logger.info(
+        `[LocalD1Resolver] Local D1 state missing, bootstrapping with Wrangler for ${resolved.databaseName}`
+      );
+    }
+
     WranglerD1.executeSql({
       dbName: resolved.databaseName,
       isLocal: true,
@@ -140,7 +198,7 @@ export const LocalD1Resolver = Object.freeze({
     }
 
     throw ErrorFactory.createConfigError(
-      `Unable to resolve actual local D1 SQLite file for target "${resolved.databaseName}" under .wrangler/state/v3/d1/miniflare-D1DatabaseObject`
+      `Unable to resolve actual local D1 SQLite file for target "${resolved.databaseName}" under ${getLocalStateDir(projectRoot)}. Resolved D1 target: ${describeTarget(resolved.config)}`
     );
   },
 });

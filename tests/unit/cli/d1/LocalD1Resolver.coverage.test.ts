@@ -17,6 +17,15 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
     }));
     vi.doMock('@cli/d1/WranglerConfig', () => ({
       WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'missing',
+          target: 'missing',
+          configured: [
+            { database_name: 'main-db', binding: 'MAIN_DB' },
+            { binding: 'SECONDARY_DB' },
+          ],
+          matches: [],
+        })),
         getD1Database: vi.fn(() => undefined),
         getD1Databases: vi.fn(() => [
           { database_name: 'main-db', binding: 'MAIN_DB' },
@@ -35,7 +44,98 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
     const { LocalD1Resolver } = await import('../../../../src/cli/d1/LocalD1Resolver');
 
     expect(() => LocalD1Resolver.resolveD1Binding('/repo', 'missing')).toThrow(
-      /Configured D1 targets: database_name=main-db, binding=MAIN_DB \\| binding=SECONDARY_DB/
+      /Tried database_name first, then binding\. Configured D1 targets: database_name=main-db, binding=MAIN_DB \| binding=SECONDARY_DB/
+    );
+  });
+
+  it('throws a descriptive error when multiple D1 entries exist and no target is provided', async () => {
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@exceptions/ZintrustError', () => ({
+      ErrorFactory: {
+        createConfigError: (message: string) => new Error(message),
+      },
+    }));
+    vi.doMock('@cli/d1/WranglerConfig', () => ({
+      WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'ambiguous',
+          matchedBy: 'multiple-configured',
+          configured: [
+            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+          ],
+          matches: [
+            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+          ],
+        })),
+        getD1Databases: vi.fn(() => [
+          { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+          { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+        ]),
+      },
+    }));
+    vi.doMock('@cli/d1/WranglerD1', () => ({ WranglerD1: { executeSql: vi.fn() } }));
+    vi.doMock('@node-singletons/crypto', () => ({ randomUUID: vi.fn(() => 'uuid-ambiguous') }));
+    vi.doMock('@node-singletons/fs', () => ({ default: { existsSync: vi.fn(() => false) } }));
+    vi.doMock('@node-singletons/path', async () => await import('node:path'));
+    vi.doMock('@orm/adapters/SQLiteAdapter', () => ({
+      SQLiteAdapter: { create: vi.fn() },
+    }));
+
+    const { LocalD1Resolver } = await import('../../../../src/cli/d1/LocalD1Resolver');
+
+    expect(() => LocalD1Resolver.resolveD1Binding('/repo')).toThrow(
+      /Multiple D1 targets are configured in wrangler\.jsonc\. Specify a target by database_name or binding/
+    );
+  });
+
+  it('throws a descriptive error when a database_name target is ambiguous', async () => {
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@exceptions/ZintrustError', () => ({
+      ErrorFactory: {
+        createConfigError: (message: string) => new Error(message),
+      },
+    }));
+    vi.doMock('@cli/d1/WranglerConfig', () => ({
+      WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'ambiguous',
+          target: 'vizo-dev',
+          matchedBy: 'database_name',
+          configured: [
+            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'vizo-dev', binding: 'SHADOW_DB' },
+          ],
+          matches: [
+            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'vizo-dev', binding: 'SHADOW_DB' },
+          ],
+        })),
+        getD1Databases: vi.fn(() => [
+          { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
+          { database_name: 'vizo-dev', binding: 'SHADOW_DB' },
+        ]),
+      },
+    }));
+    vi.doMock('@cli/d1/WranglerD1', () => ({ WranglerD1: { executeSql: vi.fn() } }));
+    vi.doMock('@node-singletons/crypto', () => ({
+      randomUUID: vi.fn(() => 'uuid-ambiguous-name'),
+    }));
+    vi.doMock('@node-singletons/fs', () => ({ default: { existsSync: vi.fn(() => false) } }));
+    vi.doMock('@node-singletons/path', async () => await import('node:path'));
+    vi.doMock('@orm/adapters/SQLiteAdapter', () => ({
+      SQLiteAdapter: { create: vi.fn() },
+    }));
+
+    const { LocalD1Resolver } = await import('../../../../src/cli/d1/LocalD1Resolver');
+
+    expect(() => LocalD1Resolver.resolveD1Binding('/repo', 'vizo-dev')).toThrow(
+      /D1 target "vizo-dev" is ambiguous by database_name\./
     );
   });
 
@@ -52,6 +152,14 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
     }));
     vi.doMock('@cli/d1/WranglerConfig', () => ({
       WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'resolved',
+          target: 'ZIN_DB',
+          matchedBy: 'binding',
+          config: { database_name: 'd1-proxy-db', binding: 'ZIN_DB' },
+          configured: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+          matches: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+        })),
         getD1Database: vi.fn(() => ({ database_name: 'd1-proxy-db', binding: 'ZIN_DB' })),
         getD1Databases: vi.fn(() => [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }]),
       },
@@ -94,6 +202,14 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
     }));
     vi.doMock('@cli/d1/WranglerConfig', () => ({
       WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'resolved',
+          target: 'd1-proxy-db',
+          matchedBy: 'database_name',
+          config: { database_name: 'd1-proxy-db', binding: 'ZIN_DB' },
+          configured: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+          matches: [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }],
+        })),
         getD1Database: vi.fn(() => ({ database_name: 'd1-proxy-db', binding: 'ZIN_DB' })),
         getD1Databases: vi.fn(() => [{ database_name: 'd1-proxy-db', binding: 'ZIN_DB' }]),
       },
@@ -169,6 +285,14 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
     }));
     vi.doMock('@cli/d1/WranglerConfig', () => ({
       WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'resolved',
+          target: 'ZIN_DB',
+          matchedBy: 'binding',
+          config: { binding: 'ZIN_DB' },
+          configured: [{ binding: 'ZIN_DB' }],
+          matches: [{ binding: 'ZIN_DB' }],
+        })),
         getD1Database: vi.fn(() => ({ binding: 'ZIN_DB' })),
         getD1Databases: vi.fn(() => [{ binding: 'ZIN_DB' }]),
       },
@@ -217,6 +341,14 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
     }));
     vi.doMock('@cli/d1/WranglerConfig', () => ({
       WranglerConfig: {
+        resolveD1Database: vi.fn(() => ({
+          status: 'resolved',
+          target: 'd1-proxy-db',
+          matchedBy: 'database_name',
+          config: { database_name: 'd1-proxy-db' },
+          configured: [{ database_name: 'd1-proxy-db' }],
+          matches: [{ database_name: 'd1-proxy-db' }],
+        })),
         getD1Database: vi.fn(() => ({ database_name: 'd1-proxy-db' })),
         getD1Databases: vi.fn(() => [{ database_name: 'd1-proxy-db' }]),
       },
