@@ -212,4 +212,19 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
     expect(OptionalCliCommandRegistry.has('worker:list')).toBe(true);
     expect(OptionalCliCommandRegistry.get(' worker:list ')).toBe(provider);
   });
+
+  it('worker register syncs commands into an already-imported core registry', async () => {
+    const { OptionalCliCommandRegistry } = await import('@cli/OptionalCliCommandRegistry');
+
+    expect(OptionalCliCommandRegistry.has('worker:list')).toBe(false);
+
+    (
+      globalThis as { __zintrust_cli_command_registry__?: Map<string, unknown> }
+    ).__zintrust_cli_command_registry__ = new Map<string, unknown>();
+
+    await import('../../../packages/workers/src/register.ts');
+
+    expect(OptionalCliCommandRegistry.has('worker:list')).toBe(true);
+    expect(OptionalCliCommandRegistry.has('worker:summary')).toBe(true);
+  });
 });
