@@ -14,7 +14,7 @@
 
 Production-grade TypeScript backend framework with a “minimal core” (no Express/Fastify) and a batteries-included CLI + developer experience. Visit [zintrust.com](https://zintrust.com) for more information.
 
-[![Open in GitHub Codespaces](https://github.com)](https://github.com/codespaces/new?hide_repo_select=true&ref=dev&repo=ZinTrust/zintrust)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&ref=dev&repo=ZinTrust/zintrust)
 
 ## ⚡ Instant Development Environment
 
@@ -22,7 +22,7 @@ Click the **"Open in GitHub Codespaces"** button above to launch a pre-configure
 
 ### Sandbox Details:
 
-- **Repository:** [ZinTrust/zintrust](https://github.com)
+- **Repository:** [ZinTrust/zintrust](https://github.com/ZinTrust/zintrust)
 - **Automatic Setup:** Uses `docker.io/zintrust/zintrust:latest`
 - **Active Port:** `7772` (The API will open automatically in your browser)
 - **Start Command:** `node --experimental-specifier-resolution=node dist/src/boot/bootstrap.js`
