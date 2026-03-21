@@ -114,7 +114,8 @@ const resolveLocalPackageSpecifier = (specifier: string): string | null => {
   ];
 
   const resolved = candidates.find((candidate) => existsSync(candidate));
-  return resolved ? pathToFileURL(resolved).href : null;
+  if (resolved === undefined) return null;
+  return pathToFileURL(resolved).href;
 };
 
 const importSingleSpecifier = async (entry: ImportSpecifier): Promise<boolean> => {
