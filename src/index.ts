@@ -225,6 +225,9 @@ export { Logger } from '@config/logger';
 
 export { appConfig } from '@config/app';
 export type { AppConfig } from '@config/app';
+export { LocalD1Resolver } from '@cli/d1/LocalD1Resolver';
+export { WranglerConfig } from '@cli/d1/WranglerConfig';
+export { WranglerD1 } from '@cli/d1/WranglerD1';
 
 export { cacheConfig } from '@config/cache';
 export type { CacheConfig, CacheConfigOverrides } from '@config/cache';

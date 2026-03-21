@@ -200,6 +200,9 @@ describe('D1MigrateCommand', () => {
       vi.clearAllMocks();
       vi.mocked(childProcess.execFileSync).mockReturnValue('Migrations applied');
       vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue(
+        '{"d1_databases":[{"database_name":"d1-proxy-db","binding":"ZIN_DB","migrations_dir":"database/migrations/d1"}]}' as any
+      );
       vi.mocked(path.dirname).mockReturnValue('/usr/local/bin');
       vi.mocked(path.join).mockImplementation((...args: string[]) => args.join('/'));
     });
@@ -224,6 +227,8 @@ describe('D1MigrateCommand', () => {
       await command.execute({});
 
       expect(vi.mocked(childProcess.execFileSync)).toHaveBeenCalled();
+      const args = vi.mocked(childProcess.execFileSync).mock.calls[0]?.[1] as string[];
+      expect(args).toContain('d1-proxy-db');
     });
 
     it('should use provided database name', async () => {
