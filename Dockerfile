@@ -41,6 +41,41 @@ COPY . .
 ARG BUILD_VARIANT=full
 RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked npm run build:dk
 
+FROM builder AS runtime-artifacts
+
+RUN set -eu; \
+  runtime_root=/runtime-root; \
+  mkdir -p "$runtime_root/dist/packages"; \
+  cp -R /app/dist/. "$runtime_root/dist/"; \
+  for package in \
+    db-postgres \
+    db-mysql \
+    db-sqlserver \
+    db-sqlite \
+    queue-redis \
+    queue-rabbitmq \
+    queue-sqs \
+    cache-redis \
+    cache-mongodb \
+    mail-nodemailer \
+    mail-smtp \
+    mail-sendgrid \
+    mail-mailgun \
+    storage-s3 \
+    storage-r2 \
+    storage-gcs; do \
+    mkdir -p "$runtime_root/dist/packages/$package"; \
+    cp -R "/app/packages/$package/dist" "$runtime_root/dist/packages/$package/dist"; \
+  done
+
+FROM runtime-artifacts AS worker-artifacts
+
+RUN set -eu; \
+  for package in workers queue-monitor; do \
+    mkdir -p "/runtime-root/dist/packages/$package"; \
+    cp -R "/app/packages/$package/dist" "/runtime-root/dist/packages/$package/dist"; \
+  done
+
 # Runtime Stage - Production image
 FROM node:20-alpine AS runtime
 
@@ -81,31 +116,13 @@ RUN --mount=type=cache,target=/root/.npm,id=zintrust-npm-cache,sharing=locked \
   && rm -rf /usr/local/lib/node_modules/npm \
   && rm -f /usr/local/bin/npm /usr/local/bin/npx
 
-# Copy compiled code from builder stage
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/packages/db-postgres ./dist/packages/db-postgres
-COPY --from=builder /app/packages/db-mysql ./dist/packages/db-mysql
-COPY --from=builder /app/packages/db-sqlserver ./dist/packages/db-sqlserver
-COPY --from=builder /app/packages/db-sqlite ./dist/packages/db-sqlite
-COPY --from=builder /app/packages/queue-redis ./dist/packages/queue-redis
-COPY --from=builder /app/packages/queue-rabbitmq ./dist/packages/queue-rabbitmq
-COPY --from=builder /app/packages/queue-sqs ./dist/packages/queue-sqs
-COPY --from=builder /app/packages/cache-redis ./dist/packages/cache-redis
-COPY --from=builder /app/packages/cache-mongodb ./dist/packages/cache-mongodb
-COPY --from=builder /app/packages/mail-nodemailer ./dist/packages/mail-nodemailer
-COPY --from=builder /app/packages/mail-smtp ./dist/packages/mail-smtp
-COPY --from=builder /app/packages/mail-sendgrid ./dist/packages/mail-sendgrid
-COPY --from=builder /app/packages/mail-mailgun ./dist/packages/mail-mailgun
-COPY --from=builder /app/packages/storage-s3 ./dist/packages/storage-s3
-COPY --from=builder /app/packages/storage-r2 ./dist/packages/storage-r2
-COPY --from=builder /app/packages/storage-gcs ./dist/packages/storage-gcs
+# Copy the fresh-start runtime payload from the builder in one place.
+COPY --from=runtime-artifacts --chown=nodejs:nodejs /runtime-root/ /app/
 
-
-# Expose the built framework package to official plugin packages loaded from dist/packages.
-RUN mkdir -p /app/node_modules/@zintrust \
-  && rm -rf /app/node_modules/@zintrust/core \
+RUN rm -rf /app/node_modules/@zintrust/core \
+  && mkdir -p /app/node_modules/@zintrust \
   && ln -s ../../dist /app/node_modules/@zintrust/core \
-  && chown -R nodejs:nodejs /app
+  && chown -h nodejs:nodejs /app/node_modules/@zintrust/core
 
 # Switch to non-root user
 USER nodejs
@@ -124,8 +141,7 @@ CMD ["node", "dist/src/boot/bootstrap.js"]
 
 FROM runtime AS worker
 
-COPY --from=builder /app/packages/workers ./dist/packages/workers
-COPY --from=builder /app/packages/queue-monitor ./dist/packages/queue-monitor
+COPY --from=worker-artifacts --chown=nodejs:nodejs /runtime-root/ /app/
 
 ENV DOCKER_WORKER=true
 ENV WORKER_ENABLED=true
