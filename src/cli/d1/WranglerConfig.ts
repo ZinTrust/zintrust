@@ -1,9 +1,11 @@
+import { isNonEmptyString } from '@helper/index';
 import * as fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 
-type WranglerD1DatabaseConfig = {
+export type WranglerD1DatabaseConfig = {
   binding?: string;
   database_name?: string;
+  database_id?: string;
   migrations_dir?: string;
 };
 
@@ -173,26 +175,72 @@ const stripTrailingCommas = (input: string): string => {
   return out.join('');
 };
 
+const readWranglerConfig = (projectRoot: string): WranglerConfig | null => {
+  const configPath = path.join(projectRoot, 'wrangler.jsonc');
+  if (!fs.existsSync(configPath)) return null;
+
+  try {
+    const raw = fs.readFileSync(configPath, 'utf8');
+    return JSON.parse(stripTrailingCommas(stripJsonc(raw))) as WranglerConfig;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeTarget = (target?: string): string | undefined => {
+  if (!isNonEmptyString(target)) return undefined;
+  const trimmed = target.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const getResolvedD1Name = (config: WranglerD1DatabaseConfig | undefined): string | undefined => {
+  if (config === undefined) return undefined;
+  if (isNonEmptyString(config.database_name)) return config.database_name.trim();
+  if (isNonEmptyString(config.binding)) return config.binding.trim();
+  return undefined;
+};
+
+const getD1Databases = (projectRoot: string): WranglerD1DatabaseConfig[] => {
+  const parsed = readWranglerConfig(projectRoot);
+  return Array.isArray(parsed?.d1_databases) ? parsed.d1_databases : [];
+};
+
+const getD1Database = (
+  projectRoot: string,
+  target?: string
+): WranglerD1DatabaseConfig | undefined => {
+  const list = getD1Databases(projectRoot);
+  if (list.length === 0) return undefined;
+
+  const normalizedTarget = normalizeTarget(target);
+  if (normalizedTarget === undefined) return list[0] ?? undefined;
+
+  return list.find(
+    (database) =>
+      database.binding?.trim() === normalizedTarget ||
+      database.database_name?.trim() === normalizedTarget
+  );
+};
+
 export const WranglerConfig = Object.freeze({
+  getD1Databases(projectRoot: string): WranglerD1DatabaseConfig[] {
+    return getD1Databases(projectRoot);
+  },
+
+  getD1Database(projectRoot: string, target?: string): WranglerD1DatabaseConfig | undefined {
+    return getD1Database(projectRoot, target);
+  },
+
+  getDefaultD1Database(projectRoot: string): WranglerD1DatabaseConfig | undefined {
+    return getD1Database(projectRoot);
+  },
+
+  getDefaultD1DatabaseName(projectRoot: string): string | undefined {
+    return getResolvedD1Name(getD1Database(projectRoot));
+  },
+
   getD1MigrationsDir(projectRoot: string, dbName?: string): string {
-    const configPath = path.join(projectRoot, 'wrangler.jsonc');
-    if (!fs.existsSync(configPath)) return 'migrations';
-
-    try {
-      const raw = fs.readFileSync(configPath, 'utf8');
-      const parsed = JSON.parse(stripTrailingCommas(stripJsonc(raw))) as WranglerConfig;
-      const list = parsed.d1_databases;
-      if (!Array.isArray(list) || list.length === 0) return 'migrations';
-
-      const match =
-        typeof dbName === 'string'
-          ? list.find((d) => d.binding === dbName || d.database_name === dbName)
-          : (list[0] ?? undefined);
-
-      const dir = match?.migrations_dir;
-      return typeof dir === 'string' && dir.trim() !== '' ? dir : 'migrations';
-    } catch {
-      return 'migrations';
-    }
+    const dir = getD1Database(projectRoot, dbName)?.migrations_dir;
+    return isNonEmptyString(dir) ? dir.trim() : 'migrations';
   },
 });

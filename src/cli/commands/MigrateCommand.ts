@@ -277,8 +277,8 @@ const runD1Actions = async (params: {
   const isLocal = options['local'] === true || options['remote'] !== true;
   const dbName =
     typeof options['database'] === 'string' && options['database'].trim() !== ''
-      ? options['database']
-      : 'zintrust_db';
+      ? options['database'].trim()
+      : (WranglerConfig.getDefaultD1DatabaseName(projectRoot) ?? 'zintrust_db');
 
   const migrationsRelDir = WranglerConfig.getD1MigrationsDir(projectRoot, dbName);
   const outputDir = path.join(projectRoot, migrationsRelDir);

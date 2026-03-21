@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const compileAndWriteMock = vi.fn();
 const applyMigrationsMock = vi.fn();
 const getD1MigrationsDirMock = vi.fn();
+const getDefaultD1DatabaseNameMock = vi.fn();
 
 vi.mock('@cli/ErrorHandler', () => ({
   ErrorHandler: {
@@ -29,6 +30,7 @@ vi.mock('@cli/d1/WranglerD1', () => ({
 vi.mock('@cli/d1/WranglerConfig', () => ({
   WranglerConfig: {
     getD1MigrationsDir: (...args: unknown[]) => getD1MigrationsDirMock(...args),
+    getDefaultD1DatabaseName: (...args: unknown[]) => getDefaultD1DatabaseNameMock(...args),
   },
 }));
 
@@ -58,6 +60,7 @@ describe('D1MigrateCommand (coverage extras)', () => {
     compileAndWriteMock.mockResolvedValue([]);
     applyMigrationsMock.mockReturnValue('');
     getD1MigrationsDirMock.mockReturnValue('should-not-be-used');
+    getDefaultD1DatabaseNameMock.mockReturnValue('d1-proxy-db');
   });
 
   it('worker mode uses fixed migrations directories', async () => {

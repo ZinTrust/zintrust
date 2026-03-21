@@ -41,16 +41,17 @@ const runWrangler = async (cmd: IBaseCommand, args: string[]): Promise<string> =
   return WranglerD1.applyMigrations({ cmd, dbName, isLocal });
 };
 
-const getDbName = (options: CommandOptions): string => {
+const getDbName = (projectRoot: string, options: CommandOptions): string => {
   const value = options['database'];
-  return typeof value === 'string' && value.trim() !== '' ? value : 'zintrust_db';
+  if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  return WranglerConfig.getDefaultD1DatabaseName(projectRoot) ?? 'zintrust_db';
 };
 
 const buildExecutionContext = (options: CommandOptions): D1MigrateExecutionContext => {
   const isWorkerCommand = process.argv.includes('d1:migrate:worker');
   const isLocal = options['local'] === true || options['remote'] !== true;
-  const dbName = getDbName(options);
   const projectRoot = process.cwd();
+  const dbName = getDbName(projectRoot, options);
 
   const migrationsRelDir = isWorkerCommand
     ? path.join('database', 'migrations', 'd1')
@@ -131,7 +132,7 @@ export const D1MigrateCommand = Object.freeze({
         .option('--remote', 'Run against remote D1 database (production)')
         .option(
           '--database <name>',
-          'Wrangler D1 database binding name (from wrangler.toml). Defaults to "zintrust_db"'
+          'Wrangler D1 identifier. Accepts database_name or binding; defaults to the configured wrangler d1_databases entry when available.'
         );
     };
 

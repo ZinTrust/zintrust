@@ -4,7 +4,7 @@
  * Handles the actual data migration between databases
  */
 
-import { ErrorFactory, Logger } from '@zintrust/core';
+import { ErrorFactory, LocalD1Resolver, Logger } from '@zintrust/core';
 
 import { MySQLAdapter } from '@zintrust/db-mysql';
 import { PostgreSQLAdapter } from '@zintrust/db-postgres';
@@ -295,14 +295,22 @@ export const DataMigrator = Object.freeze({
     };
 
     if (config.targetType === 'd1') {
-      const d1LocalPath = `.wrangler/state/v3/d1/${config.targetDatabase}/db.sqlite`;
+      const projectRoot = process.cwd();
+      const resolvedTarget = LocalD1Resolver.resolveD1Binding(projectRoot, config.targetDatabase);
+      const d1LocalPath = await LocalD1Resolver.resolveLocalD1SqlitePath(
+        projectRoot,
+        config.targetDatabase
+      );
       const d1Local = SQLiteAdapter.create({ driver: 'sqlite', database: d1LocalPath });
 
       try {
         await d1Local.connect();
         connection.adapter = d1Local;
+        connection.database = resolvedTarget.databaseName;
       } catch (error) {
-        Logger.warn(`Unable to connect local D1 path ${d1LocalPath}: ${error}`);
+        throw ErrorFactory.createConnectionError(
+          `Unable to connect resolved local D1 path ${d1LocalPath}: ${String(error)}`
+        );
       }
     }
 
@@ -319,8 +327,9 @@ export const DataMigrator = Object.freeze({
     config: MigrationConfig
   ): Promise<void> {
     if (!targetConnection.adapter) {
-      Logger.warn('No target adapter available; skipping schema preparation');
-      return;
+      throw ErrorFactory.createConnectionError(
+        'No target adapter available for D1 schema preparation'
+      );
     }
 
     Logger.info('Preparing target D1 schema...');

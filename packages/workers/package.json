@@ -55,7 +55,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "node scripts/generate-embedded-assets.mjs && tsc -p tsconfig.json",
+    "build": "node scripts/generate-embedded-assets.mjs && tsc -p tsconfig.json && node ../../scripts/fix-dist-esm-imports.mjs dist",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

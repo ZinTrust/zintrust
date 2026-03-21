@@ -73,6 +73,7 @@ vi.mock('@/cli/d1/WranglerD1', () => ({
 vi.mock('@/cli/d1/WranglerConfig', () => ({
   WranglerConfig: {
     getD1MigrationsDir: vi.fn(() => 'migrations'),
+    getDefaultD1DatabaseName: vi.fn(() => 'd1-proxy-db'),
   },
 }));
 
@@ -201,7 +202,7 @@ describe('MigrateCommand', () => {
 
     expect(D1SqlMigrations.compileAndWrite).toHaveBeenCalled();
     expect(WranglerD1.applyMigrations).toHaveBeenCalledWith(
-      expect.objectContaining({ dbName: 'zintrust_db', isLocal: true })
+      expect.objectContaining({ dbName: 'd1-proxy-db', isLocal: true })
     );
     expect(command.success).toHaveBeenCalledWith(
       expect.stringContaining('D1 migrations completed successfully')
