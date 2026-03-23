@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const handleRequest = vi.fn().mockResolvedValue(undefined);
 
@@ -61,6 +61,11 @@ describe('functions/cloudflare', () => {
     mockFormatResponse.mockReset();
     delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
       .__zintrustStartupConfigOverrides;
+    delete (globalThis as { env?: unknown }).env;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { env?: unknown }).env;
   });
 
   it('handles fetch success and caches kernel', async () => {
@@ -186,5 +191,35 @@ describe('functions/cloudflare', () => {
     ProjectRuntime.clear();
     delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
       .__zintrustStartupConfigOverrides;
+  });
+
+  it('merges injected worker env snapshot into bindings before routes load', async () => {
+    mockHandle.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true }),
+    });
+    mockFormatResponse.mockReturnValue({ status: 200 } as any);
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=env-snapshot');
+    const handler = mod.default.fetch;
+
+    await handler(
+      { url: 'https://example.com/env-snapshot', method: 'GET' } as any,
+      {
+        ZINTRUST_WORKER_ENV_SNAPSHOT: JSON.stringify({
+          APP_NAME: 'fresh-check',
+          MS_ROOT_ONLY: 'x',
+        }),
+        MS_SERVICE_ONLY: 'y',
+      },
+      {}
+    );
+
+    expect((globalThis as { env?: unknown }).env).toEqual({
+      APP_NAME: 'fresh-check',
+      MS_ROOT_ONLY: 'x',
+      MS_SERVICE_ONLY: 'y',
+    });
   });
 });

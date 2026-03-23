@@ -11,6 +11,7 @@ import type {
   DatabaseConnections,
 } from '@config/type';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import { useDatabase } from '@orm/Database';
 import type { DatabaseConfig as OrmDatabaseConfig } from '@orm/DatabaseAdapter';
 
@@ -59,9 +60,10 @@ const toOrmConfig = (cfg: DatabaseConnectionConfig): OrmDatabaseConfig => {
 };
 
 const registerConnections = (connections: DatabaseConnections): void => {
+  DatabaseConnectionRegistry.clear();
+
   for (const [name, runtimeCfg] of Object.entries(connections)) {
-    // Register instance by name; a later call without config may now resolve.
-    useDatabase(toOrmConfig(runtimeCfg), name);
+    DatabaseConnectionRegistry.set(name, toOrmConfig(runtimeCfg));
   }
 };
 
@@ -86,5 +88,6 @@ export function registerDatabasesFromRuntimeConfig(config: DatabaseConfigShape):
   }
 
   Logger.info(`✓ Registering default database connection: ${config.default}`);
+  useDatabase(toOrmConfig(defaultCfg), config.default);
   useDatabase(toOrmConfig(defaultCfg), 'default');
 }

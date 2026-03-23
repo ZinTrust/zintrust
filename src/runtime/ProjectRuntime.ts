@@ -52,6 +52,10 @@ const getCachedProjectRuntime = (): ProjectRuntimeModule | undefined => {
   return getRuntimeGlobal().__zintrustProjectRuntime;
 };
 
+const hasLoadedServiceManifest = (runtime: ProjectRuntimeModule | undefined): boolean => {
+  return Array.isArray(runtime?.serviceManifest);
+};
+
 const tryImportNodeRuntimeCandidate = async (
   candidate: string
 ): Promise<ProjectRuntimeModule | undefined> => {
@@ -102,7 +106,7 @@ export const ProjectRuntime = Object.freeze({
 
   async tryLoadNodeRuntime(): Promise<ProjectRuntimeModule | undefined> {
     const cached = getCachedProjectRuntime();
-    if (cached !== undefined) return cached;
+    if (hasLoadedServiceManifest(cached)) return cached;
 
     const projectRoot = getProjectRoot();
     const candidates = getNodeRuntimeCandidates(projectRoot);
@@ -118,7 +122,7 @@ export const ProjectRuntime = Object.freeze({
 
   async tryLoadWorkerRuntime(): Promise<ProjectRuntimeModule | undefined> {
     const cached = getCachedProjectRuntime();
-    if (cached !== undefined) return cached;
+    if (hasLoadedServiceManifest(cached)) return cached;
 
     const workerModuleIds = ['../' + 'zintrust.runtime.wg.js', '../' + 'zintrust.runtime.js'];
 

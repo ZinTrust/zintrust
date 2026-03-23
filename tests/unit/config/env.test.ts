@@ -116,5 +116,22 @@ describe('Env Config', () => {
       expect(Env.SAFE_PATH).toContain('/opt/homebrew/bin');
       expect(Env.SAFE_PATH).toContain('/usr/bin');
     });
+
+    it('uses worker global env when process env is empty', async () => {
+      const originalGlobalEnv = (globalThis as { env?: unknown }).env;
+      process.env = {};
+      (globalThis as { env?: unknown }).env = {
+        APP_NAME: 'worker-app',
+        WORKER_ONLY: 'yes',
+      };
+
+      vi.resetModules();
+      const { Env: WorkerEnv } = await import('../../../src/config/env');
+
+      expect(WorkerEnv.APP_NAME).toBe('worker-app');
+      expect(WorkerEnv.get('WORKER_ONLY')).toBe('yes');
+
+      (globalThis as { env?: unknown }).env = originalGlobalEnv;
+    });
   });
 });

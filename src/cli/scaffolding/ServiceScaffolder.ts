@@ -34,6 +34,9 @@ const serviceManifestImportExpression =
 const buildRouteImportExpression = (domain: string, serviceName: string): string =>
   `import('../services/${domain}/${serviceName}/routes/api.ts').catch(() => import('../services/${domain}/${serviceName}/routes/api.js'))`;
 
+const getServiceConfigRoot = (domain: string, serviceName: string): string =>
+  `src/services/${domain}/${serviceName}/config`;
+
 /**
  * ServiceScaffolder generates microservices with all necessary files
  */
@@ -148,6 +151,7 @@ export const serviceManifest: ReadonlyArray<ServiceManifestEntry> = [
     id: '${serviceId}',
     domain: '${domain}',
     name: '${options.name}',
+    configRoot: '${getServiceConfigRoot(domain, options.name)}',
     prefix: '${serviceId}',
     port: ${options.port ?? 3001},
     monolithEnabled: true,
@@ -193,6 +197,7 @@ function updateServiceManifest(projectRoot: string, options: ServiceOptions): vo
     id: '${serviceId}',
     domain: '${domain}',
     name: '${options.name}',
+    configRoot: '${getServiceConfigRoot(domain, options.name)}',
     prefix: '${serviceId}',
     port: ${options.port ?? 3001},
     monolithEnabled: true,
@@ -292,7 +297,7 @@ function generateServiceConfig(options: ServiceOptions): string {
 function generateServiceIndex(options: ServiceOptions): string {
   const domain = options.domain ?? 'default';
   const serviceId = `${domain}/${options.name}`;
-  const configRoot = `src/services/${domain}/${options.name}/config`;
+  const configRoot = getServiceConfigRoot(domain, options.name);
 
   return `/**
  * ${options.name} Service - Entry Point

@@ -320,7 +320,7 @@ const load = (options: LoadOptions = {}): LoadState => {
     mergeCachedState(cached, source, loadSource(source));
   }
 
-  return { loadedFiles: cached.loadedFiles, mode: cached.mode };
+  return cached;
 };
 
 const ensureLoaded = (options: Omit<LoadOptions, 'overrideExisting'> = {}): LoadState =>

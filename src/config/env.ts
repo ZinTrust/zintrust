@@ -16,9 +16,24 @@ const processLike: ProcessLike | undefined =
 
 let externalEnvSource: EnvSource | null = null;
 
+const getGlobalEnv = (): Record<string, unknown> | undefined => {
+  const env = (globalThis as { env?: unknown }).env;
+  if (env === undefined || env === null || typeof env !== 'object') return undefined;
+  return env as Record<string, unknown>;
+};
+
 const getEnvSource = (): Record<string, unknown> => {
   if (typeof externalEnvSource === 'function') return externalEnvSource();
   if (externalEnvSource !== null) return externalEnvSource;
+
+  const globalEnv = getGlobalEnv();
+  if (globalEnv !== undefined) {
+    return {
+      ...processLike?.env,
+      ...globalEnv,
+    };
+  }
+
   return processLike?.env ?? {};
 };
 

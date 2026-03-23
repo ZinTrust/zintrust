@@ -30,15 +30,23 @@ vi.mock('@common/index', () => ({
   resolveNpmPath: vi.fn(),
 }));
 
+vi.mock('@common/utility', () => ({
+  generateUuid: vi.fn(() => 'test-uuid'),
+}));
+
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
+  renameSync: vi.fn(),
+  unlinkSync: vi.fn(),
   writeFileSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
     mkdirSync: vi.fn(),
     readFileSync: vi.fn(),
+    renameSync: vi.fn(),
+    unlinkSync: vi.fn(),
     writeFileSync: vi.fn(),
   },
 }));
@@ -304,6 +312,12 @@ describe('StartCommand', () => {
         args: ['dev'],
         env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
       })
+    );
+
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      `${serviceCwd}/.dev.vars`,
+      expect.stringContaining('ZINTRUST_PROJECT_ROOT='),
+      'utf-8'
     );
   });
 

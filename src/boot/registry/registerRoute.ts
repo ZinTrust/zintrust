@@ -1,8 +1,11 @@
 import { appConfig } from '@/config';
 import Logger from '@config/logger';
 import { Router, type IRouter } from '@core-routes/Router';
-import { isObject } from '@helper/index';
-import { getServicePrefix } from '@microservices/ServiceManifest';
+import { isNonEmptyString, isObject } from '@helper/index';
+import {
+  type ActiveServiceRuntime,
+  type ServiceManifestEntry,
+} from '@microservices/ServiceManifest';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import type { RoutesModule } from '@registry/type';
@@ -72,25 +75,94 @@ const registerAppRoutes = async (resolvedBasePath: string, router: IRouter): Pro
   }
 };
 
+const getProjectRoot = (): string => {
+  const fromEnv = process.env?.['ZINTRUST_PROJECT_ROOT'] ?? '';
+  if (fromEnv.trim() !== '') return fromEnv.trim();
+  return process.cwd();
+};
+
+const resolveManifestServiceEnvDir = (projectRoot: string, entry: ServiceManifestEntry): string => {
+  const configRoot = (entry as { configRoot?: unknown }).configRoot;
+  if (isNonEmptyString(configRoot)) {
+    return path.dirname(path.join(projectRoot, configRoot));
+  }
+
+  return path.join(projectRoot, 'src', 'services', entry.domain, entry.name);
+};
+
+const resolveServicePrefix = (entry: ServiceManifestEntry): string => {
+  const prefix = (entry as { prefix?: unknown }).prefix;
+
+  if (isNonEmptyString(prefix)) {
+    const segments = prefix
+      .split('/')
+      .map((segment) => segment.trim())
+      .filter((segment) => segment !== '');
+
+    return segments.length === 0 ? '/' : `/${segments.join('/')}`;
+  }
+
+  return `/${entry.domain}/${entry.name}`;
+};
+
+const ensureManifestServiceEnvLoaded = async (entry: ServiceManifestEntry): Promise<void> => {
+  if (isCloudflare) return;
+
+  const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+  const projectRoot = getProjectRoot();
+  const envPath = resolveManifestServiceEnvDir(projectRoot, entry);
+
+  EnvFileLoader.ensureLoaded({
+    cwd: projectRoot,
+    includeCwd: true,
+    envPaths: [envPath],
+  });
+};
+
+const registerLoadedRoutes = (
+  router: IRouter,
+  entry: ServiceManifestEntry,
+  registerRoutes: (router: IRouter) => void,
+  activeService: ActiveServiceRuntime | undefined
+): void => {
+  const servicePrefix = resolveServicePrefix(entry);
+
+  if (activeService?.id === entry.id) {
+    registerRoutes(router);
+    return;
+  }
+
+  Router.group(router, servicePrefix, (scopedRouter) => {
+    registerRoutes(scopedRouter);
+  });
+};
+
 const registerManifestRoutes = async (router: IRouter): Promise<void> => {
   await ProjectRuntime.tryLoadNodeRuntime();
 
   const serviceManifest = ProjectRuntime.getServiceManifest();
   if (serviceManifest.length === 0) return;
 
+  const activeService = ProjectRuntime.getActiveService();
+  if (activeService !== undefined && isCloudflare) return;
+
   for (const entry of serviceManifest) {
     if (entry.monolithEnabled === false || typeof entry.loadRoutes !== 'function') {
       continue;
     }
 
+    if (activeService !== undefined && activeService.id !== entry.id) {
+      continue;
+    }
+
     try {
+      // eslint-disable-next-line no-await-in-loop
+      await ensureManifestServiceEnvLoaded(entry);
       // eslint-disable-next-line no-await-in-loop
       const mod = await entry.loadRoutes();
       const registerRoutes = isObject(mod) ? mod.registerRoutes : undefined;
       if (typeof registerRoutes === 'function') {
-        Router.group(router, getServicePrefix(entry), (scopedRouter) => {
-          registerRoutes(scopedRouter);
-        });
+        registerLoadedRoutes(router, entry, registerRoutes, activeService);
       }
     } catch (error) {
       Logger.warn(`Failed to register manifest routes for ${entry.id}`, error as Error);
@@ -130,14 +202,15 @@ export const registerMasterRoutes = async (
   router: IRouter
 ): Promise<void> => {
   try {
+    const activeService = ProjectRuntime.getActiveService();
     if (isCloudflare) {
       registerGlobalRoutes(router);
     }
-    if (!isCloudflare) {
+    if (!isCloudflare && activeService === undefined) {
       await registerAppRoutes(resolvedBasePath, router);
     }
     await registerManifestRoutes(router);
-    if (router.routes.length === 0) {
+    if (router.routes.length === 0 && activeService === undefined) {
       await registerFrameworkRoutes(resolvedBasePath, router);
     }
 

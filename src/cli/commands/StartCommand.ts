@@ -2,11 +2,22 @@ import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCo
 import { createDenoRunnerSource, createLambdaRunnerSource } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
+import { generateUuid } from '@common/utility';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import * as Common from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
+import { isNonEmptyString } from '@helper/index';
+import type { ServiceManifestEntry } from '@microservices/ServiceManifest';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import type { Command } from 'commander';
 
 type StartMode = 'development' | 'production' | 'testing' | 'split';
@@ -38,6 +49,8 @@ type StartContext = {
   projectRoot: string;
   packageJson?: PackageJson;
 };
+
+const isWranglerVarName = (value: string): boolean => /^[A-Za-z_]\w*$/.test(value);
 
 const isAbsolutePath = (value: string): boolean =>
   value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
@@ -302,6 +315,64 @@ const buildStartEnv = (projectRoot: string): NodeJS.ProcessEnv => ({
   ZINTRUST_PROJECT_ROOT: projectRoot,
 });
 
+const buildWorkerDevVarsContent = (): string => {
+  return (
+    Object.entries(process.env)
+      .filter((entry): entry is [string, string] => {
+        const [key, value] = entry;
+        return isWranglerVarName(key) && typeof value === 'string';
+      })
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join('\n') + '\n'
+  );
+};
+
+async function withWranglerEnvSnapshot<T>(
+  cwd: string,
+  envName: string | undefined,
+  fn: () => Promise<T>
+): Promise<T> {
+  const normalizedEnv = typeof envName === 'string' ? envName.trim() : '';
+  const targetName = normalizedEnv === '' ? '.dev.vars' : `.dev.vars.${normalizedEnv}`;
+  const targetPath = path.join(cwd, targetName);
+  const backupPath = existsSync(targetPath)
+    ? `${targetPath}.disabled-by-zin-${generateUuid()}`
+    : undefined;
+
+  if (backupPath !== undefined) {
+    renameSync(targetPath, backupPath);
+  }
+
+  try {
+    writeFileSync(targetPath, buildWorkerDevVarsContent(), 'utf-8');
+
+    return await fn();
+  } finally {
+    try {
+      if (existsSync(targetPath)) unlinkSync(targetPath);
+    } catch {
+      // noop
+    }
+
+    if (backupPath !== undefined) {
+      try {
+        if (existsSync(backupPath)) renameSync(backupPath, targetPath);
+      } catch {
+        // noop
+      }
+    }
+  }
+}
+
+const resolveManifestServiceEnvDir = (projectRoot: string, entry: ServiceManifestEntry): string => {
+  const configRoot = (entry as { configRoot?: unknown }).configRoot;
+  if (isNonEmptyString(configRoot)) {
+    return path.dirname(path.join(projectRoot, configRoot));
+  }
+
+  return path.join(projectRoot, 'src', 'services', entry.domain, entry.name);
+};
+
 const ensureStartEnvLoaded = (context: StartContext, options: StartCommandOptions): void => {
   const envPath = resolveEnvPath(options, context.projectRoot);
   const rootEnv = resolveRootEnvPreference(options);
@@ -313,6 +384,35 @@ const ensureStartEnvLoaded = (context: StartContext, options: StartCommandOption
     includeCwd: rootEnv,
     extraCwds,
     ...(envPath === undefined ? {} : { envPaths: [envPath] }),
+  });
+};
+
+const preloadManifestServiceEnv = async (
+  context: StartContext,
+  options: StartCommandOptions
+): Promise<void> => {
+  if (context.cwd !== context.projectRoot) return;
+  if (resolveEnvPath(options, context.projectRoot) !== undefined) return;
+
+  process.env['ZINTRUST_PROJECT_ROOT'] = context.projectRoot;
+  ProjectRuntime.clear();
+  await ProjectRuntime.tryLoadNodeRuntime();
+
+  const manifest = ProjectRuntime.getServiceManifest().filter(
+    (entry) => entry.monolithEnabled !== false
+  );
+  if (manifest.length === 0) return;
+
+  const envPaths = manifest
+    .map((entry) => resolveManifestServiceEnvDir(context.projectRoot, entry))
+    .filter((value, index, items) => items.indexOf(value) === index);
+
+  if (envPaths.length === 0) return;
+
+  EnvFileLoader.ensureLoaded({
+    cwd: context.projectRoot,
+    includeCwd: resolveRootEnvPreference(options),
+    envPaths,
   });
 };
 
@@ -476,10 +576,12 @@ const executeWranglerStart = async (
 
   logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({
-    command: 'wrangler',
-    args: wranglerArgs,
-    env: buildStartEnv(context.projectRoot),
+  const exitCode = await withWranglerEnvSnapshot(context.cwd, envName, async () => {
+    return SpawnUtil.spawnAndWait({
+      command: 'wrangler',
+      args: wranglerArgs,
+      env: buildStartEnv(context.projectRoot),
+    });
   });
   process.exit(exitCode);
 };
@@ -692,7 +794,9 @@ const executeSplitStart = async (
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
   const cwd = process.cwd();
   const context = resolveStartContext(cwd);
+  process.env['ZINTRUST_PROJECT_ROOT'] = context.projectRoot;
   ensureStartEnvLoaded(context, options);
+  await preloadManifestServiceEnv(context, options);
   const mode = resolveMode(options);
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);

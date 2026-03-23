@@ -123,6 +123,29 @@ const injectIoredisModule = async (): Promise<void> => {
 
 let startupConfigOverridesPromise: Promise<void> | undefined;
 
+const WORKER_ENV_SNAPSHOT_KEY = 'ZINTRUST_WORKER_ENV_SNAPSHOT';
+
+const resolveWorkersEnv = (env: unknown): Record<string, unknown> => {
+  const bindings =
+    typeof env === 'object' && env !== null ? { ...(env as Record<string, unknown>) } : {};
+  const rawSnapshot = bindings[WORKER_ENV_SNAPSHOT_KEY];
+
+  if (typeof rawSnapshot !== 'string' || rawSnapshot.trim() === '') {
+    return bindings;
+  }
+
+  try {
+    const parsed = JSON.parse(rawSnapshot) as Record<string, unknown>;
+    Reflect.deleteProperty(bindings, WORKER_ENV_SNAPSHOT_KEY);
+    return {
+      ...parsed,
+      ...bindings,
+    };
+  } catch {
+    return bindings;
+  }
+};
+
 const ensureStartupConfigOverridesLoaded = async (): Promise<void> => {
   startupConfigOverridesPromise ??= applyStartupConfigOverrides();
   await startupConfigOverridesPromise;
@@ -131,8 +154,9 @@ const ensureStartupConfigOverridesLoaded = async (): Promise<void> => {
 export default {
   async fetch(request: Request, _env: unknown, _ctx: unknown): Promise<Response> {
     try {
+      const workersEnv = resolveWorkersEnv(_env);
       // Make bindings available to framework code in Workers
-      (globalThis as unknown as { env?: unknown }).env = _env;
+      (globalThis as unknown as { env?: unknown }).env = workersEnv;
       const AppRoutes = (await import('@routes/' + 'api.ts')) as unknown as Record<string, unknown>;
 
       if (AppRoutes !== undefined) {

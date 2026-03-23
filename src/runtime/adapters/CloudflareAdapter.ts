@@ -4,7 +4,7 @@
 import { appConfig } from '@/config';
 import { isUndefinedOrNull } from '@/helper';
 import { Cloudflare } from '@config/cloudflare';
-import { Env } from '@config/env';
+import { Env, getProcessLike } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import type {
@@ -27,7 +27,13 @@ export const CloudflareAdapter = Object.freeze({
   create(config: AdapterConfig): RuntimeAdapter {
     const workersEnv = Cloudflare.getWorkersEnv();
     if (workersEnv !== null) {
-      Env.setSource(() => workersEnv);
+      const processEnv = getProcessLike()?.env;
+      const resolveEnvSource = (): Record<string, unknown> => {
+        if (processEnv === undefined) return workersEnv;
+        return { ...processEnv, ...workersEnv };
+      };
+
+      Env.setSource(resolveEnvSource);
     }
     const logger = config.logger ?? createDefaultLogger();
 
