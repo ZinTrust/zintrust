@@ -142,4 +142,49 @@ describe('registerRoute helpers patch coverage', () => {
     expect(Router.match(router, 'GET', '/')).not.toBeNull();
     expect(Router.match(router, 'GET', '/edge/gateway')).toBeNull();
   });
+
+  it('registerMasterRoutes skips service env loading when manifest loadEnv is false', async () => {
+    vi.doMock('@core-routes/CoreRoutes', () => ({ registerCoreRoutes: vi.fn() }));
+    vi.doMock('@runtime/detectRuntime', () => ({ detectRuntime: () => ({ isCloudflare: false }) }));
+    vi.doMock('@/config', () => ({ appConfig: { isDevelopment: () => true } }));
+    const ensureLoaded = vi.fn();
+    vi.doMock('@cli/utils/EnvFileLoader', () => ({
+      EnvFileLoader: {
+        ensureLoaded,
+      },
+    }));
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        tryLoadNodeRuntime: vi.fn(async () => undefined),
+        getActiveService: () => undefined,
+        getServiceManifest: () => [
+          {
+            id: 'app/gatewaynext',
+            domain: 'app',
+            name: 'gatewaynext',
+            prefix: '/edge/gateway',
+            monolithEnabled: true,
+            loadEnv: false,
+            loadRoutes: async () => {
+              const { Router } = await import('@core-routes/Router');
+              return {
+                registerRoutes(router: unknown) {
+                  Router.get(router as any, '/', () => undefined);
+                },
+              };
+            },
+          },
+        ],
+      },
+    }));
+
+    const { Router } = await import('@core-routes/Router');
+    const { registerMasterRoutes } = await import('@registry/registerRoute');
+    const router = Router.createRouter();
+
+    await registerMasterRoutes('/missing', router);
+
+    expect(ensureLoaded).not.toHaveBeenCalled();
+    expect(Router.match(router, 'GET', '/edge/gateway')).not.toBeNull();
+  });
 });

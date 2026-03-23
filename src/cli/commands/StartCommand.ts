@@ -399,7 +399,7 @@ const preloadManifestServiceEnv = async (
   await ProjectRuntime.tryLoadNodeRuntime();
 
   const manifest = ProjectRuntime.getServiceManifest().filter(
-    (entry) => entry.monolithEnabled !== false
+    (entry) => entry.monolithEnabled !== false && entry.loadEnv !== false
   );
   if (manifest.length === 0) return;
 

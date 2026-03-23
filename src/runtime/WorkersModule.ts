@@ -240,6 +240,10 @@ const importLocalWorkersModule = async (): Promise<WorkersModule | null> =>
 const importLocalQueueMonitorModule = async (): Promise<QueueMonitorModule | null> =>
   importLocalModule<QueueMonitorModule>('queue-monitor', '@zintrust/queue-monitor');
 
+const importOptionalPackage = async <T>(specifier: string): Promise<T> => {
+  return (await import(specifier)) as T;
+};
+
 let workersModulePromise: Promise<WorkersModule> | undefined;
 let patchAttempted = false;
 let patchAfterFailureAttempted = false;
@@ -302,7 +306,7 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
         filesChanged,
         replacements,
       });
-      workersModulePromise = import('@zintrust/workers');
+      workersModulePromise = importOptionalPackage<WorkersModule>('@zintrust/workers');
       return workersModulePromise;
     }
   }
@@ -342,7 +346,7 @@ export const loadWorkersModule = async (): Promise<WorkersModule> => {
   }
 
   logWorkersResolverDiagnostics();
-  workersModulePromise ??= import('@zintrust/workers');
+  workersModulePromise ??= importOptionalPackage<WorkersModule>('@zintrust/workers');
 
   try {
     return await workersModulePromise;
@@ -369,7 +373,8 @@ const handleQueueMonitorImportFailure = async (error: unknown): Promise<QueueMon
         filesChanged,
         replacements,
       });
-      queueMonitorModulePromise = import('@zintrust/queue-monitor');
+      queueMonitorModulePromise =
+        importOptionalPackage<QueueMonitorModule>('@zintrust/queue-monitor');
       return queueMonitorModulePromise;
     }
   }
@@ -402,7 +407,8 @@ export const loadQueueMonitorModule = async (): Promise<QueueMonitorModule> => {
     }
   }
 
-  queueMonitorModulePromise ??= import('@zintrust/queue-monitor');
+  queueMonitorModulePromise ??=
+    importOptionalPackage<QueueMonitorModule>('@zintrust/queue-monitor');
 
   try {
     return await queueMonitorModulePromise;

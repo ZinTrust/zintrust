@@ -43,6 +43,97 @@ afterEach(() => {
 });
 
 describe('Bootstrap additional branches', () => {
+  it('skips official plugin auto-import warnings outside docker worker mode', async () => {
+    vi.resetModules();
+
+    const warnSpy = vi.fn();
+    const officialImportsSpy = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'import-failed' as const,
+      errorMessage: 'Loaded 0/16 official plugin imports',
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: { dockerWorker: false, worker: false, detectRuntime: () => 'nodejs' },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: officialImportsSpy,
+        tryImportProjectAutoImports: vi.fn(async () => ({
+          ok: false as const,
+          reason: 'not-found' as const,
+        })),
+      },
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    expect(officialImportsSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalledWith(
+      'Official plugin auto-imports failed:',
+      expect.anything()
+    );
+  });
+
+  it('warns about official plugin auto-import failures in docker worker mode', async () => {
+    vi.resetModules();
+
+    const warnSpy = vi.fn();
+    const officialImportsSpy = vi.fn(async () => ({
+      ok: false as const,
+      reason: 'import-failed' as const,
+      errorMessage: 'Loaded 0/16 official plugin imports',
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { info: vi.fn(), warn: warnSpy, error: vi.fn(), debug: vi.fn() },
+    }));
+    vi.doMock('@config/app', () => ({
+      appConfig: { dockerWorker: true, worker: false, detectRuntime: () => 'nodejs' },
+    }));
+    vi.doMock('@runtime/PluginAutoImports', () => ({
+      PluginAutoImports: {
+        tryImportRuntimeAutoImports: officialImportsSpy,
+        tryImportProjectAutoImports: vi.fn(async () => ({
+          ok: false as const,
+          reason: 'not-found' as const,
+        })),
+      },
+    }));
+    vi.doMock('@boot/Application', () => ({
+      Application: {
+        create: () => ({
+          boot: async () => {},
+          shutdown: async () => {},
+          getContainer: () => ({ get: () => ({}) }),
+        }),
+      },
+    }));
+    vi.doMock('@boot/Server', () => ({
+      Server: { create: () => ({ listen: async () => {}, close: async () => {} }) },
+    }));
+
+    await import('@boot/bootstrap');
+
+    expect(officialImportsSpy).toHaveBeenCalledWith('base');
+    expect(warnSpy).toHaveBeenCalledWith('Official plugin auto-imports failed:', expect.anything());
+  });
+
   it('with SHUTDOWN_TIMEOUT=0 uses immediate shutdown (no timeout) and exits 0', async () => {
     // Use real timers so shutdown resolves naturally
     vi.useRealTimers();

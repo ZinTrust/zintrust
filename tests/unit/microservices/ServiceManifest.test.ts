@@ -45,6 +45,21 @@ describe('ServiceManifest', () => {
     expect(manifest[0]?.id).toBe('ecommerce/users');
     expect(manifest[0]?.prefix).toBe('/ecommerce/users');
     expect(manifest[0]?.monolithEnabled).toBe(true);
+    expect(manifest[0]?.loadEnv).toBe(true);
+  });
+
+  it('preserves explicit loadEnv false during normalization', () => {
+    const manifest = normalizeServiceManifest([
+      {
+        id: 'ecommerce/users',
+        domain: 'ecommerce',
+        name: 'users',
+        loadEnv: false,
+        loadRoutes: async () => ({ registerRoutes: () => {} }),
+      },
+    ]);
+
+    expect(manifest[0]?.loadEnv).toBe(false);
   });
 
   it('preserves custom service prefixes after normalization', () => {

@@ -78,6 +78,7 @@ export const serviceManifest: ReadonlyArray<ServiceManifestEntry> = [
     domain: 'ecommerce',
     name: 'users',
     prefix: 'ecommerce/users',
+    loadEnv: false,
     port: 3001,
     monolithEnabled: true,
     loadRoutes: async () =>
@@ -102,13 +103,23 @@ The generated `src/zintrust.runtime.ts` and `src/zintrust.runtime.wg.ts` files f
 Monolith mounting also uses the manifest prefix:
 
 1. `prefix` affects monolith route mounting only
-2. standalone service boot keeps the service routes unchanged
-3. if `prefix` is omitted, ZinTrust defaults it to `domain/name`
-4. developers can override `prefix` to any mount path they want
+2. `loadEnv` affects monolith service env preloading only
+3. standalone service boot keeps the service routes unchanged
+4. if `prefix` is omitted, ZinTrust defaults it to `domain/name`
+5. developers can override `prefix` to any mount path they want
+
+For env loading:
+
+1. `loadEnv` defaults to `true`
+2. when `loadEnv` is `true`, monolith startup preloads the service-local `.env*` layer before mounting that service
+3. when `loadEnv` is `false`, the service still mounts in monolith mode, but ZinTrust skips service-local `.env*` loading for that manifest entry
+4. scaffolded service manifest entries default to `loadEnv: false` so mounted services do not participate in root/global env merging unless you opt in explicitly
 
 ## Monolith Route Mounting
 
 When the root runtime boots, ZinTrust loads `src/zintrust.runtime.ts`, reads the manifest, and mounts route modules whose entries have `monolithEnabled !== false`.
+
+In Node monolith mode, ZinTrust also preloads each service-local `.env*` layer by default before mounting that service. Developers can disable that per service with `loadEnv: false` in the manifest entry.
 
 Generated services standardize on:
 

@@ -107,6 +107,7 @@ const resolveServicePrefix = (entry: ServiceManifestEntry): string => {
 
 const ensureManifestServiceEnvLoaded = async (entry: ServiceManifestEntry): Promise<void> => {
   if (isCloudflare) return;
+  if (entry.loadEnv === false) return;
 
   const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
   const projectRoot = getProjectRoot();

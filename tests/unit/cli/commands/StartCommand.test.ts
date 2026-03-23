@@ -321,6 +321,49 @@ describe('StartCommand', () => {
     );
   });
 
+  it('should skip manifest env preloading when a manifest entry sets loadEnv to false', async () => {
+    const projectRoot = '/workspace';
+
+    vi.resetModules();
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        clear: vi.fn(),
+        tryLoadNodeRuntime: vi.fn(async () => undefined),
+        getServiceManifest: () => [
+          {
+            id: 'app/gatewaynext',
+            domain: 'app',
+            name: 'gatewaynext',
+            monolithEnabled: true,
+            loadEnv: false,
+          },
+        ],
+      },
+    }));
+
+    const { StartCommand: StartCommandWithMock } = await import('@cli/commands/StartCommand');
+    const { EnvFileLoader: EnvFileLoaderWithMock } = await import('@cli/utils/EnvFileLoader');
+    const command = StartCommandWithMock.create();
+
+    vi.spyOn(process, 'cwd').mockReturnValue(projectRoot);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${projectRoot}/src/boot/bootstrap.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoaderWithMock.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      includeCwd: true,
+      extraCwds: [],
+    });
+  });
+
   it('should handle missing production build', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(false);

@@ -123,6 +123,7 @@ describe('ServiceScaffolder Scaffolding Basic', () => {
       const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
       expect(manifestContent).toContain("id: 'ecommerce/users'");
       expect(manifestContent).toContain("prefix: 'ecommerce/users'");
+      expect(manifestContent).toContain('loadEnv: false');
       expect(manifestContent).toContain(
         "loadRoutes: async () => import('../services/ecommerce/users/routes/api.ts').catch(() => import('../services/ecommerce/users/routes/api.js'))"
       );

@@ -7,6 +7,7 @@ export interface ServiceManifestEntry {
   name: string;
   prefix?: string;
   configRoot?: string;
+  loadEnv?: boolean;
   version?: string;
   description?: string;
   port?: number;
@@ -90,6 +91,11 @@ export const isServiceManifestEntry = (value: unknown): value is ServiceManifest
     return false;
   }
 
+  const loadEnv = value['loadEnv'];
+  if (loadEnv !== undefined && typeof loadEnv !== 'boolean') {
+    return false;
+  }
+
   const loadRoutes = value['loadRoutes'];
   if (loadRoutes !== undefined && !isFunction(loadRoutes)) {
     return false;
@@ -106,6 +112,7 @@ export const normalizeServiceManifest = (value: unknown): ReadonlyArray<ServiceM
     id: toCanonicalServiceId(entry),
     prefix: getServicePrefix(entry),
     ...(isNonEmptyString(entry.configRoot) ? { configRoot: entry.configRoot } : {}),
+    loadEnv: entry.loadEnv !== false,
     monolithEnabled: entry.monolithEnabled !== false,
   }));
 };

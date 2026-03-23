@@ -74,6 +74,18 @@ describe('PromptHelper', () => {
       const db = await PromptHelper.databaseType('postgresql', true);
       expect(db).toBe('mysql');
     });
+
+    it('includes d1 in interactive database choices', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({ database: 'd1' });
+      await PromptHelper.databaseType('d1', true);
+
+      const [questions] = vi.mocked(inquirer.prompt).mock.calls[0] ?? [];
+      const question = (questions as Array<{ choices?: Array<{ value?: string }> }>)[0];
+      const values = (question?.choices ?? []).map((choice) => choice.value ?? '');
+
+      expect(values).toContain('d1');
+      expect(values).toContain('d1-remote');
+    });
   });
 
   describe('port', () => {
