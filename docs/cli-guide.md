@@ -154,7 +154,7 @@ zin add controller UserController        # Create a controller
 zin cm user                    # Create create_users_table migration
 zin am bio user                # Create add_bio_users_table migration (requires create_users_table)
 zin add migration custom_name  # Create a custom migration (advanced)
-zin add service auth           # Create a microservice
+zin add service auth           # Create a service under src/services
 zin add workflow               # Create deployment workflows
 ```
 

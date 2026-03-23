@@ -206,26 +206,15 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { Application, Server } from '@zintrust/core';
-import { Logger } from '@config/logger';
-import { Env } from '@config/env';
-import { esmDirname } from '@common/index';
-import * as path from '@node-singletons/path';
+import { isNodeMain, start } from '@zintrust/core/start';
 
-const __dirname = esmDirname(import.meta.url);
-const port = Env.getInt('${options.name?.toUpperCase()}_PORT', ${options.port ?? 3001});
+// Cloudflare Workers entry.
+export { default } from '@zintrust/core/start';
 
-async function start(): Promise<void> {
-  const app = Application.create(path.join(__dirname, '..'));
-  await app.boot();
-
-  const server = Server.create(app, port);
-  await server.listen();
-
-  Logger.info(\`${options.name} service running on port \${port}\`);
+// Node entry (when executed directly).
+if (isNodeMain(import.meta.url)) {
+  await start();
 }
-
-await start();
 `;
 }
 
@@ -237,15 +226,15 @@ function generateServiceRoutes(options: ServiceOptions): string {
  * ${options.name} Service Routes
  */
 
-import { Router, type IRouter } from '@zintrust/core';
+import { Router, type IRequest, type IResponse, type IRouter } from '@zintrust/core';
 
 export function registerRoutes(router: IRouter): void {
   // Example route
   Router.get(
     router,
     '/',
-    (_req, res) => {
-    res.json({ message: '${options.name} service' });
+    (_req: IRequest, res: IResponse): void => {
+      res.json({ message: '${options.name} service' });
     },
     {
       meta: {

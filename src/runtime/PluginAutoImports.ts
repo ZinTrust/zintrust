@@ -127,7 +127,7 @@ const importSingleSpecifier = async (entry: ImportSpecifier): Promise<boolean> =
     await import(target);
     Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
     return true;
-  } catch (error) {
+  } catch {
     const fallback = resolveLocalPackageSpecifier(entry.specifier);
     if (fallback !== null) {
       try {
@@ -146,10 +146,6 @@ const importSingleSpecifier = async (entry: ImportSpecifier): Promise<boolean> =
       }
     }
 
-    Logger.debug('[plugins] Failed auto-import specifier', {
-      specifier: entry.specifier,
-      error: error instanceof Error ? error.message : String(error),
-    });
     return false;
   }
 };
