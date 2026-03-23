@@ -1,10 +1,12 @@
 import { appConfig } from '@/config';
 import Logger from '@config/logger';
 import type { IRouter } from '@core-routes/Router';
+import { isObject } from '@helper/index';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import type { RoutesModule } from '@registry/type';
 import { detectRuntime } from '@runtime/detectRuntime';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 
 const isCloudflare = detectRuntime().isCloudflare;
 
@@ -69,6 +71,27 @@ const registerAppRoutes = async (resolvedBasePath: string, router: IRouter): Pro
   }
 };
 
+const registerManifestRoutes = async (router: IRouter): Promise<void> => {
+  const serviceManifest = ProjectRuntime.getServiceManifest();
+  if (serviceManifest.length === 0) return;
+
+  for (const entry of serviceManifest) {
+    if (entry.monolithEnabled === false || typeof entry.loadRoutes !== 'function') {
+      continue;
+    }
+
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const mod = await entry.loadRoutes();
+      if (isObject(mod) && typeof mod.registerRoutes === 'function') {
+        mod.registerRoutes(router);
+      }
+    } catch (error) {
+      Logger.warn(`Failed to register manifest routes for ${entry.id}`, error as Error);
+    }
+  }
+};
+
 const registerFrameworkRoutes = async (
   resolvedBasePath: string,
   router: IRouter
@@ -107,6 +130,7 @@ export const registerMasterRoutes = async (
     if (!isCloudflare) {
       await registerAppRoutes(resolvedBasePath, router);
     }
+    await registerManifestRoutes(router);
     if (router.routes.length === 0) {
       await registerFrameworkRoutes(resolvedBasePath, router);
     }

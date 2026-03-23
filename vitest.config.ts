@@ -48,6 +48,7 @@ export default defineConfig({
       '@cli': path.resolve(__dirname, './src/cli'),
       '@registry': path.resolve(__dirname, './src/boot/registry'),
       '@boot': path.resolve(__dirname, './src/boot'),
+      '@bootstrap': path.resolve(__dirname, './src/bootstrap'),
       '@helper': path.resolve(__dirname, './src/helper'),
       '@proxy': path.resolve(__dirname, './src/proxy'),
       '@lang': path.resolve(__dirname, './src/lang'),

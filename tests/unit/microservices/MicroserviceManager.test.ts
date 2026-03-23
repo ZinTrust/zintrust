@@ -137,6 +137,7 @@ describe('MicroserviceManager', () => {
     it('should register a service', async () => {
       const result = registerService({ name: 'users', domain: 'users' });
       expect(result).toBeDefined();
+      expect(result?.id).toBe('users/users');
       expect(result?.name).toBe('users');
       expect(result?.domain).toBe('users');
       expect(result?.status).toBe('starting');
@@ -208,6 +209,7 @@ describe('MicroserviceManager', () => {
       registerService({ name: 'users', domain: 'ecommerce' });
       const service = getService('ecommerce', 'users');
       expect(service).toBeDefined();
+      expect(service?.id).toBe('ecommerce/users');
       expect(service?.name).toBe('users');
     });
 
@@ -523,8 +525,8 @@ describe('MicroserviceManager', () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
       const results = await healthCheckAll();
 
-      expect(results['users']).toBe(true);
-      expect(results['orders']).toBe(true);
+      expect(results['users/users']).toBe(true);
+      expect(results['orders/orders']).toBe(true);
     });
 
     it('should return health status for each service', async () => {
@@ -534,8 +536,8 @@ describe('MicroserviceManager', () => {
         .mockResolvedValueOnce({ ok: false });
 
       const results = await healthCheckAll();
-      expect(Object.keys(results)).toContain('users');
-      expect(Object.keys(results)).toContain('orders');
+      expect(Object.keys(results)).toContain('users/users');
+      expect(Object.keys(results)).toContain('orders/orders');
     });
 
     it('should handle empty service list', async () => {

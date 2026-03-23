@@ -5,16 +5,22 @@ import {
   getEnabledServices,
   isMicroservicesEnabled,
 } from '@microservices/MicroserviceManager';
+import {
+  getServiceId,
+  serviceMatchesAllowList,
+  type ServiceManifestEntry,
+} from '@microservices/ServiceManifest';
 import fs from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 
-// Cache process.cwd() at module load time
 const projectCwd = process.cwd();
 
 /**
  * Service configuration from service.config.json
  */
 export interface ServiceConfig {
+  id?: string;
   name: string;
   domain: string;
   port?: number;
@@ -59,13 +65,18 @@ interface BootstrapState {
 /**
  * Discover services from filesystem
  */
-// eslint-disable-next-line @typescript-eslint/promise-function-async
-function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig[]> {
+async function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig[]> {
   if (!isMicroservicesEnabled()) {
-    return Promise.resolve([]);
+    return [];
   }
 
   try {
+    const manifestServices = await discoverServicesFromManifest(state);
+    if (manifestServices.length > 0) {
+      Logger.info(`✅ Discovered ${manifestServices.length} microservices from static manifest`);
+      return manifestServices;
+    }
+
     const domains = getDomains(state.servicesDir);
     const services: ServiceConfig[] = [];
 
@@ -75,11 +86,11 @@ function runDiscoverServices(state: BootstrapState): Promise<ServiceConfig[]> {
     }
 
     Logger.info(`✅ Discovered ${services.length} microservices`);
-    return Promise.resolve(services);
+    return services;
   } catch (err) {
     Logger.error('Failed to discover microservices', err);
     handleDiscoveryError(err);
-    return Promise.resolve([]);
+    return [];
   }
 }
 
@@ -247,7 +258,25 @@ export const MicroserviceBootstrap = Object.freeze(
  * Generate service key for registry lookup
  */
 function getServiceKey(domain: string, name: string): string {
-  return `${domain}/${name}`;
+  return getServiceId(domain, name);
+}
+
+async function discoverServicesFromManifest(state: BootstrapState): Promise<ServiceConfig[]> {
+  await ProjectRuntime.tryLoadNodeRuntime();
+  const manifest = ProjectRuntime.getServiceManifest();
+  if (manifest.length === 0) return [];
+
+  const enabledServices = getEnabledServices();
+  const discovered = manifest
+    .filter((entry) => serviceMatchesAllowList(entry.id, entry.name, enabledServices))
+    .map((entry, index) => createServiceConfigFromManifest(entry, index));
+
+  state.serviceConfigs.clear();
+  for (const config of discovered) {
+    state.serviceConfigs.set(getServiceKey(config.domain, config.name), config);
+  }
+
+  return discovered;
 }
 
 /**
@@ -281,6 +310,7 @@ function loadServiceConfig(
   const configData = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
   return {
+    id: getServiceId(domain, serviceName),
     name: serviceName,
     domain,
     port: configData.port ?? 3001 + index,
@@ -300,6 +330,33 @@ function loadServiceConfig(
     tracing: {
       enabled: configData.tracing?.enabled ?? false,
       samplingRate: configData.tracing?.samplingRate ?? 1,
+    },
+  };
+}
+
+function createServiceConfigFromManifest(
+  entry: ServiceManifestEntry,
+  index: number
+): ServiceConfig {
+  return {
+    id: entry.id,
+    name: entry.name,
+    domain: entry.domain,
+    port: entry.port ?? 3001 + index,
+    version: entry.version ?? '1.0.0',
+    description: entry.description,
+    dependencies: [],
+    healthCheck: entry.healthCheck ?? '/health',
+    database: {
+      isolation: 'shared',
+      migrations: true,
+    },
+    auth: {
+      strategy: 'none',
+    },
+    tracing: {
+      enabled: false,
+      samplingRate: 1,
     },
   };
 }

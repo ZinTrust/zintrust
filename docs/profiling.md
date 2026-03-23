@@ -144,7 +144,7 @@ ZinTrust includes a terminal dashboard via the `debug` CLI command:
 zin debug
 ```
 
-Current behavior:
+What the dashboard shows today:
 
 - System stats (memory + CPU load) are real.
 - Request/query counters are currently mock/demo values (not automatically wired to your app runtime).

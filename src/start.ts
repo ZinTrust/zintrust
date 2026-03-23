@@ -1,4 +1,10 @@
+import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
+import {
+  normalizeActiveServiceRuntime,
+  type ActiveServiceRuntime,
+} from '@microservices/ServiceManifest';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 
 import { isNodeRuntime } from '@runtime/detectRuntime';
 
@@ -24,6 +30,30 @@ export const isNodeMain = (importMetaUrl: string): boolean => {
 
   // Best-effort: handle relative argv paths and runner wrappers.
   return scriptPath.endsWith(here);
+};
+
+export const configureStandaloneService = (activeService: unknown): ActiveServiceRuntime => {
+  const normalized = normalizeActiveServiceRuntime(activeService);
+  if (normalized === undefined) {
+    throw ErrorFactory.createValidationError(
+      'Standalone service runtime requires at least domain and name.'
+    );
+  }
+
+  return ProjectRuntime.set({ activeService: normalized }).activeService ?? normalized;
+};
+
+export const bootStandaloneService = async (
+  importMetaUrl: string,
+  activeService: unknown
+): Promise<ActiveServiceRuntime> => {
+  const configuredService = configureStandaloneService(activeService);
+
+  if (isNodeMain(importMetaUrl)) {
+    await start();
+  }
+
+  return configuredService;
 };
 
 /**

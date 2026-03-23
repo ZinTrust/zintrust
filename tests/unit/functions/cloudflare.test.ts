@@ -59,6 +59,8 @@ describe('functions/cloudflare', () => {
     vi.clearAllMocks();
     mockHandle.mockReset();
     mockFormatResponse.mockReset();
+    delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
   });
 
   it('handles fetch success and caches kernel', async () => {
@@ -136,5 +138,53 @@ describe('functions/cloudflare', () => {
 
     const response = await handler(request, {}, {});
     expect(response).toBe(formatted);
+  });
+
+  it('merges root and service-local startup config overrides for worker services', async () => {
+    vi.resetModules();
+
+    const { ProjectRuntime } = await import('../../../src/runtime/ProjectRuntime');
+    ProjectRuntime.clear();
+    ProjectRuntime.set({
+      activeService: {
+        id: 'ecommerce/users',
+        domain: 'ecommerce',
+        name: 'users',
+        configRoot: 'src/services/ecommerce/users/config',
+      },
+    });
+
+    vi.doMock('@runtime-config/cache.ts', () => ({
+      default: { default: 'memory', drivers: { memory: { ttl: 30 } }, ttl: 30 },
+    }));
+    vi.doMock('@service-runtime-config/cache.ts', () => ({
+      default: { drivers: { memory: { ttl: 90 } }, keyPrefix: 'users:' },
+    }));
+
+    mockHandle.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true }),
+    });
+    mockFormatResponse.mockReturnValue({ status: 200 } as any);
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=service-config-merge');
+    const handler = mod.default.fetch;
+
+    await handler({ url: 'https://example.com/service', method: 'GET' } as any, {}, {});
+
+    const overrides = (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
+
+    expect(overrides?.get('config/cache.ts')).toEqual({
+      default: 'memory',
+      drivers: { memory: { ttl: 90 } },
+      ttl: 30,
+      keyPrefix: 'users:',
+    });
+
+    ProjectRuntime.clear();
+    delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
   });
 });

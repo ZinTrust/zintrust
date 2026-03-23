@@ -1,3 +1,6 @@
+import * as path from '@node-singletons/path';
+import mergeOverrideValues from '@runtime/OverrideValueMerge';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import useFileLoader from '@runtime/useFileLoader';
 
 // NOTE runtime config loader
@@ -35,22 +38,51 @@ const getWorkersStartupOverrides = (): Map<StartupConfigFileTypes, unknown> | un
   return globalAny.__zintrustStartupConfigOverrides;
 };
 
+const getServiceConfigFile = (file: StartupConfigFileTypes): string | undefined => {
+  const activeService = ProjectRuntime.getActiveService();
+  if (activeService?.configRoot === undefined || activeService.configRoot.trim() === '') {
+    return undefined;
+  }
+
+  return `${activeService.configRoot}/${path.basename(file)}`;
+};
+
+const loadStartupOverride = async (file: StartupConfigFileTypes): Promise<unknown> => {
+  const overrides = getWorkersStartupOverrides();
+  if (overrides?.has(file) === true) {
+    return overrides.get(file);
+  }
+
+  const rootLoader = useFileLoader(file);
+  const serviceFile = getServiceConfigFile(file);
+  const serviceLoader = serviceFile === undefined ? undefined : useFileLoader(serviceFile);
+
+  const hasRoot = rootLoader.exists();
+  const hasService = serviceLoader?.exists() === true;
+
+  if (!hasRoot && !hasService) {
+    return undefined;
+  }
+
+  const rootOverride = hasRoot ? await rootLoader.get() : undefined;
+  const serviceOverride =
+    hasService && serviceLoader !== undefined ? await serviceLoader.get() : undefined;
+
+  if (rootOverride === undefined) return serviceOverride;
+  if (serviceOverride === undefined) return rootOverride;
+
+  return mergeOverrideValues(rootOverride, serviceOverride);
+};
+
 export const StartupConfigFileRegistry = Object.freeze({
   async preload(files: readonly StartupConfigFileTypes[]): Promise<void> {
     const tasks = files.map(async (file) => {
-      const overrides = getWorkersStartupOverrides();
-      if (overrides?.has(file) === true) {
-        cache.set(file, overrides.get(file));
-        return;
-      }
-
-      const loader = useFileLoader(file);
-      if (!loader.exists()) {
+      const value = await loadStartupOverride(file);
+      if (value === undefined) {
         cache.delete(file);
         return;
       }
 
-      const value = await loader.get();
       cache.set(file, value);
     });
     await Promise.all(tasks);

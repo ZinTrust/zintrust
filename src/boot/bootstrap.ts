@@ -11,6 +11,7 @@ import { appConfig } from '@config/app';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import { loadWorkersModule } from '@runtime/WorkersModule';
 
 let appInstance: ReturnType<typeof Application.create> | undefined;
@@ -257,6 +258,12 @@ const BootstrapFunctions = Object.freeze({
       } catch (error) {
         // best-effort; run without plugins if loader fails (e.g. non-Node runtime)
         Logger.warn('Plugin auto-imports loader skipped:', error as Error);
+      }
+
+      try {
+        await ProjectRuntime.tryLoadNodeRuntime();
+      } catch (error) {
+        Logger.warn('Project runtime hook loader skipped:', error as Error);
       }
 
       // Create application instance

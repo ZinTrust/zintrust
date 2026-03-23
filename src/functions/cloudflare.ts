@@ -1,60 +1,108 @@
 import { Logger } from '@config/logger';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
-import { StartupConfigFile } from '@runtime/StartupConfigFileRegistry';
+import mergeOverrideValues from '@runtime/OverrideValueMerge';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
+import { StartupConfigFile, type StartupConfigFileTypes } from '@runtime/StartupConfigFileRegistry';
 import { WorkerAdapterImports } from '@runtime/WorkerAdapterImports';
 
 import { getKernel } from '@runtime/getKernel';
 
+const startupConfigModules: ReadonlyArray<{
+  file: StartupConfigFileTypes;
+  rootModuleId: string;
+  serviceModuleId: string;
+}> = Object.freeze([
+  {
+    file: StartupConfigFile.Broadcast,
+    rootModuleId: '@runtime-config/' + 'broadcast.ts',
+    serviceModuleId: '@service-runtime-config/' + 'broadcast.ts',
+  },
+  {
+    file: StartupConfigFile.Cache,
+    rootModuleId: '@runtime-config/' + 'cache.ts',
+    serviceModuleId: '@service-runtime-config/' + 'cache.ts',
+  },
+  {
+    file: StartupConfigFile.Database,
+    rootModuleId: '@runtime-config/' + 'database.ts',
+    serviceModuleId: '@service-runtime-config/' + 'database.ts',
+  },
+  {
+    file: StartupConfigFile.Mail,
+    rootModuleId: '@runtime-config/' + 'mail.ts',
+    serviceModuleId: '@service-runtime-config/' + 'mail.ts',
+  },
+  {
+    file: StartupConfigFile.Middleware,
+    rootModuleId: '@runtime-config/' + 'middleware.ts',
+    serviceModuleId: '@service-runtime-config/' + 'middleware.ts',
+  },
+  {
+    file: StartupConfigFile.Notification,
+    rootModuleId: '@runtime-config/' + 'notification.ts',
+    serviceModuleId: '@service-runtime-config/' + 'notification.ts',
+  },
+  {
+    file: StartupConfigFile.Queue,
+    rootModuleId: '@runtime-config/' + 'queue.ts',
+    serviceModuleId: '@service-runtime-config/' + 'queue.ts',
+  },
+  {
+    file: StartupConfigFile.Storage,
+    rootModuleId: '@runtime-config/' + 'storage.ts',
+    serviceModuleId: '@service-runtime-config/' + 'storage.ts',
+  },
+]);
+
+const importOptionalDefault = async (moduleId: string): Promise<unknown> => {
+  try {
+    const module = (await import(moduleId)) as { default?: unknown };
+    return module.default;
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveStartupOverrideValue = async (entry: {
+  rootModuleId: string;
+  serviceModuleId: string;
+}): Promise<unknown> => {
+  const rootOverride = await importOptionalDefault(entry.rootModuleId);
+
+  const serviceOverride =
+    ProjectRuntime.getActiveService() === undefined
+      ? undefined
+      : await importOptionalDefault(entry.serviceModuleId);
+
+  if (rootOverride === undefined) return serviceOverride;
+  if (serviceOverride === undefined) return rootOverride;
+
+  return mergeOverrideValues(rootOverride, serviceOverride);
+};
+
 const applyStartupConfigOverrides = async (): Promise<void> => {
   try {
     const globalAny = globalThis as {
-      __zintrustStartupConfigOverrides?: Map<string, unknown>;
+      __zintrustStartupConfigOverrides?: Map<StartupConfigFileTypes, unknown>;
     };
-    globalAny.__zintrustStartupConfigOverrides ??= new Map<string, unknown>();
+    globalAny.__zintrustStartupConfigOverrides ??= new Map<StartupConfigFileTypes, unknown>();
 
-    const broadcastOverrides = (await import('@runtime-config/' + 'broadcast.ts')) as {
-      default?: unknown;
-    };
-    const cacheOverrides = (await import('@runtime-config/' + 'cache.ts')) as { default?: unknown };
-    const databaseOverrides = (await import('@runtime-config/' + 'database.ts')) as {
-      default?: unknown;
-    };
-    const mailOverrides = (await import('@runtime-config/' + 'mail.ts')) as { default?: unknown };
-    const middlewareOverrides = (await import('@runtime-config/' + 'middleware.ts')) as {
-      default?: unknown;
-    };
-    const notificationOverrides = (await import('@runtime-config/' + 'notification.ts')) as {
-      default?: unknown;
-    };
-    const queueOverrides = (await import('@runtime-config/' + 'queue.ts')) as { default?: unknown };
-    const storageOverrides = (await import('@runtime-config/' + 'storage.ts')) as {
-      default?: unknown;
-    };
+    const resolvedEntries = await Promise.all(
+      startupConfigModules.map(async (entry) => ({
+        file: entry.file,
+        value: await resolveStartupOverrideValue(entry),
+      }))
+    );
 
-    globalAny.__zintrustStartupConfigOverrides.set(
-      StartupConfigFile.Broadcast,
-      broadcastOverrides.default
-    );
-    globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Cache, cacheOverrides.default);
-    globalAny.__zintrustStartupConfigOverrides.set(
-      StartupConfigFile.Database,
-      databaseOverrides.default
-    );
-    globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Mail, mailOverrides.default);
-    globalAny.__zintrustStartupConfigOverrides.set(
-      StartupConfigFile.Middleware,
-      middlewareOverrides.default
-    );
-    globalAny.__zintrustStartupConfigOverrides.set(
-      StartupConfigFile.Notification,
-      notificationOverrides.default
-    );
-    globalAny.__zintrustStartupConfigOverrides.set(StartupConfigFile.Queue, queueOverrides.default);
-    globalAny.__zintrustStartupConfigOverrides.set(
-      StartupConfigFile.Storage,
-      storageOverrides.default
-    );
+    for (const entry of resolvedEntries) {
+      if (entry.value === undefined) {
+        globalAny.__zintrustStartupConfigOverrides.delete(entry.file);
+        continue;
+      }
+
+      globalAny.__zintrustStartupConfigOverrides.set(entry.file, entry.value);
+    }
   } catch (error) {
     Logger.error('Error applying startup config overrides:', error);
     // Best-effort: log and swallow errors since this is an optional.
@@ -91,6 +139,7 @@ export default {
         (globalThis as unknown as { __zintrustRoutes?: unknown }).__zintrustRoutes = AppRoutes;
       }
 
+      await ProjectRuntime.tryLoadWorkerRuntime();
       await ensureStartupConfigOverridesLoaded();
       await WorkerAdapterImports.ready; // NOSONAR - Ensure adapter imports are ready before handling requests.
       await injectIoredisModule();

@@ -101,7 +101,9 @@ export function scaffold(
     }
 
     createServiceDirectories(servicePath);
+    ensureProjectRuntimeFiles(projectRoot, options);
     const filesCreated = createServiceFiles(servicePath, options);
+    updateServiceManifest(projectRoot, options);
 
     return Promise.resolve({
       success: true,
@@ -122,11 +124,85 @@ export function scaffold(
   }
 }
 
+function ensureProjectRuntimeFiles(projectRoot: string, options: ServiceOptions): void {
+  const domain = options.domain ?? 'default';
+  const serviceId = `${domain}/${options.name}`;
+  const bootstrapDir = path.join(projectRoot, 'src', 'bootstrap');
+  FileGenerator.createDirectory(bootstrapDir);
+
+  const manifestPath = path.join(bootstrapDir, 'service-manifest.ts');
+  if (!FileGenerator.fileExists(manifestPath)) {
+    const initialManifest = `import type { ServiceManifestEntry } from '@zintrust/core';
+
+export const serviceManifest: ReadonlyArray<ServiceManifestEntry> = [
+  {
+    id: '${serviceId}',
+    domain: '${domain}',
+    name: '${options.name}',
+    port: ${options.port ?? 3001},
+    monolithEnabled: true,
+    loadRoutes: async () => import('../services/${domain}/${options.name}/routes/api'),
+  },
+];
+
+export default serviceManifest;
+`;
+    FileGenerator.writeFile(manifestPath, initialManifest);
+  }
+
+  const runtimeModule = `import serviceManifest from './bootstrap/service-manifest';
+
+export { serviceManifest };
+
+export default Object.freeze({ serviceManifest });
+`;
+
+  FileGenerator.writeFile(path.join(projectRoot, 'src', 'zintrust.runtime.ts'), runtimeModule, {
+    overwrite: false,
+  });
+  FileGenerator.writeFile(path.join(projectRoot, 'src', 'zintrust.runtime.wg.ts'), runtimeModule, {
+    overwrite: false,
+  });
+}
+
+function updateServiceManifest(projectRoot: string, options: ServiceOptions): void {
+  const domain = options.domain ?? 'default';
+  const serviceId = `${domain}/${options.name}`;
+  const manifestPath = path.join(projectRoot, 'src', 'bootstrap', 'service-manifest.ts');
+  if (!FileGenerator.fileExists(manifestPath)) return;
+
+  const current = FileGenerator.readFile(manifestPath);
+  if (current.includes(`id: '${serviceId}'`)) {
+    return;
+  }
+
+  const entry = `  {
+    id: '${serviceId}',
+    domain: '${domain}',
+    name: '${options.name}',
+    port: ${options.port ?? 3001},
+    monolithEnabled: true,
+    loadRoutes: async () => import('../services/${domain}/${options.name}/routes/api'),
+  },
+`;
+
+  const marker = '];';
+  const markerIndex = current.lastIndexOf(marker);
+  if (markerIndex === -1) {
+    Logger.warn(`Service manifest format is unsupported; skipped update for ${serviceId}`);
+    return;
+  }
+
+  const next = `${current.slice(0, markerIndex)}${entry}${current.slice(markerIndex)}`;
+  FileGenerator.writeFile(manifestPath, next, { overwrite: true });
+}
+
 /**
  * Create service directory structure
  */
 function createServiceDirectories(servicePath: string): void {
   const dirs = [
+    'config',
     'src/controllers',
     'src/models',
     'src/services',
@@ -151,6 +227,7 @@ function createServiceFiles(servicePath: string, options: ServiceOptions): strin
     { path: 'service.config.json', content: generateServiceConfig(options) },
     { path: 'src/index.ts', content: generateServiceIndex(options) },
     { path: 'routes/api.ts', content: generateServiceRoutes(options) },
+    { path: 'wrangler.jsonc', content: generateServiceWranglerConfig(options) },
     { path: 'src/controllers/ExampleController.ts', content: generateExampleController(options) },
     { path: 'src/models/Example.ts', content: generateExampleModel(options) },
     { path: '.env', content: generateServiceEnv(options) },
@@ -199,6 +276,10 @@ function generateServiceConfig(options: ServiceOptions): string {
  * Generate service index.ts
  */
 function generateServiceIndex(options: ServiceOptions): string {
+  const domain = options.domain ?? 'default';
+  const serviceId = `${domain}/${options.name}`;
+  const configRoot = `src/services/${domain}/${options.name}/config`;
+
   return `/**
  * ${options.name} Service - Entry Point
  * Port: ${options.port ?? 3001}
@@ -206,15 +287,17 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { isNodeMain, start } from '@zintrust/core/start';
+import { bootStandaloneService } from '@zintrust/core/start';
+
+await bootStandaloneService(import.meta.url, {
+  id: '${serviceId}',
+  domain: '${domain}',
+  name: '${options.name}',
+  configRoot: '${configRoot}',
+});
 
 // Cloudflare Workers entry.
 export { default } from '@zintrust/core/start';
-
-// Node entry (when executed directly).
-if (isNodeMain(import.meta.url)) {
-  await start();
-}
 `;
 }
 
@@ -244,6 +327,49 @@ export function registerRoutes(router: IRouter): void {
       },
     }
   );
+}
+`;
+}
+
+function generateServiceWranglerConfig(options: ServiceOptions): string {
+  const domain = options.domain ?? 'default';
+  const serviceSlug = `${domain}-${options.name}`;
+  const rootPath = '../../../../';
+
+  return `{
+  "name": "${serviceSlug}",
+  "main": "./src/index.ts",
+  "compatibility_date": "2025-04-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "minify": false,
+  "alias": {
+    "@routes/api.ts": "./routes/api.ts",
+    "@service-runtime-config/broadcast.ts": "./config/broadcast.ts",
+    "@service-runtime-config/cache.ts": "./config/cache.ts",
+    "@service-runtime-config/database.ts": "./config/database.ts",
+    "@service-runtime-config/mail.ts": "./config/mail.ts",
+    "@service-runtime-config/storage.ts": "./config/storage.ts",
+    "@service-runtime-config/queue.ts": "./config/queue.ts",
+    "@service-runtime-config/notification.ts": "./config/notification.ts",
+    "@service-runtime-config/middleware.ts": "./config/middleware.ts",
+    "../zintrust.runtime.wg.js": "${rootPath}src/zintrust.runtime.wg.ts",
+    "../zintrust.plugins.wg.js": "${rootPath}src/zintrust.plugins.wg.ts",
+    "@runtime-config/broadcast.ts": "${rootPath}config/broadcast.ts",
+    "@runtime-config/cache.ts": "${rootPath}config/cache.ts",
+    "@runtime-config/database.ts": "${rootPath}config/database.ts",
+    "@runtime-config/mail.ts": "${rootPath}config/mail.ts",
+    "@runtime-config/storage.ts": "${rootPath}config/storage.ts",
+    "@runtime-config/queue.ts": "${rootPath}config/queue.ts",
+    "@runtime-config/notification.ts": "${rootPath}config/notification.ts",
+    "@runtime-config/middleware.ts": "${rootPath}config/middleware.ts"
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "SERVICE_NAME": "${options.name}",
+    "SERVICE_DOMAIN": "${domain}",
+    "SERVICE_PORT": "${options.port ?? 3001}"
+  }
 }
 `;
 }

@@ -1,6 +1,15 @@
 # Cloud Deployment
 
-ZinTrust is designed to run seamlessly on various cloud platforms, from serverless environments to traditional VPS.
+ZinTrust is designed to run on multiple cloud targets, from serverless request runtimes such as Cloudflare Workers and AWS Lambda to traditional VPS and container deployments.
+
+## Terminology
+
+In this guide:
+
+1. Cloudflare Worker means the Cloudflare serverless request runtime deployed with Wrangler.
+2. AWS Lambda means the AWS serverless request runtime.
+3. Serverless runtime is the broader category that includes both of the above.
+4. ZinTrust worker does not mean a Cloudflare Worker or Lambda function. It means a background job worker from the ZinTrust workers system.
 
 ## Automated Workflows
 
@@ -21,7 +30,7 @@ This will create a `.github/workflows/deploy-cloud.yml` file tailored to your ch
 
 ## Cloudflare Workers
 
-ZinTrust can be deployed to Cloudflare Workers using the `wrangler` CLI.
+ZinTrust can be deployed to the Cloudflare Worker runtime using the `wrangler` CLI.
 
 ```bash
 npm run deploy
@@ -37,7 +46,7 @@ Ensure you have configured your `wrangler.toml` with the necessary KV namespaces
 
 ## AWS Lambda
 
-Deploy ZinTrust as a serverless function on AWS Lambda using the `LambdaAdapter`.
+Deploy ZinTrust as a serverless request handler on AWS Lambda using the `LambdaAdapter`.
 
 ```typescript
 import { LambdaAdapter } from '@zintrust/core';

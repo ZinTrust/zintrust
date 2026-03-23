@@ -35,6 +35,7 @@
       "@/*": ["./src/*"],
       "@registry/*": ["./src/boot/registry/*"],
       "@boot/*": ["./src/boot/*"],
+      "@bootstrap/*": ["./src/bootstrap/*"],
       "@cli/*": ["./src/cli/*"],
       "@orm/*": ["./src/orm/*"],
       "@types/*": ["./src/types/*"],

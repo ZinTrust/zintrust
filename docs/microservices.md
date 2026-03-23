@@ -4,6 +4,8 @@ ZinTrust includes a microservices runtime and a recommended `zin`-based scaffold
 
 This guide combines the practical material that was previously split across multiple pages: service generation, discovery, registration, authentication, tracing, database isolation, and container-oriented workflows.
 
+For the runtime file layout, manifest format, standalone boot flow, Cloudflare Worker configuration, and config override model, see [microservices-runtime-contract.md](./microservices-runtime-contract.md).
+
 ## Recommended CLI Workflow
 
 The recommended way to start a microservice-oriented project is:
@@ -29,7 +31,13 @@ The current microservices implementation includes:
 - Optional service-to-service auth via `ServiceAuthMiddleware`
 - Optional request tracing via `RequestTracingMiddleware`
 - Health helpers such as `HealthCheckHandler` and `ServiceHealthMonitor`
-- Project and service scaffolding through the `zin` CLI
+- Project and service scaffolding through the `zin` CLI, including service-local Cloudflare Worker `wrangler.jsonc` files
+
+Terminology note:
+
+- In this guide, Cloudflare Worker means the serverless request runtime used with Wrangler and Cloudflare Workers.
+- ZinTrust worker means a background job worker from the ZinTrust workers package.
+- They are different systems and should not be treated as interchangeable.
 
 ## Enable Microservices Mode
 
