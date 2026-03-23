@@ -186,6 +186,8 @@ ZinTrust treats env in two layers:
 1. the project root env files are loaded first
 2. the service directory env files are loaded after that
 
+If both layers define the same key, the microservice layer wins.
+
 For a service at:
 
 ```text
@@ -214,13 +216,35 @@ If both files define the same key, the service-local value wins for a service-di
 
 This gives you the usual shared-app defaults from the root project and lets the microservice override only the values it needs locally.
 
-Current limitation:
+`bootStandaloneService()` now exposes explicit env controls when you want to override the default directory inference:
 
-1. ZinTrust does not currently expose a `--env-path` or `--root-env-path` flag for standalone service start.
-2. The root env path is inferred from the nearest project root containing `package.json`.
-3. The service env path is inferred from the current service directory you start in.
+```ts
+import { bootStandaloneService } from '@zintrust/core/start';
 
-So if you want to use a different root `.env` today, run `zin s` from the service directory inside that target project tree.
+await bootStandaloneService(import.meta.url, {
+  id: 'ecommerce/users',
+  domain: 'ecommerce',
+  name: 'users',
+  configRoot: 'src/services/ecommerce/users/config',
+  rootEnv: true,
+  envPath: 'config/env/microservices/users/.env.local',
+});
+```
+
+Rules:
+
+1. `rootEnv` defaults to `true`
+2. when `rootEnv` is `true` or omitted, ZinTrust loads the root project env first
+3. when `rootEnv` is `false`, ZinTrust skips the root project env layer
+4. when `envPath` is provided, ZinTrust uses that explicit env directory or `.env` file instead of inferring the microservice env directory
+5. relative `envPath` values are resolved from the project root, while absolute paths are used as-is
+
+If `envPath` is omitted, ZinTrust falls back to the inferred service env directory.
+
+The CLI mirrors this with explicit flags:
+
+1. `zin s --env-path config/env/microservices/users/.env.local`
+2. `zin s --no-root-env`
 
 Runtime file resolution still uses `ZINTRUST_PROJECT_ROOT`, so these project-owned files are resolved from the application root even when the command is launched inside a service directory:
 
@@ -233,8 +257,9 @@ Practical rule for developers:
 
 1. put shared defaults in the root `.env`
 2. put service-specific overrides in the service directory `.env`
-3. use service-local `config/*.ts` only when you need code-level config overrides, not plain env overrides
-4. do not expect a separate env-path CLI option yet; path selection is currently directory-based
+3. use `envPath` when you want the microservice env source to be explicit instead of inferred
+4. set `rootEnv: false` only when the service must not inherit root env defaults
+5. use service-local `config/*.ts` only when you need code-level config overrides, not plain env overrides
 
 If `zin s` fails with `Error: 'tsx' not found on PATH.`, install `tsx` in the project with `npm install -D tsx`.
 

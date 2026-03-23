@@ -142,6 +142,39 @@ const isMissingPackageImport = (error: unknown, specifier: string): boolean => {
   );
 };
 
+const getMissingPackageStatus = (error: unknown, specifier: string): SingleImportStatus => {
+  if (isMissingPackageImport(error, specifier)) {
+    Logger.debug('[plugins] Optional auto-import package not installed', {
+      specifier,
+    });
+    return 'missing';
+  }
+
+  return 'failed';
+};
+
+const importFromLocalFallback = async (
+  specifier: string,
+  fallback: string
+): Promise<SingleImportStatus> => {
+  try {
+    await import(fallback);
+    Logger.debug('[plugins] Loaded auto-import specifier from local fallback', {
+      specifier,
+      fallback,
+    });
+    return 'loaded';
+  } catch (fallbackError) {
+    Logger.debug('[plugins] Failed auto-import local fallback', {
+      specifier,
+      fallback,
+      error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+    });
+
+    return getMissingPackageStatus(fallbackError, specifier);
+  }
+};
+
 const importSingleSpecifier = async (entry: ImportSpecifier): Promise<SingleImportStatus> => {
   const target = entry.specifier.startsWith('.')
     ? resolveRelativeSpecifier(entry)
@@ -153,33 +186,8 @@ const importSingleSpecifier = async (entry: ImportSpecifier): Promise<SingleImpo
     return 'loaded';
   } catch (error) {
     const fallback = resolveLocalPackageSpecifier(entry.specifier);
-    if (fallback !== null) {
-      try {
-        await import(fallback);
-        Logger.debug('[plugins] Loaded auto-import specifier from local fallback', {
-          specifier: entry.specifier,
-          fallback,
-        });
-        return 'loaded';
-      } catch (fallbackError) {
-        Logger.debug('[plugins] Failed auto-import local fallback', {
-          specifier: entry.specifier,
-          fallback,
-          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-        });
-
-        return isMissingPackageImport(fallbackError, entry.specifier) ? 'missing' : 'failed';
-      }
-    }
-
-    if (isMissingPackageImport(error, entry.specifier)) {
-      Logger.debug('[plugins] Optional auto-import package not installed', {
-        specifier: entry.specifier,
-      });
-      return 'missing';
-    }
-
-    return 'failed';
+    if (fallback !== null) return importFromLocalFallback(entry.specifier, fallback);
+    return getMissingPackageStatus(error, entry.specifier);
   }
 };
 

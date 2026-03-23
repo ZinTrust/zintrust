@@ -262,6 +262,7 @@ describe('StartCommand', () => {
 
     expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
       cwd: projectRoot,
+      includeCwd: true,
       extraCwds: [serviceCwd],
     });
 
@@ -293,6 +294,7 @@ describe('StartCommand', () => {
 
     expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
       cwd: projectRoot,
+      includeCwd: true,
       extraCwds: [serviceCwd],
     });
 
@@ -309,6 +311,33 @@ describe('StartCommand', () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(false);
     await expect(command.execute({ mode: 'production' })).rejects.toThrow(/Compiled app not found/);
+  });
+
+  it('should allow explicit envPath and skipping root env for standalone service start', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${serviceCwd}/src/index.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(
+      command.execute({ envPath: 'config/env/ms/gateway/.env.local', rootEnv: false })
+    ).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      includeCwd: false,
+      envPaths: ['/workspace/config/env/ms/gateway/.env.local'],
+      extraCwds: [],
+    });
   });
 
   it('should handle testing mode error', async () => {

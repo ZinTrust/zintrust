@@ -1,4 +1,5 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isArray, isNonEmptyString, isObject } from '@helper/index';
 import { ZintrustLang } from '@lang/lang';
 import {
   normalizeActiveServiceRuntime,
@@ -7,6 +8,14 @@ import {
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
 
 import { isNodeRuntime } from '@runtime/detectRuntime';
+
+type StandaloneServiceEnvOptions = {
+  rootEnv?: boolean;
+  envPath?: string | ReadonlyArray<string>;
+};
+
+const isAbsolutePath = (value: string): boolean =>
+  value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
 
 const fileUrlToPathLike = (value: string): string => {
   if (!value.startsWith(ZintrustLang.FILE_PROTOCOL)) return value;
@@ -43,10 +52,94 @@ export const configureStandaloneService = (activeService: unknown): ActiveServic
   return ProjectRuntime.set({ activeService: normalized }).activeService ?? normalized;
 };
 
+const normalizeStandaloneEnvPaths = (value: unknown): string[] => {
+  if (isNonEmptyString(value)) {
+    const trimmed = value.trim();
+    return trimmed === '' ? [] : [trimmed];
+  }
+
+  if (!isArray(value)) return [];
+  return value
+    .filter(isNonEmptyString)
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
+};
+
+const resolveStandaloneProjectRoot = async (): Promise<string> => {
+  const configuredRoot = process.env?.['ZINTRUST_PROJECT_ROOT'] ?? '';
+  if (isNonEmptyString(configuredRoot)) return configuredRoot;
+
+  const { existsSync } = await import('@node-singletons/fs');
+  const path = await import('@node-singletons/path');
+
+  let current = process.cwd();
+  while (true) {
+    if (existsSync(path.join(current, 'package.json'))) return current;
+
+    const parent = path.dirname(current);
+    if (parent === current) return process.cwd();
+    current = parent;
+  }
+};
+
+const resolveServiceEnvPath = async (
+  importMetaUrl: string,
+  activeService: unknown,
+  projectRoot: string
+): Promise<string> => {
+  const path = await import('@node-singletons/path');
+
+  if (isObject(activeService) && isNonEmptyString(activeService['configRoot'])) {
+    return path.dirname(path.join(projectRoot, activeService['configRoot']));
+  }
+
+  const entryFile = fileUrlToPathLike(importMetaUrl);
+  const entryDir = path.dirname(entryFile);
+  return path.basename(entryDir) === 'src' ? path.dirname(entryDir) : entryDir;
+};
+
+const resolveConfiguredEnvPaths = async (
+  projectRoot: string,
+  activeService: unknown,
+  importMetaUrl: string
+): Promise<string[]> => {
+  const path = await import('@node-singletons/path');
+  const configured = isObject(activeService)
+    ? normalizeStandaloneEnvPaths(activeService['envPath'])
+    : [];
+
+  if (configured.length > 0) {
+    return configured.map((value) =>
+      isAbsolutePath(value) ? value : path.join(projectRoot, value)
+    );
+  }
+
+  return [await resolveServiceEnvPath(importMetaUrl, activeService, projectRoot)];
+};
+
+const ensureStandaloneServiceEnv = async (
+  importMetaUrl: string,
+  activeService: unknown
+): Promise<void> => {
+  if (!isNodeRuntime()) return;
+
+  const { EnvFileLoader } = await import('@cli/utils/EnvFileLoader');
+  const projectRoot = await resolveStandaloneProjectRoot();
+  const envPaths = await resolveConfiguredEnvPaths(projectRoot, activeService, importMetaUrl);
+  const rootEnv = !isObject(activeService) || activeService['rootEnv'] !== false;
+
+  EnvFileLoader.ensureLoaded({
+    cwd: projectRoot,
+    includeCwd: rootEnv,
+    envPaths,
+  });
+};
+
 export const bootStandaloneService = async (
   importMetaUrl: string,
   activeService: unknown
 ): Promise<ActiveServiceRuntime> => {
+  await ensureStandaloneServiceEnv(importMetaUrl, activeService as StandaloneServiceEnvOptions);
   const configuredService = configureStandaloneService(activeService);
 
   if (isNodeMain(importMetaUrl)) {

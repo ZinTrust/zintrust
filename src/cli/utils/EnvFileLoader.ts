@@ -1,6 +1,7 @@
 import { Env } from '@config/env';
+import { isArray, isNonEmptyString } from '@helper/index';
 import { existsSync, readFileSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
+import * as path from '@node-singletons/path';
 
 // NOTE: This module intentionally updates runtime environment values
 // via Env.set() to populate process.env during CLI initialization.
@@ -120,7 +121,7 @@ const applyToProcessEnv = (values: EnvMap, overrideExisting: boolean): void => {
 };
 
 const readEnvFileIfExists = (cwd: string, filename: string): EnvMap | undefined => {
-  const fullPath = join(cwd, filename);
+  const fullPath = path.join(cwd, filename);
   if (!existsSync(fullPath)) return undefined;
   const raw = readFileSync(fullPath, 'utf-8');
   return parseEnvFile(raw);
@@ -139,13 +140,26 @@ const resolveAppMode = (cwd: string): string | undefined => {
 
 type LoadOptions = {
   cwd?: string;
+  includeCwd?: boolean;
   extraCwds?: string[];
+  envPaths?: string[];
   overrideExisting?: boolean;
 };
 
 type LoadState = {
   loadedFiles: string[];
   mode?: string;
+};
+
+type CachedLoadState = LoadState & {
+  loadedSourceKeys: string[];
+};
+
+type LoadSource = {
+  key: string;
+  path: string;
+  kind: 'cwd' | 'file';
+  overrideExisting: boolean;
 };
 
 type CliOverrides = {
@@ -157,26 +171,26 @@ type CliOverrides = {
 
 const filesLoader = (cwd: string, mode: string | undefined): string[] => {
   const files: string[] = [];
-  if (existsSync(join(cwd, '.env'))) files.push('.env');
+  if (existsSync(path.join(cwd, '.env'))) files.push('.env');
 
   // Per your rule: production uses .env; dev uses .env.dev
   if (mode !== undefined && mode !== '' && mode !== 'production') {
     const modeFile = `.env.${mode}`;
-    if (existsSync(join(cwd, modeFile))) files.push(modeFile);
+    if (existsSync(path.join(cwd, modeFile))) files.push(modeFile);
   }
 
   const local = '.env.local';
-  if (existsSync(join(cwd, local))) files.push(local);
+  if (existsSync(path.join(cwd, local))) files.push(local);
 
   if (mode !== undefined && mode !== '') {
     const modeLocal = `.env.${mode}.local`;
-    if (existsSync(join(cwd, modeLocal))) files.push(modeLocal);
+    if (existsSync(path.join(cwd, modeLocal))) files.push(modeLocal);
   }
 
   return files;
 };
 
-let cached: LoadState | undefined;
+let cached: CachedLoadState | undefined;
 
 const loadFromCwd = (cwd: string, overrideExisting: boolean): LoadState => {
   const mode = resolveAppMode(cwd);
@@ -206,29 +220,107 @@ const loadFromCwd = (cwd: string, overrideExisting: boolean): LoadState => {
   return { loadedFiles: files, mode };
 };
 
-const load = (options: LoadOptions = {}): LoadState => {
-  if (cached !== undefined) return cached;
+const loadFromFile = (filePath: string, overrideExisting: boolean): LoadState => {
+  if (!existsSync(filePath)) return { loadedFiles: [] };
 
-  const cwd = typeof options.cwd === 'string' && options.cwd !== '' ? options.cwd : process.cwd();
-  const extraCwds = Array.isArray(options.extraCwds)
-    ? options.extraCwds.filter((value) => typeof value === 'string' && value.trim() !== '')
-    : [];
-  const overrideExisting = options.overrideExisting ?? true;
+  const raw = readFileSync(filePath, 'utf-8');
+  const parsed = parseEnvFile(raw);
+  applyToProcessEnv(parsed, overrideExisting);
 
-  const roots = [cwd, ...extraCwds].filter((value, index, items) => items.indexOf(value) === index);
-
-  let mergedMode: string | undefined;
-  const loadedFiles: string[] = [];
-
-  for (let index = 0; index < roots.length; index += 1) {
-    const root = roots[index];
-    const state = loadFromCwd(root, index === 0 ? overrideExisting : true);
-    if (mergedMode === undefined && state.mode !== undefined) mergedMode = state.mode;
-    loadedFiles.push(...state.loadedFiles);
+  const rawMode = parsed['NODE_ENV'];
+  const mode = isNonEmptyString(rawMode) ? normalizeAppMode(rawMode) : undefined;
+  if (mode !== undefined) {
+    safeEnvSet('NODE_ENV', mode as node_env);
   }
 
-  cached = { loadedFiles, mode: mergedMode };
-  return cached;
+  return { loadedFiles: [filePath], mode };
+};
+
+const normalizeCwdList = (value: unknown): string[] => {
+  if (!isArray(value)) return [];
+
+  return value
+    .filter(isNonEmptyString)
+    .map((item) => item.trim())
+    .filter((item) => item !== '');
+};
+
+const normalizeEnvPathList = (value: unknown): string[] => normalizeCwdList(value);
+
+const createLoadPlan = (options: LoadOptions): LoadSource[] => {
+  const cwd = isNonEmptyString(options.cwd) ? options.cwd : process.cwd();
+  const includeCwd = options.includeCwd !== false;
+  const extraCwds = normalizeCwdList(options.extraCwds);
+  const envPaths = normalizeEnvPathList(options.envPaths);
+  const overrideExisting = options.overrideExisting ?? true;
+
+  const sources: LoadSource[] = [];
+  if (includeCwd) {
+    sources.push({
+      key: `cwd:${cwd}`,
+      path: cwd,
+      kind: 'cwd',
+      overrideExisting,
+    });
+  }
+
+  for (const extraCwd of extraCwds) {
+    sources.push({
+      key: `cwd:${extraCwd}`,
+      path: extraCwd,
+      kind: 'cwd',
+      overrideExisting: true,
+    });
+  }
+
+  for (const envPath of envPaths) {
+    const looksLikeFile = path.basename(envPath).startsWith('.env');
+    sources.push({
+      key: `${looksLikeFile ? 'file' : 'cwd'}:${envPath}`,
+      path: envPath,
+      kind: looksLikeFile ? 'file' : 'cwd',
+      overrideExisting: true,
+    });
+  }
+
+  return sources.filter(
+    (source, index, items) => items.findIndex((item) => item.key === source.key) === index
+  );
+};
+
+const loadSource = (source: LoadSource): LoadState => {
+  if (source.kind === 'file') return loadFromFile(source.path, source.overrideExisting);
+  return loadFromCwd(source.path, source.overrideExisting);
+};
+
+const mergeCachedState = (
+  state: CachedLoadState,
+  source: LoadSource,
+  next: LoadState
+): CachedLoadState => {
+  state.loadedSourceKeys.push(source.key);
+  if (next.mode !== undefined && state.mode === undefined) {
+    state.mode = next.mode;
+  }
+
+  if (next.loadedFiles.length > 0) {
+    state.loadedFiles.push(...next.loadedFiles);
+  }
+
+  return state;
+};
+
+const load = (options: LoadOptions = {}): LoadState => {
+  const plan = createLoadPlan(options);
+
+  cached ??= { loadedFiles: [], loadedSourceKeys: [] };
+
+  for (const source of plan) {
+    if (cached.loadedSourceKeys.includes(source.key)) continue;
+    mergeCachedState(cached, source, loadSource(source));
+  }
+
+  return { loadedFiles: cached.loadedFiles, mode: cached.mode };
 };
 
 const ensureLoaded = (options: Omit<LoadOptions, 'overrideExisting'> = {}): LoadState =>

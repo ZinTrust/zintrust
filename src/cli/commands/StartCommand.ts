@@ -21,10 +21,12 @@ type StartCommandOptions = CommandOptions & {
   lambda?: boolean;
   cache?: boolean;
   watch?: boolean;
+  rootEnv?: boolean;
   mode?: string;
   runtime?: string;
   port?: string;
   env?: string;
+  envPath?: string;
 };
 
 type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
@@ -36,6 +38,9 @@ type StartContext = {
   projectRoot: string;
   packageJson?: PackageJson;
 };
+
+const isAbsolutePath = (value: string): boolean =>
+  value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
 
 const resolveNpmPath = (): string => {
   try {
@@ -224,6 +229,27 @@ const resolveCacheEnabledPreference = (options: StartCommandOptions): boolean | 
   return undefined;
 };
 
+const resolveRootEnvPreference = (options: StartCommandOptions): boolean => {
+  const hasRootEnv = hasFlag('--root-env');
+  const hasNoRootEnv = hasFlag('--no-root-env');
+
+  if (hasRootEnv && hasNoRootEnv) {
+    throw ErrorFactory.createCliError('Error: Cannot use both --root-env and --no-root-env.');
+  }
+
+  if (hasRootEnv) return true;
+  if (hasNoRootEnv) return false;
+  if (typeof options.rootEnv === 'boolean') return options.rootEnv;
+  return true;
+};
+
+const resolveEnvPath = (options: StartCommandOptions, projectRoot: string): string | undefined => {
+  const raw = typeof options.envPath === 'string' ? options.envPath.trim() : '';
+  if (raw === '') return undefined;
+
+  return isAbsolutePath(raw) ? raw : path.join(projectRoot, raw);
+};
+
 const findNearestPackageJsonDir = (cwd: string): string | undefined => {
   let current = path.resolve(cwd);
 
@@ -276,9 +302,18 @@ const buildStartEnv = (projectRoot: string): NodeJS.ProcessEnv => ({
   ZINTRUST_PROJECT_ROOT: projectRoot,
 });
 
-const ensureStartEnvLoaded = (context: StartContext): void => {
-  const extraCwds = context.cwd === context.projectRoot ? [] : [context.cwd];
-  EnvFileLoader.ensureLoaded({ cwd: context.projectRoot, extraCwds });
+const ensureStartEnvLoaded = (context: StartContext, options: StartCommandOptions): void => {
+  const envPath = resolveEnvPath(options, context.projectRoot);
+  const rootEnv = resolveRootEnvPreference(options);
+  const extraCwds =
+    envPath === undefined && context.cwd !== context.projectRoot ? [context.cwd] : [];
+
+  EnvFileLoader.ensureLoaded({
+    cwd: context.projectRoot,
+    includeCwd: rootEnv,
+    extraCwds,
+    ...(envPath === undefined ? {} : { envPaths: [envPath] }),
+  });
 };
 
 const isFrameworkRepo = (packageJson: { name?: unknown }): boolean =>
@@ -657,7 +692,7 @@ const executeSplitStart = async (
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
   const cwd = process.cwd();
   const context = resolveStartContext(cwd);
-  ensureStartEnvLoaded(context);
+  ensureStartEnvLoaded(context, options);
   const mode = resolveMode(options);
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
@@ -731,8 +766,14 @@ export const StartCommand = Object.freeze({
         .option('--no-cache', 'Disable cache functionality')
         .option('--watch', 'Force watch mode (Node only)')
         .option('--no-watch', 'Disable watch mode (Node only)')
+        .option('--root-env', 'Load root project .env files for standalone service start')
+        .option('--no-root-env', 'Skip root project .env files for standalone service start')
         .option('--mode <development|production|testing>', 'Override app mode')
         .option('--env <name>', 'Wrangler environment name (Wrangler mode only)')
+        .option(
+          '--env-path <path>',
+          'Explicit env directory or .env file path for standalone service start'
+        )
         .option('--wrangler-config <path>', 'Wrangler config path (Wrangler mode only)')
         .option('--runtime <nodejs|cloudflare|lambda|deno|auto>', 'Set RUNTIME for spawned Node')
         .option('-p, --port <number>', 'Override server port');
