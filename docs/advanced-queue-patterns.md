@@ -1414,7 +1414,7 @@ async function sendEmail(
     text: body ?? `Worker job completed successfully.`,
     html: htmlContent,
     from: {
-      address: 'no-reply@engage.vizo.app',
+      address: 'no-reply@engage.app.app',
       name: 'ZinTrust Advanced Worker',
     },
   });

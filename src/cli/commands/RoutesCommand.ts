@@ -7,6 +7,9 @@ import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCo
 import { Env } from '@config/env';
 import { Router } from '@core-routes/Router';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { isObject } from '@helper/index';
+import { getServicePrefix } from '@microservices/ServiceManifest';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import type { Command } from 'commander';
 
 type GroupByMode = 'group' | 'service' | 'none';
@@ -26,6 +29,10 @@ type RouteRow = {
   middleware: string;
   validations: string;
   handler: string;
+};
+
+type AnnotatedRoute = ReturnType<typeof Router.getRoutes>[number] & {
+  __zintrustServiceId?: string;
 };
 
 const parseGroupBy = (value: unknown): GroupByMode => {
@@ -205,6 +212,49 @@ const renderTable = (rows: RouteRow[]): void => {
   /* eslint-enable no-console */
 };
 
+const annotateManifestRoutes = (
+  router: ReturnType<typeof Router.createRouter>,
+  beforeCount: number,
+  serviceId: string
+): void => {
+  const routes = Router.getRoutes(router) as AnnotatedRoute[];
+  for (const route of routes.slice(beforeCount)) {
+    route.__zintrustServiceId = serviceId;
+  }
+};
+
+const getRouteServiceId = (route: ReturnType<typeof Router.getRoutes>[number]): string => {
+  return (route as AnnotatedRoute).__zintrustServiceId ?? '';
+};
+
+const registerManifestRoutes = async (
+  router: ReturnType<typeof Router.createRouter>
+): Promise<void> => {
+  await ProjectRuntime.tryLoadNodeRuntime();
+
+  const serviceManifest = ProjectRuntime.getServiceManifest();
+  if (serviceManifest.length === 0) return;
+
+  for (const entry of serviceManifest) {
+    if (entry.monolithEnabled === false || typeof entry.loadRoutes !== 'function') continue;
+
+    try {
+      const beforeCount = Router.getRoutes(router).length;
+      // eslint-disable-next-line no-await-in-loop
+      const mod = await entry.loadRoutes();
+      const registerRoutes = isObject(mod) ? mod.registerRoutes : undefined;
+      if (typeof registerRoutes === 'function') {
+        Router.group(router, getServicePrefix(entry), (scopedRouter) => {
+          registerRoutes(scopedRouter);
+        });
+        annotateManifestRoutes(router, beforeCount, entry.id);
+      }
+    } catch {
+      // Ignore broken optional service routes and keep listing what is available.
+    }
+  }
+};
+
 const buildRows = async (options: RoutesCommandOptions): Promise<RouteRow[]> => {
   const groupBy = parseGroupBy(options.groupBy);
   const filterText = typeof options.filter === 'string' ? options.filter.trim().toLowerCase() : '';
@@ -226,13 +276,16 @@ const buildRows = async (options: RoutesCommandOptions): Promise<RouteRow[]> => 
     // routes/api.ts not found, continue with just core routes
   }
 
+  await registerManifestRoutes(router);
+
   const routes = Router.getRoutes(router);
 
   const rows = routes.map<RouteRow>((route) => {
     const path = normalizePath(route.path);
+    const serviceId = getRouteServiceId(route);
     let group = '';
     if (groupBy === 'service') {
-      group = deriveService(path);
+      group = serviceId === '' ? deriveService(path) : serviceId;
     } else if (groupBy === 'group') {
       group = deriveGroup(path);
     }

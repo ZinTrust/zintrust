@@ -1,5 +1,7 @@
 import {
+  getDefaultServicePrefix,
   getServiceId,
+  getServicePrefix,
   isCanonicalServiceId,
   normalizeActiveServiceRuntime,
   normalizeProjectRuntimeModule,
@@ -11,6 +13,11 @@ import { describe, expect, it } from 'vitest';
 describe('ServiceManifest', () => {
   it('builds canonical service ids', () => {
     expect(getServiceId('ecommerce', 'users')).toBe('ecommerce/users');
+  });
+
+  it('builds default monolith prefixes from canonical service ids', () => {
+    expect(getDefaultServicePrefix('ecommerce', 'users')).toBe('/ecommerce/users');
+    expect(getServicePrefix({ domain: 'ecommerce', name: 'users' })).toBe('/ecommerce/users');
   });
 
   it('recognizes canonical service ids', () => {
@@ -36,7 +43,22 @@ describe('ServiceManifest', () => {
 
     expect(manifest).toHaveLength(1);
     expect(manifest[0]?.id).toBe('ecommerce/users');
+    expect(manifest[0]?.prefix).toBe('/ecommerce/users');
     expect(manifest[0]?.monolithEnabled).toBe(true);
+  });
+
+  it('preserves custom service prefixes after normalization', () => {
+    const manifest = normalizeServiceManifest([
+      {
+        id: 'ecommerce/users',
+        domain: 'ecommerce',
+        name: 'users',
+        prefix: 'gateway/users',
+        loadRoutes: async () => ({ registerRoutes: () => {} }),
+      },
+    ]);
+
+    expect(manifest[0]?.prefix).toBe('/gateway/users');
   });
 
   it('matches SERVICES allow-lists by canonical id or bare name', () => {

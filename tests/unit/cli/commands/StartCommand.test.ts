@@ -1,4 +1,5 @@
 import { StartCommand } from '@cli/commands/StartCommand';
+import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';
 import * as fs from '@node-singletons/fs';
@@ -180,6 +181,7 @@ describe('StartCommand', () => {
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       return !p.toString().endsWith('src/start.ts');
     });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'my-app' }));
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
 
     await expect(command.execute({ lambda: true })).rejects.toThrow(/process.exit/);
@@ -238,6 +240,69 @@ describe('StartCommand', () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(false);
     await expect(command.execute({})).rejects.toThrow(/No ZinTrust app found/);
+  });
+
+  it('should start a service directory using the nearest project package.json', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${serviceCwd}/package.json`) return false;
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${serviceCwd}/src/index.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      extraCwds: [serviceCwd],
+    });
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: ['watch', 'src/index.ts'],
+        env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
+      })
+    );
+  });
+
+  it('should pass project root env when starting wrangler from a service directory', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${serviceCwd}/wrangler.jsonc`) return true;
+      if (value === `${projectRoot}/package.json`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      extraCwds: [serviceCwd],
+    });
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev'],
+        env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
+      })
+    );
   });
 
   it('should handle missing production build', async () => {
@@ -464,6 +529,7 @@ describe('StartCommand', () => {
   it('should reach return after wrangler start (coverage)', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'my-app' }));
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {

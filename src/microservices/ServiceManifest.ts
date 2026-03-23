@@ -5,6 +5,7 @@ export interface ServiceManifestEntry {
   id: string;
   domain: string;
   name: string;
+  prefix?: string;
   version?: string;
   description?: string;
   port?: number;
@@ -26,6 +27,34 @@ export interface ProjectRuntimeModule {
 }
 
 export const getServiceId = (domain: string, name: string): string => `${domain}/${name}`;
+
+export const getDefaultServicePrefix = (domain: string, name: string): string =>
+  `/${getServiceId(domain, name)}`;
+
+const normalizeServicePrefix = (value: string): string => {
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed === '/') return '/';
+
+  const segments = trimmed
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (segments.length === 0) return '/';
+  return `/${segments.join('/')}`;
+};
+
+export const getServicePrefix = (args: {
+  prefix?: unknown;
+  domain?: unknown;
+  name?: unknown;
+}): string => {
+  if (typeof args.prefix === 'string') return normalizeServicePrefix(args.prefix);
+
+  const domain = isNonEmptyString(args.domain) ? args.domain : 'default';
+  const name = isNonEmptyString(args.name) ? args.name : 'unknown';
+  return getDefaultServicePrefix(domain, name);
+};
 
 export const isCanonicalServiceId = (value: unknown): value is string => {
   if (!isNonEmptyString(value)) return false;
@@ -50,6 +79,11 @@ export const isServiceManifestEntry = (value: unknown): value is ServiceManifest
   if (!isNonEmptyString(value['domain'])) return false;
   if (!isNonEmptyString(value['name'])) return false;
 
+  const prefix = value['prefix'];
+  if (prefix !== undefined && typeof prefix !== 'string') {
+    return false;
+  }
+
   const loadRoutes = value['loadRoutes'];
   if (loadRoutes !== undefined && !isFunction(loadRoutes)) {
     return false;
@@ -64,6 +98,7 @@ export const normalizeServiceManifest = (value: unknown): ReadonlyArray<ServiceM
   return value.filter(isServiceManifestEntry).map((entry) => ({
     ...entry,
     id: toCanonicalServiceId(entry),
+    prefix: getServicePrefix(entry),
     monolithEnabled: entry.monolithEnabled !== false,
   }));
 };
@@ -109,6 +144,8 @@ export const serviceMatchesAllowList = (
 
 export default Object.freeze({
   getServiceId,
+  getDefaultServicePrefix,
+  getServicePrefix,
   isCanonicalServiceId,
   toCanonicalServiceId,
   isServiceManifestEntry,

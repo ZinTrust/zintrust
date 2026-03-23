@@ -1,7 +1,8 @@
 import { appConfig } from '@/config';
 import Logger from '@config/logger';
-import type { IRouter } from '@core-routes/Router';
+import { Router, type IRouter } from '@core-routes/Router';
 import { isObject } from '@helper/index';
+import { getServicePrefix } from '@microservices/ServiceManifest';
 import * as path from '@node-singletons/path';
 import { pathToFileURL } from '@node-singletons/url';
 import type { RoutesModule } from '@registry/type';
@@ -72,6 +73,8 @@ const registerAppRoutes = async (resolvedBasePath: string, router: IRouter): Pro
 };
 
 const registerManifestRoutes = async (router: IRouter): Promise<void> => {
+  await ProjectRuntime.tryLoadNodeRuntime();
+
   const serviceManifest = ProjectRuntime.getServiceManifest();
   if (serviceManifest.length === 0) return;
 
@@ -83,8 +86,11 @@ const registerManifestRoutes = async (router: IRouter): Promise<void> => {
     try {
       // eslint-disable-next-line no-await-in-loop
       const mod = await entry.loadRoutes();
-      if (isObject(mod) && typeof mod.registerRoutes === 'function') {
-        mod.registerRoutes(router);
+      const registerRoutes = isObject(mod) ? mod.registerRoutes : undefined;
+      if (typeof registerRoutes === 'function') {
+        Router.group(router, getServicePrefix(entry), (scopedRouter) => {
+          registerRoutes(scopedRouter);
+        });
       }
     } catch (error) {
       Logger.warn(`Failed to register manifest routes for ${entry.id}`, error as Error);

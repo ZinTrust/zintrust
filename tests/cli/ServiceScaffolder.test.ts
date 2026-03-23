@@ -122,8 +122,9 @@ describe('ServiceScaffolder Scaffolding Basic', () => {
 
       const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
       expect(manifestContent).toContain("id: 'ecommerce/users'");
+      expect(manifestContent).toContain("prefix: 'ecommerce/users'");
       expect(manifestContent).toContain(
-        "loadRoutes: async () => import('../services/ecommerce/users/routes/api')"
+        "loadRoutes: async () => import('../services/ecommerce/users/routes/api.ts').catch(() => import('../services/ecommerce/users/routes/api.js'))"
       );
 
       const wranglerContent = fs.readFileSync(wranglerPath, 'utf-8');
@@ -216,6 +217,7 @@ describe('ServiceScaffolder Scaffolding Files Index and Routes', () => {
         const content = fs.readFileSync(indexPath, 'utf-8');
         expect(content).toContain('payments');
         expect(content).toContain('3002');
+        expect(content).toContain("from '@zintrust/core/start'");
         expect(content).toContain('bootStandaloneService(import.meta.url, {');
         expect(content).toContain("configRoot: 'src/services/default/payments/config'");
       }
@@ -230,6 +232,7 @@ describe('ServiceScaffolder Scaffolding Files Index and Routes', () => {
 
       if (typeof routesPath === 'string' && routesPath !== '') {
         const content = fs.readFileSync(routesPath, 'utf-8');
+        expect(content).toContain("from '@zintrust/core'");
         expect(content).toContain('registerRoutes');
         expect(content).toContain('Router.get');
       }
@@ -324,7 +327,22 @@ describe('ServiceScaffolder Scaffolding Files Env and Readme', () => {
       if (typeof readmePath === 'string' && readmePath !== '') {
         const content = fs.readFileSync(readmePath, 'utf-8');
         expect(content).toContain('users');
+        expect(content).toContain('zin s');
+        expect(content).toContain('zin s --wg');
+        expect(content).toContain('MICROSERVICES=true SERVICES=default/users zin routes');
       }
+    });
+
+    it('should generate runtime modules that can import source or built manifests', async () => {
+      const options: ServiceOptions = { name: 'users', domain: 'ecommerce' };
+      const result = await ServiceScaffolder.scaffold(testDir, options);
+
+      expect(result.success).toBe(true);
+
+      const runtimePath = path.join(testDir, 'src', 'zintrust.runtime.ts');
+      const runtimeContent = fs.readFileSync(runtimePath, 'utf-8');
+      expect(runtimeContent).toContain("import('./bootstrap/service-manifest.ts')");
+      expect(runtimeContent).toContain("import('./bootstrap/service-manifest.js')");
     });
 
     it('should create service-local wrangler config with root-mapped aliases', async () => {

@@ -139,6 +139,7 @@ const resolveAppMode = (cwd: string): string | undefined => {
 
 type LoadOptions = {
   cwd?: string;
+  extraCwds?: string[];
   overrideExisting?: boolean;
 };
 
@@ -177,14 +178,8 @@ const filesLoader = (cwd: string, mode: string | undefined): string[] => {
 
 let cached: LoadState | undefined;
 
-const load = (options: LoadOptions = {}): LoadState => {
-  if (cached !== undefined) return cached;
-
-  const cwd = typeof options.cwd === 'string' && options.cwd !== '' ? options.cwd : process.cwd();
-  const overrideExisting = options.overrideExisting ?? true;
-
+const loadFromCwd = (cwd: string, overrideExisting: boolean): LoadState => {
   const mode = resolveAppMode(cwd);
-
   const files = filesLoader(cwd, mode);
 
   let baseApplied = false;
@@ -208,11 +203,36 @@ const load = (options: LoadOptions = {}): LoadState => {
     safeEnvSet('NODE_ENV', mode as node_env);
   }
 
-  cached = { loadedFiles: files, mode };
+  return { loadedFiles: files, mode };
+};
+
+const load = (options: LoadOptions = {}): LoadState => {
+  if (cached !== undefined) return cached;
+
+  const cwd = typeof options.cwd === 'string' && options.cwd !== '' ? options.cwd : process.cwd();
+  const extraCwds = Array.isArray(options.extraCwds)
+    ? options.extraCwds.filter((value) => typeof value === 'string' && value.trim() !== '')
+    : [];
+  const overrideExisting = options.overrideExisting ?? true;
+
+  const roots = [cwd, ...extraCwds].filter((value, index, items) => items.indexOf(value) === index);
+
+  let mergedMode: string | undefined;
+  const loadedFiles: string[] = [];
+
+  for (let index = 0; index < roots.length; index += 1) {
+    const root = roots[index];
+    const state = loadFromCwd(root, index === 0 ? overrideExisting : true);
+    if (mergedMode === undefined && state.mode !== undefined) mergedMode = state.mode;
+    loadedFiles.push(...state.loadedFiles);
+  }
+
+  cached = { loadedFiles, mode: mergedMode };
   return cached;
 };
 
-const ensureLoaded = (): LoadState => load({ overrideExisting: false });
+const ensureLoaded = (options: Omit<LoadOptions, 'overrideExisting'> = {}): LoadState =>
+  load({ ...options, overrideExisting: false });
 
 const applyCliOverrides = (overrides: CliOverrides): void => {
   // Ensure base env is loaded first.

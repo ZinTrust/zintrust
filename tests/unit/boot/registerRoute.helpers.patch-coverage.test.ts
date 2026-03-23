@@ -48,4 +48,43 @@ describe('registerRoute helpers patch coverage', () => {
     expect(registerRoutes).toHaveBeenCalledWith(router);
     expect(registerCoreRoutes).toHaveBeenCalledWith(router);
   });
+
+  it('registerMasterRoutes mounts manifest routes under the service prefix in monolith mode', async () => {
+    vi.doMock('@core-routes/CoreRoutes', () => ({ registerCoreRoutes: vi.fn() }));
+    vi.doMock('@runtime/detectRuntime', () => ({ detectRuntime: () => ({ isCloudflare: false }) }));
+    vi.doMock('@/config', () => ({ appConfig: { isDevelopment: () => true } }));
+    const tryLoadNodeRuntime = vi.fn(async () => undefined);
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        tryLoadNodeRuntime,
+        getServiceManifest: () => [
+          {
+            id: 'app/gatewaynext',
+            domain: 'app',
+            name: 'gatewaynext',
+            prefix: '/edge/gateway',
+            monolithEnabled: true,
+            loadRoutes: async () => {
+              const { Router } = await import('@core-routes/Router');
+              return {
+                registerRoutes(router: unknown) {
+                  Router.get(router as any, '/', () => undefined);
+                },
+              };
+            },
+          },
+        ],
+      },
+    }));
+
+    const { Router } = await import('@core-routes/Router');
+    const { registerMasterRoutes } = await import('@registry/registerRoute');
+    const router = Router.createRouter();
+
+    await registerMasterRoutes('/missing', router);
+
+    expect(tryLoadNodeRuntime).toHaveBeenCalled();
+    expect(Router.match(router, 'GET', '/edge/gateway')).not.toBeNull();
+    expect(Router.match(router, 'GET', '/')).toBeNull();
+  });
 });

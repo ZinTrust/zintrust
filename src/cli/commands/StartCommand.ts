@@ -29,6 +29,14 @@ type StartCommandOptions = CommandOptions & {
 
 type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
 
+type PackageJson = { name?: unknown; scripts?: Record<string, unknown> };
+
+type StartContext = {
+  cwd: string;
+  projectRoot: string;
+  packageJson?: PackageJson;
+};
+
 const resolveNpmPath = (): string => {
   try {
     return typeof Common.resolveNpmPath === 'function' ? Common.resolveNpmPath() : 'npm';
@@ -216,8 +224,20 @@ const resolveCacheEnabledPreference = (options: StartCommandOptions): boolean | 
   return undefined;
 };
 
-const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string, unknown> } => {
-  const packagePath = path.join(cwd, 'package.json');
+const findNearestPackageJsonDir = (cwd: string): string | undefined => {
+  let current = path.resolve(cwd);
+
+  while (true) {
+    if (existsSync(path.join(current, 'package.json'))) return current;
+
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
+const readPackageJsonFromDir = (dir: string): PackageJson => {
+  const packagePath = path.join(dir, 'package.json');
   if (!existsSync(packagePath)) {
     throw ErrorFactory.createCliError(
       "Error: No ZinTrust app found. Run 'zin new <project>' or ensure package.json exists."
@@ -230,6 +250,35 @@ const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string
   } catch (error) {
     throw ErrorFactory.createTryCatchError('Failed to read package.json', error);
   }
+};
+
+const resolveStartContext = (cwd: string): StartContext => {
+  const projectRoot = findNearestPackageJsonDir(cwd) ?? cwd;
+  const packageDir = findNearestPackageJsonDir(cwd);
+
+  return {
+    cwd,
+    projectRoot,
+    ...(packageDir === undefined ? {} : { packageJson: readPackageJsonFromDir(packageDir) }),
+  };
+};
+
+const requirePackageJson = (context: StartContext): PackageJson => {
+  if (context.packageJson !== undefined) return context.packageJson;
+
+  throw ErrorFactory.createCliError(
+    "Error: No ZinTrust app found. Run 'zin new <project>' or ensure package.json exists."
+  );
+};
+
+const buildStartEnv = (projectRoot: string): NodeJS.ProcessEnv => ({
+  ...process.env,
+  ZINTRUST_PROJECT_ROOT: projectRoot,
+});
+
+const ensureStartEnvLoaded = (context: StartContext): void => {
+  const extraCwds = context.cwd === context.projectRoot ? [] : [context.cwd];
+  EnvFileLoader.ensureLoaded({ cwd: context.projectRoot, extraCwds });
 };
 
 const isFrameworkRepo = (packageJson: { name?: unknown }): boolean =>
@@ -341,7 +390,7 @@ const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] 
 
 const executeWranglerStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   port: number | undefined,
   runtime: string | undefined,
   envName: string | undefined,
@@ -355,9 +404,9 @@ const executeWranglerStart = async (
 
   const normalizedConfig = typeof wranglerConfig === 'string' ? wranglerConfig.trim() : '';
   const explicitConfigFullPath =
-    normalizedConfig.length > 0 ? path.join(cwd, normalizedConfig) : undefined;
-  const configPath = explicitConfigFullPath ?? findWranglerConfig(cwd);
-  const entry = resolveWranglerEntry(cwd);
+    normalizedConfig.length > 0 ? path.join(context.cwd, normalizedConfig) : undefined;
+  const configPath = explicitConfigFullPath ?? findWranglerConfig(context.cwd);
+  const entry = resolveWranglerEntry(context.cwd);
 
   if (explicitConfigFullPath !== undefined) {
     if (existsSync(explicitConfigFullPath)) {
@@ -395,7 +444,7 @@ const executeWranglerStart = async (
   const exitCode = await SpawnUtil.spawnAndWait({
     command: 'wrangler',
     args: wranglerArgs,
-    env: process.env,
+    env: buildStartEnv(context.projectRoot),
   });
   process.exit(exitCode);
 };
@@ -420,7 +469,7 @@ const ensureTmpRunnerFile = (cwd: string, filename: string, content: string): st
 
 const executeDenoStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   mode: StartMode,
   watchEnabled: boolean,
   _port: number | undefined,
@@ -436,9 +485,9 @@ const executeDenoStart = async (
     );
   }
 
-  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(cwd);
+  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(context.cwd);
   const denoRunner = ensureTmpRunnerFile(
-    cwd,
+    context.cwd,
     'zin-start-deno.ts',
     createDenoRunnerSource(startModuleSpecifier)
   );
@@ -448,13 +497,17 @@ const executeDenoStart = async (
   args.push(denoRunner);
 
   cmd.info('Starting in Deno adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: 'tsx',
+    args,
+    env: buildStartEnv(context.projectRoot),
+  });
   process.exit(exitCode);
 };
 
 const executeLambdaStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   mode: StartMode,
   watchEnabled: boolean,
   _port: number | undefined,
@@ -470,9 +523,9 @@ const executeLambdaStart = async (
     );
   }
 
-  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(cwd);
+  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(context.cwd);
   const lambdaRunner = ensureTmpRunnerFile(
-    cwd,
+    context.cwd,
     'zin-start-lambda.ts',
     createLambdaRunnerSource(startModuleSpecifier)
   );
@@ -482,13 +535,17 @@ const executeLambdaStart = async (
   args.push(lambdaRunner);
 
   cmd.info('Starting in Lambda adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: 'tsx',
+    args,
+    env: buildStartEnv(context.projectRoot),
+  });
   process.exit(exitCode);
 };
 
 const executeNodeStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   mode: StartMode,
   watchEnabled: boolean,
   _port: number | undefined
@@ -502,54 +559,52 @@ const executeNodeStart = async (
   if (mode === 'development') {
     if (!watchEnabled) {
       cmd.warn('Watch mode disabled; starting once.');
-      const bootstrap = resolveBootstrapEntryTs(cwd);
+      const bootstrap = resolveBootstrapEntryTs(context.cwd);
       const args = bootstrap === undefined ? ['src/index.ts'] : [bootstrap];
 
       const exitCode = await SpawnUtil.spawnAndWait({
         command: 'tsx',
         args,
         forwardSignals: false,
-        env: process.env,
+        env: buildStartEnv(context.projectRoot),
       });
       process.exit(exitCode);
     }
 
-    const packageJson = readPackageJson(cwd);
-    const dev = resolveNodeDevCommand(cwd, packageJson);
+    const dev = resolveNodeDevCommand(context.cwd, requirePackageJson(context));
     cmd.info('Starting in development mode (watch enabled)...');
     const exitCode = await SpawnUtil.spawnAndWait({
       command: dev.command,
       args: dev.args,
       forwardSignals: false,
-      env: process.env,
+      env: buildStartEnv(context.projectRoot),
     });
     process.exit(exitCode);
   }
 
-  const prod = resolveNodeProdCommand(cwd);
+  const prod = resolveNodeProdCommand(context.cwd);
   cmd.info('Starting in production mode...');
   const exitCode = await SpawnUtil.spawnAndWait({
     command: prod.command,
     args: prod.args,
     forwardSignals: false,
-    env: process.env,
+    env: buildStartEnv(context.projectRoot),
   });
   process.exit(exitCode);
 };
 
 const executeSplitStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   _options: StartCommandOptions
 ): Promise<void> => {
   cmd.info('🚀 Starting in split mode (Producer + Consumer)...');
 
-  const packageJson = readPackageJson(cwd);
-  const webDev = resolveNodeDevCommand(cwd, packageJson);
+  const webDev = resolveNodeDevCommand(context.cwd, requirePackageJson(context));
 
   // Producer Environment
   const producerEnv = {
-    ...process.env,
+    ...buildStartEnv(context.projectRoot),
     WORKER_ENABLED: 'false',
     QUEUE_ENABLED: 'true',
     RUNTIME_MODE: 'node-server',
@@ -557,7 +612,7 @@ const executeSplitStart = async (
 
   // Consumer Environment
   const consumerEnv = {
-    ...process.env,
+    ...buildStartEnv(context.projectRoot),
     WORKER_ENABLED: 'true',
     QUEUE_ENABLED: 'true',
     RUNTIME_MODE: 'containers',
@@ -569,11 +624,11 @@ const executeSplitStart = async (
 
   // Resolve Consumer Command (zintrust worker:start-all)
   // We try to use tsx against the source bin if possible
-  const workerArgs = existsSync(path.join(cwd, 'bin/zin.ts'))
+  const workerArgs = existsSync(path.join(context.projectRoot, 'bin/zin.ts'))
     ? ['bin/zin.ts', 'worker:start-all']
     : ['dist/bin/zin.js', 'worker:start-all'];
 
-  const workerCommand = existsSync(path.join(cwd, 'bin/zin.ts')) ? 'tsx' : 'node';
+  const workerCommand = existsSync(path.join(context.projectRoot, 'bin/zin.ts')) ? 'tsx' : 'node';
 
   cmd.info('-------------------------------------------');
   cmd.info('🔹 [Producer] Web Server starting...');
@@ -583,6 +638,7 @@ const executeSplitStart = async (
   const pProducer = SpawnUtil.spawnAndWait({
     command: webDev.command,
     args: webDev.args,
+    cwd: context.cwd,
     env: producerEnv,
     forwardSignals: true,
   });
@@ -590,6 +646,7 @@ const executeSplitStart = async (
   const pConsumer = SpawnUtil.spawnAndWait({
     command: workerCommand,
     args: workerArgs,
+    cwd: context.projectRoot,
     env: consumerEnv,
     forwardSignals: true,
   });
@@ -599,7 +656,8 @@ const executeSplitStart = async (
 
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
   const cwd = process.cwd();
-  EnvFileLoader.ensureLoaded();
+  const context = resolveStartContext(cwd);
+  ensureStartEnvLoaded(context);
   const mode = resolveMode(options);
   const port = resolvePort(options);
   const runtime = resolveRuntime(options);
@@ -611,7 +669,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   if (variant === 'lambda') effectiveRuntime = 'lambda';
 
   if (mode === 'split') {
-    await executeSplitStart(cmd, cwd, options);
+    await executeSplitStart(cmd, context, options);
     return;
   }
 
@@ -633,7 +691,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
 
     await executeWranglerStart(
       cmd,
-      cwd,
+      context,
       port,
       runtime,
       envName === '' ? undefined : envName,
@@ -649,15 +707,15 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   const watchEnabled = resolveWatchPreference(options, mode);
 
   if (variant === 'deno') {
-    await executeDenoStart(cmd, cwd, mode, watchEnabled, port, runtime);
+    await executeDenoStart(cmd, context, mode, watchEnabled, port, runtime);
     return;
   }
 
   if (variant === 'lambda') {
-    await executeLambdaStart(cmd, cwd, mode, watchEnabled, port, runtime);
+    await executeLambdaStart(cmd, context, mode, watchEnabled, port, runtime);
     return;
   }
-  await executeNodeStart(cmd, cwd, mode, watchEnabled, port);
+  await executeNodeStart(cmd, context, mode, watchEnabled, port);
 };
 
 export const StartCommand = Object.freeze({

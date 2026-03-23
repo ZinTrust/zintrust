@@ -26,6 +26,14 @@ export interface ServiceScaffoldResult {
   message: string;
 }
 
+const coreModuleSpecifier = ['@zintrust', 'core'].join('/');
+const coreStartModuleSpecifier = `${coreModuleSpecifier}/start`;
+const serviceManifestImportExpression =
+  "import('./bootstrap/service-manifest.ts').catch(() => import('./bootstrap/service-manifest.js'))";
+
+const buildRouteImportExpression = (domain: string, serviceName: string): string =>
+  `import('../services/${domain}/${serviceName}/routes/api.ts').catch(() => import('../services/${domain}/${serviceName}/routes/api.js'))`;
+
 /**
  * ServiceScaffolder generates microservices with all necessary files
  */
@@ -127,21 +135,23 @@ export function scaffold(
 function ensureProjectRuntimeFiles(projectRoot: string, options: ServiceOptions): void {
   const domain = options.domain ?? 'default';
   const serviceId = `${domain}/${options.name}`;
+  const routeImportExpression = buildRouteImportExpression(domain, options.name);
   const bootstrapDir = path.join(projectRoot, 'src', 'bootstrap');
   FileGenerator.createDirectory(bootstrapDir);
 
   const manifestPath = path.join(bootstrapDir, 'service-manifest.ts');
   if (!FileGenerator.fileExists(manifestPath)) {
-    const initialManifest = `import type { ServiceManifestEntry } from '@zintrust/core';
+    const initialManifest = `import type { ServiceManifestEntry } from '${coreModuleSpecifier}';
 
 export const serviceManifest: ReadonlyArray<ServiceManifestEntry> = [
   {
     id: '${serviceId}',
     domain: '${domain}',
     name: '${options.name}',
+    prefix: '${serviceId}',
     port: ${options.port ?? 3001},
     monolithEnabled: true,
-    loadRoutes: async () => import('../services/${domain}/${options.name}/routes/api'),
+    loadRoutes: async () => ${routeImportExpression},
   },
 ];
 
@@ -150,7 +160,9 @@ export default serviceManifest;
     FileGenerator.writeFile(manifestPath, initialManifest);
   }
 
-  const runtimeModule = `import serviceManifest from './bootstrap/service-manifest';
+  const runtimeModule = `const serviceManifestModule = await ${serviceManifestImportExpression};
+
+const serviceManifest = serviceManifestModule.default ?? serviceManifestModule.serviceManifest ?? [];
 
 export { serviceManifest };
 
@@ -168,6 +180,7 @@ export default Object.freeze({ serviceManifest });
 function updateServiceManifest(projectRoot: string, options: ServiceOptions): void {
   const domain = options.domain ?? 'default';
   const serviceId = `${domain}/${options.name}`;
+  const routeImportExpression = buildRouteImportExpression(domain, options.name);
   const manifestPath = path.join(projectRoot, 'src', 'bootstrap', 'service-manifest.ts');
   if (!FileGenerator.fileExists(manifestPath)) return;
 
@@ -180,9 +193,10 @@ function updateServiceManifest(projectRoot: string, options: ServiceOptions): vo
     id: '${serviceId}',
     domain: '${domain}',
     name: '${options.name}',
+    prefix: '${serviceId}',
     port: ${options.port ?? 3001},
     monolithEnabled: true,
-    loadRoutes: async () => import('../services/${domain}/${options.name}/routes/api'),
+    loadRoutes: async () => ${routeImportExpression},
   },
 `;
 
@@ -287,7 +301,7 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { bootStandaloneService } from '@zintrust/core/start';
+import { bootStandaloneService } from '${coreStartModuleSpecifier}';
 
 await bootStandaloneService(import.meta.url, {
   id: '${serviceId}',
@@ -297,7 +311,7 @@ await bootStandaloneService(import.meta.url, {
 });
 
 // Cloudflare Workers entry.
-export { default } from '@zintrust/core/start';
+export { default } from '${coreStartModuleSpecifier}';
 `;
 }
 
@@ -309,7 +323,7 @@ function generateServiceRoutes(options: ServiceOptions): string {
  * ${options.name} Service Routes
  */
 
-import { Router, type IRequest, type IResponse, type IRouter } from '@zintrust/core';
+import { Router, type IRequest, type IResponse, type IRouter } from '${coreModuleSpecifier}';
 
 export function registerRoutes(router: IRouter): void {
   // Example route
@@ -383,8 +397,7 @@ function generateExampleController(options: ServiceOptions): string {
  * Example Controller for ${options.name} Service
  */
 
-import { type IRequest, type IResponse, Controller } from '@zintrust/core';
-
+import { type IRequest, type IResponse, Controller } from '${coreModuleSpecifier}';
 const controller = Object.freeze({
   ...Controller,
 
@@ -447,7 +460,7 @@ function generateExampleModel(options: ServiceOptions): string {
  * Example Model for ${options.name} Service
  */
 
-import { Model } from '@zintrust/core';
+import { Model } from '${coreModuleSpecifier}';
 
 export const Example = Model.define({
   table: '${options.name}',
@@ -515,6 +528,8 @@ function getServiceConfig(options: ServiceOptions): {
  */
 function generateServiceReadme(options: ServiceOptions): string {
   const config = getServiceConfig(options);
+  const serviceDir = `src/services/${config.domain}/${options.name}`;
+  const serviceId = `${config.domain}/${options.name}`;
 
   return `# ${options.name} Service
 
@@ -529,14 +544,19 @@ Microservice for ${config.domain} domain.
 ## Getting Started
 
 \`\`\`bash
-# Start service
-npm start
+# Start this service from its service directory (Node)
+cd ${serviceDir}
+zin s
+
+# Start this service with Cloudflare Workers dev
+cd ${serviceDir}
+zin s --wg
+
+# List this service routes from the project root
+MICROSERVICES=true SERVICES=${serviceId} zin routes
 
 # Run tests
 npm test
-
-# Run migrations
-npm run migrate
 \`\`\`
 
 ## Environment Variables

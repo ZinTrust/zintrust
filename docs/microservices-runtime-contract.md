@@ -77,9 +77,13 @@ export const serviceManifest: ReadonlyArray<ServiceManifestEntry> = [
     id: 'ecommerce/users',
     domain: 'ecommerce',
     name: 'users',
+    prefix: 'ecommerce/users',
     port: 3001,
     monolithEnabled: true,
-    loadRoutes: async () => import('../services/ecommerce/users/routes/api'),
+    loadRoutes: async () =>
+      import('../services/ecommerce/users/routes/api.ts').catch(
+        () => import('../services/ecommerce/users/routes/api.js')
+      ),
   },
 ];
 
@@ -91,6 +95,16 @@ Why `loadRoutes()` is used:
 1. it keeps route imports explicit
 2. it works cleanly with Node and Cloudflare Worker bundling
 3. it avoids relying on string-based runtime module resolution
+4. it lets the built CLI load source `.ts` routes in consumer apps and fall back to built `.js` routes after compilation
+
+The generated `src/zintrust.runtime.ts` and `src/zintrust.runtime.wg.ts` files follow the same pattern for `src/bootstrap/service-manifest.ts`, so the runtime metadata remains loadable both from source and from build output.
+
+Monolith mounting also uses the manifest prefix:
+
+1. `prefix` affects monolith route mounting only
+2. standalone service boot keeps the service routes unchanged
+3. if `prefix` is omitted, ZinTrust defaults it to `domain/name`
+4. developers can override `prefix` to any mount path they want
 
 ## Monolith Route Mounting
 
@@ -139,6 +153,92 @@ export { default } from '@zintrust/core/start';
 ```
 
 The important point is that the microservice entrypoint no longer owns the raw runtime setup itself. It delegates that work to core.
+
+Example:
+
+1. standalone service route module defines `GET /`
+2. standalone service responds at `/`
+3. monolith mounts the same route at `/<prefix>`
+
+With the default generated manifest entry for `ecommerce/users`, that means:
+
+1. standalone: `/`
+2. monolith: `/ecommerce/users`
+
+If a service route does not appear in monolith mode, check these first:
+
+1. the service is listed in `src/bootstrap/service-manifest.ts`
+2. `monolithEnabled` is not `false`
+3. `loadRoutes()` resolves the service route module successfully
+4. the root runtime can load `src/zintrust.runtime.ts`
+
+## Env Handling For Standalone Services
+
+When you start a generated service from its own folder, for example:
+
+```bash
+cd src/services/ecommerce/users
+zin s
+```
+
+ZinTrust treats env in two layers:
+
+1. the project root env files are loaded first
+2. the service directory env files are loaded after that
+
+For a service at:
+
+```text
+src/services/ecommerce/users
+```
+
+the effective lookup paths are:
+
+1. `<project-root>/.env`
+2. `<project-root>/.env.local`
+3. `<project-root>/.env.<mode>` when the mode is not `production`
+4. `<project-root>/.env.<mode>.local`
+5. `<project-root>/src/services/ecommerce/users/.env`
+6. `<project-root>/src/services/ecommerce/users/.env.local`
+7. `<project-root>/src/services/ecommerce/users/.env.<mode>` when the mode is not `production`
+8. `<project-root>/src/services/ecommerce/users/.env.<mode>.local`
+
+Example:
+
+```text
+/workspace/my-zintrust-app/.env
+/workspace/my-zintrust-app/src/services/ecommerce/users/.env
+```
+
+If both files define the same key, the service-local value wins for a service-directory start.
+
+This gives you the usual shared-app defaults from the root project and lets the microservice override only the values it needs locally.
+
+Current limitation:
+
+1. ZinTrust does not currently expose a `--env-path` or `--root-env-path` flag for standalone service start.
+2. The root env path is inferred from the nearest project root containing `package.json`.
+3. The service env path is inferred from the current service directory you start in.
+
+So if you want to use a different root `.env` today, run `zin s` from the service directory inside that target project tree.
+
+Runtime file resolution still uses `ZINTRUST_PROJECT_ROOT`, so these project-owned files are resolved from the application root even when the command is launched inside a service directory:
+
+1. `src/zintrust.runtime.ts`
+2. `src/zintrust.runtime.wg.ts`
+3. root `config/*.ts`
+4. other project-relative runtime loaders
+
+Practical rule for developers:
+
+1. put shared defaults in the root `.env`
+2. put service-specific overrides in the service directory `.env`
+3. use service-local `config/*.ts` only when you need code-level config overrides, not plain env overrides
+4. do not expect a separate env-path CLI option yet; path selection is currently directory-based
+
+If `zin s` fails with `Error: 'tsx' not found on PATH.`, install `tsx` in the project with `npm install -D tsx`.
+
+If you need a machine-wide fallback for ad hoc development, `npm install -g tsx` also works, but the project-local dependency is the safer default.
 
 ## Layered Config Overrides
 
