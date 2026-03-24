@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -124,6 +124,7 @@
     "commemtout": "bash ./scripts/disable-plugins-import.sh",
     "duplication:check": "node scripts/ci/duplication-check.mjs",
     "prepare": "node -e \"const omit=(process.env.npm_config_omit||'').split(',').map(s=>s.trim()).filter(Boolean); const skip=process.env.NODE_ENV==='production'||process.env.CI==='true'||process.env.CI==='1'||omit.includes('dev'); process.exit(skip?0:1)\" || husky",
+    "prepublishOnly": "node -e \"console.error('Publish the compiled dist package instead: run npm run pub:ci or cd dist && npm publish --access public. Root package publish is blocked because its bin entries point at source TypeScript.'); process.exit(1)\"",
     "postinstall": "node -e \"process.exit(0)\"",
     "check-up": "npx npm-check-updates",
     "pub": "npm run pro:build && cd dist && npm publish",
