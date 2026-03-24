@@ -112,7 +112,32 @@ const resolveMode = (options: StartCommandOptions): StartMode => {
   return resolveModeFromAppMode();
 };
 
-const resolvePort = (options: StartCommandOptions): number | undefined => {
+const resolveStandaloneServicePortEnvValue = (cwd: string): string => {
+  const normalizedCwd = path.resolve(cwd);
+  const serviceRootMarker = `${path.sep}src${path.sep}services${path.sep}`;
+
+  if (!normalizedCwd.includes(serviceRootMarker)) return '';
+
+  const serviceName = path.basename(normalizedCwd).trim();
+  const servicePortKey = serviceName
+    .replaceAll(/[^A-Za-z0-9]+/g, '_')
+    .replaceAll(/^_+|_+$/g, '')
+    .toUpperCase();
+
+  const candidateKeys = [
+    servicePortKey === '' ? '' : `${servicePortKey}_PORT`,
+    'SERVICE_PORT',
+  ].filter((key) => key !== '');
+
+  for (const key of candidateKeys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+
+  return '';
+};
+
+const resolvePort = (options: StartCommandOptions, cwd: string): number | undefined => {
   const cliPort = typeof options.port === 'string' ? options.port.trim() : '';
   if (cliPort !== '') {
     const parsed = Number.parseInt(cliPort, 10);
@@ -122,7 +147,19 @@ const resolvePort = (options: StartCommandOptions): number | undefined => {
     return parsed;
   }
 
-  const envPortRaw = process.env['APP_PORT'] ?? process.env['PORT'] ?? '';
+  const standalonePort = resolveStandaloneServicePortEnvValue(cwd);
+  const appPort = process.env['APP_PORT'];
+  const port = process.env['PORT'];
+  let envPortRaw = '';
+
+  if (standalonePort !== '') {
+    envPortRaw = standalonePort;
+  } else if (appPort !== undefined && appPort.trim() !== '') {
+    envPortRaw = appPort;
+  } else if (port !== undefined && port.trim() !== '') {
+    envPortRaw = port;
+  }
+
   if (envPortRaw === '') return undefined;
 
   const parsed = Number.parseInt(String(envPortRaw), 10);
@@ -841,7 +878,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   ensureStartEnvLoaded(context, options);
   await preloadManifestServiceEnv(context, options);
   const mode = resolveMode(options);
-  const port = resolvePort(options);
+  const port = resolvePort(options, context.cwd);
   const runtime = resolveRuntime(options);
   const configuredRuntime = resolveConfiguredRuntime(options);
   const variant = resolveStartVariant(options);

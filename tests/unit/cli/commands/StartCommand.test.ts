@@ -428,6 +428,34 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     });
   });
 
+  it('should prefer standalone service port env over root APP_PORT in wrangler mode', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    process.env['APP_PORT'] = '7788';
+    process.env['GATEWAYNEXT_PORT'] = '3011';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${serviceCwd}/src/index.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev', 'src/index.ts', '--port', '3011'],
+      })
+    );
+  });
+
   it('should handle testing mode error', async () => {
     const command = StartCommand.create();
     await expect(command.execute({ mode: 'testing' })).rejects.toThrow(
@@ -631,6 +659,13 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
   it('should throw error for invalid APP_PORT env', async () => {
     const command = StartCommand.create();
     process.env['APP_PORT'] = 'invalid';
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      if (p.toString().endsWith('package.json')) return true;
+      if (p.toString().endsWith('bootstrap.ts')) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'my-app' }));
+
     await expect(command.execute({})).rejects.toThrow(/Invalid APP_PORT\/PORT/);
   });
 

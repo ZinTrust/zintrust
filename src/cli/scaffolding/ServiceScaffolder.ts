@@ -485,10 +485,15 @@ export const Example = Model.define({
  * Generate service .env file
  */
 function generateServiceEnv(options: ServiceOptions): string {
+  const servicePort = options.port ?? 3001;
+
   return `# ${options.name} Service Configuration
 
 # Service Port
-${options.name?.toUpperCase()}_PORT=${options.port ?? 3001}
+APP_PORT=${servicePort}
+PORT=${servicePort}
+SERVICE_PORT=${servicePort}
+${options.name?.toUpperCase()}_PORT=${servicePort}
 
 # Database
 DATABASE_CONNECTION=${options.database === 'isolated' ? 'postgresql' : 'shared'}
