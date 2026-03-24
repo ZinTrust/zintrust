@@ -625,6 +625,7 @@ dist/
 .env
 .env.*
 .env.local
+.dev*
 .DS_Store
 coverage/
 logs/

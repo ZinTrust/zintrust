@@ -26,3 +26,5 @@ This page tracks developer-visible documentation changes.
 - Updated service scaffolding guidance and generated manifest entries to default mounted services to `loadEnv: false`, avoiding monolith root/global env merging unless developers opt in explicitly.
 - Updated startup so official runtime plugin auto-import failure warnings are only emitted in Docker worker mode, which prevents noisy `zin s` and freshly scaffolded project flows from showing `Loaded 0/16 official plugin imports` during normal local development.
 - Added `d1` as a first-class `zin new` database option alongside `d1-proxy`, so the interactive database list now includes direct Cloudflare D1 as well as the HTTPS proxy mode.
+- Updated `zin new` project scaffolding so generated `.gitignore` files include `.dev*`, which keeps temporary Wrangler-style dev variable files out of git by default.
+- Fixed manifest-backed microservice route loading in `zin s --wg` for generated apps by generating `src/zintrust.plugins.wg.ts` with the required `ProjectRuntime.set({ serviceManifest })` seed automatically, so developers no longer need to add that block by hand in fresh projects.

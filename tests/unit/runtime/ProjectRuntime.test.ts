@@ -40,7 +40,7 @@ describe('ProjectRuntime', () => {
   });
 
   it('loads worker runtime metadata from zintrust.runtime.wg before falling back', async () => {
-    vi.doMock('../../../src/zintrust.runtime.wg.js', () => ({
+    vi.doMock('@/zintrust.runtime.wg', () => ({
       serviceManifest: [
         {
           id: 'ecommerce/users',

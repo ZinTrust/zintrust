@@ -340,6 +340,15 @@ describe('ProjectScaffolder Scaffolding Execution', () => {
     expect(count).toBeGreaterThan(0);
     expect(FileGenerator.fileExists(path.join(projectPath, 'package.json'))).toBe(true);
     expect(FileGenerator.fileExists(path.join(projectPath, '.gitignore'))).toBe(true);
+
+    const gitignore = FileGenerator.readFile(path.join(projectPath, '.gitignore'));
+    expect(gitignore).toContain('.dev*');
+
+    const workerPlugin = FileGenerator.readFile(
+      path.join(projectPath, 'src/zintrust.plugins.wg.ts')
+    );
+    expect(workerPlugin).toContain("import { ProjectRuntime } from '@zintrust/core'");
+    expect(workerPlugin).toContain('ProjectRuntime.set({ serviceManifest });');
   });
 
   it('should render template variables in files', () => {

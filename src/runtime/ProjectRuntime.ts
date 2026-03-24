@@ -74,12 +74,33 @@ const tryImportNodeRuntimeCandidate = async (
   }
 };
 
-const tryImportWorkerRuntimeCandidate = async (
-  moduleId: string
-): Promise<ProjectRuntimeModule | undefined> => {
+const tryImportWorkerRuntimeLiteralCandidates = async (): Promise<
+  ProjectRuntimeModule | undefined
+> => {
   try {
-    const runtimeModule = (await import(moduleId)) as Record<string, unknown>;
-    return cacheProjectRuntime(runtimeModule);
+    return cacheProjectRuntime((await import('@/zintrust.runtime.wg')) as Record<string, unknown>);
+  } catch {
+    // continue
+  }
+
+  try {
+    return cacheProjectRuntime((await import('@/zintrust.runtime')) as Record<string, unknown>);
+  } catch {
+    // continue
+  }
+
+  try {
+    return cacheProjectRuntime(
+      (await import('../' + 'zintrust.runtime.wg.js')) as Record<string, unknown>
+    );
+  } catch {
+    // continue
+  }
+
+  try {
+    return cacheProjectRuntime(
+      (await import('../' + 'zintrust.runtime.js')) as Record<string, unknown>
+    );
   } catch {
     return undefined;
   }
@@ -124,15 +145,7 @@ export const ProjectRuntime = Object.freeze({
     const cached = getCachedProjectRuntime();
     if (hasLoadedServiceManifest(cached)) return cached;
 
-    const workerModuleIds = ['../' + 'zintrust.runtime.wg.js', '../' + 'zintrust.runtime.js'];
-
-    for (const moduleId of workerModuleIds) {
-      // eslint-disable-next-line no-await-in-loop
-      const loaded = await tryImportWorkerRuntimeCandidate(moduleId);
-      if (loaded !== undefined) return loaded;
-    }
-
-    return undefined;
+    return tryImportWorkerRuntimeLiteralCandidates();
   },
 
   getServiceManifest(): ReadonlyArray<ServiceManifestEntry> {

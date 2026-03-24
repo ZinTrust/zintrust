@@ -33,6 +33,15 @@ describe('registerRoute helpers patch coverage', () => {
     vi.doMock('@core-routes/CoreRoutes', () => ({ registerCoreRoutes }));
     vi.doMock('@runtime/detectRuntime', () => ({ detectRuntime: () => ({ isCloudflare: true }) }));
     vi.doMock('@/config', () => ({ appConfig: { isDevelopment: () => true } }));
+    const tryLoadWorkerRuntime = vi.fn(async () => undefined);
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        tryLoadWorkerRuntime,
+        tryLoadNodeRuntime: vi.fn(async () => undefined),
+        getActiveService: () => undefined,
+        getServiceManifest: () => [],
+      },
+    }));
 
     const registerRoutes = vi.fn();
     (
@@ -45,6 +54,7 @@ describe('registerRoute helpers patch coverage', () => {
     const { registerMasterRoutes } = await import('@registry/registerRoute');
     await registerMasterRoutes('', router);
 
+    expect(tryLoadWorkerRuntime).toHaveBeenCalled();
     expect(registerRoutes).toHaveBeenCalledWith(router);
     expect(registerCoreRoutes).toHaveBeenCalledWith(router);
   });

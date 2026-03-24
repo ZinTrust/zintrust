@@ -6,3 +6,8 @@
  */
 
 // Intentionally empty by default.
+
+import { ProjectRuntime } from '@zintrust/core';
+import serviceManifest from './bootstrap/service-manifest';
+
+ProjectRuntime.set({ serviceManifest });

@@ -120,6 +120,47 @@ const ensureManifestServiceEnvLoaded = async (entry: ServiceManifestEntry): Prom
   });
 };
 
+const shouldRegisterManifestEntry = (
+  entry: ServiceManifestEntry,
+  activeService: ActiveServiceRuntime | undefined
+): boolean => {
+  if (entry.monolithEnabled === false || typeof entry.loadRoutes !== 'function') {
+    return false;
+  }
+
+  if (activeService !== undefined && activeService.id !== entry.id) {
+    return false;
+  }
+
+  return true;
+};
+
+const loadRuntimeManifest = async (): Promise<void> => {
+  if (isCloudflare) {
+    await ProjectRuntime.tryLoadWorkerRuntime();
+    return;
+  }
+
+  await ProjectRuntime.tryLoadNodeRuntime();
+};
+
+const registerManifestEntryRoutes = async (
+  router: IRouter,
+  entry: ServiceManifestEntry,
+  activeService: ActiveServiceRuntime | undefined
+): Promise<void> => {
+  try {
+    await ensureManifestServiceEnvLoaded(entry);
+    const mod = await entry.loadRoutes?.();
+    const registerRoutes = isObject(mod) ? mod.registerRoutes : undefined;
+    if (typeof registerRoutes === 'function') {
+      registerLoadedRoutes(router, entry, registerRoutes, activeService);
+    }
+  } catch (error) {
+    Logger.warn(`Failed to register manifest routes for ${entry.id}`, error as Error);
+  }
+};
+
 const registerLoadedRoutes = (
   router: IRouter,
   entry: ServiceManifestEntry,
@@ -139,7 +180,7 @@ const registerLoadedRoutes = (
 };
 
 const registerManifestRoutes = async (router: IRouter): Promise<void> => {
-  await ProjectRuntime.tryLoadNodeRuntime();
+  await loadRuntimeManifest();
 
   const serviceManifest = ProjectRuntime.getServiceManifest();
   if (serviceManifest.length === 0) return;
@@ -148,26 +189,10 @@ const registerManifestRoutes = async (router: IRouter): Promise<void> => {
   if (activeService !== undefined && isCloudflare) return;
 
   for (const entry of serviceManifest) {
-    if (entry.monolithEnabled === false || typeof entry.loadRoutes !== 'function') {
-      continue;
-    }
+    if (!shouldRegisterManifestEntry(entry, activeService)) continue;
 
-    if (activeService !== undefined && activeService.id !== entry.id) {
-      continue;
-    }
-
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await ensureManifestServiceEnvLoaded(entry);
-      // eslint-disable-next-line no-await-in-loop
-      const mod = await entry.loadRoutes();
-      const registerRoutes = isObject(mod) ? mod.registerRoutes : undefined;
-      if (typeof registerRoutes === 'function') {
-        registerLoadedRoutes(router, entry, registerRoutes, activeService);
-      }
-    } catch (error) {
-      Logger.warn(`Failed to register manifest routes for ${entry.id}`, error as Error);
-    }
+    // eslint-disable-next-line no-await-in-loop
+    await registerManifestEntryRoutes(router, entry, activeService);
   }
 };
 
