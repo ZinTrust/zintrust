@@ -62,6 +62,7 @@ describe('ProjectRuntime', () => {
         domain: 'ecommerce',
         name: 'users',
         prefix: '/ecommerce/users',
+        loadEnv: true,
         monolithEnabled: true,
       },
     ]);
