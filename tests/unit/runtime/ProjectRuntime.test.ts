@@ -1,9 +1,19 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('ProjectRuntime', () => {
+  const originalProjectRoot = process.env['ZINTRUST_PROJECT_ROOT'];
+
   afterEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
+
+    if (originalProjectRoot === undefined) {
+      delete process.env['ZINTRUST_PROJECT_ROOT'];
+    } else {
+      process.env['ZINTRUST_PROJECT_ROOT'] = originalProjectRoot;
+    }
   });
 
   it('merges active service context with later manifest state', async () => {
@@ -101,8 +111,8 @@ describe('ProjectRuntime', () => {
   });
 
   it('loads node runtime metadata even when active service was cached first', async () => {
-    process.env['ZINTRUST_PROJECT_ROOT'] =
-      '/opt/homebrew/var/www/Sites/zintrust/simulate/fresh-check';
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+    process.env['ZINTRUST_PROJECT_ROOT'] = path.join(repoRoot, 'simulate', 'fresh-check');
 
     const { ProjectRuntime } = await import('../../../src/runtime/ProjectRuntime');
     ProjectRuntime.clear();

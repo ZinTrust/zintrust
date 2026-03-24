@@ -352,6 +352,40 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     );
   });
 
+  it('should recover a stale wrangler env backup instead of creating new backup names', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+    const targetPath = `${serviceCwd}/.dev.vars`;
+    const backupPath = `${serviceCwd}/.dev.vars.disabled-by-zin`;
+    const existingPaths = new Set<string>([
+      `${serviceCwd}/wrangler.jsonc`,
+      `${projectRoot}/package.json`,
+      backupPath,
+    ]);
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => existingPaths.has(String(p)));
+    vi.mocked(fs.renameSync).mockImplementation((from: any, to: any) => {
+      existingPaths.delete(String(from));
+      existingPaths.add(String(to));
+    });
+    vi.mocked(fs.unlinkSync).mockImplementation((value: any) => {
+      existingPaths.delete(String(value));
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(fs.writeFileSync).mockImplementation((value: any) => {
+      existingPaths.add(String(value));
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(fs.renameSync).toHaveBeenNthCalledWith(1, backupPath, targetPath);
+    expect(fs.renameSync).toHaveBeenNthCalledWith(2, targetPath, backupPath);
+    expect(fs.renameSync).toHaveBeenNthCalledWith(3, backupPath, targetPath);
+  });
+
   it('should skip manifest env preloading when a manifest entry sets loadEnv to false', async () => {
     const projectRoot = '/workspace';
 

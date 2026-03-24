@@ -4,7 +4,6 @@ import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import * as Common from '@common/index';
-import { generateUuid } from '@common/utility';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import type { ServiceManifestEntry } from '@microservices/ServiceManifest';
@@ -364,6 +363,22 @@ const buildWorkerDevVarsContent = (): string => {
   );
 };
 
+const getWranglerEnvBackupPath = (targetPath: string): string => `${targetPath}.disabled-by-zin`;
+
+const reconcileWranglerEnvBackup = (targetPath: string, backupPath: string): void => {
+  const hasTarget = existsSync(targetPath);
+  const hasBackup = existsSync(backupPath);
+
+  if (!hasBackup) return;
+
+  if (!hasTarget) {
+    renameSync(backupPath, targetPath);
+    return;
+  }
+
+  unlinkSync(backupPath);
+};
+
 async function withWranglerEnvSnapshot<T>(
   cwd: string,
   envName: string | undefined,
@@ -372,11 +387,15 @@ async function withWranglerEnvSnapshot<T>(
   const normalizedEnv = typeof envName === 'string' ? envName.trim() : '';
   const targetName = normalizedEnv === '' ? '.dev.vars' : `.dev.vars.${normalizedEnv}`;
   const targetPath = path.join(cwd, targetName);
-  const backupPath = existsSync(targetPath)
-    ? `${targetPath}.disabled-by-zin-${generateUuid()}`
-    : undefined;
+  const backupPath = getWranglerEnvBackupPath(targetPath);
 
-  if (backupPath !== undefined) {
+  try {
+    reconcileWranglerEnvBackup(targetPath, backupPath);
+  } catch {
+    // noop
+  }
+
+  if (existsSync(targetPath)) {
     renameSync(targetPath, backupPath);
   }
 
@@ -391,12 +410,10 @@ async function withWranglerEnvSnapshot<T>(
       // noop
     }
 
-    if (backupPath !== undefined) {
-      try {
-        if (existsSync(backupPath)) renameSync(backupPath, targetPath);
-      } catch {
-        // noop
-      }
+    try {
+      if (existsSync(backupPath)) renameSync(backupPath, targetPath);
+    } catch {
+      // noop
     }
   }
 }
