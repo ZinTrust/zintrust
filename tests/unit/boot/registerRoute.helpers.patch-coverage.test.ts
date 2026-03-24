@@ -197,4 +197,103 @@ describe('registerRoute helpers patch coverage', () => {
     expect(ensureLoaded).not.toHaveBeenCalled();
     expect(Router.match(router, 'GET', '/edge/gateway')).not.toBeNull();
   });
+
+  it('registerMasterRoutes skips disabled, missing, and mismatched manifest entries', async () => {
+    const registerCoreRoutes = vi.fn();
+    vi.doMock('@core-routes/CoreRoutes', () => ({ registerCoreRoutes }));
+    vi.doMock('@runtime/detectRuntime', () => ({ detectRuntime: () => ({ isCloudflare: false }) }));
+    vi.doMock('@/config', () => ({ appConfig: { isDevelopment: () => true } }));
+    const ensureLoaded = vi.fn();
+    vi.doMock('@cli/utils/EnvFileLoader', () => ({
+      EnvFileLoader: {
+        ensureLoaded,
+      },
+    }));
+
+    const mismatchedLoadRoutes = vi.fn(async () => ({ registerRoutes: vi.fn() }));
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        tryLoadNodeRuntime: vi.fn(async () => undefined),
+        getActiveService: () => ({ id: 'app/active', domain: 'app', name: 'active' }),
+        getServiceManifest: () => [
+          {
+            id: 'app/disabled',
+            domain: 'app',
+            name: 'disabled',
+            monolithEnabled: false,
+            loadRoutes: vi.fn(async () => ({ registerRoutes: vi.fn() })),
+          },
+          {
+            id: 'app/missing',
+            domain: 'app',
+            name: 'missing',
+            monolithEnabled: true,
+          },
+          {
+            id: 'app/other',
+            domain: 'app',
+            name: 'other',
+            monolithEnabled: true,
+            loadRoutes: mismatchedLoadRoutes,
+          },
+        ],
+      },
+    }));
+
+    const { Router } = await import('@core-routes/Router');
+    const { registerMasterRoutes } = await import('@registry/registerRoute');
+    const router = Router.createRouter();
+
+    await registerMasterRoutes('/missing', router);
+
+    expect(ensureLoaded).not.toHaveBeenCalled();
+    expect(mismatchedLoadRoutes).not.toHaveBeenCalled();
+    expect(registerCoreRoutes).toHaveBeenCalledWith(router);
+  });
+
+  it('registerMasterRoutes warns when manifest route registration fails', async () => {
+    const warn = vi.fn();
+    vi.doMock('@config/logger', () => ({
+      default: {
+        warn,
+        error: vi.fn(),
+      },
+    }));
+    vi.doMock('@core-routes/CoreRoutes', () => ({ registerCoreRoutes: vi.fn() }));
+    vi.doMock('@runtime/detectRuntime', () => ({ detectRuntime: () => ({ isCloudflare: false }) }));
+    vi.doMock('@/config', () => ({ appConfig: { isDevelopment: () => true } }));
+    vi.doMock('@cli/utils/EnvFileLoader', () => ({
+      EnvFileLoader: {
+        ensureLoaded: vi.fn(),
+      },
+    }));
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        tryLoadNodeRuntime: vi.fn(async () => undefined),
+        getActiveService: () => undefined,
+        getServiceManifest: () => [
+          {
+            id: 'app/failing',
+            domain: 'app',
+            name: 'failing',
+            monolithEnabled: true,
+            loadRoutes: async () => {
+              throw new Error('boom');
+            },
+          },
+        ],
+      },
+    }));
+
+    const { Router } = await import('@core-routes/Router');
+    const { registerMasterRoutes } = await import('@registry/registerRoute');
+    const router = Router.createRouter();
+
+    await registerMasterRoutes('/missing', router);
+
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to register manifest routes for app/failing',
+      expect.any(Error)
+    );
+  });
 });

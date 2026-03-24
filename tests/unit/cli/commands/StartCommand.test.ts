@@ -2,6 +2,7 @@ import { StartCommand } from '@cli/commands/StartCommand';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';
+import { Logger } from '@config/logger';
 import * as fs from '@node-singletons/fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -135,6 +136,7 @@ describe('StartCommand', () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       if (p.toString().endsWith('wrangler.toml')) return true;
+      if (p.toString().endsWith('src/index.ts')) return true;
       return false;
     });
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
@@ -145,7 +147,36 @@ describe('StartCommand', () => {
       expect.objectContaining({
         command: 'wrangler',
         args: ['dev'],
+        env: expect.objectContaining({
+          WORKER_ENABLED: 'false',
+          CLOUDFLARE_WORKER: 'true',
+          DOCKER_WORKER: 'false',
+        }),
       })
+    );
+  });
+
+  it('should warn when wrangler entry boots getKernel before the core handler', async () => {
+    const command = StartCommand.create();
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      if (p.toString().endsWith('wrangler.toml')) return true;
+      if (p.toString().endsWith('src/index.ts')) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
+      if (String(p).endsWith('src/index.ts')) {
+        return `import cloudflareWorker from '@zintrust/core/start';
+import { getKernel } from '@zintrust/core';
+export default { async fetch(request, env, ctx) { await getKernel(); return cloudflareWorker.fetch(request, env, ctx); } };`;
+      }
+      return '';
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(Logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Unsafe Worker bootstrap detected in src/index.ts')
     );
   });
 

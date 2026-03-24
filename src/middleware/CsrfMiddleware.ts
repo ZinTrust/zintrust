@@ -25,7 +25,7 @@ export interface CsrfOptions {
    * - `/api/*`
    * - `/api/v1/auth/login`
    */
-  skipPaths?: string[];
+  skipPaths?: ReadonlyArray<string>;
 }
 
 const DEFAULT_OPTIONS: CsrfOptions = {

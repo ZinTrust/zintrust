@@ -288,13 +288,44 @@ const applyInitialPatches = (): void => {
   }
 };
 
+const getErrorChain = (error: unknown): Array<{ message: string; code?: string }> => {
+  const chain: Array<{ message: string; code?: string }> = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current !== null && current !== undefined && !seen.has(current)) {
+    seen.add(current);
+    const entry = current as { message?: string; code?: string; cause?: unknown };
+    chain.push({
+      message:
+        typeof entry.message === 'string' && entry.message !== '' ? entry.message : String(current),
+      code: typeof entry.code === 'string' ? entry.code : undefined,
+    });
+    current = entry.cause;
+  }
+
+  return chain;
+};
+
 const shouldRetryAfterFailure = (error: unknown): boolean => {
   if (patchAfterFailureAttempted) return false;
 
-  const message = error instanceof Error ? error.message : String(error);
-  const code = (error as { code?: string } | undefined)?.code;
+  return getErrorChain(error).some(
+    ({ message, code }) => code === 'ERR_MODULE_NOT_FOUND' && message.includes('@zintrust/workers')
+  );
+};
 
-  return code === 'ERR_MODULE_NOT_FOUND' && message.includes('@zintrust/workers');
+const isMissingOptionalWorkersModuleError = (error: unknown): boolean => {
+  return getErrorChain(error).some(({ message, code }) => {
+    if (!message.includes('@zintrust/workers')) return false;
+
+    return (
+      code === 'ERR_MODULE_NOT_FOUND' ||
+      message.includes('ERR_MODULE_NOT_FOUND') ||
+      message.includes('Cannot find package') ||
+      message.includes('No such module')
+    );
+  });
 };
 
 const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
@@ -307,7 +338,11 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
         replacements,
       });
       workersModulePromise = importOptionalPackage<WorkersModule>('@zintrust/workers');
-      return workersModulePromise;
+      try {
+        return await workersModulePromise;
+      } catch (retryError: unknown) {
+        error = retryError;
+      }
     }
   }
 
@@ -315,6 +350,12 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
   if (localFallback) {
     workersModulePromise = Promise.resolve(localFallback);
     return localFallback;
+  }
+
+  if (isMissingOptionalWorkersModuleError(error)) {
+    Logger.info('Optional @zintrust/workers package is unavailable; worker routes are disabled.');
+    workersModulePromise = Promise.resolve(createDisabledWorkersModule());
+    return workersModulePromise;
   }
 
   throw error;

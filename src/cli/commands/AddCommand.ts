@@ -93,6 +93,10 @@ interface RoutesPromptAnswers {
   name: string;
 }
 
+interface MiddlewarePromptAnswers {
+  name: string;
+}
+
 interface FactoryPromptAnswers {
   name: string;
   model: string;
@@ -130,11 +134,11 @@ const addOptions = (command: Command): void => {
   command
     .argument(
       '<type>',
-      'What to add: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, workflow, or governance'
+      'What to add: service, feature, migration, model, controller, routes, middleware, factory, seeder, requestfactory, responsefactory, workflow, or governance'
     )
     .argument(
       '[name]',
-      'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory/workflow (governance takes no name)'
+      'Name of service/feature/migration/model/controller/middleware/factory/seeder/requestfactory/responsefactory/workflow (governance takes no name)'
     )
     .option(
       '--package-manager <pm>',
@@ -562,6 +566,161 @@ const addRoutes = async (
   cmd.info(`File: ${path.basename(result.routeFile)}`);
   cmd.info(
     `\nNext steps:\n  • Add route definitions\n  • Import controllers\n  • Register in main router`
+  );
+};
+
+const promptMiddlewareConfig = async (): Promise<MiddlewarePromptAnswers> => {
+  return inquirer.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Middleware name (PascalCase, e.g., AuthMiddleware):',
+      validate: (value: string): string | boolean => {
+        return /^[A-Z][a-zA-Z\d]*Middleware$/.test(value)
+          ? true
+          : 'Must be PascalCase ending with "Middleware"';
+      },
+    },
+  ]);
+};
+
+const buildMiddlewareKey = (middlewareName: string): string => {
+  const withoutSuffix = middlewareName.replace(/Middleware$/, '');
+  return `${CommonUtils.camelCase(withoutSuffix)}Middleware`;
+};
+
+const buildMiddlewareSource = (middlewareName: string): string => {
+  return `import type { Middleware } from '@zintrust/core';
+
+export const ${middlewareName}: Middleware = async (_req, _res, next) => {
+  await next();
+};
+`;
+};
+
+const registerMiddlewareImport = (configSource: string, middlewareName: string): string => {
+  const importLine = `import { ${middlewareName} } from '@app/Middleware/${middlewareName}';`;
+  if (configSource.includes(importLine)) return configSource;
+
+  const lines = configSource.split('\n');
+  let insertAt = -1;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index]?.startsWith('import ')) insertAt = index;
+  }
+
+  if (insertAt === -1) {
+    return `${importLine}\n${configSource}`;
+  }
+
+  lines.splice(insertAt + 1, 0, importLine);
+  return lines.join('\n');
+};
+
+const registerMiddlewareRouteKey = (
+  configSource: string,
+  middlewareName: string,
+  middlewareKey: string
+): { content: string; updated: boolean } => {
+  if (configSource.includes(`${middlewareKey}: ${middlewareName}`)) {
+    return { content: configSource, updated: true };
+  }
+
+  const routeBlockPattern = /route:\s*\{([\s\S]*?)\n\s*\},/;
+  if (routeBlockPattern.test(configSource)) {
+    return {
+      content: configSource.replace(routeBlockPattern, (_match, inner: string) => {
+        const prefix = inner.trim() === '' ? '' : inner.replace(/\s*$/, '');
+        const nextInner =
+          prefix === ''
+            ? `\n    ${middlewareKey}: ${middlewareName},`
+            : `${prefix}\n    ${middlewareKey}: ${middlewareName},`;
+        return `route: {${nextInner}\n  },`;
+      }),
+      updated: true,
+    };
+  }
+
+  const closingPattern = /\n\} as MiddlewaresType;\s*$/;
+  if (!closingPattern.test(configSource)) {
+    return { content: configSource, updated: false };
+  }
+
+  const inserted = configSource.replace(
+    closingPattern,
+    `\n  global: [],\n  route: {\n    ${middlewareKey}: ${middlewareName},\n  },\n} as MiddlewaresType;\n`
+  );
+
+  return { content: inserted, updated: true };
+};
+
+const printManualMiddlewareRegistrationSnippet = (
+  cmd: IBaseCommand,
+  middlewareName: string,
+  middlewareKey: string
+): void => {
+  cmd.warn('Could not update config/middleware.ts automatically. Add this manually:');
+  cmd.info(`import { ${middlewareName} } from '@app/Middleware/${middlewareName}';`);
+  cmd.info(`route: { ${middlewareKey}: ${middlewareName} }`);
+  cmd.info(`Route typing example: type AppMiddlewareKey = MiddlewareKey | '${middlewareKey}';`);
+};
+
+const addMiddleware = async (
+  cmd: IBaseCommand,
+  middlewareName: string | undefined,
+  opts: AddOptions
+): Promise<void> => {
+  const projectRoot = process.cwd();
+  let name = middlewareName ?? '';
+
+  if (name === '' && opts.noInteractive !== true) {
+    const answers = await promptMiddlewareConfig();
+    name = answers.name;
+  } else if (name === '') {
+    throw ErrorFactory.createValidationError('Middleware name is required');
+  }
+
+  if (!/^[A-Z][a-zA-Z\d]*Middleware$/.test(name)) {
+    throw ErrorFactory.createValidationError(
+      'Middleware name must be PascalCase ending with "Middleware"'
+    );
+  }
+
+  const middlewareDir = path.join(projectRoot, 'app', 'Middleware');
+  const middlewarePath = path.join(middlewareDir, `${name}.ts`);
+  const configPath = path.join(projectRoot, 'config', 'middleware.ts');
+  const middlewareKey = buildMiddlewareKey(name);
+
+  ensureDirectoryExists(middlewareDir);
+
+  const created = FileGenerator.writeFile(middlewarePath, buildMiddlewareSource(name), {
+    overwrite: false,
+  });
+
+  if (!FileGenerator.fileExists(configPath)) {
+    cmd.success(`Middleware '${name}' created successfully!`);
+    cmd.warn('config/middleware.ts was not found, so registration was skipped.');
+    printManualMiddlewareRegistrationSnippet(cmd, name, middlewareKey);
+    return;
+  }
+
+  const currentConfig = FileGenerator.readFile(configPath);
+  const withImport = registerMiddlewareImport(currentConfig, name);
+  const registered = registerMiddlewareRouteKey(withImport, name, middlewareKey);
+
+  if (!registered.updated) {
+    cmd.success(`Middleware '${name}' created successfully!`);
+    printManualMiddlewareRegistrationSnippet(cmd, name, middlewareKey);
+    return;
+  }
+
+  fs.writeFileSync(configPath, registered.content, 'utf-8');
+
+  cmd.success(`Middleware '${name}' ${created ? 'created' : 'updated'} successfully!`);
+  cmd.info(`File: ${path.basename(middlewarePath)}`);
+  cmd.info(`Registered route key: ${middlewareKey}`);
+  cmd.info(
+    `\nNext steps:\n  • Use '${middlewareKey}' in route metadata\n  • If your route file uses MiddlewareKey, extend it locally: type AppMiddlewareKey = MiddlewareKey | '${middlewareKey}'`
   );
 };
 
@@ -1163,6 +1322,7 @@ const TYPE_HANDLERS: Record<string, AddHandler> = {
   model: addModel,
   controller: addController,
   routes: addRoutes,
+  middleware: addMiddleware,
   factory: addFactory,
   seeder: addSeeder,
   requestfactory: addRequestFactory,
@@ -1182,7 +1342,7 @@ const handleType = async (
   const handler = TYPE_HANDLERS[type];
   if (handler === undefined) {
     throw ErrorFactory.createCliError(
-      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, workflow, or governance`
+      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, middleware, factory, seeder, requestfactory, responsefactory, workflow, or governance`
     );
   }
   await handler(cmd, name, opts);
@@ -1226,7 +1386,7 @@ const executeAdd = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
   try {
     if (type === undefined || type === '') {
       throw ErrorFactory.createCliError(
-        'Please specify what to add: service, feature, migration, model, controller, routes, factory, or seeder'
+        'Please specify what to add: service, feature, migration, model, controller, routes, middleware, factory, or seeder'
       );
     }
 
@@ -1279,6 +1439,7 @@ export const AddCommand = Object.freeze({
     promptModelConfig,
     promptControllerConfig,
     promptRoutesConfig,
+    promptMiddlewareConfig,
     promptFactoryConfig,
     promptSeederConfig,
     promptRequestFactoryConfig,

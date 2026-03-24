@@ -176,14 +176,55 @@ describe('Architecture: route middleware registry', () => {
 });
 ```
 
-## Extending the Registry
+## Application Middleware In Fresh Apps
 
-In the current design, the route middleware registry is **framework-owned**:
+Fresh apps can register project-owned middleware in `config/middleware.ts`.
 
-- Route middleware is resolved from `middlewareConfig.route`, which is created and frozen inside the framework.
-- `MiddlewareKey` is derived from that framework-owned registry.
+1. Create a middleware file in `app/Middleware`, for example `app/Middleware/AuthMiddleware.ts`.
+2. Export a `Middleware` function.
+3. Import that middleware into `config/middleware.ts`.
+4. Register it under `route` with a string key, or append it under `global`.
+5. Use that key in route metadata.
 
-If you are contributing to the framework and need to add a new named middleware:
+Example:
+
+```ts
+import type { Middleware } from '@zintrust/core';
+
+export const AuthMiddleware: Middleware = async (_req, _res, next) => {
+  await next();
+};
+```
+
+Then in `config/middleware.ts`:
+
+```ts
+import { AuthMiddleware } from '@app/Middleware/AuthMiddleware';
+
+export default {
+  route: {
+    authMiddleware: AuthMiddleware,
+  },
+} as MiddlewaresType;
+```
+
+And in a route file:
+
+```ts
+import { Router, type MiddlewareKey } from '@zintrust/core';
+
+type AppMiddlewareKey = MiddlewareKey | 'authMiddleware';
+
+Router.get<AppMiddlewareKey>(router, '/profile', handler, {
+  middleware: ['authMiddleware'],
+});
+```
+
+`MiddlewareKey` still covers framework-owned keys. For project-only keys, extend it locally like the example above.
+
+## Extending The Framework Registry
+
+If you are contributing to the framework and need to add a new built-in named middleware:
 
 1. Update the `SharedMiddlewares` type in `src/config/middleware.ts`
 2. Add the new key to `MiddlewareKeys`

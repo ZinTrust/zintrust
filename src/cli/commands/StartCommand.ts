@@ -2,9 +2,9 @@ import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCo
 import { createDenoRunnerSource, createLambdaRunnerSource } from '@cli/commands/runner';
 import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
-import { generateUuid } from '@common/utility';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import * as Common from '@common/index';
+import { generateUuid } from '@common/utility';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import type { ServiceManifestEntry } from '@microservices/ServiceManifest';
@@ -557,6 +557,8 @@ const executeWranglerStart = async (
     );
   }
 
+  warnOnUnsafeWranglerBootstrap(cmd, context.cwd, entry);
+
   const wranglerArgs: string[] = ['dev'];
 
   if (normalizedConfig !== '') {
@@ -577,13 +579,54 @@ const executeWranglerStart = async (
   logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
   const exitCode = await withWranglerEnvSnapshot(context.cwd, envName, async () => {
+    const startEnv = {
+      ...buildStartEnv(context.projectRoot),
+      WORKER_ENABLED: 'false',
+      CLOUDFLARE_WORKER: 'true',
+      DOCKER_WORKER: 'false',
+    };
+
     return SpawnUtil.spawnAndWait({
       command: 'wrangler',
       args: wranglerArgs,
-      env: buildStartEnv(context.projectRoot),
+      env: startEnv,
     });
   });
   process.exit(exitCode);
+};
+
+const isUnsafeWranglerBootstrapSource = (source: string): boolean => {
+  const getKernelIndex = source.indexOf('getKernel(');
+  const cloudflareFetchIndex = source.indexOf('cloudflareWorker.fetch');
+
+  return (
+    getKernelIndex !== -1 && cloudflareFetchIndex !== -1 && getKernelIndex < cloudflareFetchIndex
+  );
+};
+
+const warnOnUnsafeWranglerBootstrap = (
+  cmd: IBaseCommand,
+  cwd: string,
+  entry: string | undefined
+): void => {
+  if (entry === undefined) return;
+
+  const entryPath = path.join(cwd, entry);
+  if (!existsSync(entryPath)) return;
+
+  try {
+    const source = readFileSync(entryPath, 'utf-8');
+    if (!isUnsafeWranglerBootstrapSource(source)) return;
+
+    cmd.warn(
+      `Unsafe Worker bootstrap detected in ${entry}: getKernel() runs before the core Cloudflare handler initializes Worker bindings.`
+    );
+    cmd.warn(
+      'Use `export { default } from "@zintrust/core/start"` and keep custom middleware registration in config/middleware.ts or route metadata.'
+    );
+  } catch {
+    // Best-effort warning only.
+  }
 };
 
 const ensureTmpRunnerFile = (cwd: string, filename: string, content: string): string => {

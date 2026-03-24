@@ -68,6 +68,38 @@ describe('ProjectRuntime', () => {
     ]);
   });
 
+  it('falls back to zintrust.runtime when the worker-specific runtime is unavailable', async () => {
+    vi.doMock('@/zintrust.runtime.wg', () => {
+      throw new Error('missing worker runtime');
+    });
+    vi.doMock('@/zintrust.runtime', () => ({
+      serviceManifest: [
+        {
+          id: 'ecommerce/orders',
+          domain: 'ecommerce',
+          name: 'orders',
+          monolithEnabled: true,
+        },
+      ],
+    }));
+
+    const { ProjectRuntime } = await import('../../../src/runtime/ProjectRuntime');
+    ProjectRuntime.clear();
+
+    const loaded = await ProjectRuntime.tryLoadWorkerRuntime();
+
+    expect(loaded?.serviceManifest).toEqual([
+      {
+        id: 'ecommerce/orders',
+        domain: 'ecommerce',
+        name: 'orders',
+        prefix: '/ecommerce/orders',
+        loadEnv: true,
+        monolithEnabled: true,
+      },
+    ]);
+  });
+
   it('loads node runtime metadata even when active service was cached first', async () => {
     process.env['ZINTRUST_PROJECT_ROOT'] =
       '/opt/homebrew/var/www/Sites/zintrust/simulate/fresh-check';

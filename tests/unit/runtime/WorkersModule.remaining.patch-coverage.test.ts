@@ -89,8 +89,11 @@ const createNodeSingletonsModuleForQueueMonitor = (): {
   createRequire: vi.fn(createRequireWithQueueMonitorEntry),
 });
 
-const createLoggerWarnModule = (warn: ReturnType<typeof vi.fn>): { Logger: { warn: unknown } } => ({
-  Logger: { warn },
+const createLoggerModule = (
+  warn: ReturnType<typeof vi.fn>,
+  info: ReturnType<typeof vi.fn> = vi.fn()
+): { Logger: { warn: unknown; info: unknown } } => ({
+  Logger: { warn, info },
 });
 
 function runFromSourceFalse(): boolean {
@@ -126,8 +129,9 @@ describe('WorkersModule remaining patch coverage', () => {
 
   it('covers workers import failure retry and fallback attempt branches', async () => {
     const warn = vi.fn();
+    const info = vi.fn();
 
-    vi.doMock('@config/logger', () => createLoggerWarnModule(warn));
+    vi.doMock('@config/logger', () => createLoggerModule(warn, info));
     vi.doMock('@/common', () => createCommonModule(runFromSourceFalse));
     vi.doMock('@node-singletons/module', createNodeSingletonsModuleForWorkers);
     vi.doMock('@node-singletons/path', createPathModule);
@@ -142,15 +146,43 @@ describe('WorkersModule remaining patch coverage', () => {
     });
 
     const mod = await import('@runtime/WorkersModule');
-    await expect(mod.loadWorkersModule()).rejects.toThrow();
+    const workers = await mod.loadWorkersModule();
 
+    expect(workers).toHaveProperty('WorkerInit.initialize');
+    expect(info).toHaveBeenCalledWith(
+      'Optional @zintrust/workers package is unavailable; worker routes are disabled.'
+    );
     expect(warn).toHaveBeenCalled();
+  });
+
+  it('treats wrangler no-such-module errors as optional-package absence', async () => {
+    const warn = vi.fn();
+    const info = vi.fn();
+
+    vi.doMock('@config/logger', () => createLoggerModule(warn, info));
+    vi.doMock('@/common', () => createCommonModule(runFromSourceFalse));
+    vi.doMock('@node-singletons/module', createNodeSingletonsModuleForWorkers);
+    vi.doMock('@node-singletons/path', createPathModule);
+    vi.doMock('@node-singletons/url', createUrlModule);
+    vi.doMock('@node-singletons/fs', createWorkersFsModule);
+
+    vi.doMock('@zintrust/workers', () => {
+      throw new Error('No such module "@zintrust/workers".');
+    });
+
+    const mod = await import('@runtime/WorkersModule');
+    const workers = await mod.loadWorkersModule();
+
+    expect(typeof workers.WorkerInit.initialize).toBe('function');
+    expect(info).toHaveBeenCalledWith(
+      'Optional @zintrust/workers package is unavailable; worker routes are disabled.'
+    );
   });
 
   it('covers queue monitor import failure retry and local fallback branches', async () => {
     const warn = vi.fn();
 
-    vi.doMock('@config/logger', () => createLoggerWarnModule(warn));
+    vi.doMock('@config/logger', () => createLoggerModule(warn));
     vi.doMock('@/common', () => createCommonModule(runFromSourceTrue));
     vi.doMock('@node-singletons/module', createNodeSingletonsModuleForQueueMonitor);
     vi.doMock('@node-singletons/path', createPathModule);

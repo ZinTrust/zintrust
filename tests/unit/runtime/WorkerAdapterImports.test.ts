@@ -49,4 +49,41 @@ describe('WorkerAdapterImports', () => {
     );
     expect(pluginImport).toHaveBeenCalledTimes(1);
   });
+
+  it('falls back to the generic project runtime module when the worker-specific runtime is unavailable', async () => {
+    const set = vi.fn();
+
+    vi.doMock('@runtime/ProjectRuntime', () => ({
+      ProjectRuntime: {
+        set,
+      },
+    }));
+
+    vi.doMock('@/zintrust.runtime.wg', () => {
+      throw new Error('missing worker runtime');
+    });
+    vi.doMock('@/zintrust.runtime', () => ({
+      serviceManifest: [
+        {
+          id: 'ecommerce/catalog',
+          domain: 'ecommerce',
+          name: 'catalog',
+          monolithEnabled: true,
+        },
+      ],
+    }));
+    vi.doMock('@/zintrust.plugins.wg', () => ({}));
+
+    const mod = await import('../../../src/runtime/WorkerAdapterImports');
+
+    await mod.WorkerAdapterImports.ready;
+
+    expect(set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceManifest: expect.arrayContaining([
+          expect.objectContaining({ id: 'ecommerce/catalog' }),
+        ]),
+      })
+    );
+  });
 });

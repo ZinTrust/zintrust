@@ -85,10 +85,33 @@ vi.mock('@validation/Validator', () => {
 });
 
 import { createMiddlewareConfig } from '../../../src/config/middleware';
+import { StartupConfigFileRegistry } from '../../../src/runtime/StartupConfigFileRegistry';
 
 describe('middleware config (coverage extras)', () => {
   it('prefers StartupConfigFileRegistry skipPaths when provided', () => {
     createMiddlewareConfig();
     expect(csrfCreateMock).toHaveBeenCalledWith({ skipPaths: ['/from-config'] });
+  });
+
+  it('merges project global and route middleware overrides', () => {
+    const customGlobal = vi.fn(async (_req, _res, next) => {
+      await next();
+    });
+    const customRoute = vi.fn(async (_req, _res, next) => {
+      await next();
+    });
+
+    vi.mocked(StartupConfigFileRegistry.get).mockReturnValueOnce({
+      skipPaths: ['/from-config'],
+      global: [customGlobal],
+      route: {
+        customAuth: customRoute,
+      },
+    });
+
+    const config = createMiddlewareConfig();
+
+    expect(config.global).toContain(customGlobal);
+    expect(config.route['customAuth']).toBe(customRoute);
   });
 });

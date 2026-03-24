@@ -1,5 +1,6 @@
 import { Env } from '@config/env';
 import type { MiddlewareConfigType } from '@config/type';
+import { isArray, isObject } from '@helper/index';
 import { bodyParsingMiddleware } from '@http/middleware/BodyParsingMiddleware';
 import { fileUploadMiddleware } from '@http/middleware/FileUploadMiddleware';
 import { AuthMiddleware } from '@middleware/AuthMiddleware';
@@ -72,10 +73,12 @@ export const MiddlewareBody = {
 } as const;
 
 export type MiddlewaresType = {
-  skipPaths: string[];
+  skipPaths: ReadonlyArray<string>;
   fillRateLimit: { windowMs: number; max: number; message: string };
   authRateLimit: { windowMs: number; max: number; message: string };
   userMutationRateLimit: { windowMs: number; max: number; message: string };
+  global?: ReadonlyArray<Middleware>;
+  route?: Record<string, Middleware>;
 };
 
 export const MiddlewareKeys = Object.freeze({
@@ -301,6 +304,31 @@ function createSharedMiddlewares(
   } satisfies SharedMiddlewares);
 }
 
+const resolveProjectGlobalMiddlewares = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): Middleware[] => {
+  if (!isArray(loadMiddlewareConfig.global)) return [];
+
+  return loadMiddlewareConfig.global.filter((middleware): middleware is Middleware => {
+    return typeof middleware === 'function';
+  });
+};
+
+const resolveProjectRouteMiddlewares = (
+  loadMiddlewareConfig: Partial<MiddlewaresType>
+): Record<string, Middleware> => {
+  if (!isObject(loadMiddlewareConfig.route)) return {};
+
+  const entries = Object.entries(loadMiddlewareConfig.route).filter(
+    (entry): entry is [string, Middleware] => {
+      const [name, middleware] = entry;
+      return typeof name === 'string' && name.trim() !== '' && typeof middleware === 'function';
+    }
+  );
+
+  return Object.fromEntries(entries);
+};
+
 export function createMiddlewareConfig(): MiddlewareConfigType {
   const loadMiddlewareConfig: Partial<MiddlewaresType> =
     StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
@@ -319,6 +347,8 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
   };
 
   const shared = createSharedMiddlewares(effectiveMiddlewareConfig);
+  const projectGlobal = resolveProjectGlobalMiddlewares(effectiveMiddlewareConfig);
+  const projectRoute = resolveProjectRouteMiddlewares(effectiveMiddlewareConfig);
 
   const middlewareConfigObj: MiddlewareConfigType = {
     global: [
@@ -330,8 +360,12 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
       bodyParsingMiddleware,
       shared.csrf,
       shared.sanitizeBody,
+      ...projectGlobal,
     ],
-    route: shared,
+    route: {
+      ...shared,
+      ...projectRoute,
+    },
   };
 
   return Object.freeze(middlewareConfigObj);

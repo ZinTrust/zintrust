@@ -57,9 +57,15 @@ vi.mock('inquirer', () => ({
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
+  statSync: vi.fn(() => ({ isFile: () => true, isDirectory: () => false })),
+  readFileSync: vi.fn(),
+  writeFileSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
     mkdirSync: vi.fn(),
+    statSync: vi.fn(() => ({ isFile: () => true, isDirectory: () => false })),
+    readFileSync: vi.fn(),
+    writeFileSync: vi.fn(),
   },
 }));
 
@@ -186,6 +192,59 @@ describe('AddCommand', () => {
       await command.execute({ args: ['feature'] });
       expect(inquirer.prompt).toHaveBeenCalled();
       expect(FeatureScaffolder.addFeature).toHaveBeenCalled();
+    });
+
+    it('should scaffold and register project middleware', async () => {
+      vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+        const value = String(p);
+        if (value.endsWith('/config/middleware.ts')) return true;
+        if (value.endsWith('/app/Middleware/AuthMiddleware.ts')) return false;
+        return true;
+      });
+      vi.mocked((fs as any).default.existsSync).mockImplementation((p: any) => {
+        const value = String(p);
+        if (value.endsWith('/config/middleware.ts')) return true;
+        if (value.endsWith('/app/Middleware/AuthMiddleware.ts')) return false;
+        return true;
+      });
+      vi.mocked((fs as any).default.statSync).mockReturnValue({
+        isFile: () => true,
+        isDirectory: () => false,
+      });
+      vi.mocked((fs as any).readFileSync).mockReturnValue(`import { Env } from '@config/env';
+import type { MiddlewaresType } from '@config/middleware';
+
+export default {
+  skipPaths: [],
+} as MiddlewaresType;
+`);
+      vi.mocked((fs as any).default.readFileSync)
+        .mockReturnValue(`import { Env } from '@config/env';
+import type { MiddlewaresType } from '@config/middleware';
+
+export default {
+  skipPaths: [],
+} as MiddlewaresType;
+`);
+
+      await command.execute({ args: ['middleware', 'AuthMiddleware'] });
+
+      expect((fs as any).default.writeFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('app/Middleware/AuthMiddleware.ts'),
+        expect.stringContaining('export const AuthMiddleware: Middleware'),
+        expect.anything()
+      );
+
+      const configWriteCalls = [
+        ...vi.mocked((fs as any).writeFileSync).mock.calls,
+        ...vi.mocked((fs as any).default.writeFileSync).mock.calls,
+      ].filter((call) => String(call[0]).includes('config/middleware.ts'));
+
+      expect(configWriteCalls.length).toBeGreaterThan(0);
+      expect(String(configWriteCalls[0]?.[1] ?? '')).toContain(
+        "import { AuthMiddleware } from '@app/Middleware/AuthMiddleware';"
+      );
+      expect(String(configWriteCalls[0]?.[1] ?? '')).toContain('authMiddleware: AuthMiddleware');
     });
 
     it('should handle migration creation', async () => {

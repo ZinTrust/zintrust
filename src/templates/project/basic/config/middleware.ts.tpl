@@ -1,14 +1,21 @@
 // @ts-ignore - config templates are excluded from the main TS project in this repo
+import { Env } from '@zintrust/core';
+import type { MiddlewaresType } from '@zintrust/core';
 /**
  * Middleware Configuration (template)
  *
- * Keep this file declarative:
- * - Core owns middleware construction / any runtime behavior.
- * - Projects can override by editing `middlewareConfigObj`.
+ * Full project middleware flow:
+ * 1. Create `app/Middleware/YourMiddleware.ts` and export a `Middleware` function.
+ * 2. Import it below.
+ * 3. Register route middleware under `route` or append global middleware under `global`.
+ * 4. Use the route key in `routes/*.ts`.
+ *
+ * For custom route keys, extend the framework type locally in your route file:
+ * `type AppMiddlewareKey = MiddlewareKey | 'yourMiddleware';`
  */
 
-import { Env } from '@zintrust/core';
-import type { MiddlewaresType } from '@zintrust/core';
+// Example custom middleware import:
+// import { AuthMiddleware } from '@app/Middleware/AuthMiddleware';
 
 export default {
   skipPaths: Env.get('CSRF_SKIP_PATHS', '')
@@ -29,5 +36,11 @@ export default {
     windowMs: 60_000,
     max: 20,
     message: 'Too many user mutation requests, please try again later.',
+  },
+  global: [
+    // AuthMiddleware,
+  ],
+  route: {
+    // authMiddleware: AuthMiddleware,
   },
 } as MiddlewaresType;
