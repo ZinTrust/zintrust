@@ -67,7 +67,7 @@ type SharedMiddlewares = {
 
 export const MiddlewareBody = {
   email: 'email',
-  password: 'password',
+  password: 'password', //NOSONAR
   name: 'name',
   count: 'count',
 } as const;

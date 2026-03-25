@@ -49,10 +49,100 @@ type StartContext = {
   packageJson?: PackageJson;
 };
 
-const isWranglerVarName = (value: string): boolean => /^[A-Za-z_]\w*$/.test(value);
+const isAsciiUppercaseLetter = (value: string): boolean => value >= 'A' && value <= 'Z';
+
+const isAsciiLowercaseLetter = (value: string): boolean => value >= 'a' && value <= 'z';
+
+const isAsciiLetter = (value: string): boolean =>
+  isAsciiUppercaseLetter(value) || isAsciiLowercaseLetter(value);
+
+const isAsciiDigit = (value: string): boolean => value >= '0' && value <= '9';
+
+const isWordCharacter = (value: string): boolean =>
+  isAsciiLetter(value) || isAsciiDigit(value) || value === '_';
+
+const isWranglerVarName = (value: string): boolean => {
+  if (value.length === 0) return false;
+
+  const first = value[0] ?? '';
+  if (!(isAsciiLetter(first) || first === '_')) return false;
+
+  for (let index = 1; index < value.length; index += 1) {
+    if (!isWordCharacter(value[index] ?? '')) return false;
+  }
+
+  return true;
+};
+
+const toUpperSnakeCaseIdentifier = (value: string): string => {
+  let output = '';
+  let previousWasUnderscore = false;
+
+  for (const char of value) {
+    const isAllowed = isAsciiLetter(char) || isAsciiDigit(char);
+    const nextChar = isAllowed ? char.toUpperCase() : '_';
+
+    if (nextChar === '_') {
+      if (previousWasUnderscore) continue;
+      previousWasUnderscore = true;
+      output += '_';
+      continue;
+    }
+
+    previousWasUnderscore = false;
+    output += nextChar;
+  }
+
+  let start = 0;
+  while (start < output.length && output[start] === '_') start += 1;
+
+  let end = output.length;
+  while (end > start && output[end - 1] === '_') end -= 1;
+
+  return output.slice(start, end);
+};
+
+const isWindowsDriveAbsolutePath = (value: string): boolean => {
+  if (value.length < 3) return false;
+
+  const drive = value[0] ?? '';
+  const colon = value[1] ?? '';
+  const separator = value[2] ?? '';
+
+  return isAsciiLetter(drive) && colon === ':' && (separator === '\\' || separator === '/');
+};
+
+const isCommandTokenBoundary = (char: string | undefined): boolean => {
+  if (char === undefined) return true;
+  return !isAsciiLetter(char) && !isAsciiDigit(char);
+};
+
+const containsCommandToken = (value: string, command: string): boolean => {
+  let startIndex = 0;
+
+  while (startIndex < value.length) {
+    const foundIndex = value.indexOf(command, startIndex);
+    if (foundIndex === -1) return false;
+
+    const before = foundIndex === 0 ? undefined : value[foundIndex - 1];
+    const afterIndex = foundIndex + command.length;
+    const after = afterIndex >= value.length ? undefined : value[afterIndex];
+
+    if (isCommandTokenBoundary(before) && isCommandTokenBoundary(after)) return true;
+
+    startIndex = foundIndex + command.length;
+  }
+
+  return false;
+};
+
+const containsZinCommand = (value: string): boolean => {
+  const lower = value.toLowerCase();
+  return containsCommandToken(lower, 'zintrust') || containsCommandToken(lower, 'zin');
+};
 
 const isAbsolutePath = (value: string): boolean =>
-  value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
+  value.startsWith('/') || isWindowsDriveAbsolutePath(value);
 
 const resolveNpmPath = (): string => {
   try {
@@ -118,10 +208,7 @@ const resolveStandaloneServicePortEnvValue = (cwd: string): string => {
   if (!normalizedCwd.includes(serviceRootMarker)) return '';
 
   const serviceName = path.basename(normalizedCwd).trim();
-  const servicePortKey = serviceName
-    .replaceAll(/[^A-Za-z0-9]+/g, '_')
-    .replaceAll(/^_+|_+$/g, '')
-    .toUpperCase();
+  const servicePortKey = toUpperSnakeCaseIdentifier(serviceName);
 
   const candidateKeys = [
     servicePortKey === '' ? '' : `${servicePortKey}_PORT`,
@@ -536,7 +623,7 @@ const resolveNodeDevCommand = (
   // (e.g. "dev": "zin s"), which would cause infinite recursion.
   const devScript =
     typeof packageJson.scripts?.['dev'] === 'string' ? String(packageJson.scripts['dev']) : '';
-  const devScriptCallsZin = /\bzin(?:trust)?\b/.test(devScript);
+  const devScriptCallsZin = containsZinCommand(devScript);
 
   if (hasDevScript(packageJson) && !devScriptCallsZin) {
     const npm = resolveNpmPath();

@@ -130,6 +130,143 @@ interface ResponseFactoryPromptAnswers {
   withDTO: boolean;
 }
 
+const isAsciiLowercaseLetter = (value: string): boolean => value >= 'a' && value <= 'z';
+
+const isAsciiUppercaseLetter = (value: string): boolean => value >= 'A' && value <= 'Z';
+
+const isAsciiDigit = (value: string): boolean => value >= '0' && value <= '9';
+
+const isAsciiLetter = (value: string): boolean =>
+  isAsciiLowercaseLetter(value) || isAsciiUppercaseLetter(value);
+
+const isLowercaseLettersOnly = (value: string): boolean => {
+  if (value.length === 0) return false;
+  for (const char of value) {
+    if (!isAsciiLowercaseLetter(char)) return false;
+  }
+  return true;
+};
+
+const isSnakeCaseName = (value: string): boolean => {
+  if (value.length === 0) return false;
+  for (const char of value) {
+    if (isAsciiLowercaseLetter(char) || char === '_') continue;
+    return false;
+  }
+  return true;
+};
+
+const isPascalCaseBase = (value: string): boolean => {
+  if (value.length === 0) return false;
+  if (!isAsciiUppercaseLetter(value[0] ?? '')) return false;
+
+  for (let index = 1; index < value.length; index += 1) {
+    const char = value[index] ?? '';
+    if (isAsciiLetter(char) || isAsciiDigit(char)) continue;
+    return false;
+  }
+
+  return true;
+};
+
+const hasPascalCaseSuffix = (value: string, suffix: string): boolean => {
+  if (!value.endsWith(suffix)) return false;
+  const base = value.slice(0, -suffix.length);
+  return isPascalCaseBase(base);
+};
+
+const toSafeSnakeCase = (value: string): string => {
+  const snake = CommonUtils.toSnakeCase(value);
+  let output = '';
+  let previousWasUnderscore = false;
+
+  for (const char of snake) {
+    const isAllowed = isAsciiLowercaseLetter(char) || isAsciiDigit(char) || char === '_';
+    const nextChar = isAllowed ? char : '_';
+
+    if (nextChar === '_') {
+      if (previousWasUnderscore) continue;
+      previousWasUnderscore = true;
+      output += '_';
+      continue;
+    }
+
+    previousWasUnderscore = false;
+    output += nextChar;
+  }
+
+  let start = 0;
+  while (start < output.length && output[start] === '_') start += 1;
+
+  let end = output.length;
+  while (end > start && output[end - 1] === '_') end -= 1;
+
+  return output.slice(start, end);
+};
+
+const stripSuffix = (value: string, suffix: string): string =>
+  value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+
+const skipInlineWhitespace = (value: string, startIndex: number): number => {
+  let nextIndex = startIndex;
+  while (nextIndex < value.length) {
+    const nextChar = value[nextIndex];
+    if (nextChar === ' ' || nextChar === '\t' || nextChar === '\r') {
+      nextIndex += 1;
+      continue;
+    }
+    break;
+  }
+  return nextIndex;
+};
+
+const findMatchingObjectBrace = (value: string, startIndex: number): number | undefined => {
+  let depth = 0;
+
+  for (let index = startIndex; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '{') {
+      depth += 1;
+      continue;
+    }
+    if (char !== '}') continue;
+
+    depth -= 1;
+    if (depth === 0) return index;
+  }
+
+  return undefined;
+};
+
+const findRouteBlockBounds = (
+  configSource: string
+): { blockStart: number; innerStart: number; innerEnd: number; blockEnd: number } | undefined => {
+  const routeLabel = 'route:';
+  const routeIndex = configSource.indexOf(routeLabel);
+  if (routeIndex === -1) return undefined;
+
+  const braceStart = configSource.indexOf('{', routeIndex + routeLabel.length);
+  if (braceStart === -1) return undefined;
+
+  const braceEnd = findMatchingObjectBrace(configSource, braceStart);
+  if (braceEnd === undefined) return undefined;
+
+  const nextIndex = skipInlineWhitespace(configSource, braceEnd + 1);
+  if (configSource[nextIndex] !== ',') return undefined;
+
+  return {
+    blockStart: routeIndex,
+    innerStart: braceStart + 1,
+    innerEnd: braceEnd,
+    blockEnd: nextIndex + 1,
+  };
+};
+
+const hasTrailingMiddlewaresTypeCast = (configSource: string): boolean => {
+  const trimmed = configSource.trimEnd();
+  return trimmed.endsWith('} as MiddlewaresType;');
+};
+
 const addOptions = (command: Command): void => {
   command
     .argument(
@@ -176,7 +313,7 @@ const promptServiceConfig = async (defaultName: string): Promise<ServicePromptAn
       message: 'Service name (lowercase, no spaces):',
       default: defaultName,
       validate: (v: string): string | boolean =>
-        /^[a-z]+$/.test(v) || 'Must be lowercase letters only',
+        isLowercaseLettersOnly(v) || 'Must be lowercase letters only',
     },
     {
       type: 'input',
@@ -311,7 +448,7 @@ const promptMigrationConfig = async (): Promise<MigrationPromptAnswers> => {
       type: 'input',
       name: 'name',
       message: 'Migration name (snake_case, e.g., create_users_table):',
-      validate: (v: string): string | boolean => /^[a-z_]+$/.test(v) || 'Must be snake_case',
+      validate: (v: string): string | boolean => isSnakeCaseName(v) || 'Must be snake_case',
     },
     {
       type: 'list',
@@ -333,14 +470,14 @@ const findMigrationBySuffix = (migrationsPath: string, suffix: string): string |
 };
 
 const buildCreateTableMigrationName = (model: string): string => {
-  const modelSnake = CommonUtils.toSnakeCase(model).replaceAll(/[^a-z0-9_]+/g, '_');
+  const modelSnake = toSafeSnakeCase(model);
   const tablePlural = pluralize(modelSnake);
   return `create_${tablePlural}_table`;
 };
 
 const buildAddColumnMigrationName = (column: string, model: string): string => {
-  const colSnake = CommonUtils.toSnakeCase(column).replaceAll(/[^a-z0-9_]+/g, '_');
-  const modelSnake = CommonUtils.toSnakeCase(model).replaceAll(/[^a-z0-9_]+/g, '_');
+  const colSnake = toSafeSnakeCase(column);
+  const modelSnake = toSafeSnakeCase(model);
   const tablePlural = pluralize(modelSnake);
   return `add_${colSnake}_${tablePlural}_table`;
 };
@@ -385,9 +522,9 @@ const addMigration = async (
 
     name = buildAddColumnMigrationName(columnArg, modelArg);
 
-    table = pluralize(CommonUtils.toSnakeCase(modelArg).replaceAll(/[^a-z0-9_]+/g, '_'));
+    table = pluralize(toSafeSnakeCase(modelArg));
     // Store the normalized column name for generator placeholder.
-    column = CommonUtils.toSnakeCase(columnArg).replaceAll(/[^a-z0-9_]+/g, '_');
+    column = toSafeSnakeCase(columnArg);
   }
 
   cmd.info(`Creating migration: ${name}...`);
@@ -415,8 +552,7 @@ const promptModelConfig = async (): Promise<ModelPromptAnswers> => {
       type: 'input',
       name: 'name',
       message: 'Model name (PascalCase, e.g., User, Post):',
-      validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
+      validate: (v: string): string | boolean => isPascalCaseBase(v) || 'Must be PascalCase',
     },
     {
       type: 'confirm',
@@ -476,7 +612,7 @@ const promptControllerConfig = async (): Promise<ControllerPromptAnswers> => {
       name: 'name',
       message: 'Controller name (PascalCase, e.g., UserController):',
       validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*Controller$/.test(v) || 'Must be PascalCase ending with "Controller"',
+        hasPascalCaseSuffix(v, 'Controller') || 'Must be PascalCase ending with "Controller"',
     },
     {
       type: 'list',
@@ -576,7 +712,7 @@ const promptMiddlewareConfig = async (): Promise<MiddlewarePromptAnswers> => {
       name: 'name',
       message: 'Middleware name (PascalCase, e.g., AuthMiddleware):',
       validate: (value: string): string | boolean => {
-        return /^[A-Z][a-zA-Z\d]*Middleware$/.test(value)
+        return hasPascalCaseSuffix(value, 'Middleware')
           ? true
           : 'Must be PascalCase ending with "Middleware"';
       },
@@ -585,7 +721,7 @@ const promptMiddlewareConfig = async (): Promise<MiddlewarePromptAnswers> => {
 };
 
 const buildMiddlewareKey = (middlewareName: string): string => {
-  const withoutSuffix = middlewareName.replace(/Middleware$/, '');
+  const withoutSuffix = stripSuffix(middlewareName, 'Middleware');
   return `${CommonUtils.camelCase(withoutSuffix)}Middleware`;
 };
 
@@ -626,30 +762,28 @@ const registerMiddlewareRouteKey = (
     return { content: configSource, updated: true };
   }
 
-  const routeBlockPattern = /route:\s*\{([\s\S]*?)\n\s*\},/;
-  if (routeBlockPattern.test(configSource)) {
+  const routeBlock = findRouteBlockBounds(configSource);
+  if (routeBlock !== undefined) {
+    const currentInner = configSource.slice(routeBlock.innerStart, routeBlock.innerEnd);
+    const middlewareEntry = `\n    ${middlewareKey}: ${middlewareName},`;
+    const routeInner =
+      currentInner.trim() === '' ? middlewareEntry : `${currentInner.trimEnd()}${middlewareEntry}`;
     return {
-      content: configSource.replace(routeBlockPattern, (_match, inner: string) => {
-        const prefix = inner.trim() === '' ? '' : inner.replace(/\s*$/, '');
-        const nextInner =
-          prefix === ''
-            ? `\n    ${middlewareKey}: ${middlewareName},`
-            : `${prefix}\n    ${middlewareKey}: ${middlewareName},`;
-        return `route: {${nextInner}\n  },`;
-      }),
+      content:
+        configSource.slice(0, routeBlock.blockStart) +
+        `route: {${routeInner}\n  },` +
+        configSource.slice(routeBlock.blockEnd),
       updated: true,
     };
   }
 
-  const closingPattern = /\n\} as MiddlewaresType;\s*$/;
-  if (!closingPattern.test(configSource)) {
+  if (!hasTrailingMiddlewaresTypeCast(configSource)) {
     return { content: configSource, updated: false };
   }
 
-  const inserted = configSource.replace(
-    closingPattern,
-    `\n  global: [],\n  route: {\n    ${middlewareKey}: ${middlewareName},\n  },\n} as MiddlewaresType;\n`
-  );
+  const trimmed = configSource.trimEnd();
+  const middlewareBlock = `\n  global: [],\n  route: {\n    ${middlewareKey}: ${middlewareName},\n  },\n} as MiddlewaresType;\n`;
+  const inserted = `${trimmed.slice(0, -'} as MiddlewaresType;'.length)}${middlewareBlock}`;
 
   return { content: inserted, updated: true };
 };
@@ -680,7 +814,7 @@ const addMiddleware = async (
     throw ErrorFactory.createValidationError('Middleware name is required');
   }
 
-  if (!/^[A-Z][a-zA-Z\d]*Middleware$/.test(name)) {
+  if (!hasPascalCaseSuffix(name, 'Middleware')) {
     throw ErrorFactory.createValidationError(
       'Middleware name must be PascalCase ending with "Middleware"'
     );
@@ -753,14 +887,13 @@ const promptFactoryConfig = async (): Promise<FactoryPromptAnswers> => {
       name: 'name',
       message: 'Factory name (PascalCase, must end with "Factory", e.g., UserFactory):',
       validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*Factory$/.test(v) || 'Must be PascalCase ending with "Factory"',
+        hasPascalCaseSuffix(v, 'Factory') || 'Must be PascalCase ending with "Factory"',
     },
     {
       type: 'input',
       name: 'model',
       message: 'Model name (e.g., User, Post):',
-      validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
+      validate: (v: string): string | boolean => isPascalCaseBase(v) || 'Must be PascalCase',
     },
     {
       type: 'confirm',
@@ -895,15 +1028,14 @@ const promptSeederConfig = async (): Promise<SeederPromptAnswers> => {
       name: 'name',
       message: 'Seeder name (PascalCase, must end with "Seeder", e.g., UserSeeder):',
       validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*Seeder$/.test(v) || 'Must be PascalCase ending with "Seeder"',
+        hasPascalCaseSuffix(v, 'Seeder') || 'Must be PascalCase ending with "Seeder"',
     },
     {
       type: 'input',
       name: 'model',
       message: 'Model name (e.g., User, Post):',
       when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
-      validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
+      validate: (v: string): string | boolean => isPascalCaseBase(v) || 'Must be PascalCase',
     },
     {
       type: 'input',

@@ -1,13 +1,20 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from '@node-singletons/fs';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('ProjectRuntime', () => {
   const originalProjectRoot = process.env['ZINTRUST_PROJECT_ROOT'];
+  let tempProjectRoot: string | undefined;
 
   afterEach(() => {
     vi.resetModules();
     vi.restoreAllMocks();
+
+    if (tempProjectRoot !== undefined) {
+      rmSync(tempProjectRoot, { recursive: true, force: true });
+      tempProjectRoot = undefined;
+    }
 
     if (originalProjectRoot === undefined) {
       delete process.env['ZINTRUST_PROJECT_ROOT'];
@@ -111,8 +118,25 @@ describe('ProjectRuntime', () => {
   });
 
   it('loads node runtime metadata even when active service was cached first', async () => {
-    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-    process.env['ZINTRUST_PROJECT_ROOT'] = path.join(repoRoot, 'simulate', 'fresh-check');
+    tempProjectRoot = mkdtempSync(path.join(os.tmpdir(), 'zintrust-project-runtime-'));
+    mkdirSync(path.join(tempProjectRoot, 'src'), { recursive: true });
+    writeFileSync(
+      path.join(tempProjectRoot, 'src', 'zintrust.runtime.js'),
+      [
+        'export const serviceManifest = [',
+        '  {',
+        "    id: 'ecommerce/users',",
+        "    domain: 'ecommerce',",
+        "    name: 'users',",
+        '    monolithEnabled: true,',
+        '  },',
+        '];',
+        'export default Object.freeze({ serviceManifest });',
+        '',
+      ].join('\n'),
+      'utf-8'
+    );
+    process.env['ZINTRUST_PROJECT_ROOT'] = tempProjectRoot;
 
     vi.doUnmock('@/zintrust.runtime.wg');
     vi.doUnmock('@/zintrust.runtime');

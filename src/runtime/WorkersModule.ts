@@ -329,6 +329,8 @@ const isMissingOptionalWorkersModuleError = (error: unknown): boolean => {
 };
 
 const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
+  let finalError = error;
+
   if (shouldRetryAfterFailure(error)) {
     patchAfterFailureAttempted = true;
     const { replacements, filesChanged } = patchWorkersDist();
@@ -341,7 +343,7 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
       try {
         return await workersModulePromise;
       } catch (retryError: unknown) {
-        error = retryError;
+        finalError = retryError;
       }
     }
   }
@@ -352,13 +354,13 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
     return localFallback;
   }
 
-  if (isMissingOptionalWorkersModuleError(error)) {
+  if (isMissingOptionalWorkersModuleError(finalError)) {
     Logger.info('Optional @zintrust/workers package is unavailable; worker routes are disabled.');
     workersModulePromise = Promise.resolve(createDisabledWorkersModule());
     return workersModulePromise;
   }
 
-  throw error;
+  throw finalError;
 };
 
 const tryLocalFallback = async (): Promise<WorkersModule | null> => {
