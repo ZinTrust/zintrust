@@ -33,6 +33,10 @@ This page tracks developer-visible documentation changes.
 - Updated `zin s --wg` to force `WORKER_ENABLED=false`, which prevents background worker package initialization in Wrangler dev even if a custom Worker entrypoint is written incorrectly, and added a start-time warning when `src/index.ts` calls `getKernel()` before the core Cloudflare handler.
 - Added project-level custom middleware registration support through `config/middleware.ts`, updated the middleware docs with the full fresh-app flow, and made `zin add middleware <Name>` generate and register a route middleware skeleton automatically.
 - Fixed standalone `zin s --wg` from `src/services/<domain>/<name>` so it now prefers service-local port env vars like `<SERVICE_NAME>_PORT` and no longer falls back to a conflicting root `APP_PORT`; newly scaffolded services now also write `APP_PORT`, `PORT`, and `SERVICE_PORT` into their local `.env` files.
+
+## 2026-03-25
+
 - Merged the typed middleware registry guide into `docs/middleware.md` so middleware usage, project registration, typed route keys, and governance test guidance now live in one canonical page, and updated the docs site navigation to point at that single doc.
 - Updated JSON request error handling so `NotFoundError` stacks are still logged server-side but no longer returned in API error payloads.
 - Blocked accidental root-package `npm publish` so releases fail fast unless they publish the compiled `dist` package, which fixes the broken global CLI install path where source bin entries tried to resolve aliases like `@config/logger` at runtime.
+- Updated `zin docker` to reuse one deterministic `.dev.vars*.disabled-by-zin` backup per file and remove legacy UUID-suffixed backups automatically, so repeated Docker/Wrangler dev runs no longer keep accumulating stale backup files.

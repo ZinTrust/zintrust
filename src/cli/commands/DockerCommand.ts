@@ -1,11 +1,10 @@
-import { generateUuid } from '@/common/utility';
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { DockerPushCommand } from '@cli/commands/DockerPushCommand';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync, renameSync } from '@node-singletons/fs';
+import { existsSync, readdirSync, renameSync, unlinkSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
@@ -69,20 +68,58 @@ const isContainersProxyConfig = (config: string): boolean => {
   );
 };
 
+const getDevVarsBackupPath = (cwd: string, name: string): string =>
+  join(cwd, `${name}.disabled-by-zin`);
+
+const clearLegacyDevVarsBackups = (cwd: string, name: string): void => {
+  const legacyPrefix = `${name}.disabled-by-zin-`;
+  const entries = readdirSync(cwd);
+
+  for (const entry of entries) {
+    if (!entry.startsWith(legacyPrefix)) continue;
+
+    try {
+      unlinkSync(join(cwd, entry));
+    } catch {
+      // noop
+    }
+  }
+};
+
+const reconcileDevVarsBackup = (cwd: string, name: string): string => {
+  const targetPath = join(cwd, name);
+  const backupPath = getDevVarsBackupPath(cwd, name);
+
+  clearLegacyDevVarsBackups(cwd, name);
+
+  const hasTarget = existsSync(targetPath);
+  const hasBackup = existsSync(backupPath);
+
+  if (!hasBackup) return backupPath;
+
+  if (!hasTarget) {
+    renameSync(backupPath, targetPath);
+    return backupPath;
+  }
+
+  unlinkSync(backupPath);
+  return backupPath;
+};
+
 const withDevVarsForConfig = async <T>(
   cwd: string,
   config: string,
   envName: string,
   fn: () => Promise<T>
 ): Promise<T> => {
-  const nonce = generateUuid();
   const moved: Array<{ from: string; to: string }> = [];
   const swappedIn: Array<{ from: string; to: string }> = [];
 
   const disable = (name: string): void => {
     const from = join(cwd, name);
     if (!existsSync(from)) return;
-    const to = join(cwd, `${name}.disabled-by-zin-${nonce}`);
+
+    const to = reconcileDevVarsBackup(cwd, name);
     renameSync(from, to);
     moved.push({ from, to });
   };
