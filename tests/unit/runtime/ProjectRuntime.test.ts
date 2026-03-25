@@ -114,6 +114,12 @@ describe('ProjectRuntime', () => {
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
     process.env['ZINTRUST_PROJECT_ROOT'] = path.join(repoRoot, 'simulate', 'fresh-check');
 
+    vi.doUnmock('@/zintrust.runtime.wg');
+    vi.doUnmock('@/zintrust.runtime');
+    vi.doUnmock('@node-singletons/fs');
+    vi.doUnmock('@node-singletons/path');
+    vi.doUnmock('@node-singletons/url');
+
     const { ProjectRuntime } = await import('../../../src/runtime/ProjectRuntime');
     ProjectRuntime.clear();
     ProjectRuntime.setActiveService({
@@ -124,6 +130,8 @@ describe('ProjectRuntime', () => {
 
     const loaded = await ProjectRuntime.tryLoadNodeRuntime();
 
+    expect(loaded).toBeDefined();
+    expect(loaded?.serviceManifest).toBeDefined();
     expect(loaded?.serviceManifest?.length).toBeGreaterThan(0);
     expect(ProjectRuntime.getActiveService()).toEqual({
       id: 'ecommerce/users',
