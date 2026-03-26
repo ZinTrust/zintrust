@@ -17,7 +17,14 @@ describe('Kernel + routes/api.ts middleware wiring', () => {
   it('GET /api/v1/profile blocks without Authorization', async () => {
     const r = await env.request({ method: 'GET', path: '/api/v1/profile' });
     expect(r.status).toBe(401);
-    expect(r.json).toEqual(expect.objectContaining({ error: expect.any(String) }));
+    expect(r.json).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'missing_authorization_header',
+          message: 'Unauthorized',
+        }),
+      })
+    );
   });
 
   it('GET /api/v1/profile blocks with JWT only (Bulletproof required)', async () => {

@@ -1,10 +1,18 @@
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import type { DefaultMiddlewareFailureBody } from '@middleware/MiddlewareFailureBody';
 import {
   respondWithMiddlewareFailure,
   type MiddlewareFailureResponder,
 } from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
+
+const createAuthFailureBody = (reason: string, message: string): DefaultMiddlewareFailureBody => ({
+  error: {
+    code: reason,
+    message,
+  },
+});
 
 export interface AuthOptions {
   headerName?: string;
@@ -27,7 +35,7 @@ export const AuthMiddleware = Object.freeze({
           reason: 'missing_authorization_header',
           statusCode: 401,
           message,
-          body: { error: message },
+          body: createAuthFailureBody('missing_authorization_header', message),
         });
         return;
       }

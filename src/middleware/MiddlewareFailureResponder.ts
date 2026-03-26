@@ -2,6 +2,12 @@ import { isObject } from '@helper/index';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 
+export {
+  createDefaultMiddlewareFailureBody,
+  type DefaultMiddlewareFailureBody,
+  type MiddlewareFailureBodyInput,
+} from '@middleware/MiddlewareFailureBody';
+
 export type MiddlewareFailureContext = Readonly<{
   middleware: string;
   reason: string;

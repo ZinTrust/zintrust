@@ -75,7 +75,12 @@ describe('patch coverage: JWT revocation', () => {
     await middleware(req, res, async () => undefined);
 
     expect((res as any).statusCode).toBe(401);
-    expect((res as any).body).toEqual({ error: 'Invalid or expired token' });
+    expect((res as any).body).toEqual({
+      error: {
+        code: 'inactive_session',
+        message: 'Invalid or expired token',
+      },
+    });
   });
 
   it('delegates unauthorized JWT responses to onUnauthorized', async () => {

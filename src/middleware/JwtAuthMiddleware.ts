@@ -3,6 +3,7 @@ import { securityConfig } from '@config/security';
 import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
 import type { IResponse } from '@http/Response';
+import type { DefaultMiddlewareFailureBody } from '@middleware/MiddlewareFailureBody';
 import {
   respondWithMiddlewareFailure,
   type MiddlewareFailureResponder,
@@ -55,6 +56,116 @@ const getOptionalStringOrNumberClaim = (
   return undefined;
 };
 
+const createJwtFailureBody = (reason: string, message: string): DefaultMiddlewareFailureBody => ({
+  error: {
+    code: reason,
+    message,
+  },
+});
+
+const respondJwtUnauthorized = async (
+  req: IRequest,
+  res: IResponse,
+  onUnauthorized: MiddlewareFailureResponder | undefined,
+  reason: string,
+  message: string,
+  error?: unknown
+): Promise<void> => {
+  await respondWithMiddlewareFailure(req, res, onUnauthorized, {
+    middleware: 'jwt',
+    reason,
+    statusCode: 401,
+    message,
+    body: createJwtFailureBody(reason, message),
+    error,
+  });
+};
+
+const hydrateJwtRequestContext = (req: IRequest, payload: Record<string, unknown>): void => {
+  req.user = payload;
+
+  const subject = payload['sub'];
+  if (typeof subject === 'string' && subject.trim() !== '') {
+    RequestContext.setUserId(req, subject);
+  }
+
+  const tenantId =
+    getOptionalStringOrNumberClaim(payload, 'tenantId') ??
+    getOptionalStringOrNumberClaim(payload, 'tenant_id');
+  if (tenantId !== undefined && tenantId.trim() !== '') {
+    RequestContext.setTenantId(req, tenantId);
+  }
+};
+
+const createJwtMiddlewareHandler = (
+  jwt: IJwtManager,
+  algorithm: JwtAlgorithm,
+  onUnauthorized: MiddlewareFailureResponder | undefined
+): Middleware => {
+  return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
+    if (req.context?.['authStrategy'] === 'bulletproof' && req.user !== undefined) {
+      await next();
+      return;
+    }
+
+    const authorizationHeader = getHeaderValue(req.getHeader('authorization'));
+    if (authorizationHeader === '') {
+      await respondJwtUnauthorized(
+        req,
+        res,
+        onUnauthorized,
+        'missing_authorization_header',
+        'Missing authorization header'
+      );
+      return;
+    }
+
+    const token = getBearerToken(authorizationHeader);
+    if (token === null) {
+      await respondJwtUnauthorized(
+        req,
+        res,
+        onUnauthorized,
+        'invalid_authorization_header_format',
+        'Invalid authorization header format'
+      );
+      return;
+    }
+
+    try {
+      const payload = jwt.verify(token, algorithm);
+
+      if (!(await JwtSessions.isActive(token))) {
+        await respondJwtUnauthorized(
+          req,
+          res,
+          onUnauthorized,
+          'inactive_session',
+          'Invalid or expired token'
+        );
+        return;
+      }
+
+      hydrateJwtRequestContext(req, payload as Record<string, unknown>);
+      await next();
+    } catch (error) {
+      Logger.debug('JWT verification failed', {
+        algorithm,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      await respondJwtUnauthorized(
+        req,
+        res,
+        onUnauthorized,
+        getJwtFailureReason(error),
+        'Invalid or expired token',
+        error
+      );
+    }
+  };
+};
+
 export const JwtAuthMiddleware = Object.freeze({
   create(options: JwtAuthOptions = {}): Middleware {
     const algorithm = options.algorithm ?? securityConfig.jwt.algorithm;
@@ -65,89 +176,7 @@ export const JwtAuthMiddleware = Object.freeze({
       jwt.setHmacSecret(secret);
     }
 
-    return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
-      // If a stronger auth strategy already authenticated this request, do not re-verify.
-      if (req.context?.['authStrategy'] === 'bulletproof' && req.user !== undefined) {
-        await next();
-        return;
-      }
-
-      const authorizationHeader = getHeaderValue(req.getHeader('authorization'));
-      if (authorizationHeader === '') {
-        await respondWithMiddlewareFailure(req, res, options.onUnauthorized, {
-          middleware: 'jwt',
-          reason: 'missing_authorization_header',
-          statusCode: 401,
-          message: 'Missing authorization header',
-          body: { error: 'Missing authorization header' },
-        });
-        return;
-      }
-
-      const token = getBearerToken(authorizationHeader);
-      if (token === null) {
-        await respondWithMiddlewareFailure(req, res, options.onUnauthorized, {
-          middleware: 'jwt',
-          reason: 'invalid_authorization_header_format',
-          statusCode: 401,
-          message: 'Invalid authorization header format',
-          body: { error: 'Invalid authorization header format' },
-        });
-        return;
-      }
-
-      try {
-        const payload = jwt.verify(token, algorithm);
-
-        // Session allowlist: token must exist in the session store to be accepted.
-        if (!(await JwtSessions.isActive(token))) {
-          await respondWithMiddlewareFailure(req, res, options.onUnauthorized, {
-            middleware: 'jwt',
-            reason: 'inactive_session',
-            statusCode: 401,
-            message: 'Invalid or expired token',
-            body: { error: 'Invalid or expired token' },
-          });
-          return;
-        }
-
-        req.user = payload;
-
-        // Standardize request-scoped context fields.
-        if (typeof payload.sub === 'string' && payload.sub.trim() !== '') {
-          RequestContext.setUserId(req, payload.sub);
-        }
-
-        // Optional: if a tenant claim exists, attach it. (Apps may use a different claim name.)
-        const tenantId =
-          getOptionalStringOrNumberClaim(
-            payload as unknown as Record<string, unknown>,
-            'tenantId'
-          ) ??
-          getOptionalStringOrNumberClaim(
-            payload as unknown as Record<string, unknown>,
-            'tenant_id'
-          );
-        if (tenantId !== undefined && tenantId.trim() !== '') {
-          RequestContext.setTenantId(req, tenantId);
-        }
-
-        await next();
-      } catch (error) {
-        Logger.debug('JWT verification failed', {
-          algorithm,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        await respondWithMiddlewareFailure(req, res, options.onUnauthorized, {
-          middleware: 'jwt',
-          reason: getJwtFailureReason(error),
-          statusCode: 401,
-          message: 'Invalid or expired token',
-          body: { error: 'Invalid or expired token' },
-          error,
-        });
-      }
-    };
+    return createJwtMiddlewareHandler(jwt, algorithm, options.onUnauthorized);
   },
 });
 
