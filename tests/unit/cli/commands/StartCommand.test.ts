@@ -6,6 +6,20 @@ import { Logger } from '@config/logger';
 import * as fs from '@node-singletons/fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const isExistingManifestPath = (value: string, projectRoot: string): boolean => {
+  return (
+    value === `${projectRoot}/package.json` || value === `${projectRoot}/src/boot/bootstrap.ts`
+  );
+};
+
+const createProjectRuntimeMock = (manifest: unknown[]) => ({
+  ProjectRuntime: {
+    clear: vi.fn(),
+    tryLoadNodeRuntime: vi.fn(async () => undefined),
+    getServiceManifest: () => manifest,
+  },
+});
+
 vi.mock('@cli/utils/EnvFileLoader', () => ({
   EnvFileLoader: {
     ensureLoaded: vi.fn(),
@@ -390,21 +404,17 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     const projectRoot = '/workspace';
 
     vi.resetModules();
-    vi.doMock('@runtime/ProjectRuntime', () => ({
-      ProjectRuntime: {
-        clear: vi.fn(),
-        tryLoadNodeRuntime: vi.fn(async () => undefined),
-        getServiceManifest: () => [
-          {
-            id: 'app/gatewaynext',
-            domain: 'app',
-            name: 'gatewaynext',
-            monolithEnabled: true,
-            loadEnv: false,
-          },
-        ],
-      },
-    }));
+    vi.doMock('@runtime/ProjectRuntime', () =>
+      createProjectRuntimeMock([
+        {
+          id: 'app/gatewaynext',
+          domain: 'app',
+          name: 'gatewaynext',
+          monolithEnabled: true,
+          loadEnv: false,
+        },
+      ])
+    );
 
     const { StartCommand: StartCommandWithMock } = await import('@cli/commands/StartCommand');
     const { EnvFileLoader: EnvFileLoaderWithMock } = await import('@cli/utils/EnvFileLoader');
@@ -413,9 +423,7 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     vi.spyOn(process, 'cwd').mockReturnValue(projectRoot);
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       const value = String(p);
-      if (value === `${projectRoot}/package.json`) return true;
-      if (value === `${projectRoot}/src/boot/bootstrap.ts`) return true;
-      return false;
+      return isExistingManifestPath(value, projectRoot);
     });
     vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);

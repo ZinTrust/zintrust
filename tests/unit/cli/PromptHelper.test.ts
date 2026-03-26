@@ -2,6 +2,11 @@ import { PromptHelper } from '@/cli/PromptHelper';
 import inquirer from 'inquirer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const getChoiceValues = (questions: unknown): string[] => {
+  const question = (questions as Array<{ choices?: Array<{ value?: string }> }>)[0];
+  return (question?.choices ?? []).map((choice) => choice.value ?? '');
+};
+
 vi.mock('inquirer', () => ({
   default: {
     prompt: vi.fn(),
@@ -80,8 +85,7 @@ describe('PromptHelper', () => {
       await PromptHelper.databaseType('d1', true);
 
       const [questions] = vi.mocked(inquirer.prompt).mock.calls[0] ?? [];
-      const question = (questions as Array<{ choices?: Array<{ value?: string }> }>)[0];
-      const values = (question?.choices ?? []).map((choice) => choice.value ?? '');
+      const values = getChoiceValues(questions);
 
       expect(values).toContain('d1');
       expect(values).toContain('d1-remote');

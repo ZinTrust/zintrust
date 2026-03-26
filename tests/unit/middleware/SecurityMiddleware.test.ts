@@ -71,4 +71,73 @@ describe('SecurityMiddleware', () => {
     expect(res.setStatus).toHaveBeenCalledWith(204);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('should keep default CORS fields when only origin is overridden', async () => {
+    const middleware = SecurityMiddleware.create({
+      cors: { origin: 'https://example.com' },
+    });
+
+    (req.getHeader as any).mockReturnValue('https://example.com');
+
+    await middleware(req, res, next);
+
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Access-Control-Allow-Origin',
+      'https://example.com'
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Access-Control-Allow-Headers',
+      expect.stringContaining('Content-Type')
+    );
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Access-Control-Allow-Methods',
+      expect.stringContaining('POST')
+    );
+  });
+
+  it('should use securityConfig CORS defaults when options are omitted', async () => {
+    vi.resetModules();
+    vi.doMock('@config/security', () => ({
+      securityConfig: {
+        cors: {
+          origins: ['https://ui.example'],
+          methods: ['GET', 'POST'],
+          allowedHeaders: ['Authorization', 'X-CSRF-Token'],
+          credentials: false,
+          maxAge: 600,
+        },
+      },
+    }));
+
+    const { SecurityMiddleware: MockedSecurityMiddleware } =
+      await import('@/middleware/SecurityMiddleware');
+
+    const localHeaders: Record<string, string> = {};
+    const localReq = {
+      getHeader: vi.fn(() => 'https://ui.example'),
+      getMethod: vi.fn(() => 'GET'),
+    } as unknown as IRequest;
+    const localRes = {
+      setHeader: vi.fn((name: string, value: string | string[]) => {
+        localHeaders[name.toLowerCase()] = Array.isArray(value) ? value.join(',') : value;
+        return localRes;
+      }),
+      setStatus: vi.fn().mockReturnThis(),
+    } as unknown as IResponse;
+    const localNext = vi.fn().mockResolvedValue(undefined);
+
+    await MockedSecurityMiddleware.create()(localReq, localRes, localNext);
+
+    expect(localRes.setHeader).toHaveBeenCalledWith(
+      'Access-Control-Allow-Origin',
+      'https://ui.example'
+    );
+    expect(localHeaders['access-control-allow-methods']).toBe('GET, POST');
+    expect(localHeaders['access-control-allow-headers']).toBe('Authorization, X-CSRF-Token');
+    expect(localHeaders['access-control-allow-credentials']).toBe('false');
+    expect(localHeaders['access-control-max-age']).toBe('600');
+
+    vi.doUnmock('@config/security');
+    vi.resetModules();
+  });
 });

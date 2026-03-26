@@ -191,6 +191,20 @@ describe('RuntimeAdapter helpers', () => {
       expect(url).toContain('b=x');
       expect(url).toContain('b=y');
     });
+
+    it('should preserve direct statusCode assignments on the mock response', () => {
+      const { res, responseData } = createMockHttpObjects({
+        method: 'GET',
+        path: '/blocked',
+        headers: {},
+      });
+
+      (res as unknown as { statusCode: number }).statusCode = 403;
+      (res as unknown as { end: (chunk?: string) => object }).end('blocked');
+
+      expect(responseData.statusCode).toBe(403);
+      expect(responseData.body).toBe('blocked');
+    });
   });
 
   describe('ErrorResponse', () => {

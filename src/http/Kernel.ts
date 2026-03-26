@@ -6,7 +6,7 @@ import { Logger } from '@config/logger';
 import { middlewareConfig } from '@config/middleware';
 import type { IServiceContainer } from '@container/ServiceContainer';
 import { ErrorRouting } from '@core-routes/error';
-import type { IRouter } from '@core-routes/Router';
+import type { IRouter, RouteMatch } from '@core-routes/Router';
 import { Router } from '@core-routes/Router';
 import type { IRequest } from '@http/Request';
 import { Request } from '@http/Request';
@@ -92,6 +92,39 @@ const resolveMiddlewareForRoute = (
   return [...globalMiddleware, ...resolvedRouteMiddleware];
 };
 
+const PREFLIGHT_FALLBACK_METHODS = Object.freeze([
+  'GET',
+  'HEAD',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  '*',
+]);
+
+const resolveRouteWithPreflightFallback = (
+  router: IRouter,
+  method: string,
+  path: string
+): RouteMatch | null => {
+  const direct = Router.match(router, method, path);
+  if (direct !== null || method !== 'OPTIONS') return direct;
+
+  for (const fallbackMethod of PREFLIGHT_FALLBACK_METHODS) {
+    const matched = Router.match(router, fallbackMethod, path);
+    if (matched === null) continue;
+
+    return {
+      ...matched,
+      handler: async (): Promise<void> => {
+        await Promise.resolve();
+      },
+    };
+  }
+
+  return null;
+};
+
 type KernelTraceSpan = ReturnType<typeof OpenTelemetry.startHttpServerSpan>;
 
 const maybeStartKernelTraceSpan = (
@@ -135,8 +168,8 @@ const runKernelPipeline = async (
 ): Promise<string> => {
   Logger.info(`[${req.getMethod()}] ${req.getPath()}`);
 
-  const route = Router.match(router, req.getMethod(), req.getPath());
-  if (!route) {
+  const route = resolveRouteWithPreflightFallback(router, req.getMethod(), req.getPath());
+  if (route === null) {
     const routeLabel = 'not_found';
     maybeSetKernelTraceRoute(traceSpan, context.method, routeLabel);
     const handleNotFound = ErrorRouting.handleNotFound as (

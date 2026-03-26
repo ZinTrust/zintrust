@@ -87,6 +87,39 @@ describe('CloudflareAdapter', () => {
     expect(String(result.body)).toBe('done');
   });
 
+  it('handle should preserve status set through the framework response wrapper', async () => {
+    const adapter = CloudflareAdapter.create({
+      handler: async (_req, res) => {
+        const { Response } = await import('@/http/Response');
+        const wrapped = Response.create(res as any);
+        wrapped.setStatus(403);
+        wrapped.json({ message: 'Unauthorized', status: 403, ty: 'OT' });
+      },
+      logger: {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined,
+      },
+    });
+
+    const event = {
+      method: 'GET',
+      url: 'https://example.test/protected',
+      headers: new Headers(),
+      text: async () => '',
+      body: null,
+    } as unknown as import('@/runtime/adapters/CloudflareAdapter').CloudflareRequest;
+
+    const result = await adapter.handle(event);
+    expect(result.statusCode).toBe(403);
+    expect(JSON.parse(String(result.body))).toEqual({
+      message: 'Unauthorized',
+      status: 403,
+      ty: 'OT',
+    });
+  });
+
   it('getD1Database/getKV should read from globalThis.env', () => {
     (globalThis as unknown as { env?: Record<string, unknown> }).env = {
       DB: { kind: 'd1' },

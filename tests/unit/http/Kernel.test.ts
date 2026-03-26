@@ -248,6 +248,36 @@ describe('Kernel', () => {
     );
   });
 
+  it('should route OPTIONS preflight requests through global middleware when a matching route exists', async () => {
+    (mockRequest.getMethod as unknown as Mock).mockReturnValue('OPTIONS');
+    (mockRequest.getPath as unknown as Mock).mockReturnValue('/api/v1/profile');
+    (mockRequest.getHeader as unknown as Mock).mockImplementation((name: string) => {
+      if (name.toLowerCase() === 'origin') return 'https://ui.example';
+      return undefined;
+    });
+
+    const routeHandler = vi.fn();
+    vi.mocked(Router.match).mockImplementation((_router, method) => {
+      if (method === 'OPTIONS') return null;
+      if (method === 'GET') {
+        return {
+          handler: routeHandler,
+          params: {},
+          middleware: ['auth', 'jwt'],
+          routePath: '/api/v1/profile',
+        };
+      }
+      return null;
+    });
+
+    await kernel.handleRequest(mockRequest, mockResponse);
+
+    expect(Router.match).toHaveBeenCalledWith(mockRouter, 'OPTIONS', '/api/v1/profile');
+    expect(Router.match).toHaveBeenCalledWith(mockRouter, 'GET', '/api/v1/profile');
+    expect(responseStatusSpy(mockResponse)).toHaveBeenCalledWith(204);
+    expect(routeHandler).not.toHaveBeenCalled();
+  });
+
   it('should handle internal server error', async () => {
     const error = new Error('Test Error');
     vi.mocked(Router.match).mockImplementation(() => {

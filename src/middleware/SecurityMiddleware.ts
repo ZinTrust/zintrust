@@ -4,6 +4,7 @@
  * Zero-dependency implementation replacing helmet/cors
  */
 
+import { securityConfig } from '@config/security';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
 import type { Middleware } from '@middleware/MiddlewareStack';
@@ -18,7 +19,7 @@ export interface SecurityOptions {
     action?: 'DENY' | 'SAMEORIGIN';
   };
   cors?: {
-    origin?: string;
+    origin?: string | string[];
     methods?: string[];
     allowedHeaders?: string[];
     credentials?: boolean;
@@ -28,6 +29,26 @@ export interface SecurityOptions {
     directives?: Record<string, string[]>;
   };
 }
+
+const normalizeCorsList = (values: readonly string[] | undefined, fallback: string[]): string[] => {
+  const normalized = (values ?? [])
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter((value) => value !== '');
+
+  return normalized.length > 0 ? normalized : fallback;
+};
+
+const getSecurityCorsConfig = ():
+  | NonNullable<(typeof securityConfig)['cors']>
+  | Record<string, never> => {
+  const config = securityConfig as { cors?: (typeof securityConfig)['cors'] } | undefined;
+  return config?.cors ?? {};
+};
+
+const resolveCorsOrigin = (): string | string[] => {
+  const origins = normalizeCorsList(getSecurityCorsConfig().origins, ['*']);
+  return origins.includes('*') ? '*' : origins;
+};
 
 const DEFAULT_OPTIONS: SecurityOptions = {
   hsts: {
@@ -39,12 +60,33 @@ const DEFAULT_OPTIONS: SecurityOptions = {
     action: 'SAMEORIGIN',
   },
   cors: {
-    origin: '*',
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
-    credentials: true,
-    maxAge: 86400,
+    origin: resolveCorsOrigin(),
+    methods: normalizeCorsList(getSecurityCorsConfig().methods, [
+      'GET',
+      'HEAD',
+      'PUT',
+      'PATCH',
+      'POST',
+      'DELETE',
+    ]),
+    allowedHeaders: normalizeCorsList(getSecurityCorsConfig().allowedHeaders, [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-CSRF-Token',
+    ]),
+    credentials: getSecurityCorsConfig().credentials,
+    maxAge: getSecurityCorsConfig().maxAge,
   },
+};
+
+const mergeSecurityOptions = (options: SecurityOptions): SecurityOptions => {
+  return {
+    hsts: { ...DEFAULT_OPTIONS.hsts, ...options.hsts },
+    frameguard: { ...DEFAULT_OPTIONS.frameguard, ...options.frameguard },
+    cors: { ...DEFAULT_OPTIONS.cors, ...options.cors },
+    csp: options.csp ?? DEFAULT_OPTIONS.csp,
+  };
 };
 
 function applyHsts(res: IResponse, hsts?: SecurityOptions['hsts']): void {
@@ -106,7 +148,7 @@ function applyCors(req: IRequest, res: IResponse, cors?: SecurityOptions['cors']
   }
 
   if (cors.credentials !== undefined) {
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Credentials', cors.credentials ? 'true' : 'false');
   }
 
   if (cors.maxAge !== undefined) {
@@ -127,7 +169,7 @@ export const SecurityMiddleware = Object.freeze({
    * Create security middleware with options
    */
   create(options: SecurityOptions = {}): Middleware {
-    const config = { ...DEFAULT_OPTIONS, ...options };
+    const config = mergeSecurityOptions(options);
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       applyHsts(res, config.hsts);

@@ -1,61 +1,119 @@
 import { Logger } from '@config/logger';
+import { clearMiddlewareConfigCache } from '@config/middleware';
 import type { IncomingMessage, ServerResponse } from '@node-singletons/http';
 import { CloudflareAdapter } from '@runtime/adapters/CloudflareAdapter';
 import mergeOverrideValues from '@runtime/OverrideValueMerge';
 import { ProjectRuntime } from '@runtime/ProjectRuntime';
-import { StartupConfigFile, type StartupConfigFileTypes } from '@runtime/StartupConfigFileRegistry';
+import {
+  StartupConfigFile,
+  StartupConfigFileRegistry,
+  type StartupConfigFileTypes,
+} from '@runtime/StartupConfigFileRegistry';
 import { WorkerAdapterImports } from '@runtime/WorkerAdapterImports';
 
 import { getKernel } from '@runtime/getKernel';
 
 const startupConfigModules: ReadonlyArray<{
   file: StartupConfigFileTypes;
-  rootModuleId: string;
   serviceModuleId: string;
 }> = Object.freeze([
   {
     file: StartupConfigFile.Broadcast,
-    rootModuleId: '@runtime-config/' + 'broadcast.ts',
     serviceModuleId: '@service-runtime-config/' + 'broadcast.ts',
   },
   {
     file: StartupConfigFile.Cache,
-    rootModuleId: '@runtime-config/' + 'cache.ts',
     serviceModuleId: '@service-runtime-config/' + 'cache.ts',
   },
   {
     file: StartupConfigFile.Database,
-    rootModuleId: '@runtime-config/' + 'database.ts',
     serviceModuleId: '@service-runtime-config/' + 'database.ts',
   },
   {
     file: StartupConfigFile.Mail,
-    rootModuleId: '@runtime-config/' + 'mail.ts',
     serviceModuleId: '@service-runtime-config/' + 'mail.ts',
   },
   {
     file: StartupConfigFile.Middleware,
-    rootModuleId: '@runtime-config/' + 'middleware.ts',
     serviceModuleId: '@service-runtime-config/' + 'middleware.ts',
   },
   {
     file: StartupConfigFile.Notification,
-    rootModuleId: '@runtime-config/' + 'notification.ts',
     serviceModuleId: '@service-runtime-config/' + 'notification.ts',
   },
   {
     file: StartupConfigFile.Queue,
-    rootModuleId: '@runtime-config/' + 'queue.ts',
     serviceModuleId: '@service-runtime-config/' + 'queue.ts',
   },
   {
     file: StartupConfigFile.Storage,
-    rootModuleId: '@runtime-config/' + 'storage.ts',
     serviceModuleId: '@service-runtime-config/' + 'storage.ts',
   },
 ]);
 
-const importOptionalDefault = async (moduleId: string): Promise<unknown> => {
+type RootStartupModule = { default?: unknown };
+
+type RootStartupImporter = () => Promise<RootStartupModule>;
+
+const importRootBroadcastModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'broadcast.ts')) as RootStartupModule;
+};
+
+const importRootCacheModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'cache.ts')) as RootStartupModule;
+};
+
+const importRootDatabaseModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'database.ts')) as RootStartupModule;
+};
+
+const importRootMailModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'mail.ts')) as RootStartupModule;
+};
+
+const importRootMiddlewareModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'middleware.ts')) as RootStartupModule;
+};
+
+const importRootNotificationModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'notification.ts')) as RootStartupModule;
+};
+
+const importRootQueueModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'queue.ts')) as RootStartupModule;
+};
+
+const importRootStorageModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'storage.ts')) as RootStartupModule;
+};
+
+const importRootWorkersModule: RootStartupImporter = async () => {
+  return (await import('@runtime-config/' + 'workers.ts')) as RootStartupModule;
+};
+
+const rootStartupImporters: Readonly<Record<StartupConfigFileTypes, RootStartupImporter>> =
+  Object.freeze({
+    [StartupConfigFile.Broadcast]: importRootBroadcastModule,
+    [StartupConfigFile.Cache]: importRootCacheModule,
+    [StartupConfigFile.Database]: importRootDatabaseModule,
+    [StartupConfigFile.Mail]: importRootMailModule,
+    [StartupConfigFile.Middleware]: importRootMiddlewareModule,
+    [StartupConfigFile.Notification]: importRootNotificationModule,
+    [StartupConfigFile.Queue]: importRootQueueModule,
+    [StartupConfigFile.Storage]: importRootStorageModule,
+    [StartupConfigFile.Workers]: importRootWorkersModule,
+  });
+
+const importOptionalDefault = async (importer: RootStartupImporter): Promise<unknown> => {
+  try {
+    const module = await importer();
+    return module.default;
+  } catch {
+    return undefined;
+  }
+};
+
+const importOptionalDefaultById = async (moduleId: string): Promise<unknown> => {
   try {
     const module = (await import(moduleId)) as { default?: unknown };
     return module.default;
@@ -65,15 +123,15 @@ const importOptionalDefault = async (moduleId: string): Promise<unknown> => {
 };
 
 const resolveStartupOverrideValue = async (entry: {
-  rootModuleId: string;
+  file: StartupConfigFileTypes;
   serviceModuleId: string;
 }): Promise<unknown> => {
-  const rootOverride = await importOptionalDefault(entry.rootModuleId);
+  const rootOverride = await importOptionalDefault(rootStartupImporters[entry.file]);
 
   const serviceOverride =
     ProjectRuntime.getActiveService() === undefined
       ? undefined
-      : await importOptionalDefault(entry.serviceModuleId);
+      : await importOptionalDefaultById(entry.serviceModuleId);
 
   if (rootOverride === undefined) return serviceOverride;
   if (serviceOverride === undefined) return rootOverride;
@@ -103,6 +161,10 @@ const applyStartupConfigOverrides = async (): Promise<void> => {
 
       globalAny.__zintrustStartupConfigOverrides.set(entry.file, entry.value);
     }
+
+    StartupConfigFileRegistry.clear();
+    clearMiddlewareConfigCache();
+    await StartupConfigFileRegistry.preload(startupConfigModules.map((entry) => entry.file));
   } catch (error) {
     Logger.error('Error applying startup config overrides:', error);
     // Best-effort: log and swallow errors since this is an optional.

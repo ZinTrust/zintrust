@@ -1,6 +1,13 @@
 import { AddCommand } from '@cli/commands/AddCommand';
 import { describe, expect, it, vi } from 'vitest';
 
+const getQuestionByName = (questions: Array<{ name?: string }>, name: string) => {
+  for (const question of questions) {
+    if (question.name === name) return question;
+  }
+  return undefined;
+};
+
 describe('AddCommand helper coverage', () => {
   const helpers = (AddCommand as any)._helpers as {
     isPascalCaseBase: (value: string) => boolean;
@@ -58,9 +65,12 @@ describe('AddCommand helper coverage', () => {
   it('covers middleware prompt validation and route-key registration branch', async () => {
     const inquirer = await import('inquirer');
     const promptSpy = vi.spyOn(inquirer.default, 'prompt').mockImplementation((questions: any) => {
-      const nameQuestion = questions.find((question: any) => question.name === 'name');
-      expect(nameQuestion.validate('AuditMiddleware')).toBe(true);
-      expect(nameQuestion.validate('Audit')).toBe('Must be PascalCase ending with "Middleware"');
+      const nameQuestion = getQuestionByName(
+        questions as Array<{ name?: string; validate?: (value: string) => unknown }>,
+        'name'
+      );
+      expect(nameQuestion?.validate?.('AuditMiddleware')).toBe(true);
+      expect(nameQuestion?.validate?.('Audit')).toBe('Must be PascalCase ending with "Middleware"');
       return Promise.resolve({ name: 'AuditMiddleware' });
     });
 
