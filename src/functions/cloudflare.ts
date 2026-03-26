@@ -56,39 +56,43 @@ type RootStartupModule = { default?: unknown };
 type RootStartupImporter = () => Promise<RootStartupModule>;
 
 const importRootBroadcastModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'broadcast.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'broadcast.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const importRootCacheModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'cache.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'cache.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const importRootDatabaseModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'database.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'database.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const importRootMailModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'mail.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'mail.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const importRootMiddlewareModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'middleware.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'middleware.ts').catch(
+    () => ({})
+  )) as RootStartupModule;
 };
 
 const importRootNotificationModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'notification.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'notification.ts').catch(
+    () => ({})
+  )) as RootStartupModule;
 };
 
 const importRootQueueModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'queue.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'queue.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const importRootStorageModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'storage.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'storage.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const importRootWorkersModule: RootStartupImporter = async () => {
-  return (await import('@runtime-config/' + 'workers.ts')) as RootStartupModule;
+  return (await import('@runtime-config/' + 'workers.ts').catch(() => ({}))) as RootStartupModule;
 };
 
 const rootStartupImporters: Readonly<Record<StartupConfigFileTypes, RootStartupImporter>> =
