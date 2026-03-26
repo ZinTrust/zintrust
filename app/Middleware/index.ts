@@ -204,6 +204,8 @@ export const jwtMiddleware = (jwtManager: JwtManagerInput, algorithm: JwtAlgorit
   };
 };
 
+export { authFailureResponder } from '@app/Middleware/AuthFailureResponder';
+
 /**
  * CSRF Protection Middleware
  * Validate CSRF tokens for state-changing requests

@@ -18,11 +18,11 @@ export type MiddlewareFailureResponder = (
   context: MiddlewareFailureContext
 ) => void | Promise<void>;
 
-export const defaultMiddlewareFailureResponder: MiddlewareFailureResponder = async (
+export const defaultMiddlewareFailureResponder: MiddlewareFailureResponder = (
   _req,
   res,
   context
-): Promise<void> => {
+) => {
   const statusTarget = res.setStatus(context.statusCode);
   const responseTarget = isObject(statusTarget) ? statusTarget : res;
 

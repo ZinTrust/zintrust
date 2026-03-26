@@ -9,6 +9,7 @@ vi.mock('@security/JwtSessions', () => ({
 
 import {
   authMiddleware,
+  authFailureResponder,
   corsMiddleware,
   jsonMiddleware,
   jwtMiddleware,
@@ -128,5 +129,25 @@ describe('Middleware index quick patch coverage', () => {
     await jw(req, res, next);
     expect(req.user).toEqual({ sub: 'user:1' });
     expect(next).toHaveBeenCalled();
+  });
+
+  it('authFailureResponder reshapes the payload from middleware failure context', async () => {
+    const { req, res } = makeReqRes();
+
+    await authFailureResponder(req, res, {
+      middleware: 'auth',
+      reason: 'missing_authorization_header',
+      statusCode: 401,
+      message: 'Unauthorized',
+      body: { error: 'Unauthorized' },
+    });
+
+    expect(res._status).toBe(401);
+    expect(res._json).toEqual({
+      error: {
+        code: 'missing_authorization_header',
+        message: 'Unauthorized',
+      },
+    });
   });
 });

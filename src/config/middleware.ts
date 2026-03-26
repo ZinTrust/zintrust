@@ -184,7 +184,11 @@ function createRateLimitMiddlewares(
   });
 
   return Object.freeze({
-    rateLimit: RateLimiter.create({ onFailure: responders.rateLimit }),
+    rateLimit: RateLimiter.create({
+      windowMs: 60_000,
+      max: 100,
+      onFailure: responders.rateLimit,
+    }),
     fillRateLimit,
     authRateLimit,
     userMutationRateLimit,

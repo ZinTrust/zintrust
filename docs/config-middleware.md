@@ -2,6 +2,32 @@
 
 - Source: `src/config/middleware.ts`
 
+## Fresh App Config Surface
+
+Application projects should usually customize `config/middleware.ts`, not `src/config/middleware.ts`.
+
+Use `config/middleware.ts` for three different extension points:
+
+- `global`: add project middleware that should run on every request
+- `route`: register project middleware by key or override a built-in middleware key
+- `responders`: reshape built-in auth, CSRF, rate-limit, validation, and JSON error payloads without replacing the middleware logic
+
+Example responder wiring:
+
+```ts
+import type { MiddlewaresType } from '@zintrust/core';
+import { authFailureResponder } from '@app/Middleware/AuthFailureResponder';
+
+export default {
+  responders: {
+    auth: authFailureResponder,
+    jwt: authFailureResponder,
+  },
+} as MiddlewaresType;
+```
+
+For the full responder contract and the stable `reason` values, see [docs/middleware.md](./middleware.md).
+
 ## Usage
 
 Import from the framework:
@@ -109,3 +135,25 @@ const middlewareConfigObj: MiddlewareConfigType = {
 export const middlewareConfig = Object.freeze(middlewareConfigObj);
 export default middlewareConfig;
 ```
+
+## Current Built-In Keys
+
+The built-in keyed middleware surface includes:
+
+- `log`
+- `error`
+- `security`
+- `rateLimit`
+- `sanitizeBody`
+- `fillRateLimit`
+- `authRateLimit`
+- `userMutationRateLimit`
+- `csrf`
+- `auth`
+- `jwt`
+- `bulletproof`
+- `validateLogin`
+- `validateRegister`
+- `validateUserStore`
+- `validateUserUpdate`
+- `validateUserFill`

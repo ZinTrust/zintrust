@@ -165,19 +165,13 @@ When you only need to customize the failure payload, you do not need to replace 
 
 Supported responder keys match the built-in keyed middleware that write responses: `auth`, `jwt`, `bulletproof`, `csrf`, `rateLimit`, `fillRateLimit`, `authRateLimit`, `userMutationRateLimit`, `error`, and the built-in validation keys.
 
+Fresh apps can keep the responder in a dedicated module such as `app/Middleware/AuthFailureResponder.ts` and import it into `config/middleware.ts`.
+
 Example responder:
 
 ```typescript
-import type { MiddlewareFailureResponder, MiddlewaresType } from '@zintrust/core';
-
-const authFailureResponder: MiddlewareFailureResponder = async (_req, res, context) => {
-  res.setStatus(context.statusCode).json({
-    error: {
-      code: context.reason,
-      message: context.message,
-    },
-  });
-};
+import type { MiddlewaresType } from '@zintrust/core';
+import { authFailureResponder } from '@app/Middleware/AuthFailureResponder';
 
 export default {
   responders: {
@@ -197,6 +191,22 @@ Each responder receives the request, the response, and a context object with:
 - `body`: the default JSON payload the framework would have returned
 - `error`: the original error when one exists
 - `requestId`: present for JSON-mode internal error handling
+
+### Stable Reason Values
+
+These `reason` values are stable extension points for app responders:
+
+| Middleware key                                                                                     | Stable `reason` values                                                                                                      |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `auth`                                                                                             | `missing_authorization_header`                                                                                              |
+| `jwt`                                                                                              | `missing_authorization_header`, `invalid_authorization_header_format`, `inactive_session`, `expired_token`, `invalid_token` |
+| `bulletproof`                                                                                      | `unauthorized`                                                                                                              |
+| `csrf`                                                                                             | `invalid_csrf_token`                                                                                                        |
+| `rateLimit`, `fillRateLimit`, `authRateLimit`, `userMutationRateLimit`                             | `rate_limit_exceeded`                                                                                                       |
+| `validateLogin`, `validateRegister`, `validateUserStore`, `validateUserUpdate`, `validateUserFill` | `validation_error`, `invalid_request_body`, `sanitization_error`                                                            |
+| `error`                                                                                            | `unhandled_exception`                                                                                                       |
+
+`bulletproof` currently collapses its internal auth failure branches to `unauthorized`. If you need different payloads for different bulletproof failure causes today, continue overriding the middleware key itself instead of using a responder.
 
 Use keyed middleware replacement when you need to change the middleware behavior itself. Use responders when you only need to reshape the payload.
 

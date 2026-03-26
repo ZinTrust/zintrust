@@ -325,6 +325,36 @@ describe('ValidationMiddleware (coverage)', () => {
     expect(res.setStatus).toHaveBeenCalledWith(400);
   });
 
+  it('createBody routes validation errors through the shared failure handler', async () => {
+    const { Validator } = await import('@validation/Validator');
+    const { ValidationMiddleware } = await import('@middleware/ValidationMiddleware');
+
+    (Validator.validate as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error('bad body');
+    });
+
+    const req = {
+      getMethod: vi.fn(() => 'POST'),
+      body: { a: 1 },
+      getBody: vi.fn(() => ({ a: 1 })),
+      validated: {},
+    } as unknown as IRequest;
+
+    const res = {
+      setStatus: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as unknown as IResponse;
+
+    const next = vi.fn().mockResolvedValue(undefined);
+
+    const mw = ValidationMiddleware.createBody({} as any);
+    await mw(req, res, next);
+
+    expect(res.setStatus).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Invalid request body' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('createParams validates params and handles errors', async () => {
     const { Validator } = await import('@validation/Validator');
     const { ValidationMiddleware } = await import('@middleware/ValidationMiddleware');

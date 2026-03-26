@@ -180,7 +180,11 @@ describe('middleware config (coverage extras)', () => {
       skipPaths: ['/from-config'],
       onFailure: csrfResponder,
     });
-    expect(rateLimitCreateMock).toHaveBeenCalledWith({ onFailure: rateLimitResponder });
+    expect(rateLimitCreateMock).toHaveBeenCalledWith({
+      windowMs: 60_000,
+      max: 100,
+      onFailure: rateLimitResponder,
+    });
     expect(validationCreateBodyWithSanitizationMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),

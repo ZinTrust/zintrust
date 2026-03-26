@@ -10,17 +10,17 @@ ZinTrust ships with `JwtAuthMiddleware` for standard Bearer JWT auth. For applic
 
 Each layer must pass in order. Any failure returns **401 Unauthorized** immediately.
 
-| # | Layer | What it checks |
-|---|-------|----------------|
-| 1 | **Authorization header** | `Authorization: Bearer <jwt>` is present |
-| 2 | **Token revocation** | JWT has not been revoked via `TokenRevocation` |
-| 3 | **Signed-request headers** | All five `x-zt-*` headers are present |
-| 4 | **Timestamp freshness** | `x-zt-timestamp` is within the replay window (default ±60 s) |
-| 5 | **Nonce replay guard** | `(keyId, nonce)` has not been seen before |
-| 6 | **Signature verification** | HMAC-SHA256 of the canonical request matches `x-zt-signature` |
-| 7 | **Device binding** | `x-zt-device-id === x-zt-key-id`; optionally matches `deviceId` JWT claim |
-| 8 | **Timezone binding** *(optional)* | `x-zt-timezone` matches the `tz` JWT claim when present |
-| 9 | **User-Agent binding** *(optional)* | SHA-256(`User-Agent`) matches the `uaHash` JWT claim when present |
+| #   | Layer                               | What it checks                                                            |
+| --- | ----------------------------------- | ------------------------------------------------------------------------- |
+| 1   | **Authorization header**            | `Authorization: Bearer <jwt>` is present                                  |
+| 2   | **Token revocation**                | JWT has not been revoked via `TokenRevocation`                            |
+| 3   | **Signed-request headers**          | All five `x-zt-*` headers are present                                     |
+| 4   | **Timestamp freshness**             | `x-zt-timestamp` is within the replay window (default ±60 s)              |
+| 5   | **Nonce replay guard**              | `(keyId, nonce)` has not been seen before                                 |
+| 6   | **Signature verification**          | HMAC-SHA256 of the canonical request matches `x-zt-signature`             |
+| 7   | **Device binding**                  | `x-zt-device-id === x-zt-key-id`; optionally matches `deviceId` JWT claim |
+| 8   | **Timezone binding** _(optional)_   | `x-zt-timezone` matches the `tz` JWT claim when present                   |
+| 9   | **User-Agent binding** _(optional)_ | SHA-256(`User-Agent`) matches the `uaHash` JWT claim when present         |
 
 > Layers 8 and 9 are weaker by nature (headers can be spoofed), but they add meaningful friction and can surface anomalous access patterns.
 
@@ -98,6 +98,23 @@ Router.get('/profile', 'ProfileController.show', {
 });
 ```
 
+### 2a. Customize Bulletproof Failure Payloads
+
+If you want to keep the built-in bulletproof verification logic but return an app-specific JSON payload, wire a responder in `config/middleware.ts`:
+
+```ts
+import type { MiddlewaresType } from '@zintrust/core';
+import { authFailureResponder } from '@app/Middleware/AuthFailureResponder';
+
+export default {
+  responders: {
+    bulletproof: authFailureResponder,
+  },
+} as MiddlewaresType;
+```
+
+The built-in bulletproof responder currently uses the stable `reason` value `unauthorized` for all verification failures.
+
 ### 3. Login controller — full example
 
 This is where you issue a JWT **with a `deviceId` claim** and generate a per-device signing secret.
@@ -126,8 +143,7 @@ export class AuthController extends Controller {
 
     // 2. Assign a stable deviceId (or accept one from the client)
     const deviceId: string =
-      (req.body as { deviceId?: string }).deviceId ??
-      `dev_${randomBytes(16).toString('hex')}`;
+      (req.body as { deviceId?: string }).deviceId ?? `dev_${randomBytes(16).toString('hex')}`;
 
     // 3. Generate a strong per-device signing secret
     const deviceSecret = `base64:${randomBytes(32).toString('base64')}`;
@@ -299,7 +315,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${jwt}`,
+      Authorization: `Bearer ${jwt}`,
       'x-zt-device-id': deviceId,
       'x-zt-timezone': timezone,
       'User-Agent': navigator.userAgent,
@@ -325,10 +341,7 @@ import { useCallback } from 'react';
 import { apiFetch } from '@/lib/api';
 
 export function useApi() {
-  const get = useCallback(
-    (path: string) => apiFetch(path, { method: 'GET' }),
-    [],
-  );
+  const get = useCallback((path: string) => apiFetch(path, { method: 'GET' }), []);
 
   const post = useCallback(
     (path: string, body: unknown) =>
@@ -336,7 +349,7 @@ export function useApi() {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    [],
+    []
   );
 
   return { get, post };
@@ -405,11 +418,11 @@ zin jwt:dev --json --expires 30m --device-id dev_abc123
 
 ## Operational Guidance
 
-| Concern | Recommendation |
-|---------|----------------|
-| **Secret storage (client)** | Use native secure storage: iOS Keychain, Android Keystore, Electron `safeStorage`. Avoid `localStorage` for high-risk apps. |
-| **Secret storage (server)** | Store device secrets hashed (HMAC) in your DB/KV, not in plain text. |
-| **Nonce store** | Back the nonce replay store with Redis or KV for multi-instance / multi-region deployments. |
-| **Secret rotation** | Use `zin key:bulletproof` to rotate; old secrets are kept in `BULLETPROOF_SIGNING_SECRET_BK` for the duration of the replay window. |
-| **Device revocation** | Delete the device record and revoke all associated JWTs on compromise. |
-| **Replay window** | Default is `±60 s`. Increase if clients have poor clock sync; decrease for stricter security. |
+| Concern                     | Recommendation                                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Secret storage (client)** | Use native secure storage: iOS Keychain, Android Keystore, Electron `safeStorage`. Avoid `localStorage` for high-risk apps.         |
+| **Secret storage (server)** | Store device secrets hashed (HMAC) in your DB/KV, not in plain text.                                                                |
+| **Nonce store**             | Back the nonce replay store with Redis or KV for multi-instance / multi-region deployments.                                         |
+| **Secret rotation**         | Use `zin key:bulletproof` to rotate; old secrets are kept in `BULLETPROOF_SIGNING_SECRET_BK` for the duration of the replay window. |
+| **Device revocation**       | Delete the device record and revoke all associated JWTs on compromise.                                                              |
+| **Replay window**           | Default is `±60 s`. Increase if clients have poor clock sync; decrease for stricter security.                                       |

@@ -2,6 +2,8 @@
 
 ZinTrust configuration is driven primarily by environment variables and exposed through the sealed `Env` namespace (`src/config/env.ts`) and the config modules in `src/config/*`.
 
+Project-owned middleware customization lives in `config/middleware.ts`. That file now supports `global`, `route`, and `responders`, so fresh apps can either replace a built-in middleware key or only reshape its failure payloads. See `docs/middleware.md` for the responder contract and stable failure reasons.
+
 ## Overview
 
 - **Source of truth:** `process.env` (or the equivalent in your runtime).

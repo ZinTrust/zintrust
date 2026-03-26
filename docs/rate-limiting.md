@@ -580,3 +580,23 @@ For multi-instance deployments, pick a remote store (`redis`, `kv`, or `db`) so 
   };
   ```
 - **DDoS/Bot Mitigation**: Use a remote store + consider a WAF or rate limiting at the edge (e.g., Cloudflare, AWS Shield).
+
+### Custom Rate-Limit Payloads
+
+If you only need to reshape the default throttling response, use a middleware responder instead of replacing the limiter:
+
+```typescript
+import type { MiddlewaresType } from '@zintrust/core';
+import { authFailureResponder } from '@app/Middleware/AuthFailureResponder';
+
+export default {
+  responders: {
+    rateLimit: authFailureResponder,
+    fillRateLimit: authFailureResponder,
+    authRateLimit: authFailureResponder,
+    userMutationRateLimit: authFailureResponder,
+  },
+} as MiddlewaresType;
+```
+
+Rate-limit responders currently receive the stable `reason` value `rate_limit_exceeded`.
