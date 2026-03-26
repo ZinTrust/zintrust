@@ -13,6 +13,9 @@
   // PROJECT METADATA
   // ============================================================================
   "name": "zintrust-api",
+  "main": "./src/functions/cloudflare.ts",
+  "compatibility_date": "2026-03-12",
+  "compatibility_flags": ["nodejs_compat"],
 
   // ============================================================================
   // PATH ALIASES

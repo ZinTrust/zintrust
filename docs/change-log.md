@@ -2,6 +2,11 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-03-26
+
+- Verified the Cloudflare Workers auth and jwt failure path keeps the default `401` contract by default and honors project responder overrides for custom status/body output, then added a focused regression test covering both cases.
+- Updated the auth-response verification note and middleware failure override docs so they reflect the current `@zintrust/core@0.4.22` API surface and the supported responder-based customization path.
+
 ## 2026-03-23
 
 - Added [Microservices Runtime Guide](./microservices-runtime-contract.md) to document the generated manifest, runtime hook files, canonical service IDs, standalone service boot, and layered config overrides.
