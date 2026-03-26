@@ -5,6 +5,10 @@ import { isMaxLength, isMinLength, isNonEmptyString } from '@helper/index';
 import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
 import type { IResponse } from '@http/Response';
+import {
+  respondWithMiddlewareFailure,
+  type MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
 import type { JwtAlgorithm, JwtPayload } from '@security/JwtManager';
 import { JwtManager } from '@security/JwtManager';
@@ -25,6 +29,7 @@ export type BulletproofAuthContext = {
 export interface BulletproofAuthOptions {
   algorithm?: JwtAlgorithm;
   secret?: string;
+  onUnauthorized?: MiddlewareFailureResponder;
 
   /**
    * Signed-request validity window.
@@ -169,8 +174,22 @@ const markAuthContext = (req: IRequest, ctx: BulletproofAuthContext): void => {
   req.context['authStrategy'] = 'bulletproof';
 };
 
-const respond401 = (res: IResponse, message: string): void => {
-  res.setStatus(401).json({ error: message });
+const respond401 = async (
+  req: IRequest,
+  res: IResponse,
+  message: string,
+  responder: MiddlewareFailureResponder | undefined,
+  reason = 'unauthorized',
+  error?: unknown
+): Promise<void> => {
+  await respondWithMiddlewareFailure(req, res, responder, {
+    middleware: 'bulletproof',
+    reason,
+    statusCode: 401,
+    message,
+    body: { error: message },
+    error,
+  });
 };
 
 type ParsedBulletproofHeaders = {
@@ -672,7 +691,10 @@ const attachAuth = (req: IRequest, result: AuthOk): void => {
   }
 };
 
-const createHandler = (resolved: BulletproofResolved): Middleware => {
+const createHandler = (
+  resolved: BulletproofResolved,
+  onUnauthorized: MiddlewareFailureResponder | undefined
+): Middleware => {
   return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
     if (req.context?.['authStrategy'] === 'bulletproof' && req.user !== undefined) {
       await next();
@@ -681,7 +703,7 @@ const createHandler = (resolved: BulletproofResolved): Middleware => {
 
     const result = await authenticate({ req, resolved });
     if (!result.ok) {
-      respond401(res, result.message);
+      await respond401(req, res, result.message, onUnauthorized);
       return;
     }
 
@@ -693,7 +715,7 @@ const createHandler = (resolved: BulletproofResolved): Middleware => {
 export const BulletproofAuthMiddleware = Object.freeze({
   create(options: BulletproofAuthOptions = {}): Middleware {
     const resolved = resolveBulletproof(options);
-    return createHandler(resolved);
+    return createHandler(resolved, options.onUnauthorized);
   },
 });
 

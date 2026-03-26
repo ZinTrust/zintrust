@@ -2,12 +2,10 @@
  * XSS Sanitizer
  * Recursive, zero-dependency input sanitization utility.
  *
- * This is intentionally conservative:
- * - Strings: strip tags, then escape HTML entities.
+ * This is intentionally conservative for request-body handling:
+ * - Strings: strip markup tags but preserve plain text characters.
  * - Arrays/Objects: sanitize recursively.
  */
-
-import { XssProtection } from '@security/XssProtection';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -37,7 +35,7 @@ const stripTags = (value: string): string => {
 
 const sanitizeRecursive = (input: unknown, seen: WeakSet<object>): unknown => {
   if (typeof input === 'string') {
-    return XssProtection.escape(stripTags(input));
+    return stripTags(input);
   }
 
   if (Array.isArray(input)) {

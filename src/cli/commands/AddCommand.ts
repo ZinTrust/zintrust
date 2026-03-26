@@ -1579,5 +1579,13 @@ export const AddCommand = Object.freeze({
     promptResponseFactoryConfig,
     promptWorkflowConfig,
     getDefaultResponseFields,
+    isPascalCaseBase,
+    toSafeSnakeCase,
+    stripSuffix,
+    skipInlineWhitespace,
+    findMatchingObjectBrace,
+    findRouteBlockBounds,
+    hasTrailingMiddlewaresTypeCast,
+    registerMiddlewareRouteKey,
   },
 });

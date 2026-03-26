@@ -78,6 +78,28 @@ describe('patch coverage: JWT revocation', () => {
     expect((res as any).body).toEqual({ error: 'Invalid or expired token' });
   });
 
+  it('delegates unauthorized JWT responses to onUnauthorized', async () => {
+    const onUnauthorized = vi.fn(async (_req, res, context) => {
+      res.setStatus(context.statusCode);
+      res.json({ reason: context.reason });
+    });
+    const middleware = JwtAuthMiddleware.create({ onUnauthorized });
+    const { req, res } = createReqRes('Bearer token');
+
+    await middleware(req, res, async () => undefined);
+
+    expect(onUnauthorized).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'jwt',
+        reason: 'inactive_session',
+        statusCode: 401,
+      })
+    );
+    expect((res as any).body).toEqual({ reason: 'inactive_session' });
+  });
+
   it('returns 401 in app jwtMiddleware when token is revoked', async () => {
     const middleware = jwtMiddleware({ verify: vi.fn() } as any);
     const { req, res } = createReqRes('Bearer token');

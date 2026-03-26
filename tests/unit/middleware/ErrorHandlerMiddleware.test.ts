@@ -29,7 +29,7 @@ describe('ErrorHandlerMiddleware', () => {
       },
     }));
 
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -82,7 +82,7 @@ describe('ErrorHandlerMiddleware', () => {
         getBool: envGetBool,
       },
     }));
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -136,7 +136,7 @@ describe('ErrorHandlerMiddleware', () => {
       },
     }));
 
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -191,7 +191,7 @@ describe('ErrorHandlerMiddleware', () => {
         getBool: envGetBool,
       },
     }));
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -233,7 +233,7 @@ describe('ErrorHandlerMiddleware', () => {
         getBool: envGetBool,
       },
     }));
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -258,5 +258,59 @@ describe('ErrorHandlerMiddleware', () => {
 
     expect(setStatusSpy).toHaveBeenCalledWith(500);
     expect(jsonSpy).toHaveBeenCalled();
+  });
+
+  it('delegates JSON error responses to onFailure', async () => {
+    vi.resetModules();
+
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
+
+    const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
+    const onFailure = vi.fn(async (_req, response, context) => {
+      response.setStatus(context.statusCode);
+      response.json({ requestId: context.requestId, reason: context.reason });
+    });
+
+    const req = makeReq('custom-id');
+    const jsonSpy = vi.fn();
+    const setStatusSpy = vi.fn();
+    const res = {
+      getRaw: () => ({ writableEnded: false }),
+      setStatus: setStatusSpy,
+      json: jsonSpy,
+    } as any;
+
+    const middleware = ErrorHandlerMiddleware.create({ onFailure });
+    await middleware(req, res, async () => {
+      throw new Error('boom');
+    });
+
+    expect(onFailure).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'error',
+        reason: 'unhandled_exception',
+        requestId: 'custom-id',
+        statusCode: 500,
+      })
+    );
+    expect(jsonSpy).toHaveBeenCalledWith({ requestId: 'custom-id', reason: 'unhandled_exception' });
   });
 });

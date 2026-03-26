@@ -131,6 +131,30 @@ describe('CsrfMiddleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('delegates invalid CSRF responses to onFailure', async () => {
+    const onFailure = vi.fn(async (_req, response, context) => {
+      response.setStatus(context.statusCode).json({ reason: context.reason });
+    });
+    const middleware = CsrfMiddleware.create({ onFailure });
+
+    (req.getMethod as any).mockReturnValue('POST');
+    (req.getHeader as any).mockReturnValue('invalid-token');
+
+    await middleware(req, res, next);
+
+    expect(onFailure).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'csrf',
+        reason: 'invalid_csrf_token',
+        statusCode: 403,
+      })
+    );
+    expect(res.json).toHaveBeenCalledWith({ reason: 'invalid_csrf_token' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('bypasses CSRF validation for matching skipPaths', async () => {
     const middleware = CsrfMiddleware.create({ skipPaths: ['/api/*'] });
 

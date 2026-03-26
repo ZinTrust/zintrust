@@ -9,6 +9,10 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import {
+  respondWithMiddlewareFailure,
+  type MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
 
 export interface RateLimitOptions {
@@ -27,6 +31,7 @@ export interface RateLimitOptions {
    * - 'db' uses Cache.store('mongodb')
    */
   store?: RateLimitStoreName;
+  onFailure?: MiddlewareFailureResponder;
 }
 
 export type RateLimitStoreName = 'memory' | 'redis' | 'kv' | 'db';
@@ -324,10 +329,15 @@ export const RateLimiter = Object.freeze({
       // Check limit
       if (count > config.max) {
         Logger.warn(`Rate limit exceeded for IP: ${key}`);
-        res.setStatus(config.statusCode ?? 429);
-        res.json({
-          error: 'Too Many Requests',
-          message: config.message,
+        await respondWithMiddlewareFailure(req, res, config.onFailure, {
+          middleware: 'rateLimit',
+          reason: 'rate_limit_exceeded',
+          statusCode: config.statusCode ?? 429,
+          message: config.message ?? 'Too many requests',
+          body: {
+            error: 'Too Many Requests',
+            message: config.message,
+          },
         });
         return;
       }

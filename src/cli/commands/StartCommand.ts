@@ -1077,4 +1077,12 @@ export const StartCommand = Object.freeze({
 
     return cmd;
   },
+
+  _helpers: {
+    isWranglerVarName,
+    toUpperSnakeCaseIdentifier,
+    isWindowsDriveAbsolutePath,
+    containsCommandToken,
+    containsZinCommand,
+  },
 });

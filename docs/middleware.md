@@ -112,6 +112,94 @@ export function registerRoutes(router: IRouter): void {
 
 Use `global` when the middleware should run for every request. Use `route` when it should be opt-in by key.
 
+## Overriding Built-In Middleware
+
+Fresh apps can override framework middleware without forking core code. Register a project middleware under the same built-in key in `config/middleware.ts`, and the project entry wins over the built-in one at runtime.
+
+This is useful when you want to keep route metadata like `middleware: ['jwt']` unchanged but customize the response body or auth behavior.
+
+For shared built-ins that also participate in the global stack, the override is applied there too. That includes keyed middleware such as `log`, `error`, `security`, `rateLimit`, `csrf`, `sanitizeBody`, `auth`, `jwt`, `bulletproof`, and the built-in validation keys.
+
+Framework-internal global middleware that are not exposed as keyed entries, such as body parsing and file upload wiring, are still framework-owned.
+
+Example custom JWT response override:
+
+```typescript
+import type { Middleware } from '@zintrust/core';
+
+export const JwtAuthOverrideMiddleware: Middleware = async (req, res, next) => {
+  const authorization = req.getHeader('authorization');
+
+  if (typeof authorization !== 'string' || authorization.trim() === '') {
+    res.setStatus(401).json({
+      error: {
+        code: 'AUTH_TOKEN_INVALID',
+        message: 'Invalid or expired token',
+      },
+    });
+    return;
+  }
+
+  await next();
+};
+```
+
+Register it with the built-in key name:
+
+```typescript
+import type { MiddlewaresType } from '@zintrust/core';
+import { JwtAuthOverrideMiddleware } from '@app/Middleware/JwtAuthOverrideMiddleware';
+
+export default {
+  route: {
+    jwt: JwtAuthOverrideMiddleware,
+  },
+} as MiddlewaresType;
+```
+
+With that in place, existing route metadata such as `middleware: ['jwt', 'auth']` keeps working, but the app-owned `jwt` middleware controls the response shape.
+
+## Built-In Failure Responders
+
+When you only need to customize the failure payload, you do not need to replace the middleware anymore. Fresh apps can register responder hooks in `config/middleware.ts`, and the built-in middleware keeps its verification, throttling, validation, or error-handling logic while delegating the response body to your app code.
+
+Supported responder keys match the built-in keyed middleware that write responses: `auth`, `jwt`, `bulletproof`, `csrf`, `rateLimit`, `fillRateLimit`, `authRateLimit`, `userMutationRateLimit`, `error`, and the built-in validation keys.
+
+Example responder:
+
+```typescript
+import type { MiddlewareFailureResponder, MiddlewaresType } from '@zintrust/core';
+
+const authFailureResponder: MiddlewareFailureResponder = async (_req, res, context) => {
+  res.setStatus(context.statusCode).json({
+    error: {
+      code: context.reason,
+      message: context.message,
+    },
+  });
+};
+
+export default {
+  responders: {
+    auth: authFailureResponder,
+    jwt: authFailureResponder,
+    bulletproof: authFailureResponder,
+  },
+} as MiddlewaresType;
+```
+
+Each responder receives the request, the response, and a context object with:
+
+- `middleware`: the built-in middleware key that raised the failure
+- `reason`: a stable failure reason such as `missing_authorization_header` or `rate_limit_exceeded`
+- `statusCode`: the default HTTP status code
+- `message`: the default framework message for that failure
+- `body`: the default JSON payload the framework would have returned
+- `error`: the original error when one exists
+- `requestId`: present for JSON-mode internal error handling
+
+Use keyed middleware replacement when you need to change the middleware behavior itself. Use responders when you only need to reshape the payload.
+
 ## Typed Middleware Registry
 
 Route middleware is still referenced by string key at runtime, but you can type-check those keys at build time.

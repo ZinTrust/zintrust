@@ -14,6 +14,7 @@ import { RateLimiter } from '@middleware/RateLimiter';
 import { SanitizeBodyMiddleware } from '@middleware/SanitizeBodyMiddleware';
 import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
+import type { MiddlewareFailureResponder } from '@middleware/MiddlewareFailureResponder';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 import { Sanitizer } from '@security/Sanitizer';
 import { Schema } from '@validation/Validator';
@@ -65,6 +66,11 @@ type SharedMiddlewares = {
   validateUserFill: Middleware;
 };
 
+type MiddlewareResponderKey = keyof SharedMiddlewares;
+type MiddlewareResponderConfig = Partial<
+  Record<MiddlewareResponderKey, MiddlewareFailureResponder>
+>;
+
 export const MiddlewareBody = {
   email: 'email',
   password: 'password', //NOSONAR
@@ -77,6 +83,7 @@ export type MiddlewaresType = {
   fillRateLimit: { windowMs: number; max: number; message: string };
   authRateLimit: { windowMs: number; max: number; message: string };
   userMutationRateLimit: { windowMs: number; max: number; message: string };
+  responders?: MiddlewareResponderConfig;
   global?: ReadonlyArray<Middleware>;
   route?: Record<string, Middleware>;
 };
@@ -106,7 +113,11 @@ export type MiddlewareKey = keyof typeof MiddlewareKeys;
 type ValidationMiddlewareApi = Readonly<{
   createBodyWithSanitization: <TBody extends Record<string, unknown>>(
     schema: unknown,
-    sanitizers?: Partial<Record<keyof TBody, (value: unknown) => unknown>>
+    sanitizers?: Partial<Record<keyof TBody, (value: unknown) => unknown>>,
+    options?: {
+      onFailure?: MiddlewareFailureResponder;
+      middlewareKey?: string;
+    }
   ) => Middleware;
 }>;
 
@@ -156,16 +167,24 @@ const resolveUserMutationRateLimit = (
 };
 
 function createRateLimitMiddlewares(
-  loadMiddlewareConfig: Partial<MiddlewaresType>
+  loadMiddlewareConfig: Partial<MiddlewaresType>,
+  responders: MiddlewareResponderConfig
 ): SharedRateLimitMiddlewares {
-  const fillRateLimit = RateLimiter.create(resolveFillRateLimit(loadMiddlewareConfig));
-  const authRateLimit = RateLimiter.create(resolveAuthRateLimit(loadMiddlewareConfig));
-  const userMutationRateLimit = RateLimiter.create(
-    resolveUserMutationRateLimit(loadMiddlewareConfig)
-  );
+  const fillRateLimit = RateLimiter.create({
+    ...resolveFillRateLimit(loadMiddlewareConfig),
+    onFailure: responders.fillRateLimit,
+  });
+  const authRateLimit = RateLimiter.create({
+    ...resolveAuthRateLimit(loadMiddlewareConfig),
+    onFailure: responders.authRateLimit,
+  });
+  const userMutationRateLimit = RateLimiter.create({
+    ...resolveUserMutationRateLimit(loadMiddlewareConfig),
+    onFailure: responders.userMutationRateLimit,
+  });
 
   return Object.freeze({
-    rateLimit: RateLimiter.create(),
+    rateLimit: RateLimiter.create({ onFailure: responders.rateLimit }),
     fillRateLimit,
     authRateLimit,
     userMutationRateLimit,
@@ -181,10 +200,9 @@ type SharedValidationMiddlewares = Pick<
   | 'validateUserFill'
 >;
 
-function createAuthValidationMiddlewares(): Pick<
-  SharedMiddlewares,
-  'validateLogin' | 'validateRegister'
-> {
+function createAuthValidationMiddlewares(
+  responders: MiddlewareResponderConfig
+): Pick<SharedMiddlewares, 'validateLogin' | 'validateRegister'> {
   return {
     validateLogin: Validation.createBodyWithSanitization(
       Schema.typed<LoginBody>()
@@ -195,7 +213,8 @@ function createAuthValidationMiddlewares(): Pick<
       {
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
         password: (v) => Sanitizer.safePasswordChars(v),
-      }
+      },
+      { onFailure: responders.validateLogin, middlewareKey: 'validateLogin' }
     ),
     validateRegister: Validation.createBodyWithSanitization(
       Schema.typed<RegisterBody>()
@@ -211,15 +230,15 @@ function createAuthValidationMiddlewares(): Pick<
         name: (v) => Sanitizer.nameText(v).trim(),
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
         password: (v) => Sanitizer.safePasswordChars(v),
-      }
+      },
+      { onFailure: responders.validateRegister, middlewareKey: 'validateRegister' }
     ),
   };
 }
 
-function createUserValidationMiddlewares(): Pick<
-  SharedMiddlewares,
-  'validateUserStore' | 'validateUserUpdate' | 'validateUserFill'
-> {
+function createUserValidationMiddlewares(
+  responders: MiddlewareResponderConfig
+): Pick<SharedMiddlewares, 'validateUserStore' | 'validateUserUpdate' | 'validateUserFill'> {
   return {
     validateUserStore: Validation.createBodyWithSanitization(
       Schema.typed<UserStoreBody>()
@@ -235,7 +254,8 @@ function createUserValidationMiddlewares(): Pick<
         name: (v) => Sanitizer.nameText(v).trim(),
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
         password: (v) => Sanitizer.safePasswordChars(v),
-      }
+      },
+      { onFailure: responders.validateUserStore, middlewareKey: 'validateUserStore' }
     ),
     validateUserUpdate: Validation.createBodyWithSanitization(
       Schema.typed<UserUpdateBody>()
@@ -260,7 +280,8 @@ function createUserValidationMiddlewares(): Pick<
         name: (v) => Sanitizer.nameText(v).trim(),
         email: (v) => Sanitizer.email(v).trim().toLowerCase(),
         password: (v) => Sanitizer.safePasswordChars(v),
-      }
+      },
+      { onFailure: responders.validateUserUpdate, middlewareKey: 'validateUserUpdate' }
     ),
     validateUserFill: Validation.createBodyWithSanitization(
       Schema.typed<UserFillBody>()
@@ -270,36 +291,57 @@ function createUserValidationMiddlewares(): Pick<
           MiddlewareBody.count + ' must be a number'
         )
         .min(MiddlewareBody.count, 1)
-        .max(MiddlewareBody.count, 100)
+        .max(MiddlewareBody.count, 100),
+      undefined,
+      { onFailure: responders.validateUserFill, middlewareKey: 'validateUserFill' }
     ),
   };
 }
 
-function createValidationMiddlewares(): SharedValidationMiddlewares {
+function createValidationMiddlewares(
+  responders: MiddlewareResponderConfig
+): SharedValidationMiddlewares {
   return Object.freeze({
-    ...createAuthValidationMiddlewares(),
-    ...createUserValidationMiddlewares(),
+    ...createAuthValidationMiddlewares(responders),
+    ...createUserValidationMiddlewares(responders),
   } satisfies SharedValidationMiddlewares);
 }
 
-function createSharedMiddlewares(
+const resolveMiddlewareResponders = (
   loadMiddlewareConfig: Partial<MiddlewaresType>
+): MiddlewareResponderConfig => {
+  if (!isObject(loadMiddlewareConfig.responders)) return {};
+
+  const entries = Object.entries(loadMiddlewareConfig.responders).filter(
+    (entry): entry is [MiddlewareResponderKey, MiddlewareFailureResponder] => {
+      const [name, responder] = entry;
+      return typeof name === 'string' && name.trim() !== '' && typeof responder === 'function';
+    }
+  );
+
+  return Object.freeze(Object.fromEntries(entries)) as MiddlewareResponderConfig;
+};
+
+function createSharedMiddlewares(
+  loadMiddlewareConfig: Partial<MiddlewaresType>,
+  responders: MiddlewareResponderConfig
 ): SharedMiddlewares {
-  const rateLimits = createRateLimitMiddlewares(loadMiddlewareConfig);
-  const validations = createValidationMiddlewares();
+  const rateLimits = createRateLimitMiddlewares(loadMiddlewareConfig, responders);
+  const validations = createValidationMiddlewares(responders);
 
   return Object.freeze({
     log: LoggingMiddleware.create(),
-    error: ErrorHandlerMiddleware.create(),
+    error: ErrorHandlerMiddleware.create({ onFailure: responders.error }),
     security: SecurityMiddleware.create(),
     sanitizeBody: SanitizeBodyMiddleware.create(),
     ...rateLimits,
     csrf: CsrfMiddleware.create({
       skipPaths: loadMiddlewareConfig?.skipPaths ?? [],
+      onFailure: responders.csrf,
     }),
-    auth: AuthMiddleware.create(),
-    jwt: JwtAuthMiddleware.create(),
-    bulletproof: BulletproofAuthMiddleware.create(),
+    auth: AuthMiddleware.create({ onUnauthorized: responders.auth }),
+    jwt: JwtAuthMiddleware.create({ onUnauthorized: responders.jwt }),
+    bulletproof: BulletproofAuthMiddleware.create({ onUnauthorized: responders.bulletproof }),
     ...validations,
   } satisfies SharedMiddlewares);
 }
@@ -329,6 +371,22 @@ const resolveProjectRouteMiddlewares = (
   return Object.fromEntries(entries);
 };
 
+const applySharedMiddlewareOverrides = (
+  shared: SharedMiddlewares,
+  projectRoute: Record<string, Middleware>
+): SharedMiddlewares => {
+  const overridden = { ...shared } as SharedMiddlewares;
+
+  for (const key of Object.keys(MiddlewareKeys) as MiddlewareKey[]) {
+    const candidate = projectRoute[key];
+    if (typeof candidate === 'function') {
+      overridden[key] = candidate;
+    }
+  }
+
+  return Object.freeze(overridden);
+};
+
 export function createMiddlewareConfig(): MiddlewareConfigType {
   const loadMiddlewareConfig: Partial<MiddlewaresType> =
     StartupConfigFileRegistry.get<Partial<MiddlewaresType>>(StartupConfigFile.Middleware) ?? {};
@@ -346,24 +404,26 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
         : skipPathsFromEnv,
   };
 
-  const shared = createSharedMiddlewares(effectiveMiddlewareConfig);
+  const responders = resolveMiddlewareResponders(effectiveMiddlewareConfig);
+  const shared = createSharedMiddlewares(effectiveMiddlewareConfig, responders);
   const projectGlobal = resolveProjectGlobalMiddlewares(effectiveMiddlewareConfig);
   const projectRoute = resolveProjectRouteMiddlewares(effectiveMiddlewareConfig);
+  const resolvedShared = applySharedMiddlewareOverrides(shared, projectRoute);
 
   const middlewareConfigObj: MiddlewareConfigType = {
     global: [
-      shared.log,
-      shared.error,
-      shared.security,
-      shared.rateLimit,
+      resolvedShared.log,
+      resolvedShared.error,
+      resolvedShared.security,
+      resolvedShared.rateLimit,
       fileUploadMiddleware,
       bodyParsingMiddleware,
-      shared.csrf,
-      shared.sanitizeBody,
+      resolvedShared.csrf,
+      resolvedShared.sanitizeBody,
       ...projectGlobal,
     ],
     route: {
-      ...shared,
+      ...resolvedShared,
       ...projectRoute,
     },
   };

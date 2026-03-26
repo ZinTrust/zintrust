@@ -5,7 +5,15 @@ import { ErrorResponse } from '@http/ErrorResponse';
 import type { IRequest } from '@http/Request';
 import { RequestContext } from '@http/RequestContext';
 import type { IResponse } from '@http/Response';
+import {
+  respondWithMiddlewareFailure,
+  type MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
+
+export interface ErrorHandlerOptions {
+  onFailure?: MiddlewareFailureResponder;
+}
 
 const isWritableEnded = (res: IResponse): boolean => {
   if (typeof res.getRaw !== 'function') return false;
@@ -32,7 +40,7 @@ const shouldHideStackFromResponse = (error: unknown): boolean => {
 };
 
 export const ErrorHandlerMiddleware = Object.freeze({
-  create(): Middleware {
+  create(options: ErrorHandlerOptions = {}): Middleware {
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       try {
         await next();
@@ -58,13 +66,20 @@ export const ErrorHandlerMiddleware = Object.freeze({
               ) => Promise<void>;
             await handleInternalServerErrorWithWrappers(req, res, error, requestId);
           } else {
-            res.json(
-              ErrorResponse.internalServerError(
-                'Internal server error',
-                requestId,
-                includeStack ? (error as Error)?.stack : undefined
-              )
+            const body = ErrorResponse.internalServerError(
+              'Internal server error',
+              requestId,
+              includeStack ? (error as Error)?.stack : undefined
             );
+            await respondWithMiddlewareFailure(req, res, options.onFailure, {
+              middleware: 'error',
+              reason: 'unhandled_exception',
+              statusCode: 500,
+              message: 'Internal server error',
+              body,
+              error,
+              requestId,
+            });
           }
         }
       }

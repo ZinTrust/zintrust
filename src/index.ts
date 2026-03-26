@@ -219,6 +219,16 @@ export type {
   SessionManagerOptions,
 } from '@session/SessionManager';
 
+// Middleware responders
+export {
+  defaultMiddlewareFailureResponder,
+  respondWithMiddlewareFailure,
+} from '@middleware/MiddlewareFailureResponder';
+export type {
+  MiddlewareFailureContext,
+  MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
+
 // Config (core-owned)
 export { Env } from '@config/env';
 export { Logger } from '@config/logger';

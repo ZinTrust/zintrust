@@ -175,6 +175,56 @@ describe('ValidationMiddleware (coverage)', () => {
     expect(res.json).toHaveBeenCalledWith({ errors: { email: ['required'] } });
   });
 
+  it('delegates validation failures to onFailure', async () => {
+    const { Validator } = await import('@validation/Validator');
+    const { ValidationMiddleware } = await import('@middleware/ValidationMiddleware');
+
+    (Validator.validate as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw {
+        message: 'invalid',
+        toObject: () => ({ email: ['required'] }),
+      };
+    });
+
+    const onFailure = vi.fn(async (_req, response, context) => {
+      response
+        .setStatus(context.statusCode)
+        .json({ key: context.middleware, reason: context.reason });
+    });
+
+    const req = {
+      getMethod: vi.fn(() => 'POST'),
+      getPath: vi.fn(() => '/x'),
+      body: { email: '' },
+      getBody: vi.fn(() => ({ email: '' })),
+      validated: {},
+    } as unknown as IRequest;
+
+    const res = {
+      setStatus: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as unknown as IResponse;
+
+    const next = vi.fn().mockResolvedValue(undefined);
+
+    const mw = ValidationMiddleware.create({} as any, {
+      onFailure,
+      middlewareKey: 'validateLogin',
+    });
+    await mw(req, res, next);
+
+    expect(onFailure).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'validateLogin',
+        reason: 'validation_error',
+        statusCode: 422,
+      })
+    );
+    expect(res.json).toHaveBeenCalledWith({ key: 'validateLogin', reason: 'validation_error' });
+  });
+
   it('falls back to 400 when error.toObject throws', async () => {
     const { Validator } = await import('@validation/Validator');
     const { ValidationMiddleware } = await import('@middleware/ValidationMiddleware');

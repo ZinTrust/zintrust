@@ -1,10 +1,15 @@
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import {
+  respondWithMiddlewareFailure,
+  type MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
 
 export interface AuthOptions {
   headerName?: string;
   message?: string;
+  onUnauthorized?: MiddlewareFailureResponder;
 }
 
 export const AuthMiddleware = Object.freeze({
@@ -17,7 +22,13 @@ export const AuthMiddleware = Object.freeze({
       const value = Array.isArray(header) ? header[0] : header;
 
       if (typeof value !== 'string' || value.trim() === '') {
-        res.setStatus(401).json({ error: message });
+        await respondWithMiddlewareFailure(req, res, options.onUnauthorized, {
+          middleware: 'auth',
+          reason: 'missing_authorization_header',
+          statusCode: 401,
+          message,
+          body: { error: message },
+        });
         return;
       }
 
