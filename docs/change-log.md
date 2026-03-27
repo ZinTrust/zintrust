@@ -2,6 +2,11 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-03-27
+
+- Updated the container worker scaffold so generated database password env vars no longer ship with an insecure hard-coded `secret` fallback, which removes the Sonar new-code security finding on the release PR while keeping password values configurable through project env files.
+- Updated the basic app scaffold to include the published `@zintrust/d1-migrator` package by default so fresh projects keep the `zin migrate-to-d1` command available without a separate manual install, and clarified the CLI reference to match the optional-package auto-registration flow.
+
 ## 2026-03-26
 
 - Verified the Cloudflare Workers auth and jwt failure path keeps the default `401` contract by default and honors project responder overrides for custom status/body output, then added a focused regression test covering both cases.

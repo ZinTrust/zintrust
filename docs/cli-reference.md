@@ -586,7 +586,7 @@ zin templates render [mail|notification|all] <name>
 
 Migrates an external database (MySQL, PostgreSQL, SQLite, SQL Server) to a Cloudflare D1 local or remote database securely with checkpointing.
 
-> This command is available in the core ZinTrust CLI via integrated `@zintrust/d1-migrator` registration.
+> This command is auto-registered by the core ZinTrust CLI when `@zintrust/d1-migrator` is installed in your project. Freshly scaffolded apps include it by default.
 
 **Usage:**
 `zin migrate-to-d1 [--from driver] [--to target] [--source-connection uri] [--target-database name]`

@@ -54,7 +54,7 @@ services:
       - DB_PORT=\${DB_PORT:-3306}
       - DB_DATABASE=\${DB_DATABASE:-zintrust}
       - DB_USERNAME=\${DB_USERNAME:-zintrust}
-      - DB_PASSWORD=\${DB_PASSWORD:-secret}
+      - DB_PASSWORD=\${DB_PASSWORD:-}
 
       # SMTP Mail
       - MAIL_DRIVER=\${MAIL_DRIVER:-smtp}
@@ -71,13 +71,13 @@ services:
       - DB_PORT_POSTGRESQL=\${DB_PORT_POSTGRESQL:-5432}
       - DB_DATABASE_POSTGRESQL=\${DB_DATABASE_POSTGRESQL:-zintrust}
       - DB_USERNAME_POSTGRESQL=\${DB_USERNAME_POSTGRESQL:-zintrust}
-      - DB_PASSWORD_POSTGRESQL=\${DB_PASSWORD_POSTGRESQL:-secret}
+      - DB_PASSWORD_POSTGRESQL=\${DB_PASSWORD_POSTGRESQL:-}
 
       # MySQL
       - DB_PORT_MYSQL=\${DB_PORT_MYSQL:-3306}
       - DB_DATABASE_MYSQL=\${DB_DATABASE_MYSQL:-zintrust}
       - DB_USERNAME_MYSQL=\${DB_USERNAME_MYSQL:-zintrust}
-      - DB_PASSWORD_MYSQL=\${DB_PASSWORD_MYSQL:-secret}
+      - DB_PASSWORD_MYSQL=\${DB_PASSWORD_MYSQL:-}
 
       # Cloudflare D1
       - D1_DATABASE_ID=\${D1_DATABASE_ID}

