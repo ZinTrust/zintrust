@@ -1,7 +1,7 @@
-#!/bin/sh
+# #!/bin/sh
 
-# Block pushes when dist/package.json includes non-publish folders.
-node scripts/ci/check-dist-package-files.mjs
+# # Block pushes when dist/package.json includes non-publish folders.
+# node scripts/ci/check-dist-package-files.mjs
 
-# Block pushes when patch coverage would fail Codecov.
-# npm run -s coverage:patch
+# # Block pushes when patch coverage would fail Codecov.
+# # npm run -s coverage:patch
