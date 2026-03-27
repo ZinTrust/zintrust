@@ -329,14 +329,15 @@ export const RateLimiter = Object.freeze({
       // Check limit
       if (count > config.max) {
         Logger.warn(`Rate limit exceeded for IP: ${key}`);
+        const resolvedMessage = config.message ?? 'Too many requests';
         await respondWithMiddlewareFailure(req, res, config.onFailure, {
           middleware: 'rateLimit',
           reason: 'rate_limit_exceeded',
           statusCode: config.statusCode ?? 429,
-          message: config.message ?? 'Too many requests',
+          message: resolvedMessage,
           body: {
             error: 'Too Many Requests',
-            message: config.message,
+            message: resolvedMessage,
           },
         });
         return;

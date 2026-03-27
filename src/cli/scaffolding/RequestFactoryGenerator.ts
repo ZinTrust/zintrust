@@ -252,7 +252,9 @@ function buildStateMethods(fields: RequestField[]): string {
        * Apply minimal state
        */
       applyMinimalState(data: Record<string, unknown>) {
-        const required = ${JSON.stringify(fields.filter((f) => f.required !== false).map((f) => f.name))};
+        const required = ${JSON.stringify(
+          fields.filter((f) => f.required !== false).map((f) => f.name)
+        )};
         Object.keys(data).forEach(key => {
           if (!required.includes(key)) {
             delete data[key];

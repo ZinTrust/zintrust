@@ -175,7 +175,7 @@ const registerService = (config: MicroserviceConfig): MicroserviceConfig => {
   const healthCheckUrl =
     typeof config.healthCheck === 'string'
       ? config.healthCheck
-      : (config.healthCheckUrl ?? '/health');
+      : config.healthCheckUrl ?? '/health';
 
   const serviceConfig: MicroserviceConfig = {
     ...config,

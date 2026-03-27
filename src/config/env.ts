@@ -59,7 +59,7 @@ export const dirnameFromExecPath = (execPath: string, platform?: string): string
 export const get = (key: string, defaultValue?: string): string => {
   const env = getEnvSource();
   const value = normalizeEnvValue(env[key]);
-  return value === '' ? (defaultValue ?? '') : value;
+  return value === '' ? defaultValue ?? '' : value;
 };
 
 export const getInt = (key: string, defaultValue: number): number => {

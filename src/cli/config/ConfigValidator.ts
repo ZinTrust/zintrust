@@ -3,13 +3,8 @@
  * Validates configuration against schema and rules
  */
 
-import type {
-  ProjectConfig,
-  ValidationRule} from '@cli/config/ConfigSchema';
-import {
-  CONFIG_RULES,
-  getConfigValue
-} from '@cli/config/ConfigSchema';
+import type { ProjectConfig, ValidationRule } from '@cli/config/ConfigSchema';
+import { CONFIG_RULES, getConfigValue } from '@cli/config/ConfigSchema';
 
 export interface ValidationError {
   key: string;

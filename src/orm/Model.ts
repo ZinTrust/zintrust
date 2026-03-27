@@ -39,8 +39,8 @@ export interface ModelConfig {
   table: string;
   fillable: string[];
   hidden: string[];
-  timestamps: boolean;
-  casts: Record<string, string>;
+  timestamps?: boolean;
+  casts?: Record<string, string>;
   softDeletes?: boolean;
   deleteAtColumn?: string;
   accessors?: Record<string, (value: unknown, attrs: Record<string, unknown>) => unknown>;
@@ -138,7 +138,7 @@ export interface IModel {
  * Cast attribute value based on config
  */
 const castAttribute = (config: ModelConfig, key: string, value: unknown): unknown => {
-  const castType = config.casts[key];
+  const castType = config.casts ? config.casts[key] : undefined;
   if (castType === undefined) return value;
 
   switch (castType) {
@@ -411,7 +411,7 @@ const performModelSave = async (
   await runObservers(config, 'saving', model);
   await runObservers(config, isCreate ? 'creating' : 'updating', model);
 
-  if (config.timestamps) {
+  if (config.timestamps ?? false) {
     attrs['created_at'] = attrs['created_at'] ?? new Date().toISOString();
     attrs['updated_at'] = new Date().toISOString();
   }

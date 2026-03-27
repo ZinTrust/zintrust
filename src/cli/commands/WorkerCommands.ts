@@ -524,7 +524,12 @@ const createWorkerSummaryCommand = (): IBaseCommand => {
       console.log(`\nSystem Resources:`);
       console.log(`  CPU: ${resourceUsage.cpu.toFixed(1)}%`);
       console.log(
-        `  Memory: ${resourceUsage.memory.percent.toFixed(1)}% (${(resourceUsage.memory.used / 1024 / 1024 / 1024).toFixed(2)} GB used)`
+        `  Memory: ${resourceUsage.memory.percent.toFixed(1)}% (${(
+          resourceUsage.memory.used /
+          1024 /
+          1024 /
+          1024
+        ).toFixed(2)} GB used)`
       );
       console.log(`  Cost (hourly): $${resourceUsage.cost.hourly.toFixed(2)}`);
       console.log(`  Cost (daily): $${resourceUsage.cost.daily.toFixed(2)}`);

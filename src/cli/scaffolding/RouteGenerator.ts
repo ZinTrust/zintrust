@@ -276,9 +276,9 @@ function buildMethodRoute(
 
   const middlewareProp = buildMiddlewareProp(route, groupMiddlewareList);
 
-  const metaProp = `meta: { summary: ${escapeUnsafeChars(JSON.stringify(summary))}, tags: [${escapeUnsafeChars(
-    JSON.stringify(tag)
-  )}] }`;
+  const metaProp = `meta: { summary: ${escapeUnsafeChars(
+    JSON.stringify(summary)
+  )}, tags: [${escapeUnsafeChars(JSON.stringify(tag))}] }`;
   const options = `{ ${[middlewareProp, metaProp].filter((v) => v !== '').join(', ')} }`;
 
   return `  Router.${method}(${router}, '${routePath}', (req: IRequest, res: IResponse) => ${controllerVar}.${action}(req, res), ${options});\n`;

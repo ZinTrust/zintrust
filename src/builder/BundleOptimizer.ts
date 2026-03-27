@@ -421,7 +421,9 @@ async function optimizeForCloudflare(distDir: string, options: OptimizationOptio
   const sizeInMb = optimized.totalSize / (1024 * 1024);
   if (sizeInMb > 1) {
     Logger.warn(
-      `⚠️  Bundle size ${sizeInMb.toFixed(2)} MB exceeds 1 MB limit. Consider using Workers paid plan.`
+      `⚠️  Bundle size ${sizeInMb.toFixed(
+        2
+      )} MB exceeds 1 MB limit. Consider using Workers paid plan.`
     );
   }
 

@@ -56,11 +56,15 @@ const execute = async (options: Options): Promise<void> => {
       const hasStateInfo = [row.nextRunAt, row.lastSuccessAt, row.lastErrorAt].some(hasText);
 
       const extra = hasStateInfo
-        ? ` next=${row.nextRunAt ?? '-'} lastOk=${row.lastSuccessAt ?? '-'} lastErr=${row.lastErrorAt ?? '-'}`
+        ? ` next=${row.nextRunAt ?? '-'} lastOk=${row.lastSuccessAt ?? '-'} lastErr=${
+            row.lastErrorAt ?? '-'
+          }`
         : '';
 
       Logger.info(
-        `${row.name} (enabled=${row.enabled}, ${cadence}, runOnStart=${row.runOnStart}, failures=${row.consecutiveFailures ?? 0})${extra}`
+        `${row.name} (enabled=${row.enabled}, ${cadence}, runOnStart=${row.runOnStart}, failures=${
+          row.consecutiveFailures ?? 0
+        })${extra}`
       );
     });
   } finally {

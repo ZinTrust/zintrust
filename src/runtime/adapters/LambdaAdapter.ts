@@ -207,7 +207,7 @@ function formatLambdaResponse(response: PlatformResponse): unknown {
     statusCode: response.statusCode,
     headers: response.headers,
     body:
-      typeof response.body === 'string' ? response.body : (response.body?.toString('utf-8') ?? ''),
+      typeof response.body === 'string' ? response.body : response.body?.toString('utf-8') ?? '',
     isBase64Encoded: response.isBase64Encoded ?? false,
   };
 }
@@ -329,6 +329,36 @@ function getRemoteAddrV1(headers: Record<string, string | string[]>): string {
   return '0.0.0.0';
 }
 
+type LambdaHttpLikeEvent = {
+  httpMethod: string;
+  path: string;
+  headers?: Record<string, string | string[]>;
+  queryStringParameters?: Record<string, string | string[]>;
+  body?: string | null;
+};
+
+function parseHttpStyleRequest(
+  event: LambdaHttpLikeEvent,
+  resolveRemoteAddr: (headers: Record<string, string | string[]>) => string
+): {
+  method: string;
+  path: string;
+  headers: Record<string, string | string[]>;
+  query: Record<string, string | string[]>;
+  body: string | null;
+  remoteAddr: string;
+} {
+  const headers = event.headers ?? {};
+  return createParsedLambdaRequest({
+    method: event.httpMethod,
+    path: event.path,
+    headers,
+    query: event.queryStringParameters ?? {},
+    body: event.body ?? null,
+    remoteAddr: resolveRemoteAddr(headers),
+  });
+}
+
 /**
  * Parse API Gateway v2 request
  */
@@ -362,15 +392,7 @@ function parseAlbRequest(event: LambdaEventAlb): {
   body: string | null;
   remoteAddr: string;
 } {
-  const headers = event.headers ?? {};
-  return {
-    method: event.httpMethod,
-    path: event.path,
-    headers,
-    query: event.queryStringParameters ?? {},
-    body: event.body ?? null,
-    remoteAddr: getRemoteAddrAlb(headers),
-  };
+  return parseHttpStyleRequest(event, getRemoteAddrAlb);
 }
 
 /**
@@ -384,15 +406,27 @@ function parseV1Request(event: LambdaEventV1): {
   body: string | null;
   remoteAddr: string;
 } {
-  const headers = event.headers ?? {};
-  return {
-    method: event.httpMethod,
-    path: event.path,
-    headers,
-    query: event.queryStringParameters ?? {},
-    body: event.body ?? null,
-    remoteAddr: getRemoteAddrV1(headers),
-  };
+  return parseHttpStyleRequest(event, getRemoteAddrV1);
+}
+
+function createParsedLambdaRequest(
+  request: {
+    method: string;
+    path: string;
+    headers: Record<string, string | string[]>;
+    query: Record<string, string | string[]>;
+    body: string | null;
+    remoteAddr: string;
+  }
+): {
+  method: string;
+  path: string;
+  headers: Record<string, string | string[]>;
+  query: Record<string, string | string[]>;
+  body: string | null;
+  remoteAddr: string;
+} {
+  return request;
 }
 
 /**

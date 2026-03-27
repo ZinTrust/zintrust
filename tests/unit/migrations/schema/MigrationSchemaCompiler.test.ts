@@ -29,7 +29,7 @@ describe('MigrationSchemaCompiler', () => {
     const sql = MigrationSchemaCompiler.compileCreateTable('mysql', table.getDefinition());
 
     expect(sql[0]).toContain('CREATE TABLE IF NOT EXISTS `users`');
-    expect(sql[0]).toContain('`id` INT AUTO_INCREMENT PRIMARY KEY');
+    expect(sql[0]).toContain('`id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY');
   });
 
   it('should reject invalid identifiers', () => {

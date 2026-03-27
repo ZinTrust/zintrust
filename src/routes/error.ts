@@ -138,13 +138,15 @@ const handleInternalServerErrorWithWrappers = async (
   const requestPretty =
     requestObj === undefined
       ? undefined
-      : `Request\n\nMethod: ${requestObj.method}\nPath: ${requestObj.path}\n\nHeaders:\n${safeJsonStringify(
-          requestObj.headers
-        )}\n\nQuery:\n${safeJsonStringify(requestObj.query)}`;
+      : `Request\n\nMethod: ${requestObj.method}\nPath: ${
+          requestObj.path
+        }\n\nHeaders:\n${safeJsonStringify(requestObj.headers)}\n\nQuery:\n${safeJsonStringify(
+          requestObj.query
+        )}`;
 
   const requestRaw = requestObj === undefined ? undefined : safeJsonStringify(requestObj);
 
-  const stackPretty = isDev ? (err.stack ?? '') : undefined;
+  const stackPretty = isDev ? err.stack ?? '' : undefined;
   const stackRaw = isDev
     ? safeJsonStringify({ name: err.name, message: err.message, stack: err.stack })
     : undefined;

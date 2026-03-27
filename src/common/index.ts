@@ -161,7 +161,9 @@ export const CommonUtils = Object.freeze({
       return fs.readFileSync(filePath, 'utf-8');
     } catch (error) {
       throw ErrorFactory.createGeneralError(
-        `Failed to read file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to read file: ${filePath}. ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   },
@@ -175,7 +177,9 @@ export const CommonUtils = Object.freeze({
       return await fsPromises.readFile(filePath, 'utf-8');
     } catch (error) {
       throw ErrorFactory.createGeneralError(
-        `Failed to read file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to read file: ${filePath}. ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   },
@@ -192,7 +196,9 @@ export const CommonUtils = Object.freeze({
       fs.writeFileSync(filePath, content, 'utf-8');
     } catch (error) {
       throw ErrorFactory.createGeneralError(
-        `Failed to write file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to write file: ${filePath}. ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   },
@@ -210,7 +216,9 @@ export const CommonUtils = Object.freeze({
       await fsPromises.writeFile(filePath, content, 'utf-8');
     } catch (error) {
       throw ErrorFactory.createGeneralError(
-        `Failed to write file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to write file: ${filePath}. ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   },
@@ -225,7 +233,9 @@ export const CommonUtils = Object.freeze({
       }
     } catch (error) {
       throw ErrorFactory.createGeneralError(
-        `Failed to delete file: ${filePath}. ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to delete file: ${filePath}. ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
       );
     }
   },

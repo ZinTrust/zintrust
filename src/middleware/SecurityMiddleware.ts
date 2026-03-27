@@ -39,9 +39,9 @@ const normalizeCorsList = (values: readonly string[] | undefined, fallback: stri
 };
 
 const getSecurityCorsConfig = ():
-  | NonNullable<(typeof securityConfig)['cors']>
+  | NonNullable<typeof securityConfig['cors']>
   | Record<string, never> => {
-  const config = securityConfig as { cors?: (typeof securityConfig)['cors'] } | undefined;
+  const config = securityConfig as { cors?: typeof securityConfig['cors'] } | undefined;
   return config?.cors ?? {};
 };
 

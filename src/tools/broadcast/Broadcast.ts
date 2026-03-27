@@ -20,8 +20,9 @@ const resolveBroadcasterConfig = async (name?: string): Promise<KnownBroadcastDr
     }
 
     try {
-      const { registerBroadcastersFromRuntimeConfig } =
-        await import('@broadcast/BroadcastRuntimeRegistration');
+      const { registerBroadcastersFromRuntimeConfig } = await import(
+        '@broadcast/BroadcastRuntimeRegistration'
+      );
       registerBroadcastersFromRuntimeConfig(broadcastConfig);
     } catch {
       // best-effort

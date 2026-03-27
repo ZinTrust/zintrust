@@ -244,7 +244,7 @@ function getDenoEnvironment(): {
   [key: string]: unknown;
 } {
   // @ts-ignore - Deno.env is available in Deno runtime
-  const env = (typeof Deno === 'undefined' ? {} : (Deno.env.toObject?.() ?? {})) as Record<
+  const env = (typeof Deno === 'undefined' ? {} : Deno.env.toObject?.() ?? {}) as Record<
     string,
     string
   >;

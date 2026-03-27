@@ -51,12 +51,9 @@ export const TimeoutManager = Object.freeze({
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = globalThis.setTimeout(
-        () => {
-          reject(createTimeoutError(operationName, timeoutMs));
-        },
-        Math.max(1, timeoutMs)
-      );
+      timeoutId = globalThis.setTimeout(() => {
+        reject(createTimeoutError(operationName, timeoutMs));
+      }, Math.max(1, timeoutMs));
     });
 
     try {

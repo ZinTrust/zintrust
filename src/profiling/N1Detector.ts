@@ -136,7 +136,9 @@ function generateSummary(patterns: N1Pattern[]): string {
 
   for (const pattern of patterns) {
     lines.push(
-      `  [${pattern.severity.toUpperCase()}] Table "${pattern.table}": ${pattern.queryCount} identical queries`
+      `  [${pattern.severity.toUpperCase()}] Table "${pattern.table}": ${
+        pattern.queryCount
+      } identical queries`
     );
   }
 

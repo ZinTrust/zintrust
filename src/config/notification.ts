@@ -48,7 +48,7 @@ const getDefaultChannel = (drivers: NotificationDrivers): string => {
     throw ErrorFactory.createConfigError(`Notification channel not configured: ${value}`);
   }
 
-  return hasOwn(drivers, 'console') ? 'console' : (Object.keys(drivers)[0] ?? 'console');
+  return hasOwn(drivers, 'console') ? 'console' : Object.keys(drivers)[0] ?? 'console';
 };
 
 const getNotificationDriver = (

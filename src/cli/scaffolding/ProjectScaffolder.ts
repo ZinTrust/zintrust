@@ -335,12 +335,12 @@ const resolveTemplateMetadata = (
   meta: TemplateJson,
   fallback?: ProjectTemplate
 ): Pick<ProjectTemplate, 'name' | 'description' | 'directories'> => {
-  const name = typeof meta.name === 'string' ? meta.name : (fallback?.name ?? templateName);
+  const name = typeof meta.name === 'string' ? meta.name : fallback?.name ?? templateName;
   const description =
-    typeof meta.description === 'string' ? meta.description : (fallback?.description ?? '');
+    typeof meta.description === 'string' ? meta.description : fallback?.description ?? '';
   const directories = Array.isArray(meta.directories)
     ? coerceStringArray(meta.directories)
-    : (fallback?.directories ?? []);
+    : fallback?.directories ?? [];
 
   return { name, description, directories };
 };

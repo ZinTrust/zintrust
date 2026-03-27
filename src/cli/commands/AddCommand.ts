@@ -648,7 +648,7 @@ const addController = async (
     name,
     controllerPath,
     type: (controllerType === ''
-      ? (opts.controllerType ?? 'crud')
+      ? opts.controllerType ?? 'crud'
       : controllerType) as ControllerType,
   });
 

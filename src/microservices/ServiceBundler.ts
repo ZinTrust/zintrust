@@ -360,7 +360,9 @@ function printBundleSummary(results: BundleResult[]): void {
   for (const result of results) {
     const status = result.optimized === true ? '✅' : '⚠️ ';
     Logger.info(
-      `${status} ${result.serviceName.padEnd(20)} ${result.sizeMB.toFixed(2)} MB (${result.files} files)`
+      `${status} ${result.serviceName.padEnd(20)} ${result.sizeMB.toFixed(2)} MB (${
+        result.files
+      } files)`
     );
     totalSize += result.sizeBytes;
     totalFiles += result.files;
