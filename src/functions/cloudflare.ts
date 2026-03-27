@@ -49,6 +49,10 @@ const startupConfigModules: ReadonlyArray<{
     file: StartupConfigFile.Storage,
     serviceModuleId: '@service-runtime-config/' + 'storage.ts',
   },
+  {
+    file: StartupConfigFile.Workers,
+    serviceModuleId: '@service-runtime-config/' + 'workers.ts',
+  },
 ]);
 
 type RootStartupModule = { default?: unknown };

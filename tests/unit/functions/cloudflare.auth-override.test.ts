@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const baseWorkerEnv = Object.freeze({
+  DB_CONNECTION: 'sqlite',
+  JWT_SECRET: 'test-jwt-secret',
+  APP_KEY: 'test-app-key',
+});
+
 const deleteWorkerGlobals = (): void => {
   delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
     .__zintrustStartupConfigOverrides;
@@ -33,20 +39,15 @@ const resetRuntimeState = async (): Promise<void> => {
 describe('functions/cloudflare auth responder overrides', () => {
   afterEach(async () => {
     vi.doUnmock('@runtime-config/middleware.ts');
-    vi.unstubAllEnvs();
     await resetRuntimeState();
     vi.resetModules();
   });
 
   it('keeps default auth failures at 401 in the worker fetch path', async () => {
-    vi.stubEnv('DB_CONNECTION', 'sqlite');
-    vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
-    vi.stubEnv('APP_KEY', 'test-app-key');
-
     const fetch = await loadHandler('worker-default-auth-401');
     const response = await fetch(
       new Request('http://localhost/api/v1/users/create', { method: 'GET' }),
-      {},
+      baseWorkerEnv,
       {}
     );
 
@@ -60,10 +61,10 @@ describe('functions/cloudflare auth responder overrides', () => {
   });
 
   it('allows auth and jwt responders to override status and body in the worker fetch path', async () => {
-    vi.stubEnv('DB_CONNECTION', 'sqlite');
-    vi.stubEnv('JWT_SECRET', 'test-jwt-secret');
-    vi.stubEnv('APP_KEY', 'test-app-key');
-    vi.stubEnv('CSRF_SKIP_PATHS', '/api/v1/auth/refresh');
+    const overrideWorkerEnv = {
+      ...baseWorkerEnv,
+      CSRF_SKIP_PATHS: '/api/v1/auth/refresh',
+    };
 
     vi.doMock('@runtime-config/middleware.ts', () => ({
       default: {
@@ -90,7 +91,7 @@ describe('functions/cloudflare auth responder overrides', () => {
 
     const authResponse = await fetch(
       new Request('http://localhost/api/v1/users/create', { method: 'GET' }),
-      {},
+      overrideWorkerEnv,
       {}
     );
 
@@ -106,7 +107,7 @@ describe('functions/cloudflare auth responder overrides', () => {
         method: 'POST',
         headers: { authorization: 'Bearer bad-token' },
       }),
-      {},
+      overrideWorkerEnv,
       {}
     );
 

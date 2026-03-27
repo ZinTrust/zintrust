@@ -280,6 +280,7 @@ describe('functions/cloudflare', () => {
       'config/notification.ts',
       'config/queue.ts',
       'config/storage.ts',
+      'config/workers.ts',
     ]);
   });
 
