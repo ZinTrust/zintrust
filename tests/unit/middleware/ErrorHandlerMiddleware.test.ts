@@ -29,7 +29,7 @@ describe('ErrorHandlerMiddleware', () => {
       },
     }));
 
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -82,7 +82,7 @@ describe('ErrorHandlerMiddleware', () => {
         getBool: envGetBool,
       },
     }));
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -116,6 +116,66 @@ describe('ErrorHandlerMiddleware', () => {
     expect(arg.stack).toBeUndefined();
   });
 
+  it('does not include stack for NotFoundError in non-production', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    vi.resetModules();
+
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
+
+    const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
+    const { Logger } = await import('@config/logger');
+
+    const req = makeReq('nf-id');
+    const jsonSpy = vi.fn();
+    const setStatusSpy = vi.fn();
+    const res = {
+      getRaw: () => ({ writableEnded: false }),
+      setStatus: setStatusSpy,
+      json: jsonSpy,
+    } as any;
+
+    const notFoundError = Object.assign(new Error('Resource not found'), {
+      name: 'NotFoundError',
+      code: 'NOT_FOUND',
+      statusCode: 404,
+      stack: 'NotFoundError: Resource not found',
+    });
+
+    const next = async () => {
+      throw notFoundError;
+    };
+
+    const middleware = ErrorHandlerMiddleware.create();
+    await middleware(req, res, next);
+
+    expect(Logger.error).toHaveBeenCalledWith('Unhandled request error:', notFoundError);
+    expect(setStatusSpy).toHaveBeenCalledWith(500);
+    const arg = jsonSpy.mock.calls[0][0];
+    expect(arg.code).toBe('INTERNAL_SERVER_ERROR');
+    expect(arg.requestId).toBe('nf-id');
+    expect(arg.stack).toBeUndefined();
+
+    process.env.NODE_ENV = prev;
+  });
+
   it('skips writing when writableEnded is true', async () => {
     const envGet = vi.fn((key: string, defaultVal?: string) =>
       key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
@@ -131,7 +191,7 @@ describe('ErrorHandlerMiddleware', () => {
         getBool: envGetBool,
       },
     }));
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -173,7 +233,7 @@ describe('ErrorHandlerMiddleware', () => {
         getBool: envGetBool,
       },
     }));
-    vi.mock('@config/logger', () => ({
+    vi.doMock('@config/logger', () => ({
       Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     }));
 
@@ -198,5 +258,59 @@ describe('ErrorHandlerMiddleware', () => {
 
     expect(setStatusSpy).toHaveBeenCalledWith(500);
     expect(jsonSpy).toHaveBeenCalled();
+  });
+
+  it('delegates JSON error responses to onFailure', async () => {
+    vi.resetModules();
+
+    const envGet = vi.fn((key: string, defaultVal?: string) =>
+      key === 'ERROR_MODE' ? 'json' : (defaultVal ?? '')
+    );
+    const envGetInt = vi.fn((_key: string, defaultVal?: number) => defaultVal ?? 0);
+    const envGetBool = vi.fn((_key: string, defaultVal?: boolean) => defaultVal ?? false);
+
+    vi.doMock('@config/env', () => ({
+      Env: {
+        NODE_ENV: 'development',
+        get: envGet,
+        getInt: envGetInt,
+        getBool: envGetBool,
+      },
+    }));
+    vi.doMock('@config/logger', () => ({
+      Logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+    }));
+
+    const { ErrorHandlerMiddleware } = await import('@/middleware/ErrorHandlerMiddleware');
+    const onFailure = vi.fn(async (_req, response, context) => {
+      response.setStatus(context.statusCode);
+      response.json({ requestId: context.requestId, reason: context.reason });
+    });
+
+    const req = makeReq('custom-id');
+    const jsonSpy = vi.fn();
+    const setStatusSpy = vi.fn();
+    const res = {
+      getRaw: () => ({ writableEnded: false }),
+      setStatus: setStatusSpy,
+      json: jsonSpy,
+    } as any;
+
+    const middleware = ErrorHandlerMiddleware.create({ onFailure });
+    await middleware(req, res, async () => {
+      throw new Error('boom');
+    });
+
+    expect(onFailure).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'error',
+        reason: 'unhandled_exception',
+        requestId: 'custom-id',
+        statusCode: 500,
+      })
+    );
+    expect(jsonSpy).toHaveBeenCalledWith({ requestId: 'custom-id', reason: 'unhandled_exception' });
   });
 });

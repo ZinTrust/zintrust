@@ -28,6 +28,8 @@ const mocked = vi.hoisted(() => ({
   envGetInt: vi.fn(),
   registerCoreRoutes: vi.fn(),
   registerRoutes: vi.fn(),
+  tryLoadNodeRuntime: vi.fn(),
+  getServiceManifest: vi.fn(),
 }));
 
 vi.mock('@config/env', () => ({
@@ -49,6 +51,13 @@ vi.mock('@routes/api', () => ({
   registerRoutes: (...args: any[]) => mocked.registerRoutes(...args),
 }));
 
+vi.mock('@runtime/ProjectRuntime', () => ({
+  ProjectRuntime: {
+    tryLoadNodeRuntime: (...args: any[]) => mocked.tryLoadNodeRuntime(...args),
+    getServiceManifest: (...args: any[]) => mocked.getServiceManifest(...args),
+  },
+}));
+
 describe('RoutesCommand', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 
@@ -63,6 +72,8 @@ describe('RoutesCommand', () => {
 
     mocked.registerCoreRoutes.mockImplementation(registerCoreRoutesImpl);
     mocked.registerRoutes.mockImplementation(registerRoutesImpl);
+    mocked.tryLoadNodeRuntime.mockResolvedValue(undefined);
+    mocked.getServiceManifest.mockReturnValue([]);
   });
 
   afterEach(() => {
@@ -158,5 +169,55 @@ describe('RoutesCommand', () => {
     await cmd.execute({ json: true, filter: '/anon' });
     const printed = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
     expect(printed).toContain('<anonymous>');
+  });
+
+  it('includes manifest-backed routes when runtime services are loaded', async () => {
+    mocked.getServiceManifest.mockReturnValue([
+      {
+        id: 'app/gatewaynext',
+        domain: 'app',
+        name: 'gatewaynext',
+        monolithEnabled: true,
+        loadRoutes: async () => ({
+          registerRoutes(router: any) {
+            Router.get(router, '/', () => undefined, undefined);
+          },
+        }),
+      },
+    ]);
+
+    const { RoutesCommand } = await import('@cli/commands/RoutesCommand');
+    const cmd = RoutesCommand.create();
+
+    await cmd.execute({ json: true, filter: 'gatewaynext', groupBy: 'service' });
+
+    const printed = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
+    expect(printed).toContain('app/gatewaynext');
+    expect(printed).toContain('/app/gatewaynext');
+  });
+
+  it('uses custom manifest prefixes for monolith route output', async () => {
+    mocked.getServiceManifest.mockReturnValue([
+      {
+        id: 'app/gatewaynext',
+        domain: 'app',
+        name: 'gatewaynext',
+        prefix: '/gateway',
+        monolithEnabled: true,
+        loadRoutes: async () => ({
+          registerRoutes(router: any) {
+            Router.get(router, '/', () => undefined, undefined);
+          },
+        }),
+      },
+    ]);
+
+    const { RoutesCommand } = await import('@cli/commands/RoutesCommand');
+    const cmd = RoutesCommand.create();
+
+    await cmd.execute({ json: true, filter: '/gateway', groupBy: 'service' });
+
+    const printed = logSpy.mock.calls.map((c) => String(c[0] ?? '')).join('\n');
+    expect(printed).toContain('/gateway');
   });
 });

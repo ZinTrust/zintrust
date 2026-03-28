@@ -16,7 +16,7 @@ export { SignedRequest } from '@security/SignedRequest';
 
 export { Server } from '@boot/Server';
 export { ServiceContainer } from '@container/ServiceContainer';
-export { createPaginator, getNextPageUrl, getPrevPageUrl, Paginator } from '@database/Paginator';
+export { Paginator, createPaginator, getNextPageUrl, getPrevPageUrl } from '@database/Paginator';
 export type {
   CreatePaginatorInput,
   PaginationLinks,
@@ -44,13 +44,13 @@ export { RequestContext } from '@http/RequestContext';
 export { Response } from '@http/Response';
 export type { IResponse } from '@http/Response';
 export {
+  ValidationHelper,
   getValidatedBody,
   getValidatedHeaders,
   getValidatedParams,
   getValidatedQuery,
   hasValidatedBody,
   requireValidatedBody,
-  ValidationHelper,
 } from '@http/ValidationHelper';
 export { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 export { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
@@ -70,7 +70,7 @@ export type { IDatabase } from '@orm/Database';
 export { Model } from '@orm/Model';
 export type { IModel, ModelConfig, ModelStatic } from '@orm/Model';
 export { QueryBuilder } from '@orm/QueryBuilder';
-export type { InsertResult, IQueryBuilder, PaginationOptions } from '@orm/QueryBuilder';
+export type { IQueryBuilder, InsertResult, PaginationOptions } from '@orm/QueryBuilder';
 export type { IRelationship } from '@orm/Relationships';
 
 // Time Utilities
@@ -87,22 +87,22 @@ export { OpenApiGenerator } from '@/openapi/OpenApiGenerator';
 export type { OpenApiGeneratorOptions } from '@/openapi/OpenApiGenerator';
 export { Router } from '@core-routes/Router';
 export type { IRouter } from '@core-routes/Router';
-export { normalizeRouteMeta, RouteRegistry } from '@core-routes/RouteRegistry';
+export { RouteRegistry, normalizeRouteMeta } from '@core-routes/RouteRegistry';
 export type { RouteMeta, RouteMetaInput, RouteRegistration } from '@core-routes/RouteRegistry';
 export { DatabaseAdapterRegistry } from '@orm/DatabaseAdapterRegistry';
 
 // Common
 export {
+  Utilities,
   generateSecureJobId,
   generateUuid,
   getString,
-  Utilities,
   type UtilitiesType,
 } from '@/common/utility';
 export { delay, ensureDirSafe } from '@common/index';
 
 // Collections
-export { collect, Collection } from '@/collections/index';
+export { Collection, collect } from '@/collections/index';
 export type { ICollection, PrimitiveKey } from '@/collections/index';
 
 // HTTP Client
@@ -184,7 +184,7 @@ export type {
   PasswordResetTokenBrokerType,
   PasswordResetTokenRecord,
 } from '@security/PasswordResetTokenBroker';
-export { createSanitizer, Sanitizer, type SanitizerType } from '@security/Sanitizer';
+export { Sanitizer, createSanitizer, type SanitizerType } from '@security/Sanitizer';
 export { TokenRevocation } from '@security/TokenRevocation';
 export { Xss } from '@security/Xss';
 export { XssProtection } from '@security/XssProtection';
@@ -194,10 +194,10 @@ export { ErrorFactory } from '@exceptions/ZintrustError';
 
 // Runtime services
 export {
-  detectCloudflareWorkers,
-  detectRuntimePlatform,
   RUNTIME_PLATFORM,
   RuntimeServices,
+  detectCloudflareWorkers,
+  detectRuntimePlatform,
   type RuntimeCrypto,
   type RuntimeEnvReader,
   type RuntimeFs,
@@ -219,15 +219,25 @@ export type {
   SessionManagerOptions,
 } from '@session/SessionManager';
 
+// Middleware responders
+export {
+  defaultMiddlewareFailureResponder,
+  respondWithMiddlewareFailure,
+} from '@middleware/MiddlewareFailureResponder';
+export type {
+  MiddlewareFailureContext,
+  MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
+
 // Config (core-owned)
 export { Env } from '@config/env';
 export { Logger } from '@config/logger';
 
-export { appConfig } from '@config/app';
-export type { AppConfig } from '@config/app';
 export { LocalD1Resolver } from '@cli/d1/LocalD1Resolver';
 export { WranglerConfig } from '@cli/d1/WranglerConfig';
 export { WranglerD1 } from '@cli/d1/WranglerD1';
+export { appConfig } from '@config/app';
+export type { AppConfig } from '@config/app';
 
 export { cacheConfig } from '@config/cache';
 export type { CacheConfig, CacheConfigOverrides } from '@config/cache';
@@ -264,8 +274,15 @@ export type {
   HealthCheckResult,
   IServiceHealthMonitor,
 } from '@microservices/ServiceHealthMonitor';
+export {
+  getServiceId,
+  isCanonicalServiceId,
+  normalizeServiceManifest,
+} from '@microservices/ServiceManifest';
+export type { ProjectRuntimeModule, ServiceManifestEntry } from '@microservices/ServiceManifest';
+export { ProjectRuntime } from '@runtime/ProjectRuntime';
 
-export { clearMiddlewareConfigCache, middlewareConfig, MiddlewareKeys } from '@config/middleware';
+export { MiddlewareKeys, clearMiddlewareConfigCache, middlewareConfig } from '@config/middleware';
 export type { MiddlewareKey } from '@config/middleware';
 export type { MiddlewareConfigType } from '@config/type';
 
@@ -293,10 +310,10 @@ export { FeatureFlags } from '@config/features';
 
 export { Cloudflare } from '@config/cloudflare';
 export {
-  getDatabaseCredentials,
-  getJwtSecrets,
   SECRETS,
   SecretsManager,
+  getDatabaseCredentials,
+  getJwtSecrets,
 } from '@config/SecretsManager';
 export type { DatabaseCredentials, JwtSecrets } from '@config/SecretsManager';
 export type { MailDriverConfig, MailDriverName, WorkersEnv } from '@config/type';
@@ -449,12 +466,12 @@ export type { RouteOptions } from '@core-routes/Router';
 
 // Redis config key - Singleton exports
 export {
+  RedisKeys,
   createRedisKey,
   extractOriginalKey,
   getBullMQSafeQueueName,
   getPrefix,
   isAppKey,
-  RedisKeys,
   type RedisKeyType,
 } from '@tools/redis/RedisKeyManager';
 

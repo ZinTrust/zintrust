@@ -62,7 +62,7 @@ const noopSpan: Span = {
 } as unknown as Span;
 
 const fallbackContext = {
-  active: () => ({}) as Context,
+  active: () => ({} as Context),
   with: <A extends unknown[], F extends (...args: A) => ReturnType<F>>(
     _ctx: Context,
     fn: F,

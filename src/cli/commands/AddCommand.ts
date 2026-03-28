@@ -93,6 +93,10 @@ interface RoutesPromptAnswers {
   name: string;
 }
 
+interface MiddlewarePromptAnswers {
+  name: string;
+}
+
 interface FactoryPromptAnswers {
   name: string;
   model: string;
@@ -126,15 +130,152 @@ interface ResponseFactoryPromptAnswers {
   withDTO: boolean;
 }
 
+const isAsciiLowercaseLetter = (value: string): boolean => value >= 'a' && value <= 'z';
+
+const isAsciiUppercaseLetter = (value: string): boolean => value >= 'A' && value <= 'Z';
+
+const isAsciiDigit = (value: string): boolean => value >= '0' && value <= '9';
+
+const isAsciiLetter = (value: string): boolean =>
+  isAsciiLowercaseLetter(value) || isAsciiUppercaseLetter(value);
+
+const isLowercaseLettersOnly = (value: string): boolean => {
+  if (value.length === 0) return false;
+  for (const char of value) {
+    if (!isAsciiLowercaseLetter(char)) return false;
+  }
+  return true;
+};
+
+const isSnakeCaseName = (value: string): boolean => {
+  if (value.length === 0) return false;
+  for (const char of value) {
+    if (isAsciiLowercaseLetter(char) || char === '_') continue;
+    return false;
+  }
+  return true;
+};
+
+const isPascalCaseBase = (value: string): boolean => {
+  if (value.length === 0) return false;
+  if (!isAsciiUppercaseLetter(value[0] ?? '')) return false;
+
+  for (let index = 1; index < value.length; index += 1) {
+    const char = value[index] ?? '';
+    if (isAsciiLetter(char) || isAsciiDigit(char)) continue;
+    return false;
+  }
+
+  return true;
+};
+
+const hasPascalCaseSuffix = (value: string, suffix: string): boolean => {
+  if (!value.endsWith(suffix)) return false;
+  const base = value.slice(0, -suffix.length);
+  return isPascalCaseBase(base);
+};
+
+const toSafeSnakeCase = (value: string): string => {
+  const snake = CommonUtils.toSnakeCase(value);
+  let output = '';
+  let previousWasUnderscore = false;
+
+  for (const char of snake) {
+    const isAllowed = isAsciiLowercaseLetter(char) || isAsciiDigit(char) || char === '_';
+    const nextChar = isAllowed ? char : '_';
+
+    if (nextChar === '_') {
+      if (previousWasUnderscore) continue;
+      previousWasUnderscore = true;
+      output += '_';
+      continue;
+    }
+
+    previousWasUnderscore = false;
+    output += nextChar;
+  }
+
+  let start = 0;
+  while (start < output.length && output[start] === '_') start += 1;
+
+  let end = output.length;
+  while (end > start && output[end - 1] === '_') end -= 1;
+
+  return output.slice(start, end);
+};
+
+const stripSuffix = (value: string, suffix: string): string =>
+  value.endsWith(suffix) ? value.slice(0, -suffix.length) : value;
+
+const skipInlineWhitespace = (value: string, startIndex: number): number => {
+  let nextIndex = startIndex;
+  while (nextIndex < value.length) {
+    const nextChar = value[nextIndex];
+    if (nextChar === ' ' || nextChar === '\t' || nextChar === '\r') {
+      nextIndex += 1;
+      continue;
+    }
+    break;
+  }
+  return nextIndex;
+};
+
+const findMatchingObjectBrace = (value: string, startIndex: number): number | undefined => {
+  let depth = 0;
+
+  for (let index = startIndex; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === '{') {
+      depth += 1;
+      continue;
+    }
+    if (char !== '}') continue;
+
+    depth -= 1;
+    if (depth === 0) return index;
+  }
+
+  return undefined;
+};
+
+const findRouteBlockBounds = (
+  configSource: string
+): { blockStart: number; innerStart: number; innerEnd: number; blockEnd: number } | undefined => {
+  const routeLabel = 'route:';
+  const routeIndex = configSource.indexOf(routeLabel);
+  if (routeIndex === -1) return undefined;
+
+  const braceStart = configSource.indexOf('{', routeIndex + routeLabel.length);
+  if (braceStart === -1) return undefined;
+
+  const braceEnd = findMatchingObjectBrace(configSource, braceStart);
+  if (braceEnd === undefined) return undefined;
+
+  const nextIndex = skipInlineWhitespace(configSource, braceEnd + 1);
+  if (configSource[nextIndex] !== ',') return undefined;
+
+  return {
+    blockStart: routeIndex,
+    innerStart: braceStart + 1,
+    innerEnd: braceEnd,
+    blockEnd: nextIndex + 1,
+  };
+};
+
+const hasTrailingMiddlewaresTypeCast = (configSource: string): boolean => {
+  const trimmed = configSource.trimEnd();
+  return trimmed.endsWith('} as MiddlewaresType;');
+};
+
 const addOptions = (command: Command): void => {
   command
     .argument(
       '<type>',
-      'What to add: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, workflow, or governance'
+      'What to add: service, feature, migration, model, controller, routes, middleware, factory, seeder, requestfactory, responsefactory, workflow, or governance'
     )
     .argument(
       '[name]',
-      'Name of service/feature/migration/model/controller/factory/seeder/requestfactory/responsefactory/workflow (governance takes no name)'
+      'Name of service/feature/migration/model/controller/middleware/factory/seeder/requestfactory/responsefactory/workflow (governance takes no name)'
     )
     .option(
       '--package-manager <pm>',
@@ -172,7 +313,7 @@ const promptServiceConfig = async (defaultName: string): Promise<ServicePromptAn
       message: 'Service name (lowercase, no spaces):',
       default: defaultName,
       validate: (v: string): string | boolean =>
-        /^[a-z]+$/.test(v) || 'Must be lowercase letters only',
+        isLowercaseLettersOnly(v) || 'Must be lowercase letters only',
     },
     {
       type: 'input',
@@ -307,7 +448,7 @@ const promptMigrationConfig = async (): Promise<MigrationPromptAnswers> => {
       type: 'input',
       name: 'name',
       message: 'Migration name (snake_case, e.g., create_users_table):',
-      validate: (v: string): string | boolean => /^[a-z_]+$/.test(v) || 'Must be snake_case',
+      validate: (v: string): string | boolean => isSnakeCaseName(v) || 'Must be snake_case',
     },
     {
       type: 'list',
@@ -329,14 +470,14 @@ const findMigrationBySuffix = (migrationsPath: string, suffix: string): string |
 };
 
 const buildCreateTableMigrationName = (model: string): string => {
-  const modelSnake = CommonUtils.toSnakeCase(model).replaceAll(/[^a-z0-9_]+/g, '_');
+  const modelSnake = toSafeSnakeCase(model);
   const tablePlural = pluralize(modelSnake);
   return `create_${tablePlural}_table`;
 };
 
 const buildAddColumnMigrationName = (column: string, model: string): string => {
-  const colSnake = CommonUtils.toSnakeCase(column).replaceAll(/[^a-z0-9_]+/g, '_');
-  const modelSnake = CommonUtils.toSnakeCase(model).replaceAll(/[^a-z0-9_]+/g, '_');
+  const colSnake = toSafeSnakeCase(column);
+  const modelSnake = toSafeSnakeCase(model);
   const tablePlural = pluralize(modelSnake);
   return `add_${colSnake}_${tablePlural}_table`;
 };
@@ -381,9 +522,9 @@ const addMigration = async (
 
     name = buildAddColumnMigrationName(columnArg, modelArg);
 
-    table = pluralize(CommonUtils.toSnakeCase(modelArg).replaceAll(/[^a-z0-9_]+/g, '_'));
+    table = pluralize(toSafeSnakeCase(modelArg));
     // Store the normalized column name for generator placeholder.
-    column = CommonUtils.toSnakeCase(columnArg).replaceAll(/[^a-z0-9_]+/g, '_');
+    column = toSafeSnakeCase(columnArg);
   }
 
   cmd.info(`Creating migration: ${name}...`);
@@ -411,8 +552,7 @@ const promptModelConfig = async (): Promise<ModelPromptAnswers> => {
       type: 'input',
       name: 'name',
       message: 'Model name (PascalCase, e.g., User, Post):',
-      validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
+      validate: (v: string): string | boolean => isPascalCaseBase(v) || 'Must be PascalCase',
     },
     {
       type: 'confirm',
@@ -472,7 +612,7 @@ const promptControllerConfig = async (): Promise<ControllerPromptAnswers> => {
       name: 'name',
       message: 'Controller name (PascalCase, e.g., UserController):',
       validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*Controller$/.test(v) || 'Must be PascalCase ending with "Controller"',
+        hasPascalCaseSuffix(v, 'Controller') || 'Must be PascalCase ending with "Controller"',
     },
     {
       type: 'list',
@@ -508,7 +648,7 @@ const addController = async (
     name,
     controllerPath,
     type: (controllerType === ''
-      ? (opts.controllerType ?? 'crud')
+      ? opts.controllerType ?? 'crud'
       : controllerType) as ControllerType,
   });
 
@@ -565,6 +705,159 @@ const addRoutes = async (
   );
 };
 
+const promptMiddlewareConfig = async (): Promise<MiddlewarePromptAnswers> => {
+  return inquirer.prompt([
+    {
+      type: 'input',
+      name: 'name',
+      message: 'Middleware name (PascalCase, e.g., AuthMiddleware):',
+      validate: (value: string): string | boolean => {
+        return hasPascalCaseSuffix(value, 'Middleware')
+          ? true
+          : 'Must be PascalCase ending with "Middleware"';
+      },
+    },
+  ]);
+};
+
+const buildMiddlewareKey = (middlewareName: string): string => {
+  const withoutSuffix = stripSuffix(middlewareName, 'Middleware');
+  return `${CommonUtils.camelCase(withoutSuffix)}Middleware`;
+};
+
+const buildMiddlewareSource = (middlewareName: string): string => {
+  return `import type { Middleware } from '@zintrust/core';
+
+export const ${middlewareName}: Middleware = async (_req, _res, next) => {
+  await next();
+};
+`;
+};
+
+const registerMiddlewareImport = (configSource: string, middlewareName: string): string => {
+  const importLine = `import { ${middlewareName} } from '@app/Middleware/${middlewareName}';`;
+  if (configSource.includes(importLine)) return configSource;
+
+  const lines = configSource.split('\n');
+  let insertAt = -1;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index]?.startsWith('import ')) insertAt = index;
+  }
+
+  if (insertAt === -1) {
+    return `${importLine}\n${configSource}`;
+  }
+
+  lines.splice(insertAt + 1, 0, importLine);
+  return lines.join('\n');
+};
+
+const registerMiddlewareRouteKey = (
+  configSource: string,
+  middlewareName: string,
+  middlewareKey: string
+): { content: string; updated: boolean } => {
+  if (configSource.includes(`${middlewareKey}: ${middlewareName}`)) {
+    return { content: configSource, updated: true };
+  }
+
+  const routeBlock = findRouteBlockBounds(configSource);
+  if (routeBlock !== undefined) {
+    const currentInner = configSource.slice(routeBlock.innerStart, routeBlock.innerEnd);
+    const middlewareEntry = `\n    ${middlewareKey}: ${middlewareName},`;
+    const routeInner =
+      currentInner.trim() === '' ? middlewareEntry : `${currentInner.trimEnd()}${middlewareEntry}`;
+    return {
+      content:
+        configSource.slice(0, routeBlock.blockStart) +
+        `route: {${routeInner}\n  },` +
+        configSource.slice(routeBlock.blockEnd),
+      updated: true,
+    };
+  }
+
+  if (!hasTrailingMiddlewaresTypeCast(configSource)) {
+    return { content: configSource, updated: false };
+  }
+
+  const trimmed = configSource.trimEnd();
+  const middlewareBlock = `\n  global: [],\n  route: {\n    ${middlewareKey}: ${middlewareName},\n  },\n} as MiddlewaresType;\n`;
+  const inserted = `${trimmed.slice(0, -'} as MiddlewaresType;'.length)}${middlewareBlock}`;
+
+  return { content: inserted, updated: true };
+};
+
+const printManualMiddlewareRegistrationSnippet = (
+  cmd: IBaseCommand,
+  middlewareName: string,
+  middlewareKey: string
+): void => {
+  cmd.warn('Could not update config/middleware.ts automatically. Add this manually:');
+  cmd.info(`import { ${middlewareName} } from '@app/Middleware/${middlewareName}';`);
+  cmd.info(`route: { ${middlewareKey}: ${middlewareName} }`);
+  cmd.info(`Route typing example: type AppMiddlewareKey = MiddlewareKey | '${middlewareKey}';`);
+};
+
+const addMiddleware = async (
+  cmd: IBaseCommand,
+  middlewareName: string | undefined,
+  opts: AddOptions
+): Promise<void> => {
+  const projectRoot = process.cwd();
+  let name = middlewareName ?? '';
+
+  if (name === '' && opts.noInteractive !== true) {
+    const answers = await promptMiddlewareConfig();
+    name = answers.name;
+  } else if (name === '') {
+    throw ErrorFactory.createValidationError('Middleware name is required');
+  }
+
+  if (!hasPascalCaseSuffix(name, 'Middleware')) {
+    throw ErrorFactory.createValidationError(
+      'Middleware name must be PascalCase ending with "Middleware"'
+    );
+  }
+
+  const middlewareDir = path.join(projectRoot, 'app', 'Middleware');
+  const middlewarePath = path.join(middlewareDir, `${name}.ts`);
+  const configPath = path.join(projectRoot, 'config', 'middleware.ts');
+  const middlewareKey = buildMiddlewareKey(name);
+
+  ensureDirectoryExists(middlewareDir);
+
+  const created = FileGenerator.writeFile(middlewarePath, buildMiddlewareSource(name), {
+    overwrite: false,
+  });
+
+  if (!FileGenerator.fileExists(configPath)) {
+    cmd.success(`Middleware '${name}' created successfully!`);
+    cmd.warn('config/middleware.ts was not found, so registration was skipped.');
+    printManualMiddlewareRegistrationSnippet(cmd, name, middlewareKey);
+    return;
+  }
+
+  const currentConfig = FileGenerator.readFile(configPath);
+  const withImport = registerMiddlewareImport(currentConfig, name);
+  const registered = registerMiddlewareRouteKey(withImport, name, middlewareKey);
+
+  if (!registered.updated) {
+    cmd.success(`Middleware '${name}' created successfully!`);
+    printManualMiddlewareRegistrationSnippet(cmd, name, middlewareKey);
+    return;
+  }
+
+  fs.writeFileSync(configPath, registered.content, 'utf-8');
+
+  cmd.success(`Middleware '${name}' ${created ? 'created' : 'updated'} successfully!`);
+  cmd.info(`File: ${path.basename(middlewarePath)}`);
+  cmd.info(`Registered route key: ${middlewareKey}`);
+  cmd.info(
+    `\nNext steps:\n  • Use '${middlewareKey}' in route metadata\n  • If your route file uses MiddlewareKey, extend it locally: type AppMiddlewareKey = MiddlewareKey | '${middlewareKey}'`
+  );
+};
+
 const getFactoryInitialConfig = (
   factoryName: string | undefined,
   opts: AddOptions
@@ -594,14 +887,13 @@ const promptFactoryConfig = async (): Promise<FactoryPromptAnswers> => {
       name: 'name',
       message: 'Factory name (PascalCase, must end with "Factory", e.g., UserFactory):',
       validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*Factory$/.test(v) || 'Must be PascalCase ending with "Factory"',
+        hasPascalCaseSuffix(v, 'Factory') || 'Must be PascalCase ending with "Factory"',
     },
     {
       type: 'input',
       name: 'model',
       message: 'Model name (e.g., User, Post):',
-      validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
+      validate: (v: string): string | boolean => isPascalCaseBase(v) || 'Must be PascalCase',
     },
     {
       type: 'confirm',
@@ -736,15 +1028,14 @@ const promptSeederConfig = async (): Promise<SeederPromptAnswers> => {
       name: 'name',
       message: 'Seeder name (PascalCase, must end with "Seeder", e.g., UserSeeder):',
       validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*Seeder$/.test(v) || 'Must be PascalCase ending with "Seeder"',
+        hasPascalCaseSuffix(v, 'Seeder') || 'Must be PascalCase ending with "Seeder"',
     },
     {
       type: 'input',
       name: 'model',
       message: 'Model name (e.g., User, Post):',
       when: (ans: { name?: string }): boolean => ans.name !== 'DatabaseSeeder',
-      validate: (v: string): string | boolean =>
-        /^[A-Z][a-zA-Z\d]*$/.test(v) || 'Must be PascalCase',
+      validate: (v: string): string | boolean => isPascalCaseBase(v) || 'Must be PascalCase',
     },
     {
       type: 'input',
@@ -1163,6 +1454,7 @@ const TYPE_HANDLERS: Record<string, AddHandler> = {
   model: addModel,
   controller: addController,
   routes: addRoutes,
+  middleware: addMiddleware,
   factory: addFactory,
   seeder: addSeeder,
   requestfactory: addRequestFactory,
@@ -1182,7 +1474,7 @@ const handleType = async (
   const handler = TYPE_HANDLERS[type];
   if (handler === undefined) {
     throw ErrorFactory.createCliError(
-      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, factory, seeder, requestfactory, responsefactory, workflow, or governance`
+      `Unknown type "${type}". Use: service, feature, migration, model, controller, routes, middleware, factory, seeder, requestfactory, responsefactory, workflow, or governance`
     );
   }
   await handler(cmd, name, opts);
@@ -1226,7 +1518,7 @@ const executeAdd = async (cmd: IBaseCommand, options: CommandOptions): Promise<v
   try {
     if (type === undefined || type === '') {
       throw ErrorFactory.createCliError(
-        'Please specify what to add: service, feature, migration, model, controller, routes, factory, or seeder'
+        'Please specify what to add: service, feature, migration, model, controller, routes, middleware, factory, or seeder'
       );
     }
 
@@ -1279,6 +1571,7 @@ export const AddCommand = Object.freeze({
     promptModelConfig,
     promptControllerConfig,
     promptRoutesConfig,
+    promptMiddlewareConfig,
     promptFactoryConfig,
     promptSeederConfig,
     promptRequestFactoryConfig,
@@ -1286,5 +1579,13 @@ export const AddCommand = Object.freeze({
     promptResponseFactoryConfig,
     promptWorkflowConfig,
     getDefaultResponseFields,
+    isPascalCaseBase,
+    toSafeSnakeCase,
+    stripSuffix,
+    skipInlineWhitespace,
+    findMatchingObjectBrace,
+    findRouteBlockBounds,
+    hasTrailingMiddlewaresTypeCast,
+    registerMiddlewareRouteKey,
   },
 });

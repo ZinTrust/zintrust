@@ -32,8 +32,8 @@ describe('BigIntUuidSupport', () => {
     const sql = MigrationSchemaCompiler.compileCreateTable('mysql', table.getDefinition());
     const stmt = sql[0];
 
-    // Check bigIncrements mapping (MySQL uses explicit BIGINT AUTO_INCREMENT)
-    expect(stmt).toContain('`big_id` BIGINT AUTO_INCREMENT PRIMARY KEY');
+    // Check bigIncrements mapping (MySQL uses explicit BIGINT UNSIGNED AUTO_INCREMENT)
+    expect(stmt).toContain('`big_id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY');
     // Check UUID mapping (VARCHAR 36 fallback)
     expect(stmt).toContain('`uid` VARCHAR(36)');
     // Check BLOB mapping

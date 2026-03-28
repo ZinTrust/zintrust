@@ -23,8 +23,6 @@ const bannedPrefixes = [
   '@node-singletons/',
   '@common/',
   '@/',
-  './',
-  '../',
 ];
 
 function listFilesRecursive(root: string): string[] {

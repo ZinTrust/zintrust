@@ -35,7 +35,12 @@ This gives you a stable API surface (no accidental mutation) while keeping the i
 - Better composition: encourages composition over inheritance (small pieces wired together explicitly).
 - Predictable dependency flow: dependencies can be passed as arguments instead of living on instance state.
 - TypeScript friendliness: strong inference for “data in / data out” functions and narrow return types.
-- Runtime portability: plain objects + functions work cleanly across Node, workers, and serverless runtimes.
+- Runtime portability: plain objects + functions work cleanly across Node.js, Cloudflare Worker style runtimes, and other serverless request runtimes such as AWS Lambda.
+
+Terminology note:
+
+- In architecture docs, worker runtime means a platform runtime such as Cloudflare Workers.
+- ZinTrust worker refers to the separate background worker system used for job processing.
 
 ### Why modern teams migrate toward plain functions
 

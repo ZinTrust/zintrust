@@ -105,6 +105,38 @@ describe('ServiceScaffolder Scaffolding Basic', () => {
       expect(result.success).toBe(true);
       expect(result.filesCreated.length).toBeGreaterThan(0);
       expect(result.filesCreated.some((f: string) => f.includes('service.config.json'))).toBe(true);
+
+      const runtimePath = path.join(testDir, 'src', 'zintrust.runtime.ts');
+      const manifestPath = path.join(testDir, 'src', 'bootstrap', 'service-manifest.ts');
+      const wranglerPath = path.join(
+        testDir,
+        'src',
+        'services',
+        'ecommerce',
+        'users',
+        'wrangler.jsonc'
+      );
+      expect(fs.existsSync(runtimePath)).toBe(true);
+      expect(fs.existsSync(manifestPath)).toBe(true);
+      expect(fs.existsSync(wranglerPath)).toBe(true);
+
+      const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+      expect(manifestContent).toContain("id: 'ecommerce/users'");
+      expect(manifestContent).toContain("prefix: 'ecommerce/users'");
+      expect(manifestContent).toContain('loadEnv: false');
+      expect(manifestContent).toContain(
+        "loadRoutes: async () => import('../services/ecommerce/users/routes/api.ts').catch(() => import('../services/ecommerce/users/routes/api.js'))"
+      );
+
+      const wranglerContent = fs.readFileSync(wranglerPath, 'utf-8');
+      expect(wranglerContent).toContain('"@routes/api.ts": "./routes/api.ts"');
+      expect(wranglerContent).toContain('"@service-runtime-config/cache.ts": "./config/cache.ts"');
+      expect(wranglerContent).toContain(
+        '"@runtime-config/cache.ts": "../../../../config/cache.ts"'
+      );
+      expect(wranglerContent).toContain(
+        '"../zintrust.runtime.wg.js": "../../../../src/zintrust.runtime.wg.ts"'
+      );
     });
 
     it('should reject existing service', async () => {
@@ -186,6 +218,9 @@ describe('ServiceScaffolder Scaffolding Files Index and Routes', () => {
         const content = fs.readFileSync(indexPath, 'utf-8');
         expect(content).toContain('payments');
         expect(content).toContain('3002');
+        expect(content).toContain("from '@zintrust/core/start'");
+        expect(content).toContain('bootStandaloneService(import.meta.url, {');
+        expect(content).toContain("configRoot: 'src/services/default/payments/config'");
       }
     });
 
@@ -198,6 +233,7 @@ describe('ServiceScaffolder Scaffolding Files Index and Routes', () => {
 
       if (typeof routesPath === 'string' && routesPath !== '') {
         const content = fs.readFileSync(routesPath, 'utf-8');
+        expect(content).toContain("from '@zintrust/core'");
         expect(content).toContain('registerRoutes');
         expect(content).toContain('Router.get');
       }
@@ -292,6 +328,45 @@ describe('ServiceScaffolder Scaffolding Files Env and Readme', () => {
       if (typeof readmePath === 'string' && readmePath !== '') {
         const content = fs.readFileSync(readmePath, 'utf-8');
         expect(content).toContain('users');
+        expect(content).toContain('zin s');
+        expect(content).toContain('zin s --wg');
+        expect(content).toContain('MICROSERVICES=true SERVICES=default/users zin routes');
+      }
+    });
+
+    it('should generate runtime modules that can import source or built manifests', async () => {
+      const options: ServiceOptions = { name: 'users', domain: 'ecommerce' };
+      const result = await ServiceScaffolder.scaffold(testDir, options);
+
+      expect(result.success).toBe(true);
+
+      const runtimePath = path.join(testDir, 'src', 'zintrust.runtime.ts');
+      const runtimeContent = fs.readFileSync(runtimePath, 'utf-8');
+      expect(runtimeContent).toContain("import('./bootstrap/service-manifest.ts')");
+      expect(runtimeContent).toContain("import('./bootstrap/service-manifest.js')");
+    });
+
+    it('should create service-local wrangler config with root-mapped aliases', async () => {
+      const options: ServiceOptions = { name: 'users', domain: 'ecommerce', port: 3010 };
+      const result = await ServiceScaffolder.scaffold(testDir, options);
+
+      const wranglerPath = result.filesCreated.find((f: string) => f.endsWith('wrangler.jsonc'));
+      expect(wranglerPath).toBeDefined();
+
+      if (typeof wranglerPath === 'string' && wranglerPath !== '') {
+        const content = fs.readFileSync(wranglerPath, 'utf-8');
+        expect(content).toContain('"name": "ecommerce-users"');
+        expect(content).toContain('"main": "./src/index.ts"');
+        expect(content).toContain('"@routes/api.ts": "./routes/api.ts"');
+        expect(content).toContain('"@service-runtime-config/database.ts": "./config/database.ts"');
+        expect(content).toContain(
+          '"@runtime-config/database.ts": "../../../../config/database.ts"'
+        );
+        expect(content).toContain(
+          '"../zintrust.plugins.wg.js": "../../../../src/zintrust.plugins.wg.ts"'
+        );
+        expect(content).toContain('"SERVICE_DOMAIN": "ecommerce"');
+        expect(content).toContain('"SERVICE_PORT": "3010"');
       }
     });
   });
@@ -322,6 +397,7 @@ describe('ServiceScaffolder Scaffolding Directories', () => {
       expect(FileGenerator.directoryExists(path.join(servicePath, 'src', 'controllers'))).toBe(
         true
       );
+      expect(FileGenerator.directoryExists(path.join(servicePath, 'config'))).toBe(true);
       expect(FileGenerator.directoryExists(path.join(servicePath, 'src', 'models'))).toBe(true);
       expect(FileGenerator.directoryExists(path.join(servicePath, 'src', 'services'))).toBe(true);
     });

@@ -285,6 +285,9 @@ describe('ProjectScaffolder missing-line coverage', () => {
     expect(realExistsSync(path.join(projectPath, 'README.md'))).toBe(true);
     expect(realExistsSync(path.join(projectPath, '.gitignore'))).toBe(true);
 
+    const gitignore = realFs.readFileSync(path.join(projectPath, '.gitignore'), 'utf8');
+    expect(gitignore).toContain('.dev*');
+
     rmSync(tmpBase, { recursive: true, force: true });
   });
 

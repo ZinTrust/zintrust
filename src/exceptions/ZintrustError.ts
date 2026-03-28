@@ -56,7 +56,7 @@ export function initZintrustError(target: Error, init: ZintrustErrorInit = {}): 
 type TypedZintrustError<
   TCode extends string,
   TName extends string,
-  TStatus extends number,
+  TStatus extends number
 > = IZintrustError & {
   readonly code: TCode;
   name: TName;
@@ -66,7 +66,7 @@ type TypedZintrustError<
 function createTypedZintrustError<
   TCode extends string,
   TName extends string,
-  TStatus extends number,
+  TStatus extends number
 >(
   message: string,
   statusCode: TStatus,

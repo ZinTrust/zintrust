@@ -1,6 +1,6 @@
 # Helper Utilities Reference
 
-The `@zintrust/core` module provides lightweight, runtime-agnostic validation and type-checking utilities designed for use in both Node.js and Serverless Worker environments.
+The `@zintrust/core` module provides lightweight, runtime-agnostic validation and type-checking utilities designed for use in both Node.js and serverless request runtimes such as Cloudflare Workers.
 
 ## Table of Contents
 

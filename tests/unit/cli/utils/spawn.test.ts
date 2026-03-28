@@ -208,6 +208,30 @@ describe('SpawnUtil', () => {
     ).rejects.toThrow("Error: 'nonexistent' not found on PATH.");
   });
 
+  it('provides tsx installation guidance when tsx is missing', async () => {
+    mockChild.once.mockImplementation((event, cb) => {
+      if (event === 'error') {
+        const err = new Error('not found') as any;
+        err.code = 'ENOENT';
+        cb(err);
+      }
+    });
+
+    await expect(
+      SpawnUtil.spawnAndWait({
+        command: 'tsx',
+        args: [],
+      })
+    ).rejects.toThrow(/npm install -D tsx/);
+
+    await expect(
+      SpawnUtil.spawnAndWait({
+        command: 'tsx',
+        args: [],
+      })
+    ).rejects.toThrow(/npm install -g tsx/);
+  });
+
   it('throws generic error for other spawn failures', async () => {
     mockChild.once.mockImplementation((event, cb) => {
       if (event === 'error') {

@@ -20,7 +20,10 @@ describe('DatabaseRuntimeRegistration patch coverage (extra)', () => {
       seeders: { directory: '' },
     } as any);
 
-    expect((useDatabase as unknown as Mock).mock.calls.length).toBeGreaterThan(0);
+    expect((useDatabase as unknown as Mock).mock.calls).toEqual([
+      [expect.objectContaining({ driver: 'weird' }), 'weird'],
+      [expect.objectContaining({ driver: 'weird' }), 'default'],
+    ]);
   });
 
   it('throws when default connection is not configured', () => {

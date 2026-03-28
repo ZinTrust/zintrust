@@ -105,13 +105,13 @@ describe('DataMigrator logging and totals', () => {
     vi.clearAllMocks();
     resolveD1BindingMock.mockReturnValue({
       matchedBy: 'database_name',
-      databaseName: 'vizo-dev',
+      databaseName: 'app-dev',
       config: {
-        database_name: 'vizo-dev',
+        database_name: 'app-dev',
         binding: 'PRIMARY_DB',
       },
     });
-    resolveLocalD1SqlitePathMock.mockResolvedValue('/tmp/.wrangler/vizo-dev.sqlite');
+    resolveLocalD1SqlitePathMock.mockResolvedValue('/tmp/.wrangler/app-dev.sqlite');
     buildD1SchemaMock.mockReturnValue([]);
     analyzeSchemaMock.mockResolvedValue({
       tables: [
@@ -165,7 +165,7 @@ describe('DataMigrator logging and totals', () => {
       sourceDriver: 'mysql',
       sourceConnection: 'mysql://root:secret@127.0.0.1:3306/app',
       targetType: 'd1',
-      targetDatabase: 'vizo-dev',
+      targetDatabase: 'app-dev',
       batchSize: 10,
     });
 
@@ -175,10 +175,10 @@ describe('DataMigrator logging and totals', () => {
     expect(progress.status).toBe('completed');
 
     expect(loggerInfoMock).toHaveBeenCalledWith(
-      '[DataMigrator] Using resolved local D1 target (database_name): database_name=vizo-dev, binding=PRIMARY_DB'
+      '[DataMigrator] Using resolved local D1 target (database_name): database_name=app-dev, binding=PRIMARY_DB'
     );
     expect(loggerInfoMock).toHaveBeenCalledWith(
-      '[DataMigrator] Using resolved local D1 SQLite path: /tmp/.wrangler/vizo-dev.sqlite'
+      '[DataMigrator] Using resolved local D1 SQLite path: /tmp/.wrangler/app-dev.sqlite'
     );
     expect(loggerInfoMock).toHaveBeenCalledWith('Migration completed: 5/5 rows migrated');
 

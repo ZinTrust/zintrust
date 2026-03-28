@@ -176,7 +176,7 @@ function createBlueprintApi(state: BlueprintState): Blueprint {
     timestamp: (name) => addColumn(state, name, ColumnTypeName.TIMESTAMP),
     blob: (name) => addColumn(state, name, ColumnTypeName.BLOB),
     id: (name = SchOther.ID) =>
-      addColumn(state, name, ColumnTypeName.INTEGER).primary().autoIncrement(),
+      addColumn(state, name, ColumnTypeName.BIGINT).unsigned().primary().autoIncrement(),
 
     timestamps: (createdAt = SchOther.CREATED_AT, updatedAt = SchOther.UPDATED_AT) => {
       api.timestamp(createdAt).notNullable().default(ColumnTypeName.CURRENT_TIMESTAMP);

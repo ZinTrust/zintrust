@@ -64,7 +64,11 @@ const createResolutionError = (
     }
 
     return ErrorFactory.createConfigError(
-      `D1 target "${targetLabel}" is ambiguous by ${getSelectionHint(resolution.matchedBy)}. Matching entries: ${describeTargets(resolution.matches)}. Configured D1 targets: ${configuredTargets}`
+      `D1 target "${targetLabel}" is ambiguous by ${getSelectionHint(
+        resolution.matchedBy
+      )}. Matching entries: ${describeTargets(
+        resolution.matches
+      )}. Configured D1 targets: ${configuredTargets}`
     );
   }
 
@@ -94,7 +98,9 @@ const resolveTarget = (projectRoot: string, target?: string): ResolvedD1Target =
 
   if (!isNonEmptyString(databaseName)) {
     throw ErrorFactory.createConfigError(
-      `Resolved D1 target is missing both database_name and binding. Configured D1 targets: ${describeTargets(WranglerConfig.getD1Databases(projectRoot))}`
+      `Resolved D1 target is missing both database_name and binding. Configured D1 targets: ${describeTargets(
+        WranglerConfig.getD1Databases(projectRoot)
+      )}`
     );
   }
 
@@ -148,7 +154,9 @@ export const LocalD1Resolver = Object.freeze({
   ensureLocalD1Ready(projectRoot: string, target?: string): ResolvedD1Target {
     const resolved = resolveTarget(projectRoot, target);
     Logger.info(
-      `[LocalD1Resolver] Resolved D1 target (${resolved.matchedBy}): ${describeTarget(resolved.config)}`
+      `[LocalD1Resolver] Resolved D1 target (${resolved.matchedBy}): ${describeTarget(
+        resolved.config
+      )}`
     );
 
     if (listCandidateSqliteFiles(projectRoot).length === 0) {
@@ -198,7 +206,11 @@ export const LocalD1Resolver = Object.freeze({
     }
 
     throw ErrorFactory.createConfigError(
-      `Unable to resolve actual local D1 SQLite file for target "${resolved.databaseName}" under ${getLocalStateDir(projectRoot)}. Resolved D1 target: ${describeTarget(resolved.config)}`
+      `Unable to resolve actual local D1 SQLite file for target "${
+        resolved.databaseName
+      }" under ${getLocalStateDir(projectRoot)}. Resolved D1 target: ${describeTarget(
+        resolved.config
+      )}`
     );
   },
 });

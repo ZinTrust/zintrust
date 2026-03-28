@@ -38,7 +38,7 @@ export const buildRedisUrl = (config?: RedisBroadcastDriverConfig): string => {
 export const getRedisUrl = (config?: RedisBroadcastDriverConfig): string | null => {
   const fromEnv = Env.get('REDIS_URL', '');
   const hasProcess = typeof process === 'object' && process !== null;
-  const fallback = hasProcess ? (process.env?.['REDIS_URL'] ?? '') : '';
+  const fallback = hasProcess ? process.env?.['REDIS_URL'] ?? '' : '';
   const trimmed = fromEnv.trim();
   const url = (trimmed.length > 0 ? fromEnv : String(fallback)).trim();
 

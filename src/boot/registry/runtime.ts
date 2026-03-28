@@ -318,7 +318,9 @@ const initializeQueueMonitor = async (router: IRouter): Promise<void> => {
     Logger.error('Failed to register Queue Monitor routes', error);
   }
   Logger.info(
-    `Queue Monitor routes registered at http://127.0.0.1:${appConfig.port}${monitorConfig.basePath ?? ''}`
+    `Queue Monitor routes registered at http://127.0.0.1:${appConfig.port}${
+      monitorConfig.basePath ?? ''
+    }`
   );
   Logger.info(`Queue Monitor enqueue endpoint at http://127.0.0.1:${appConfig.port}/test/enqueue`);
 };

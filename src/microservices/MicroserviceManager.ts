@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 /**
  * Microservices Architecture for ZinTrust Framework
  * Sealed namespace pattern with immutable microservice management
@@ -7,8 +8,10 @@ import { Env } from '@/config/env';
 import { Logger } from '@/config/logger';
 import { validateUrl } from '@/security/UrlValidator';
 import { ErrorFactory } from '@exceptions/ZintrustError';
+import { getServiceId, serviceMatchesAllowList } from '@microservices/ServiceManifest';
 
 export interface MicroserviceConfig {
+  id?: string;
   name: string;
   domain: string;
   port?: number;
@@ -77,14 +80,28 @@ function normalizeEnabledServices(): string[] {
   return getEnabledServices();
 }
 
-function isServiceEnabledByEnv(serviceName: string): boolean {
+function isServiceEnabledByEnv(serviceId: string, serviceName: string): boolean {
   const enabled = normalizeEnabledServices();
-  if (enabled.length === 0) {
-    return true;
+  return serviceMatchesAllowList(serviceId, serviceName, enabled);
+}
+
+function resolveServiceKey(lookup: string): string | undefined {
+  if (services.has(lookup)) {
+    return lookup;
   }
 
-  // If SERVICES is set, treat it as an allow-list.
-  return enabled.includes(serviceName);
+  const matches = Array.from(services.values()).filter((service) => service.name === lookup);
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  if (matches.length > 1) {
+    throw ErrorFactory.createValidationError(
+      `Ambiguous service lookup '${lookup}'. Use domain/name instead.`
+    );
+  }
+
+  return matches[0]?.id;
 }
 
 function toCallOptions(
@@ -110,7 +127,6 @@ function toCallOptions(
   };
 }
 
-// Plain functions (will be sealed below)
 const create = (): IMicroserviceManager => {
   return getMicroserviceManager().create();
 };
@@ -147,8 +163,9 @@ const register = (config: MicroserviceConfig): MicroserviceConfig => {
 };
 
 const registerService = (config: MicroserviceConfig): MicroserviceConfig => {
-  if (isServiceEnabledByEnv(config.name) === false) {
-    Logger.info(`Service ${config.name} not in SERVICES env; skipping registration`);
+  const serviceId = getServiceId(config.domain, config.name);
+  if (isServiceEnabledByEnv(serviceId, config.name) === false) {
+    Logger.info(`Service ${serviceId} not in SERVICES env; skipping registration`);
     return null as unknown as MicroserviceConfig;
   }
 
@@ -158,46 +175,46 @@ const registerService = (config: MicroserviceConfig): MicroserviceConfig => {
   const healthCheckUrl =
     typeof config.healthCheck === 'string'
       ? config.healthCheck
-      : (config.healthCheckUrl ?? '/health');
+      : config.healthCheckUrl ?? '/health';
 
   const serviceConfig: MicroserviceConfig = {
     ...config,
+    id: serviceId,
     port: assignedPort,
     baseUrl: config.baseUrl ?? `http://localhost:${assignedPort}`,
     healthCheckUrl,
     status: config.status ?? 'starting',
   };
 
-  services.set(serviceConfig.name, serviceConfig);
-  Logger.info(`Registered microservice: ${serviceConfig.name}`);
+  services.set(serviceId, serviceConfig);
+  Logger.info(`Registered microservice: ${serviceId}`);
   return serviceConfig;
 };
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const startService = async (name: string, _handler?: unknown): Promise<boolean> => {
-  const service = services.get(name);
+  const serviceKey = resolveServiceKey(name);
+  const service = serviceKey === undefined ? undefined : services.get(serviceKey);
   if (service === undefined) {
     throw ErrorFactory.createNotFoundError('Service not found', { name });
   }
 
   service.status = 'running';
-  Logger.info(`Service started: ${name}`);
+  Logger.info(`Service started: ${service.id ?? name}`);
   return true;
 };
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const stopService = async (name: string): Promise<boolean> => {
-  const service = services.get(name);
+  const serviceKey = resolveServiceKey(name);
+  const service = serviceKey === undefined ? undefined : services.get(serviceKey);
   if (service === undefined) {
     return false;
   }
 
   service.status = 'stopped';
-  Logger.info(`Service stopped: ${name}`);
+  Logger.info(`Service stopped: ${service.id ?? name}`);
   return true;
 };
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const stopAllServices = async (): Promise<void> => {
   Logger.info('Stopping all microservices...');
   for (const service of services.values()) {
@@ -206,11 +223,7 @@ const stopAllServices = async (): Promise<void> => {
 };
 
 const getService = (domain: string, name: string): MicroserviceConfig | undefined => {
-  const service = services.get(name);
-  if (service === undefined) {
-    return undefined;
-  }
-  return service.domain === domain ? service : undefined;
+  return services.get(getServiceId(domain, name));
 };
 
 const getAllServices = (): MicroserviceConfig[] => {
@@ -221,61 +234,100 @@ const getServicesByDomain = (domain: string): MicroserviceConfig[] => {
   return Array.from(services.values()).filter((s) => s.domain === domain);
 };
 
+const getResolvedService = (name: string): MicroserviceConfig | undefined => {
+  const serviceKey = resolveServiceKey(name);
+  return serviceKey === undefined ? undefined : services.get(serviceKey);
+};
+
+const getRequiredService = (name: string): MicroserviceConfig => {
+  const service = getResolvedService(name);
+  if (service === undefined) {
+    throw ErrorFactory.createNotFoundError('Service not found', { name });
+  }
+
+  return service;
+};
+
+const assertServiceRunning = (name: string, service: MicroserviceConfig): void => {
+  if (service.status === 'running') return;
+
+  throw ErrorFactory.createConnectionError('Service not running', {
+    name,
+    status: service.status,
+  });
+};
+
+const resolveServiceBaseUrl = (service: MicroserviceConfig): string => {
+  return service.baseUrl ?? `http://localhost:${service.port ?? basePort}`;
+};
+
+const createAbortTimeout = (
+  timeoutMs: number | undefined,
+  controller: AbortController
+): ReturnType<typeof setTimeout> | undefined => {
+  if (typeof timeoutMs !== 'number') {
+    return undefined;
+  }
+
+  return globalThis.setTimeout(() => controller.abort(), timeoutMs);
+};
+
+const buildRequestInit = (
+  method: string,
+  callOptions: ServiceCallOptions,
+  signal: AbortSignal
+): RequestInit => {
+  const init: RequestInit = {
+    method,
+    headers: callOptions.headers,
+    signal,
+  };
+
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+    init.body = JSON.stringify(callOptions.body ?? {});
+  }
+
+  return init;
+};
+
+const normalizeServiceResponse = async (response: {
+  status: number;
+  json: () => Promise<unknown>;
+}): Promise<{ statusCode: number; data: unknown }> => {
+  const data = await response.json().catch(() => ({}));
+
+  return {
+    statusCode: response.status,
+    data,
+  };
+};
+
 const callService = async (
   name: string,
   pathOrOptions: string | Record<string, unknown>,
   options?: Record<string, unknown>
 ): Promise<unknown> => {
-  const service = services.get(name);
-  if (service === undefined) {
-    throw ErrorFactory.createNotFoundError('Service not found', { name });
-  }
-
-  if (service.status !== 'running') {
-    throw ErrorFactory.createConnectionError('Service not running', {
-      name,
-      status: service.status,
-    });
-  }
+  const service = getRequiredService(name);
+  assertServiceRunning(name, service);
 
   const callOptions = toCallOptions(pathOrOptions, options);
-  const path = callOptions.path ?? '/';
+  const pathValue = callOptions.path ?? '/';
   const method = (callOptions.method ?? 'GET').toUpperCase();
 
-  const resolvedBaseUrl = service.baseUrl ?? `http://localhost:${service.port ?? basePort}`;
-  const url = `${resolvedBaseUrl}${path}`;
+  const url = `${resolveServiceBaseUrl(service)}${pathValue}`;
   validateUrl(url);
 
   const controller = new AbortController();
-  const timeoutMs = callOptions.timeout;
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  if (typeof timeoutMs === 'number') {
-    // eslint-disable-next-line no-restricted-syntax
-    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  }
+  const timeoutId = createAbortTimeout(callOptions.timeout, controller);
 
   try {
-    const init: RequestInit = {
-      method,
-      headers: callOptions.headers,
-      signal: controller.signal,
-    };
-
-    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-      init.body = JSON.stringify(callOptions.body ?? {});
-    }
-
-    const response = await globalThis.fetch(url, init);
-    const data = await response.json().catch(() => ({}));
-
-    return {
-      statusCode: response.status,
-      data,
-    };
+    const response = await globalThis.fetch(
+      url,
+      buildRequestInit(method, callOptions, controller.signal)
+    );
+    return await normalizeServiceResponse(response);
   } catch (error) {
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
+    Logger.error('Failed to call service', error as Error);
     throw ErrorFactory.createTryCatchError('Failed to call service', error);
   } finally {
     if (timeoutId !== undefined) {
@@ -285,14 +337,13 @@ const callService = async (
 };
 
 const checkServiceHealth = async (name: string): Promise<boolean> => {
-  const service = services.get(name);
+  const service = getResolvedService(name);
   if (service === undefined) {
     return false;
   }
 
   const healthPath = service.healthCheckUrl ?? '/health';
-  const resolvedBaseUrl = service.baseUrl ?? `http://localhost:${service.port ?? basePort}`;
-  const url = `${resolvedBaseUrl}${healthPath}`;
+  const url = `${resolveServiceBaseUrl(service)}${healthPath}`;
   validateUrl(url);
 
   try {
@@ -324,6 +375,7 @@ const getStatusSummary = (): Record<string, unknown> => {
     totalServices: allServices.length,
     runningServices,
     services: allServices.map((s) => ({
+      id: s.id,
       name: s.name,
       domain: s.domain,
       version: s.version,
@@ -334,7 +386,6 @@ const getStatusSummary = (): Record<string, unknown> => {
   };
 };
 
-// eslint-disable-next-line @typescript-eslint/require-await
 const discoverServices = async (): Promise<MicroserviceConfig[]> => {
   return Array.from(services.values());
 };
@@ -369,7 +420,6 @@ export function isMicroservicesEnabled(): boolean {
     return true;
   }
 
-  // Fallback flag used in tests/legacy setups.
   return Env.getBool('ENABLE_MICROSERVICES', false);
 }
 
@@ -381,8 +431,8 @@ export function getEnabledServices(): string[] {
 
   return raw
     .split(',')
-    .map((service) => service.trim())
-    .filter((service) => service.length > 0);
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
 }
 
 // Re-export functions for backward compatibility

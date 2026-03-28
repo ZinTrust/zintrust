@@ -144,7 +144,7 @@ const stripJsonc = (input: string): string => {
 
   for (let i = 0; i < input.length; i += 1) {
     const ch = input[i] ?? '';
-    const next = i + 1 < input.length ? (input[i + 1] ?? '') : '';
+    const next = i + 1 < input.length ? input[i + 1] ?? '' : '';
 
     if (processStripChar(state, ch, next, out)) continue;
 

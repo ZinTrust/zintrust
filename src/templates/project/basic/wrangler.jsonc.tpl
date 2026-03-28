@@ -7,6 +7,7 @@
   "minify": false,
   "alias": {
     "@routes/api.ts": "./routes/api.ts",
+    "../zintrust.runtime.wg.js": "./src/zintrust.runtime.wg.ts",
     "../zintrust.plugins.wg.js": "./src/zintrust.plugins.wg.ts",
     "@runtime-config/broadcast.ts": "./config/broadcast.ts",
     "@runtime-config/cache.ts": "./config/cache.ts",

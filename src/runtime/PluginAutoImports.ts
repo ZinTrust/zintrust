@@ -14,6 +14,14 @@ type ImportResult =
       errorMessage?: string;
     };
 
+type SingleImportStatus = 'loaded' | 'missing' | 'failed';
+
+type ImportSummary = {
+  loaded: number;
+  missing: number;
+  failed: number;
+};
+
 const getProjectCwd = (): string => process.cwd();
 const getProjectRootEnv = (): string => readEnvString('ZINTRUST_PROJECT_ROOT');
 
@@ -118,7 +126,56 @@ const resolveLocalPackageSpecifier = (specifier: string): string | null => {
   return pathToFileURL(resolved).href;
 };
 
-const importSingleSpecifier = async (entry: ImportSpecifier): Promise<boolean> => {
+const isMissingPackageImport = (error: unknown, specifier: string): boolean => {
+  if (specifier.startsWith('.')) return false;
+  if (error === null || typeof error !== 'object') return false;
+
+  const maybe = error as { code?: unknown; message?: unknown };
+  const message = typeof maybe.message === 'string' ? maybe.message : '';
+
+  if (maybe.code === 'ERR_MODULE_NOT_FOUND' && message.length === 0) return true;
+  if (maybe.code === 'ERR_MODULE_NOT_FOUND' && message.includes(specifier)) return true;
+
+  return (
+    message.includes(`Cannot find package '${specifier}'`) ||
+    message.includes(`Cannot find module '${specifier}'`)
+  );
+};
+
+const getMissingPackageStatus = (error: unknown, specifier: string): SingleImportStatus => {
+  if (isMissingPackageImport(error, specifier)) {
+    Logger.debug('[plugins] Optional auto-import package not installed', {
+      specifier,
+    });
+    return 'missing';
+  }
+
+  return 'failed';
+};
+
+const importFromLocalFallback = async (
+  specifier: string,
+  fallback: string
+): Promise<SingleImportStatus> => {
+  try {
+    await import(fallback);
+    Logger.debug('[plugins] Loaded auto-import specifier from local fallback', {
+      specifier,
+      fallback,
+    });
+    return 'loaded';
+  } catch (fallbackError) {
+    Logger.debug('[plugins] Failed auto-import local fallback', {
+      specifier,
+      fallback,
+      error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+    });
+
+    return getMissingPackageStatus(fallbackError, specifier);
+  }
+};
+
+const importSingleSpecifier = async (entry: ImportSpecifier): Promise<SingleImportStatus> => {
   const target = entry.specifier.startsWith('.')
     ? resolveRelativeSpecifier(entry)
     : entry.specifier;
@@ -126,55 +183,48 @@ const importSingleSpecifier = async (entry: ImportSpecifier): Promise<boolean> =
   try {
     await import(target);
     Logger.debug('[plugins] Loaded auto-import specifier', { specifier: entry.specifier });
-    return true;
+    return 'loaded';
   } catch (error) {
     const fallback = resolveLocalPackageSpecifier(entry.specifier);
-    if (fallback !== null) {
-      try {
-        await import(fallback);
-        Logger.debug('[plugins] Loaded auto-import specifier from local fallback', {
-          specifier: entry.specifier,
-          fallback,
-        });
-        return true;
-      } catch (fallbackError) {
-        Logger.debug('[plugins] Failed auto-import local fallback', {
-          specifier: entry.specifier,
-          fallback,
-          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-        });
-      }
-    }
-
-    Logger.debug('[plugins] Failed auto-import specifier', {
-      specifier: entry.specifier,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return false;
+    if (fallback !== null) return importFromLocalFallback(entry.specifier, fallback);
+    return getMissingPackageStatus(error, entry.specifier);
   }
 };
 
-const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<number> => {
+const importSpecifiers = async (specifiers: Iterable<ImportSpecifier>): Promise<ImportSummary> => {
   // Import all specifiers in parallel
   const importPromises = Array.from(specifiers).map(async (entry) => {
-    const success = await importSingleSpecifier(entry);
-    return { specifier: entry.specifier, success };
+    const status = await importSingleSpecifier(entry);
+    return { specifier: entry.specifier, status };
   });
 
   const results = await Promise.allSettled(importPromises);
 
-  // Count successful imports
-  return results.filter((result) => result.status === 'fulfilled' && result.value.success).length;
+  return results.reduce<ImportSummary>(
+    (summary, result) => {
+      if (result.status !== 'fulfilled') {
+        summary.failed += 1;
+        return summary;
+      }
+
+      if (result.value.status === 'loaded') summary.loaded += 1;
+      else if (result.value.status === 'missing') summary.missing += 1;
+      else summary.failed += 1;
+
+      return summary;
+    },
+    { loaded: 0, missing: 0, failed: 0 }
+  );
 };
 
 export const PluginAutoImports = Object.freeze({
   async tryImportRuntimeAutoImports(mode: OfficialPluginImageMode = 'base'): Promise<ImportResult> {
     const specifiers = OfficialPlugins.getAutoImports(mode);
-    const loaded = await importSpecifiers(
+    const summary = await importSpecifiers(
       specifiers.map((specifier) => ({ specifier, filePath: `official:${mode}` }))
     );
 
-    if (loaded === specifiers.length) {
+    if (summary.failed === 0) {
       return { ok: true, loadedPath: `official:${mode}` };
     }
 
@@ -182,7 +232,7 @@ export const PluginAutoImports = Object.freeze({
       ok: false,
       loadedPath: `official:${mode}`,
       reason: 'import-failed',
-      errorMessage: `Loaded ${loaded}/${specifiers.length} official plugin imports`,
+      errorMessage: `Loaded ${summary.loaded}/${specifiers.length} official plugin imports`,
     };
   },
 
@@ -265,8 +315,8 @@ export const PluginAutoImports = Object.freeze({
       return { ok: false, reason: 'import-failed', errorMessage: 'No import specifiers found' };
     }
 
-    const loaded = await importSpecifiers(specifiers);
-    if (loaded > 0) {
+    const summary = await importSpecifiers(specifiers);
+    if (summary.loaded > 0) {
       return { ok: true, loadedPath: 'manual-imports' };
     }
 

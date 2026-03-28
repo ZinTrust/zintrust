@@ -113,11 +113,11 @@ describe('MigrateToD1Command target selection', () => {
     resolveD1DatabaseMock.mockReturnValue({
       status: 'resolved',
       matchedBy: 'single-configured',
-      config: { database_name: 'vizo-dev', binding: 'zintrust_db' },
-      configured: [{ database_name: 'vizo-dev', binding: 'zintrust_db' }],
-      matches: [{ database_name: 'vizo-dev', binding: 'zintrust_db' }],
+      config: { database_name: 'app-dev', binding: 'zintrust_db' },
+      configured: [{ database_name: 'app-dev', binding: 'zintrust_db' }],
+      matches: [{ database_name: 'app-dev', binding: 'zintrust_db' }],
     });
-    getDefaultD1DatabaseNameMock.mockReturnValue('vizo-dev');
+    getDefaultD1DatabaseNameMock.mockReturnValue('app-dev');
     analyzeSchemaMock.mockResolvedValue({ tables: [] });
     checkD1CompatibilityMock.mockReturnValue({ compatible: true, issues: [], warnings: [] });
     buildD1SchemaMock.mockReturnValue([]);
@@ -149,7 +149,7 @@ describe('MigrateToD1Command target selection', () => {
     expect(migrateDataMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceDriver: 'mysql',
-        targetDatabase: 'vizo-dev',
+        targetDatabase: 'app-dev',
       })
     );
   });
@@ -159,12 +159,12 @@ describe('MigrateToD1Command target selection', () => {
       status: 'ambiguous',
       matchedBy: 'multiple-configured',
       configured: [
-        { database_name: 'vizo-dev', binding: 'zintrust_db' },
-        { database_name: 'vizo-preview', binding: 'preview_db' },
+        { database_name: 'app-dev', binding: 'zintrust_db' },
+        { database_name: 'app-preview', binding: 'preview_db' },
       ],
       matches: [
-        { database_name: 'vizo-dev', binding: 'zintrust_db' },
-        { database_name: 'vizo-preview', binding: 'preview_db' },
+        { database_name: 'app-dev', binding: 'zintrust_db' },
+        { database_name: 'app-preview', binding: 'preview_db' },
       ],
     });
 
@@ -177,25 +177,25 @@ describe('MigrateToD1Command target selection', () => {
   });
 
   it('fails clearly when an explicit database_name target is ambiguous', async () => {
-    process.env['D1_TARGET_DB'] = 'vizo-dev';
+    process.env['D1_TARGET_DB'] = 'app-dev';
     resolveD1DatabaseMock.mockReturnValueOnce({
       status: 'ambiguous',
-      target: 'vizo-dev',
+      target: 'app-dev',
       matchedBy: 'database_name',
       configured: [
-        { database_name: 'vizo-dev', binding: 'zintrust_db' },
-        { database_name: 'vizo-dev', binding: 'shadow_db' },
+        { database_name: 'app-dev', binding: 'zintrust_db' },
+        { database_name: 'app-dev', binding: 'shadow_db' },
       ],
       matches: [
-        { database_name: 'vizo-dev', binding: 'zintrust_db' },
-        { database_name: 'vizo-dev', binding: 'shadow_db' },
+        { database_name: 'app-dev', binding: 'zintrust_db' },
+        { database_name: 'app-dev', binding: 'shadow_db' },
       ],
     });
 
     const { MigrateToD1Command } = await import('../../src/cli/MigrateToD1Command');
 
     await expect(MigrateToD1Command.execute({})).rejects.toThrow(
-      /Target D1 database "vizo-dev" is ambiguous by database_name/
+      /Target D1 database "app-dev" is ambiguous by database_name/
     );
     expect(migrateDataMock).not.toHaveBeenCalled();
   });

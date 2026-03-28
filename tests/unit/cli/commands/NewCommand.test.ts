@@ -990,6 +990,21 @@ describe('NewCommand', () => {
       });
 
       expect(values).toContain('postgresql');
+      expect(values).toContain('d1');
+      expect(values).toContain('d1-remote');
+    });
+
+    it('should allow d1 as the default database choice', () => {
+      const questions = command.getQuestions('test', {
+        template: 'basic',
+        database: 'd1',
+        port: 3000,
+        author: '',
+        description: '',
+      });
+
+      const database = findQuestionByName(questions, 'database');
+      expect(database?.default).toBe('d1');
     });
 
     it('should include port question', () => {

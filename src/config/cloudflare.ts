@@ -46,7 +46,7 @@ const getKVBinding = (bindingName?: string): KVNamespace | null => {
   const resolvedName =
     typeof bindingName === 'string' && bindingName.trim() !== ''
       ? bindingName
-      : (getWorkersVar('KV_NAMESPACE') ?? 'CACHE');
+      : getWorkersVar('KV_NAMESPACE') ?? 'CACHE';
 
   const kv = env[resolvedName] as KVNamespace | undefined;
   return kv ?? null;

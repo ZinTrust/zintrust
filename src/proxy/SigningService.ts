@@ -14,25 +14,28 @@ export type SigningCredentials = Readonly<{
   secret: string;
 }>;
 
+type VerifySigningParams = {
+  method: string;
+  url: string | URL;
+  body: string | Uint8Array;
+  headers: SigningHeaders;
+};
+
+type VerifySigningConfigParams = VerifySigningParams & {
+  signing: ProxySigningConfig;
+};
+
+type VerifySigningProviderParams = VerifySigningParams & {
+  windowMs: number;
+  getSecretForKeyId: (keyId: string) => string | undefined | Promise<string | undefined>;
+  verifyNonce?: (keyId: string, nonce: string, ttlMs: number) => Promise<boolean>;
+};
+
 type SigningServiceApi = Readonly<{
   normalizeConfig: (signing: ProxySigningConfig) => ProxySigningConfig;
   shouldVerify: (signing: ProxySigningConfig, headers: SigningHeaders) => boolean;
-  verify: (params: {
-    method: string;
-    url: string | URL;
-    body: string | Uint8Array;
-    headers: SigningHeaders;
-    signing: ProxySigningConfig;
-  }) => Promise<SigningVerificationResult>;
-  verifyWithKeyProvider: (params: {
-    method: string;
-    url: string | URL;
-    body: string | Uint8Array;
-    headers: SigningHeaders;
-    windowMs: number;
-    getSecretForKeyId: (keyId: string) => string | undefined | Promise<string | undefined>;
-    verifyNonce?: (keyId: string, nonce: string, ttlMs: number) => Promise<boolean>;
-  }) => Promise<SigningVerificationResult>;
+  verify: (params: VerifySigningConfigParams) => Promise<SigningVerificationResult>;
+  verifyWithKeyProvider: (params: VerifySigningProviderParams) => Promise<SigningVerificationResult>;
 }>;
 
 const getHeader = (headers: SigningHeaders, name: string): string | undefined => {
@@ -46,10 +49,10 @@ const getHeader = (headers: SigningHeaders, name: string): string | undefined =>
 const hasSigningHeaders = (headers: SigningHeaders): boolean =>
   Boolean(
     (getHeader(headers, 'x-zt-key-id') ?? '') ||
-    (getHeader(headers, 'x-zt-timestamp') ?? '') ||
-    (getHeader(headers, 'x-zt-nonce') ?? '') ||
-    (getHeader(headers, 'x-zt-body-sha256') ?? '') ||
-    getHeader(headers, 'x-zt-signature')
+      (getHeader(headers, 'x-zt-timestamp') ?? '') ||
+      (getHeader(headers, 'x-zt-nonce') ?? '') ||
+      (getHeader(headers, 'x-zt-body-sha256') ?? '') ||
+      getHeader(headers, 'x-zt-signature')
   );
 
 const normalizeKeyId = (keyId: string): string => {
@@ -68,11 +71,14 @@ const normalizeSecret = (secret: string): string => {
   return Env.get('APP_KEY', '');
 };
 
-const normalizeConfig = (signing: ProxySigningConfig): ProxySigningConfig => ({
-  ...signing,
-  keyId: normalizeKeyId(signing.keyId),
-  secret: normalizeSecret(signing.secret),
+const normalizeSigningIdentity = <T extends { keyId: string; secret: string }>(input: T): T => ({
+  ...input,
+  keyId: normalizeKeyId(input.keyId),
+  secret: normalizeSecret(input.secret),
 });
+
+const normalizeConfig = (signing: ProxySigningConfig): ProxySigningConfig =>
+  normalizeSigningIdentity(signing);
 
 export const normalizeSigningConfig: (signing: ProxySigningConfig) => ProxySigningConfig = (
   signing
@@ -80,10 +86,7 @@ export const normalizeSigningConfig: (signing: ProxySigningConfig) => ProxySigni
 
 export const normalizeSigningCredentials: (input: SigningCredentials) => SigningCredentials = (
   input
-): SigningCredentials => ({
-  keyId: normalizeKeyId(input.keyId),
-  secret: normalizeSecret(input.secret),
-});
+): SigningCredentials => normalizeSigningIdentity(input);
 
 const shouldVerify = (signing: ProxySigningConfig, headers: SigningHeaders): boolean => {
   const normalized = normalizeConfig(signing);
@@ -120,13 +123,11 @@ const mapVerifyResult = (result: SignedRequestVerifyResult): SigningVerification
   return { ok: false, status: 403, code: result.code, message: result.message };
 };
 
-const verify = async (params: {
-  method: string;
-  url: string | URL;
-  body: string | Uint8Array;
-  headers: SigningHeaders;
-  signing: ProxySigningConfig;
-}): Promise<SigningVerificationResult> => {
+const verifyAndMap = async (
+  params: Parameters<typeof SignedRequest.verify>[0]
+): Promise<SigningVerificationResult> => mapVerifyResult(await SignedRequest.verify(params));
+
+const verify = async (params: VerifySigningConfigParams): Promise<SigningVerificationResult> => {
   const signing = normalizeConfig(params.signing);
   if (signing.require && (signing.keyId.trim() === '' || signing.secret.trim() === '')) {
     return {
@@ -137,7 +138,7 @@ const verify = async (params: {
     };
   }
 
-  const result = await SignedRequest.verify({
+  return verifyAndMap({
     method: params.method,
     url: params.url,
     body: params.body,
@@ -147,20 +148,12 @@ const verify = async (params: {
       keyId.trim().toLowerCase() === signing.keyId ? signing.secret : undefined,
     windowMs: signing.windowMs,
   });
-
-  return mapVerifyResult(result);
 };
 
-const verifyWithKeyProvider = async (params: {
-  method: string;
-  url: string | URL;
-  body: string | Uint8Array;
-  headers: SigningHeaders;
-  windowMs: number;
-  getSecretForKeyId: (keyId: string) => string | undefined | Promise<string | undefined>;
-  verifyNonce?: (keyId: string, nonce: string, ttlMs: number) => Promise<boolean>;
-}): Promise<SigningVerificationResult> => {
-  const result = await SignedRequest.verify({
+const verifyWithKeyProvider = async (
+  params: VerifySigningProviderParams
+): Promise<SigningVerificationResult> => {
+  return verifyAndMap({
     method: params.method,
     url: params.url,
     body: params.body,
@@ -169,8 +162,6 @@ const verifyWithKeyProvider = async (params: {
     getSecretForKeyId: params.getSecretForKeyId,
     verifyNonce: params.verifyNonce,
   });
-
-  return mapVerifyResult(result);
 };
 
 export const SigningService: SigningServiceApi = Object.freeze({

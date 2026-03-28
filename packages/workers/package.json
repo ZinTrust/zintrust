@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/workers",
-  "version": "0.1.52",
+  "version": "0.4.24",
   "description": "Worker orchestration and background job management for ZinTrust.",
   "private": false,
   "type": "module",
@@ -40,7 +40,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "file:../../dist",
+    "@zintrust/core": "^0.4.24",
     "@zintrust/queue-monitor": "*",
     "@zintrust/queue-redis": "*"
   },
@@ -70,7 +70,6 @@
     "@opentelemetry/api": "^1.9.0",
     "hot-shots": "^14.2.0",
     "ioredis": "^5.10.0",
-    "ml.js": "^0.0.1",
     "prom-client": "^15.1.3",
     "simple-statistics": "^7.8.9"
   }

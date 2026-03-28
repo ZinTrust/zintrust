@@ -177,8 +177,7 @@ const generateServiceKernel = async (
   serviceName: string,
   domain: string
 ): Promise<void> => {
-  const code = `import { Application } from '@http/Application';
-import { Kernel, IKernel } from '@http/Kernel';
+  const code = `import { Application, Kernel, type IKernel } from '@zintrust/core';
 
 /**
  * ${serviceName} Microservice Kernel
@@ -202,20 +201,21 @@ export default ${pascalCase(serviceName)}Kernel.create(Application.create());
 };
 
 const generateServiceRoutes = async (serviceDir: string, serviceName: string): Promise<void> => {
-  const code = `import { IRouter } from '@routing/Router';
+  const code = `import { Router, type IRouter } from '@zintrust/core';
 
 /**
  * ${serviceName} service routes
  */
-export default function routes(router: IRouter): void {
-  router.group({ prefix: '/api/${serviceName}' }, () => {
-    // Health check
-    router.get('/health', '${pascalCase(serviceName)}Controller@health');
+export function registerRoutes(router: IRouter): void {
+  Router.group(router, '/api/${serviceName}', (group: IRouter): void => {
+    Router.get(group, '/health', '${pascalCase(serviceName)}Controller@health');
 
     // TODO: Add your routes here
-    // router.get('/', '${pascalCase(serviceName)}Controller@index');
+    // Router.get(group, '/', '${pascalCase(serviceName)}Controller@index');
   });
 }
+
+export default registerRoutes;
 `;
 
   fs.writeFileSync(path.join(serviceDir, 'src', 'routes', 'index.ts'), code);
@@ -225,15 +225,13 @@ const generateServiceController = async (
   serviceDir: string,
   serviceName: string
 ): Promise<void> => {
-  const code = `import { Controller, IController } from '@http/Controller';
-import { Request } from '@http/Request';
-import { Response } from '@http/Response';
+  const code = `import { Controller, type IController, type IRequest, type IResponse } from '@zintrust/core';
 
 /**
  * ${pascalCase(serviceName)} Controller
  */
 export interface I${pascalCase(serviceName)}Controller extends IController {
-  health(req: Request, res: Response): Promise<void>;
+  health(req: IRequest, res: IResponse): Promise<void>;
 }
 
 export const ${pascalCase(serviceName)}Controller = {
@@ -243,7 +241,7 @@ export const ${pascalCase(serviceName)}Controller = {
       /**
        * Health check
        */
-      async health(_req: Request, res: Response): Promise<void> {
+      async health(_req: IRequest, res: IResponse): Promise<void> {
         res.json({ status: 'ok', service: '${serviceName}' }, 200);
       },
     };
@@ -256,7 +254,7 @@ export const ${pascalCase(serviceName)}Controller = {
 
 const generateServiceModel = async (serviceDir: string, serviceName: string): Promise<void> => {
   const modelName = pascalCase(serviceName.slice(0, -1)); // Remove 's'
-  const code = `import { Model } from '@orm/Model';
+  const code = `import { Model } from '@zintrust/core';
 
 /**
  * ${modelName} Model

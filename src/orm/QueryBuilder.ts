@@ -585,7 +585,10 @@ const compileInsert = (
     }
   }
 
-  const baseSql = `INSERT INTO ${escapeIdentifier(tableName, dialect)} (${colsSql}) VALUES ${placeholders}`;
+  const baseSql = `INSERT INTO ${escapeIdentifier(
+    tableName,
+    dialect
+  )} (${colsSql}) VALUES ${placeholders}`;
   const wantsReturning = dialect === 'postgresql' && items.length === 1;
   const sql = wantsReturning ? `${baseSql} RETURNING id` : baseSql;
   return { sql, parameters };
@@ -847,6 +850,53 @@ const isKeyValue = (value: unknown): value is string | number =>
 const getModelIds = (models: IModel[], key: string): Array<string | number> =>
   models.map((model) => model.getAttribute(key)).filter((element) => isKeyValue(element));
 
+const normalizeCountValue = (value: number | bigint | null | undefined): number => {
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'number') return value;
+  return Number(value ?? 0);
+};
+
+const buildCountSql = (
+  tableName: string,
+  foreignKey: string,
+  ids: Array<string | number>,
+  dialect: ReturnType<IDatabase['getType']> | undefined
+): string =>
+  `SELECT ${escapeIdentifier(foreignKey, dialect)} as key, COUNT(*) as count FROM ${escapeIdentifier(
+    tableName,
+    dialect
+  )} WHERE ${escapeIdentifier(foreignKey, dialect)} IN (${ids
+    .map(() => '?')
+    .join(',')}) GROUP BY ${escapeIdentifier(foreignKey, dialect)}`;
+
+const queryCountMap = async (
+  db: IDatabase,
+  sql: string,
+  params: unknown[]
+): Promise<Map<string | number, number>> => {
+  const results = (await db.query(sql, params, true)) as Array<{
+    key: string | number;
+    count: number | bigint | null | undefined;
+  }>;
+
+  return new Map<string | number, number>(
+    results.map((row) => [row.key, normalizeCountValue(row.count)])
+  );
+};
+
+const setRelationCounts = (
+  models: IModel[],
+  relation: string,
+  localKey: string,
+  countMap: Map<string | number, number>
+): void => {
+  for (const model of models) {
+    const modelId = model.getAttribute(localKey);
+    const count = isKeyValue(modelId) ? (countMap.get(modelId) ?? 0) : 0;
+    model.setAttribute(`${relation}_count`, count);
+  }
+};
+
 const applyConstraint = (query: IQueryBuilder, constraint?: EagerLoadConstraint): IQueryBuilder => {
   if (typeof constraint === 'function') {
     return constraint(query) ?? query;
@@ -860,10 +910,7 @@ const applyConstraint = (query: IQueryBuilder, constraint?: EagerLoadConstraint)
 async function loadCounts(models: IModel[], relation: string, db?: IDatabase): Promise<void> {
   if (models.length === 0 || !db) return;
 
-  const firstModel = models[0] as unknown as Record<string, () => IRelationship>;
-  if (typeof firstModel[relation] !== 'function') return;
-
-  const rel = firstModel[relation]();
+  const rel = getRelationFromModels(models, relation);
   if (rel === null || rel === undefined) return;
 
   const relType = rel.type;
@@ -882,41 +929,6 @@ async function loadCounts(models: IModel[], relation: string, db?: IDatabase): P
 
   const dialect = typeof db.getType === 'function' ? db.getType() : undefined;
 
-  const queryCounts = async (
-    sql: string,
-    params: unknown[]
-  ): Promise<Map<string | number, number>> => {
-    const results = (await db.query(sql, params, true)) as Array<{
-      key: string | number;
-      count: number | bigint;
-    }>;
-    const map = new Map<string | number, number>();
-    for (const row of results) {
-      let count: number;
-      if (typeof row.count === 'bigint') {
-        count = Number(row.count);
-      } else if (typeof row.count === 'number') {
-        count = row.count;
-      } else {
-        count = Number(row.count ?? 0);
-      }
-      map.set(row.key, count);
-    }
-    return map;
-  };
-
-  const setCountsOnModels = (countMap: Map<string | number, number>): void => {
-    for (const model of models) {
-      const modelId = model.getAttribute(localKey);
-      if (isKeyValue(modelId)) {
-        const count = countMap.get(modelId) ?? 0;
-        model.setAttribute(`${relation}_count`, count);
-      } else {
-        model.setAttribute(`${relation}_count`, 0);
-      }
-    }
-  };
-
   if (relType === 'hasMany') {
     const relatedModel = rel.related as unknown as { query(): IQueryBuilder };
     if (typeof relatedModel?.query !== 'function') return;
@@ -924,16 +936,8 @@ async function loadCounts(models: IModel[], relation: string, db?: IDatabase): P
     const tempQuery = relatedModel.query();
     const relatedTable = tempQuery.getTable();
 
-    const sql = `SELECT ${escapeIdentifier(foreignKey, dialect)} as key, COUNT(*) as count FROM ${escapeIdentifier(
-      relatedTable,
-      dialect
-    )} WHERE ${escapeIdentifier(foreignKey, dialect)} IN (${ids.map(() => '?').join(',')}) GROUP BY ${escapeIdentifier(
-      foreignKey,
-      dialect
-    )}`;
-
-    const countMap = await queryCounts(sql, ids);
-    setCountsOnModels(countMap);
+    const countMap = await queryCountMap(db, buildCountSql(relatedTable, foreignKey, ids, dialect), ids);
+    setRelationCounts(models, relation, localKey, countMap);
     return;
   }
 
@@ -942,16 +946,8 @@ async function loadCounts(models: IModel[], relation: string, db?: IDatabase): P
   const relatedKey = rel.relatedKey;
   if (!isNonEmptyString(throughTable) || !isNonEmptyString(relatedKey)) return;
 
-  const sql = `SELECT ${escapeIdentifier(foreignKey, dialect)} as key, COUNT(*) as count FROM ${escapeIdentifier(
-    throughTable,
-    dialect
-  )} WHERE ${escapeIdentifier(foreignKey, dialect)} IN (${ids.map(() => '?').join(',')}) GROUP BY ${escapeIdentifier(
-    foreignKey,
-    dialect
-  )}`;
-
-  const countMap = await queryCounts(sql, ids);
-  setCountsOnModels(countMap);
+  const countMap = await queryCountMap(db, buildCountSql(throughTable, foreignKey, ids, dialect), ids);
+  setRelationCounts(models, relation, localKey, countMap);
 }
 
 const getRelationFromModels = (models: IModel[], relation: string): IRelationship | null => {
@@ -1427,7 +1423,7 @@ function attachWriteMethods(builder: IQueryBuilder, state: QueryState, db?: IDat
     return {
       id:
         (result.lastInsertId as string | number | bigint) ??
-        (items.length === 1 ? ((items[0]?.['id'] as string | number | null) ?? null) : null),
+        (items.length === 1 ? (items[0]?.['id'] as string | number | null) ?? null : null),
       affectedRows: result.rowCount,
       insertedRecords: items,
     };

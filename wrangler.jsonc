@@ -13,6 +13,9 @@
   // PROJECT METADATA
   // ============================================================================
   "name": "zintrust-api",
+  "main": "./src/functions/cloudflare.ts",
+  "compatibility_date": "2026-03-12",
+  "compatibility_flags": ["nodejs_compat"],
 
   // ============================================================================
   // PATH ALIASES
@@ -37,7 +40,7 @@
       "name": "wk-zintrust",
 
       // Compatibility settings
-      "compatibility_date": "2025-04-21",
+      "compatibility_date": "2026-03-12",
       "compatibility_flags": ["nodejs_compat"],
 
       // Development settings
@@ -73,7 +76,7 @@
       "main": "./src/functions/cloudflare.ts",
 
       // Compatibility settings
-      "compatibility_date": "2025-04-21",
+      "compatibility_date": "2026-03-12",
       "compatibility_flags": ["nodejs_compat"],
 
       // Development settings
@@ -141,7 +144,7 @@
 
       // Compatibility settings
       "compatibility_flags": ["nodejs_compat"],
-      "compatibility_date": "2025-04-21",
+      "compatibility_date": "2026-03-12",
 
       // Proxy configuration variables
       "vars": {
@@ -196,7 +199,7 @@
 
       // Compatibility settings
       "compatibility_flags": ["nodejs_compat"],
-      "compatibility_date": "2025-04-21",
+      "compatibility_date": "2026-03-12",
 
       // Proxy configuration variables
       "vars": {

@@ -116,6 +116,43 @@ describe('patch coverage: BulletproofAuthMiddleware', () => {
     expect((res as any).body).toEqual({ error: 'Invalid or expired token' });
   });
 
+  it('delegates unauthorized bulletproof responses to onUnauthorized', async () => {
+    (JwtSessions.isActive as any).mockImplementationOnce(async () => false);
+    const onUnauthorized = vi.fn(async (_req, res, context) => {
+      res.setStatus(context.statusCode);
+      res.json({ middleware: context.middleware, reason: context.reason });
+    });
+
+    const middleware = BulletproofAuthMiddleware.create({
+      signingSecret: 's',
+      onUnauthorized,
+    });
+    const { req, res } = createReqRes({
+      authorization: 'Bearer token',
+      'x-zt-key-id': 'dev-1',
+      'x-zt-device-id': 'dev-1',
+      'x-zt-timestamp': String(Date.now()),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': 'b',
+      'x-zt-signature': 'sig',
+    });
+
+    await middleware(req, res, async () => undefined);
+
+    expect(onUnauthorized).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'bulletproof',
+        statusCode: 401,
+      })
+    );
+    expect((res as any).body).toEqual({
+      middleware: 'bulletproof',
+      reason: 'unauthorized',
+    });
+  });
+
   it('uses getSecretForKeyId when provided', async () => {
     const getSecretForKeyId = vi.fn().mockResolvedValue('dynamic-secret');
     const middleware = BulletproofAuthMiddleware.create({ getSecretForKeyId });

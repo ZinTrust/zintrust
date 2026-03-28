@@ -101,7 +101,8 @@ function getColumnTypeSql(driver: SupportedDriver, def: ColumnDefinition): strin
 function getAutoIncrementColumnSql(
   driver: SupportedDriver,
   colName: string,
-  type: ColumnDefinition['type']
+  type: ColumnDefinition['type'],
+  isUnsigned: boolean = false
 ): string {
   const sqliteFamily = isSqliteFamily(driver);
 
@@ -109,11 +110,14 @@ function getAutoIncrementColumnSql(
     return `${colName} ${ColumnType.INTEGER} ${ColumnType.PRIMARY_KEY} ${ColumnType.AUTOINCREMENT}`;
   }
   if (driver === AdaptersEnum.postgresql) {
-    return `${colName} ${type === ColumnType.BIGINT ? ColumnType.BIGSERIAL : ColumnType.SERIAL} ${ColumnType.PRIMARY_KEY}`;
+    return `${colName} ${type === ColumnType.BIGINT ? ColumnType.BIGSERIAL : ColumnType.SERIAL} ${
+      ColumnType.PRIMARY_KEY
+    }`;
   }
   if (driver === AdaptersEnum.mysql) {
     const typeSql = type === ColumnType.BIGINT ? ColumnType.BIGINT : ColumnType.INT;
-    return `${colName} ${typeSql} ${ColumnType.AUTO_INCREMENT} ${ColumnType.PRIMARY_KEY}`;
+    const unsignedStr = isUnsigned ? ` ${ColumnType.UNSIGNED}` : '';
+    return `${colName} ${typeSql}${unsignedStr} ${ColumnType.AUTO_INCREMENT} ${ColumnType.PRIMARY_KEY}`;
   }
   if (driver === AdaptersEnum.sqlserver) {
     const typeSql = type === ColumnType.BIGINT ? ColumnType.BIGINT : ColumnType.INT;
@@ -159,7 +163,7 @@ function buildColumnSql(driver: SupportedDriver, table: string, def: ColumnDefin
         `Auto-increment column must be INTEGER or BIGINT: ${table}.${def.name}`
       );
     }
-    return getAutoIncrementColumnSql(driver, col, def.type);
+    return getAutoIncrementColumnSql(driver, col, def.type, def.unsigned === true);
   }
 
   const parts: string[] = [`${col} ${getColumnTypeSql(driver, def)}`];
@@ -208,7 +212,10 @@ function buildForeignKeyConstraintSql(
   const refCols = fk.referencedColumns.map((c) => quoteIdent(driver, c)).join(', ');
 
   const parts: string[] = [
-    `${constraint} ${ColumnType.FOREIGN_KEY_S} (${localCols}) ${ColumnType.REFERENCES} ${quoteIdent(driver, fk.referencedTable)} (${refCols})`,
+    `${constraint} ${ColumnType.FOREIGN_KEY_S} (${localCols}) ${ColumnType.REFERENCES} ${quoteIdent(
+      driver,
+      fk.referencedTable
+    )} (${refCols})`,
   ];
 
   if (fk.onDelete) parts.push(`${ColumnType.ON_DELETE} ${normalizeForeignKeyAction(fk.onDelete)}`);
@@ -225,7 +232,9 @@ function buildCreateIndexSql(driver: SupportedDriver, table: string, idx: IndexD
   const unique = idx.type === ColumnType.UNIQUE ? `${ColumnType.UNIQUE} ` : '';
   const cols = idx.columns.map((c) => quoteIdent(driver, c)).join(', ');
 
-  return `${ColumnType.CREATE_INDEX_S} ${unique}${quoteIdent(driver, idx.name)} ${ColumnType.ON} ${quoteIdent(driver, table)} (${cols})`;
+  return `${ColumnType.CREATE_INDEX_S} ${unique}${quoteIdent(driver, idx.name)} ${
+    ColumnType.ON
+  } ${quoteIdent(driver, table)} (${cols})`;
 }
 
 function buildDropIndexSql(driver: SupportedDriver, table: string, indexName: string): string {
@@ -233,7 +242,9 @@ function buildDropIndexSql(driver: SupportedDriver, table: string, indexName: st
   assertIdentifier(SchOther.INDEX, indexName);
 
   if (driver === AdaptersEnum.mysql) {
-    return `${ColumnType.DROP_INDEX_S} ${quoteIdent(driver, indexName)} ${ColumnType.ON} ${quoteIdent(driver, table)}`;
+    return `${ColumnType.DROP_INDEX_S} ${quoteIdent(driver, indexName)} ${
+      ColumnType.ON
+    } ${quoteIdent(driver, table)}`;
   }
 
   return `${ColumnType.DROP_INDEX_S} ${ColumnType.IF_EXISTS} ${quoteIdent(driver, indexName)}`;
@@ -270,7 +281,10 @@ function buildCreateTableStatements(
   const allLines = [...colLines, ...constraints].map((l) => `  ${l}`);
 
   const ine = ifNotExists ? `${ColumnType.IF_NOT_EXISTS} ` : '';
-  const createSql = `${ColumnType.CREATE_TABLE_S} ${ine}${quoteIdent(driver, def.name)} (\n${allLines.join(',\n')}\n)`;
+  const createSql = `${ColumnType.CREATE_TABLE_S} ${ine}${quoteIdent(
+    driver,
+    def.name
+  )} (\n${allLines.join(',\n')}\n)`;
 
   const statements: string[] = [createSql];
 
@@ -288,7 +302,9 @@ function compileAddColumns(
 ): string[] {
   return cols.map((col) => {
     const colSql = buildColumnSql(driver, table, col);
-    return `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.ADD_COLUMN_S} ${colSql}`;
+    return `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${
+      ColumnType.ADD_COLUMN_S
+    } ${colSql}`;
   });
 }
 
@@ -320,13 +336,17 @@ function compileAdvancedAlterOps(
   for (const col of plan.dropColumns) {
     assertIdentifier(SchOther.COLUMN, col);
     statements.push(
-      `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.DROP_COLUMN_S} ${quoteIdent(driver, col)}`
+      `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${
+        ColumnType.DROP_COLUMN_S
+      } ${quoteIdent(driver, col)}`
     );
   }
 
   for (const fk of plan.addForeignKeys) {
     statements.push(
-      `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.ADD} ${buildForeignKeyConstraintSql(driver, table, fk)}`
+      `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${
+        ColumnType.ADD
+      } ${buildForeignKeyConstraintSql(driver, table, fk)}`
     );
   }
 
@@ -334,12 +354,16 @@ function compileAdvancedAlterOps(
     assertIdentifier(SchOther.FOREIGN_KEY, fkName);
     if (driver === AdaptersEnum.mysql) {
       statements.push(
-        `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.DROP} ${ColumnType.FOREIGN_KEY_S} ${quoteIdent(driver, fkName)}`
+        `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.DROP} ${
+          ColumnType.FOREIGN_KEY_S
+        } ${quoteIdent(driver, fkName)}`
       );
       continue;
     }
     statements.push(
-      `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.DROP} ${ColumnType.CONSTRAINT} ${quoteIdent(driver, fkName)}`
+      `${ColumnType.ALTER_TABLE_S} ${quoteIdent(driver, table)} ${ColumnType.DROP} ${
+        ColumnType.CONSTRAINT
+      } ${quoteIdent(driver, fkName)}`
     );
   }
 

@@ -123,7 +123,9 @@ export const DatabaseQueue = (() => {
           });
 
         Logger.debug(
-          `[DatabaseQueue] Job ${job.id} reserved, attempt ${job.attempts + 1}/${job.max_attempts}, next available at ${nextAvailableAt.toISOString()}`
+          `[DatabaseQueue] Job ${job.id} reserved, attempt ${job.attempts + 1}/${
+            job.max_attempts
+          }, next available at ${nextAvailableAt.toISOString()}`
         );
         return job;
       });

@@ -71,8 +71,8 @@ describe('cli/d1/WranglerConfig (coverage)', () => {
   it('prefers database_name matches before binding matches', async () => {
     const jsonc = `{
       "d1_databases": [
-        { "database_name": "vizo-dev", "binding": "PRIMARY_DB" },
-        { "database_name": "secondary", "binding": "vizo-dev" }
+        { "database_name": "app-dev", "binding": "PRIMARY_DB" },
+        { "database_name": "secondary", "binding": "app-dev" }
       ]
     }`;
 
@@ -83,10 +83,10 @@ describe('cli/d1/WranglerConfig (coverage)', () => {
     vi.doMock('@node-singletons/path', async () => await import('node:path'));
 
     const { WranglerConfig } = await import('../../../../src/cli/d1/WranglerConfig');
-    expect(WranglerConfig.getD1Database('/repo', 'vizo-dev')).toEqual(
-      expect.objectContaining({ database_name: 'vizo-dev', binding: 'PRIMARY_DB' })
+    expect(WranglerConfig.getD1Database('/repo', 'app-dev')).toEqual(
+      expect.objectContaining({ database_name: 'app-dev', binding: 'PRIMARY_DB' })
     );
-    expect(WranglerConfig.resolveD1Database('/repo', 'vizo-dev')).toEqual(
+    expect(WranglerConfig.resolveD1Database('/repo', 'app-dev')).toEqual(
       expect.objectContaining({ status: 'resolved', matchedBy: 'database_name' })
     );
   });
@@ -116,8 +116,8 @@ describe('cli/d1/WranglerConfig (coverage)', () => {
   it('reports ambiguous database_name matches when multiple entries share a name', async () => {
     const jsonc = `{
       "d1_databases": [
-        { "database_name": "vizo-dev", "binding": "PRIMARY_DB" },
-        { "database_name": "vizo-dev", "binding": "SHADOW_DB" }
+        { "database_name": "app-dev", "binding": "PRIMARY_DB" },
+        { "database_name": "app-dev", "binding": "SHADOW_DB" }
       ]
     }`;
 
@@ -128,8 +128,8 @@ describe('cli/d1/WranglerConfig (coverage)', () => {
     vi.doMock('@node-singletons/path', async () => await import('node:path'));
 
     const { WranglerConfig } = await import('../../../../src/cli/d1/WranglerConfig');
-    expect(WranglerConfig.getD1Database('/repo', 'vizo-dev')).toBeUndefined();
-    expect(WranglerConfig.resolveD1Database('/repo', 'vizo-dev')).toEqual(
+    expect(WranglerConfig.getD1Database('/repo', 'app-dev')).toBeUndefined();
+    expect(WranglerConfig.resolveD1Database('/repo', 'app-dev')).toEqual(
       expect.objectContaining({ status: 'ambiguous', matchedBy: 'database_name' })
     );
   });

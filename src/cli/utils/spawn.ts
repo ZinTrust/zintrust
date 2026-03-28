@@ -40,6 +40,18 @@ const resolveLocalBin = (command: string, cwd: string): string => {
   return command;
 };
 
+const buildCommandNotFoundMessage = (command: string): string => {
+  if (command === 'tsx') {
+    return [
+      "Error: 'tsx' not found on PATH.",
+      'Install it in the project with "npm install -D tsx".',
+      'If you want a machine-wide fallback, install it globally with "npm install -g tsx".',
+    ].join(' ');
+  }
+
+  return `Error: '${command}' not found on PATH.`;
+};
+
 export const SpawnUtil = Object.freeze({
   async spawnAndWait(input: SpawnAndWaitInput): Promise<number> {
     const cwd = input.cwd ?? process.cwd();
@@ -111,7 +123,7 @@ export const SpawnUtil = Object.freeze({
     } catch (error) {
       const code = (error as NodeJS.ErrnoException | undefined)?.code;
       if (code === 'ENOENT') {
-        throw ErrorFactory.createCliError(`Error: '${input.command}' not found on PATH.`);
+        throw ErrorFactory.createCliError(buildCommandNotFoundMessage(input.command));
       }
 
       throw ErrorFactory.createTryCatchError('Failed to spawn child process', error);

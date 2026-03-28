@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 const handleRequest = vi.fn().mockResolvedValue(undefined);
 
@@ -59,6 +59,15 @@ describe('functions/cloudflare', () => {
     vi.clearAllMocks();
     mockHandle.mockReset();
     mockFormatResponse.mockReset();
+    delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
+    delete (globalThis as { env?: unknown }).env;
+  });
+
+  afterEach(() => {
+    delete (globalThis as { env?: unknown }).env;
+    vi.doUnmock('@runtime/StartupConfigFileRegistry');
+    vi.doUnmock('@config/middleware');
   });
 
   it('handles fetch success and caches kernel', async () => {
@@ -136,5 +145,176 @@ describe('functions/cloudflare', () => {
 
     const response = await handler(request, {}, {});
     expect(response).toBe(formatted);
+  });
+
+  it('merges root and service-local startup config overrides for worker services', async () => {
+    vi.resetModules();
+
+    const { ProjectRuntime } = await import('../../../src/runtime/ProjectRuntime');
+    ProjectRuntime.clear();
+    ProjectRuntime.set({
+      activeService: {
+        id: 'ecommerce/users',
+        domain: 'ecommerce',
+        name: 'users',
+        configRoot: 'src/services/ecommerce/users/config',
+      },
+    });
+
+    vi.doMock('@runtime-config/cache.ts', () => ({
+      default: { default: 'memory', drivers: { memory: { ttl: 30 } }, ttl: 30 },
+    }));
+    vi.doMock('@service-runtime-config/cache.ts', () => ({
+      default: { drivers: { memory: { ttl: 90 } }, keyPrefix: 'users:' },
+    }));
+
+    mockHandle.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true }),
+    });
+    mockFormatResponse.mockReturnValue({ status: 200 } as any);
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=service-config-merge');
+    const handler = mod.default.fetch;
+
+    await handler({ url: 'https://example.com/service', method: 'GET' } as any, {}, {});
+
+    const overrides = (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
+
+    expect(overrides?.get('config/cache.ts')).toEqual({
+      default: 'memory',
+      drivers: { memory: { ttl: 90 } },
+      ttl: 30,
+      keyPrefix: 'users:',
+    });
+
+    ProjectRuntime.clear();
+    delete (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
+  });
+
+  it('merges injected worker env snapshot into bindings before routes load', async () => {
+    mockHandle.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true }),
+    });
+    mockFormatResponse.mockReturnValue({ status: 200 } as any);
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=env-snapshot');
+    const handler = mod.default.fetch;
+
+    await handler(
+      { url: 'https://example.com/env-snapshot', method: 'GET' } as any,
+      {
+        ZINTRUST_WORKER_ENV_SNAPSHOT: JSON.stringify({
+          APP_NAME: 'fresh-check',
+          MS_ROOT_ONLY: 'x',
+        }),
+        MS_SERVICE_ONLY: 'y',
+      },
+      {}
+    );
+
+    expect((globalThis as { env?: unknown }).env).toEqual({
+      APP_NAME: 'fresh-check',
+      MS_ROOT_ONLY: 'x',
+      MS_SERVICE_ONLY: 'y',
+    });
+  });
+
+  it('preloads startup config overrides into the registry before kernel creation', async () => {
+    vi.resetModules();
+
+    const clearRegistry = vi.fn();
+    const preloadRegistry = vi.fn().mockResolvedValue(undefined);
+    const clearMiddleware = vi.fn();
+
+    vi.doMock('@runtime/StartupConfigFileRegistry', () => ({
+      StartupConfigFileRegistry: {
+        clear: clearRegistry,
+        preload: preloadRegistry,
+        get: vi.fn(),
+        has: vi.fn(),
+        isPreloaded: vi.fn(),
+      },
+      StartupConfigFile: {
+        Broadcast: 'config/broadcast.ts',
+        Cache: 'config/cache.ts',
+        Database: 'config/database.ts',
+        Mail: 'config/mail.ts',
+        Middleware: 'config/middleware.ts',
+        Notification: 'config/notification.ts',
+        Queue: 'config/queue.ts',
+        Storage: 'config/storage.ts',
+        Workers: 'config/workers.ts',
+      },
+    }));
+
+    vi.doMock('@config/middleware', () => ({
+      clearMiddlewareConfigCache: clearMiddleware,
+    }));
+
+    mockHandle.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true }),
+    });
+    mockFormatResponse.mockReturnValue({ status: 200 } as any);
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=registry-preload');
+    const handler = mod.default.fetch;
+
+    await handler({ url: 'https://example.com/preload', method: 'GET' } as any, {}, {});
+
+    expect(clearRegistry).toHaveBeenCalled();
+    expect(clearMiddleware).toHaveBeenCalled();
+    expect(preloadRegistry).toHaveBeenCalledWith([
+      'config/broadcast.ts',
+      'config/cache.ts',
+      'config/database.ts',
+      'config/mail.ts',
+      'config/middleware.ts',
+      'config/notification.ts',
+      'config/queue.ts',
+      'config/storage.ts',
+      'config/workers.ts',
+    ]);
+  });
+
+  it('loads root middleware overrides into worker startup config cache', async () => {
+    vi.resetModules();
+
+    const authOverride = vi.fn(async () => undefined);
+
+    vi.doMock('@runtime-config/middleware.ts', () => ({
+      default: {
+        route: {
+          auth: authOverride,
+        },
+      },
+    }));
+
+    mockHandle.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ok: true }),
+    });
+    mockFormatResponse.mockReturnValue({ status: 200 } as any);
+
+    const mod = await import('../../../src/functions/cloudflare' + '?v=root-middleware-override');
+    const handler = mod.default.fetch;
+
+    await handler({ url: 'https://example.com/root-middleware', method: 'GET' } as any, {}, {});
+
+    const overrides = (globalThis as { __zintrustStartupConfigOverrides?: Map<string, unknown> })
+      .__zintrustStartupConfigOverrides;
+    const middlewareOverride = overrides?.get('config/middleware.ts') as
+      | { route?: { auth?: unknown } }
+      | undefined;
+
+    expect(middlewareOverride?.route?.auth).toBe(authOverride);
   });
 });

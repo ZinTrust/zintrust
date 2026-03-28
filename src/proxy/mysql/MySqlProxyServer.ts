@@ -235,15 +235,29 @@ export const MySqlProxyServer = Object.freeze({
       throw ErrorFactory.createConfigError(
         `MySQL proxy signing is required but credentials are missing. ` +
           `Set MYSQL_PROXY_KEY_ID and MYSQL_PROXY_SECRET (fallbacks: APP_NAME and APP_KEY). ` +
-          `Resolved state: keyId=${config.signing.keyId || '<empty>'}, hasSecret=${String(signingHasSecret)}, ` +
-          `cwd=${typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : '<unknown>'}`
+          `Resolved state: keyId=${config.signing.keyId || '<empty>'}, hasSecret=${String(
+            signingHasSecret
+          )}, ` +
+          `cwd=${
+            typeof process !== 'undefined' && typeof process.cwd === 'function'
+              ? process.cwd()
+              : '<unknown>'
+          }`
       );
     }
 
     // Debug: surface resolved config so we can compare watch vs non-watch runs
     try {
       Deps.Logger.info(
-        `MySQL proxy config: proxyHost=${config.host} proxyPort=${config.port} dbHost=${String(config.poolOptions.host)} dbPort=${String(config.poolOptions.port)} dbName=${String(config.poolOptions.database)} dbUser=${String(config.poolOptions.user)} requireSigning=${String(config.signing.require)} keyId=${config.signing.keyId} hasSecret=${String(config.signing.secret.trim() !== '')} signingWindowMs=${String(config.signing.windowMs)}`
+        `MySQL proxy config: proxyHost=${config.host} proxyPort=${config.port} dbHost=${String(
+          config.poolOptions.host
+        )} dbPort=${String(config.poolOptions.port)} dbName=${String(
+          config.poolOptions.database
+        )} dbUser=${String(config.poolOptions.user)} requireSigning=${String(
+          config.signing.require
+        )} keyId=${config.signing.keyId} hasSecret=${String(
+          config.signing.secret.trim() !== ''
+        )} signingWindowMs=${String(config.signing.windowMs)}`
       );
     } catch {
       // noop - logging must not block startup

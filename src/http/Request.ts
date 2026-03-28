@@ -59,7 +59,7 @@ export type ValidatedRequest<
   TBody = unknown,
   TQuery = unknown,
   TParams = unknown,
-  THeaders = unknown,
+  THeaders = unknown
 > = Omit<IRequest, 'validated'> & {
   validated: {
     body: TBody;

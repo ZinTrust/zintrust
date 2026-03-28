@@ -240,6 +240,10 @@ const importLocalWorkersModule = async (): Promise<WorkersModule | null> =>
 const importLocalQueueMonitorModule = async (): Promise<QueueMonitorModule | null> =>
   importLocalModule<QueueMonitorModule>('queue-monitor', '@zintrust/queue-monitor');
 
+const importOptionalPackage = async <T>(specifier: string): Promise<T> => {
+  return (await import(specifier)) as T;
+};
+
 let workersModulePromise: Promise<WorkersModule> | undefined;
 let patchAttempted = false;
 let patchAfterFailureAttempted = false;
@@ -284,16 +288,49 @@ const applyInitialPatches = (): void => {
   }
 };
 
+const getErrorChain = (error: unknown): Array<{ message: string; code?: string }> => {
+  const chain: Array<{ message: string; code?: string }> = [];
+  const seen = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current !== null && current !== undefined && !seen.has(current)) {
+    seen.add(current);
+    const entry = current as { message?: string; code?: string; cause?: unknown };
+    chain.push({
+      message:
+        typeof entry.message === 'string' && entry.message !== '' ? entry.message : String(current),
+      code: typeof entry.code === 'string' ? entry.code : undefined,
+    });
+    current = entry.cause;
+  }
+
+  return chain;
+};
+
 const shouldRetryAfterFailure = (error: unknown): boolean => {
   if (patchAfterFailureAttempted) return false;
 
-  const message = error instanceof Error ? error.message : String(error);
-  const code = (error as { code?: string } | undefined)?.code;
+  return getErrorChain(error).some(
+    ({ message, code }) => code === 'ERR_MODULE_NOT_FOUND' && message.includes('@zintrust/workers')
+  );
+};
 
-  return code === 'ERR_MODULE_NOT_FOUND' && message.includes('@zintrust/workers');
+const isMissingOptionalWorkersModuleError = (error: unknown): boolean => {
+  return getErrorChain(error).some(({ message, code }) => {
+    if (!message.includes('@zintrust/workers')) return false;
+
+    return (
+      code === 'ERR_MODULE_NOT_FOUND' ||
+      message.includes('ERR_MODULE_NOT_FOUND') ||
+      message.includes('Cannot find package') ||
+      message.includes('No such module')
+    );
+  });
 };
 
 const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
+  let finalError = error;
+
   if (shouldRetryAfterFailure(error)) {
     patchAfterFailureAttempted = true;
     const { replacements, filesChanged } = patchWorkersDist();
@@ -302,8 +339,12 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
         filesChanged,
         replacements,
       });
-      workersModulePromise = import('@zintrust/workers');
-      return workersModulePromise;
+      workersModulePromise = importOptionalPackage<WorkersModule>('@zintrust/workers');
+      try {
+        return await workersModulePromise;
+      } catch (retryError: unknown) {
+        finalError = retryError;
+      }
     }
   }
 
@@ -313,7 +354,13 @@ const handleImportFailure = async (error: unknown): Promise<WorkersModule> => {
     return localFallback;
   }
 
-  throw error;
+  if (isMissingOptionalWorkersModuleError(finalError)) {
+    Logger.info('Optional @zintrust/workers package is unavailable; worker routes are disabled.');
+    workersModulePromise = Promise.resolve(createDisabledWorkersModule());
+    return workersModulePromise;
+  }
+
+  throw finalError;
 };
 
 const tryLocalFallback = async (): Promise<WorkersModule | null> => {
@@ -342,7 +389,7 @@ export const loadWorkersModule = async (): Promise<WorkersModule> => {
   }
 
   logWorkersResolverDiagnostics();
-  workersModulePromise ??= import('@zintrust/workers');
+  workersModulePromise ??= importOptionalPackage<WorkersModule>('@zintrust/workers');
 
   try {
     return await workersModulePromise;
@@ -369,7 +416,8 @@ const handleQueueMonitorImportFailure = async (error: unknown): Promise<QueueMon
         filesChanged,
         replacements,
       });
-      queueMonitorModulePromise = import('@zintrust/queue-monitor');
+      queueMonitorModulePromise =
+        importOptionalPackage<QueueMonitorModule>('@zintrust/queue-monitor');
       return queueMonitorModulePromise;
     }
   }
@@ -402,7 +450,8 @@ export const loadQueueMonitorModule = async (): Promise<QueueMonitorModule> => {
     }
   }
 
-  queueMonitorModulePromise ??= import('@zintrust/queue-monitor');
+  queueMonitorModulePromise ??=
+    importOptionalPackage<QueueMonitorModule>('@zintrust/queue-monitor');
 
   try {
     return await queueMonitorModulePromise;

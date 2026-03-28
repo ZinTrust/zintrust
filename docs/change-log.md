@@ -1,0 +1,62 @@
+# Developer Docs Updates
+
+This page tracks developer-visible documentation changes.
+
+## 2026-03-27
+
+- Updated the container worker scaffold so generated database password env vars no longer ship with an insecure hard-coded `secret` fallback, which removes the Sonar new-code security finding on the release PR while keeping password values configurable through project env files.
+- Updated the basic app scaffold to include the published `@zintrust/d1-migrator` package by default so fresh projects keep the `zin migrate-to-d1` command available without a separate manual install, and clarified the CLI reference to match the optional-package auto-registration flow.
+
+## 2026-03-26
+
+- Verified the Cloudflare Workers auth and jwt failure path keeps the default `401` contract by default and honors project responder overrides for custom status/body output, then added a focused regression test covering both cases.
+- Updated the auth-response verification note and middleware failure override docs so they reflect the current `@zintrust/core@0.4.22` API surface and the supported responder-based customization path.
+
+## 2026-03-23
+
+- Added [Microservices Runtime Guide](./microservices-runtime-contract.md) to document the generated manifest, runtime hook files, canonical service IDs, standalone service boot, and layered config overrides.
+- Clarified that generated services use `routes/api.ts` and `src/bootstrap/service-manifest.ts` as the main runtime entry files developers work with.
+- Documented the current implementation status: manifest-based route mounting is in place, standalone Node config layering has started, and Worker-specific service-local config integration is still being extended.
+- Documented that scaffolded microservices now generate their own `wrangler.jsonc`, with service-owned aliases kept local and root-owned aliases mapped back to the root project.
+- Clarified terminology in the developer docs so Cloudflare Worker runtime, generic serverless runtime, and ZinTrust background workers are described explicitly instead of all being shortened to “worker”.
+- Extended that terminology cleanup into broader developer docs including cloud deployment, architecture, worker management, and helpers so Cloudflare Worker runtime and ZinTrust background workers are not conflated.
+- Updated the runtime guide to state explicitly that standalone microservice boot code lives in the microservice `src/index.ts`, replaced internal-sounding headings like `Current behavior` and `Current Limits`, and rewrote the remaining runtime work section in developer-facing terms.
+- Implemented scaffolded Cloudflare Worker / serverless service-local startup config merging so generated microservice `wrangler.jsonc` files keep root config aliases pointing at the root app while also exposing optional service-local config aliases for layered overrides.
+- Moved scaffolded standalone microservice boot ownership into a first-class core start helper so generated service entrypoints delegate runtime setup to framework code instead of hand-wiring `ProjectRuntime.set(...)` themselves.
+- Updated generated runtime hook and service manifest files so the built CLI can import source-owned runtime metadata in consumer apps without failing on extensionless local imports, which fixes manifest-backed `zin routes` loading and standalone service boot in freshly scaffolded projects.
+- Refreshed the maintainer-facing scaffold runtime fix process note so it documents the implemented core behavior, the dist-package consumer validation, and the remaining need for legacy generated-file normalization.
+- Updated CLI service-directory startup env loading so root `.env*` files load first and service-local `.env*` files override them, and added clearer developer guidance for the missing `tsx` runtime dependency during standalone microservice starts.
+- Added monolith-only manifest route prefixes for microservices so standalone services keep their native paths while monolith mounting defaults each service to `/<domain>/<name>` unless the manifest overrides the prefix.
+- Updated official runtime plugin auto-imports so missing optional ZinTrust adapter packages no longer raise a startup warning in consumer apps, while genuinely broken installed plugin register modules still surface as failures.
+- Added explicit standalone microservice env controls so `bootStandaloneService()` and `zin s` can keep root env loading enabled by default, skip it with `rootEnv: false` or `--no-root-env`, and override the inferred microservice env source with `envPath` or `--env-path`.
+- Upgraded `simulate/fresh-check` into a generated-style standalone microservice fixture with `src/bootstrap/service-manifest.ts`, `src/zintrust.runtime*.ts`, and a focused simulation test that verifies root `.env` loading plus service-local `.env` overrides from a service-directory context.
+- Fixed three runtime regressions in the startup path: root monolith starts now preload service-local `.env` files with service values overriding root duplicates, service-directory `zin s` now boots the standalone service instead of short-circuiting on partially cached runtime metadata, and Worker startup now avoids eager non-default database instantiation that previously triggered Cloudflare PostgreSQL socket failures during boot.
+- Fixed the remaining standalone Worker env propagation gap so `zin s --wg` from a microservice directory now injects the merged root-plus-service env set into Wrangler dev bindings, allowing Worker routes to see root values and service overrides consistently in both `Env.get(...)` and static `Env.*` reads.
+- Added a per-service `loadEnv` manifest flag so monolith startup can mount a microservice while explicitly skipping that service's local `.env*` preload layer.
+- Updated service scaffolding guidance and generated manifest entries to default mounted services to `loadEnv: false`, avoiding monolith root/global env merging unless developers opt in explicitly.
+- Updated startup so official runtime plugin auto-import failure warnings are only emitted in Docker worker mode, which prevents noisy `zin s` and freshly scaffolded project flows from showing `Loaded 0/16 official plugin imports` during normal local development.
+- Added `d1` as a first-class `zin new` database option alongside `d1-proxy`, so the interactive database list now includes direct Cloudflare D1 as well as the HTTPS proxy mode.
+- Updated `zin new` project scaffolding so generated `.gitignore` files include `.dev*`, which keeps temporary Wrangler-style dev variable files out of git by default.
+- Fixed manifest-backed microservice route loading in `zin s --wg` for generated apps by generating `src/zintrust.plugins.wg.ts` with the required `ProjectRuntime.set({ serviceManifest })` seed automatically, so developers no longer need to add that block by hand in fresh projects.
+- Fixed `zin s --wg` startup in fresh projects when the optional `@zintrust/workers` package is not installed, so Cloudflare/Wrangler `No such module "@zintrust/workers"` failures now fall back to the disabled worker runtime instead of aborting app boot.
+- Corrected the `newstart` Worker entry example so it re-exports the core Cloudflare handler instead of calling `getKernel()` before Worker bindings are initialized; middleware in fresh apps should stay registered through `config/middleware.ts` and route metadata rather than custom Worker bootstrap wrappers.
+- Updated `zin s --wg` to force `WORKER_ENABLED=false`, which prevents background worker package initialization in Wrangler dev even if a custom Worker entrypoint is written incorrectly, and added a start-time warning when `src/index.ts` calls `getKernel()` before the core Cloudflare handler.
+- Added project-level custom middleware registration support through `config/middleware.ts`, updated the middleware docs with the full fresh-app flow, and made `zin add middleware <Name>` generate and register a route middleware skeleton automatically.
+- Fixed standalone `zin s --wg` from `src/services/<domain>/<name>` so it now prefers service-local port env vars like `<SERVICE_NAME>_PORT` and no longer falls back to a conflicting root `APP_PORT`; newly scaffolded services now also write `APP_PORT`, `PORT`, and `SERVICE_PORT` into their local `.env` files.
+
+## 2026-03-25
+
+- Merged the typed middleware registry guide into `docs/middleware.md` so middleware usage, project registration, typed route keys, and governance test guidance now live in one canonical page, and updated the docs site navigation to point at that single doc.
+- Updated JSON request error handling so `NotFoundError` stacks are still logged server-side but no longer returned in API error payloads.
+- Blocked accidental root-package `npm publish` so releases fail fast unless they publish the compiled `dist` package, which fixes the broken global CLI install path where source bin entries tried to resolve aliases like `@config/logger` at runtime.
+- Updated `zin docker` to reuse one deterministic `.dev.vars*.disabled-by-zin` backup per file and remove legacy UUID-suffixed backups automatically, so repeated Docker/Wrangler dev runs no longer keep accumulating stale backup files.
+- Updated request-body XSS sanitization to strip markup without HTML-encoding opaque JSON payload characters like `/` and `=`, which preserves base64 and signed token inputs in fresh apps while keeping output escaping in the HTML render layer.
+- Documented and scaffolded the plug-and-play built-in middleware override path for fresh apps, including overriding keys like `jwt` in `config/middleware.ts` so developers can customize default auth error payloads without changing route metadata.
+- Updated core middleware assembly so built-in keyed overrides now apply consistently to both route resolution and the shared global middleware slots, making fresh-app plug-and-play overrides factual for framework-owned middleware keys instead of only route-local keys.
+- Added a first-class middleware responder contract for response-writing built-ins so fresh apps can customize default auth, CSRF, rate-limit, validation, and JSON error payloads through `config/middleware.ts` without replacing the underlying middleware logic.
+- Refreshed vulnerable transitive dependencies so the workspace now resolves `picomatch` to patched `2.3.2` and `4.0.4` releases and `yaml` to `2.8.3`, clearing the reported npm audit advisories without changing the top-level dependency API.
+- Fixed two Workers DX regressions that previously forced repository-level core patching in fresh apps: `SecurityMiddleware.create()` now derives default CORS behavior from `securityConfig.cors` instead of hard-coded values, and the Cloudflare response bridge now preserves middleware-set HTTP status codes when the framework response wrapper writes to `res.statusCode`.
+- Fixed the Worker startup-config loader so fresh-app overrides from `config/middleware.ts` are bundled and applied in live `zin s --wg` runs, which restores app-owned auth/jwt responder customization, and added `OPTIONS` path fallback routing so global security middleware can answer CORS preflights even when a route only exists under other HTTP methods.
+- Updated core auth/jwt built-in unauthorized fallback bodies to ship a structured `{ error: { code, message } }` contract by default, and fixed `@zintrust/queue-redis` package builds to normalize dist ESM imports before publish so clean installs no longer depend on downstream rewrite scripts.
+- Split the default middleware failure body helper into a dedicated middleware body module so editor/type-service resolution stays stable when auth and jwt middleware import the structured fallback body factory.
+- Updated `@zintrust/queue-redis` to publish against a semver peer on `@zintrust/core` while keeping a local `file:../../dist` dev dependency, so package-local work still uses the local core build but clean tarball installs resolve like published consumers.

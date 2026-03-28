@@ -335,26 +335,64 @@ type MockResponse = {
   _listeners: Record<string, unknown[]>;
 };
 
+const closeWriterOnAbort = (request: PlatformRequest, response: MockResponse): void => {
+  if (!request.signal || !response._writer) return;
+
+  request.signal.addEventListener('abort', () => {
+    if (response._writer) {
+      try {
+        response._writer.close();
+      } catch {
+        // Ignore close errors
+      }
+    }
+    response.emit('close');
+  });
+};
+
+const writeToResponseWriter = (response: MockResponse, chunk: string | Buffer): boolean => {
+  if (!response._writer) return false;
+
+  try {
+    response._writer.write(new TextEncoder().encode(String(chunk)));
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const emitResponseListeners = (
+  listeners: Record<string, unknown[]>,
+  event: string,
+  args: unknown[]
+): void => {
+  if (listeners[event] === undefined) return;
+
+  [...listeners[event]].forEach((fn: unknown) => {
+    (fn as (...args: unknown[]) => void)(...args);
+  });
+};
+
+const isRequestAborted = (request: PlatformRequest): boolean => request.signal?.aborted === true;
+
 const resData = (responseData: ResData, request: PlatformRequest): MockResponse => {
   return {
-    statusCode: 200,
-    headers: responseData.headers,
+    get statusCode(): number {
+      return responseData.statusCode;
+    },
+    set statusCode(value: number) {
+      responseData.statusCode = value;
+    },
+    get headers(): Record<string, string | string[]> {
+      return responseData.headers;
+    },
+    set headers(value: Record<string, string | string[]>) {
+      responseData.headers = value;
+    },
     writeHead: function (statusCode: number, headers?: Record<string, string | string[]>): object {
       this._writer = applyWriteHead(responseData, statusCode, headers);
 
-      // Handle abortion if signal is present
-      if (request.signal && this._writer) {
-        request.signal.addEventListener('abort', () => {
-          if (this._writer) {
-            try {
-              this._writer.close();
-            } catch {
-              // Ignore close errors
-            }
-          }
-          this.emit('close');
-        });
-      }
+      closeWriterOnAbort(request, this);
 
       return this;
     },
@@ -379,16 +417,11 @@ const resData = (responseData: ResData, request: PlatformRequest): MockResponse 
     },
     write: function (chunk: string | Buffer): boolean {
       if (this._writer) {
-        try {
-          this._writer.write(new TextEncoder().encode(String(chunk)));
-          return true;
-        } catch {
-          return false;
-        }
+        return writeToResponseWriter(this, chunk);
       }
 
       responseData.body = chunk;
-      return true;
+      return isRequestAborted(request) === false;
     },
     on: function (event: string, listener: () => void): object {
       this._listeners ??= {};
@@ -410,12 +443,7 @@ const resData = (responseData: ResData, request: PlatformRequest): MockResponse 
       return this;
     },
     emit: function (event: string, ...args: unknown[]): void {
-      if (this._listeners?.[event] !== undefined) {
-        // Create a copy to avoid issues if listeners remove themselves
-        [...this._listeners[event]].forEach((fn: unknown) => {
-          (fn as (...args: unknown[]) => void)(...args);
-        });
-      }
+      emitResponseListeners(this._listeners, event, args);
     },
     _writer: null as StreamWriter | null,
     _listeners: {} as Record<string, unknown[]>,

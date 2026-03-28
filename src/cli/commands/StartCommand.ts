@@ -5,8 +5,18 @@ import { SpawnUtil } from '@cli/utils/spawn';
 import { readEnvString } from '@common/ExternalServiceUtils';
 import * as Common from '@common/index';
 import { ErrorFactory } from '@exceptions/ZintrustError';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
+import { isNonEmptyString } from '@helper/index';
+import type { ServiceManifestEntry } from '@microservices/ServiceManifest';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
+import { ProjectRuntime } from '@runtime/ProjectRuntime';
 import type { Command } from 'commander';
 
 type StartMode = 'development' | 'production' | 'testing' | 'split';
@@ -21,13 +31,118 @@ type StartCommandOptions = CommandOptions & {
   lambda?: boolean;
   cache?: boolean;
   watch?: boolean;
+  rootEnv?: boolean;
   mode?: string;
   runtime?: string;
   port?: string;
   env?: string;
+  envPath?: string;
 };
 
 type StartVariant = 'node' | 'wrangler' | 'deno' | 'lambda';
+
+type PackageJson = { name?: unknown; scripts?: Record<string, unknown> };
+
+type StartContext = {
+  cwd: string;
+  projectRoot: string;
+  packageJson?: PackageJson;
+};
+
+const isAsciiUppercaseLetter = (value: string): boolean => value >= 'A' && value <= 'Z';
+
+const isAsciiLowercaseLetter = (value: string): boolean => value >= 'a' && value <= 'z';
+
+const isAsciiLetter = (value: string): boolean =>
+  isAsciiUppercaseLetter(value) || isAsciiLowercaseLetter(value);
+
+const isAsciiDigit = (value: string): boolean => value >= '0' && value <= '9';
+
+const isWordCharacter = (value: string): boolean =>
+  isAsciiLetter(value) || isAsciiDigit(value) || value === '_';
+
+const isWranglerVarName = (value: string): boolean => {
+  if (value.length === 0) return false;
+
+  const first = value[0] ?? '';
+  if (!(isAsciiLetter(first) || first === '_')) return false;
+
+  for (let index = 1; index < value.length; index += 1) {
+    if (!isWordCharacter(value[index] ?? '')) return false;
+  }
+
+  return true;
+};
+
+const toUpperSnakeCaseIdentifier = (value: string): string => {
+  let output = '';
+  let previousWasUnderscore = false;
+
+  for (const char of value) {
+    const isAllowed = isAsciiLetter(char) || isAsciiDigit(char);
+    const nextChar = isAllowed ? char.toUpperCase() : '_';
+
+    if (nextChar === '_') {
+      if (previousWasUnderscore) continue;
+      previousWasUnderscore = true;
+      output += '_';
+      continue;
+    }
+
+    previousWasUnderscore = false;
+    output += nextChar;
+  }
+
+  let start = 0;
+  while (start < output.length && output[start] === '_') start += 1;
+
+  let end = output.length;
+  while (end > start && output[end - 1] === '_') end -= 1;
+
+  return output.slice(start, end);
+};
+
+const isWindowsDriveAbsolutePath = (value: string): boolean => {
+  if (value.length < 3) return false;
+
+  const drive = value[0] ?? '';
+  const colon = value[1] ?? '';
+  const separator = value[2] ?? '';
+
+  return isAsciiLetter(drive) && colon === ':' && (separator === '\\' || separator === '/');
+};
+
+const isCommandTokenBoundary = (char: string | undefined): boolean => {
+  if (char === undefined) return true;
+  return !isAsciiLetter(char) && !isAsciiDigit(char);
+};
+
+const containsCommandToken = (value: string, command: string): boolean => {
+  let startIndex = 0;
+
+  while (startIndex < value.length) {
+    const foundIndex = value.indexOf(command, startIndex);
+    if (foundIndex === -1) return false;
+
+    const before = foundIndex === 0 ? undefined : value[foundIndex - 1];
+    const afterIndex = foundIndex + command.length;
+    const after = afterIndex >= value.length ? undefined : value[afterIndex];
+
+    if (isCommandTokenBoundary(before) && isCommandTokenBoundary(after)) return true;
+
+    startIndex = foundIndex + command.length;
+  }
+
+  return false;
+};
+
+const containsZinCommand = (value: string): boolean => {
+  const lower = value.toLowerCase();
+  return containsCommandToken(lower, 'zintrust') || containsCommandToken(lower, 'zin');
+};
+
+const isAbsolutePath = (value: string): boolean =>
+  value.startsWith('/') || isWindowsDriveAbsolutePath(value);
 
 const resolveNpmPath = (): string => {
   try {
@@ -86,7 +201,29 @@ const resolveMode = (options: StartCommandOptions): StartMode => {
   return resolveModeFromAppMode();
 };
 
-const resolvePort = (options: StartCommandOptions): number | undefined => {
+const resolveStandaloneServicePortEnvValue = (cwd: string): string => {
+  const normalizedCwd = path.resolve(cwd);
+  const serviceRootMarker = `${path.sep}src${path.sep}services${path.sep}`;
+
+  if (!normalizedCwd.includes(serviceRootMarker)) return '';
+
+  const serviceName = path.basename(normalizedCwd).trim();
+  const servicePortKey = toUpperSnakeCaseIdentifier(serviceName);
+
+  const candidateKeys = [
+    servicePortKey === '' ? '' : `${servicePortKey}_PORT`,
+    'SERVICE_PORT',
+  ].filter((key) => key !== '');
+
+  for (const key of candidateKeys) {
+    const value = process.env[key];
+    if (typeof value === 'string' && value.trim() !== '') return value.trim();
+  }
+
+  return '';
+};
+
+const resolvePort = (options: StartCommandOptions, cwd: string): number | undefined => {
   const cliPort = typeof options.port === 'string' ? options.port.trim() : '';
   if (cliPort !== '') {
     const parsed = Number.parseInt(cliPort, 10);
@@ -96,7 +233,19 @@ const resolvePort = (options: StartCommandOptions): number | undefined => {
     return parsed;
   }
 
-  const envPortRaw = process.env['APP_PORT'] ?? process.env['PORT'] ?? '';
+  const standalonePort = resolveStandaloneServicePortEnvValue(cwd);
+  const appPort = process.env['APP_PORT'];
+  const port = process.env['PORT'];
+  let envPortRaw = '';
+
+  if (standalonePort !== '') {
+    envPortRaw = standalonePort;
+  } else if (appPort !== undefined && appPort.trim() !== '') {
+    envPortRaw = appPort;
+  } else if (port !== undefined && port.trim() !== '') {
+    envPortRaw = port;
+  }
+
   if (envPortRaw === '') return undefined;
 
   const parsed = Number.parseInt(String(envPortRaw), 10);
@@ -216,8 +365,41 @@ const resolveCacheEnabledPreference = (options: StartCommandOptions): boolean | 
   return undefined;
 };
 
-const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string, unknown> } => {
-  const packagePath = path.join(cwd, 'package.json');
+const resolveRootEnvPreference = (options: StartCommandOptions): boolean => {
+  const hasRootEnv = hasFlag('--root-env');
+  const hasNoRootEnv = hasFlag('--no-root-env');
+
+  if (hasRootEnv && hasNoRootEnv) {
+    throw ErrorFactory.createCliError('Error: Cannot use both --root-env and --no-root-env.');
+  }
+
+  if (hasRootEnv) return true;
+  if (hasNoRootEnv) return false;
+  if (typeof options.rootEnv === 'boolean') return options.rootEnv;
+  return true;
+};
+
+const resolveEnvPath = (options: StartCommandOptions, projectRoot: string): string | undefined => {
+  const raw = typeof options.envPath === 'string' ? options.envPath.trim() : '';
+  if (raw === '') return undefined;
+
+  return isAbsolutePath(raw) ? raw : path.join(projectRoot, raw);
+};
+
+const findNearestPackageJsonDir = (cwd: string): string | undefined => {
+  let current = path.resolve(cwd);
+
+  while (true) {
+    if (existsSync(path.join(current, 'package.json'))) return current;
+
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+};
+
+const readPackageJsonFromDir = (dir: string): PackageJson => {
+  const packagePath = path.join(dir, 'package.json');
   if (!existsSync(packagePath)) {
     throw ErrorFactory.createCliError(
       "Error: No ZinTrust app found. Run 'zin new <project>' or ensure package.json exists."
@@ -230,6 +412,149 @@ const readPackageJson = (cwd: string): { name?: unknown; scripts?: Record<string
   } catch (error) {
     throw ErrorFactory.createTryCatchError('Failed to read package.json', error);
   }
+};
+
+const resolveStartContext = (cwd: string): StartContext => {
+  const projectRoot = findNearestPackageJsonDir(cwd) ?? cwd;
+  const packageDir = findNearestPackageJsonDir(cwd);
+
+  return {
+    cwd,
+    projectRoot,
+    ...(packageDir === undefined ? {} : { packageJson: readPackageJsonFromDir(packageDir) }),
+  };
+};
+
+const requirePackageJson = (context: StartContext): PackageJson => {
+  if (context.packageJson !== undefined) return context.packageJson;
+
+  throw ErrorFactory.createCliError(
+    "Error: No ZinTrust app found. Run 'zin new <project>' or ensure package.json exists."
+  );
+};
+
+const buildStartEnv = (projectRoot: string): NodeJS.ProcessEnv => ({
+  ...process.env,
+  ZINTRUST_PROJECT_ROOT: projectRoot,
+});
+
+const buildWorkerDevVarsContent = (): string => {
+  return (
+    Object.entries(process.env)
+      .filter((entry): entry is [string, string] => {
+        const [key, value] = entry;
+        return isWranglerVarName(key) && typeof value === 'string';
+      })
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join('\n') + '\n'
+  );
+};
+
+const getWranglerEnvBackupPath = (targetPath: string): string => `${targetPath}.disabled-by-zin`;
+
+const reconcileWranglerEnvBackup = (targetPath: string, backupPath: string): void => {
+  const hasTarget = existsSync(targetPath);
+  const hasBackup = existsSync(backupPath);
+
+  if (!hasBackup) return;
+
+  if (!hasTarget) {
+    renameSync(backupPath, targetPath);
+    return;
+  }
+
+  unlinkSync(backupPath);
+};
+
+async function withWranglerEnvSnapshot<T>(
+  cwd: string,
+  envName: string | undefined,
+  fn: () => Promise<T>
+): Promise<T> {
+  const normalizedEnv = typeof envName === 'string' ? envName.trim() : '';
+  const targetName = normalizedEnv === '' ? '.dev.vars' : `.dev.vars.${normalizedEnv}`;
+  const targetPath = path.join(cwd, targetName);
+  const backupPath = getWranglerEnvBackupPath(targetPath);
+
+  try {
+    reconcileWranglerEnvBackup(targetPath, backupPath);
+  } catch {
+    // noop
+  }
+
+  if (existsSync(targetPath)) {
+    renameSync(targetPath, backupPath);
+  }
+
+  try {
+    writeFileSync(targetPath, buildWorkerDevVarsContent(), 'utf-8');
+
+    return await fn();
+  } finally {
+    try {
+      if (existsSync(targetPath)) unlinkSync(targetPath);
+    } catch {
+      // noop
+    }
+
+    try {
+      if (existsSync(backupPath)) renameSync(backupPath, targetPath);
+    } catch {
+      // noop
+    }
+  }
+}
+
+const resolveManifestServiceEnvDir = (projectRoot: string, entry: ServiceManifestEntry): string => {
+  const configRoot = (entry as { configRoot?: unknown }).configRoot;
+  if (isNonEmptyString(configRoot)) {
+    return path.dirname(path.join(projectRoot, configRoot));
+  }
+
+  return path.join(projectRoot, 'src', 'services', entry.domain, entry.name);
+};
+
+const ensureStartEnvLoaded = (context: StartContext, options: StartCommandOptions): void => {
+  const envPath = resolveEnvPath(options, context.projectRoot);
+  const rootEnv = resolveRootEnvPreference(options);
+  const extraCwds =
+    envPath === undefined && context.cwd !== context.projectRoot ? [context.cwd] : [];
+
+  EnvFileLoader.ensureLoaded({
+    cwd: context.projectRoot,
+    includeCwd: rootEnv,
+    extraCwds,
+    ...(envPath === undefined ? {} : { envPaths: [envPath] }),
+  });
+};
+
+const preloadManifestServiceEnv = async (
+  context: StartContext,
+  options: StartCommandOptions
+): Promise<void> => {
+  if (context.cwd !== context.projectRoot) return;
+  if (resolveEnvPath(options, context.projectRoot) !== undefined) return;
+
+  process.env['ZINTRUST_PROJECT_ROOT'] = context.projectRoot;
+  ProjectRuntime.clear();
+  await ProjectRuntime.tryLoadNodeRuntime();
+
+  const manifest = ProjectRuntime.getServiceManifest().filter(
+    (entry) => entry.monolithEnabled !== false && entry.loadEnv !== false
+  );
+  if (manifest.length === 0) return;
+
+  const envPaths = manifest
+    .map((entry) => resolveManifestServiceEnvDir(context.projectRoot, entry))
+    .filter((value, index, items) => items.indexOf(value) === index);
+
+  if (envPaths.length === 0) return;
+
+  EnvFileLoader.ensureLoaded({
+    cwd: context.projectRoot,
+    includeCwd: resolveRootEnvPreference(options),
+    envPaths,
+  });
 };
 
 const isFrameworkRepo = (packageJson: { name?: unknown }): boolean =>
@@ -298,7 +623,7 @@ const resolveNodeDevCommand = (
   // (e.g. "dev": "zin s"), which would cause infinite recursion.
   const devScript =
     typeof packageJson.scripts?.['dev'] === 'string' ? String(packageJson.scripts['dev']) : '';
-  const devScriptCallsZin = /\bzin(?:trust)?\b/.test(devScript);
+  const devScriptCallsZin = containsZinCommand(devScript);
 
   if (hasDevScript(packageJson) && !devScriptCallsZin) {
     const npm = resolveNpmPath();
@@ -341,7 +666,7 @@ const resolveNodeProdCommand = (cwd: string): { command: string; args: string[] 
 
 const executeWranglerStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   port: number | undefined,
   runtime: string | undefined,
   envName: string | undefined,
@@ -355,9 +680,9 @@ const executeWranglerStart = async (
 
   const normalizedConfig = typeof wranglerConfig === 'string' ? wranglerConfig.trim() : '';
   const explicitConfigFullPath =
-    normalizedConfig.length > 0 ? path.join(cwd, normalizedConfig) : undefined;
-  const configPath = explicitConfigFullPath ?? findWranglerConfig(cwd);
-  const entry = resolveWranglerEntry(cwd);
+    normalizedConfig.length > 0 ? path.join(context.cwd, normalizedConfig) : undefined;
+  const configPath = explicitConfigFullPath ?? findWranglerConfig(context.cwd);
+  const entry = resolveWranglerEntry(context.cwd);
 
   if (explicitConfigFullPath !== undefined) {
     if (existsSync(explicitConfigFullPath)) {
@@ -372,6 +697,8 @@ const executeWranglerStart = async (
       "Error: wrangler config not found (wrangler.toml/json). Run 'wrangler init' first."
     );
   }
+
+  warnOnUnsafeWranglerBootstrap(cmd, context.cwd, entry);
 
   const wranglerArgs: string[] = ['dev'];
 
@@ -392,12 +719,55 @@ const executeWranglerStart = async (
 
   logMySqlProxyHint(cmd);
   cmd.info('Starting in Wrangler dev mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({
-    command: 'wrangler',
-    args: wranglerArgs,
-    env: process.env,
+  const exitCode = await withWranglerEnvSnapshot(context.cwd, envName, async () => {
+    const startEnv = {
+      ...buildStartEnv(context.projectRoot),
+      WORKER_ENABLED: 'false',
+      CLOUDFLARE_WORKER: 'true',
+      DOCKER_WORKER: 'false',
+    };
+
+    return SpawnUtil.spawnAndWait({
+      command: 'wrangler',
+      args: wranglerArgs,
+      env: startEnv,
+    });
   });
   process.exit(exitCode);
+};
+
+const isUnsafeWranglerBootstrapSource = (source: string): boolean => {
+  const getKernelIndex = source.indexOf('getKernel(');
+  const cloudflareFetchIndex = source.indexOf('cloudflareWorker.fetch');
+
+  return (
+    getKernelIndex !== -1 && cloudflareFetchIndex !== -1 && getKernelIndex < cloudflareFetchIndex
+  );
+};
+
+const warnOnUnsafeWranglerBootstrap = (
+  cmd: IBaseCommand,
+  cwd: string,
+  entry: string | undefined
+): void => {
+  if (entry === undefined) return;
+
+  const entryPath = path.join(cwd, entry);
+  if (!existsSync(entryPath)) return;
+
+  try {
+    const source = readFileSync(entryPath, 'utf-8');
+    if (!isUnsafeWranglerBootstrapSource(source)) return;
+
+    cmd.warn(
+      `Unsafe Worker bootstrap detected in ${entry}: getKernel() runs before the core Cloudflare handler initializes Worker bindings.`
+    );
+    cmd.warn(
+      'Use `export { default } from "@zintrust/core/start"` and keep custom middleware registration in config/middleware.ts or route metadata.'
+    );
+  } catch {
+    // Best-effort warning only.
+  }
 };
 
 const ensureTmpRunnerFile = (cwd: string, filename: string, content: string): string => {
@@ -420,7 +790,7 @@ const ensureTmpRunnerFile = (cwd: string, filename: string, content: string): st
 
 const executeDenoStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   mode: StartMode,
   watchEnabled: boolean,
   _port: number | undefined,
@@ -436,9 +806,9 @@ const executeDenoStart = async (
     );
   }
 
-  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(cwd);
+  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(context.cwd);
   const denoRunner = ensureTmpRunnerFile(
-    cwd,
+    context.cwd,
     'zin-start-deno.ts',
     createDenoRunnerSource(startModuleSpecifier)
   );
@@ -448,13 +818,17 @@ const executeDenoStart = async (
   args.push(denoRunner);
 
   cmd.info('Starting in Deno adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: 'tsx',
+    args,
+    env: buildStartEnv(context.projectRoot),
+  });
   process.exit(exitCode);
 };
 
 const executeLambdaStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   mode: StartMode,
   watchEnabled: boolean,
   _port: number | undefined,
@@ -470,9 +844,9 @@ const executeLambdaStart = async (
     );
   }
 
-  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(cwd);
+  const startModuleSpecifier = resolveRuntimeStartModuleSpecifier(context.cwd);
   const lambdaRunner = ensureTmpRunnerFile(
-    cwd,
+    context.cwd,
     'zin-start-lambda.ts',
     createLambdaRunnerSource(startModuleSpecifier)
   );
@@ -482,13 +856,17 @@ const executeLambdaStart = async (
   args.push(lambdaRunner);
 
   cmd.info('Starting in Lambda adapter mode...');
-  const exitCode = await SpawnUtil.spawnAndWait({ command: 'tsx', args, env: process.env });
+  const exitCode = await SpawnUtil.spawnAndWait({
+    command: 'tsx',
+    args,
+    env: buildStartEnv(context.projectRoot),
+  });
   process.exit(exitCode);
 };
 
 const executeNodeStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   mode: StartMode,
   watchEnabled: boolean,
   _port: number | undefined
@@ -502,54 +880,52 @@ const executeNodeStart = async (
   if (mode === 'development') {
     if (!watchEnabled) {
       cmd.warn('Watch mode disabled; starting once.');
-      const bootstrap = resolveBootstrapEntryTs(cwd);
+      const bootstrap = resolveBootstrapEntryTs(context.cwd);
       const args = bootstrap === undefined ? ['src/index.ts'] : [bootstrap];
 
       const exitCode = await SpawnUtil.spawnAndWait({
         command: 'tsx',
         args,
         forwardSignals: false,
-        env: process.env,
+        env: buildStartEnv(context.projectRoot),
       });
       process.exit(exitCode);
     }
 
-    const packageJson = readPackageJson(cwd);
-    const dev = resolveNodeDevCommand(cwd, packageJson);
+    const dev = resolveNodeDevCommand(context.cwd, requirePackageJson(context));
     cmd.info('Starting in development mode (watch enabled)...');
     const exitCode = await SpawnUtil.spawnAndWait({
       command: dev.command,
       args: dev.args,
       forwardSignals: false,
-      env: process.env,
+      env: buildStartEnv(context.projectRoot),
     });
     process.exit(exitCode);
   }
 
-  const prod = resolveNodeProdCommand(cwd);
+  const prod = resolveNodeProdCommand(context.cwd);
   cmd.info('Starting in production mode...');
   const exitCode = await SpawnUtil.spawnAndWait({
     command: prod.command,
     args: prod.args,
     forwardSignals: false,
-    env: process.env,
+    env: buildStartEnv(context.projectRoot),
   });
   process.exit(exitCode);
 };
 
 const executeSplitStart = async (
   cmd: IBaseCommand,
-  cwd: string,
+  context: StartContext,
   _options: StartCommandOptions
 ): Promise<void> => {
   cmd.info('🚀 Starting in split mode (Producer + Consumer)...');
 
-  const packageJson = readPackageJson(cwd);
-  const webDev = resolveNodeDevCommand(cwd, packageJson);
+  const webDev = resolveNodeDevCommand(context.cwd, requirePackageJson(context));
 
   // Producer Environment
   const producerEnv = {
-    ...process.env,
+    ...buildStartEnv(context.projectRoot),
     WORKER_ENABLED: 'false',
     QUEUE_ENABLED: 'true',
     RUNTIME_MODE: 'node-server',
@@ -557,7 +933,7 @@ const executeSplitStart = async (
 
   // Consumer Environment
   const consumerEnv = {
-    ...process.env,
+    ...buildStartEnv(context.projectRoot),
     WORKER_ENABLED: 'true',
     QUEUE_ENABLED: 'true',
     RUNTIME_MODE: 'containers',
@@ -569,11 +945,11 @@ const executeSplitStart = async (
 
   // Resolve Consumer Command (zintrust worker:start-all)
   // We try to use tsx against the source bin if possible
-  const workerArgs = existsSync(path.join(cwd, 'bin/zin.ts'))
+  const workerArgs = existsSync(path.join(context.projectRoot, 'bin/zin.ts'))
     ? ['bin/zin.ts', 'worker:start-all']
     : ['dist/bin/zin.js', 'worker:start-all'];
 
-  const workerCommand = existsSync(path.join(cwd, 'bin/zin.ts')) ? 'tsx' : 'node';
+  const workerCommand = existsSync(path.join(context.projectRoot, 'bin/zin.ts')) ? 'tsx' : 'node';
 
   cmd.info('-------------------------------------------');
   cmd.info('🔹 [Producer] Web Server starting...');
@@ -583,6 +959,7 @@ const executeSplitStart = async (
   const pProducer = SpawnUtil.spawnAndWait({
     command: webDev.command,
     args: webDev.args,
+    cwd: context.cwd,
     env: producerEnv,
     forwardSignals: true,
   });
@@ -590,6 +967,7 @@ const executeSplitStart = async (
   const pConsumer = SpawnUtil.spawnAndWait({
     command: workerCommand,
     args: workerArgs,
+    cwd: context.projectRoot,
     env: consumerEnv,
     forwardSignals: true,
   });
@@ -599,9 +977,12 @@ const executeSplitStart = async (
 
 const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Promise<void> => {
   const cwd = process.cwd();
-  EnvFileLoader.ensureLoaded();
+  const context = resolveStartContext(cwd);
+  process.env['ZINTRUST_PROJECT_ROOT'] = context.projectRoot;
+  ensureStartEnvLoaded(context, options);
+  await preloadManifestServiceEnv(context, options);
   const mode = resolveMode(options);
-  const port = resolvePort(options);
+  const port = resolvePort(options, context.cwd);
   const runtime = resolveRuntime(options);
   const configuredRuntime = resolveConfiguredRuntime(options);
   const variant = resolveStartVariant(options);
@@ -611,7 +992,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   if (variant === 'lambda') effectiveRuntime = 'lambda';
 
   if (mode === 'split') {
-    await executeSplitStart(cmd, cwd, options);
+    await executeSplitStart(cmd, context, options);
     return;
   }
 
@@ -633,7 +1014,7 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
 
     await executeWranglerStart(
       cmd,
-      cwd,
+      context,
       port,
       runtime,
       envName === '' ? undefined : envName,
@@ -649,15 +1030,15 @@ const executeStart = async (options: StartCommandOptions, cmd: IBaseCommand): Pr
   const watchEnabled = resolveWatchPreference(options, mode);
 
   if (variant === 'deno') {
-    await executeDenoStart(cmd, cwd, mode, watchEnabled, port, runtime);
+    await executeDenoStart(cmd, context, mode, watchEnabled, port, runtime);
     return;
   }
 
   if (variant === 'lambda') {
-    await executeLambdaStart(cmd, cwd, mode, watchEnabled, port, runtime);
+    await executeLambdaStart(cmd, context, mode, watchEnabled, port, runtime);
     return;
   }
-  await executeNodeStart(cmd, cwd, mode, watchEnabled, port);
+  await executeNodeStart(cmd, context, mode, watchEnabled, port);
 };
 
 export const StartCommand = Object.freeze({
@@ -673,8 +1054,14 @@ export const StartCommand = Object.freeze({
         .option('--no-cache', 'Disable cache functionality')
         .option('--watch', 'Force watch mode (Node only)')
         .option('--no-watch', 'Disable watch mode (Node only)')
+        .option('--root-env', 'Load root project .env files for standalone service start')
+        .option('--no-root-env', 'Skip root project .env files for standalone service start')
         .option('--mode <development|production|testing>', 'Override app mode')
         .option('--env <name>', 'Wrangler environment name (Wrangler mode only)')
+        .option(
+          '--env-path <path>',
+          'Explicit env directory or .env file path for standalone service start'
+        )
         .option('--wrangler-config <path>', 'Wrangler config path (Wrangler mode only)')
         .option('--runtime <nodejs|cloudflare|lambda|deno|auto>', 'Set RUNTIME for spawned Node')
         .option('-p, --port <number>', 'Override server port');
@@ -689,5 +1076,13 @@ export const StartCommand = Object.freeze({
     });
 
     return cmd;
+  },
+
+  _helpers: {
+    isWranglerVarName,
+    toUpperSnakeCaseIdentifier,
+    isWindowsDriveAbsolutePath,
+    containsCommandToken,
+    containsZinCommand,
   },
 });

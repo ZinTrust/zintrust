@@ -2,12 +2,20 @@ import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import {
+  respondWithMiddlewareFailure,
+  type MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
 import { Xss } from '@security/Xss';
 import type { InferSchema, ISchema, TypedSchema } from '@validation/Validator';
 import { Validator } from '@validation/Validator';
 
 type ValidationErrorLike = Error & { toObject?: () => Record<string, unknown> };
+type ValidationMiddlewareOptions = Readonly<{
+  onFailure?: MiddlewareFailureResponder;
+  middlewareKey?: string;
+}>;
 
 const toRecord = (value: unknown): Record<string, unknown> => {
   if (typeof value !== 'object' || value === null) return {};
@@ -85,7 +93,12 @@ const getBodyForValidation = (req: IRequest): Record<string, unknown> => {
   return toBodyRecord(raw);
 };
 
-const handleValidationError = (res: IResponse, error: unknown): void => {
+const handleValidationError = async (
+  req: IRequest,
+  res: IResponse,
+  error: unknown,
+  options: ValidationMiddlewareOptions
+): Promise<void> => {
   // Temporary: log validation error details to help debugging failing requests.
   // Remove this detailed debug logging once the issue is investigated.
   Logger.warn('Validation failed');
@@ -102,22 +115,43 @@ const handleValidationError = (res: IResponse, error: unknown): void => {
         Logger.debug('[Validation] errors (toObject threw):', err);
       }
 
-      res.setStatus(422).json({ errors: err.toObject() });
+      await respondWithMiddlewareFailure(req, res, options.onFailure, {
+        middleware: options.middlewareKey ?? 'validation',
+        reason: 'validation_error',
+        statusCode: 422,
+        message: 'Validation failed',
+        body: { errors: err.toObject() },
+        error,
+      });
       return;
     }
 
     // Fallback: log raw error
     Logger.debug('[Validation] error:', err);
-    res.setStatus(400).json({ error: 'Invalid request body' });
+    await respondWithMiddlewareFailure(req, res, options.onFailure, {
+      middleware: options.middlewareKey ?? 'validation',
+      reason: 'invalid_request_body',
+      statusCode: 400,
+      message: 'Invalid request body',
+      body: { error: 'Invalid request body' },
+      error,
+    });
   } catch (error_) {
     // Ensure we don't throw while handling validation errors
     Logger.debug('[Validation] failed to log error details:', error_ as Error);
-    res.setStatus(400).json({ error: 'Invalid request body' });
+    await respondWithMiddlewareFailure(req, res, options.onFailure, {
+      middleware: options.middlewareKey ?? 'validation',
+      reason: 'invalid_request_body',
+      statusCode: 400,
+      message: 'Invalid request body',
+      body: { error: 'Invalid request body' },
+      error,
+    });
   }
 };
 
 export const ValidationMiddleware = Object.freeze({
-  create(schema: ISchema): Middleware {
+  create(schema: ISchema, options: ValidationMiddlewareOptions = {}): Middleware {
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
       const method = req.getMethod();
       if (method === 'GET' || method === 'DELETE') {
@@ -136,12 +170,15 @@ export const ValidationMiddleware = Object.freeze({
         req.validated.body = bodyForValidation;
         await next();
       } catch (error: unknown) {
-        handleValidationError(res, error);
+        await handleValidationError(req, res, error, options);
       }
     };
   },
 
-  createBody<TSchema extends TypedSchema<unknown>>(schema: TSchema): Middleware {
+  createBody<TSchema extends TypedSchema<unknown>>(
+    schema: TSchema,
+    options: ValidationMiddlewareOptions = {}
+  ): Middleware {
     type Body = InferSchema<TSchema>;
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
@@ -162,14 +199,15 @@ export const ValidationMiddleware = Object.freeze({
         req.validated.body = bodyForValidation as Body;
         await next();
       } catch (error: unknown) {
-        handleValidationError(res, error);
+        await handleValidationError(req, res, error, options);
       }
     };
   },
 
   createBodyWithSanitization<TSchema extends TypedSchema<unknown>>(
     schema: TSchema,
-    sanitizers?: FieldSanitizers
+    sanitizers?: FieldSanitizers,
+    options: ValidationMiddlewareOptions = {}
   ): Middleware {
     type Body = InferSchema<TSchema>;
 
@@ -194,12 +232,15 @@ export const ValidationMiddleware = Object.freeze({
         req.validated.body = bodyForValidation as Body;
         await next();
       } catch (error: unknown) {
-        handleValidationError(res, error);
+        await handleValidationError(req, res, error, options);
       }
     };
   },
 
-  createQuery<TSchema extends TypedSchema<unknown>>(schema: TSchema): Middleware {
+  createQuery<TSchema extends TypedSchema<unknown>>(
+    schema: TSchema,
+    options: ValidationMiddlewareOptions = {}
+  ): Middleware {
     type Query = InferSchema<TSchema>;
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
@@ -209,12 +250,15 @@ export const ValidationMiddleware = Object.freeze({
         req.validated.query = query as Query;
         await next();
       } catch (error: unknown) {
-        handleValidationError(res, error);
+        await handleValidationError(req, res, error, options);
       }
     };
   },
 
-  createParams<TSchema extends TypedSchema<unknown>>(schema: TSchema): Middleware {
+  createParams<TSchema extends TypedSchema<unknown>>(
+    schema: TSchema,
+    options: ValidationMiddlewareOptions = {}
+  ): Middleware {
     type Params = InferSchema<TSchema>;
 
     return async (req: IRequest, res: IResponse, next: () => Promise<void>): Promise<void> => {
@@ -224,7 +268,7 @@ export const ValidationMiddleware = Object.freeze({
         req.validated.params = params as Params;
         await next();
       } catch (error: unknown) {
-        handleValidationError(res, error);
+        await handleValidationError(req, res, error, options);
       }
     };
   },
@@ -243,7 +287,8 @@ export const ValidationMiddleware = Object.freeze({
    */
   createBodyWithBulletproofSanitization<TSchema extends TypedSchema<unknown>>(
     schema: TSchema,
-    sanitizers?: FieldSanitizers
+    sanitizers?: FieldSanitizers,
+    options: ValidationMiddlewareOptions = {}
   ): Middleware {
     type Body = InferSchema<TSchema>;
 
@@ -270,14 +315,21 @@ export const ValidationMiddleware = Object.freeze({
       } catch (error: unknown) {
         // Handle SanitizerError by converting to validation error format
         if (isSanitizerError(error)) {
-          res.setStatus(422).json({
-            errors: {
-              sanitization: [error.message],
+          await respondWithMiddlewareFailure(req, res, options.onFailure, {
+            middleware: options.middlewareKey ?? 'validation',
+            reason: 'sanitization_error',
+            statusCode: 422,
+            message: error.message,
+            body: {
+              errors: {
+                sanitization: [error.message],
+              },
             },
+            error,
           });
           return;
         }
-        handleValidationError(res, error);
+        await handleValidationError(req, res, error, options);
       }
     };
   },

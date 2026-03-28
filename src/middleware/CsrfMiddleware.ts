@@ -7,6 +7,10 @@
 import { Logger } from '@config/logger';
 import type { IRequest } from '@http/Request';
 import type { IResponse } from '@http/Response';
+import {
+  respondWithMiddlewareFailure,
+  type MiddlewareFailureResponder,
+} from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
 import type { ICsrfTokenManager } from '@security/CsrfTokenManager';
 import { CsrfTokenManager } from '@security/CsrfTokenManager';
@@ -25,7 +29,8 @@ export interface CsrfOptions {
    * - `/api/*`
    * - `/api/v1/auth/login`
    */
-  skipPaths?: string[];
+  skipPaths?: ReadonlyArray<string>;
+  onFailure?: MiddlewareFailureResponder;
 }
 
 const DEFAULT_OPTIONS: CsrfOptions = {
@@ -130,10 +135,15 @@ export const CsrfMiddleware = Object.freeze({
 
       if (!token || !(await manager.validateToken(sessionId, token))) {
         Logger.warn(`CSRF validation failed for session ${sessionId}`);
-        res.setStatus(403);
-        res.json({
-          error: 'Forbidden',
+        await respondWithMiddlewareFailure(req, res, config.onFailure, {
+          middleware: 'csrf',
+          reason: 'invalid_csrf_token',
+          statusCode: 403,
           message: 'Invalid CSRF token',
+          body: {
+            error: 'Forbidden',
+            message: 'Invalid CSRF token',
+          },
         });
         return;
       }

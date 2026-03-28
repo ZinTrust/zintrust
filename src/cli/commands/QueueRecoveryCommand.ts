@@ -681,7 +681,9 @@ const runTargetedRecovery = async (resolved: ResolvedExecutionOptions): Promise<
   const record = await findRecord(resolved.jobId, resolved.queueName, resolved.allowDbLookup);
   if (record === null) {
     Logger.error(
-      `Job not found in tracker${resolved.allowDbLookup ? ' or persistence store' : ''}: ${resolved.jobId}`
+      `Job not found in tracker${resolved.allowDbLookup ? ' or persistence store' : ''}: ${
+        resolved.jobId
+      }`
     );
     if (typeof process !== 'undefined') process.exitCode = 1;
     return;

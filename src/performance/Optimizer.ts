@@ -52,7 +52,9 @@ function deleteFileNonBlocking(filePath: string): void {
         const maybeErr = err as Partial<NodeJS.ErrnoException>;
         if (maybeErr.code === 'ENOENT') return;
         Logger.error(
-          `Failed to delete cache file: ${filePath} (${err instanceof Error ? err.message : String(err)})`
+          `Failed to delete cache file: ${filePath} (${
+            err instanceof Error ? err.message : String(err)
+          })`
         );
       });
       return;
@@ -67,7 +69,9 @@ function deleteFileNonBlocking(filePath: string): void {
     }
   } catch (err) {
     Logger.error(
-      `Failed to schedule cache file deletion: ${filePath} (${err instanceof Error ? err.message : String(err)})`
+      `Failed to schedule cache file deletion: ${filePath} (${
+        err instanceof Error ? err.message : String(err)
+      })`
     );
   }
 }
@@ -532,14 +536,11 @@ export async function runBatch<T>(
     batches.push(generators.slice(i, i + batchSize));
   }
 
-  return batches.reduce(
-    async (accPromise, batch) => {
-      const acc = await accPromise;
-      const batchResults = await Promise.all(batch.map(async (gen) => gen()));
-      return acc.concat(batchResults);
-    },
-    Promise.resolve([] as T[])
-  );
+  return batches.reduce(async (accPromise, batch) => {
+    const acc = await accPromise;
+    const batchResults = await Promise.all(batch.map(async (gen) => gen()));
+    return acc.concat(batchResults);
+  }, Promise.resolve([] as T[]));
 }
 
 /**

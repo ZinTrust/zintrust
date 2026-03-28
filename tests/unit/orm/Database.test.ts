@@ -8,6 +8,7 @@ import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
 import { SQLServerAdapter } from '@orm/adapters/SQLServerAdapter';
 import { createSqlServerProxyAdapter } from '@orm/adapters/SqlServerProxyAdapter';
+import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import type { IDatabase } from '@orm/Database';
 import { Database, resetDatabase, useDatabase } from '@orm/Database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -253,6 +254,15 @@ describe('Database', () => {
     db = Database.create({ driver: 'd1-remote', database: 'test' } as any);
     expect(D1RemoteAdapter.create).toHaveBeenCalled();
     expect(db.getType()).toBe('d1-remote');
+  });
+
+  it('resolves a lazily registered named connection', () => {
+    DatabaseConnectionRegistry.set('analytics', { driver: 'sqlite', database: ':memory:' });
+
+    db = useDatabase(undefined, 'analytics');
+
+    expect(SQLiteAdapter.create).toHaveBeenCalled();
+    expect(db.getType()).toBe('sqlite');
   });
 
   it('should connect to database', async () => {

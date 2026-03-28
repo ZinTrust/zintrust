@@ -2,6 +2,17 @@
 
 Enterprise-grade worker management system for ZinTrust Framework with comprehensive features including health monitoring, auto-scaling, compliance, versioning, canary deployments, and multi-datacenter orchestration.
 
+## Terminology
+
+This page is about ZinTrust background workers for job processing.
+
+It is not about:
+
+1. the Cloudflare Worker runtime
+2. generic serverless request runtimes such as AWS Lambda
+
+When this page says worker, it means a long-lived or manually managed background job worker created through the ZinTrust workers system.
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -201,8 +212,8 @@ export async function initializeWorkers() {
 Processor specs can be either file paths or URLs. Behavior differs by runtime:
 
 - **Node.js**: file paths and URL specs both work.
-- **Cloudflare Workers**: URL specs must be **prebuilt and registered** at build time. Dynamic
-  loading (like `import(data:...)` or `new Function()`) is blocked by the Workers runtime.
+- **Cloudflare Worker runtime**: URL specs must be **prebuilt and registered** at build time. Dynamic
+  loading (like `import(data:...)` or `new Function()`) is blocked by the Cloudflare Worker runtime.
 
 **Examples**
 
@@ -216,9 +227,9 @@ Processor specs can be either file paths or URLs. Behavior differs by runtime:
 
 Remote processors must export a named `ZinTrustProcessor` function.
 
-**Cloudflare Workers prebuild registry**
+**Cloudflare Worker prebuild registry**
 
-When running on Workers, register all URL specs you expect to resolve in
+When running on the Cloudflare Worker runtime, register all URL specs you expect to resolve in
 [src/zintrust.plugins.wg.ts](src/zintrust.plugins.wg.ts). The string stored in Redis/DB
 (`processor_spec`) must match the registered URL exactly.
 

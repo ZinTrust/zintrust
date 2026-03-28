@@ -110,6 +110,28 @@ export const Benchmark = Object.freeze({
   },
 });
 
+function createBenchmarkResult(
+  name: string,
+  iterations: number,
+  memBefore: number,
+  memAfter: number,
+  totalDuration: number,
+  metadata?: Record<string, unknown>
+): BenchmarkResult {
+  return {
+    name,
+    duration: totalDuration,
+    memoryBefore: memBefore,
+    memoryAfter: memAfter,
+    memoryDelta: memAfter - memBefore,
+    iterationCount: iterations,
+    averageTime: totalDuration / iterations,
+    averageMemory: (memAfter - memBefore) / iterations,
+    timestamp: new Date(),
+    metadata,
+  };
+}
+
 /**
  * Run synchronous measurement
  */
@@ -132,18 +154,7 @@ function runMeasure<T>(
   const memAfter = process.memoryUsage().heapUsed;
   const totalDuration = durations.reduce((a, b) => a + b, 0);
 
-  return {
-    name,
-    duration: totalDuration,
-    memoryBefore: memBefore,
-    memoryAfter: memAfter,
-    memoryDelta: memAfter - memBefore,
-    iterationCount: iterations,
-    averageTime: totalDuration / iterations,
-    averageMemory: (memAfter - memBefore) / iterations,
-    timestamp: new Date(),
-    metadata,
-  };
+  return createBenchmarkResult(name, iterations, memBefore, memAfter, totalDuration, metadata);
 }
 
 /**
@@ -171,18 +182,7 @@ async function runMeasureAsync<T>(
   const memAfter = process.memoryUsage().heapUsed;
   const totalDuration = durations.reduce((a, b) => a + b, 0);
 
-  return {
-    name,
-    duration: totalDuration,
-    memoryBefore: memBefore,
-    memoryAfter: memAfter,
-    memoryDelta: memAfter - memBefore,
-    iterationCount: iterations,
-    averageTime: totalDuration / iterations,
-    averageMemory: (memAfter - memBefore) / iterations,
-    timestamp: new Date(),
-    metadata,
-  };
+  return createBenchmarkResult(name, iterations, memBefore, memAfter, totalDuration, metadata);
 }
 
 /**
@@ -268,7 +268,9 @@ function getFormattedTable(results: BenchmarkResult[]): string {
 function getFormattedComparisonReport(comparison: ComparisonResult): string {
   const lines = [
     '=== Performance Comparison Report ===\n',
-    `Overall Improvement: ${comparison.overallImprovement > 0 ? '+' : ''}${comparison.overallImprovement.toFixed(1)}%\n`,
+    `Overall Improvement: ${
+      comparison.overallImprovement > 0 ? '+' : ''
+    }${comparison.overallImprovement.toFixed(1)}%\n`,
     'Operation Comparisons:',
     '-'.repeat(60),
   ];
@@ -276,8 +278,12 @@ function getFormattedComparisonReport(comparison: ComparisonResult): string {
   for (const comp of comparison.comparisons) {
     const timeEmoji = comp.timeFaster ? '🟢' : '🔴';
     const memEmoji = comp.memoryLower ? '🟢' : '🔴';
-    const timeLine = `${timeEmoji} ${comp.name}: ${comp.timeChange > 0 ? '+' : ''}${comp.timeChange.toFixed(1)}% time`;
-    const memLine = `${memEmoji} Memory: ${comp.memoryChange > 0 ? '+' : ''}${comp.memoryChange.toFixed(1)}% usage`;
+    const timeLine = `${timeEmoji} ${comp.name}: ${
+      comp.timeChange > 0 ? '+' : ''
+    }${comp.timeChange.toFixed(1)}% time`;
+    const memLine = `${memEmoji} Memory: ${
+      comp.memoryChange > 0 ? '+' : ''
+    }${comp.memoryChange.toFixed(1)}% usage`;
 
     lines.push(`\n${comp.name}`, `  Time: ${timeLine}`, `  ${memLine}`);
   }

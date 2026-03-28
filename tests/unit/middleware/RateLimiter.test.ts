@@ -60,6 +60,27 @@ describe('RateLimiter', () => {
     );
   });
 
+  it('should delegate limit failures to onFailure', async () => {
+    const onFailure = vi.fn(async (_req, response, context) => {
+      response.setStatus(context.statusCode).json({ reason: context.reason });
+    });
+    const middleware = RateLimiter.create({ max: 1, windowMs: 1000, onFailure });
+
+    await middleware(req, res, next);
+    await middleware(req, res, next);
+
+    expect(onFailure).toHaveBeenCalledWith(
+      req,
+      res,
+      expect.objectContaining({
+        middleware: 'rateLimit',
+        reason: 'rate_limit_exceeded',
+        statusCode: 429,
+      })
+    );
+    expect(res.json).toHaveBeenLastCalledWith({ reason: 'rate_limit_exceeded' });
+  });
+
   it('should reset limit after window expires', async () => {
     const middleware = RateLimiter.create({ max: 1, windowMs: 1000 });
 

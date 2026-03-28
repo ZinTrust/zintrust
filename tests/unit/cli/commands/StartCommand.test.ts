@@ -1,8 +1,24 @@
 import { StartCommand } from '@cli/commands/StartCommand';
+import { EnvFileLoader } from '@cli/utils/EnvFileLoader';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolveNpmPath } from '@common/index';
+import { Logger } from '@config/logger';
 import * as fs from '@node-singletons/fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const isExistingManifestPath = (value: string, projectRoot: string): boolean => {
+  return (
+    value === `${projectRoot}/package.json` || value === `${projectRoot}/src/boot/bootstrap.ts`
+  );
+};
+
+const createProjectRuntimeMock = (manifest: unknown[]) => ({
+  ProjectRuntime: {
+    clear: vi.fn(),
+    tryLoadNodeRuntime: vi.fn(async () => undefined),
+    getServiceManifest: () => manifest,
+  },
+});
 
 vi.mock('@cli/utils/EnvFileLoader', () => ({
   EnvFileLoader: {
@@ -29,15 +45,23 @@ vi.mock('@common/index', () => ({
   resolveNpmPath: vi.fn(),
 }));
 
+vi.mock('@common/utility', () => ({
+  generateUuid: vi.fn(() => 'test-uuid'),
+}));
+
 vi.mock('@node-singletons/fs', () => ({
   existsSync: vi.fn(),
   mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
+  renameSync: vi.fn(),
+  unlinkSync: vi.fn(),
   writeFileSync: vi.fn(),
   default: {
     existsSync: vi.fn(),
     mkdirSync: vi.fn(),
     readFileSync: vi.fn(),
+    renameSync: vi.fn(),
+    unlinkSync: vi.fn(),
     writeFileSync: vi.fn(),
   },
 }));
@@ -126,6 +150,7 @@ describe('StartCommand', () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       if (p.toString().endsWith('wrangler.toml')) return true;
+      if (p.toString().endsWith('src/index.ts')) return true;
       return false;
     });
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
@@ -136,7 +161,36 @@ describe('StartCommand', () => {
       expect.objectContaining({
         command: 'wrangler',
         args: ['dev'],
+        env: expect.objectContaining({
+          WORKER_ENABLED: 'false',
+          CLOUDFLARE_WORKER: 'true',
+          DOCKER_WORKER: 'false',
+        }),
       })
+    );
+  });
+
+  it('should warn when wrangler entry boots getKernel before the core handler', async () => {
+    const command = StartCommand.create();
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      if (p.toString().endsWith('wrangler.toml')) return true;
+      if (p.toString().endsWith('src/index.ts')) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockImplementation((p: any) => {
+      if (String(p).endsWith('src/index.ts')) {
+        return `import cloudflareWorker from '@zintrust/core/start';
+import { getKernel } from '@zintrust/core';
+export default { async fetch(request, env, ctx) { await getKernel(); return cloudflareWorker.fetch(request, env, ctx); } };`;
+      }
+      return '';
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(Logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Unsafe Worker bootstrap detected in src/index.ts')
     );
   });
 
@@ -180,6 +234,7 @@ describe('StartCommand', () => {
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       return !p.toString().endsWith('src/start.ts');
     });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'my-app' }));
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
 
     await expect(command.execute({ lambda: true })).rejects.toThrow(/process.exit/);
@@ -240,10 +295,207 @@ describe('StartCommand', () => {
     await expect(command.execute({})).rejects.toThrow(/No ZinTrust app found/);
   });
 
+  it('should start a service directory using the nearest project package.json', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${serviceCwd}/package.json`) return false;
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${serviceCwd}/src/index.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      includeCwd: true,
+      extraCwds: [serviceCwd],
+    });
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'tsx',
+        args: ['watch', 'src/index.ts'],
+        env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
+      })
+    );
+  });
+
+  it('should pass project root env when starting wrangler from a service directory', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${serviceCwd}/wrangler.jsonc`) return true;
+      if (value === `${projectRoot}/package.json`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      includeCwd: true,
+      extraCwds: [serviceCwd],
+    });
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev'],
+        env: expect.objectContaining({ ZINTRUST_PROJECT_ROOT: projectRoot }),
+      })
+    );
+
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      `${serviceCwd}/.dev.vars`,
+      expect.stringContaining('ZINTRUST_PROJECT_ROOT='),
+      'utf-8'
+    );
+  });
+
+  it('should recover a stale wrangler env backup instead of creating new backup names', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+    const targetPath = `${serviceCwd}/.dev.vars`;
+    const backupPath = `${serviceCwd}/.dev.vars.disabled-by-zin`;
+    const existingPaths = new Set<string>([
+      `${serviceCwd}/wrangler.jsonc`,
+      `${projectRoot}/package.json`,
+      backupPath,
+    ]);
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => existingPaths.has(String(p)));
+    vi.mocked(fs.renameSync).mockImplementation((from: any, to: any) => {
+      existingPaths.delete(String(from));
+      existingPaths.add(String(to));
+    });
+    vi.mocked(fs.unlinkSync).mockImplementation((value: any) => {
+      existingPaths.delete(String(value));
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(fs.writeFileSync).mockImplementation((value: any) => {
+      existingPaths.add(String(value));
+    });
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(fs.renameSync).toHaveBeenNthCalledWith(1, backupPath, targetPath);
+    expect(fs.renameSync).toHaveBeenNthCalledWith(2, targetPath, backupPath);
+    expect(fs.renameSync).toHaveBeenNthCalledWith(3, backupPath, targetPath);
+  });
+
+  it('should skip manifest env preloading when a manifest entry sets loadEnv to false', async () => {
+    const projectRoot = '/workspace';
+
+    vi.resetModules();
+    vi.doMock('@runtime/ProjectRuntime', () =>
+      createProjectRuntimeMock([
+        {
+          id: 'app/gatewaynext',
+          domain: 'app',
+          name: 'gatewaynext',
+          monolithEnabled: true,
+          loadEnv: false,
+        },
+      ])
+    );
+
+    const { StartCommand: StartCommandWithMock } = await import('@cli/commands/StartCommand');
+    const { EnvFileLoader: EnvFileLoaderWithMock } = await import('@cli/utils/EnvFileLoader');
+    const command = StartCommandWithMock.create();
+
+    vi.spyOn(process, 'cwd').mockReturnValue(projectRoot);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      return isExistingManifestPath(value, projectRoot);
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({})).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoaderWithMock.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      includeCwd: true,
+      extraCwds: [],
+    });
+  });
+
   it('should handle missing production build', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(false);
     await expect(command.execute({ mode: 'production' })).rejects.toThrow(/Compiled app not found/);
+  });
+
+  it('should allow explicit envPath and skipping root env for standalone service start', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${serviceCwd}/src/index.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(
+      command.execute({ envPath: 'config/env/ms/gateway/.env.local', rootEnv: false })
+    ).rejects.toThrow(/process.exit/);
+
+    expect(EnvFileLoader.ensureLoaded).toHaveBeenCalledWith({
+      cwd: projectRoot,
+      includeCwd: false,
+      envPaths: ['/workspace/config/env/ms/gateway/.env.local'],
+      extraCwds: [],
+    });
+  });
+
+  it('should prefer standalone service port env over root APP_PORT in wrangler mode', async () => {
+    const command = StartCommand.create();
+    const serviceCwd = '/workspace/src/services/app/gatewaynext';
+    const projectRoot = '/workspace';
+
+    process.env['APP_PORT'] = '7788';
+    process.env['GATEWAYNEXT_PORT'] = '3011';
+
+    vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      const value = String(p);
+      if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${serviceCwd}/src/index.ts`) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
+
+    await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
+
+    expect(SpawnUtil.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev', 'src/index.ts', '--port', '3011'],
+      })
+    );
   });
 
   it('should handle testing mode error', async () => {
@@ -449,6 +701,13 @@ describe('StartCommand', () => {
   it('should throw error for invalid APP_PORT env', async () => {
     const command = StartCommand.create();
     process.env['APP_PORT'] = 'invalid';
+    vi.mocked(fs.existsSync).mockImplementation((p: any) => {
+      if (p.toString().endsWith('package.json')) return true;
+      if (p.toString().endsWith('bootstrap.ts')) return true;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'my-app' }));
+
     await expect(command.execute({})).rejects.toThrow(/Invalid APP_PORT\/PORT/);
   });
 
@@ -464,6 +723,7 @@ describe('StartCommand', () => {
   it('should reach return after wrangler start (coverage)', async () => {
     const command = StartCommand.create();
     vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'my-app' }));
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {

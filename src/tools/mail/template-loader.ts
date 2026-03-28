@@ -195,8 +195,9 @@ async function loadTemplateContent(templateName: string): Promise<string> {
   const lastError = fileResult.error ?? moduleResult.error;
 
   throw ErrorFactory.createConfigError(
-    `Failed to load template from known paths: ${[...fileCandidates, ...moduleCandidates].join(', ')}` +
-      (lastError === undefined ? '' : `. Last error: ${String(lastError)}`)
+    `Failed to load template from known paths: ${[...fileCandidates, ...moduleCandidates].join(
+      ', '
+    )}` + (lastError === undefined ? '' : `. Last error: ${String(lastError)}`)
   );
 }
 

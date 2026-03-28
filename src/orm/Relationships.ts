@@ -51,6 +51,71 @@ const getRelatedTableName = (relatedModel: ModelStatic): string => {
   throw ErrorFactory.createConfigError('Related model does not provide a table name');
 };
 
+const hasEmptyRelationValue = (value: unknown): boolean =>
+  value === undefined || value === null || value === '';
+
+const buildThroughQuery = (
+  modelClass: ModelStatic,
+  relatedTable: string,
+  throughTable: string,
+  secondKey: string,
+  secondLocalKeyColumn: string,
+  firstKey: string,
+  value: unknown
+): ReturnType<ModelStatic['query']> =>
+  modelClass
+    .query()
+    .join(throughTable, `${relatedTable}.${secondKey} = ${throughTable}.${secondLocalKeyColumn}`)
+    .where(`${throughTable}.${firstKey}`, '=', value);
+
+type ThroughRelationType = 'hasOneThrough' | 'hasManyThrough';
+
+const createThroughRelationship = (
+  type: ThroughRelationType,
+  relatedModel: ModelStatic,
+  through: ModelStatic,
+  foreignKey?: string,
+  throughForeignKey?: string,
+  localKey?: string,
+  secondLocalKey?: string
+): IRelationship => {
+  const throughTable = getRelatedTableName(through);
+  const relatedTable = getRelatedTableName(relatedModel);
+  const firstKey = throughForeignKey ?? 'id';
+  const secondKey = foreignKey ?? `${throughTable.slice(0, -1)}_id`;
+  const localKeyColumn = localKey ?? 'id';
+  const secondLocalKeyColumn = secondLocalKey ?? 'id';
+
+  return {
+    type,
+    related: relatedModel,
+    foreignKey: secondKey,
+    localKey: localKeyColumn,
+    through,
+    throughForeignKey: firstKey,
+    secondLocalKey: secondLocalKeyColumn,
+    async get(instance: IModel): Promise<unknown> {
+      const value = instance.getAttribute(localKeyColumn);
+      if (hasEmptyRelationValue(value)) {
+        return Promise.resolve(type === 'hasOneThrough' ? null : []); //NOSONAR
+      }
+
+      const query = buildThroughQuery(
+        relatedModel,
+        relatedTable,
+        throughTable,
+        secondKey,
+        secondLocalKeyColumn,
+        firstKey,
+        value
+      );
+
+      const result = type === 'hasOneThrough' ? await query.first() : await query.get();
+      return result;
+    },
+  };
+};
+
 /**
  * HasOne Relationship
  * Sealed namespace object following Pattern 2
@@ -298,7 +363,9 @@ export const MorphTo = Object.freeze({
         const relatedModel = morphMap[String(type)];
         if (relatedModel === undefined) {
           throw ErrorFactory.createConfigError(
-            `Unknown morph type: ${String(type)}. Available types: ${Object.keys(morphMap).join(', ')}`
+            `Unknown morph type: ${String(type)}. Available types: ${Object.keys(morphMap).join(
+              ', '
+            )}`
           );
         }
 
@@ -317,50 +384,23 @@ export const MorphTo = Object.freeze({
  * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
  */
 export const HasOneThrough = Object.freeze({
-  create(
+  create: (
     relatedModel: ModelStatic,
     through: ModelStatic,
     foreignKey?: string,
     throughForeignKey?: string,
     localKey?: string,
     secondLocalKey?: string
-  ): IRelationship {
-    const throughTable = getRelatedTableName(through);
-    const relatedTable = getRelatedTableName(relatedModel);
-
-    // Default keys
-    const firstKey = throughForeignKey ?? 'id';
-    const secondKey = foreignKey ?? `${throughTable.slice(0, -1)}_id`;
-    const localKeyColumn = localKey ?? 'id';
-    const secondLocalKeyColumn = secondLocalKey ?? 'id';
-
-    return {
-      type: 'hasOneThrough',
-      related: relatedModel,
-      foreignKey: secondKey,
-      localKey: localKeyColumn,
+  ): IRelationship =>
+    createThroughRelationship(
+      'hasOneThrough',
+      relatedModel,
       through,
-      throughForeignKey: firstKey,
-      secondLocalKey: secondLocalKeyColumn,
-      async get(instance: IModel): Promise<unknown> {
-        const value = instance.getAttribute(localKeyColumn);
-        if (value === undefined || value === null || value === '') return null;
-
-        // Join through intermediate table
-        // SELECT related.* FROM related
-        // INNER JOIN through ON related.through_id = through.id
-        // WHERE through.parent_id = value
-        return relatedModel
-          .query()
-          .join(
-            throughTable,
-            `${relatedTable}.${secondKey} = ${throughTable}.${secondLocalKeyColumn}`
-          )
-          .where(`${throughTable}.${firstKey}`, '=', value)
-          .first();
-      },
-    };
-  },
+      foreignKey,
+      throughForeignKey,
+      localKey,
+      secondLocalKey
+    ),
 });
 
 /**
@@ -372,48 +412,21 @@ export const HasOneThrough = Object.freeze({
  * @see FRAMEWORK_REFACTOR_FUNCTION_PATTERN.md for Pattern 2 details
  */
 export const HasManyThrough = Object.freeze({
-  create(
+  create: (
     relatedModel: ModelStatic,
     through: ModelStatic,
     foreignKey?: string,
     throughForeignKey?: string,
     localKey?: string,
     secondLocalKey?: string
-  ): IRelationship {
-    const throughTable = getRelatedTableName(through);
-    const relatedTable = getRelatedTableName(relatedModel);
-
-    // Default keys
-    const firstKey = throughForeignKey ?? 'id';
-    const secondKey = foreignKey ?? `${throughTable.slice(0, -1)}_id`;
-    const localKeyColumn = localKey ?? 'id';
-    const secondLocalKeyColumn = secondLocalKey ?? 'id';
-
-    return {
-      type: 'hasManyThrough',
-      related: relatedModel,
-      foreignKey: secondKey,
-      localKey: localKeyColumn,
+  ): IRelationship =>
+    createThroughRelationship(
+      'hasManyThrough',
+      relatedModel,
       through,
-      throughForeignKey: firstKey,
-      secondLocalKey: secondLocalKeyColumn,
-      async get(instance: IModel): Promise<unknown[]> {
-        const value = instance.getAttribute(localKeyColumn);
-        if (value === undefined || value === null || value === '') return [];
-
-        // Join through intermediate table
-        // SELECT related.* FROM related
-        // INNER JOIN through ON related.through_id = through.id
-        // WHERE through.parent_id = value
-        return relatedModel
-          .query()
-          .join(
-            throughTable,
-            `${relatedTable}.${secondKey} = ${throughTable}.${secondLocalKeyColumn}`
-          )
-          .where(`${throughTable}.${firstKey}`, '=', value)
-          .get();
-      },
-    };
-  },
+      foreignKey,
+      throughForeignKey,
+      localKey,
+      secondLocalKey
+    ),
 });

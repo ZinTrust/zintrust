@@ -26,6 +26,17 @@ export interface ServiceScaffoldResult {
   message: string;
 }
 
+const coreModuleSpecifier = ['@zintrust', 'core'].join('/');
+const coreStartModuleSpecifier = `${coreModuleSpecifier}/start`;
+const serviceManifestImportExpression =
+  "import('./bootstrap/service-manifest.ts').catch(() => import('./bootstrap/service-manifest.js'))";
+
+const buildRouteImportExpression = (domain: string, serviceName: string): string =>
+  `import('../services/${domain}/${serviceName}/routes/api.ts').catch(() => import('../services/${domain}/${serviceName}/routes/api.js'))`;
+
+const getServiceConfigRoot = (domain: string, serviceName: string): string =>
+  `src/services/${domain}/${serviceName}/config`;
+
 /**
  * ServiceScaffolder generates microservices with all necessary files
  */
@@ -101,7 +112,9 @@ export function scaffold(
     }
 
     createServiceDirectories(servicePath);
+    ensureProjectRuntimeFiles(projectRoot, options);
     const filesCreated = createServiceFiles(servicePath, options);
+    updateServiceManifest(projectRoot, options);
 
     return Promise.resolve({
       success: true,
@@ -122,11 +135,95 @@ export function scaffold(
   }
 }
 
+function ensureProjectRuntimeFiles(projectRoot: string, options: ServiceOptions): void {
+  const domain = options.domain ?? 'default';
+  const serviceId = `${domain}/${options.name}`;
+  const routeImportExpression = buildRouteImportExpression(domain, options.name);
+  const bootstrapDir = path.join(projectRoot, 'src', 'bootstrap');
+  FileGenerator.createDirectory(bootstrapDir);
+
+  const manifestPath = path.join(bootstrapDir, 'service-manifest.ts');
+  if (!FileGenerator.fileExists(manifestPath)) {
+    const initialManifest = `import type { ServiceManifestEntry } from '${coreModuleSpecifier}';
+
+export const serviceManifest: ReadonlyArray<ServiceManifestEntry> = [
+  {
+    id: '${serviceId}',
+    domain: '${domain}',
+    name: '${options.name}',
+    configRoot: '${getServiceConfigRoot(domain, options.name)}',
+    prefix: '${serviceId}',
+    loadEnv: false,
+    port: ${options.port ?? 3001},
+    monolithEnabled: true,
+    loadRoutes: async () => ${routeImportExpression},
+  },
+];
+
+export default serviceManifest;
+`;
+    FileGenerator.writeFile(manifestPath, initialManifest);
+  }
+
+  const runtimeModule = `const serviceManifestModule = await ${serviceManifestImportExpression};
+
+const serviceManifest = serviceManifestModule.default ?? serviceManifestModule.serviceManifest ?? [];
+
+export { serviceManifest };
+
+export default Object.freeze({ serviceManifest });
+`;
+
+  FileGenerator.writeFile(path.join(projectRoot, 'src', 'zintrust.runtime.ts'), runtimeModule, {
+    overwrite: false,
+  });
+  FileGenerator.writeFile(path.join(projectRoot, 'src', 'zintrust.runtime.wg.ts'), runtimeModule, {
+    overwrite: false,
+  });
+}
+
+function updateServiceManifest(projectRoot: string, options: ServiceOptions): void {
+  const domain = options.domain ?? 'default';
+  const serviceId = `${domain}/${options.name}`;
+  const routeImportExpression = buildRouteImportExpression(domain, options.name);
+  const manifestPath = path.join(projectRoot, 'src', 'bootstrap', 'service-manifest.ts');
+  if (!FileGenerator.fileExists(manifestPath)) return;
+
+  const current = FileGenerator.readFile(manifestPath);
+  if (current.includes(`id: '${serviceId}'`)) {
+    return;
+  }
+
+  const entry = `  {
+    id: '${serviceId}',
+    domain: '${domain}',
+    name: '${options.name}',
+    configRoot: '${getServiceConfigRoot(domain, options.name)}',
+    prefix: '${serviceId}',
+    loadEnv: false,
+    port: ${options.port ?? 3001},
+    monolithEnabled: true,
+    loadRoutes: async () => ${routeImportExpression},
+  },
+`;
+
+  const marker = '];';
+  const markerIndex = current.lastIndexOf(marker);
+  if (markerIndex === -1) {
+    Logger.warn(`Service manifest format is unsupported; skipped update for ${serviceId}`);
+    return;
+  }
+
+  const next = `${current.slice(0, markerIndex)}${entry}${current.slice(markerIndex)}`;
+  FileGenerator.writeFile(manifestPath, next, { overwrite: true });
+}
+
 /**
  * Create service directory structure
  */
 function createServiceDirectories(servicePath: string): void {
   const dirs = [
+    'config',
     'src/controllers',
     'src/models',
     'src/services',
@@ -151,6 +248,7 @@ function createServiceFiles(servicePath: string, options: ServiceOptions): strin
     { path: 'service.config.json', content: generateServiceConfig(options) },
     { path: 'src/index.ts', content: generateServiceIndex(options) },
     { path: 'routes/api.ts', content: generateServiceRoutes(options) },
+    { path: 'wrangler.jsonc', content: generateServiceWranglerConfig(options) },
     { path: 'src/controllers/ExampleController.ts', content: generateExampleController(options) },
     { path: 'src/models/Example.ts', content: generateExampleModel(options) },
     { path: '.env', content: generateServiceEnv(options) },
@@ -199,6 +297,10 @@ function generateServiceConfig(options: ServiceOptions): string {
  * Generate service index.ts
  */
 function generateServiceIndex(options: ServiceOptions): string {
+  const domain = options.domain ?? 'default';
+  const serviceId = `${domain}/${options.name}`;
+  const configRoot = getServiceConfigRoot(domain, options.name);
+
   return `/**
  * ${options.name} Service - Entry Point
  * Port: ${options.port ?? 3001}
@@ -206,26 +308,17 @@ function generateServiceIndex(options: ServiceOptions): string {
  * Auth: ${options.auth ?? 'api-key'}
  */
 
-import { Application, Server } from '@zintrust/core';
-import { Logger } from '@config/logger';
-import { Env } from '@config/env';
-import { esmDirname } from '@common/index';
-import * as path from '@node-singletons/path';
+import { bootStandaloneService } from '${coreStartModuleSpecifier}';
 
-const __dirname = esmDirname(import.meta.url);
-const port = Env.getInt('${options.name?.toUpperCase()}_PORT', ${options.port ?? 3001});
+await bootStandaloneService(import.meta.url, {
+  id: '${serviceId}',
+  domain: '${domain}',
+  name: '${options.name}',
+  configRoot: '${configRoot}',
+});
 
-async function start(): Promise<void> {
-  const app = Application.create(path.join(__dirname, '..'));
-  await app.boot();
-
-  const server = Server.create(app, port);
-  await server.listen();
-
-  Logger.info(\`${options.name} service running on port \${port}\`);
-}
-
-await start();
+// Cloudflare Workers entry.
+export { default } from '${coreStartModuleSpecifier}';
 `;
 }
 
@@ -237,15 +330,15 @@ function generateServiceRoutes(options: ServiceOptions): string {
  * ${options.name} Service Routes
  */
 
-import { Router, type IRouter } from '@zintrust/core';
+import { Router, type IRequest, type IResponse, type IRouter } from '${coreModuleSpecifier}';
 
 export function registerRoutes(router: IRouter): void {
   // Example route
   Router.get(
     router,
     '/',
-    (_req, res) => {
-    res.json({ message: '${options.name} service' });
+    (_req: IRequest, res: IResponse): void => {
+      res.json({ message: '${options.name} service' });
     },
     {
       meta: {
@@ -259,6 +352,49 @@ export function registerRoutes(router: IRouter): void {
 `;
 }
 
+function generateServiceWranglerConfig(options: ServiceOptions): string {
+  const domain = options.domain ?? 'default';
+  const serviceSlug = `${domain}-${options.name}`;
+  const rootPath = '../../../../';
+
+  return `{
+  "name": "${serviceSlug}",
+  "main": "./src/index.ts",
+  "compatibility_date": "2025-04-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "minify": false,
+  "alias": {
+    "@routes/api.ts": "./routes/api.ts",
+    "@service-runtime-config/broadcast.ts": "./config/broadcast.ts",
+    "@service-runtime-config/cache.ts": "./config/cache.ts",
+    "@service-runtime-config/database.ts": "./config/database.ts",
+    "@service-runtime-config/mail.ts": "./config/mail.ts",
+    "@service-runtime-config/storage.ts": "./config/storage.ts",
+    "@service-runtime-config/queue.ts": "./config/queue.ts",
+    "@service-runtime-config/notification.ts": "./config/notification.ts",
+    "@service-runtime-config/middleware.ts": "./config/middleware.ts",
+    "../zintrust.runtime.wg.js": "${rootPath}src/zintrust.runtime.wg.ts",
+    "../zintrust.plugins.wg.js": "${rootPath}src/zintrust.plugins.wg.ts",
+    "@runtime-config/broadcast.ts": "${rootPath}config/broadcast.ts",
+    "@runtime-config/cache.ts": "${rootPath}config/cache.ts",
+    "@runtime-config/database.ts": "${rootPath}config/database.ts",
+    "@runtime-config/mail.ts": "${rootPath}config/mail.ts",
+    "@runtime-config/storage.ts": "${rootPath}config/storage.ts",
+    "@runtime-config/queue.ts": "${rootPath}config/queue.ts",
+    "@runtime-config/notification.ts": "${rootPath}config/notification.ts",
+    "@runtime-config/middleware.ts": "${rootPath}config/middleware.ts"
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "SERVICE_NAME": "${options.name}",
+    "SERVICE_DOMAIN": "${domain}",
+    "SERVICE_PORT": "${options.port ?? 3001}"
+  }
+}
+`;
+}
+
 /**
  * Generate example controller
  */
@@ -268,8 +404,7 @@ function generateExampleController(options: ServiceOptions): string {
  * Example Controller for ${options.name} Service
  */
 
-import { type IRequest, type IResponse, Controller } from '@zintrust/core';
-
+import { type IRequest, type IResponse, Controller } from '${coreModuleSpecifier}';
 const controller = Object.freeze({
   ...Controller,
 
@@ -332,7 +467,7 @@ function generateExampleModel(options: ServiceOptions): string {
  * Example Model for ${options.name} Service
  */
 
-import { Model } from '@zintrust/core';
+import { Model } from '${coreModuleSpecifier}';
 
 export const Example = Model.define({
   table: '${options.name}',
@@ -350,14 +485,25 @@ export const Example = Model.define({
  * Generate service .env file
  */
 function generateServiceEnv(options: ServiceOptions): string {
+  const servicePort = options.port ?? 3001;
+
   return `# ${options.name} Service Configuration
 
 # Service Port
-${options.name?.toUpperCase()}_PORT=${options.port ?? 3001}
+APP_PORT=${servicePort}
+PORT=${servicePort}
+SERVICE_PORT=${servicePort}
+${options.name?.toUpperCase()}_PORT=${servicePort}
 
 # Database
 DATABASE_CONNECTION=${options.database === 'isolated' ? 'postgresql' : 'shared'}
-${options.database === 'isolated' ? `${options.name?.toUpperCase()}_DB_HOST=localhost\n${options.name?.toUpperCase()}_DB_DATABASE=${options.name}\n${options.name?.toUpperCase()}_DB_USER=postgres\n${options.name?.toUpperCase()}_DB_PASSWORD=postgres` : ''}
+${
+  options.database === 'isolated'
+    ? `${options.name?.toUpperCase()}_DB_HOST=localhost\n${options.name?.toUpperCase()}_DB_DATABASE=${
+        options.name
+      }\n${options.name?.toUpperCase()}_DB_USER=postgres\n${options.name?.toUpperCase()}_DB_PASSWORD=postgres`
+    : ''
+}
 
 # Authentication
 SERVICE_AUTH_STRATEGY=${options.auth ?? 'api-key'}
@@ -400,6 +546,8 @@ function getServiceConfig(options: ServiceOptions): {
  */
 function generateServiceReadme(options: ServiceOptions): string {
   const config = getServiceConfig(options);
+  const serviceDir = `src/services/${config.domain}/${options.name}`;
+  const serviceId = `${config.domain}/${options.name}`;
 
   return `# ${options.name} Service
 
@@ -414,14 +562,19 @@ Microservice for ${config.domain} domain.
 ## Getting Started
 
 \`\`\`bash
-# Start service
-npm start
+# Start this service from its service directory (Node)
+cd ${serviceDir}
+zin s
+
+# Start this service with Cloudflare Workers dev
+cd ${serviceDir}
+zin s --wg
+
+# List this service routes from the project root
+MICROSERVICES=true SERVICES=${serviceId} zin routes
 
 # Run tests
 npm test
-
-# Run migrations
-npm run migrate
 \`\`\`
 
 ## Environment Variables

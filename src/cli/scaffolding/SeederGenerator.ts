@@ -372,10 +372,14 @@ function buildRelationshipMethods(options: SeederOptions): string {
       return `    // Seed with ${rel} relationships
     const ${CommonUtils.camelCase(rel)}s = await ${rel}.all();
     if (${CommonUtils.camelCase(rel)}s.length > 0) {
-      const records = factory.count(Math.min(${options.count ?? 10}, ${CommonUtils.camelCase(rel)}s.length));
+      const records = factory.count(Math.min(${options.count ?? 10}, ${CommonUtils.camelCase(
+        rel
+      )}s.length));
 
       for (let i = 0; i < records.length; i++) {
-        (records[i] as Record<string, unknown>).${relId} = (${CommonUtils.camelCase(rel)}s[i] as { id?: unknown }).id;
+        (records[i] as Record<string, unknown>).${relId} = (${CommonUtils.camelCase(
+        rel
+      )}s[i] as { id?: unknown }).id;
         // await ${options.modelName}.create(records[i]);
       }
     }`;

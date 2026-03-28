@@ -2,6 +2,8 @@
 
 ZinTrust configuration is driven primarily by environment variables and exposed through the sealed `Env` namespace (`src/config/env.ts`) and the config modules in `src/config/*`.
 
+Project-owned middleware customization lives in `config/middleware.ts`. That file now supports `global`, `route`, and `responders`, so fresh apps can either replace a built-in middleware key or only reshape its failure payloads. See `docs/middleware.md` for the responder contract and stable failure reasons.
+
 ## Overview
 
 - **Source of truth:** `process.env` (or the equivalent in your runtime).
@@ -24,6 +26,24 @@ Notes:
 - If `APP_PORT` is set but `PORT` is not, the loader sets `PORT=APP_PORT`.
 
 If you run the framework via the CLI, this is handled for you. If you run your own Node entrypoint, you can call `EnvFileLoader.ensureLoaded()` early.
+
+## Service Directory Env Loading
+
+When you run a generated microservice from its own service directory with `zin s` or `zin s --wg`, ZinTrust now loads env files in two layers:
+
+1. project root env files first
+2. service-directory env files second
+
+That means a generated service can inherit the root app defaults from the project root while still overriding selected values with a service-local `.env`, `.env.local`, `.env.<mode>`, or `.env.<mode>.local` file.
+
+Example:
+
+1. root app at `./.env`
+2. service at `./src/services/ecommerce/users/.env`
+
+If both define `APP_PORT`, the service-local value wins for a service-directory start.
+
+The CLI still passes `ZINTRUST_PROJECT_ROOT` to the runtime so project-owned files such as `src/zintrust.runtime.ts`, config modules, and other project-relative loaders continue resolving from the application root.
 
 ## Startup Configuration Validation
 

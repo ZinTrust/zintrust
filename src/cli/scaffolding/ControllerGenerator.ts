@@ -64,7 +64,9 @@ export function validateOptions(options: ControllerOptions): { valid: boolean; e
     Object.keys(CONTROLLER_TYPES).includes(options.type) === false
   ) {
     errors.push(
-      `Invalid controller type '${options.type}'. Supported: ${Object.keys(CONTROLLER_TYPES).join(', ')}`
+      `Invalid controller type '${options.type}'. Supported: ${Object.keys(CONTROLLER_TYPES).join(
+        ', '
+      )}`
     );
   }
 

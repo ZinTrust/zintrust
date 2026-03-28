@@ -33,6 +33,13 @@ describe('ProjectScaffolder extra tests', () => {
     expect(fs.existsSync(path.join(projectPath, '.env'))).toBe(true);
     expect(fs.existsSync(path.join(projectPath, '.zintrust.json'))).toBe(true);
 
+    const packageJson = JSON.parse(
+      await fsPromises.readFile(path.join(projectPath, 'package.json'), 'utf8')
+    ) as {
+      dependencies?: Record<string, string>;
+    };
+    expect(packageJson.dependencies?.['@zintrust/d1-migrator']).toBeDefined();
+
     // cleanup
     await fsPromises.rm(projectPath, { recursive: true, force: true });
   });

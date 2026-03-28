@@ -94,12 +94,12 @@ describe('D1MigrateCommand (coverage extras)', () => {
       status: 'ambiguous',
       matchedBy: 'multiple-configured',
       configured: [
-        { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-        { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+        { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+        { database_name: 'app-preview', binding: 'PREVIEW_DB' },
       ],
       matches: [
-        { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-        { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+        { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+        { database_name: 'app-preview', binding: 'PREVIEW_DB' },
       ],
     });
 

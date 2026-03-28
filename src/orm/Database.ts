@@ -14,6 +14,7 @@ import { D1Adapter } from '@orm/adapters/D1Adapter';
 import { D1RemoteAdapter } from '@orm/adapters/D1RemoteAdapter';
 import { MySQLAdapter } from '@orm/adapters/MySQLAdapter';
 import { MySQLProxyAdapter } from '@orm/adapters/MySQLProxyAdapter';
+import { DatabaseConnectionRegistry } from '@orm/DatabaseConnectionRegistry';
 import { PostgreSQLAdapter } from '@orm/adapters/PostgreSQLAdapter';
 import { PostgreSQLProxyAdapter } from '@orm/adapters/PostgreSQLProxyAdapter';
 import { SQLiteAdapter } from '@orm/adapters/SQLiteAdapter';
@@ -602,7 +603,9 @@ export const useEnsureDbConnected = async (
 
 export function useDatabase(config?: DatabaseConfig, connection = 'default'): IDatabase {
   if (databaseInstances.has(connection) === false) {
-    if (config === undefined) {
+    const resolvedConfig = config ?? DatabaseConnectionRegistry.get(connection);
+
+    if (resolvedConfig === undefined) {
       // Diagnostic logging
       Logger.error('[DEBUG] Database instances keys:', Array.from(databaseInstances.keys()));
       Logger.error('[DEBUG] Requesting connection:', connection);
@@ -613,7 +616,7 @@ export function useDatabase(config?: DatabaseConfig, connection = 'default'): ID
       );
     }
 
-    databaseInstances.set(connection, Database.create(config));
+    databaseInstances.set(connection, Database.create(resolvedConfig));
   }
   const instance = databaseInstances.get(connection);
   if (instance === undefined) {
@@ -633,4 +636,5 @@ export async function resetDatabase(): Promise<void> {
   });
   await Promise.all(promises);
   databaseInstances.clear();
+  DatabaseConnectionRegistry.clear();
 }

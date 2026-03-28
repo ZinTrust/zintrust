@@ -19,7 +19,7 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 
 type TemplateType = 'basic' | 'api' | 'microservice' | 'fullstack';
-type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb' | 'd1-remote';
+type DatabaseType = 'sqlite' | 'mysql' | 'postgresql' | 'mongodb' | 'd1' | 'd1-remote';
 
 interface NewProjectConfig {
   name: string;
@@ -94,6 +94,7 @@ const getProjectDefaults = (name: string, options: CommandOptions): NewProjectCo
   const normalizeDatabase = (value: string): DatabaseType => {
     const v = value.trim();
     if (v === 'd1-proxy') return 'd1-remote';
+    if (v === 'd1') return 'd1';
     if (v === 'd1-remote') return 'd1-remote';
     if (v === 'sqlite') return 'sqlite';
     if (v === 'mysql') return 'mysql';
@@ -139,6 +140,7 @@ const getQuestions = (name: string, defaults: NewProjectConfig): InquirerQuestio
         { name: 'sqlite — Local dev (file-based)', value: 'sqlite' },
         { name: 'postgresql — Production-ready relational DB', value: 'postgresql' },
         { name: 'mysql — Production-ready relational DB', value: 'mysql' },
+        { name: 'd1 — Cloudflare D1 database', value: 'd1' },
         { name: 'd1-proxy — Cloudflare D1 via HTTPS proxy', value: 'd1-remote' },
         { name: 'mongodb — Document DB (may require additional setup)', value: 'mongodb' },
       ],
@@ -310,7 +312,11 @@ const addOptions = (command: Command): void => {
     'Project template (basic, api, microservice, fullstack)',
     'basic'
   );
-  command.option('--database <type>', 'Database driver (sqlite, mysql, postgresql)', 'sqlite');
+  command.option(
+    '--database <type>',
+    'Database driver (sqlite, mysql, postgresql, d1, d1-remote, mongodb)',
+    'sqlite'
+  );
   command.option('--port <number>', 'Default port number', '7777');
   command.option('--author <name>', 'Project author');
   command.option('--description <text>', 'Project description');

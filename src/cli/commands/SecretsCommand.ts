@@ -102,7 +102,9 @@ const execute = async (cmd: IBaseCommand, options: SecretsCommandOptions): Promi
       });
 
       cmd.success(
-        `Pushed ${result.keys.length} keys from ${result.inFile}${parsed.dryRun ? ' (dry-run)' : ''}`
+        `Pushed ${result.keys.length} keys from ${result.inFile}${
+          parsed.dryRun ? ' (dry-run)' : ''
+        }`
       );
       return;
     }

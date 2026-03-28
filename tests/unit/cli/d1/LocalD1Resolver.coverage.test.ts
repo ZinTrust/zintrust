@@ -63,17 +63,17 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
           status: 'ambiguous',
           matchedBy: 'multiple-configured',
           configured: [
-            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-            { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+            { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'app-preview', binding: 'PREVIEW_DB' },
           ],
           matches: [
-            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-            { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+            { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'app-preview', binding: 'PREVIEW_DB' },
           ],
         })),
         getD1Databases: vi.fn(() => [
-          { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-          { database_name: 'vizo-preview', binding: 'PREVIEW_DB' },
+          { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+          { database_name: 'app-preview', binding: 'PREVIEW_DB' },
         ]),
       },
     }));
@@ -105,20 +105,20 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
       WranglerConfig: {
         resolveD1Database: vi.fn(() => ({
           status: 'ambiguous',
-          target: 'vizo-dev',
+          target: 'app-dev',
           matchedBy: 'database_name',
           configured: [
-            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-            { database_name: 'vizo-dev', binding: 'SHADOW_DB' },
+            { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'app-dev', binding: 'SHADOW_DB' },
           ],
           matches: [
-            { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-            { database_name: 'vizo-dev', binding: 'SHADOW_DB' },
+            { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+            { database_name: 'app-dev', binding: 'SHADOW_DB' },
           ],
         })),
         getD1Databases: vi.fn(() => [
-          { database_name: 'vizo-dev', binding: 'PRIMARY_DB' },
-          { database_name: 'vizo-dev', binding: 'SHADOW_DB' },
+          { database_name: 'app-dev', binding: 'PRIMARY_DB' },
+          { database_name: 'app-dev', binding: 'SHADOW_DB' },
         ]),
       },
     }));
@@ -134,8 +134,8 @@ describe('cli/d1/LocalD1Resolver (coverage)', () => {
 
     const { LocalD1Resolver } = await import('../../../../src/cli/d1/LocalD1Resolver');
 
-    expect(() => LocalD1Resolver.resolveD1Binding('/repo', 'vizo-dev')).toThrow(
-      /D1 target "vizo-dev" is ambiguous by database_name\./
+    expect(() => LocalD1Resolver.resolveD1Binding('/repo', 'app-dev')).toThrow(
+      /D1 target "app-dev" is ambiguous by database_name\./
     );
   });
 

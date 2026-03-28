@@ -2,6 +2,11 @@ import { PromptHelper } from '@/cli/PromptHelper';
 import inquirer from 'inquirer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const getChoiceValues = (questions: unknown): string[] => {
+  const question = (questions as Array<{ choices?: Array<{ value?: string }> }>)[0];
+  return (question?.choices ?? []).map((choice) => choice.value ?? '');
+};
+
 vi.mock('inquirer', () => ({
   default: {
     prompt: vi.fn(),
@@ -73,6 +78,17 @@ describe('PromptHelper', () => {
       vi.mocked(inquirer.prompt).mockResolvedValue({ database: 'mysql' });
       const db = await PromptHelper.databaseType('postgresql', true);
       expect(db).toBe('mysql');
+    });
+
+    it('includes d1 in interactive database choices', async () => {
+      vi.mocked(inquirer.prompt).mockResolvedValue({ database: 'd1' });
+      await PromptHelper.databaseType('d1', true);
+
+      const [questions] = vi.mocked(inquirer.prompt).mock.calls[0] ?? [];
+      const values = getChoiceValues(questions);
+
+      expect(values).toContain('d1');
+      expect(values).toContain('d1-remote');
     });
   });
 

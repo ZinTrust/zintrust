@@ -193,12 +193,16 @@ ZinTrust also provides focused scaffolds for Markdown templates:
 
 These are project-owned templates; see the Markdown template docs for how registries resolve templates.
 
-## Microservices generator (services/ folder)
+## Microservices project workflow
 
-Separate from `zin add service`, ZinTrust includes a microservices workspace generator under the `services/` folder, driven by scripts:
+For microservice-oriented applications, use the main ZinTrust CLI:
 
-- `npm run microservices:generate -- <domain> <servicesCsv>`
-- `npm run microservices:bundle -- <domain> <servicesCsv>`
-- `npm run microservices:docker -- <domain> <servicesCsv>`
+```bash
+zin new commerce-platform --template microservice --database postgresql --no-interactive
+zin add service users --domain ecommerce --port 3001 --database shared --auth api-key --no-interactive
+zin add service orders --domain ecommerce --port 3002 --database shared --auth api-key --no-interactive
+```
 
-This path is intended for domain-level microservices folders (e.g., `services/ecommerce/users`).
+This workflow keeps services inside the project under `src/services/<domain>/<service>` and aligns with the current ZinTrust documentation and recommended developer experience.
+
+For the full runtime and architecture guide, see [microservices.md](./microservices.md).
