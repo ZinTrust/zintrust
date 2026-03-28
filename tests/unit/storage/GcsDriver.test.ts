@@ -60,6 +60,7 @@ const uninstallFake = (): void => {
 describe('GcsDriver', () => {
   afterEach(() => {
     uninstallFake();
+    vi.doUnmock('@google-cloud/storage');
   });
 
   it('url returns undefined when bucket is blank', () => {
@@ -83,9 +84,18 @@ describe('GcsDriver', () => {
   it('throws a helpful error when @google-cloud/storage is not installed and no fake is injected', async () => {
     uninstallFake();
 
-    await expect(GcsDriver.put({ bucket: 'b' }, 'k', Buffer.from('x'))).rejects.toThrow(
+    vi.resetModules();
+    vi.doMock('@google-cloud/storage', () => {
+      throw new Error('module not found');
+    });
+
+    const { GcsDriver: isolatedGcsDriver } = await import('@/tools/storage/drivers/Gcs');
+
+    await expect(isolatedGcsDriver.put({ bucket: 'b' }, 'k', Buffer.from('x'))).rejects.toThrow(
       /@google-cloud\/storage/
     );
+
+    vi.doUnmock('@google-cloud/storage');
   });
 
   it('put throws when bucket is missing', async () => {

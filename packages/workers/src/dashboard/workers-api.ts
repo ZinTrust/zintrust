@@ -527,17 +527,17 @@ async function getQueueData(): Promise<QueueData> {
     // Get queue statistics based on QUEUE_DRIVER
     switch (queueDriver) {
       case 'redis':
-        return getRedisQueueData();
+        return await getRedisQueueData();
       case 'database':
-        return getDatabaseQueueData();
+        return await getDatabaseQueueData();
       case 'db':
-        return getDatabaseQueueData();
+        return await getDatabaseQueueData();
       default:
-        return getMemoryQueueData();
+        return await getMemoryQueueData();
     }
   } catch (error) {
     Logger.error('Error fetching queue data:', error);
-    return getMemoryQueueData();
+    return await getMemoryQueueData();
   }
 }
 
@@ -603,7 +603,12 @@ async function getDatabaseQueueData(): Promise<QueueData> {
     const db = await useEnsureDbConnected();
 
     // Get queue statistics from actual database tables using proper query builder
-    const queueStats = (await db
+    const queueStats: {
+      totalQueues: number;
+      totalJobs: number;
+      processingJobs: number;
+      failedJobs: number;
+    } | null = await db
       .table('queue_jobs')
       .select('COUNT(DISTINCT queue) as totalQueues')
       .selectAs('COUNT(*)', 'totalJobs')
@@ -612,12 +617,7 @@ async function getDatabaseQueueData(): Promise<QueueData> {
         'processingJobs'
       )
       .selectAs('SUM(CASE WHEN failed_at IS NOT NULL THEN 1 ELSE 0 END)', 'failedJobs')
-      .first()) as {
-      totalQueues: number;
-      totalJobs: number;
-      processingJobs: number;
-      failedJobs: number;
-    } | null;
+      .first();
 
     const stats = queueStats || {
       totalQueues: 0,

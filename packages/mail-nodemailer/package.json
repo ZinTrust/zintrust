@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/mail-nodemailer",
-  "version": "0.1.27",
+  "version": "0.4.25",
   "description": "Nodemailer mail driver for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "file:../../dist"
+    "@zintrust/core": "^0.4.25"
   },
   "publishConfig": {
     "access": "public"

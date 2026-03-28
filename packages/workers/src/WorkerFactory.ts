@@ -579,7 +579,7 @@ const waitForWorkerConnection = async (
     const checkConnection = async (): Promise<void> => {
       try {
         // Check if worker is actually running
-        const isRunning = await worker.isRunning();
+        const isRunning = await worker.isRunning(); // NOSONAR - BullMQ's isRunning method
         if (!isRunning) {
           throw ErrorFactory.createWorkerError('Worker not running');
         }
@@ -778,7 +778,7 @@ const cacheProcessorFromResponse = async (params: {
   const rawCode = await readResponseBody(response, config.fetchMaxSizeBytes);
   const code = rewriteProcessorImports(rawCode);
   const mod = await importModuleFromCode({ code, normalized, cacheKey });
-  const processor = extractZinTrustProcessor(mod as Record<string, unknown>, normalized);
+  const processor = extractZinTrustProcessor(mod, normalized);
   if (!processor) {
     throw ErrorFactory.createConfigError('INVALID_PROCESSOR_URL_EXPORT');
   }
@@ -1570,12 +1570,13 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
 
 const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => {
   const fallbackDb = Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
+  const redisConfigWithDatabase = config as RedisConfig & { database?: number };
 
   let normalizedDb = fallbackDb;
   if (typeof config.db === 'number') {
     normalizedDb = config.db;
-  } else if (typeof (config as { database?: number }).database === 'number') {
-    normalizedDb = (config as { database?: number }).database as number;
+  } else if (typeof redisConfigWithDatabase.database === 'number') {
+    normalizedDb = redisConfigWithDatabase.database;
   }
 
   return {
@@ -1970,13 +1971,9 @@ const resolveAutoScalerConfig = (input: AutoScalerConfig | undefined): AutoScale
 const resolveWorkerOptions = (config: WorkerFactoryConfig, autoStart: boolean): WorkerOptions => {
   const options = config.options ? { ...config.options } : ({} as WorkerOptions);
 
-  if (options.prefix === undefined) {
-    options.prefix = getBullMQSafeQueueName();
-  }
+  options.prefix ??= getBullMQSafeQueueName();
 
-  if (options.autorun === undefined) {
-    options.autorun = autoStart;
-  }
+  options.autorun ??= autoStart;
   if (options.connection) return options;
 
   const redisConfig = resolveRedisConfigWithFallback(
