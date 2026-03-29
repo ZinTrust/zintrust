@@ -545,14 +545,58 @@ const getProcessorSpecConfig = (): typeof workersConfig.processorSpec =>
 
 const toPosixPath = (value: string): string => value.split(path.sep).join('/');
 
+const isUpperAlpha = (value: string): boolean => /^[A-Z]$/.test(value);
+
+const isLowerAlphaOrDigit = (value: string): boolean => /^[a-z\d]$/.test(value);
+
+const isAlphaNumeric = (value: string): boolean => /^[A-Za-z\d]$/.test(value);
+
+const shouldInsertWorkerNameDash = (
+  previous: string,
+  current: string,
+  next: string | undefined
+): boolean => {
+  if (!isAlphaNumeric(previous) || !isAlphaNumeric(current)) return false;
+
+  if (isLowerAlphaOrDigit(previous) && isUpperAlpha(current)) {
+    return true;
+  }
+
+  if (isUpperAlpha(previous) && isUpperAlpha(current) && isLowerAlphaOrDigit(next ?? '')) {
+    return true;
+  }
+
+  return false;
+};
+
+const toKebabWorkerName = (value: string): string => {
+  if (!isNonEmptyString(value)) return value;
+
+  let normalized = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value[index] ?? '';
+    const previous = index > 0 ? (value[index - 1] ?? '') : '';
+    const next = value[index + 1];
+
+    if (current === ' ' || current === '_') {
+      if (!normalized.endsWith('-')) normalized += '-';
+      continue;
+    }
+
+    if (shouldInsertWorkerNameDash(previous, current, next) && !normalized.endsWith('-')) {
+      normalized += '-';
+    }
+
+    normalized += current;
+  }
+
+  return normalized.replaceAll(/-+/g, '-');
+};
+
 const normalizeWorkerFileName = (fileName: string): string => {
-  const baseName = fileName.replaceAll(/\.[^.]+$/, '');
-  return baseName
-    .replaceAll(/([a-z\d])([A-Z])/g, '$1-$2')
-    .replaceAll(/([A-Z]+)([A-Z][a-z\d]+)/g, '$1-$2')
-    .replaceAll(/[\s_]+/g, '-')
-    .replaceAll(/-+/g, '-')
-    .toLowerCase();
+  const baseName = fileName.replace(/\.[^.]+$/, '');
+  return toKebabWorkerName(baseName).toLowerCase();
 };
 
 const supportsWorkerFileDiscovery = (): boolean => {

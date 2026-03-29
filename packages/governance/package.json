@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/governance",
-  "version": "0.4.33",
+  "version": "0.4.34",
   "description": "ESLint and governance tooling package for ZinTrust.",
   "private": false,
   "type": "module",
@@ -25,7 +25,7 @@
   "peerDependencies": {
     "eslint": "^10.0.0",
     "typescript": ">=5.0.0",
-    "@zintrust/core": "^0.4.33"
+    "@zintrust/core": "^0.4.34"
   },
   "publishConfig": {
     "access": "public"

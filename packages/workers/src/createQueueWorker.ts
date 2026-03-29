@@ -2,6 +2,17 @@ import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import * as Core from '@zintrust/core';
 import { Env, Logger, Queue } from '@zintrust/core';
 
+type QueueApi = Readonly<{
+  enqueue: (queue: string, payload: BullMQPayload, driverName?: string) => Promise<string>;
+  dequeue: <TPayload>(
+    queue: string,
+    driverName?: string
+  ) => Promise<QueueMessage<TPayload> | undefined>;
+  ack: (queue: string, id: string, driverName?: string) => Promise<void>;
+}>;
+
+const TypedQueue = Queue as QueueApi;
+
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 30000;
 
@@ -269,8 +280,8 @@ const checkAndRequeueIfNotDue = async <TPayload>(
     ...baseLogFields,
     dueAt: new Date(timestamp).toISOString(),
   });
-  await Queue.enqueue(queueName, toBullMQPayload(message.payload), driverName);
-  await Queue.ack(queueName, message.id, driverName);
+  await TypedQueue.enqueue(queueName, toBullMQPayload(message.payload), driverName);
+  await TypedQueue.ack(queueName, message.id, driverName);
   return true;
 };
 
@@ -283,7 +294,7 @@ const onProcessSuccess = async <TPayload>(input: {
   startedAtMs: number;
   baseLogFields: Record<string, unknown>;
 }): Promise<boolean> => {
-  await Queue.ack(input.queueName, input.message.id, input.driverName);
+  await TypedQueue.ack(input.queueName, input.message.id, input.driverName);
 
   if (typeof input.trackerApi.completed === 'function') {
     await input.trackerApi.completed({
@@ -338,7 +349,7 @@ const onProcessFailure = async <TPayload>(input: {
       timestamp: Date.now() + retryDelayMs,
     };
 
-    await Queue.enqueue(input.queueName, payloadForRetry, input.driverName);
+    await TypedQueue.enqueue(input.queueName, payloadForRetry, input.driverName);
     Logger.info(`${input.options.kindLabel} re-queued for retry`, {
       ...input.baseLogFields,
       attempts: nextAttempts,
@@ -346,7 +357,7 @@ const onProcessFailure = async <TPayload>(input: {
     });
   }
 
-  await Queue.ack(input.queueName, input.message.id, input.driverName);
+  await TypedQueue.ack(input.queueName, input.message.id, input.driverName);
   await removeHeartbeatIfSupported(input.queueName, input.message.id);
 
   if (typeof input.trackerApi.failed === 'function') {
@@ -412,7 +423,7 @@ const processQueueMessage = async <TPayload>(
   queueName: string,
   driverName?: string
 ): Promise<boolean> => {
-  const message = await Queue.dequeue<TPayload>(queueName, driverName);
+  const message = await TypedQueue.dequeue<TPayload>(queueName, driverName);
   if (!message) return false;
 
   const baseLogFields = buildBaseLogFields(message, options.getLogFields);

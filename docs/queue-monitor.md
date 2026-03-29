@@ -59,14 +59,14 @@ These settings control how the Queue Monitor dashboard is exposed:
 | `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                           | `false`       |
 | `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Auto-refresh interval in milliseconds                               | `10000`       |
 
-`QUEUE_MONITOR_MIDDLEWARE` must contain registered route middleware keys from your app, for example `auth` or `auth,jwt`. ZinTrust validates these keys during config load and throws if any configured value does not match a known route middleware key.
+`QUEUE_MONITOR_MIDDLEWARE` accepts registered route middleware keys from your app, for example `auth` or `auth,jwt`, and also supports dynamic route middleware keys such as `rateLimit:1000:1`. ZinTrust validates these values during config load and throws if any configured value does not match a known route middleware key or supported dynamic middleware key.
 
 Example:
 
 ```bash
 QUEUE_MONITOR_ENABLED=true
 QUEUE_MONITOR_BASE_PATH=/queue-monitor
-QUEUE_MONITOR_MIDDLEWARE=auth,jwt
+QUEUE_MONITOR_MIDDLEWARE=rateLimit:1000:1
 QUEUE_MONITOR_AUTO_REFRESH=true
 QUEUE_MONITOR_REFRESH_MS=5000
 ```

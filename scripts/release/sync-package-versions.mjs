@@ -50,6 +50,10 @@ function normalizePeerRange(version) {
   return `^${version}`;
 }
 
+function normalizeWorkspaceDependencyRange(version) {
+  return `^${version}`;
+}
+
 function compareVersions(a, b) {
   const pa = String(a).split('.').map(Number);
   const pb = String(b).split('.').map(Number);
@@ -114,24 +118,61 @@ async function syncPackageJson(pkgPath, coreName, coreVersion) {
     }
 
     await writeJson(pkgPath, pkg);
-    return true;
+    return pkg;
   } catch (error) {
     // Ignore folders without package.json.
-    if (isEnoent(error)) return false;
+    if (isEnoent(error)) return undefined;
     throw error;
   }
 }
 
+function syncRootWorkspaceDependencies(rootPkg, packageInfos) {
+  let didChange = false;
+  const dependencySections = [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ];
+
+  for (const section of dependencySections) {
+    const deps = rootPkg[section];
+    if (typeof deps !== 'object' || deps === null) continue;
+
+    for (const pkgInfo of packageInfos) {
+      if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
+      if (!(pkgInfo.name in deps)) continue;
+
+      const expectedRange = normalizeWorkspaceDependencyRange(pkgInfo.version);
+      if (deps[pkgInfo.name] !== expectedRange) {
+        deps[pkgInfo.name] = expectedRange;
+        didChange = true;
+      }
+    }
+  }
+
+  return didChange;
+}
+
 async function syncPackages(packageDirs, coreName, coreVersion) {
   const touched = [];
+  const packageInfos = [];
 
   for (const dirName of packageDirs) {
     const pkgPath = path.join(packagesDir, dirName, 'package.json');
-    const didSync = await syncPackageJson(pkgPath, coreName, coreVersion);
+    const pkg = await syncPackageJson(pkgPath, coreName, coreVersion);
 
-    if (didSync) {
+    if (pkg) {
       touched.push(path.relative(repoRoot, pkgPath));
+      packageInfos.push({ dirName, name: pkg.name, version: pkg.version });
     }
+  }
+
+  const rootPkgPath = path.join(repoRoot, 'package.json');
+  const rootPkg = await readJson(rootPkgPath);
+  if (syncRootWorkspaceDependencies(rootPkg, packageInfos)) {
+    await writeJson(rootPkgPath, rootPkg);
+    touched.push(path.relative(repoRoot, rootPkgPath));
   }
 
   return touched;
@@ -247,6 +288,35 @@ function collectPackageLockIssues({
   }
 }
 
+function collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos }) {
+  const relRootPkgPath = 'package.json';
+  const dependencySections = [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ];
+
+  for (const section of dependencySections) {
+    const deps = rootPkg[section];
+    if (typeof deps !== 'object' || deps === null) continue;
+
+    for (const pkgInfo of packageInfos) {
+      if (typeof pkgInfo.name !== 'string' || typeof pkgInfo.version !== 'string') continue;
+      if (!(pkgInfo.name in deps)) continue;
+
+      const expectedRange = normalizeWorkspaceDependencyRange(pkgInfo.version);
+      if (deps[pkgInfo.name] !== expectedRange) {
+        pushIssue(
+          issues,
+          relRootPkgPath,
+          `${pkgInfo.name} ${section} range is ${JSON.stringify(deps[pkgInfo.name])} but expected ${JSON.stringify(expectedRange)}`
+        );
+      }
+    }
+  }
+}
+
 async function collectDriftIssues(packageDirs, coreName, coreVersion) {
   const issues = [];
   const expectedPeerRange = normalizePeerRange(coreVersion);
@@ -257,10 +327,14 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
 
   collectRootLockIssues({ issues, repoRootPath: repoRoot, rootPkg, rootLock });
 
+  const packageInfos = [];
+
   for (const dirName of packageDirs) {
     const pkgPath = path.join(packagesDir, dirName, 'package.json');
     const pkg = await readJsonIfExists(pkgPath);
     if (!pkg) continue;
+
+    packageInfos.push({ dirName, name: pkg.name, version: pkg.version });
 
     const relPkgPath = path.relative(repoRoot, pkgPath);
     collectPackageManifestIssues({
@@ -281,6 +355,8 @@ async function collectDriftIssues(packageDirs, coreName, coreVersion) {
       expectedPeerRange,
     });
   }
+
+  collectRootWorkspaceDependencyIssues({ issues, rootPkg, packageInfos });
 
   return issues;
 }

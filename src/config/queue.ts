@@ -7,7 +7,7 @@
 import { Cloudflare } from '@config/cloudflare';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { middlewareConfig } from '@config/middleware';
+import { isKnownMiddlewareName, middlewareConfig } from '@config/middleware';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { ZintrustLang } from '@lang/lang';
 
@@ -189,7 +189,9 @@ const createBaseMonitor = (): {
 
   if (enabled && middleware.length > 0) {
     const knownKeys = new Set(Object.keys(middlewareConfig.route ?? {}));
-    const unknownKeys = middleware.filter((name) => !knownKeys.has(name));
+    const unknownKeys = middleware.filter((name) => {
+      return !knownKeys.has(name) && !isKnownMiddlewareName(name);
+    });
 
     if (unknownKeys.length > 0) {
       Logger.error('Unknown QUEUE_MONITOR_MIDDLEWARE keys configured', {
@@ -200,7 +202,7 @@ const createBaseMonitor = (): {
       throw ErrorFactory.createConfigError(
         `Unknown QUEUE_MONITOR_MIDDLEWARE key(s): ${unknownKeys.join(
           ', '
-        )}. These must match registered route middleware keys in your app.`
+        )}. These must match registered route middleware keys in your app or a supported dynamic middleware key such as rateLimit:<max>:<windowInMinutes>.`
       );
     }
   }

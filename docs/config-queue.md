@@ -102,15 +102,15 @@ Note: The workers package and queue monitor share a Redis connection helper from
 
 When Queue Monitor is enabled, these environment keys configure the dashboard surface:
 
-| Environment Variable         | Default          | Description                                                         |
-| ---------------------------- | ---------------- | ------------------------------------------------------------------- |
-| `QUEUE_MONITOR_ENABLED`      | `false`          | Enables Queue Monitor route registration                            |
-| `QUEUE_MONITOR_BASE_PATH`    | `/queue-monitor` | Base path for the dashboard and monitor endpoints                   |
-| `QUEUE_MONITOR_MIDDLEWARE`   | empty            | Comma-separated registered route middleware keys for dashboard auth |
-| `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                           |
-| `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Dashboard auto-refresh interval in milliseconds                     |
+| Environment Variable         | Default          | Description                                              |
+| ---------------------------- | ---------------- | -------------------------------------------------------- |
+| `QUEUE_MONITOR_ENABLED`      | `false`          | Enables Queue Monitor route registration                 |
+| `QUEUE_MONITOR_BASE_PATH`    | `/queue-monitor` | Base path for the dashboard and monitor endpoints        |
+| `QUEUE_MONITOR_MIDDLEWARE`   | empty            | Comma-separated route middleware keys for dashboard auth |
+| `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                |
+| `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Dashboard auto-refresh interval in milliseconds          |
 
-`QUEUE_MONITOR_MIDDLEWARE` is the env key used to protect the dashboard with existing route middleware such as `auth` or `auth,jwt`. ZinTrust validates the configured values against registered route middleware keys in your app and throws on unknown keys.
+`QUEUE_MONITOR_MIDDLEWARE` is the env key used to protect the dashboard with existing route middleware such as `auth` or `auth,jwt`, and it also accepts supported dynamic middleware keys such as `rateLimit:1000:1`. ZinTrust validates the configured values against registered route middleware keys and supported dynamic middleware keys, and throws on unknown values.
 
 ## BullMQ Redis Driver Environment Variables
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 
@@ -23,14 +23,19 @@ const originalQueueDriver = process.env['QUEUE_DRIVER'];
 
 const createTempProjectRoot = (): string => mkdtempSync(path.join(tmpdir(), 'zintrust-workers-'));
 
-const writeWorkerModule = (projectRoot: string, fileName = 'DigestWorker.js'): void => {
+const writeWorkerModule = (
+  projectRoot: string,
+  fileName = 'DigestWorker.js',
+  options?: { includeExplicitName?: boolean }
+): void => {
   const workerDir = path.join(projectRoot, 'app', 'Workers');
   mkdirSync(workerDir, { recursive: true });
+  const includeExplicitName = options?.includeExplicitName ?? true;
   writeFileSync(
     path.join(workerDir, fileName),
     [
       'export const workerDefinition = Object.freeze({',
-      "  name: 'digest-worker',",
+      ...(includeExplicitName ? ["  name: 'digest-worker',"] : []),
       "  queueName: 'digest-queue',",
       "  version: '2.3.4',",
       '  autoStart: true,',
@@ -111,6 +116,25 @@ describe('file-backed worker discovery', () => {
       expect(list.workers[0]?.details?.configuration.queueName).toBe('digest-queue');
       expect(details.details?.configuration.processorSpec).toBe('app/Workers/DigestWorker.js');
       expect(details.details?.configuration.version).toBe('2.3.4');
+    } finally {
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('normalizes acronym-heavy worker filenames without regex backtracking patterns', async () => {
+    const projectRoot = createTempProjectRoot();
+    try {
+      process.env['ZINTRUST_PROJECT_ROOT'] = projectRoot;
+      process.env['WORKER_PERSISTENCE_DRIVER'] = 'memory';
+      process.env['QUEUE_DRIVER'] = 'memory';
+      writeWorkerModule(projectRoot, 'HTTPDigestWorker.js', { includeExplicitName: false });
+
+      const record = await WorkerFactory.getFileBackedRecord('http-digest-worker');
+      const records = await WorkerFactory.listFileBackedRecords();
+
+      expect(record).not.toBeNull();
+      expect(record?.name).toBe('http-digest-worker');
+      expect(records.map((entry) => entry.name)).toContain('http-digest-worker');
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
     }
