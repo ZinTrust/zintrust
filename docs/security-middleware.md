@@ -61,6 +61,20 @@ app.getMiddlewareStack().register(
 );
 ```
 
+Route metadata can also declare a per-route limit inline without registering another named middleware first:
+
+```typescript
+Router.get(router, '/login', loginHandler, {
+  middleware: ['rateLimit:6:1'],
+});
+
+Router.get(router, '/search', searchHandler, {
+  middleware: ['rateLimit:100:0.4'],
+});
+```
+
+The inline format is `rateLimit:<max>:<windowInMinutes>`. Fractional minute windows are supported, so `rateLimit:100:0.4` means 100 requests every 24 seconds.
+
 ### Configuration Options
 
 | Option         | Type     | Default  | Description                            |
