@@ -4,6 +4,9 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-29
 
+- Hardened the automated release bump flow so `scripts/ci/bump-version.js --apply` now re-syncs workspace package versions and refreshes the root lockfile immediately after bumping core, and the release PR workflow now commits those workspace manifest updates too. This prevents the workspace version sync CI gate from failing on freshly bumped release branches.
+- Re-synced all workspace package versions, `@zintrust/core` peer ranges, and the root `package-lock.json` to `0.4.33` after publish so the `node scripts/release/sync-package-versions.mjs --check` CI gate stays green for the new release line.
+- Documented the Queue Monitor env surface more clearly, including that `QUEUE_MONITOR_MIDDLEWARE` is the env key for protecting the dashboard with registered route middleware keys such as `auth` or `auth,jwt`, and that invalid keys fail config loading.
 - Expanded the middleware docs to show inline route rate-limit keys alongside the existing `RateLimiter.create()` registration pattern, and added focused middleware key tests so malformed `rateLimit:<max>:<windowInMinutes>` strings are rejected while valid parameterized keys remain accepted.
 - Added parameterized route middleware support for rate limiting, so routes can now declare inline keys such as `rateLimit:6:1` or `rateLimit:100:0.4` and get a lazily created `RateLimiter` instance without pre-registering a separate middleware name.
 - Synced all workspace package versions and `@zintrust/core` peer ranges to `0.4.32`, regenerated the root lockfile, and added a pre-`npm ci` workspace-version check in every npm-based CI workflow so package/version drift fails fast with a direct error instead of an `ERESOLVE` install failure.

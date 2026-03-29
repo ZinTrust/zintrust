@@ -98,6 +98,20 @@ const queueConfigObj = {
 
 Note: The workers package and queue monitor share a Redis connection helper from core config. It uses the workers Redis settings (host/port/password/db), not the queue driver `database` field.
 
+## Queue Monitor Environment Variables
+
+When Queue Monitor is enabled, these environment keys configure the dashboard surface:
+
+| Environment Variable         | Default          | Description                                                         |
+| ---------------------------- | ---------------- | ------------------------------------------------------------------- |
+| `QUEUE_MONITOR_ENABLED`      | `false`          | Enables Queue Monitor route registration                            |
+| `QUEUE_MONITOR_BASE_PATH`    | `/queue-monitor` | Base path for the dashboard and monitor endpoints                   |
+| `QUEUE_MONITOR_MIDDLEWARE`   | empty            | Comma-separated registered route middleware keys for dashboard auth |
+| `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                           |
+| `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Dashboard auto-refresh interval in milliseconds                     |
+
+`QUEUE_MONITOR_MIDDLEWARE` is the env key used to protect the dashboard with existing route middleware such as `auth` or `auth,jwt`. ZinTrust validates the configured values against registered route middleware keys in your app and throws on unknown keys.
+
 ## BullMQ Redis Driver Environment Variables
 
 When `QUEUE_DRIVER=redis`, the system uses BullMQ for enterprise features. Additional BullMQ-specific settings:

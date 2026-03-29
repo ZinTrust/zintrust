@@ -47,6 +47,30 @@ BULLMQ_REMOVE_ON_COMPLETE=50 BULLMQ_DEFAULT_ATTEMPTS=5
 BULLMQ_REMOVE_ON_COMPLETE=10 BULLMQ_BACKOFF_DELAY=500
 ```
 
+## Queue Monitor Environment Variables
+
+These settings control how the Queue Monitor dashboard is exposed:
+
+| Environment Variable         | Default          | Description                                                         | Example       |
+| ---------------------------- | ---------------- | ------------------------------------------------------------------- | ------------- |
+| `QUEUE_MONITOR_ENABLED`      | `false`          | Enables Queue Monitor route registration                            | `true`        |
+| `QUEUE_MONITOR_BASE_PATH`    | `/queue-monitor` | Base path for the dashboard and monitor endpoints                   | `/ops/queues` |
+| `QUEUE_MONITOR_MIDDLEWARE`   | empty            | Comma-separated route middleware keys used to protect the dashboard | `auth,jwt`    |
+| `QUEUE_MONITOR_AUTO_REFRESH` | `true`           | Enables dashboard auto-refresh by default                           | `false`       |
+| `QUEUE_MONITOR_REFRESH_MS`   | `5000`           | Auto-refresh interval in milliseconds                               | `10000`       |
+
+`QUEUE_MONITOR_MIDDLEWARE` must contain registered route middleware keys from your app, for example `auth` or `auth,jwt`. ZinTrust validates these keys during config load and throws if any configured value does not match a known route middleware key.
+
+Example:
+
+```bash
+QUEUE_MONITOR_ENABLED=true
+QUEUE_MONITOR_BASE_PATH=/queue-monitor
+QUEUE_MONITOR_MIDDLEWARE=auth,jwt
+QUEUE_MONITOR_AUTO_REFRESH=true
+QUEUE_MONITOR_REFRESH_MS=5000
+```
+
 ## Configuration
 
 Register the monitor in your application (e.g., in `src/index.ts` or a dedicated provider). You must provide a Redis configuration.
