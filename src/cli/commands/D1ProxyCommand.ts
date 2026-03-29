@@ -1,6 +1,6 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
-import { maybeRunProxyWatchMode } from '@cli/commands/ProxyCommandUtils';
+import { maybeRunProxyWatchMode, parseIntOption } from '@cli/commands/ProxyCommandUtils';
 import {
   ensureProxyEntrypoint,
   ensureWranglerConfig,
@@ -16,6 +16,7 @@ import type { Command } from 'commander';
 
 type D1ProxyCommandOptions = CommandOptions & {
   config?: string;
+  port?: string;
   watch?: boolean;
   binding?: string;
   databaseName?: string;
@@ -110,6 +111,7 @@ const warnOnPlaceholderDatabaseId = (values: D1ProxyConfigValues): void => {
 
 const addOptions = (command: Command): void => {
   command.option('-c, --config <path>', 'Wrangler config file', DEFAULT_CONFIG);
+  command.option('--port <port>', 'Local Wrangler dev port');
   command.option('--watch', 'Auto-restart proxy on file changes');
   command.option('--binding <name>', 'D1 binding name', DEFAULT_BINDING);
   command.option('--database-name <name>', 'Cloudflare D1 database name');
@@ -131,6 +133,7 @@ export const D1ProxyCommand = Object.freeze({
       addOptions,
       execute: async (options: D1ProxyCommandOptions): Promise<void> => {
         await maybeRunProxyWatchMode(options.watch);
+        const port = parseIntOption(options.port, 'port');
 
         const cwd = process.cwd();
         const entrypoint = ensureProxyEntrypoint({
@@ -161,9 +164,14 @@ export const D1ProxyCommand = Object.freeze({
 
         warnOnPlaceholderDatabaseId(result.values);
 
+        const args = ['dev', '--config', configPath, '--env', 'd1-proxy'];
+        if (port !== undefined) {
+          args.push('--port', String(port));
+        }
+
         const exitCode = await SpawnUtil.spawnAndWait({
           command: 'wrangler',
-          args: ['dev', '--config', configPath, '--env', 'd1-proxy'],
+          args,
           env: process.env,
           forwardSignals: false,
         });

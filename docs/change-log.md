@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-29
 
+- Updated the Wrangler-backed `zin proxy:d1` and `zin proxy:kv` commands to accept `--port <port>` and forward it to `wrangler dev`, so local Cloudflare proxy Workers can be started on an explicit port like `zin proxy:d1 --port 8787`.
 - Bumped `@zintrust/core` to `0.4.31` for the proxy CLI consumer-app fix after correcting both the published scaffold output and the core proxy runtime exports.
 - Updated the generated D1 and KV proxy Worker shims plus the developer docs to use the stable `@zintrust/core/proxy` export surface instead of nested proxy subpath imports, which fixes fresh consumer apps where Wrangler could not resolve `@zintrust/core/proxy/d1/ZintrustD1Proxy` or `@zintrust/core/proxy/kv/ZintrustKvProxy` during local dev.
 - Replaced the core `ZintrustD1Proxy` and `ZintrustKvProxy` exports with built-in Worker handlers instead of optional package loaders, which fixes fresh apps that previously failed at runtime with `Optional dependency not installed: @zintrust/cloudflare-d1-proxy` or the KV equivalent.

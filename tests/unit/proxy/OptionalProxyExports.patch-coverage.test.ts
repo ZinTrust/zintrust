@@ -1,131 +1,127 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ZintrustD1Proxy } from '@proxy/d1/ZintrustD1Proxy';
+import { ZintrustKvProxy } from '@proxy/kv/ZintrustKvProxy';
+import { SignedRequest } from '@security/SignedRequest';
+import { describe, expect, it } from 'vitest';
 
-const { loggerError } = vi.hoisted(() => ({
-  loggerError: vi.fn(),
-}));
+const toHex = (bytes: ArrayBuffer): string => {
+  const view = new Uint8Array(bytes);
+  let out = '';
+  for (const byte of view) out += byte.toString(16).padStart(2, '0');
+  return out;
+};
 
-vi.mock('@config/logger', () => ({
-  Logger: {
-    error: loggerError,
-  },
-}));
+const buildSignedRequest = async (params: {
+  url: string;
+  body: string;
+  keyId: string;
+  secret: string;
+}): Promise<Request> => {
+  const bodyBytes = new TextEncoder().encode(params.body);
+  const bodySha256 = await SignedRequest.sha256Hex(bodyBytes);
+  const timestampMs = Date.now();
+  const canonical = SignedRequest.canonicalString({
+    method: 'POST',
+    url: params.url,
+    timestampMs,
+    nonce: 'n1',
+    bodySha256Hex: bodySha256,
+  });
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(params.secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(canonical));
+
+  return new Request(params.url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-zt-key-id': params.keyId,
+      'x-zt-timestamp': String(timestampMs),
+      'x-zt-nonce': 'n1',
+      'x-zt-body-sha256': bodySha256,
+      'x-zt-signature': toHex(signature),
+    },
+    body: params.body,
+  });
+};
 
 describe('Optional proxy exports (patch coverage)', () => {
-  beforeEach(() => {
-    loggerError.mockReset();
+  it('ZintrustD1Proxy rejects unsupported methods', async () => {
+    const response = await ZintrustD1Proxy.fetch(
+      new Request('https://example.test/zin/d1/query', { method: 'GET' }),
+      {}
+    );
+
+    expect(response.status).toBe(405);
   });
 
-  it('ZintrustD1Proxy: resolves values/functions from optional module', async () => {
-    vi.resetModules();
-
-    vi.doMock('@zintrust/cloudflare-d1-proxy', () => ({
-      ZintrustD1Proxy: {
-        ping: () => 'pong',
-        value: 123,
-      },
-    }));
-
-    const { ZintrustD1Proxy } = await import('@proxy/d1/ZintrustD1Proxy');
-
-    expect((ZintrustD1Proxy as any)[Symbol.toStringTag]).toBe('ZintrustD1Proxy');
-    await expect((ZintrustD1Proxy as any).ping()).resolves.toBe('pong');
-    await expect((ZintrustD1Proxy as any).value()).resolves.toBe(123);
-
-    vi.doUnmock('@zintrust/cloudflare-d1-proxy');
-  });
-
-  it('ZintrustD1Proxy: returns undefined and logs helpful error when optional module missing', async () => {
-    vi.resetModules();
-
-    vi.doMock('@zintrust/cloudflare-d1-proxy', () => {
-      throw new Error('not installed');
+  it('ZintrustD1Proxy returns config error when signing credentials are missing', async () => {
+    const request = new Request('https://example.test/zin/d1/query', {
+      method: 'POST',
+      body: JSON.stringify({ sql: 'select 1', params: [] }),
     });
 
-    const { ZintrustD1Proxy } = await import('@proxy/d1/ZintrustD1Proxy');
+    const response = await ZintrustD1Proxy.fetch(request, {});
+    const payload = (await response.json()) as { code?: string };
 
-    await expect((ZintrustD1Proxy as any).ping()).resolves.toBeUndefined();
-
-    expect(loggerError).toHaveBeenCalledWith(
-      expect.stringContaining('Optional dependency not installed: @zintrust/cloudflare-d1-proxy'),
-      expect.objectContaining({ error: expect.any(String) })
-    );
-
-    vi.doUnmock('@zintrust/cloudflare-d1-proxy');
+    expect(response.status).toBe(401);
+    expect(payload.code).toBe('CONFIG_ERROR');
   });
 
-  it('ZintrustD1Proxy: throws when optional module export is invalid', async () => {
-    vi.resetModules();
-
-    vi.doMock('@zintrust/cloudflare-d1-proxy', () => ({
-      ZintrustD1Proxy: undefined,
-      default: undefined,
-    }));
-
-    const { ZintrustD1Proxy } = await import('@proxy/d1/ZintrustD1Proxy');
-
-    await expect((ZintrustD1Proxy as any).ping()).resolves.toBeUndefined();
-
-    expect(loggerError).toHaveBeenCalledWith(
-      'Invalid module export from @zintrust/cloudflare-d1-proxy: missing ZintrustD1Proxy'
-    );
-
-    vi.doUnmock('@zintrust/cloudflare-d1-proxy');
-  });
-
-  it('ZintrustKvProxy: resolves values/functions from optional module', async () => {
-    vi.resetModules();
-
-    vi.doMock('@zintrust/cloudflare-kv-proxy', () => ({
-      ZintrustKvProxy: {
-        ping: () => 'pong',
-        value: 456,
-      },
-    }));
-
-    const { ZintrustKvProxy } = await import('@proxy/kv/ZintrustKvProxy');
-
-    expect((ZintrustKvProxy as any)[Symbol.toStringTag]).toBe('ZintrustKvProxy');
-    await expect((ZintrustKvProxy as any).ping()).resolves.toBe('pong');
-    await expect((ZintrustKvProxy as any).value()).resolves.toBe(456);
-
-    vi.doUnmock('@zintrust/cloudflare-kv-proxy');
-  });
-
-  it('ZintrustKvProxy: returns undefined and logs helpful error when optional module missing', async () => {
-    vi.resetModules();
-
-    vi.doMock('@zintrust/cloudflare-kv-proxy', () => {
-      throw new Error('not installed');
+  it('ZintrustD1Proxy returns not found for unknown signed paths', async () => {
+    const request = await buildSignedRequest({
+      url: 'https://example.test/zin/d1/unknown',
+      body: JSON.stringify({}),
+      keyId: 'k1',
+      secret: 'super-secret',
     });
 
-    const { ZintrustKvProxy } = await import('@proxy/kv/ZintrustKvProxy');
+    const response = await ZintrustD1Proxy.fetch(request, { D1_REMOTE_SECRET: 'super-secret' });
+    const payload = (await response.json()) as { code?: string };
 
-    await expect((ZintrustKvProxy as any).ping()).resolves.toBeUndefined();
-
-    expect(loggerError).toHaveBeenCalledWith(
-      expect.stringContaining('Optional dependency not installed: @zintrust/cloudflare-kv-proxy'),
-      expect.objectContaining({ error: expect.any(String) })
-    );
-
-    vi.doUnmock('@zintrust/cloudflare-kv-proxy');
+    expect(response.status).toBe(404);
+    expect(payload.code).toBe('NOT_FOUND');
   });
 
-  it('ZintrustKvProxy: throws when optional module export is invalid', async () => {
-    vi.resetModules();
-
-    vi.doMock('@zintrust/cloudflare-kv-proxy', () => ({
-      ZintrustKvProxy: undefined,
-      default: undefined,
-    }));
-
-    const { ZintrustKvProxy } = await import('@proxy/kv/ZintrustKvProxy');
-
-    await expect((ZintrustKvProxy as any).ping()).resolves.toBeUndefined();
-
-    expect(loggerError).toHaveBeenCalledWith(
-      'Invalid module export from @zintrust/cloudflare-kv-proxy: missing ZintrustKvProxy'
+  it('ZintrustKvProxy rejects unsupported methods', async () => {
+    const response = await ZintrustKvProxy.fetch(
+      new Request('https://example.test/zin/kv/get', { method: 'GET' }),
+      {}
     );
 
-    vi.doUnmock('@zintrust/cloudflare-kv-proxy');
+    expect(response.status).toBe(405);
+  });
+
+  it('ZintrustKvProxy returns config error when signing credentials are missing', async () => {
+    const request = new Request('https://example.test/zin/kv/get', {
+      method: 'POST',
+      body: JSON.stringify({ key: 'demo' }),
+    });
+
+    const response = await ZintrustKvProxy.fetch(request, {});
+    const payload = (await response.json()) as { code?: string };
+
+    expect(response.status).toBe(500);
+    expect(payload.code).toBe('CONFIG_ERROR');
+  });
+
+  it('ZintrustKvProxy returns not found for unknown signed paths', async () => {
+    const request = await buildSignedRequest({
+      url: 'https://example.test/zin/kv/unknown',
+      body: JSON.stringify({}),
+      keyId: 'k1',
+      secret: 'super-secret',
+    });
+
+    const response = await ZintrustKvProxy.fetch(request, { KV_REMOTE_SECRET: 'super-secret' });
+    const payload = (await response.json()) as { code?: string };
+
+    expect(response.status).toBe(404);
+    expect(payload.code).toBe('NOT_FOUND');
   });
 });

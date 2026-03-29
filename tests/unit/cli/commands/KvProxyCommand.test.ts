@@ -113,4 +113,20 @@ describe('KvProxyCommand', () => {
 
     cwdSpy.mockRestore();
   });
+
+  it('passes a custom port through to wrangler dev', async () => {
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/repo');
+
+    const { KvProxyCommand } = await import('@cli/commands/KvProxyCommand');
+    await KvProxyCommand.create().execute({ port: '8787' });
+
+    expect(mocked.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'kv-proxy', '--port', '8787'],
+      })
+    );
+
+    cwdSpy.mockRestore();
+  });
 });

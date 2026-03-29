@@ -493,9 +493,11 @@ Examples:
 ```bash
 zin proxy:d1
 zin proxy d1
+zin proxy:d1 --port 8787
 
 zin proxy:kv
 zin proxy kv
+zin proxy:kv --port 8787
 
 zin proxy:smtp
 zin proxy smtp
@@ -508,9 +510,9 @@ zin redis:proxy
 
 Notes:
 
-- `zin proxy:d1` scaffolds `env.d1-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env d1-proxy`.
+- `zin proxy:d1` scaffolds `env.d1-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env d1-proxy`, with optional `--port <port>` forwarded to Wrangler dev.
 - The generated D1 proxy shim re-exports `ZintrustD1Proxy` from `@zintrust/core/proxy`.
-- `zin proxy:kv` scaffolds `env.kv-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env kv-proxy`.
+- `zin proxy:kv` scaffolds `env.kv-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env kv-proxy`, with optional `--port <port>` forwarded to Wrangler dev.
 - The generated KV proxy shim re-exports `ZintrustKvProxy` from `@zintrust/core/proxy`.
 
 ## Configuration Commands

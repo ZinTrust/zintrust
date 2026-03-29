@@ -103,4 +103,20 @@ describe('D1ProxyCommand', () => {
 
     cwdSpy.mockRestore();
   });
+
+  it('passes a custom port through to wrangler dev', async () => {
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/repo');
+
+    const { D1ProxyCommand } = await import('@cli/commands/D1ProxyCommand');
+    await D1ProxyCommand.create().execute({ port: '8787' });
+
+    expect(mocked.spawnAndWait).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'wrangler',
+        args: ['dev', '--config', '/repo/wrangler.jsonc', '--env', 'd1-proxy', '--port', '8787'],
+      })
+    );
+
+    cwdSpy.mockRestore();
+  });
 });
