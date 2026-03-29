@@ -72,6 +72,19 @@ vi.mock('@config/logger', () => ({
   Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
+vi.mock('@runtime/WorkerProjectAutoImports', () => ({
+  WorkerProjectAutoImports: {
+    tryImportProjectWorkerEntrypoint: vi.fn(async () => ({ ok: false, reason: 'not-found' })),
+  },
+}));
+
+vi.mock('@runtime/WorkersModule', async () => {
+  const workers = await import('@zintrust/workers');
+  return {
+    loadWorkersModule: vi.fn(async () => workers),
+  };
+});
+
 describe('WorkerCommands extra patch coverage', () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
 

@@ -127,6 +127,11 @@ type QueueWorker = {
     signal?: AbortSignal;
     maxDurationMs?: number;
   }) => Promise<number>;
+  __zintrustQueueWorkerMeta?: Readonly<{
+    kindLabel: string;
+    defaultQueueName: string;
+    maxAttempts: number;
+  }>;
 };
 
 export type CreateQueueWorkerOptions<TPayload> = {
@@ -404,7 +409,7 @@ const processQueueMessage = async <TPayload>(
   queueName: string,
   driverName?: string
 ): Promise<boolean> => {
-  const message = await Queue.dequeue<TPayload>(queueName, driverName);
+  const message = (await Queue.dequeue(queueName, driverName)) as QueueMessage<TPayload> | null;
   if (!message) return false;
 
   const baseLogFields = buildBaseLogFields(message, options.getLogFields);
@@ -597,6 +602,17 @@ export function createQueueWorker<TPayload>(
   const processAll = createProcessAll(options.defaultQueueName, processOne);
   const runOnce = createRunOnce(options.defaultQueueName, processOne);
   const startWorker = createStartWorker(options.kindLabel, options.defaultQueueName, processOne);
+  const queueWorkerMeta = Object.freeze({
+    kindLabel: options.kindLabel,
+    defaultQueueName: options.defaultQueueName,
+    maxAttempts: options.maxAttempts,
+  });
 
-  return Object.freeze({ processOne, processAll, runOnce, startWorker });
+  return Object.freeze({
+    processOne,
+    processAll,
+    runOnce,
+    startWorker,
+    __zintrustQueueWorkerMeta: queueWorkerMeta,
+  });
 }

@@ -9,6 +9,7 @@ import type { IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
 import { loadWorkersModule as loadWorkersRuntimeModule } from '@runtime/WorkersModule';
 
 type WorkerRegistryStatus = {
@@ -24,6 +25,9 @@ type WorkerFactoryApi = {
   list: () => string[];
   listPersisted: () => Promise<string[]>;
   listPersistedRecords: () => Promise<
+    Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>
+  >;
+  listFileBackedRecords?: () => Promise<
     Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>
   >;
   getHealth: (name: string) => Promise<Record<string, unknown>>;
@@ -57,14 +61,34 @@ type WorkerCommandsApi = {
   WorkerRegistry: WorkerRegistryApi;
   HealthMonitor: HealthMonitorApi;
   ResourceMonitor: ResourceMonitorApi;
+  selectAutoStartNames?: (
+    persistedRecords: Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>,
+    fileRecords: Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>,
+    warn?: (message: string) => void
+  ) => { names: string[]; source: 'persisted' | 'file' | 'none' };
 };
 // Lazy initialization to prevent temporal dead zone issues
 let WorkerFactory: WorkerFactoryApi | undefined;
 let WorkerRegistry: WorkerRegistryApi | undefined;
 let HealthMonitor: HealthMonitorApi | undefined;
 let ResourceMonitor: ResourceMonitorApi | undefined;
+let workerProjectEntrypointAttempted = false;
+
+const ensureProjectWorkerEntrypointLoaded = async (): Promise<void> => {
+  if (workerProjectEntrypointAttempted) return;
+  workerProjectEntrypointAttempted = true;
+
+  const result = await WorkerProjectAutoImports.tryImportProjectWorkerEntrypoint();
+  if (!result.ok && result.reason === 'import-failed') {
+    Logger.warn(
+      `Project worker entrypoint import failed: ${result.errorMessage ?? 'Unknown error'}`
+    );
+  }
+};
+
 const loadWorkersModule = async (): Promise<WorkerCommandsApi> => {
   try {
+    await ensureProjectWorkerEntrypointLoaded();
     return (await loadWorkersRuntimeModule()) as unknown as WorkerCommandsApi;
   } catch (error) {
     Logger.error(
@@ -336,6 +360,41 @@ const isRegisteredWorkerRunning = async (workerLike: unknown): Promise<boolean> 
   return isRunning && !isPaused;
 };
 
+const resolveAutoStartWorkerNames = async (
+  factory: WorkerFactoryApi,
+  workersModule: WorkerCommandsApi
+): Promise<{ names: string[]; source: 'persisted' | 'file' | 'none' }> => {
+  const persistedRecords = await factory.listPersistedRecords();
+  const fileRecords =
+    typeof factory.listFileBackedRecords === 'function'
+      ? await factory.listFileBackedRecords()
+      : [];
+
+  if (typeof workersModule.selectAutoStartNames === 'function') {
+    return workersModule.selectAutoStartNames(persistedRecords, fileRecords, Logger.warn);
+  }
+
+  const persistedNames = persistedRecords
+    .filter((record) => record.activeStatus !== false && record.autoStart === true)
+    .map((record) => record.name);
+
+  if (persistedNames.length > 0) {
+    return { names: persistedNames, source: 'persisted' };
+  }
+
+  const seen = new Set<string>();
+  const fileNames: string[] = [];
+
+  for (const record of fileRecords) {
+    if (record.activeStatus === false || record.autoStart !== true) continue;
+    if (seen.has(record.name)) continue;
+    seen.add(record.name);
+    fileNames.push(record.name);
+  }
+
+  return { names: fileNames, source: fileNames.length > 0 ? 'file' : 'none' };
+};
+
 /**
  * Worker Start All Command
  */
@@ -349,24 +408,23 @@ const createWorkerStartAllCommand = (): IBaseCommand => {
       }
 
       const factory = await getWorkerFactory();
-      const records = await factory.listPersistedRecords();
-
-      const autoStartRecords = records.filter(
-        (record) => record.activeStatus !== false && record.autoStart === true
-      );
-
-      const workers = autoStartRecords.map((record) => record.name);
+      const workersModule = await loadWorkersModule();
+      const { names: workers, source } = await resolveAutoStartWorkerNames(factory, workersModule);
 
       if (workers.length === 0) {
-        Logger.info('No auto-start eligible persisted workers found.');
+        Logger.info('No auto-start eligible persisted or file-backed workers found.');
         return;
       }
 
-      const discoveredWorkers = await pollForPersistedWorkers(factory);
-      const eligibleWorkers = workers.filter((name) => discoveredWorkers.includes(name));
+      let eligibleWorkers = workers;
+
+      if (source === 'persisted') {
+        const discoveredWorkers = await pollForPersistedWorkers(factory);
+        eligibleWorkers = workers.filter((name) => discoveredWorkers.includes(name));
+      }
 
       if (eligibleWorkers.length === 0) {
-        Logger.info('No auto-start eligible workers are currently persisted.');
+        Logger.info('No auto-start eligible workers are currently available.');
         return;
       }
 

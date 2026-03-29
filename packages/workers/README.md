@@ -659,6 +659,27 @@ registerWorkerRoutes(Router);
 Processor specs can be file paths or URL specs (recommended for production). Remote processors
 must export a named `ZinTrustProcessor` function.
 
+For file-backed worker discovery, export a `workerDefinition` object from the worker module. This
+lets fresh projects surface worker metadata before any persistence record exists.
+
+```typescript
+export const workerDefinition = Object.freeze({
+  name: 'example-worker',
+  queueName: 'example-worker',
+  version: '1.0.0',
+  autoStart: false,
+  activeStatus: true,
+  concurrency: 1,
+  processorSpec: 'app/Workers/ExampleWorker.ts',
+});
+
+export async function ZinTrustProcessor(payload: unknown): Promise<void> {
+  return undefined;
+}
+
+export default ZinTrustProcessor;
+```
+
 Workers support `activeStatus` to pause without deletion; inactive workers do not auto-start.
 
 See the [API Reference](#api-reference) section for all available endpoints.
@@ -682,6 +703,11 @@ await WorkerInit.initialize({
   healthChecks: true, // Enable health monitoring
 });
 ```
+
+When `WORKER_AUTO_START=true`, ZinTrust first auto-starts persisted workers. If persisted discovery
+finds no auto-start candidates, `WorkerInit.autoStartPersistedWorkers()` falls back to file-backed
+worker definitions discovered from project files. This keeps existing persisted deployments stable
+while allowing fresh apps to boot workers from code-first definitions.
 
 ### Graceful Shutdown
 

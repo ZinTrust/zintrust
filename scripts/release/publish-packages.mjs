@@ -227,6 +227,7 @@ async function assertCoreShimHasRequiredExports() {
 
 function isNpmNotFoundOutput(s) {
   const text = String(s ?? '');
+  if (text.trim() === '') return true;
   return text.includes('E404') || text.includes('404 Not Found') || text.includes('code E404');
 }
 
@@ -601,9 +602,16 @@ export declare const NodeSingletons: {
   fs: any;
   path: any;
   os: any;
+  url: any;
+  module: any;
+  process: any;
   EventEmitter: any;
+  createCipheriv: (...args: any[]) => any;
+  createDecipheriv: (...args: any[]) => any;
+  pbkdf2Sync: (...args: any[]) => any;
   randomBytes: (size: number) => any;
   createHash: (algorithm: string) => any;
+  [key: string]: any;
 };
 export declare const RedisKeys: any;
 export declare const MIME_TYPES: any;
@@ -622,6 +630,7 @@ export declare const LocalD1Resolver: {
   resolveD1Binding: (...args: any[]) => any;
   resolveLocalD1SqlitePath: (...args: any[]) => Promise<string>;
 };
+export declare const WranglerConfig: any;
 
 export declare function generateUuid(): string;
 export declare function generateSecureJobId(): string;
@@ -629,18 +638,34 @@ export declare function delay(ms: number): Promise<void>;
 export declare function ensureDirSafe(path: string): Promise<void>;
 export declare function resolveLockPrefix(): string;
 export declare function getBullMQSafeQueueName(name?: string): string;
-export declare function getValidatedBody(...args: any[]): any;
+export declare function getValidatedBody<T = unknown>(...args: any[]): T | undefined;
 export declare function registerDatabasesFromRuntimeConfig(...args: any[]): any;
 export declare function createBaseDrivers(...args: any[]): any;
 export declare function createLockProvider(...args: any[]): any;
 export declare function getLockProvider(...args: any[]): any;
 export declare function registerLockProvider(...args: any[]): any;
-export declare function createRedisConnection(...args: any[]): any;
+export declare function createRedisConnection(...args: any[]): {
+  hgetall: (...args: any[]) => Promise<Record<string, string>>;
+  hget: (...args: any[]) => Promise<string | null>;
+  hset: (...args: any[]) => Promise<any>;
+  hmget: (...args: any[]) => Promise<Array<string | null>>;
+  hdel: (...args: any[]) => Promise<any>;
+  disconnect: () => void;
+  [key: string]: any;
+};
 export declare function useEnsureDbConnected(...args: any[]): any;
+export declare function isFunction(value: unknown): value is (...args: any[]) => any;
+export declare function isNonEmptyString(value: unknown): value is string;
+export declare function isObject(value: unknown): value is Record<string, unknown>;
 
 export declare const RedisQueue: any;
 export type QueueMessage<T = unknown> = any;
 export type BullMQPayload = any;
+export type QueueApi = {
+  dequeue<T = unknown>(...args: any[]): Promise<QueueMessage<T> | null>;
+  [key: string]: any;
+};
+export declare const Queue: QueueApi;
 
 export declare const S3Driver: any;
 export type S3Config = any;
@@ -666,6 +691,7 @@ export type RedisConfig = any;
 export type IRouter = any;
 export type IRequest = any;
 export type IResponse = any;
+export type AssetsBinding = any;
 export type UploadedFile = any;
 export type MultipartFieldValue = any;
 export type MultipartParseInput = any;
@@ -681,7 +707,23 @@ export type WorkerStatus = any;
 export type WorkerVersioningConfig = any;
 export type WorkersConfigOverrides = any;
 export type WorkersGlobalConfig = any;
-export type IDatabase = any;
+export type DbQueryBuilder = {
+  limit(...args: any[]): DbQueryBuilder;
+  offset(...args: any[]): DbQueryBuilder;
+  where(...args: any[]): DbQueryBuilder;
+  whereIn(...args: any[]): DbQueryBuilder;
+  get<T = unknown>(): Promise<T[]>;
+  first<T = unknown>(): Promise<T | undefined>;
+  insert(...args: any[]): Promise<any>;
+  update(...args: any[]): Promise<any>;
+  delete(...args: any[]): Promise<any>;
+};
+export type IDatabase = {
+  query: (...args: any[]) => {
+    get<T = unknown>(): Promise<T[]>;
+  };
+  table: (...args: any[]) => DbQueryBuilder;
+};
 export type Blueprint = any;
 `;
   await fs.writeFile(path.join(shimDir, 'index.d.ts'), dts);
@@ -723,6 +765,24 @@ export const NodeSingletons = {
   fs: {},
   path: {},
   os: {},
+  url: {
+    pathToFileURL() {
+      return { href: '' };
+    },
+    fileURLToPath() {
+      return '';
+    },
+  },
+  module: {
+    createRequire() {
+      return () => undefined;
+    },
+  },
+  process: {
+    cwd() {
+      return '';
+    },
+  },
   EventEmitter: class {
     on() {
       return this;
@@ -742,6 +802,15 @@ export const NodeSingletons = {
   },
   randomBytes() {
     return { toString() { return ''; } };
+  },
+  createCipheriv() {
+    return { update() { return ''; }, final() { return ''; } };
+  },
+  createDecipheriv() {
+    return { update() { return ''; }, final() { return ''; } };
+  },
+  pbkdf2Sync() {
+    return '';
   },
   createHash() {
     return { update() { return this; }, digest() { return ''; } };
@@ -768,6 +837,7 @@ export const LocalD1Resolver = {
     return '';
   },
 };
+export const WranglerConfig = {};
 
 export function generateUuid() {
   return '00000000-0000-0000-0000-000000000000';
@@ -818,12 +888,47 @@ export function registerLockProvider() {
 }
 
 export function createRedisConnection() {
-  return {};
+  return {
+    async hgetall() {
+      return {};
+    },
+    async hget() {
+      return null;
+    },
+    async hset() {
+      return undefined;
+    },
+    async hmget() {
+      return [];
+    },
+    async hdel() {
+      return undefined;
+    },
+    disconnect() {},
+  };
 }
 
 export function useEnsureDbConnected() {
   return undefined;
 }
+
+export function isFunction(value) {
+  return typeof value === 'function';
+}
+
+export function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+export function isObject(value) {
+  return value !== null && typeof value === 'object';
+}
+
+export const Queue = {
+  async dequeue() {
+    return null;
+  },
+};
 
 export const RedisQueue = {};
 

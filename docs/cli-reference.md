@@ -70,11 +70,31 @@ zin deploy:ccp -e staging
 
 ## Container Stack Init Commands
 
-- `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files
+- `zin init:cw` / `zin init:container-workers` - Initialize worker container stack files (`docker-compose.workers.yml`, `Dockerfile.workers`)
 - `zin init:proxy` - Initialize proxy stack files (`docker-compose.proxy.yml`, `docker/proxy-gateway/nginx.conf`)
 - `zin init:containers-proxy` (alias: `zin init:ccp`) - Scaffold Cloudflare Containers proxy Worker (`wrangler.containers-proxy.jsonc`, `src/containers-proxy.ts`)
 - `zin init:ecosystem` - Scaffold `docker-compose.ecosystem.yml` and `docker-compose.schedules.yml`
 - Proxy init aliases: `zin init:cp`, `zin init:container-proxies`, `zin init:py`
+
+### `zin init:cw` Output
+
+`zin init:cw` now generates a two-service worker stack plus a dedicated overlay Dockerfile:
+
+- `docker-compose.workers.yml`
+  - `workers-api`: built from `Dockerfile.workers` with target `runtime`
+  - `worker-runner`: built from `Dockerfile.workers` with target `worker`
+- `Dockerfile.workers`
+  - builds the local project with `npm run build`
+  - copies compiled `dist/app/Workers` artifacts into the final image when present
+  - copies compiled `dist/src/zintrust.workers.js` into the final image when present
+
+This is the canonical way to extend the published `zintrust/zintrust` image while still letting
+projects choose either file-backed worker discovery from `app/Workers` or explicit bootstrap via
+`src/zintrust.workers.ts`.
+
+The generated compose file tags the project overlay result as `WORKERS_IMAGE` and `WORKERS_RUNNER_IMAGE`.
+Those names refer to the built overlay image, not the upstream base image. The upstream base remains
+`zintrust/zintrust` inside `Dockerfile.workers`.
 
 ## Container Workers Commands
 
@@ -90,7 +110,7 @@ Options:
 - `--tag <tag>`: Tag to publish (default: current version; also pushes `:latest`)
 - `--platforms <list>`: Comma list for buildx (default: `linux/amd64,linux/arm64`)
 - `--no-also-latest`: If `--tag` is not `latest`, do not also push `:latest`
-- `--only <target>`: `runtime` | `gateway` | `both` (default: `both`)
+- `--only <target>`: `runtime` | `worker` | `gateway` | `both` (default: `both`)
 
 ## Container Proxies Commands
 
@@ -566,6 +586,26 @@ Defaults:
 - `zin queue work <kind> <queueName>` (kind: broadcast|notification)
 - `zin broadcast:work <queueName>`
 - `zin notification:work <queueName>`
+
+## Worker Migration Command
+
+- `zin migrate:worker`
+- `zin migrate:worker --status`
+- `zin migrate:worker --fresh`
+- `zin migrate:worker --rollback --step 1`
+- `zin migrate:worker --reset`
+- `zin migrate:worker --all`
+- `zin migrate:worker --connection d1`
+
+Use `--connection <name>` to target a specific configured database connection directly. When omitted,
+the command resolves the connection in this order: `--connection` flag, `WORKER_PERSISTENCE_DB_CONNECTION`, then `default`.
+
+For D1-backed worker persistence, use the matching configured connection name, for example:
+
+```bash
+zin migrate:worker --connection d1
+zin migrate:worker --connection d1-remote
+```
 
 ## Secrets Command
 

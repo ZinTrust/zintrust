@@ -44,7 +44,12 @@ export type {
   WorkerFactoryConfig,
   WorkerPersistenceConfig,
 } from './WorkerFactory';
-export { WorkerInit } from './WorkerInit';
+export {
+  buildFileBackedAutoStartTasks,
+  selectAutoStartNames,
+  selectAutoStartTasks,
+  WorkerInit,
+} from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
 
 // HTTP Controllers & Routes

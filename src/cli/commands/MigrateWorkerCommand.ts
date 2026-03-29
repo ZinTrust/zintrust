@@ -26,7 +26,12 @@ const isBuiltInDriver = (driver: string): boolean =>
   driver === 'd1' ||
   driver === 'd1-remote';
 
-const getWorkerPersistenceConnectionName = (): string => {
+const getWorkerPersistenceConnectionName = (optionValue?: unknown): string => {
+  if (typeof optionValue === 'string') {
+    const trimmed = optionValue.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+
   if (typeof process === 'undefined') return 'default';
   const raw = (process as unknown as { env?: Record<string, unknown> }).env?.[
     'WORKER_PERSISTENCE_DB_CONNECTION'
@@ -44,6 +49,7 @@ const addOptions = (command: Command): void => {
     .option('--step <number>', 'Number of batches to rollback (use with --rollback)', '1')
     .option('--force', 'Skip production confirmation (allow unsafe operations in production)')
     .option('--all', 'Run migrations for all configured database connections')
+    .option('--connection <name>', 'Use a specific database connection for worker migrations')
     .option('--no-interactive', 'Disable interactive prompts (useful for CI/CD)');
 };
 
@@ -185,7 +191,7 @@ const executeMigrateWorker = async (options: CommandOptions, cmd: IBaseCommand):
       targets.push({ name, config });
     }
   } else {
-    const selected = getWorkerPersistenceConnectionName();
+    const selected = getWorkerPersistenceConnectionName(options['connection']);
     const hasSelected = selected.length > 0;
     const connections = databaseConfig.connections as unknown as Record<
       string,

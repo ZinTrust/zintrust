@@ -71,6 +71,15 @@ describe('ProjectScaffolder Templates', () => {
     expect(httpLogger).toContain("'@zintrust/core'");
     expect(httpLogger).not.toContain("'@httpClient/Http'");
     expect(httpLogger).not.toContain("'@exceptions/ZintrustError'");
+
+    const exampleWorker = template?.files['app/Workers/ExampleWorker.ts'] ?? '';
+    expect(exampleWorker).toContain("'@zintrust/core'");
+    expect(exampleWorker).toContain('workerDefinition');
+    expect(exampleWorker).toContain('ZinTrustProcessor');
+
+    const workersEntrypoint = template?.files['src/zintrust.workers.ts'] ?? '';
+    expect(workersEntrypoint).toContain("'@app/Workers/ExampleWorker'");
+    expect(workersEntrypoint).toContain('__zintrustGeneratedWorkerStub');
   });
 });
 
