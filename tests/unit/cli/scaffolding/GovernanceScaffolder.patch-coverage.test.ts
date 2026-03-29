@@ -36,6 +36,13 @@ vi.mock('@cli/utils/spawn', () => ({
 const resolvePackageManager = vi.fn(() => 'npm');
 vi.mock('@common/index', () => ({ resolvePackageManager }));
 
+const getCurrentVersion = vi.fn(() => '0.4.28');
+vi.mock('@cli/services/VersionChecker', () => ({
+  VersionChecker: {
+    getCurrentVersion,
+  },
+}));
+
 vi.mock('@config/logger', () => ({
   Logger: {
     info: vi.fn(),
@@ -100,7 +107,7 @@ describe('GovernanceScaffolder patch coverage', () => {
 
     // devDependencies ensured
     expect(updated.devDependencies.eslint).toBe('^9.0.0');
-    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.2.3');
+    expect(updated.devDependencies['@zintrust/governance']).toBe('^1.2.0');
   });
 
   it('installs governance dependencies using resolved package manager', async () => {
@@ -128,7 +135,7 @@ describe('GovernanceScaffolder patch coverage', () => {
     expect(result.success).toBe(true);
     expect(spawnAndWait).toHaveBeenCalledWith({
       command: 'yarn',
-      args: ['add', '--dev', 'eslint', '@zintrust/governance@^0.1.0'],
+      args: ['add', '--dev', 'eslint', '@zintrust/governance@^0.4.0'],
       cwd: projectRoot,
     });
   });

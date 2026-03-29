@@ -9,8 +9,32 @@ The `@zintrust/cloudflare-d1-proxy` package provides a Cloudflare D1 proxy adapt
 
 ## Installation
 
+This proxy Worker is currently shipped from the ZinTrust repository and deployed with the ZinTrust CLI. It is not currently published as a standalone public npm package.
+
+## Core Runtime Entry
+
+```ts
+import { ZintrustD1Proxy } from '@zintrust/core/proxy/d1/ZintrustD1Proxy';
+```
+
+## Deploy CLI
+
 ```bash
-npm install @zintrust/cloudflare-d1-proxy
+zin deploy d1-proxy
+```
+
+## Local CLI
+
+```bash
+zin proxy:d1
+```
+
+`zin proxy:d1` ensures `wrangler.jsonc` contains `env.d1-proxy` with `main` pointing to `./src/proxy/d1/ZintrustD1Proxy.ts` before starting local Wrangler dev.
+
+## Cloudflare Vars CLI
+
+```bash
+zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
 ```
 
 ## Configuration
@@ -66,7 +90,8 @@ const d1Proxy = new CloudflareD1Proxy({
 const users = await d1Proxy.query('SELECT * FROM users WHERE active = ?', [true]);
 
 // Execute prepared statements
-const result = await d1Proxy.prepare('INSERT INTO users (name, email) VALUES (?, ?)')
+const result = await d1Proxy
+  .prepare('INSERT INTO users (name, email) VALUES (?, ?)')
   .bind('John Doe', 'john@example.com')
   .run();
 
@@ -153,12 +178,7 @@ export const cloudflare: CloudflareConfig = {
       baseDelay: 1000,
       maxDelay: 10000,
       backoff: 'exponential',
-      retryableErrors: [
-        'ECONNRESET',
-        'ETIMEDOUT',
-        'ENOTFOUND',
-        'RATE_LIMITED',
-      ],
+      retryableErrors: ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'RATE_LIMITED'],
     },
   },
 };
@@ -181,10 +201,7 @@ const insertResult = await d1Proxy.query(
 // Returns: { meta: { changes: 1, last_row_id: 123 } }
 
 // UPDATE queries
-const updateResult = await d1Proxy.query(
-  'UPDATE users SET active = ? WHERE id = ?',
-  [false, 123]
-);
+const updateResult = await d1Proxy.query('UPDATE users SET active = ? WHERE id = ?', [false, 123]);
 // Returns: { meta: { changes: 1 } }
 
 // DELETE queries
@@ -241,9 +258,15 @@ const transaction = await d1Proxy.beginTransaction();
 
 try {
   // Execute multiple statements
-  await transaction.run('INSERT INTO users (name, email) VALUES (?, ?)', ['John', 'john@example.com']);
-  await transaction.run('INSERT INTO profiles (user_id, bio) VALUES (?, ?)', [1, 'Software developer']);
-  
+  await transaction.run('INSERT INTO users (name, email) VALUES (?, ?)', [
+    'John',
+    'john@example.com',
+  ]);
+  await transaction.run('INSERT INTO profiles (user_id, bio) VALUES (?, ?)', [
+    1,
+    'Software developer',
+  ]);
+
   // Commit transaction
   await transaction.commit();
 } catch (error) {
@@ -272,11 +295,7 @@ const users = await builder
   .get();
 
 // Count queries
-const count = await builder
-  .count('id')
-  .from('users')
-  .where('active = ?', [true])
-  .first();
+const count = await builder.count('id').from('users').where('active = ?', [true]).first();
 ```
 
 ### Schema Management
@@ -384,11 +403,7 @@ const d1Proxy = new CloudflareD1Proxy({
     queryValidation: {
       enabled: true,
       allowedOperations: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
-      blockedPatterns: [
-        /DROP\s+TABLE/i,
-        /TRUNCATE/i,
-        /ALTER\s+TABLE/i,
-      ],
+      blockedPatterns: [/DROP\s+TABLE/i, /TRUNCATE/i, /ALTER\s+TABLE/i],
       maxQueryLength: 10000,
     },
     parameterValidation: {
@@ -434,18 +449,18 @@ const metrics = new D1Metrics(d1Proxy);
 
 // Get performance metrics
 const performanceMetrics = await metrics.getPerformanceMetrics();
-// Returns: { 
-//   queryCount: number, 
-//   averageQueryTime: number, 
+// Returns: {
+//   queryCount: number,
+//   averageQueryTime: number,
 //   slowQueries: number,
 //   errorRate: number,
-//   cacheHitRate: number 
+//   cacheHitRate: number
 // }
 
 // Get database statistics
 const dbStats = await metrics.getDatabaseStats();
-// Returns: { 
-//   totalRows: number, 
+// Returns: {
+//   totalRows: number,
 //   tableSizes: Record<string, number>,
 //   indexSizes: Record<string, number>
 // }
@@ -490,10 +505,10 @@ const d1Proxy = new CloudflareD1Proxy({
     console.log('D1 query error:', error.message);
     console.log('Query:', query);
     console.log('Params:', params);
-    
+
     // Log to monitoring system
     logError(error, { query, params });
-    
+
     // Send alert for critical errors
     if (error.severity === 'critical') {
       sendAlert('D1 database error', error);
@@ -561,7 +576,10 @@ const testD1 = new TestD1({
 });
 
 // Setup test data
-await testD1.query('INSERT INTO users (name, email) VALUES (?, ?)', ['Test User', 'test@example.com']);
+await testD1.query('INSERT INTO users (name, email) VALUES (?, ?)', [
+  'Test User',
+  'test@example.com',
+]);
 
 // Run tests
 const result = await testD1.query('SELECT * FROM users');

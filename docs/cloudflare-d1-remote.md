@@ -7,6 +7,26 @@ Cloudflare D1 is a Workers binding (not a database you can connect to over TCP).
 
 This keeps D1 private (no public DB port) and enables strong service-to-service security.
 
+## Deploy CLI
+
+```bash
+zin deploy d1-proxy
+```
+
+## Local CLI
+
+```bash
+zin proxy:d1
+```
+
+This command auto-adds `env.d1-proxy` to `wrangler.jsonc` when the environment block is missing, then runs local Wrangler dev against `./src/proxy/d1/ZintrustD1Proxy.ts`.
+
+## Cloudflare Vars CLI
+
+```bash
+zin put cloudflare --wg d1-proxy --var d1_env --env_path .env
+```
+
 ---
 
 ## How it works

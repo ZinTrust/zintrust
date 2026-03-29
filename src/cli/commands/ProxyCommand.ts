@@ -13,6 +13,8 @@ import '@proxy/smtp/register';
 import type { Command } from 'commander';
 
 const PROXY_TARGET_MAP: Readonly<Record<string, string>> = Object.freeze({
+  d1: 'proxy:d1',
+  kv: 'proxy:kv',
   mysql: 'proxy:mysql',
   my: 'proxy:mysql',
   postgres: 'proxy:postgres',

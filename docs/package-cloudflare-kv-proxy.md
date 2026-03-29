@@ -9,8 +9,32 @@ The `@zintrust/cloudflare-kv-proxy` package provides a Cloudflare KV proxy adapt
 
 ## Installation
 
+This proxy Worker is currently shipped from the ZinTrust repository and deployed with the ZinTrust CLI. It is not currently published as a standalone public npm package.
+
+## Core Runtime Entry
+
+```ts
+import { ZintrustKvProxy } from '@zintrust/core/proxy/kv/ZintrustKvProxy';
+```
+
+## Deploy CLI
+
 ```bash
-npm install @zintrust/cloudflare-kv-proxy
+zin deploy kv-proxy
+```
+
+## Local CLI
+
+```bash
+zin proxy:kv
+```
+
+`zin proxy:kv` ensures `wrangler.jsonc` contains `env.kv-proxy` with `main` pointing to `./src/proxy/kv/ZintrustKvProxy.ts` before starting local Wrangler dev.
+
+## Cloudflare Vars CLI
+
+```bash
+zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
 ```
 
 ## Configuration
@@ -265,11 +289,7 @@ import { KVQueryBuilder } from '@zintrust/cloudflare-kv-proxy';
 const builder = new KVQueryBuilder(kvProxy);
 
 // Query by prefix with filtering
-const activeUsers = await builder
-  .prefix('user:')
-  .where('metadata.active', 'true')
-  .limit(10)
-  .get();
+const activeUsers = await builder.prefix('user:').where('metadata.active', 'true').limit(10).get();
 
 // Query by expiration
 const expiringSoon = await builder
@@ -392,9 +412,9 @@ const metrics = new KVMetrics(kvProxy);
 
 // Get performance metrics
 const performanceMetrics = await metrics.getPerformanceMetrics();
-// Returns: { 
-//   totalOperations: number, 
-//   averageLatency: number, 
+// Returns: {
+//   totalOperations: number,
+//   averageLatency: number,
 //   hitRate: number,
 //   errorRate: number,
 //   operationsPerSecond: number
@@ -523,10 +543,10 @@ const kvProxy = new CloudflareKVProxy({
   apiToken: 'your-api-token',
   errorHandler: (error, operation, key) => {
     console.log(`KV ${operation} error for key ${key}:`, error.message);
-    
+
     // Log to monitoring system
     logError(error, { operation, key });
-    
+
     // Send alert for critical errors
     if (error.severity === 'critical') {
       sendAlert('KV namespace error', error);

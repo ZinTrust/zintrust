@@ -1981,13 +1981,10 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
 
 const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => {
   const fallbackDb = Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
-  const redisConfigWithDatabase = config;
 
   let normalizedDb = fallbackDb;
   if (typeof config.db === 'number') {
     normalizedDb = config.db;
-  } else if (typeof redisConfigWithDatabase.database === 'number') {
-    normalizedDb = redisConfigWithDatabase.database;
   }
 
   return {

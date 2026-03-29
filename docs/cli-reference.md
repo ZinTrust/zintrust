@@ -479,6 +479,8 @@ All proxy commands support both styles:
 
 Supported proxies:
 
+- D1: `zin proxy:d1` / `zin proxy d1`
+- KV: `zin proxy:kv` / `zin proxy kv`
 - Redis: `zin proxy:redis` / `zin proxy redis` (legacy alias still works: `zin redis:proxy`)
 - SMTP: `zin proxy:smtp` / `zin proxy smtp`
 - MySQL: `zin proxy:mysql` / `zin proxy mysql`
@@ -489,6 +491,12 @@ Supported proxies:
 Examples:
 
 ```bash
+zin proxy:d1
+zin proxy d1
+
+zin proxy:kv
+zin proxy kv
+
 zin proxy:smtp
 zin proxy smtp
 
@@ -497,6 +505,13 @@ zin proxy redis
 
 zin redis:proxy
 ```
+
+Notes:
+
+- `zin proxy:d1` scaffolds `env.d1-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env d1-proxy`.
+- The core Worker entry for D1 proxy apps is `@zintrust/core/proxy/d1/ZintrustD1Proxy`.
+- `zin proxy:kv` scaffolds `env.kv-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env kv-proxy`.
+- The core Worker entry for KV proxy apps is `@zintrust/core/proxy/kv/ZintrustKvProxy`.
 
 ## Configuration Commands
 

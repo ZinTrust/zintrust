@@ -74,6 +74,16 @@ const loadCoreVersion = (): string => {
   }
 };
 
+const toCompatibleGovernanceVersion = (version: string): string => {
+  const match = /(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (match !== null) {
+    const [, major, minor] = match;
+    return `^${major}.${minor}.0`;
+  }
+
+  return '^0.4.0';
+};
+
 const createDirectories = (projectPath: string, directories: string[]): number => {
   let count = 0;
   if (!fs.existsSync(projectPath)) {
@@ -335,12 +345,12 @@ const resolveTemplateMetadata = (
   meta: TemplateJson,
   fallback?: ProjectTemplate
 ): Pick<ProjectTemplate, 'name' | 'description' | 'directories'> => {
-  const name = typeof meta.name === 'string' ? meta.name : fallback?.name ?? templateName;
+  const name = typeof meta.name === 'string' ? meta.name : (fallback?.name ?? templateName);
   const description =
-    typeof meta.description === 'string' ? meta.description : fallback?.description ?? '';
+    typeof meta.description === 'string' ? meta.description : (fallback?.description ?? '');
   const directories = Array.isArray(meta.directories)
     ? coerceStringArray(meta.directories)
-    : fallback?.directories ?? [];
+    : (fallback?.directories ?? []);
 
   return { name, description, directories };
 };
@@ -591,6 +601,8 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     .slice(0, 14);
 
   state.variables = {
+    coreVersion: loadCoreVersion(),
+    governanceVersion: toCompatibleGovernanceVersion(loadCoreVersion()),
     projectName: options.name,
     projectSlug: options.name,
     author: options.author ?? 'Your Name',
@@ -599,7 +611,6 @@ const prepareContext = (state: ScaffolderState, options: ProjectScaffoldOptions)
     database: options.database ?? 'sqlite',
     template: state.templateName,
     migrationTimestamp,
-    coreVersion: loadCoreVersion(),
   };
 };
 

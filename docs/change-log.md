@@ -4,6 +4,9 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-28
 
+- Added `zin proxy:d1` for local D1 proxy development. The command now scaffolds `env.d1-proxy` into `wrangler.jsonc` when missing, then starts local Wrangler dev against the core D1 proxy entrypoint, and the docs now point developers to `@zintrust/core/proxy/d1/ZintrustD1Proxy`.
+- Added `zin proxy:kv` for local KV proxy development. The command now scaffolds `env.kv-proxy` into `wrangler.jsonc` when missing, then starts local Wrangler dev against the core KV proxy entrypoint, and the docs now point developers to `@zintrust/core/proxy/kv/ZintrustKvProxy`.
+- Updated the Cloudflare proxy docs so the D1, KV, and Containers package pages plus the D1/KV remote guides now show the supported ZinTrust deploy CLI and local dev CLI commands directly after installation/setup, and corrected the D1/KV package pages to reflect that those Worker packages are currently deployed from the repo rather than installed as public npm packages.
 - Updated the container worker scaffold again so `docker-compose.workers.yml` now boots a single bootstrap-driven `workers-api` service that serves the worker pages and auto-starts eligible workers in the same process, replacing the previous split `workers-api` plus `worker-runner` default.
 - Updated `@zintrust/workers` so worker discovery can fall back to project worker files when persistence is empty, which lets fresh projects surface worker metadata and details without first creating worker rows in the database.
 - Added an explicit `workerDefinition` starter worker template for fresh apps, extended worker auto-start to use file-backed definitions only when persisted auto-start candidates are absent, and documented direct `zin migrate:worker --connection <name>` usage for D1-backed worker persistence.

@@ -150,6 +150,14 @@ const buildBaseLogFields = <TPayload>(
   };
 };
 
+const toBullMQPayload = <TPayload>(payload: TPayload): BullMQPayload => {
+  if (typeof payload === 'object' && payload !== null) {
+    return { ...(payload as Record<string, unknown>) };
+  }
+
+  return { payload };
+};
+
 type TrackerApi = {
   started?: (input: {
     queueName: string;
@@ -261,7 +269,7 @@ const checkAndRequeueIfNotDue = async <TPayload>(
     ...baseLogFields,
     dueAt: new Date(timestamp).toISOString(),
   });
-  await Queue.enqueue(queueName, message.payload, driverName);
+  await Queue.enqueue(queueName, toBullMQPayload(message.payload), driverName);
   await Queue.ack(queueName, message.id, driverName);
   return true;
 };
@@ -322,10 +330,7 @@ const onProcessFailure = async <TPayload>(input: {
   if (nextAttempts < input.options.maxAttempts) {
     const retryDelayMs = getRetryDelayMs(nextAttempts);
     retryAt = new Date(Date.now() + retryDelayMs).toISOString();
-    const currentPayload =
-      typeof input.message.payload === 'object' && input.message.payload !== null
-        ? (input.message.payload as Record<string, unknown>)
-        : ({ payload: input.message.payload } as Record<string, unknown>);
+    const currentPayload = toBullMQPayload(input.message.payload);
 
     const payloadForRetry: BullMQPayload = {
       ...currentPayload,
@@ -407,7 +412,7 @@ const processQueueMessage = async <TPayload>(
   queueName: string,
   driverName?: string
 ): Promise<boolean> => {
-  const message = await Queue.dequeue(queueName, driverName);
+  const message = await Queue.dequeue<TPayload>(queueName, driverName);
   if (!message) return false;
 
   const baseLogFields = buildBaseLogFields(message, options.getLogFields);

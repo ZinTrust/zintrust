@@ -99,6 +99,10 @@ const distPackage = {
       types: './src/proxy.d.ts',
       import: './src/proxy.js',
     },
+    './proxy/*': {
+      types: './src/proxy/*.d.ts',
+      import: './src/proxy/*.js',
+    },
     './collections': {
       types: './src/collections/index.d.ts',
       import: './src/collections/index.js',

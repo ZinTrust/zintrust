@@ -12,47 +12,22 @@ type RootPackageJson = {
 type DistPackageJson = {
   name: string;
   version: string;
-  private: boolean;
   type: 'module';
   main: './index.js';
   types: './index.d.ts';
   bin: Record<string, string>;
-  exports: {
-    '.': {
-      types: './index.d.ts';
-      default: './index.js';
-    };
-    './start': {
-      types: './start.d.ts';
-      default: './start.js';
-    };
-    './cli': {
-      types: './src/cli.d.ts';
-      default: './src/cli.js';
-    };
-    './proxy': {
-      types: './src/proxy.d.ts';
-      default: './src/proxy.js';
-    };
-    './collections': {
-      types: './src/collections/index.d.ts';
-      default: './src/collections/index.js';
-    };
-    './helper': {
-      types: './src/helper/index.d.ts';
-      default: './src/helper/index.js';
-    };
-    './node': {
-      types: './src/node.d.ts';
-      default: './src/node.js';
-    };
-    './routes/*': {
-      types: './routes/*.d.ts';
-      default: './routes/*.js';
-    };
-    './package.json': './package.json';
-  };
+  exports: Record<
+    string,
+    | {
+        types: string;
+        default: string;
+      }
+    | string
+  >;
   dependencies: Record<string, unknown>;
+  publishConfig: {
+    access: 'public';
+  };
 };
 
 const readRootPackageJson = (rootPath: string): RootPackageJson => {
@@ -87,7 +62,6 @@ const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
   return {
     name,
     version,
-    private: true,
     type: 'module',
     main: './index.js',
     types: './index.d.ts',
@@ -114,6 +88,10 @@ const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
         types: './src/proxy.d.ts',
         default: './src/proxy.js',
       },
+      './proxy/*': {
+        types: './src/proxy/*.d.ts',
+        default: './src/proxy/*.js',
+      },
       './collections': {
         types: './src/collections/index.d.ts',
         default: './src/collections/index.js',
@@ -133,6 +111,9 @@ const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
       './package.json': './package.json',
     },
     dependencies: coerceDependencies(rootPkg.dependencies),
+    publishConfig: {
+      access: 'public',
+    },
   };
 };
 
@@ -182,8 +163,8 @@ const warnIfMissingDistArtifacts = (distPath: string): void => {
 
 export const DistPackager = Object.freeze({
   /**
-   * Creates minimal metadata so `dist/` can be installed via `file:/.../dist`.
-   * This is intended for local dev/simulate apps, not publishing.
+   * Creates minimal metadata so `dist/` can be installed via `file:/.../dist`
+   * without clobbering the publishable package manifest.
    */
   prepare(distPath: string, rootPath: string = process.cwd()): void {
     if (!fs.existsSync(distPath)) {

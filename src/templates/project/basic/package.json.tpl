@@ -13,7 +13,7 @@
   "dependencies": {
     "@zintrust/core": "^{{coreVersion}}",
     "@zintrust/d1-migrator": "^0.4.6",
-    "@zintrust/governance": "^0.1.25"
+    "@zintrust/governance": "{{governanceVersion}}"
   },
   "devDependencies": {
     "@types/node": "^25.0.3",

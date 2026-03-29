@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.4.27",
+  "version": "0.4.28",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -13,6 +13,49 @@
   "type": "module",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./start": {
+      "types": "./dist/src/start.d.ts",
+      "import": "./dist/src/start.js"
+    },
+    "./cli": {
+      "types": "./dist/src/cli.d.ts",
+      "import": "./dist/src/cli.js"
+    },
+    "./worker-commands": {
+      "types": "./dist/src/worker-commands.d.ts",
+      "import": "./dist/src/worker-commands.js"
+    },
+    "./proxy": {
+      "types": "./dist/src/proxy.d.ts",
+      "import": "./dist/src/proxy.js"
+    },
+    "./proxy/*": {
+      "types": "./dist/src/proxy/*.d.ts",
+      "import": "./dist/src/proxy/*.js"
+    },
+    "./collections": {
+      "types": "./dist/src/collections/index.d.ts",
+      "import": "./dist/src/collections/index.js"
+    },
+    "./helper": {
+      "types": "./dist/src/helper/index.d.ts",
+      "import": "./dist/src/helper/index.js"
+    },
+    "./node": {
+      "types": "./dist/src/node.d.ts",
+      "import": "./dist/src/node.js"
+    },
+    "./routes/*": {
+      "types": "./dist/routes/*.d.ts",
+      "import": "./dist/routes/*.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "zintrust": "./bin/zintrust.ts",
     "zin": "./bin/zin.ts",
