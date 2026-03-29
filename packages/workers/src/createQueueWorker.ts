@@ -97,9 +97,7 @@ const getAttemptsFromMessage = <TPayload>(message: QueueMessage<TPayload>): numb
     typeof message.payload === 'object' && message.payload !== null
       ? normalizeAttempts((message.payload as Record<string, unknown>)['attempts'])
       : 0;
-  const messageAttempts = normalizeAttempts(
-    (message as QueueMessage<TPayload> & { attempts?: number }).attempts
-  );
+  const messageAttempts = normalizeAttempts(message.attempts);
   return Math.max(payloadAttempts, messageAttempts);
 };
 
@@ -263,7 +261,7 @@ const checkAndRequeueIfNotDue = async <TPayload>(
     ...baseLogFields,
     dueAt: new Date(timestamp).toISOString(),
   });
-  await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
+  await Queue.enqueue(queueName, message.payload, driverName);
   await Queue.ack(queueName, message.id, driverName);
   return true;
 };
@@ -409,7 +407,7 @@ const processQueueMessage = async <TPayload>(
   queueName: string,
   driverName?: string
 ): Promise<boolean> => {
-  const message = (await Queue.dequeue(queueName, driverName)) as QueueMessage<TPayload> | null;
+  const message = await Queue.dequeue(queueName, driverName);
   if (!message) return false;
 
   const baseLogFields = buildBaseLogFields(message, options.getLogFields);

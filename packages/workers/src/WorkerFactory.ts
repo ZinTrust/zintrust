@@ -1984,7 +1984,7 @@ const resolveRedisConfigFromEnv = (config: RedisEnvConfig, context: string): Red
 
 const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): RedisConfig => {
   const fallbackDb = Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
-  const redisConfigWithDatabase = config as RedisConfig & { database?: number };
+  const redisConfigWithDatabase = config;
 
   let normalizedDb = fallbackDb;
   if (typeof config.db === 'number') {
@@ -1997,7 +1997,7 @@ const resolveRedisConfigFromDirect = (config: RedisConfig, context: string): Red
     host: requireRedisHost(config.host, context),
     port: config.port,
     db: normalizedDb,
-    password: config.password ?? Env.get('REDIS_PASSWORD', undefined),
+    password: config.password ?? Env.get('REDIS_PASSWORD'),
   };
 };
 
