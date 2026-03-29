@@ -53,16 +53,11 @@ describe('Container/Producer/Deploy patch coverage', () => {
     expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
       1,
       '/project/docker-compose.workers.yml',
-      expect.stringContaining('worker-runner:')
-    );
-    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
-      1,
-      '/project/docker-compose.workers.yml',
       expect.stringContaining('target: worker')
     );
   });
 
-  it('InitContainerCommand writes both runtime and worker compose services with expected defaults', async () => {
+  it('InitContainerCommand writes a single bootstrap-driven worker compose service with expected defaults', async () => {
     const nodeFs = await import('@node-singletons/fs');
     vi.mocked(nodeFs.existsSync).mockReturnValue(false);
 
@@ -82,22 +77,17 @@ describe('Container/Producer/Deploy patch coverage', () => {
     expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
       1,
       '/project/docker-compose.workers.yml',
-      expect.stringContaining('target: runtime')
-    );
-    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
-      1,
-      '/project/docker-compose.workers.yml',
-      expect.stringContaining('worker-runner:')
-    );
-    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
-      1,
-      '/project/docker-compose.workers.yml',
-      expect.stringContaining('image: ${WORKERS_RUNNER_IMAGE:-zintrust-workers-local:latest}')
-    );
-    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
-      1,
-      '/project/docker-compose.workers.yml',
       expect.stringContaining('target: worker')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('WORKER_ENABLED=${WORKER_ENABLED:-true}')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('WORKER_AUTO_START=${WORKER_AUTO_START:-true}')
     );
   });
 
@@ -127,6 +117,13 @@ describe('Container/Producer/Deploy patch coverage', () => {
       '/project/Dockerfile.workers',
       expect.stringContaining(
         'COPY --from=worker-overlay --chown=nodejs:nodejs /overlay/dist/ /app/dist/'
+      )
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      2,
+      '/project/Dockerfile.workers',
+      expect.stringContaining(
+        'CMD ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]'
       )
     );
   });

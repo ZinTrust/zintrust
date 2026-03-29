@@ -7,15 +7,14 @@ import { join } from '@node-singletons/path';
 const DOCKER_COMPOSE_WORKERS_TEMPLATE = `name: zintrust-workers
 
 services:
-  # Workers/Jobs API Service (Port 7772)
-  # Exposes the Workers API to create/manage jobs using the project worker overlay image.
+  # Worker runtime service (Port 7772)
+  # Boots the full ZinTrust server so the worker pages stay reachable while workers auto-start.
   workers-api:
     image: \${WORKERS_IMAGE:-zintrust-workers-local:latest}
     build:
       context: .
       dockerfile: Dockerfile.workers
-      target: runtime
-    command: ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]
+      target: worker
     environment:
       # Runtime
       - NODE_ENV=\${NODE_ENV:-development}
@@ -30,8 +29,8 @@ services:
       - LOG_LEVEL=\${LOG_LEVEL:-info}
 
       # Workers & Queue
-      - WORKER_ENABLED=\${WORKER_ENABLED:-false}
-      - WORKER_AUTO_START=\${WORKER_AUTO_START:-false}
+  - WORKER_ENABLED=\${WORKER_ENABLED:-true}
+  - WORKER_AUTO_START=\${WORKER_AUTO_START:-true}
       - QUEUE_ENABLED=true
       - QUEUE_MONITOR_ENABLED=\${QUEUE_MONITOR_ENABLED:-false}
       - QUEUE_MONITOR_MIDDLEWARE=\${QUEUE_MONITOR_MIDDLEWARE:-}
@@ -97,92 +96,6 @@ services:
     ports:
       - '7772:7772'
 
-  # Dedicated background worker runner.
-  # Uses the same project overlay image but boots the worker target.
-  worker-runner:
-    image: \${WORKERS_RUNNER_IMAGE:-zintrust-workers-local:latest}
-    build:
-      context: .
-      dockerfile: Dockerfile.workers
-      target: worker
-    environment:
-      # Runtime
-      - NODE_ENV=\${NODE_ENV:-development}
-      - HOST=0.0.0.0
-
-      # Application
-      - APP_NAME=\${APP_NAME:-ZinTrust}
-      - APP_KEY=\${APP_KEY}
-      - ENCRYPTION_CIPHER=\${ENCRYPTION_CIPHER:-aes-256-cbc}
-      - LOG_LEVEL=\${LOG_LEVEL:-info}
-
-      # Workers & Queue
-      - DOCKER_WORKER=true
-      - WORKER_ENABLED=\${WORKER_ENABLED:-true}
-      - WORKER_AUTO_START=\${WORKER_AUTO_START:-true}
-      - QUEUE_ENABLED=true
-      - QUEUE_MONITOR_ENABLED=\${QUEUE_MONITOR_ENABLED:-false}
-      - QUEUE_MONITOR_MIDDLEWARE=\${QUEUE_MONITOR_MIDDLEWARE:-}
-      - WORKER_PERSISTENCE_DRIVER=\${WORKER_PERSISTENCE_DRIVER:-redis}
-      - WORKER_PERSISTENCE_DB_CONNECTION=\${WORKER_PERSISTENCE_DB_CONNECTION:-mysql}
-      - WORKER_PERSISTENCE_REDIS_KEY_PREFIX=\${WORKER_PERSISTENCE_REDIS_KEY_PREFIX}
-      - QUEUE_DRIVER=\${QUEUE_DRIVER:-redis}
-      - QUEUE_CONNECTION=\${QUEUE_CONNECTION:-redis}
-      - CACHE_DRIVER=\${CACHE_DRIVER:-redis}
-
-      # Redis
-      - REDIS_HOST=\${DOCKER_REDIS_HOST:-host.docker.internal}
-      - REDIS_PORT=\${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=\${REDIS_PASSWORD}
-      - REDIS_QUEUE_DB=\${REDIS_QUEUE_DB:-1}
-
-      # Database
-      - DB_CONNECTION=\${DB_CONNECTION:-postgres}
-      - DB_HOST=\${DOCKER_DB_HOST:-host.docker.internal}
-      - DB_PORT=\${DB_PORT:-3306}
-      - DB_DATABASE=\${DB_DATABASE:-zintrust}
-      - DB_USERNAME=\${DB_USERNAME:-zintrust}
-      - DB_PASSWORD=\${DB_PASSWORD:-}
-
-      # SMTP Mail
-      - MAIL_DRIVER=\${MAIL_DRIVER:-smtp}
-      - MAIL_CONNECTION=\${MAIL_CONNECTION:-smtp}
-      - MAIL_HOST=\${MAIL_HOST}
-      - MAIL_PORT=\${MAIL_PORT:-587}
-      - MAIL_SECURE=\${MAIL_SECURE:-false}
-      - MAIL_USERNAME=\${MAIL_USERNAME}
-      - MAIL_PASSWORD=\${MAIL_PASSWORD}
-      - MAIL_FROM_ADDRESS=\${MAIL_FROM_ADDRESS}
-      - MAIL_FROM_NAME=\${MAIL_FROM_NAME:-ZinTrust}
-
-      # PostgreSQL
-      - DB_PORT_POSTGRESQL=\${DB_PORT_POSTGRESQL:-5432}
-      - DB_DATABASE_POSTGRESQL=\${DB_DATABASE_POSTGRESQL:-zintrust}
-      - DB_USERNAME_POSTGRESQL=\${DB_USERNAME_POSTGRESQL:-zintrust}
-      - DB_PASSWORD_POSTGRESQL=\${DB_PASSWORD_POSTGRESQL:-}
-
-      # MySQL
-      - DB_PORT_MYSQL=\${DB_PORT_MYSQL:-3306}
-      - DB_DATABASE_MYSQL=\${DB_DATABASE_MYSQL:-zintrust}
-      - DB_USERNAME_MYSQL=\${DB_USERNAME_MYSQL:-zintrust}
-      - DB_PASSWORD_MYSQL=\${DB_PASSWORD_MYSQL:-}
-
-      # Cloudflare D1
-      - D1_DATABASE_ID=\${D1_DATABASE_ID}
-      - D1_ACCOUNT_ID=\${D1_ACCOUNT_ID}
-      - D1_API_TOKEN=\${D1_API_TOKEN}
-      - D1_REMOTE_URL=\${D1_REMOTE_URL}
-      - D1_REMOTE_KEY_ID=\${D1_REMOTE_KEY_ID}
-      - D1_REMOTE_SECRET=\${D1_REMOTE_SECRET}
-
-      # Cloudflare KV
-      - KV_NAMESPACE_ID=\${KV_NAMESPACE_ID}
-      - KV_ACCOUNT_ID=\${KV_ACCOUNT_ID}
-      - KV_API_TOKEN=\${KV_API_TOKEN}
-      - KV_REMOTE_URL=\${KV_REMOTE_URL}
-      - KV_REMOTE_KEY_ID=\${KV_REMOTE_KEY_ID}
-      - KV_REMOTE_SECRET=\${KV_REMOTE_SECRET}
-
 `;
 
 const DOCKERFILE_TEMPLATE = String.raw`# Multi-stage worker overlay image.
@@ -231,15 +144,15 @@ COPY --from=worker-overlay --chown=nodejs:nodejs /overlay/dist/ /app/dist/
 
 FROM runtime AS worker
 
-ENV DOCKER_WORKER=true
 ENV WORKER_ENABLED=true
 ENV WORKER_AUTO_START=true
 ENV QUEUE_ENABLED=true
-ENV PORT=0
+ENV HOST=0.0.0.0
+ENV PORT=7772
 
 HEALTHCHECK NONE
 
-CMD ["node", "dist/bin/zin.js", "worker:start-all"]
+CMD ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]
 `;
 
 const backupSuffix = (): string => new Date().toISOString().replaceAll(/[:.]/g, '-');
@@ -307,7 +220,7 @@ export const InitContainerCommand = Object.freeze({
         Logger.info('✅ Container worker scaffolding complete.');
         Logger.info('Run with: docker compose -f docker-compose.workers.yml up');
         Logger.info(
-          'Build worker runner with: docker build -f Dockerfile.workers --target worker .'
+          'Build worker runtime with: docker build -f Dockerfile.workers --target worker .'
         );
         await Promise.resolve();
       },

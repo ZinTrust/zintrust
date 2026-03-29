@@ -78,11 +78,10 @@ zin deploy:ccp -e staging
 
 ### `zin init:cw` Output
 
-`zin init:cw` now generates a two-service worker stack plus a dedicated overlay Dockerfile:
+`zin init:cw` now generates a single-service worker stack plus a dedicated overlay Dockerfile:
 
 - `docker-compose.workers.yml`
-  - `workers-api`: built from `Dockerfile.workers` with target `runtime`
-  - `worker-runner`: built from `Dockerfile.workers` with target `worker`
+  - `workers-api`: built from `Dockerfile.workers` with target `worker`, serves the worker pages, and auto-starts eligible workers through the normal bootstrap path
 - `Dockerfile.workers`
   - builds the local project with `npm run build`
   - copies compiled `dist/app/Workers` artifacts into the final image when present
@@ -92,9 +91,9 @@ This is the canonical way to extend the published `zintrust/zintrust` image whil
 projects choose either file-backed worker discovery from `app/Workers` or explicit bootstrap via
 `src/zintrust.workers.ts`.
 
-The generated compose file tags the project overlay result as `WORKERS_IMAGE` and `WORKERS_RUNNER_IMAGE`.
-Those names refer to the built overlay image, not the upstream base image. The upstream base remains
-`zintrust/zintrust` inside `Dockerfile.workers`.
+The generated compose file tags the project overlay result as `WORKERS_IMAGE`. That name refers to the
+built overlay image, not the upstream base image. The upstream base remains `zintrust/zintrust` inside
+`Dockerfile.workers`.
 
 ## Container Workers Commands
 

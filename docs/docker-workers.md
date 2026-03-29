@@ -37,15 +37,13 @@ This scaffolds:
 The generated `Dockerfile.workers` builds the local project with `npm run build`, then overlays the
 compiled app worker artifacts onto the published `zintrust/zintrust` base image.
 
-The generated compose stack now includes two services:
+The generated compose stack now includes a single service:
 
-- `workers-api`: the HTTP/API container built from the `runtime` target
-- `worker-runner`: the dedicated background worker container built from the `worker` target
+- `workers-api`: a bootstrap-driven runtime built from the `worker` target that serves the worker pages and auto-starts eligible workers in the same process
 
-The image names in `docker-compose.workers.yml` are the overlay result images:
+The image name in `docker-compose.workers.yml` is the overlay result image:
 
 - `WORKERS_IMAGE` defaults to `zintrust-workers-local:latest`
-- `WORKERS_RUNNER_IMAGE` defaults to `zintrust-workers-local:latest`
 
 These are not the published base image names. The scaffolded overlay still uses `FROM zintrust/zintrust:latest`
 inside `Dockerfile.workers`, then layers your compiled project workers onto that base.
@@ -59,20 +57,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.workers
-      target: runtime
-    command: ['node', '--experimental-specifier-resolution=node', 'dist/src/boot/bootstrap.js']
+      target: worker
     ports:
       - '7772:7772'
-
-  worker-runner:
-    image: ${WORKERS_RUNNER_IMAGE:-zintrust-workers-local:latest}
-    build:
-      context: .
-      dockerfile: Dockerfile.workers
-      target: worker
 ```
 
-Both services share the same overlay build. The difference is only the Docker target they boot.
+The generated service uses the worker target so the container boots the full HTTP runtime and starts workers in the same process.
 
 For fresh apps, the simplest Docker worker flow is code-first:
 
@@ -174,13 +164,13 @@ COPY --from=worker-overlay /overlay/dist/ /app/dist/
 
 FROM runtime AS worker
 
-ENV DOCKER_WORKER=true
 ENV WORKER_ENABLED=true
 ENV WORKER_AUTO_START=true
 ENV QUEUE_ENABLED=true
-ENV PORT=0
+ENV HOST=0.0.0.0
+ENV PORT=7772
 
-CMD ["node", "dist/bin/zin.js", "worker:start-all"]
+CMD ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]
 ```
 
 Why this is the supported path:
@@ -196,7 +186,7 @@ Why this is the supported path:
 docker compose -f docker-compose.workers.yml up -d
 ```
 
-That command now starts both the Workers API container and the dedicated worker runner.
+That command now starts a single bootstrap-driven worker runtime that serves the worker pages and auto-starts eligible workers.
 
 ### Schedules stack
 
@@ -208,7 +198,6 @@ docker compose -f docker-compose.schedules.yml up -d
 
 ```bash
 WORKERS_IMAGE=myorg/my-app-workers:<version> \
-WORKERS_RUNNER_IMAGE=myorg/my-app-workers:<version> \
 docker compose -f docker-compose.workers.yml up -d
 ```
 

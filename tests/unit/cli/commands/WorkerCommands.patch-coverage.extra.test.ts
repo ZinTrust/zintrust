@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Logger } from '@config/logger';
+
 const createHealthyWorkersModule = (): {
   loadWorkersModule: ReturnType<typeof vi.fn>;
 } => ({
@@ -126,5 +128,116 @@ describe('WorkerCommands extra patch coverage', () => {
     await expect(WorkerCommands.createWorkerListCommand().execute({})).rejects.toThrow('exit:1');
 
     exitSpy.mockRestore();
+  });
+
+  it('warns when the project worker entrypoint import fails', async () => {
+    vi.doMock('@runtime/WorkerProjectAutoImports', () => ({
+      WorkerProjectAutoImports: {
+        tryImportProjectWorkerEntrypoint: vi.fn(async () => ({
+          ok: false,
+          reason: 'import-failed',
+          errorMessage: 'boom',
+        })),
+      },
+    }));
+    vi.doMock('@runtime/WorkersModule', createHealthyWorkersModule);
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerListCommand().execute({});
+
+    expect(Logger.warn).toHaveBeenCalledWith('Project worker entrypoint import failed: boom');
+  });
+
+  it('uses workers module selectAutoStartNames when available', async () => {
+    process.env['WORKER_AUTO_START'] = 'true';
+
+    const selectAutoStartNames = vi.fn(() => ({ names: [], source: 'none' as const }));
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerFactory: {
+          list: () => [],
+          listPersisted: async () => [],
+          listPersistedRecords: async () => [{ name: 'persisted-worker', autoStart: true }],
+          listFileBackedRecords: async () => [{ name: 'file-worker', autoStart: true }],
+          getHealth: async () => ({ score: 99, status: 'healthy' }),
+          getMetrics: async () => ({ processed: 1 }),
+          get: async () => null,
+          stop: async () => undefined,
+          restart: async () => undefined,
+          start: async () => undefined,
+          startFromPersisted: async () => undefined,
+        },
+        WorkerRegistry: { status: () => null },
+        HealthMonitor: { getSummary: async () => ({ details: [] }) },
+        ResourceMonitor: {
+          getCurrentUsage: () => ({
+            cpu: 1,
+            memory: { percent: 2, used: 3 },
+            cost: { hourly: 4, daily: 5 },
+          }),
+        },
+        selectAutoStartNames,
+      })),
+    }));
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerStartAllCommand().execute({});
+
+    expect(selectAutoStartNames).toHaveBeenCalledWith(
+      [{ name: 'persisted-worker', autoStart: true }],
+      [{ name: 'file-worker', autoStart: true }],
+      Logger.warn
+    );
+    expect(Logger.info).toHaveBeenCalledWith(
+      'No auto-start eligible persisted or file-backed workers found.'
+    );
+
+    delete process.env['WORKER_AUTO_START'];
+  });
+
+  it('falls back to persisted auto-start records when selector is unavailable', async () => {
+    process.env['WORKER_AUTO_START'] = 'true';
+
+    const startFromPersisted = vi.fn(async () => undefined);
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerFactory: {
+          list: () => [],
+          listPersisted: async () => ['persisted-worker'],
+          listPersistedRecords: async () => [
+            { name: 'persisted-worker', autoStart: true, activeStatus: true },
+          ],
+          getHealth: async () => ({ score: 99, status: 'healthy' }),
+          getMetrics: async () => ({ processed: 1 }),
+          get: async () => null,
+          stop: async () => undefined,
+          restart: async () => undefined,
+          start: async () => undefined,
+          startFromPersisted,
+        },
+        WorkerRegistry: { status: () => null },
+        HealthMonitor: { getSummary: async () => ({ details: [] }) },
+        ResourceMonitor: {
+          getCurrentUsage: () => ({
+            cpu: 1,
+            memory: { percent: 2, used: 3 },
+            cost: { hourly: 4, daily: 5 },
+          }),
+        },
+      })),
+    }));
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerStartAllCommand().execute({});
+
+    expect(startFromPersisted).toHaveBeenCalledWith('persisted-worker');
+    expect(Logger.info).toHaveBeenCalledWith(
+      'Worker start-all summary',
+      expect.objectContaining({ started: 1, skipped: 0, failed: 0, total: 1 })
+    );
+
+    delete process.env['WORKER_AUTO_START'];
   });
 });

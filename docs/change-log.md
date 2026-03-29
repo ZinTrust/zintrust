@@ -4,11 +4,11 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-28
 
+- Updated the container worker scaffold again so `docker-compose.workers.yml` now boots a single bootstrap-driven `workers-api` service that serves the worker pages and auto-starts eligible workers in the same process, replacing the previous split `workers-api` plus `worker-runner` default.
 - Updated `@zintrust/workers` so worker discovery can fall back to project worker files when persistence is empty, which lets fresh projects surface worker metadata and details without first creating worker rows in the database.
 - Added an explicit `workerDefinition` starter worker template for fresh apps, extended worker auto-start to use file-backed definitions only when persisted auto-start candidates are absent, and documented direct `zin migrate:worker --connection <name>` usage for D1-backed worker persistence.
 - Added an optional `src/zintrust.workers.ts` project worker bootstrap file for fresh apps, and updated Docker/worker startup so the worker image and `worker:start-all` can auto-load that entrypoint while also falling back to file-backed worker definitions when persisted worker rows are absent.
 - Updated the container worker scaffold to generate a dedicated `Dockerfile.workers` overlay image that builds fresh projects with `npm run build`, then layers compiled worker artifacts onto the published `zintrust/zintrust` base image so developers can use either `app/Workers` discovery or an optional `src/zintrust.workers.ts` entrypoint.
-- Updated the container worker scaffold again so `docker-compose.workers.yml` now boots both the `workers-api` runtime target and a dedicated `worker-runner` target from the same overlay image by default.
 
 ## 2026-03-27
 

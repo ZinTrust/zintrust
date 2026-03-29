@@ -141,9 +141,6 @@ const resolvePackageSpecifierUrl = (specifier: string): string | null => {
   }
 };
 
-const escapeRegExp = (value: string): string =>
-  value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-
 const rewriteProcessorImports = (code: string): string => {
   const replacements: Array<{ from: string; to: string }> = [];
   const coreUrl = resolvePackageSpecifierUrl('@zintrust/core');
@@ -155,8 +152,8 @@ const rewriteProcessorImports = (code: string): string => {
 
   let updated = code;
   for (const { from, to } of replacements) {
-    const pattern = new RegExp(String.raw`(['"])${escapeRegExp(from)}\1`, 'g');
-    updated = updated.replace(pattern, `$1${to}$1`);
+    updated = updated.replaceAll(`'${from}'`, `'${to}'`);
+    updated = updated.replaceAll(`"${from}"`, `"${to}"`);
   }
 
   return updated;

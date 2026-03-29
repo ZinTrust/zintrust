@@ -1,8 +1,8 @@
 name: zintrust-workers
 
 services:
-  # Workers/Jobs API Service (Port 7772)
-  # Exposes the Workers API to create/manage jobs
+  # Worker runtime service (Port 7772)
+  # Boots the full server so worker pages stay reachable while workers auto-start.
   workers-api:
     image: ${ZINTRUST_IMAGE:-zintrust/zintrust:latest}
     build:
@@ -46,7 +46,7 @@ services:
 
       # Workers & Queue
       - WORKER_ENABLED=${WORKER_ENABLED:-true}
-      - WORKER_AUTO_START=${WORKER_AUTO_START:-false}
+      - WORKER_AUTO_START=${WORKER_AUTO_START:-true}
       - QUEUE_ENABLED=true
       - QUEUE_MONITOR_ENABLED=${QUEUE_MONITOR_ENABLED:-false}
       - QUEUE_MONITOR_MIDDLEWARE=${QUEUE_MONITOR_MIDDLEWARE:-}
