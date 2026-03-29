@@ -36,6 +36,10 @@ export default defineConfig({
       '@zintrust/core/start': path.resolve(__dirname, './src/start.ts'),
       '@zintrust/core/cli': path.resolve(__dirname, './src/cli.ts'),
       '@zintrust/core': path.resolve(__dirname, './src/index.ts'),
+      '@zintrust/client-rds-data': path.resolve(
+        __dirname,
+        './packages/client-rds-data/src/index.ts'
+      ),
       '@zintrust/d1-migrator': path.resolve(__dirname, './packages/d1-migrator/src/index.ts'),
       '@zintrust/db-d1': path.resolve(__dirname, './packages/db-d1/src/index.ts'),
       '@zintrust/db-mysql': path.resolve(__dirname, './packages/db-mysql/src/index.ts'),
