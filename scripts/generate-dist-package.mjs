@@ -87,6 +87,10 @@ const distPackage = {
       types: './src/start.d.ts',
       import: './src/start.js',
     },
+    './boot': {
+      types: './src/boot.d.ts',
+      import: './src/boot.js',
+    },
     './cli': {
       types: './src/cli.d.ts',
       import: './src/cli.js',

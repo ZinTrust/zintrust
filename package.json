@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/core",
-  "version": "0.4.31",
+  "version": "0.4.32",
   "description": "Production-grade TypeScript backend framework for JavaScript",
   "homepage": "https://zintrust.com",
   "repository": {
@@ -21,6 +21,10 @@
     "./start": {
       "types": "./dist/src/start.d.ts",
       "import": "./dist/src/start.js"
+    },
+    "./boot": {
+      "types": "./dist/src/boot.d.ts",
+      "import": "./dist/src/boot.js"
     },
     "./cli": {
       "types": "./dist/src/cli.d.ts",

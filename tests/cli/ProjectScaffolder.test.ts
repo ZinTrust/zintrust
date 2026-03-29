@@ -80,6 +80,10 @@ describe('ProjectScaffolder Templates', () => {
     const workersEntrypoint = template?.files['src/zintrust.workers.ts'] ?? '';
     expect(workersEntrypoint).toContain("'@app/Workers/ExampleWorker'");
     expect(workersEntrypoint).toContain('__zintrustGeneratedWorkerStub');
+
+    const bootEntrypoint = template?.files['src/boot/bootstrap.ts'] ?? '';
+    expect(bootEntrypoint).toContain("'@zintrust/core/boot'");
+    expect(bootEntrypoint).toContain('export {};');
   });
 });
 
@@ -517,6 +521,7 @@ describe('ProjectScaffolder Full Scaffolding', () => {
     expect(result.filesCreated).toBeGreaterThan(0);
     expect(result.directoriesCreated).toBeGreaterThan(0);
     expect(FileGenerator.directoryExists(path.join(testDir, 'my-app'))).toBe(true);
+    expect(fs.existsSync(path.join(testDir, 'my-app', 'src/boot/bootstrap.ts'))).toBe(true);
   });
 
   it('should fail with invalid options', async () => {

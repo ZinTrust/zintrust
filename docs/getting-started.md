@@ -30,6 +30,21 @@ If you’re targeting a different runtime:
 
 The canonical CLI is `zin`. `z` is a shorthand alias.
 
+## Reuse The Stock Bootstrap
+
+If your project needs a `src/boot/bootstrap.ts` entry for Docker, Node, or custom startup layout, you do not need to copy the full ZinTrust bootstrap implementation into your app.
+
+Use a thin bootstrap file that delegates to the published core boot entrypoint:
+
+```typescript
+// src/boot/bootstrap.ts
+import '@zintrust/core/boot';
+
+export {};
+```
+
+Use a full custom bootstrap only when you intentionally need behavior different from the stock ZinTrust bootstrap. If you replace it completely, you are also responsible for running any worker startup lifecycle that your app depends on.
+
 ## Install adapters (database/cache/etc.)
 
 ZinTrust keeps the core package minimal. Integrations like database drivers are installed explicitly via adapter packages.

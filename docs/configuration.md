@@ -63,18 +63,18 @@ If validation fails, boot throws a structured `ConfigError`.
 
 ## Core Application
 
-| Variable          | Type       | Default             | Notes                                                             |
-| ----------------- | ---------- | ------------------- | ----------------------------------------------------------------- |
-| `NODE_ENV`        | string     | `development`       | Common values: `development`, `production`, `testing`             |
-| `APP_NAME`        | string     | `ZinTrust `         | Used in responses and logs                                        |
-| `APP_KEY`         | string     | `""`                | Required in production (>= 16 chars)                              |
-| `APP_PORT`        | int        | `3000`              | Exposed as `Env.PORT`                                             |
-| `PORT`            | int        | `3000`              | Used by `src/boot/bootstrap.ts`; keep in sync with `APP_PORT`     |
-| `HOST`            | string     | `localhost`         | Bind host                                                         |
-| `DEBUG`           | bool       | `false`             | Debug behavior in some modules                                    |
-| `APP_TIMEZONE`    | string     | `UTC`               | Used by `src/config/app.ts`                                       |
-| `REQUEST_TIMEOUT` | int        | `30000`             | Milliseconds                                                      |
-| `MAX_BODY_SIZE`   | int/string | `10485760` / `10mb` | `Env.MAX_BODY_SIZE` is bytes; `appConfig.maxBodySize` is a string |
+| Variable          | Type       | Default             | Notes                                                                                                                                           |
+| ----------------- | ---------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`        | string     | `development`       | Common values: `development`, `production`, `testing`                                                                                           |
+| `APP_NAME`        | string     | `ZinTrust `         | Used in responses and logs                                                                                                                      |
+| `APP_KEY`         | string     | `""`                | Required in production (>= 16 chars)                                                                                                            |
+| `APP_PORT`        | int        | `3000`              | Exposed as `Env.PORT`                                                                                                                           |
+| `PORT`            | int        | `3000`              | Used by the standard boot entrypoint, including a thin `src/boot/bootstrap.ts` that imports `@zintrust/core/boot`; keep in sync with `APP_PORT` |
+| `HOST`            | string     | `localhost`         | Bind host                                                                                                                                       |
+| `DEBUG`           | bool       | `false`             | Debug behavior in some modules                                                                                                                  |
+| `APP_TIMEZONE`    | string     | `UTC`               | Used by `src/config/app.ts`                                                                                                                     |
+| `REQUEST_TIMEOUT` | int        | `30000`             | Milliseconds                                                                                                                                    |
+| `MAX_BODY_SIZE`   | int/string | `10485760` / `10mb` | `Env.MAX_BODY_SIZE` is bytes; `appConfig.maxBodySize` is a string                                                                               |
 
 ## Logging
 

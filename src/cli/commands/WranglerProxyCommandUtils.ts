@@ -47,10 +47,12 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
     aliases: input.aliases,
     description: input.description,
     addOptions: input.addOptions,
-    execute: async (options: TOptions): Promise<void> => {
-      await maybeRunProxyWatchMode(options.watch);
+    execute: async (options: CommandOptions): Promise<void> => {
+      const typedOptions = options as TOptions;
 
-      const port = parseIntOption(options.port, 'port');
+      await maybeRunProxyWatchMode(typedOptions.watch);
+
+      const port = parseIntOption(typedOptions.port, 'port');
       const cwd = process.cwd();
       const entrypoint = ensureProxyEntrypoint({
         cwd,
@@ -58,10 +60,10 @@ export const createWranglerProxyCommand = <TValues, TOptions extends WranglerPro
         exportName: input.exportName,
         moduleSpecifier: input.moduleSpecifier,
       });
-      const configPath = join(cwd, resolveConfigPath(options.config, input.defaultConfig));
+      const configPath = join(cwd, resolveConfigPath(typedOptions.config, input.defaultConfig));
       const result = ensureWranglerConfig({
         configPath,
-        options,
+        options: typedOptions,
         envName: input.envName,
         resolveValues: input.resolveValues,
         renderEnvBlock: input.renderEnvBlock,
