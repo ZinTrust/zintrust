@@ -1,23 +1,15 @@
-import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { BaseCommand } from '@cli/BaseCommand';
-import { maybeRunProxyWatchMode, parseIntOption } from '@cli/commands/ProxyCommandUtils';
+import type { IBaseCommand } from '@cli/BaseCommand';
+import { findQuotedValue, trimNonEmptyOption } from '@cli/commands/ProxyScaffoldUtils';
 import {
-  ensureProxyEntrypoint,
-  ensureWranglerConfig,
-  findQuotedValue,
-  resolveConfigPath,
-  trimNonEmptyOption,
-} from '@cli/commands/ProxyScaffoldUtils';
-import { SpawnUtil } from '@cli/utils/spawn';
+  addWranglerProxyBaseOptions,
+  createWranglerProxyCommand,
+  type WranglerProxyCommandOptions,
+} from '@cli/commands/WranglerProxyCommandUtils';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
-type D1ProxyCommandOptions = CommandOptions & {
-  config?: string;
-  port?: string;
-  watch?: boolean;
+type D1ProxyCommandOptions = WranglerProxyCommandOptions & {
   binding?: string;
   databaseName?: string;
   databaseId?: string;
@@ -110,9 +102,7 @@ const warnOnPlaceholderDatabaseId = (values: D1ProxyConfigValues): void => {
 };
 
 const addOptions = (command: Command): void => {
-  command.option('-c, --config <path>', 'Wrangler config file', DEFAULT_CONFIG);
-  command.option('--port <port>', 'Local Wrangler dev port');
-  command.option('--watch', 'Auto-restart proxy on file changes');
+  addWranglerProxyBaseOptions(command, DEFAULT_CONFIG);
   command.option('--binding <name>', 'D1 binding name', DEFAULT_BINDING);
   command.option('--database-name <name>', 'Cloudflare D1 database name');
   command.option('--database-id <id>', 'Cloudflare D1 database id');
@@ -125,61 +115,21 @@ const addOptions = (command: Command): void => {
 
 export const D1ProxyCommand = Object.freeze({
   create(): IBaseCommand {
-    return BaseCommand.create({
+    return createWranglerProxyCommand<D1ProxyConfigValues, D1ProxyCommandOptions>({
       name: 'proxy:d1',
       aliases: ['d1:proxy'],
       description:
         'Start the local Cloudflare D1 proxy Worker via Wrangler and scaffold env.d1-proxy in wrangler.jsonc when missing',
+      envName: 'd1-proxy',
+      defaultConfig: DEFAULT_CONFIG,
+      compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
+      entryFile: DEFAULT_ENTRY_FILE,
+      exportName: 'ZintrustD1Proxy',
+      moduleSpecifier: CORE_PROXY_MODULE,
       addOptions,
-      execute: async (options: D1ProxyCommandOptions): Promise<void> => {
-        await maybeRunProxyWatchMode(options.watch);
-        const port = parseIntOption(options.port, 'port');
-
-        const cwd = process.cwd();
-        const entrypoint = ensureProxyEntrypoint({
-          cwd,
-          entryFile: DEFAULT_ENTRY_FILE,
-          exportName: 'ZintrustD1Proxy',
-          moduleSpecifier: CORE_PROXY_MODULE,
-        });
-        const configPath = join(cwd, resolveConfigPath(options.config, DEFAULT_CONFIG));
-        const result = ensureWranglerConfig({
-          configPath,
-          options,
-          envName: 'd1-proxy',
-          resolveValues: resolveConfigValues,
-          renderEnvBlock: renderD1ProxyEnvBlock,
-          compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
-        });
-
-        if (entrypoint.created) {
-          Logger.info(`Created ${entrypoint.entryFilePath} from @zintrust/core proxy entrypoint.`);
-        }
-
-        if (result.createdFile) {
-          Logger.info(`Created ${configPath} with a default d1-proxy environment.`);
-        } else if (result.insertedEnv) {
-          Logger.info(`Added env.d1-proxy to ${configPath}.`);
-        }
-
-        warnOnPlaceholderDatabaseId(result.values);
-
-        const args = ['dev', '--config', configPath, '--env', 'd1-proxy'];
-        if (port !== undefined) {
-          args.push('--port', String(port));
-        }
-
-        const exitCode = await SpawnUtil.spawnAndWait({
-          command: 'wrangler',
-          args,
-          env: process.env,
-          forwardSignals: false,
-        });
-
-        if (exitCode !== 0) {
-          process.exit(exitCode);
-        }
-      },
+      resolveValues: resolveConfigValues,
+      renderEnvBlock: renderD1ProxyEnvBlock,
+      afterConfigResolved: warnOnPlaceholderDatabaseId,
     });
   },
 });

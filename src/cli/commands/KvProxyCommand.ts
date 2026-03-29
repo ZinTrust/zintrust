@@ -1,23 +1,15 @@
-import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
-import { BaseCommand } from '@cli/BaseCommand';
-import { maybeRunProxyWatchMode, parseIntOption } from '@cli/commands/ProxyCommandUtils';
+import type { IBaseCommand } from '@cli/BaseCommand';
+import { findQuotedValue, trimNonEmptyOption } from '@cli/commands/ProxyScaffoldUtils';
 import {
-  ensureProxyEntrypoint,
-  ensureWranglerConfig,
-  findQuotedValue,
-  resolveConfigPath,
-  trimNonEmptyOption,
-} from '@cli/commands/ProxyScaffoldUtils';
-import { SpawnUtil } from '@cli/utils/spawn';
+  addWranglerProxyBaseOptions,
+  createWranglerProxyCommand,
+  type WranglerProxyCommandOptions,
+} from '@cli/commands/WranglerProxyCommandUtils';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
-type KvProxyCommandOptions = CommandOptions & {
-  config?: string;
-  port?: string;
-  watch?: boolean;
+type KvProxyCommandOptions = WranglerProxyCommandOptions & {
   binding?: string;
   namespaceId?: string;
   previewId?: string;
@@ -99,9 +91,7 @@ const warnOnPlaceholderNamespaceId = (values: KvProxyConfigValues): void => {
 };
 
 const addOptions = (command: Command): void => {
-  command.option('-c, --config <path>', 'Wrangler config file', DEFAULT_CONFIG);
-  command.option('--port <port>', 'Local Wrangler dev port');
-  command.option('--watch', 'Auto-restart proxy on file changes');
+  addWranglerProxyBaseOptions(command, DEFAULT_CONFIG);
   command.option('--binding <name>', 'KV binding name', DEFAULT_BINDING);
   command.option('--namespace-id <id>', 'Cloudflare KV namespace id');
   command.option('--preview-id <id>', 'Cloudflare KV preview namespace id');
@@ -109,61 +99,21 @@ const addOptions = (command: Command): void => {
 
 export const KvProxyCommand = Object.freeze({
   create(): IBaseCommand {
-    return BaseCommand.create({
+    return createWranglerProxyCommand<KvProxyConfigValues, KvProxyCommandOptions>({
       name: 'proxy:kv',
       aliases: ['kv:proxy'],
       description:
         'Start the local Cloudflare KV proxy Worker via Wrangler and scaffold env.kv-proxy in wrangler.jsonc when missing',
+      envName: 'kv-proxy',
+      defaultConfig: DEFAULT_CONFIG,
+      compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
+      entryFile: DEFAULT_ENTRY_FILE,
+      exportName: 'ZintrustKvProxy',
+      moduleSpecifier: CORE_PROXY_MODULE,
       addOptions,
-      execute: async (options: KvProxyCommandOptions): Promise<void> => {
-        await maybeRunProxyWatchMode(options.watch);
-        const port = parseIntOption(options.port, 'port');
-
-        const cwd = process.cwd();
-        const entrypoint = ensureProxyEntrypoint({
-          cwd,
-          entryFile: DEFAULT_ENTRY_FILE,
-          exportName: 'ZintrustKvProxy',
-          moduleSpecifier: CORE_PROXY_MODULE,
-        });
-        const configPath = join(cwd, resolveConfigPath(options.config, DEFAULT_CONFIG));
-        const result = ensureWranglerConfig({
-          configPath,
-          options,
-          envName: 'kv-proxy',
-          resolveValues: resolveConfigValues,
-          renderEnvBlock: renderKvProxyEnvBlock,
-          compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
-        });
-
-        if (entrypoint.created) {
-          Logger.info(`Created ${entrypoint.entryFilePath} from @zintrust/core proxy entrypoint.`);
-        }
-
-        if (result.createdFile) {
-          Logger.info(`Created ${configPath} with a default kv-proxy environment.`);
-        } else if (result.insertedEnv) {
-          Logger.info(`Added env.kv-proxy to ${configPath}.`);
-        }
-
-        warnOnPlaceholderNamespaceId(result.values);
-
-        const args = ['dev', '--config', configPath, '--env', 'kv-proxy'];
-        if (port !== undefined) {
-          args.push('--port', String(port));
-        }
-
-        const exitCode = await SpawnUtil.spawnAndWait({
-          command: 'wrangler',
-          args,
-          env: process.env,
-          forwardSignals: false,
-        });
-
-        if (exitCode !== 0) {
-          process.exit(exitCode);
-        }
-      },
+      resolveValues: resolveConfigValues,
+      renderEnvBlock: renderKvProxyEnvBlock,
+      afterConfigResolved: warnOnPlaceholderNamespaceId,
     });
   },
 });
