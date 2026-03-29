@@ -5,6 +5,7 @@
 
 import { EnvFileBackfill } from '@cli/env/EnvFileBackfill';
 import { EnvData } from '@cli/scaffolding/env';
+import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { Logger } from '@config/logger';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { randomBytes } from '@node-singletons/crypto';
@@ -72,16 +73,6 @@ const loadCoreVersion = (): string => {
   } catch {
     return '0.0.0';
   }
-};
-
-const toCompatibleGovernanceVersion = (version: string): string => {
-  const match = /(\d+)\.(\d+)\.(\d+)/.exec(version);
-  if (match !== null) {
-    const [, major, minor] = match;
-    return `^${major}.${minor}.0`;
-  }
-
-  return '^0.4.0';
 };
 
 const createDirectories = (projectPath: string, directories: string[]): number => {

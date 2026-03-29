@@ -7,6 +7,7 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
 import { VersionChecker } from '@cli/services/VersionChecker';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolvePackageManager } from '@common/index';
@@ -84,26 +85,16 @@ const ensureDevDependency = (
   }
 };
 
-const toCompatibleGovernanceVersion = (value: string): string | undefined => {
-  const match = /(\d+)\.(\d+)\.(\d+)/.exec(value);
-  if (match === null) return undefined;
-
-  const [, major, minor] = match;
-  return `^${major}.${minor}.0`;
-};
-
 const inferGovernanceVersion = (pkg: PackageJson): string => {
   const deps = getStringRecord(pkg.dependencies);
   const core = deps?.['@zintrust/core'];
   if (typeof core === 'string' && core.trim() !== '') {
-    const compatibleFromCore = toCompatibleGovernanceVersion(core);
-    if (compatibleFromCore !== undefined) return compatibleFromCore;
+    return toCompatibleGovernanceVersion(core);
   }
 
   const currentVersion = VersionChecker.getCurrentVersion().trim();
   if (currentVersion !== '' && currentVersion !== '0.0.0') {
-    const compatibleFromCli = toCompatibleGovernanceVersion(currentVersion);
-    if (compatibleFromCli !== undefined) return compatibleFromCli;
+    return toCompatibleGovernanceVersion(currentVersion);
   }
 
   return '^0.4.0';

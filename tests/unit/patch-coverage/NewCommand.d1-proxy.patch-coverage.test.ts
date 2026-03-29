@@ -6,7 +6,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 describe('patch coverage: NewCommand --with-d1-proxy', () => {
-  it('adds @zintrust/cloudflare-d1-proxy to dependencies when enabled', async () => {
+  it('logs repo-managed D1 proxy guidance without adding a standalone dependency', async () => {
     vi.resetModules();
 
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-newcmd-'));
@@ -28,6 +28,7 @@ describe('patch coverage: NewCommand --with-d1-proxy', () => {
 
     const { NewCommand } = await import('@/cli/commands/NewCommand');
     const cmd = NewCommand.create();
+    const info = vi.spyOn(cmd, 'info');
 
     await cmd.execute({
       args: [projectPath],
@@ -39,12 +40,15 @@ describe('patch coverage: NewCommand --with-d1-proxy', () => {
     } as any);
 
     const pkg = JSON.parse(fs.readFileSync(path.join(projectPath, 'package.json'), 'utf-8'));
-    expect(typeof pkg.dependencies?.['@zintrust/cloudflare-d1-proxy']).toBe('string');
+    expect(pkg.dependencies?.['@zintrust/cloudflare-d1-proxy']).toBeUndefined();
+    expect(info).toHaveBeenCalledWith(
+      expect.stringContaining('D1 proxy Workers are now repo-managed')
+    );
 
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('warns when package.json exists but cannot be parsed', async () => {
+  it('still logs guidance when package.json is missing', async () => {
     vi.resetModules();
 
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-newcmd-'));
@@ -54,7 +58,6 @@ describe('patch coverage: NewCommand --with-d1-proxy', () => {
       ProjectScaffolder: {
         scaffold: vi.fn((_basePath: string, cfg: any) => {
           fs.mkdirSync(projectPath, { recursive: true });
-          fs.writeFileSync(path.join(projectPath, 'package.json'), '{ nope', 'utf-8');
           return { success: true, name: cfg.name };
         }),
       },
@@ -62,7 +65,7 @@ describe('patch coverage: NewCommand --with-d1-proxy', () => {
 
     const { NewCommand } = await import('@/cli/commands/NewCommand');
     const cmd = NewCommand.create();
-    const warn = vi.spyOn(cmd, 'warn');
+    const info = vi.spyOn(cmd, 'info');
 
     await cmd.execute({
       args: [projectPath],
@@ -73,40 +76,7 @@ describe('patch coverage: NewCommand --with-d1-proxy', () => {
       withD1Proxy: true,
     } as any);
 
-    expect(warn).toHaveBeenCalled();
-    fs.rmSync(tmp, { recursive: true, force: true });
-  });
-
-  it('warns when package.json is missing (covers warn+return branch)', async () => {
-    vi.resetModules();
-
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zintrust-newcmd-'));
-    const projectPath = path.join(tmp, 'app');
-
-    vi.doMock('@cli/scaffolding/ProjectScaffolder', () => ({
-      ProjectScaffolder: {
-        scaffold: vi.fn((_basePath: string) => {
-          fs.mkdirSync(projectPath, { recursive: true });
-          // intentionally do not create package.json
-          return { success: true };
-        }),
-      },
-    }));
-
-    const { NewCommand } = await import('@/cli/commands/NewCommand');
-    const cmd = NewCommand.create();
-    const warn = vi.spyOn(cmd, 'warn');
-
-    await cmd.execute({
-      args: [projectPath],
-      interactive: false,
-      'no-interactive': true,
-      install: false,
-      git: false,
-      withD1Proxy: true,
-    } as any);
-
-    expect(warn).toHaveBeenCalled();
+    expect(info).toHaveBeenCalledWith(expect.stringContaining('Use @zintrust/core/proxy'));
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 });

@@ -1,12 +1,16 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { maybeRunProxyWatchMode } from '@cli/commands/ProxyCommandUtils';
+import {
+  ensureProxyEntrypoint,
+  ensureWranglerConfig,
+  findQuotedValue,
+  resolveConfigPath,
+  trimNonEmptyOption,
+} from '@cli/commands/ProxyScaffoldUtils';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { isNonEmptyString } from '@helper/index';
-import { existsSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
@@ -32,23 +36,9 @@ const DEFAULT_BINDING = 'ZIN_DB';
 const DEFAULT_DATABASE_NAME = 'd1-proxy-db';
 const DEFAULT_DATABASE_ID = '<your-d1-database-id>';
 const DEFAULT_MIGRATIONS_DIR = 'database/migrations/d1';
-
-const trimOption = (value: string | undefined): string | undefined => {
-  if (!isNonEmptyString(value)) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-};
-
-const resolveConfigPath = (raw: string | undefined): string => {
-  const trimmed = trimOption(raw);
-  return trimmed ?? DEFAULT_CONFIG;
-};
-
-const findQuotedValue = (content: string, key: string): string | undefined => {
-  const pattern = new RegExp(String.raw`"${key}"\s*:\s*"([^"]+)"`);
-  const match = pattern.exec(content);
-  return trimOption(match?.[1]);
-};
+const DEFAULT_ENTRY_FILE = 'src/proxy/d1/ZintrustD1Proxy.ts';
+const DEFAULT_ROUTE_PATTERN = 'd1-proxy.example.com';
+const CORE_PROXY_MODULE = ['@zintrust', 'core', 'proxy'].join('/');
 
 const resolveConfigValues = (
   content: string | undefined,
@@ -58,23 +48,23 @@ const resolveConfigValues = (
 
   return {
     binding:
-      trimOption(options.binding) ??
-      trimOption(Env.get('D1_BINDING', '')) ??
+      trimNonEmptyOption(options.binding) ??
+      trimNonEmptyOption(Env.get('D1_BINDING', '')) ??
       findQuotedValue(fileContent, 'D1_BINDING') ??
       findQuotedValue(fileContent, 'binding') ??
       DEFAULT_BINDING,
     databaseName:
-      trimOption(options.databaseName) ??
-      trimOption(Env.get('D1_DATABASE_NAME', '')) ??
+      trimNonEmptyOption(options.databaseName) ??
+      trimNonEmptyOption(Env.get('D1_DATABASE_NAME', '')) ??
       findQuotedValue(fileContent, 'database_name') ??
       DEFAULT_DATABASE_NAME,
     databaseId:
-      trimOption(options.databaseId) ??
-      trimOption(Env.get('D1_DATABASE_ID', '')) ??
+      trimNonEmptyOption(options.databaseId) ??
+      trimNonEmptyOption(Env.get('D1_DATABASE_ID', '')) ??
       findQuotedValue(fileContent, 'database_id') ??
       DEFAULT_DATABASE_ID,
     migrationsDir:
-      trimOption(options.migrationsDir) ??
+      trimNonEmptyOption(options.migrationsDir) ??
       findQuotedValue(fileContent, 'migrations_dir') ??
       DEFAULT_MIGRATIONS_DIR,
   };
@@ -103,67 +93,11 @@ const renderD1ProxyEnvBlock = (values: D1ProxyConfigValues): string => {
     `          "database_id": "${values.databaseId}",`,
     `          "migrations_dir": "${values.migrationsDir}"`,
     '        }',
-    '      ]',
+    '      ],',
+    '      // Add routes here when ready:',
+    `      // "routes": [{ "pattern": "${DEFAULT_ROUTE_PATTERN}", "custom_domain": true }]`,
     '    }',
   ].join('\n');
-};
-
-const renderDefaultWranglerConfig = (values: D1ProxyConfigValues): string => {
-  return [
-    '{',
-    '  "name": "zintrust-api",',
-    '  "main": "./src/functions/cloudflare.ts",',
-    `  "compatibility_date": "${DEFAULT_COMPATIBILITY_DATE}",`,
-    '  "compatibility_flags": ["nodejs_compat"],',
-    '  "env": {',
-    renderD1ProxyEnvBlock(values),
-    '  }',
-    '}',
-    '',
-  ].join('\n');
-};
-
-const injectEnvBlock = (content: string, block: string): string => {
-  if (/"d1-proxy"\s*:\s*\{/.test(content)) return content;
-
-  if (/"env"\s*:\s*\{\s*\}/m.test(content)) {
-    return content.replace(/"env"\s*:\s*\{\s*\}/m, `"env": {\n${block}\n  }`);
-  }
-
-  if (/"env"\s*:\s*\{/m.test(content)) {
-    return content.replace(/"env"\s*:\s*\{/m, (match) => `${match}\n${block},`);
-  }
-
-  const closingIndex = content.lastIndexOf('}');
-  if (closingIndex < 0) {
-    throw ErrorFactory.createCliError('Invalid wrangler.jsonc: missing closing brace.');
-  }
-
-  const before = content.slice(0, closingIndex).trimEnd();
-  const suffix = before.endsWith('{') ? '\n' : ',\n';
-  return `${before}${suffix}  "env": {\n${block}\n  }\n}\n`;
-};
-
-const ensureWranglerConfig = (
-  configPath: string,
-  options: D1ProxyCommandOptions
-): { createdFile: boolean; insertedEnv: boolean; values: D1ProxyConfigValues } => {
-  if (!existsSync(configPath)) {
-    const values = resolveConfigValues(undefined, options);
-    writeFileSync(configPath, renderDefaultWranglerConfig(values), 'utf-8');
-    return { createdFile: true, insertedEnv: true, values };
-  }
-
-  const content = readFileSync(configPath, 'utf-8');
-  const values = resolveConfigValues(content, options);
-  const next = injectEnvBlock(content, renderD1ProxyEnvBlock(values));
-
-  if (next !== content) {
-    writeFileSync(configPath, next, 'utf-8');
-    return { createdFile: false, insertedEnv: true, values };
-  }
-
-  return { createdFile: false, insertedEnv: false, values };
 };
 
 const warnOnPlaceholderDatabaseId = (values: D1ProxyConfigValues): void => {
@@ -199,8 +133,25 @@ export const D1ProxyCommand = Object.freeze({
         await maybeRunProxyWatchMode(options.watch);
 
         const cwd = process.cwd();
-        const configPath = join(cwd, resolveConfigPath(options.config));
-        const result = ensureWranglerConfig(configPath, options);
+        const entrypoint = ensureProxyEntrypoint({
+          cwd,
+          entryFile: DEFAULT_ENTRY_FILE,
+          exportName: 'ZintrustD1Proxy',
+          moduleSpecifier: CORE_PROXY_MODULE,
+        });
+        const configPath = join(cwd, resolveConfigPath(options.config, DEFAULT_CONFIG));
+        const result = ensureWranglerConfig({
+          configPath,
+          options,
+          envName: 'd1-proxy',
+          resolveValues: resolveConfigValues,
+          renderEnvBlock: renderD1ProxyEnvBlock,
+          compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
+        });
+
+        if (entrypoint.created) {
+          Logger.info(`Created ${entrypoint.entryFilePath} from @zintrust/core proxy entrypoint.`);
+        }
 
         if (result.createdFile) {
           Logger.info(`Created ${configPath} with a default d1-proxy environment.`);

@@ -14,7 +14,7 @@ This proxy Worker is currently shipped from the ZinTrust repository and deployed
 ## Core Runtime Entry
 
 ```ts
-import { ZintrustKvProxy } from '@zintrust/core/proxy/kv/ZintrustKvProxy';
+import { ZintrustKvProxy } from '@zintrust/core/proxy';
 ```
 
 ## Deploy CLI

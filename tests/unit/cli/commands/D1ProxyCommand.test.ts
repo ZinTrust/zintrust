@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocked = vi.hoisted(() => ({
   spawnAndWait: vi.fn(),
   existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
   join: vi.fn((...parts: string[]) => parts.join('/')),
@@ -22,6 +23,7 @@ vi.mock('@cli/utils/spawn', () => ({
 
 vi.mock('@node-singletons/fs', () => ({
   existsSync: (...args: unknown[]) => mocked.existsSync(...args),
+  mkdirSync: (...args: unknown[]) => mocked.mkdirSync(...args),
   readFileSync: (...args: unknown[]) => mocked.readFileSync(...args),
   writeFileSync: (...args: unknown[]) => mocked.writeFileSync(...args),
 }));
@@ -38,7 +40,7 @@ describe('D1ProxyCommand', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    mocked.existsSync.mockReturnValue(true);
+    mocked.existsSync.mockImplementation((value: string) => value === '/repo/wrangler.jsonc');
     mocked.readFileSync.mockReturnValue('{\n  "name": "zintrust-api",\n  "env": {}\n}\n');
     mocked.spawnAndWait.mockResolvedValue(0);
   });
@@ -49,9 +51,20 @@ describe('D1ProxyCommand', () => {
     const { D1ProxyCommand } = await import('@cli/commands/D1ProxyCommand');
     await D1ProxyCommand.create().execute({});
 
+    expect(mocked.mkdirSync).toHaveBeenCalledWith('/repo/src/proxy/d1', { recursive: true });
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/src/proxy/d1/ZintrustD1Proxy.ts',
+      expect.stringContaining("from '@zintrust/core/proxy'"),
+      'utf-8'
+    );
     expect(mocked.writeFileSync).toHaveBeenCalledWith(
       '/repo/wrangler.jsonc',
       expect.stringContaining('"d1-proxy": {'),
+      'utf-8'
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/wrangler.jsonc',
+      expect.stringContaining('d1-proxy.example.com'),
       'utf-8'
     );
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
@@ -75,6 +88,14 @@ describe('D1ProxyCommand', () => {
       '/repo/wrangler.jsonc',
       expect.stringContaining('"database_id": "abc123"'),
       'utf-8'
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/wrangler.jsonc',
+      expect.stringContaining('d1-proxy.example.com'),
+      'utf-8'
+    );
+    expect(mocked.logger.info).toHaveBeenCalledWith(
+      'Created /repo/src/proxy/d1/ZintrustD1Proxy.ts from @zintrust/core proxy entrypoint.'
     );
     expect(mocked.logger.info).toHaveBeenCalledWith(
       'Created /repo/wrangler.jsonc with a default d1-proxy environment.'

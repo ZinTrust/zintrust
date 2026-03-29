@@ -146,8 +146,26 @@ async function installCoreShimIntoPackage(pkgDir) {
   await fs.cp(shimDir, targetDir, { recursive: true });
 }
 
+function postProcessBuiltPackage(pkgDir) {
+  const pkgDist = path.join(pkgDir, 'dist');
+
+  run('node', [path.join(repoRoot, 'scripts/fix-dist-esm-imports.mjs'), pkgDist], {
+    cwd: repoRoot,
+  });
+  run('node', [path.join(repoRoot, 'scripts/add-package-version-banner.mjs'), pkgDir], {
+    cwd: repoRoot,
+  });
+  run('node', [path.join(repoRoot, 'scripts/replace-package-placeholders.mjs'), pkgDir], {
+    cwd: repoRoot,
+  });
+  run('node', [path.join(repoRoot, 'scripts/generate-package-manifest.mjs'), pkgDir], {
+    cwd: repoRoot,
+  });
+}
+
 function buildPackage(pkgDir) {
   run('npm', ['run', 'build'], { cwd: pkgDir });
+  postProcessBuiltPackage(pkgDir);
 }
 
 function publishPackage(pkgDir) {

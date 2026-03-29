@@ -2,8 +2,18 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-03-29
+
+- Bumped `@zintrust/core` to `0.4.31` for the proxy CLI consumer-app fix after correcting both the published scaffold output and the core proxy runtime exports.
+- Updated the generated D1 and KV proxy Worker shims plus the developer docs to use the stable `@zintrust/core/proxy` export surface instead of nested proxy subpath imports, which fixes fresh consumer apps where Wrangler could not resolve `@zintrust/core/proxy/d1/ZintrustD1Proxy` or `@zintrust/core/proxy/kv/ZintrustKvProxy` during local dev.
+- Replaced the core `ZintrustD1Proxy` and `ZintrustKvProxy` exports with built-in Worker handlers instead of optional package loaders, which fixes fresh apps that previously failed at runtime with `Optional dependency not installed: @zintrust/cloudflare-d1-proxy` or the KV equivalent.
+- Updated the `zin proxy:d1` scaffold so the generated `env.d1-proxy` block now includes a commented Wrangler custom-domain route example for `d1-proxy.example.com`, matching the existing proxy scaffold guidance style.
+- Updated the `zin proxy:kv` scaffold so the generated `env.kv-proxy` block now includes a commented Wrangler custom-domain route example for `kv-proxy.example.com`, matching the existing proxy scaffold guidance style.
+
 ## 2026-03-28
 
+- Fixed the package release flow for published adapters/packages so it now runs the same ESM relative-import repair and package artifact post-processing used by the normal package builder before publishing, which prevents broken extensionless imports such as the `@zintrust/queue-monitor` Docker startup failure on fresh installs.
+- Updated `zin new --with-d1-proxy` so it no longer scaffolds the stale standalone `@zintrust/cloudflare-d1-proxy` dependency into fresh apps and instead points developers at the supported core entrypoint plus `zin proxy:d1` and `zin deploy d1-proxy` workflow.
 - Added `zin proxy:d1` for local D1 proxy development. The command now scaffolds `env.d1-proxy` into `wrangler.jsonc` when missing, then starts local Wrangler dev against the core D1 proxy entrypoint, and the docs now point developers to `@zintrust/core/proxy/d1/ZintrustD1Proxy`.
 - Added `zin proxy:kv` for local KV proxy development. The command now scaffolds `env.kv-proxy` into `wrangler.jsonc` when missing, then starts local Wrangler dev against the core KV proxy entrypoint, and the docs now point developers to `@zintrust/core/proxy/kv/ZintrustKvProxy`.
 - Updated the Cloudflare proxy docs so the D1, KV, and Containers package pages plus the D1/KV remote guides now show the supported ZinTrust deploy CLI and local dev CLI commands directly after installation/setup, and corrected the D1/KV package pages to reflect that those Worker packages are currently deployed from the repo rather than installed as public npm packages.

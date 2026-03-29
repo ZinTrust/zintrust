@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocked = vi.hoisted(() => ({
   spawnAndWait: vi.fn(),
   existsSync: vi.fn(),
+  mkdirSync: vi.fn(),
   readFileSync: vi.fn(),
   writeFileSync: vi.fn(),
   join: vi.fn((...parts: string[]) => parts.join('/')),
@@ -22,6 +23,7 @@ vi.mock('@cli/utils/spawn', () => ({
 
 vi.mock('@node-singletons/fs', () => ({
   existsSync: (...args: unknown[]) => mocked.existsSync(...args),
+  mkdirSync: (...args: unknown[]) => mocked.mkdirSync(...args),
   readFileSync: (...args: unknown[]) => mocked.readFileSync(...args),
   writeFileSync: (...args: unknown[]) => mocked.writeFileSync(...args),
 }));
@@ -38,7 +40,7 @@ describe('KvProxyCommand', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    mocked.existsSync.mockReturnValue(true);
+    mocked.existsSync.mockImplementation((value: string) => value === '/repo/wrangler.jsonc');
     mocked.readFileSync.mockReturnValue('{\n  "name": "zintrust-api",\n  "env": {}\n}\n');
     mocked.spawnAndWait.mockResolvedValue(0);
   });
@@ -49,6 +51,12 @@ describe('KvProxyCommand', () => {
     const { KvProxyCommand } = await import('@cli/commands/KvProxyCommand');
     await KvProxyCommand.create().execute({});
 
+    expect(mocked.mkdirSync).toHaveBeenCalledWith('/repo/src/proxy/kv', { recursive: true });
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/src/proxy/kv/ZintrustKvProxy.ts',
+      expect.stringContaining("from '@zintrust/core/proxy'"),
+      'utf-8'
+    );
     expect(mocked.writeFileSync).toHaveBeenCalledWith(
       '/repo/wrangler.jsonc',
       expect.stringContaining('"kv-proxy": {'),
@@ -57,6 +65,11 @@ describe('KvProxyCommand', () => {
     expect(mocked.writeFileSync).toHaveBeenCalledWith(
       '/repo/wrangler.jsonc',
       expect.stringContaining('"KV_NAMESPACE": "ZIN_KV"'),
+      'utf-8'
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/wrangler.jsonc',
+      expect.stringContaining('kv-proxy.example.com'),
       'utf-8'
     );
     expect(mocked.spawnAndWait).toHaveBeenCalledWith(
@@ -85,6 +98,14 @@ describe('KvProxyCommand', () => {
       '/repo/wrangler.jsonc',
       expect.stringContaining('"preview_id": "preview123"'),
       'utf-8'
+    );
+    expect(mocked.writeFileSync).toHaveBeenCalledWith(
+      '/repo/wrangler.jsonc',
+      expect.stringContaining('kv-proxy.example.com'),
+      'utf-8'
+    );
+    expect(mocked.logger.info).toHaveBeenCalledWith(
+      'Created /repo/src/proxy/kv/ZintrustKvProxy.ts from @zintrust/core proxy entrypoint.'
     );
     expect(mocked.logger.info).toHaveBeenCalledWith(
       'Created /repo/wrangler.jsonc with a default kv-proxy environment.'

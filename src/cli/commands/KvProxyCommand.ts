@@ -1,12 +1,16 @@
 import type { CommandOptions, IBaseCommand } from '@cli/BaseCommand';
 import { BaseCommand } from '@cli/BaseCommand';
 import { maybeRunProxyWatchMode } from '@cli/commands/ProxyCommandUtils';
+import {
+  ensureProxyEntrypoint,
+  ensureWranglerConfig,
+  findQuotedValue,
+  resolveConfigPath,
+  trimNonEmptyOption,
+} from '@cli/commands/ProxyScaffoldUtils';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
-import { ErrorFactory } from '@exceptions/ZintrustError';
-import { isNonEmptyString } from '@helper/index';
-import { existsSync, readFileSync, writeFileSync } from '@node-singletons/fs';
 import { join } from '@node-singletons/path';
 import type { Command } from 'commander';
 
@@ -28,20 +32,9 @@ const DEFAULT_CONFIG = 'wrangler.jsonc';
 const DEFAULT_COMPATIBILITY_DATE = '2026-03-12';
 const DEFAULT_BINDING = 'ZIN_KV';
 const DEFAULT_NAMESPACE_ID = '<your-kv-namespace-id>';
-
-const trimOption = (value: string | undefined): string | undefined => {
-  if (!isNonEmptyString(value)) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-};
-
-const resolveConfigPath = (raw: string | undefined): string => trimOption(raw) ?? DEFAULT_CONFIG;
-
-const findQuotedValue = (content: string, key: string): string | undefined => {
-  const pattern = new RegExp(String.raw`"${key}"\s*:\s*"([^"]+)"`);
-  const match = pattern.exec(content);
-  return trimOption(match?.[1]);
-};
+const DEFAULT_ENTRY_FILE = 'src/proxy/kv/ZintrustKvProxy.ts';
+const DEFAULT_ROUTE_PATTERN = 'kv-proxy.example.com';
+const CORE_PROXY_MODULE = ['@zintrust', 'core', 'proxy'].join('/');
 
 const resolveConfigValues = (
   content: string | undefined,
@@ -49,23 +42,23 @@ const resolveConfigValues = (
 ): KvProxyConfigValues => {
   const fileContent = content ?? '';
   const namespaceId =
-    trimOption(options.namespaceId) ??
-    trimOption(Env.get('KV_NAMESPACE_ID', '')) ??
+    trimNonEmptyOption(options.namespaceId) ??
+    trimNonEmptyOption(Env.get('KV_NAMESPACE_ID', '')) ??
     findQuotedValue(fileContent, 'preview_id') ??
     findQuotedValue(fileContent, 'id') ??
     DEFAULT_NAMESPACE_ID;
 
   return {
     binding:
-      trimOption(options.binding) ??
-      trimOption(Env.get('KV_NAMESPACE', '')) ??
+      trimNonEmptyOption(options.binding) ??
+      trimNonEmptyOption(Env.get('KV_NAMESPACE', '')) ??
       findQuotedValue(fileContent, 'KV_NAMESPACE') ??
       findQuotedValue(fileContent, 'binding') ??
       DEFAULT_BINDING,
     namespaceId,
     previewId:
-      trimOption(options.previewId) ??
-      trimOption(Env.get('KV_NAMESPACE_PREVIEW_ID', '')) ??
+      trimNonEmptyOption(options.previewId) ??
+      trimNonEmptyOption(Env.get('KV_NAMESPACE_PREVIEW_ID', '')) ??
       findQuotedValue(fileContent, 'preview_id') ??
       namespaceId,
   };
@@ -89,67 +82,11 @@ const renderKvProxyEnvBlock = (values: KvProxyConfigValues): string => {
     `          "preview_id": "${values.previewId}",`,
     '          "remote": false',
     '        }',
-    '      ]',
+    '      ],',
+    '      // Add routes here when ready:',
+    `      // "routes": [{ "pattern": "${DEFAULT_ROUTE_PATTERN}", "custom_domain": true }]`,
     '    }',
   ].join('\n');
-};
-
-const renderDefaultWranglerConfig = (values: KvProxyConfigValues): string => {
-  return [
-    '{',
-    '  "name": "zintrust-api",',
-    '  "main": "./src/functions/cloudflare.ts",',
-    `  "compatibility_date": "${DEFAULT_COMPATIBILITY_DATE}",`,
-    '  "compatibility_flags": ["nodejs_compat"],',
-    '  "env": {',
-    renderKvProxyEnvBlock(values),
-    '  }',
-    '}',
-    '',
-  ].join('\n');
-};
-
-const injectEnvBlock = (content: string, block: string): string => {
-  if (/"kv-proxy"\s*:\s*\{/.test(content)) return content;
-
-  if (/"env"\s*:\s*\{\s*\}/m.test(content)) {
-    return content.replace(/"env"\s*:\s*\{\s*\}/m, `"env": {\n${block}\n  }`);
-  }
-
-  if (/"env"\s*:\s*\{/m.test(content)) {
-    return content.replace(/"env"\s*:\s*\{/m, (match) => `${match}\n${block},`);
-  }
-
-  const closingIndex = content.lastIndexOf('}');
-  if (closingIndex < 0) {
-    throw ErrorFactory.createCliError('Invalid wrangler.jsonc: missing closing brace.');
-  }
-
-  const before = content.slice(0, closingIndex).trimEnd();
-  const suffix = before.endsWith('{') ? '\n' : ',\n';
-  return `${before}${suffix}  "env": {\n${block}\n  }\n}\n`;
-};
-
-const ensureWranglerConfig = (
-  configPath: string,
-  options: KvProxyCommandOptions
-): { createdFile: boolean; insertedEnv: boolean; values: KvProxyConfigValues } => {
-  if (!existsSync(configPath)) {
-    const values = resolveConfigValues(undefined, options);
-    writeFileSync(configPath, renderDefaultWranglerConfig(values), 'utf-8');
-    return { createdFile: true, insertedEnv: true, values };
-  }
-
-  const content = readFileSync(configPath, 'utf-8');
-  const values = resolveConfigValues(content, options);
-  const next = injectEnvBlock(content, renderKvProxyEnvBlock(values));
-
-  if (next !== content) {
-    writeFileSync(configPath, next, 'utf-8');
-    return { createdFile: false, insertedEnv: true, values };
-  }
-
-  return { createdFile: false, insertedEnv: false, values };
 };
 
 const warnOnPlaceholderNamespaceId = (values: KvProxyConfigValues): void => {
@@ -180,8 +117,25 @@ export const KvProxyCommand = Object.freeze({
         await maybeRunProxyWatchMode(options.watch);
 
         const cwd = process.cwd();
-        const configPath = join(cwd, resolveConfigPath(options.config));
-        const result = ensureWranglerConfig(configPath, options);
+        const entrypoint = ensureProxyEntrypoint({
+          cwd,
+          entryFile: DEFAULT_ENTRY_FILE,
+          exportName: 'ZintrustKvProxy',
+          moduleSpecifier: CORE_PROXY_MODULE,
+        });
+        const configPath = join(cwd, resolveConfigPath(options.config, DEFAULT_CONFIG));
+        const result = ensureWranglerConfig({
+          configPath,
+          options,
+          envName: 'kv-proxy',
+          resolveValues: resolveConfigValues,
+          renderEnvBlock: renderKvProxyEnvBlock,
+          compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
+        });
+
+        if (entrypoint.created) {
+          Logger.info(`Created ${entrypoint.entryFilePath} from @zintrust/core proxy entrypoint.`);
+        }
 
         if (result.createdFile) {
           Logger.info(`Created ${configPath} with a default kv-proxy environment.`);

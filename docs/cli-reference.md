@@ -509,9 +509,9 @@ zin redis:proxy
 Notes:
 
 - `zin proxy:d1` scaffolds `env.d1-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env d1-proxy`.
-- The core Worker entry for D1 proxy apps is `@zintrust/core/proxy/d1/ZintrustD1Proxy`.
+- The generated D1 proxy shim re-exports `ZintrustD1Proxy` from `@zintrust/core/proxy`.
 - `zin proxy:kv` scaffolds `env.kv-proxy` into `wrangler.jsonc` when it is missing and then runs `wrangler dev --env kv-proxy`.
-- The core Worker entry for KV proxy apps is `@zintrust/core/proxy/kv/ZintrustKvProxy`.
+- The generated KV proxy shim re-exports `ZintrustKvProxy` from `@zintrust/core/proxy`.
 
 ## Configuration Commands
 
