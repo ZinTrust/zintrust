@@ -180,6 +180,7 @@
     "rebuild:native": "npm rebuild bcrypt better-sqlite3",
     "b:push": "npm run lint --max-warnings=0",
     "bg": "npm install -g /opt/homebrew/var/www/Sites/zintrust/dist",
+    "check:workspace-versions": "node scripts/release/sync-package-versions.mjs --check",
     "release:sync-versions": "node scripts/release/sync-package-versions.mjs",
     "release:publish-packages": "node scripts/release/publish-packages.mjs",
     "release:publish-all": "npm run release:sync-versions && npm run release:publish-packages",

@@ -37,6 +37,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Validate workspace version sync
+        run: node scripts/release/sync-package-versions.mjs --check
+
       - name: Install dependencies (disable lifecycle scripts in CI)
         run: npm ci --ignore-scripts
         env:

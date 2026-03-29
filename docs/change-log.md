@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-29
 
+- Synced all workspace package versions and `@zintrust/core` peer ranges to `0.4.32`, regenerated the root lockfile, and added a pre-`npm ci` workspace-version check in every npm-based CI workflow so package/version drift fails fast with a direct error instead of an `ERESOLVE` install failure.
 - Updated the fresh project scaffold to generate `src/boot/bootstrap.ts` as a thin `@zintrust/core/boot` wrapper, so new apps can reuse the stock ZinTrust Node/Docker bootstrap lifecycle without copying the full core bootstrap source.
 - Published a stable `@zintrust/core/boot` subpath backed by `src/boot.ts` so fresh-app and Docker/bootstrap flows can import the side-effect boot entrypoint directly instead of relying on internal `@boot/*` aliases.
 - Updated the Wrangler-backed `zin proxy:d1` and `zin proxy:kv` commands to accept `--port <port>` and forward it to `wrangler dev`, so local Cloudflare proxy Workers can be started on an explicit port like `zin proxy:d1 --port 8787`.
