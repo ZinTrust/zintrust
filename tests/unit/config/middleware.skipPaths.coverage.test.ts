@@ -194,4 +194,27 @@ describe('middleware config (coverage extras)', () => {
       })
     );
   });
+
+  it('creates cached route middleware for parameterized rateLimit keys', () => {
+    const rateLimitResponder = vi.fn(async () => undefined);
+
+    vi.mocked(StartupConfigFileRegistry.get).mockReturnValueOnce({
+      skipPaths: ['/from-config'],
+      responders: {
+        rateLimit: rateLimitResponder,
+      },
+    });
+
+    const config = createMiddlewareConfig();
+    const first = config.route['rateLimit:100:0.4'];
+    const second = config.route['rateLimit:100:0.4'];
+
+    expect(first).toEqual({ name: 'rate' });
+    expect(first).toBe(second);
+    expect(rateLimitCreateMock).toHaveBeenCalledWith({
+      max: 100,
+      windowMs: 24_000,
+      onFailure: rateLimitResponder,
+    });
+  });
 });

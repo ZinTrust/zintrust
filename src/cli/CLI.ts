@@ -16,6 +16,7 @@ import {
 } from '@cli/commands/CreateCommand';
 import { D1LearnCommand } from '@cli/commands/D1LearnCommand';
 import { D1MigrateCommand } from '@cli/commands/D1MigrateCommand';
+import { D1ProxyCommand } from '@cli/commands/D1ProxyCommand';
 import { DbSeedCommand } from '@cli/commands/DbSeedCommand';
 import { DebugCommand } from '@cli/commands/DebugCommand';
 import { DeployCommand } from '@cli/commands/DeployCommand';
@@ -33,6 +34,7 @@ import { InitProducerCommand } from '@cli/commands/InitProducerCommand';
 import { InitProxyCommand } from '@cli/commands/InitProxyCommand';
 import { JwtDevCommand } from '@cli/commands/JwtDevCommand';
 import { KeyGenerateCommand } from '@cli/commands/KeyGenerateCommand';
+import { KvProxyCommand } from '@cli/commands/KvProxyCommand';
 import { MakeMailTemplateCommand } from '@cli/commands/MakeMailTemplateCommand';
 import { MakeNotificationTemplateCommand } from '@cli/commands/MakeNotificationTemplateCommand';
 import { MigrateCommand } from '@cli/commands/MigrateCommand';
@@ -147,6 +149,8 @@ const buildCommandRegistry = (): Array<Command | CommandProvider> => {
     RoutesCommand.create(),
     JwtDevCommand,
     ProxyCommand.create(),
+    D1ProxyCommand.create(),
+    KvProxyCommand.create(),
     MySqlProxyCommand.create(),
     PostgresProxyCommand.create(),
     MongoDBProxyCommand.create(),

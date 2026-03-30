@@ -5,10 +5,14 @@
  */
 
 import { ErrorFactory } from '@/exceptions/ZintrustError';
-import type { IBaseCommand } from '@cli/BaseCommand';
-import { BaseCommand } from '@cli/BaseCommand';
+import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
+import {
+  WorkerStartupDiagnostics,
+  type WorkerStartupDiagnosticsReport,
+} from '@cli/services/WorkerStartupDiagnostics';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
+import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
 import { loadWorkersModule as loadWorkersRuntimeModule } from '@runtime/WorkersModule';
 
 type WorkerRegistryStatus = {
@@ -24,6 +28,9 @@ type WorkerFactoryApi = {
   list: () => string[];
   listPersisted: () => Promise<string[]>;
   listPersistedRecords: () => Promise<
+    Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>
+  >;
+  listFileBackedRecords?: () => Promise<
     Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>
   >;
   getHealth: (name: string) => Promise<Record<string, unknown>>;
@@ -57,14 +64,34 @@ type WorkerCommandsApi = {
   WorkerRegistry: WorkerRegistryApi;
   HealthMonitor: HealthMonitorApi;
   ResourceMonitor: ResourceMonitorApi;
+  selectAutoStartNames?: (
+    persistedRecords: Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>,
+    fileRecords: Array<{ name: string; autoStart?: boolean; activeStatus?: boolean }>,
+    warn?: (message: string) => void
+  ) => { names: string[]; source: 'persisted' | 'file' | 'none' };
 };
 // Lazy initialization to prevent temporal dead zone issues
 let WorkerFactory: WorkerFactoryApi | undefined;
 let WorkerRegistry: WorkerRegistryApi | undefined;
 let HealthMonitor: HealthMonitorApi | undefined;
 let ResourceMonitor: ResourceMonitorApi | undefined;
+let workerProjectEntrypointAttempted = false;
+
+const ensureProjectWorkerEntrypointLoaded = async (): Promise<void> => {
+  if (workerProjectEntrypointAttempted) return;
+  workerProjectEntrypointAttempted = true;
+
+  const result = await WorkerProjectAutoImports.tryImportProjectWorkerEntrypoint();
+  if (!result.ok && result.reason === 'import-failed') {
+    Logger.warn(
+      `Project worker entrypoint import failed: ${result.errorMessage ?? 'Unknown error'}`
+    );
+  }
+};
+
 const loadWorkersModule = async (): Promise<WorkerCommandsApi> => {
   try {
+    await ensureProjectWorkerEntrypointLoaded();
     return (await loadWorkersRuntimeModule()) as unknown as WorkerCommandsApi;
   } catch (error) {
     Logger.error(
@@ -159,6 +186,21 @@ const formatTable = (headers: string[], rows: string[][]): string => {
   );
 
   return [headerRow, separator, ...dataRows].join('\n');
+};
+
+const logFirstFaultSummaryOnce = (
+  state: { logged: boolean },
+  error: unknown,
+  context: string
+): WorkerStartupDiagnosticsReport => {
+  const report = WorkerStartupDiagnostics.collect(error);
+
+  if (!state.logged) {
+    state.logged = true;
+    WorkerStartupDiagnostics.log(error, context);
+  }
+
+  return report;
 };
 
 /**
@@ -336,91 +378,186 @@ const isRegisteredWorkerRunning = async (workerLike: unknown): Promise<boolean> 
   return isRunning && !isPaused;
 };
 
+const resolveAutoStartWorkerNames = async (
+  factory: WorkerFactoryApi,
+  workersModule: WorkerCommandsApi
+): Promise<{ names: string[]; source: 'persisted' | 'file' | 'none' }> => {
+  const persistedRecords = await factory.listPersistedRecords();
+  const fileRecords =
+    typeof factory.listFileBackedRecords === 'function'
+      ? await factory.listFileBackedRecords()
+      : [];
+
+  if (typeof workersModule.selectAutoStartNames === 'function') {
+    return workersModule.selectAutoStartNames(persistedRecords, fileRecords, Logger.warn);
+  }
+
+  const persistedNames = persistedRecords
+    .filter((record) => record.activeStatus !== false && record.autoStart === true)
+    .map((record) => record.name);
+
+  if (persistedNames.length > 0) {
+    return { names: persistedNames, source: 'persisted' };
+  }
+
+  const seen = new Set<string>();
+  const fileNames: string[] = [];
+
+  for (const record of fileRecords) {
+    if (record.activeStatus === false || record.autoStart !== true) continue;
+    if (seen.has(record.name)) continue;
+    seen.add(record.name);
+    fileNames.push(record.name);
+  }
+
+  return { names: fileNames, source: fileNames.length > 0 ? 'file' : 'none' };
+};
+
+const resolveEligibleWorkers = async (
+  factory: WorkerFactoryApi,
+  workersModule: WorkerCommandsApi
+): Promise<string[]> => {
+  const { names: workers, source } = await resolveAutoStartWorkerNames(factory, workersModule);
+
+  if (workers.length === 0) {
+    Logger.info('No auto-start eligible persisted or file-backed workers found.');
+    return [];
+  }
+
+  if (source !== 'persisted') {
+    return workers;
+  }
+
+  const discoveredWorkers = await pollForPersistedWorkers(factory);
+  return workers.filter((name) => discoveredWorkers.includes(name));
+};
+
+const startEligibleWorker = async (
+  factory: WorkerFactoryApi,
+  name: string,
+  diagnosticsState: { logged: boolean }
+): Promise<{ name: string; status: 'started' | 'skipped' | 'failed' }> => {
+  const existing = await factory.get(name);
+  if (existing !== null && existing !== undefined) {
+    const trulyRunning = await isRegisteredWorkerRunning(existing);
+    if (trulyRunning) {
+      return { name, status: 'skipped' };
+    }
+
+    Logger.warn(
+      `Worker "${name}" is registered but not truly running. Restarting for crash recovery.`
+    );
+    try {
+      await factory.restart(name);
+      return { name, status: 'started' };
+    } catch (error) {
+      logFirstFaultSummaryOnce(
+        diagnosticsState,
+        error,
+        `worker:start-all failed while restarting "${name}"`
+      );
+      Logger.warn(`Failed to restart stale worker "${name}"`, error);
+      return { name, status: 'failed' };
+    }
+  }
+
+  try {
+    await factory.startFromPersisted(name);
+    return { name, status: 'started' };
+  } catch (error) {
+    logFirstFaultSummaryOnce(
+      diagnosticsState,
+      error,
+      `worker:start-all failed while starting "${name}"`
+    );
+    Logger.warn(`Failed to start worker "${name}"`, error);
+    return { name, status: 'failed' };
+  }
+};
+
+const executeWorkerStartAll = async (): Promise<void> => {
+  const diagnosticsState = { logged: false };
+
+  try {
+    const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
+    if (!globalAutoStart) {
+      Logger.info('Skipping auto-start because WORKER_AUTO_START is false.');
+      return;
+    }
+
+    const factory = await getWorkerFactory();
+    const workersModule = await loadWorkersModule();
+    const eligibleWorkers = await resolveEligibleWorkers(factory, workersModule);
+
+    if (eligibleWorkers.length === 0) {
+      Logger.info('No auto-start eligible workers are currently available.');
+      return;
+    }
+
+    const results = await Promise.all(
+      eligibleWorkers.map(async (name) => startEligibleWorker(factory, name, diagnosticsState))
+    );
+
+    const started = results.filter((result) => result.status === 'started').length;
+    const skipped = results.filter((result) => result.status === 'skipped').length;
+    const failed = results.filter((result) => result.status === 'failed').length;
+
+    Logger.info('Worker start-all summary', {
+      total: eligibleWorkers.length,
+      started,
+      skipped,
+      failed,
+    });
+  } catch (error) {
+    logFirstFaultSummaryOnce(diagnosticsState, error, 'worker:start-all failed');
+    Logger.error('worker:start-all command failed', error);
+    process.exit(1);
+  }
+};
+
 /**
  * Worker Start All Command
  */
 const createWorkerStartAllCommand = (): IBaseCommand => {
-  const ext = async (): Promise<void> => {
-    try {
-      const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
-      if (!globalAutoStart) {
-        Logger.info('Skipping auto-start because WORKER_AUTO_START is false.');
-        return;
+  const cmd = BaseCommand.create({
+    name: 'worker:start-all',
+    description: 'Start all persisted workers',
+    execute: executeWorkerStartAll,
+  });
+
+  return cmd;
+};
+
+const createWorkerDoctorCommand = (): IBaseCommand => {
+  const ext = (options: CommandOptions): void => {
+    const json = options['json'] === true;
+    const report = WorkerStartupDiagnostics.collect();
+
+    if (json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      console.log();
+      for (const line of WorkerStartupDiagnostics.renderLines(report)) {
+        console.log(line);
       }
+      console.log();
+    }
 
-      const factory = await getWorkerFactory();
-      const records = await factory.listPersistedRecords();
-
-      const autoStartRecords = records.filter(
-        (record) => record.activeStatus !== false && record.autoStart === true
-      );
-
-      const workers = autoStartRecords.map((record) => record.name);
-
-      if (workers.length === 0) {
-        Logger.info('No auto-start eligible persisted workers found.');
-        return;
-      }
-
-      const discoveredWorkers = await pollForPersistedWorkers(factory);
-      const eligibleWorkers = workers.filter((name) => discoveredWorkers.includes(name));
-
-      if (eligibleWorkers.length === 0) {
-        Logger.info('No auto-start eligible workers are currently persisted.');
-        return;
-      }
-
-      const results = await Promise.all(
-        eligibleWorkers.map(async (name) => {
-          const existing = await factory.get(name);
-          if (existing !== null && existing !== undefined) {
-            const trulyRunning = await isRegisteredWorkerRunning(existing);
-            if (trulyRunning) {
-              return { name, status: 'skipped' as const };
-            }
-
-            Logger.warn(
-              `Worker "${name}" is registered but not truly running. Restarting for crash recovery.`
-            );
-            try {
-              await factory.restart(name);
-              return { name, status: 'started' as const };
-            } catch (error) {
-              Logger.warn(`Failed to restart stale worker "${name}"`, error);
-              return { name, status: 'failed' as const };
-            }
-          }
-
-          try {
-            await factory.startFromPersisted(name);
-            return { name, status: 'started' as const };
-          } catch (error) {
-            Logger.warn(`Failed to start worker "${name}"`, error);
-            return { name, status: 'failed' as const };
-          }
-        })
-      );
-
-      const started = results.filter((result) => result.status === 'started').length;
-      const skipped = results.filter((result) => result.status === 'skipped').length;
-      const failed = results.filter((result) => result.status === 'failed').length;
-
-      Logger.info('Worker start-all summary', {
-        total: eligibleWorkers.length,
-        started,
-        skipped,
-        failed,
-      });
-    } catch (error) {
-      Logger.error('worker:start-all command failed', error);
+    if (WorkerStartupDiagnostics.hasBlockingIssues(report)) {
       process.exit(1);
     }
   };
 
   const cmd = BaseCommand.create({
-    name: 'worker:start-all',
-    description: 'Start all persisted workers',
-    execute: async () => ext(),
+    name: 'worker:doctor',
+    description: 'Print worker startup diagnostics and likely missing env keys',
+    addOptions: (command) => {
+      command.option('--json', 'Print machine-readable diagnostics');
+    },
+    execute: async (options) => {
+      await Promise.resolve();
+      ext(options);
+    },
   });
 
   return cmd;
@@ -559,5 +696,6 @@ export const WorkerCommands = {
   createWorkerStartAllCommand,
   createWorkerStopCommand,
   createWorkerRestartCommand,
+  createWorkerDoctorCommand,
   createWorkerSummaryCommand,
 };

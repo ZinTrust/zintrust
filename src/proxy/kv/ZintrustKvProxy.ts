@@ -1,53 +1,428 @@
-import { isUndefinedOrNull } from '@/helper';
-import { Logger } from '@config/logger';
+import { isObject, isString } from '@helper/index';
+import { ErrorHandler } from '@proxy/ErrorHandler';
+import { RequestValidator } from '@proxy/RequestValidator';
+import { SigningService } from '@proxy/SigningService';
 
-type KvProxyModule = {
-  ZintrustKvProxy?: Record<string, unknown>;
-  default?: unknown;
+type KVNamespacePutOptions = {
+  expirationTtl?: number;
 };
 
-const MODULE_ID = '@zintrust/cloudflare-kv-proxy';
+type KvGetType = 'text' | 'json' | 'arrayBuffer';
 
-let cached: KvProxyModule | null = null;
+type KVListResult = {
+  keys: Array<{ name: string }>;
+  cursor: string;
+  list_complete: boolean;
+};
 
-const load = async (): Promise<KvProxyModule> => {
-  if (cached !== null) return cached;
-  try {
-    // Non-literal specifier to avoid tsconfig path alias rewriting in dist builds.
-    cached = (await import(MODULE_ID)) as unknown as KvProxyModule;
-    return cached;
-  } catch (error) {
-    Logger.error(
-      `Optional dependency not installed: ${MODULE_ID}. Install it to use ZintrustKvProxy.`,
-      { error: error instanceof Error ? error.message : String(error) }
+type KVNamespace = {
+  get: {
+    (key: string): Promise<string | null>;
+    (key: string, type: 'json'): Promise<Record<string, unknown> | null>;
+    (key: string, type: 'arrayBuffer'): Promise<ArrayBuffer | null>;
+    (key: string, type: KvGetType): Promise<Record<string, unknown> | ArrayBuffer | string | null>;
+  };
+  put: (key: string, value: string, options?: KVNamespacePutOptions) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+  list: (options: { prefix?: string; limit?: number; cursor?: string }) => Promise<KVListResult>;
+};
+
+type KvEnv = {
+  CACHE?: KVNamespace;
+  KV_NAMESPACE?: string;
+  APP_KEY?: string;
+  KV_REMOTE_SECRET?: string;
+  ZT_PROXY_SIGNING_WINDOW_MS?: string;
+  ZT_NONCES?: KVNamespace;
+  ZT_MAX_BODY_BYTES?: string;
+  ZT_KV_PREFIX?: string;
+  ZT_KV_LIST_LIMIT?: string;
+};
+
+type ListRequest = {
+  namespace?: string;
+  prefix?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+const DEFAULT_SIGNING_WINDOW_MS = 60_000;
+const DEFAULT_MAX_BODY_BYTES = 128 * 1024;
+const DEFAULT_LIST_LIMIT = 100;
+
+const json = (status: number, body: unknown): Response => {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+};
+
+const toErrorResponse = (status: number, code: string, message: string): Response => {
+  const error = ErrorHandler.toProxyError(status, code, message);
+  return json(error.status, error.body);
+};
+
+const getEnvInt = (env: KvEnv, name: keyof KvEnv, fallback: number): number => {
+  const raw = env[name];
+  if (!isString(raw)) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeBindingName = (value: unknown): string | null => {
+  if (!isString(value)) return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const readBodyBytes = async (
+  request: Request,
+  maxBytes: number
+): Promise<{ ok: true; bytes: Uint8Array; text: string } | { ok: false; response: Response }> => {
+  const buf = await request.arrayBuffer();
+  if (buf.byteLength > maxBytes) {
+    return {
+      ok: false,
+      response: toErrorResponse(413, 'PAYLOAD_TOO_LARGE', 'Body too large'),
+    };
+  }
+
+  const bytes = new Uint8Array(buf);
+  const text = new TextDecoder().decode(bytes);
+  return { ok: true, bytes, text };
+};
+
+const parseOptionalJson = (
+  text: string
+): { ok: true; payload: Record<string, unknown> | null } | { ok: false; response: Response } => {
+  if (text.trim() === '') return { ok: true, payload: null };
+
+  const parsed = RequestValidator.parseJson(text);
+  if (!parsed.ok) {
+    let message = parsed.error.message;
+    if (parsed.error.code === 'INVALID_JSON') {
+      message = 'Invalid JSON body';
+    } else if (parsed.error.code === 'VALIDATION_ERROR') {
+      message = 'Invalid body';
+    }
+    return { ok: false, response: toErrorResponse(400, parsed.error.code, message) };
+  }
+
+  return { ok: true, payload: parsed.value };
+};
+
+const loadSigningSecret = (env: KvEnv): string | null => {
+  const direct = isString(env.KV_REMOTE_SECRET) ? env.KV_REMOTE_SECRET.trim() : '';
+  if (direct !== '') return direct;
+
+  const fallback = isString(env.APP_KEY) ? env.APP_KEY.trim() : '';
+  if (fallback !== '') return fallback;
+
+  return null;
+};
+
+const verifyNonceKv = async (
+  kv: KVNamespace,
+  keyId: string,
+  nonce: string,
+  ttlMs: number
+): Promise<boolean> => {
+  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
+  const storageKey = `nonce:${keyId}:${nonce}`;
+  const existing = await kv.get(storageKey);
+  if (existing !== null) return false;
+  await kv.put(storageKey, '1', { expirationTtl: ttlSeconds });
+  return true;
+};
+
+const verifySignedRequest = async (
+  request: Request,
+  env: KvEnv,
+  bodyBytes: Uint8Array
+): Promise<Response | { ok: true }> => {
+  const secret = loadSigningSecret(env);
+  if (secret === null) {
+    return toErrorResponse(
+      500,
+      'CONFIG_ERROR',
+      'Missing signing secret (KV_REMOTE_SECRET or APP_KEY)'
     );
   }
-  return undefined as unknown as KvProxyModule;
+
+  const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', DEFAULT_SIGNING_WINDOW_MS);
+  const verifyResult = await SigningService.verifyWithKeyProvider({
+    method: request.method,
+    url: request.url,
+    body: bodyBytes,
+    headers: request.headers,
+    windowMs,
+    getSecretForKeyId: (_keyId: string) => secret,
+    verifyNonce:
+      env.ZT_NONCES === undefined
+        ? undefined
+        : async (keyId: string, nonce: string, ttlMs: number): Promise<boolean> =>
+            verifyNonceKv(env.ZT_NONCES as KVNamespace, keyId, nonce, ttlMs),
+  });
+
+  if (!verifyResult.ok) {
+    return toErrorResponse(verifyResult.status, verifyResult.code, verifyResult.message);
+  }
+
+  return { ok: true };
 };
 
-export const ZintrustKvProxy = new Proxy(
-  {},
-  {
-    get(_target, prop: string | symbol) {
-      if (prop === Symbol.toStringTag) return 'ZintrustKvProxy';
+const requireCache = (env: KvEnv): Response | KVNamespace => {
+  if (env.CACHE !== undefined && env.CACHE !== null) return env.CACHE;
 
-      return async (...args: unknown[]) => {
-        const mod = await load();
-        if (isUndefinedOrNull(mod) || typeof mod !== 'object') return undefined;
-        const target = mod.ZintrustKvProxy ?? (mod.default as Record<string, unknown> | undefined);
-
-        if (!target || typeof target !== 'object') {
-          Logger.error(`Invalid module export from ${MODULE_ID}: missing ZintrustKvProxy`);
-
-          return undefined;
-        }
-
-        const value = target[prop as never];
-        if (typeof value !== 'function') return value;
-        return (value as (...innerArgs: unknown[]) => unknown)(...args);
-      };
-    },
+  const bindingName = normalizeBindingName(env.KV_NAMESPACE);
+  if (bindingName !== null) {
+    const record = env as unknown as Record<string, unknown>;
+    const kv = record[bindingName] as KVNamespace | undefined;
+    if (kv !== undefined && kv !== null) return kv;
   }
-) as unknown as Record<string, unknown>;
+
+  return toErrorResponse(500, 'CONFIG_ERROR', 'Missing KV binding (CACHE)');
+};
+
+const normalizeNamespace = (value: unknown): string | undefined => {
+  if (!isString(value)) return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+};
+
+const buildStorageKey = (env: KvEnv, params: { namespace?: string; key: string }): string => {
+  const prefix = isString(env.ZT_KV_PREFIX) ? env.ZT_KV_PREFIX : '';
+  const namespace = normalizeNamespace(params.namespace);
+
+  const parts: string[] = [];
+  if (prefix.trim() !== '') parts.push(prefix.trim());
+  if (namespace !== undefined) parts.push(namespace);
+  parts.push(params.key);
+
+  return parts.join(':');
+};
+
+const readAndVerifyJson = async (
+  request: Request,
+  env: KvEnv
+): Promise<
+  | { ok: true; payload: Record<string, unknown> | null; bodyBytes: Uint8Array }
+  | { ok: false; response: Response }
+> => {
+  const maxBodyBytes = getEnvInt(env, 'ZT_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES);
+  const bodyResult = await readBodyBytes(request, maxBodyBytes);
+  if (!bodyResult.ok) return { ok: false, response: bodyResult.response };
+
+  const auth = await verifySignedRequest(request, env, bodyResult.bytes);
+  if (auth instanceof Response) return { ok: false, response: auth };
+
+  const parsed = parseOptionalJson(bodyResult.text);
+  if (!parsed.ok) return { ok: false, response: parsed.response };
+
+  return { ok: true, payload: parsed.payload, bodyBytes: bodyResult.bytes };
+};
+
+const parseGetPayload = (
+  payload: unknown
+):
+  | { ok: true; namespace?: string; key: string; type: KvGetType }
+  | { ok: false; response: Response } => {
+  if (!isObject(payload)) {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body') };
+  }
+
+  const key = payload['key'];
+  const type = payload['type'];
+
+  if (!isString(key) || key.trim() === '') {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'key is required') };
+  }
+
+  const typeValue: KvGetType =
+    type === 'text' || type === 'arrayBuffer' || type === 'json' ? type : 'text';
+  return { ok: true, namespace: normalizeNamespace(payload['namespace']), key, type: typeValue };
+};
+
+const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
+  const check = await readAndVerifyJson(request, env);
+  if (!check.ok) return check.response;
+
+  const cache = requireCache(env);
+  if (cache instanceof Response) return cache;
+
+  const parsed = parseGetPayload(check.payload);
+  if (!parsed.ok) return parsed.response;
+
+  const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
+
+  if (parsed.type === 'json') {
+    const value = await cache.get(storageKey, 'json');
+    return json(200, { value: value ?? null });
+  }
+
+  if (parsed.type === 'arrayBuffer') {
+    const value = await cache.get(storageKey, 'arrayBuffer');
+    return json(200, { value: value ?? null });
+  }
+
+  const value = await cache.get(storageKey);
+  return json(200, { value: value ?? null });
+};
+
+const parsePutPayload = (
+  payload: unknown
+):
+  | { ok: true; namespace?: string; key: string; value: unknown; ttlSeconds?: number }
+  | { ok: false; response: Response } => {
+  if (!isObject(payload)) {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body') };
+  }
+
+  const key = payload['key'];
+  if (!isString(key) || key.trim() === '') {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'key is required') };
+  }
+
+  const ttlSeconds = payload['ttlSeconds'];
+  const ttl =
+    typeof ttlSeconds === 'number' && Number.isFinite(ttlSeconds) && ttlSeconds > 0
+      ? ttlSeconds
+      : undefined;
+
+  return {
+    ok: true,
+    namespace: normalizeNamespace(payload['namespace']),
+    key,
+    value: payload['value'],
+    ttlSeconds: ttl,
+  };
+};
+
+const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
+  const check = await readAndVerifyJson(request, env);
+  if (!check.ok) return check.response;
+
+  const cache = requireCache(env);
+  if (cache instanceof Response) return cache;
+
+  const parsed = parsePutPayload(check.payload);
+  if (!parsed.ok) return parsed.response;
+
+  const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
+  const value = JSON.stringify(parsed.value);
+
+  const options: KVNamespacePutOptions = {};
+  if (parsed.ttlSeconds !== undefined) {
+    options.expirationTtl = Math.floor(parsed.ttlSeconds);
+  }
+
+  await cache.put(storageKey, value, options);
+  return json(200, { ok: true });
+};
+
+const parseDeletePayload = (
+  payload: unknown
+): { ok: true; namespace?: string; key: string } | { ok: false; response: Response } => {
+  if (!isObject(payload)) {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body') };
+  }
+
+  const key = payload['key'];
+  if (!isString(key) || key.trim() === '') {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'key is required') };
+  }
+
+  return { ok: true, namespace: normalizeNamespace(payload['namespace']), key };
+};
+
+const handleDelete = async (request: Request, env: KvEnv): Promise<Response> => {
+  const check = await readAndVerifyJson(request, env);
+  if (!check.ok) return check.response;
+
+  const cache = requireCache(env);
+  if (cache instanceof Response) return cache;
+
+  const parsed = parseDeletePayload(check.payload);
+  if (!parsed.ok) return parsed.response;
+
+  const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
+  await cache.delete(storageKey);
+  return json(200, { ok: true });
+};
+
+const parseListPayload = (
+  payload: unknown
+): { ok: true; params: ListRequest } | { ok: false; response: Response } => {
+  if (payload === null) return { ok: true, params: {} };
+  if (!isObject(payload)) {
+    return { ok: false, response: toErrorResponse(400, 'VALIDATION_ERROR', 'Invalid body') };
+  }
+
+  const namespace = normalizeNamespace(payload['namespace']);
+  const prefix = isString(payload['prefix']) ? payload['prefix'] : undefined;
+  const cursor = isString(payload['cursor']) ? payload['cursor'] : undefined;
+  const limitRaw = payload['limit'];
+  const limitParsed =
+    typeof limitRaw === 'number' && Number.isFinite(limitRaw) ? Math.floor(limitRaw) : undefined;
+
+  return { ok: true, params: { namespace, prefix, cursor, limit: limitParsed } };
+};
+
+const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
+  const check = await readAndVerifyJson(request, env);
+  if (!check.ok) return check.response;
+
+  const cache = requireCache(env);
+  if (cache instanceof Response) return cache;
+
+  const parsed = parseListPayload(check.payload);
+  if (!parsed.ok) return parsed.response;
+
+  const envLimit = getEnvInt(env, 'ZT_KV_LIST_LIMIT', DEFAULT_LIST_LIMIT);
+  const requested = parsed.params.limit ?? envLimit;
+  const limit = Math.max(1, Math.min(requested, envLimit));
+
+  const prefixKey = parsed.params.prefix;
+  const namespacePrefix = normalizeNamespace(parsed.params.namespace);
+  const basePrefix = buildStorageKey(env, { namespace: namespacePrefix, key: '' });
+  const fullPrefix = prefixKey === undefined ? basePrefix : `${basePrefix}${prefixKey}`;
+
+  const out = await cache.list({ prefix: fullPrefix, limit, cursor: parsed.params.cursor });
+
+  return json(200, {
+    keys: out.keys.map((key) => key.name),
+    cursor: out.cursor,
+    listComplete: out.list_complete,
+  });
+};
+
+export const ZintrustKvProxy = Object.freeze({
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_VERSION: '0.1.15',
+  _ZINTRUST_CLOUDFLARE_KV_PROXY_BUILD_DATE: '__BUILD_DATE__',
+  async fetch(request: Request, env: KvEnv): Promise<Response> {
+    const url = new URL(request.url);
+
+    const methodError = RequestValidator.requirePost(request.method);
+    if (methodError !== null) {
+      return toErrorResponse(405, methodError.code, 'Method not allowed');
+    }
+
+    switch (url.pathname) {
+      case '/zin/kv/get':
+        return handleGet(request, env);
+      case '/zin/kv/put':
+        return handlePut(request, env);
+      case '/zin/kv/delete':
+        return handleDelete(request, env);
+      case '/zin/kv/list':
+        return handleList(request, env);
+      default:
+        return toErrorResponse(404, 'NOT_FOUND', 'Not found');
+    }
+  },
+});
 
 export default ZintrustKvProxy;

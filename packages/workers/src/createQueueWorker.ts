@@ -2,6 +2,17 @@ import type { BullMQPayload, QueueMessage } from '@zintrust/core';
 import * as Core from '@zintrust/core';
 import { Env, Logger, Queue } from '@zintrust/core';
 
+type QueueApi = Readonly<{
+  enqueue: (queue: string, payload: BullMQPayload, driverName?: string) => Promise<string>;
+  dequeue: <TPayload>(
+    queue: string,
+    driverName?: string
+  ) => Promise<QueueMessage<TPayload> | undefined>;
+  ack: (queue: string, id: string, driverName?: string) => Promise<void>;
+}>;
+
+const TypedQueue = Queue as QueueApi;
+
 const RETRY_BASE_DELAY_MS = 1000;
 const RETRY_MAX_DELAY_MS = 30000;
 
@@ -97,9 +108,7 @@ const getAttemptsFromMessage = <TPayload>(message: QueueMessage<TPayload>): numb
     typeof message.payload === 'object' && message.payload !== null
       ? normalizeAttempts((message.payload as Record<string, unknown>)['attempts'])
       : 0;
-  const messageAttempts = normalizeAttempts(
-    (message as QueueMessage<TPayload> & { attempts?: number }).attempts
-  );
+  const messageAttempts = normalizeAttempts(message.attempts);
   return Math.max(payloadAttempts, messageAttempts);
 };
 
@@ -127,6 +136,11 @@ type QueueWorker = {
     signal?: AbortSignal;
     maxDurationMs?: number;
   }) => Promise<number>;
+  __zintrustQueueWorkerMeta?: Readonly<{
+    kindLabel: string;
+    defaultQueueName: string;
+    maxAttempts: number;
+  }>;
 };
 
 export type CreateQueueWorkerOptions<TPayload> = {
@@ -145,6 +159,14 @@ const buildBaseLogFields = <TPayload>(
     messageId: message.id,
     ...getLogFields(message.payload),
   };
+};
+
+const toBullMQPayload = <TPayload>(payload: TPayload): BullMQPayload => {
+  if (typeof payload === 'object' && payload !== null) {
+    return { ...(payload as Record<string, unknown>) };
+  }
+
+  return { payload };
 };
 
 type TrackerApi = {
@@ -258,8 +280,8 @@ const checkAndRequeueIfNotDue = async <TPayload>(
     ...baseLogFields,
     dueAt: new Date(timestamp).toISOString(),
   });
-  await Queue.enqueue(queueName, message.payload as BullMQPayload, driverName);
-  await Queue.ack(queueName, message.id, driverName);
+  await TypedQueue.enqueue(queueName, toBullMQPayload(message.payload), driverName);
+  await TypedQueue.ack(queueName, message.id, driverName);
   return true;
 };
 
@@ -272,7 +294,7 @@ const onProcessSuccess = async <TPayload>(input: {
   startedAtMs: number;
   baseLogFields: Record<string, unknown>;
 }): Promise<boolean> => {
-  await Queue.ack(input.queueName, input.message.id, input.driverName);
+  await TypedQueue.ack(input.queueName, input.message.id, input.driverName);
 
   if (typeof input.trackerApi.completed === 'function') {
     await input.trackerApi.completed({
@@ -319,10 +341,7 @@ const onProcessFailure = async <TPayload>(input: {
   if (nextAttempts < input.options.maxAttempts) {
     const retryDelayMs = getRetryDelayMs(nextAttempts);
     retryAt = new Date(Date.now() + retryDelayMs).toISOString();
-    const currentPayload =
-      typeof input.message.payload === 'object' && input.message.payload !== null
-        ? (input.message.payload as Record<string, unknown>)
-        : ({ payload: input.message.payload } as Record<string, unknown>);
+    const currentPayload = toBullMQPayload(input.message.payload);
 
     const payloadForRetry: BullMQPayload = {
       ...currentPayload,
@@ -330,7 +349,7 @@ const onProcessFailure = async <TPayload>(input: {
       timestamp: Date.now() + retryDelayMs,
     };
 
-    await Queue.enqueue(input.queueName, payloadForRetry, input.driverName);
+    await TypedQueue.enqueue(input.queueName, payloadForRetry, input.driverName);
     Logger.info(`${input.options.kindLabel} re-queued for retry`, {
       ...input.baseLogFields,
       attempts: nextAttempts,
@@ -338,7 +357,7 @@ const onProcessFailure = async <TPayload>(input: {
     });
   }
 
-  await Queue.ack(input.queueName, input.message.id, input.driverName);
+  await TypedQueue.ack(input.queueName, input.message.id, input.driverName);
   await removeHeartbeatIfSupported(input.queueName, input.message.id);
 
   if (typeof input.trackerApi.failed === 'function') {
@@ -404,7 +423,7 @@ const processQueueMessage = async <TPayload>(
   queueName: string,
   driverName?: string
 ): Promise<boolean> => {
-  const message = await Queue.dequeue<TPayload>(queueName, driverName);
+  const message = await TypedQueue.dequeue<TPayload>(queueName, driverName);
   if (!message) return false;
 
   const baseLogFields = buildBaseLogFields(message, options.getLogFields);
@@ -597,6 +616,17 @@ export function createQueueWorker<TPayload>(
   const processAll = createProcessAll(options.defaultQueueName, processOne);
   const runOnce = createRunOnce(options.defaultQueueName, processOne);
   const startWorker = createStartWorker(options.kindLabel, options.defaultQueueName, processOne);
+  const queueWorkerMeta = Object.freeze({
+    kindLabel: options.kindLabel,
+    defaultQueueName: options.defaultQueueName,
+    maxAttempts: options.maxAttempts,
+  });
 
-  return Object.freeze({ processOne, processAll, runOnce, startWorker });
+  return Object.freeze({
+    processOne,
+    processAll,
+    runOnce,
+    startWorker,
+    __zintrustQueueWorkerMeta: queueWorkerMeta,
+  });
 }

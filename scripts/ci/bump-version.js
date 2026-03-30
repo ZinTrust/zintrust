@@ -123,6 +123,11 @@ function applyBump(bumpType) {
   // Update package.json + package-lock.json without creating a git tag.
   run(`npm version ${bumpType} --no-git-tag-version`);
 
+  // Keep all workspace package versions and peer ranges aligned with the new core version,
+  // then refresh lockfile metadata so the CI sync check remains green after the bump commit.
+  run('node scripts/release/sync-package-versions.mjs');
+  run('npm install --package-lock-only --ignore-scripts');
+
   const pkg = readJson('./package.json');
   return pkg.version;
 }

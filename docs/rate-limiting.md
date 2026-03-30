@@ -26,7 +26,21 @@ app.getMiddlewareStack().register(
 
 ### Route-Specific Rate Limiting
 
-You can also apply rate limiting to specific routes or groups:
+You can also apply rate limiting to specific routes or groups. For route metadata, ZinTrust supports an inline middleware key format:
+
+```typescript
+Router.post(router, '/login', loginHandler, {
+  middleware: ['rateLimit:6:1'],
+});
+
+Router.get(router, '/bursty-endpoint', burstHandler, {
+  middleware: ['rateLimit:100:0.4'],
+});
+```
+
+The format is `rateLimit:<max>:<windowInMinutes>`. Fractional minute windows are supported, so `rateLimit:100:0.4` means 100 requests every 24 seconds.
+
+You can also register explicit middleware instances when you want reusable named variants:
 
 ```typescript
 router.group('/api', (api) => {

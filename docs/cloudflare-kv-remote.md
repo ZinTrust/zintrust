@@ -5,6 +5,26 @@ Cloudflare KV is a Workers binding (not a Redis-like server you can connect to d
 - Deploy a Cloudflare Worker service **`zintrust-kv`** in your Cloudflare account.
 - Configure your app to use the **remote KV cache driver** (HTTP), which calls the Worker over HTTPS.
 
+## Deploy CLI
+
+```bash
+zin deploy kv-proxy
+```
+
+## Local CLI
+
+```bash
+zin proxy:kv
+```
+
+This command auto-adds `env.kv-proxy` to `wrangler.jsonc` when the environment block is missing, then runs local Wrangler dev against `./src/proxy/kv/ZintrustKvProxy.ts`.
+
+## Cloudflare Vars CLI
+
+```bash
+zin put cloudflare --wg kv-proxy --var kv_env --env_path .env
+```
+
 ---
 
 ## How it works

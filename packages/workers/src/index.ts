@@ -44,7 +44,12 @@ export type {
   WorkerFactoryConfig,
   WorkerPersistenceConfig,
 } from './WorkerFactory';
-export { WorkerInit } from './WorkerInit';
+export {
+  buildFileBackedAutoStartTasks,
+  selectAutoStartNames,
+  selectAutoStartTasks,
+  WorkerInit,
+} from './WorkerInit';
 export { WorkerShutdown } from './WorkerShutdown';
 
 // HTTP Controllers & Routes
@@ -66,10 +71,10 @@ export type {
   WorkerConfig,
   WorkerCostConfig,
   WorkerObservabilityConfig,
-  WorkerStatus,
-  WorkerVersioningConfig,
   WorkersConfigOverrides,
   WorkersGlobalConfig,
+  WorkerStatus,
+  WorkerVersioningConfig,
 } from '@zintrust/core';
 
 // Re-export bullmq types for type compatibility
@@ -92,6 +97,7 @@ export type {
 } from './ChaosEngineering';
 export type { ISLAConfig, ISLAReport, ISLAStatus, ISLAViolation, ITimeRange } from './SLAMonitor';
 
+export type * from './config/workerConfig';
 export type * from './type';
 
 /**

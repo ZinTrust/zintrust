@@ -1,3 +1,8 @@
+---
+name: zintrust-development
+description: ZinTrust repository development conventions, runtime rules, and architecture guidance.
+---
+
 # ZinTrust Development Skill
 
 This skill provides AI agents with comprehensive knowledge of ZinTrust's conventions, patterns, and architecture so they can write correct, idiomatic code for the framework.

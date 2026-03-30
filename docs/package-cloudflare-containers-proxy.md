@@ -13,6 +13,24 @@ The `@zintrust/cloudflare-containers-proxy` package provides a Cloudflare Contai
 npm install @zintrust/cloudflare-containers-proxy
 ```
 
+## Deploy CLI
+
+```bash
+zin deploy:ccp
+```
+
+## Local CLI
+
+```bash
+npm run dev:cp
+```
+
+## Cloudflare Vars CLI
+
+```bash
+zin put cloudflare --wg staging --var proxy_env --config wrangler.containers-proxy.jsonc
+```
+
 ## Configuration
 
 Add the Cloudflare Containers proxy configuration to your environment:
@@ -68,7 +86,7 @@ app.use('/api/container', proxy.middleware());
 // Direct proxy calls
 const response = await proxy.request('/users', {
   method: 'GET',
-  headers: { 'Authorization': 'Bearer token' },
+  headers: { Authorization: 'Bearer token' },
 });
 
 // Health check
@@ -172,23 +190,23 @@ const proxy = new CloudflareContainersProxy({
     // Add custom headers
     req.headers['X-Request-ID'] = generateRequestId();
     req.headers['X-Forwarded-For'] = req.ip;
-    
+
     // Transform request body
     if (req.body && typeof req.body === 'object') {
       req.body.timestamp = new Date().toISOString();
     }
-    
+
     return req;
   },
   responseTransform: (res, req) => {
     // Add response headers
     res.headers['X-Response-Time'] = Date.now() - req.startTime;
-    
+
     // Transform response body
     if (res.data && typeof res.data === 'object') {
       res.data.processedAt = new Date().toISOString();
     }
-    
+
     return res;
   },
 });
@@ -201,7 +219,7 @@ const proxy = new CloudflareContainersProxy({
   target: 'http://container-service:8080',
   errorHandler: (error, req, res) => {
     console.log('Proxy error:', error.message);
-    
+
     if (error.code === 'ECONNREFUSED') {
       res.status(503).json({
         error: 'Service Unavailable',
@@ -267,7 +285,7 @@ const monitor = new ContainerHealthMonitor({
       try {
         const response = await fetch(`${target.url}/health/detailed`);
         const data = await response.json();
-        
+
         return {
           healthy: response.ok && data.status === 'healthy',
           responseTime: response.headers.get('x-response-time'),

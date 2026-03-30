@@ -13,6 +13,7 @@ describe('QUEUE_MONITOR_MIDDLEWARE strict validation (patch coverage)', () => {
     }));
 
     vi.doMock('@config/middleware', () => ({
+      isKnownMiddlewareName: (value: string) => /^rateLimit:\d+:\d+(?:\.\d+)?$/.test(value),
       middlewareConfig: {
         route: {
           auth: (_req: unknown, _res: unknown, next: () => unknown) => next(),
@@ -45,5 +46,13 @@ describe('QUEUE_MONITOR_MIDDLEWARE strict validation (patch coverage)', () => {
 
     const { queueConfig } = await import('@config/queue');
     expect(queueConfig.monitor.middleware).toEqual(['auth', 'jwt']);
+  });
+
+  it('accepts supported dynamic middleware keys such as parameterized rate limits', async () => {
+    process.env['QUEUE_MONITOR_ENABLED'] = 'true';
+    process.env['QUEUE_MONITOR_MIDDLEWARE'] = 'rateLimit:1000:1';
+
+    const { queueConfig } = await import('@config/queue');
+    expect(queueConfig.monitor.middleware).toEqual(['rateLimit:1000:1']);
   });
 });

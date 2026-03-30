@@ -7,6 +7,8 @@
  */
 
 import { FileGenerator } from '@cli/scaffolding/FileGenerator';
+import { toCompatibleGovernanceVersion } from '@cli/scaffolding/ScaffoldingVersionUtils';
+import { VersionChecker } from '@cli/services/VersionChecker';
 import { SpawnUtil } from '@cli/utils/spawn';
 import { resolvePackageManager } from '@common/index';
 import { Logger } from '@config/logger';
@@ -86,8 +88,16 @@ const ensureDevDependency = (
 const inferGovernanceVersion = (pkg: PackageJson): string => {
   const deps = getStringRecord(pkg.dependencies);
   const core = deps?.['@zintrust/core'];
-  if (typeof core === 'string' && core.trim() !== '') return core;
-  return '^0.1.0';
+  if (typeof core === 'string' && core.trim() !== '') {
+    return toCompatibleGovernanceVersion(core);
+  }
+
+  const currentVersion = VersionChecker.getCurrentVersion().trim();
+  if (currentVersion !== '' && currentVersion !== '0.0.0') {
+    return toCompatibleGovernanceVersion(currentVersion);
+  }
+
+  return '^0.4.0';
 };
 
 const writeEslintConfig = (projectRoot: string): string[] => {

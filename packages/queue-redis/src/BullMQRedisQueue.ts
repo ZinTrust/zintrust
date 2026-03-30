@@ -429,6 +429,8 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         ? deduplication.ttl
         : undefined;
     const replace = (deduplication as { replace?: boolean }).replace === true;
+    const jobId = jobOptions.jobId ?? generateUuid();
+    jobOptions.jobId = jobId;
 
     // Check existing lock
     const hasExistingLock = await checkExistingLock(
@@ -436,7 +438,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       provider,
       replace,
       queue,
-      jobOptions.jobId as string
+      jobId
     );
     if (hasExistingLock) {
       return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
@@ -448,7 +450,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
       provider,
       ttl,
       queue,
-      jobOptions.jobId as string
+      jobId
     );
     if (!lockAcquired) {
       return { payloadToSend: payloadData, shouldReturn: true, returnValue: deduplicationId };
@@ -499,7 +501,7 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         const q = getQueue(queue);
 
         // Extract BullMQ options from payload with proper typing
-        const payloadData = payload as BullMQPayload;
+        const payloadData = payload;
         const jobOptions = createJobOptions(payloadData);
         requestedJobId = jobOptions.jobId;
         // Handle deduplication

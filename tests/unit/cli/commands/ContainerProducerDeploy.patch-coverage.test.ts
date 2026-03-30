@@ -45,6 +45,87 @@ describe('Container/Producer/Deploy patch coverage', () => {
     await InitContainerCommand.create().execute({});
 
     expect(nodeFs.writeFileSync).toHaveBeenCalledTimes(2);
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      2,
+      '/project/Dockerfile.workers',
+      expect.stringContaining('npm run build')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('target: worker')
+    );
+  });
+
+  it('InitContainerCommand writes a single bootstrap-driven worker compose service with expected defaults', async () => {
+    const nodeFs = await import('@node-singletons/fs');
+    vi.mocked(nodeFs.existsSync).mockReturnValue(false);
+
+    const { InitContainerCommand } = await import('@cli/commands/InitContainerCommand');
+    await InitContainerCommand.create().execute({});
+
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('workers-api:')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('image: ${WORKERS_IMAGE:-zintrust-workers-local:latest}')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('target: worker')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('WORKER_ENABLED=${WORKER_ENABLED:-true}')
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      1,
+      '/project/docker-compose.workers.yml',
+      expect.stringContaining('WORKER_AUTO_START=${WORKER_AUTO_START:-true}')
+    );
+  });
+
+  it('InitContainerCommand writes worker overlay Dockerfile that copies compiled worker artifacts', async () => {
+    const nodeFs = await import('@node-singletons/fs');
+    vi.mocked(nodeFs.existsSync).mockReturnValue(false);
+
+    const { InitContainerCommand } = await import('@cli/commands/InitContainerCommand');
+    await InitContainerCommand.create().execute({});
+
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      2,
+      '/project/Dockerfile.workers',
+      expect.stringContaining(
+        'if [ -d /project/dist/app ]; then cp -R /project/dist/app "$overlay_root/dist/app"; fi;'
+      )
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      2,
+      '/project/Dockerfile.workers',
+      expect.stringContaining(
+        'if [ -f /project/dist/src/zintrust.workers.js ]; then cp /project/dist/src/zintrust.workers.js "$overlay_root/dist/src/zintrust.workers.js"; fi;'
+      )
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      2,
+      '/project/Dockerfile.workers',
+      expect.stringContaining(
+        'COPY --from=worker-overlay --chown=nodejs:nodejs /overlay/dist/ /app/dist/'
+      )
+    );
+    expect(nodeFs.writeFileSync).toHaveBeenNthCalledWith(
+      2,
+      '/project/Dockerfile.workers',
+      expect.stringContaining(
+        'CMD ["node", "--experimental-specifier-resolution=node", "dist/src/boot/bootstrap.js"]'
+      )
+    );
   });
 
   it('InitContainerCommand skips files when overwrite is declined', async () => {
@@ -73,6 +154,10 @@ describe('Container/Producer/Deploy patch coverage', () => {
 
     expect(nodeFs.copyFileSync).toHaveBeenCalledTimes(2);
     expect(nodeFs.writeFileSync).toHaveBeenCalledTimes(2);
+    expect(nodeFs.copyFileSync).toHaveBeenCalledWith(
+      '/project/Dockerfile.workers',
+      expect.stringContaining('/project/Dockerfile.workers.bak.')
+    );
   });
 
   it('InitProducerCommand handles missing wrangler and patches WORKER_ENABLED', async () => {

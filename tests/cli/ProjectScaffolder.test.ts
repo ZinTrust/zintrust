@@ -71,6 +71,19 @@ describe('ProjectScaffolder Templates', () => {
     expect(httpLogger).toContain("'@zintrust/core'");
     expect(httpLogger).not.toContain("'@httpClient/Http'");
     expect(httpLogger).not.toContain("'@exceptions/ZintrustError'");
+
+    const exampleWorker = template?.files['app/Workers/ExampleWorker.ts'] ?? '';
+    expect(exampleWorker).toContain("'@zintrust/core'");
+    expect(exampleWorker).toContain('workerDefinition');
+    expect(exampleWorker).toContain('ZinTrustProcessor');
+
+    const workersEntrypoint = template?.files['src/zintrust.workers.ts'] ?? '';
+    expect(workersEntrypoint).toContain("'@app/Workers/ExampleWorker'");
+    expect(workersEntrypoint).toContain('__zintrustGeneratedWorkerStub');
+
+    const bootEntrypoint = template?.files['src/boot/bootstrap.ts'] ?? '';
+    expect(bootEntrypoint).toContain("'@zintrust/core/boot'");
+    expect(bootEntrypoint).toContain('export {};');
   });
 });
 
@@ -508,6 +521,7 @@ describe('ProjectScaffolder Full Scaffolding', () => {
     expect(result.filesCreated).toBeGreaterThan(0);
     expect(result.directoriesCreated).toBeGreaterThan(0);
     expect(FileGenerator.directoryExists(path.join(testDir, 'my-app'))).toBe(true);
+    expect(fs.existsSync(path.join(testDir, 'my-app', 'src/boot/bootstrap.ts'))).toBe(true);
   });
 
   it('should fail with invalid options', async () => {

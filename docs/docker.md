@@ -31,18 +31,28 @@ zin deploy cw
 zin deploy:cw
 ```
 
+`zin init:cw` scaffolds `docker-compose.workers.yml` plus a dedicated `Dockerfile.workers` overlay
+image that builds the local project with `npm run build` and copies compiled worker artifacts onto
+the published `zintrust/zintrust` base image.
+
+The generated compose file includes a single `workers-api` service that boots the HTTP surface and
+auto-starts eligible workers in the same bootstrap process.
+
 Publish workers/schedules images (maintainers / Docker Hub access required):
 
 ```bash
 zin docker push --tag <version>
 ```
 
-Use the prebuilt images in Compose (skip local builds):
+Use prebuilt overlay images in Compose (skip local builds):
 
 ```bash
-ZINTRUST_IMAGE=zintrust/zintrust:<version> docker compose -f docker-compose.workers.yml up -d
-ZINTRUST_IMAGE=zintrust/zintrust:<version> docker compose -f docker-compose.schedules.yml up -d
+WORKERS_IMAGE=myorg/my-app-workers:<version> \
+docker compose -f docker-compose.workers.yml up -d
 ```
+
+For the scaffolded worker stack, `WORKERS_IMAGE` refers to the project-specific overlay image built from
+`Dockerfile.workers`. The base image that overlay extends remains `zintrust/zintrust`.
 
 Compatibility aliases still work:
 

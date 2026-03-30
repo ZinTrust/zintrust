@@ -230,10 +230,10 @@ export const MiddlewareKeys = Object.freeze({
   validateRegister: true,
 });
 
-export type MiddlewareKey = keyof typeof MiddlewareKeys;
+export type MiddlewareKey = keyof typeof MiddlewareKeys | `rateLimit:${number}:${number}`;
 ```
 
-`MiddlewareKey` is the compile-time union of allowed framework middleware keys. `MiddlewareKeys` is the runtime source of truth for those keys.
+`MiddlewareKey` is the compile-time union of allowed framework middleware keys plus inline route rate-limit keys such as `rateLimit:6:1` or `rateLimit:100:0.4`. `MiddlewareKeys` is the runtime source of truth for the built-in static keys.
 
 Without typing, a typo can ship unnoticed:
 
@@ -250,6 +250,10 @@ import { Router, type MiddlewareKey } from '@zintrust/core';
 
 Router.get<MiddlewareKey>(router, '/admin', handler, {
   middleware: ['auth', 'jwt'],
+});
+
+Router.get<MiddlewareKey>(router, '/search', handler, {
+  middleware: ['rateLimit:100:0.4'],
 });
 ```
 

@@ -225,6 +225,7 @@ describe('OptionalCliCommandRegistry patch coverage', () => {
     await import('../../../packages/workers/src/register.ts');
 
     expect(OptionalCliCommandRegistry.has('worker:list')).toBe(true);
+    expect(OptionalCliCommandRegistry.has('worker:doctor')).toBe(true);
     expect(OptionalCliCommandRegistry.has('worker:summary')).toBe(true);
   });
 });

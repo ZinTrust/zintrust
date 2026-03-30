@@ -9,12 +9,12 @@ import { CsrfMiddleware } from '@middleware/CsrfMiddleware';
 import { ErrorHandlerMiddleware } from '@middleware/ErrorHandlerMiddleware';
 import { JwtAuthMiddleware } from '@middleware/JwtAuthMiddleware';
 import { LoggingMiddleware } from '@middleware/LoggingMiddleware';
+import type { MiddlewareFailureResponder } from '@middleware/MiddlewareFailureResponder';
 import type { Middleware } from '@middleware/MiddlewareStack';
 import { RateLimiter } from '@middleware/RateLimiter';
 import { SanitizeBodyMiddleware } from '@middleware/SanitizeBodyMiddleware';
 import { SecurityMiddleware } from '@middleware/SecurityMiddleware';
 import { ValidationMiddleware } from '@middleware/ValidationMiddleware';
-import type { MiddlewareFailureResponder } from '@middleware/MiddlewareFailureResponder';
 import { StartupConfigFile, StartupConfigFileRegistry } from '@runtime/StartupConfigFileRegistry';
 import { Sanitizer } from '@security/Sanitizer';
 import { Schema } from '@validation/Validator';
@@ -108,7 +108,40 @@ export const MiddlewareKeys = Object.freeze({
   validateUserFill: true,
 } satisfies Record<keyof SharedMiddlewares, true>);
 
-export type MiddlewareKey = keyof typeof MiddlewareKeys;
+export type ParameterizedRateLimitMiddlewareKey = `rateLimit:${number}:${number}`;
+
+type StaticMiddlewareKey = keyof typeof MiddlewareKeys;
+
+export type MiddlewareKey = StaticMiddlewareKey | ParameterizedRateLimitMiddlewareKey;
+
+type ParameterizedRateLimitConfig = Readonly<{
+  max: number;
+  windowMs: number;
+}>;
+
+const parseParameterizedRateLimitKey = (
+  value: string
+): ParameterizedRateLimitConfig | undefined => {
+  const match = /^rateLimit:(\d+):(\d+(?:\.\d+)?)$/.exec(value.trim());
+  if (!match) return undefined;
+
+  const max = Number.parseInt(match[1] ?? '', 10);
+  const windowMinutes = Number.parseFloat(match[2] ?? '');
+
+  if (!Number.isInteger(max) || max < 1) return undefined;
+  if (!Number.isFinite(windowMinutes) || windowMinutes <= 0) return undefined;
+
+  const windowMs = Math.round(windowMinutes * 60_000);
+  if (!Number.isFinite(windowMs) || windowMs < 1) return undefined;
+
+  return Object.freeze({ max, windowMs });
+};
+
+export const isKnownMiddlewareName = (value: string): value is MiddlewareKey => {
+  return (
+    Object.hasOwn(MiddlewareKeys, value) || parseParameterizedRateLimitKey(value) !== undefined
+  );
+};
 
 type ValidationMiddlewareApi = Readonly<{
   createBodyWithSanitization: <TBody extends Record<string, unknown>>(
@@ -381,7 +414,7 @@ const applySharedMiddlewareOverrides = (
 ): SharedMiddlewares => {
   const overridden = { ...shared } as SharedMiddlewares;
 
-  for (const key of Object.keys(MiddlewareKeys) as MiddlewareKey[]) {
+  for (const key of Object.keys(MiddlewareKeys) as StaticMiddlewareKey[]) {
     const candidate = projectRoute[key];
     if (typeof candidate === 'function') {
       overridden[key] = candidate;
@@ -389,6 +422,50 @@ const applySharedMiddlewareOverrides = (
   }
 
   return Object.freeze(overridden);
+};
+
+const createRouteMiddlewareRegistry = (
+  resolvedShared: SharedMiddlewares,
+  projectRoute: Record<string, Middleware>,
+  responders: MiddlewareResponderConfig
+): Record<string, Middleware> => {
+  const target: Record<string, Middleware> = Object.freeze({
+    ...resolvedShared,
+    ...projectRoute,
+  });
+  const dynamicRateLimits = new Map<string, Middleware>();
+
+  return new Proxy(target, {
+    get(currentTarget, prop, receiver) {
+      if (typeof prop !== 'string') {
+        return Reflect.get(currentTarget as object, prop, receiver) as unknown;
+      }
+
+      const resolved = currentTarget[prop];
+      if (typeof resolved === 'function') return resolved;
+
+      const cached = dynamicRateLimits.get(prop);
+      if (cached !== undefined) return cached;
+
+      const parsed = parseParameterizedRateLimitKey(prop);
+      if (parsed === undefined) return undefined;
+
+      const middleware = RateLimiter.create({
+        max: parsed.max,
+        windowMs: parsed.windowMs,
+        onFailure: responders.rateLimit,
+      });
+
+      dynamicRateLimits.set(prop, middleware);
+      return middleware;
+    },
+    ownKeys(currentTarget) {
+      return Reflect.ownKeys(currentTarget);
+    },
+    getOwnPropertyDescriptor(currentTarget, prop) {
+      return Reflect.getOwnPropertyDescriptor(currentTarget, prop);
+    },
+  });
 };
 
 export function createMiddlewareConfig(): MiddlewareConfigType {
@@ -413,6 +490,11 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
   const projectGlobal = resolveProjectGlobalMiddlewares(effectiveMiddlewareConfig);
   const projectRoute = resolveProjectRouteMiddlewares(effectiveMiddlewareConfig);
   const resolvedShared = applySharedMiddlewareOverrides(shared, projectRoute);
+  const routeMiddlewareRegistry = createRouteMiddlewareRegistry(
+    resolvedShared,
+    projectRoute,
+    responders
+  );
 
   const middlewareConfigObj: MiddlewareConfigType = {
     global: [
@@ -426,10 +508,7 @@ export function createMiddlewareConfig(): MiddlewareConfigType {
       resolvedShared.sanitizeBody,
       ...projectGlobal,
     ],
-    route: {
-      ...resolvedShared,
-      ...projectRoute,
-    },
+    route: routeMiddlewareRegistry,
   };
 
   return Object.freeze(middlewareConfigObj);

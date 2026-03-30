@@ -2,6 +2,44 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Logger } from '@config/logger';
 
+const workerFactoryMock = {
+  list: vi.fn(),
+  listPersisted: vi.fn(),
+  listPersistedRecords: vi.fn(),
+  listFileBackedRecords: vi.fn(),
+  getHealth: vi.fn(),
+  getMetrics: vi.fn(),
+  get: vi.fn(),
+  stop: vi.fn(),
+  restart: vi.fn(),
+  start: vi.fn(),
+  startFromPersisted: vi.fn(),
+};
+
+const workerRegistryMock = {
+  status: vi.fn(),
+};
+
+const healthMonitorMock = {
+  getSummary: vi.fn(),
+};
+
+const resourceMonitorMock = {
+  getCurrentUsage: vi.fn(),
+};
+
+const workersModuleMock = {
+  createQueueWorker: () => ({
+    processOne: async () => true,
+    processAll: async () => true,
+    startWorker: async () => true,
+  }),
+  WorkerFactory: workerFactoryMock,
+  WorkerRegistry: workerRegistryMock,
+  HealthMonitor: healthMonitorMock,
+  ResourceMonitor: resourceMonitorMock,
+};
+
 vi.mock('@config/logger', () => ({
   Logger: {
     info: vi.fn(),
@@ -12,31 +50,19 @@ vi.mock('@config/logger', () => ({
   },
 }));
 
-vi.mock('@zintrust/workers', () => ({
-  createQueueWorker: () => ({
-    processOne: async () => true,
-    processAll: async () => true,
-    startWorker: async () => true,
-  }),
-  WorkerFactory: {
-    list: vi.fn(),
-    listPersisted: vi.fn(),
-    getHealth: vi.fn(),
-    getMetrics: vi.fn(),
-    stop: vi.fn(),
-    restart: vi.fn(),
-    start: vi.fn(),
-  },
-  WorkerRegistry: {
-    status: vi.fn(),
-  },
-  HealthMonitor: {
-    getSummary: vi.fn(),
-  },
-  ResourceMonitor: {
-    getCurrentUsage: vi.fn(),
+vi.mock('@runtime/WorkerProjectAutoImports', () => ({
+  WorkerProjectAutoImports: {
+    tryImportProjectWorkerEntrypoint: vi.fn(async () => ({ ok: false, reason: 'not-found' })),
   },
 }));
+
+vi.mock('@runtime/WorkersModule', async () => {
+  return {
+    loadWorkersModule: vi.fn(async () => workersModuleMock),
+  };
+});
+
+vi.mock('@zintrust/workers', () => workersModuleMock);
 
 describe('WorkerCommands', () => {
   const createExitMock = () => () => {
@@ -195,6 +221,29 @@ describe('WorkerCommands', () => {
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('CPU: 12.5%'));
   });
 
+  it('prints worker doctor diagnostics and exits non-zero for blocking issues', async () => {
+    process.env['QUEUE_DRIVER'] = 'sqs';
+    process.env['WORKER_ENABLED'] = 'true';
+    process.env['WORKER_AUTO_START'] = 'true';
+    process.env['QUEUE_ENABLED'] = 'true';
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('exit');
+    });
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+
+    await expect(WorkerCommands.createWorkerDoctorCommand().execute({})).rejects.toThrow('exit');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Worker Startup Diagnostics'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('AWS_ACCESS_KEY_ID: [missing]'));
+
+    exitSpy.mockRestore();
+    delete process.env['QUEUE_DRIVER'];
+    delete process.env['WORKER_ENABLED'];
+    delete process.env['WORKER_AUTO_START'];
+    delete process.env['QUEUE_ENABLED'];
+  });
+
   describe('Error Handling Coverage', () => {
     it('should handle worker:list command failure and exit process', async () => {
       const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
@@ -345,6 +394,37 @@ describe('WorkerCommands', () => {
       await cmd.execute({ args: ['alpha'] });
 
       expect(logSpy).toHaveBeenCalledWith('✓ Worker "alpha" stopped successfully');
+    });
+
+    it('should start file-backed workers when persisted auto-start records are missing', async () => {
+      process.env['WORKER_AUTO_START'] = 'true';
+
+      const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+      const workersModule = await import('@zintrust/workers');
+      const workerFactory = workersModule.WorkerFactory as unknown as {
+        listPersistedRecords: ReturnType<typeof vi.fn>;
+        listFileBackedRecords: ReturnType<typeof vi.fn>;
+        startFromPersisted: ReturnType<typeof vi.fn>;
+        get: ReturnType<typeof vi.fn>;
+      };
+
+      workerFactory.listPersistedRecords.mockResolvedValue([]);
+      workerFactory.listFileBackedRecords.mockResolvedValue([
+        { name: 'digest-worker', autoStart: true, activeStatus: true },
+      ]);
+      workerFactory.get.mockResolvedValue(null);
+      workerFactory.startFromPersisted.mockResolvedValue(undefined);
+
+      const cmd = WorkerCommands.createWorkerStartAllCommand();
+      await cmd.execute({});
+
+      expect(workerFactory.startFromPersisted).toHaveBeenCalledWith('digest-worker');
+      expect(Logger.info).toHaveBeenCalledWith(
+        'Worker start-all summary',
+        expect.objectContaining({ total: 1, started: 1 })
+      );
+
+      delete process.env['WORKER_AUTO_START'];
     });
   });
 });

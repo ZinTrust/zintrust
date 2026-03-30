@@ -148,7 +148,7 @@ type PersistenceOverride = WorkerPersistenceConfig;
 
 type AutoStartTask = AutoStartCandidate & {
   persistenceOverride: PersistenceOverride;
-  source: 'database' | 'redis' | 'memory';
+  source: 'database' | 'redis' | 'memory' | 'file';
 };
 
 const resolveAutoStartCandidates = (records: AutoStartCandidate[]): AutoStartCandidate[] => {
@@ -227,6 +227,79 @@ const collectAutoStartTasks = async (): Promise<AutoStartTask[]> => {
   }
 
   return tasks;
+};
+
+export const buildFileBackedAutoStartTasks = (
+  records: AutoStartCandidate[],
+  warn: (message: string) => void = Logger.warn
+): AutoStartTask[] => {
+  const tasks: AutoStartTask[] = [];
+  const seenWorkerNames = new Set<string>();
+  const candidates = resolveAutoStartCandidates(records);
+
+  for (const record of candidates) {
+    if (seenWorkerNames.has(record.name)) {
+      warn(
+        `Worker ${record.name} appears multiple times in file-backed discovery; keeping the first definition and skipping duplicates.`
+      );
+      continue;
+    }
+
+    seenWorkerNames.add(record.name);
+    tasks.push({
+      ...record,
+      persistenceOverride: { driver: 'memory' },
+      source: 'file',
+    });
+  }
+
+  return tasks;
+};
+
+export const selectAutoStartTasks = (
+  persistedTasks: AutoStartTask[],
+  fileRecords: AutoStartCandidate[],
+  warn: (message: string) => void = Logger.warn
+): AutoStartTask[] => {
+  if (persistedTasks.length > 0) {
+    return persistedTasks;
+  }
+
+  return buildFileBackedAutoStartTasks(fileRecords, warn);
+};
+
+export const selectAutoStartNames = (
+  persistedRecords: AutoStartCandidate[],
+  fileRecords: AutoStartCandidate[],
+  warn: (message: string) => void = Logger.warn
+): { names: string[]; source: 'persisted' | 'file' | 'none' } => {
+  const persistedNames = resolveAutoStartCandidates(persistedRecords).map((record) => record.name);
+
+  if (persistedNames.length > 0) {
+    return { names: persistedNames, source: 'persisted' };
+  }
+
+  const fileNames = buildFileBackedAutoStartTasks(fileRecords, warn).map((record) => record.name);
+  return { names: fileNames, source: fileNames.length > 0 ? 'file' : 'none' };
+};
+
+const collectFileBackedAutoStartTasks = async (): Promise<AutoStartTask[]> => {
+  try {
+    const records = await WorkerFactory.listFileBackedRecords();
+    const tasks = buildFileBackedAutoStartTasks(records);
+
+    Logger.debug('File-backed auto-start discovery', {
+      totalRecords: records.length,
+      candidateCount: tasks.length,
+    });
+
+    return tasks;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    Logger.warn(`File-backed auto-start discovery failed: ${message}`);
+  }
+
+  return [];
 };
 
 const isWorkerTrulyRunning = async (name: string): Promise<boolean> => {
@@ -357,16 +430,21 @@ async function autoStartPersistedWorkers(): Promise<void> {
   }
 
   try {
-    const candidates = await collectAutoStartTasks();
+    let candidates = await collectAutoStartTasks();
+
+    if (candidates.length === 0) {
+      candidates = await collectFileBackedAutoStartTasks();
+    }
 
     const results = await Promise.all(candidates.map(async (record) => autoStartOneWorker(record)));
 
     const startedCount = results.filter((item) => item.started).length;
     const skippedCount = results.filter((item) => item.skipped).length;
-    Logger.info('Auto-started persisted workers', {
+    Logger.info('Auto-started workers', {
       total: candidates.length,
       started: startedCount,
       skipped: skippedCount,
+      source: candidates[0]?.source ?? 'none',
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

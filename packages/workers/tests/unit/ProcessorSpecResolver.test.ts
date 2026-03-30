@@ -44,6 +44,35 @@ describe('ProcessorSpecResolver', () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it('rewrites quoted package imports in remote processor code without regex backtracking', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          [
+            'import { generateUuid } from "@zintrust/core";',
+            "import { isNonEmptyString } from '@zintrust/core';",
+            'export const ZinTrustProcessor = async () => ({',
+            '  hasUuid: typeof generateUuid === "function",',
+            '  hasValidator: typeof isNonEmptyString === "function",',
+            '});',
+          ].join('\n'),
+          {
+            status: 200,
+            headers: { 'content-type': 'text/javascript' },
+          }
+        )
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const resolved = (await WorkerFactory.resolveProcessorSpec(`${fixtureUrl}?rewrite=1`)) as
+      | (() => Promise<{ hasUuid: boolean; hasValidator: boolean }>)
+      | undefined;
+
+    expect(typeof resolved).toBe('function');
+    await expect(resolved?.()).resolves.toEqual({ hasUuid: true, hasValidator: true });
+  });
+
   it('honors cache for subsequent fetches', async () => {
     const fetchMock = vi.fn(
       async () =>
