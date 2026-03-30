@@ -1,6 +1,6 @@
 {
   "name": "@zintrust/storage",
-  "version": "0.4.38",
+  "version": "0.4.39",
   "description": "Storage abstraction and upload utilities for ZinTrust.",
   "private": false,
   "type": "module",
@@ -23,7 +23,7 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
-    "@zintrust/core": "^0.4.38"
+    "@zintrust/core": "^0.4.39"
   },
   "dependencies": {
     "busboy": "^1.6.0"
