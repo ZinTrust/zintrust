@@ -234,6 +234,19 @@ function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
 
   rootLock.packages = rootLock.packages ?? {};
 
+  // Force npm to treat all workspace packages as local links in node_modules
+  // This prevents ETARGET errors during npm ci when unpublished versions are referenced.
+  const allWorkspacePackageNames = [rootPkg.name, ...packageInfos.map(p => p.name).filter(Boolean)];
+  for (const pkgName of allWorkspacePackageNames) {
+    if (pkgName) {
+      const nmKey = "node_modules/" + pkgName;
+      if (!rootLock.packages[nmKey] || !rootLock.packages[nmKey].link) {
+        rootLock.packages[nmKey] = { resolved: "", link: true };
+        didChange = true;
+      }
+    }
+  }
+
   for (const pkgInfo of packageInfos) {
     const lockKey = `packages/${pkgInfo.dirName}`;
     const lockEntry = rootLock.packages[lockKey] ?? (rootLock.packages[lockKey] = {});
