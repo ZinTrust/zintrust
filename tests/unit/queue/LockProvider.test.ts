@@ -13,6 +13,16 @@ import {
 } from '@tools/queue/LockProvider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { createRedisConnectionMock } = vi.hoisted(() => ({
+  createRedisConnectionMock: vi.fn(() => ({
+    set: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+    pttl: vi.fn().mockResolvedValue(300000),
+    pexpire: vi.fn().mockResolvedValue(1),
+    expire: vi.fn().mockResolvedValue(true),
+  })),
+}));
+
 // Mock Logger
 vi.mock('@config/logger', () => ({
   Logger: {
@@ -31,13 +41,7 @@ vi.mock('@config/logger', () => ({
 
 // Mock Redis connection
 vi.mock('@config/workers', () => ({
-  createRedisConnection: () => ({
-    set: vi.fn().mockResolvedValue('OK'),
-    del: vi.fn().mockResolvedValue(1),
-    pttl: vi.fn().mockResolvedValue(300000),
-    pexpire: vi.fn().mockResolvedValue(1),
-    expire: vi.fn().mockResolvedValue(true),
-  }),
+  createRedisConnection: createRedisConnectionMock,
 }));
 
 // Mock queue config
@@ -199,6 +203,16 @@ describe('RedisLockProvider', () => {
       expect(lock.ttl).toBe(30000);
       expect(lock.acquired).toBe(true);
       expect(lock.expires).toBeInstanceOf(Date);
+      expect(createRedisConnectionMock).toHaveBeenCalledWith(
+        {
+          host: 'localhost',
+          port: 6379,
+          password: undefined,
+          db: 0,
+        },
+        3,
+        { subsystem: 'lock-provider' }
+      );
     });
 
     it('should handle lock release without errors', async () => {
