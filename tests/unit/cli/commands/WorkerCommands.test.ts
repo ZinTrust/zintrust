@@ -221,6 +221,29 @@ describe('WorkerCommands', () => {
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('CPU: 12.5%'));
   });
 
+  it('prints worker doctor diagnostics and exits non-zero for blocking issues', async () => {
+    process.env['QUEUE_DRIVER'] = 'sqs';
+    process.env['WORKER_ENABLED'] = 'true';
+    process.env['WORKER_AUTO_START'] = 'true';
+    process.env['QUEUE_ENABLED'] = 'true';
+
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('exit');
+    });
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+
+    await expect(WorkerCommands.createWorkerDoctorCommand().execute({})).rejects.toThrow('exit');
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Worker Startup Diagnostics'));
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('AWS_ACCESS_KEY_ID: [missing]'));
+
+    exitSpy.mockRestore();
+    delete process.env['QUEUE_DRIVER'];
+    delete process.env['WORKER_ENABLED'];
+    delete process.env['WORKER_AUTO_START'];
+    delete process.env['QUEUE_ENABLED'];
+  });
+
   describe('Error Handling Coverage', () => {
     it('should handle worker:list command failure and exit process', async () => {
       const { WorkerCommands } = await import('@cli/commands/WorkerCommands');

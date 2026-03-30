@@ -240,4 +240,57 @@ describe('WorkerCommands extra patch coverage', () => {
 
     delete process.env['WORKER_AUTO_START'];
   });
+
+  it('logs first-fault diagnostics when worker:start-all hits a config-style failure', async () => {
+    process.env['WORKER_AUTO_START'] = 'true';
+    process.env['WORKER_ENABLED'] = 'true';
+    process.env['QUEUE_ENABLED'] = 'true';
+    process.env['RUNTIME_MODE'] = 'containers';
+    process.env['QUEUE_DRIVER'] = 'redis';
+    delete process.env['APP_KEY'];
+
+    vi.doMock('@runtime/WorkersModule', () => ({
+      loadWorkersModule: vi.fn(async () => ({
+        WorkerFactory: {
+          list: () => [],
+          listPersisted: async () => ['persisted-worker'],
+          listPersistedRecords: async () => [
+            { name: 'persisted-worker', autoStart: true, activeStatus: true },
+          ],
+          getHealth: async () => ({ score: 99, status: 'healthy' }),
+          getMetrics: async () => ({ processed: 1 }),
+          get: async () => null,
+          stop: async () => undefined,
+          restart: async () => undefined,
+          start: async () => undefined,
+          startFromPersisted: async () => {
+            throw new Error('QUEUE_HTTP_PROXY_KEY or APP_KEY is required');
+          },
+        },
+        WorkerRegistry: { status: () => null },
+        HealthMonitor: { getSummary: async () => ({ details: [] }) },
+        ResourceMonitor: {
+          getCurrentUsage: () => ({
+            cpu: 1,
+            memory: { percent: 2, used: 3 },
+            cost: { hourly: 4, daily: 5 },
+          }),
+        },
+      })),
+    }));
+
+    const { WorkerCommands } = await import('@cli/commands/WorkerCommands');
+    await WorkerCommands.createWorkerStartAllCommand().execute({});
+
+    expect(Logger.error).toHaveBeenCalledWith(
+      'Likely missing env keys for worker startup',
+      expect.arrayContaining(['QUEUE_HTTP_PROXY_KEY', 'APP_KEY'])
+    );
+
+    delete process.env['WORKER_AUTO_START'];
+    delete process.env['WORKER_ENABLED'];
+    delete process.env['QUEUE_ENABLED'];
+    delete process.env['RUNTIME_MODE'];
+    delete process.env['QUEUE_DRIVER'];
+  });
 });

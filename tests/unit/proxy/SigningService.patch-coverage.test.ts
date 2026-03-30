@@ -1,5 +1,33 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const mockEnvWithAppIdentity = (): void => {
+  vi.doMock('@config/env', () => ({
+    Env: {
+      get: vi.fn((key: string, fallback?: string) => {
+        if (key === 'APP_NAME') return 'ZinTrust';
+        if (key === 'APP_KEY') return 'app-secret';
+        return fallback ?? '';
+      }),
+    },
+  }));
+};
+
+const mockEnvWithFallbackOnly = (): void => {
+  vi.doMock('@config/env', () => ({
+    Env: {
+      get: vi.fn((_key: string, fallback?: string) => fallback ?? ''),
+    },
+  }));
+};
+
+const mockSignedRequestVerify = (verify: ReturnType<typeof vi.fn>): void => {
+  vi.doMock('@security/SignedRequest', () => ({
+    SignedRequest: {
+      verify,
+    },
+  }));
+};
+
 describe('SigningService patch coverage', () => {
   afterEach(() => {
     vi.clearAllMocks();
@@ -7,15 +35,7 @@ describe('SigningService patch coverage', () => {
   });
 
   it('shouldVerify inspects all signing headers before deciding', async () => {
-    vi.doMock('@config/env', () => ({
-      Env: {
-        get: vi.fn((key: string, fallback?: string) => {
-          if (key === 'APP_NAME') return 'ZinTrust';
-          if (key === 'APP_KEY') return 'app-secret';
-          return fallback ?? '';
-        }),
-      },
-    }));
+    mockEnvWithAppIdentity();
 
     const { SigningService } = await import('@proxy/SigningService');
 
@@ -40,17 +60,8 @@ describe('SigningService patch coverage', () => {
       message: 'Unknown key id',
     }));
 
-    vi.doMock('@config/env', () => ({
-      Env: {
-        get: vi.fn((_key: string, fallback?: string) => fallback ?? ''),
-      },
-    }));
-
-    vi.doMock('@security/SignedRequest', () => ({
-      SignedRequest: {
-        verify,
-      },
-    }));
+    mockEnvWithFallbackOnly();
+    mockSignedRequestVerify(verify);
 
     const { SigningService } = await import('@proxy/SigningService');
 

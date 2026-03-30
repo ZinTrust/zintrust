@@ -5,8 +5,11 @@
  */
 
 import { ErrorFactory } from '@/exceptions/ZintrustError';
-import type { IBaseCommand } from '@cli/BaseCommand';
-import { BaseCommand } from '@cli/BaseCommand';
+import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
+import {
+  WorkerStartupDiagnostics,
+  type WorkerStartupDiagnosticsReport,
+} from '@cli/services/WorkerStartupDiagnostics';
 import { Env } from '@config/env';
 import { Logger } from '@config/logger';
 import { WorkerProjectAutoImports } from '@runtime/WorkerProjectAutoImports';
@@ -183,6 +186,21 @@ const formatTable = (headers: string[], rows: string[][]): string => {
   );
 
   return [headerRow, separator, ...dataRows].join('\n');
+};
+
+const logFirstFaultSummaryOnce = (
+  state: { logged: boolean },
+  error: unknown,
+  context: string
+): WorkerStartupDiagnosticsReport => {
+  const report = WorkerStartupDiagnostics.collect(error);
+
+  if (!state.logged) {
+    state.logged = true;
+    WorkerStartupDiagnostics.log(error, context);
+  }
+
+  return report;
 };
 
 /**
@@ -395,90 +413,151 @@ const resolveAutoStartWorkerNames = async (
   return { names: fileNames, source: fileNames.length > 0 ? 'file' : 'none' };
 };
 
+const resolveEligibleWorkers = async (
+  factory: WorkerFactoryApi,
+  workersModule: WorkerCommandsApi
+): Promise<string[]> => {
+  const { names: workers, source } = await resolveAutoStartWorkerNames(factory, workersModule);
+
+  if (workers.length === 0) {
+    Logger.info('No auto-start eligible persisted or file-backed workers found.');
+    return [];
+  }
+
+  if (source !== 'persisted') {
+    return workers;
+  }
+
+  const discoveredWorkers = await pollForPersistedWorkers(factory);
+  return workers.filter((name) => discoveredWorkers.includes(name));
+};
+
+const startEligibleWorker = async (
+  factory: WorkerFactoryApi,
+  name: string,
+  diagnosticsState: { logged: boolean }
+): Promise<{ name: string; status: 'started' | 'skipped' | 'failed' }> => {
+  const existing = await factory.get(name);
+  if (existing !== null && existing !== undefined) {
+    const trulyRunning = await isRegisteredWorkerRunning(existing);
+    if (trulyRunning) {
+      return { name, status: 'skipped' };
+    }
+
+    Logger.warn(
+      `Worker "${name}" is registered but not truly running. Restarting for crash recovery.`
+    );
+    try {
+      await factory.restart(name);
+      return { name, status: 'started' };
+    } catch (error) {
+      logFirstFaultSummaryOnce(
+        diagnosticsState,
+        error,
+        `worker:start-all failed while restarting "${name}"`
+      );
+      Logger.warn(`Failed to restart stale worker "${name}"`, error);
+      return { name, status: 'failed' };
+    }
+  }
+
+  try {
+    await factory.startFromPersisted(name);
+    return { name, status: 'started' };
+  } catch (error) {
+    logFirstFaultSummaryOnce(
+      diagnosticsState,
+      error,
+      `worker:start-all failed while starting "${name}"`
+    );
+    Logger.warn(`Failed to start worker "${name}"`, error);
+    return { name, status: 'failed' };
+  }
+};
+
+const executeWorkerStartAll = async (): Promise<void> => {
+  const diagnosticsState = { logged: false };
+
+  try {
+    const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
+    if (!globalAutoStart) {
+      Logger.info('Skipping auto-start because WORKER_AUTO_START is false.');
+      return;
+    }
+
+    const factory = await getWorkerFactory();
+    const workersModule = await loadWorkersModule();
+    const eligibleWorkers = await resolveEligibleWorkers(factory, workersModule);
+
+    if (eligibleWorkers.length === 0) {
+      Logger.info('No auto-start eligible workers are currently available.');
+      return;
+    }
+
+    const results = await Promise.all(
+      eligibleWorkers.map(async (name) => startEligibleWorker(factory, name, diagnosticsState))
+    );
+
+    const started = results.filter((result) => result.status === 'started').length;
+    const skipped = results.filter((result) => result.status === 'skipped').length;
+    const failed = results.filter((result) => result.status === 'failed').length;
+
+    Logger.info('Worker start-all summary', {
+      total: eligibleWorkers.length,
+      started,
+      skipped,
+      failed,
+    });
+  } catch (error) {
+    logFirstFaultSummaryOnce(diagnosticsState, error, 'worker:start-all failed');
+    Logger.error('worker:start-all command failed', error);
+    process.exit(1);
+  }
+};
+
 /**
  * Worker Start All Command
  */
 const createWorkerStartAllCommand = (): IBaseCommand => {
-  const ext = async (): Promise<void> => {
-    try {
-      const globalAutoStart = Env.getBool('WORKER_AUTO_START', false);
-      if (!globalAutoStart) {
-        Logger.info('Skipping auto-start because WORKER_AUTO_START is false.');
-        return;
+  const cmd = BaseCommand.create({
+    name: 'worker:start-all',
+    description: 'Start all persisted workers',
+    execute: executeWorkerStartAll,
+  });
+
+  return cmd;
+};
+
+const createWorkerDoctorCommand = (): IBaseCommand => {
+  const ext = (options: CommandOptions): void => {
+    const json = options['json'] === true;
+    const report = WorkerStartupDiagnostics.collect();
+
+    if (json) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      console.log();
+      for (const line of WorkerStartupDiagnostics.renderLines(report)) {
+        console.log(line);
       }
+      console.log();
+    }
 
-      const factory = await getWorkerFactory();
-      const workersModule = await loadWorkersModule();
-      const { names: workers, source } = await resolveAutoStartWorkerNames(factory, workersModule);
-
-      if (workers.length === 0) {
-        Logger.info('No auto-start eligible persisted or file-backed workers found.');
-        return;
-      }
-
-      let eligibleWorkers = workers;
-
-      if (source === 'persisted') {
-        const discoveredWorkers = await pollForPersistedWorkers(factory);
-        eligibleWorkers = workers.filter((name) => discoveredWorkers.includes(name));
-      }
-
-      if (eligibleWorkers.length === 0) {
-        Logger.info('No auto-start eligible workers are currently available.');
-        return;
-      }
-
-      const results = await Promise.all(
-        eligibleWorkers.map(async (name) => {
-          const existing = await factory.get(name);
-          if (existing !== null && existing !== undefined) {
-            const trulyRunning = await isRegisteredWorkerRunning(existing);
-            if (trulyRunning) {
-              return { name, status: 'skipped' as const };
-            }
-
-            Logger.warn(
-              `Worker "${name}" is registered but not truly running. Restarting for crash recovery.`
-            );
-            try {
-              await factory.restart(name);
-              return { name, status: 'started' as const };
-            } catch (error) {
-              Logger.warn(`Failed to restart stale worker "${name}"`, error);
-              return { name, status: 'failed' as const };
-            }
-          }
-
-          try {
-            await factory.startFromPersisted(name);
-            return { name, status: 'started' as const };
-          } catch (error) {
-            Logger.warn(`Failed to start worker "${name}"`, error);
-            return { name, status: 'failed' as const };
-          }
-        })
-      );
-
-      const started = results.filter((result) => result.status === 'started').length;
-      const skipped = results.filter((result) => result.status === 'skipped').length;
-      const failed = results.filter((result) => result.status === 'failed').length;
-
-      Logger.info('Worker start-all summary', {
-        total: eligibleWorkers.length,
-        started,
-        skipped,
-        failed,
-      });
-    } catch (error) {
-      Logger.error('worker:start-all command failed', error);
+    if (WorkerStartupDiagnostics.hasBlockingIssues(report)) {
       process.exit(1);
     }
   };
 
   const cmd = BaseCommand.create({
-    name: 'worker:start-all',
-    description: 'Start all persisted workers',
-    execute: async () => ext(),
+    name: 'worker:doctor',
+    description: 'Print worker startup diagnostics and likely missing env keys',
+    addOptions: (command) => {
+      command.option('--json', 'Print machine-readable diagnostics');
+    },
+    execute: async (options) => {
+      await Promise.resolve();
+      ext(options);
+    },
   });
 
   return cmd;
@@ -617,5 +696,6 @@ export const WorkerCommands = {
   createWorkerStartAllCommand,
   createWorkerStopCommand,
   createWorkerRestartCommand,
+  createWorkerDoctorCommand,
   createWorkerSummaryCommand,
 };
