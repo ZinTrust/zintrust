@@ -613,7 +613,6 @@ export declare const FeatureFlags: any;
 export declare const QueryBuilder: any;
 export declare const Cloudflare: any;
 export declare const Router: any;
-export declare const Queue: any;
 export declare const Broadcast: any;
 export declare const Notification: any;
 export declare const NodeSingletons: {
@@ -776,7 +775,6 @@ export const FeatureFlags = {};
 export const QueryBuilder = {};
 export const Cloudflare = {};
 export const Router = {};
-export const Queue = {};
 export const Broadcast = {};
 export const Notification = {};
 export const NodeSingletons = {

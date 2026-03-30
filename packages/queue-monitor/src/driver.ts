@@ -65,11 +65,11 @@ async function discoverQueuesFromRedis(
 
 export const createBullMQDriver = (config: RedisConfig): QueueDriver => {
   const queues = new Map<string, Queue>();
-  const redis = createRedisConnection(config);
+  const redis = createRedisConnection(config, 3, { subsystem: 'queue-monitor' });
   const getQueue = (name: string): Queue => {
     if (!queues.has(name)) {
       const prefix = getBullMQSafeQueueName();
-      const connection = createRedisConnection(config);
+      const connection = createRedisConnection(config, 3, { subsystem: 'queue-monitor' });
       const queue = new Queue(name, { prefix, connection: connection as ConnectionOptions });
       queues.set(name, queue);
     }

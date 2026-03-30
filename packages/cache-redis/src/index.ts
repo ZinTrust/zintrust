@@ -1,5 +1,4 @@
 import { Cloudflare, Env, ErrorFactory, Logger, createRedisConnection } from '@zintrust/core';
-import { RedisProxyAdapter } from './RedisProxyAdapter.js';
 
 // Minimal interface to avoid importing internal core types
 export interface CacheDriver {
@@ -39,6 +38,16 @@ type IoRedisClient = {
   flushDb?: () => Promise<unknown>;
   exists: (key: string) => Promise<number>;
 };
+
+type RedisTransportOptions = {
+  subsystem: string;
+};
+
+const createSharedRedisConnection = createRedisConnection as unknown as (
+  config: { host: string; port: number; password?: string; db: number },
+  maxRetries?: number,
+  options?: RedisTransportOptions
+) => IoRedisClient;
 
 const safeJsonParse = <T>(value: string): T | null => {
   try {
@@ -111,14 +120,16 @@ const createWorkersCacheDriver = (config: RedisCacheConfig): CacheDriver => {
   let connected = false;
 
   const ensureClient = async (): Promise<IoRedisClient> => {
-    if (client === undefined) {
-      client = createRedisConnection({
+    client ??= createSharedRedisConnection(
+      {
         host: config.host,
         port: config.port,
         password: config.password,
         db: config.database ?? 0,
-      }) as unknown as IoRedisClient;
-    }
+      },
+      3,
+      { subsystem: 'cache' }
+    );
 
     if (!connected && typeof client.connect === 'function') {
       await client.connect();
@@ -201,15 +212,14 @@ const createNodeCacheDriver = (config: RedisCacheConfig): CacheDriver => {
 };
 
 const shouldUseProxy = (): boolean => {
-  if (Env.REDIS_PROXY_URL.trim() !== '') return true;
-  return Env.USE_REDIS_PROXY === true;
+  return Env.REDIS_PROXY_URL.trim() !== '' || Env.USE_REDIS_PROXY === true;
 };
 
 export const RedisCacheDriver = Object.freeze({
   create(config: RedisCacheConfig): CacheDriver {
     const isWorkers = Cloudflare.getWorkersEnv() !== null;
     if (shouldUseProxy()) {
-      return RedisProxyAdapter.create();
+      return createWorkersCacheDriver(config);
     }
 
     if (isWorkers && Cloudflare.isCloudflareSocketsEnabled() === false) {

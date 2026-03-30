@@ -71,6 +71,67 @@ const makeEnv = (overrides: Record<string, string | undefined>): Record<string, 
 };
 
 describe('patch coverage: JwtSessions', () => {
+  it('redis driver resolves shared transport with subsystem metadata', async () => {
+    vi.resetModules();
+
+    mockEnvModule();
+
+    const getMock = vi.fn(async () => null);
+    const setMock = vi.fn(async () => 'OK');
+    const delMock = vi.fn(async () => 1);
+    const createRedisConnectionMock = vi.fn(() => ({
+      get: getMock,
+      set: setMock,
+      del: delMock,
+    }));
+
+    vi.doMock('@config/workers', () => ({
+      createRedisConnection: createRedisConnectionMock,
+    }));
+
+    vi.doMock('@config/logger', () => ({
+      Logger: {
+        debug: vi.fn(),
+      },
+    }));
+
+    vi.doMock('@security/JwtManager', () => ({
+      JwtManager: {
+        create: () => ({
+          decode: () => ({
+            exp: Math.floor((Date.now() + 60_000) / 1000),
+            jti: 'jti-proxy',
+            sub: 'u1',
+          }),
+        }),
+      },
+    }));
+
+    vi.doMock('@config/security', () => ({
+      securityConfig: {
+        jwt: {
+          expiresIn: 60,
+        },
+      },
+    }));
+
+    process.env['JWT_SESSION_DRIVER'] = 'redis';
+    process.env['REDIS_HOST'] = 'localhost';
+    process.env['REDIS_PORT'] = '6379';
+    process.env['REDIS_DB'] = '0';
+
+    const { JwtSessions } = await import('@/security/JwtSessions');
+    JwtSessions._resetForTests();
+
+    await JwtSessions.register('t-proxy');
+
+    expect(createRedisConnectionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ db: 0, port: 6379 }),
+      3,
+      expect.objectContaining({ subsystem: 'jwt-sessions' })
+    );
+  });
+
   it('memory driver: register/isActive/logout/logoutAll with token parsing branches', async () => {
     vi.resetModules();
 

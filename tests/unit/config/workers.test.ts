@@ -45,6 +45,8 @@ describe('workers config', () => {
   afterEach(() => {
     registryGet.mockReset();
     vi.resetModules();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     delete (globalThis as unknown as { __zintrustIoredisModule?: unknown }).__zintrustIoredisModule;
   });
 
@@ -103,5 +105,33 @@ describe('workers config', () => {
 
     // Test that missing redis config is handled gracefully
     expect(workersConfig.defaultWorker).toBeDefined();
+  });
+
+  it('uses proxy transport when redis proxy mode is enabled', async () => {
+    vi.stubEnv('USE_REDIS_PROXY', 'true');
+    vi.stubEnv('REDIS_PROXY_URL', 'http://127.0.0.1:8791/redis');
+    vi.stubEnv('REDIS_PROXY_KEY_ID', 'test-key');
+    vi.stubEnv('REDIS_PROXY_SECRET', 'test-secret');
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ result: 'OK' }),
+      text: async () => '',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createRedisConnection } = await import('@config/workers');
+    const client = createRedisConnection({
+      host: 'localhost',
+      port: 6379,
+      password: '',
+      db: 0,
+    });
+
+    await expect(
+      (client as unknown as { set: (key: string, value: string) => Promise<string> }).set('k', 'v')
+    ).resolves.toBe('OK');
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:8791/redis/zin/redis/command');
   });
 });

@@ -2201,7 +2201,7 @@ const resolveWorkerStore = async (config: WorkerFactoryConfig): Promise<WorkerSt
     );
     const key_prefix = persistence.keyPrefix ?? keyPrefix();
     logRedisPersistenceConfig(redisConfig, key_prefix, 'resolveWorkerStore');
-    const client = createRedisConnection(redisConfig);
+    const client = createRedisConnection(redisConfig, 3, { subsystem: 'worker-persistence' });
     next = RedisWorkerStore.create(client, key_prefix);
   } else if (persistence.driver === 'database') {
     const explicitConnection =
@@ -2255,7 +2255,7 @@ const createWorkerStore = async (persistence: WorkerPersistenceConfig): Promise<
     );
     const key_prefix = persistence.keyPrefix ?? keyPrefix();
     logRedisPersistenceConfig(redisConfig, key_prefix, 'createWorkerStore');
-    const client = createRedisConnection(redisConfig);
+    const client = createRedisConnection(redisConfig, 3, { subsystem: 'worker-persistence' });
     return RedisWorkerStore.create(client, key_prefix);
   }
 

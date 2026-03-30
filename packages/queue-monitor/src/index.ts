@@ -93,11 +93,9 @@ type RequestWithParams = {
 
 function extractQueueParam(req: RequestWithParams): string | undefined {
   if (typeof req.getParam === 'function') {
-    return (
-      req.getParam('queue') || (req && req.params !== undefined ? req?.params['queue'] : undefined)
-    );
+    return req.getParam('queue') || (req?.params === undefined ? undefined : req?.params['queue']);
   }
-  return req && req.params !== undefined ? req?.params['queue'] : undefined;
+  return req?.params === undefined ? undefined : req?.params['queue'];
 }
 
 function fieldError(key: string, message: string): { error: string } {
@@ -219,7 +217,7 @@ const buildLockHistogram = (locks: Array<{ ttl?: number }>): LockHistogramBucket
 
 function createGetLocks(redisConfig: RedisConfig) {
   return async (pattern: string = '*'): Promise<LockAnalytics> => {
-    const client = createRedisConnection(redisConfig);
+    const client = createRedisConnection(redisConfig, 3, { subsystem: 'queue-monitor-locks' });
     const prefix_lock = resolveLockPrefix();
     const searchPattern = `${prefix_lock}${pattern}`;
 

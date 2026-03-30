@@ -25,12 +25,13 @@ describe('patch coverage: TokenRevocation redis + kv stores', () => {
 
     const setMock = vi.fn(async () => 'OK');
     const getMock = vi.fn(async () => '1');
+    const createRedisConnectionMock = vi.fn(() => ({
+      set: setMock,
+      get: getMock,
+    }));
 
     vi.doMock('@config/workers', () => ({
-      createRedisConnection: () => ({
-        set: setMock,
-        get: getMock,
-      }),
+      createRedisConnection: createRedisConnectionMock,
     }));
 
     const prevDriver = process.env['JWT_REVOCATION_DRIVER'];
@@ -60,6 +61,11 @@ describe('patch coverage: TokenRevocation redis + kv stores', () => {
     // active token -> should call redis set
     await expect(TokenRevocation.revoke('Bearer ok')).resolves.toBe('ok');
     expect(setMock).toHaveBeenCalled();
+    expect(createRedisConnectionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ db: 0, host: 'localhost', port: 6379 }),
+      3,
+      expect.objectContaining({ subsystem: 'jwt-revocation' })
+    );
 
     // isRevoked uses redis get
     await expect(TokenRevocation.isRevoked('ok')).resolves.toBe(true);

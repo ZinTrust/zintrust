@@ -25,12 +25,16 @@ function getRedisClient(): Redis {
   if (!redisClient) {
     const redisConfig = createBaseDrivers().redis;
     // Adapt queue config to worker config format if needed
-    redisClient = createRedisConnection({
-      host: redisConfig.host,
-      port: redisConfig.port,
-      password: redisConfig.password,
-      db: redisConfig.database,
-    });
+    redisClient = createRedisConnection(
+      {
+        host: redisConfig.host,
+        port: redisConfig.port,
+        password: redisConfig.password,
+        db: redisConfig.database,
+      },
+      3,
+      { subsystem: 'lock-provider' }
+    );
   }
   return redisClient;
 }

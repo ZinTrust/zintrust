@@ -159,12 +159,16 @@ const createRedisClientFactory = (options?: CsrfTokenManagerOptions) => {
     const database =
       dbFromEnv >= 0 ? dbFromEnv : Env.getInt('REDIS_QUEUE_DB', ZintrustLang.REDIS_DEFAULT_DB);
 
-    redisClient = createRedisConnection({
-      host: Env.get('REDIS_HOST', 'localhost'),
-      port: Env.getInt('REDIS_PORT', ZintrustLang.REDIS_DEFAULT_PORT),
-      password: Env.get('REDIS_PASSWORD'),
-      db: database,
-    });
+    redisClient = createRedisConnection(
+      {
+        host: Env.get('REDIS_HOST', 'localhost'),
+        port: Env.getInt('REDIS_PORT', ZintrustLang.REDIS_DEFAULT_PORT),
+        password: Env.get('REDIS_PASSWORD'),
+        db: database,
+      },
+      3,
+      { subsystem: 'csrf' }
+    );
 
     return redisClient;
   };

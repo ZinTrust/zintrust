@@ -100,6 +100,14 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
     if (sharedConnection) return sharedConnection;
 
     const isWorkersRuntime = Cloudflare.getWorkersEnv() !== null;
+    const redisProxyEnabled =
+      Env.USE_REDIS_PROXY === true || Env.get('REDIS_PROXY_URL', '').trim() !== '';
+
+    if (redisProxyEnabled && shouldUseHttpProxyDriver() === false) {
+      throw ErrorFactory.createConfigError(
+        'BullMQ Redis driver does not support REDIS proxy transport directly. Enable QUEUE_HTTP_PROXY_ENABLED=true for queue proxy mode, or disable REDIS proxy mode for direct BullMQ access.'
+      );
+    }
 
     if (isWorkersRuntime && Cloudflare.isCloudflareSocketsEnabled() === false) {
       throw ErrorFactory.createConfigError(
@@ -145,12 +153,16 @@ export const BullMQRedisQueue = ((): IBullMQRedisQueue => {
         'Redis host cannot be localhost in Cloudflare Workers. Use a public Redis host, or enable queue HTTP proxy mode with QUEUE_HTTP_PROXY_ENABLED=true and QUEUE_HTTP_PROXY_URL.'
       );
     }
-    sharedConnection = createRedisConnection({
-      host: redisConfig.host,
-      port: redisConfig.port,
-      password: redisConfig.password,
-      db: redisConfig.database,
-    });
+    sharedConnection = createRedisConnection(
+      {
+        host: redisConfig.host,
+        port: redisConfig.port,
+        password: redisConfig.password,
+        db: redisConfig.database,
+      },
+      3,
+      { subsystem: 'queue-bullmq' }
+    );
     return sharedConnection; // sharedConnection is IoRedis (compatible with BullMQ)
   };
 
