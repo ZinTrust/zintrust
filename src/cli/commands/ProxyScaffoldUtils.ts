@@ -1,7 +1,7 @@
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { isNonEmptyString } from '@helper/index';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from '@node-singletons/fs';
-import { join } from '@node-singletons/path';
+import { dirname, join } from '@node-singletons/path';
 
 type EnsureProxyEntrypointOptions = {
   cwd: string;
@@ -130,8 +130,7 @@ export const ensureProxyEntrypoint = (
     return { created: false, entryFilePath };
   }
 
-  const lastSlashIndex = entryFilePath.lastIndexOf('/');
-  const entryDir = lastSlashIndex > 0 ? entryFilePath.slice(0, lastSlashIndex) : options.cwd;
+  const entryDir = dirname(entryFilePath);
   mkdirSync(entryDir, { recursive: true });
   writeFileSync(
     entryFilePath,
