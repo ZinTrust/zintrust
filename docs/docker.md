@@ -176,6 +176,8 @@ SMTP_PROXY_URL=http://127.0.0.1:8800/smtp
 
 Direct per-service URLs (for example `http://127.0.0.1:8789`) still work, but they bypass the gateway.
 
+For the Cloudflare Containers gateway, the recommended base URLs remain the public service prefixes such as `http://127.0.0.1:8800/redis`. The gateway also accepts internal ZinTrust proxy paths such as `/zin/redis/command` for compatibility with callers that already target the raw proxy endpoint.
+
 ### Proxy stack env fallbacks (workers-compatible)
 
 `docker-compose.proxy.yml` now follows worker-style host env fallbacks:
