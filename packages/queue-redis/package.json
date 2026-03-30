@@ -43,7 +43,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "ioredis": "^5.10.0",
+    "ioredis": "^5.10.1",
     "redis": "^5.11.0"
   }
 }

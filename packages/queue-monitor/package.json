@@ -37,7 +37,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "bullmq": "^5.71.0",
-    "ioredis": "^5.10.0"
+    "bullmq": "^5.71.1",
+    "ioredis": "^5.10.1"
   }
 }

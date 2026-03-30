@@ -30,8 +30,8 @@
     "@zintrust/core": "^0.4.34"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.1.1",
-    "@cloudflare/workers-types": "^4.20260316.1"
+    "@cloudflare/containers": "^0.2.0",
+    "@cloudflare/workers-types": "^4.20260329.1"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",

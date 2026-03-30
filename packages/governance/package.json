@@ -23,9 +23,9 @@
     "node": ">=20.0.0"
   },
   "peerDependencies": {
+    "@zintrust/core": "^0.4.34",
     "eslint": "^10.0.0",
-    "typescript": ">=5.0.0",
-    "@zintrust/core": "^0.4.34"
+    "typescript": ">=5.0.0"
   },
   "publishConfig": {
     "access": "public"
@@ -40,7 +40,7 @@
   "dependencies": {
     "@eslint/js": "^10.0.1",
     "globals": "^17.4.0",
-    "typescript-eslint": "^8.57.0"
+    "typescript-eslint": "^8.57.2"
   },
   "overrides": {
     "ajv": "^8.18.0",

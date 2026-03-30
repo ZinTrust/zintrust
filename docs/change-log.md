@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-29
 
+- Updated the active dependency-maintenance line on `dev` by bumping the root ranges for `@cloudflare/containers`, `@faker-js/faker`, `@types/pg`, `eslint`, `miniflare`, `mongodb`, `mssql`, and `typescript-eslint`, syncing the Cloudflare Containers proxy workspace package to `@cloudflare/containers@^0.2.0` plus newer Workers types, and refreshing pinned GitHub Actions SHAs for `actions/checkout`, `docker/login-action`, TruffleHog, and CodeQL. The TypeScript `6.0.2` bump was intentionally left out because `typescript-eslint@8.57.2` still requires `typescript < 6.0.0` in this repo.
 - Fixed Docker release builds so they keep `DIST_SKIP_NPM_VERSION_CHECK=true` during the builder stage. This prevents the dist package manifest and build banner from auto-advancing past the published release line during local and CI image builds.
 - Extended the release version sync flow so it now updates and validates root `package.json` dependencies on workspace packages alongside the workspace manifests themselves. This keeps `package-lock.json` aligned for `npm ci` consumers such as the Docker image build, preventing release lines like `0.4.34` from publishing packages successfully while the container build still resolves an older internal package range.
 - Updated Queue Monitor middleware validation so `QUEUE_MONITOR_MIDDLEWARE` now accepts supported dynamic route middleware keys such as `rateLimit:1000:1`, then documented that env usage in the queue docs.
