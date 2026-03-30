@@ -35,9 +35,8 @@ describe('patch coverage: RedisTransport', () => {
       },
     }));
 
-    const { ensureRedisTransportMode, resolveRedisTransportMode } = await import(
-      '@/tools/redis/RedisTransport'
-    );
+    const { ensureRedisTransportMode, resolveRedisTransportMode } =
+      await import('@/tools/redis/RedisTransport');
 
     expect(resolveRedisTransportMode()).toBe('direct');
     expect(ensureRedisTransportMode(redisConfig, { subsystem: 'cache' })).toBe('direct');
@@ -100,7 +99,7 @@ describe('patch coverage: RedisTransport', () => {
       );
 
     vi.stubGlobal('fetch', fetchMock);
-  vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
+    vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
     vi.doMock('@config/env', () => ({
       Env: {
         USE_REDIS_PROXY: true,
@@ -118,9 +117,8 @@ describe('patch coverage: RedisTransport', () => {
       },
     }));
 
-    const { createRedisProxyConnection, resolveRedisTransportMode } = await import(
-      '@/tools/redis/RedisTransport'
-    );
+    const { createRedisProxyConnection, resolveRedisTransportMode } =
+      await import('@/tools/redis/RedisTransport');
 
     expect(resolveRedisTransportMode()).toBe('proxy');
 
@@ -128,8 +126,8 @@ describe('patch coverage: RedisTransport', () => {
 
     expect(await client.connect()).toBeUndefined();
     expect(await client.call('get', 'alpha')).toBe('value-1');
-  expect(await client.get('beta')).toBe('value-2');
-  expect(await client.quit()).toBe('OK');
+    expect(await client.get('beta')).toBe('value-2');
+    expect(await client.quit()).toBe('OK');
     expect(client.on('ready', () => undefined)).toBe(client);
     expect(client.once('ready', () => undefined)).toBe(client);
     expect(client.off('ready', () => undefined)).toBe(client);
@@ -174,7 +172,7 @@ describe('patch coverage: RedisTransport', () => {
       .mockRejectedValueOnce(new Error('scan failed'));
 
     vi.stubGlobal('fetch', fetchMock);
-  vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
+    vi.doMock('@config/logger', () => ({ Logger: { info, error } }));
     vi.doMock('@config/env', () => ({
       Env: {
         USE_REDIS_PROXY: true,
