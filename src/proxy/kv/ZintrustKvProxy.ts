@@ -1,7 +1,12 @@
 import { isObject, isString } from '@helper/index';
-import { ErrorHandler } from '@proxy/ErrorHandler';
+import {
+  getEnvInt,
+  json,
+  normalizeBindingName,
+  readAndVerifyJson,
+  toErrorResponse,
+} from '@proxy/CloudflareProxyShared';
 import { RequestValidator } from '@proxy/RequestValidator';
-import { SigningService } from '@proxy/SigningService';
 
 type KVNamespacePutOptions = {
   expirationTtl?: number;
@@ -50,130 +55,6 @@ const DEFAULT_SIGNING_WINDOW_MS = 60_000;
 const DEFAULT_MAX_BODY_BYTES = 128 * 1024;
 const DEFAULT_LIST_LIMIT = 100;
 
-const json = (status: number, body: unknown): Response => {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store',
-    },
-  });
-};
-
-const toErrorResponse = (status: number, code: string, message: string): Response => {
-  const error = ErrorHandler.toProxyError(status, code, message);
-  return json(error.status, error.body);
-};
-
-const getEnvInt = (env: KvEnv, name: keyof KvEnv, fallback: number): number => {
-  const raw = env[name];
-  if (!isString(raw)) return fallback;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const normalizeBindingName = (value: unknown): string | null => {
-  if (!isString(value)) return null;
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-};
-
-const readBodyBytes = async (
-  request: Request,
-  maxBytes: number
-): Promise<{ ok: true; bytes: Uint8Array; text: string } | { ok: false; response: Response }> => {
-  const buf = await request.arrayBuffer();
-  if (buf.byteLength > maxBytes) {
-    return {
-      ok: false,
-      response: toErrorResponse(413, 'PAYLOAD_TOO_LARGE', 'Body too large'),
-    };
-  }
-
-  const bytes = new Uint8Array(buf);
-  const text = new TextDecoder().decode(bytes);
-  return { ok: true, bytes, text };
-};
-
-const parseOptionalJson = (
-  text: string
-): { ok: true; payload: Record<string, unknown> | null } | { ok: false; response: Response } => {
-  if (text.trim() === '') return { ok: true, payload: null };
-
-  const parsed = RequestValidator.parseJson(text);
-  if (!parsed.ok) {
-    let message = parsed.error.message;
-    if (parsed.error.code === 'INVALID_JSON') {
-      message = 'Invalid JSON body';
-    } else if (parsed.error.code === 'VALIDATION_ERROR') {
-      message = 'Invalid body';
-    }
-    return { ok: false, response: toErrorResponse(400, parsed.error.code, message) };
-  }
-
-  return { ok: true, payload: parsed.value };
-};
-
-const loadSigningSecret = (env: KvEnv): string | null => {
-  const direct = isString(env.KV_REMOTE_SECRET) ? env.KV_REMOTE_SECRET.trim() : '';
-  if (direct !== '') return direct;
-
-  const fallback = isString(env.APP_KEY) ? env.APP_KEY.trim() : '';
-  if (fallback !== '') return fallback;
-
-  return null;
-};
-
-const verifyNonceKv = async (
-  kv: KVNamespace,
-  keyId: string,
-  nonce: string,
-  ttlMs: number
-): Promise<boolean> => {
-  const ttlSeconds = Math.max(1, Math.ceil(ttlMs / 1000));
-  const storageKey = `nonce:${keyId}:${nonce}`;
-  const existing = await kv.get(storageKey);
-  if (existing !== null) return false;
-  await kv.put(storageKey, '1', { expirationTtl: ttlSeconds });
-  return true;
-};
-
-const verifySignedRequest = async (
-  request: Request,
-  env: KvEnv,
-  bodyBytes: Uint8Array
-): Promise<Response | { ok: true }> => {
-  const secret = loadSigningSecret(env);
-  if (secret === null) {
-    return toErrorResponse(
-      500,
-      'CONFIG_ERROR',
-      'Missing signing secret (KV_REMOTE_SECRET or APP_KEY)'
-    );
-  }
-
-  const windowMs = getEnvInt(env, 'ZT_PROXY_SIGNING_WINDOW_MS', DEFAULT_SIGNING_WINDOW_MS);
-  const verifyResult = await SigningService.verifyWithKeyProvider({
-    method: request.method,
-    url: request.url,
-    body: bodyBytes,
-    headers: request.headers,
-    windowMs,
-    getSecretForKeyId: (_keyId: string) => secret,
-    verifyNonce:
-      env.ZT_NONCES === undefined
-        ? undefined
-        : async (keyId: string, nonce: string, ttlMs: number): Promise<boolean> =>
-            verifyNonceKv(env.ZT_NONCES as KVNamespace, keyId, nonce, ttlMs),
-  });
-
-  if (!verifyResult.ok) {
-    return toErrorResponse(verifyResult.status, verifyResult.code, verifyResult.message);
-  }
-
-  return { ok: true };
-};
-
 const requireCache = (env: KvEnv): Response | KVNamespace => {
   if (env.CACHE !== undefined && env.CACHE !== null) return env.CACHE;
 
@@ -205,24 +86,26 @@ const buildStorageKey = (env: KvEnv, params: { namespace?: string; key: string }
   return parts.join(':');
 };
 
-const readAndVerifyJson = async (
+const resolveCacheRequest = async (
   request: Request,
   env: KvEnv
 ): Promise<
-  | { ok: true; payload: Record<string, unknown> | null; bodyBytes: Uint8Array }
+  | { ok: true; cache: KVNamespace; payload: Record<string, unknown> | null }
   | { ok: false; response: Response }
 > => {
-  const maxBodyBytes = getEnvInt(env, 'ZT_MAX_BODY_BYTES', DEFAULT_MAX_BODY_BYTES);
-  const bodyResult = await readBodyBytes(request, maxBodyBytes);
-  if (!bodyResult.ok) return { ok: false, response: bodyResult.response };
+  const check = await readAndVerifyJson(request, env, {
+    secretEnvVar: 'KV_REMOTE_SECRET',
+    missingSecretStatus: 500,
+    missingSecretMessage: 'Missing signing secret (KV_REMOTE_SECRET or APP_KEY)',
+    defaultSigningWindowMs: DEFAULT_SIGNING_WINDOW_MS,
+    defaultMaxBodyBytes: DEFAULT_MAX_BODY_BYTES,
+  });
+  if (!check.ok) return { ok: false, response: check.response };
 
-  const auth = await verifySignedRequest(request, env, bodyResult.bytes);
-  if (auth instanceof Response) return { ok: false, response: auth };
+  const cache = requireCache(env);
+  if (cache instanceof Response) return { ok: false, response: cache };
 
-  const parsed = parseOptionalJson(bodyResult.text);
-  if (!parsed.ok) return { ok: false, response: parsed.response };
-
-  return { ok: true, payload: parsed.payload, bodyBytes: bodyResult.bytes };
+  return { ok: true, cache, payload: check.payload };
 };
 
 const parseGetPayload = (
@@ -247,28 +130,25 @@ const parseGetPayload = (
 };
 
 const handleGet = async (request: Request, env: KvEnv): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  const resolved = await resolveCacheRequest(request, env);
+  if (!resolved.ok) return resolved.response;
 
-  const cache = requireCache(env);
-  if (cache instanceof Response) return cache;
-
-  const parsed = parseGetPayload(check.payload);
+  const parsed = parseGetPayload(resolved.payload);
   if (!parsed.ok) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
 
   if (parsed.type === 'json') {
-    const value = await cache.get(storageKey, 'json');
+    const value = await resolved.cache.get(storageKey, 'json');
     return json(200, { value: value ?? null });
   }
 
   if (parsed.type === 'arrayBuffer') {
-    const value = await cache.get(storageKey, 'arrayBuffer');
+    const value = await resolved.cache.get(storageKey, 'arrayBuffer');
     return json(200, { value: value ?? null });
   }
 
-  const value = await cache.get(storageKey);
+  const value = await resolved.cache.get(storageKey);
   return json(200, { value: value ?? null });
 };
 
@@ -302,13 +182,10 @@ const parsePutPayload = (
 };
 
 const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  const resolved = await resolveCacheRequest(request, env);
+  if (!resolved.ok) return resolved.response;
 
-  const cache = requireCache(env);
-  if (cache instanceof Response) return cache;
-
-  const parsed = parsePutPayload(check.payload);
+  const parsed = parsePutPayload(resolved.payload);
   if (!parsed.ok) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
@@ -319,7 +196,7 @@ const handlePut = async (request: Request, env: KvEnv): Promise<Response> => {
     options.expirationTtl = Math.floor(parsed.ttlSeconds);
   }
 
-  await cache.put(storageKey, value, options);
+  await resolved.cache.put(storageKey, value, options);
   return json(200, { ok: true });
 };
 
@@ -339,17 +216,14 @@ const parseDeletePayload = (
 };
 
 const handleDelete = async (request: Request, env: KvEnv): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  const resolved = await resolveCacheRequest(request, env);
+  if (!resolved.ok) return resolved.response;
 
-  const cache = requireCache(env);
-  if (cache instanceof Response) return cache;
-
-  const parsed = parseDeletePayload(check.payload);
+  const parsed = parseDeletePayload(resolved.payload);
   if (!parsed.ok) return parsed.response;
 
   const storageKey = buildStorageKey(env, { namespace: parsed.namespace, key: parsed.key });
-  await cache.delete(storageKey);
+  await resolved.cache.delete(storageKey);
   return json(200, { ok: true });
 };
 
@@ -372,13 +246,10 @@ const parseListPayload = (
 };
 
 const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
-  const check = await readAndVerifyJson(request, env);
-  if (!check.ok) return check.response;
+  const resolved = await resolveCacheRequest(request, env);
+  if (!resolved.ok) return resolved.response;
 
-  const cache = requireCache(env);
-  if (cache instanceof Response) return cache;
-
-  const parsed = parseListPayload(check.payload);
+  const parsed = parseListPayload(resolved.payload);
   if (!parsed.ok) return parsed.response;
 
   const envLimit = getEnvInt(env, 'ZT_KV_LIST_LIMIT', DEFAULT_LIST_LIMIT);
@@ -390,7 +261,11 @@ const handleList = async (request: Request, env: KvEnv): Promise<Response> => {
   const basePrefix = buildStorageKey(env, { namespace: namespacePrefix, key: '' });
   const fullPrefix = prefixKey === undefined ? basePrefix : `${basePrefix}${prefixKey}`;
 
-  const out = await cache.list({ prefix: fullPrefix, limit, cursor: parsed.params.cursor });
+  const out = await resolved.cache.list({
+    prefix: fullPrefix,
+    limit,
+    cursor: parsed.params.cursor,
+  });
 
   return json(200, {
     keys: out.keys.map((key) => key.name),

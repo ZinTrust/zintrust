@@ -118,23 +118,16 @@ const buildDistPackageJson = (rootPkg: RootPackageJson): DistPackageJson => {
 };
 
 const writeDistEntrypoints = (distPath: string): void => {
-  const distIndexJsPath = path.join(distPath, 'index.js');
-  const distIndexDtsPath = path.join(distPath, 'index.d.ts');
+  const entrypoints = [
+    ['index.js', "export * from './src/index.js';\n"],
+    ['index.d.ts', "export * from './src/index';\n"],
+    ['start.js', "export * from './src/start.js'; export { default } from './src/start.js';\n"],
+    ['start.d.ts', "export * from './src/start'; export { default } from './src/start';\n"],
+  ] as const;
 
-  const distStartJsPath = path.join(distPath, 'start.js');
-  const distStartDtsPath = path.join(distPath, 'start.d.ts');
-
-  fs.writeFileSync(distIndexJsPath, "export * from './src/index.js';\n");
-  fs.writeFileSync(distIndexDtsPath, "export * from './src/index';\n");
-
-  fs.writeFileSync(
-    distStartJsPath,
-    "export * from './src/start.js'; export { default } from './src/start.js';\n"
-  );
-  fs.writeFileSync(
-    distStartDtsPath,
-    "export * from './src/start'; export { default } from './src/start';\n"
-  );
+  for (const [relativePath, content] of entrypoints) {
+    fs.writeFileSync(path.join(distPath, relativePath), content);
+  }
 };
 
 const writeDistPackageJson = (distPath: string, pkg: DistPackageJson): void => {
@@ -144,20 +137,24 @@ const writeDistPackageJson = (distPath: string, pkg: DistPackageJson): void => {
 
 const warnIfMissingDistArtifacts = (distPath: string): void => {
   const expected = [
-    path.join(distPath, 'src', 'index.js'),
-    path.join(distPath, 'bin', 'zintrust.js'),
-    path.join(distPath, 'bin', 'zin.js'),
-  ];
+    ['src/index.js', 'Dist artifact missing (did you run build?)'],
+    ['bin/zintrust.js', 'Dist artifact missing (did you run build?)'],
+    ['bin/zin.js', 'Dist artifact missing (did you run build?)'],
+    ['public', 'Docs public root missing'],
+  ] as const;
 
-  for (const candidate of expected) {
-    if (!fs.existsSync(candidate)) {
-      Logger.warn(`Dist artifact missing (did you run build?): ${candidate}`);
+  for (const [relativePath, message] of expected) {
+    const candidate = path.join(distPath, ...relativePath.split('/'));
+    if (fs.existsSync(candidate)) {
+      continue;
     }
-  }
 
-  const docsRoot = path.join(distPath, 'public');
-  if (!fs.existsSync(docsRoot)) {
-    Logger.warn(`Docs public root missing at ${docsRoot} (expected dist/public)`);
+    if (relativePath === 'public') {
+      Logger.warn(`${message} at ${candidate} (expected dist/public)`);
+      continue;
+    }
+
+    Logger.warn(`${message}: ${candidate}`);
   }
 };
 
