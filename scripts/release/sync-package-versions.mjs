@@ -44,6 +44,10 @@ async function readJsonIfExists(filePath) {
   }
 }
 
+function cloneValue(value) {
+  return structuredClone(value);
+}
+
 function normalizePeerRange(version) {
   // Keep peers compatible with the current core major/minor.
   // If you prefer strict lockstep, change to just `${version}`.
@@ -112,8 +116,8 @@ async function syncPackageJson(pkgPath, coreName, coreVersion) {
     // Keep adapter packages tracking the core version.
     pkg.peerDependencies[coreName] = normalizePeerRange(coreVersion);
 
-    // Prefer lockstep versions when core is ahead. Never downgrade.
-    if (typeof pkg.version === 'string' && compareVersions(coreVersion, pkg.version) > 0) {
+    // Keep workspace packages in exact lockstep with the core version.
+    if (typeof pkg.version === 'string' && pkg.version !== coreVersion) {
       pkg.version = coreVersion;
     }
 
@@ -124,6 +128,121 @@ async function syncPackageJson(pkgPath, coreName, coreVersion) {
     if (isEnoent(error)) return undefined;
     throw error;
   }
+}
+
+function replaceOrDeleteSection(target, key, source) {
+  const value = source[key];
+  if (typeof value === 'object' && value !== null) {
+    target[key] = cloneValue(value);
+    return true;
+  }
+
+  if (key in target) {
+    delete target[key];
+    return true;
+  }
+
+  return false;
+}
+
+function syncMirroredField(target, key, value) {
+  const nextValue =
+    typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value);
+  const currentValue =
+    typeof target[key] === 'object' && target[key] !== null
+      ? JSON.stringify(target[key])
+      : String(target[key]);
+
+  if (nextValue === currentValue) {
+    return false;
+  }
+
+  if (value === undefined) {
+    delete target[key];
+  } else if (typeof value === 'object' && value !== null) {
+    target[key] = cloneValue(value);
+  } else {
+    target[key] = value;
+  }
+
+  return true;
+}
+
+function syncRootLockEntry(rootLock, rootPkg) {
+  let didChange = false;
+
+  if (rootLock.name !== rootPkg.name) {
+    rootLock.name = rootPkg.name;
+    didChange = true;
+  }
+
+  if (rootLock.version !== rootPkg.version) {
+    rootLock.version = rootPkg.version;
+    didChange = true;
+  }
+
+  rootLock.packages = rootLock.packages ?? {};
+  const rootEntry = rootLock.packages[''] ?? (rootLock.packages[''] = {});
+
+  const keysToMirror = ['name', 'version'];
+  for (const key of keysToMirror) {
+    if (syncMirroredField(rootEntry, key, rootPkg[key])) {
+      didChange = true;
+    }
+  }
+
+  for (const key of [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ]) {
+    if (replaceOrDeleteSection(rootEntry, key, rootPkg)) {
+      didChange = true;
+    }
+  }
+
+  return didChange;
+}
+
+function syncWorkspaceLockEntry(lockEntry, pkg, coreName) {
+  let didChange = false;
+
+  const keysToMirror = ['name', 'version'];
+
+  for (const key of keysToMirror) {
+    if (syncMirroredField(lockEntry, key, pkg[key])) {
+      didChange = true;
+    }
+  }
+
+  const expectedPeerRange = normalizePeerRange(pkg.version ?? '');
+  if (
+    typeof pkg.version === 'string' &&
+    lockEntry.peerDependencies?.[coreName] !== expectedPeerRange
+  ) {
+    lockEntry.peerDependencies = lockEntry.peerDependencies ?? {};
+    lockEntry.peerDependencies[coreName] = expectedPeerRange;
+    didChange = true;
+  }
+
+  return didChange;
+}
+
+function syncPackageLock(rootLock, rootPkg, packageInfos, coreName) {
+  let didChange = syncRootLockEntry(rootLock, rootPkg);
+
+  rootLock.packages = rootLock.packages ?? {};
+
+  for (const pkgInfo of packageInfos) {
+    const lockKey = `packages/${pkgInfo.dirName}`;
+    const lockEntry = rootLock.packages[lockKey] ?? (rootLock.packages[lockKey] = {});
+    if (syncWorkspaceLockEntry(lockEntry, pkgInfo, coreName)) {
+      didChange = true;
+    }
+  }
+
+  return didChange;
 }
 
 function syncRootWorkspaceDependencies(rootPkg, packageInfos) {
@@ -164,7 +283,7 @@ async function syncPackages(packageDirs, coreName, coreVersion) {
 
     if (pkg) {
       touched.push(path.relative(repoRoot, pkgPath));
-      packageInfos.push({ dirName, name: pkg.name, version: pkg.version });
+      packageInfos.push({ dirName, ...pkg });
     }
   }
 
@@ -173,6 +292,13 @@ async function syncPackages(packageDirs, coreName, coreVersion) {
   if (syncRootWorkspaceDependencies(rootPkg, packageInfos)) {
     await writeJson(rootPkgPath, rootPkg);
     touched.push(path.relative(repoRoot, rootPkgPath));
+  }
+
+  const rootLockPath = path.join(repoRoot, 'package-lock.json');
+  const rootLock = await readJsonIfExists(rootLockPath);
+  if (rootLock !== undefined && syncPackageLock(rootLock, rootPkg, packageInfos, coreName)) {
+    await writeJson(rootLockPath, rootLock);
+    touched.push(path.relative(repoRoot, rootLockPath));
   }
 
   return touched;
