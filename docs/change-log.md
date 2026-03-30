@@ -2,6 +2,10 @@
 
 This page tracks developer-visible documentation changes.
 
+## 2026-03-30
+
+- Fixed the `zin init:container-workers` scaffold so the generated `docker-compose.workers.yml` keeps `WORKER_ENABLED` and `WORKER_AUTO_START` correctly indented inside the `workers-api.environment` list. This prevents malformed compose output in freshly scaffolded worker container setups.
+
 ## 2026-03-29
 
 - Fixed the Cloudflare Containers proxy gateway so it now routes both the documented public service prefixes such as `/redis/*` and the internal ZinTrust proxy paths such as `/zin/redis/command` to the correct backend container. This prevents Worker startup and auth flows from failing with `Redis proxy request failed (404)` when a caller reaches the gateway using the raw proxy path.
