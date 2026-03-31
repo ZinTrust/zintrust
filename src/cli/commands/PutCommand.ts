@@ -1,9 +1,13 @@
 import { BaseCommand, type CommandOptions, type IBaseCommand } from '@cli/BaseCommand';
+import {
+  readZintrustConfig,
+  resolveCloudflareEnvKeys,
+} from '@cli/cloudflare/CloudflareEnvTargetConfig';
 import { resolveNpmPath } from '@common/index';
 import { appConfig } from '@config/app';
 import { ErrorFactory } from '@exceptions/ZintrustError';
 import { execFileSync } from '@node-singletons/child-process';
-import { existsSync, readFileSync } from '@node-singletons/fs';
+import { existsSync } from '@node-singletons/fs';
 import * as path from '@node-singletons/path';
 import { EnvFile } from '@toolkit/Secrets/EnvFile';
 import type { Command } from 'commander';
@@ -11,12 +15,11 @@ import type { Command } from 'commander';
 type PutCommandOptions = CommandOptions & {
   wg?: string[] | string;
   var?: string[] | string;
+  target?: string;
   env_path?: string;
   dryRun?: boolean;
   config?: string;
 };
-
-type ZintrustConfig = Record<string, unknown>;
 
 type PutFailure = {
   wranglerEnv: string;
@@ -42,22 +45,7 @@ const uniq = (items: string[]): string[] => {
   return out;
 };
 
-const readZintrustConfig = (cwd: string): ZintrustConfig => {
-  const filePath = path.join(cwd, '.zintrust.json');
-  if (!existsSync(filePath)) {
-    return {};
-  }
-
-  try {
-    const raw = readFileSync(filePath, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    return typeof parsed === 'object' && parsed !== null ? (parsed as ZintrustConfig) : {};
-  } catch (error) {
-    throw ErrorFactory.createCliError('Failed to parse .zintrust.json', error);
-  }
-};
-
-const getConfigArray = (config: ZintrustConfig, key: string): string[] => {
+const getConfigArray = (config: Record<string, unknown>, key: string): string[] => {
   const raw = config[key];
   if (!Array.isArray(raw)) return [];
   return uniq(raw.filter((item): item is string => typeof item === 'string'));
@@ -122,6 +110,7 @@ const addOptions = (command: Command): void => {
     .argument('[provider]', 'Secret provider (cloudflare)', 'cloudflare')
     .option('--wg <env...>', 'Wrangler environment target(s), e.g. d1-proxy kv-proxy')
     .option('--var <configKey...>', 'Config array key(s) from .zintrust.json (e.g. d1_env kv_env)')
+    .option('--target <id>', 'Cloudflare worker target key from .zintrust.json cloudflare.targets')
     .option('--env_path <path>', 'Path to env file used as source values', '.env')
     .option('-c, --config <path>', 'Wrangler config file to target (optional)')
     .option('--dry-run', 'Show what would be uploaded without calling wrangler');
@@ -134,15 +123,12 @@ const ensureCloudflareProvider = (providerRaw: string): void => {
 
 const resolveSelectedKeys = (
   cmd: IBaseCommand,
-  config: ZintrustConfig,
-  options: PutCommandOptions
+  config: Record<string, unknown>,
+  options: PutCommandOptions,
+  cwd: string
 ): string[] => {
   const configGroups = resolveConfigGroups(options);
-  if (configGroups.length === 0) {
-    throw ErrorFactory.createCliError('No config groups selected. Use --var <group>.');
-  }
-
-  const selectedKeys = uniq(
+  const explicitKeys = uniq(
     configGroups.flatMap((groupKey) => {
       const keys = getConfigArray(config, groupKey);
       if (keys.length === 0) {
@@ -152,8 +138,30 @@ const resolveSelectedKeys = (
     })
   );
 
+  const configPath = typeof options.config === 'string' ? options.config.trim() : '';
+  const manifestKeys = uniq(
+    resolveWranglerEnvs(options).flatMap((wranglerEnv) =>
+      resolveCloudflareEnvKeys({
+        config,
+        projectRoot: cwd,
+        cwd,
+        ...(configPath === '' ? {} : { configPath }),
+        wranglerEnv,
+        ...(typeof options.target === 'string' && options.target.trim() !== ''
+          ? { target: options.target.trim() }
+          : {}),
+      })
+    )
+  );
+
+  const selectedKeys = uniq([...explicitKeys, ...manifestKeys]);
+
   if (selectedKeys.length === 0) {
-    throw ErrorFactory.createCliError('No secret keys resolved from selected groups.');
+    throw ErrorFactory.createCliError(
+      configGroups.length === 0
+        ? 'No secret keys resolved from .zintrust.json cloudflare.shared_env/cloudflare.targets/cloudflare.wrangler_envs. Use --var <group> or add a Cloudflare env manifest.'
+        : 'No secret keys resolved from selected groups.'
+    );
   }
 
   return selectedKeys;
@@ -209,7 +217,7 @@ const execute = async (cmd: IBaseCommand, options: PutCommandOptions): Promise<v
 
   const cwd = process.cwd();
   const config = readZintrustConfig(cwd);
-  const selectedKeys = resolveSelectedKeys(cmd, config, options);
+  const selectedKeys = resolveSelectedKeys(cmd, config, options, cwd);
 
   const envFilePath = parseEnvPath(options);
   const envMap = await EnvFile.read({ cwd, path: envFilePath });

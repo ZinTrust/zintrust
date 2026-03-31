@@ -213,6 +213,9 @@ describe('ProjectScaffolder extra tests', () => {
     const cfg = JSON.parse(await fsPromises.readFile(cfgPath, 'utf8'));
     expect(cfg.server.port).toBe(2222);
     expect(cfg.database.connection).toBe('sqlite');
+    expect(cfg.cloudflare.shared_env).toContain('APP_KEY');
+    expect(cfg.cloudflare.targets.worker).toEqual([]);
+    expect(cfg.cloudflare.wrangler_envs['d1-proxy']).toContain('D1_REMOTE_SECRET');
 
     await fsPromises.rm(projectPath, { recursive: true, force: true });
   });

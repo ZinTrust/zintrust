@@ -333,14 +333,30 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
     const serviceCwd = '/workspace/src/services/app/gatewaynext';
     const projectRoot = '/workspace';
 
+    process.env['APP_KEY'] = 'shared-secret';
+    process.env['SESSION_SECRET'] = 'session-secret';
+    process.env['UNRELATED_SECRET'] = 'ignore-me';
+
     vi.spyOn(process, 'cwd').mockReturnValue(serviceCwd);
     vi.mocked(fs.existsSync).mockImplementation((p: any) => {
       const value = String(p);
       if (value === `${serviceCwd}/wrangler.jsonc`) return true;
       if (value === `${projectRoot}/package.json`) return true;
+      if (value === `${projectRoot}/.zintrust.json`) return true;
       return false;
     });
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ name: 'consumer-app' }));
+    vi.mocked(fs.readFileSync).mockImplementation((value: any) => {
+      const filePath = String(value);
+      if (filePath === `${projectRoot}/.zintrust.json`) {
+        return JSON.stringify({
+          cloudflare: {
+            shared_env: ['APP_KEY', 'SESSION_SECRET'],
+          },
+        });
+      }
+
+      return JSON.stringify({ name: 'consumer-app' });
+    });
     vi.mocked(SpawnUtil.spawnAndWait).mockResolvedValue(0);
 
     await expect(command.execute({ wg: true })).rejects.toThrow(/process.exit/);
@@ -364,6 +380,15 @@ export default { async fetch(request, env, ctx) { await getKernel(); return clou
       expect.stringContaining('ZINTRUST_PROJECT_ROOT='),
       'utf-8'
     );
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      `${serviceCwd}/.dev.vars`,
+      expect.stringContaining('APP_KEY="shared-secret"'),
+      'utf-8'
+    );
+    const devVarsOutput = vi
+      .mocked(fs.writeFileSync)
+      .mock.calls.find((call) => call[0] === `${serviceCwd}/.dev.vars`)?.[1];
+    expect(String(devVarsOutput ?? '')).not.toContain('UNRELATED_SECRET');
   });
 
   it('should recover a stale wrangler env backup instead of creating new backup names', async () => {

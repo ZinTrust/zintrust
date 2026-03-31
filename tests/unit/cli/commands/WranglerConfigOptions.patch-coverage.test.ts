@@ -2,6 +2,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('Wrangler --config options (patch coverage)', () => {
+  const createPathMock = () => ({
+    join: (...parts: string[]) => parts.join('/'),
+    basename: (value: string) => value.split('/').at(-1) ?? '',
+    dirname: (value: string) => value.split('/').slice(0, -1).join('/') || '/',
+    relative: (from: string, to: string) => to.replace(`${from}/`, ''),
+    isAbsolute: (value: string) => value.startsWith('/'),
+    sep: '/',
+  });
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -9,7 +18,7 @@ describe('Wrangler --config options (patch coverage)', () => {
 
   describe('DeployCommand --config', () => {
     it('throws when --config file does not exist', async () => {
-      vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+      vi.doMock('@node-singletons/path', createPathMock);
       vi.doMock('@node-singletons/fs', () => ({ existsSync: vi.fn(() => false) }));
 
       const { DeployCommand } = await import('@cli/commands/DeployCommand');
@@ -27,7 +36,7 @@ describe('Wrangler --config options (patch coverage)', () => {
       vi.doMock('@cli/utils/spawn', () => ({ SpawnUtil: { spawnAndWait } }));
       vi.doMock('@config/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn() } }));
 
-      vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+      vi.doMock('@node-singletons/path', createPathMock);
       vi.doMock('@node-singletons/fs', () => ({
         existsSync: vi.fn((p: string) => p === '/cwd/wrangler.containers-proxy.jsonc'),
       }));
@@ -52,7 +61,7 @@ describe('Wrangler --config options (patch coverage)', () => {
     it('throws when --config path does not exist', async () => {
       vi.spyOn(process, 'cwd').mockReturnValue('/cwd');
 
-      vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+      vi.doMock('@node-singletons/path', createPathMock);
       vi.doMock('@node-singletons/fs', () => ({
         existsSync: vi.fn((p: string) => p === '/cwd/.zintrust.json'),
         readFileSync: vi.fn(() => JSON.stringify({ proxy_env: ['APP_KEY'] })),
@@ -83,7 +92,7 @@ describe('Wrangler --config options (patch coverage)', () => {
       const execFileSync = vi.fn();
       vi.doMock('@node-singletons/child-process', () => ({ execFileSync }));
 
-      vi.doMock('@node-singletons/path', () => ({ join: (...parts: string[]) => parts.join('/') }));
+      vi.doMock('@node-singletons/path', createPathMock);
       vi.doMock('@node-singletons/fs', () => ({
         existsSync: vi.fn(
           (p: string) => p === '/cwd/.zintrust.json' || p === '/cwd/wrangler.containers-proxy.jsonc'

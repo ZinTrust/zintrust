@@ -4,6 +4,7 @@ This page tracks developer-visible documentation changes.
 
 ## 2026-03-30
 
+- Added a first-class Cloudflare env-target manifest shape to fresh `.zintrust.json` scaffolds via `cloudflare.shared_env`, `cloudflare.targets`, and `cloudflare.wrangler_envs`, then wired that manifest into `zin put` and local `zin s --wg` snapshots. Fresh projects can now keep one canonical shared secret list plus additive per-target keys, and Wrangler dev no longer needs to dump every loaded env var into every Worker by default.
 - Fixed the `zin init:container-workers` scaffold so the generated `docker-compose.workers.yml` keeps `WORKER_ENABLED` and `WORKER_AUTO_START` correctly indented inside the `workers-api.environment` list. This prevents malformed compose output in freshly scaffolded worker container setups.
 
 ## 2026-03-29
